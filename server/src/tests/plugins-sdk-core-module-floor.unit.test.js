@@ -70,7 +70,7 @@ test('the audit case: accounting-export reaches installmentPlan, so it declares 
 // specs/plugins-phase-1-sdk.md rule 37 — `coreModule('stayDates')` ships with SDK 2.20.0, hands the stay's own guard
 // too, and its consumers declare that floor; the tariff recipes reach the window through the core models. online-payment
 // joined with its reconciliation start date (audit R20-P1).
-// specs/plugins-phase-1-sdk.md rule 40 — accounting-export reads the entered-date window for the synthesis's periods.
+// specs/plugins-phase-1-sdk.md rule 41 — accounting-export reads the entered-date window for the synthesis's periods.
 test('rule 37: stayDates is an SDK 2.20.0 module; accounting-export, linen, online-payment, school-holidays and hourly-resources declare ^2.20.0 at least', () => {
   assert.equal(moduleSince.get('stayDates'), '2.20.0');
   assert.deepEqual(Object.keys(require('../utils/stayDates')).sort(), [...CONTRACT.stayDates].sort());

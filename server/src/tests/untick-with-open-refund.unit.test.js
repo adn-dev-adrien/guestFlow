@@ -200,3 +200,119 @@ test('a deferred complement un-ticked takes its end of stay too: what stays is j
   assert.equal(res.statusCode, 409);
   assert.equal(res.body.code, CODE);
 });
+
+// Rule 52 reading (audit R24-DB-2, 2026-11-05) — a re-opened SAS and « Sans acompte » take marks back too: same guard, same 409.
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
+const sasController = optionalPlugin(() => require('../plugins/sas/controller'));
+const SAS = { skip: skipWithout(['sas']) };
+
+function sas(id, side, body) {
+  const res = respond();
+  sasController[side === 'arrival' ? 'commitArrival' : 'commitDeparture']({ params: { id: String(id) }, body, user: ADMIN }, res);
+  return res;
+}
+const bookCollected = (id) => register(id).collectedTtc;
+
+// Once paid, the re-opened recap is no longer one gesture: the dialog sends the two answers apart (« Pas maintenant » = false).
+const NOT_NOW = { stayPaid: false, complementSettled: false };
+const TO_CASH = { stayPaid: true, stayPaidCash: true, complementSettled: true };
+
+test('re-opened arrival SAS, single payment then « Pas maintenant » past a refund: 409, nothing written; deleted, it passes', SAS, () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { depositDisabled: 1, customOptions: [forced(50)] });
+  assert.equal(sas(stay.id, 'arrival', { arrivalPaymentMode: 'card' }).statusCode, 200);
+  assert.equal(rowOf(stay.id).balancePaid, 1);
+  assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 100 }]).statusCode, 201);
+  const before = rowOf(stay.id);
+  const res = sas(stay.id, 'arrival', NOT_NOW);
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, CODE);
+  assert.deepEqual(rowOf(stay.id), before);
+  deleteRefund(stay.id, lastRefundId(stay.id));
+  assert.equal(sas(stay.id, 'arrival', NOT_NOW).statusCode, 200);
+  assert.equal(rowOf(stay.id).balancePaid, 0);
+});
+
+test('re-opened arrival SAS moving the payment to the caisse interne past a refund: 409', SAS, () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { depositDisabled: 1, customOptions: [forced(50)] });
+  assert.equal(sas(stay.id, 'arrival', { arrivalPaymentMode: 'card' }).statusCode, 200);
+  assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 300 }]).statusCode, 201);
+  const res = sas(stay.id, 'arrival', TO_CASH);
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, CODE);
+  assert.equal(rowOf(stay.id).balancePaidCash, 0);
+});
+
+test('re-opened arrival SAS, complement « Pas maintenant » past its refund: 409', SAS, () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { depositDisabled: 1, customOptions: [forced(50)] });
+  assert.equal(sas(stay.id, 'arrival', { arrivalPaymentSplit: true, complementSettled: true }).statusCode, 200);
+  assert.equal(rowOf(stay.id).complementPaid, 1);
+  assert.equal(refund(stay.id, [{ key: 'custom:forcée', amountTtc: 50 }]).statusCode, 201);
+  const res = sas(stay.id, 'arrival', { arrivalPaymentSplit: true, complementSettled: false });
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, CODE);
+  assert.equal(rowOf(stay.id).complementPaid, 1);
+  assert.ok(bookCollected(stay.id) >= 0);
+});
+
+test('re-opened departure SAS, « Pas maintenant » past a refund: 409', SAS, async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50)] });
+  pay(stay.id, S, C);
+  await put(stay, { adults: 3 });
+  assert.equal(sas(stay.id, 'departure', { complementsSettled: true }).statusCode, 200);
+  assert.equal(rowOf(stay.id).endOfStayComplementPaid, 1);
+  const eos = rowOf(stay.id).endOfStayComplementAmount;
+  assert.ok(eos > 0);
+  assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 600 }]).statusCode, 201);
+  assert.equal(refund(stay.id, [{ key: 'custom:forcée', amountTtc: 50 }]).statusCode, 201);
+  assert.equal(refund(stay.id, [{ label: 'Geste', bucket: 'options', amountTtc: 30 }]).statusCode, 201);
+  const res = sas(stay.id, 'departure', { complementsSettled: false });
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, CODE);
+  assert.equal(rowOf(stay.id).endOfStayComplementPaid, 1);
+  assert.equal(sas(stay.id, 'departure', { complementsSettled: true, complementsPaidCash: true }).statusCode, 409);
+});
+
+test('a re-opened SAS with nothing refunded behaves as before', SAS, () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { depositDisabled: 1, customOptions: [forced(50)] });
+  assert.equal(sas(stay.id, 'arrival', { arrivalPaymentMode: 'card' }).statusCode, 200);
+  assert.equal(sas(stay.id, 'arrival', TO_CASH).statusCode, 200);
+  assert.equal(rowOf(stay.id).balancePaidCash, 1);
+  assert.equal(sas(stay.id, 'arrival', NOT_NOW).statusCode, 200);
+  assert.equal(rowOf(stay.id).balancePaid, 0);
+});
+
+test('« Sans acompte » on a hand-ticked acompte past its refund: 409, the acompte stays; with the refund gone it passes', async () => {
+  const stay = fiche(WITH_ACOMPTE, 'direct');
+  pay(stay.id, D);
+  assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 50 }]).statusCode, 201);
+  assert.deepEqual(await saveCode(stay, { depositDisabled: 1 }), { status: 409, code: CODE });
+  assert.equal(rowOf(stay.id).depositPaid, 1);
+  assert.equal(rowOf(stay.id).depositDisabled, 0);
+  deleteRefund(stay.id, lastRefundId(stay.id));
+  assert.equal((await saveCode(stay, { depositDisabled: 1 })).status, 200);
+  assert.equal(rowOf(stay.id).depositPaid, 0);
+});
+
+// Rule 52 reading (audit R24 verification DB-2) — a SAS takes back only what it settled itself: a mark paid elsewhere stays,
+// so a refund on it blocks nothing.
+test('a solde ticked on the fiche, refunded, then arrival « Pas maintenant »: no false refusal, the solde stays', SAS, () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { depositDisabled: 1 });
+  pay(stay.id, S);
+  assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 300 }]).statusCode, 201);
+  const res = sas(stay.id, 'arrival', { arrivalPaymentSplit: true, stayPaid: false });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(rowOf(stay.id).balancePaid, 1);
+});
+
+test('an end-of-stay complement ticked outside the departure SAS, refunded, then departure « Pas maintenant »: no false refusal', SAS, async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
+  pay(stay.id, S, C);
+  await put(stay, { adults: 3 });
+  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY });
+  assert.equal(rowOf(stay.id).endOfStayComplementPaidAtDeparture, 0);
+  const refunded = refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 600 }, { key: 'custom:forcée', amountTtc: 20 }, { label: 'Geste', bucket: 'options', amountTtc: 40 }]);
+  assert.equal(refunded.statusCode, 201, JSON.stringify(refunded.body));
+  const res = sas(stay.id, 'departure', { complementsSettled: false });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(rowOf(stay.id).endOfStayComplementPaid, 1);
+});

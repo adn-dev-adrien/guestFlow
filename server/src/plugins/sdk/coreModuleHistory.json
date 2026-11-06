@@ -137,6 +137,15 @@
       }
     },
     {
+      "version": "2.7.0",
+      "modules": [],
+      "names": {
+        "devisModel": [
+          "appendPublicMessage"
+        ]
+      }
+    },
+    {
       "version": "2.9.0",
       "modules": [
         "platformPenaltiesModel"
@@ -174,7 +183,25 @@
       "names": {}
     },
     {
+      "version": "2.21.0",
+      "modules": [],
+      "names": {
+        "reservationPaymentMark": [
+          "takeBackRefusal"
+        ]
+      }
+    },
+    {
       "version": "2.22.0",
+      "modules": [],
+      "names": {
+        "blockedDates": [
+          "stayTimesRefused"
+        ]
+      }
+    },
+    {
+      "version": "2.23.0",
       "modules": [
         "financeModel",
         "financeDashboardModel",

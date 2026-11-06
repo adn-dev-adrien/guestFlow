@@ -112,7 +112,6 @@ function resolveExtraGuestPdfRow({ quote, finalPriceTtc, accommodationTtc, optio
       originalTtc: original,
       offered,
       count: Math.max(0, Number(quote.extraGuestCount || 0)),
-      tiersLabel: quote.extraGuestTiersLabel || null,
     };
   }
   // Fallback (engine failure at print time): the remainder the drawn rows leave unexplained.
@@ -122,7 +121,7 @@ function resolveExtraGuestPdfRow({ quote, finalPriceTtc, accommodationTtc, optio
     Number(finalPriceTtc || 0) - Number(accommodationTtc || 0) - Number(optionsTtc || 0) - Number(resourcesTtc || 0),
   );
   if (remainder <= 0.009) return null;
-  return { totalTtc: remainder, originalTtc: remainder, offered: false, count: 0, tiersLabel: null };
+  return { totalTtc: remainder, originalTtc: remainder, offered: false, count: 0 };
 }
 
 module.exports = {

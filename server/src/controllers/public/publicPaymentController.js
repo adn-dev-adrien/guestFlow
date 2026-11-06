@@ -26,7 +26,7 @@ const { tokensMatch } = require('../../utils/publicDevisToken');
 const { calculateReservationQuote, calculateBaseStayPrice } = require('../../utils/pricing');
 const { checkChangeover } = require('../../utils/changeover');
 const settingsModel = require('../../models/settingsModel');
-const { computeBlockedDates, rangeHasBlockedNight } = require('../../utils/blockedDates');
+const { computeBlockedDates, rangeHasBlockedNight, stayTimesRefused } = require('../../utils/blockedDates');
 const { ok, fail, failT } = require('./publicHttp');
 
 // Build the site success URL from the configured site origin + a caller-supplied path. Allowlisted to
@@ -114,6 +114,8 @@ async function pay(req, res) {
   if (rangeHasBlockedNight(row.startDate, row.endDate, blocked)) {
     return failT(res, req, 409, 'DATES_UNAVAILABLE', 'datesUnavailable');
   }
+  // Rule 17 — the devis's own times against the stays booked since (public-api.md rule 24).
+  if (stayTimesRefused(row)) return failT(res, req, 409, 'STAY_TIMES_UNAVAILABLE', 'stayTimesUnavailable');
   const ruleRefusal = stayRuleRefusal(row);
   if (ruleRefusal) {
     const [code, key, ...args] = ruleRefusal;

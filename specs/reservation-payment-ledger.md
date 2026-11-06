@@ -755,7 +755,12 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     undo, so a mis-click corrected by a re-tick moves no collected money. *Why:* re-pricing on the un-tick (audit R23 N8, withdrawn
     the same day) rewrote 6 of 16 real paid complements on a re-tick, up to -50 € and a mark that could not be put back. The chain it
     closed is accepted: a paid complement whose line a forced save removed, then un-ticked, keeps asking its stale amount until the
-    operator adjusts it on the fiche. Test: `unticked-complement-keeps-amount`.
+    operator adjusts it on the fiche. Test: `unticked-complement-keeps-amount`. *Reading of 2026-11-05 (audit R24-DB-3):* a save
+    whose `complementAmountOverride` differs from the stored one is a priced save even when the engine lands on the same figure:
+    before, an adjustment of 0 on the stale 50 € read as « nothing moved » (rule 1 of reservation-save-keeps-pricing) and the stale
+    amount was pinned back beside the stored 0. On the fiche the « Montant ajusté » field floors at what the complement carries
+    as accommodation, and a stale amount with no line reads as accommodation: there the way out is to empty the field, then
+    « Actualiser tarifs ». An end-of-stay adjustment was already written (`applyEndOfStayAdjustment`).
 
 ## 4. Architecture
 

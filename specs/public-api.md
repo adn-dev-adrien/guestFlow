@@ -274,6 +274,33 @@ or **[CREATE]** (genuinely new logic).
       a refusal would show nothing visibly wrong. The katakana middle dot `・`, the Hebrew geresh `׳` and the Catalan `·` are
       not in the list, so they are refused; a modifier-letter apostrophe `ʼ` is a letter and passes.
     Covered by `plugins/website-booking/tests/public-name-charset.unit.test.js`.
+24. **The visitor's own times are judged against the neighbours** (audit R24 public finding 1, 2026-11-05). Rule 15
+    sees a neighbour's edges, not the visitor's: an arrival inside the cleaning gap after a departure that day, an
+    arrival early enough to take the night before, a departure that leaves no cleaning time before an arrival that day,
+    or late enough to take the night after, used to be sold and paid, then converted with a conflict the operator had to
+    settle with the guest. Once the nights are free, `/booking-requests` and `/quote` run the back office's check
+    (`utils/blockedDates.stayTimesRefused` → `reservationsModel.validateAvailability` with the visitor's times and the
+    nights they take; a time not sent is the property's default, the one the devis stores) and refuse with
+    `409 STAY_TIMES_UNAVAILABLE`, « Horaires indisponibles à ces dates : modifier l’heure d’arrivée ou de départ. » /
+    « These times are not available on these dates: change the check-in or check-out time. ». Nothing is stored; the
+    nights stay on sale and the visitor corrects the time in its field, which re-quotes. `/quote` answers the same code
+    (as it answers `OVER_CAPACITY`), so the drawer prints the sentence through `GF.errorMessage` before the form, on every
+    plugin version: no WordPress release. Nights taken stay `DATES_UNAVAILABLE` (`available: false` on the quote). An early
+    or late time with no neighbour and no closure is sold. A devis the operator makes is not on this path. The code is one
+    more value of the documented refusal, additive: not an X. `/pay` judges the same ([public-online-payment.md](public-online-payment.md)
+    rule 17). Covered by `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js`.
+    *Reading of 2026-11-05 (audit R24 verification L1, L2, L3):* the times are judged after the nights and the capacity
+    but before the engine's stay rules (`/quote`, `/booking-requests`) and before `stayRuleRefusal` (`/pay`): a stay
+    both too short and on a refused time answers the times first, then the minimum once the time is fixed; accepted,
+    a rare chain at no cost. A Roostview quote is not judged on the times ([roostview-api-key.md](roostview-api-key.md)
+    rule 7). The nights an early arrival or a late departure takes are pinned without any cleaning-gap clash (an
+    arrival at 09:00 the day after a neighbour left at 18:00, a departure at 18:00 the day before a 09:00 arrival).
+25. **A pasted phone reads as it shows** (audit R24 public finding 2, 2026-11-05). Before rule 21 judges `guest.phone`,
+    every format character (`\p{Cf}`: bidi marks of a contact card, a zero-width space) leaves it and every space
+    separator (`\p{Zs}`: no-break, narrow no-break, ideographic) reads as a space; the cleaned number is stored. A number
+    copied from a page used to read « Numéro de téléphone invalide. » under digits that looked right. A line break, a
+    letter or a slash is still `phoneInvalid`; format characters alone are `required`. Covered by
+    `plugins/website-booking/tests/public-phone-pasted.unit.test.js`.
 
 **Edge cases:**
 
@@ -373,7 +400,7 @@ them. The data already flows through the existing Devis UI; a visual badge is a 
 | POST | `/public/v1/booking-requests` | public | key | `BookingRequest` | `201 { data: BookingRequestReceipt }` | Pending devis; rate-limited + anti-spam. |
 
 HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
-`409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`, `422 VALIDATION_FAILED`,
+`409 DATES_UNAVAILABLE` / `409 STAY_TIMES_UNAVAILABLE` (rule 24) / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`, `422 VALIDATION_FAILED`,
 `429 TOO_MANY_REQUESTS`, `500 INTERNAL_ERROR` (generic message).
 
 ---
@@ -594,7 +621,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
   - **Excluded:** VAT net breakdowns, accounting contribution buckets, `engineFinalPrice`/override
     flags. Resource lines ARE included (`resources[]`, `resourcesTotal`, see the endpoint table): the
     resources are public since the site sells supplements (corrected at the 2026-10-27 spec review).
-- **Errors:** `404 PROPERTY_NOT_FOUND`, `422 VALIDATION_FAILED`, `401`, `429`.
+- **Errors:** `404 PROPERTY_NOT_FOUND`, `422 VALIDATION_FAILED`, `409 OVER_CAPACITY` (rule 19), `409 STAY_TIMES_UNAVAILABLE` (rule 24), `401`, `429`.
 
 ##### POST `/public/v1/booking-requests`
 
@@ -651,7 +678,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     No `hold` field in this version (Q9).
   - **Excluded:** the full pricing breakdown and any client/admin internals. The proxy gets a
     confirmation receipt, not a quote dump (it can re-quote if it needs the breakdown).
-- **Errors:** `409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`,
+- **Errors:** `409 DATES_UNAVAILABLE` / `409 STAY_TIMES_UNAVAILABLE` (rule 24) / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`,
   `422 VALIDATION_FAILED`, `404 PROPERTY_NOT_FOUND`, `429 TOO_MANY_REQUESTS`, `401`.
   - Refused contact fields *(2026-10-19, additive — UI/UX review 2026-10-18, decision 3)*: each
     `details[]` entry for `guest.firstName` / `guest.lastName` / `guest.email` / `guest.phone` keeps
@@ -721,6 +748,8 @@ follow-up.
 - [x] `plugins/website-booking/tests/public-email-one-address.unit.test.js` — rule 21's reading of 2026-11-05 and the rules 7 and 12 of the abuse spec on a non-ASCII or hidden-character address. **(4 tests)**
 - [x] `plugins/website-booking/tests/public-free-text-cleaning.unit.test.js` — the cleaner of the message and the attribution ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 22, [site-traffic-analytics.md](site-traffic-analytics.md) rule 15, readings of 2026-11-05). **(8 tests)**
 - [x] `plugins/website-booking/tests/public-refusal-language.unit.test.js` — [site-english-version.md](site-english-version.md) rule 8's reading of 2026-11-05: limiters, the tree's 404, the key refusals. **(7 tests)**
+- [x] `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js` — rule 24: the four clashes on the request and the quote, the sentence in both languages, the default times, an early time with no neighbour, nights taken still `DATES_UNAVAILABLE`; the night taken by a 09:00 arrival or an 18:00 departure with no cleaning-gap clash, a Roostview quote not judged on the times (reading of 2026-11-05). **(16 tests)**
+- [x] `plugins/website-booking/tests/public-phone-pasted.unit.test.js` — rule 25: pasted separators and invisible marks accepted and stored clean, a line break, a slash or a letter still refused. **(9 tests)**
 - [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
       side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a
       public GET performs zero writes; 404 path also writes nothing. **(2 tests)**

@@ -564,11 +564,13 @@ export default function ReservationPage() {
   // A cancelled stay and a duplicate set aside are history: the fiche only shows them (the server answers 409).
   const isClosedFiche = isCancelledReservation || isSupersededReservation;
   // `typedAtParty` / `typedAtNights` only say what a number was typed against during this edit: they
-  // are not a change of their own (specs/non-card-option-served-persons.md rule 23).
+  // are not a change of their own (specs/non-card-option-served-persons.md rule 23). A client typed for a stay not
+  // saved yet lives outside the form and is an edit too (specs/ui-review-2026-10-19-operations.md rule 40, R24-1).
   const formSnapshot = useMemo(() => JSON.stringify({
     selectedProp: selectedProp ? Number(selectedProp) : null,
     form: { ...form, selectedOptions: withoutTypedAtTags(form.selectedOptions) },
-  }), [selectedProp, form]);
+    pendingClient,
+  }), [selectedProp, form, pendingClient]);
   // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the freeze is the SERVER's
   // decision (has the instalment carrying the tax been collected? has the line been declared?), so the
   // page no longer derives it from the dates. It only ever asks for the opposite, through
@@ -893,6 +895,7 @@ export default function ReservationPage() {
         // A (re)load takes its clean baseline again, from what it loads (see the baseline effect).
         setInitialSnapshot(null);
         setLoadedSnapshot(null);
+        setPendingClient(null);
         setPricingQuote(null);
         resnapshotAfterQuoteRef.current = null;
         setNotFound(false);

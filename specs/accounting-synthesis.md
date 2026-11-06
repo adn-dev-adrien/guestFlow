@@ -268,11 +268,11 @@ add up — before the CSV goes to the accountant.
 | `plugins/accounting-export/` | `accountingExport.js` | T | Each row tagged with its role and rate beside the cells; `entryVentilation` — CSV unchanged |
 | `plugins/accounting-export/` | `controller.js` | T | `onCsvExported(month)` after a built CSV; exports `monthEntries` |
 | `plugins/accounting-export/` | `settings.js` | T | `readLastCsvExport` / `storeLastCsvExport` (`lastCsvExport` key) |
-| `plugins/accounting-export/` | `manifest.json` | T | 1.0.28, `sdk ^2.22.0`, French changelog |
+| `plugins/accounting-export/` | `manifest.json` | T | 1.0.28, `sdk ^2.23.0`, French changelog |
 | `models/` | `vatRegimeModel.js` | T | `regimesDuring(db, from, to)` — the regimes in force during a window (rule 35) |
 | `models/` | `financeDashboardModel.js` | T | `lastYearRange({ window, today, propertyId })` extracted from `figures()`, which now calls it — dashboard payload unchanged |
-| `plugins/sdk/` | `index.js`, `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | SDK 2.22.0: `financeModel`, `financeDashboardModel`, `financeWindow`, `fiscalYear`, `yearOverYear` exposed |
-| `tests/` | `plugin-core-hardening-floor.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js` | T | The 2.22.0 floor row; accounting-export joins the `stayDates` consumers |
+| `plugins/sdk/` | `index.js`, `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | SDK 2.23.0: `financeModel`, `financeDashboardModel`, `financeWindow`, `fiscalYear`, `yearOverYear` exposed |
+| `tests/` | `plugin-core-hardening-floor.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js` | T | The 2.23.0 floor row; accounting-export joins the `stayDates` consumers |
 | `database.js` | — | — | No schema change: the stamp is a row of the existing `plugin_settings` |
 
 ### 4.2 Client side (`client/src/`)
@@ -281,7 +281,7 @@ add up — before the CSV goes to the accountant.
 |---|---|---|---|
 | `api.js` | `api.js` | T | `getAccountingSynthesis(params)` — sends only the keys given |
 | `plugins/sdk/` | `index.js` | T | Re-exports the two report charts lazily from `components/LazyReportCharts.jsx` (rule 45) |
-| `plugins/sdk/` | `index.js` | T | Exposes the report grammar to plugins (SDK 2.22.0): `SelectableTile`, `NoComparisonNotice`, `Panel`, `TrendChart`, `AlignedDailyCumulativeCharts`, `ShareTable`, `useServerToday`, `customWindowError`, `formatCurrencyRounded` |
+| `plugins/sdk/` | `index.js` | T | Exposes the report grammar to plugins (SDK 2.23.0): `SelectableTile`, `NoComparisonNotice`, `Panel`, `TrendChart`, `AlignedDailyCumulativeCharts`, `ShareTable`, `useServerToday`, `customWindowError`, `formatCurrencyRounded` |
 | `plugins/accounting-export/` | `AccountingPage.jsx` | T | The three tabs in the `PageActionBar` (rule 23), the URL, the synthesis load and its refusal (rule 24); « Écritures » renders the journal view unchanged |
 | `plugins/accounting-export/` | `SynthesisPeriodBar.jsx` | C | Mois · Trimestre · Exercice · Personnalisée and the server's options (rules 22, 24) |
 | `plugins/accounting-export/` | `AccountingSynthesisTab.jsx` | C | Tiles, notice, checks strip, VAT panel, cumulative chart (rules 25–30) |

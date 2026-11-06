@@ -90,8 +90,10 @@ async function send(path, options = {}) {
     const said = err.error || err.message;
     const apiError = sessionLost ? new Error(SESSION_MESSAGE) : (said ? new Error(said) : badAnswerError());
     Object.assign(apiError, err, { status: res.status });
-    // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth.
-    if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login' && !path.startsWith('/auth/2fa/') && path !== '/auth/reset') {
+    // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth. A wrong current
+    // password on a password change is the form's refusal, the session stands (rule 44, R24-C1).
+    const wrongCurrentPassword = path === '/auth/change-password' && err.error === 'INVALID_CREDENTIALS';
+    if (res.status === 401 && !wrongCurrentPassword && path !== '/auth/me' && path !== '/auth/login' && !path.startsWith('/auth/2fa/') && path !== '/auth/reset') {
       window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
     }
     // An unpaid instance refuses writes (specs/control-plane-plans-and-access.md rule 14): the app

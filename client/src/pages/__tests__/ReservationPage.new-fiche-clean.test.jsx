@@ -63,6 +63,7 @@ async function openNewFiche() {
     <BrowserRouter>
       <ThemeProvider theme={theme}>
         <Link to={`/reservations/new?propertyId=1&startDate=${dayAt(60)}&endDate=${dayAt(63)}`}>nouvelle fiche</Link>
+        <Link to={`/reservations/new?propertyId=1&startDate=${dayAt(70)}&endDate=${dayAt(72)}`}>autre fiche</Link>
         <Routes>
           <Route path="/prev" element={<p>page précédente</p>} />
           <Route path="/reservations/new" element={<ReservationPage />} />
@@ -105,4 +106,41 @@ test('a real edit is an edit: Back asks', async () => {
   window.history.back();
   expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
   expect(screen.getByLabelText(/^Notes/i)).toHaveValue('brouillon');
+});
+
+// R24-1, rule 40 reading of 2026-11-05 — a client typed for a stay not saved yet is an edit: Save lights up, leaving asks.
+test('a new client typed on the fiche is an edit: Save enabled, Back and reload ask', async () => {
+  await openNewFiche();
+  api.findDuplicateClient.mockResolvedValue(null);
+  fireEvent.click(screen.getAllByText('+ Créer un nouveau client')[0]);
+  fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
+  fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(screen.queryByText('Créer un nouveau client', { selector: 'h2' })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled());
+  expect(api.createClient).not.toHaveBeenCalled();
+  expect(typeof window.__guestflowBeforeBack).toBe('function');
+  expect(reloadWarns()).toBe(true);
+  window.history.back();
+  expect(await screen.findByText('Modifications non enregistrées')).toBeInTheDocument();
+});
+
+// R24 V1, rule 40 reading of 2026-11-05 — the same mounted page loading another fiche (« Retour » after an in-page devis
+// creation) starts with no typed client: the earlier one is neither shown nor sent again.
+test('a client typed on one fiche does not follow the page to the next fiche it loads', async () => {
+  await openNewFiche();
+  api.findDuplicateClient.mockResolvedValue(null);
+  fireEvent.click(screen.getAllByText('+ Créer un nouveau client')[0]);
+  fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
+  fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled());
+  expect(screen.getAllByText(/Testeur/).length).toBeGreaterThan(0);
+  delete window.__guestflowBeforeBack;
+  fireEvent.click(screen.getByText('autre fiche'));
+  await waitFor(() => expect(api.getProperties.mock.calls.length).toBeGreaterThan(1));
+  await waitFor(() => expect(screen.queryAllByText(/Testeur/)).toHaveLength(0));
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+  expect(window.__guestflowBeforeBack).toBeUndefined();
 });

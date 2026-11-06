@@ -9,7 +9,7 @@ const { labels } = require('../utils/devisPdfLabels');
 // match its own lines (69 € of unexplained gap on a 5-guest 2-night Lodge stay). This pins the row
 // that closes the gap — specs/tariff-events-and-extra-guest-tiers/spec.md §6.
 
-test('a live quote with a supplement yields a billed row carrying the tier phrase', () => {
+test('a live quote with a supplement yields a billed row, without the tier phrase', () => {
   const row = resolveExtraGuestPdfRow({
     quote: {
       extraGuestSurchargeOriginal: 69, extraGuestSurcharge: 69, extraGuestSurchargeOffered: false,
@@ -17,10 +17,7 @@ test('a live quote with a supplement yields a billed row carrying the tier phras
     },
     finalPriceTtc: 444.44,
   });
-  assert.deepEqual(row, {
-    totalTtc: 69, originalTtc: 69, offered: false, count: 3,
-    tiersLabel: '15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit',
-  });
+  assert.deepEqual(row, { totalTtc: 69, originalTtc: 69, offered: false, count: 3 });
 });
 
 test('an OFFERED supplement bills 0 and keeps the real value for the strike-through', () => {
@@ -44,7 +41,7 @@ test('engine failure at print time: the remainder finalPrice − rows becomes th
   const row = resolveExtraGuestPdfRow({
     quote: null, finalPriceTtc: 444.44, accommodationTtc: 375.44, optionsTtc: 0, resourcesTtc: 0,
   });
-  assert.deepEqual(row, { totalTtc: 69, originalTtc: 69, offered: false, count: 0, tiersLabel: null });
+  assert.deepEqual(row, { totalTtc: 69, originalTtc: 69, offered: false, count: 0 });
 });
 
 test('engine failure + no gap → no row: an offered supplement never resurfaces as billed', () => {
@@ -62,9 +59,9 @@ test('a sub-cent remainder is noise, not a supplement', () => {
   );
 });
 
-test('the FR label carries the tier phrase, the EN label deliberately does not', () => {
-  const fr = labels('fr').extraGuestSupplement(3, '15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit');
-  assert.equal(fr, 'Surcoût voyageurs (3 pers. au-delà du tarif de base) — 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit');
-  const en = labels('en').extraGuestSupplement(1, '15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit');
-  assert.equal(en, 'Extra-guest supplement (1 guest above the base rate)');
+test('§6 (2026-11-05) — the row names the count only, in French and in English', () => {
+  assert.equal(labels('fr').extraGuestSupplement(3), 'Surcoût voyageurs (3 pers. au-delà du tarif de base)');
+  assert.equal(labels('en').extraGuestSupplement(1), 'Extra-guest supplement (1 guest above the base rate)');
+  assert.equal(labels('fr').extraGuestSupplement(0), 'Surcoût voyageurs');
+  assert.equal(labels('en').extraGuestSupplement(0), 'Extra-guest supplement');
 });

@@ -58,6 +58,9 @@ const PROCESS_RESTART_STEPS = [{ step: 'process-restart', label: 'Processus red�
 const ALL_STEPS = [...CREATE_STEPS, ...DEPROVISION_STEPS, ...REACTIVATE_STEPS, ...RENAME_STEPS, ...PROCESS_RESTART_STEPS];
 // H1 rule 38: the steps that serve the instance again; never retried on an archived customer.
 const SERVING_STEPS = new Set([HOST_RESTART.step, HOST_RENAME.step, 'process-restart']);
+// H1 rule 54: a closed customer resumes no creation step either.
+const isCreateStep = (step) => CREATE_STEPS.some((s) => s.step === step);
+const closedRefuses = (step) => SERVING_STEPS.has(step) || isCreateStep(step);
 // Rule 22: what must be redone when the address changes, each item ticked before it runs.
 const RENAME_CHECKLIST = [
   { key: 'wordpress', label: 'Réglage du plugin WordPress (adresse de l’API)' },
@@ -88,8 +91,8 @@ function createCustomersController(ctx) {
 
   // Rule 22: until « Dossier renommé… » is done (H1 rule 5 runs it at once), the instance still runs
   // from its old directory and answers at its old address.
-  // H1 rule 38: the « rename » row is written only once the rename holds the customer's lock, so a
-  // rename still waiting behind a fleet item is tracked here. A count, since two may overlap.
+  // H1 rule 38 with rule 52: the « rename » row is written `running` before the slug moves; this count only
+  // covers the instant between the checks and that row. A count, since two may overlap.
   const renaming = new Map();
   const markRenaming = (id) => renaming.set(id, (renaming.get(id) || 0) + 1);
   const unmarkRenaming = (id) => {
@@ -405,8 +408,8 @@ function createCustomersController(ctx) {
         detail: stepDetail(r),
         // H1 rule 2: a failed creation step resumes the sequence from itself. H1 rule 41: from the
         // erasure day on, a closing mail can no longer be sent, so it offers nothing.
-        action: r.status !== 'failed' || (c.archivedAt && SERVING_STEPS.has(d.step)) || (d.step === 'deprov-email' && erasureDue(c))
-          ? null : (CREATE_STEPS.some((x) => x.step === d.step) ? 'resume' : 'retry'),
+        action: r.status !== 'failed' || (c.archivedAt && closedRefuses(d.step)) || (d.step === 'deprov-email' && erasureDue(c))
+          ? null : (isCreateStep(d.step) ? 'resume' : 'retry'),
       };
     });
   }
@@ -749,9 +752,9 @@ function createCustomersController(ctx) {
     if (!def || !row) throw httpError(404, 'NOT_FOUND', 'Étape inconnue.');
     if (action !== 'resume' && action !== 'retry') throw httpError(400, 'INVALID', 'Action inconnue.');
     if (row.status !== 'failed') throw httpError(409, 'NOT_FAILED', 'Cette étape n’est pas en échec.');
-    if (c.archivedAt && SERVING_STEPS.has(step)) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
+    if (c.archivedAt && closedRefuses(step)) throw httpError(409, 'ARCHIVED', 'Client archivé : réactivez-le d’abord.');
     let run;
-    if (CREATE_STEPS.some((s) => s.step === step)) {
+    if (isCreateStep(step)) {
       journal(c.id, operator, 'step', `Création reprise à l’étape « ${def.label} »`);
       run = host().create(c.id);
     } else if (step === 'deprov-stop') run = host().stop(c.id);
@@ -767,7 +770,8 @@ function createCustomersController(ctx) {
       assertNotErasing(c.id);
       run = host().exclusive(c.id, () => resendExportLink(c.id, operator));
     }
-    else if (step === 'deprov-export') return deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
+    // Plans rule 51: the route's own path, so unsettled invoices are cancelled as on the main button.
+    else if (step === 'deprov-export') return ctx.controllers.billing.deprovision(c.id, { confirmSlug: c.slug, retry: true }, operator);
     if (!background) await run;
     return view(c.id);
   }
@@ -854,6 +858,9 @@ function createCustomersController(ctx) {
       // H1 rule 45: an address held by another database was never this customer's to redirect or
       // reserve, and an alias would have its erasure remove that customer's route (rule 38).
       const held = foreignDatabase(c);
+      // H1 rule 52: the row exists before the slug moves, so a restart while the host step waits for the lock
+      // leaves a failed rename (« Réessayer »), never a new address with nothing pending.
+      provisioning.set(c.id, 'rename', 'running', '', stamp());
       customers.setSlug(c.id, slug);
       if (!held) directory.addAlias(c.slug, c.id, until);
       journal(c.id, operator, 'rename', held
@@ -930,6 +937,8 @@ function createCustomersController(ctx) {
 
   function licenceDownload(id) {
     const c = mustGet(id);
+    // H1 rule 53: a held customer's licence would name the occupant's address.
+    if (foreignDatabase(c)) throw httpError(409, 'ADDRESS_HELD', ADDRESS_HELD_MESSAGE);
     return { filename: `licence-${c.slug}.jws`, token: licenceToken(c.id) };
   }
 

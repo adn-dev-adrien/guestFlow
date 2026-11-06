@@ -500,15 +500,23 @@ Optional: a plugin that declares nothing reads « Actif ».
     by extension. In the other direction, the core still reads the former `{ optionId, units }` (rule 28 of the same
     spec). The sale draft lives on the client, which the hardening scan skips, so the row recognises `soldOptions`, its
     server end. Test: `plugin-core-hardening-floor.unit.test.js`.
-40. *(Added 2026-11-05, [accounting-synthesis.md](accounting-synthesis.md) rules 7-9, SDK 2.22.0.)* **`coreModule()` hands
+40. *(Added 2026-11-05, audit R24 public finding 1, SDK 2.22.0.)* **`coreModule('blockedDates').stayTimesRefused(stay)`
+    judges the visitor's own arrival and departure times** against the neighbouring stays and the closures: the back
+    office's `reservationsModel.validateAvailability` with those times and the nights they take
+    (`getNightBlocksFromTimes`), a time not sent read as the property's default. `website-booking` 1.8.12 asks for
+    `sdk ^2.22.0` and calls it on `/quote` and `/booking-requests`; the core's public `pay` calls it too
+    ([public-api.md](public-api.md) rule 24, [public-online-payment.md](public-online-payment.md) rule 17). A MINOR bump
+    (a name added to a core module); on an older core the plugin would load and throw on its first quote, hence the
+    floor. Tests: `plugin-core-hardening-floor.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`.
+41. *(Added 2026-11-05, [accounting-synthesis.md](accounting-synthesis.md) rules 7-9, SDK 2.23.0.)* **`coreModule()` hands
     the accounting synthesis the core's own finance readings**: `financeModel` (the stays' revenue of a window,
     `getSummary`, and the tourist-tax extraction), `financeDashboardModel` (`lastYearRange`, the one reading of
     « comparable with last year », extracted from the dashboard's figures, which call it too), `financeWindow` (the
     custom window's refusals), `fiscalYear` and `yearOverYear`; `vatRegimeModel` gains `regimesDuring` (the regimes in
     force during a window, accounting-synthesis rule 35). The plugin never re-derives a figure another screen
     shows; it also reads `stayDates` (2.20.0) for the periods' date window. A MINOR bump (modules added to
-    `coreModules.json`, recorded under 2.22.0 in `coreModuleHistory.json`); `accounting-export` 1.0.28 asks for
-    `sdk ^2.22.0`. Tests: `plugins/accounting-export/tests/accounting-synthesis-books.unit.test.js`,
+    `coreModules.json`, recorded under 2.23.0 in `coreModuleHistory.json`); `accounting-export` 1.0.28 asks for
+    `sdk ^2.23.0`. Tests: `plugins/accounting-export/tests/accounting-synthesis-books.unit.test.js`,
     `plugins-sdk-core-modules-contract.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`,
     `plugin-core-hardening-floor.unit.test.js`.
 

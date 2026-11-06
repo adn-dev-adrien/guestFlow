@@ -5,7 +5,7 @@
  * and « Offert » (included at 0 €, only once « Inclus »).
  *
  * Turning « Proposée » off greys the line and clears its price and its default. A free option has no « Prix »
- * column; an option with auto-timed pricing has no « Inclus » / « Offert »; a progressive one shows its
+ * column, so a refusal keyed on a row's price (`propertyPrices.<id>`) prints under that row instead; an option with auto-timed pricing has no « Inclus » / « Offert »; a progressive one shows its
  * tier editor under the table (tiers are global). On `xs` each property becomes a block with
  * label / control lines instead of a table that would scroll.
  *
@@ -125,6 +125,9 @@ export default function OptionPropertyTable({ form, setForm, properties, errors 
                   <Switch checked={Boolean(d && d.offered)} disabled={!on || !included} onChange={(e) => setOffered(pid, e.target.checked)} slotProps={{ input: { 'aria-label': `Offert · ${property.name}` } }} />
                 </Labelled>
               </>
+            )}
+            {!showPrice && error && (
+              <FormHelperText error sx={{ gridColumn: '1 / -1', mx: 0 }}>{error}</FormHelperText>
             )}
           </Box>
         );

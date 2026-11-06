@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.7.11",
+  "version": "1.7.12",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -110,6 +110,10 @@
     "1.7.11": [
       "Une réservation introuvable ou des données invalides se lisent en français.",
       "Un libellé facturable qui n’est pas un texte est refusé : plus de « [object Object] » proposé à l’accueil.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.12": [
+      "Un SAS rouvert qui reprendrait un paiement déjà en partie remboursé est refusé : supprimer d’abord le remboursement.",
       "Compatible avec le SDK 2.21 de GuestFlow."
     ]
   }

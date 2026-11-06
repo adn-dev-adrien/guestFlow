@@ -200,7 +200,7 @@ export default function CustomerPage() {
     a.resendInvitation && { icon: <ForwardToInboxIcon />, tooltip: 'Renvoyer l’invitation', color: 'info', onClick: () => act(() => api.resendInvitation(c.id)) },
     a.resetAccess && { icon: <LockResetIcon />, tooltip: 'Réinitialiser l’accès', color: 'warning', onClick: resetAccess },
     a.changePlan && { icon: <SwapHorizIcon />, tooltip: 'Changer de forfait', color: 'info', onClick: () => openDialog('plan', { planCode: c.planCode, billing: c.billing, addons: c.addons.map((x) => x.id) }) },
-    { icon: <DownloadIcon />, tooltip: 'Télécharger la licence', onClick: () => { window.location.href = api.licenceUrl(c.id); } },
+    a.downloadLicence && { icon: <DownloadIcon />, tooltip: 'Télécharger la licence', onClick: () => { window.location.href = api.licenceUrl(c.id); } },
   ].filter(Boolean);
   const after = [
     !c.archivedAt && { icon: <DeleteForeverIcon />, tooltip: a.deprovision ? 'Déprovisionner' : a.deprovisionHint, ariaLabel: 'Déprovisionner', color: 'error', disabled: !a.deprovision, onClick: () => openDialog('deprovision', { confirmSlug: '' }) },

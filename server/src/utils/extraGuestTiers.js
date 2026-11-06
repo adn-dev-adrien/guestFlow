@@ -93,7 +93,7 @@ function money(value) {
 /**
  * Ready-to-render French sentence for a tier table — « 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit ».
  * Built server-side because the client renders, it does not phrase business rules (CLAUDE.md §6.0).
- * The reservation summary and the devis PDF print this verbatim; the recipe card phrases the raw
+ * The reservation summary prints this verbatim (the devis PDF no longer does, 2026-11-05); the recipe card phrases the raw
  * recipe DOCUMENT itself (unrounded, no-decimals style), which is presentation of data it already
  * holds, not a re-derivation of a billing rule.
  */

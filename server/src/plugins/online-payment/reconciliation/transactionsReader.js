@@ -41,7 +41,8 @@ async function readTransactions({ withQonto, model, settings, now = () => new Da
         settings.set('reconciliationBankAccountId', bankAccountId);
       }
       const lastReadAt = settings.get('reconciliationLastReadAt');
-      const incremental = Boolean(lastReadAt) && model.count() > 0;
+      // Rule 49: incremental only once this account has credits stored; another account starts with its first read.
+      const incremental = Boolean(lastReadAt) && Boolean(model.latestSettledAt(bankAccountId));
       const params = incremental
         ? { updatedFrom: new Date(Date.parse(lastReadAt) - MS_DAY).toISOString() }
         : { settledFrom: firstReadFrom(startDate) };

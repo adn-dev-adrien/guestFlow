@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.22.0",
+  "sdk": "^2.23.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -130,7 +130,7 @@
       "La date du dernier export CSV est conservée, quand le fichier est demandé depuis la page.",
       "Une annulation qui garde un acompte déjà encaissé ne compte ni comme encaissement ni comme remboursement.",
       "Un écart de TVA d’un centime par écriture s’affiche comme un écart d’arrondi.",
-      "Demande le SDK 2.22 de GuestFlow."
+      "Demande le SDK 2.23 de GuestFlow."
     ]
   }
 }

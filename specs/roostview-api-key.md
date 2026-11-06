@@ -37,6 +37,12 @@ Roostview connects with its own key, which can only read; the site's key is unto
    `req.path` is only what follows the prefix (`/`, `/1`): the key matched none of its reads and
    answered 403 on every route. `roostviewMayCall` now rebuilds the path from `req.baseUrl + req.path`
    and strips `/public/v1`.
+7. **Roostview's quote is not judged on the visitor's times** (audit R24 verification L1, 2026-11-05). Public-api
+   rule 24 refuses on `/quote` a stay whose times the neighbours cannot take; Roostview sends no time and reads
+   prices only, so a 28-night window whose edge sat next to a stay with unusual times answered 409 and the price watch
+   dropped that window. A Roostview call (`req.publicApiCaller === 'roostview'`) skips that judgement and gets the
+   prices; the site's quote, `/booking-requests` and `/pay` are judged as before. Covered by
+   `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js`.
 
 **Edge cases:**
 - Both keys configured to the same value → the call is treated as the site's (full rights); the
@@ -82,6 +88,8 @@ None in GuestFlow. The operator copies `ROOSTVIEW_API_KEY` from `.env.local` int
       per-prefix mounts (controllers stubbed): the six reads answer 200 to the Roostview key; booking
       requests, the challenge, terms and a POST on properties answer 403; the site key keeps the tree.
       Failed (403 on every read) before the fix. **(2 tests)**
+- [x] `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js` — rule 7: a Roostview quote on a
+      window the site's quote refuses for its times answers 200 with prices. **(1 test)**
 
 ## 8. Out of scope
 

@@ -44,7 +44,7 @@ export { default as TableCard } from '../../components/TableCard';
 export { default as PageTabs } from '../../components/PageTabs';
 export { ADMIN, userHasRole } from '../../constants/roles';
 // The report grammar (specs/report-grammar.md) — the accounting synthesis renders with it
-// (specs/accounting-synthesis.md rules 23-33) — SDK 2.22.0.
+// (specs/accounting-synthesis.md rules 23-33) — SDK 2.23.0.
 export { default as SelectableTile } from '../../components/SelectableTile';
 export { default as NoComparisonNotice } from '../../components/NoComparisonNotice';
 export { default as Panel } from '../../components/Panel';

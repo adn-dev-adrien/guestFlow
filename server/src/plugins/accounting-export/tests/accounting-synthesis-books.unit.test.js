@@ -2,7 +2,7 @@
 // schema, through the plugin's own routes: the same entries as the month's journal, the stays' figures of the Suivi
 // financier, the tourist tax of the « Taxe de séjour » page, the comparison of the dashboard.
 // specs/accountant-accounting-export.md §3 rule 38 — the CSV download stamps the last export.
-// specs/plugins-phase-1-sdk.md §3 rule 40 — the finance modules the synthesis reaches through coreModule().
+// specs/plugins-phase-1-sdk.md §3 rule 41 — the finance modules the synthesis reaches through coreModule().
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
