@@ -361,6 +361,11 @@ one place.
       judged), the acompte / solde split typed in the ledger (total unchanged), the payment and caution statuses, the client,
       the platform, the notes and texts, the dates, logement, guests and lines when the engine (or a pinned
       « Prix hébergement ajusté ») lands on the same final price and tax, and the deletion of the fiche.
+    - **Exception, written 2026-11-06 (audit R26 D21 review L2; D21 kept strict):** on a platform that remits the tax
+      (`touristTaxRemittedByPlatform = 1`) with a brut entered, the final price is the brut less the withheld tax, so
+      typing « Taxe de séjour retenue » (`platformTouristTaxAmount`) or correcting the brut moves it: refused under the
+      unlock (409 `UNLOCKED_PRICE_CHANGED`, nothing written), accepted on the locked fiche, where that save is entered.
+      Test: `unlocked-fiche-keeps-final-price` « a platform remitting the tax, … ».
     - **Not judged:** the locked fiche (its own allowlist, PAST_RESERVATION_LOCKED and mid-stay-extras rule 20), a stay not
       started, a new past reservation, any role but admin (the flag is ignored, the lock stays).
     - **UI:** the unlocked fiche's banner reads « Fiche déverrouillée : tout reste modifiable sauf le prix final. Le verrou

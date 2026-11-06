@@ -113,5 +113,27 @@ test('the solde editor on an unlocked fiche: a different solde is refused, the s
   assert.equal(refused.reason, 'Fiche déverrouillée : le prix final ne change pas.');
   assert.equal((await quote(row.balanceAmount)).ledgerEdit.ok, true);
   const locked = (await liveQuote(stay.id, { ...moved, propertyId: NO_ACOMPTE, ledgerEdit: { row: 'balance', amount: row.balanceAmount - 50 } })).ledgerEdit;
-  assert.equal(locked.reason, 'Séjour commencé : passer par « Prix hébergement ajusté ».');
+  assert.equal(locked.reason, 'Séjour commencé : passer par « Réduction (%) ».');
 });
+
+// Rule 35's exception, written 2026-11-06 (audit R26 D21 review L2): on a platform that remits the tax with a brut
+// entered, the final price is the brut less the withheld tax, so typing « Taxe de séjour retenue » or correcting the brut
+// moves it. D21 stays strict: refused under the unlock; the locked fiche takes that save.
+for (const [label, over, finalPrice] of [
+  ['the withheld tax', { platformGrossAmount: 640, platformTouristTaxAmount: 4.8 }, 655.2],
+  ['a brut correction', { platformGrossAmount: 650 }, 670],
+]) {
+  test(`a platform remitting the tax, ${label}: refused unlocked, saved on the locked fiche`, async () => {
+    const stay = fiche(NO_ACOMPTE, PLATFORM.remitted, { customOptions: [forced(20)], platformGrossAmount: 640 });
+    const moved = started(stay);
+    const before = rowOf(stay.id);
+    const refused = await save(stay, unlocked({ ...moved, ...over }));
+    assert.equal(refused.statusCode, 409, JSON.stringify(refused.body));
+    assert.equal(refused.body.code, 'UNLOCKED_PRICE_CHANGED');
+    assert.equal(refused.body.error, `Fiche déverrouillée : le prix final doit rester à ${formatEuros(before.finalPrice)}.`);
+    assert.deepEqual(rowOf(stay.id), before);
+    const saved = await save(stay, { ...moved, ...over });
+    assert.equal(saved.statusCode, 200, JSON.stringify(saved.body));
+    assert.equal(rowOf(stay.id).finalPrice, finalPrice);
+  });
+}
