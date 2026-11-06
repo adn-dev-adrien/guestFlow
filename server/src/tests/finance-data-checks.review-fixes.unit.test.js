@@ -33,13 +33,27 @@ db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (2, '', '')").r
 const finance = financeModel.buildModel(db);
 const reports = touristTaxReport.buildModel(db);
 
-// Two nights, 9 days apart, from 40 days ahead: every stay of the file sits in a few consecutive months.
+const monthAfter = (iso) => {
+  const [y, m] = iso.slice(0, 7).split('-').map(Number);
+  return `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-15`;
+};
+// The first day of the first month that starts at least `days` ahead: a placement that never depends on the day of the
+// month the suite runs (audit R27-S1: `inDays(40 + slot * 9)` split « the same month » on 155 days a year).
+function firstOfMonthFrom(days) {
+  const day = inDays(days);
+  return day.endsWith('-01') ? day : `${monthAfter(day).slice(0, 7)}-01`;
+}
+// A test that needs stays sharing one month takes the first month at least 40 days ahead (`ownMonth`), alone in it. The
+// other stays: two nights, 9 days apart, from the first of the month after it — a few consecutive months.
+const OWN_MONTH = firstOfMonthFrom(40);
+const SLOTS_FROM = `${monthAfter(OWN_MONTH).slice(0, 7)}-01`;
 let slot = 0;
 function stay(over = {}) {
-  const start = 40 + slot * 9;
+  const start = addDaysToIsoDate(SLOTS_FROM, slot * 9);
   slot += 1;
-  return createStay({ propertyId: 3, startDate: inDays(start), endDate: inDays(start + 2), ...over });
+  return createStay({ propertyId: 3, startDate: start, endDate: addDaysToIsoDate(start, 2), ...over });
 }
+const ownMonth = () => OWN_MONTH;
 const lastNight = (id) => addDaysToIsoDate(rowOf(id).endDate, -1);
 const fyOf = (id) => Number(lastNight(id).slice(0, 4));
 function at(t, iso, run) {
@@ -51,10 +65,6 @@ async function atAsync(t, iso, run) {
   try { return await run(); } finally { t.mock.timers.reset(); }
 }
 const dayAfter = (id) => addDaysToIsoDate(rowOf(id).endDate, 1);
-const monthAfter = (iso) => {
-  const [y, m] = iso.slice(0, 7).split('-').map(Number);
-  return `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-15`;
-};
 const check = (data, key) => data.checks.find((c) => c.key === key);
 const listed = (data, key, id) => check(data, key).items.some((i) => i.reservationId === id);
 const tick = (t, id) => at(t, dayAfter(id), () => assert.equal(finance.setTouristTaxDeclared({ reservationId: id, declared: true }).ok, true));
@@ -92,7 +102,8 @@ test('rule 21: a placeholder client with no name at all reads « Client sans nom
 });
 
 test('rule 20: « reste » is the tax page’s figure; the part a plan not fully paid holds is named « pas encore déclarables »', async (t) => {
-  const ticked = stay();
+  const first = ownMonth();
+  const ticked = stay({ startDate: first, endDate: addDaysToIsoDate(first, 2) });
   mark(ticked, { balancePaid: true, balancePaidDate: TODAY });
   const paid = stay({ startDate: addDaysToIsoDate(rowOf(ticked).startDate, 3), endDate: addDaysToIsoDate(rowOf(ticked).startDate, 5) });
   mark(paid, { balancePaid: true, balancePaidDate: TODAY });
@@ -171,11 +182,17 @@ test('rule 18: every month item equals the monthly extraction of that month (amo
       checked.add(item.month);
     }
   }
+  // Spec rule 20: a month is listed when what is left to declare in it is above 0. A ticked row alone in its month leaves
+  // nothing there (audit R27-S1): every month holding an unticked row above 0 is listed, whatever the calendar day, from
+  // the month of the first ticked stay on (rule 7).
+  const firstTicked = db.prepare("SELECT MIN(DATE(endDate, '-1 day')) AS d FROM reservations WHERE touristTaxDeclaredAt IS NOT NULL").get().d.slice(0, 7);
   for (const id of ids) {
     const rows = at(t, later, () => finance.getTouristTaxRows({ start: `${firstMonth}-01`, endExclusive: `${later.slice(0, 7)}-01` }))
       .filter((r) => r.reservationId === id);
     assert.ok(rows.length > 0, `stay ${id} is on the page`);
-    for (const row of rows) assert.ok(checked.has(row.declarationDay.slice(0, 7)), `stay ${id} month ${row.declarationDay} judged`);
+    for (const row of rows.filter((r) => !r.touristTaxDeclaredAt && r.taxAmount > 0 && r.declarationDay.slice(0, 7) >= firstTicked)) {
+      assert.ok(checked.has(row.declarationDay.slice(0, 7)), `stay ${id} month ${row.declarationDay} judged`);
+    }
   }
   const own = at(t, later, () => finance.getTouristTaxRows({ start: `${lastMonth}-01`, endExclusive: `${later.slice(0, 7)}-01` }))
     .find((r) => r.reservationId === added && r.addedGuestsRow);
