@@ -772,7 +772,8 @@
   "vatRegimeModel": [
     "forRow",
     "inForceBlock",
-    "rateForRow"
+    "rateForRow",
+    "regimesDuring"
   ],
   "storedMoneySplit": [
     "buildPerLineData",

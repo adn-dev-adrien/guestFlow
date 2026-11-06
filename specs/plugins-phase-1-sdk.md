@@ -504,7 +504,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     the accounting synthesis the core's own finance readings**: `financeModel` (the stays' revenue of a window,
     `getSummary`, and the tourist-tax extraction), `financeDashboardModel` (`lastYearRange`, the one reading of
     « comparable with last year », extracted from the dashboard's figures, which call it too), `financeWindow` (the
-    custom window's refusals), `fiscalYear` and `yearOverYear`. The plugin never re-derives a figure another screen
+    custom window's refusals), `fiscalYear` and `yearOverYear`; `vatRegimeModel` gains `regimesDuring` (the regimes in
+    force during a window, accounting-synthesis rule 35). The plugin never re-derives a figure another screen
     shows; it also reads `stayDates` (2.20.0) for the periods' date window. A MINOR bump (modules added to
     `coreModules.json`, recorded under 2.22.0 in `coreModuleHistory.json`); `accounting-export` 1.0.28 asks for
     `sdk ^2.22.0`. Tests: `plugins/accounting-export/tests/accounting-synthesis-books.unit.test.js`,

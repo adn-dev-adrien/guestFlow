@@ -14,6 +14,20 @@ const euros = (c) => Math.round(c) / 100;
 const roundHalfAway = (x) => Math.sign(x) * Math.round(Math.abs(x));
 
 const COLLECTION_DIRECTIONS = new Set(['sale', 'compensation', 'tip', 'discount', 'penalty']);
+const MIXED_ACCOUNT_LABEL = 'Produits divers';
+// D-HC12 — a gap of at most one cent per entry is rounding (grey); beyond, a gap (red).
+const ROUNDING_CENTS = 1;
+// Rule 37 — a breakdown keeps its largest rows and folds the rest into one, so no two rows share a colour.
+const MAX_BREAKDOWN_ROWS = 5;
+const OTHER = { key: 'other', label: 'Autres' };
+
+/**
+ * Rule 10 — money that was already booked and only changes account at a cancellation is no collection and no
+ * refund: the acompte (or the installments, or the commission) a cancelled stay keeps is an avoir `retained`
+ * plus a compensation `retained_deposit` on the same day, both journal entries, no money moved.
+ */
+const isRequalifiedCompensation = (entry) => entry && entry.direction === 'compensation' && entry.origin === 'retained_deposit';
+const isRequalifiedRefund = (entry) => entry && entry.direction === 'refund' && entry.method === 'retained';
 
 const MEANS = Object.freeze({
   platform: 'Versements plateforme',
@@ -106,6 +120,21 @@ function vatReturn(items, plan) {
   const byAccount = new Map();
   let deductible = 0;
   const roleOf = planMapper(plan).defaultOf;
+  // Rule 36 — the name an account carries in the entries that use it (a tip names its use of the shared account).
+  const labelsOf = new Map();
+  for (const item of items) {
+    for (const line of item.structured.lines || []) {
+      const set = labelsOf.get(line.compte) || new Set();
+      if (line.accountLabel) set.add(line.accountLabel);
+      labelsOf.set(line.compte, set);
+    }
+  }
+  const labelOf = (account) => {
+    const set = labelsOf.get(account);
+    if (set && set.size === 1) return [...set][0];
+    if (set && set.size > 1) return MIXED_ACCOUNT_LABEL;
+    return accountLabel(roleOf(account));
+  };
   for (const item of items) {
     const revenue = item.lines.filter((l) => l.role === 'revenue');
     const vatByRate = new Map();
@@ -144,7 +173,7 @@ function vatReturn(items, plan) {
     .filter((r) => r.base !== 0 || r.vat !== 0)
     .sort((a, b) => b.ratePercent - a.ratePercent);
   const accountRows = [...byAccount.values()]
-    .map((a) => ({ account: a.account, label: accountLabel(roleOf(a.account)), ratePercent: a.ratePercent, base: euros(a.base), vat: euros(a.vat) }))
+    .map((a) => ({ account: a.account, label: labelOf(a.account), ratePercent: a.ratePercent, base: euros(a.base), vat: euros(a.vat) }))
     .filter((a) => a.base !== 0 || a.vat !== 0)
     .sort((a, b) => b.ratePercent - a.ratePercent || a.account.localeCompare(b.account));
   const totalBase = [...byRate.values()].reduce((s, r) => s + r.base, 0);
@@ -181,12 +210,16 @@ function balanceCheck(items) {
 
 /**
  * Rule 12 — the VAT of each entry against its base × rate, rate by rate. Tolerance: the expected VAT is
- * base × rate rounded to the cent (half away from zero); any difference of 1 cent or more is reported,
- * with the entry. Entry by entry, so rounding never accumulates across entries.
+ * base × rate rounded to the cent (half away from zero); any difference of 1 cent or more is listed, with the
+ * entry. Entry by entry, so rounding never accumulates across entries. D-HC12 (rule 38): an entry whose gaps add
+ * up to one cent at most is a rounding gap (`rounding: true`); `status` is `gap` only when an entry goes beyond,
+ * `rounding` when every gap is a rounding one, `ok` without any.
  */
 function vatCheck(items) {
   const entries = [];
-  let total = 0;
+  const roundingEntries = [];
+  let beyond = 0;
+  let rounding = 0;
   for (const item of items) {
     const byRate = new Map();
     for (const line of item.lines) {
@@ -205,11 +238,15 @@ function vatCheck(items) {
     }
     if (gaps.length > 0) {
       const entryGap = gaps.reduce((a, g) => a + cents(g.gap), 0);
-      total += gaps.reduce((a, g) => a + Math.abs(cents(g.gap)), 0);
-      entries.push({ ...item.ref, gap: euros(entryGap), rates: gaps });
+      const size = gaps.reduce((a, g) => a + Math.abs(cents(g.gap)), 0);
+      const isRounding = size <= ROUNDING_CENTS;
+      if (isRounding) rounding += size; else beyond += size;
+      (isRounding ? roundingEntries : entries).push({ ...item.ref, gap: euros(entryGap), rounding: isRounding, rates: gaps });
     }
   }
-  return { status: entries.length === 0 ? 'ok' : 'gap', gap: euros(total), entries };
+  const status = beyond > 0 ? 'gap' : (rounding > 0 ? 'rounding' : 'ok');
+  // `entries`: the gaps beyond rounding, the red list; `roundingEntries`: the cents, shown in grey only.
+  return { status, gap: euros(beyond), roundingCents: rounding, entries, roundingEntries };
 }
 
 /**
@@ -222,6 +259,7 @@ function collectionUnits(items, meansOf) {
   for (const item of items) {
     const { entry, direction } = item;
     if (!COLLECTION_DIRECTIONS.has(direction)) continue;
+    if (isRequalifiedCompensation(entry)) continue;
     const money = item.lines.filter((l) => l.role === 'client').reduce((a, l) => a + cents(l.debit) - cents(l.credit), 0);
     const group = entry.paymentGroup && entry.paymentGroup.id ? entry.paymentGroup : null;
     if (group) {
@@ -271,9 +309,17 @@ function breakdown(units, field, labels) {
     r.amount += u.amount;
     rows.set(u[field], r);
   }
-  const list = [...rows.values()].sort((a, b) => b.amount - a.amount || a.label.localeCompare(b.label, 'fr'));
+  let list = [...rows.values()].sort((a, b) => b.amount - a.amount || a.label.localeCompare(b.label, 'fr'));
+  if (list.length > MAX_BREAKDOWN_ROWS) {
+    const kept = list.slice(0, MAX_BREAKDOWN_ROWS - 1);
+    const rest = list.slice(MAX_BREAKDOWN_ROWS - 1);
+    list = [...kept, { ...OTHER, count: rest.reduce((a, r) => a + r.count, 0), amount: rest.reduce((a, r) => a + r.amount, 0), parts: rest.map((r) => r.label) }];
+  }
   const shares = sharesOf(list.map((r) => r.amount));
-  return list.map((r, i) => ({ key: r.key, label: r.label, count: r.count, amount: euros(r.amount), share: shares[i], ratio: ratioOf(shares[i]) }));
+  return list.map((r, i) => ({
+    key: r.key, label: r.label, count: r.count, amount: euros(r.amount), share: shares[i], ratio: ratioOf(shares[i]),
+    ...(r.parts ? { parts: r.parts } : {}),
+  }));
 }
 
 function collections(units) {
@@ -287,7 +333,7 @@ function collections(units) {
 
 /** Rule 10 — what went back to guests in the window (avoirs), apart from the collections. */
 function refundsOf(items) {
-  const refunds = items.filter((i) => i.direction === 'refund');
+  const refunds = items.filter((i) => i.direction === 'refund' && !isRequalifiedRefund(i.entry));
   const amount = refunds.reduce((a, i) => a + i.lines.filter((l) => l.role === 'client').reduce((s, l) => s + cents(l.credit) - cents(l.debit), 0), 0);
   return { count: refunds.length, amount: euros(amount) };
 }

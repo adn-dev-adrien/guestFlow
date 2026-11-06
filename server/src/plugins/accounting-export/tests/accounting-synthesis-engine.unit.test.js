@@ -77,13 +77,15 @@ test('rule 12 — VAT against base × rate, entry by entry and rate by rate, to 
   const exact = sale();
   const items = ventilate([legacy, exact]);
   const check = vatCheck(items);
-  assert.equal(check.status, 'gap');
-  assert.equal(check.gap, 0.01);
-  assert.equal(check.entries.length, 1);
-  assert.deepEqual(check.entries[0].rates, [{ ratePercent: 10, base: 117.28, vat: 11.72, expectedVat: 11.73, gap: -0.01 }]);
-  assert.equal(check.entries[0].reservationId, 7);
-  assert.equal(check.entries[0].key, 'sale:7:deposit:2026-10-04:');
-  assert.deepEqual(vatCheck(ventilate([exact])), { status: 'ok', gap: 0, entries: [] });
+  assert.equal(check.status, 'rounding', 'D-HC12 — one cent on an entry is a rounding gap');
+  assert.deepEqual([check.gap, check.roundingCents], [0, 1]);
+  assert.deepEqual(check.entries, [], 'nothing red');
+  assert.equal(check.roundingEntries.length, 1);
+  assert.equal(check.roundingEntries[0].rounding, true);
+  assert.deepEqual(check.roundingEntries[0].rates, [{ ratePercent: 10, base: 117.28, vat: 11.72, expectedVat: 11.73, gap: -0.01 }]);
+  assert.equal(check.roundingEntries[0].reservationId, 7);
+  assert.equal(check.roundingEntries[0].key, 'sale:7:deposit:2026-10-04:');
+  assert.deepEqual(vatCheck(ventilate([exact])), { status: 'ok', gap: 0, roundingCents: 0, entries: [], roundingEntries: [] });
   // A refund's negative base rounds the same way, half away from zero.
   const refund = { reservationId: 3, kind: 'refund', direction: 'refund', refundId: 1, paidDate: '2026-12-05', client: { lastName: 'R' }, finalPrice: 0,
     encaissementTtc: 11, taxTtc: 0, buckets: [{ name: 'accommodation', ht: 10, vat: 1, ratePercent: 10 }] };

@@ -20,6 +20,9 @@ const {
 } = require('./settings');
 
 const id = PLUGIN_ID;
+
+// The browser's own word on where a request comes from (Fetch Metadata); absent = not proven same-origin.
+const isSameOriginRequest = (req) => Boolean(req && req.headers && req.headers['sec-fetch-site'] === 'same-origin');
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
 
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
@@ -69,7 +72,9 @@ function register(ctx) {
   const getController = () => {
     if (!controller) controller = createAccountingController(createAccountingModel(ctx.db), {
       plan,
-      onCsvExported: (month) => storeLastCsvExport(ctx.db, month),
+      // Rule 40 — only a download the app's own page asked for stamps: a GET reached from elsewhere (a link
+      // opened from another site, a preview, a probe) writes nothing.
+      onCsvExported: (month, req) => { if (isSameOriginRequest(req)) storeLastCsvExport(ctx.db, month); },
     });
     return controller;
   };

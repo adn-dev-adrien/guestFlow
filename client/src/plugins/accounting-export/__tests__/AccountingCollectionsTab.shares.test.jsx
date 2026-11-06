@@ -20,7 +20,7 @@ test('rule 31 — means and types with the server\'s figures, shares to one deci
   expect(link).toHaveTextContent(/24,2\s%/);
   expect(rowOf('Compléments à l’arrivée')).toHaveTextContent(/8,2\s%/);
   expect(screen.getAllByText('96')).toHaveLength(2);
-  expect(screen.getByText(/^Remboursements sur la période, hors encaissements : 1 · 120,00\s€$/)).toBeInTheDocument();
+  expect(screen.getByText(/^Remboursements sur la période, hors encaissements : 1 remboursement · 120,00\s€$/)).toBeInTheDocument();
 });
 
 test('rule 32 — the series is named by its granularity; last year only when sent', async () => {

@@ -25,7 +25,7 @@ const model = ({ entries = [], fiscalYears = [{ key: 2026, label: '2026', from: 
   touristTax: () => ({ amount: 0, stays: 0 }),
   lastYearRange: () => ({ range: null, snapshotKnown: false, knownN1: null, status: { comparable: false, reason: 'noHistory', notice: 'x', comparableFrom: null } }),
   lastCsvExport: () => stamp,
-  regimeInForce: () => ({ regime: 'subject', rate: 10, legalMention: null }),
+  regimesDuring: () => [{ periodId: 1, regime: 'subject', rate: 10, legalMention: null }],
 });
 
 test('rule 22 — the selector offers every month and quarter from the oldest exercise to the server\'s month, newest first', () => {
@@ -44,10 +44,24 @@ test('rule 22 — the selector offers every month and quarter from the oldest ex
   assert.deepEqual(data.fiscalYears.map((f) => f.key), [2026, 2025]);
 });
 
-test('rule 22 — never before the entered-date window, and up to a window chosen ahead', () => {
+test('rule 22 (D-HC13) — only what the server accepts: no month or quarter that starts before the window or ends after it', () => {
   const data = buildSynthesis(model({ fiscalYears: [{ key: 2018, label: '2018', from: '2018-01-01', to: '2018-12-31', isCurrent: false }] }), { period: 'quarter', quarter: '2027-Q2' }).data;
-  assert.equal(data.periodOptions.months.at(-1).value, '2021-11');
+  assert.equal(data.periodOptions.months.at(-1).value, '2021-12', 'novembre 2021 starts before 05/11/2021: refused, not offered');
+  assert.equal(data.periodOptions.quarters.at(-1).value, '2022-Q1', 'T4 2021 starts before the window');
   assert.equal(data.periodOptions.months[0].value, '2027-06');
+});
+
+test('rule 22 (R2-2) — an exercise far ahead offers nothing past the window: bounded payload, every option accepted', () => {
+  const started = Date.now();
+  const data = buildSynthesis(model(), { period: 'fy', fiscalYear: '9999' }).data;
+  assert.ok(Date.now() - started < 1000);
+  assert.equal(data.window.from, '9999-01-01', 'the key keeps the dashboard\'s reading');
+  assert.equal(data.periodOptions.months[0].value, '2031-10', 'octobre 2031 ends before 05/11/2031; novembre 2031 does not');
+  assert.ok(data.periodOptions.months.length <= 121);
+  assert.ok(JSON.stringify(data.periodOptions).length < 20000);
+  assert.ok(data.fiscalYears.some((f) => f.key === 9999), 'R2-12 — the window\'s exercise is offered');
+  for (const m of data.periodOptions.months) assert.equal(buildSynthesis(model(), { period: 'month', month: m.value }).ok, true, m.value);
+  for (const q of data.periodOptions.quarters) assert.equal(buildSynthesis(model(), { period: 'quarter', quarter: q.value }).ok, true, q.value);
 });
 
 test('rule 25 — the VAT tile names the rate that carries the most VAT', () => {

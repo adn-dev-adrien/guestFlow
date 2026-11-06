@@ -91,7 +91,7 @@ test('rule 15 — buckets cover the window exactly, clipped at both ends', () =>
 
   const months = bucketsOf({ from: '2025-10-01', to: '2026-09-30', granularity: 'month' });
   assert.equal(months.length, 12);
-  assert.deepEqual([months[0].label, months[11].label], ['oct. 2025', 'sept. 2026'], 'two calendar years: the year is named');
+  assert.deepEqual([months[0].label, months[11].label], ['oct. 25', 'sept. 26'], 'two calendar years: the year is named, short (R5-04)');
   assert.deepEqual(bucketsOf({ from: '2026-01-15', to: '2026-03-10', granularity: 'month' }).map((b) => [b.label, b.from, b.to]),
     [['janv.', '2026-01-15', '2026-01-31'], ['févr.', '2026-02-01', '2026-02-28'], ['mars', '2026-03-01', '2026-03-10']]);
 });

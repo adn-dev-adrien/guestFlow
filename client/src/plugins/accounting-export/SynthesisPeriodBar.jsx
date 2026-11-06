@@ -38,8 +38,10 @@ export default function SynthesisPeriodBar({ window: win, options, today, onChan
     if (!customWindowError(merged.from, merged.to, today || undefined)) onChange({ period: 'custom', from: merged.from, to: merged.to });
   };
 
-  const pick = (next) => {
-    if (!next) return;
+  const pick = (picked) => {
+    // An exclusive toggle sends null when the shown kind is pressed again: read it as « that kind, its default »,
+    // so a refused period is always one click from a working one (rule 41).
+    const next = picked || shownKind;
     if (next === 'custom') {
       setCustomOpen(true);
       if (!customWindowError(draft.from, draft.to, today || undefined)) onChange({ period: 'custom', from: draft.from, to: draft.to });
