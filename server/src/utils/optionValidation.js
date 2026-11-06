@@ -22,7 +22,7 @@ const MESSAGES = Object.freeze({
   whole: 'Nombre entier attendu',
   choice: 'Choix invalide',
   time: 'Heure invalide',
-  freeUnitsNeedPrice: 'Prix requis : unités offertes',
+  freeUnitsNeedPrice: 'Prix requis : unités offertes (à retirer par la recette tarifaire)',
 });
 
 // A negative base price used to be refused with its own 400; the code now rides on the `price` detail.

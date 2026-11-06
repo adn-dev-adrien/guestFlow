@@ -217,6 +217,10 @@ function setOptions(req, res) {
   if (optionIds !== undefined && optionIds !== null && !(Array.isArray(optionIds) && optionIds.every((id) => positiveId(id) !== null))) {
     return res.status(400).json({ error: 'Liste d’options invalide.' });
   }
+  // Rule 62 (audit R25-I1) — a real property, real options: an unknown id used to reach the foreign key and answer 500.
+  if (!model.optionListTargetsExist(req.params.id, optionIds || [])) {
+    return res.status(400).json({ error: 'Liste d’options invalide.' });
+  }
   const result = model.setOptions(req.params.id, optionIds);
   emitPricingChanged(req.params.id, 'options');
   res.json(result);

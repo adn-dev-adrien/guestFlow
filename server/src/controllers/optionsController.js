@@ -4,7 +4,7 @@ const model = require('../models/optionsModel');
 const propertiesModel = require('../models/propertiesModel');
 const { insuranceOffered, dynamicInsurance } = require('../utils/quotePostProcessors');
 const { validateOptionPayload, cleanOptionText } = require('../utils/optionValidation');
-const { scopePayload } = require('../utils/optionPayloadScope');
+const { scopePayload, withStoredScope } = require('../utils/optionPayloadScope');
 const { buildCatalogueView, buildArchivedItems } = require('../utils/optionCatalogueView');
 const { emitPricingChanged } = require('../utils/pricingChanged');
 
@@ -50,7 +50,7 @@ function insuranceFlagRefused(req, res) {
 // first (rule 15), so an invisible, switched-off line can never block a save.
 function validationRefused(req, res, stored = null) {
   req.body = cleanOptionText(req.body, stored);
-  const details = validateOptionPayload(scopePayload(req.body), {
+  const details = validateOptionPayload(scopePayload(withStoredScope(req.body, stored)), {
     knownPropertyIds: propertiesModel.list().map((p) => p.id), stored, storedFreeUnits: stored?.propertyFreeUnits || {},
   });
   if (details.length === 0) return false;

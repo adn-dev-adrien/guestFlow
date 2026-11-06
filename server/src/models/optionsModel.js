@@ -7,7 +7,7 @@ const { formatTimeShort } = require('../utils/dateFr');
 const { normalizeCategory, pinCancellationInsurance } = require('../utils/optionGrouping');
 const { insuranceOffered } = require('../utils/quotePostProcessors');
 const { archiveBlockedReason } = require('../utils/optionArchiveGuard');
-const { scopePayload } = require('../utils/optionPayloadScope');
+const { scopePayload, withStoredScope } = require('../utils/optionPayloadScope');
 
 // specs/plugins-phase-3b-neat.md rule 21 — the catalogue hides the cancellation insurance while no plugin
 // offers it. The row and its settings stay; they come back with the plugin.
@@ -428,53 +428,47 @@ function createOptionsModel(database) {
     },
 
     update(id, rawPayload = {}) {
-      const payload = scopePayload(rawPayload);
-      const updateOption = database.prepare(`
-        UPDATE options SET
-          title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
-          autoOptionType = ?, autoEnabled = ?, autoPricingMode = ?, autoFullNightThreshold = ?,
-          countsAsBedLinen = ?, countsAsBathroomLinen = ?,
-          linenIncludesSingle = ?, linenIncludesDouble = ?, linenIncludesBaby = ?,
-          towelLargePerPerson = ?, towelMediumPerPerson = ?, towelSmallPerPerson = ?
-        WHERE id = ?
-      `);
+      const storedRow = database.prepare('SELECT * FROM options WHERE id = ?').get(id);
+      if (!storedRow) return { ok: true };
+      // specs/options-resources-ux.md rule 33 (audit R25-DB-1) — a key the save does not send keeps the stored value: the
+      // side panel never sends the auto-option columns, and `autoEnabled = 0` took « Lit bébé » off every new stay.
+      const payload = scopePayload(withStoredScope(rawPayload, { ...storedRow, propertyIds: propertyIdsFor(id) }));
+      const sentKey = (key) => rawPayload[key] !== undefined;
+      const bit = (key) => (payload[key] ? 1 : 0);
+      const towels = (key, fallback) => Math.max(0, Math.floor(Number(payload[key] ?? fallback)));
+      const writers = {
+        title: () => sentenceCase(payload.title),
+        description: () => capitalizeFirst(payload.description),
+        priceType: () => payload.priceType || 'per_stay',
+        optionProgressiveTiers: () => JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
+        autoOptionType: () => payload.autoOptionType || null,
+        autoEnabled: () => bit('autoEnabled'),
+        autoPricingMode: () => payload.autoPricingMode || 'fixed',
+        autoFullNightThreshold: () => payload.autoFullNightThreshold || null,
+        countsAsBedLinen: () => bit('countsAsBedLinen'),
+        countsAsBathroomLinen: () => bit('countsAsBathroomLinen'),
+        linenIncludesSingle: () => bit('linenIncludesSingle'),
+        linenIncludesDouble: () => bit('linenIncludesDouble'),
+        linenIncludesBaby: () => bit('linenIncludesBaby'),
+        towelLargePerPerson: () => towels('towelLargePerPerson', 1),
+        towelMediumPerPerson: () => towels('towelMediumPerPerson', 0),
+        towelSmallPerPerson: () => towels('towelSmallPerPerson', 1),
+      };
+      const values = Object.fromEntries(Object.entries(writers).map(([column, write]) => [column, sentKey(column) ? write() : storedRow[column]]));
+      values.price = values.priceType === 'free' ? 0 : (sentKey('price') ? Number(payload.price || 0) : storedRow.price);
+      const columns = Object.keys(values);
+      const updateOption = database.prepare(`UPDATE options SET ${columns.map((c) => `${c} = @${c}`).join(', ')} WHERE id = @id`);
       const deleteLinks = database.prepare('DELETE FROM property_options WHERE optionId = ?');
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
       database.transaction(() => {
-        // `autoOptionType` is a seeded system marker (breakfast / cleaning / linen…), not a form
-        // field: the Options edit form never sends it. An absent key must PRESERVE the stored
-        // type — writing `payload.autoOptionType || null` blindly stripped the breakfast type on
-        // every save of the option, killing the planning card / SAS step / push (bug found
-        // 2026-07-19 during specs/sas-breakfast-bread-and-push.md verification).
-        const existingAutoType = (database.prepare('SELECT autoOptionType FROM options WHERE id = ?').get(id) || {}).autoOptionType || null;
-        const args = [
-          sentenceCase(payload.title),
-          capitalizeFirst(payload.description),
-          payload.priceType || 'per_stay',
-          payload.priceType === 'free' ? 0 : Number(payload.price || 0),
-          JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
-          payload.autoOptionType === undefined ? existingAutoType : (payload.autoOptionType || null),
-          payload.autoEnabled ? 1 : 0,
-          payload.autoPricingMode || 'fixed',
-          payload.autoFullNightThreshold || null,
-          payload.countsAsBedLinen ? 1 : 0,
-          payload.countsAsBathroomLinen ? 1 : 0,
-          payload.linenIncludesSingle === undefined ? 1 : (payload.linenIncludesSingle ? 1 : 0),
-          payload.linenIncludesDouble === undefined ? 1 : (payload.linenIncludesDouble ? 1 : 0),
-          payload.linenIncludesBaby   === undefined ? 1 : (payload.linenIncludesBaby   ? 1 : 0),
-          Math.max(0, Math.floor(Number(payload.towelLargePerPerson  ?? 1))),
-          Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
-          Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
-        ];
-        args.push(id);
-        updateOption.run(...args);
+        updateOption.run({ ...values, id });
         deleteLinks.run(id);
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
         persistBreakfastNotifyLeadMinutes(id, payload);
         persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
-        persistPropertyDefaults(id, payload);
+        persistPropertyDefaults(id, { ...payload, autoEnabled: values.autoEnabled });
         persistPropertyBathMats(id, payload);
         persistDisplayToClient(id, payload);
         persistCategory(id, payload);

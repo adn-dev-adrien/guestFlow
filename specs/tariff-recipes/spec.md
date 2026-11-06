@@ -678,6 +678,11 @@ all-inclusive pricing as the first such recipe.
     « Prix » column, so the refusal prints under the property's row in « Logements et prix »; otherwise under the row's
     « Prix » field (disabled when the property is no longer proposed). Test: client
     `OptionEditorPanel.free-units-refusal`.
+    *Reading of 2026-11-06 (audit R25 F1):* the refusal is final in the app — no screen writes `freeUnits` — so it names its
+    way out: « Prix requis : unités offertes (à retirer par la recette tarifaire) ». Taking the option off that property, or
+    switching it to « Gratuit » or « Dégressif participants », means setting that row's free units to 0 through the
+    property's recipe configuration first, then saving in the editor. Setting the price to 0 keeps the option proposed there.
+    Test: `option-free-units`.
 
 ## 4. Architecture
 

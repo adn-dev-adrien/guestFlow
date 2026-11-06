@@ -59,6 +59,7 @@ const rows = () => {
     ['admin', 'PUT', `/api/properties/${property}`, allT('name', 'photo', 'cleaningHours', 'touristTaxMode')],
     ['admin', 'PUT', `/api/properties/${property}/options`, { optionIds: T }],
     ['admin', 'PUT', `/api/properties/${property}/options`, { optionIds: 'x' }],
+    ['admin', 'PUT', `/api/properties/${property}/options`, { optionIds: [999999] }],
     ['admin', 'PUT', `/api/properties/${property}/arrival-facts`, allT('accessCode', 'wifiPassword')],
     ['admin', 'POST', `/api/properties/${property}/pricing`, allT('startDate', 'endDate', 'pricePerNight')],
     ['admin', 'POST', `/api/properties/${property}/ical-sources`, allT('url', 'platformKey')],

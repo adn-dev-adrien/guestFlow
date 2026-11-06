@@ -18,6 +18,7 @@ const {
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { rangesWindowMessage } = require('../utils/stayDates');
 const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFormat');
+const { positiveId } = require('../utils/bodyText');
 const { normalizePlatformKey } = require('../utils/icalParser');
 const { KNOWN_PLATFORM_COLORS, isBuiltinColor } = require('../constants/platformColors');
 const { textColorFor } = require('../utils/colorContrast');
@@ -646,8 +647,11 @@ function createPropertiesModel(database) {
       return { id: propertyId };
     },
 
-    async update(id, body = {}, photoFile = null) {
-      const existing = database.prepare('SELECT photo, nameArticle, extraGuestPriceUnit, welcomePackCost, defaultCautionAmount, depositDueDays, balanceDaysBefore, cancelAfterBalanceDueDays FROM properties WHERE id = ?').get(id);
+    async update(id, sentBody = {}, photoFile = null) {
+      const existing = database.prepare('SELECT * FROM properties WHERE id = ?').get(id);
+      // specs/settings-input-guards.md rule 61 (audit R25-DB-1 sweep) — a column the save does not send is written as the
+      // stored value sent back: an absent `depositEnabled` used to switch the acompte off, an absent name to blank it.
+      const body = { ...(existing || {}), ...Object.fromEntries(Object.entries(sentBody).filter(([, value]) => value !== undefined)) };
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
       const photo = newPhoto || (existing ? existing.photo : '');
 
@@ -658,7 +662,7 @@ function createPropertiesModel(database) {
         propertyName(body.name),
         // specs/guest-email-texts-made-simple.md rule 30 (2026-10-18) — a form that does not send the
         // article keeps the stored one, and does not confirm it.
-        normalizeNameArticle(sent(body, 'nameArticle') ? body.nameArticle : existing?.nameArticle),
+        normalizeNameArticle(sent(sentBody, 'nameArticle') ? sentBody.nameArticle : existing?.nameArticle),
         photo,
         body.maxGuests || 2,
         body.maxBabies || 0,
@@ -691,8 +695,8 @@ function createPropertiesModel(database) {
         id,
       );
 
-      writeEmailFacts(id, body);
-      applyOwnArticle(id, body.name);
+      writeEmailFacts(id, sentBody);
+      applyOwnArticle(id, sentBody.name);
 
       if (newPhoto && existing && existing.photo && existing.photo !== newPhoto) {
         removeUploadedFile(existing.photo);
@@ -1172,6 +1176,13 @@ function createPropertiesModel(database) {
       } catch (_) {
         return [];
       }
+    },
+
+    // specs/settings-input-guards.md rule 62 — the property and every option of the list exist.
+    optionListTargetsExist(propertyId, optionIds = []) {
+      if (!positiveId(propertyId) || !database.prepare('SELECT 1 FROM properties WHERE id = ?').get(positiveId(propertyId))) return false;
+      const known = database.prepare('SELECT 1 FROM options WHERE id = ?');
+      return optionIds.every((id) => Boolean(known.get(positiveId(id))));
     },
 
     setOptions(propertyId, optionIds = []) {
