@@ -1,0 +1,1 @@
+- Options: an option saved as « free » or per-participant progressive drops its per-logement prices even when the request does not send them, so the quote stops billing the old price; a row holding free units keeps its « Prix requis » refusal.
