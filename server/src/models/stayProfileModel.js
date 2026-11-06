@@ -13,7 +13,6 @@ const { bookingChannelOf } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { bookingDayOf } = require('../utils/vatRegime');
 const { profileOf, basketOf, basketDelta } = require('../utils/stayProfile');
-const { touristTaxInTotal } = require('../utils/stayTouristTaxInTotal');
 const { DIRECT_CHANNEL } = require('../constants/stayProfileBuckets');
 
 // Rule 15 (D-HC8) — every panel names the money it reads; this page reads stay totals only.
@@ -53,41 +52,8 @@ function byMonth(reservations) {
   return out;
 }
 
-function createStayProfileModel(finance, dashboard, database) {
-  const tableExists = (name) => {
-    try { return database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) != null; }
-    catch { return false; }
-  };
-  const hasColumn = (name) => {
-    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
-    catch { return false; }
-  };
-
-  // Rule 22 — where each stay's tax sits: collected at arrival (financeModel's TAX_ON_ARRIVAL_SQL, the
-  // tax page's own predicate), paid through a plan, and the tax its book refunds gave back. Guarded like
-  // financeModel: a schema without a table or column reads « no ».
-  function taxFacts(ids) {
-    const facts = new Map();
-    if (!ids.length) return facts;
-    const onArrival = tableExists('platforms') && tableExists('ical_sources') && hasColumn('touristTaxInComplement')
-      ? financeModel.helpers.TAX_ON_ARRIVAL_SQL
-      : (hasColumn('touristTaxInComplement') ? '(r.touristTaxInComplement = 1)' : '(0)');
-    const plan = tableExists('reservation_installments')
-      ? '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))'
-      : '(0)';
-    const refunded = tableExists('reservation_refund_lines') && tableExists('reservation_refunds')
-      ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId
-                    WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND rf.method <> 'internal'), 0)`
-      : '0';
-    const rows = database.prepare(`SELECT r.id, ${onArrival} AS taxOnArrival, ${plan} AS hasPlan, ${refunded} AS refundedTax
-      FROM reservations r WHERE r.id IN (${ids.map(() => '?').join(',')})`).all(...ids);
-    for (const f of rows) facts.set(f.id, { taxOnArrival: Boolean(f.taxOnArrival), hasPlan: Boolean(f.hasPlan), refundedTax: Number(f.refundedTax || 0) });
-    return facts;
-  }
-  const withTax = (reservations) => {
-    const facts = taxFacts(reservations.map((r) => r.id));
-    return reservations.map((r) => ({ ...r, taxInTotal: touristTaxInTotal(r, facts.get(r.id)) }));
-  };
+function createStayProfileModel(finance, dashboard) {
+  const withTax = (reservations) => finance.withTouristTaxInTotal(reservations);
 
   // Rules 11-13 — the average basket per month of the selected exercise, last year beside it on the
   // months the dashboard compares.
@@ -170,12 +136,12 @@ function createStayProfileModel(finance, dashboard, database) {
 let defaultModel = null;
 // The production model, built on first use so that requiring this file opens no database.
 function getStayProfile(params) {
-  defaultModel = defaultModel || createStayProfileModel(financeModel, dashboardModel, require('../database'));
+  defaultModel = defaultModel || createStayProfileModel(financeModel, dashboardModel);
   return defaultModel.getStayProfile(params);
 }
 
 function buildModel(database) {
-  return createStayProfileModel(financeModel.buildModel(database), dashboardModel.buildModel(database), database);
+  return createStayProfileModel(financeModel.buildModel(database), dashboardModel.buildModel(database));
 }
 
 module.exports = { getStayProfile, buildModel, channelOf, DIMENSIONS };

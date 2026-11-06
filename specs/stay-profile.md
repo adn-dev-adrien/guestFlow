@@ -175,6 +175,10 @@ and the average basket per stay for each month of the exercise against last year
     « € » alone on a line.
 27. **Default dates from the server's day.** The page's default month (« Mois ») and default custom dates
     (« Personnalisée ») are the server's month (`useServerToday`, invariant 33), never the device's.
+28. **One reading of the tax inside a total.** Rule 22's placement is read through
+    `financeModel.withTouristTaxInTotal`, which the Suivi financier's revenue of the nights reads too
+    (`specs/finance-dashboard-redesign.md` rule 56): the basket and the dashboard never leave out two
+    different taxes for one stay. Test: `tests/finance-tax-in-total-shared.unit.test.js`.
 
 **Edge cases:**
 - A stay of the window booked on the import day → lead time unknown (rule 7), counted everywhere else.
@@ -310,6 +314,7 @@ Per the mock-up (`#profil`), in the « Maison » theme and lot 0's report gramma
 - [x] `server/src/tests/stay-profile.review-fixes.unit.test.js` — 7 tests, rules 22, 23, 24, 26.
 - [x] `server/src/tests/finance-window-impossible-month.unit.test.js` — 2 tests, rule 25 (resolveWindow,
   dashboard, its detail tables, stay profile).
+- [x] `server/src/tests/finance-tax-in-total-shared.unit.test.js` — 2 tests, rule 28 (and dashboard rule 56).
 
 ### Client unit tests (Vitest) — 6 files, 16 tests
 - [x] `client/src/__tests__/api.stay-profile.test.js` — 1 test, rule 1.

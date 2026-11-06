@@ -434,8 +434,8 @@ without losing anything today's page shows.
     Test: `components/__tests__/FinanceHero.light-card.test.jsx`.
 53. **Revenue per night and RevPAR read the revenue of the nights** (Adrien, D-HC9, 2026-11-06, supersedes
     rule 25). The revenue of a window's nights = for each live stay with an amount, its « total de séjour »
-    **without its tourist tax** (never revenue; the stay profile's `withoutTouristTax`, its HT ratio
-    finalPrice ÷ (finalPrice + tax)) spread evenly over its nights by the booking pace's own split
+    **without its tourist tax** (never revenue; the stay profile's `withoutTouristTax` — the tax inside the
+    total since rule 56) spread evenly over its nights by the booking pace's own split
     (`bookingPace.revenueOfNights`, the « CA des nuits »; a stay without a night counts where it starts), the
     share of its nights inside the window. **Revenu moyen par nuit** = that ÷ the distinct nights of the
     priced stays inside the window (rule 35); **RevPAR** = that ÷ the window's open nights (rule 24). Both
@@ -459,6 +459,14 @@ without losing anything today's page shows.
     ouvertes (`specs/finance-revpar-year-over-year.md`). With one logement selected, the « Logements » tile
     reads its revenue and the logement's name, no longer its RevPAR (which the hero shows). Test:
     `pages/__tests__/FinancePage.review-fixes.test.jsx`.
+56. **The tax left out of the nights' revenue is the tax inside the total** (integration of 2026-11-06,
+    amends rule 53's « HT ratio »). The tourist tax rule 53 removes is the one
+    `financeModel.withTouristTaxInTotal` places inside each stay's « total de séjour »
+    (`utils/stayTouristTaxInTotal.js`, the export's own placement: none in a bucket collected in the caisse
+    interne, the whole tax out of a netted solde), the same reading as the stay profile's basket
+    (`specs/stay-profile.md` rule 28). *Why:* the ratio finalPrice ÷ (finalPrice + tax) removed a tax that
+    was not in the total and only part of one that was; two screens must never leave out two different
+    taxes for one stay. Test: `tests/finance-tax-in-total-shared.unit.test.js`.
 
 ---
 

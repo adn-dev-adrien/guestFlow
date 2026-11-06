@@ -25,6 +25,7 @@ const { exerciseMonths } = require('../utils/exerciseOverview');
 const installmentPlan = require('../utils/installmentPlan');
 const vatRegimeModel = require('./vatRegimeModel');
 const { bookingDayOf } = require('../utils/vatRegime');
+const { touristTaxInTotal } = require('../utils/stayTouristTaxInTotal');
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -345,6 +346,33 @@ function createFinanceModel(database) {
   }
 
   const model = {
+    // specs/stay-profile.md rule 22 and specs/finance-dashboard-redesign.md rule 53 — the ONE reading of
+    // the tourist tax inside each stay's « total de séjour » (utils/stayTouristTaxInTotal.js): where it
+    // sits (collected at arrival — TAX_ON_ARRIVAL_SQL, the tax page's own predicate — or through a plan)
+    // and the tax its book refunds gave back, read in one query. Returns the rows with `taxInTotal`. The
+    // stay profile's basket and the dashboard's revenue of the nights both leave the tax out through it.
+    withTouristTaxInTotal(reservations) {
+      const ids = reservations.map((r) => r.id).filter((id) => id != null);
+      const facts = new Map();
+      if (ids.length) {
+        const tableExists = (name) => database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) != null;
+        const onArrival = tableExists('platforms') && tableExists('ical_sources') && hasReservationColumn('touristTaxInComplement')
+          ? TAX_ON_ARRIVAL_SQL
+          : (hasReservationColumn('touristTaxInComplement') ? '(r.touristTaxInComplement = 1)' : '(0)');
+        const plan = tableExists('reservation_installments')
+          ? '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))'
+          : '(0)';
+        const refunded = tableExists('reservation_refund_lines') && tableExists('reservation_refunds')
+          ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId
+                        WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND rf.method <> 'internal'), 0)`
+          : '0';
+        database.prepare(`SELECT r.id, ${onArrival} AS taxOnArrival, ${plan} AS hasPlan, ${refunded} AS refundedTax
+          FROM reservations r WHERE r.id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+          .forEach((f) => facts.set(f.id, { taxOnArrival: Boolean(f.taxOnArrival), hasPlan: Boolean(f.hasPlan), refundedTax: Number(f.refundedTax || 0) }));
+      }
+      return reservations.map((r) => ({ ...r, taxInTotal: touristTaxInTotal(r, facts.get(r.id)) }));
+    },
+
     // Financial summary for a date range; each reservation carries its payment status.
     //
     // All amounts are driven by the **encaissement** schedule (depositAmount + balanceAmount +
@@ -370,9 +398,9 @@ function createFinanceModel(database) {
     // live reservations, manually cancelled ones (kept with `cancelledAt`), and those an approved iCal
     // cancellation deleted (`booking_pace_cancellations`). A cancelled stay is valued as it stood on the
     // books, before any refund of its cancellation.
-    // `withTax` (specs/finance-dashboard-redesign.md rule 53) adds what the dashboard's revenue of the nights
-    // needs to leave the tourist tax out — `finalPrice`, `touristTaxTotal` — to the live stays only; the pace
-    // reads the stays without it, unchanged.
+    // `withTax` (specs/finance-dashboard-redesign.md rule 53) adds `taxInTotal` (withTouristTaxInTotal) to
+    // the stays read from the reservations, so the dashboard's revenue of the nights leaves the tourist tax
+    // out; the pace reads the stays without it, unchanged.
     getPaceStays({ propertyId, withTax = false } = {}) {
       const scope = scopeSql({ propertyId });
       const hasCancelledAt = hasReservationColumn('cancelledAt');
@@ -381,6 +409,7 @@ function createFinanceModel(database) {
         FROM reservations r
         WHERE r.kind ${hasCancelledAt ? "IN ('reservation', 'cancelled')" : "= 'reservation'"}${scope.sql}
       `).all(...scope.params);
+      const taxed = withTax ? new Map(model.withTouristTaxInTotal(rows).map((r) => [r.id, r.taxInTotal])) : null;
       const stays = rows.map((r) => {
         const cancelledOn = hasCancelledAt && r.kind === 'cancelled' ? bookingDayOf(r.cancelledAt) : null;
         return {
@@ -390,7 +419,7 @@ function createFinanceModel(database) {
           totalSejour: totalSejour(cancelledOn ? { ...r, refundsBookTtc: 0 } : r),
           bookedOn: bookingDayOf(r.createdAt),
           cancelledOn,
-          ...(withTax ? { finalPrice: r.finalPrice, touristTaxTotal: r.touristTaxTotal } : {}),
+          ...(taxed ? { taxInTotal: taxed.get(r.id) } : {}),
         };
       });
       const hasLedger = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'booking_pace_cancellations'").get();
