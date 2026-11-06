@@ -24,12 +24,18 @@ const nextMonthStart = (ym) => {
 };
 
 const H = financeModel.helpers;
+const UNKNOWN_EXERCISE = 'Exercice inconnu.';
 
 function createDataChecksModel(database, finance) {
   const columns = () => new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name));
 
   // Rule 1 — the exercise and the logement, read as the dashboard reads them.
+  // Rule 22 (D-HC16) — a repeated `fiscalYear` (an array from the query string) is refused; one unusable value
+  // still reads as the current exercise.
   function context({ fiscalYear, propertyId } = {}) {
+    if (fiscalYear != null && typeof fiscalYear !== 'string' && typeof fiscalYear !== 'number') {
+      return { ok: false, status: 400, error: UNKNOWN_EXERCISE, code: 'UNKNOWN_EXERCISE' };
+    }
     const today = H.todayIso();
     const endMonth = H.getFiscalYearEndMonth(database);
     const exercise = fiscalYearUtil.resolve(endMonth, { key: fiscalYear, today });

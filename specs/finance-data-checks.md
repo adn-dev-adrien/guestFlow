@@ -135,6 +135,14 @@ look, how many, and opens each one from the list.
     `notDeclarableAmount`; `stays` counts the stays with an unticked amount above 0.
 21. **A client with no name** (review R4-8). Rule 9's detail reads « Client sans nom » when the placeholder client
     carries no first name and no last name, never « Client : » followed by nothing.
+22. **A repeated exercise is refused** (D-HC16, Adrien 2026-11-06). A `fiscalYear` sent more than once (or in any
+    shape other than one value) is a 400 `{ error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' }`, nothing read.
+    One unusable value (`abc`, empty, out of range) still reads as the current exercise (rule 1, the dashboard's
+    convention). Replaces the « repeated fiscalYear reads as the current exercise » reading of §9.
+23. **The panel offers the current exercise** (D-HC16). On that refusal the panel shows the server's message with
+    one action « Exercice en cours », which reads the checks without `fiscalYear` (the caption then names the
+    exercise read); choosing another exercise on the page asks for it again. Any other refusal keeps
+    « Réessayer » with the same request. Never a dead end.
 
 **Edge cases:**
 - A cancelled stay → in no stay check (no tax owed, the cancellation has its own books).
@@ -168,7 +176,7 @@ look, how many, and opens each one from the list.
 |---|---|---|---|
 | `api.js` | `api.js` | T | `getFinanceDataChecks(params)`. |
 | `components/` | `DataChecksPanel.jsx` | C | Generic « À vérifier » list (rules 12-15): one disclosure row per non-empty check, severity words, « i » hint, items as links, « + N autres », the empty line. Renders only. |
-| `components/` | `FinanceDataChecksCard.jsx` | C | Feature-local loader (rules 16-17): reads the endpoint for the page's exercise and logement, builds the two link targets, keeps a refusal inside the panel. |
+| `components/` | `FinanceDataChecksCard.jsx` | C | Feature-local loader (rules 16-17): reads the endpoint for the page's exercise and logement, builds the two link targets, keeps a refusal inside the panel, offers the current exercise after « Exercice inconnu. » (rule 23). |
 | `pages/` | `FinancePage.jsx` | T | One mount point under the booking pace: `<FinanceDataChecksCard fiscalYear propertyId refreshKey />`. |
 | `pages/` | `TouristTaxPage.jsx` | T | Opens the month named by `?month=YYYY-MM` when real and not to come (rule 16). |
 
@@ -184,7 +192,7 @@ look, how many, and opens each one from the list.
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/finance/data-checks` | `?fiscalYear=<end year>&propertyId=<id>` (both optional) | `200` payload below; `400 { error: 'Logement inconnu.' }` | Admin (the `/api/finance` gating). Read-only. |
+| GET | `/api/finance/data-checks` | `?fiscalYear=<end year>&propertyId=<id>` (both optional) | `200` payload below; `400 { error: 'Logement inconnu.' }`; `400 { error: 'Exercice inconnu.', code: 'UNKNOWN_EXERCISE' }` for a repeated `fiscalYear` | Admin (the `/api/finance` gating). Read-only. |
 
 ```json
 {
@@ -252,6 +260,7 @@ The panel has no action of its own in the `PageActionBar`; the page's « Actuali
 
 ### Server unit tests
 - [x] `tests/finance-data-checks.unit.test.js` (16) — the 0 € row case now reads rule 19 (frozen, not listed as missing).
+- [x] `tests/finance-data-checks.repeated-exercise.unit.test.js` (4) — rule 22: repeated / object `fiscalYear` → 400 with its code, one unusable value → current exercise, repeated logement unchanged.
 - [x] `tests/finance-data-checks.review-fixes.unit.test.js` (7) — rules 18, 19, 20, 21: frozen 0 € after a platform's switch, unfrozen still judged, empty-name client, « reste » = tax report with « pas encore déclarables », one read per request (spy), month items = monthly extraction on four branches, attachment day inside its window month by month. — rules 1, 2, 4, 5, 6, 7, 8, 9, 10: positive / negative /
       edge per check, platform modes (reversed, owner, remitted), rate 0, added guests, cancelled, departure day,
       other logement, other exercise, website request, placeholder label, page-equal amount, unpaid not declarable,
@@ -263,7 +272,8 @@ The panel has no action of its own in the `PageActionBar`; the page's « Actuali
 ### Client (vitest)
 - [x] `src/__tests__/api.finance-data-checks.test.js` (1) — rule 10.
 - [x] `components/__tests__/DataChecksPanel.render.test.jsx` (7) — rules 12, 13, 14, 15.
-- [x] `components/__tests__/FinanceDataChecksCard.load-and-links.test.jsx` (6) — rules 15, 16, 17.
+- [x] `components/__tests__/FinanceDataChecksCard.load-and-links.test.jsx` (7) — rules 15, 16, 17.
+- [x] `components/__tests__/FinanceDataChecksCard.exercise-refusal.test.jsx` (3) — rule 23.
 - [x] `pages/__tests__/FinancePage.data-checks.test.jsx` (2) — rules 16, 17.
 - [x] `pages/__tests__/TouristTaxPage.month-link.test.jsx` (4) — rule 16.
 
@@ -300,7 +310,10 @@ The panel has no action of its own in the `PageActionBar`; the page's « Actuali
 
 **Resolved 2026-11-06 (Adrien, D-HC10 / D-HC13, review fixes):** rule 6 skips frozen taxes (rule 19); « reste »
 is the tax page's figure (rule 20); rule 7 reads once (rule 18). A repeated `propertyId` stays « Logement
-inconnu. » (400) and a repeated or unusable `fiscalYear` reads as the current exercise, the dashboard's convention.
+inconnu. » (400); an unusable `fiscalYear` reads as the current exercise, the dashboard's convention.
+- **D-HC16 (Adrien, 2026-11-06):** a REPEATED `fiscalYear` is a 400 « Exercice inconnu. » (rules 22-23), replacing the
+  earlier « repeated reads as the current exercise ». The message is the app's existing wording for an unknown
+  exercise (`utils/revenueGoals`), this endpoint having none before.
 
 **Found while building (not fixed here):** a stay created with `adults: 0` is stored with `adults = 1` but its
 tourist tax computed for 0 adults (seen in the unit fixture). Rule 6 lists such a stay — rightly — but the
