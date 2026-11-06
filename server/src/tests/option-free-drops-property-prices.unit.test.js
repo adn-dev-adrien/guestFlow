@@ -1,7 +1,7 @@
 // specs/options-resources-ux.md rule 35 (audit R26-DB-1, 2026-11-06) — through the real application: an option saved as « free »
 // (or per-participant progressive) holds no per-logement price, whether the body sends `propertyPrices` or not, so the quote
-// stops billing the old one at once. A row holding free units keeps the 422 of
-// specs/tariff-recipes/spec.md rule 69, nothing written.
+// stops billing the old one at once. A row holding free units keeps the tariff
+// recipes' free-units refusal (422), nothing written.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./inputShapeApp');
@@ -78,7 +78,7 @@ test('per-participant progressive without propertyPrices: the per-logement price
   assert.deepEqual(pricesOf(id), []);
 });
 
-test('a row holding free units: « free » without propertyPrices is the rule 69 refusal, nothing written', async () => {
+test('a row holding free units: « free » without propertyPrices is the free-units refusal, nothing written', async () => {
   const id = await pricedOption('Petit déjeuner offert');
   writeDb('UPDATE property_option_prices SET freeUnits = 2 WHERE optionId = ?', id);
   const res = await app.call(admin, 'PUT', `/api/options/${id}`, { title: 'Petit déjeuner offert', priceType: 'free' });
