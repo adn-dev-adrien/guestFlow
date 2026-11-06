@@ -12,6 +12,8 @@ const MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const QUARTER_RE = /^(\d{4})-Q([1-4])$/;
 const KINDS = new Set(['month', 'quarter', 'fy', 'custom']);
 const UNKNOWN_PERIOD = 'Période inconnue.';
+// The keys each kind reads (rule 1); every other known key is still judged (rule 54).
+const OWN_KEYS = Object.freeze({ month: ['month'], quarter: ['quarter'], fy: ['fiscalYear'], custom: ['from', 'to'] });
 
 const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const MONTHS_SHORT_FR = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
@@ -114,6 +116,12 @@ function resolvePeriod({ query = {}, today, fiscalEndMonth, fiscalYear, resolveC
   if (kindRaw === null) return { ok: false, error: UNKNOWN_PERIOD };
   const kind = kindRaw === '' ? 'month' : kindRaw;
   if (!KINDS.has(kind)) return { ok: false, error: UNKNOWN_PERIOD };
+  // Rule 54 (D-HC16, V2R2-1) — a known key sent twice (or as anything but text) is refused whatever the kind, even
+  // one this kind does not read: the kind's own keys keep their own refusal below, every other one is « Période inconnue. ».
+  const own = OWN_KEYS[kind];
+  if (Object.keys(OWN_KEYS).flatMap((k) => OWN_KEYS[k]).some((key) => !own.includes(key) && text(query[key]) === null)) {
+    return { ok: false, error: UNKNOWN_PERIOD };
+  }
 
   const exerciseOf = (iso) => fiscalYear.resolve(fiscalEndMonth, { today: iso });
   const finish = (win, exercise) => ({

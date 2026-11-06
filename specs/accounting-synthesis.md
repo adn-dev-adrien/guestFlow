@@ -275,6 +275,11 @@ add up — before the CSV goes to the accountant.
     « Écritures équilibrées », « TVA cohérente », « Séjours terminés soldés ». Its « voir » is 44 px tall on touch.
 
 
+54. **A repeated key is refused whatever the kind (D-HC16, V2R2-1).** Every known key of the period — `period`, `month`,
+    `quarter`, `fiscalYear`, `from`, `to` — is judged before the window is read, including the keys the chosen kind
+    does not use: sent twice (or as anything but text) it is a 400 « Période inconnue. ». The kind's own keys keep
+    their refusal (a repeated `from` of a custom window: « Deux dates à choisir. »). A single unread key stays harmless.
+
 **Edge cases:**
 - A window with no entry → zeros, empty breakdowns (no share), a flat series, checks `ok`.
 - A cut month (custom window) → every figure but the tourist tax; the tax tile says why.
@@ -445,7 +450,7 @@ The design reference `#synthese` (approved 2026-11-05), in MUI and the « Maison
 
 ## 7. Test plan
 
-### Server unit tests (63 tests in 9 new files, all in `server/src/plugins/accounting-export/tests/`)
+### Server unit tests (64 tests in 9 new files, all in `server/src/plugins/accounting-export/tests/`)
 - [x] `accounting-synthesis-period.unit.test.js` (9) — rules 1, 2, 8, 15: periods, refusals, granularity, buckets.
 - [x] `accounting-synthesis-engine.unit.test.js` (10) — rules 4, 5, 6, 10–15, 21: VAT return, checks, payments, shares, series.
 - [x] `accounting-synthesis-csv-one-source.unit.test.js` (4) — rules 3, 5, 6: CSV byte-identical (golden file, two plans), rows = ventilation lines, VAT = the CSV's VAT accounts.
@@ -453,7 +458,7 @@ The design reference `#synthese` (approved 2026-11-05), in MUI and the « Maison
 - [x] `accounting-synthesis-payload.unit.test.js` (8) — rules 5, 8, 9, 19, 21 on a model double.
 - [x] `accounting-synthesis-last-export.unit.test.js` (3) — rule 16.
 - [x] `accounting-synthesis-ui-payload.unit.test.js` (6) — rules 14, 16, 22, 25: periods offered (only accepted ones, an exercise far ahead bounded), main VAT rate, export month in words, share ratio.
-- [x] `accounting-synthesis-review-fixes-2.unit.test.js` (4) — rules 47, 48, 50 and D-HC16 (verification of 2026-11-06).
+- [x] `accounting-synthesis-review-fixes-2.unit.test.js` (5) — rules 47, 48, 50, 54 and D-HC16 (verification of 2026-11-06).
 - [x] `accounting-synthesis-review-fixes.unit.test.js` (10) — rules 3, 10, 22, 35–40: requalified money is no collection (direct, real schema; platform pair), CSV unchanged by the compensation's origin, same-origin stamp, fy 9999 at once, tax ahead / straddling = monthly extractions, regimes during the window, shared-account label, « Autres », rounding vs gap.
 - The books suite also proves the dashboard and the synthesis say the same comparison sentence for the same window (rule 9).
 
@@ -521,3 +526,4 @@ The design reference `#synthese` (approved 2026-11-05), in MUI and the « Maison
 - 2026-11-06 — review fixes (R2-1…R2-12, R5-04, R5-06, R6-2, R6-5, R6-11, D-HC10/12/13): rules 35–44; 59 server
   tests, 35 client tests.
 - 2026-11-06 — verification fixes (V2-1…V2-9, V5-1, V5-2, D-HC16): rules 46–52; 63 server tests, 43 client tests.
+- 2026-11-06 — V2R2-1: rule 54, a repeated key refused whatever the kind; 64 server tests.
