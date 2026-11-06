@@ -25,7 +25,8 @@ import ChartMenu from './ChartMenu';
 import ChartDataTable from './ChartDataTable';
 import ChartEndLabels from './ChartEndLabels';
 import { chart } from '../utils/chartColors';
-import { axisTicks, endLabelMargin, toCsv, xInterval } from '../utils/reportChart';
+import useElementWidth from '../hooks/useElementWidth';
+import { axisTicks, endLabelCap, endLabelMargin, toCsv, xInterval } from '../utils/reportChart';
 
 const DEFAULT_LABELS = { daily: 'Encaissé du jour', cumulative: 'Cumul', previous: "Cumul l'an dernier" };
 const Y_WIDTH = 64;
@@ -62,6 +63,7 @@ export default function AlignedDailyCumulativeCharts({ categories, daily, cumula
   const narrow = useMediaQuery(theme.breakpoints.down('sm'));
   const syncId = useId();
   const [view, setView] = useState('chart');
+  const [boxRef, boxWidth] = useElementWidth();
   const labels = { ...DEFAULT_LABELS, ...labelsIn };
   const hasPrevious = Array.isArray(previousCumulative) && previousCumulative.some((v) => v != null);
   const rows = useMemo(() => categories.map((c, i) => ({
@@ -74,7 +76,8 @@ export default function AlignedDailyCumulativeCharts({ categories, daily, cumula
     { key: 'cumulative', name: labels.cumulative, color: chart.current, values: rows.map((r) => r.cumulative) },
     ...(hasPrevious ? [{ key: 'previous', name: 'N-1', color: chart.lastYearEdge, values: rows.map((r) => r.previous) }] : []),
   ];
-  const right = endLabelMargin(ends.map((e) => e.name), narrow ? 96 : 150);
+  const right = endLabelMargin(ends.map((e) => e.name), endLabelCap(narrow, boxWidth));
+  const plotWidth = boxWidth ? boxWidth - Y_WIDTH - right : null;
   const margin = { top: 8, right, bottom: 0, left: 0 };
   // Rule 21 — nice ticks, 0 included; rule 31 — the bar chart keeps room for its « 0 » tick.
   const yAxis = (values) => {
@@ -86,7 +89,7 @@ export default function AlignedDailyCumulativeCharts({ categories, daily, cumula
     return <Box sx={{ py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.9rem' }}>{emptyText}</Box>;
   }
   return (
-    <Box sx={{ position: 'relative', minWidth: 0 }}>
+    <Box ref={boxRef} sx={{ position: 'relative', minWidth: 0 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.25, mb: 0.75 }}>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.5, rowGap: 0.5, color: 'text.secondary' }}>
           <Key swatch={{ width: 10, height: 10, borderRadius: '2px', bgcolor: chart.current }} text={labels.daily} />
@@ -113,7 +116,7 @@ export default function AlignedDailyCumulativeCharts({ categories, daily, cumula
           <ResponsiveContainer width="100%" height={176}>
             <ComposedChart data={rows} syncId={syncId} margin={margin} accessibilityLayer={false}>
               <CartesianGrid vertical={false} stroke={chart.grid} />
-              <XAxis dataKey="key" scale="band" tickFormatter={(k) => labelOf.get(k) ?? k} interval={xInterval(categories, narrow)} minTickGap={8} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
+              <XAxis dataKey="key" scale="band" tickFormatter={(k) => labelOf.get(k) ?? k} interval={xInterval(categories, narrow, plotWidth)} minTickGap={8} tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: chart.tick }} />
               {yAxis(rows.flatMap((r) => [r.cumulative, r.previous]))}
               <Tooltip content={<DailyTooltip labels={labels} formatValue={formatValue} hasPrevious={hasPrevious} />} cursor={{ stroke: chart.lastYear, strokeWidth: 1 }} />
               {hasPrevious && <Line dataKey="previous" stroke={chart.lastYearEdge} strokeWidth={1.8} strokeDasharray="5 4" dot={false} activeDot={false} connectNulls={false} isAnimationActive={false} />}

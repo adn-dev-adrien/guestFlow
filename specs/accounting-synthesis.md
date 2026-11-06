@@ -244,6 +244,10 @@ add up — before the CSV goes to the accountant.
     load (412,8 kB gzip against a 313,3 kB budget; 298,1 kB after).
     > **Sans test** — a bundle-size property: `scripts/check-bundle-budget.mjs` is the gate; the chart tests of this
     > spec wait for the chart to arrive.
+45b. **A failing check says so in words (R5-11, V5-7, 2026-11-06).** A check that does not hold is titled by what
+    fails — « Écritures déséquilibrées », « Écart de TVA » (status `gap`), « Séjours non soldés » — not only by the
+    colour of its dot (which screen readers do not hear); a holding check, and a VAT rounding gap (rule 38), keep
+    « Écritures équilibrées », « TVA cohérente », « Séjours terminés soldés ». Its « voir » is 44 px tall on touch.
 
 **Edge cases:**
 - A window with no entry → zeros, empty breakdowns (no share), a flat series, checks `ok`.

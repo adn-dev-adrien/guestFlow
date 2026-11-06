@@ -8,7 +8,7 @@
  *   label:       string      what is defined — the button reads « Définition : <label> »
  *   definition:  ReactNode   the text, ready-made (server or constants)
  */
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, ButtonBase, ClickAwayListener, Popper } from '@mui/material';
 import { touchHitArea } from '../utils/touchHitArea';
 import { chart } from '../utils/chartColors';
@@ -34,6 +34,14 @@ export default function DefinitionButton({ label, definition }) {
   const bubble = useRef(null);
   const id = useId();
   const close = () => setOpen(false);
+  // Rule 36 — the bubble is fixed to the screen (rule 23): a scroll, of the page or of any container,
+  // closes it rather than letting it ride over the app bar while its « i » scrolls away.
+  useEffect(() => {
+    if (!open) return undefined;
+    const onScroll = () => setOpen(false);
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [open]);
   const onKeyDown = (e) => {
     if (e.key === 'Escape' && open) {
       e.stopPropagation();

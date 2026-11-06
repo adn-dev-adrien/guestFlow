@@ -10,8 +10,6 @@
  *   change:       number | null   percent (or points with unit 'points'), one decimal, from the server
  *   months?:      number          comparable months
  *   totalMonths?: number          months of the window
- *   onDark?:      boolean         legacy mode only — white variant for a dark background (no caller since
- *                                 the light hero card; kept as the generic variant of the legacy pill)
  *   previous?:    string          report mode — last year's value, already formatted (« 15 210 € »)
  *   unit?:        'percent' | 'points'   report mode — « % » (default) or « pt » for a rate
  *   better?:      'higher' | 'lower'     report mode — which direction reads as good news (default higher)
@@ -51,7 +49,7 @@ function ReportBadge({ change, previous, unit = 'percent', better = 'higher' }) 
   );
 }
 
-export default function YearOverYearBadge({ change, months, totalMonths, onDark = false, previous, unit, better, showEmpty = false }) {
+export default function YearOverYearBadge({ change, months, totalMonths, previous, unit, better, showEmpty = false }) {
   if (previous != null || showEmpty) return <ReportBadge change={change} previous={previous} unit={unit} better={better} />;
   if (change == null) return null;
   const flat = Math.abs(change) < 0.5;
@@ -60,9 +58,8 @@ export default function YearOverYearBadge({ change, months, totalMonths, onDark 
     ? ` · sur ${months} mois comparable${months > 1 ? 's' : ''}` : '';
   const text = flat ? `= stable vs N-1${partial}` : `${up ? '▲ +' : '▼ −'}${fmt(change)} % vs N-1${partial}`;
   let colors;
-  if (onDark) colors = { bgcolor: flat || up ? 'rgba(255,255,255,0.18)' : 'rgba(255,130,110,0.3)', color: '#fff' };
   // Text on a soft background is the palette's `text` shade, never `main` (shell rule 14).
-  else if (flat) colors = { bgcolor: 'neutral.soft', color: 'neutral.text' };
+  if (flat) colors = { bgcolor: 'neutral.soft', color: 'neutral.text' };
   else colors = up ? { bgcolor: 'success.soft', color: 'success.text' } : { bgcolor: 'error.soft', color: 'error.text' };
   return (
     <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 600, px: 1, py: 0.25, borderRadius: 99, whiteSpace: 'nowrap', ...colors }}>

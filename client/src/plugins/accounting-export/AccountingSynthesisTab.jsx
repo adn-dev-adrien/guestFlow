@@ -18,7 +18,7 @@ import {
   SelectableTile, NoComparisonNotice, Panel, TrendChart, formatCurrency, formatCurrencyRounded, displayDate,
 } from '../sdk';
 import {
-  KPI, SOURCE_CAPTIONS, CHECKS, VAT_PANEL, payments as paymentsLabel, stays as staysLabel, entries as entriesLabel, axisEuro,
+  KPI, SOURCE_CAPTIONS, CHECKS, CHECKS_FAILED, VAT_PANEL, payments as paymentsLabel, stays as staysLabel, entries as entriesLabel, axisEuro,
 } from './synthesisCopy';
 
 const rate = (r) => `${String(r).replace('.', ',')} %`;
@@ -105,7 +105,7 @@ function ChecksStrip({ checks, canOpenReservation, onOpenEntriesMonth }) {
   const { balanced, vatCoherence, settled, lastExport } = checks;
   const toggle = (key) => setOpen((o) => (o === key ? null : key));
   const seeButton = (key, text) => (
-    <Button size="small" variant="text" onClick={() => toggle(key)} aria-expanded={open === key} sx={{ p: 0, minWidth: 0, minHeight: 0, verticalAlign: 'baseline', textTransform: 'none', fontSize: 'inherit', '@media (pointer: coarse)': { minHeight: 32 } }}>
+    <Button size="small" variant="text" onClick={() => toggle(key)} aria-expanded={open === key} sx={{ p: 0, minWidth: 0, minHeight: 0, verticalAlign: 'baseline', textTransform: 'none', fontSize: 'inherit', '@media (pointer: coarse)': { minHeight: 44 } }}>
       {open === key ? 'masquer' : text}
     </Button>
   );
@@ -113,20 +113,20 @@ function ChecksStrip({ checks, canOpenReservation, onOpenEntriesMonth }) {
   return (
     <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: '14px', p: { xs: 1.5, sm: 2 } }}>
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(4, 1fr)' } }}>
-        <Check testId="check-balanced" tone={balanced.status === 'ok' ? 'ok' : 'error'} title={CHECKS.balanced}>
+        <Check testId="check-balanced" tone={balanced.status === 'ok' ? 'ok' : 'error'} title={balanced.status === 'ok' ? CHECKS.balanced : CHECKS_FAILED.balanced}>
           {balanced.status === 'ok'
             ? `Débits = crédits : ${formatCurrency(balanced.totalDebits)}`
             : <>{entriesLabel(balanced.unbalanced.length)} déséquilibrée{balanced.unbalanced.length > 1 ? 's' : ''} · {seeButton('balanced', 'voir')}</>}
         </Check>
         {/* D-HC12 (rule 38) — a cent per entry is rounding, in grey; red only beyond, with its entries. */}
-        <Check testId="check-vat" tone={{ ok: 'ok', rounding: 'rounding', gap: 'error' }[vatCoherence.status]} title={CHECKS.vatCoherence}>
+        <Check testId="check-vat" tone={{ ok: 'ok', rounding: 'rounding', gap: 'error' }[vatCoherence.status]} title={vatCoherence.status === 'gap' ? CHECKS_FAILED.vatCoherence : CHECKS.vatCoherence}>
           {vatCoherence.status === 'ok' && 'Aucun écart avec les écritures'}
           {vatCoherence.status === 'rounding' && `Écart d’arrondi : ${vatCoherence.roundingCents} ct`}
           {vatCoherence.status === 'gap' && (
             <>Écart de {formatCurrency(vatCoherence.gap)} · {seeButton('vat', `voir ${vatCoherence.entries.length > 1 ? `les ${entriesLabel(vatCoherence.entries.length)}` : 'l’écriture'}`)}</>
           )}
         </Check>
-        <Check testId="check-settled" tone={settled.status === 'ok' ? 'ok' : 'gap'} title={CHECKS.settled}>
+        <Check testId="check-settled" tone={settled.status === 'ok' ? 'ok' : 'gap'} title={settled.status === 'ok' ? CHECKS.settled : CHECKS_FAILED.settled}>
           {settled.status === 'ok'
             ? 'Tous les séjours terminés sont soldés'
             : <>{staysLabel(settled.count)} terminé{settled.count > 1 ? 's' : ''} non soldé{settled.count > 1 ? 's' : ''} · {seeButton('settled', 'voir')}</>}

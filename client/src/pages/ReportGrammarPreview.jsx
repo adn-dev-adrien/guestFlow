@@ -17,7 +17,7 @@ import SegmentedSelect from '../components/SegmentedSelect';
 import { formatCurrency, formatCurrencyRounded } from '../utils/formatters';
 import {
   KPI_TILES, NO_COMPARISON_TEXT, TABS, EXERCISE_MONTHS, TREND_SERIES, SHARE_ROWS, SHARE_TOTAL,
-  DAYS, DAILY, CUMULATIVE, PREVIOUS_CUMULATIVE, OCCUPANCY_SERIES, EMPTY_TEXT,
+  DAYS, DAILY, CUMULATIVE, PREVIOUS_CUMULATIVE, OCCUPANCY_SERIES, EMPTY_TEXT, EXERCISE_MONTHS_DATED,
 } from './reportGrammarFixtures';
 
 const kEuro = (v) => `${String(v / 1000).replace('.', ',')} k€`;
@@ -64,7 +64,7 @@ export default function ReportGrammarPreview() {
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 6 }}>
             <Panel label="Taux d'occupation">
-              <TrendChart categories={EXERCISE_MONTHS} series={OCCUPANCY_SERIES} formatValue={rate} formatAxis={rateAxis} yDomain={[0, 1]} ratio ariaLabel="Taux d'occupation par mois" />
+              <TrendChart categories={EXERCISE_MONTHS_DATED} series={OCCUPANCY_SERIES} formatValue={rate} formatAxis={rateAxis} yDomain={[0, 1]} ratio ariaLabel="Taux d'occupation par mois" />
             </Panel>
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
