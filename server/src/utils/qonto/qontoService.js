@@ -33,6 +33,7 @@ const ORIGINS = {
   reconciliation: 'rapprochement bancaire',
   admin: 'réglages',
   billing: 'facturation des abonnements',
+  'guest-order': 'paiement d’une commande client',
 };
 
 const WEBHOOK_CHECK = 'webhook-register';
