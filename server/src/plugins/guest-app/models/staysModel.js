@@ -17,15 +17,6 @@ function createStaysModel(db) {
         .get(Number(id)) || null;
     },
 
-    /** The stays of a lodging overlapping the given dates. */
-    aroundDates(propertyId, fromYmd, toYmd) {
-      return db.prepare(`
-        SELECT ${COLUMNS} FROM reservations r LEFT JOIN clients c ON c.id = r.clientId
-        WHERE r.propertyId = ? AND r.kind = 'reservation' AND r.endDate >= ? AND r.startDate <= ?
-        ORDER BY r.startDate, r.id
-      `).all(Number(propertyId), String(fromYmd), String(toYmd));
-    },
-
     byReservationNumber(number) {
       return db.prepare(`
         SELECT ${COLUMNS} FROM reservations r LEFT JOIN clients c ON c.id = r.clientId

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  addOption, addResource, addStay, enable, freshDb, livePlugins, openService, paris, sell, startApi,
+  addOption, addResource, addStay, enable, freshDb, latestStayToken, livePlugins, openService, paris, sell, startApi,
 } = require('./guestAppFixtures');
 const { defaultModules } = require('../modules');
 
@@ -26,8 +26,8 @@ function withShop(name, fn, plugins = {}) {
 
 /** A session on the stay of a lodging, its cookie returned. */
 async function scan(api, db, call, propertyId = 1, patch = {}) {
-  const code = enable(api, db, propertyId, patch);
-  return (await call('POST', '/public/v1/guest/sessions', { lodgingCode: code })).setCookie.split(';')[0];
+  enable(api, db, propertyId, patch);
+  return (await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db, propertyId) })).setCookie.split(';')[0];
 }
 
 const shopOf = async (call, cookie, query = '') => (await call('GET', `/public/v1/guest/shop${query}`, null, { cookie })).body.data;
@@ -204,7 +204,8 @@ withShop('rules 11bis, 27: the shop module off answers 404 MODULE_OFF; a visitor
   const res = await call('GET', '/public/v1/guest/shop', null, { cookie: off });
   assert.equal(res.status, 404);
   assert.equal(res.body.error.code, 'MODULE_OFF');
-  const visitor = await scan(api, db, call, 2);
+  const poster = await call('POST', '/public/v1/guest/sessions', { lodgingCode: enable(api, db, 2) }, { cookie: null });
+  const visitor = poster.setCookie.split(';')[0];
   const visitorRes = await call('GET', '/public/v1/guest/shop', null, { cookie: visitor });
   assert.equal(visitorRes.status, 404);
   assert.equal(visitorRes.body.error.code, 'MODULE_OFF');

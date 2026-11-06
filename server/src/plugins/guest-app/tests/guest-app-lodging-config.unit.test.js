@@ -3,7 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
 
-const { addStay, enable, freshDb, startApi } = require('./guestAppFixtures');
+const {
+  addStay, enable, freshDb, latestStayToken, startApi,
+} = require('./guestAppFixtures');
 const { requireModule } = require('../middleware/guestSession');
 const { MODULE_KEYS, defaultModules, readModules, shownModules, tilesOf } = require('../modules');
 
@@ -90,8 +92,8 @@ test('rule 11bis: a module off answers 404 MODULE_OFF, an on one passes', async 
 withApi('rule 11bis: /me and /lodging follow the lodging’s switches', async ({ db, api, call }) => {
   addStay(db);
   const modules = defaultModules().map((m) => (m.key === 'soliomap' ? { ...m, on: false } : m));
-  const code = enable(api, db, 1, { modules });
-  await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  enable(api, db, 1, { modules });
+  await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
   const me = await call('GET', '/public/v1/guest/me');
   assert.equal(me.body.data.tiles.some((t) => t.key === 'soliomap'), false);
   assert.equal(me.body.data.tiles.some((t) => t.key === 'booklet'), true);
@@ -101,8 +103,8 @@ withApi('rule 11bis: /me and /lodging follow the lodging’s switches', async ({
 
 withApi('rule 11bis: the shop follows the items sold for this lodging, the other lodging keeps its own', async ({ db, api, call }) => {
   addStay(db);
-  const code = enable(api, db, 1);
-  await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  enable(api, db, 1);
+  await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
   const tiles = async () => (await call('GET', '/public/v1/guest/me')).body.data.tiles.map((t) => t.key);
   assert.equal((await tiles()).includes('shop'), false);
   db.prepare("INSERT INTO options (id, title) VALUES (5, 'Cidre')").run();
@@ -118,8 +120,8 @@ withApi('rule 11bis: the shop follows the items sold for this lodging, the other
 withApi('rules 11bis, 13: a stay session gets the gate tile while gate-access is live, before any key exists', async ({ db, api, call }) => {
   const registry = require('../../sdk/registry');
   addStay(db);
-  const code = enable(api, db, 1);
-  await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  enable(api, db, 1);
+  await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
   const tiles = async () => (await call('GET', '/public/v1/guest/me')).body.data.tiles.map((t) => t.key);
   try {
     registry.configure({ isActive: () => true, allows: () => true });
@@ -134,8 +136,8 @@ withApi('rules 11bis, 13: a stay session gets the gate tile while gate-access is
 
 withApi('rule 11ter: wifi facts reach /lodging with a join QR; wifi off → no tile, no block', async ({ db, api, call }) => {
   addStay(db);
-  const code = enable(api, db, 1, { wifi: { available: true, network: 'Granja;5G', password: 'sapin:42', note: 'Dans la pièce principale' } });
-  await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  enable(api, db, 1, { wifi: { available: true, network: 'Granja;5G', password: 'sapin:42', note: 'Dans la pièce principale' } });
+  await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
   const on = (await call('GET', '/public/v1/guest/lodging')).body.data;
   assert.equal(on.wifi.network, 'Granja;5G');
   assert.equal(on.wifi.password, 'sapin:42');
@@ -163,9 +165,9 @@ withApi('rule 11ter: the wifi password is encrypted at rest and kept when a save
 
 withApi('rule 11ter: a password that no longer decrypts does not take the home down', async ({ db, api, call }) => {
   addStay(db);
-  const code = enable(api, db, 1, { wifi: { available: true, network: 'Granja', password: 'x' } });
+  enable(api, db, 1, { wifi: { available: true, network: 'Granja', password: 'x' } });
   db.prepare("UPDATE guest_app_lodgings SET wifiPasswordEncrypted = 'enc:v1:AAAA:BBBB:CCCC'").run();
-  await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
   assert.equal((await call('GET', '/public/v1/guest/me')).status, 200);
 });
 
@@ -209,15 +211,18 @@ withApi('rule 11quater: a new property starts off, without a code; enabling issu
 
 withApi('rule 11quater: a disabled lodging refuses its lookup and kills its sessions', async ({ db, api, call }) => {
   addStay(db);
-  const code = enable(api, db, 1);
-  await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  enable(api, db, 1);
+  await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
   assert.equal((await call('GET', '/public/v1/guest/me')).status, 200);
-  const cookie = (await call('POST', '/public/v1/guest/sessions', { lodgingCode: code })).setCookie.split(';')[0];
+  const cookie = (await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) })).setCookie.split(';')[0];
   await call('PUT', '/api/guest-app/lodgings/1', { enabled: false });
   assert.equal((await call('GET', '/public/v1/guest/me', null, { cookie })).status, 401);
   const lookup = await call('POST', '/public/v1/guest/sessions/lookup', { lastName: 'Le Goff-Durand', reservationNumber: 'R-99-001' });
   assert.equal(lookup.status, 404);
   assert.equal(lookup.body.error.code, 'STAY_NOT_FOUND');
+  const link = await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) }, { cookie: null });
+  assert.equal(link.status, 404, 'its stay links read like an unknown code');
+  assert.equal(link.body.error.code, 'CODE_NOT_FOUND');
 });
 
 test('rule 11quater: the lodging configuration is the admin’s, a restricted role is refused', () => {

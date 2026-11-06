@@ -98,7 +98,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 
 ---
 
-### A6 — One link per stay (Q10, decided 2026-11-06)
+### A6 — One link per stay (Q10, decided 2026-11-06) — done 2026-11-06 (the fiche card waits for the UI lots)
 13bis. `guest_stay_links` (in the unreleased v1 migration), `models/stayLinksModel.js`, `POST /sessions
     { stayToken }` (pre-arrival from J-7, stay in the window, visitor after), the lodging poster → visitor only,
     sessions killed by a regenerated link; `confirm-name`, the name columns and the lock removed; the SAS

@@ -1,7 +1,8 @@
 /**
  * Reads `gf_guest`, loads the session and re-derives its stay's window on every request (specs/guest-app.md
- * rules 4, 9). A dead session answers 401 `SESSION_EXPIRED` and loses its cookie; the app then falls back to
- * the lodging's visitor mode.
+ * rules 1, 4, 9, 11quater). A dead session answers 401 `SESSION_EXPIRED` and loses its cookie; the app then
+ * exchanges its stored stay link again, or falls back to the lodging's visitor mode. A session opened from a
+ * stay link dies with that link (« Régénérer le lien »).
  */
 
 const sdk = require('../../sdk');
@@ -23,7 +24,7 @@ const cookieOptions = (expires) => ({ httpOnly: true, secure: true, sameSite: 's
 const setSessionCookie = (res, token, expires) => res.cookie(COOKIE, token, cookieOptions(expires));
 const clearSessionCookie = (res) => res.clearCookie(COOKIE, { httpOnly: true, secure: true, sameSite: 'strict', path: COOKIE_PATH });
 
-function buildGuestSession({ sessions, stays, lodgings, now }) {
+function buildGuestSession({ sessions, stays, stayLinks, lodgings, now }) {
   /** → { session, token, stay, window, lodging, mode } or null. */
   function load(req) {
     const token = readCookie(req);
@@ -32,6 +33,7 @@ function buildGuestSession({ sessions, stays, lodgings, now }) {
     const at = now();
     const lodging = lodgings().findEnabled(session.propertyId);
     if (!lodging) return null;
+    if (session.stayLinkId !== null && !stayLinks().isLive(session.stayLinkId)) return null;
     if (session.reservationId === null) {
       if (at >= new Date(session.expiresAt)) return null;
       return { session: sessions().touch(session.id, { mode: 'visitor', expiresAt: session.expiresAt, now: at }), token, stay: null, window: null, lodging, mode: 'visitor' };
@@ -40,7 +42,7 @@ function buildGuestSession({ sessions, stays, lodgings, now }) {
     const derived = deriveSession(session, stay, at);
     if (!derived) return null;
     return {
-      session: sessions().touch(session.id, { mode: derived.mode, expiresAt: derived.window.end, now: at }),
+      session: sessions().touch(session.id, { mode: derived.mode, expiresAt: derived.expiresAt, now: at }),
       token,
       stay,
       window: derived.window,

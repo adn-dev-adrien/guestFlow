@@ -485,7 +485,8 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/routes/` | `public.js` | C | `/public/v1/guest/**` — thin: parse → controller → JSON |
 | `plugins/guest-app/routes/` | `admin.js` | C | `/api/guest-app/**` — items, studio, service hours, orders list; admin session guard |
 | `plugins/guest-app/middleware/` | `guestSession.js` | C | Reads `gf_guest`, loads the session, re-derives the window, 401 when dead |
-| `plugins/guest-app/controllers/` | `sessionController.js` | C | QR resolution, fallback lookup, name confirmation, `/me` payload |
+| `plugins/guest-app/controllers/` | `sessionController.js` | C | Stay link → stay / pre-arrival / visitor, lodging poster → visitor only, fallback lookup, `/me` payload |
+| `plugins/guest-app/controllers/` | `stayLinksController.js` | C | `GET …/reservations/:id/stay-link` (created on first need) and `POST …/regenerate` for the SAS and the fiche; `available` (the SAS payload's switch) and `emailUrl` (the `{{stayAppUrl}}` variable) (rules 1, 9bis) |
 | `plugins/guest-app/controllers/` | `bookletController.js` | C | Resolved booklet + search for a session / visitor |
 | `plugins/guest-app/controllers/` | `shopController.js` | C | Sellable catalogue for the stay's lodging, slots, delivery slots, quote, create order |
 | `plugins/guest-app/controllers/` | `itemsController.js` | C | Read/write `guest_app_items` (the switch + fields shown in GuestFlow's editors and the studio) |
@@ -497,7 +498,9 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `settings.js` | C | The declared settings and their checks (§5) |
 | `plugins/guest-app/` | `currentStay.js` | C | Pure: lodging + instant → current stay (rules 2, 3, 5, 6) |
 | `plugins/guest-app/` | `nameMatch.js` | C | Pure: normalisation + comparison, for the fallback lookup only (rule 7) |
-| `plugins/guest-app/models/` | `stayLinksModel.js` | C | The stay links: create on first need, read back for the SAS / e-mails / fiche, regenerate (rule 1) |
+| `plugins/guest-app/models/` | `stayLinksModel.js` | C | The stay links: create on first need, read back for the SAS / e-mails / fiche, regenerate (rule 1); a token that no longer decrypts is replaced like a regeneration |
+| `utils/` | `emailContextBuilder.js` | T | `{{stayAppUrl}}` = the guest app's stay link, else the gate key's `{{gateAccessUrl}}`, else empty (rule 9bis b) |
+| `utils/` | `templateTokens.js` | T | `stayAppUrl` « Lien Mon séjour » in the catalogue (J-7, J-2 chips): a core variable, so it exists, with its fallback, while the plugin is absent; the plugin declares only the flag `hasStayApp` « Si lien Mon séjour » |
 | `plugins/guest-app/` | `sellable.js` | C | Pure: which items a lodging's shop shows and their free / included state (rules 23, 25) |
 | `plugins/guest-app/` | `serviceHours.js` | C | Pure: open ranges for a date, next opening, delivery slots from now + lead time to check-out, ignition-in-hours check (rules 31, 40-42) |
 | `plugins/guest-app/` | `homeHighlight.js` | C | Pure: status line + the single highlight (rules 10, 11) |
@@ -551,6 +554,8 @@ tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `plugins/guest-app/` | `index.js` | C | Contributions: `options.fields`, `resources.fields`, `routes` (`/commandes-app`), sidebar entry, `planning.days` card, `settings.integrations` card |
+| `plugins/guest-app/` | `SasStayAppStep.jsx` | C | The SAS « Mon séjour » step (rule 9bis a): the stay link's QR and validity line, the keypad code, Partager / Copier le lien, Régénérer le lien (confirmed first), « QR du portail seul » unfolding the gate step. Contributed to `sas.portal` with `leadsStep: { title: 'Mon séjour' }` |
+| `plugins/sas/` | `ReservationSasDialog.jsx` | T | A `sas.portal` contribution with `leadsStep` takes the « Portail » step (and its title) while its plugin's SAS data says `available`; the other contributions are handed to it as `gateStep` (without the keypad code, shown once). Otherwise today's step |
 | `plugins/guest-app/` | `SettingsGuestAppSection.jsx` | C | « Application clients » card of Paramètres › Intégrations: the guest host, saved by the page's bar. The link to the studio joins it with slice G, when `/studio` exists |
 | `plugins/guest-app/` | `GuestAppItemFields.jsx` | C | « Application clients » section of the option / resource editor (rule 22) |
 | `plugins/guest-app/` | `GuestOrdersPage.jsx`, `PlanningOrderCard.jsx` | C | Orders list (rule 45) and planning card (rule 43) |
@@ -578,7 +583,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 |---|---|---|---|---|
 | POST | `/public/v1/guest/sessions` | — | `{ stayToken }` or `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt?, ended? }` + cookie; a `lodgingCode` always opens the visitor mode; unknown → 404 `CODE_NOT_FOUND` (one answer for every unknown, stale, revoked or disabled code) |
 | POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
-| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, tiles:[…], suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; visitor: `{ mode, lodging, language, tiles:[…], welcome, opensAt?, openingLine? }`; dead session 401 `SESSION_EXPIRED` |
+| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, tiles:[…], suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; a pre-arrival session on the arrival day, before the window, adds `opensAt` and `openingLine`; visitor: `{ mode, lodging, language, tiles:[…], welcome }` — nothing of any stay (rule 3); dead session 401 `SESSION_EXPIRED` |
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
@@ -588,7 +593,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
 | POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
 | POST | `/public/v1/guest/orders/quote` | stay session | `{ lines:[{kind,id,quantity?,sessions?}], deliverAt? }` | `{ lines:[{…, unitPrice, freeUnits?, total, label, unavailable?}], total, totalLabel, needsDelivery }` |
-| POST | `/public/v1/guest/orders` | stay session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 403 `NAME_REQUIRED`, 409 `SLOT_TAKEN`, 409 `SHOP_CLOSED`, 400 `ORDER_LIMIT` |
+| POST | `/public/v1/guest/orders` | stay session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN`, 409 `SHOP_CLOSED`, 400 `ORDER_LIMIT` |
 | GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel}] }` |
 | GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
 | GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name |
@@ -605,7 +610,9 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | POST/DELETE | `…/studio/pages/:id/placements[/:propertyId]`, `…/pages/:id/duplicate` | admin | `{ propertyId }` · `{ toPropertyId }` | share / unshare (409 on the last placement) · independent copy (blocks the target would see, `-2` on a slug clash) |
 | POST/PUT/DELETE | `…/studio/pages/:id/blocks`, `…/pages/:id/blocks/order`, `…/studio/blocks/:id` | admin | `{ type, data, onlyForPropertyIds? }` · `{ blockIds }` | the block, validated per type (rule 18), rich text sanitised |
 | GET/POST/PUT | `/api/guest-app/studio/media[/:id]` | admin | multipart `file` (JPG / PNG / WEBP, ≤ 10 MB, ≤ 50 MP) + `altFr`, `altEn` | `{ id, url, sizes:{1600,800,400}, width, height, alt }` (WebP, never enlarged) |
-| POST | `/api/guest-app/lodgings/:propertyId/regenerate-qr` | admin | — | the lodging view (never the code); the old code dies at once, live sessions survive (they are stay capabilities); 409 if the lodging is off |
+| POST | `/api/guest-app/lodgings/:propertyId/regenerate-qr` | admin | — | the lodging view (never the code); the old code dies at once, its live visitor sessions survive; 409 if the lodging is off |
+| GET | `/api/guest-app/reservations/:id/stay-link` | admin, reception | — | `{ url, qrDataUri, createdAt, validUntil, validUntilLabel }` (« Le lien vaut jusqu’au lun. 9 nov., 12 h. », the window's end), created on first need, `no-store`; 404 unknown reservation, 409 not a live reservation, lodging off or guest host not set (rules 1, 9bis) |
+| POST | `/api/guest-app/reservations/:id/stay-link/regenerate` | admin, reception | — | the new link, same shape; the old link and every session opened from it die at once (lookup sessions survive); same 404 / 409 |
 | GET | `/api/guest-app/lodgings/:propertyId/qr-poster.pdf` | admin | — | A4 PDF of `https://<guestHost>/l/<code>`; 409 if the lodging is off or the guest host is not set |
 | GET | `/api/guest-app/orders?status=` | admin/staff | — | orders list (rule 45) |
 | POST | `/api/guest-app/orders/:id/delivered` | admin/staff | — | `{ status:'delivered' }` |
@@ -819,18 +826,28 @@ tab bar is the guest-facing pattern (deliberate exception to CLAUDE.md §7, acce
 Copy (FR; EN in `en.json`): « Bonjour {prénom} », « Votre séjour », « Le livret », « La boutique »,
 « Ajouter », « Voir le panier », « Quand souhaitez-vous la recevoir ? », « Dès que possible », « Inclus »,
 « 1 h offerte avec votre séjour », « Le service reprend demain à 8 h », « Payer maintenant », « Ajouter à
-ma note », « Pour mettre cette commande sur votre note, confirmez votre nom de famille », « Commande
+ma note », « Commande
 envoyée », « Hors connexion — le livret reste disponible », « Nous n'avons pas trouvé ce séjour. Vérifiez
 le nom et le numéro. »
 
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
-- [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` — rules 2, 3, 5, 6, 9 (window edges,
-  changeover, cancelled, pre-arrival J-7)
+- [x] `plugins/guest-app/tests/guest-app-current-stay.unit.test.js` (15) — rules 2, 4, 5, 6, 9 (window edges and
+  DST, what the link opens before J-7 / from J-7 / in the window / after, cancelled, a pre-arrival link session
+  ending at H-3, a lookup session moving on by itself)
 - [x] `…/guest-app-name-match.unit.test.js` — rule 7 (accents, hyphens, second name, empty)
-- [x] `…/guest-app-sessions.unit.test.js` — rules 1, 4, 6, 8, lookup throttling, generic errors, payload
-  minimisation
+- [x] `…/guest-app-sessions.unit.test.js` (28) — rules 1-6, 8, 9, 33: the stay link (stay / pre-arrival from
+  J-7 / visitor before and « ended » after), the poster opens the visitor mode only and tells nothing of a stay,
+  no name state left, phase-bound reuse, a regenerated link kills its sessions, lookup throttling, generic
+  errors, payload minimisation
+- [x] `…/guest-app-stay-links.unit.test.js` (11) — rules 1, 2, 9, 9bis, 11quater: created on first need and shown
+  again, regenerate kills the old link and its sessions, undecryptable token replaced, cancelled stay / lodging
+  off / no guest host → 409, SAS switch reads without writing, e-mail URL (none without an address), the core
+  `{{stayAppUrl}}` → gate-link fallback, reception allowed
+- [x] `client/src/plugins/sas/__tests__/ReservationSasDialog.stay-app.test.jsx` (7) — rules 1, 9bis a: « Mon séjour »
+  replaces the step, « QR du portail seul », regenerate after confirmation, plugin off / lodging off → gate step,
+  link unreadable → warning + gate step
 - [x] `…/guest-app-block-validation.unit.test.js` (8) — rule 18: shapes per type, sanitising, unavailable buttons dropped
 - [x] `…/guest-app-media.unit.test.js` (5) — limits, three WebP sizes · `…/guest-app-qr.unit.test.js` (4) — rule 1: regenerate kills the old code, poster PDF
 - [x] `…/guest-app-booklet.unit.test.js` (11) — rules 16, 17, 19, 20: each lodging resolves only its own
@@ -839,8 +856,8 @@ le nom et le numéro. »
 - [x] `…/guest-app-lodging-config.unit.test.js` — rules 11bis-11quater: module off → absent from `/me` and
   404 `MODULE_OFF` on its endpoints, prerequisites, wifi off → no tile / no wifi block, wifi password
   encrypted at rest, lodging disabled → no QR and lookup refused, new property starts off
-- [x] `…/guest-app-input-shape.unit.test.js` — rules 1, 6, 33: a scan or lookup whose fields are not text
-  answers the generic 404 (never a 500), a confirmation without a name is a 400 that spends no attempt
+- [x] `…/guest-app-input-shape.unit.test.js` — rules 1, 3, 6: a stay token, poster code or lookup whose fields are
+  not text answers the generic 404 (never a 500)
 - [x] `…/guest-app-plugin-gating.unit.test.js` — rule 22: plugin inactive → 404 `PLUGIN_INACTIVE`, items
   rows kept, no core column touched
 - [x] `…/guest-app-items.unit.test.js` (9) — rules 22, 23, 27bis: the admin routes' validation, `NOT_SELLABLE`, roles
@@ -855,8 +872,7 @@ le nom et le numéro. »
   multi-slot order, ignition outside service hours → `staff`, warm slot not constrained
 - [x] `…/guest-app-service-hours.unit.test.js` (14) — rules 39-42: weekly ranges, exceptions, establishment
   closures, lead time, next opening, last delivery before check-out
-- [ ] `…/guest-app-order-note.unit.test.js` — rules 33-34: name only for the note, lock, 0 € order without
-  name, lines + sessions land on the fiche and in `endOfStayComplementDetail`, quantities merge
+- [ ] `…/guest-app-order-note.unit.test.js` — rules 33-34: no name asked, 0 € order, lines + sessions land on the fiche and in `endOfStayComplementDetail`, quantities merge
 - [ ] `…/guest-app-order-card.unit.test.js` — rules 35-36: complement link, paid → lines + payment, holds,
   expiry releases slots, late payment conflict
 - [ ] `tests/payment-complement-link.unit.test.js` — `ensurePaymentLink` / `applyPaidEffect` complement
@@ -877,8 +893,9 @@ le nom et le numéro. »
 - [ ] Out of service hours (e.g. 22:00): banner, drinks orderable for tomorrow 8 h + lead time; cold-bath slot whose ignition falls outside service hours is not listed.
 - [ ] Plugin deactivated → switch gone from the option / resource editors, guest app answers « indisponible »;
   reactivated → flags back.
-- [ ] Edge: wrong name × 3 → note locked, card still possible; slot taken from the fiche between quote and
-  order.
+- [ ] Edge: slot taken from the fiche between quote and order.
+- [ ] Arrival SAS (390 px and desktop): « Mon séjour » step, QR flashed opens the stay, Partager, Régénérer (the
+  old QR shows « Ce code n'est pas reconnu »), « QR du portail seul »; plugin off → the gate step as before.
 - [ ] Visitor mode (no stay) and pre-arrival lookup; offline booklet in airplane mode.
 - [ ] Tablet (900 px) two-pane layouts; desktop (1280 px); dark mode; EN.
 - [ ] Per lodging: wifi off at one lodging → no wifi tile, wifi block replaced by « Pas de wifi »; shop off at
@@ -959,7 +976,7 @@ None open (2026-11-06).
 
 | Slice | State |
 |---|---|
-| A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); may change with Q10 |
+| A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); A6 (Q10, one link per stay, step 13bis) done 2026-11-06: stay links, poster visitor-only, name confirmation removed, SAS « Mon séjour », `{{stayAppUrl}}`; the fiche's « Lien Mon séjour » has its server routes, its card comes with the UI lots |
 | B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.22.0); full server suite 10 561 / 10 561 |
 | C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
 | E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.22.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |

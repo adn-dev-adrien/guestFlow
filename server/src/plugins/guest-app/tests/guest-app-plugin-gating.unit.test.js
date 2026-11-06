@@ -56,7 +56,7 @@ test('§5: every declared table exists, and no core file names one (no core colu
   const existing = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((t) => t.name);
   TABLES.forEach((table) => assert.ok(existing.includes(table), table));
   const core = ['schema.sql', 'database.js'].map((f) => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
-  ['guest_app_', 'guest_sessions', 'guest_orders', 'guest_booklet', 'guest_media'].forEach((name) => {
+  ['guest_app_', 'guest_sessions', 'guest_stay_links', 'guest_orders', 'guest_booklet', 'guest_media'].forEach((name) => {
     assert.equal(core.includes(name), false, name);
   });
 });

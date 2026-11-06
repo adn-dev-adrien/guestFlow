@@ -3,13 +3,15 @@
 const express = require('express');
 
 function buildAdminRouter({
-  lodgings, items, serviceHours, studio,
+  lodgings, items, serviceHours, studio, stayLinks,
 }) {
   const router = express.Router();
   router.get('/lodgings/:propertyId', lodgings.read);
   router.put('/lodgings/:propertyId', lodgings.write);
   router.post('/lodgings/:propertyId/regenerate-qr', lodgings.regenerateQr);
   router.get('/lodgings/:propertyId/qr-poster.pdf', lodgings.qrPoster);
+  router.get('/reservations/:id/stay-link', stayLinks.read);
+  router.post('/reservations/:id/stay-link/regenerate', stayLinks.regenerate);
   router.get('/items', items.list);
   router.get('/items/:kind/:id', items.read);
   router.put('/items/:kind/:id', items.write);

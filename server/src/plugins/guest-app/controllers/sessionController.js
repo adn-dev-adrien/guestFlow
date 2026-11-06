@@ -1,12 +1,15 @@
 /**
- * The guest's way in and what a session reads (specs/guest-app.md rules 1-11quater): the QR code, the
- * fallback lookup, the name confirmation, `/me` and `/lodging`.
+ * The guest's way in and what a session reads (specs/guest-app.md rules 1-11quater): the stay link, the
+ * lodging poster (visitor mode only), the fallback lookup, `/me` and `/lodging`. The stay link proves the
+ * stay: no name is ever asked of a guest who holds it (rules 2, 33).
  */
 
 const QRCode = require('qrcode');
 const sdk = require('../../sdk');
 const registry = require('../../sdk/registry');
-const { addDays, nextOpeningToday, parisDate, resolveLodging, resolveLookup } = require('../currentStay');
+const {
+  openingToday, preArrivalOpensAt, resolveLink, resolveLookup,
+} = require('../currentStay');
 const { nameMatches } = require('../nameMatch');
 const { shownModules, tilesOf } = require('../modules');
 const { chooseHighlight, openingLine, statusLine, welcomeLine } = require('../homeHighlight');
@@ -17,8 +20,7 @@ const publicHttp = sdk.coreModule('publicHttp');
 const { toParisIso } = sdk.coreModule('stayWindow');
 
 const NOT_FOUND_MESSAGE = 'Nous n’avons pas trouvé ce séjour. Vérifiez le nom et le numéro.';
-const MAX_NAME_FAILURES = 3;
-const NAME_LOCK_MS = 60 * 60 * 1000;
+const UNKNOWN_CODE_MESSAGE = 'Ce code n’est pas reconnu.';
 const VISITOR_SESSION_MS = 24 * 60 * 60 * 1000;
 const MAX_FIELD = 120;
 
@@ -45,7 +47,7 @@ async function wifiView(wifi) {
 }
 
 function buildSessionController({
-  lodgings, sessions, stays, orders, guestSession, soliomapUrl, soliomapFeed, now,
+  lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now,
 }) {
   function factsOf(lodging) {
     return {
@@ -59,51 +61,87 @@ function buildSessionController({
 
   const shownFor = (lodging, mode, lang) => shownModules(lodging.modules, factsOf(lodging), mode, lang);
 
-  function staysAround(propertyId, at) {
-    const today = parisDate(at);
-    return stays().aroundDates(propertyId, addDays(today, -1), addDays(today, 1));
-  }
+  const unknownCode = (res) => publicHttp.fail(res, 404, 'CODE_NOT_FOUND', UNKNOWN_CODE_MESSAGE);
 
-  function answer(res, { mode, lodging, opening }) {
+  function answer(res, { mode, lodging, opensAt, ended }) {
     return publicHttp.ok(res, {
       mode,
       lodging: lodgingView(lodging),
-      ...(opening ? { opensAt: opening.opensAt.toISOString() } : {}),
+      ...(opensAt ? { opensAt: opensAt.toISOString() } : {}),
+      ...(ended ? { ended: true } : {}),
     });
   }
 
-  /** Rule 4 — the same device, the same stay: its session goes on, its name confirmation with it. */
-  function reusable(req, propertyId, reservationId) {
+  /** Rule 4 — the same device, the same stay, the same phase: its session goes on. */
+  function reusable(req, { propertyId, reservationId, mode }) {
     const current = guestSession.load(req);
     if (!current || current.session.propertyId !== propertyId) return null;
-    return current.session.reservationId === reservationId ? current : null;
+    return current.session.reservationId === reservationId && current.mode === mode ? current : null;
   }
 
-  // POST /sessions — rules 1, 2, 3, 5. A guessed, stale or disabled code all read the same (no oracle).
-  function createFromCode(req, res) {
-    const code = req.body && req.body.lodgingCode;
-    const lodging = isText(code) ? lodgings().findEnabledByCode(code) : null;
-    if (!lodging) return publicHttp.fail(res, 404, 'LODGING_NOT_FOUND', 'Ce code n’est pas reconnu.');
+  function open(req, res, {
+    lodging, reservationId = null, mode, origin, stayLinkId = null, expiresAt, opensAt = null, ended = false,
+  }) {
     const at = now();
-    const resolved = resolveLodging(staysAround(lodging.propertyId, at), at);
-    const reservationId = resolved.mode === 'stay' ? resolved.stay.id : null;
-    const again = reusable(req, lodging.propertyId, reservationId);
+    const again = reusable(req, { propertyId: lodging.propertyId, reservationId, mode });
     if (again) {
       setSessionCookie(res, again.token, new Date(again.session.expiresAt));
-      return answer(res, { mode: again.mode, lodging, opening: resolved.opening });
+      return answer(res, { mode, lodging, opensAt, ended });
     }
-    // A visitor session ends when the stay's window opens: the app scans again and gets the stay.
-    const visitorExpiry = resolved.opening ? resolved.opening.opensAt : new Date(at.getTime() + VISITOR_SESSION_MS);
     const { token, session } = sessions().create({
-      propertyId: lodging.propertyId,
-      reservationId,
-      mode: resolved.mode,
-      origin: 'qr',
-      expiresAt: resolved.mode === 'stay' ? resolved.window.end : visitorExpiry,
-      now: at,
+      propertyId: lodging.propertyId, reservationId, mode, origin, stayLinkId, expiresAt, now: at,
     });
     setSessionCookie(res, token, new Date(session.expiresAt));
-    return answer(res, { mode: resolved.mode, lodging, opening: resolved.opening });
+    return answer(res, { mode, lodging, opensAt, ended });
+  }
+
+  const visitorExpiry = (at) => new Date(at.getTime() + VISITOR_SESSION_MS);
+
+  // Rules 1, 2, 4 — the stay link. A guessed, stale or revoked token, a cancelled stay and a lodging off all
+  // read like an unknown code (no oracle).
+  function openFromLink(req, res, stayToken) {
+    const link = isText(stayToken) ? stayLinks().findLiveByToken(stayToken) : null;
+    const stay = link && stays().byId(link.reservationId);
+    const lodging = stay && lodgings().findEnabled(stay.propertyId);
+    const at = now();
+    const resolved = lodging ? resolveLink(stay, at) : null;
+    if (!resolved) return unknownCode(res);
+    const common = { lodging, origin: 'link', stayLinkId: link.id };
+    if (resolved.mode === 'stay') {
+      return open(req, res, {
+        ...common, reservationId: stay.id, mode: 'stay', expiresAt: resolved.window.end,
+      });
+    }
+    if (resolved.mode === 'preArrival') {
+      return open(req, res, {
+        ...common, reservationId: stay.id, mode: 'preArrival', expiresAt: resolved.window.start, opensAt: resolved.window.start,
+      });
+    }
+    // Before J-7 the visitor session ends at J-7 at the latest, so the app's next exchange opens the pre-arrival.
+    const expiry = visitorExpiry(at);
+    const preArrival = preArrivalOpensAt(stay);
+    return open(req, res, {
+      ...common,
+      mode: 'visitor',
+      expiresAt: !resolved.ended && preArrival < expiry ? preArrival : expiry,
+      ended: Boolean(resolved.ended),
+    });
+  }
+
+  // Rule 3 — the lodging poster opens its visitor mode, never a stay, at any time.
+  function openFromPoster(req, res, lodgingCode) {
+    const lodging = isText(lodgingCode) ? lodgings().findEnabledByCode(lodgingCode) : null;
+    if (!lodging) return unknownCode(res);
+    return open(req, res, {
+      lodging, mode: 'visitor', origin: 'poster', expiresAt: visitorExpiry(now()),
+    });
+  }
+
+  // POST /sessions — `{ stayToken }` or `{ lodgingCode }` (§4.3); the stay link wins when both are sent.
+  function createSession(req, res) {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    if (body.stayToken !== undefined) return openFromLink(req, res, body.stayToken);
+    return openFromPoster(req, res, body.lodgingCode);
   }
 
   // POST /sessions/lookup — rules 6, 7, 11quater. Every failure is the one generic 404, and the name is
@@ -114,52 +152,12 @@ function buildSessionController({
       ? stays().byReservationNumber(reservationNumber.trim())
       : null;
     const nameOk = nameMatches(lastName, [stay ? stay.clientLastName : '']);
-    const at = now();
     const lodging = stay && lodgings().findEnabled(stay.propertyId);
-    const resolved = stay && nameOk && lodging ? resolveLookup(stay, at) : null;
+    const resolved = stay && nameOk && lodging ? resolveLookup(stay, now()) : null;
     if (!resolved) return publicHttp.fail(res, 404, 'STAY_NOT_FOUND', NOT_FOUND_MESSAGE);
-    const again = reusable(req, stay.propertyId, stay.id);
-    if (again) {
-      sessions().confirmName(again.session.id, at);
-      setSessionCookie(res, again.token, new Date(again.session.expiresAt));
-      return answer(res, { mode: again.mode, lodging });
-    }
-    const { token, session } = sessions().create({
-      propertyId: stay.propertyId,
-      reservationId: stay.id,
-      mode: resolved.mode,
-      origin: 'lookup',
-      expiresAt: resolved.window.end,
-      nameConfirmedAt: at,
-      now: at,
+    return open(req, res, {
+      lodging, reservationId: stay.id, mode: resolved.mode, origin: 'lookup', expiresAt: resolved.window.end,
     });
-    setSessionCookie(res, token, new Date(session.expiresAt));
-    return answer(res, { mode: resolved.mode, lodging });
-  }
-
-  // POST /me/confirm-name — rule 33's lock, rule 7's comparison.
-  function confirmName(req, res) {
-    const { session, stay } = req.guest;
-    if (session.nameConfirmedAt) return publicHttp.ok(res, { nameConfirmed: true });
-    // A body that carries no name is a malformed request, not a wrong name: it spends no attempt.
-    if (!isText(req.body && req.body.lastName)) return publicHttp.fail(res, 400, 'INVALID_INPUT', 'Saisissez votre nom de famille.');
-    const at = now();
-    const lockedUntil = session.nameLockedUntil ? new Date(session.nameLockedUntil) : null;
-    if (lockedUntil && at < lockedUntil) {
-      return res.status(423).json({ error: { code: 'NAME_LOCKED', message: 'Trop d’essais. Vous pouvez payer par carte.', lockedUntil: lockedUntil.toISOString() } });
-    }
-    if (nameMatches(req.body && req.body.lastName, [stay.clientLastName])) {
-      sessions().confirmName(session.id, at);
-      return publicHttp.ok(res, { nameConfirmed: true });
-    }
-    const after = sessions().recordNameFailure(session.id, {
-      locksAt: MAX_NAME_FAILURES,
-      lockedUntil: new Date(at.getTime() + NAME_LOCK_MS),
-    });
-    if (after.nameLockedUntil) {
-      return res.status(423).json({ error: { code: 'NAME_LOCKED', message: 'Trop d’essais. Vous pouvez payer par carte.', lockedUntil: after.nameLockedUntil } });
-    }
-    return res.status(422).json({ error: { code: 'NAME_MISMATCH', message: 'Ce nom ne correspond pas à la réservation.', attemptsLeft: MAX_NAME_FAILURES - after.nameFailures } });
   }
 
   /** Rule 15bis — one dated Soliomap event for a stay or pre-arrival session, while the lodging shows Soliomap. */
@@ -171,19 +169,14 @@ function buildSessionController({
 
   // GET /me — rule 8: this payload is the whole of what a session learns about its stay.
   async function me(req, res) {
-    const { stay, window, lodging, mode, session } = req.guest;
+    const { stay, window, lodging, mode } = req.guest;
     const lang = languageOf(req, stay);
     const at = now();
     const shown = shownFor(lodging, mode, lang);
     const base = { mode, lodging: lodgingView(lodging), language: lang, tiles: tilesOf(shown) };
-    if (!stay) {
-      const opening = nextOpeningToday(staysAround(lodging.propertyId, at), at);
-      return publicHttp.ok(res, {
-        ...base,
-        welcome: welcomeLine(lodging.name, lang),
-        ...(opening ? { opensAt: opening.opensAt.toISOString(), openingLine: openingLine(opening, lang) } : {}),
-      });
-    }
+    // Rule 3 — a visitor learns nothing of any stay, not even that one starts today.
+    if (!stay) return publicHttp.ok(res, { ...base, welcome: welcomeLine(lodging.name, lang) });
+    const opening = mode === 'preArrival' ? openingToday(stay, window, at) : null;
     const highlight = mode === 'stay' ? chooseHighlight({
       stay,
       now: at,
@@ -201,7 +194,7 @@ function buildSessionController({
         partySize: ['adults', 'teens', 'children', 'babies'].reduce((sum, key) => sum + Number(stay[key] || 0), 0),
         statusLine: statusLine(stay, window, at, lang),
       },
-      nameConfirmed: Boolean(session.nameConfirmedAt),
+      ...(opening ? { opensAt: opening.opensAt.toISOString(), openingLine: openingLine(opening, lang) } : {}),
       ...(suggestion ? { suggestion } : {}),
       ...(highlight ? { highlight } : {}),
     });
@@ -233,7 +226,7 @@ function buildSessionController({
   const shownKeysOf = (req) => shownKeys(req.guest.lodging, req.guest.mode);
 
   return {
-    confirmName, createFromCode, lodging, lookup, me, shownKeys, shownKeysOf,
+    createSession, lodging, lookup, me, shownKeys, shownKeysOf,
   };
 }
 

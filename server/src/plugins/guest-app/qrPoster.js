@@ -12,8 +12,11 @@ const QR_SIZE = 340;
 const INK = '#1f2a24';
 const MUTED = '#5c665f';
 
-/** The URL a lodging's QR code opens. */
+/** The URL a lodging's QR code opens (the visitor mode, rule 3). */
 const lodgingUrl = (guestHost, lodgingCode) => `https://${guestHost}/l/${lodgingCode}`;
+
+/** The URL of a stay's own link (rule 1). */
+const stayLinkUrl = (guestHost, stayToken) => `https://${guestHost}/s/${stayToken}`;
 
 /** → a Buffer holding the PDF. */
 async function renderQrPoster({ appName, lodgingName, url }) {
@@ -37,4 +40,4 @@ async function renderQrPoster({ appName, lodgingName, url }) {
   return done;
 }
 
-module.exports = { lodgingUrl, renderQrPoster };
+module.exports = { lodgingUrl, renderQrPoster, stayLinkUrl };

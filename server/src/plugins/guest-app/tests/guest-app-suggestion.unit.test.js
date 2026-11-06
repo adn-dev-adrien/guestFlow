@@ -8,7 +8,9 @@ const FEED = require('./soliomapActivities.json');
 const {
   CACHE_MS, FAILURE_CACHE_MS, TIMEOUT_MS, createSoliomapFeed, pickSuggestion,
 } = require('../soliomapFeed');
-const { addStay, enable, freshDb, startApi } = require('./guestAppFixtures');
+const {
+  addStay, enable, freshDb, latestStayToken, startApi,
+} = require('./guestAppFixtures');
 
 const URL = 'https://map.example.test';
 const paris = (ymd, time) => new Date(`${ymd}T${time}:00+01:00`);
@@ -131,7 +133,7 @@ test('rule 15bis: /me carries the suggestion for a stay session, never for a vis
     // date-literal-ok: the stay handed to the plugin with its injected clock
     addStay(db, { startDate: '2026-11-05', endDate: '2026-11-09' });
     ctx.cookies.value = null;
-    await ctx.call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+    await ctx.call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
     const me = await ctx.call('GET', '/public/v1/guest/me');
     assert.equal(me.body.data.mode, 'stay');
     assert.equal(me.body.data.suggestion.id, 'theatre-chiche-t-es-pas-cap');

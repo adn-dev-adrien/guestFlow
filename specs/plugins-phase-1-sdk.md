@@ -235,7 +235,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     | `dashboard.alerts` | Dashboard alert stack, under the new iCal reservations | tariff-recipes (runs) |
     | `reservation.cards` | reservation page, after the finance section | gate-access |
     | `sas.arrival.steps` | SAS dialog, just before the recap | weather-alerts |
-    | `sas.portal` | the SAS « Portail » step, when the SAS data says the plugin holds a key (rule 17) | gate-access |
+    | `sas.portal` | the SAS « Portail » step, when the SAS data says the plugin holds a key (rule 17). A contribution with `leadsStep: { title }` takes the whole step and its title while its plugin's SAS data says `available`, the others handed to it as `gateStep` (specs/guest-app.md rule 9bis, 2026-11-06) | gate-access, guest-app (`leadsStep`) |
     | `calendar.dayMarkers` | month view, week view, property pricing calendar, their legends | school-holidays |
     | `closures.tabs` | Vacances & fermetures, before « Fermetures » | school-holidays |
     | `property.tariff` | pricing seasons page | tariff-recipes (the recipe card) |

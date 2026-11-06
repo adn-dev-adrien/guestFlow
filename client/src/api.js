@@ -445,6 +445,10 @@ const api = {
   // Gate keys (specs/gate-access-sowel-connector.md §3.5): the stored key of a stay — the fiche's
   // card and the SAS step (code + QR). Read-only: every action lives in Sowel.
   getReservationGateAccess: (id) => request(`/reservations/${id}/gate-access`),
+  // The stay's « Mon séjour » link (specs/guest-app.md rules 1, 9bis): shown by the arrival SAS and the fiche,
+  // created by the server on first need; regenerating kills the old link and its sessions.
+  getStayLink: (id) => request(`/guest-app/reservations/${id}/stay-link`),
+  regenerateStayLink: (id) => request(`/guest-app/reservations/${id}/stay-link/regenerate`, { method: 'POST' }),
   // The connector's state (§3.6 rule 29) — no secret value — and the dashboard alert (§3.3).
   getGateConnector: () => request('/settings/gate-connector'),
   // Admin-only: guestFlow's address + both secrets, for the Sowel plugin's settings (§3.6 rule 29b).

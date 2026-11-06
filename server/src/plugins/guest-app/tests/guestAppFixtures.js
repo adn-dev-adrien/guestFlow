@@ -95,6 +95,22 @@ function enable(api, db, propertyId = 1, patch = {}) {
   return db.prepare('SELECT lodgingCode FROM guest_app_lodgings WHERE propertyId = ?').get(propertyId).lodgingCode;
 }
 
+/** The stay's live link (rule 1), created like the SAS or the fiche would: the token the guest opens. */
+function stayToken(db, reservationId) {
+  return require('../models/stayLinksModel')(db).ensure(reservationId, new Date('2099-01-01T00:00:00Z')).token;
+}
+
+/** A stay session on the reservation, opened from its link as a guest would. */
+async function openStay(call, db, reservationId) {
+  return call('POST', '/public/v1/guest/sessions', { stayToken: stayToken(db, reservationId) });
+}
+
+/** The link of the lodging's latest reservation: the stay a suite wrote before opening its session. */
+function latestStayToken(db, propertyId = 1) {
+  const row = db.prepare("SELECT MAX(id) AS id FROM reservations WHERE propertyId = ? AND kind = 'reservation'").get(propertyId);
+  return stayToken(db, row.id);
+}
+
 /** An option of the catalogue, linked to the given lodgings, with a per-lodging price where one is given. */
 function addOption(db, { id, title, priceType = 'per_stay', price = 10, category = '', lodgings = [1, 2], prices = {}, freeUnits = {}, ...over }) {
   const row = { archivedAt: null, autoOptionType: null, isCancellationInsurance: 0, displayToClient: 1, ...over };
@@ -151,5 +167,5 @@ function livePlugins({ hourly = true, payment = null, scheduler = null } = {}) {
 }
 
 module.exports = {
-  addOption, addResource, addStay, enable, freshDb, livePlugins, openService, paris, sell, startApi,
+  addOption, addResource, addStay, enable, freshDb, livePlugins, openService, latestStayToken, openStay, paris, sell, startApi, stayToken,
 };

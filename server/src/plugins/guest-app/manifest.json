@@ -7,14 +7,16 @@
   "surfaces": [
     "Intégrations › Application clients",
     "La notification push « Commandes clients »",
-    "L’API publique de l’application clients"
+    "L’API publique de l’application clients",
+    "L’étape « Mon séjour » du sas d’arrivée",
+    "La variable d’e-mail « Lien Mon séjour »"
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
   "sdk": "^2.22.0",
   "changelog": {
     "1.0.0": [
-      "Première version : réglages par logement, code QR de chaque logement, sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, côté serveur. Aucun écran client pour l’instant.",
+      "Première version : réglages par logement, code QR de chaque logement (livret seul), lien « Mon séjour » propre à chaque séjour (sas d’arrivée, e-mails, fiche), sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, côté serveur. Aucun écran client pour l’instant.",
       "Prévu pour le SDK 2.22 de GuestFlow."
     ]
   }

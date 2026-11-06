@@ -14,10 +14,9 @@ function buildPublicRouter({
     res.set('Cache-Control', 'no-store');
     next();
   });
-  router.post('/sessions', limiters.session, controller.createFromCode);
+  router.post('/sessions', limiters.session, controller.createSession);
   router.post('/sessions/lookup', limiters.lookup, controller.lookup);
   router.get('/me', limiters.read, guestSession.requireSession, controller.me);
-  router.post('/me/confirm-name', limiters.read, guestSession.requireSession, guestSession.requireStay, controller.confirmName);
   router.get('/lodging', limiters.read, controller.lodging);
   const shopRoute = [limiters.read, guestSession.requireSession, requireModule('shop', controller.shownKeysOf)];
   router.get('/shop', ...shopRoute, shop.read);

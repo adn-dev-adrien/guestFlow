@@ -13,6 +13,7 @@ const createStaysModel = require('./models/staysModel');
 const createOrdersModel = require('./models/ordersModel');
 const createItemsModel = require('./models/itemsModel');
 const createStayLinesModel = require('./models/stayLinesModel');
+const createStayLinksModel = require('./models/stayLinksModel');
 const createServiceHoursModel = require('./models/serviceHoursModel');
 const createBookletModel = require('./models/bookletModel');
 const createMediaModel = require('./models/mediaModel');
@@ -20,6 +21,7 @@ const { createSoliomapFeed } = require('./soliomapFeed');
 const { buildGuestSession } = require('./middleware/guestSession');
 const { buildSessionController } = require('./controllers/sessionController');
 const { buildLodgingsController } = require('./controllers/lodgingsController');
+const { buildStayLinksController } = require('./controllers/stayLinksController');
 const { buildItemsController } = require('./controllers/itemsController');
 const { buildShopController } = require('./controllers/shopController');
 const { buildServiceHoursController } = require('./controllers/serviceHoursController');
@@ -59,12 +61,16 @@ function buildGuestApi({
   const orders = once(() => createOrdersModel(db()));
   const items = once(() => createItemsModel(db()));
   const stayLines = once(() => createStayLinesModel(db()));
+  const stayLinks = once(() => createStayLinksModel(db()));
   const serviceHours = once(() => createServiceHoursModel(db()));
   const booklet = once(() => createBookletModel(db()));
   const media = once(() => createMediaModel(db()));
-  const guestSession = buildGuestSession({ sessions, stays, lodgings, now });
+  const guestSession = buildGuestSession({ sessions, stays, stayLinks, lodgings, now });
   const controller = buildSessionController({
-    lodgings, sessions, stays, orders, guestSession, soliomapUrl, soliomapFeed, now,
+    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now,
+  });
+  const links = buildStayLinksController({
+    stayLinks, stays, lodgings, guestHost, now,
   });
   const shop = buildShopController({ items, stayLines, orders, serviceHours, scheduler, translator, now });
   const resolver = buildBookletResolver({
@@ -83,8 +89,12 @@ function buildGuestApi({
       studio: buildStudioController({
         booklet, media, lodgings, resolver, uploadsDir, now,
       }),
+      stayLinks: links,
     }),
     sessions,
+    // Rule 9bis — where the stay link is given: the SAS step and the reminder e-mails.
+    stayLinkAvailable: links.available,
+    stayAppUrl: links.emailUrl,
     shownKeysOf: controller.shownKeysOf,
     // Rule 35 — the slots the unpaid card orders hold, for every reader of the resource planning.
     heldSessions: (range) => orders().heldSessions({ ...range, now: now() }),
@@ -117,6 +127,23 @@ function register(ctx) {
   ctx.resourceHolds(api.heldSessions);
   ctx.mount('/public/v1/guest', api.publicRouter, { public: true });
   ctx.mount('/api/guest-app', api.adminRouter);
+  // Rule 9bis (a) — the reception runs the arrival SAS, where the stay link is shown and regenerated.
+  ctx.reception([
+    { method: 'GET', re: /^\/guest-app\/reservations\/\d+\/stay-link$/ },
+    { method: 'POST', re: /^\/guest-app\/reservations\/\d+\/stay-link\/regenerate$/ },
+  ]);
+  // Rule 9bis (a) — the SAS « Portail » step becomes « Mon séjour » while this stay has a link to show.
+  ctx.sasData((reservationId) => ({ available: api.stayLinkAvailable(reservationId) }));
+  // Rule 9bis (b) — the reminder e-mails carry the stay link. `stayAppUrl` is a core variable (it falls back to
+  // the gate link without this plugin), so only the flag is declared here.
+  ctx.emailContext({
+    tokens: [],
+    flags: [{ name: 'hasStayApp', label: 'Si lien Mon séjour' }],
+    build: (reservationId) => {
+      const url = api.stayAppUrl(reservationId);
+      return { tokens: { stayAppUrl: url }, flags: { hasStayApp: Boolean(url) } };
+    },
+  });
 
   ctx.jobs.every({
     name: 'session-purge',

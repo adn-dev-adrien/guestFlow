@@ -52,15 +52,22 @@ const TABLES_SQL = `
     propertyId      INTEGER NOT NULL,
     reservationId   INTEGER,
     mode            TEXT NOT NULL CHECK (mode IN ('stay', 'preArrival', 'visitor')),
-    origin          TEXT NOT NULL CHECK (origin IN ('qr', 'lookup')),
-    nameConfirmedAt TEXT,
-    nameFailures    INTEGER NOT NULL DEFAULT 0,
-    nameLockedUntil TEXT,
+    origin          TEXT NOT NULL CHECK (origin IN ('link', 'poster', 'lookup')),
+    stayLinkId      INTEGER,
     createdAt       TEXT NOT NULL,
     lastSeenAt      TEXT NOT NULL,
     expiresAt       TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_guest_sessions_expiry ON guest_sessions(expiresAt);
+  CREATE TABLE IF NOT EXISTS guest_stay_links (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId  INTEGER NOT NULL,
+    tokenEncrypted TEXT NOT NULL,
+    tokenHash      TEXT NOT NULL UNIQUE,
+    createdAt      TEXT NOT NULL,
+    revokedAt      TEXT
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_guest_stay_links_live ON guest_stay_links(reservationId) WHERE revokedAt IS NULL;
   CREATE TABLE IF NOT EXISTS guest_booklet_pages (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     slug         TEXT NOT NULL,
@@ -128,7 +135,7 @@ const TABLES_SQL = `
 
 const TABLES = Object.freeze([
   'guest_app_lodgings', 'guest_app_items', 'guest_app_service_hours', 'guest_app_service_exceptions',
-  'guest_sessions', 'guest_booklet_pages', 'guest_booklet_placements', 'guest_booklet_blocks',
+  'guest_sessions', 'guest_stay_links', 'guest_booklet_pages', 'guest_booklet_placements', 'guest_booklet_blocks',
   'guest_booklet_versions', 'guest_media', 'guest_orders',
 ]);
 

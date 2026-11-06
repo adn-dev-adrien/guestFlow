@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.7.11",
+  "version": "1.8.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -110,6 +110,10 @@
     "1.7.11": [
       "Une réservation introuvable ou des données invalides se lisent en français.",
       "Un libellé facturable qui n’est pas un texte est refusé : plus de « [object Object] » proposé à l’accueil.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.8.0": [
+      "L’étape « Portail » du sas d’arrivée peut laisser la place à l’étape « Mon séjour » de l’application clients, le QR du portail restant à portée.",
       "Compatible avec le SDK 2.21 de GuestFlow."
     ]
   }

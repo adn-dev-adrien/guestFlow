@@ -1,6 +1,6 @@
 /**
- * Which stay a lodging or a session is on, at an instant (specs/guest-app.md rules 2, 3, 5, 6, 9). Pure:
- * the rows and the instant come in, nothing reads a database or a clock.
+ * What a stay link, the fallback lookup or a session opens, at an instant (specs/guest-app.md rules 2, 4-6,
+ * 9). Pure: the rows and the instant come in, nothing reads a database or a clock.
  *
  * A stay row carries `kind`, `propertyId`, `startDate`, `endDate`, `checkInTime`, `checkOutTime`. Cancelling
  * a reservation moves its `kind` away from `reservation`, so that test also excludes a superseded stay and a
@@ -15,7 +15,6 @@ const PRE_ARRIVAL_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const isLiveStay = (stay) => Boolean(stay) && stay.kind === 'reservation';
-const contains = (window, now) => now >= window.start && now < window.end;
 
 /** The Europe/Paris calendar date of an instant: `2026-10-06`. */
 function parisDate(instant) {
@@ -38,40 +37,27 @@ function preArrivalOpensAt(stay) {
 }
 
 /**
- * Rules 2-3 — the live stay whose window contains `now`. When windows overlap, the departing stay wins
- * until its check-out time and the arriving one after.
+ * Rule 5 — on the arrival day, before the window opens: when the gate and the shop open. Null on any other
+ * day or once the window is open.
  */
-function pickCurrentStay(stays, now) {
-  const inWindow = (stays || [])
-    .filter(isLiveStay)
-    .map((stay) => ({ stay, window: computeWindow(stay) }))
-    .filter(({ window }) => window && contains(window, now))
-    .sort((a, b) => a.window.checkOut - b.window.checkOut);
-  if (!inWindow.length) return null;
-  return inWindow.find(({ window }) => now < window.checkOut) || inWindow[inWindow.length - 1];
-}
-
-/**
- * Rule 5 — the stay that starts later today, whose window has not opened yet: a guest who scanned too
- * early is told when the gate and the shop open.
- */
-function nextOpeningToday(stays, now) {
-  const today = parisDate(now);
-  const upcoming = (stays || [])
-    .filter((stay) => isLiveStay(stay) && String(stay.startDate) === today)
-    .map((stay) => ({ stay, window: computeWindow(stay) }))
-    .filter(({ window }) => window && now < window.start)
-    .sort((a, b) => a.window.start - b.window.start);
-  if (!upcoming.length) return null;
-  const { window } = upcoming[0];
+function openingToday(stay, window, now) {
+  if (String(stay.startDate) !== parisDate(now) || now >= window.start) return null;
   return { opensAt: window.start, checkInAt: window.checkIn };
 }
 
-/** Scanning a lodging's QR code (rules 2, 3, 5): its current stay, else visitor mode. */
-function resolveLodging(stays, now) {
-  const current = pickCurrentStay(stays, now);
-  if (current) return { mode: 'stay', stay: current.stay, window: current.window };
-  return { mode: 'visitor', opening: nextOpeningToday(stays, now) };
+/**
+ * Opening the stay link (rule 2): pre-arrival from J-7 00:00 until the window opens, the stay inside the
+ * window, the lodging's visitor mode before J-7 and after the window (`ended`). Null for a row that is no
+ * live stay: the caller answers like an unknown code.
+ */
+function resolveLink(stay, now) {
+  if (!isLiveStay(stay)) return null;
+  const window = computeWindow(stay);
+  if (!window) return null;
+  if (now >= window.end) return { mode: 'visitor', ended: true, window };
+  if (now >= window.start) return { mode: 'stay', stay, window };
+  if (now >= preArrivalOpensAt(stay)) return { mode: 'preArrival', stay, window };
+  return { mode: 'visitor', window };
 }
 
 /**
@@ -89,17 +75,21 @@ function resolveLookup(stay, now) {
 
 /**
  * Re-derived on every request (rule 9 and the « dates changed » edge case): the session lives only as long
- * as its stay's window, read from the live reservation. → { mode, window } or null when it is dead. A QR
- * session has no pre-arrival: its proof is standing in the lodging during the window.
+ * as its stay's window, read from the live reservation. → { mode, window, expiresAt } or null when it is
+ * dead. A lookup session moves from pre-arrival to the stay by itself; a link session keeps the phase it was
+ * opened in (rule 4): a pre-arrival one ends when the window opens, and the app exchanges the link again.
  */
 function deriveSession(session, stay, now) {
   if (!isLiveStay(stay) || Number(stay.propertyId) !== Number(session.propertyId)) return null;
   if (session.origin === 'lookup') {
     const resolved = resolveLookup(stay, now);
-    return resolved && { mode: resolved.mode, window: resolved.window };
+    return resolved && { mode: resolved.mode, window: resolved.window, expiresAt: resolved.window.end };
   }
-  const window = computeWindow(stay);
-  return window && contains(window, now) ? { mode: 'stay', window } : null;
+  const resolved = resolveLink(stay, now);
+  if (!resolved || resolved.mode !== session.mode) return null;
+  if (resolved.mode === 'preArrival') return { mode: 'preArrival', window: resolved.window, expiresAt: resolved.window.start };
+  if (resolved.mode === 'stay') return { mode: 'stay', window: resolved.window, expiresAt: resolved.window.end };
+  return null;
 }
 
 module.exports = {
@@ -107,10 +97,9 @@ module.exports = {
   daysBetween,
   deriveSession,
   isLiveStay,
-  nextOpeningToday,
+  openingToday,
   parisDate,
-  pickCurrentStay,
   preArrivalOpensAt,
-  resolveLodging,
+  resolveLink,
   resolveLookup,
 };

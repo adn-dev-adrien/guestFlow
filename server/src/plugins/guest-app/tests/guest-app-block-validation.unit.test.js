@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const { BLOCK_TYPES, sanitizeRichText, validateBlockData } = require('../bookletBlocks');
 const { resolvePages } = require('../booklet');
 const {
-  addOption, addStay, enable, freshDb, livePlugins, sell, startApi,
+  addOption, addStay, enable, freshDb, latestStayToken, livePlugins, sell, startApi,
 } = require('./guestAppFixtures');
 
 const fr = (text) => ({ fr: text });
@@ -143,7 +143,7 @@ test('rule 18: an item button shows for a stay whose lodging sells it, never for
     assert.deepEqual(await targets(), [], 'a visitor never reaches the shop');
     addStay(db);
     ctx.cookies.value = null;
-    await ctx.call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+    await ctx.call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
     assert.deepEqual(await targets(), [1], 'the sold item only');
     sell(db, 'option', 1, { sold: 0 });
     assert.deepEqual(await targets(), [], 'unsold → gone, without republishing');

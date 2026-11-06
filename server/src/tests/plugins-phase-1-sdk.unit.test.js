@@ -431,11 +431,15 @@ test('rule 10: the gate variables are filled while the plugin is active, empty a
   boot(db, { installed: ['gate-access'] });
   db.prepare(`INSERT INTO gate_key_results (reservationId, action, ok, state, code, url, receivedAt)
     VALUES (5, 'create', 1, 'active', '4K7M', 'https://x/#i=y', '2026-09-28')`).run();
-  assert.deepEqual(eventBus.emailContext(5), {
+  // Only the gate's variables: another loaded plugin (the guest app's `stayAppUrl`) adds its own, empty here.
+  const gate = ({ tokens, flags }) => ({
+    tokens: { gateAccessCode: tokens.gateAccessCode, gateAccessUrl: tokens.gateAccessUrl }, flags: { hasGateAccess: flags.hasGateAccess },
+  });
+  assert.deepEqual(gate(eventBus.emailContext(5)), {
     tokens: { gateAccessCode: '4K7M', gateAccessUrl: 'https://x/#i=y' }, flags: { hasGateAccess: true },
   });
   buildPluginsModel(db).setEnabled('gate-access', false);
-  assert.deepEqual(eventBus.emailContext(5), {
+  assert.deepEqual(gate(eventBus.emailContext(5)), {
     tokens: { gateAccessCode: '', gateAccessUrl: '' }, flags: { hasGateAccess: false },
   });
 });

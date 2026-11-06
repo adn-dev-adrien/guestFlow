@@ -85,6 +85,12 @@ function normaliseLang(v) {
   return String(v || '').toLowerCase() === 'en' ? 'en' : 'fr';
 }
 
+/** specs/guest-app.md rule 9bis (b) — the stay link the guest app gives, else the gate key's link, else ''. */
+function stayAppUrlOf(pluginContext) {
+  const tokens = (pluginContext && pluginContext.tokens) || {};
+  return safeStr(tokens.stayAppUrl) || safeStr(tokens.gateAccessUrl);
+}
+
 function buildCgvUrl(settings, termsVersion) {
   const origin = String(settings.publicSiteOrigin || process.env.PUBLIC_SITE_ORIGIN || '').trim().replace(/\/+$/, '');
   if (!origin || !termsVersion) return '';
@@ -471,6 +477,9 @@ function buildContext({ reservation, client, property, options = [], resources =
       // `gateAccessCode` / `gateAccessUrl`. Empty for an inactive plugin, so a stored template never
       // shows its data.
       ...((pluginContext && pluginContext.tokens) || {}),
+      // specs/guest-app.md rule 9bis (b) — `{{stayAppUrl}}` is the stay's « Mon séjour » link while the guest app
+      // gives one, else the gate link, as the e-mails carried before the app existed.
+      stayAppUrl: stayAppUrlOf(pluginContext),
     },
     flags: {
       ...stayContent.flags,

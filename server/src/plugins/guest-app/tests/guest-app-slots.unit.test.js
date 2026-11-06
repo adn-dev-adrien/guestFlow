@@ -9,7 +9,7 @@ if (requirePlugins(['hourly-resources'])) {
   const assert = require('node:assert/strict');
 
   const {
-    addOption, addResource, addStay, enable, freshDb, livePlugins, openService, paris, sell, startApi,
+    addOption, addResource, addStay, enable, freshDb, latestStayToken, livePlugins, openService, paris, sell, startApi,
   } = require('./guestAppFixtures');
   const { createScheduler } = require('../../hourly-resources/scheduler');
   const { createContext } = require('../../sdk/createContext');
@@ -49,7 +49,8 @@ if (requirePlugins(['hourly-resources'])) {
         // The session is opened on the first read, once the test has written its stay.
         let cookie = null;
         const get = async (query = '', id = BATH) => {
-          cookie = cookie || (await ctx.call('POST', '/public/v1/guest/sessions', { lodgingCode: enable(ctx.api, db) })).setCookie.split(';')[0];
+          if (!cookie) enable(ctx.api, db);
+          cookie = cookie || (await ctx.call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) })).setCookie.split(';')[0];
           return ctx.call('GET', `/public/v1/guest/shop/resources/${id}/slots${query}`, null, { cookie });
         };
         await fn({ db, get, ...ctx });

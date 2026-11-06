@@ -6,7 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
-  addOption, addStay, enable, freshDb, livePlugins, openService, paris, sell, startApi,
+  addOption, addStay, enable, freshDb, latestStayToken, livePlugins, openService, paris, sell, startApi,
 } = require('./guestAppFixtures');
 const {
   deliveryPicker, deliveryTimes, ignitionInHours, nextOpening, rangesOn, serviceState, wallClock,
@@ -231,7 +231,8 @@ test('rules 40-41: the service hours are the admin’s, a restricted role is ref
 
 /** A session on the stay, its cookie. */
 async function scan(api, db, call) {
-  return (await call('POST', '/public/v1/guest/sessions', { lodgingCode: enable(api, db) })).setCookie.split(';')[0];
+  enable(api, db);
+  return (await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) })).setCookie.split(';')[0];
 }
 
 withApi('rule 42: the shop’s service banner, and « Plus disponible pour votre séjour » once no delivery time is left', async ({ db, api, call, clock }) => {

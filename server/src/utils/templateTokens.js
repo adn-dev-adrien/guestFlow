@@ -101,6 +101,8 @@ const VARIABLES = Object.freeze([
   { name: 'companyEmail', label: 'Email de l’entreprise', in: null },
   { name: 'senderName', label: 'Nom d’expéditeur', in: null },
   { name: 'cgvUrl', label: 'Lien des CGV', in: ['confirmation', 'payment'] },
+  // specs/guest-app.md rule 9bis (b) — the stay's « Mon séjour » link, else the gate link: always a link to give.
+  { name: 'stayAppUrl', label: 'Lien Mon séjour', in: ['j7', 'j2'] },
   // Paragraphes composés par le serveur
   { name: 'propertyHook', label: 'Accroche du logement', in: ['j7'] },
   { name: 'bathIncluded', label: 'Temps de ressource offert', in: ['j7', 'j2'] },
