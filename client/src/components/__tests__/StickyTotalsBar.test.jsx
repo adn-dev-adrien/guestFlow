@@ -1,5 +1,5 @@
 /**
- * StickyTotalsBar — specs/tourist-tax-report-v2.md §3 rules 20 and 39: the given figures, as given, in a sticky polite live
+ * StickyTotalsBar — specs/tourist-tax-report-v2.md §3 rules 20, 39, 45 and 47: the given figures, as given, in a sticky polite live
  * region; on a phone the `compact` ones and a toggle that unfolds the rest.
  */
 import React from 'react';
@@ -62,13 +62,27 @@ test('rule 39 (D-HC17): every figure has the same size, the main one included, o
   }
 });
 
-test('rule 39: each label sits in a two-line block aligned to its bottom, so the figures share one line', () => {
+test('rules 39 and 47: each label sits in a block of one fixed height aligned to its bottom; the figures wrap into rows, each keeping its own width', () => {
   setPhone(false);
   renderBar();
   const blocks = ITEMS.map((i) => screen.getByTestId(`total-${i.key}`).firstChild);
   for (const block of blocks) {
-    expect(block).toHaveStyle({ display: 'flex', alignItems: 'flex-end' });
-    expect(getComputedStyle(block).minHeight).toBe(getComputedStyle(blocks[0]).minHeight);
+    expect(block).toHaveStyle({ display: 'flex', alignItems: 'flex-end', overflow: 'hidden' });
+    expect(getComputedStyle(block).height).toBe(getComputedStyle(blocks[0]).height);
   }
-  expect(screen.getByTestId('sticky-totals-bar').querySelector('[aria-live]')).toHaveStyle({ flexWrap: 'nowrap' });
+  expect(screen.getByTestId('sticky-totals-bar').querySelector('[aria-live]')).toHaveStyle({ flexWrap: 'wrap' });
+  for (const i of ITEMS) expect(screen.getByTestId(`total-${i.key}`)).toHaveStyle({ minWidth: 'min-content' });
+  // Off a phone every figure shows, nothing behind a toggle (D-HC19).
+  expect(screen.queryByRole('button')).toBeNull();
+  expect(document.querySelectorAll('[data-figure]').length).toBe(ITEMS.length);
+});
+
+test('rule 45: a long label is clamped to two lines, its full text kept in its title', () => {
+  setPhone(false);
+  const long = 'Séjours déclarés sur la période choisie, hors plateformes qui reversent elles-mêmes';
+  render(<ThemeProvider theme={theme}><StickyTotalsBar items={[{ ...ITEMS[0], label: long }, ITEMS[2]]} label="Totaux" /></ThemeProvider>);
+  const labelEl = screen.getByText(long);
+  expect(labelEl).toHaveAttribute('title', long);
+  expect(labelEl).toHaveStyle({ overflow: 'hidden' });
+  expect(labelEl.style.webkitLineClamp || getComputedStyle(labelEl).webkitLineClamp || getComputedStyle(labelEl).getPropertyValue('-webkit-line-clamp')).toBe('2');
 });

@@ -18,6 +18,20 @@ const MESSAGES = {
   badDeclaration: 'Statut de déclaration inconnu.',
 };
 
+// The platform's mode « it collects the tax from the guest » (collectsTouristTax = 1), reached by the label a manual
+// stay stores or the iCal key bridged to it, as TAX_ON_ARRIVAL_SQL does for the other mode.
+const PLATFORM_COLLECTS_SQL = `(
+  lower(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) <> 'direct'
+  AND (
+    EXISTS (SELECT 1 FROM platforms pl WHERE lower(pl.name) = lower(r.platform) AND pl.collectsTouristTax = 1)
+    OR EXISTS (
+      SELECT 1 FROM ical_sources s JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
+      WHERE (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
+        AND pl.collectsTouristTax = 1
+    )
+  )
+)`;
+
 const channelLabel = (platform) => (isDirectChannel(platform) ? 'Direct' : platformDisplayName(platform));
 const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
 
@@ -63,13 +77,53 @@ function createTouristTaxReportModel(database, finance) {
     });
   }
 
+  // Rules 38, 42, 43 (D-HC15, D-HC18) — a stay we would remit (WE_REMIT) but whose tax is frozen at 0 € (D-HC10)
+  // is listed as the platform's when the platform's MODE says it collects the tax (`collectsTouristTax = 1`, read
+  // from the mode, never the name), with the amount it stated. Attached at its last night like every platform row
+  // (rule 6), never by the day we were paid. Any other stay frozen at 0 € (direct, a platform that does not collect,
+  // a property without tax) stays hidden.
+  function frozenAtZeroPlatformRows({ start, endExclusive }) {
+    const rows = database.prepare(`
+      SELECT r.*, p.name AS propertyName, c.firstName, c.lastName
+      FROM reservations r
+      JOIN properties p ON p.id = r.propertyId
+      JOIN clients c ON c.id = r.clientId
+      WHERE r.kind = 'reservation'
+        AND ${WE_REMIT_SQL}
+        AND ${PLATFORM_COLLECTS_SQL}
+        AND DATE(r.endDate, '-1 day') >= ?
+        AND DATE(r.endDate, '-1 day') < ?
+    `).all(start, endExclusive);
+    return rows
+      .filter((r) => !isDirectChannel(r.platform) && finance.isTaxFrozenAtZero(r))
+      .map((r) => platformStayRow({
+        reservationId: r.id,
+        propertyId: r.propertyId,
+        propertyName: r.propertyName,
+        reservationName: `${r.firstName || ''} ${r.lastName || ''}`.trim(),
+        platformLabel: channelLabel(r.platform),
+        startDate: r.startDate,
+        endDate: r.endDate,
+        nightsCount: nightsBetween(r.startDate, r.endDate),
+        adults: r.adults,
+        children: r.children,
+        teens: r.teens,
+        babies: r.babies,
+        taxAmount: round2(r.platformTouristTaxAmount),
+      }));
+  }
+
   // What the extraction row does not carry and the report shows: the babies it exempts, the channel's name.
   function staysById(ids) {
-    if (ids.length === 0) return new Map();
-    return new Map(database
-      .prepare(`SELECT id, babies, platform FROM reservations WHERE id IN (${ids.map(() => '?').join(', ')})`)
-      .all(...ids)
-      .map((r) => [Number(r.id), r]));
+    // Rule 46 (review V2-8) — in chunks of 500: SQLite caps the bound parameters of one statement.
+    const byId = new Map();
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      database.prepare(`SELECT id, babies, platform FROM reservations WHERE id IN (${chunk.map(() => '?').join(', ')})`)
+        .all(...chunk)
+        .forEach((r) => byId.set(Number(r.id), r));
+    }
+    return byId;
   }
 
   /**
@@ -92,32 +146,13 @@ function createTouristTaxReportModel(database, finance) {
     const { window } = resolved;
     const span = { start: window.from, endExclusive: window.coveredToExclusive };
     const onProperty = (row) => propertyId == null || Number(row.propertyId) === propertyId;
-    const allRows = finance.getTouristTaxRows(span);
-    const rows = allRows.filter(onProperty);
+    const rows = finance.getTouristTaxRows(span).filter(onProperty);
     const extra = staysById([...new Set(rows.map((r) => Number(r.reservationId)))]);
     const ourRows = rows.map((row) => {
       const stay = extra.get(Number(row.reservationId)) || {};
       return ourStayRow(row, { babies: stay.babies, platformLabel: channelLabel(stay.platform) });
     });
-    // Rule 38 (D-HC15) — a platform's stay whose tax is frozen at 0 € (D-HC10 keeps it out of ours) is listed as the
-    // platform's, for information, with the amount the platform stated; a direct one stays out.
-    const frozenPlatformRows = (allRows.frozenAtZero || [])
-      .filter(({ stored }) => !isDirectChannel(stored.platform) && String(stored.platform || '').trim() !== '')
-      .map(({ stored, propertyName, reservationName }) => platformStayRow({
-        reservationId: stored.id,
-        propertyId: stored.propertyId,
-        propertyName,
-        reservationName,
-        platformLabel: channelLabel(stored.platform),
-        startDate: stored.startDate,
-        endDate: stored.endDate,
-        nightsCount: nightsBetween(stored.startDate, stored.endDate),
-        adults: stored.adults,
-        children: stored.children,
-        teens: stored.teens,
-        babies: stored.babies,
-        taxAmount: round2(stored.platformTouristTaxAmount),
-      }));
+    const frozenPlatformRows = frozenAtZeroPlatformRows(span);
     const platformRows = [...platformRemittedRows(span), ...frozenPlatformRows].filter(onProperty);
     const report = buildTouristTaxReport({ ourRows, platformRows, declaration });
     // Rule 34 — a stay is attributed by its end, so a night of the register may lie outside the window read: each

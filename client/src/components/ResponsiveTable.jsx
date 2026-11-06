@@ -18,6 +18,10 @@
  *                                                 CONTAINER is narrower than this (px) — a wide table
  *                                                 next to the drawer must not hide its last columns
  *                                                 in a scroller nobody notices (2026-10-27 audit)
+ *   cardsWhenOverflow?: boolean                   the cards also replace the table whenever the table,
+ *                                                 measured, is wider than its container: no width ever
+ *                                                 scrolls the table inside its card
+ *                                                 (specs/tourist-tax-report-v2.md rule 48)
  */
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Box, Card, CardContent, Stack, TableBody, TableHead, useMediaQuery } from '@mui/material';
@@ -37,26 +41,45 @@ export default function ResponsiveTable({
   onItemClick,
   cardsBelow = 'sm',
   cardsBelowWidth,
+  cardsWhenOverflow = false,
 }) {
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down(cardsBelow));
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  // The table's own width, measured the last time it overflowed its container (0: never seen overflowing).
+  const [naturalWidth, setNaturalWidth] = useState(0);
+  const measured = Boolean(cardsBelowWidth || cardsWhenOverflow);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
-    if (!cardsBelowWidth || !el) return undefined;
+    if (!measured || !el) return undefined;
     const measure = () => setContainerWidth(el.getBoundingClientRect().width);
     measure();
     if (typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [cardsBelowWidth]);
+  }, [measured]);
+
+  // New rows may make the table narrower: measure it afresh.
+  useLayoutEffect(() => { setNaturalWidth(0); }, [items]);
 
   // A zero width (jsdom, a hidden tab) is « unknown », not « narrow ».
-  const tooNarrow = Boolean(cardsBelowWidth) && containerWidth > 0 && containerWidth < cardsBelowWidth;
+  const tooNarrow = (Boolean(cardsBelowWidth) && containerWidth > 0 && containerWidth < cardsBelowWidth)
+    || (cardsWhenOverflow && naturalWidth > 0 && containerWidth > 0 && containerWidth < naturalWidth);
   const showCards = (isXs || tooNarrow) && Boolean(renderMobileCard);
+
+  // While the table shows, compare its own width with its container's; wider → the cards take over.
+  useLayoutEffect(() => {
+    if (!cardsWhenOverflow || showCards) return;
+    const el = containerRef.current;
+    const table = el && el.querySelector('table');
+    if (!table) return;
+    const natural = table.scrollWidth;
+    const box = el.getBoundingClientRect().width;
+    if (natural > 0 && box > 0 && natural > Math.ceil(box)) setNaturalWidth(natural);
+  });
 
   let content;
   if (!items.length) {
@@ -86,6 +109,6 @@ export default function ResponsiveTable({
     );
   }
 
-  if (!cardsBelowWidth) return content;
+  if (!measured) return content;
   return <Box ref={containerRef} sx={{ minWidth: 0 }}>{content}</Box>;
 }

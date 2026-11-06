@@ -1,4 +1,4 @@
-// specs/tourist-tax-report-v2.md §3 rules 13 and 30 — the CSV of the tourist-tax report, pure: French Excel format, one row per
+// specs/tourist-tax-report-v2.md §3 rules 13, 30 and 44 — the CSV of the tourist-tax report, pure: French Excel format, one row per
 // stay or per night, the statut of each row, the total line read from the report's totals, the file's name.
 
 process.env.TZ = 'Europe/Paris';
@@ -39,8 +39,8 @@ test('rule 13: the list CSV, one row per stay, its statut, the total line from t
   assert.equal(header, LIST_HEADERS.join(';'));
   assert.deepEqual(rows, [
     `Déclarée le ${fr(5)};Camille Registre;Granja;Direct;${fr(1)};${fr(3)};2;3;2;1;4;2;6,60;`,
-    `À déclarer;Camille Registre · Complément de taxe de séjour;Granja;Direct;${fr(1)};${fr(3)};2;1;1;0;2;0;3,30;`,
-    `Reversée par la plateforme;Sam;Granja;Airbnb;${fr(2)};${fr(3)};1;2;2;0;2;0;;3,30`,
+    `À déclarer;Camille Registre · Complément de taxe de séjour;Granja;Direct;${fr(1)};${fr(3)};;1;1;0;2;0;3,30;`,
+    `Reversée par la plateforme;Sam;Granja;Airbnb;${fr(2)};${fr(3)};;;;;;;;3,30`,
     `À déclarer;"'=HYPERLINK(""x"")";Granja;Booking;${fr(4)};${fr(6)};2;3;2;1;4;2;5;`,
     'Total à reverser;2 séjours;;;;;4;7;5;2;10;4;14,90;3,30',
   ]);
@@ -86,4 +86,14 @@ test('rule 30: a window cut at the current month names its file after the last d
   const report = { ...sample(), window: { from: `${Y}-01-01`, to: `${Y}-12-31`, coveredTo: `${Y}-11-30`, futureExcluded: true } };
   assert.equal(csvFileName(report, 'list'), `taxe-de-sejour-${Y}-01-01_${Y}-11-30.csv`);
   assert.equal(csvFileName(report, 'night'), `taxe-de-sejour-${Y}-01-01_${Y}-11-30-par-nuit.csv`);
+});
+
+test('rule 44: under « Toutes » every count column adds up over the rows to the total line, added guests\' nights counted once', () => {
+  const [, ...rows] = lines(touristTaxReportCsv(sample(), 'list'));
+  const cells = rows.map((r) => r.split(';'));
+  const body = cells.slice(0, -1);
+  const total = cells.at(-1);
+  for (const col of [6, 7, 8, 9, 10, 11]) {
+    assert.equal(body.reduce((s, c) => s + Number(c[col] || 0), 0), Number(total[col]), `column ${col}`);
+  }
 });

@@ -986,6 +986,11 @@ function createFinanceModel(database) {
       };
     },
 
+    // specs/tourist-tax-report-v2.md rule 38 — D-HC10's « tax frozen at 0 € », one reading for every reader.
+    isTaxFrozenAtZero(stored) {
+      return frozenAtZeroStay(stored);
+    },
+
     // specs/tourist-tax-report-v2.md rule 1 — the declaration rows of every stay whose attribution day (the rule of
     // specs/tourist-tax-declaration-month-stay-end.md) lies in [start, endExclusive): the monthly extraction reads one
     // month of it, the period report any union of months or days. One reading, so both screens show the same row.
@@ -1109,20 +1114,21 @@ function createFinanceModel(database) {
       // One stay, one amount, one engine. What stays this page's own business is WHICH stays it lists
       // (the attribution month, the payment gate, the platform mode) and the refunded-nights prorata.
       const listedIds = [...rows, ...addedGuestsRows].map((row) => row.reservationId);
-      const storedById = new Map(
-        (listedIds.length === 0 ? [] : database
-          .prepare(`SELECT * FROM reservations WHERE id IN (${listedIds.map(() => '?').join(', ')})`)
-          .all(...listedIds))
-          .map((r) => [Number(r.id), r]),
-      );
+      // specs/tourist-tax-report-v2.md rule 46 (review V2-8) — in chunks of TAX_FACTS_CHUNK: SQLite caps the bound
+      // parameters of one statement (32 766), a long window must not 500.
+      const storedById = new Map();
+      for (let i = 0; i < listedIds.length; i += TAX_FACTS_CHUNK) {
+        const chunk = listedIds.slice(i, i + TAX_FACTS_CHUNK);
+        database.prepare(`SELECT * FROM reservations WHERE id IN (${chunk.map(() => '?').join(', ')})`)
+          .all(...chunk)
+          .forEach((r) => storedById.set(Number(r.id), r));
+      }
       // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the fiche freezes a tax the
       // guest has paid or the operator has declared, and shows the base it was frozen with. Same rule
       // here, decided by the same helper, or the declaration would drift away from the fiches it
       // declares — which is exactly what the recomputed base did.
 
-      // D-HC10's stays frozen at 0 €, out of the rows (non-enumerable `frozenAtZero` on the answer, rule 38).
-      const frozenAtZero = [];
-      const answer = rows
+      return rows
         .map((row) => {
           const stored = storedById.get(Number(row.reservationId));
           if (!stored) return null;
@@ -1172,11 +1178,7 @@ function createFinanceModel(database) {
           const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax - told : 0));
           // specs/tourist-tax-declaration-month-stay-end.md rule 9 (D-HC10, 2026-11-06) — a tax frozen at 0 € is never
           // ours to remit: the stay leaves the declaration (both pages, the synthesis, the data checks).
-          if (round2(Number(quote.touristTaxTotal || 0)) === 0 && isTouristTaxFrozen(database, stored)) {
-            // specs/tourist-tax-report-v2.md rule 38 (D-HC15) — kept aside for the report's platform list.
-            frozenAtZero.push({ reservationId: row.reservationId, stored, propertyName: row.propertyName, reservationName: `${row.firstName || ''} ${row.lastName || ''}`.trim() });
-            return null;
-          }
+          if (round2(Number(quote.touristTaxTotal || 0)) === 0 && isTouristTaxFrozen(database, stored)) return null;
           const grossAdultNights = taxedAdults * Number(quote.touristTaxNights || 0);
           // Pro-rated on the nights: exact for the per-night modes, the natural share for the
           // percentage ones (where the tax isn't night-linear).
@@ -1287,7 +1289,6 @@ function createFinanceModel(database) {
           const { declarationDay, ...rest } = row;
           return Object.defineProperty(rest, 'declarationDay', { value: declarationDay, enumerable: false });
         });
-      return Object.defineProperty(answer, 'frozenAtZero', { value: frozenAtZero, enumerable: false });
     },
 
     // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
