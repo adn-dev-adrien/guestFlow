@@ -1,6 +1,7 @@
 // specs/options-resources-ux.md rule 35 (audit R26-DB-1, 2026-11-06) — through the real application: an option saved as « free »
 // (or per-participant progressive) holds no per-logement price, whether the body sends `propertyPrices` or not, so the quote
-// stops billing the old one at once. A row holding free units keeps tariff-recipes rule 69's 422, nothing written.
+// stops billing the old one at once. A row holding free units keeps the 422 of
+// specs/tariff-recipes/spec.md rule 69, nothing written.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./inputShapeApp');

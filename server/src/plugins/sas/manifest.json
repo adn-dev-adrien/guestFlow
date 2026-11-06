@@ -124,7 +124,8 @@
     ],
     "1.7.14": [
       "Au départ, un complément de fin de séjour déjà encaissé ailleurs ne prend plus de frais : le décocher sur la fiche d’abord.",
-      "À l’arrivée, une vente qui irait sur ce complément encaissé est refusée de même."
+      "À l’arrivée, une vente qui irait sur ce complément encaissé est refusée de même.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
     ]
   }
 }
