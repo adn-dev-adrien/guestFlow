@@ -256,7 +256,8 @@ Other labels and helper texts are carried over unchanged (`% acompte`,
       column → the 30 % split (edge case). Rules 2-3 are the two halves of the switch itself.
 - [x] `tests/property-deposit-enabled-column.unit.test.js` — renamed from
       `property-public-deposit-toggle.unit.test.js`: `create`/`update` coerce `'true'` / `'false'` /
-      `1` / absent to the right bit on `depositEnabled`.
+      `1` / absent to the right bit on `depositEnabled`; on `update` an absent one keeps the stored bit
+      (settings-input-guards rule 61, 2026-11-06).
 - [x] `tests/public-payment-mode.unit.test.js` — rule 7: the mode resolver keeps its shape after the
       rename, same assertions.
 - [x] `tests/devis-*` — the legacy derivation of rule 8 is covered by the last case of the engine test, which calls `resolvePaymentSchedule` directly.

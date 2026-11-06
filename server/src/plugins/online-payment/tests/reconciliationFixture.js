@@ -61,7 +61,7 @@ function credit(id, cents, over = {}) {
   };
 }
 
-function build({ connected = true, startDate = dayAt(-22), mark = applyPaymentMark, withQonto, read } = {}) {
+function build({ connected = true, qontoConfigured = true, startDate = dayAt(-22), mark = applyPaymentMark, withQonto, read } = {}) {
   const store = new Map([['reconciliationBankAccountId', 'acc-1'], ['reconciliationStartDate', startDate]]);
   const settings = { get: (k) => store.get(k) || '', set: (k, v) => store.set(k, v) };
   const transactions = createBankTransactionsModel(db);
@@ -72,6 +72,7 @@ function build({ connected = true, startDate = dayAt(-22), mark = applyPaymentMa
     db, settings, transactions, model, writer,
     read: read || (async () => { calls.read += 1; return { ok: true }; }),
     connected: () => connected,
+    qontoConfigured: typeof qontoConfigured === 'function' ? qontoConfigured : () => qontoConfigured,
     withQonto: withQonto || (async () => { calls.qonto += 1; throw new Error('no Qonto call expected'); }),
     core: {
       buildLedger, parseGroup, platformDisplay, todayIso: () => TODAY,

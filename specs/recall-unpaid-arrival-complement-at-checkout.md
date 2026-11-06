@@ -112,6 +112,13 @@ the complement), the arrival complement silently stays unpaid and is never recal
    encaissé : oui → non », groupe promettant 281,98 € dont une moitié redevenue due, et deux écritures
    en comptabilité au lieu d'une carte.
 
+10. **Le SAS départ ne re-tamponne pas non plus ce qu'il n'a pas encaissé** (audit R25-A1, 2026-11-06,
+   même classe que la règle 9bis). « Compléments encaissés » sur un complément de fin de séjour déjà
+   payé ailleurs (fiche, paiement unique de l'arrivée) ne réécrit ni sa date ni sa caisse interne :
+   seul celui que ce SAS a encaissé (`endOfStayComplementPaidAtDeparture = 1`) se re-tamponne. Le garde
+   des remboursements (reservation-refunds règle 52) ne compte donc plus un passage en caisse interne
+   sur un complément qui n'est pas le sien. Test : `sas-prepaid-complement.unit.test.js`.
+
 **Edge cases**
 - Arrival complement already paid (normal flow) → no recall, departure SAS unchanged.
 - Arrival complement = 0 → nothing to recall.

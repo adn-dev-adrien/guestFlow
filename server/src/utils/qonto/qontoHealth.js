@@ -65,7 +65,7 @@ const STATES = {
     ok: false,
     title: 'Adresse publique manquante',
     explanation: "Sans l'adresse publique de GuestFlow, Qonto ne peut pas signaler les paiements.",
-    action: 'Adresse publique à renseigner (Réglages → Envoi d’emails), puis relancer le test.',
+    action: 'URL publique à renseigner (Paramètres → Système), puis « Test ».',
   },
   unverified: {
     ok: false,

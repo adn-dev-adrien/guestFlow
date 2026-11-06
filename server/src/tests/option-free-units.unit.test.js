@@ -250,7 +250,7 @@ test('R24-DB-1: blanking the price of a row holding free units is refused 422 on
   for (const over of [{ propertyPrices: { 902: 6 } }, { propertyPrices: { 901: '', 902: 6 } }, { propertyIds: [902] }, { priceType: 'free' }]) {
     const res = option.put(over);
     assert.equal(res.statusCode, 422, JSON.stringify(over));
-    assert.deepEqual(res.body.details, [{ field: 'propertyPrices.901', message: 'Prix requis : unités offertes' }]);
+    assert.deepEqual(res.body.details, [{ field: 'propertyPrices.901', message: 'Prix requis : unités offertes ici (0 € accepté)' }], 'R25 F1: the refusal names its way out');
     assert.deepEqual(option.rows(), { 901: [5, 1], 902: [6, 0] });
   }
 });
@@ -259,4 +259,11 @@ test('R24-DB-1: a row with no free units can still be blanked', () => {
   const option = savedOption();
   assert.equal(option.put({ propertyPrices: { 901: 5 } }).statusCode, 200);
   assert.deepEqual(option.rows(), { 901: [5, 1] });
+});
+
+test('R25 N3 (tariff-recipes item 69): the way out the refusal names works — a price of 0 € keeps the row and its free units', () => {
+  const option = savedOption();
+  const res = option.put({ propertyPrices: { 901: 0, 902: 6 } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.deepEqual(option.rows(), { 901: [0, 1], 902: [6, 0] });
 });

@@ -10,6 +10,7 @@
  *   onChange:    (key, value) => void   — key is one of the `values` field names
  *   onUploadLogo: (file: File) => Promise
  *   onDeleteLogo: () => Promise
+ *   logoVersion?: string — appended to the preview as `?v=` once a logo is uploaded (same path, new bytes)
  *   disabled:    boolean
  */
 import React from 'react';
@@ -24,6 +25,7 @@ export default function SettingsCompanySection({
   onChange,
   onUploadLogo,
   onDeleteLogo,
+  logoVersion = '',
   disabled = false,
 }) {
   const v = values || {};
@@ -48,7 +50,7 @@ export default function SettingsCompanySection({
               Logo
             </Typography>
             <LogoUpload
-              value={v.logoPath || ''}
+              value={v.logoPath && logoVersion ? `${v.logoPath}?v=${logoVersion}` : (v.logoPath || '')}
               onUpload={onUploadLogo}
               onDelete={onDeleteLogo}
               disabled={disabled}
