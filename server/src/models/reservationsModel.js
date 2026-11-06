@@ -3966,15 +3966,18 @@ function createReservationsModel(database) {
         if (complementsSettled !== undefined) {
           const cash = complementsPaidCash ? 1 : 0;
           if (complementsSettled) {
-            if (amount > 0) {
-              // « C'est nous qui l'avons encaissé » se mesure sur la TRANSITION, pas sur l'état final :
-              // re-valider un départ sur un complément déjà réglé à la porte ne nous en rend pas
-              // propriétaires, sinon le passage suivant se croirait autorisé à le dé-payer et on
-              // retomberait sur le bug d'un cran plus loin (vu au test de bout en bout, 2026-08-31).
-              const was = database.prepare('SELECT endOfStayComplementPaid AS p FROM reservations WHERE id = ?').get(reservationId);
+            // « C'est nous qui l'avons encaissé » se mesure sur la TRANSITION, pas sur l'état final :
+            // re-valider un départ sur un complément déjà réglé à la porte ne nous en rend pas
+            // propriétaires, sinon le passage suivant se croirait autorisé à le dé-payer et on
+            // retomberait sur le bug d'un cran plus loin (vu au test de bout en bout, 2026-08-31).
+            // Rule 10 (audit R25-A1) — réglé ailleurs, il n'est pas re-tamponné non plus : sa caisse
+            // interne reste celle de qui l'a encaissé.
+            const was = database.prepare('SELECT endOfStayComplementPaid AS p FROM reservations WHERE id = ?').get(reservationId);
+            const paidBefore = Number(was?.p || 0) === 1;
+            if (amount > 0 && (!paidBefore || settledByThisSas(database, reservationId))) {
               database.prepare("UPDATE reservations SET endOfStayComplementPaid = 1, endOfStayComplementPaidDate = COALESCE(endOfStayComplementPaidDate, ?), endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?")
                 .run(today, cash, reservationId);
-              if (Number(was?.p || 0) !== 1) markEndOfStayPaidAtDeparture(database, reservationId, 1);
+              if (!paidBefore) markEndOfStayPaidAtDeparture(database, reservationId, 1);
             }
             const arr = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
             if (arr && Number(arr.complementAmount || 0) > 0 && Number(arr.complementPaid || 0) === 0) {

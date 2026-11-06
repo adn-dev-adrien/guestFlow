@@ -227,6 +227,13 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     which only admin and reception may read.
     Test: `App.role-confinement.test.jsx`.
 
+16. **The SAS refund refusal names no refund to reception (audit R25-A2, 2026-11-06).** A reception-only
+    commit that would take a mark back past a book refund (reservation-refunds rule 52) answers the same
+    409 `REFUND_BLOCKS_UNTICK`, with « Un remboursement bloque ce passage : à voir avec
+    l’administrateur. » and no `refundIds`: refund amounts and dates are not door money (rule 12bis).
+    Admin keeps the refusal naming each refund. Arrival and departure SAS alike.
+    Test: `sas-prepaid-complement.unit.test.js`.
+
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
   no confinement (rule 1).

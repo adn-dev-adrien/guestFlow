@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.7.12",
+  "version": "1.7.13",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -115,6 +115,11 @@
     "1.7.12": [
       "Un SAS rouvert qui reprendrait un paiement déjà en partie remboursé est refusé : supprimer d’abord le remboursement.",
       "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.13": [
+      "Un complément payé avant l’arrivée reste payé après le SAS d’arrivée.",
+      "Au départ, un complément de fin de séjour réglé ailleurs garde son mode de paiement.",
+      "L’accueil ne voit plus le détail d’un remboursement dans un refus du SAS."
     ]
   }
 }
