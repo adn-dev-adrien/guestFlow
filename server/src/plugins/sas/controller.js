@@ -595,7 +595,12 @@ function commitArrival(req, res) {
     };
 
   const storedRow = reservationsModel.getRow(Number(req.params.id)) || {};
-  const settlement = arrivalSasOwnsComplement(storedRow) ? unified : { ...unified, complementSettled: undefined, complementPaidCash: false };
+  const owned = arrivalSasOwnsComplement(storedRow) ? unified : { ...unified, complementSettled: undefined, complementPaidCash: false };
+  // Rule 23: with no arrival complement planned the dialog hides the step and still sends « Plus tard »; over a collected end
+  // of stay there is nothing to defer, so the answer writes no marker instead of being refused.
+  const nothingToDefer = owned.complementSettled === false && Number(recap.arrivalComplementTotal || 0) <= 0
+    && arrivalDeferralRefusal(storedRow, false) !== null;
+  const settlement = nothingToDefer ? { ...owned, complementSettled: undefined, complementPaidCash: false } : owned;
   const deferral = arrivalDeferralRefusal(storedRow, settlement.complementSettled);
   if (deferral) return res.status(409).json(deferral);
   const takeBack = refusalToTakeBack(Number(req.params.id), arrivalTakeBackFlags(storedRow, settlement));

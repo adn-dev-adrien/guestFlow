@@ -113,3 +113,30 @@ test('arrival SAS settling the complement on the spot over a settled end of stay
   const r = rowOf(stay.id);
   assert.deepEqual([r.complementDeferredToCheckout, r.complementPaid, r.endOfStayComplementPaid], [0, 1, 1]);
 });
+
+test('arrival SAS with no arrival complement over a settled end of stay passes and writes no marker (R28 pass 3 R1)', SAS, () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { depositDisabled: 1 });
+  pay(stay.id, S);
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 12 WHERE id = ?').run(stay.id);
+  storedEndOfStayPaid(stay.id, { date: PAID_ON });
+  const res = sas(stay.id, { complementSettled: false, arrivalPaymentMode: 'defer' });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const r = rowOf(stay.id);
+  assert.deepEqual([r.complementDeferredToCheckout, r.endOfStayComplementPaid, Boolean(r.arrivalSasDoneAt)], [0, 1, true]);
+});
+
+test('arrival SAS re-opened on a stay already deferred, end of stay settled, « Plus tard » passes (R28 pass 3 R3)', SAS, () => {
+  const stay = futureWithSettledEndOfStay();
+  db.prepare('UPDATE reservations SET complementDeferredToCheckout = 1 WHERE id = ?').run(stay.id);
+  const res = sas(stay.id, { arrivalPaymentSplit: true, complementSettled: false });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const r = rowOf(stay.id);
+  assert.deepEqual([r.complementDeferredToCheckout, r.complementPaid, r.endOfStayComplementPaid], [1, 0, 1]);
+});
+
+test('an end of stay held only in the caisse interne (paid flag off) refuses the deferral too', () => {
+  const stay = checkedOut();
+  db.prepare('UPDATE reservations SET endOfStayComplementPaid = 0, endOfStayComplementPaidCash = 1 WHERE id = ?').run(stay.id);
+  assertRefused(mark(stay.id, { complementDeferredToCheckout: true }));
+  assert.equal(rowOf(stay.id).complementDeferredToCheckout, 0);
+});

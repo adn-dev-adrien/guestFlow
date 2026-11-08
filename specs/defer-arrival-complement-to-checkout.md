@@ -228,7 +228,8 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     d'argent, elle doit se relire. Le libellé existe déjà côté SAS
     ([sasAudit.js:25](../server/src/utils/sasAudit.js#L25)).
 20. **Réservation annulée ou passée verrouillée** : interrupteur en lecture seule, mêmes gardes que le
-    reste de la carte.
+    reste de la carte ; la raison « Réservation verrouillée. » s'affiche en légende sous
+    l'interrupteur, comme celle de la règle 23 (2026-11-08).
 21. **Le SAS arrivée ne touche qu'au complément qu'il a encaissé lui-même** (audit R25-A1, 2026-11-06).
     Un complément payé **avant** le check-in (lien de paiement, « Marquer complément payé » sur la fiche,
     rapprochement bancaire) a `complementPaid = 1` et `complementPaidAtArrival = 0` : le commit du SAS
@@ -285,7 +286,9 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     switched on with the end of stay still due passes. The fiche draws « Percevoir en fin de séjour » closed with the
     reason under it (tooltip off, caption on every breakpoint); already on, it stays open to switch off. This narrows
     rules 12-15 (« l'opérateur décide, tout le temps »): to group the two collections after the end of stay was taken,
-    un-tick it first. Rule 22's V1 reading, stay 22281, D20 and the merged card's line-317 reading are unchanged. Tests:
+    un-tick it first. An arrival SAS whose planned arrival complement is 0 € (the dialog hides the step yet sends
+    « Plus tard ») has nothing to defer: over a collected end of stay its answer writes no marker and is not refused (R28
+    verification pass 3, R1). Rule 22's V1 reading, stay 22281, D20 and the merged card's line-317 reading are unchanged. Tests:
     `deferral-refused-on-settled-end-of-stay` (server, arrival SAS included), `reconciliation-deferral-refused-settled-end-of-stay`
     (plugins/online-payment), client `complementDeferralAccess.settled-end-of-stay`, `FinanceSection.deferral-settled-end-of-stay`.
 
