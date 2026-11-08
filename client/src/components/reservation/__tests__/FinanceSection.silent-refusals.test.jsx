@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { renderFinance, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
 import api from '../../../api';
+import { addIsoDays, localIsoToday } from '../../../utils/isoDay';
 
 // Audit R30-C-L2 (2026-11-08) — specs/defer-arrival-complement-to-checkout.md rule 28, specs/mid-stay-notes.md rule 24.
 // A refused « Percevoir en fin de séjour », « Reporter au départ » on a note, or a note's settlement used to fail
@@ -11,11 +12,15 @@ import api from '../../../api';
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn(), previewMidStayNote: vi.fn() } }));
 
+const TODAY = localIsoToday();
+const PAID_ON = addIsoDays(TODAY, -3);
+const STARTED = addIsoDays(TODAY, -2);
+const LEAVES = addIsoDays(TODAY, 3);
 const REFUSAL = 'Remboursement du 08/11 (221,14 €) à supprimer d’abord.';
 const complementRow = (paid) => (paid ? paidRow : dueRow)('complement', "Complément d'arrivée", 24, {
   amountEdit: editable('complement'), detail: { slot: 'complement' },
 });
-const NOTES = JSON.stringify([{ id: 1, paidDate: '2026-08-06', paidCash: 0, total: 30, lines: [{ label: 'Coca', amount: 30, key: 'opt:14' }] }]);
+const NOTES = JSON.stringify([{ id: 1, paidDate: PAID_ON, paidCash: 0, total: 30, lines: [{ label: 'Coca', amount: 30, key: 'opt:14' }] }]);
 const NOTES_ROW = {
   key: 'midStayNotes', label: 'Notes en séjour', amount: 30, state: 'paid', tone: 'done', stateLabel: '1 note perçue',
   action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null }, detail: { slot: 'midStayNotes' },
@@ -31,7 +36,7 @@ async function deferPaidComplement() {
   const view = renderFinance({
     ledger: ledgerOf([complementRow(true)]), editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24, endOfStayComplementTotal: 12 },
-    form: { complementPaid: true, complementPaidDate: '2026-10-10' },
+    form: { complementPaid: true, complementPaidDate: PAID_ON },
   });
   await openDetails();
   await userEvent.click(screen.getByRole('button', { name: /^Percevoir en fin de séjour$/i }));
@@ -55,7 +60,7 @@ test('R30-C-L2 — an accepted deferral moves the fiche after the PATCH, then re
   const { ctx } = renderFinance({
     ledger: ledgerOf([complementRow(true)]), editingReservationId: 7, reservationId: 7,
     pricingQuote: { complementAmount: 24, complementAmountAuto: 24, endOfStayComplementTotal: 12 },
-    form: { complementPaid: true, complementPaidDate: '2026-10-10' },
+    form: { complementPaid: true, complementPaidDate: PAID_ON },
   });
   ctx.updateForm.mockImplementation(() => order.push('form'));
   await openDetails();
@@ -70,7 +75,7 @@ test('R30-C-L2 — a refused « Reporter au départ » on a note shows the refus
   api.markPayment.mockRejectedValueOnce(new Error('Complément de fin de séjour déjà encaissé.'));
   const { ctx } = renderFinance({
     ledger: ledgerOf([NOTES_ROW]), editingReservationId: 7, reservationId: 7,
-    form: { startDate: '2020-01-01', endDate: '2099-01-01', midStaySettledNotes: NOTES },
+    form: { startDate: STARTED, endDate: LEAVES, midStaySettledNotes: NOTES },
   });
   await openDetails();
   await userEvent.click(screen.getAllByRole('button', { name: /Reporter au départ/i })[0]);
@@ -85,7 +90,7 @@ test('R30-C-L2 — a refused note settlement keeps the dialog open and shows why
   const { ctx } = renderFinance({
     ledger: ledgerOf([]), editingReservationId: 7, reservationId: 7, midStayNoteOpen: true,
     form: {
-      startDate: '2020-01-01', endDate: '2099-01-01',
+      startDate: STARTED, endDate: LEAVES,
       endOfStayComplementDetail: JSON.stringify([{ label: 'Petit-déjeuner', amount: 24, key: 'opt:9', source: 'midStayExtra' }]),
     },
     pricingQuote: { midStayExtrasLines: [{ label: 'Petit-déjeuner', amount: 24, key: 'opt:9', source: 'midStayExtra' }] },

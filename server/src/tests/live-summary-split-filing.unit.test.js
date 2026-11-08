@@ -1,4 +1,5 @@
-// Audit R30-C-L1 (2026-11-08) — specs/complement-buckets-by-moment.md rule 4 (reading R30-C-L1), defer rules 22, 24, 27.
+// Audit R30-C-L1 (2026-11-08) — specs/complement-buckets-by-moment.md rule 4 (reading R30-C-L1).
+// specs/defer-arrival-complement-to-checkout.md rules 22, 24, 27.
 // The live summary panel (`quote.complementSplit` of calculate-price) files the arrival complement where the merged card
 // and the stored summary file it: from the block's row-aware `deferred` (`isComplementDeferred`), never the raw marker.
 // A complement settled together with the end of stay, or at a 0 € end of stay, read « Complément d'arrivée (perçu sur

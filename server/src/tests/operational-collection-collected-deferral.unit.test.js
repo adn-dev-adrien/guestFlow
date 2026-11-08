@@ -1,5 +1,5 @@
-// Audit R30-M-L1 (2026-11-08) — specs/dashboard-collection-alert.md §edge cases (reading R30-M-L1), defer rule 24. Since
-// rule 24 the block stays `deferred` over an arrival complement COLLECTED at a 0 € end of stay (the merged paid card);
+// Audit R30-M-L1 (2026-11-08) — specs/dashboard-collection-alert.md §edge cases (reading R30-M-L1).
+// specs/defer-arrival-complement-to-checkout.md rule 24: since then the block stays `deferred` over an arrival complement COLLECTED at a 0 € end of stay (the merged paid card);
 // the Dashboard's arrivals cell then drew the money already taken at the door as « Complément reporté ». A complement
 // is « reporté » only while something of it is left to collect.
 const test = require('node:test');
@@ -19,7 +19,7 @@ const BASE = {
 for (const [label, paid] of [['in the books', { complementPaidCash: 0 }], ['in the caisse interne', { complementPaidCash: 1 }]]) {
   test(`R30-M-L1 — a deferred complement collected ${label} at a 0 € end of stay reads « OK », not « reporté »`, () => {
     const row = { ...BASE, complementPaid: 1, complementPaidDate: todayIso(), ...paid };
-    assert.equal(buildCheckoutComplement(row).deferred, true, 'the block stays merged (rule 24)');
+    assert.equal(buildCheckoutComplement(row).deferred, true, 'the block stays merged (defer-arrival-complement-to-checkout rule 24)');
     const c = build(row);
     assert.equal(complementPart(c.arrival).state, 'ok');
     assert.equal(c.arrival.deferred, false);
