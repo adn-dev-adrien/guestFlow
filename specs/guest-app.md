@@ -8,7 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (slice A: link once opened) |
 | **Mock-ups** | [`specs/guest-app-maquettes.html`](guest-app-maquettes.html) |
-| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — v5 (2026-11-06): stock per article, delivered or picked up, studio read from GuestFlow, tablet / desktop — to validate before slices F-G |
+| **Review boards** | [`specs/guest-app-planches.html`](guest-app-planches.html) — v5 (2026-11-06): stock per article, delivered or picked up, studio read from GuestFlow, tablet / desktop — validated 2026-11-08, slices F-G unblocked |
 | **Plan** | [`specs/guest-app-plan.md`](guest-app-plan.md) |
 | **Builds on** | `public-api.md`, `wordpress-plugin.md` (catalogue projections), `gate-access-sowel-connector.md` + `sowel-stays-in-keys.md` (gate keys), `mid-stay-extras-on-locked-fiche.md` + `mid-stay-extras-to-end-of-stay-complement.md` (the end-of-stay bill), `online-payments-qonto.md` + `payment-link-lifecycle.md` (card payment), `resource-hourly-scheduling.md` (nordic bath slots), `pwa-push-notifications.md` (staff push) |
 
@@ -1072,6 +1072,16 @@ Points the rules left open, decided in code and recorded here:
   (`specs/plugins-phase-1-sdk.md`, slots table).
 - The SAS line « Le lien vaut jusqu'au… » shows the end of the stay window (check-out + 2 h).
 
+### Resolved (2026-11-08, review of the boards v5)
+
+Adrien validated the four remaining verdicts as drawn on the boards v5:
+- **Stock** → rules 37bis-37quater as written: one stock for the estate, none on the bath, the site and the staff
+  never blocked, « Stock bas » / « épuisé » pushed to the staff.
+- **Delivered or picked up** → rules 41bis-41ter as written.
+- **Studio built from GuestFlow** → rule 48 as written; the lot A `displayName` is removed server-side.
+- **Tablet / desktop** → rule 51 as written: navigation rail and two-pane booklet and shop from 900 px, content
+  capped at 1200 px from 1200 px.
+
 ### Resolved (2026-11-06, review of the boards v4)
 
 Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commandes clients validated; the editors'
@@ -1084,7 +1094,7 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
   Soliomap feed only.
 - **Stock** → rules 37bis-37quater: count + « En rupture », edited in GuestFlow only, every sale counts on the day the
   article leaves (arrival day for lines booked ahead), the app alone stops selling at 0, the staff is pushed.
-- Tablet / desktop: no verdict yet, asked again on the boards v5.
+- Tablet / desktop: no verdict yet, asked again on the boards v5 (validated 2026-11-08, see above).
 
 ### Resolved (2026-11-06, review of the boards v3)
 
@@ -1145,7 +1155,7 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
 | E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.22.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
 | D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `guestOrderCommit`, `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.22.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
-| F-G — Guest app, studio | Waiting for the verdicts on the review boards v2 |
+| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08); stock server side and the lot A `displayName` removal come with them |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |
 
