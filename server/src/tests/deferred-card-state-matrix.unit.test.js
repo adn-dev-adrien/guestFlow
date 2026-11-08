@@ -13,6 +13,7 @@ const {
   db, controller, respond, inDays, rowOf, mark, ADMIN, NO_ACOMPTE, S, forced, fiche, pay, ficheView,
 } = require('./moneyLedgerFixture');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
+const { buildLedger } = require('../utils/reservationLedger');
 
 const sas = optionalPlugin(() => require('../plugins/sas/controller'));
 const SAS = { skip: skipWithout(['sas']) };
@@ -218,4 +219,35 @@ test('rule 26: the merged card takes the end of stay from the departure SAS; a r
   const r = rowOf(s.id);
   assert.deepEqual([r.complementPaid, r.endOfStayComplementPaid], [1, 1]);
   assert.deepEqual(cards(s.id), [[CC, 32, 'paid']]);
+});
+
+// Verification R29 N1 — rule 24 reads the end of stay the live quote draws: a 12 € line added after the arrival part was
+// marked on the merged card at 0 € is its own due card, never 12 € due inside a « Perçu » merged card.
+test('rule 24: a live end of stay added after a merged mark at 0 € draws its own due card', () => {
+  const id = stay({ marker: 1, arrival: 'due', eos: 0 });
+  assert.equal(mark(id, { complementPaid: true, complementPaidDate: ON }).statusCode, 200);
+  assert.deepEqual(cards(id), [[CC, 20, 'paid']]);
+  const live = buildLedger({ row: rowOf(id), quote: { complementAmount: 20, endOfStayComplementTotal: 12 }, today: inDays(0) });
+  const liveCards = live.rows.filter((r) => /omplement/i.test(r.key)).map((r) => [r.key, r.amount, r.state]);
+  assert.deepEqual(liveCards, [[OWN, 20, 'paid'], [EOS, 12, 'due']]);
+});
+
+// Verification R29 N3 — the caisse « Tout solder » on a due merged card writes both buckets in the caisse interne.
+test('rule 25: the caisse « Tout solder » on a due merged card passes and settles both in the caisse', () => {
+  const id = stay({ marker: 1, arrival: 'due', eos: 'due' });
+  const res = mark(id, { complementPaid: true, complementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidCash: true, complementPaidDate: ON, endOfStayComplementPaidDate: ON });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.deepEqual(columns(id), [1, 1, 1, 1, ON]);
+  assert.deepEqual(cards(id).map(([k, a]) => [k, a]), [[CC, 32]]);
+});
+
+// Verification R29 N3 — a single payment naming the arrival part alone, the end of stay marked the same day: two
+// collections, so two cards, and the arrival part's « Annuler » leaves the end of stay paid.
+test('rule 27: a single payment naming the arrival part alone keeps the end of stay on its own card', () => {
+  const id = stay({ marker: 1, arrival: 'paid', eos: 'together' });
+  const group = JSON.stringify({ at: ON, cash: 0, total: 20, buckets: ['balance', 'complement'] });
+  db.prepare('UPDATE reservations SET arrivalPaymentGroup = ? WHERE id = ?').run(group, id);
+  assert.deepEqual(cards(id).map(([k]) => k), [OWN, EOS]);
+  assert.equal(mark(id, { complementPaid: false }).statusCode, 200);
+  assert.equal(rowOf(id).endOfStayComplementPaid, 1);
 });

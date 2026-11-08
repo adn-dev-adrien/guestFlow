@@ -534,6 +534,8 @@ function buildLedger({
   // were settled together, as buildCheckoutComplement reads it; an end of stay settled apart keeps its own card.
   const deferred = isComplementDeferred({
     ...r,
+    // Rule 24 reads the end of stay the card draws: a live line added after a merged mark at 0 € must not hide in it (R29 N1).
+    endOfStayComplementAmount: endOfStayAmount,
     complementDeferredToCheckout: has('complementDeferredToCheckout') ? live.complementDeferredToCheckout : r.complementDeferredToCheckout,
   }, complementAmount);
   const endOfStayApart = endOfStaySettledApart(r);

@@ -60,6 +60,12 @@ the same way in the summary panel and in the Finance cards.
    ([defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.3) and it is
    not collected.
 
+   > **Révision du 2026-11-08 (audit R28 V1, R29).** A collected deferred complement also stays in
+   > `endOfStay` when it was settled together with the end of stay (same date, same caisse flag; defer
+   > rule 22) or when the end of stay is 0 € (defer rule 24): it is then the one « Complément de fin de
+   > séjour » collection the ledger draws. Collected on its own beside an end of stay settled apart, it
+   > is filed in `arrival`.
+
    > **Révision du 2026-08-22.** Cette règle disait initialement « … plus le complément d'arrivée
    > quand le séjour a commencé et qu'il n'est pas encaissé, qu'il ait été explicitement reporté ou
    > simplement laissé impayé ». L'inférence par le calendrier avait raison dans le cas courant et

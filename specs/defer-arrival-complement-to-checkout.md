@@ -309,8 +309,9 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     their paid merged card again, as on f66f1673; no amount moves. Accepted chain: an end of stay billed after such a
     mark, still due, splits the card (the arrival part paid on its own card, the end of stay due on its own) — the truth
     on the books; a credit reconciled on the merged receipt before that bill is then shown on no receipt until the
-    operator re-allocates it. Tests: `deferred-card-state-matrix`, `reconciliation-deferred-end-of-stay-zero`
-    (plugins/online-payment).
+    operator re-allocates it. The 0 € is the end of stay the card draws, the live quote's on an unsaved edit: a line added
+    after the merged mark draws its own due card rather than 12 € due inside a « Perçu » card (verification N1). Tests:
+    `deferred-card-state-matrix`, `reconciliation-deferred-end-of-stay-zero` (plugins/online-payment).
 
 25. **The end of stay the merged card holds is never collected alone** (audit R29-RES-L1, 2026-11-08). While the card is
     merged, its arrival part due and its end of stay above 0 € and not settled apart (`markCarriesEndOfStay`), a
