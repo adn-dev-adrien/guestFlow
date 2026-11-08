@@ -811,15 +811,22 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     > stored pre-D20 row, the caisse interne) leaves it open, as the server accepts the mark (`holdsEndOfStay` reads
     > `!paid.endOfStay`). Tests: `end-of-stay-after-checkout`, client `OperationalPaymentsTable.settle-after-checkout`.
 69. **The merged card of a deferred complement is built as the stored block reads it** (audit R28-C-M1, 2026-11-08).
-    `buildLedger` merges the arrival complement into the « Complément de fin de séjour » card only while it is still to
-    collect (`complementPaid` ≠ 1 and an amount above 0, `isComplementDeferred`), and the merged amount leaves out an end
-    of stay already settled, which keeps its own paid card (« Perçu le … », « paiement unique » when a group names it).
-    The amount a mark of that card is checked against (rule 11's `expectedAmountCents`, rule 32's « Rien à percevoir »,
-    rule 33's `storedAmount`) is the same figure, and the mark writes the end-of-stay columns only when it collects one
-    still due (defer-arrival-complement-to-checkout rule 22): the fiche never asks for money it already shows as
-    « Total perçu », and its « Marquer perçu » / « Annuler » never move nor erase a collection the card did not make. The
-    reconciliation's expected receipts read these rows, so they follow. Rule 68's reading of 2026-11-06 stands: the
-    merged card stays open while its end of stay is settled. Test: `deferred-card-settled-end-of-stay`.
+    `buildLedger` merges the arrival complement into the « Complément de fin de séjour » card while its amount is above 0
+    and it is still to collect or settled together with the end of stay (both paid, same date, same caisse flag:
+    `isComplementDeferred`, the helper the stored block, the payment PATCH and `mergedEndOfStayAmount` share). While the
+    arrival part is due, the merged amount leaves out an end of stay settled apart, which keeps its own paid card
+    (« Perçu le … », « paiement unique » when a group names it); settled together, the card stays one paid card holding
+    both amounts. The amount a mark of that card is checked against (rule 11's `expectedAmountCents`, rule 32's « Rien à
+    percevoir », rule 33's `storedAmount`) is the same figure, and the mark writes the end-of-stay columns only when the
+    card holds the end of stay (defer-arrival-complement-to-checkout rule 22): the fiche never asks for money it already
+    shows as « Total perçu », its « Marquer perçu » / « Annuler » never move nor erase a collection the card did not make,
+    and the « Annuler » or caisse switch of a card settled together carries both. The reconciliation's expected receipts
+    read these rows: a credit confirmed on the merged receipt stays « Rapproché » on it, and « Défaire » clears both
+    buckets. Rule 68's reading of 2026-11-06 stands: the merged card stays open while its end of stay is settled apart.
+    Tests: `deferred-card-settled-end-of-stay`, `deferred-card-settled-together`, `reconciliation-deferred-settled-together`.
+    > **Reading of 2026-11-08 (verification V1).** The first version split the card once the arrival part was paid,
+    > including the state the merged mark writes: the reconciled credit pointed at a receipt that no longer existed, and
+    > « Défaire » left the end of stay collected.
 
 ## 4. Architecture
 
@@ -1261,12 +1268,14 @@ blocked, none is rewritten.
 ## 12. Implementation progress — R28-C-M1 of 2026-11-08
 
 Implemented on `fix/audit-r28-all`: rule 69 and defer-arrival-complement-to-checkout rule 22. `isComplementDeferred`,
-`mergedEndOfStayAmount` and `markCarriesEndOfStay` (utils/checkoutComplement.js) are read by the ledger, the stored block,
-the stored summary and the payment PATCH (write, preview, rule 11 and rule 32 amounts); the fiche's merged « Montant
-ajusté » reads the block's end-of-stay part. Server `deferred-card-settled-end-of-stay` (9), client
+`endOfStaySettledApart`, `mergedEndOfStayAmount` and `markCarriesEndOfStay` (utils/checkoutComplement.js) are read by the
+ledger, the stored block, the stored summary and the payment PATCH (write, preview, rule 11 and rule 32 amounts); the
+fiche's merged « Montant ajusté » reads the block's end-of-stay part. Server `deferred-card-settled-end-of-stay` (10),
+`deferred-card-settled-together` (6), `reconciliation-deferred-settled-together` (1), client
 `FinanceSection.deferred-settled-end-of-stay` (1); `reservations-controller-payment-cash` and `untick-with-open-refund`
-read rule 8 as amended. Prod copy of 2026-10-22, read-only: 5 stays carry the marker with the arrival complement at 0 € or
-paid and the end of stay collected — 22281 (0 €, the reported one) and 4 whose two parts were collected the same day
-(row ids 12, 22226, 22275, 22280); none has an arrival complement due over a settled end of stay. All five now show
-two paid cards (or the end of stay alone), « Tout est perçu » unchanged; nothing was written.
+keep rule 8 on a card settled together. Prod copy of 2026-10-22, read-only: 5 stays carry the marker with the arrival
+complement at 0 € or paid and the end of stay collected — 22281 (0 €, the reported one: its own paid end-of-stay card)
+and 4 whose two parts were collected the same day with the same caisse flag (row ids 12, 22226, 22275, 22280: one merged
+paid card, as before the audit); none has an arrival complement due over a settled end of stay. « Tout est perçu »
+unchanged; nothing was written.
 

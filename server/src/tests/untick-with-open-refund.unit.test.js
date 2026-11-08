@@ -189,9 +189,7 @@ test('a note moved to the caisse interne under its refund: refused', () => {
   refuses(stayWithNote().id, { adjustMidStayNote: { id: 1, cash: true } }, '30,00');
 });
 
-// defer-arrival-complement-to-checkout rule 22 (audit R28-C-M1, 2026-11-08) — paid, the complement is merged no more:
-// its un-tick takes its own bucket only, and the guard judges what stays with the end of stay still collected.
-test('a paid deferred complement un-ticked leaves its end of stay: what stays is judged with it', async () => {
+test('a deferred complement un-ticked takes its end of stay too: what stays is judged without both', async () => {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(50)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
@@ -199,9 +197,8 @@ test('a paid deferred complement un-ticked leaves its end of stay: what stays is
   assert.equal(refund(stay.id, [{ key: ACCOMMODATION, amountTtc: 600 }]).statusCode, 201);
   assert.equal(refund(stay.id, [{ key: 'custom:forcée', amountTtc: 20 }]).statusCode, 201);
   const res = mark(stay.id, { complementPaid: false });
-  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
-  assert.equal(rowOf(stay.id).complementPaid, 0);
-  assert.equal(rowOf(stay.id).endOfStayComplementPaid, 1);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, CODE);
 });
 
 // Rule 52 reading (audit R24-DB-2, 2026-11-05) — a re-opened SAS and « Sans acompte » take marks back too: same guard, same 409.

@@ -112,9 +112,13 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
    > with « Après le départ. », a PATCH answers 409 `END_OF_STAY_BEFORE_CHECKOUT`, and « Tout solder » leaves it
    > out. The arrival complement can still be collected during the stay once « Percevoir en fin de séjour » is switched off,
    > in the same PATCH or before. Test: `end-of-stay-after-checkout`.
-   > **Reading of 2026-11-08 (audit R28-C-M1, rule 22).** Both buckets follow the mark only while the card is merged
-   > (arrival complement due and above 0) and its end of stay still due; un-marking a paid complement clears it alone, the
-   > two buckets being on two cards by then. Test: `deferred-card-settled-end-of-stay`.
+   > **Reading of 2026-11-08 (audit R28-C-M1 and its verification V1, rule 22).** Both buckets follow the mark only
+   > while the card is merged (arrival complement above 0, due or settled together with the end of stay) and its end of
+   > stay is not settled apart. Settled together (both paid, same date, same caisse flag: what this mark writes), the card
+   > stays one merged paid card: its « Annuler », its caisse switch and reconciliation's « Défaire » carry both buckets. An
+   > end of stay collected apart (another date or another caisse flag, a « paiement unique », a 0 € arrival part) is never
+   > re-dated nor cleared by the complement's mark. Tests: `deferred-card-settled-end-of-stay`,
+   > `deferred-card-settled-together`, `reconciliation-deferred-settled-together`.
 9. **The DB split and the accounting stay untouched.** `complementAmount` and
    `endOfStayComplementAmount` remain two separate columns: the pricing engine recomputes
    `complementAmount` on every fiche save ([reservationsModel.js:959](../server/src/models/reservationsModel.js#L959)),
@@ -239,23 +243,30 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     départ le réclamait une seconde fois ; avec un remboursement sur le séjour, le check-in était refusé.
 
 22. **The merged card holds only what is still to collect** (audit R28-C-M1, 2026-11-08). Every reader applies the
-    normalisation `buildCheckoutComplement` already made (§3.2 edge cases): the arrival complement is merged into the end
-    of stay only while `complementDeferredToCheckout = 1`, `complementPaid ≠ 1` and its amount is above 0
-    (`isComplementDeferred`, utils/checkoutComplement.js). Paid or at 0 €, the marker merges nothing: the fiche's ledger
-    draws the complement and the end of stay on their own cards, as the stored summary files a paid one at arrival.
-    While merged, an end-of-stay complement already settled (a stored pre-D20 row, the caisse interne, a « paiement
-    unique ») is not part of the card: its amount, its lines and the amount a mark is checked against
-    (`expectedAmountCents`, rule 32's « Rien à percevoir ») leave it out, and it keeps its own paid card. A mark of the
-    complement writes the end-of-stay columns only when it collects an end of stay still due (`markCarriesEndOfStay`,
-    the PATCH write and the preview the refund and D20 guards read alike): a mark never re-dates, an un-tick never
-    clears, an end of stay collected on its own. Stay 22281 (deferral 1, arrival complement 0 €, end of stay collected
-    in a single payment on 31/08) showed « Complément de fin de séjour 50,00 € · À percevoir au départ »: « Marquer
-    perçu » moved the 50 € of an exported August into November, « Annuler » erased the collection. It now shows its own
-    end-of-stay card « Perçu le 31/08 », and a crafted `complementPaid: true` answers 409 `NOTHING_TO_COLLECT`. Rule 8's
-    « un-marking clears both » goes with it: once paid, the two buckets are on two cards and each un-tick is its own.
-    The merged card stays open while its end of stay is settled (reservation-payment-ledger rule 68, reading of
-    2026-11-06), and D20 is unchanged. Test: `deferred-card-settled-end-of-stay` (server), client
-    `FinanceSection.deferred-settled-end-of-stay`.
+    normalisation `buildCheckoutComplement` already made (§3.2 edge cases), through one helper
+    (`isComplementDeferred`, utils/checkoutComplement.js): the arrival complement is merged into the end of stay while
+    `complementDeferredToCheckout = 1`, its amount is above 0, and it is either still to collect or **settled together**
+    with the end of stay (both paid, same paid date, same caisse flag: the state the merged card's own mark writes).
+    Paid apart (another date or another caisse flag than the end of stay), or at 0 €, the marker merges nothing: the
+    fiche's ledger draws the complement and the end of stay on their own cards, as the stored summary files a paid one at
+    arrival. While the arrival part is due, an end-of-stay complement already settled apart (a stored pre-D20 row, the
+    caisse interne, a « paiement unique ») is not part of the card: its amount, its lines and the amount a mark is
+    checked against (`expectedAmountCents`, rule 32's « Rien à percevoir », rule 33's `storedAmount`) leave it out
+    (`mergedEndOfStayAmount`), and it keeps its own paid card. A mark, an un-mark or a caisse switch of the complement
+    writes the end-of-stay columns only when the card holds the end of stay (`markCarriesEndOfStay`, the PATCH write and
+    the preview the refund and D20 guards read alike): due, it is collected with the arrival part; settled together, its
+    un-mark and caisse switch carry both (rule 8); settled apart, it is never re-dated nor cleared. Stay 22281 (deferral
+    1, arrival complement 0 €, end of stay collected in a single payment on 31/08) showed « Complément de fin de séjour
+    50,00 € · À percevoir au départ »: « Marquer perçu » moved the 50 € of an exported August into November, « Annuler »
+    erased the collection. It now shows its own end-of-stay card « Perçu le 31/08 », and a crafted `complementPaid: true`
+    answers 409 `NOTHING_TO_COLLECT`. The merged card stays open while its end of stay is settled apart
+    (reservation-payment-ledger rule 68, reading of 2026-11-06), and D20 is unchanged. Tests:
+    `deferred-card-settled-end-of-stay`, `deferred-card-settled-together`, `reconciliation-deferred-settled-together`
+    (server), client `FinanceSection.deferred-settled-end-of-stay`.
+    > **Reading of 2026-11-08 (verification V1).** The first version of this rule split the card as soon as the arrival
+    > complement was paid, including the state the merged mark itself writes: reconciliation then lost the reconciled
+    > receipt (« Saisi, rien sur le compte » on both halves) and « Défaire » left the end of stay collected with no money
+    > behind it. Settled together is still one collection, on one card.
 
 **Edge cases (Part C) :**
 
@@ -454,12 +465,17 @@ Rule 21 (audit R25-A1): `sas-prepaid-complement.unit.test.js` — a first arriva
 paid by the fiche, the reconciliation or a link keeps it paid and not deferred, a refund on the stay
 refuses nothing, reception alike; the SAS still settles an open complement and undoes its own.
 
-Rule 22 (audit R28-C-M1): `deferred-card-settled-end-of-stay.unit.test.js` — 9 cases: stay 22281's state draws its own
+Rule 22 (audit R28-C-M1): `deferred-card-settled-end-of-stay.unit.test.js` — 10 cases: stay 22281's state draws its own
 end-of-stay card and refuses the complement mark (NOTHING_TO_COLLECT); a paid complement under the marker keeps its card;
 the mark (books, caisse interne) never re-dates a settled end of stay, an un-tick never clears it, the guards' preview
-carries no end-of-stay column; the merged card's amount, lines and expected amount leave a settled end of stay out, the
-card stays open; the stored summary files a paid one at arrival. `reservations-controller-payment-cash` and
-`untick-with-open-refund` read rule 8 as amended.
+carries no end-of-stay column; the merged card's amount, lines, expected amount and live-edit `storedAmount` leave a
+settled end of stay out, the card stays open; the stored summary files a paid one at arrival.
+`deferred-card-settled-together.unit.test.js` (verification V1) — 6 cases: the merged mark leaves one paid card of both
+amounts; its « Annuler » clears both, its caisse switch moves both, the guards' preview carries both; a complement paid on
+another date or caisse flag keeps two cards; the block stays deferred settled together.
+`plugins/online-payment/tests/reconciliation-deferred-settled-together.unit.test.js` — a credit confirmed on the merged
+receipt stays reconciled as one, « Défaire » clears both buckets. `reservations-controller-payment-cash` and
+`untick-with-open-refund` keep rule 8's « un-marking clears both » on a card settled together.
 
 ### Client tests (vitest)
 - [x] `ReservationSasDialog` departure: no `cleaning` page when `cleaning.included`; recap shows the

@@ -1000,7 +1000,7 @@ function paymentPatchChanges(row, body, today) {
   if (body.complementPaid !== undefined || body.complementPaidCash !== undefined) {
     const { paid, cash } = resolved(body.complementPaid, body.complementPaidCash, row.complementPaid, row.complementPaidCash);
     Object.assign(changes, { complementPaid: paid, complementPaidCash: cash });
-    if (paid && markCarriesEndOfStay(row)) {
+    if (markCarriesEndOfStay(row)) {
       Object.assign(changes, { endOfStayComplementPaid: paid, endOfStayComplementPaidCash: cash });
     }
   }
@@ -2873,10 +2873,11 @@ function updatePayment(req, res) {
     if (paid && Number(before?.complementPaid || 0) !== 1) stampComplementPaidSplit(db, Number(id));
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
-    // settles BOTH buckets with the same date. The amounts stay separate in the DB — only the payment
-    // marking is shared. Rule 22 (audit R28-C-M1): only while the card is merged and its end of stay
-    // still due, so a mark never re-dates, nor an un-tick clears, an end of stay collected on its own.
-    if (paid && markCarriesEndOfStay(before)
+    // settles BOTH buckets with the same date, and un-marking (or switching the caisse of) a card settled
+    // together carries both. The amounts stay separate in the DB — only the payment marking is shared.
+    // Rule 22 (audit R28-C-M1, verification V1): never an end of stay collected apart, so a mark never
+    // re-dates, nor an un-tick clears, an end of stay collected on its own.
+    if (markCarriesEndOfStay(before)
       && endOfStayComplementPaid === undefined && endOfStayComplementPaidCash === undefined) {
       model.updatePaymentField(
         "UPDATE reservations SET endOfStayComplementPaid = ?, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",

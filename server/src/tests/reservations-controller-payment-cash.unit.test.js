@@ -129,7 +129,7 @@ test('updatePayment — deferred: marking the complement paid also settles the e
   assert.equal(endOfStay.args[1], '2026-06-03', 'same collection date as the arrival part');
 });
 
-test('updatePayment — deferred: « caisse interne » flags both buckets; un-marking the paid complement leaves the end of stay', () => {
+test('updatePayment — deferred: « caisse interne » flags both buckets; un-marking clears both', () => {
   let captures = { calls: [] };
   let controller = buildController({ captures, prev: DEFERRED });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaidCash: true } }, fakeRes());
@@ -139,11 +139,15 @@ test('updatePayment — deferred: « caisse interne » flags both buckets; un-ma
   assert.equal(endOfStay.args[2], 1, 'cash = 1');
 
   captures = { calls: [] };
-  controller = buildController({ captures, prev: { ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03' } });
+  // The state the merged mark writes: both buckets settled together, same date, same caisse flag (rule 22, V1 reading).
+  controller = buildController({ captures, prev: {
+    ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03', endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-08-03',
+  } });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaid: false } }, fakeRes());
-  // defer-arrival-complement-to-checkout rule 22 (audit R28-C-M1): paid, the complement is merged no more, its card and its un-tick are its own.
-  assert.ok(captures.calls.find((c) => /SET complementPaid/.test(c.sql)), 'the arrival complement is un-marked');
-  assert.equal(captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql)), undefined, 'the end of stay keeps its own toggle');
+  endOfStay = captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql));
+  assert.ok(endOfStay, 'un-marking the merged card reverts both buckets');
+  assert.equal(endOfStay.args[0], 0);
+  assert.equal(endOfStay.args[1], null, 'date cleared');
 });
 
 test('updatePayment — deferred with NO end-of-stay amount: only the arrival bucket is touched', () => {

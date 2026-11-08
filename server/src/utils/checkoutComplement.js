@@ -29,31 +29,48 @@ function parseDetail(detail) {
 }
 
 const flag = (v) => Number(v || 0) === 1;
+const complementSettled = (row) => flag(row && row.complementPaid) || flag(row && row.complementPaidCash);
+const endOfStaySettled = (row) => flag(row && row.endOfStayComplementPaid) || flag(row && row.endOfStayComplementPaidCash);
+const day = (v) => String(v || '').slice(0, 10);
 
 /**
- * Rule 6 as every reader applies it (§3.2 edge cases, audit R28-C-M1): the arrival complement is merged into the end
- * of stay only while it is still to collect. Paid, or at 0 €, the deferral marker merges nothing.
- * @param {object} row            carries complementDeferredToCheckout, complementPaid, complementAmount.
+ * Rule 8 (audit R28 verification V1) — the arrival complement and the end of stay settled by ONE collection: both
+ * paid, same date, same caisse flag. That is what the merged card's own mark writes, so the card stays merged.
+ */
+function settledTogether(row) {
+  const r = row || {};
+  return complementSettled(r) && endOfStaySettled(r)
+    && day(r.complementPaidDate) === day(r.endOfStayComplementPaidDate)
+    && flag(r.complementPaidCash) === flag(r.endOfStayComplementPaidCash);
+}
+
+/** Rule 22 — an end of stay collected on its own (not with the arrival part): it keeps its own card and columns. */
+const endOfStaySettledApart = (row) => endOfStaySettled(row) && !settledTogether(row);
+
+/**
+ * Rule 6 as every reader applies it (§3.2 edge cases, audit R28-C-M1 and its verification V1): the arrival complement
+ * is merged into the end of stay while it is still to collect, or once both were settled together. Paid apart, or at
+ * 0 €, the deferral marker merges nothing.
+ * @param {object} row            carries the deferral marker and the complement / end-of-stay payment columns.
  * @param {number} [arrivalAmount] the arrival complement when it differs from the stored column (live quote).
  */
 function isComplementDeferred(row, arrivalAmount) {
   const r = row || {};
-  return flag(r.complementDeferredToCheckout) && !flag(r.complementPaid)
-    && round2(arrivalAmount === undefined ? r.complementAmount : arrivalAmount) > 0;
+  return flag(r.complementDeferredToCheckout)
+    && round2(arrivalAmount === undefined ? r.complementAmount : arrivalAmount) > 0
+    && (!complementSettled(r) || settledTogether(r));
 }
 
-const endOfStaySettled = (row) => flag(row && row.endOfStayComplementPaid) || flag(row && row.endOfStayComplementPaidCash);
-
 /**
- * Rule 22 — the end-of-stay part a mark of the merged card collects: one already settled keeps its own card and its
- * stored columns, so the mark never re-dates nor clears it.
+ * Rule 22 — the end-of-stay part the merged card holds: one settled apart keeps its own card and its stored columns,
+ * so a mark never re-dates nor clears it; one settled together stays on the merged card.
  */
 function mergedEndOfStayAmount(row, endOfStayAmount) {
-  if (endOfStaySettled(row)) return 0;
+  if (endOfStaySettledApart(row)) return 0;
   return round2(endOfStayAmount === undefined ? (row || {}).endOfStayComplementAmount : endOfStayAmount);
 }
 
-/** Whether a mark of the arrival complement also writes the end-of-stay columns (rule 8, rule 22). */
+/** Whether a mark, un-mark or caisse switch of the arrival complement also writes the end-of-stay columns (rules 8, 22). */
 const markCarriesEndOfStay = (row) => isComplementDeferred(row) && mergedEndOfStayAmount(row) > 0;
 
 /**
@@ -65,12 +82,12 @@ const markCarriesEndOfStay = (row) => isComplementDeferred(row) && mergedEndOfSt
 function buildCheckoutComplement(reservation, arrivalDetail) {
   const r = reservation || {};
   const arrivalAmount = round2(arrivalDetail ? arrivalDetail.amount : r.complementAmount);
-  // Deferred only while the arrival complement is actually still to collect: once it is paid, the two
-  // collections really happened at two different moments and keep their own cards (§3.2 edge cases).
+  // Deferred while the arrival complement is still to collect, or both were settled by the merged card's one
+  // collection; paid apart, the two collections happened at two moments and keep their own cards (§3.2 edge cases).
   const deferred = isComplementDeferred(r, arrivalAmount);
-  // Rule 22 — an end of stay already settled is not part of the merged collection.
+  // Rule 22 — an end of stay settled apart is not part of the merged collection.
   const endOfStayAmount = deferred ? mergedEndOfStayAmount(r) : round2(r.endOfStayComplementAmount);
-  const endOfStayLines = deferred && endOfStaySettled(r) ? [] : parseDetail(r.endOfStayComplementDetail);
+  const endOfStayLines = deferred && endOfStaySettledApart(r) ? [] : parseDetail(r.endOfStayComplementDetail);
 
   const lines = [
     ...((arrivalDetail && arrivalDetail.detail) || []).map((l) => ({
@@ -137,5 +154,6 @@ function buildLiveCheckoutComplement({ row, quote } = {}) {
 
 module.exports = {
   buildCheckoutComplement, buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay,
+  endOfStaySettledApart,
   END_OF_STAY_CLEANING_LABEL,
 };
