@@ -120,6 +120,12 @@ each of these lives on the server — no UI-side calculation.
    `validUntil` AND the existing row's `validUntil` is empty, the same formula
    applies. Otherwise the existing `validUntil` is preserved (the operator's manual
    override stays).
+   > **Reading R31-RES-M1 (2026-11-08).** A still-valid quote moved to earlier dates kept its stored
+   > date, so the quote, its PDF and its single payment said « pay by » a date after the arrival. The
+   > preserved date is now read against the new start (`validUntilForStart`): at most `startDate − 2`,
+   > floored at today so the move never expires it (rule 6 reading R30). A quote moved later keeps its
+   > date. The same reading feeds the live quote of an unsaved edit. Tests:
+   > `tests/devis-moved-earlier-validity.unit.test.js`.
 8. At devis **convert-from-reservation** time, `validUntil` is also persisted using
    the same formula.
 9. The PDF reads `full.validUntil` straight, formats with `formatDateFR`, no

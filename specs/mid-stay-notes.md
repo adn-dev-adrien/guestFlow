@@ -207,6 +207,9 @@ becomes **the remainder** — collected at check-out exactly as today.
     waits for it before closing the dialog, so a refusal (for example 409 `END_OF_STAY_BEFORE_CHECKOUT` from a stale tab)
     leaves the dialog open on what was ticked. Both used to fail as an uncaught error, the dialog closing anyway. Test:
     client `FinanceSection.silent-refusals`.
+    After such a refusal the dialog's opening snapshot is taken again: the settlement is refused only once
+    the fiche was saved, so « Annuler » returns the form to what is stored, never to the pre-save opening
+    (audit R31-C-L1, 2026-11-08; `MidStayNoteDialog.refused-settle-cancel`).
 
 **Edge cases:**
 

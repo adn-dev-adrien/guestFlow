@@ -110,7 +110,9 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
       await fn();
       onClose();
     } catch {
-      // Refused: the fiche already shows why; the dialog stays open on what was ticked.
+      // Refused: the fiche already shows why; the dialog stays open on what was ticked. A refusal only comes after the
+      // fiche was saved, so the stored state is the new opening « Annuler » returns to (mid-stay-notes rule 24, R31-C-L1).
+      setOpeningOptions(captureOptionsState());
     } finally {
       setBusy(false);
     }
