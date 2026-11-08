@@ -25,7 +25,7 @@ const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 const bookingLinesModel = require('./bookingLinesModel');
-const { isDevisExpired, isDevisExtendable, computeValidUntil } = require('../utils/devisValidity');
+const { isDevisExpired, isDevisExtendable, computeValidUntil, validUntilForStart } = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
 const { devisListRow } = require('../utils/devisListRow');
@@ -427,7 +427,7 @@ function createModel(database) {
       // is derived here with the same rule. Without it the engine falls back to the clamped derivation
       // and a last-minute quote comes out due on its issue day while the document says it stands until
       // its validity date (specs/deposit-blocks-the-dates.md rule 7).
-      validUntil: body.validUntil || existing?.validUntil || computeValidUntil({
+      validUntil: body.validUntil || validUntilForStart(existing?.validUntil, body.startDate || existing?.startDate, todayIso()) || computeValidUntil({
         createdAtIsoDate: createdDayOf(existing?.createdAt),
         startDateIso: body.startDate || existing?.startDate,
         quoteValidityDays: readQuoteValidityDays(),
@@ -981,7 +981,7 @@ function createModel(database) {
       const quoteValidityDays = readQuoteValidityDays();
       const startDateIso = payload.startDate || existing.startDate;
       const today = todayIso();
-      if (existing.validUntil && !isDevisExpired(existing.validUntil, today)) return existing.validUntil;
+      if (existing.validUntil && !isDevisExpired(existing.validUntil, today)) return validUntilForStart(existing.validUntil, startDateIso, today);
       const createdAtIsoDate = existing.validUntil ? today : createdDayOf(existing.createdAt);
       return computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) || null;
     })();

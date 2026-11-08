@@ -61,4 +61,17 @@ function isDevisExtendable(row, todayIso) {
   return OPEN_STATUSES.has(status) && isDevisExpired(row.validUntil, todayIso);
 }
 
-module.exports = { computeValidUntil, isDevisExpired, isDevisExtendable };
+/**
+ * A stored validity date read against the stay's current dates (§3.2 rule 7 reading R31-RES-M1): a quote moved to earlier
+ * dates keeps its date only up to `startDate − 2`, floored at today so the move never expires it (rule 6 reading R30).
+ * Unchanged when the stay did not move closer, when nothing is stored, or when `startDate` is not an ISO date.
+ */
+function validUntilForStart(validUntil, startDateIso, todayIsoDate) {
+  if (!validUntil || !startDateIso || !ISO_DATE.test(startDateIso)) return validUntil;
+  const cap = addDaysToIsoDate(startDateIso, -2);
+  if (!cap) return validUntil;
+  const latest = cap < todayIsoDate ? todayIsoDate : cap;
+  return String(validUntil).slice(0, 10) > latest ? latest : validUntil;
+}
+
+module.exports = { computeValidUntil, isDevisExpired, isDevisExtendable, validUntilForStart };
