@@ -416,8 +416,9 @@ None. Reads `reservations`, `properties`, `clients`, `platforms`, `ical_sources`
 Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » theme.
 
 - **`PageActionBar`**: title « Taxe de séjour »; `center` = the « Liste » / « Par nuit » segmented toggle (`md+`;
-  below `md` the toggle sits full width under the pickers); `actionsBefore` = « Exporter en CSV » (download icon,
-  `info`).
+  below `md` the toggle sits full width under the pickers, so the bar passes `centerFrom="md"` and the toggle is drawn
+  once at every width — audit R27-C1, 2026-11-06: between 600 and 899 px it was drawn twice); `actionsBefore` =
+  « Exporter en CSV » (download icon, `info`).
 - **Pickers** (wrapping row): Mois · Trimestre · Année · Personnalisée (`PeriodSelector`), then the month / quarter /
   year select or Du / Au (opening on the window shown); Logement; Déclaration. A custom window refused here shows
   the message beside the dates and nothing is read; a selection refused by the server shows its reason in a
@@ -472,6 +473,7 @@ Target: the `#taxe` mock-up of the design reference, in MUI + the « Maison » t
 - [x] `pages/__tests__/TouristTaxPage.refused-load.test.jsx` (2) — rule 32.
 - [x] `pages/__tests__/TouristTaxPage.tick-after-refusal.test.jsx` (1) — rule 33.
 - [x] `pages/__tests__/TouristTaxPage.url-state.test.jsx` (5) — rules 31, 40.
+- [x] `pages/__tests__/TouristTaxPage.view-switch-once.test.jsx` (1) — §6 `PageActionBar` (audit R27-C1): `centerFrom="md"`.
 - [x] `components/__tests__/StickyTotalsBar.test.jsx` (6) — rules 20, 39, 45, 47, 54.
 - [x] `components/__tests__/ResponsiveTable.overflow.test.jsx` (5) — rules 48, 53; `TouristTaxPage.review-fixes` (+1) — rule 49.
 - [x] `pages/__tests__/TouristTaxPage.review-fixes.test.jsx` (4) — rules 22, 30, 34.

@@ -136,7 +136,8 @@ describe('ClientsPage — Save / Cancel race regression (PR #132)', () => {
     await waitFor(() => {
       expect(screen.queryByText('Modifier le client')).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients');
+    // specs/server-test-isolation.md rule 11 (audit R27-S2): the router commits the URL after the dialog closes.
+    await waitFor(() => expect(getUrl()).toBe('/clients'));
     // A regression of the old race would re-open the dialog → handleOpen re-fetches
     // the impact. If that ever creeps back in, this assertion fails.
     expect(api.getClientDeleteImpact.mock.calls.length).toBe(reservationsCallsAfterOpen);
@@ -152,7 +153,7 @@ describe('ClientsPage — Save / Cancel race regression (PR #132)', () => {
     await waitFor(() => {
       expect(screen.queryByText('Modifier le client')).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients');
+    await waitFor(() => expect(getUrl()).toBe('/clients'));
     // No write API was called.
     expect(api.updateClient).not.toHaveBeenCalled();
     expect(api.createClient).not.toHaveBeenCalled();
