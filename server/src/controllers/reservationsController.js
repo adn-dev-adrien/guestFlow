@@ -100,7 +100,9 @@ const {
 } = require('../utils/midStayExtrasWindow');
 const { matchStoredCustomLines } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
-const { buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay } = require('../utils/checkoutComplement');
+const {
+  buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal,
+} = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
 const { buildLedger } = require('../utils/reservationLedger');
@@ -2569,6 +2571,11 @@ function paymentMarkRefusal(row, body, today) {
   }
   for (const holder of [body.adjustMidStayNote, body.settleMidStayNote]) {
     const refusal = flagRefusal(holder, 'cash');
+    if (refusal) return refusal;
+  }
+  // specs/defer-arrival-complement-to-checkout.md rule 23 — never deferred over an end of stay already collected.
+  {
+    const refusal = body.complementDeferredToCheckout === undefined ? null : deferralRefusal(row, body.complementDeferredToCheckout);
     if (refusal) return refusal;
   }
   // specs/direct-installments.md rule 35 — a stay with a plan is collected installment by installment.

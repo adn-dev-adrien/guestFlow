@@ -186,6 +186,9 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     La version précédente affichait l'interrupteur **coché et grisé** dès le jour d'arrivée, au motif
     qu'un complément non encaissé se perçoit de toute façon à la porte. C'était vrai et inutilisable :
     l'opérateur ne pouvait plus rien décider au moment où il en avait justement besoin.
+
+    > **Narrowed on 2026-11-08 by rule 23**: the deferral is no longer switched on over an end-of-stay complement
+    > already collected; switching it off stays available at any time.
 16. **Le marqueur EST le split.** `splitComplementBuckets` ne regarde plus que lui (et l'encaissement,
     qui l'emporte) : `arrival = 0` dès que `complementDeferredToCheckout = 1` et que le complément
     n'est pas encaissé. La déduction par le calendrier est retirée du split
@@ -268,10 +271,30 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     > receipt (« Saisi, rien sur le compte » on both halves) and « Défaire » left the end of stay collected with no money
     > behind it. Settled together is still one collection, on one card.
 
+23. **Never deferred over a collected end of stay** (audit R28 verification N2, 2026-11-08). Rule 22's « settled
+    together » is read on the paid date and the caisse flag only, so an end of stay collected on its own, then the
+    deferral switched on and the arrival complement marked the same day (and caisse flag), read as one collection: the
+    merged card's « Annuler » cleared the end of stay too, « Percevoir en fin de séjour » on a paid complement (rule 15)
+    re-opened both, and a credit reconciled on the end of stay left the done view for a merged « Saisi, rien sur le
+    compte ». Switching `complementDeferredToCheckout` from 0 to 1 is therefore refused while the end-of-stay complement is
+    settled (`endOfStayComplementPaid = 1` or `endOfStayComplementPaidCash = 1`): 409 `DEFERRAL_END_OF_STAY_SETTLED`
+    « Complément de fin de séjour déjà encaissé. », nothing written, on every writer of the marker — `PATCH /payment`
+    (`complementDeferredToCheckout: true`, alone or with the re-opening `complementPaid: false` of rule 15), and the
+    arrival SAS commit whose complement answer is « Plus tard » (`complementSettled: false`, split or single payment,
+    sas 1.7.15). The marker sent back unchanged (already 1, the merged card settled together included), switched off, or
+    switched on with the end of stay still due passes. The fiche draws « Percevoir en fin de séjour » closed with the
+    reason under it (tooltip off, caption on every breakpoint); already on, it stays open to switch off. This narrows
+    rules 12-15 (« l'opérateur décide, tout le temps »): to group the two collections after the end of stay was taken,
+    un-tick it first. Rule 22's V1 reading, stay 22281, D20 and the merged card's line-317 reading are unchanged. Tests:
+    `deferral-refused-on-settled-end-of-stay` (server, arrival SAS included), `reconciliation-deferral-refused-settled-end-of-stay`
+    (plugins/online-payment), client `complementDeferralAccess.settled-end-of-stay`, `FinanceSection.deferral-settled-end-of-stay`.
+
 **Edge cases (Part C) :**
 
 - Complément d'arrivée **déjà encaissé** → contrôle affiché quand même ; l'activer le remet à
   percevoir, après confirmation (règle 15).
+- Complément de fin de séjour **déjà encaissé** (comptes ou caisse interne) → contrôle affiché, fermé, avec
+  « Complément de fin de séjour déjà encaissé. » ; le serveur refuse le report, 409 (règle 23).
 - Complément d'arrivée à **0 €** → pas de carte, donc pas de contrôle.
 - Report posé sur la fiche, puis SAS arrivée encaissé en CB → le marqueur retombe à 0 (règle 5) :
   l'argent a bien été perçu à l'arrivée, l'événement le plus récent gagne.
@@ -309,6 +332,8 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
 | `utils/` | `utils/reservationAudit.js` | T | **Part C** — history label for the fiche-side toggle (rule 19). |
 | `database.js` | `database.js` | T | Idempotent migration: `complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0` + one-shot backfill (see §5). |
 | `tests/` | `tests/sas-commit.unit.test.js`, `tests/checkout-complement.unit.test.js` (C) | T/C | Rules 1-8 (see §7). |
+| `utils/` | `utils/checkoutComplement.js` | T | **Rule 23** — `deferralRefusal(row, deferred)`: the 409 of a deferral switched on over a settled end of stay, read by `paymentMarkRefusal` (PATCH /payment). |
+| `plugins/sas/` | `plugins/sas/controller.js` | T | **Rule 23** — `commitArrival` answers the same 409 on « Plus tard » over a settled end of stay, read from the stored row (SDK 2.21 exposes no core name for it), before anything is written; sas 1.7.15. |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -322,6 +347,7 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
 | `pages/` | `pages/ReservationPage.js` | T | Carry `complementDeferredToCheckout` + `checkoutComplement` in the form state so the fiche re-renders after a SAS commit. |
 | `components/` | `components/reservation/FinanceSection.jsx` | T | **Part C** — « Percevoir en fin de séjour » switch on the arrival complement card: posts `markPayment`, flips the local form flag, reloads the finance block so the merged card appears at once. Hidden without an `id` / with a settled or empty complement; shown ON and disabled once the stay started (rules 12-15). |
 | `services/` | `services/api.js` | T | **Part C** — `markPayment` payload gains `complementDeferredToCheckout`. Otherwise unchanged. |
+| `utils/` | `utils/complementDeferralAccess.js` | T | **Rule 23** — `endOfStaySettled` input: not deferred and end of stay settled → closed, reason « Complément de fin de séjour déjà encaissé. »; FinanceSection prints the reason under the button. |
 
 **Component reuse declaration (mandatory):**
 
@@ -341,6 +367,7 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
 | POST | `/api/reservations/:id/sas/departure` | `endOfStayComplementDetail` (existing) | `{ ok }` | Server drops a « Ménage de fin de séjour » line when the cleaning is already sold. |
 | PATCH | `/api/reservations/:id/payment` | `{ complementPaid, complementPaidDate }` / `{ complementPaidCash }` | `{ ok }` | When the marker is set, marks both buckets (rule 8). |
 | PATCH | `/api/reservations/:id/payment` | `{ complementDeferredToCheckout: boolean }` | `{ ok }` | **Part C** — sets/clears the marker from the fiche (rules 12-14). 409 on a cancelled or locked reservation, like the other payment actions. |
+| PATCH | `/api/reservations/:id/payment` | `{ complementDeferredToCheckout: true }` | 409 `{ error: 'Complément de fin de séjour déjà encaissé.', code: 'DEFERRAL_END_OF_STAY_SETTLED' }` | **Rule 23** — a switch 0 → 1 while the end of stay is settled; nothing written. The arrival SAS commit answers the same 409 on « Plus tard ». |
 
 ---
 
@@ -488,6 +515,10 @@ receipt stays reconciled as one, « Défaire » clears both buckets. `reservatio
 
 Rule 21: `ReservationSasDialog.prepaid-complement.test.jsx` — the first run on a prepaid complement
 sends the stored mode (card or caisse interne), an unpaid one still « Plus tard ».
+
+Rule 23: `complementDeferralAccess.settled-end-of-stay.test.js`, `FinanceSection.deferral-settled-end-of-stay.test.jsx` — the
+control is closed with its reason over an end of stay perceived or in the caisse interne, open while it is due, and
+still switchable off once on.
 
 Rule 22: `FinanceSection.deferred-settled-end-of-stay.test.jsx` — the merged card's « Montant ajusté » reads the end-of-stay
 part the server's block holds (0 once settled): a typed total lands whole on the arrival complement.

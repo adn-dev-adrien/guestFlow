@@ -73,6 +73,23 @@ function mergedEndOfStayAmount(row, endOfStayAmount) {
 /** Whether a mark, un-mark or caisse switch of the arrival complement also writes the end-of-stay columns (rules 8, 22). */
 const markCarriesEndOfStay = (row) => isComplementDeferred(row) && mergedEndOfStayAmount(row) > 0;
 
+// Rule 23 (audit R28 verification N2) — the deferral is never switched on over an end of stay already collected.
+const DEFERRAL_END_OF_STAY_SETTLED = 'DEFERRAL_END_OF_STAY_SETTLED';
+const DEFERRAL_END_OF_STAY_SETTLED_MESSAGE = 'Complément de fin de séjour déjà encaissé.';
+
+/**
+ * Rule 23 — the 409 answered to a switch of `complementDeferredToCheckout` from 0 to 1 while the end of stay is settled
+ * (books or caisse interne), or null. A collection made apart and a complement marked the same day would otherwise read
+ * as settled together (rule 22, V1 reading), and the merged card's « Annuler » would clear both. Sent back unchanged,
+ * switched off, or with the end of stay due, it passes.
+ * @param {object} row       the stored reservation row.
+ * @param {boolean} deferred the marker asked for.
+ */
+function deferralRefusal(row, deferred) {
+  if (!deferred || flag(row && row.complementDeferredToCheckout) || !endOfStaySettled(row)) return null;
+  return { status: 409, body: { error: DEFERRAL_END_OF_STAY_SETTLED_MESSAGE, code: DEFERRAL_END_OF_STAY_SETTLED } };
+}
+
 /**
  * @param {object} reservation      row/payload carrying the complement columns.
  * @param {object} arrivalDetail    `{ amount, paid, detail[] }` from `buildArrivalComplementDetail`.
@@ -154,6 +171,7 @@ function buildLiveCheckoutComplement({ row, quote } = {}) {
 
 module.exports = {
   buildCheckoutComplement, buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay,
-  endOfStaySettledApart,
+  endOfStaySettledApart, deferralRefusal,
+  DEFERRAL_END_OF_STAY_SETTLED, DEFERRAL_END_OF_STAY_SETTLED_MESSAGE,
   END_OF_STAY_CLEANING_LABEL,
 };

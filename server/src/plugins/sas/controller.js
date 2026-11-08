@@ -488,6 +488,16 @@ const arrivalSasOwnsComplement = (row) => Number(row.complementPaid || 0) !== 1 
 const departureSasOwnsEndOfStay = (row) => Number(row.endOfStayComplementPaid || 0) !== 1
   || Number(row.endOfStayComplementPaidAtDeparture ?? 1) === 1;
 
+// specs/defer-arrival-complement-to-checkout.md rule 23 (audit R28 verification N2) — « Plus tard » sets the deferral marker; it is
+// never switched on over an end-of-stay complement already collected (books or caisse interne). Same refusal as the fiche's
+// PATCH /payment (utils/checkoutComplement.js deferralRefusal), read here from the stored row: SDK 2.21 exposes no such name.
+const DEFERRAL_END_OF_STAY_SETTLED = { error: 'Complément de fin de séjour déjà encaissé.', code: 'DEFERRAL_END_OF_STAY_SETTLED' };
+function arrivalDeferralRefusal(row, complementSettled) {
+  if (complementSettled !== false || Number(row.complementDeferredToCheckout || 0) === 1) return null;
+  const endOfStaySettled = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
+  return endOfStaySettled ? DEFERRAL_END_OF_STAY_SETTLED : null;
+}
+
 function arrivalTakeBackFlags(row, { stayPaid, stayPaidCash, complementSettled, complementPaidCash }) {
   const flags = [];
   if (leavesTheBooks(stayPaid, stayPaidCash)) {
@@ -586,6 +596,8 @@ function commitArrival(req, res) {
 
   const storedRow = reservationsModel.getRow(Number(req.params.id)) || {};
   const settlement = arrivalSasOwnsComplement(storedRow) ? unified : { ...unified, complementSettled: undefined, complementPaidCash: false };
+  const deferral = arrivalDeferralRefusal(storedRow, settlement.complementSettled);
+  if (deferral) return res.status(409).json(deferral);
   const takeBack = refusalToTakeBack(Number(req.params.id), arrivalTakeBackFlags(storedRow, settlement));
   if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
 

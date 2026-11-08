@@ -358,6 +358,7 @@ export default function FinanceSection() {
     : '';
 
   // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour ».
+  const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const deferAccess = complementDeferralAccess({
     editingReservationId,
     isDevisMode,
@@ -365,6 +366,7 @@ export default function FinanceSection() {
     complementPaid: Boolean(form.complementPaid) || Boolean(form.complementPaidCash),
     deferred: Boolean(form.complementDeferredToCheckout),
     locked: Boolean(isReservationLocked),
+    endOfStaySettled,
   });
   const onToggleDefer = async (next) => {
     if (next && deferAccess.needsConfirm) {
@@ -385,31 +387,36 @@ export default function FinanceSection() {
     await reloadReservationFinance();
   };
   const deferButton = deferAccess.visible ? (
-    <Tooltip
-      title={deferAccess.reason
-        || (deferAccess.checked
+    <Box>
+      <Tooltip
+        title={deferAccess.reason ? '' : (deferAccess.checked
           ? 'Le complément d\'arrivée est encaissé au départ, avec le complément de fin de séjour — une seule collecte.'
           : 'Regrouper ce complément avec celui de fin de séjour : une seule ligne, un seul encaissement.')}
-    >
-      <span style={{ display: 'block' }}>
-        <Button
-          size="small"
-          variant={deferAccess.checked ? 'contained' : 'outlined'}
-          color={deferAccess.checked ? 'info' : 'inherit'}
-          disabled={deferAccess.disabled}
-          onClick={() => onToggleDefer(!deferAccess.checked)}
-          sx={{ textTransform: 'none', minHeight: 44 }}
-        >
-          {deferAccess.checked ? 'Perçu en fin de séjour ✓' : 'Percevoir en fin de séjour'}
-        </Button>
-      </span>
-    </Tooltip>
+      >
+        <span style={{ display: 'block' }}>
+          <Button
+            size="small"
+            variant={deferAccess.checked ? 'contained' : 'outlined'}
+            color={deferAccess.checked ? 'info' : 'inherit'}
+            disabled={deferAccess.disabled}
+            onClick={() => onToggleDefer(!deferAccess.checked)}
+            sx={{ textTransform: 'none', minHeight: 44 }}
+          >
+            {deferAccess.checked ? 'Perçu en fin de séjour ✓' : 'Percevoir en fin de séjour'}
+          </Button>
+        </span>
+      </Tooltip>
+      {deferAccess.reason ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          {deferAccess.reason}
+        </Typography>
+      ) : null}
+    </Box>
   ) : null;
 
   // specs/plugins-phase-p-productisation.md rule 45 — the server's answer, never the platform's name.
   const isPlatform = Boolean(isPlatformSale);
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
-  const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const showMidStayNotes = Boolean(midStayNote?.visible);
   const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
     .filter((l) => l && l.source === 'midStayExtra' && Number(l.amount) > 0);
