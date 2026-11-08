@@ -139,7 +139,11 @@ test('updatePayment — deferred: « caisse interne » flags both buckets; un-ma
   assert.equal(endOfStay.args[2], 1, 'cash = 1');
 
   captures = { calls: [] };
-  controller = buildController({ captures, prev: { ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03' } });
+  // The state the merged mark writes: both buckets settled together, same date, same caisse flag (rule 22, V1 reading).
+  controller = buildController({ captures, prev: {
+    // date-literal-ok: the controller's today is mocked to 2026-06-15; the un-mark compares no date with today
+    ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03', endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-08-03',
+  } });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaid: false } }, fakeRes());
   endOfStay = captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql));
   assert.ok(endOfStay, 'un-marking the merged card reverts both buckets');

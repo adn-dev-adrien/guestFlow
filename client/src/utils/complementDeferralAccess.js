@@ -8,6 +8,9 @@
  * précisément la correction qu'on veut pouvoir faire. Il ne s'efface que lorsqu'il n'y a
  * matériellement rien à déplacer : pas de réservation enregistrée, ou pas de complément.
  *
+ * Une exception depuis le 2026-11-08 (règle 23) : le report ne se pose pas sur un complément de fin de séjour déjà
+ * encaissé — le serveur le refuse, le contrôle reste visible, fermé, avec sa raison. Déjà posé, il se retire encore.
+ *
  * Même patron que [midStayNoteAccess](./midStayNoteAccess.js) : la règle vit dans un util pur,
  * testable sans rendu, plutôt que dispersée dans le JSX de la carte.
  */
@@ -20,6 +23,7 @@
  * @param {boolean} p.complementPaid           déjà encaissé
  * @param {boolean} p.deferred                 marqueur actuel
  * @param {boolean} p.locked                   réservation annulée / passée verrouillée
+ * @param {boolean} p.endOfStaySettled         complément de fin de séjour encaissé (comptes ou caisse interne)
  * @returns {{ visible: boolean, checked: boolean, disabled: boolean, reason: string,
  *            needsConfirm: boolean }}
  *          `needsConfirm` : activer le report sur un complément marqué encaissé le remet à
@@ -27,7 +31,7 @@
  */
 export function complementDeferralAccess({
   editingReservationId, isDevisMode, complementAmount = 0,
-  complementPaid = false, deferred = false, locked = false,
+  complementPaid = false, deferred = false, locked = false, endOfStaySettled = false,
 }) {
   const hidden = { visible: false, checked: Boolean(deferred), disabled: true, reason: '', needsConfirm: false };
   // Le report se pose sur une réservation enregistrée : c'est un marqueur en base, pas un brouillon.
@@ -35,11 +39,12 @@ export function complementDeferralAccess({
   // Pas de complément d'arrivée du tout → rien à déplacer (sauf si le marqueur traîne encore).
   if (Number(complementAmount || 0) <= 0 && !deferred) return hidden;
 
+  const settledReason = !deferred && endOfStaySettled ? 'Complément de fin de séjour déjà encaissé.' : '';
   return {
     visible: true,
     checked: Boolean(deferred),
-    disabled: Boolean(locked),
-    reason: locked ? 'Réservation verrouillée.' : '',
+    disabled: Boolean(locked) || Boolean(settledReason),
+    reason: locked ? 'Réservation verrouillée.' : settledReason,
     needsConfirm: Boolean(complementPaid) && !deferred,
   };
 }

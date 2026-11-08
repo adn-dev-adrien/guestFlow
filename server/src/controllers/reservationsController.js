@@ -100,7 +100,9 @@ const {
 } = require('../utils/midStayExtrasWindow');
 const { matchStoredCustomLines } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
-const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
+const {
+  buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal,
+} = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
 const { buildLedger } = require('../utils/reservationLedger');
@@ -985,6 +987,12 @@ function complementOverrideMoved(sent, stored) {
   return read(sent) !== read(stored ?? null);
 }
 
+// What a mark of the complement card collects: the merged card holds the end of stay still due (defer rules 6, 22).
+function mergedComplementAmount(row) {
+  const arrival = Number(row.complementAmount || 0);
+  return isComplementDeferred(row) ? arrival + mergedEndOfStayAmount(row) : arrival;
+}
+
 // What a payment PATCH would write on the money `comptaCollected` reads (rule 52), computed ahead of any write.
 function paymentPatchChanges(row, body, today) {
   const changes = {};
@@ -994,7 +1002,7 @@ function paymentPatchChanges(row, body, today) {
   if (body.complementPaid !== undefined || body.complementPaidCash !== undefined) {
     const { paid, cash } = resolved(body.complementPaid, body.complementPaidCash, row.complementPaid, row.complementPaidCash);
     Object.assign(changes, { complementPaid: paid, complementPaidCash: cash });
-    if (Number(row.complementDeferredToCheckout || 0) === 1 && Number(row.endOfStayComplementAmount || 0) > 0) {
+    if (markCarriesEndOfStay(row)) {
       Object.assign(changes, { endOfStayComplementPaid: paid, endOfStayComplementPaidCash: cash });
     }
   }
@@ -2565,6 +2573,11 @@ function paymentMarkRefusal(row, body, today) {
     const refusal = flagRefusal(holder, 'cash');
     if (refusal) return refusal;
   }
+  // specs/defer-arrival-complement-to-checkout.md rule 23 — never deferred over an end of stay already collected.
+  {
+    const refusal = body.complementDeferredToCheckout === undefined ? null : deferralRefusal(row, body.complementDeferredToCheckout);
+    if (refusal) return refusal;
+  }
   // specs/direct-installments.md rule 35 — a stay with a plan is collected installment by installment.
   const hasPlan = Number(row.installmentsTarget || 0) > 0;
   if (hasPlan && (body.depositPaid === true || body.balancePaid === true)) {
@@ -2604,11 +2617,10 @@ function paymentMarkRefusal(row, body, today) {
   // Rule 32 — a bucket with nothing to collect is never marked: a converted devis carried a 0 € acompte
   // and « Marquer acompte payé » ticked it, which the books then read as a payment.
   {
-    const deferredZero = Number(row.complementDeferredToCheckout || 0) === 1;
     const amountOf = {
       depositPaid: [row.depositAmount, row.depositPaid],
       balancePaid: [row.balanceAmount, row.balancePaid],
-      complementPaid: [deferredZero ? Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0) : row.complementAmount, row.complementPaid],
+      complementPaid: [mergedComplementAmount(row), row.complementPaid],
       endOfStayComplementPaid: [row.endOfStayComplementAmount, row.endOfStayComplementPaid],
     };
     const cashOf = { complementPaid: 'complementPaidCash', endOfStayComplementPaid: 'endOfStayComplementPaidCash' };
@@ -2673,13 +2685,10 @@ function paymentMarkRefusal(row, body, today) {
     if (markedCount > 1) {
       return { status: 400, body: { error: 'Un montant attendu ne vaut que pour une échéance à la fois.', code: 'AMBIGUOUS_EXPECTED_AMOUNT' } };
     }
-    const deferred = Number(row.complementDeferredToCheckout || 0) === 1;
     const storedOf = {
       depositPaid: row.depositAmount,
       balancePaid: row.balanceAmount,
-      complementPaid: deferred
-        ? Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0)
-        : row.complementAmount,
+      complementPaid: mergedComplementAmount(row),
       endOfStayComplementPaid: row.endOfStayComplementAmount,
     };
     const marked = Object.keys(storedOf).find((f) => body[f] === true || body[f] === 1);
@@ -2871,10 +2880,11 @@ function updatePayment(req, res) {
     if (paid && Number(before?.complementPaid || 0) !== 1) stampComplementPaidSplit(db, Number(id));
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
-    // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate
-    // in the DB — only the payment marking is shared.
-    if (Number(before?.complementDeferredToCheckout || 0) === 1
-      && Number(before?.endOfStayComplementAmount || 0) > 0
+    // settles BOTH buckets with the same date, and un-marking (or switching the caisse of) a card settled
+    // together carries both. The amounts stay separate in the DB — only the payment marking is shared.
+    // Rule 22 (audit R28-C-M1, verification V1): never an end of stay collected apart, so a mark never
+    // re-dates, nor an un-tick clears, an end of stay collected on its own.
+    if (markCarriesEndOfStay(before)
       && endOfStayComplementPaid === undefined && endOfStayComplementPaidCash === undefined) {
       model.updatePaymentField(
         "UPDATE reservations SET endOfStayComplementPaid = ?, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
@@ -3008,5 +3018,5 @@ module.exports = {
 };
 
 // Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
-module.exports.__test = { paymentMarkRefusal, staleFicheRefusal, complementLeftOf };
+module.exports.__test = { paymentMarkRefusal, staleFicheRefusal, complementLeftOf, paymentPatchChanges };
 module.exports.storedOverpayment = storedOverpayment;
