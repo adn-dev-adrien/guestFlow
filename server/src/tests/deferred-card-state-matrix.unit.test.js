@@ -187,7 +187,8 @@ test('rule 27: a single payment naming both buckets is the merged card\'s one co
   assert.deepEqual(cards(id), [[CC, 32, 'due']]);
 });
 
-// Rule 26 — the merged card's mirror of the end of stay releases it like the explicit path (recall rule 9bis).
+// Rule 26 — the merged card's mirror of the end of stay releases it like the explicit path
+// (recall-unpaid-arrival-complement-at-checkout rule 9bis).
 // Probe p3 of R29-M-L1: the departure SAS settled both; the fiche takes the collection over (« Annuler » then « Marquer
 // perçu »), so a re-opened departure SAS answering « pas maintenant » no longer un-pays what the fiche collected.
 test('rule 26: the merged card takes the end of stay from the departure SAS; a re-opened SAS leaves it paid', SAS, () => {
