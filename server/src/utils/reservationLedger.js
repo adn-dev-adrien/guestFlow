@@ -16,6 +16,7 @@
 const { remainingToPay, platformPenalty, round2 } = require('./reservationSettlement');
 const { isRetainedDeposit, isIndemnityLine, refundDeletionRefusal, COMMISSION_KEY } = require('./refunds');
 const { parseGroup } = require('./arrivalPaymentGroup');
+const { isComplementDeferred } = require('./checkoutComplement');
 const { END_OF_STAY_BEFORE_CHECKOUT_CAPTION } = require('./endOfStayCheckout');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
@@ -529,7 +530,11 @@ function buildLedger({
   const afterBuckets = rows.length;
 
   // ── Compléments + notes en séjour (rules 2, 22, Q5) ──────────────────────
-  const deferred = flag(has('complementDeferredToCheckout') ? live.complementDeferredToCheckout : r.complementDeferredToCheckout);
+  // Rule 69 (audit R28-C-M1) — merged only while the arrival complement is still to collect, as buildCheckoutComplement reads it.
+  const deferred = isComplementDeferred({
+    complementDeferredToCheckout: has('complementDeferredToCheckout') ? live.complementDeferredToCheckout : r.complementDeferredToCheckout,
+    complementPaid: paid.complement ? 1 : 0,
+  }, complementAmount);
   const arrivalAdjusted = r.complementAmountOverride != null && r.complementAmountOverride !== '';
   const endAdjusted = r.endOfStayComplementAmountOverride != null && r.endOfStayComplementAmountOverride !== '';
   const complementRow = ({ key, label, amount, bucket, paidFlag, cashFlag, dateField, dueLabel, slot, holdsEndOfStay = false }) => {
@@ -574,8 +579,9 @@ function buildLedger({
       detail: tidyDetail(detail),
     };
   };
-  const mergedAmount = round2(complementAmount + endOfStayAmount);
-  if (deferred && mergedAmount > 0) {
+  // Rule 69 — an end of stay already settled keeps its own card: the merged one never asks for it again.
+  const mergedAmount = round2(complementAmount + (paid.endOfStay ? 0 : endOfStayAmount));
+  if (deferred) {
     rows.push(complementRow({
       key: 'checkoutComplement', label: 'Complément de fin de séjour', amount: mergedAmount, bucket: 'complement',
       paidFlag: 'complementPaid', cashFlag: r.complementPaidCash, dateField: 'complementPaidDate',
@@ -600,7 +606,7 @@ function buildLedger({
       detail: { slot: 'midStayNotes' },
     });
   }
-  if (!deferred && (endOfStayAmount > 0 || endAdjusted)) {
+  if ((!deferred || paid.endOfStay) && (endOfStayAmount > 0 || endAdjusted)) {
     rows.push(complementRow({
       key: 'endOfStayComplement', label: 'Complément de fin de séjour', amount: endOfStayAmount, bucket: 'endOfStay',
       paidFlag: 'endOfStayComplementPaid', cashFlag: r.endOfStayComplementPaidCash, dateField: 'endOfStayComplementPaidDate',
@@ -770,7 +776,7 @@ function buildLedger({
       balance: round2(r.balanceAmount),
       complement: round2(r.complementAmount),
       endOfStayComplement: round2(r.endOfStayComplementAmount),
-      checkoutComplement: round2(Number(r.complementAmount || 0) + Number(r.endOfStayComplementAmount || 0)),
+      checkoutComplement: round2(Number(r.complementAmount || 0) + (paid.endOfStay ? 0 : Number(r.endOfStayComplementAmount || 0))),
     };
     for (const row of rows) {
       if (!(row.key in storedOf) || row.amount == null || String(row.state).startsWith('paid')) continue;

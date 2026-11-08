@@ -13,6 +13,7 @@ const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
 const { displayCountOf } = require('./typedCounts');
+const { isComplementDeferred } = require('./checkoutComplement');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const flag = (v) => Number(v || 0) === 1;
@@ -164,7 +165,8 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
   // lines add up to the same « Total du séjour » as the sticky bar.
   const touristTaxOfferedByPlatform = (collects && !remittedByOwner) || withheld != null;
 
-  const deferred = flag(row.complementDeferredToCheckout);
+  // Money already in the till was collected at check-in, whatever the marker says (complement-buckets-by-moment rule 4).
+  const deferred = isComplementDeferred(row);
   const endOfStay = round2(row.endOfStayComplementAmount);
   const complement = round2(row.complementAmount);
   const complementSplit = {

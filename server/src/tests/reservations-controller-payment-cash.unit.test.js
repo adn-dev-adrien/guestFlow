@@ -129,7 +129,7 @@ test('updatePayment — deferred: marking the complement paid also settles the e
   assert.equal(endOfStay.args[1], '2026-06-03', 'same collection date as the arrival part');
 });
 
-test('updatePayment — deferred: « caisse interne » flags both buckets; un-marking clears both', () => {
+test('updatePayment — deferred: « caisse interne » flags both buckets; un-marking the paid complement leaves the end of stay', () => {
   let captures = { calls: [] };
   let controller = buildController({ captures, prev: DEFERRED });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaidCash: true } }, fakeRes());
@@ -141,10 +141,9 @@ test('updatePayment — deferred: « caisse interne » flags both buckets; un-ma
   captures = { calls: [] };
   controller = buildController({ captures, prev: { ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03' } });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaid: false } }, fakeRes());
-  endOfStay = captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql));
-  assert.ok(endOfStay, 'un-marking the merged card reverts both buckets');
-  assert.equal(endOfStay.args[0], 0);
-  assert.equal(endOfStay.args[1], null, 'date cleared');
+  // defer-arrival-complement-to-checkout rule 22 (audit R28-C-M1): paid, the complement is merged no more, its card and its un-tick are its own.
+  assert.ok(captures.calls.find((c) => /SET complementPaid/.test(c.sql)), 'the arrival complement is un-marked');
+  assert.equal(captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql)), undefined, 'the end of stay keeps its own toggle');
 });
 
 test('updatePayment — deferred with NO end-of-stay amount: only the arrival bucket is touched', () => {

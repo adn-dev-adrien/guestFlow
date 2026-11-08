@@ -341,17 +341,20 @@ export default function FinanceSection() {
     : '';
   // §3.5 règles 29-30 — sur la ligne fusionnée l'opérateur saisit le TOTAL ; l'ajustement stocké reste
   // celui du complément d'ARRIVÉE.
-  const mergedAutoAmount = Math.round((arrivalAutoAmount + endOfStayAmountNow) * 100) / 100;
-  const mergedFloor = Math.round((Number(complementAdjustment.floor || 0) + endOfStayAmountNow) * 100) / 100;
+  // Règle 22 (defer-arrival-complement-to-checkout) — la carte fusionnée ne porte que la fin de séjour encore due : le
+  // bloc du serveur dit laquelle.
+  const mergedEndOfStay = complementDeferred ? Number(checkoutComplement.endOfStayAmount || 0) : endOfStayAmountNow;
+  const mergedAutoAmount = Math.round((arrivalAutoAmount + mergedEndOfStay) * 100) / 100;
+  const mergedFloor = Math.round((Number(complementAdjustment.floor || 0) + mergedEndOfStay) * 100) / 100;
   const commitArrivalOverride = (v) => {
     if (v === '' || v == null) { updateForm({ complementAmountOverride: '' }); return; }
     const floor = complementDeferred ? mergedFloor : Number(complementAdjustment.floor || 0);
     const target = Math.max(floor, Number(v));
-    const stored = complementDeferred ? Math.max(0, Math.round((target - endOfStayAmountNow) * 100) / 100) : target;
+    const stored = complementDeferred ? Math.max(0, Math.round((target - mergedEndOfStay) * 100) / 100) : target;
     updateForm({ complementAmountOverride: stored });
   };
   const mergedOverrideValue = arrivalAdjusted
-    ? Math.round((Number(form.complementAmountOverride) + endOfStayAmountNow) * 100) / 100
+    ? Math.round((Number(form.complementAmountOverride) + mergedEndOfStay) * 100) / 100
     : '';
 
   // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour ».
