@@ -165,7 +165,8 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
   // lines add up to the same « Total du séjour » as the sticky bar.
   const touristTaxOfferedByPlatform = (collects && !remittedByOwner) || withheld != null;
 
-  // Money already in the till was collected at check-in, whatever the marker says (complement-buckets-by-moment rule 4).
+  // A deferred complement is filed at the end of stay while due, once settled together with it, or when the end of stay is
+  // 0 € (complement-buckets-by-moment rule 4, revision 2026-11-08; defer rules 22 and 24). Otherwise it was collected at check-in.
   const deferred = isComplementDeferred(row);
   const endOfStay = round2(row.endOfStayComplementAmount);
   const complement = round2(row.complementAmount);

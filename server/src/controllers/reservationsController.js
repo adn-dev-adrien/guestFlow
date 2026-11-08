@@ -101,7 +101,7 @@ const {
 const { matchStoredCustomLines } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const {
-  buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal,
+  buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
 } = require('../utils/checkoutComplement');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
@@ -2578,6 +2578,12 @@ function paymentMarkRefusal(row, body, today) {
     const refusal = body.complementDeferredToCheckout === undefined ? null : deferralRefusal(row, body.complementDeferredToCheckout);
     if (refusal) return refusal;
   }
+  // Rule 25 — the end of stay the merged card holds is collected with its arrival part, never alone; read on the deferral sent.
+  {
+    const deferral = body.complementDeferredToCheckout === undefined ? {} : { complementDeferredToCheckout: body.complementDeferredToCheckout ? 1 : 0 };
+    const refusal = endOfStayAloneRefusal({ ...row, ...deferral }, body);
+    if (refusal) return refusal;
+  }
   // specs/direct-installments.md rule 35 — a stay with a plan is collected installment by installment.
   const hasPlan = Number(row.installmentsTarget || 0) > 0;
   if (hasPlan && (body.depositPaid === true || body.balancePaid === true)) {
@@ -2890,6 +2896,11 @@ function updatePayment(req, res) {
         "UPDATE reservations SET endOfStayComplementPaid = ?, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
         paid, date, cash, id,
       );
+      // Rule 26 (audit R29-M-L1) — the end of stay flipped by the merged card is released as the explicit path below releases it.
+      if (Number(before?.endOfStayComplementPaid || 0) !== Number(paid || 0)) {
+        model.releaseEndOfStayBucket(Number(id));
+        model.clearEndOfStayDepartureMarker(Number(id));
+      }
     }
   }
   if (endOfStayComplementPaid !== undefined || endOfStayComplementPaidCash !== undefined) {

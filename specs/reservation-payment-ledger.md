@@ -827,6 +827,11 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     > **Reading of 2026-11-08 (verification V1).** The first version split the card once the arrival part was paid,
     > including the state the merged mark writes: the reconciled credit pointed at a receipt that no longer existed, and
     > « Défaire » left the end of stay collected.
+    > **Reading of 2026-11-08 (audit R29-DB-1, R29-DB-2).** « Settled together » includes an end of stay at 0 € never
+    > settled, and requires a « paiement unique » to name both buckets or neither (defer-arrival-complement-to-checkout
+    > rules 24 and 27): the merged receipt confirmed at 0 € of end of stay stays « Rapproché » on `checkoutComplement`,
+    > and an end of stay collected by a single payment that leaves the arrival part out keeps its own « paiement unique »
+    > card. Tests: `deferred-card-state-matrix`, `reconciliation-deferred-end-of-stay-zero`.
 
 ## 4. Architecture
 
@@ -1278,4 +1283,16 @@ complement at 0 € or paid and the end of stay collected — 22281 (0 €, the 
 and 4 whose two parts were collected the same day with the same caisse flag (row ids 12, 22226, 22275, 22280: one merged
 paid card, as before the audit); none has an arrival complement due over a settled end of stay. « Tout est perçu »
 unchanged; nothing was written.
+
+## 13. Implementation progress — R29 of 2026-11-08
+
+Implemented on `fix/audit-r29-all`: rule 69's R29 reading and defer-arrival-complement-to-checkout rules 24-27.
+`settledTogether` (utils/checkoutComplement.js) reads an end of stay at 0 € as settled with the arrival part and a single
+payment as one collection only when it names both buckets or neither; `endOfStayAloneRefusal` is judged in
+`paymentMarkRefusal`; the merged mark's end-of-stay mirror releases the group and the departure ownership. Prod copy of
+2026-10-22, read-only, `getById` on every row diffed against 03c2b7a4 and f66f1673: against 03c2b7a4 only stays 9, 11 and
+22291 move (marker 1, end of stay 0 €, arrival part paid: « Complément de fin de séjour · Perçu » again, the summary
+filing it at the end of stay); their ledger and summary are byte-identical to f66f1673, so §12's survey stands with these
+three rows added to it (R29-DB-2). Stay 12 (a single payment naming both buckets) keeps one merged paid card; 22281,
+22226, 22275 and 22280 unchanged. Nothing was written.
 
