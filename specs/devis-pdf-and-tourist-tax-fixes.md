@@ -106,6 +106,16 @@ each of these lives on the server — no UI-side calculation.
    - `quoteValidityDays` = `settingsModel.read().quoteValidityDays || 30`.
    - The cap at `startDate - 2 days` preserves the existing PDF logic (a devis can't be
      valid past the customer's check-in date minus a buffer).
+   - **Reading 2026-11-08 (audit R30-RES-M1) — never before the issue day.** The result is floored at
+     `createdAt`: `validUntil = MAX(createdAt, MIN(createdAt + quoteValidityDays, startDate - 2 days))`
+     (`utils/devisValidity.js` `computeValidUntil`, the one helper of create, update, « Prolonger » and
+     « Transformer en devis », and of the PDF fallback of rule 9). A stay starting tomorrow or today (the
+     site accepts an arrival from today on) used to be capped before the issue day: the quote was « Périmé
+     · prolonger » a second after its creation, its PDF said « Valable jusqu'au » and « À payer avant » the
+     day before its own date, its prices were never locked, and « Prolonger » answered 200 leaving it
+     expired, endlessly. Such a quote now stands, and is due (specs/deposit-blocks-the-dates.md rule 7),
+     on the day it is issued; « Prolonger » re-issues it until that day, and is not offered once it holds.
+     Tests: `tests/devis-last-minute-validity.unit.test.js`, `plugins/website-booking/tests/public-request-last-minute-validity.unit.test.js`.
 7. At devis **update** time (`devisModel.update`), if the payload doesn't include a
    `validUntil` AND the existing row's `validUntil` is empty, the same formula
    applies. Otherwise the existing `validUntil` is preserved (the operator's manual
@@ -115,6 +125,8 @@ each of these lives on the server — no UI-side calculation.
 9. The PDF reads `full.validUntil` straight, formats with `formatDateFR`, no
    fallback to "today + days". If `full.validUntil` is empty (legacy data), the PDF
    recomputes from `createdAt + quoteValidityDays` (the same formula the model uses).
+   *Reading 2026-11-08 (R30-RES-M1):* the fallback calls the model's `computeValidUntil` itself, so it
+   caps at `startDate - 2` (it used to cap only past `startDate`) and carries rule 6's floor.
 10. The `quoteValidityDays` value the PDF reads comes from `settingsModel.read()` —
     same path as today.
 
@@ -290,6 +302,7 @@ No UI change beyond the PDF output itself. The user sees:
 | `tests/devis-pdf-date-and-validity.unit.test.js` (C) | (1) Empty `full.createdAt` → "Date du devis" defaults to today. (2) Empty `full.validUntil` → recomputed from `createdAt + quoteValidityDays`. (3) `validUntil` capped at `startDate - 2`. (4) Both populated → strings round-trip via `formatDateFR`. | Rules 4 + 9 + cap. |
 | `tests/devis-local-day.unit.test.js` (2026-10-30, audit R8-1) | Clock frozen at 2026-10-30T23:30Z under Europe/Paris: create, convert-from-reservation and the legacy backfill open the window on 31/10; the PDF dates a UTC `createdAt` on its Paris day (`__test.resolveDevisDates`). Shared with specs/devis-extras-parity-and-price-lock.md rule 21. 10 cases. | Rule 23. |
 | `tests/devis-pdf-date-validity-tax.unit.test.js` (C) | (1) `computeValidUntil` helper unit cases (rules 6 + 9 + cap). (2) PDF render smoke per scenario (rules 4, 9, 16, 18) — assert the magic header + a non-trivial buffer size. (3) **Consistency invariant** via `resolveLiveTaxTotals(full, quote)`: live tax total + grand total mirror `quote.touristTaxTotal` / `quote.finalPrice` when provided, fall back to row values otherwise, treat `touristTaxTotal = 0` in the quote as "engine didn't compute" (row wins), honour `quote.finalPrice = 0` (offered stay). | Rules 4, 6, 9, 15–18, **20**. |
+| `tests/devis-last-minute-validity.unit.test.js` (2026-11-08, audit R30-RES-M1) | Today-relative: `computeValidUntil` at +1, 0, −3, +2, +3 and +400 days; the PDF fallback of a legacy row at +1, 0 and +10; a devis created at +1 and at 0 days is valid and due today, neither expired nor extendable; « Prolonger » on an expired last-minute quote opens it today and is no longer offered; « Transformer en devis » on a stay starting tomorrow. 6 cases. Plus `plugins/website-booking/tests/public-request-last-minute-validity.unit.test.js`: a site request at +1 and at 0 days (2 cases). | Rule 6 reading R30-RES-M1, rule 9. |
 
 These tests focus on the model + the utility — not the live PDF render (PDFs are
 binary; we assert the inputs the renderer would receive and the strings the renderer

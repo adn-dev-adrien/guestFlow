@@ -6,12 +6,13 @@
 
 const { todayIso: localTodayIso } = require('./localDate');
 const { bookingDayOf } = require('./vatRegime');
+const { computeValidUntil } = require('./devisValidity');
 const path = require("path");
 const fs = require("fs");
 const PDFDocument = require("pdfkit");
 const {
   roundMoney, formatDateFR, formatDateLocalised, formatCurrency, isLineOffered,
-  resolveExtraGuestPdfRow, timeToDecimalHour, formatHoursLabel, diffDays, addDaysToIsoDate, formatDate,
+  resolveExtraGuestPdfRow, timeToDecimalHour, formatHoursLabel, diffDays, formatDate,
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
@@ -1093,18 +1094,17 @@ function summarySchedule(full, L) {
 // PDFs show an empty "Date du devis" pill.
 //
 // `validUntil` is normally persisted by the model (§3.2 rule 6) as
-// MIN(createdAt + quoteValidityDays, startDate - 2). The fallback recomputes the same formula from
-// `createdAt` for legacy rows where `validUntil` is NULL — the rows §3.2 rule 9 calls out as the
+// MAX(createdAt, MIN(createdAt + quoteValidityDays, startDate - 2)). The fallback runs the model's own
+// `computeValidUntil` from `createdAt` for legacy rows where `validUntil` is NULL — the rows §3.2 rule 9 calls out as the
 // forward-only safety net. Exported under `__test`.
 function resolveDevisDates(full, settings) {
   const createdAtIsoDate = bookingDayOf(full.createdAt) || localTodayIso();
   if (full.validUntil) return { createdAtIsoDate, validUntilIso: String(full.validUntil) };
-  const days = Number(settings && settings.quoteValidityDays) || 30;
-  let validUntilIso = addDaysToIsoDate(createdAtIsoDate, days) || '';
-  const startDateIso = String(full.startDate || '');
-  if (startDateIso && validUntilIso && validUntilIso > startDateIso) {
-    validUntilIso = addDaysToIsoDate(startDateIso, -2) || validUntilIso;
-  }
+  const validUntilIso = computeValidUntil({
+    createdAtIsoDate,
+    startDateIso: String(full.startDate || ''),
+    quoteValidityDays: settings ? settings.quoteValidityDays : undefined,
+  }) || '';
   return { createdAtIsoDate, validUntilIso };
 }
 
