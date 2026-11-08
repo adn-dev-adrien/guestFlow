@@ -119,6 +119,10 @@ complement unpaid, and the departure SAS *recalls* it and collects both together
    > end of stay collected apart (another date or another caisse flag, a « paiement unique », a 0 € arrival part) is never
    > re-dated nor cleared by the complement's mark. Tests: `deferred-card-settled-end-of-stay`,
    > `deferred-card-settled-together`, `reconciliation-deferred-settled-together`.
+   > **Reading of 2026-11-08 (audit R29, rules 24-27).** An end of stay at 0 € is settled with the arrival part (the paid
+   > card stays merged); the end of stay is never marked alone while the card holds it (409); an end of stay flipped by
+   > this mark leaves its single payment and the departure SAS's ownership, as its own mark does. The full matrix is
+   > rule 27. Test: `deferred-card-state-matrix`.
 9. **The DB split and the accounting stay untouched.** `complementAmount` and
    `endOfStayComplementAmount` remain two separate columns: the pricing engine recomputes
    `complementAmount` on every fiche save ([reservationsModel.js:959](../server/src/models/reservationsModel.js#L959)),
@@ -291,6 +295,81 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     verification pass 3, R1). Rule 22's V1 reading, stay 22281, D20 and the merged card's line-317 reading are unchanged. Tests:
     `deferral-refused-on-settled-end-of-stay` (server, arrival SAS included), `reconciliation-deferral-refused-settled-end-of-stay`
     (plugins/online-payment), client `complementDeferralAccess.settled-end-of-stay`, `FinanceSection.deferral-settled-end-of-stay`.
+
+24. **An end of stay at 0 € is settled with the arrival part** (audit R29-DB-1, 2026-11-08). The most common deferral has no
+    end-of-stay lines: the merged card holds the arrival complement alone. Its mark settles that one bucket, and the end
+    of stay, with nothing to collect and never settled, is trivially settled with it — as the block's `paid` already
+    reads a zero bucket. Rule 22's « settled together » therefore also holds when the arrival complement is settled and
+    the end of stay is 0 € and unsettled: the paid card stays « Complément de fin de séjour » (`checkoutComplement`),
+    as before rule 22, and so do the stored block and the stored summary (the amount filed at the end of stay). Rule 22's
+    first V1 version split it into « Complément d'arrivée » once paid: a credit reconciled on the merged receipt then
+    left « Rapproché » and came back as « Saisi, rien sur le compte » on the arrival receipt. Its mark, un-mark and caisse
+    switch still write the arrival columns only (`markCarriesEndOfStay` needs an end of stay above 0). Prod copy of
+    2026-10-22: stays 9, 11 and 22291 (marker 1, end of stay 0 €, arrival part paid, two in the caisse interne) show
+    their paid merged card again, as on f66f1673; no amount moves. Accepted chain: an end of stay billed after such a
+    mark, still due, splits the card (the arrival part paid on its own card, the end of stay due on its own) — the truth
+    on the books; a credit reconciled on the merged receipt before that bill is then shown on no receipt until the
+    operator re-allocates it. Tests: `deferred-card-state-matrix`, `reconciliation-deferred-end-of-stay-zero`
+    (plugins/online-payment).
+
+25. **The end of stay the merged card holds is never collected alone** (audit R29-RES-L1, 2026-11-08). While the card is
+    merged, its arrival part due and its end of stay above 0 € and not settled apart (`markCarriesEndOfStay`), a
+    `PATCH /payment` marking `endOfStayComplementPaid` or `endOfStayComplementPaidCash` without settling the arrival
+    complement in the same body (`complementPaid` or `complementPaidCash` true) answers 409
+    `END_OF_STAY_WITH_ARRIVAL_COMPLEMENT` « Complément de fin de séjour : à percevoir avec le complément d’arrivée. »,
+    nothing written, judged on the deferral sent with it (switched off in the same body, the two cards are apart and
+    the mark passes). The fiche draws no end-of-stay card in that state and « Tout solder » sends both marks, so only a
+    crafted request met it: collected alone, the end of stay and an arrival part marked later the same day read as
+    settled together, and the merged « Annuler » cleared both. An un-tick, an end of stay settled apart, an arrival part
+    already settled, and a stay without the marker pass. Test: `deferred-card-state-matrix`.
+
+26. **The merged card's end of stay is released like the explicit one** (audit R29-M-L1, 2026-11-08). When a mark,
+    un-mark or caisse switch of the merged card flips `endOfStayComplementPaid` (rule 8), it also dissolves any single
+    payment naming the end of stay (single-payment-from-the-fiche rule 2bis) and clears the departure SAS's ownership
+    marker `endOfStayComplementPaidAtDeparture` (recall-unpaid-arrival-complement-at-checkout rule 9bis), as the explicit
+    end-of-stay mark always did. A collection the departure SAS made and the fiche took back then re-made belongs to the
+    fiche: a re-opened departure SAS answering « pas maintenant » no longer un-pays it. Test: `deferred-card-state-matrix`.
+
+27. **The state matrix of the merged card** (audit R29, 2026-11-08). Every fix of rules 22-26 regressed a neighbour state,
+    so the whole matrix is written here and pinned row by row by `deferred-card-state-matrix`. « Settled together » =
+    arrival complement settled AND (end of stay 0 € and unsettled, rule 24, OR end of stay settled with the same paid
+    date, the same caisse flag, and a « paiement unique » naming both buckets or neither). A single payment is written,
+    never derived (single-payment-at-check-in): one naming the end of stay and not the arrival part is another
+    collection, even the same day. Checked-out stay, 20 € arrival part, 12 € end of stay:
+
+    | Marker | Arrival part | End of stay | Cards |
+    |---|---|---|---|
+    | 0 | any | any | own cards: « Complément d'arrivée » and/or « Complément de fin de séjour » |
+    | 1 | 0 € | due / settled | the end-of-stay card alone (stay 22281); a complement mark → 409 `NOTHING_TO_COLLECT` |
+    | 1 | due | 0 € | merged 20 € due |
+    | 1 | due | due | merged 32 € due (closed « Après le départ. » before the check-out, D20) |
+    | 1 | due | settled apart (books or caisse) | merged 20 € due + the end-of-stay card paid |
+    | 1 | paid (books or caisse) | 0 € | merged 20 € paid (rule 24) |
+    | 1 | paid | settled together | merged 32 € paid (« paiement unique » when a group names both) |
+    | 1 | paid | settled apart (another day, caisse flag or group) | two paid cards |
+    | 1 | paid | due (billed after the mark) | arrival part paid + end of stay due, two cards |
+
+    | Gesture on the state | Answer | Columns written | Cards after |
+    |---|---|---|---|
+    | merged, end of stay 0 €: mark / un-mark / caisse switch | 200 | arrival part only | merged 20 € paid / due / paid |
+    | merged, end of stay due: mark | 200 | both, same date and caisse | merged 32 € paid |
+    | settled together: « Annuler » / caisse switch | 200 | both (+ rule 26 releases) | merged 32 € due / paid |
+    | merged, end of stay due: « Tout solder » (both marks) | 200 | both | merged 32 € paid |
+    | merged, end of stay due: end of stay alone (books, caisse, or with `complementPaid: false`) | 409 (rule 25) | none | merged 32 € due |
+    | merged, end of stay due: deferral off + end of stay | 200 | end of stay | two cards |
+    | merged, end of stay settled apart: mark / its own un-tick | 200 | arrival part / end of stay | two paid / merged 32 € due |
+    | two cards: each mark or un-tick | 200 | its own bucket | as the new state reads |
+    | arrival 0 € (22281): complement mark | 409 `NOTHING_TO_COLLECT` | none | unchanged |
+    | reconciliation confirm on the merged receipt, end of stay 0 € | 201 | arrival part | merged paid, « Rapproché » |
+    | reconciliation confirm on the merged receipt, end of stay due | 201 | both | merged 32 € paid, « Rapproché » |
+    | reconciliation « Défaire » | 200 | what the confirmation wrote (both when settled together) | merged due |
+    | departure SAS settled both, fiche « Annuler » then mark | 200 | both, ownership marker cleared (rule 26) | merged 32 € paid |
+    | re-opened departure SAS « pas maintenant » after that | 200 | none of the fiche's collection | merged 32 € paid |
+    | deferral switched on over a settled end of stay | 409 `DEFERRAL_END_OF_STAY_SETTLED` (rule 23) | none | unchanged |
+
+    Two cards that become « settled together » (the arrival part paid apart, then the end of stay marked the same day
+    with the same caisse flag and no group) read as one merged paid card: the card shows what the columns say, and its
+    « Annuler » re-opens the 32 € it shows.
 
 **Edge cases (Part C) :**
 
@@ -506,6 +585,12 @@ another date or caisse flag keeps two cards; the block stays deferred settled to
 `plugins/online-payment/tests/reconciliation-deferred-settled-together.unit.test.js` — a credit confirmed on the merged
 receipt stays reconciled as one, « Défaire » clears both buckets. `reservations-controller-payment-cash` and
 `untick-with-open-refund` keep rule 8's « un-marking clears both » on a card settled together.
+
+Rules 24-27 (audit R29): `deferred-card-state-matrix.unit.test.js` — 42 cases: the cards of the 18 states of rule 27's first
+table, 19 gestures of its second (answer, the five payment columns, cards after), rule 25's code and wording and the
+R29-RES-L1 chain, the « paiement unique » naming one bucket or both (rule 27, probe p2 of R29-M-L1), and the departure SAS
+chain of rule 26 (probe p3). `plugins/online-payment/tests/reconciliation-deferred-end-of-stay-zero.unit.test.js` — the
+merged receipt at 0 € of end of stay stays « Rapproché » once confirmed, « Défaire » re-opens it (rule 24).
 
 ### Client tests (vitest)
 - [x] `ReservationSasDialog` departure: no `cleaning` page when `cleaning.included`; recap shows the

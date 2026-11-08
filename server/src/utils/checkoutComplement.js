@@ -17,6 +17,8 @@
 // already sold (§3.1 rule 3).
 const END_OF_STAY_CLEANING_LABEL = 'Ménage de fin de séjour';
 
+const { parseGroup } = require('./arrivalPaymentGroup');
+
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 function parseDetail(detail) {
@@ -33,15 +35,25 @@ const complementSettled = (row) => flag(row && row.complementPaid) || flag(row &
 const endOfStaySettled = (row) => flag(row && row.endOfStayComplementPaid) || flag(row && row.endOfStayComplementPaidCash);
 const day = (v) => String(v || '').slice(0, 10);
 
+// Rule 24 (audit R29-DB-1) — an end of stay with nothing to collect, never settled: trivially settled, as `paid` reads it.
+const nothingAtEndOfStay = (row) => round2(row.endOfStayComplementAmount) === 0 && !endOfStaySettled(row);
+
 /**
  * Rule 8 (audit R28 verification V1) — the arrival complement and the end of stay settled by ONE collection: both
  * paid, same date, same caisse flag. That is what the merged card's own mark writes, so the card stays merged.
+ * Rule 24 — at 0 € of end of stay, the merged card's mark settled the arrival part alone: still that one collection.
+ * Rule 27 — a « paiement unique » is written, never derived: one naming one bucket and not the other is another collection.
  */
 function settledTogether(row) {
   const r = row || {};
-  return complementSettled(r) && endOfStaySettled(r)
+  if (!complementSettled(r)) return false;
+  if (nothingAtEndOfStay(r)) return true;
+  const group = parseGroup(r.arrivalPaymentGroup);
+  const inGroup = (bucket) => Boolean(group && group.buckets.includes(bucket));
+  return endOfStaySettled(r)
     && day(r.complementPaidDate) === day(r.endOfStayComplementPaidDate)
-    && flag(r.complementPaidCash) === flag(r.endOfStayComplementPaidCash);
+    && flag(r.complementPaidCash) === flag(r.endOfStayComplementPaidCash)
+    && inGroup('complement') === inGroup('endOfStayComplement');
 }
 
 /** Rule 22 — an end of stay collected on its own (not with the arrival part): it keeps its own card and columns. */
@@ -49,8 +61,8 @@ const endOfStaySettledApart = (row) => endOfStaySettled(row) && !settledTogether
 
 /**
  * Rule 6 as every reader applies it (§3.2 edge cases, audit R28-C-M1 and its verification V1): the arrival complement
- * is merged into the end of stay while it is still to collect, or once both were settled together. Paid apart, or at
- * 0 €, the deferral marker merges nothing.
+ * is merged into the end of stay while it is still to collect, or once both were settled together (rule 24: an end of
+ * stay at 0 € included). Paid apart, or an arrival part at 0 €, the deferral marker merges nothing.
  * @param {object} row            carries the deferral marker and the complement / end-of-stay payment columns.
  * @param {number} [arrivalAmount] the arrival complement when it differs from the stored column (live quote).
  */
@@ -73,9 +85,25 @@ function mergedEndOfStayAmount(row, endOfStayAmount) {
 /** Whether a mark, un-mark or caisse switch of the arrival complement also writes the end-of-stay columns (rules 8, 22). */
 const markCarriesEndOfStay = (row) => isComplementDeferred(row) && mergedEndOfStayAmount(row) > 0;
 
+/**
+ * Rule 25 (audit R29-RES-L1) — the 409 answered to an end-of-stay mark (books or caisse) sent without the arrival
+ * complement while the merged card holds both and its arrival part is due, or null. Collected alone, the end of stay and a
+ * complement marked later the same day would read as settled together, and the merged card's « Annuler » would clear both.
+ * @param {object} row      the stored reservation row.
+ * @param {object} body     the PATCH body, flags already normalised to booleans.
+ */
+function endOfStayAloneRefusal(row, body) {
+  const b = body || {};
+  if (b.endOfStayComplementPaid !== true && b.endOfStayComplementPaidCash !== true) return null;
+  if (complementSettled(row) || b.complementPaid === true || b.complementPaidCash === true || !markCarriesEndOfStay(row)) return null;
+  return { status: 409, body: { error: END_OF_STAY_WITH_ARRIVAL_COMPLEMENT_MESSAGE, code: END_OF_STAY_WITH_ARRIVAL_COMPLEMENT } };
+}
+
 // Rule 23 (audit R28 verification N2) — the deferral is never switched on over an end of stay already collected.
 const DEFERRAL_END_OF_STAY_SETTLED = 'DEFERRAL_END_OF_STAY_SETTLED';
 const DEFERRAL_END_OF_STAY_SETTLED_MESSAGE = 'Complément de fin de séjour déjà encaissé.';
+const END_OF_STAY_WITH_ARRIVAL_COMPLEMENT = 'END_OF_STAY_WITH_ARRIVAL_COMPLEMENT';
+const END_OF_STAY_WITH_ARRIVAL_COMPLEMENT_MESSAGE = 'Complément de fin de séjour : à percevoir avec le complément d’arrivée.';
 
 /**
  * Rule 23 — the 409 answered to a switch of `complementDeferredToCheckout` from 0 to 1 while the end of stay is settled
@@ -171,7 +199,8 @@ function buildLiveCheckoutComplement({ row, quote } = {}) {
 
 module.exports = {
   buildCheckoutComplement, buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay,
-  endOfStaySettledApart, deferralRefusal,
+  endOfStaySettledApart, deferralRefusal, endOfStayAloneRefusal,
   DEFERRAL_END_OF_STAY_SETTLED, DEFERRAL_END_OF_STAY_SETTLED_MESSAGE,
+  END_OF_STAY_WITH_ARRIVAL_COMPLEMENT, END_OF_STAY_WITH_ARRIVAL_COMPLEMENT_MESSAGE,
   END_OF_STAY_CLEANING_LABEL,
 };
