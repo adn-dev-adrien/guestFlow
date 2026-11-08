@@ -372,6 +372,15 @@ alors que c'est là qu'il prépare le séjour et qu'il annonce le montant au cli
     with the same caisse flag and no group) read as one merged paid card: the card shows what the columns say, and its
     « Annuler » re-opens the 32 € it shows.
 
+28. **A refused switch is shown, never drawn as done** (audit R30-C-L2, 2026-11-08). « Percevoir en fin de séjour »
+    (and switching it off) sends `PATCH /payment` first; the fiche's deferral, and rule 15's re-opened complement, move
+    only once the server took it, then the fiche re-reads its payment columns. A refusal (409 `REFUND_BLOCKS_UNTICK` of a
+    recorded refund, 409 `DEFERRAL_END_OF_STAY_SETTLED` from a stale tab, a network error) shows the server's wording as an
+    error toast and re-reads the fiche: the button keeps « Percevoir en fin de séjour », the ledger card is unchanged,
+    « Enregistrer » stays off. It used to flip the form first and leave the 409 as an uncaught error: « Perçu en fin de
+    séjour ✓ » over a card still « Complément d'arrivée · Perçu », a dirty fiche whose save changed nothing. Test: client
+    `FinanceSection.silent-refusals`.
+
 **Edge cases (Part C) :**
 
 - Complément d'arrivée **déjà encaissé** → contrôle affiché quand même ; l'activer le remet à
@@ -587,11 +596,21 @@ another date or caisse flag keeps two cards; the block stays deferred settled to
 receipt stays reconciled as one, « Défaire » clears both buckets. `reservations-controller-payment-cash` and
 `untick-with-open-refund` keep rule 8's « un-marking clears both » on a card settled together.
 
-Rules 24-27 (audit R29): `deferred-card-state-matrix.unit.test.js` — 42 cases: the cards of the 18 states of rule 27's first
+Rules 24-27 (audit R29): `deferred-card-state-matrix.unit.test.js` — 45 cases: the cards of the 18 states of rule 27's first
 table, 19 gestures of its second (answer, the five payment columns, cards after), rule 25's code and wording and the
-R29-RES-L1 chain, the « paiement unique » naming one bucket or both (rule 27, probe p2 of R29-M-L1), and the departure SAS
-chain of rule 26 (probe p3). `plugins/online-payment/tests/reconciliation-deferred-end-of-stay-zero.unit.test.js` — the
+R29-RES-L1 chain, the « paiement unique » naming one bucket or both (rule 27, probe p2 of R29-M-L1), the departure SAS
+chain of rule 26 (probe p3), and the three R29 verification cases (count corrected 2026-11-08, audit R30-DB-L1 / R30-S1):
+a live end of stay added after a merged mark at 0 € draws its own due card (rule 24, N1), the caisse « Tout solder » on a
+due merged card settles both in the caisse (rule 25, N3), a single payment naming the arrival part alone keeps the end of
+stay on its own card (rule 27, N3). `plugins/online-payment/tests/reconciliation-deferred-end-of-stay-zero.unit.test.js` — the
 merged receipt at 0 € of end of stay stays « Rapproché » once confirmed, « Défaire » re-opens it (rule 24).
+
+Rule 28 (audit R30-C-L2): client `FinanceSection.silent-refusals.test.jsx` — 4 cases: a refused deferral shows the
+server's wording, leaves the form as stored and re-reads the fiche; an accepted one moves the form after the PATCH; a
+refused « Reporter au départ » on a note and a refused note settlement (dialog kept open) show theirs (mid-stay-notes
+rule 24). The live summary panel's filing (complement-buckets-by-moment rule 4, reading R30-C-L1) is pinned by
+`live-summary-split-filing.unit.test.js`, the Dashboard's « reporté » (R30-M-L1) by
+`operational-collection-collected-deferral.unit.test.js`.
 
 ### Client tests (vitest)
 - [x] `ReservationSasDialog` departure: no `cleaning` page when `cleaning.included`; recap shows the

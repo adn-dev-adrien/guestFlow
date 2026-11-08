@@ -15,9 +15,10 @@ const { addDaysToIsoDate } = require('./devisHelpers');
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * `validUntil` = MIN(createdAt + quoteValidityDays, startDate − 2 days), per §3.2 rule 6 of
- * specs/devis-pdf-and-tourist-tax-fixes.md. Both inputs are ISO `YYYY-MM-DD`; output the same.
- * Falls back to the un-capped value when `startDate` isn't a valid ISO date.
+ * `validUntil` = MAX(createdAt, MIN(createdAt + quoteValidityDays, startDate − 2 days)), per §3.2
+ * rule 6 of specs/devis-pdf-and-tourist-tax-fixes.md (the floor: rule 6 reading R30-RES-M1). Both
+ * inputs are ISO `YYYY-MM-DD`; output the same. Falls back to the un-capped value when `startDate`
+ * isn't a valid ISO date.
  */
 function computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) {
   // Honour `quoteValidityDays = 0` as a deliberate "same day" choice (spec §3 edge case).
@@ -28,7 +29,9 @@ function computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }
   if (!raw) return null;
   if (startDateIso && ISO_DATE.test(startDateIso)) {
     const cap = addDaysToIsoDate(startDateIso, -2);
-    if (cap && raw > cap) return cap;
+    // A stay starting within two days caps before the issue day: such a quote was born expired and
+    // « Prolonger » re-issued it expired again. It stands, and is due, on the day it is issued.
+    if (cap && raw > cap) return cap < createdAtIsoDate ? createdAtIsoDate : cap;
   }
   return raw;
 }

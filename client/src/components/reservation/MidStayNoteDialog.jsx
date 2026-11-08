@@ -106,7 +106,14 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
 
   const run = async (fn) => {
     setBusy(true);
-    try { await fn(); onClose(); } finally { setBusy(false); }
+    try {
+      await fn();
+      onClose();
+    } catch {
+      // Refused: the fiche already shows why; the dialog stays open on what was ticked.
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Same server-computed grouping as the fiche's Options section (specs/option-categories.md):

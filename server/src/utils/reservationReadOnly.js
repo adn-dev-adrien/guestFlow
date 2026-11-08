@@ -47,4 +47,18 @@ function guardReadOnly(database, options, idOf = (req) => req.params.id) {
   return (req, res, next) => (refuseIfReadOnly(res, database, idOf(req), options) ? undefined : next());
 }
 
-module.exports = { refusalForKind, readOnlyRefusal, refuseIfReadOnly, guardReadOnly };
+/**
+ * Route middleware: a devis id on a stay write answers what GET /reservations/:id answers, 404 « Réservation
+ * non trouvée » (specs/reservations-backend-mvc.md rule 25). A devis is saved, paid and deleted through
+ * /devis/:id; the stay pipeline would re-price it, mark it paid, or rewrite a converted quote's frozen
+ * figures. An unknown id falls through to the handler's own 404.
+ */
+function guardNotDevis(database, idOf = (req) => req.params.id) {
+  return (req, res, next) => {
+    const row = database.prepare('SELECT kind FROM reservations WHERE id = ?').get(Number(idOf(req)));
+    if (row && row.kind === 'devis') return res.status(404).json({ error: 'Réservation non trouvée' });
+    return next();
+  };
+}
+
+module.exports = { refusalForKind, readOnlyRefusal, refuseIfReadOnly, guardReadOnly, guardNotDevis };

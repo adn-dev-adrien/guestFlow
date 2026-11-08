@@ -122,6 +122,11 @@ are shown as plain information, never as an alert.
 - Complement deferred **and** already paid → `buildCheckoutComplement` drops `deferred`
   ([checkoutComplement.js:43-45](../server/src/utils/checkoutComplement.js#L43-L45)); nothing to
   collect, no alert on either list.
+  *Reading 2026-11-08 (audit R30-M-L1):* since defer rule 24 the block keeps `deferred` over a
+  complement collected at a 0 € end of stay (the merged paid card), so `buildOperationalCollection`
+  flags a deferral only while the arrival part is still due (`arrivalDue > 0 && deferred`): the
+  arrivals cell reads « Complément OK », never « Complément reporté » for money already taken.
+  Test: `tests/operational-collection-collected-deferral.unit.test.js`.
 - Arrival complement unpaid, not deferred, and the row is a **departure** → red on the departure list
   too (rule 6): the money is still owed and the guest is leaving. Last chance to collect.
 - `complementAmount = 0` (no extras, tax in the balance) → the complement bucket is omitted from the
@@ -284,6 +289,10 @@ neutral detail → `text.secondary`, regular weight. Replaces today's binary gre
     `amountDue = endOfStay + unpaid arrival part`
   - departure: arrival complement unpaid & not deferred → counted in `departure.amountDue`
   - `parts` omits zero-amount buckets and a `depositDisabled` deposit
+- [x] `tests/operational-collection-collected-deferral.unit.test.js` (2026-11-08, audit R30-M-L1) —
+  **4 tests**: a deferred complement collected (books, caisse) at a 0 € end of stay reads « OK » on
+  both lists, not « reporté »; still due (alone or with an end of stay) it stays « reporté » with no
+  arrival alert; the raw-marker fallback without a block reads the same.
 - [x] `tests/reservation-settlement.unit.test.js` — **10 tests**: the extracted `isSettled` /
   `remainingToPay` / `bucketStates` / `platformCommission` keep their current results
 - [x] `tests/finance-model.unit.test.js` — untouched, still 38/38 green after the extraction

@@ -103,6 +103,7 @@ const { withStoredLineContribs } = require('../utils/storedLineContribs');
 const {
   buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
 } = require('../utils/checkoutComplement');
+const { splitComplementBuckets } = require('../utils/complementBuckets');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
 const { buildLedger } = require('../utils/reservationLedger');
@@ -1373,6 +1374,16 @@ async function calculatePrice(req, res) {
   if (reservationId > 0) {
     const row = model.getRow(reservationId);
     if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
+    // specs/complement-buckets-by-moment.md rule 4 (reading R30-C-L1) — the live panel files the complement where the
+    // merged card does: the block's row-aware `deferred`, never the raw marker.
+    if (row && quote.complementSplit) {
+      quote.complementSplit = splitComplementBuckets({
+        complementAmount: quote.complementAmount,
+        midStaySettledTotal: quote.complementSplit.duringStay,
+        endOfStayComplementTotal: quote.endOfStayComplementTotal,
+        filedAtEndOfStay: quote.checkoutComplement.deferred,
+      });
+    }
     // specs/reservation-refunds.md rule 34 — the trop-perçu the fiche shows, live.
     if (row) Object.assign(quote, liveOverpayment(reservationId, engineInput));
   }

@@ -376,13 +376,21 @@ export default function FinanceSection() {
       });
       if (!ok) return;
     }
+    const reopens = next && deferAccess.needsConfirm;
+    // R30-C-L2 — the fiche moves only once the server took the switch: a refusal is shown and the stored state re-read.
+    try {
+      await api.markPayment(editingReservationId, {
+        complementDeferredToCheckout: next,
+        ...(reopens ? { complementPaid: false, complementPaidCash: false } : {}),
+      });
+    } catch (err) {
+      showError(err?.message || 'Report impossible.');
+      await reloadReservationFinance();
+      return;
+    }
     updateForm({
       complementDeferredToCheckout: next,
-      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false, complementPaidDate: '' } : {}),
-    });
-    await api.markPayment(editingReservationId, {
-      complementDeferredToCheckout: next,
-      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false } : {}),
+      ...(reopens ? { complementPaid: false, complementPaidCash: false, complementPaidDate: '' } : {}),
     });
     await reloadReservationFinance();
   };
@@ -458,9 +466,27 @@ export default function FinanceSection() {
       message: 'Ses prestations rejoignent le complément de fin de séjour, à encaisser en une seule fois. La note disparaît du registre.',
     });
     if (!ok) return;
-    await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
+    try {
+      await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
+    } catch (err) {
+      showError(err?.message || 'Report impossible.');
+    }
     await reloadReservationFinance();
   };
+  // The note's settlement runs after the fiche's save, which does not wait for it: the dialog waits here, so a refusal
+  // keeps it open with the server's wording instead of closing on an unseen error.
+  const saveThenSettle = (action) => new Promise((resolve, reject) => {
+    Promise.resolve(saveThenRun(async () => {
+      try {
+        await action();
+        resolve();
+      } catch (err) {
+        showError(err?.message || 'Encaissement impossible.');
+        await reloadReservationFinance();
+        reject(err);
+      }
+    })).then((saved) => { if (saved !== true) resolve(); }, reject);
+  });
 
   // ── Ledger actions (rules 8-14, 19, 25-26, 28) ─────────────────────────────
   const rows = ledger?.rows || [];
@@ -1060,7 +1086,7 @@ export default function FinanceSection() {
             open={Boolean(midStayNoteOpen)}
             onClose={() => setMidStayNoteOpen(false)}
             pendingLines={pendingMidStayLines}
-            onSettle={({ checkedKeys, opening }, cash) => saveThenRun(async () => {
+            onSettle={({ checkedKeys, opening }, cash) => saveThenSettle(async () => {
               await api.markPayment(editingReservationId, {
                 settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
               });
