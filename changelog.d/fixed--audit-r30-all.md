@@ -1,0 +1,5 @@
+- Devis: a quote for a stay starting today or tomorrow is valid, and due, on the day it is issued; it was born expired, its PDF asked for payment before its own date, and « Prolonger » left it expired again. Legacy PDFs without a stored validity use the same rule.
+- Reservations: a devis id sent to the stay save, payment, arrival-payment, installment removal or platform penalty routes answers 404 « Réservation non trouvée » and writes nothing.
+- Fiche: the live summary panel files a deferred complement collected with the end of stay (or at a 0 € end of stay) under « Complément de fin de séjour », as its ledger card does.
+- Fiche: a refused « Percevoir en fin de séjour », « Reporter au départ » on a note or note settlement shows the server's reason and leaves the fiche as stored; the note dialog stays open.
+- Dashboard: a deferred arrival complement already collected reads « Complément OK », no longer « Complément reporté ».
