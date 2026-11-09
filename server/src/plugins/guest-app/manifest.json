@@ -14,7 +14,7 @@
     "Le Studio du livret (/studio)"
   ],
   "requires": [],
-  "guestflow": ">=3.10.0 <4.0.0",
+  "guestflow": ">=3.10.0",
   "sdk": "^2.26.0",
   "changelog": {
     "1.0.0": [

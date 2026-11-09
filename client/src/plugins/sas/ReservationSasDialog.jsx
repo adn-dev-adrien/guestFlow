@@ -402,6 +402,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     setBreakfastSold(false); setBreakfastMornings([]); setCateringWanted(null); setCateringUnits({}); setCateringGrids({}); setCateringPicked({});
     setPreservedArrival([]); setStoredKeys([]);
     setArrivalPayMode('defer'); setDeparturePayMode(null); setSplitSettlement(false); setStayPayMode('defer');
+    // specs/mixed-method-payments.md rule 32 (audit R34-C-M1) — the dialog stays mounted between stays: each opening starts
+    // with one method, never the previous stay's lines.
+    setDepartureTenderOpen(false); setDepartureTenders(null); setArrivalTenderOpen(false); setArrivalTenders(null);
     setPluginStepData({}); setPluginStepValues({}); setCommitWarning(null); setOffered(new Set());
     // The mode is part of the QUESTION, not just of the rendering (specs/sas-departure-mode-param.md):
     // the server resolves « le ménage est-il déjà vendu ? » differently at check-in (where the SAS may
@@ -787,6 +790,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     resetKey: `${open ? 1 : 0}:${reservationId}:${mode}`,
   });
   const recap = preview.recap;
+  // specs/mixed-method-payments.md rule 45 — reception never splits; the departure lines only count where the recap has
+  // something to collect (audit R34-C-M1).
+  const canSplitPayment = data ? data.canSplitPayment !== false : false;
+  const departureSplitActive = mode === 'departure' && canSplitPayment && departureTenderOpen && Boolean(recap && recap.settleable);
   // specs/mixed-method-payments.md rule 32 — the arrival lines only stand for the single payment (one amount asked).
   const arrivalSplitActive = mode === 'arrival' && arrivalTenderOpen && Boolean(recap && recap.unifiable)
     && activeKeys.includes('stayPayment') && !splitSettlement;
@@ -935,10 +942,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           ...departureDraft,
           // specs/sas-recap-payment-buttons.md — settlement mode → mark every positive complement paid
           // (end-of-stay + recalled arrival); 'cash' = caisse interne. No « defer » at check-out.
-          complementsSettled: departureTenderOpen || departurePayMode === 'card' || departurePayMode === 'cash',
-          complementsPaidCash: !departureTenderOpen && departurePayMode === 'cash',
+          complementsSettled: departureSplitActive || departurePayMode === 'card' || departurePayMode === 'cash',
+          complementsPaidCash: !departureSplitActive && departurePayMode === 'cash',
           displayedDepartureTotal: recap ? recap.grandTotal : undefined,
-          ...(departureTenderOpen ? {
+          ...(departureSplitActive ? {
             complementsTenders: departureTenders ? departureTenders.tenders : [],
             ...(departureTenders && departureTenders.shortfall ? { complementsShortfall: departureTenders.shortfall } : {}),
           } : {}),
@@ -1115,11 +1122,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               </Typography>
             )}
             <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
-            {!departureTenderOpen && <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />}
-            {departureTenderOpen && (
+            {!departureSplitActive && <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />}
+            {departureSplitActive && (
               <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} autoFocus />
             )}
-            <Button
+            {/* specs/mixed-method-payments.md rule 45 — reception records the check-out with one method. */}
+            {canSplitPayment && <Button
               size="small"
               variant="text"
               data-split-toggle="departure"
@@ -1127,7 +1135,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               onClick={() => { setDepartureTenderOpen((v) => !v); setDepartureTenders(null); }}
             >
               {departureTenderOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
-            </Button>
+            </Button>}
           </>
         )}
         {cautionReturned === true && <Typography variant="body2" color="success.main">Caution rendue.</Typography>}
@@ -1903,8 +1911,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         // Rule 20 / rule 19 of the departure spec — never commit against a total the operator has not seen.
         const waiting = !preview.fresh;
         // specs/mixed-method-payments.md §6 — with the lines open, the button names what it collects.
-        const tenders = mode === 'departure' ? (departureTenderOpen ? departureTenders : null) : (arrivalSplitActive ? arrivalTenders : null);
-        const splitting = mode === 'departure' ? departureTenderOpen : arrivalSplitActive;
+        const tenders = mode === 'departure' ? (departureSplitActive ? departureTenders : null) : (arrivalSplitActive ? arrivalTenders : null);
+        const splitting = mode === 'departure' ? departureSplitActive : arrivalSplitActive;
         const splitDue = recap ? Number(mode === 'departure' ? recap.grandTotal : recap.totalAtArrival) || 0 : 0;
         const splitLabel = TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
         return <>{quit}

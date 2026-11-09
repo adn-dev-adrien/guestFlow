@@ -5,12 +5,12 @@
  *   sources.registry(id) → [{ version, sha256, size, manifest }]   the verified index (rule 6)
  *   sources.bundled(id)  → { manifest, sha256 } | null              the release's own copy (P24)
  *
- * A candidate is compatible when the running core satisfies `guestflow` and the SDK satisfies `sdk`
- * (rule 12); its `requires` are checked when it is installed, because a missing requirement is not
+ * A candidate is compatible when the running core is at or above the floor of `guestflow` and the SDK
+ * satisfies `sdk` (rules 12, 62); its `requires` are checked when it is installed, because a missing requirement is not
  * a refusal but a proposal (« installer aussi … », same confirmation).
  */
 
-const { satisfies, compare, highest, floorLabel, rangeNeed, isVersion, boundedRange } = require('./semverRange');
+const { satisfies, compare, highest, floorLabel, rangeNeed, isVersion, coreFloor } = require('./semverRange');
 const { cycleLabel } = require('./pluginGraph');
 
 // A development tree reads `0.0.0-dev` (utils/appVersion.js): it runs whatever its sources are.
@@ -46,14 +46,14 @@ function missingHostImports(manifest, hostExports) {
 
 /** The refusal of a manifest's ranges, or null when the running core and SDK satisfy them. */
 function rangeRefusal(manifest, { coreVersion, sdkVersion, hostExports = null }) {
-  // Rule 34 — an open `guestflow` range stops at the next major of its floor.
-  if (coreVersion !== DEV_CORE && !satisfies(coreVersion, boundedRange(manifest.guestflow))) {
-    const floor = floorLabel(manifest.guestflow);
-    const minimum = floor && floor.split('.').length === 2 ? `${floor}.0` : floor;
-    if (minimum && isVersion(coreVersion) && isVersion(minimum) && compare(coreVersion, minimum) < 0) {
-      return { code: 'CORE_TOO_OLD', message: `Nécessite GuestFlow ${floor} ou plus récent.` };
+  // Rule 62 (D24) — `guestflow` is a floor: a core above it runs the package while the SDK range holds,
+  // whatever ceiling a published manifest wrote.
+  if (coreVersion !== DEV_CORE) {
+    const floor = coreFloor(manifest.guestflow);
+    if (!floor || !isVersion(coreVersion)) return { code: 'CORE_INCOMPATIBLE', message: MESSAGES.CORE_INCOMPATIBLE };
+    if (compare(coreVersion, floor) < 0) {
+      return { code: 'CORE_TOO_OLD', message: `Nécessite GuestFlow ${floorLabel(manifest.guestflow)} ou plus récent.` };
     }
-    return { code: 'CORE_INCOMPATIBLE', message: MESSAGES.CORE_INCOMPATIBLE };
   }
   if (!satisfies(sdkVersion, manifest.sdk)) return { code: 'SDK_INCOMPATIBLE', message: MESSAGES.CORE_INCOMPATIBLE };
   // Built for a newer app: it needs a name this app does not give (rule 33) — the same refusal as a

@@ -658,7 +658,12 @@ export default function FinanceSection() {
   const renderSplit = (row) => {
     const split = row.split;
     if (!split || !Array.isArray(split.settlements) || split.settlements.length === 0) return null;
-    const open = splitPanel && splitPanel.rowKey === row.key ? splitPanel : null;
+    // Audit R34-C-L1 — a panel left open on a settlement or a reste the row no longer has (undone meanwhile) is closed.
+    const pointed = splitPanel && splitPanel.rowKey === row.key ? splitPanel : null;
+    const stillThere = pointed && (pointed.kind === 'modify'
+      ? split.settlements.some((s) => s.id === pointed.settlementId && s.edit)
+      : (split.remainders || []).some((r) => `${r.targetKind}:${r.targetKey}` === pointed.target));
+    const open = stillThere ? pointed : null;
     return (
       <Box sx={{ mt: 0.5, display: 'grid', gap: 1 }} data-split-row={row.key}>
         {split.settlements.map((s) => (
@@ -675,7 +680,7 @@ export default function FinanceSection() {
               <PaymentMarkForm
                 row={{ key: row.key, action: {} }}
                 mode="modify"
-                split={{ dueCents: s.edit.dueCents, methods: split.methods }}
+                split={{ dueCents: s.edit.dueCents, methods: split.methods, whole: s.edit.whole, noCaisse: s.edit.noCaisse }}
                 initialTenders={s.edit.tenders}
                 initialShortfallKind={s.edit.shortfallKind}
                 initialDate={s.paidDate}

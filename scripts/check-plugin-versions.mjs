@@ -16,7 +16,14 @@
  *                                                      # The published package is only compared, never
  *                                                      # shipped again (audit r2 N4)
  *
- * Every run but `--built` also checks that the host module list only grows (rule 33), that the
+ *   node scripts/check-plugin-versions.mjs --core-version X.Y.Z
+ *                                                      # the release skill's pre-flight, before the bump:
+ *                                                      # the shipped manifests judged against the version
+ *                                                      # about to be released (rule 62)
+ *
+ * Every run but `--built` also checks that every shipped manifest admits the core it ships with (the
+ * root package.json version, or `--core-version`) and the SDK of `sdk/version.js` (rule 62, D24), that
+ * the host module list only grows (rule 33), that the
  * core modules a server plugin reaches through `coreModule()` lose nothing unless the SDK's major
  * version moves (rule 35), and that the `requires` of the shipped manifests form a sound graph:
  * every requirement is shipped, at a version its range accepts, with no cycle
@@ -141,6 +148,26 @@ export function requirementViolations(manifests) {
   return out;
 }
 
+/**
+ * Rule 62 (D24) — the shipped manifests (id → manifest) against the core and SDK they ship with: a
+ * `guestflow` range that is not a floor, a floor above the core, an `sdk` range the SDK does not satisfy.
+ * The same reading as the loader's (server/src/utils/pluginOffers.js rangeRefusal), without its
+ * dependencies, so a release whose own plugins would be refused at boot stops here. → ['message', …]
+ */
+export function coreRangeViolations(manifests, { coreVersion, sdkVersion }) {
+  const out = [];
+  for (const id of Object.keys(manifests).sort()) {
+    const { guestflow, sdk } = manifests[id];
+    const floor = String(guestflow || '').trim().match(/^>=(\d+\.\d+\.\d+)$/);
+    if (!floor) out.push(`${id}: "guestflow" ${guestflow} is not a floor (">=X.Y.Z")`);
+    else if (satisfiesSimple(coreVersion, guestflow) !== true) out.push(`${id} needs GuestFlow >=${floor[1]}, the core is ${coreVersion}`);
+    const sdkOk = satisfiesSimple(sdkVersion, sdk);
+    if (sdkOk === null) out.push(`${id}: "sdk" ${sdk} is a range this check does not read`);
+    else if (!sdkOk) out.push(`${id}: "sdk" ${sdk} refuses SDK ${sdkVersion}`);
+  }
+  return out;
+}
+
 const sdkVersionOf = (source) => ((String(source || '').match(/SDK_VERSION\s*=\s*'([^']+)'/) || [])[1] || null);
 
 // id → { version, contentHash } of the `.tgz` packages in `dir` (their manifest only).
@@ -215,6 +242,16 @@ function main() {
   if (unsound.length) {
     unsound.forEach((message) => process.stderr.write(`✗ ${message}\n`));
     process.stderr.write('\nFix the `requires` of the manifest(s) above (specs/plugin-dependencies.md rule 16).\n');
+    return 1;
+  }
+  const readOr = (file) => { try { return fs.readFileSync(path.join(ROOT, file), 'utf8'); } catch { return null; } };
+  const coreVersion = at('--core-version') || (JSON.parse(readOr('package.json') || '{}').version ?? null);
+  const sdkVersion = sdkVersionOf(readOr(SDK_VERSION_FILE));
+  const refused = coreRangeViolations(shipped, { coreVersion, sdkVersion });
+  if (refused.length) {
+    refused.forEach((message) => process.stderr.write(`✗ ${message}\n`));
+    process.stderr.write(`\nGuestFlow ${coreVersion} (SDK ${sdkVersion}) would refuse these bundled plugins at boot: fix their ranges in a\n`
+      + 'pull request (specs/plugins-phase-4-registry.md rule 62).\n');
     return 1;
   }
   const base = at('--base') || previousTag();

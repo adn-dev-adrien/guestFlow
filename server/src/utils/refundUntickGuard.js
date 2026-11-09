@@ -27,12 +27,13 @@ function projectedSplit(nextRow) {
  */
 function untickRefusal(row, changes, refunds) {
   const book = (refunds || []).filter((refund) => !isOffBooks(refund.method) && !isRetainedDeposit(refund.method));
+  // Nothing refunded on the books: nothing to protect (rule 52 reading « nothing refunded = as before »).
+  if (book.length === 0) return null;
   const before = comptaCollected({ ...row, refundsBookTtc: 0 });
-  // specs/mixed-method-payments.md rule 13 — a payment taken back takes its settlement with it: what that split
-  // kept off the books is no longer subtracted from what stays collected. Only ITS settlements go: the other
-  // split payments of the stay keep their deduction.
-  const unpaying = Object.entries(changes || {}).some(([key, value]) => /Paid$/.test(key) && !value && Number(row[key] || 0) === 1);
-  const splitAfter = unpaying ? projectedSplit({ ...row, ...changes }) : {};
+  // specs/mixed-method-payments.md rules 13, 42 — the split aggregates are read for the state the gesture writes: a
+  // payment taken back takes its settlement with it (only ITS settlements: the other split payments of the stay keep
+  // their deduction), and an amount that moves is read at its new amount (rule 39).
+  const splitAfter = projectedSplit({ ...row, ...changes });
   const after = comptaCollected({ ...row, ...changes, ...splitAfter, refundsBookTtc: 0 });
   if (after >= before) return null;
   let shortfall = round2(book.reduce((sum, refund) => sum + Number(refund.totalTtc || 0), 0) - after);

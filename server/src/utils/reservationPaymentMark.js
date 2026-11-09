@@ -51,7 +51,9 @@ function takeBackRefusal(reservationId, { flags = [], installmentCents = 0 } = {
   const changes = Object.fromEntries(flags.map((flag) => [flag, 0]));
   if (installmentCents > 0) changes.installmentsPaidAmount = (Math.round(Number(row.installmentsPaidAmount || 0) * 100) - installmentCents) / 100;
   const { untickRefusal } = require('./refundUntickGuard');
-  return untickRefusal(row, changes, require('../models/refundsModel').listByReservation(Number(reservationId)));
+  return untickRefusal(row, changes, require('../models/refundsModel').listByReservation(Number(reservationId)))
+    // specs/mixed-method-payments.md rule 43 — nor a split payment matched at the bank.
+    || require('./paymentSettlementService').takeBackReconciledRefusal(row, changes);
 }
 
 module.exports = { applyPaymentMark, computePlatformCommission, takeBackRefusal };

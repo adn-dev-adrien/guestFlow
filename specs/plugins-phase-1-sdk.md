@@ -540,13 +540,13 @@ Optional: a plugin that declares nothing reads « Actif ».
 
 43. *(Added 2026-11-05, specs/guest-app.md rule 2, SDK 2.26.0.)* **`coreModule('stayWindow')` and
     `coreModule('encryption')`.** The stay window leaves `gate-access` for `utils/stayWindow.js`, so the guest app reads
-    it without that plugin; `gate-access` 1.3.3 and `guest-app` 1.0.0 ask for `sdk ^2.26.0`. `encryption` holds the
+    it without that plugin; `gate-access` 1.3.5 and `guest-app` 1.0.0 ask for `sdk ^2.26.0`. `encryption` holds the
     lodging's wifi password at rest. (The guest app's limiters, first added to `coreModule('rateLimiters')`, live in the
     plugin since 2026-11-09: the core keeps only generic extension points.) A MINOR bump (modules and names added to `coreModules.json`, recorded under 2.26.0 in `coreModuleHistory.json`). Tests:
     `stay-window.unit.test.js` (the moved gate-window suite, its assertions unchanged).
 44. *(Added 2026-11-05, specs/guest-app.md rules 23-25, SDK 2.26.0.)* **`coreModule('publicCatalogProjection')`,
     `coreModule('midStayExtrasWindow')` and three `pricing` names.** `toPublicOption` / `toPublicResource` and their
-    helpers leave `website-booking` for `utils/publicCatalogProjection.js` (website-booking 1.8.13 re-exports them
+    helpers leave `website-booking` for `utils/publicCatalogProjection.js` (website-booking 1.8.14 re-exports them
     unchanged and asks for `^2.26.0`); `pricing` adds `applyFreeUnitsToLine`, `getApplicableOptions`,
     `getApplicableResources`, so the guest app's shop reads the catalogue the engine prices. Tests:
     `guest-app-sellable`, `guest-app-shop` and every website-booking projection suite.

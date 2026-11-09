@@ -349,6 +349,8 @@ function getSas(req, res) {
     // arrivalPayment) or are door money by nature (arrivalComplement, upsell prices).
     reservation: isReceptionOnly(req.user) ? toReceptionReservationView(reservation) : reservation,
     receptionLock,
+    // specs/mixed-method-payments.md rule 45 — « Plusieurs moyens » is the admin's: reception records one method.
+    canSplitPayment: !isReceptionOnly(req.user),
     portalCode: String(settings.portalCode || '').trim(),
     // What live plugin modules add to the SAS, by plugin id (specs/plugins-phase-1-sdk.md rule 17):
     // e.g. `gate-access` says only whether there is a key to show — the step reads the code and its
@@ -521,6 +523,11 @@ function takeBackAnswer(req, takeBack) {
 
 const settlementService = sdk.coreModule('paymentSettlementService');
 
+// The buckets of `names` still to collect on the stay: what a split of the SAS would pay (mixed-method-payments rules 43-44).
+const unpaidBuckets = (row, names) => names.filter((b) => Number(row[`${b}Amount`] || 0) > 0
+  && Number(row[`${b}Paid`] || 0) !== 1 && Number(row[`${b}PaidCash`] || 0) !== 1
+  && !(b === 'deposit' && Number(row.depositDisabled || 0) === 1));
+
 // specs/mixed-method-payments.md rules 1, 32 — the single payment of the arrival SAS split over several methods:
 // only the unified payment (one amount asked), never with an installment plan (its installments are recorded
 // one by one, each with its own method).
@@ -534,8 +541,9 @@ function splitArrivalRefusalOrPrepared(req, recap, unifiable, separately) {
   }
   const prepared = settlementService.prepare({
     tenders: req.body.arrivalPaymentTenders, dueCents: Math.round(Number(recap.totalAtArrival) * 100), shortfall: req.body.arrivalPaymentShortfall,
+    reservationId: row.id, target: { kind: 'arrivalGroup', buckets: unpaidBuckets(row, ['deposit', 'balance', 'complement']) },
   });
-  if (!prepared.ok) return refuse(prepared.error);
+  if (!prepared.ok) return refuse(prepared.error, prepared.status || 400);
   return { prepared };
 }
 
@@ -791,10 +799,14 @@ function commitDeparture(req, res) {
   const splitTenders = req.body && req.body.complementsTenders;
   let splitPrepared = null;
   if (splitTenders !== undefined) {
-    if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'FORBIDDEN' });
+    // specs/mixed-method-payments.md rule 45 — reception records a check-out with one method: the dialog offers no split.
+    if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'FORBIDDEN', message: 'Plusieurs moyens : réservé à l\'administrateur.' });
     if (complementsSettled !== true) return res.status(400).json({ error: 'SPLIT_WITHOUT_SETTLEMENT', message: 'Plusieurs moyens : les compléments doivent être encaissés.' });
-    splitPrepared = settlementService.prepare({ tenders: splitTenders, dueCents: Math.round(Number(recap.grandTotal) * 100), shortfall: req.body.complementsShortfall });
-    if (!splitPrepared.ok) return res.status(400).json({ error: 'INVALID_TENDERS', message: splitPrepared.error, field: splitPrepared.field });
+    splitPrepared = settlementService.prepare({
+      tenders: splitTenders, dueCents: Math.round(Number(recap.grandTotal) * 100), shortfall: req.body.complementsShortfall,
+      reservationId: id, target: { kind: 'bucket', buckets: unpaidBuckets(reservationsModel.getRow(id) || {}, ['complement', 'endOfStayComplement']) },
+    });
+    if (!splitPrepared.ok) return res.status(splitPrepared.status || 400).json({ error: 'INVALID_TENDERS', message: splitPrepared.error, field: splitPrepared.field });
   }
   const beforeSas = snapshotSas(id);
   const beforeSplit = reservationsModel.getRow(id) || {};

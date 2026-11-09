@@ -212,6 +212,43 @@ function reservationAggregates(targets) {
   return out;
 }
 
+/**
+ * Rule 46 (audit R34-M-M1) — what a split payment put on the books and in the caisse interne, as a share of each bucket
+ * it paid, read at what the bucket is worth now (rule 39): `{ [bucket]: { books, internal, waivedBooks, waivedInternal } }`.
+ * The readers that spread a bucket over its lines (the refund register) scale it with these. Only the buckets a
+ * settlement paid.
+ *
+ * Rule 52 (audit R34 NEW-3) — like the export (rule 18: the lines booked gross, the geste on 70900000), each share counts
+ * the geste commercial of its side, and `waivedBooks` / `waivedInternal` (euros, on the target's first bucket only) say
+ * how much of it the reader takes off the accommodation: the tax and the extras keep their whole share.
+ */
+function bucketSharesOf(settlements, row = null) {
+  const byTarget = new Map();
+  for (const s of settlements || []) {
+    const key = `${s.targetKind}:${s.targetKey}`;
+    if (!byTarget.has(key)) byTarget.set(key, []);
+    byTarget.get(key).push(s);
+  }
+  const out = {};
+  for (const list of byTarget.values()) {
+    const parts = parseParts(list[0].parts).filter((p) => BUCKET_AMOUNT[p.kind]);
+    if (parts.length === 0) continue;
+    const current = currentCentsOf(parseParts(list[0].parts), row);
+    if (!(current > 0)) continue;
+    const f = targetFigures(list, { currentCents: current });
+    const waivedInternalCents = f.waivedCents - f.bookedWaivedCents;
+    parts.forEach((p, i) => {
+      out[p.kind] = {
+        books: (f.booksCents + f.bookedWaivedCents) / current,
+        internal: (f.internalCents + waivedInternalCents) / current,
+        waivedBooks: i === 0 ? Math.round(f.bookedWaivedCents) / 100 : 0,
+        waivedInternal: i === 0 ? Math.round(waivedInternalCents) / 100 : 0,
+      };
+    });
+  }
+  return out;
+}
+
 // « Espèces 50,00 € (caisse interne) · CB 72,00 € » — the history wording (rules 14, 24).
 function linesText(tenders) {
   return (tenders || [])
@@ -234,6 +271,6 @@ const frDate = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join
 module.exports = {
   METHODS, BANK_METHODS, MAX_LINES, toCents,
   methodLabel, euros, frDate,
-  validateSettlement, parseParts, settlementFigures, currentCentsOf, targetFigures, reservationAggregates,
+  validateSettlement, parseParts, settlementFigures, currentCentsOf, targetFigures, reservationAggregates, bucketSharesOf,
   linesText, settlementText,
 };

@@ -26,7 +26,8 @@
  *     passes `{ date, tenders, shortfall }`;
  *   mode:        'mark' (default) | 'modify' (a recorded settlement, prefilled, « Enregistrer ») |
  *                'remainder' (the reste of a settlement, one cash line) — both always show the lines
- *   split:       `{ dueCents, methods }` for 'modify' / 'remainder' (the row's `action.split` otherwise)
+ *   split:       `{ dueCents, methods, whole?, noCaisse? }` for 'modify' / 'remainder' (the row's `action.split` otherwise);
+ *                `whole` / `noCaisse` hand TenderLines the rule 44 limits (the acompte, an installment)
  *   initialTenders, initialShortfallKind, initialDate: the prefill of a correction
  */
 import React, { useEffect, useId, useRef, useState } from 'react';
@@ -147,6 +148,8 @@ export default function PaymentMarkForm({
           initialTenders={initialTenders}
           initialShortfallKind={initialShortfallKind}
           single={mode === 'remainder'}
+          whole={Boolean(splitInfo.whole)}
+          noCaisse={Boolean(splitInfo.noCaisse)}
           autoFocus={mode !== 'modify'}
           onChange={setTenderState}
           disabled={busy}

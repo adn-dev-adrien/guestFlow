@@ -622,7 +622,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `utils/paymentPollRunner.js` · `utils/reservationLedger.js` | — | T | A basket link goes to its owner before the cancelled / missing-stay exits; `refundCents` flags part of a payment « à rembourser » (rules 35, 36) |
 | `models/resourceOtherUsesModel.js` | — | T | The fiche save's conflict check reads the live plugins' holds (`coreServices.resourceHolds`) for another stay (rule 35) |
 | `middleware/requireAuth.js` · `plugins/sdk/index.js` | — | T | `requireAuth.revalidate` (generic, the session's user re-read) and the `requireAuth` / `securityConfig` core modules (rules 4, 47) |
-| `plugins/online-payment/reconciliation/` | `expectedReceipts.js` | T | A paid basket link is one expected receipt for its whole amount (online-payment 1.7.1) |
+| `plugins/online-payment/reconciliation/` | `expectedReceipts.js` | T | A paid basket link is one expected receipt for its whole amount (online-payment 1.7.2) |
 | `plugins/guest-app/` | `migrations.js` | C | Tables of §5 |
 | `plugins/guest-app/models/` | `stockModel.js` | C | The stock of rules 37bis-37ter: held units of the unpaid card orders, a reservation's counts brought to date (idempotent), the restock, the arrival sweep's reads, the low / out alerts due |
 | `plugins/guest-app/` | `stock.js` | C | Pure: the editor's « Stock » view and restock line, the shop's `stock`, the quote's `outOfStock`, the editor warning, the push texts (rule 37quater) |

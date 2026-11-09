@@ -13,7 +13,7 @@
     "Le type de prix « à l’heure »"
   ],
   "requires": [],
-  "guestflow": ">=3.18.0 <4.0.0",
+  "guestflow": ">=3.18.0",
   "sdk": "^2.26.0",
   "changelog": {
     "1.0.0": [
@@ -98,6 +98,9 @@
       "La facture se crée dans Qonto et se joint au lot CB du jour ; l’adresse de facturation reste facultative.",
       "Réglage « TVA des ventes hors séjour », 20 % par défaut.",
       "Compatible avec le SDK 2.25 de GuestFlow."
+    ],
+    "1.4.1": [
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
     ],
     "1.5.0": [
       "L’application clients propose les créneaux libres d’une ressource à l’heure, lus dans ce planning : séances des autres séjours, réservations extérieures, remise en état, chauffe et maintien en température.",

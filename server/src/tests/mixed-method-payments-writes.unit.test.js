@@ -226,9 +226,10 @@ test('rule 1 — one payment at a time', () => {
 });
 
 test('rules 1, 10 — the single arrival payment with several methods records one settlement on the group', () => {
+  // A single payment with no acompte in it: rule 44 keeps an acompte on the books whole or in the caisse whole.
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, finalPrice,
       depositAmount, balanceAmount, complementAmount, checkInDone)
-    VALUES (1, 1, ?, ?, 'direct', 2, 700, 200, 500, 40, 1)`).run(TODAY, addDays(TODAY, 3)).lastInsertRowid);
+    VALUES (1, 1, ?, ?, 'direct', 2, 700, 0, 700, 40, 1)`).run(TODAY, addDays(TODAY, 3)).lastInsertRowid);
   const res = call(controller.settleArrivalPayment, { id }, {
     mode: 'split', date: TODAY, expectedAmountCents: 74000, tenders: [cashIn(4000), card(70000)],
   });

@@ -1,11 +1,12 @@
-// specs/plugins-phase-4-registry.md rule 34 — a plugin never loads on a core major it was not built
-// for: every source manifest bounds `guestflow` (« <4.0.0 »), the package build refuses an open range,
-// and an open range already published is read as capped at the next major of its floor.
+// specs/plugins-phase-4-registry.md rule 34, superseded by rule 62 (D24, 2026-11-09) — a core major bump never
+// switches off a plugin whose contract still holds: `guestflow` is read as a floor, the `sdk` range judges
+// compatibility. Every source manifest writes a floor only (the package build refuses a ceiling), and a package
+// already published with « <4.0.0 » still loads on GuestFlow 4 and later while its SDK range holds.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { hasUpperBound, boundedRange } = require('../utils/semverRange');
+const { isFloorRange, coreFloor } = require('../utils/semverRange');
 const { rangeRefusal } = require('../utils/pluginOffers');
 
 const PLUGINS = path.join(__dirname, '..', 'plugins');
@@ -13,27 +14,32 @@ const manifests = fs.readdirSync(PLUGINS)
   .filter((d) => fs.existsSync(path.join(PLUGINS, d, 'manifest.json')))
   .map((d) => JSON.parse(fs.readFileSync(path.join(PLUGINS, d, 'manifest.json'), 'utf8')));
 
-test('rule 34 — every source manifest bounds the GuestFlow range below 4.0.0', () => {
+test('rule 62 — every source manifest writes its GuestFlow range as a floor, with no ceiling', () => {
   assert.ok(manifests.length >= 14);
-  assert.deepEqual(manifests.filter((m) => !hasUpperBound(m.guestflow) || !/<4\.0\.0/.test(m.guestflow)).map((m) => m.id), []);
+  assert.deepEqual(manifests.filter((m) => !isFloorRange(m.guestflow)).map((m) => `${m.id} ${m.guestflow}`), []);
+  assert.equal(isFloorRange('>=3.18.0'), true);
+  assert.equal(isFloorRange('>=3.18.0 <4.0.0'), false);
+  assert.equal(isFloorRange('^3.18.0'), false);
+  assert.equal(coreFloor('>=3.9.0 <4.0.0'), '3.9.0');
+  assert.equal(coreFloor('not a range'), null);
 });
 
-test('rule 34 — an open range is capped at the next major of its floor', () => {
-  assert.equal(hasUpperBound('>=3.9.0'), false);
-  assert.equal(hasUpperBound('>=3.9.0 <4.0.0'), true);
-  assert.equal(hasUpperBound('^1.2.0'), true);
-  assert.equal(boundedRange('>=3.9.0'), '>=3.9.0 <4.0.0');
-  assert.equal(boundedRange('>=3.9.0 <4.0.0'), '>=3.9.0 <4.0.0');
-});
-
-test('rule 34 — GuestFlow 4 refuses a package of 3.x, bounded or published before the bound', () => {
-  const env = { coreVersion: '4.0.0', sdkVersion: '1.2.0' };
-  for (const guestflow of ['>=3.9.0 <4.0.0', '>=3.9.0']) {
-    const refusal = rangeRefusal({ guestflow, sdk: '^1.0.0' }, env);
-    assert.equal(refusal.code, 'CORE_INCOMPATIBLE', guestflow);
-    assert.equal(refusal.message, 'Incompatible avec cette version de GuestFlow.', 'the package is too old, not the core');
+test('rule 62 — a package published with a « <4.0.0 » ceiling loads on GuestFlow 4 and 5 while its SDK range holds', () => {
+  for (const coreVersion of ['4.0.0', '4.3.1', '5.0.0']) {
+    const env = { coreVersion, sdkVersion: '2.24.0' };
+    for (const guestflow of ['>=3.9.0 <4.0.0', '>=3.18.0 <4.0.0', '>=3.9.0']) {
+      assert.equal(rangeRefusal({ guestflow, sdk: '^2.0.0' }, env), null, `${guestflow} on ${coreVersion}`);
+    }
   }
-  assert.equal(rangeRefusal({ guestflow: '>=3.9.0', sdk: '^1.0.0' }, { coreVersion: '3.12.0', sdkVersion: '1.2.0' }), null);
+});
+
+test('rule 62 — an SDK major still refuses, a floor above the core still names the core too old', () => {
+  const sdkMoved = rangeRefusal({ guestflow: '>=3.9.0 <4.0.0', sdk: '^2.0.0' }, { coreVersion: '4.0.0', sdkVersion: '3.0.0' });
+  assert.deepEqual(sdkMoved, { code: 'SDK_INCOMPATIBLE', message: 'Incompatible avec cette version de GuestFlow.' });
+  assert.deepEqual(rangeRefusal({ guestflow: '>=4.1.0', sdk: '^2.0.0' }, { coreVersion: '4.0.0', sdkVersion: '2.24.0' }),
+    { code: 'CORE_TOO_OLD', message: 'Nécessite GuestFlow 4.1 ou plus récent.' });
+  assert.equal(rangeRefusal({ guestflow: 'not a range', sdk: '^2.0.0' }, { coreVersion: '4.0.0', sdkVersion: '2.24.0' }).code,
+    'CORE_INCOMPATIBLE', 'an unreadable range fails closed');
 });
 
 test('rule 34 — loading at boot names the same refusal, without blaming the core', () => {
