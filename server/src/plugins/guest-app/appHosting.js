@@ -48,6 +48,14 @@ function guestCsp({ frameOrigin = null } = {}) {
   ].join('; ');
 }
 
+/**
+ * The studio's policy (rule 49): the guest app's, except that the phone preview (`/studio/preview.html`) is a frame of
+ * the studio itself — `frame-src` and `frame-ancestors` are this origin, never another.
+ */
+function studioCsp() {
+  return guestCsp().replace("frame-src 'none'", "frame-src 'self'").replace("frame-ancestors 'none'", "frame-ancestors 'self'");
+}
+
 /** The Soliomap origin the guest app may frame, or null. */
 function soliomapFrameOrigin({ soliomapUrl, soliomapEmbed }) {
   if (!(soliomapEmbed === true || soliomapEmbed === '1' || soliomapEmbed === 1)) return null;
@@ -87,11 +95,13 @@ function staticApp({ dir, base = '', csp }) {
     const inside = file === root || file.startsWith(`${root}${path.sep}`);
     if (inside && decoded !== '/' && fs.existsSync(file) && fs.statSync(file).isFile()) {
       const cache = decoded.startsWith('/assets/') ? IMMUTABLE : (REVALIDATED.has(decoded) ? NO_CACHE : ONE_DAY);
-      return res.sendFile(file, { headers: { 'Cache-Control': cache }, dotfiles: 'deny' });
+      // `root`: the dot-file check reads the path below the build only, so an install under a hidden folder (a
+      // worktree, `~/.local/…`) still serves its files.
+      return res.sendFile(path.relative(root, file), { root, headers: { 'Cache-Control': cache }, dotfiles: 'deny' });
     }
     // A missing file is a 404; any other path is a route of the app.
     if (!inside || /\.[a-z0-9]{1,8}$/i.test(decoded)) return res.status(404).type('text').send('Not found');
-    return res.sendFile(path.join(root, 'index.html'), { headers: { 'Cache-Control': NO_CACHE } });
+    return res.sendFile('index.html', { root, headers: { 'Cache-Control': NO_CACHE } });
   };
 }
 
@@ -113,5 +123,5 @@ function adminOnly(handler, { loginPath = '/login' } = {}) {
 }
 
 module.exports = {
-  adminOnly, distDirOf, guestCsp, soliomapFrameOrigin, staticApp,
+  adminOnly, distDirOf, guestCsp, soliomapFrameOrigin, staticApp, studioCsp,
 };

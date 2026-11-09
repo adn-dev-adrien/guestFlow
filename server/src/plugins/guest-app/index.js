@@ -220,7 +220,7 @@ function register(ctx) {
   ctx.webApp({
     key: 'studio',
     path: '/studio',
-    handler: hosting.adminOnly(hosting.staticApp({ dir: studioDist, base: '/studio', csp: () => hosting.guestCsp() })),
+    handler: hosting.adminOnly(hosting.staticApp({ dir: studioDist, base: '/studio', csp: () => hosting.studioCsp() })),
   });
   ctx.mount('/api/guest-app', api.adminRouter);
   // Rule 9bis (a) — the reception runs the arrival SAS, where the stay link is shown and regenerated; rules 43, 45 —

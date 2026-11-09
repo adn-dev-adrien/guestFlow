@@ -10,7 +10,7 @@ const path = require('path');
 const express = require('express');
 
 const {
-  adminOnly, distDirOf, guestCsp, soliomapFrameOrigin, staticApp,
+  adminOnly, distDirOf, guestCsp, soliomapFrameOrigin, staticApp, studioCsp,
 } = require('../appHosting');
 
 function fixtureDist() {
@@ -55,6 +55,32 @@ test('rule 52: the guest build — immutable bundles, revalidated shell, the app
     assert.equal((await site.get('/assets/missing-1.js')).status, 404);
     assert.equal((await site.get('/%2e%2e/secret.txt')).status, 404, 'nothing outside the build');
     assert.equal((await site.get('/', { method: 'POST' })).status, 418, 'only reads are the app\'s');
+  } finally {
+    await site.close();
+  }
+});
+
+test('rule 49: the studio frames its own phone preview, and nothing else frames it or is framed by it', () => {
+  assert.match(studioCsp(), /frame-src 'self'/);
+  assert.match(studioCsp(), /frame-ancestors 'self'/);
+  assert.doesNotMatch(studioCsp(), /'none'.*frame|frame-src 'none'/);
+  assert.match(studioCsp(), /script-src 'self'/);
+  assert.match(guestCsp(), /frame-ancestors 'none'/, 'the guest app is still framed by nobody');
+});
+
+test('rule 52: a build installed under a hidden folder (a worktree, ~/.local) is still served; a dot-file in it is not', async () => {
+  const hidden = fs.mkdtempSync(path.join(os.tmpdir(), '.hidden-'));
+  const dir = path.join(hidden, 'dist');
+  fs.mkdirSync(path.join(dir, 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'index.html'), '<!doctype html><title>Mon séjour</title>');
+  fs.writeFileSync(path.join(dir, 'assets', 'index-1.js'), 'console.log(1)');
+  fs.writeFileSync(path.join(dir, '.env'), 'SECRET=1');
+  const site = await serve(staticApp({ dir: () => dir, csp: () => guestCsp() }));
+  try {
+    assert.equal((await site.get('/')).status, 200);
+    assert.equal((await site.get('/s/abc')).status, 200);
+    assert.equal((await site.get('/assets/index-1.js')).status, 200);
+    assert.notEqual((await site.get('/.env')).status, 200);
   } finally {
     await site.close();
   }
