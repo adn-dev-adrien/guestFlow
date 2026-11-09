@@ -57,7 +57,7 @@ test('uninstall takes two clicks, moves the plugin to « Disponibles », and it 
   await expect(googleCard(page).getByText(/^Données conservées\.$/)).toBeVisible();
   await googleCard(page).getByRole('button', { name: 'Confirmer la désinstallation' }).click();
 
-  await expect(page.getByRole('tab', { name: 'Installés (15)' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Installés (16)' })).toBeVisible();
   await page.getByRole('tab', { name: 'Disponibles (1)' }).click();
   await googleCard(page).getByRole('button', { name: 'Installer' }).click();
 
