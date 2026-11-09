@@ -8,6 +8,7 @@ const registry = require('../plugins/sdk/registry');
 const { createContext } = require('../plugins/sdk/createContext');
 const invoiceIssuers = require('../utils/invoiceIssuers');
 const standaloneSales = require('../utils/standaloneSales');
+const { FAR_YEAR: Y } = require('./farYearFixture');
 
 const issuer = (over = {}) => ({
   id: 'qonto', isReady: () => true, issue: async () => ({}), findCardBatch: async () => null, attach: async () => ({}), invoiceStatus: async () => 'paid', ...over,
@@ -23,7 +24,7 @@ function withRegistry(active, fn) {
 test('rule 1 — no plugin: no issuer, no sale', () => withRegistry([], () => {
   assert.equal(invoiceIssuers.current(), null);
   assert.equal(invoiceIssuers.ready(), false);
-  assert.deepEqual(standaloneSales.list({ from: '2026-11-01', to: '2026-11-30' }), []);
+  assert.deepEqual(standaloneSales.list({ from: `${Y}-11-01`, to: `${Y}-11-30` }), []);
 }));
 
 test('rule 1 — at most one invoice issuer per instance; an incomplete one is refused', () => withRegistry(['online-payment'], () => {
@@ -46,12 +47,12 @@ test('rule 2 — the issuer counts only while its plugin is live, and only when 
 
 test('rule 2 — sales of a plugin that is off, out of the window, or that throws are left out', () => withRegistry(['hourly-resources', 'broken'], () => {
   ctx('hourly-resources').standaloneSales(() => [
-    { key: 'a', date: '2026-11-09', totalCents: 1 },
-    { key: 'b', date: '2026-12-01', totalCents: 1 },
+    { key: 'a', date: `${Y}-11-09`, totalCents: 1 },
+    { key: 'b', date: `${Y}-12-01`, totalCents: 1 },
   ]);
-  ctx('off').standaloneSales(() => [{ key: 'c', date: '2026-11-09', totalCents: 1 }]);
+  ctx('off').standaloneSales(() => [{ key: 'c', date: `${Y}-11-09`, totalCents: 1 }]);
   ctx('broken').standaloneSales(() => { throw new Error('boom'); });
-  const out = standaloneSales.list({ from: '2026-11-01', to: '2026-11-30' }, { error() {} });
+  const out = standaloneSales.list({ from: `${Y}-11-01`, to: `${Y}-11-30` }, { error() {} });
   assert.deepEqual(out.map((s) => [s.key, s.pluginId]), [['a', 'hourly-resources']]);
   assert.deepEqual(standaloneSales.list({ from: 'x', to: 'y' }), []);
 }));

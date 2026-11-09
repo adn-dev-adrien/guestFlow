@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed, book, card } = require('./standaloneBookingFixture');
+const { FAR_YEAR: Y } = require('../../../tests/farYearFixture');
 
 test('rule 11 — booking records nothing paid: paying is a moment of its own', () => {
   const { model, resourceId } = seed();
@@ -17,12 +18,12 @@ test('rule 11 — the lines must cover the total, with the fiches\' refusals', (
   assert.match(model.recordPayment(id, { tenders: card(10000) }).error, /ne sont pas couverts/);
   assert.match(model.recordPayment(id, { tenders: card(13000) }).error, /pour 120,00 € dus/);
   assert.equal(model.recordPayment(id, { tenders: [{ method: 'card', amountCents: 12000, internal: true }] }).error, 'Seules les espèces peuvent aller en caisse interne.');
-  assert.equal(model.recordPayment(id, { tenders: card(12000), paidAt: '2026-13-01' }).error, 'Date du paiement invalide.');
-  const ok = model.recordPayment(id, { tenders: [{ method: 'cash', amountCents: 2000, internal: true }, { method: 'card', amountCents: 10000 }], paidAt: '2026-11-09' });
+  assert.equal(model.recordPayment(id, { tenders: card(12000), paidAt: `${Y}-13-01` }).error, 'Date du paiement invalide.');
+  const ok = model.recordPayment(id, { tenders: [{ method: 'cash', amountCents: 2000, internal: true }, { method: 'card', amountCents: 10000 }], paidAt: `${Y}-11-09` });
   assert.equal(ok.ok, true);
   const row = model.findById(id);
   assert.equal(row.paid, true);
-  assert.equal(row.payment.paidAt, '2026-11-09');
+  assert.equal(row.payment.paidAt, `${Y}-11-09`);
   assert.equal(row.payment.label, 'Espèces (caisse interne) · CB');
   assert.equal(row.payment.internalCents, 2000);
   assert.equal(row.payment.onTheBooks, false);

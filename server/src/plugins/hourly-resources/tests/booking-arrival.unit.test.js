@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { seed, book, card } = require('./standaloneBookingFixture');
 const { createController } = require('../controller');
 const { createInvoicing } = require('../invoicing');
+const { FAR_YEAR: Y } = require('../../../tests/farYearFixture');
 
 function app(issuerOver = {}) {
   const { model, resourceId, db } = seed();
@@ -39,7 +40,7 @@ test('rule 30 — arrival and payment commit together; the invoice comes after a
   const err = Object.assign(new Error('adresse'), { code: 'ISSUER_NEEDS_ADDRESS' });
   const { model, resourceId, call } = app({ async issue() { throw err; } });
   const id = book(model, resourceId);
-  const res = await call(id, { offeredMinutes: 0, payment: { tenders: card(12000), paidAt: '2026-11-09' }, invoice: true });
+  const res = await call(id, { offeredMinutes: 0, payment: { tenders: card(12000), paidAt: `${Y}-11-09` }, invoice: true });
   assert.equal(res.code, 200);
   assert.equal(res.body.booking.arrived, true);
   assert.equal(res.body.booking.paid, true);

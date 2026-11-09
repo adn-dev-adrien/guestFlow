@@ -4,13 +4,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { seed, book, card } = require('./standaloneBookingFixture');
 const { createInvoicing } = require('../invoicing');
+const { FAR_YEAR: Y } = require('../../../tests/farYearFixture');
 
 function fakeIssuer(over = {}) {
   const calls = [];
   const issuer = {
     id: 'fake', calls,
     isReady: () => true,
-    async issue(request) { calls.push(['issue', request]); return { invoiceId: 'inv-1', number: 'F-2026-0142', totalCents: request.expectedTotalCents, clientId: 'cli-1', markedPaid: true }; },
+    async issue(request) { calls.push(['issue', request]); return { invoiceId: 'inv-1', number: `F-${Y}-0142`, totalCents: request.expectedTotalCents, clientId: 'cli-1', markedPaid: true }; },
     async findCardBatch(date) { calls.push(['find', date]); return null; },
     async attach(args) { calls.push(['attach', args]); return { attachmentId: 'att-1' }; },
     async invoiceStatus() { return 'paid'; },
@@ -41,14 +42,14 @@ test('rule 13 — no invoice before a payment, nor on a caisse-interne payment, 
 test('rule 14 — one item per money line, the deductions as one discount, the total guarded, the payment day as issue day', async () => {
   const { model, resourceId, invoicing, issuer } = setup();
   const id = book(model, resourceId, { offeredMinutes: 30, billing: { street: '3 rue des Lilas', postcode: '07000', city: 'Privas' } });
-  model.recordPayment(id, { tenders: card(9500), paidAt: '2026-11-09' });
+  model.recordPayment(id, { tenders: card(9500), paidAt: `${Y}-11-09` });
   const out = await invoicing.issue(id);
   assert.equal(out.ok, true);
   const [, request] = issuer.calls.find((c) => c[0] === 'issue');
   assert.deepEqual(request.items.map((i) => [i.amountCents, i.vatRate]), [[5000, 20], [7000, 20]]);
   assert.deepEqual(request.discount, { title: 'Temps offert', amountCents: 2500, vatRate: 20 });
   assert.equal(request.expectedTotalCents, 9500);
-  assert.equal(request.issueDate, '2026-11-09');
+  assert.equal(request.issueDate, `${Y}-11-09`);
   assert.deepEqual(request.client, { firstName: 'Claire', lastName: 'Martin', clientId: null, street: '3 rue des Lilas', postcode: '07000', city: 'Privas', countryCode: 'FR' });
   assert.equal(request.idempotencyKey, `resource-booking:${id}:invoice:0`);
 });
@@ -60,7 +61,7 @@ test('rule 15 — an invoiced booking is frozen: only the notes move, delete is 
   await invoicing.issue(id);
   const row = model.findById(id);
   assert.equal(row.frozen, true);
-  assert.equal(row.invoice.number, 'F-2026-0142');
+  assert.equal(row.invoice.number, `F-${Y}-0142`);
   assert.equal(model.update(id, { startTime: '17:00' }).code, 'BOOKING_INVOICED');
   assert.equal(model.update(id, { notes: 'Serviette' }).ok, true);
   assert.equal(model.findById(id).notes, 'Serviette');
@@ -94,7 +95,7 @@ test('rule 25 — Qonto asks for the address: 422, the payment stays, the bookin
 
 test('rules 17-19 — a card payment waits for the day\'s batch, then joins it once; 7 days without it fail visibly', async () => {
   let batch = null;
-  const day = '2026-11-09';
+  const day = `${Y}-11-09`;
   let clock = new Date(`${day}T20:00:00Z`);
   const { model, resourceId, invoicing, issuer } = setup({ async findCardBatch() { return batch; } }, { now: () => clock });
   const id = book(model, resourceId);
@@ -113,7 +114,7 @@ test('rules 17-19 — a card payment waits for the day\'s batch, then joins it o
   model.recordPayment(other, { tenders: card(5000), paidAt: day });
   batch = null;
   await invoicing.issue(other);
-  clock = new Date('2026-11-20T08:00:00Z');
+  clock = new Date(`${Y}-11-20T08:00:00Z`);
   await invoicing.attach(other);
   assert.equal(model.findById(other).invoice.attachment.state, 'failed');
   assert.equal((await invoicing.attach(other, { transactionId: 'tx-manual' })).ok, true);
