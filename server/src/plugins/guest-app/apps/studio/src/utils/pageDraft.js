@@ -14,6 +14,28 @@ function normalised(block) {
   return { html: { fr: toHtml(toNotation(html.fr)), en: toHtml(toNotation(html.en)) } };
 }
 
+const isBilingual = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).length > 0 && Object.keys(value).every((k) => k === 'fr' || k === 'en');
+
+/**
+ * A block's data as the server stores it (bookletBlocks.js `bilingual()` / `plain()`): text trimmed, an empty English
+ * dropped, an empty optional text gone. Only for comparing: what is sent stays what was typed, the server judges it.
+ */
+export function storedShape(value) {
+  if (Array.isArray(value)) return value.map(storedShape);
+  if (typeof value === 'string') return value.trim();
+  if (!value || typeof value !== 'object') return value;
+  if (isBilingual(value)) {
+    const fr = typeof value.fr === 'string' ? value.fr.trim() : '';
+    const en = typeof value.en === 'string' ? value.en.trim() : '';
+    if (!fr && !en) return undefined;
+    return en ? { fr, en } : { fr };
+  }
+  return Object.fromEntries(Object.entries(value)
+    .map(([k, v]) => [k, storedShape(v)])
+    .filter(([, v]) => v !== undefined));
+}
+
 /** The server's page → the editor's draft. */
 export function draftOf(page) {
   return {
@@ -32,9 +54,13 @@ export function newBlock(type, data) {
 }
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const sameData = (a, b) => same(storedShape(a), storedShape(b));
 
-// The editor's row keys are not content.
-const content = (draft) => ({ ...draft, blocks: draft.blocks.map(({ key, ...block }) => block) });
+// The editor's row keys are not content, and a block's data is compared as the server would store it.
+const content = (draft) => ({
+  ...draft,
+  blocks: draft.blocks.map(({ key, data, ...block }) => ({ ...block, data: storedShape(data) })),
+});
 
 export const isDirty = (draft, saved) => Boolean(draft && saved) && !same(content(draft), content(saved));
 
@@ -72,10 +98,11 @@ export async function saveDraft(api, pageId, draft, saved) {
         block.id = created.id;
         ids.push(created.id);
       } else {
-        const before = saved.blocks.find((b) => b.id === block.id);
+        // A block created by an earlier save the page was not read back after is written whole.
+        const before = saved.blocks.find((b) => b.id === block.id) || {};
         const patch = {};
-        if (!same(before.data, block.data)) patch.data = block.data;
-        if (!same(before.onlyForPropertyIds, block.onlyForPropertyIds)) patch.onlyForPropertyIds = block.onlyForPropertyIds;
+        if (!before.id || !sameData(before.data, block.data)) patch.data = block.data;
+        if (!before.id || !same(before.onlyForPropertyIds, block.onlyForPropertyIds)) patch.onlyForPropertyIds = block.onlyForPropertyIds;
         if (Object.keys(patch).length) await api.saveBlock(block.id, patch);
         ids.push(block.id);
       }

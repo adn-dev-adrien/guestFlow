@@ -60,15 +60,21 @@ export default function PageEditor({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [duplicateAnchor, setDuplicateAnchor] = useState(null);
 
-  // After a save, the page read again becomes the baseline but the draft written stays on screen: a save the server
-  // refused half-way keeps every edit, and the blocks it did create keep their new ids.
-  const written = useRef(null);
-  useEffect(() => {
-    if (!page.data) return;
-    const next = draftOf(page.data);
+  // The page read from the server is the baseline and, after a save, the draft too: the server trims and drops an
+  // empty English, so the copy written would stay « modified » for ever.
+  const adopted = useRef(null);
+  // Bumped when the draft is replaced from outside the editors (Annuler, a save): block editors that keep the text
+  // as typed start again from the draft.
+  const [generation, setGeneration] = useState(0);
+  const adopt = (data, keep = null) => {
+    adopted.current = data;
+    const next = draftOf(data);
     setSaved(next);
-    setDraft(written.current || clone(next));
-    written.current = null;
+    setDraft(keep || clone(next));
+  };
+  useEffect(() => {
+    if (page.data && page.data !== adopted.current) adopt(page.data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.data]);
 
   const dirty = isDirty(draft, saved);
@@ -99,13 +105,24 @@ export default function PageEditor({
     }
   };
 
+  // `writing` gets the ids of the blocks it creates. It goes on screen at once, whether or not the page can then be
+  // read again: a retry never creates a block twice (spec §4.2). After a save refused half-way it stays the draft,
+  // every edit kept; after a full save the page read back replaces it.
   const save = () => run(async () => {
     const writing = clone(draft);
     try {
       await saveDraft(api, pageId, writing, saved);
-    } finally {
-      written.current = writing;
-      await page.reload();
+    } catch (error) {
+      setDraft(writing);
+      const fresh = await page.reload();
+      if (fresh) adopt(fresh, writing);
+      throw error;
+    }
+    setDraft(writing);
+    const fresh = await page.reload();
+    if (fresh) {
+      adopt(fresh);
+      setGeneration((g) => g + 1);
     }
     onChanged({ slug: writing.slug });
   }, shared ? `Brouillon enregistré, aussi pour ${others.map((o) => o.name).join(', ')}.` : 'Brouillon enregistré.');
@@ -155,7 +172,7 @@ export default function PageEditor({
       saveTooltip="Enregistrer le brouillon"
       saveDisabled={!dirty || busy}
       saveBusy={busy}
-      onCancel={() => { setDraft(clone(saved)); setError(null); }}
+      onCancel={() => { setDraft(clone(saved)); setGeneration((g) => g + 1); setError(null); }}
       cancelDisabled={!dirty || busy}
       actionsBefore={[
         { icon: <VisibilityOutlinedIcon />, tooltip: 'Aperçu', onClick: () => previewRef.current && previewRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }), color: 'info' },
@@ -265,6 +282,7 @@ export default function PageEditor({
                   </Tooltip>
                 </Box>
                 <BlockEditor
+                  key={generation}
                   type={block.type}
                   data={block.data}
                   onChange={(data) => setBlock(block.key, { data })}
