@@ -1747,6 +1747,10 @@ require('./utils/paymentLinksProviderMigration').migratePaymentLinksToProviders(
 // installmentId, the manual queue's occurrence key, the stay's installment aggregates.
 require('./utils/installmentsMigration').migrateInstallmentsSchema(db);
 
+// One payment, several methods (specs/mixed-method-payments.md §5): settlements, their tender lines, and
+// the stay's four split aggregates.
+require('./utils/paymentSettlementsMigration').migratePaymentSettlementsSchema(db);
+
 // After the rebuild above (it drops the triggers): the v3.18 column names stay in step (rule 31 of
 // specs/self-update-and-releases.md — an automatic rollback runs the previous code on this schema).
 require('./utils/paymentLinksProviderMigration').syncLegacyQontoColumns(db);

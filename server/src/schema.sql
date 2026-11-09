@@ -527,6 +527,30 @@ CREATE TABLE IF NOT EXISTS reservation_installments (
     UNIQUE (reservationId, number)
   );
 
+CREATE TABLE IF NOT EXISTS payment_settlements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    targetKind TEXT NOT NULL CHECK (targetKind IN ('bucket','arrivalGroup','midStayNote','installment')),
+    targetKey TEXT NOT NULL,
+    paidDate TEXT NOT NULL,
+    dueCents INTEGER NOT NULL CHECK (dueCents > 0),
+    shortfallCents INTEGER NOT NULL DEFAULT 0 CHECK (shortfallCents >= 0),
+    shortfallKind TEXT CHECK (shortfallKind IN ('due','waived')),
+    parts TEXT NOT NULL DEFAULT '[]',
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    updatedAt TEXT,
+    CHECK ((shortfallCents = 0) = (shortfallKind IS NULL))
+  );
+
+CREATE TABLE IF NOT EXISTS payment_tenders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    settlementId INTEGER NOT NULL REFERENCES payment_settlements(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    method TEXT NOT NULL CHECK (method IN ('card','cash','cheque','transfer','holidayVoucher','other')),
+    amountCents INTEGER NOT NULL CHECK (amountCents > 0),
+    internal INTEGER NOT NULL DEFAULT 0 CHECK (internal IN (0,1) AND (internal = 0 OR method = 'cash'))
+  );
+
 CREATE TABLE IF NOT EXISTS resource_properties (
     resourceId INTEGER NOT NULL,
     propertyId INTEGER NOT NULL,

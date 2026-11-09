@@ -66,3 +66,6 @@ export { default as useLatestPreview } from '../../hooks/useLatestPreview';
 export { default as FilterChip } from '../../components/FilterChip';
 // reconciliation-assisted-matching (rule 24) — the platform penalty dialog, opened from a gap — SDK 2.9.0.
 export { default as PlatformPenaltyDialog } from '../../components/reservation/PlatformPenaltyDialog';
+// sas — one payment split over several methods (specs/mixed-method-payments.md rule 32) — SDK 2.24.0.
+export { default as TenderLines } from '../../components/TenderLines';
+export { TENDER_TEXTS } from '../../constants/tenderMethods';

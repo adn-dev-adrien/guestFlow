@@ -119,6 +119,8 @@ const { untickRefusal } = require('../utils/refundUntickGuard');
 const { contribLinesOf, recordRemovedLineContribs } = require('../utils/removedLineContribs');
 const { validateCollectionDate } = require('../utils/arrivalPaymentDate');
 const { parseNotes: parseMidStayNotes } = require('../utils/midStayExtras');
+const paymentSettlementsModel = require('../models/paymentSettlementsModel');
+const paymentSettlementService = require('../utils/paymentSettlementService');
 const ledgerLinks = require('../utils/ledgerLinks');
 const { taxInComplementLockedReason, platformTakesTaxOnArrival } = require('../utils/touristTaxFreeze');
 
@@ -165,6 +167,8 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     nettedRefundIds: id && String(row.kind) === 'cancelled' ? nettedRefundIdsOf(row, refunds) : null,
     providerLabel: (paymentProviders.declared() || {}).label || null,
     endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }),
+    // specs/mixed-method-payments.md rules 30-33 — the stay's split payments, shown on the rows they paid.
+    settlements: id ? paymentSettlementsModel.listFor(id) : [],
     today: getTodayIsoDate(),
   });
 }
@@ -875,7 +879,55 @@ function buildArrivalPaymentView(row) {
  * from the fiche. The date is the operator's and is validated here, BEFORE the transaction opens, so
  * a refused date never leaves a half-written payment behind.
  */
+// specs/mixed-method-payments.md — the single arrival payment with tender lines (`mode: 'split'`), and the
+// settlements kept in step with every other mode.
 function settleArrivalPayment(req, res) {
+  const id = Number(req.params.id);
+  const mode = String(req.body?.mode || '');
+  const row = model.getRow(id);
+  if (mode === 'adjust' && row && parseGroup(row.arrivalPaymentGroup)
+    && paymentSettlementsModel.listForTarget(id, 'arrivalGroup', parseGroup(row.arrivalPaymentGroup).at).length > 0) {
+    return res.status(409).json({ error: 'Ce paiement est réparti sur plusieurs moyens : modifiez-le plutôt.' });
+  }
+  if (mode !== 'split') {
+    const capture = captureRes();
+    settleArrivalPaymentCore(req, capture);
+    if (capture.statusCode < 400) paymentSettlementsModel.sync(id);
+    return res.status(capture.statusCode).json(capture.body);
+  }
+  if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
+  if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'FORBIDDEN' });
+  const collectible = collectibleArrivalBuckets(row, { endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }) });
+  const dueCents = collectible.reduce((sum, b) => sum + Math.round(Number(b.amount) * 100), 0);
+  if (dueCents > 0 && paymentSettlementService.toCents(req.body?.expectedAmountCents) !== dueCents) {
+    return res.status(409).json({ error: 'Le montant à encaisser a changé. Rechargez la fiche.', code: 'AMOUNT_CHANGED' });
+  }
+  const prepared = paymentSettlementService.prepare({ tenders: req.body?.tenders, dueCents, shortfall: req.body?.shortfall });
+  if (dueCents > 0 && !prepared.ok) return res.status(400).json({ error: prepared.error, field: prepared.field });
+
+  const before = model.getRow(id);
+  const capture = captureRes();
+  settleArrivalPaymentCore({ ...req, body: { ...req.body, mode: prepared.allInternal ? 'cash' : 'card' } }, capture);
+  if (capture.statusCode >= 400) return res.status(capture.statusCode).json(capture.body);
+  const after = model.getRow(id);
+  const group = parseGroup(after.arrivalPaymentGroup);
+  const parts = paymentSettlementService.flippedParts(before, after);
+  const target = group
+    ? { kind: 'arrivalGroup', key: group.at, date: group.at }
+    : { kind: 'bucket', key: parts[0] && parts[0].kind, date: parts[0] && after[`${parts[0].kind}PaidDate`] };
+  const recorded = paymentSettlementService.record({
+    reservationId: id, targetKind: target.kind, targetKey: target.key, paidDate: target.date || getTodayIsoDate(), prepared, parts,
+  });
+  if (!recorded.ok) {
+    settleArrivalPaymentCore({ ...req, body: { mode: 'undo' } }, captureRes());
+    paymentSettlementsModel.sync(id);
+    return res.status(recorded.status).json({ error: recorded.error });
+  }
+  const detailed = model.getByIdWithDetails(id);
+  return res.json({ arrivalPayment: buildArrivalPaymentView(detailed || model.getRow(id)), reservation: model.getRow(id) });
+}
+
+function settleArrivalPaymentCore(req, res) {
   const id = Number(req.params.id);
   const row = model.getRow(id);
   if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
@@ -2740,7 +2792,100 @@ function paymentMarkRefusal(row, body, today) {
 
 // NOTE: updatePayment deliberately has no Google hook — payment/caution/SAS fields don't
 // appear in the calendar event (spec rule 21).
+// A response object that keeps what a handler answered, so a wrapper can act on it before replying.
+function captureRes() {
+  return {
+    statusCode: 200,
+    body: undefined,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; },
+  };
+}
+
+// specs/mixed-method-payments.md — every mark and undo of the PATCH goes through `updatePaymentCore`; a
+// settlement never outlives the payment it described (`sync` drops it once its target is no longer paid).
 function updatePayment(req, res) {
+  if (req.body && req.body.tenders !== undefined) return updatePaymentSplit(req, res);
+  // A note paid with several methods is corrected through its settlement: an edit in place (total, means, date)
+  // would leave its lines describing another payment.
+  const adjust = req.body && req.body.adjustMidStayNote;
+  if (adjust && adjust.id != null
+    && paymentSettlementsModel.listForTarget(Number(req.params.id), 'midStayNote', adjust.id).length > 0) {
+    return res.status(409).json({ error: 'Ce paiement est réparti sur plusieurs moyens : modifiez-le plutôt.' });
+  }
+  const capture = captureRes();
+  updatePaymentCore(req, capture);
+  if (capture.statusCode < 400) paymentSettlementsModel.sync(Number(req.params.id));
+  return res.status(capture.statusCode).json(capture.body);
+}
+
+const SPLIT_BUCKETS = ['deposit', 'balance', 'complement', 'endOfStayComplement'];
+
+/**
+ * specs/mixed-method-payments.md rules 1-14 — the same PATCH with tender lines: the lines are validated first,
+ * the ordinary mark runs with all its guards (its caisse-interne flag set by rule 11), then the settlement is
+ * recorded on what that mark just paid. A note settled for another total than announced is taken back.
+ */
+function updatePaymentSplit(req, res) {
+  if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'Accès refusé.' });
+  const id = Number(req.params.id);
+  const { tenders, shortfall, ...rest } = req.body;
+  const row = model.getRow(id);
+  if (!row) return res.status(404).json({ error: 'Réservation non trouvée' });
+  const note = rest.settleMidStayNote || null;
+  const flagged = SPLIT_BUCKETS.filter((b) => rest[`${b}Paid`] === true || rest[`${b}Paid`] === 1);
+  if ((note ? 1 : 0) + flagged.length !== 1) {
+    return res.status(400).json({ error: 'Un seul paiement à la fois.', field: 'tenders' });
+  }
+  // Rule 2 — a platform's money never changed hands at the desk.
+  if (rest.platformPayoutAmount != null || rest.platformCommissionAmount != null
+    || (['deposit', 'balance'].includes(flagged[0]) && !isDirectChannel(row.platform))) {
+    return res.status(400).json({ error: 'Un versement de plateforme ne se répartit pas.', field: 'tenders' });
+  }
+  const prepared = paymentSettlementService.prepare({ tenders, dueCents: rest.expectedAmountCents, shortfall });
+  if (!prepared.ok) return res.status(400).json({ error: prepared.error, field: prepared.field });
+  const body = { ...rest };
+  if (note) body.settleMidStayNote = { ...note, cash: prepared.allInternal };
+  else if (flagged[0] === 'complement') body.complementPaidCash = prepared.allInternal;
+  else if (flagged[0] === 'endOfStayComplement') body.endOfStayComplementPaidCash = prepared.allInternal;
+  // A note's total is the server's: it is checked on the note just written, not on the mark.
+  if (note) delete body.expectedAmountCents;
+
+  const before = model.getRow(id);
+  const capture = captureRes();
+  updatePaymentCore({ ...req, body }, capture);
+  if (capture.statusCode >= 400) return res.status(capture.statusCode).json(capture.body);
+  const after = model.getRow(id);
+
+  let target;
+  if (note) {
+    const known = new Set(parseMidStayNotes(before.midStaySettledNotes).map((n) => String(n.id)));
+    const written = parseMidStayNotes(after.midStaySettledNotes).find((n) => !known.has(String(n.id)));
+    if (!written) return res.status(409).json({ error: 'Rien n\'a été encaissé.' });
+    const totalCents = Math.round((Number(written.total) || 0) * 100);
+    if (totalCents !== prepared.dueCents) {
+      model.cancelMidStayNote(id, written.id);
+      paymentSettlementsModel.sync(id);
+      return res.status(409).json({ error: 'Le montant de la note a changé. Rechargez la fiche.', code: 'AMOUNT_CHANGED' });
+    }
+    target = { kind: 'midStayNote', key: written.id, date: written.paidDate, parts: [{ kind: 'note', key: written.id, amountCents: totalCents }] };
+  } else {
+    target = { kind: 'bucket', key: flagged[0], date: after[`${flagged[0]}PaidDate`], parts: paymentSettlementService.flippedParts(before, after) };
+  }
+  // Rule 11 — the acompte and the solde have no caisse-interne field on the PATCH: the service sets it.
+  const recorded = paymentSettlementService.record({
+    reservationId: id, targetKind: target.kind, targetKey: target.key, paidDate: target.date || getTodayIsoDate(), prepared, parts: target.parts,
+  });
+  if (!recorded.ok) {
+    if (note) model.cancelMidStayNote(id, target.key);
+    else updatePaymentCore({ ...req, body: { [`${flagged[0]}Paid`]: false } }, captureRes());
+    paymentSettlementsModel.sync(id);
+    return res.status(recorded.status).json({ error: recorded.error });
+  }
+  return res.status(capture.statusCode).json(capture.body);
+}
+
+function updatePaymentCore(req, res) {
   // specs/reception-role-checkin-only.md §3.5 rule 10 — a reception-only user may flip ONLY the
   // check-in/out status flags through this endpoint; every financial field in the same payload is
   // dropped before any processing (fail-closed field guard).

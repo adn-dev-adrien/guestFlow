@@ -519,6 +519,53 @@ function takeBackAnswer(req, takeBack) {
   return { error: RECEPTION_REFUND_REFUSAL, code: takeBack.body.code };
 }
 
+const settlementService = sdk.coreModule('paymentSettlementService');
+
+// specs/mixed-method-payments.md rules 1, 32 — the single payment of the arrival SAS split over several methods:
+// only the unified payment (one amount asked), never with an installment plan (its installments are recorded
+// one by one, each with its own method).
+function splitArrivalRefusalOrPrepared(req, recap, unifiable, separately) {
+  const refuse = (message, status = 400) => ({ refusal: { status, body: { error: 'INVALID_TENDERS', message } } });
+  if (isReceptionOnly(req.user)) return refuse('Accès refusé.', 403);
+  if (!unifiable || separately === true) return refuse('Plusieurs moyens : seulement pour le paiement unique.');
+  const row = reservationsModel.getRow(Number(req.params.id)) || {};
+  if (Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0) > 0) {
+    return refuse('Plusieurs moyens : pas avec un échéancier.');
+  }
+  const prepared = settlementService.prepare({
+    tenders: req.body.arrivalPaymentTenders, dueCents: Math.round(Number(recap.totalAtArrival) * 100), shortfall: req.body.arrivalPaymentShortfall,
+  });
+  if (!prepared.ok) return refuse(prepared.error);
+  return { prepared };
+}
+
+/**
+ * Records the settlement of a SAS commit that just ran (specs/mixed-method-payments.md rules 10-14): on the group
+ * when the commit grouped its payment, on the bucket(s) it settled otherwise. A commit that settled another
+ * total than the recap showed is re-checked on what it really settled; when the lines no longer fit, the
+ * ordinary payment stands and the answer says the split was not recorded.
+ */
+function recordSasSplit(reservationId, before, prepared, { tenders, shortfall }) {
+  const after = reservationsModel.getRow(reservationId) || {};
+  const parts = settlementService.flippedParts(before, after);
+  const covered = parts.reduce((sum, p) => sum + p.amountCents, 0);
+  const notRecorded = { code: 'SPLIT_NOT_RECORDED', message: 'Paiement enregistré sans le détail des moyens : le total a changé. Le corriger depuis la fiche.' };
+  if (parts.length === 0) return notRecorded;
+  const fitted = covered === prepared.dueCents ? prepared : settlementService.prepare({ tenders, dueCents: covered, shortfall });
+  if (!fitted.ok) return notRecorded;
+  const group = parseGroup(after.arrivalPaymentGroup);
+  const grouped = group && parts.every((p) => group.buckets.includes(p.kind)) && parts.length > 1;
+  const recorded = settlementService.record({
+    reservationId,
+    targetKind: grouped ? 'arrivalGroup' : 'bucket',
+    targetKey: grouped ? group.at : parts[0].kind,
+    paidDate: grouped ? group.at : (after[`${parts[0].kind}PaidDate`] || before.departureSasDoneAt || after.endDate),
+    prepared: fitted,
+    parts,
+  });
+  return recorded.ok ? null : notRecorded;
+}
+
 function commitArrival(req, res) {
   const reservation = reservationsModel.getByIdWithDetails(req.params.id);
   if (!reservation) return res.status(404).json({ error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' });
@@ -573,7 +620,12 @@ function commitArrival(req, res) {
   //
   // « Régler séparément », or a plan that is not unifiable, hands the decision back to the two
   // v2.8.0 fields.
-  const mode = arrivalPaymentMode === 'defer' ? 'later' : arrivalPaymentMode;
+  // specs/mixed-method-payments.md rules 1, 32 — « Plusieurs moyens » on the single payment: the lines are
+  // validated against the planned total first, then the gesture is the card or caisse one (rule 11).
+  const splitArrival = arrivalPaymentMode === 'split' ? splitArrivalRefusalOrPrepared(req, recap, unifiable, arrivalPaymentSplit) : null;
+  if (splitArrival && splitArrival.refusal) return res.status(splitArrival.refusal.status).json(splitArrival.refusal.body);
+  const requested = splitArrival ? (splitArrival.prepared.allInternal ? 'cash' : 'card') : arrivalPaymentMode;
+  const mode = requested === 'defer' ? 'later' : requested;
   const unifying = unifiable && arrivalPaymentSplit !== true && (mode === 'card' || mode === 'cash' || mode === 'later');
   const settles = unifying && mode !== 'later';
   const unified = unifying
@@ -607,6 +659,7 @@ function commitArrival(req, res) {
   if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
 
   const beforeSas = snapshotSas(Number(req.params.id));
+  const beforeSplit = reservationsModel.getRow(Number(req.params.id)) || {};
   const complementAmount = reservationsModel.commitArrivalSas(Number(req.params.id), {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
@@ -636,6 +689,9 @@ function commitArrival(req, res) {
     pluginWrites: draft.plugins.writes,
   });
   recordSasHistory(Number(req.params.id), 'sas_arrival', beforeSas);
+  const splitWarning = splitArrival ? recordSasSplit(Number(req.params.id), beforeSplit, splitArrival.prepared, {
+    tenders: req.body.arrivalPaymentTenders, shortfall: req.body.arrivalPaymentShortfall,
+  }) : null;
   // specs/sas-arrival-total-server-side.md rules 22-22bis — the total the recap showed is compared,
   // never used: the commit went through on its own plan, and a difference is said and kept.
   const stored = round2(complementAmount);
@@ -647,7 +703,7 @@ function commitArrival(req, res) {
     ok: true,
     complementAmount,
     recap,
-    warning,
+    warning: warning || splitWarning,
     pluginLines: draft.plugins.items.map(({ label, amount }) => ({ label, amount })),
   });
 }
@@ -730,7 +786,18 @@ function commitDeparture(req, res) {
   const takeBack = refusalToTakeBack(id, departureTakeBackFlags(reservationsModel.getRow(id) || {}, { complementsSettled, complementsPaidCash }));
   if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
   const recap = departureRecapFor(reservation, plan);
+  // specs/mixed-method-payments.md rules 1, 32 — « Plusieurs moyens » at the check-out: the lines are validated
+  // against the recap's total first; the gesture is « Compléments encaissés », in the caisse when every line is.
+  const splitTenders = req.body && req.body.complementsTenders;
+  let splitPrepared = null;
+  if (splitTenders !== undefined) {
+    if (isReceptionOnly(req.user)) return res.status(403).json({ error: 'FORBIDDEN' });
+    if (complementsSettled !== true) return res.status(400).json({ error: 'SPLIT_WITHOUT_SETTLEMENT', message: 'Plusieurs moyens : les compléments doivent être encaissés.' });
+    splitPrepared = settlementService.prepare({ tenders: splitTenders, dueCents: Math.round(Number(recap.grandTotal) * 100), shortfall: req.body.complementsShortfall });
+    if (!splitPrepared.ok) return res.status(400).json({ error: 'INVALID_TENDERS', message: splitPrepared.error, field: splitPrepared.field });
+  }
   const beforeSas = snapshotSas(id);
+  const beforeSplit = reservationsModel.getRow(id) || {};
   reservationsModel.commitDepartureSas(id, {
     // Tri-state, same contract as the arrival caution (specs/reopen-completed-sas.md §6).
     cautionReturned: cautionReturned === undefined ? undefined : Boolean(cautionReturned),
@@ -738,7 +805,7 @@ function commitDeparture(req, res) {
     // specs/recall-unpaid-arrival-complement-at-checkout.md — « Compléments encaissés » → mark paid every
     // positive complement (end-of-stay + recalled arrival) at the checkout moment.
     complementsSettled: complementsSettled === undefined ? undefined : Boolean(complementsSettled),
-    complementsPaidCash: Boolean(complementsPaidCash),
+    complementsPaidCash: splitPrepared ? splitPrepared.allInternal : Boolean(complementsPaidCash),
   });
   // Rules 22-23 — the total the recap showed is compared, never used: the commit went through on its
   // own plan, and a difference is said and kept, as one more change of the `sas_departure` entry.
@@ -749,7 +816,10 @@ function commitDeparture(req, res) {
     ? { code: 'DEPARTURE_TOTAL_DIFFERED', displayed: round2(displayedDepartureTotal), stored }
     : null;
   recordSasHistory(id, 'sas_departure', beforeSas, warning ? [totalDifferenceChange(DEPARTURE_TOTAL_HISTORY, warning)] : []);
-  return res.json({ ok: true, recap, warning });
+  const splitWarning = splitPrepared ? recordSasSplit(id, beforeSplit, splitPrepared, {
+    tenders: splitTenders, shortfall: req.body.complementsShortfall,
+  }) : null;
+  return res.json({ ok: true, recap, warning: warning || splitWarning });
 }
 
 module.exports = {
