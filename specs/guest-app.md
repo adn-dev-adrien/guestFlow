@@ -1186,11 +1186,10 @@ le nom et le numéro. »
 
 ## 9. Open questions
 
-Raised by the browser-side review of 2026-11-09, both waiting on the server:
-- **Q11 — « Reprendre le paiement ».** `OrderCard` can offer it for an unpaid card order, but the order payload
-  (`orderView`) carries no payment URL: only `POST /orders` answers `paymentUrl`. Resuming needs the server to
-  expose the order's live link (or a « new link » endpoint); until then the app offers « Abandonner et revenir
-  au panier » only.
+Raised by the browser-side review of 2026-11-09:
+- **Q11 — « Reprendre le paiement ».** Resolved the same day: the order view carries `paymentUrl` while an unpaid
+  card order's link is live (§4.3), and the order page offers « Reprendre le paiement » beside « Abandonner et
+  revenir au panier ».
 - **Q12 — `lang="fr"` on French read in English.** Rule 19 falls back to the French per field, but the resolved
   booklet does not say which fields fell back, so the app cannot mark them `lang="fr"` for screen readers. Needs
   `resolvePages` to tag the fallback (e.g. a `lang` beside each picked text).
