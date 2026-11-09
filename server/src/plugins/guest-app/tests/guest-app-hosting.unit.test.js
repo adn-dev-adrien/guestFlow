@@ -116,9 +116,19 @@ test('rule 52: a build not there answers a plain 503; the builds are found in th
   assert.equal(distDirOf('guest', ['/nowhere']), null);
 });
 
+// The users the studio re-reads, as the core's `requireAuth` does: by id, from the database.
+const USERS = {
+  1: { id: 1, roles: ['admin'], isActive: true, mustChangePassword: false },
+  2: { id: 2, roles: ['reception'], isActive: true, mustChangePassword: false },
+  3: { id: 3, roles: ['admin'], isActive: false, mustChangePassword: false },
+  4: { id: 4, roles: ['reception'], isActive: true, mustChangePassword: false },
+  5: { id: 5, roles: ['admin'], isActive: true, mustChangePassword: true },
+};
+const revalidate = require('../../../middleware/requireAuth').createRevalidate({ findById: (id) => USERS[id] || null });
+
 test('rule 47: the studio at /studio — no session → the GuestFlow login, another role → 403, an admin gets the app', async () => {
   const dir = fixtureDist();
-  const handler = adminOnly(staticApp({ dir: () => dir, base: '/studio', csp: () => guestCsp() }));
+  const handler = adminOnly(staticApp({ dir: () => dir, base: '/studio', csp: () => guestCsp() }), { revalidate });
   const anonymous = await serve(handler, { base: '/studio' });
   try {
     const res = await anonymous.get('/studio/pages');
@@ -140,4 +150,26 @@ test('rule 47: the studio at /studio — no session → the GuestFlow login, ano
   } finally {
     await admin.close();
   }
+});
+
+test('rule 47: the studio re-reads its admin — deactivated, demoted or held to a password change, the old session’s snapshot opens nothing', async () => {
+  const dir = fixtureDist();
+  const handler = adminOnly(staticApp({ dir: () => dir, base: '/studio', csp: () => guestCsp() }), { revalidate });
+  const as = async (user, check) => {
+    let destroyed = false;
+    const session = { user, destroy(cb) { destroyed = true; cb(); } };
+    const server = await serve(handler, { base: '/studio', session });
+    try {
+      await check(await server.get('/studio'), () => destroyed);
+    } finally {
+      await server.close();
+    }
+  };
+  await as({ id: 3, roles: ['admin'] }, (res, destroyed) => {
+    assert.equal(res.status, 302, 'deactivated');
+    assert.equal(destroyed(), true, 'its session is ended');
+  });
+  await as({ id: 4, roles: ['admin'] }, (res) => assert.equal(res.status, 403, 'demoted since the login'));
+  await as({ id: 5, roles: ['admin'] }, (res) => assert.equal(res.status, 302, 'must change the password first'));
+  await as({ id: 99, roles: ['admin'] }, (res) => assert.equal(res.status, 302, 'deleted'));
 });

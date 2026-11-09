@@ -13,7 +13,6 @@ const {
 const { nameMatches } = require('../nameMatch');
 const { shownModules, tilesOf } = require('../modules');
 const { chooseHighlight, openingLine, statusLine, welcomeLine } = require('../homeHighlight');
-const { setSessionCookie } = require('../middleware/guestSession');
 const { pickSuggestion } = require('../soliomapFeed');
 const gate = require('../gate');
 const { isNight } = require('../sun');
@@ -91,13 +90,13 @@ function buildSessionController({
     const at = now();
     const again = reusable(req, { propertyId: lodging.propertyId, reservationId, mode });
     if (again) {
-      setSessionCookie(res, again.token, new Date(again.session.expiresAt));
+      guestSession.setCookie(res, again.token, new Date(again.session.expiresAt));
       return answer(res, { mode, lodging, opensAt, ended });
     }
     const { token, session } = sessions().create({
       propertyId: lodging.propertyId, reservationId, mode, origin, stayLinkId, expiresAt, now: at,
     });
-    setSessionCookie(res, token, new Date(session.expiresAt));
+    guestSession.setCookie(res, token, new Date(session.expiresAt));
     return answer(res, { mode, lodging, opensAt, ended });
   }
 

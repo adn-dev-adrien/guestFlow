@@ -118,6 +118,10 @@ const CORE_MODULES = Object.freeze({
   instancePaths: '../../utils/instancePaths',
   // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 47)
   midStayOrderCommit: '../../utils/midStayOrderCommit',
+  // guest-app — its own session cookie is Secure exactly when the core's is (`HTTPS_ENABLED`, specs/guest-app.md rule 4)
+  securityConfig: '../../utils/securityConfig',
+  // guest-app — the studio re-reads its admin like every `/api` route does (specs/guest-app.md rule 47)
+  requireAuth: '../../middleware/requireAuth',
   // accounting-export — the accounting synthesis reads the core's own finance figures, never a second
   // derivation (specs/accounting-synthesis.md rules 7-10, SDK 2.23.0)
   financeModel: '../../models/financeModel', // the stays' revenue of a window and the tourist-tax extraction

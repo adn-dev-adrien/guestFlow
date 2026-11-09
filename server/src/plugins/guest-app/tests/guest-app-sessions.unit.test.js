@@ -135,6 +135,14 @@ withApi('rule 3: a poster scanned on an arrival day learns nothing of the stay t
   assert.equal(me.body.data.openingLine, undefined);
 });
 
+withApi('rule 4: over plain HTTP (`HTTPS_ENABLED` off) the cookie is not Secure — like the core’s own session cookie', async ({ call, db }) => {
+  const id = addStay(db);
+  const { setCookie } = await openStay(call, db, id);
+  assert.match(setCookie, /HttpOnly/);
+  assert.doesNotMatch(setCookie, /Secure/);
+  assert.match(setCookie, /SameSite=Strict/);
+}, { httpsEnabled: () => false });
+
 withApi('rule 4: the cookie is HttpOnly, Secure, SameSite=Strict and expires with the window; only its hash is stored', async ({ call, db }) => {
   const id = addStay(db);
   const { setCookie } = await openStay(call, db, id);
@@ -149,7 +157,7 @@ withApi('rule 4: the cookie is HttpOnly, Secure, SameSite=Strict and expires wit
   assert.match(row.tokenHash, /^[a-f0-9]{64}$/);
   assert.equal(JSON.stringify(row).includes(token), false);
   assert.deepEqual([row.origin, row.stayLinkId], ['link', db.prepare('SELECT id FROM guest_stay_links').get().id]);
-});
+}, { httpsEnabled: () => true });
 
 withApi('rule 4: the same device reopening the link during the same phase reuses its session', async ({ call, db }) => {
   const id = addStay(db);

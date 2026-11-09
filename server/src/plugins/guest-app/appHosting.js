@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const sdk = require('../sdk');
 
 const NO_CACHE = 'no-cache';
 const IMMUTABLE = 'public, max-age=31536000, immutable';
@@ -105,13 +106,23 @@ function staticApp({ dir, base = '', csp }) {
   };
 }
 
-/** Rule 47 — the studio for an admin session only: no session → the GuestFlow login, another role → 403. */
-function adminOnly(handler, { loginPath = '/login' } = {}) {
+// The core's own re-reading of the session's user (`requireAuth`): a deactivated, deleted or demoted admin, or
+// one who must change the password, never keeps the studio on an old session's snapshot.
+const coreRevalidate = (req) => sdk.coreModule('requireAuth').revalidate(req);
+
+/**
+ * Rule 47 — the studio for an admin session only, its user re-read on each request: no session (or a user gone,
+ * deactivated, or held to a password change) → the GuestFlow login, another role → 403.
+ */
+function adminOnly(handler, { loginPath = '/login', revalidate = coreRevalidate } = {}) {
   return (req, res, next) => {
-    const user = req.session && req.session.user;
+    const checked = revalidate(req);
+    const user = checked.user;
     if (!user) {
       res.set('Cache-Control', 'no-store');
-      return res.redirect(302, `${loginPath}?next=${encodeURIComponent(req.originalUrl || '/studio')}`);
+      const login = () => res.redirect(302, `${loginPath}?next=${encodeURIComponent(req.originalUrl || '/studio')}`);
+      if (checked.revoke && req.session && typeof req.session.destroy === 'function') return req.session.destroy(login);
+      return login();
     }
     const roles = Array.isArray(user.roles) ? user.roles : [user.role];
     if (!roles.includes('admin')) {

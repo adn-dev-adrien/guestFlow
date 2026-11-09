@@ -81,7 +81,7 @@ function buildGuestApi({
   appName = () => null, soliomapEmbed = () => false, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
   commit = sdk.coreModule('midStayOrderCommit'), payments = corePayments, push = corePush,
-  settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl,
+  settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl, httpsEnabled,
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
@@ -118,7 +118,9 @@ function buildGuestApi({
     const ids = new Set([...stock().staysInProgress(today), ...stock().countedReservations()]);
     alertStock([...new Set([...ids].flatMap((reservationId) => stock().reconcile(reservationId, today)))]);
   }
-  const guestSession = buildGuestSession({ sessions, stays, stayLinks, lodgings, now });
+  const guestSession = buildGuestSession({
+    sessions, stays, stayLinks, lodgings, now, ...(httpsEnabled ? { httpsEnabled } : {}),
+  });
   const shop = buildShopController({
     items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment,
   });
