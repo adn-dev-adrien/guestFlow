@@ -48,14 +48,73 @@ function addHistory(reservationId, change) {
   }
 }
 
+const RECONCILED = 'Déjà rapproché avec la banque : défaites le rapprochement d\'abord.';
+
+// Whether the bank reconciliation holds a line on one of these receipt keys of the stay: the plugin's table, when it exists.
+function hasBankLines(reservationId, keys) {
+  if (!keys.length) return false;
+  try {
+    return Boolean(db.prepare(`SELECT 1 FROM bank_reconciliation_lines WHERE reservationId = ? AND ledgerKey IN (${keys.map(() => '?').join(',')}) LIMIT 1`)
+      .get(Number(reservationId), ...keys));
+  } catch {
+    return false;
+  }
+}
+
+// The receipts the reconciliation expects of a target as long as it is not split (expectedReceipts' ledger keys).
+function plainReceiptKeys(target) {
+  if (target.kind === 'installment') return target.installmentNumber != null ? [`installment-${target.installmentNumber}`] : [];
+  const keys = (target.buckets || []).flatMap((b) => (b === 'complement' ? ['complement', 'checkoutComplement'] : [b]));
+  return target.kind === 'arrivalGroup' ? ['group', ...keys] : keys;
+}
+
+/**
+ * Rule 44 (audit R34-M-M1) — the acompte and the installments are the money a cancellation keeps and requalifies: on the
+ * books whole or in the caisse whole, for their whole amount. An installment has no caisse interne at all.
+ */
+function retainedMoneyRefusal(target, prepared) {
+  const lines = prepared.lines || [];
+  if (target.kind === 'installment') {
+    if (prepared.shortfallCents > 0) return 'Échéance : le montant entier, sans reste ni geste.';
+    if (lines.some((l) => l.internal)) return 'Échéance : pas de caisse interne.';
+    return null;
+  }
+  if (!(target.buckets || []).includes('deposit')) return null;
+  if (prepared.shortfallCents > 0) return 'Acompte : le montant entier, sans reste ni geste.';
+  if (lines.some((l) => l.internal) && lines.some((l) => !l.internal)) return 'Acompte : tout en compta ou tout en caisse interne.';
+  return null;
+}
+
 /**
  * Rules 4-9, 15 — validates the lines before the gesture runs. `allInternal` is the caisse-interne flag the
  * gesture must write (rule 11): every line in the caisse and nothing left to collect.
+ *
+ * With `target` ({ kind, buckets, installmentNumber }) the target is judged too: rule 44 (the acompte and the
+ * installments) and, with `reservationId`, rule 43 (a plain receipt of the target already matched at the bank, 409).
  */
-function prepare({ tenders, dueCents, shortfall }) {
+function prepare({ tenders, dueCents, shortfall, reservationId = null, target = null }) {
   const v = validateSettlement({ tenders, dueCents, shortfall });
   if (!v.ok) return v;
-  return { ...v, dueCents: toCents(dueCents), allInternal: v.lines.every((l) => l.internal) && v.shortfallKind !== 'due' };
+  const prepared = { ...v, dueCents: toCents(dueCents), allInternal: v.lines.every((l) => l.internal) && v.shortfallKind !== 'due' };
+  if (!target) return prepared;
+  const retained = retainedMoneyRefusal(target, prepared);
+  if (retained) return { ok: false, error: retained, field: 'tenders' };
+  if (reservationId != null && hasBankLines(reservationId, plainReceiptKeys(target))) {
+    return { ok: false, status: 409, code: 'SETTLEMENT_RECONCILED', error: RECONCILED, field: 'tenders' };
+  }
+  return prepared;
+}
+
+/**
+ * Rule 43 (audit R34-EXT-1) — a gesture that would take back a split payment whose receipt is matched at the bank is
+ * refused, like its correction (rule 22): the bank line would point at a receipt that no longer exists.
+ * @param {object} row the stay as stored; @param {object} changes the columns the gesture would write
+ */
+function takeBackReconciledRefusal(row, changes) {
+  if (!row || row.id == null) return null;
+  const dropped = settlementsModel.droppedBy ? settlementsModel.droppedBy({ ...row, ...changes }) : [];
+  if (!hasBankLines(row.id, dropped.map((s) => `settlement-${s.id}`))) return null;
+  return { status: 409, body: { error: RECONCILED, code: 'SETTLEMENT_RECONCILED' } };
 }
 
 // The buckets a gesture just paid: unpaid in `before`, paid in `after`, with the amount they were paid at.
@@ -142,15 +201,9 @@ function checkedDate(date) {
   return validateCollectionDate(date, { today: todayIso(), invalidReason: 'Date invalide.' });
 }
 
-// The bank reconciliation already matched a line of this settlement: the plugin's table, when it exists.
+// The bank reconciliation already matched a line of this settlement.
 function reconciledRefusal(reservationId, settlementId) {
-  try {
-    const hit = db.prepare('SELECT 1 FROM bank_reconciliation_lines WHERE reservationId = ? AND ledgerKey = ?')
-      .get(Number(reservationId), `settlement-${settlementId}`);
-    return hit ? 'Déjà rapproché avec la banque : défaites le rapprochement d\'abord.' : null;
-  } catch {
-    return null;
-  }
+  return hasBankLines(reservationId, [`settlement-${settlementId}`]) ? RECONCILED : null;
 }
 
 // specs/reservation-refunds.md rule 52 — what stays on the books never drops below the book refunds.
@@ -195,6 +248,14 @@ function moveTargetDate(reservationId, settlement, date) {
   }
 }
 
+// What a recorded settlement paid, as `prepare` judges a target.
+function targetOf(settlement) {
+  return {
+    kind: settlement.targetKind,
+    buckets: (settlement.parts || []).map((p) => p.kind).filter((k) => BUCKETS.includes(k)),
+  };
+}
+
 /**
  * Rule 17 — collects (part of) the reste à percevoir of a target, as a settlement of its own.
  */
@@ -208,7 +269,7 @@ function collectRemainder({ reservationId, targetKind, targetKey, date, tenders,
   }
   const checked = checkedDate(date);
   if (!checked.ok) return { ok: false, status: 400, error: checked.reason, field: 'date' };
-  const prepared = prepare({ tenders, dueCents, shortfall });
+  const prepared = prepare({ tenders, dueCents, shortfall, target: targetOf(last) });
   if (!prepared.ok) return { ok: false, status: 400, error: prepared.error, field: prepared.field };
   const settlementId = settlementsModel.insert({
     reservationId, targetKind, targetKey, paidDate: checked.date, dueCents: prepared.dueCents,
@@ -236,7 +297,7 @@ function modify({ reservationId, settlementId, date: rawDate, tenders, shortfall
   const checked = checkedDate(rawDate);
   if (!checked.ok) return { ok: false, status: 400, error: checked.reason, field: 'date' };
   const { date } = checked;
-  const prepared = prepare({ tenders, dueCents: current.dueCents, shortfall });
+  const prepared = prepare({ tenders, dueCents: current.dueCents, shortfall, target: targetOf(current) });
   if (!prepared.ok) return { ok: false, status: 400, error: prepared.error, field: prepared.field };
   const siblings = settlementsModel.listForTarget(reservationId, current.targetKind, current.targetKey);
   const index = siblings.findIndex((s) => s.id === current.id);
@@ -280,4 +341,5 @@ function modify({ reservationId, settlementId, date: rawDate, tenders, shortfall
 
 module.exports = {
   METHODS, toCents, prepare, flippedParts, record, applyCashFlag, collectRemainder, modify, targetLabel, getRow,
+  takeBackReconciledRefusal,
 };

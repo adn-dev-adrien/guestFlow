@@ -147,6 +147,14 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   } catch (err) {
     logErrorMarker(`Devis single-payment re-store failed: ${err.message}`);
   }
+  // specs/mixed-method-payments.md rule 48 (audit R34-DB-L1) — every boot, idempotent: a split payment whose target was taken
+  // back by a release that knew nothing of settlements (a rollback, then a roll-forward) is dropped, the aggregates refreshed.
+  try {
+    const dropped = require('./models/paymentSettlementsModel').syncAll();
+    if (dropped > 0) console.log(`[migration:payment-settlements] ${dropped} split payment(s) dropped: their payment was taken back`);
+  } catch (err) {
+    logErrorMarker(`Payment settlements sync failed: ${err.message}`);
+  }
 }
 
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to

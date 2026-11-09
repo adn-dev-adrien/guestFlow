@@ -314,8 +314,11 @@ function buildController({
     if (split) {
       prepared = require('../utils/paymentSettlementService').prepare({
         tenders: req.body.tenders, dueCents: installment.amountCents, shortfall: req.body.shortfall,
+        reservationId: id, target: { kind: 'installment', installmentNumber: installment.number },
       });
-      if (!prepared.ok) return res.status(400).json({ error: prepared.error, message: prepared.error, field: prepared.field });
+      if (!prepared.ok) {
+        return res.status(prepared.status || 400).json({ error: prepared.error, message: prepared.error, field: prepared.field, ...(prepared.code ? { code: prepared.code } : {}) });
+      }
     }
     const method = split ? 'mixed' : String((req.body && req.body.method) || 'transfer');
     if (!split && !MANUAL_METHODS.includes(method)) return res.status(400).json({ error: 'INVALID_METHOD', message: 'Mode de paiement invalide.' });

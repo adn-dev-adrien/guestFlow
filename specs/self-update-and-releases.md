@@ -358,6 +358,12 @@ signed-off releases over HTTPS, when the operator asks for it.
     that rose after payment no longer claims the growth. Roll-forward: what was stamped is read again; a complement collected
     during the window has no split and reads live. Accounting-export 1.0.26 keeps its floors (`guestflow >=3.18.0`,
     `sdk ^2.19.0`): it asks no new core module, and reads the columns behind `hasReservationColumn`.
+    **Accepted exception (2026-11-09, audit R34-DB-L1):** `payment_settlements`, `payment_tenders` and the four
+    `reservations.split*` aggregates are additive (specs/mixed-method-payments.md §5), so the floor stays green. A release
+    below them knows no settlement: during the rollback window it counts a bucket paid with several methods whole (its
+    caisse-interne share and its reste à percevoir on the books), and its « Annuler l'encaissement » writes the paid flag
+    alone, leaving the settlement and its aggregates behind. Roll-forward: every boot runs `paymentSettlementsModel.syncAll()`
+    before the server answers (mixed-method-payments rule 48), which drops such a settlement and refreshes the aggregates.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another

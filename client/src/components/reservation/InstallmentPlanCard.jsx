@@ -434,7 +434,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
             />
             {marking && marking.id === installment.id && (
               <PaymentMarkForm
-                row={{ action: { kind: 'mark', split: { dueCents: Math.round(Number(installment.amount) * 100), methods: null } } }}
+                row={{ action: { kind: 'mark', split: { dueCents: Math.round(Number(installment.amount) * 100), methods: null, whole: true, noCaisse: true } } }}
                 today={today}
                 dateLabel={t.PAY_DATE_LABEL}
                 methods={t.PAY_METHODS}

@@ -3894,6 +3894,7 @@ export default function ReservationPage() {
   const pricingSummary = (
     <PricingSummary
       mode={showStoredSummary ? 'stored' : 'live'}
+      ledgerRows={storedLedger ? storedLedger.rows : null}
       topNotice={(
         <>
           <PricingNotices notices={pricingQuote?.notices} onAction={(action) => { if (action === 'refreshTouristTax') setTouristTaxRefreshRequested(true); }} />

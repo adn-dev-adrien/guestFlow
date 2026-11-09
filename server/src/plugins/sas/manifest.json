@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -134,6 +134,12 @@
     "1.8.0": [
       "Au départ et à l’arrivée, « Plusieurs moyens » enregistre un paiement réparti (espèces, CB…), espèces en caisse interne par défaut.",
       "Une somme non couverte se règle en reste à percevoir ou en geste commercial.",
+      "Compatible avec le SDK 2.24 de GuestFlow."
+    ],
+    "1.8.1": [
+      "Chaque ouverture du sas repart sur un seul moyen de paiement : un départ sans rien à percevoir se termine normalement.",
+      "« Plusieurs moyens » réservé à l’administrateur ; l’accueil enregistre le départ avec un seul moyen.",
+      "Un acompte réparti va tout en compta ou tout en caisse interne, sans reste ni geste ; un paiement déjà rapproché avec la banque ne se répartit plus.",
       "Compatible avec le SDK 2.24 de GuestFlow."
     ]
   }

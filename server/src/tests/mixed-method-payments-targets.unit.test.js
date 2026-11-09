@@ -33,14 +33,15 @@ test('specs/mixed-method-payments.md rules 12, 36 — an installment paid with s
     { number: 2, dueDate: TODAY, amountCents: 30000 },
   ], 60000);
   const res = call(installmentsController.markPaid, { id, installmentId: first.id }, {
-    paidDate: TODAY, tenders: [{ method: 'cheque', amountCents: 20000 }, { method: 'cash', amountCents: 10000, internal: true }],
+    paidDate: TODAY, tenders: [{ method: 'cheque', amountCents: 20000 }, { method: 'card', amountCents: 10000 }],
   });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(installmentsModel.findById(first.id).paidMethod, 'mixed');
   assert.match(res.body.installmentPlan.installments[0].statusLabel, /· plusieurs moyens$/);
   const [s] = settlements.listFor(id);
   assert.equal(s.targetKind, 'installment');
-  assert.equal(db.prepare('SELECT splitOffBooksAmount FROM reservations WHERE id = ?').get(id).splitOffBooksAmount, 100);
+  // Rule 44 — an installment is book money whole (no caisse interne): nothing kept off the books.
+  assert.equal(db.prepare('SELECT splitOffBooksAmount FROM reservations WHERE id = ?').get(id).splitOffBooksAmount, 0);
 });
 
 const ROW = {

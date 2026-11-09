@@ -19,6 +19,11 @@
  *   onChange:        ({ tenders, shortfall, canSubmit, receivedCents, gapCents }) → void
  *   disabled:        boolean
  *   autoFocus:       boolean — focus the first amount when mounted
+ *   whole:           boolean — the amount is paid whole, no shortfall choice (rule 44: the acompte, an installment);
+ *                    a cash line then starts on the books
+ *   noCaisse:        boolean — no « Caisse interne » switch (rule 44: an installment)
+ *
+ * An untyped last line left at 0 (the others cover the amount) is not a line: it is not sent and blocks nothing.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, ButtonBase, FormControlLabel, IconButton, InputAdornment, Switch, TextField, Typography } from '@mui/material';
@@ -35,15 +40,15 @@ const toCents = (text) => {
 };
 const euros = (cents) => formatCurrency(cents / 100);
 
-function seedLines(initialTenders, single) {
+function seedLines(initialTenders, single, cashInternal) {
   if (Array.isArray(initialTenders) && initialTenders.length > 0) {
     return initialTenders.map((t) => ({
       method: t.method, amount: formatAmountInput(Number(t.amountCents) / 100), internal: Boolean(t.internal), typed: true,
     }));
   }
-  if (single) return [{ method: 'cash', amount: '', internal: true, typed: false }];
+  if (single) return [{ method: 'cash', amount: '', internal: cashInternal, typed: false }];
   return [
-    { method: 'cash', amount: '', internal: true, typed: false },
+    { method: 'cash', amount: '', internal: cashInternal, typed: false },
     { method: 'card', amount: '', internal: false, typed: false },
   ];
 }
@@ -67,10 +72,13 @@ export function tenderFigures(lines, dueCents) {
 
 export default function TenderLines({
   dueCents, methods, initialTenders = null, initialShortfallKind = null, single = false, onChange, disabled = false, autoFocus = false,
+  whole = false, noCaisse = false,
 }) {
   const list = methods && methods.length ? methods : TENDER_METHODS;
   const labelOf = (value) => (list.find((m) => m.value === value) || { label: value }).label;
-  const [lines, setLines] = useState(() => seedLines(initialTenders, single));
+  // D2 — cash goes to the caisse interne by default; not where the amount is paid whole (rule 44).
+  const cashInternal = !whole && !noCaisse;
+  const [lines, setLines] = useState(() => seedLines(initialTenders, single, cashInternal));
   const [shortKind, setShortKind] = useState(initialShortfallKind);
   const firstAmount = useRef(null);
   const figures = useMemo(() => tenderFigures(lines, dueCents), [lines, dueCents]);
@@ -82,12 +90,14 @@ export default function TenderLines({
 
   useEffect(() => {
     if (typeof onChange !== 'function') return;
-    const everyAmount = amounts.every((c) => c != null && c > 0);
+    // An untyped last line the others already cover (0) is no line at all (audit R34-C-L2).
+    const sent = lines.map((l, i) => i).filter((i) => !(i === autoIndex && autoCents === 0 && lines.length > 1));
+    const everyAmount = sent.every((i) => amounts[i] != null && amounts[i] > 0);
     const short = gapCents > 0;
-    const canSubmit = !unreadable && everyAmount && receivedCents > 0 && gapCents >= 0 && (!short || Boolean(shortKind));
+    const canSubmit = !unreadable && everyAmount && receivedCents > 0 && gapCents >= 0 && (!short || (!whole && Boolean(shortKind)));
     onChange({
-      tenders: lines.map((l, i) => ({ method: l.method, amountCents: amounts[i] || 0, internal: l.method === 'cash' && l.internal })),
-      shortfall: short && shortKind ? { kind: shortKind } : null,
+      tenders: sent.map((i) => ({ method: lines[i].method, amountCents: amounts[i] || 0, internal: lines[i].method === 'cash' && lines[i].internal && !noCaisse })),
+      shortfall: short && shortKind && !whole ? { kind: shortKind } : null,
       canSubmit,
       receivedCents,
       gapCents,
@@ -111,7 +121,7 @@ export default function TenderLines({
     const used = new Set(prev.map((l) => l.method));
     const next = list.find((m) => !used.has(m.value)) || list[list.length - 1];
     const frozen = prev.map((l, i) => (i === autoIndex ? { ...l, amount: autoCents ? formatAmountInput(autoCents / 100) : '', typed: true } : l));
-    return [...frozen, { method: next.value, amount: '', internal: next.value === 'cash', typed: false }];
+    return [...frozen, { method: next.value, amount: '', internal: next.value === 'cash' && cashInternal, typed: false }];
   });
 
   const meterTone = gapCents === 0 ? 'success.text' : gapCents < 0 ? 'error.main' : 'warning.text';
@@ -137,7 +147,7 @@ export default function TenderLines({
               size="small"
               value={line.method}
               disabled={disabled}
-              onChange={(e) => update(index, { method: e.target.value, internal: e.target.value === 'cash' })}
+              onChange={(e) => update(index, { method: e.target.value, internal: e.target.value === 'cash' && cashInternal })}
               slotProps={{ select: { native: true }, htmlInput: { 'aria-label': T.methodAria(index + 1) } }}
             >
               {list.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -181,7 +191,7 @@ export default function TenderLines({
                   <CloseIcon fontSize="small" />
                 </IconButton>
               )}
-              {line.method === 'cash' && (
+              {line.method === 'cash' && !noCaisse && (
                 <FormControlLabel
                   control={<Switch checked={line.internal} disabled={disabled} onChange={(e) => update(index, { internal: e.target.checked })} />}
                   label={T.internal}
@@ -213,7 +223,10 @@ export default function TenderLines({
           {meterText}
         </Typography>
       </Box>
-      {gapCents > 0 && !unreadable && (
+      {gapCents > 0 && !unreadable && whole && (
+        <Typography variant="body2" data-tender-whole="" sx={{ px: 0.5, color: 'warning.text' }}>{T.whole}</Typography>
+      )}
+      {gapCents > 0 && !unreadable && !whole && (
         <Box
           role="group"
           aria-label={T.shortTitle(euros(gapCents))}

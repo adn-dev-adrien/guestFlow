@@ -471,20 +471,30 @@ function capInOrder(rooms, budget, order) {
  * Reading of 2026-11-05 (audit R23 N6) — on the books, a paid end-of-stay complement and the notes held their lines too
  * (`collectedAfterArrival`). The caisse interne's stays on no line (review of PR #929, F4).
  */
-function collectedByLine({ reservation, options = [], resources = [], booked = null, cash = false, taxOnArrival = true }) {
+function collectedByLine({ reservation, options = [], resources = [], booked = null, cash = false, taxOnArrival = true, splitShares = null }) {
   const row = reservation || {};
   const billed = [...options, ...resources].filter((line) => line && Number(line.offered || 0) !== 1);
   const nz = (value) => (value == null ? 0 : Number(value));
   // Rule 48 reading of 2026-11-02 (audit R15-L1) — the book money, or (`cash`) what the caisse interne collected.
   const paid = (flag, cashFlag) => Number(row[flag]) === 1 && (Number(row[cashFlag] || 0) === 1) === Boolean(cash);
-  const deposit = paid('depositPaid', 'depositPaidCash');
-  const balance = paid('balancePaid', 'balancePaidCash');
-  const complement = paid('complementPaid', 'complementPaidCash');
+  // specs/mixed-method-payments.md rule 46 — a bucket paid with several methods, partly on the books: each reading
+  // holds its share of it (`paymentTenders.bucketSharesOf`), never the whole bucket.
+  const shareOf = (bucket, flag, cashFlag) => {
+    const split = splitShares && splitShares[bucket];
+    if (split && Number(row[flag]) === 1 && !Number(row[cashFlag] || 0)) return cash ? split.internal : split.books;
+    return paid(flag, cashFlag) ? 1 : 0;
+  };
+  const depositShare = shareOf('deposit', 'depositPaid', 'depositPaidCash');
+  const balanceShare = shareOf('balance', 'balancePaid', 'balancePaidCash');
+  const complementShare = shareOf('complement', 'complementPaid', 'complementPaidCash');
+  const deposit = depositShare > 0;
+  const balance = balanceShare > 0;
+  const complement = complementShare > 0;
   // Rule 49 reading of 2026-11-05 (D11) — a paid line since removed still holds what its entries booked.
   const removed = parseRemovedLineContribs(row.removedLineContribs).map((entry) => ({ ...entry, removed: true, totalPrice: 0, isCustom: false }));
   const lines = [...billed, ...removed];
   const keyOf = (line) => (line.removed ? line.key : billedLineKey(line));
-  const late = cash ? new Map() : collectedAfterArrival(row);
+  const late = cash ? new Map() : collectedAfterArrival(row, splitShares);
   const lateOf = (key) => (late.has(key) ? late.get(key).amount : 0);
   // Rule 49 reading of 2026-11-05 (audit R22-6a) — what the complement was stamped with at its flip is what it collected.
   const split = complement ? readComplementPaidSplit(row) : null;
@@ -515,8 +525,8 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
       const key = keyOf(line);
       if (!key) continue;
       const atDoor = lateOf(key);
-      if (Number(line.inComplement || 0) === 1) add(key, atDoor + (!complement ? 0 : (splitLines ? nz(splitOf.get(key)) : Math.max(0, round2(line.totalPrice - atDoor)))));
-      else if (preArrivalKnownEmpty) add(key, atDoor + nz(splitOf.get(key)));
+      if (Number(line.inComplement || 0) === 1) add(key, atDoor + (!complement ? 0 : complementShare * (splitLines ? nz(splitOf.get(key)) : Math.max(0, round2(line.totalPrice - atDoor)))));
+      else if (preArrivalKnownEmpty) add(key, atDoor + complementShare * nz(splitOf.get(key)));
     }
     const depositBuckets = deposit && booked ? booked.deposit : null;
     const soldeBuckets = balance && booked ? booked.solde : null;
@@ -526,11 +536,12 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
       // tax. Left out, the requalification came off the complement's money alone, whose sale room fell to 0: 42,40 €
       // collected stayed on no line of the register. A plan never sits beside a paid acompte or solde (D2).
       const plan = (!cash && booked && booked.installments) || { accommodation: 0, touristTax: 0, options: 0, resources: 0 };
-      out[ACCOMMODATION_KEY] = round2(nz(depositBuckets && depositBuckets.accommodation) + nz(soldeBuckets && soldeBuckets.accommodation) + plan.accommodation
-        + (!complement ? 0 : (split ? splitAccommodation : nz(row.extraGuestComplementSurcharge))));
+      out[ACCOMMODATION_KEY] = round2(depositShare * nz(depositBuckets && depositBuckets.accommodation) + balanceShare * nz(soldeBuckets && soldeBuckets.accommodation)
+        + plan.accommodation + (!complement ? 0 : complementShare * (split ? splitAccommodation : nz(row.extraGuestComplementSurcharge))));
       out[TOURIST_TAX_KEY] = round2(plan.touristTax + (!complement
-        ? soldeTax
-        : (split ? soldeTax + splitTax : (balance || taxOnArrival ? round2(row.touristTaxTotal) : nz(row.touristTaxAddedGuestsAmount)))));
+        ? balanceShare * soldeTax
+        : (split ? balanceShare * soldeTax + complementShare * splitTax
+          : complementShare * (balance || taxOnArrival ? round2(row.touristTaxTotal) : nz(row.touristTaxAddedGuestsAmount)))));
       // Reading of 2026-11-05 (audit R23 N5) — what the plan booked on a bucket beyond the lines still naming it: a paid line
       // removed, lowered or moved to the complement since. The cents a split rounds are not a line.
       for (const { bucket, key } of PLAN_BUCKET_LINES) {
@@ -540,7 +551,7 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
         if (beyond > STORED_SPLIT_ROUNDING_TTC) out[key] = beyond;
       }
     }
-    addLinesOnlyTheSplitNames(out, splitOf, billed);
+    addLinesOnlyTheSplitNames(out, splitOf, billed, complementShare);
     addLateOffTheFiche(new Set(billed.map(keyOf)));
     return Object.keys(out).length ? out : null;
   }
@@ -553,7 +564,7 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
     if (complement && splitLines) atArrival = nz(splitOf.get(key));
     else if (complement && Number(line.inComplement || 0) === 1) atArrival = total;
     else if (complement && balance) atArrival = Math.max(0, round2(total - nz(line.acompteContribTtc) - nz(line.soldeContribTtc)));
-    add(key, (deposit ? nz(line.acompteContribTtc) : 0) + (balance ? nz(line.soldeContribTtc) : 0) + atArrival + atDoor);
+    add(key, depositShare * nz(line.acompteContribTtc) + balanceShare * nz(line.soldeContribTtc) + complementShare * atArrival + atDoor);
   }
   const extrasTtc = round2(billed.reduce((sum, line) => sum + Number((line && line.totalPrice) || 0), 0));
   const accommodationTtc = Math.max(0, round2(Number(row.finalPrice || 0) - extrasTtc));
@@ -564,24 +575,24 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
     if (split) complementAccommodation = splitAccommodation;
     else complementAccommodation = balance ? Math.max(0, accommodationTtc - accommodationContribs) : nz(row.extraGuestComplementSurcharge);
   }
-  out[ACCOMMODATION_KEY] = round2((deposit ? nz(row.accommodationAcompteContribTtc) + acompteTax : 0)
-    + (balance ? Math.max(0, nz(row.accommodationSoldeContribTtc) - acompteTax) : 0)
-    + complementAccommodation);
+  out[ACCOMMODATION_KEY] = round2(depositShare * (nz(row.accommodationAcompteContribTtc) + acompteTax)
+    + balanceShare * Math.max(0, nz(row.accommodationSoldeContribTtc) - acompteTax)
+    + complementShare * complementAccommodation);
   const taxContribs = acompteTax + nz(row.touristTaxSoldeContribTtc);
   let complementTax = 0;
   if (complement) {
     if (split) complementTax = splitTax;
     else complementTax = balance || taxOnArrival ? Math.max(0, round2(row.touristTaxTotal) - taxContribs) : nz(row.touristTaxAddedGuestsAmount);
   }
-  out[TOURIST_TAX_KEY] = round2((balance ? taxContribs : 0) + complementTax);
-  addLinesOnlyTheSplitNames(out, splitOf, lines);
+  out[TOURIST_TAX_KEY] = round2(balanceShare * taxContribs + complementShare * complementTax);
+  addLinesOnlyTheSplitNames(out, splitOf, lines, complementShare);
   addLateOffTheFiche(new Set(lines.map(keyOf)));
   return out;
 }
 
 // What a stay collected after its arrival on the books, per line key: a paid end-of-stay complement's lines (the excess of
 // rule 20 under its own key, booked as a prestation) and the notes. A SAS line with no key names no line of the fiche.
-function collectedAfterArrival(row) {
+function collectedAfterArrival(row, splitShares = null) {
   const out = new Map();
   const add = (key, label, amount) => {
     if (!key || !(amount > 0)) return;
@@ -589,7 +600,10 @@ function collectedAfterArrival(row) {
     out.set(key, { label: (known && known.label) || label, amount: round2((known ? known.amount : 0) + amount) });
   };
   if (Number(row.endOfStayComplementPaid) === 1 && !Number(row.endOfStayComplementPaidCash || 0)) {
-    for (const line of parseDetail(row.endOfStayComplementDetail)) if (line) add(line.key, line.label, Number(line.amount) || 0);
+    // specs/mixed-method-payments.md rule 46 — paid with several methods: only its share on the books.
+    const split = splitShares && splitShares.endOfStayComplement;
+    const share = split ? split.books : 1;
+    for (const line of parseDetail(row.endOfStayComplementDetail)) if (line) add(line.key, line.label, round2(share * (Number(line.amount) || 0)));
   }
   const notes = parseNotes(row.midStaySettledNotes).filter((note) => note && !Number(note.paidCash || 0));
   const labels = new Map(notes.flatMap((note) => note.lines || []).map((line) => [line && line.key, line && line.label]));
@@ -598,10 +612,10 @@ function collectedAfterArrival(row) {
 }
 
 // A line the complement's split names that left the fiche since: what it collected still reads on its key.
-function addLinesOnlyTheSplitNames(out, splitOf, lines) {
+function addLinesOnlyTheSplitNames(out, splitOf, lines, share = 1) {
   const onTheFiche = new Set(lines.map((line) => (line.removed ? line.key : billedLineKey(line))));
   for (const [key, amount] of splitOf) {
-    if (!onTheFiche.has(key)) out[key] = round2((out[key] || 0) + amount);
+    if (!onTheFiche.has(key)) out[key] = round2((out[key] || 0) + share * amount);
   }
 }
 

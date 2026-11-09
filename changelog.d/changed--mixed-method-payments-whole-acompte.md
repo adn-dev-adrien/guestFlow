@@ -1,0 +1,1 @@
+- **An acompte or an installment paid with several methods is paid whole** (spec `mixed-method-payments.md` rule 44, 2026-11-09): the acompte all on the books or all in the caisse interne, an installment on the books, never with a reste or a geste commercial. These are the amounts a cancellation keeps; a mixed acompte used to requalify money never booked.
