@@ -596,7 +596,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     `path` naming one of them, `/login` or `/assets` is refused at registration. `pluginLoader.mountWebApps(app)` sits
     before the favicon and the GuestFlow client, and reads the live plugins on every request: a plugin activated or
     configured later answers at once, a deactivated one falls through to the core. The handler owns its answer (its
-    caching, its policy, its own access check). A row of `plugin-core-hardening-floor.unit.test.js` makes a plugin
+    caching, its policy, its own access check). `coreModule('requireAuth')` (`revalidate`: the user re-read as `requireAuth` does —
+    gone, deactivated, demoted or due to change their password) and `coreModule('securityConfig')` (`shouldEnforceHttps`,
+    the rule of the core's session cookie) let it check a session and set its own cookie the way the core does. A row of `plugin-core-hardening-floor.unit.test.js` makes a plugin
     calling it floor at `^2.26.0`. A plugin's web app sources live in its server folder as `apps/<name>/` (their own
     `package.json`, built by Vite to `dist/`): `scripts/build-plugin-packages.mjs` never ships them and copies each build
     into the package's `server/assets/<name>` (a build not made: a warning, the app answers 503); the release builds every
