@@ -49,10 +49,12 @@ const reservationBrief = (row) => ({
  * @param {Function} deps.parseGroup   the core's single-payment parser
  * @param {object[]} deps.links        the reservation's payment links
  * @param {object[]} [deps.installments] the reservation's installments (specs/direct-installments.md rule 38)
+ * @param {object[]} [deps.settlements] the reservation's split payments (specs/mixed-method-payments.md rule 28)
+ * @param {Function} [deps.settlementFigures] the core's reading of one settlement
  * @param {string} deps.today
  * @returns {object[]} receipts
  */
-function receiptsOfReservation(row, { buildLedger, parseGroup, links, installments = [], today }) {
+function receiptsOfReservation(row, { buildLedger, parseGroup, links, installments = [], settlements = [], settlementFigures = null, today }) {
   const ledger = buildLedger({ row, links, today });
   const brief = reservationBrief(row);
   const platform = String(row.platform || 'direct');
@@ -87,8 +89,13 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     return out;
   }
 
+  // specs/mixed-method-payments.md rule 28 — a payment split over several methods is expected settlement by
+  // settlement, for its card, cheque and transfer lines only; what it paid is not expected a second time.
+  const splitKinds = new Set(settlements.flatMap((s) => (s.parts || []).map((p) => p.kind)));
+  const splitInstallments = new Set(settlements.filter((s) => s.targetKind === 'installment').map((s) => String(s.targetKey)));
+  const splitGroup = settlements.some((s) => s.targetKind === 'arrivalGroup');
   const group = parseGroup(row.arrivalPaymentGroup);
-  if (group && !group.cash) {
+  if (group && !group.cash && !splitGroup) {
     out.push({
       reservationId: row.id, ledgerKey: 'group', label: 'Paiement unique', channel: 'direct', platform,
       expectedCents: cents(group.total), grossCents: cents(group.total), payoutRecorded: true,
@@ -102,6 +109,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     const paid = Number(i.paid) === 1;
     if (!paid && !owed) return;
     if (paid && ['cash', 'internal'].includes(String(i.paidMethod))) return;
+    if (paid && splitInstallments.has(String(i.id))) return;
     const paidLink = links.find((l) => l.status === 'paid' && l.type === 'installment' && Number(l.installmentId) === Number(i.id));
     out.push({
       reservationId: row.id, ledgerKey: `installment-${i.number}`, installmentId: i.id,
@@ -119,6 +127,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     if (!meta) return;
     if (r.state === 'na' || r.state === 'none' || r.state === 'paid-group') return;
     if (flag(row[meta.cash])) return;
+    if (splitKinds.has(r.key === 'checkoutComplement' ? 'complement' : r.key) && isPaid(r)) return;
     const paid = isPaid(r);
     if (!(Number(r.amount) > 0)) return;
     const link = r.detail && r.detail.link && r.detail.link.status === 'paid' ? r.detail.link : null;
@@ -135,7 +144,27 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
       reservation: brief,
     });
   });
+  settlements.forEach((s) => {
+    const bankCents = settlementFigures ? settlementFigures(s).bankCents : 0;
+    if (!(bankCents > 0)) return;
+    out.push({
+      reservationId: row.id, ledgerKey: `settlement-${s.id}`, label: 'Paiement réparti (CB, chèque, virement)',
+      channel: 'direct', platform,
+      expectedCents: bankCents, grossCents: bankCents, payoutRecorded: true,
+      expectedDate: day(s.paidDate), dueDate: day(s.paidDate), paid: true, paidDate: day(s.paidDate),
+      linkPaidAt: null,
+      reservation: brief,
+    });
+  });
   return out;
+}
+
+// The stay's split payments, read through the core's model (specs/mixed-method-payments.md rule 28).
+function settlementsReader(db) {
+  const sdk = require('../../sdk');
+  const model = sdk.coreModule('paymentSettlementsModel').buildModel(db);
+  const { settlementFigures } = sdk.coreModule('paymentTenders');
+  return { settlementsOf: (reservationId) => model.listFor(reservationId), settlementFigures };
 }
 
 const RESERVATION_SQL = `
@@ -157,9 +186,10 @@ function installmentsReader(db, listInstallments) {
 function expectedReceipts({ db, startDate, today, buildLedger, parseGroup, listLinks, listInstallments }) {
   const rows = db.prepare(`${RESERVATION_SQL} ORDER BY r.endDate, r.id`).all(startDate);
   const installmentsOf = installmentsReader(db, listInstallments);
+  const { settlementsOf, settlementFigures } = settlementsReader(db);
   const receipts = [];
   rows.forEach((row) => {
-    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), today })
+    receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, today })
       .forEach((rc) => receipts.push(rc));
   });
   return receipts;
@@ -170,7 +200,8 @@ function expectedReceiptsOfReservation({ db, reservationId, startDate, today, bu
   const row = db.prepare(`${RESERVATION_SQL} AND r.id = ?`).get(startDate, Number(reservationId));
   if (!row) return null;
   const installmentsOf = installmentsReader(db, listInstallments);
-  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), today });
+  const { settlementsOf, settlementFigures } = settlementsReader(db);
+  return receiptsOfReservation(row, { buildLedger, parseGroup, links: listLinks(row.id), installments: installmentsOf(row.id), settlements: settlementsOf(row.id), settlementFigures, today });
 }
 
 module.exports = { expectedReceipts, expectedReceiptsOfReservation, receiptsOfReservation, reservationBrief, platformAcompteNet };

@@ -43,6 +43,7 @@ function buildModel(database) {
     if (totals.n === 0) {
       database.prepare('UPDATE reservations SET installmentsPaidAmount = 0, installmentsUnpaidAmount = 0, installmentsTarget = 0, installmentsLastPaidDate = NULL WHERE id = ?')
         .run(Number(reservationId));
+      syncSettlements(reservationId);
       return;
     }
     const stored = database.prepare('SELECT installmentsTarget FROM reservations WHERE id = ?').get(Number(reservationId));
@@ -54,6 +55,12 @@ function buildModel(database) {
       : null;
     database.prepare('UPDATE reservations SET installmentsPaidAmount = ?, installmentsUnpaidAmount = ?, installmentsTarget = ?, installmentsLastPaidDate = ? WHERE id = ?')
       .run(totals.paid / 100, owed / 100, target / 100, last, Number(reservationId));
+    syncSettlements(reservationId);
+  }
+
+  // specs/mixed-method-payments.md — an installment taken back or deleted takes its settlement with it.
+  function syncSettlements(reservationId) {
+    require('./paymentSettlementsModel').buildModel(database).sync(reservationId);
   }
 
   function replacePlan(reservationId, rows, targetCents) {

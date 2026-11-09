@@ -520,6 +520,18 @@ Optional: a plugin that declares nothing reads « Actif ».
     `sdk ^2.23.0`. Tests: `plugins/accounting-export/tests/accounting-synthesis-books.unit.test.js`,
     `plugins-sdk-core-modules-contract.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`,
     `plugin-core-hardening-floor.unit.test.js`.
+42. *(Added 2026-11-09, [mixed-method-payments.md](mixed-method-payments.md) rules 26-28, 32, SDK 2.24.0.)*
+    **`coreModule()` hands the plugins the payments split over several methods**: `paymentTenders`
+    (`settlementFigures`, what one settlement put on the books, in the caisse and at the bank),
+    `paymentSettlementsModel` (`buildModel`, the stay's settlements) and `paymentSettlementService`
+    (`prepare`, `flippedParts`, `record`, the one writer). `accounting-export` 1.1.0 books a split payment
+    settlement by settlement, `online-payment` 1.6.0 expects only its card, cheque and transfer lines at the
+    bank, `sas` 1.8.0 records « Plusieurs moyens » at the check-in and the check-out; the three ask for
+    `sdk ^2.24.0`. A MINOR bump (modules added to `coreModules.json`, recorded under 2.24.0 in
+    `coreModuleHistory.json`). Tests: `plugin-core-hardening-floor.unit.test.js`,
+    `plugins/accounting-export/tests/accounting-mixed-method-payments.unit.test.js`,
+    `plugins/online-payment/tests/reconciliation-mixed-method-payments.unit.test.js`,
+    `plugins/sas/tests/sas-mixed-method-payments.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

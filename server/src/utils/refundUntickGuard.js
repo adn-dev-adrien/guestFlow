@@ -21,7 +21,11 @@ const frenchDay = (iso) => {
 function untickRefusal(row, changes, refunds) {
   const book = (refunds || []).filter((refund) => !isOffBooks(refund.method) && !isRetainedDeposit(refund.method));
   const before = comptaCollected({ ...row, refundsBookTtc: 0 });
-  const after = comptaCollected({ ...row, ...changes, refundsBookTtc: 0 });
+  // specs/mixed-method-payments.md rule 13 — a payment taken back takes its settlement with it: what that split
+  // kept off the books is no longer subtracted from what stays collected.
+  const unpaying = Object.entries(changes || {}).some(([key, value]) => /Paid$/.test(key) && !value && Number(row[key] || 0) === 1);
+  const splitGone = unpaying ? { splitOffBooksAmount: 0, splitWaivedAmount: 0, splitShortfallDue: 0 } : {};
+  const after = comptaCollected({ ...row, ...changes, ...splitGone, refundsBookTtc: 0 });
   if (after >= before) return null;
   let shortfall = round2(book.reduce((sum, refund) => sum + Number(refund.totalTtc || 0), 0) - after);
   if (shortfall <= 0) return null;

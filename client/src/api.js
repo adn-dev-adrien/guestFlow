@@ -466,7 +466,11 @@ const api = {
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
   // specs/single-payment-from-the-fiche.md §4.3 — the stay and the complement collected as ONE
   // payment, at a date the operator chooses. `mode` is 'card' | 'cash' | 'undo'.
-  settleArrivalPayment: (id, mode, date) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode, date } }),
+  // specs/mixed-method-payments.md — `extra` carries `{ expectedAmountCents, tenders, shortfall }` with mode 'split'.
+  settleArrivalPayment: (id, mode, date, extra = {}) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode, date, ...extra } }),
+  // specs/mixed-method-payments.md §4.3 — collect the reste of a split payment, or correct one.
+  collectSettlementRemainder: (id, body) => request(`/reservations/${id}/settlements`, { method: 'POST', body }),
+  modifySettlement: (id, settlementId, body) => request(`/reservations/${id}/settlements/${settlementId}`, { method: 'PUT', body }),
   // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over. `total`
   // null restores the computed total; the réduction / pourboire is derived and clamped server-side.
   adjustArrivalPayment: (id, total) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode: 'adjust', total } }),

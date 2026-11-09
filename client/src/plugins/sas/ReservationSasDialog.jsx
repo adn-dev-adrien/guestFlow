@@ -50,6 +50,7 @@ import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
+  TenderLines, TENDER_TEXTS,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -329,6 +330,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // nothing is persisted about the choice, only about what was actually collected.
   const [splitSettlement, setSplitSettlement] = useState(false);
   const [departurePayMode, setDeparturePayMode] = useState(null);
+  // specs/mixed-method-payments.md rules 1, 32 — « Plusieurs moyens » under the payment buttons, closed by
+  // default: the lines of the check-out settlement and of the single arrival payment.
+  const [departureTenderOpen, setDepartureTenderOpen] = useState(false);
+  const [departureTenders, setDepartureTenders] = useState(null);
+  const [arrivalTenderOpen, setArrivalTenderOpen] = useState(false);
+  const [arrivalTenders, setArrivalTenders] = useState(null);
   // specs/collect-stay-payment-at-check-in.md §3.3 — how the SÉJOUR itself was settled at the door:
   // 'card' | 'cash' | 'defer' (« Pas maintenant »). One state, rendered twice (the dedicated step and
   // the recap block), committed once. 'defer' is the default AND the fallback, so validating without
@@ -773,6 +780,9 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     resetKey: `${open ? 1 : 0}:${reservationId}:${mode}`,
   });
   const recap = preview.recap;
+  // specs/mixed-method-payments.md rule 32 — the arrival lines only stand for the single payment (one amount asked).
+  const arrivalSplitActive = mode === 'arrival' && arrivalTenderOpen && Boolean(recap && recap.unifiable)
+    && activeKeys.includes('stayPayment') && !splitSettlement;
   // specs/sas-departure-recap-server-side.md rule 9 — a stored line's key is recomputed by the server at
   // every preview (a mid-stay sync can rewrite the detail between the load and the recap): the draft
   // follows the keys of the LAST answer, and a line the server reports offered under a key never seen
@@ -872,8 +882,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // specs/single-payment-at-check-in.md §3.1 — one gesture, one mode. Whether one gesture is
           // possible is the server's call on its own plan (specs/sas-arrival-total-server-side.md
           // rule 8): the dialog only says whether the operator chose « Régler séparément ».
-          arrivalPaymentMode: arrivalPayMode,
+          arrivalPaymentMode: arrivalSplitActive ? 'split' : arrivalPayMode,
           arrivalPaymentSplit: splitSettlement,
+          ...(arrivalSplitActive ? {
+            arrivalPaymentTenders: arrivalTenders ? arrivalTenders.tenders : [],
+            ...(arrivalTenders && arrivalTenders.shortfall ? { arrivalPaymentShortfall: arrivalTenders.shortfall } : {}),
+          } : {}),
           complementSettled: arrivalPayMode === 'card' || arrivalPayMode === 'cash',
           complementPaidCash: arrivalPayMode === 'cash',
           // specs/collect-stay-payment-at-check-in.md §3.3 rule 13 — the séjour settled at the door.
@@ -914,9 +928,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           ...departureDraft,
           // specs/sas-recap-payment-buttons.md — settlement mode → mark every positive complement paid
           // (end-of-stay + recalled arrival); 'cash' = caisse interne. No « defer » at check-out.
-          complementsSettled: departurePayMode === 'card' || departurePayMode === 'cash',
-          complementsPaidCash: departurePayMode === 'cash',
+          complementsSettled: departureTenderOpen || departurePayMode === 'card' || departurePayMode === 'cash',
+          complementsPaidCash: !departureTenderOpen && departurePayMode === 'cash',
           displayedDepartureTotal: recap ? recap.grandTotal : undefined,
+          ...(departureTenderOpen ? {
+            complementsTenders: departureTenders ? departureTenders.tenders : [],
+            ...(departureTenders && departureTenders.shortfall ? { complementsShortfall: departureTenders.shortfall } : {}),
+          } : {}),
         });
         if (result && result.warning) {
           setCommitWarning(result.warning);
@@ -1090,7 +1108,19 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               </Typography>
             )}
             <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
-            <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />
+            {!departureTenderOpen && <PaymentModeButtons value={departurePayMode} onChange={setDeparturePayMode} showDefer={false} />}
+            {departureTenderOpen && (
+              <TenderLines dueCents={Math.round(Number(recap.grandTotal) * 100)} onChange={setDepartureTenders} autoFocus />
+            )}
+            <Button
+              size="small"
+              variant="text"
+              data-split-toggle="departure"
+              sx={{ alignSelf: 'flex-start', color: 'text.secondary', minHeight: 44 }}
+              onClick={() => { setDepartureTenderOpen((v) => !v); setDepartureTenders(null); }}
+            >
+              {departureTenderOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
+            </Button>
           </>
         )}
         {cautionReturned === true && <Typography variant="body2" color="success.main">Caution rendue.</Typography>}
@@ -1657,13 +1687,28 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {unifiedPayment ? (
                 <>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>Règlement</Typography>
-                  <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" disabled={settleBlocked} />
-                  {arrivalPayMode === 'defer' && (
+                  {!arrivalTenderOpen && (
+                    <PaymentModeButtons value={arrivalPayMode} onChange={setArrivalPayMode} showDefer deferLabel="Plus tard" disabled={settleBlocked} />
+                  )}
+                  {arrivalTenderOpen && (
+                    <TenderLines dueCents={Math.round(Number(recap.totalAtArrival) * 100)} onChange={setArrivalTenders} disabled={settleBlocked} autoFocus />
+                  )}
+                  <Button
+                    size="small"
+                    variant="text"
+                    data-split-toggle="arrival"
+                    disabled={settleBlocked}
+                    sx={{ alignSelf: 'flex-start', color: 'text.secondary', minHeight: 44 }}
+                    onClick={() => { setArrivalTenderOpen((v) => !v); setArrivalTenders(null); }}
+                  >
+                    {arrivalTenderOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
+                  </Button>
+                  {!arrivalTenderOpen && arrivalPayMode === 'defer' && (
                     <Typography variant="body2" color="text.secondary">
                       Rien n'est encaissé : le séjour reste dû et le complément est rappelé au check-out.
                     </Typography>
                   )}
-                  {arrivalPayMode === 'cash' && (
+                  {!arrivalTenderOpen && arrivalPayMode === 'cash' && (
                     <Typography variant="body2" color="text.secondary">Encaissé en caisse interne (hors comptabilité).</Typography>
                   )}
                   {/* Rule 4 — the two-settlement case is real (séjour encaissé, complément reporté) and
@@ -1836,9 +1881,19 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         }
         // Rule 20 / rule 19 of the departure spec — never commit against a total the operator has not seen.
         const waiting = !preview.fresh;
+        // specs/mixed-method-payments.md §6 — with the lines open, the button names what it collects.
+        const tenders = mode === 'departure' ? (departureTenderOpen ? departureTenders : null) : (arrivalSplitActive ? arrivalTenders : null);
+        const splitting = mode === 'departure' ? departureTenderOpen : arrivalSplitActive;
+        const splitDue = recap ? Number(mode === 'departure' ? recap.grandTotal : recap.totalAtArrival) || 0 : 0;
+        const splitLabel = TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : splitDue));
         return <>{quit}
-          <Button variant="contained" onClick={commit} disabled={committing || waiting} startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}>
-            {waiting && preview.pending ? 'Calcul du total…' : 'Valider et terminer'}
+          <Button
+            variant="contained"
+            onClick={commit}
+            disabled={committing || waiting || (splitting && !(tenders && tenders.canSubmit))}
+            startIcon={committing ? <CircularProgress size={16} color="inherit" /> : null}
+          >
+            {waiting && preview.pending ? 'Calcul du total…' : (splitting ? splitLabel : 'Valider et terminer')}
           </Button>
         </>;
       }

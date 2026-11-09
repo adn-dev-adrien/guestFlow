@@ -330,9 +330,11 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
     } catch { showError(installment.linkUrl); }
   };
 
-  const markPaid = async ({ date, method }) => {
+  // specs/mixed-method-payments.md rules 1, 12 — « Plusieurs moyens » sends the lines instead of one method.
+  const markPaid = async ({ date, method, tenders, shortfall }) => {
     try {
-      accept(await api.markInstallmentPaid(reservationId, markingId, { paidDate: date, method }));
+      const body = tenders ? { paidDate: date, tenders, ...(shortfall ? { shortfall } : {}) } : { paidDate: date, method };
+      accept(await api.markInstallmentPaid(reservationId, markingId, body));
       setMarkingId(null);
       return { ok: true };
     } catch (error) {
@@ -432,7 +434,7 @@ export default function InstallmentPlanCard({ reservationId, plan, today, disabl
             />
             {marking && marking.id === installment.id && (
               <PaymentMarkForm
-                row={{ action: { kind: 'mark' } }}
+                row={{ action: { kind: 'mark', split: { dueCents: Math.round(Number(installment.amount) * 100), methods: null } } }}
                 today={today}
                 dateLabel={t.PAY_DATE_LABEL}
                 methods={t.PAY_METHODS}
