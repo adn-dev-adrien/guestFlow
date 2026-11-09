@@ -188,6 +188,29 @@ booking is settled by the platform and carries no such promise.
     payment. A reservation created directly keeps rule 47. *Why:* devis at +35 days with a 15-day validity:
     acompte 191,40 € due 24/11, solde 451,40 € due 14/11 on the same PDF, and once converted the card asked for
     the solde and offered to cancel before the acompte the guest was promised fell due.
+    **Amended 2026-11-09 (audit R33 N1).** « The e-mail tokens (the stored row) » held only for a row stored
+    after this rule: the stored row now always agrees with the read (rule 20), so the e-mail tokens, the
+    stale-link guard and the paid-link checks read the same single payment as the fiche.
+
+20. **The columns of an open devis always agree with its D23 read** _(added 2026-11-09, audit R33 N1)_. An open
+    devis (not converted) that rule 19 reads as one payment but whose columns still hold an acompte — stored
+    before rule 19, or its logement's « Solde dû … jours avant » changed since — is re-written as that payment
+    (`depositAmount = 0`, no acompte date, the pre-arrival total on the solde with the read's due date, one
+    history entry), and every open link billing another amount than the columns now ask is withdrawn
+    (`retireStaleLinks`, reason `amount-changed`): an acompte link stays payable only while the columns ask for
+    that acompte (decision D1: a withdrawn link is never paid). `devisModel.restoreSinglePayments` runs at
+    every boot (idempotent, before the server answers) and after every save of a logement, for that logement's
+    devis — the logement's balance delay is the only setting that moves a stored devis into the window (its
+    acompte switch and percentage do not move a stored split; a devis's own dates, validity and « Prolonger »
+    go through its save, which already re-stores and withdraws). A devis outside the window, a converted one
+    and another logement's are not touched. The window is judged on the validity the fiche shows and the engine
+    prices: a legacy row stored without a validity date reads on its backfill (rule 7), never on « no date ».
+    An acompte link paid **before** the re-store converts the devis at
+    its stored split (`convertToReservation(…, { paidLinkType: 'deposit' })`): the stay keeps the acompte the
+    guest paid (120 € paid, solde 280 €), never a 0 € acompte under a paid link and the full price asked
+    again. *Why:* a devis +35 days out with a 15-day validity, stored with acompte 120 € / solde 280 € and an
+    open acompte link: the fiche read one payment of 400 €, the link stayed payable, and paying it booked the
+    120 € on a 0 € acompte and asked 400 € as the solde.
 
 ---
 
@@ -214,6 +237,10 @@ booking is settled by the platform and carries no such promise.
 | `utils/` | `directQuote.js` | T | Rule 19: the site's quote is the devis its request creates (`kind: 'devis'` + the validity it will store). |
 | `controllers/` | `reservationsController.js` | T | Rule 19: `calculate-price` reads `kind: 'devis'` (no id) as a new devis and answers its `validUntil`. |
 | `models/` | `devisModel.js` | T | Rule 19: `resolvePaymentSchedule` reads a window devis as one payment; `convertToReservation` and `convertFromReservation` store that schedule. |
+| `models/` | `devisModel.js` | T | Rule 20: `restoreSinglePayments({ propertyId? })` re-stores an open window devis whose columns hold an acompte and withdraws its stale links; `scheduleReadOf` is the one read it and `findById` share; a conversion by a paid acompte link keeps a stored acompte. |
+| `models/` | `propertiesModel.js` | T | Rule 20: a logement save re-stores that logement's open devis. |
+| `utils/` | `paymentPollRunner.js` | T | Rule 20: the paid-link conversion names the link type (`paidLinkType`). |
+| `index.js` | — | T | Rule 20: the re-store at every boot, before the server listens (skipped with `SKIP_MIGRATIONS=true`). |
 | `routes/` | — | — | (none — the endpoint keeps its shape) |
 | `database.js` | — | — | (none — no schema change; the email template arrives through the existing boot seed) |
 | `scheduledTasks.js` | — | — | (none) |
@@ -244,6 +271,7 @@ booking is settled by the platform and carries no such promise.
 | POST | `/api/reservations/:id/payment-emails` | `{ type?: 'deposit' \| 'balance' \| 'full' }` | `{ sent, type, url, amountCents, emailLogId, recipientEmail }` | Auth required. **Omitted `type` is resolved server-side** (rule 10) and echoed back so the UI can name what it sent. An explicit type is honoured; an explicit *unknown* one is refused with `400 INVALID_TYPE` rather than quietly swapped. Unknown record → `404`. `400 ZERO_AMOUNT` is now unreachable from the devis button. |
 | GET | `/api/devis/:id/pdf` | — | PDF stream | Unchanged contract; new content per rules 1–9. |
 | POST | `/api/reservations/calculate-price` | `{ …, kind?: 'devis' }` | quote (+ `validUntil` for a devis) | Rule 19: `kind: 'devis'` with neither `devisId` nor `reservationId` prices a new devis, validity included; ignored otherwise. |
+| PUT | `/api/properties/:id` | unchanged | unchanged | Rule 20: after the save, that logement's open devis inside the window are re-stored as one payment and their stale links withdrawn. |
 
 ---
 
@@ -333,10 +361,18 @@ summary needs no change: a 0 € acompte already renders as no acompte.
       takes the reservation rules; an expired one converted late is due today; a devis stored with an acompte in
       the window reads, quotes and converts as one payment; « Transformer en devis » in the window; rule 47 for a
       reservation unchanged.
+- [x] `tests/devis-single-payment-restore.unit.test.js` (6, 2026-11-09, audit R33 N1) — rule 20: a legacy window
+      devis with an open acompte link re-stored at boot (columns = read, link `cancelled` / `amount-changed`,
+      history, e-mail tokens on the single payment, a second boot writes nothing); an acompte link paid before the
+      re-store converts at 120 / 280 with the acompte paid; « Solde dû … jours avant » 30 → 45 re-stores and
+      withdraws, back to 30 the columns still agree; outside the window, converted and another logement's devis
+      untouched; a legacy row with no validity date read on its backfill, like its link quote; the boot runs it
+      before listening.
 
 ### Client tests
-- [x] `pages/__tests__/ReservationPage.new-devis-quote-kind.test.jsx` (3, 2026-11-09) — rule 19: « Nouveau
-      devis » asks every live quote with `kind: 'devis'`; a new reservation and a saved devis do not.
+- [x] `pages/__tests__/ReservationPage.new-devis-quote-kind.test.jsx` (6, 2026-11-09) — rule 19: « Nouveau
+      devis » asks every live quote with `kind: 'devis'`; a new reservation and a saved devis do not; one case per
+      call site (audit R33 N2): the change of logement, « Actualiser tarifs », the quote before the create.
 - [x] `client/src/__tests__/payment-request-no-hardcoded-type.test.js` (2) — the request carries no
       type and the answered type is relayed. Full suite: **1066 tests green** (`npx vitest run`).
 

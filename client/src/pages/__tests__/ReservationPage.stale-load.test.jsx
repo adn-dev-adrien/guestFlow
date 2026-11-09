@@ -77,3 +77,33 @@ test('R33-C-L1 — a devis load overtaken by the reservation route writes nothin
   expect(screen.getByLabelText(/^Notes/i)).toHaveValue('note de la réservation');
   expect(screen.queryByDisplayValue('note du devis')).not.toBeInTheDocument();
 });
+
+test('R33 N2 — a logement read that lands after the page moved on writes nothing (loadPropertyContext guard)', async () => {
+  api.getProperties.mockResolvedValue([
+    { id: 1, name: 'Granja', singleBeds: 2, doubleBeds: 2, defaultCheckIn: '16:00', defaultCheckOut: '10:00' },
+    { id: 2, name: 'Estiva', singleBeds: 2, doubleBeds: 1, defaultCheckIn: '16:00', defaultCheckOut: '10:00' },
+  ]);
+  api.getDevisById.mockResolvedValue({ ...DEVIS, propertyId: 2 });
+  const property = (id) => ({ id, name: id === 2 ? 'Estiva' : 'Granja', options: [], optionGroups: { ungrouped: [] }, resources: [] });
+  const propertyAnswers = heldAnswers(api.getProperty, (id) => Number(id), property);
+  propertyAnswers.hold(2);
+  render(
+    <MemoryRouter initialEntries={['/reservations/new?mode=devis&devisId=77']}>
+      <ThemeProvider theme={theme}>
+        <GoToReservation />
+        <Routes>
+          <Route path="/reservations/new" element={<ReservationPage />} />
+          <Route path="/reservations/:reservationId" element={<ReservationPage />} />
+        </Routes>
+      </ThemeProvider>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getProperty).toHaveBeenCalledWith(2, 'stay'));
+  fireEvent.click(screen.getByRole('button', { name: 'aller' }));
+  await waitFor(() => expect(screen.getByLabelText(/^Notes/i)).toHaveValue('note de la réservation'));
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Logement' })).toHaveTextContent('Granja'));
+  await propertyAnswers.release(2, property(2));
+  await new Promise((resolve) => { setTimeout(resolve, 50); });
+  expect(screen.getByRole('combobox', { name: 'Logement' })).toHaveTextContent('Granja');
+  expect(screen.getByLabelText(/^Notes/i)).toHaveValue('note de la réservation');
+});

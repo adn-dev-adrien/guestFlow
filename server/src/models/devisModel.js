@@ -195,6 +195,57 @@ function createModel(database) {
     return { depositAmount, balanceAmount, depositDueDate, balanceDueDate, totalStayPrice };
   }
 
+  // THE schedule a stored devis reads as: its fiche, its PDF, and the columns `restoreSinglePayments` re-writes. Judged
+  // on the validity the fiche shows and the engine prices (`validUntilOf`, a legacy NULL row's backfill included).
+  // specs/property-deposit-switch.md rule 8 — the switch feeds the schedule without widening the property payload
+  // the fiche receives. Read apart and defensively: several unit suites build their own minimal `properties` table,
+  // and a missing column means « acompte activé ».
+  function scheduleReadOf(row, property) {
+    return resolvePaymentSchedule(
+      { ...row, validUntil: validUntilOf(row) },
+      { ...property, depositEnabled: readDepositEnabled(row.propertyId) },
+    );
+  }
+
+  /**
+   * specs/deposit-blocks-the-dates.md rule 20 — the columns of an open devis always agree with its D23 read. A devis
+   * whose solde falls on or before its validity date reads as ONE payment (rule 19); a row still holding an acompte
+   * there (stored before the rule, or its logement's « Solde dû … jours avant » changed since) is re-written as that
+   * payment, and the open links billing the old split are withdrawn (`retireStaleLinks`: an open acompte link stays
+   * payable only while the columns ask for it). Run at every boot and after every save of a logement
+   * (`propertyId`). A converted devis is never touched: its stay holds what was paid. Returns the re-stored ids.
+   */
+  function restoreSinglePayments({ propertyId = null } = {}) {
+    const byProperty = propertyId != null;
+    const rows = database.prepare(`SELECT * FROM reservations WHERE kind = 'devis' AND convertedReservationId IS NULL
+      AND COALESCE(devisStatus, 'draft') != 'converted'${byProperty ? ' AND propertyId = ?' : ''}`)
+      .all(...(byProperty ? [Number(propertyId)] : []));
+    const restored = [];
+    for (const row of rows) {
+      const property = database.prepare('SELECT id, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
+      if (!property) continue;
+      const single = owesSinglePaymentByValidity({
+        startDate: row.startDate, validUntil: validUntilOf(row), balanceDaysBefore: property.balanceDaysBefore,
+      });
+      if (!single) continue;
+      const read = scheduleReadOf(row, property);
+      const same = row.depositAmount != null && row.balanceAmount != null
+        && roundMoney(Number(row.depositAmount)) === read.depositAmount && (row.depositDueDate || null) === (read.depositDueDate || null)
+        && roundMoney(Number(row.balanceAmount)) === read.balanceAmount && (row.balanceDueDate || null) === (read.balanceDueDate || null);
+      if (same) continue;
+      database.transaction(() => {
+        const before = snapshotFromDb(row.id);
+        database.prepare(`UPDATE reservations SET depositAmount = ?, depositDueDate = ?, balanceAmount = ?, balanceDueDate = ?,
+          updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'`)
+          .run(read.depositAmount, read.depositDueDate || null, read.balanceAmount, read.balanceDueDate || null, row.id);
+        addHistoryEntry(row.id, 'update', computeAuditChanges(before, snapshotFromDb(row.id)));
+      })();
+      retireStaleLinks(row.id);
+      restored.push(row.id);
+    }
+    return restored;
+  }
+
   // ---- enrich (full devis with lines, client, property, schedule) ----
   function enrichDevis(row) {
     if (!row) return null;
@@ -240,13 +291,7 @@ function createModel(database) {
     // capped, its schedule with it (§3.2 rule 7 reading R32-RES-M1).
     const today = todayIso();
     const resolvedValidUntil = validUntilOf(row);
-    // specs/property-deposit-switch.md rule 8 — the switch feeds the schedule without widening the
-    // property payload the fiche receives. Read apart and defensively: several unit suites build
-    // their own minimal `properties` table, and a missing column means « acompte activé ».
-    const schedule = resolvePaymentSchedule(
-      { ...row, validUntil: row.validUntil ? resolvedValidUntil : row.validUntil },
-      { ...property, depositEnabled: readDepositEnabled(row.propertyId) },
-    );
+    const schedule = scheduleReadOf(row, property);
     const expired = isDevisExpired(row.validUntil, today);
     return {
       ...row,
@@ -1304,12 +1349,15 @@ function createModel(database) {
   }
 
   // The schedule a converted stay starts with. A devis stored with an acompte outside D23 keeps its stored
-  // columns as they were (rule 5 reading R33: the conversion keeps the devis's promise).
-  function convertedSchedule(devisRow, property) {
+  // columns as they were (rule 5 reading R33: the conversion keeps the devis's promise). An acompte link paid on
+  // columns that still hold that acompte (not re-stored yet, specs/deposit-blocks-the-dates.md rule 20) is the money
+  // those columns asked for: the stay keeps them, never a 0 € acompte under a paid link.
+  function convertedSchedule(devisRow, property, { paidLinkType = null } = {}) {
     const stored = {
       depositAmount: devisRow.depositAmount, depositDueDate: devisRow.depositDueDate,
       balanceAmount: devisRow.balanceAmount, balanceDueDate: devisRow.balanceDueDate,
     };
+    if (paidLinkType === 'deposit' && Number(devisRow.depositAmount) > 0) return stored;
     const single = isDirectChannel(devisRow.platform) && owesSinglePaymentByValidity({
       startDate: devisRow.startDate, validUntil: devisRow.validUntil, balanceDaysBefore: property.balanceDaysBefore,
     });
@@ -1325,6 +1373,7 @@ function createModel(database) {
 
   // `options.allowConflict` is for the paid-link path only: the money is already in, so the stay is
   // created anyway and the caller flags the clash (specs/devis-accept-to-reservation.md rules 9 and 10).
+  // `options.paidLinkType` names the link whose payment converts (convertedSchedule).
   function convertToReservation(id, options = {}) {
     const numId = Number(id);
     const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
@@ -1353,7 +1402,7 @@ function createModel(database) {
     // devis reads it, the single payment of a devis whose solde fell on or before its validity date included,
     // due on that date (never before today: an expired quote converted late). The engine keeps it on the
     // reservation's later saves (scheduleQuoteInputs → devisPromise).
-    const schedule = convertedSchedule(devisRow, property);
+    const schedule = convertedSchedule(devisRow, property, { paidLinkType: options.paidLinkType || null });
 
     const tx = database.transaction(() => {
       const info = database.prepare(`
@@ -1504,6 +1553,7 @@ function createModel(database) {
   return {
     enrichDevis,
     resolvePaymentSchedule,
+    restoreSinglePayments,
     list,
     updateFromPublicRequest,
     __retireStaleLinks: retireStaleLinks,
