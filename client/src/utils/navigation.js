@@ -56,3 +56,14 @@ export function navigateBackWithFrom(navigate, from, fallback = DEFAULT_BACK_PAT
   if (isInAppPath(from)) navigate(from);
   else navigateBack(navigate, fallback);
 }
+
+/**
+ * The `?next=` a sign-in returns to (generic: a backend page that needs a session sends the operator to
+ * `/login?next=<its path>`). Only a path of this origin: no `//host`, no scheme, no backslash or control character,
+ * never back to `/login` itself — anything else answers '' and the sign-in goes home.
+ */
+export function safeReturnPath(raw) {
+  if (!isInAppPath(raw)) return '';
+  if (raw === '/login' || raw.startsWith('/login?') || raw.startsWith('/login/')) return '';
+  return raw;
+}

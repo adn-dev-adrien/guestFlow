@@ -6,6 +6,9 @@
  * Assurance). Every setting the former dialog had is still here. Validation is mirrored inline; the
  * server's 422 `details[]` land on their field. Saving closes the panel through `onSaved`.
  *
+ * Live plugins add their own sections at the bottom (slot `options.fields`, usePluginFields, mirroring
+ * `resources.fields`); one « Enregistrer » saves the option, then each of them.
+ *
  * Props:
  *   open            boolean
  *   optionId        number|null     the option to edit; null = a new one
@@ -25,10 +28,12 @@ import LoadingState from '../../components/LoadingState';
 import ErrorAlert from '../../components/ErrorAlert';
 import OptionPropertyDefaultsMirror from '../../components/OptionPropertyDefaultsMirror';
 import { useToast } from '../../components/DialogProvider';
+import { Contribution } from '../../plugins/sdk/Slot';
 import { usePlugin } from '../../hooks/usePlugins';
 import { LINEN, WEBSITE_BOOKING } from '../../constants/plugins';
 import { OPTION_PRICE_TYPES, TEXTS, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
 import CategoryField from './CategoryField';
+import usePluginFields from './usePluginFields';
 import OptionPropertyTable from './OptionPropertyTable';
 import {
   BathMatPerPropertyField, BathroomTowelCountsFields, BedLinenIncludesFields, BreakfastTimeField, PlanningCardSection,
@@ -77,9 +82,11 @@ export default function OptionEditorPanel({
 
   const setForm = (next) => { setServerErrors({}); setFormState(next); };
   const clientErrors = useMemo(() => (form ? validateOptionForm(form) : {}), [form]);
-  const dirty = Boolean(form) && JSON.stringify(form) !== saved;
+  const plugins = usePluginFields('options.fields', form);
+  const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
+  const dirty = coreDirty || plugins.dirty;
   // A pristine form shows no error (a new option does not open on « Nom requis »): they appear once it is edited.
-  const errors = dirty ? { ...clientErrors, ...serverErrors } : serverErrors;
+  const errors = coreDirty ? { ...clientErrors, ...serverErrors } : serverErrors;
   const errorFields = Object.keys(errors);
 
   const handleSave = async () => {
@@ -90,10 +97,14 @@ export default function OptionEditorPanel({
       if (optionId == null) {
         const created = await api.createOption(payload);
         onSaved({ id: created.id, isNew: true });
-      } else {
-        await api.updateOption(optionId, payload);
-        onSaved({ id: optionId, isNew: false });
+        return true;
       }
+      if (coreDirty) {
+        await api.updateOption(optionId, payload);
+        setSaved(JSON.stringify(form));
+      }
+      await plugins.saveAll(optionId);
+      onSaved({ id: optionId, isNew: false });
       return true;
     } catch (err) {
       if (err.status === 422 && Array.isArray(err.details)) {
@@ -123,6 +134,7 @@ export default function OptionEditorPanel({
     ...(linenOn && (form.countsAsBedLinen || form.countsAsBathroomLinen) ? [{ id: 'linen', label: 'Linge' }] : []),
     ...(linenOn && form.countsAsBathMat ? [{ id: 'bathmat', label: 'Tapis de bain' }] : []),
     ...(form.isCancellationInsurance ? [{ id: 'insurance', label: 'Assurance' }] : []),
+    ...plugins.sections.map((c) => ({ id: `plugin-${c.pluginId}-${c.key}`, label: c.section.title })),
   ] : [];
 
   const visibilityHelp = () => {
@@ -259,6 +271,14 @@ export default function OptionEditorPanel({
             <FormHelperText sx={{ m: 0 }}>Assurance annulation : proposée seulement avec un tarif supérieur à 0.</FormHelperText>
           </SidePanelSection>
         )}
+
+        {plugins.sections.map((c) => (
+          <SidePanelSection key={`${c.pluginId}:${c.key}`} id={`plugin-${c.pluginId}-${c.key}`} title={c.section.title}>
+            <Contribution pluginId={c.pluginId}>
+              <c.Component kind="option" itemId={optionId} draft={form} {...plugins.bind(c)} />
+            </Contribution>
+          </SidePanelSection>
+        ))}
       </>
     );
   }

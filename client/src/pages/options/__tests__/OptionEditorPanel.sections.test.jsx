@@ -10,6 +10,8 @@ vi.mock('../../../api', () => ({
   default: { getOption: vi.fn(), createOption: vi.fn(), updateOption: vi.fn(), getOptionPropertyDefaults: vi.fn() },
 }));
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+// The core's own sections: what live plugins add through `options.fields` is OptionEditorPanel.plugin-fields.
+vi.mock('../../../plugins/sdk/useSlot', () => ({ useSlot: () => [] }));
 
 beforeEach(() => {
   vi.clearAllMocks();
