@@ -28,7 +28,7 @@ function parseLines(text) {
   }
 }
 
-/** The units of an order line on the stock: an option's or a non-hourly resource's quantity. */
+/** The units of an order line on the stock: an option's or a non-hourly resource's quantity (a per-person one: its persons). */
 function orderLineUnits(line) {
   if (!line || !['option', 'resource'].includes(line.kind)) return null;
   if (Array.isArray(line.sessions) && line.sessions.length) return null;
@@ -93,10 +93,17 @@ function createStockModel(db) {
     const target = new Map();
     const stay = db.prepare('SELECT kind, startDate FROM reservations WHERE id = ?').get(Number(reservationId));
     if (!stay || stay.kind !== 'reservation' || String(stay.startDate) > today) return target;
+    // A per-person option is one line of the people it serves (`cardPersons`, else the party): its units are those people,
+    // as an order line's quantity counts them (`orderLineUnits`).
     db.prepare(`
-      SELECT ro.optionId AS id, SUM(ro.quantity) AS units FROM reservation_options ro
-      JOIN options o ON o.id = ro.optionId
-      WHERE ro.reservationId = ? AND COALESCE(o.autoOptionType, '') <> ? GROUP BY ro.optionId
+      SELECT ro.optionId AS id,
+             SUM(CASE WHEN o.priceType = 'per_person'
+                      THEN COALESCE(ro.cardPersons, COALESCE(r.adults, 0) + COALESCE(r.teens, 0) + COALESCE(r.children, 0))
+                      ELSE ro.quantity END) AS units
+        FROM reservation_options ro
+        JOIN options o ON o.id = ro.optionId
+        JOIN reservations r ON r.id = ro.reservationId
+       WHERE ro.reservationId = ? AND COALESCE(o.autoOptionType, '') <> ? GROUP BY ro.optionId
     `).all(Number(reservationId), BREAKFAST).forEach((r) => {
       if (keys.has(keyOf('option', r.id))) target.set(keyOf('option', r.id), Math.max(0, Math.round(Number(r.units) || 0)));
     });

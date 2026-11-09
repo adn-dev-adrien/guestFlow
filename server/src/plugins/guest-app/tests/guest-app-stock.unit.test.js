@@ -123,6 +123,16 @@ withShop('rule 37ter: an app order counts in its commit, and the reservation eve
   assert.equal(stockOf(id), 7, 'not counted twice');
 });
 
+withShop('rule 37ter: a per-person article counts the people it serves — ×4 takes 4, the fiche’s one line of 4 persons included', async ({ call, api, stayId }) => {
+  const id = await tracked(call, { quantity: 10, priceType: 'per_person' });
+  const res = await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id, quantity: 4 }], payment: 'note' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.deepEqual([optionLine(stayId, id).quantity, optionLine(stayId, id).cardPersons], [1, 4]);
+  assert.equal(stockOf(id), 6);
+  api.reconcileStock(stayId);
+  assert.equal(stockOf(id), 6, 'the event that follows agrees with the order');
+});
+
 withShop('rule 37ter: a site line counts on the arrival day, not before; a line added mid-stay at once; lowered or cancelled after arrival it returns', async ({ call, api, stayId }) => {
   const id = await tracked(call, { quantity: 10 });
   const future = seedStay({ start: 5, end: 8 });
