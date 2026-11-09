@@ -356,6 +356,23 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     complement's card money went to the caisse while its caisse lines stayed deducted from the books. A bucket paid
     with one method keeps its switch.
 
+### 3.14 Round-35 leftovers (2026-11-09, verification R34b)
+
+54. **A geste the accommodation cannot hold comes off the other lines (R34b-2).** Rule 52 takes the geste off the
+    accommodation; when the target paid little or no accommodation (a complement paid before the solde), the rest of the
+    geste comes off the extras the reading holds, pro rata, then the tourist tax, so no line answers for more than it
+    collected. A complement alone (a forced line of 80 €) paid 50 € by card with a geste of 30 €: the live register
+    offers 50 € on that line (30 € on the books when 20 € went to the caisse interne), never 80 €. The stay-level cap
+    (rule 50 of reservation-refunds) already refused the refund; the screen now says the same.
+55. **A split reading adds up to the money received, to the cent (R34b-3).** A bucket's shares are not whole cents:
+    `collectedByLine` sums a split reading exact and rounds it once, largest remainder first, so its lines add up to the
+    money the books (or the caisse interne) received; `bucketSharesOf`'s two gestes (`waivedBooks`, `waivedInternal`)
+    add up to the geste left. A pool of 634,80 € (200 € in the caisse interne, 50 € short) cancelled: the register holds
+    634,80 € and its caisse lines 200,00 €, not 634,79 € and 199,99 €. **Accepted:** the export rounds each entry on its
+    own (`scaleEntry`), so after a full refund one cent can stay between two lines of the same stay (tourist tax
+    4671 +0,01 € against a prestation 706 −0,01 €); every account of the stay nets to zero within that cent and the
+    stay's total to zero exactly.
+
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
 - A single line equal to the amount due → accepted; it records the method (« Chèque 122,00 € »).
@@ -584,6 +601,13 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
       true « after », nothing refunded), `mixed-method-payments-price-cut` (now 8: lines by poste at what was received,
       a split end of stay and a split note in the stored trop-perçu, an end of stay with a departure line),
       `mixed-method-payments-retained-money` (now 9: the acompte row's `whole`).
+- [x] _(round 35)_ `tests/mixed-method-payments-pool-geste-cents.unit.test.js` (9) — rules 52, 54, 55 (R34b-1, R34b-2,
+      R34b-3): a pool of caisse 200 € + CB with a reste or a geste, cancelled: the register holds the money received to
+      the cent, caisse lines 200,00 €; refunded in full, every account nets to zero (a reste: nothing left at all); the
+      geste pool live after a cut: the lines answer for the book money; a card pool with a geste after a cut: the geste
+      off the accommodation once, tax and extra whole (Q13); a complement alone with a geste 30 €, by card or caisse +
+      card: the line offers what it collected (Y1); `bucketSharesOf`'s gestes add up after a cut. Kills the
+      verification's mutants N9 (geste on every bucket of the pool) and N12 (the caisse reading its books geste).
 
 ### Client (Vitest)
 - [x] `components/__tests__/TenderLines.remainder.test.jsx` (6), `TenderLines.shortfall.test.jsx` (4).
