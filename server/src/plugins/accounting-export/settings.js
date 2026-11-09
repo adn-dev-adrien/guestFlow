@@ -125,6 +125,27 @@ function storeTtcSplitFrom(database, now = new Date()) {
     .run(PLUGIN_ID, TTC_SPLIT_KEY, firstOfNextMonth(now));
 }
 
+// specs/mixed-method-payments.md rule 58 (verification R35b, finding 2) — the first refund day a stay paid with ONE method
+// closes its books like a split stay (rule 56): stored once by the migration, the first day of the month after this
+// version was installed, so a month the accountant may already hold keeps its cents (accountant-accounting-export rules
+// 33, 35). Without it (an erased store), the first month no release before could have exported.
+const STAY_CLOSING_KEY = 'stayClosingFrom';
+const STAY_CLOSING_FALLBACK = '2026-12-01';
+
+function readStayClosingFrom(database) {
+  try {
+    const row = database.prepare('SELECT value FROM plugin_settings WHERE plugin_id = ? AND key = ?').get(PLUGIN_ID, STAY_CLOSING_KEY);
+    return row && /^\d{4}-\d{2}-\d{2}$/.test(String(row.value)) ? String(row.value) : STAY_CLOSING_FALLBACK;
+  } catch {
+    return STAY_CLOSING_FALLBACK;
+  }
+}
+
+function storeStayClosingFrom(database, now = new Date()) {
+  database.prepare('INSERT OR IGNORE INTO plugin_settings (plugin_id, key, value) VALUES (?, ?, ?)')
+    .run(PLUGIN_ID, STAY_CLOSING_KEY, firstOfNextMonth(now));
+}
+
 // specs/accounting-synthesis.md rule 16 — the last CSV download: when, and which month. Not an operator
 // setting (never declared, so the generic settings page neither shows nor writes it); one row, rewritten at
 // each download, erased with the plugin's configuration.
@@ -161,5 +182,6 @@ function storeLastCsvExport(database, month, now = new Date()) {
 module.exports = {
   PLUGIN_ID, DEFAULTS, KEYS, DECLARED, createAccountSettings, validateAccount, validateJournalCode,
   TTC_SPLIT_KEY, TTC_SPLIT_FALLBACK, firstOfNextMonth, readTtcSplitFrom, storeTtcSplitFrom,
+  STAY_CLOSING_KEY, STAY_CLOSING_FALLBACK, readStayClosingFrom, storeStayClosingFrom,
   LAST_CSV_EXPORT_KEY, readLastCsvExport, storeLastCsvExport,
 };

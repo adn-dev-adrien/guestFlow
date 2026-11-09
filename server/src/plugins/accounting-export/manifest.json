@@ -147,6 +147,7 @@
     ],
     "1.2.2": [
       "Séjour payé en plusieurs moyens puis remboursé en entier : chaque compte revient à 0, sans centime d'écart ni rabais laissé sur 709.",
+      "Séjour payé en un seul moyen puis remboursé en entier : chaque compte revient aussi à 0, à partir du mois qui suit l'installation.",
       "Toujours pour GuestFlow 4 (SDK 2.25)."
     ]
   }

@@ -3,7 +3,8 @@
 // their cents apart, so a cancelled stay given back in full kept a cent on 4671 against 706 / 706010, and the geste's
 // 706 / 709 pair. The refund that gives back the last of the stay's book money now debits what is left on each sale
 // account: every account of the stay ends at exactly 0 (INVARIANTS « every 706 / 4457 / 4671 account nets to exactly
-// 0 »). Every other refund keeps its lines; a stay without a split payment is not read this way.
+// 0 »). A partial refund keeps its lines; the refund emptying the books closes them, live or cancelled. A stay paid with
+// one method closes the same way only from the rule 58 cutoff (the month after the install): before it, its lines.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -15,6 +16,7 @@ const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 
 const { create: createAccountingModel } = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
 const { entryToStructured } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
+const { firstOfNextMonth } = optionalPlugin(() => require('../plugins/accounting-export/settings'));
 const BOOKS = { skip: skipWithout(['accounting-export']) };
 
 const cents = (euros) => Math.round(Number(euros) * 100);
@@ -84,7 +86,8 @@ test('rule 56 — a live stay refunded in part after a split payment: no account
   assert.ok(register(stay.id).refundableLines.length > 0);
 });
 
-test('rule 56 — a stay paid with one method is not read this way: its full refund keeps its lines', BOOKS, async () => {
+test('rule 58 — before the cutoff, a stay paid with one method keeps its lines on its full refund', BOOKS, async () => {
+  db.prepare("INSERT OR REPLACE INTO plugin_settings (plugin_id, key, value) VALUES ('accounting-export', 'stayClosingFrom', ?)").run(firstOfNextMonth(new Date()));
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [free(33.33, 'Panier')] });
   assert.equal(mark(stay.id, S).statusCode, 200);
   await cancel(stay.id);

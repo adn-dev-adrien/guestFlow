@@ -17,6 +17,7 @@ const { create: createSynthesisController } = require('./synthesisController');
 const sdk = require('../sdk');
 const {
   PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings, readTtcSplitFrom, storeTtcSplitFrom, storeLastCsvExport,
+  storeStayClosingFrom,
 } = require('./settings');
 
 const id = PLUGIN_ID;
@@ -70,6 +71,8 @@ function register(ctx) {
     { name: 'settings_from_app_settings_v1', up: copySettingsFromAppSettings },
     // Rule 35 — the TTC-share split starts the month after this version is installed.
     { name: 'ttc_split_from_v1', up: (db) => { if (hasTable(db, 'plugin_settings')) storeTtcSplitFrom(db); } },
+    // specs/mixed-method-payments.md rule 58 — a one-method stay's closing refund starts the month after too.
+    { name: 'stay_closing_from_v1', up: (db) => { if (hasTable(db, 'plugin_settings')) storeStayClosingFrom(db); } },
   ]);
 
   // Built on first use: the plugins register while the core is still booting.

@@ -378,12 +378,34 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     up to its date less the earlier refunds — debits what is left on each of them instead of its lines (a rabais left
     is credited back). Every one of those accounts of the stay ends at exactly 0, as the registry's « every 706 / 4457 /
     4671 account nets to exactly 0 after a cancellation and full give-back » says; nothing is accepted within a cent.
-    The cancellation's avoir (method `retained`) is read the same way when it is the one that empties the books. Every
-    other refund keeps its lines (a partial refund, a live stay's), and a stay without a split payment is not read this
-    way. Its indemnity share (7588) and that share's VAT are not sale legs: they keep their own debit. A sale line of
+    The cancellation's avoir (method `retained`) is read the same way when it is the one that empties the books. A
+    partial refund keeps its lines; the refund that empties the stay's sale accounts closes them, on a live stay as on a
+    cancelled one (wording corrected 2026-11-09, verification R35b finding 3: it said a live stay's refunds keep their
+    lines, which the code never did). A stay paid with one method closes the same way from rule 58's cutoff on. Its
+    encaissements are read up to the refund's own date (a payment dated after it is not), which is why a book refund is
+    never dated before the stay's last book payment (reservation-refunds rule 53). Its indemnity share (7588) and that share's VAT are not sale legs: they keep their own debit. A sale line of
     the register can never be negative: the engine drops a custom line at 0 € or below, an end-of-stay line below 0 is
     read by no line, and a complement's split names only lines above 0, so `settleSplitCents`'s floor at 0 only absorbs
     floating-point noise and never lifts the lines above the money received (`mixed-method-payments-pool-geste-cents`).
+57. **A cancellation reads a split solde at its book share (verification R35b, finding 1).** The book refunds made
+    before a cancellation are absorbed by the paid solde first (payment-schedule-and-cancellation rule 55), and only the
+    money the solde put on the books can absorb them: `cancelReservation`'s `saleBooksOf` reads the solde per bucket at
+    `bucketSharesOf(...).balance.books`, less its geste on the books (`waivedBooks`: the accommodation, then the extras pro
+    rata, the tax last, as rule 54), summed exact and rounded once (rule 55), the reading `collectedByLine` already gives
+    the register. The commission spread of the solde (`soldeBuckets`) reads the same share. A solde in the caisse interne
+    whole still absorbs nothing (audit R15-L1). *Why:* acompte by card, solde 70,01 € in the caisse interne + card + a
+    geste of 13,33 €, everything on the books given back live, then « Annuler »: the solde was read gross, so it absorbed
+    83,34 € it never booked and the acompte « kept » them — 7588 −83,34 €, 706 / 706010 / 4457 / 4671 left open, and the
+    register offered 3,03 € of the 70,01 € collected in the caisse. Now nothing is retained, the books are empty and the
+    caisse lines offer the 70,01 € (`mixed-method-payments-refund-then-cancel`).
+58. **A stay paid with one method closes its books too, from the month after the install (verification R35b, finding
+    2).** The entries of a one-method stay and its refunds round their cents apart as a split's do (a cent on 4457
+    against 706). Rule 56's closing applies to every stay's refund dated on or after `stayClosingFrom`: the first day of
+    the month after the accounting-export version bringing it was installed, stored once by the plugin's migration
+    `stay_closing_from_v1` exactly like `ttcSplitFrom` (accountant-accounting-export rules 33, 35); an erased store reads
+    the first month no earlier release could have exported (2026-12-01). A refund dated before it keeps its lines, so a
+    month the accountant may already hold keeps its cents. A split stay closes whatever the date (rule 56). Pinned by
+    `mixed-method-payments-closing-edges` and the fuzz of the verification (40 stays per order, 0 left a cent).
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
@@ -445,6 +467,8 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 | `controllers/` | `reservationsController.js` | T | _(round 34b)_ A split end of stay counts its mid-stay lines at the share it received (rule 47 reading) |
 | `utils/` | `refunds.js`, `paymentTenders.js` | T | _(round 35)_ A geste the accommodation cannot hold comes off the extras then the tax (rule 54); a split reading summed exact and rounded once (rule 55) |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | _(round 35b)_ `encaissementsIn` (one stay over any window), `refundEntryReader` + `addSaleLegs`: the refund emptying a split stay's sale accounts carries `closing`, `refundEntryToRows` debits (or credits) what is left on each (rule 56); 1.2.2 |
+| `utils/` | `cancelReservation.js` | T | _(round 35c)_ `saleBooksOf`: the paid solde's book share absorbs the earlier refunds, never its caisse money or its geste (rule 57) |
+| `plugins/accounting-export/` | `settings.js`, `index.js`, `accountingModel.js` | T | _(round 35c)_ `stayClosingFrom` (migration `stay_closing_from_v1`, `readStayClosingFrom`): one-method stays close from the month after the install (rule 58); 1.2.2 |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -630,7 +654,16 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] _(round 35b)_ `tests/mixed-method-payments-closing-refund.unit.test.js` (4) — rule 56: acompte kept + split solde
       with caisse and geste + extras, cancelled and given back in full: every account at 0, one closing refund crediting
       709 back; a partial refund keeps its lines and the next one closes; a live stay's partial refund closes nothing; a
-      one-method stay is not read this way.
+      one-method stay keeps its lines before rule 58's cutoff (that last case reworded in round 35c).
+- [x] _(round 35c)_ `tests/mixed-method-payments-refund-then-cancel.unit.test.js` (6) — rule 57: acompte + split solde
+      (caisse share, geste, both, extras on both sides) refunded live in full then cancelled: no retained avoir, books
+      empty, the caisse lines still offer the caisse money; a partial refund keeps the acompte whole; a one-method solde
+      unchanged.
+- [x] _(round 35c)_ `tests/mixed-method-payments-closing-edges.unit.test.js` (8) — rules 56, 58: a live split stay
+      refunded in full closes; acompte kept + split complement with a 20 % indemnity closes at 0 (kills Me); negative
+      4457 / 4671 closing legs in the credit column (kills Mf, Mg); a solde paid after the refund is not in its closing
+      (kills Mc); one-method stays close from the cutoff, keep their cent before it; a split stay closes whatever the
+      cutoff; the migration stores the cutoff once.
 
 ### Client (Vitest)
 - [x] `components/__tests__/TenderLines.remainder.test.jsx` (6), `TenderLines.shortfall.test.jsx` (4).

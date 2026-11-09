@@ -15,7 +15,9 @@ const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal } = require('../utils/refunds');
+const {
+  buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf,
+} = require('../utils/refunds');
 const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
 const { bookedStayBuckets, cancellationNettedRefundIds } = require('../utils/cancelReservation');
 const { taxRidesTheComplement } = require('../utils/touristTaxFreeze');
@@ -138,6 +140,11 @@ function createRefundsController(deps = {}) {
         cancelled,
         // Rule 50 (D10) — already net of the refunds made so far.
         liveCollectedTtc: payload.collectedTtc,
+        // Reservation-refunds rule 53 (verification R35b, finding 5).
+        lastBookPaymentDate: lastBookPaymentDateOf(reservation, {
+          installments: installmentsModel ? installmentsModel.listFor(id) : [],
+          settlements: stayDatabase ? paymentSettlementsModel.buildModel(stayDatabase).listFor(id) : [],
+        }),
       });
       if (validated.error) {
         return res.status(validated.status || 400).json({ error: validated.error, code: validated.code });

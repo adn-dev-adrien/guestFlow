@@ -760,6 +760,30 @@ function splitHtVat(amountTtc, vatRate) {
   return { ht: round2(ttc - vat), vat };
 }
 
+/**
+ * specs/reservation-refunds.md rule 53 (verification R35b, finding 5) — the latest day a payment of the stay reached the
+ * books: a paid acompte, solde, arrival or end-of-stay complement off the caisse interne, a paid installment, a note
+ * settled on the books, a settlement with a book tender. `null` when none did. A book refund dated before it is refused:
+ * the refund closing the stay's books (mixed-method-payments rules 56, 58) reads the encaissements up to its own date.
+ */
+function lastBookPaymentDateOf(row, { installments = [], settlements = [] } = {}) {
+  const r = row || {};
+  const days = [];
+  for (const [flag, cash, date] of [
+    ['depositPaid', 'depositPaidCash', 'depositPaidDate'],
+    ['balancePaid', 'balancePaidCash', 'balancePaidDate'],
+    ['complementPaid', 'complementPaidCash', 'complementPaidDate'],
+    ['endOfStayComplementPaid', 'endOfStayComplementPaidCash', 'endOfStayComplementPaidDate'],
+  ]) if (Number(r[flag]) === 1 && !Number(r[cash] || 0)) days.push(r[date]);
+  for (const installment of installments) if (Number(installment.paid) === 1) days.push(installment.paidDate);
+  for (const note of parseNotes(r.midStaySettledNotes)) if (note && !Number(note.paidCash || 0)) days.push(note.paidDate);
+  for (const settlement of settlements) {
+    if ((settlement.tenders || []).some((t) => !(Number(t.internal) === 1 || t.internal === true) && Number(t.amountCents) > 0)) days.push(settlement.paidDate);
+  }
+  const real = days.map((day) => String(day || '').slice(0, 10)).filter(isRealIsoDay).sort();
+  return real.length ? real[real.length - 1] : null;
+}
+
 function invalid(code, error, status = 400) {
   return { code, error, status };
 }
@@ -776,7 +800,7 @@ function invalid(code, error, status = 400) {
 function validateRefundPayload(payload, context) {
   const {
     refundableLines = [], finalPrice = 0, touristTaxTotal = 0,
-    alreadyRefundedTotal = 0, vatRate = 0, today, cancelled = null, liveCollectedTtc = null,
+    alreadyRefundedTotal = 0, vatRate = 0, today, cancelled = null, liveCollectedTtc = null, lastBookPaymentDate = null,
   } = context || {};
 
   const refundDate = String((payload && payload.refundDate) || '').trim();
@@ -794,6 +818,11 @@ function validateRefundPayload(payload, context) {
   const method = String((payload && payload.method) || 'transfer');
   if (!SELECTABLE_REFUND_METHODS.includes(method)) {
     return invalid('REFUND_INVALID_METHOD', 'Moyen de remboursement inconnu');
+  }
+  // Rule 53 — a book refund is never dated before the stay's last book payment.
+  if (!isOffBooks(method) && lastBookPaymentDate && refundDate < lastBookPaymentDate) {
+    const [y, m, d] = lastBookPaymentDate.split('-');
+    return invalid('REFUND_BEFORE_PAYMENT', `Date antérieure au dernier paiement (${d}/${m}/${y}).`);
   }
 
   const rawLines = Array.isArray(payload && payload.lines) ? payload.lines : [];
@@ -977,6 +1006,7 @@ function splitOnIndemnity(lines, byKey, budget, offBooks = false) {
 }
 
 module.exports = {
+  lastBookPaymentDateOf,
   REFUND_METHODS,
   SELECTABLE_REFUND_METHODS,
   RETAINED_DEPOSIT_METHOD,

@@ -27,7 +27,7 @@ const {
   DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT,
   BUCKET_TO_ACCOUNT, vatAccountForRate,
 } = require('./accountPlan');
-const { createAccountSettings, readTtcSplitFrom } = require('./settings');
+const { createAccountSettings, readTtcSplitFrom, readStayClosingFrom } = require('./settings');
 const { bookedBucketSplit, entryVentilation } = require('./accountingExport');
 
 const { isPlatformCollectingTouristTax } = sdk.coreModule('pricing');
@@ -372,8 +372,13 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   // each settlement's share entry by entry (`scaleEntry`), its refunds line by line from the register: the two round
   // their cents apart. The refund that gives back the last of its book money therefore debits what is left on each sale
   // account instead of its lines, so every 706 / 706010 / 709 / 4457 / 4671 account of the stay ends at exactly 0.
+  // Rule 58 (verification R35b, finding 2) — a stay paid with one method rounds its cents apart too: its refunds close
+  // the same way from the month after this version was installed, so a month already exported keeps its cents.
   const refundEntryReader = () => {
     const memo = new Map();
+    const closingFrom = readStayClosingFrom(database);
+    const closes = (row) => String(row.refundDate || '') >= closingFrom
+      || (hasSettlements && settlementsStore.listFor(row.reservationId).length > 0);
     const stayEntries = new Map();
     const entriesOfStay = (reservationId) => {
       if (!stayEntries.has(reservationId)) stayEntries.set(reservationId, encaissementsIn('0000-01-01', '9999-12-31', reservationId));
@@ -382,8 +387,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     const entryOf = (row) => {
       if (!memo.has(row.id)) {
         const entry = refundEntry(row);
-        memo.set(row.id, entry && hasSettlements && settlementsStore.listFor(row.reservationId).length > 0
-          ? closeStayBooks(entry, row) : entry);
+        memo.set(row.id, entry && closes(row) ? closeStayBooks(entry, row) : entry);
       }
       return memo.get(row.id);
     };
