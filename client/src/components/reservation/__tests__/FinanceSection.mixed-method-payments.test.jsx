@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 17, 20-22, 30 — the fiche: « Plusieurs moyens » in the mark form, the
+// specs/mixed-method-payments.md rules 17, 20, 30, 32-33 — the fiche: « Plusieurs moyens » in the mark form, the
 // settlements of a paid row, their correction and the reste à percevoir.
 import { screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -19,7 +19,7 @@ const cleaning = () => dueRow('endOfStayComplement', 'Fin de séjour', 122, {
 });
 const amount = (i) => document.querySelector(`[data-tender-amount="${i}"]`);
 
-test('rule 21 — « Plusieurs moyens » only appears once the mark form is open', async () => {
+test('rule 32 — « Plusieurs moyens » only appears once the mark form is open', async () => {
   const user = userEvent.setup();
   renderFinance({ editingReservationId: 7, reservationId: 7, ledger: ledgerOf([cleaning()]) });
   expect(screen.queryByRole('button', { name: 'Plusieurs moyens' })).toBeNull();
@@ -42,7 +42,7 @@ test('rules 1-10 — 50 € cash + 72 € card is sent with the mark and the amo
   }));
 });
 
-test('rule 22 — « Un seul moyen » brings the ordinary form back', async () => {
+test('rule 33 — « Un seul moyen » brings the ordinary form back', async () => {
   const user = userEvent.setup();
   renderFinance({ editingReservationId: 7, reservationId: 7, ledger: ledgerOf([cleaning()]) });
   await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));

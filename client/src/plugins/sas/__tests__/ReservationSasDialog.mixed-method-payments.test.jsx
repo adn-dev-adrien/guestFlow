@@ -72,7 +72,7 @@ test('rule 15 — short of the total, the commit waits for the choice and sends 
   expect(api.commitDepartureSas.mock.calls[0][1].complementsShortfall).toEqual({ kind: 'due' });
 });
 
-test('rule 22 — « Un seul moyen » restores the payment buttons and the ordinary commit', async () => {
+test('rule 33 — « Un seul moyen » restores the payment buttons and the ordinary commit', async () => {
   await toDepartureRecap();
   fireEvent.click(document.querySelector('[data-split-toggle="departure"]'));
   fireEvent.click(document.querySelector('[data-split-toggle="departure"]'));

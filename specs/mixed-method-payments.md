@@ -190,6 +190,8 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     its `card`, `cheque` and `transfer` lines. `cash` (books or internal), `holidayVoucher` and `other`
     lines are not expected at the bank.
 29. **Tourist tax reporting is unchanged**: it is computed from the stay, never from how it was paid.
+    > **Sans test** — a non-change: the tourist-tax readers never read a payment, so nothing of this feature reaches
+    > them; their own suites (`tourist-tax-*`) stay green untouched.
 
 ### 3.8 Display
 
@@ -390,6 +392,8 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
       refusal, one at a time), the undo that takes the settlement, reste à percevoir then its collection,
       geste commercial, corrections (lines, shortfall, date, refusal 25), the single arrival payment split and
       undone (rules 1-2, 6, 10-25).
+- [x] `tests/mixed-method-payments-targets.unit.test.js` (3) — an installment recorded as 'mixed', the geste
+      commercial under its settlement, the lines of a note on the « Notes en séjour » row (rules 12, 19, 31).
 - [x] `tests/mixed-method-payments-finance.unit.test.js` (5) — `encaissé + reste à payer = total de séjour` on
       four shapes; the turnover (rule 27).
 - [x] `plugins/accounting-export/tests/accounting-mixed-method-payments.unit.test.js` (5) — the books share,
