@@ -646,6 +646,9 @@ word per line (seen in the browser check of 2026-10-17).
   plugins admit the root version, the next two majors and `SDK_VERSION`; `loadPackages` on « <4.0.0 »
   packages at 4.0.0 and 5.0.0; the gate equals the loader; the gate red on a ceiling, a floor above the
   core, an SDK major; the skill runs it) and `plugins-manifest-upper-bound.unit.test.js` rewritten (4).
+- _(added 2026-11-09, audit R34 L-T1, listed after verification N3-1)_ rule 62: `build-plugin-packages-floor.unit.test.js`
+  (1 test) — `buildPackage` refuses a `guestflow` range that is not a floor (« >=3.18.0 <4.0.0 », a caret, a bare
+  ceiling, an unreadable range) before staging anything.
 - _(added 2026-10-28, audit)_ rules 38–41: `plugin-install-hooks-after-restart.unit.test.js`, `plugin-install-requirement-inactive.unit.test.js`, `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`, `Slot.isolation.test.jsx`.
 
 ## 8. Out of scope
