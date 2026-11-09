@@ -15,8 +15,8 @@ export function LanguageDayNight() {
   const { lang, night, chooseLang, toggleNight } = useSession();
   return (
     <div className="pill">
-      <button type="button" aria-pressed={lang === 'fr'} aria-label={t('pill.fr')} lang="fr" onClick={() => chooseLang('fr')}>FR</button>
-      <button type="button" aria-pressed={lang === 'en'} aria-label={t('pill.en')} lang="en" onClick={() => chooseLang('en')}>EN</button>
+      <button type="button" aria-pressed={lang === 'fr'} aria-label={`FR, ${t('pill.fr')}`} lang="fr" onClick={() => chooseLang('fr')}>FR</button>
+      <button type="button" aria-pressed={lang === 'en'} aria-label={`EN, ${t('pill.en')}`} lang="en" onClick={() => chooseLang('en')}>EN</button>
       <button type="button" aria-label={night ? t('pill.toDay') : t('pill.toNight')} onClick={toggleNight}><Icon name={night ? 'sun' : 'moon'} /></button>
     </div>
   );

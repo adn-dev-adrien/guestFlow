@@ -78,7 +78,7 @@ function Root() {
       <ThemeProvider theme={theme}>
         <div className={cls} style={vars} lang={session.lang}>
           <ToastProvider>
-            {bare ? <div className="shell"><div className="main"><Screens /></div></div> : (
+            {bare ? <div className="shell"><main className="main"><Screens /></main></div> : (
               <AppShell layout={layout} appName={session.me && session.me.appName}>
                 <Screens />
               </AppShell>

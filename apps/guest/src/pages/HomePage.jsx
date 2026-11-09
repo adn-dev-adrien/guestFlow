@@ -101,7 +101,8 @@ export default function HomePage() {
           icon={TILE_ICON[tile.key] || 'info'}
           label={tile.label}
           external={tile.key === 'gate' || (tile.key === 'soliomap' && !soliomapEmbedded)}
-          disabledReason={tile.key === 'gate' && gateState !== 'active' ? t('tile.preparing') : null}
+          disabled={tile.key === 'gate' && !gateState}
+          disabledReason={tile.key === 'gate' && gateState === 'preparing' ? t('tile.preparing') : null}
           onClick={tileAction[tile.key]}
         />
       ))}
