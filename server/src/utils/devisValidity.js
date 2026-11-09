@@ -74,4 +74,40 @@ function validUntilForStart(validUntil, startDateIso, todayIsoDate) {
   return String(validUntil).slice(0, 10) > latest ? latest : validUntil;
 }
 
-module.exports = { computeValidUntil, isDevisExpired, isDevisExtendable, validUntilForStart };
+/**
+ * THE validity date of a devis for a given start (§3.2 rule 7 reading R32-RES-M1): the one reading of the save
+ * (`devisModel.update`), of the engine input of `computeQuote`, of the fiche's live quote (calculate-price, through
+ * `scheduleQuoteInputs`) and of the read (`findById`, its PDF), so a preview never announces a date the save does not
+ * write. Every input is an ISO `YYYY-MM-DD`:
+ *  - nothing stored (legacy row): rule 7's backfill, `computeValidUntil` from the creation day;
+ *  - stored and expired: `reissueExpired` (a save, its preview) re-opens it from today (devis-extras-parity rule 14),
+ *    a read keeps the stored date;
+ *  - stored and valid, start unchanged: the stored date, capped (`validUntilForStart`, reading R31-RES-M1);
+ *  - stored and valid, start moved: MAX(stored, `computeValidUntil` from the creation day for the new start), capped.
+ *    The MAX keeps a later window (« Prolonger », an override); the creation window gives back what an earlier move
+ *    took. The cap is floored at today, so a move never expires a valid quote (rule 6 reading R30).
+ */
+function devisValidUntil({ stored, storedStartDate, createdDay, startDate, today, quoteValidityDays, reissueExpired = false }) {
+  const start = startDate || storedStartDate;
+  if (!stored) return computeValidUntil({ createdAtIsoDate: createdDay, startDateIso: start, quoteValidityDays }) || null;
+  if (isDevisExpired(stored, today)) {
+    return reissueExpired
+      ? computeValidUntil({ createdAtIsoDate: today, startDateIso: start, quoteValidityDays }) || null
+      : stored;
+  }
+  if (!start || !ISO_DATE.test(start) || start === storedStartDate) return validUntilForStart(stored, start, today);
+  const window = computeValidUntil({ createdAtIsoDate: createdDay, startDateIso: start, quoteValidityDays });
+  const storedDay = String(stored).slice(0, 10);
+  return validUntilForStart(window && window > storedDay ? window : stored, start, today);
+}
+
+/** The « Validité des devis » setting in days; unset or unreadable reads 30 (the settings accept 1 to 365). */
+function readQuoteValidityDays(database) {
+  try {
+    const row = database.prepare('SELECT quoteValidityDays FROM app_settings WHERE id = 1').get();
+    const days = Number(row && row.quoteValidityDays);
+    return Number.isFinite(days) && days > 0 ? days : 30;
+  } catch { return 30; }
+}
+
+module.exports = { computeValidUntil, isDevisExpired, isDevisExtendable, validUntilForStart, devisValidUntil, readQuoteValidityDays };

@@ -1,0 +1,3 @@
+- A devis moved to earlier dates and then back gets its full validity again, instead of keeping a deadline of today for a stay weeks away.
+- While a devis's dates are being edited, its « Valide jusqu'au » chip and its payment deadline show the date the save will write; after the save the chip follows it without a reload, and a quote the save re-issued no longer reads « Périmé ».
+- A note settlement whose follow-up refresh fails no longer leaves « Nouvelle note » stuck with every button disabled, and a payment that was recorded is no longer reported as refused when only the refresh failed.
