@@ -15,7 +15,7 @@ const { getMonthBounds } = require('../utils/financeCalcs');
 const penaltyColumn = (database) => (database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'platformPenaltyAmount')
   ? 'r.platformPenaltyAmount' : '0 AS platformPenaltyAmount');
 const {
-  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, platformPenalty,
+  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, platformPenalty, splitAdjustment,
 } = require('../utils/reservationSettlement');
 const fiscalYearUtil = require('../utils/fiscalYear');
 const { bookingChannelOf, platformDisplayName } = require('../utils/attributionChannel');
@@ -157,8 +157,11 @@ function totalSejour(r) {
   // specs/direct-installments.md rule 45 — an installment plan replaces the acompte and the solde (the
   // engine zeroes both): the plan's collected and still-due totals are the stay's pre-arrival money.
   const installments = round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount);
+  // specs/mixed-method-payments.md rule 27 — a split payment's caisse-interne lines and geste commercial leave
+  // the turnover; its reste à percevoir stays in it (still owed, counted by `remainingToPay`).
+  const split = splitAdjustment(r);
   return round2(deposit + balance + complement + endOfStay + installments + midStayNotesTotal(r) - refundsBook(r)
-    + arrivalPaymentAdjustment(r).net);
+    + arrivalPaymentAdjustment(r).net - split.offBooks - split.waived);
 }
 
 // `isSettled` (specs/finance-overview-rework.md §3.3), `remainingToPay`
@@ -222,6 +225,9 @@ function createFinanceModel(database) {
     hasReservationColumn('arrivalPaymentReduction') ? 'r.arrivalPaymentReduction' : 'NULL AS arrivalPaymentReduction',
     hasReservationColumn('arrivalPaymentTip') ? 'r.arrivalPaymentTip' : 'NULL AS arrivalPaymentTip',
   ].join(', ');
+  // specs/mixed-method-payments.md rule 27 — the split payments' aggregates, read by the settlement rules.
+  const SPLIT_COLS = ['splitOffBooksAmount', 'splitWaivedAmount', 'splitWaivedCashAmount', 'splitShortfallDue']
+    .map((c) => (hasReservationColumn(c) ? `r.${c}` : `0 AS ${c}`)).join(', ');
 
   // specs/reservation-refunds.md §3.3 — per-reservation refund totals, injected into every query that
   // feeds totalSejour/comptaCollected. Guarded like the mid-stay columns: a minimal test schema without
@@ -688,6 +694,7 @@ function createFinanceModel(database) {
                r.propertyId, p.name AS propertyName,
                r.platform, r.requestOrigin, r.attributionChannel,
                ${ARRIVAL_ADJUSTMENT_COLS},
+               ${SPLIT_COLS},
                ${REFUND_COLS}
         FROM reservations r JOIN properties p ON r.propertyId = p.id
         WHERE r.kind = 'reservation'
