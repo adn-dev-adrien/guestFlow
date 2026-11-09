@@ -21,10 +21,10 @@ function stayWithCleaning(lines, { shortfallCents = 0, shortfallKind = null, cas
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, finalPrice,
       depositAmount, depositPaid, depositPaidDate, balanceAmount, balancePaid, balancePaidDate,
       endOfStayComplementAmount, endOfStayComplementPaid, endOfStayComplementPaidCash, endOfStayComplementPaidDate)
-    VALUES (1, 1, '2026-11-03', '2026-11-08', 'direct', 2, 720, 216, 1, '2026-09-12', 504, 1, '2026-11-03', 122, 1, ?, '2026-11-08')`)
+    VALUES (1, 1, '2026-11-03', '2026-11-08', 'direct', 2, 720, 216, 1, '2026-09-12', 504, 1, '2026-11-03', 122, 1, ?, '2026-11-08')`) // date-literal-ok: a stay already over; the readers sum amounts, never compare with today
     .run(cashFlag).lastInsertRowid);
   settlements.insert({
-    reservationId: id, targetKind: 'bucket', targetKey: 'endOfStayComplement', paidDate: '2026-11-08', dueCents: 12200,
+    reservationId: id, targetKind: 'bucket', targetKey: 'endOfStayComplement', paidDate: '2026-11-08', dueCents: 12200, // date-literal-ok: a stay already over; the readers sum amounts, never compare with today
     shortfallCents, shortfallKind, parts: [{ kind: 'endOfStayComplement', key: 'endOfStayComplement', amountCents: 12200 }], lines,
   });
   return db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);

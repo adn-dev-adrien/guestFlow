@@ -56,7 +56,7 @@ const splitPaid = (extra = {}) => paidRow('endOfStayComplement', 'Fin de séjour
   split: {
     methods: METHODS,
     settlements: [{
-      id: 41, paidDate: '2026-11-08', label: 'Moyens de paiement',
+      id: 41, paidDate: '2026-11-08', label: 'Moyens de paiement', // date-literal-ok: a recorded settlement date shown as is, never compared with today
       lines: [{ label: 'Espèces 50,00 €', internal: true }, { label: 'CB 72,00 €', internal: false }],
       shortfall: null,
       edit: { dueCents: 12200, tenders: [{ method: 'cash', amountCents: 5000, internal: true }, { method: 'card', amountCents: 7200, internal: false }], shortfallKind: null },
@@ -82,7 +82,7 @@ test('rule 20 — « Modifier » reopens the lines prefilled and saves the corre
   fireEvent.change(amount(1), { target: { value: '82' } });
   await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
   expect(api.modifySettlement).toHaveBeenCalledWith(7, 41, expect.objectContaining({
-    date: '2026-11-08',
+    date: '2026-11-08', // date-literal-ok: a recorded settlement date shown as is, never compared with today
     tenders: [{ method: 'cash', amountCents: 4000, internal: true }, { method: 'card', amountCents: 8200, internal: false }],
   }));
   expect(ctx.reloadReservationFinance).toHaveBeenCalled();

@@ -43,9 +43,9 @@ test('specs/mixed-method-payments.md rule 12 — an installment paid with severa
 });
 
 const ROW = {
-  id: 9, kind: 'reservation', platform: 'direct', startDate: '2026-11-03', endDate: '2026-11-08', finalPrice: 720,
-  depositAmount: 0, balanceAmount: 720, balancePaid: 1, balancePaidDate: '2026-11-03',
-  endOfStayComplementAmount: 122, endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-11-08',
+  id: 9, kind: 'reservation', platform: 'direct', startDate: '2026-11-03', endDate: '2026-11-08', finalPrice: 720, // date-literal-ok: a stay already over, it stays over as the calendar passes
+  depositAmount: 0, balanceAmount: 720, balancePaid: 1, balancePaidDate: '2026-11-03', // date-literal-ok: a stay already over, it stays over as the calendar passes
+  endOfStayComplementAmount: 122, endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-11-08', // date-literal-ok: a stay already over, it stays over as the calendar passes
 };
 
 test('specs/mixed-method-payments.md rule 19 — the geste commercial is shown under its settlement', () => {
@@ -53,7 +53,7 @@ test('specs/mixed-method-payments.md rule 19 — the geste commercial is shown u
     row: ROW,
     today: TODAY,
     settlements: [{
-      id: 1, targetKind: 'bucket', targetKey: 'endOfStayComplement', paidDate: '2026-11-08', dueCents: 12200,
+      id: 1, targetKind: 'bucket', targetKey: 'endOfStayComplement', paidDate: '2026-11-08', dueCents: 12200, // date-literal-ok: a stay already over, it stays over as the calendar passes
       shortfallCents: 800, shortfallKind: 'waived',
       parts: [{ kind: 'endOfStayComplement', key: 'endOfStayComplement', amountCents: 12200 }],
       tenders: [{ method: 'cash', amountCents: 5000, internal: 1 }, { method: 'card', amountCents: 6400, internal: 0 }],
@@ -67,13 +67,13 @@ test('specs/mixed-method-payments.md rule 19 — the geste commercial is shown u
 });
 
 test('specs/mixed-method-payments.md rule 31 — the « Notes en séjour » row carries the lines of a note settled that way', () => {
-  const note = { id: 'n1', paidDate: '2026-11-05', paidCash: 0, total: 30, lines: [] };
+  const note = { id: 'n1', paidDate: '2026-11-05', paidCash: 0, total: 30, lines: [] }; // date-literal-ok: a stay already over, it stays over as the calendar passes
   const ledger = buildLedger({
     row: { ...ROW, midStaySettledNotes: JSON.stringify([note]) },
     midStayNotes: [note],
     today: TODAY,
     settlements: [{
-      id: 2, targetKind: 'midStayNote', targetKey: 'n1', paidDate: '2026-11-05', dueCents: 3000, shortfallCents: 0, shortfallKind: null,
+      id: 2, targetKind: 'midStayNote', targetKey: 'n1', paidDate: '2026-11-05', dueCents: 3000, shortfallCents: 0, shortfallKind: null, // date-literal-ok: a stay already over, it stays over as the calendar passes
       parts: [{ kind: 'note', key: 'n1', amountCents: 3000 }],
       tenders: [{ method: 'cash', amountCents: 1000, internal: 1 }, { method: 'card', amountCents: 2000, internal: 0 }],
     }],

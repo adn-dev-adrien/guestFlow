@@ -26,13 +26,13 @@ function seed() {
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Jean', 'Revue')").run();
   db.prepare(`INSERT INTO reservations (id, propertyId, clientId, kind, platform, startDate, endDate, adults, finalPrice, totalPrice,
       endOfStayComplementAmount, endOfStayComplementPaid, endOfStayComplementPaidDate, endOfStayComplementDetail)
-    VALUES (1, 1, 1, 'reservation', 'direct', '2026-11-03', '2026-11-08', 2, 500, 500, 122, 1, '2026-11-08', ?)`)
+    VALUES (1, 1, 1, 'reservation', 'direct', '2026-11-03', '2026-11-08', 2, 500, 500, 122, 1, '2026-11-08', ?)`) // date-literal-ok: the journal is selected by month, never compared with today
     .run(JSON.stringify([{ key: 'opt:9', label: 'Ménage', amount: 122 }]));
   return db;
 }
 
 const PART = [{ kind: 'endOfStayComplement', key: 'endOfStayComplement', amountCents: 12200 }];
-const settle = (db, lines, { date = '2026-11-08', shortfallCents = 0, shortfallKind = null, due = 12200 } = {}) => buildSettlements(db).insert({
+const settle = (db, lines, { date = '2026-11-08', shortfallCents = 0, shortfallKind = null, due = 12200 } = {}) => buildSettlements(db).insert({ // date-literal-ok: the journal is selected by month, never compared with today
   reservationId: 1, targetKind: 'bucket', targetKey: 'endOfStayComplement', paidDate: date, dueCents: due,
   shortfallCents, shortfallKind, parts: PART, lines,
 });
@@ -76,11 +76,11 @@ test('rules 18, 26 — a geste commercial: the books carry its share gross, then
 test('rule 17 — a reste collected the next month is booked in that month, at its date', () => {
   const db = seed();
   settle(db, [{ method: 'card', amountCents: 11400, internal: false }], { shortfallCents: 800, shortfallKind: 'due' });
-  settle(db, [{ method: 'transfer', amountCents: 800, internal: false }], { date: '2026-12-02', due: 800 });
+  settle(db, [{ method: 'transfer', amountCents: 800, internal: false }], { date: '2026-12-02', due: 800 }); // date-literal-ok: the journal is selected by month, never compared with today
   assert.equal(journal(db, 11)[0].encaissementTtc, 114);
   const december = journal(db, 12);
   assert.equal(december.length, 1);
-  assert.equal(december[0].paidDate, '2026-12-02');
+  assert.equal(december[0].paidDate, '2026-12-02'); // date-literal-ok: the journal is selected by month, never compared with today
   assert.equal(december[0].encaissementTtc, 8);
 });
 
