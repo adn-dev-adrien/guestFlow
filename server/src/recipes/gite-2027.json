@@ -250,7 +250,7 @@
   "welcomePack": {
     "cost": 15
   },
-  "_comment_cleaning": "Airbnb interdit depuis les réservations du 20/11/2026 de demander vaisselle, poubelles et lits défaits (specs/airbnb-no-checkout-chores.md). Le ménage du gîte n'est pas dans le prix de la nuit : Airbnb le facture à part, et ses frais de ménage couvrent le ménage (80 €) plus les 55 minutes de corvées à 25 €/h, soit 102,92 € net. Airbnb prélevant sa commission sur les frais de ménage aussi, la grille affiche 122 € à saisir (specs/tariff-recipe-platform-cleaning-fee.md). Gîtes de France facture aussi le ménage à part, en option « Forfait ménage » à 80 € que la centrale reverse en entier : sa commission de 10 % ne porte que sur la location (mesuré sur 13 dossiers soldés le 2026-10-30), d'où `feeCommissioned: false` et 80 € dans la grille, pas 89 €. Gîtes de France suit la recette depuis le 2026-11-09 (specs/tariff-recipe-gite/spec.md règle 2).",
+  "_comment_cleaning": "Airbnb interdit depuis les réservations du 20/11/2026 de demander vaisselle, poubelles et lits défaits (specs/airbnb-no-checkout-chores.md). Le ménage du gîte n'est pas dans le prix de la nuit : Airbnb le facture à part, et ses frais de ménage couvrent le ménage (80 €) plus les 55 minutes de corvées à 25 €/h, soit 102,92 € net. Airbnb prélevant sa commission sur les frais de ménage aussi, la grille affiche 122 € à saisir (specs/tariff-recipe-platform-cleaning-fee.md). Gîtes de France facture aussi le ménage à part, en option « Forfait ménage » à 80 € que la centrale reverse en entier : sa commission de 10 % ne porte que sur la location (mesuré sur 13 dossiers soldés le 2026-10-30), d'où `feeCommissioned: false` et 80 € dans la grille, pas 89 €. Gîtes de France suit la recette depuis le 2026-11-09 (specs/tariff-recipe-gite/spec.md règle 2). Pitchup (15 %, commission comprise dans le prix payé par le client, aucun frais de réservation) facture le ménage à part comme les autres canaux : 80 € net, 95 € à saisir, la commission étant supposée porter sur toute la réservation tant que le support ne l'a pas confirmé (specs/tariff-recipe-gite/spec.md règle 26).",
   "cleaning": {
     "netCost": 80,
     "hourlyRate": 25,
@@ -265,6 +265,11 @@
         "chargesCleaning": true,
         "choresMinutes": 0,
         "feeCommissioned": false
+      },
+      {
+        "platform": "Pitchup",
+        "chargesCleaning": true,
+        "choresMinutes": 0
       }
     ]
   },

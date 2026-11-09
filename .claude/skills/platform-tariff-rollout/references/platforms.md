@@ -1640,3 +1640,23 @@ l'état fermé.
 **Lire un devis voyageur contre un séjour témoin.** Airbnb et Abritel ajoutent ménage, taxe et frais
 de service au total affiché. Plutôt que de décomposer le détail, quoter un séjour voisin inchangé
 (21→23 décembre) : la différence entre les deux totaux isole les nuits modifiées.
+
+## Pitchup — relevé du 2026-11-09 (compte non encore rouvert)
+
+- **Commission 15 %, comprise dans le prix payé par le client**, aucun frais de réservation ni
+  d'abonnement (page `/fr/join/` et accueil de l'extranet). **Parité tarifaire** exigée avec le site
+  direct. Paiement par Stripe : Pitchup garde les 15 % comme acompte, le solde est versé à l'hébergeur
+  à l'échéance ; option « le client règle à l'arrivée ».
+- **Extranet** : `pitchup.com/fr/supplier/campsite/domaine-solio/` (ID 42145). Tarifs :
+  `…/rates3/?start_date=AAAA-MM-JJ` ; disponibilités et iCal : `…/allocation/`. Une modale « clé
+  d'accès » (`#passkey-offer`) intercepte les clics : la retirer du DOM, ne pas y répondre.
+- **État au 2026-11-09** : annonce basique, réservations éteintes. « Ajouter des informations sur
+  votre établissement » répond « Vous êtes déjà enregistré. Contactez Pitchup.com pour souscrire à
+  nouveau » : **seul le support rouvre le compte** (enquiries@pitchup.com, +44 20 8434 7444). Un seul
+  hébergement : « Tente safari Aventura lodge 2 chambres » (L'Estiva), sans disponibilité ni tarif,
+  calendrier externe activé. **Pas d'hébergement pour le gîte.**
+- **À confirmer par le support** : la commission porte-t-elle sur le ménage et les options (la recette
+  suppose que oui : gîte 95 €), qui collecte la taxe de séjour, TVA sur la commission pour un
+  hébergeur français.
+- Recettes : `gite-2027` 3.8.0 et `aventura-lodge-2026` 1.3.0 déclarent Pitchup ; la plateforme
+  `Pitchup` (15 %) doit exister dans GuestFlow avant l'application.

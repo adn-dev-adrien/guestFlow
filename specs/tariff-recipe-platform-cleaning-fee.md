@@ -129,8 +129,8 @@ The recipe declares what a ménage costs and which channels bill it as a separat
 | `models/` | `tariffRecipeModel.js` | T | Apply: resolves platforms, blocks on unknown or own channel (rules 6, 13), diffs stored fees and counts them as a change (rule 11), writes on both paths (rules 4, 7). |
 | `models/` | `propertiesModel.js` | T | `setPlatformCleaningFees`; `platformPrices` serves `cleaningFee` + detail (rules 8–9), net when uncommissioned (rule 14). |
 | `database.js` | `database.js` | T | Idempotent `properties.platformCleaningFees TEXT DEFAULT '[]'`. |
-| `recipes/` | `gite-2027.json` | T | 3.6.0 — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }; 3.8.0 adds Gîtes de France, ménage only, uncommissioned (rule 14). |
-| `recipes/` | `aventura-lodge-2026.json` | T | 1.2.0 — `cleaning` { 30, 25, Airbnb chores only, 25 min }. |
+| `recipes/` | `gite-2027.json` | T | 3.6.0 — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }; 3.8.0 adds Gîtes de France, ménage only, uncommissioned (rule 14), and Pitchup, ménage only, commissioned (95 €). |
+| `recipes/` | `aventura-lodge-2026.json` | T | 1.2.0 — `cleaning` { 30, 25, Airbnb chores only, 25 min }; 1.3.0 declares Pitchup at 0 € (all-inclusive, no chores). |
 | `tests/` | `tariff-recipe-platform-cleaning-fee.unit.test.js` | C | Rules 1–9, including 122 € and 13 €. |
 
 ### 4.2 Client side (`client/src/`)
@@ -192,13 +192,19 @@ change (the card has no action).
 - [x] Cleaning-only change reported, applied, journaled; required parts; own channel blocked (11–13).
 
 Eight existing suites build their own `properties` table: they gain the `platformCleaningFees` column,
-and the three that apply a shipped recipe gain a `platforms` table with Airbnb.
+and the three that apply a shipped recipe gain a `platforms` table with Airbnb (and Pitchup since 2026-11-09).
 
 ### Server unit tests — `tariff-recipe-cleaning-uncommissioned.unit.test.js` (3 tests, rule 14)
 
 - `feeCommissioned` must be a boolean when present; absent keeps today's behaviour.
 - The grid shows Gîtes de France at 80 € (net) and Airbnb still at 122 € (grossed up).
 - Flipping the flag is a change even with the same net.
+
+### Server unit tests — `tariff-recipe-pitchup-channel.unit.test.js` (2 tests, Pitchup entries)
+
+- The grid shows Pitchup at 95 € on the Gîte and 0 € on L'Estiva; Airbnb (122 €, 13 €) and Gîtes de
+  France (80 €) unchanged.
+- Without a `Pitchup` platform recorded, both shipped recipes report it unknown — the apply blocks.
 
 ### Client unit tests
 - [x] `PlatformPriceCard.cleaning-fee.test.jsx` (2) — column present with a fee (value, net, make-up), absent without; « — » for a channel without one.

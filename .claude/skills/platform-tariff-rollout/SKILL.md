@@ -1,6 +1,6 @@
 ---
 name: platform-tariff-rollout
-description: Roll a GuestFlow tariff recipe out to the booking platforms (Airbnb, Booking, Abritel, GreenGo, Abracadaroom/UnicStay, Gîtes de France via ITEA) and prove the result with comparable guest-side quotes and a self-contained verification page. Use when prices, degressivity, extra-guest rules, seasons, closures or listing titles change and the channels must follow, or when an operator asks what a platform is actually charging.
+description: Roll a GuestFlow tariff recipe out to the booking platforms (Airbnb, Booking, Abritel, GreenGo, Abracadaroom/UnicStay, Gîtes de France via ITEA, Pitchup) and prove the result with comparable guest-side quotes and a self-contained verification page. Use when prices, degressivity, extra-guest rules, seasons, closures or listing titles change and the channels must follow, or when an operator asks what a platform is actually charging.
 ---
 
 # Rolling a tariff recipe out to the platforms

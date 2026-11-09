@@ -1,0 +1,1 @@
+- Tariff recipes: Pitchup (15 %) becomes a channel of both shipped recipes — `gite-2027` 3.8.0 bills its ménage there at 95 €, `aventura-lodge-2026` 1.3.0 declares no cleaning fee (all-inclusive). A `Pitchup` platform must be recorded in Paramètres → Plateformes before either recipe is applied (`specs/tariff-recipe-gite/spec.md` rule 26).

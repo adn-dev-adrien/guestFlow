@@ -402,6 +402,26 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
 
 ---
 
+### 3.6 Added 2026-11-09 — Pitchup
+
+26. **Pitchup is a channel of the recipe, at 15 %.** _(Owner, 2026-11-09: « je veux que tu paramètres
+    le compte pitchup, ce qui veux dire une nouvelle entrée dans les recettes ».)_ Pitchup's
+    commission is included in the price the guest pays, with no booking fee on top, and Pitchup
+    enforces price parity with the direct site. Its nightly prices therefore come from the grid like
+    every channel's, `ceil(net ÷ 0,85)`, from the `Pitchup` row of Paramètres → Plateformes.
+    - **The ménage is billed apart, as on every other channel: 80 € net, 95 € to configure.** The
+      commission is assumed to apply to the whole booking, cleaning included, until Pitchup's support
+      says otherwise (asked 2026-11-09). If it turns out to spare options like Gîtes de France,
+      the entry gains `feeCommissioned: false` and the grid shows 80 €.
+    - **No chores minutes**: unlike Airbnb, Pitchup does not forbid asking guests for the washing-up
+      and the bins.
+    - **The `Pitchup` platform must exist before the recipe is applied** — an unknown platform blocks
+      the apply ([tariff-recipe-platform-cleaning-fee rule 6](../tariff-recipe-platform-cleaning-fee.md)).
+    - **State of the account on 2026-11-09**: « Domaine Solio », ID 42145, a basic listing with
+      bookings off; Pitchup refuses to reopen it without its support (« Vous êtes déjà enregistré »),
+      and the Gîte has no unit there yet — only L'Estiva has one. Nothing is configured on Pitchup
+      before the support has reopened the account and the owner has seen the inventory.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** This change adds **data**, not code: a recipe is a JSON document
