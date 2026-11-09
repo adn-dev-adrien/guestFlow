@@ -115,22 +115,28 @@ function createOrdersModel(db) {
 
     /**
      * Rule 45 — the orders list of GuestFlow, by delivery time (an order without one at its creation): every order
-     * with `all`, else the ones to prepare. `from` (ISO instant) keeps the list to what is still relevant.
+     * with `all`, else the ones to prepare. `from` (ISO instant) keeps the list to what is still relevant; `today`
+     * (Paris date) keeps « À préparer » to the stays not ended yet: an order of a stay gone is no longer prepared.
      */
-    listForStaff({ all = false, from = null } = {}) {
+    listForStaff({ all = false, from = null, today = null } = {}) {
       const where = [];
       const params = [];
       if (!all) {
-        where.push(`status IN (${TO_PREPARE.map(() => '?').join(', ')})`);
+        where.push(`o.status IN (${TO_PREPARE.map(() => '?').join(', ')})`);
         params.push(...TO_PREPARE);
+        if (today) {
+          where.push('r.endDate >= ?');
+          params.push(today);
+        }
       }
       if (from) {
-        where.push('COALESCE(deliverAt, createdAt) >= ?');
+        where.push('COALESCE(o.deliverAt, o.createdAt) >= ?');
         params.push(from);
       }
       return db.prepare(`
-        SELECT * FROM guest_orders ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-         ORDER BY COALESCE(deliverAt, createdAt), id LIMIT 500
+        SELECT o.* FROM guest_orders o LEFT JOIN reservations r ON r.id = o.reservationId
+         ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+         ORDER BY COALESCE(o.deliverAt, o.createdAt), o.id LIMIT 500
       `).all(...params).map(toOrder);
     },
 

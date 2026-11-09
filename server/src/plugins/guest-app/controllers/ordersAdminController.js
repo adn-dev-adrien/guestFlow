@@ -10,6 +10,7 @@
 
 const sdk = require('../../sdk');
 const labels = require('../orderLabels');
+const { parisDate } = require('../currentStay');
 
 const { checkPlanningRange } = sdk.coreModule('planningDateRange');
 const { wallClockToDate } = sdk.coreModule('stayWindow');
@@ -72,8 +73,9 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
     if (!['todo', 'all'].includes(status)) return res.status(400).json({ error: 'Filtre inconnu.' });
     lodgingNames.clear();
     const all = status === 'all';
-    const from = all ? new Date(now().getTime() - ALL_SINCE_DAYS * DAY_MS).toISOString() : null;
-    return res.json({ orders: orders().listForStaff({ all, from }).map(rowOf) });
+    const at = now();
+    const from = all ? new Date(at.getTime() - ALL_SINCE_DAYS * DAY_MS).toISOString() : null;
+    return res.json({ orders: orders().listForStaff({ all, from, today: parisDate(at) }).map(rowOf) });
   }
 
   function delivered(req, res) {
@@ -87,9 +89,10 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
   }
 
   /**
-   * Rule 43 — a « Commande client » card on the planning day of `deliverAt`, with what the staff prepares: the
-   * breakfast has its own card (rule 27bis) and the bath its sessions on the resource planning (rule 30), so an
-   * order holding nothing else has no card.
+   * Rule 43 — a « Commande client » card on the planning day of `deliverAt`, with what the staff prepares (the lines
+   * flagged `needsStaff` when ordered): a self-service article is not prepared, the breakfast has its own card
+   * (rule 27bis) and the bath its sessions on the resource planning (rule 30), so an order holding nothing else has
+   * no card.
    */
   function planningCards(req, res) {
     const { from, to } = req.query;
@@ -100,7 +103,7 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
     const end = wallClockToDate(addDays(to, 1), '00:00').toISOString();
     const byDay = new Map();
     orders().deliveriesBetween(start, end).forEach((order) => {
-      const prepared = order.lines.filter((l) => l.kind === 'option');
+      const prepared = order.lines.filter((l) => l.kind === 'option' && l.needsStaff === true);
       if (!prepared.length) return;
       const { date, time } = labels.parisMoment(order.deliverAt);
       const stay = stays().byId(order.reservationId) || {};

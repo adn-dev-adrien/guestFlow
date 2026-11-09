@@ -64,6 +64,16 @@ withStaff('rule 45: « Marquer livrée » — the order leaves « À préparer �
   assert.equal((await call('GET', '/public/v1/guest/me')).body.data.highlight.key, 'order');
 });
 
+withStaff('rule 45: « À préparer » ages out — an undelivered order of a stay already ended is not listed', async ({ base }) => {
+  const gone = seedStay({ start: -6, end: -2 });
+  const id = Number(db.prepare(`INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt)
+    VALUES (?, 'note', 'confirmed', '[]', 6, ?)`).run(gone, new Date(Date.now() - 4 * 86400000).toISOString()).lastInsertRowid);
+  const todo = (await staff(base, 'GET', '/orders')).body.orders;
+  assert.equal(todo.some((o) => o.id === id), false);
+  const all = (await staff(base, 'GET', '/orders?status=all')).body.orders;
+  assert.equal(all.some((o) => o.id === id), true, '« Toutes » still shows it');
+});
+
 withStaff('rule 45: an order not on the fiche cannot be delivered; an unknown one is a 404; a bad filter a 400', async ({ base }) => {
   const id = db.prepare(`INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt)
     VALUES (1, 'card', 'awaiting_payment', '[]', 10, ?)`).run(new Date().toISOString()).lastInsertRowid;
@@ -83,6 +93,18 @@ withStaff('rule 43: a « Commande client » card on the planning day of its deli
   assert.deepEqual(cards.map((c) => [c.orderId, c.lodging, c.guest, c.lines, c.delivered]), [[orderId, 'La Granja', 'Marie Le Goff-Durand', ['2 × Panier de bois'], false]]);
   assert.equal(cards[0].time, slot.at.slice(11, 16));
   assert.equal((await staff(base, 'GET', '/planning/order-cards?from=2099-01-01')).status, 400);
+});
+
+withStaff('rule 43: the card lists the staff-prepared lines only — a self-service article of the same order is not prepared', async ({ call, base, nextDelivery }) => {
+  const [slot] = await nextDelivery();
+  const { orderId } = (await call('POST', '/public/v1/guest/orders', {
+    lines: [{ kind: 'option', id: WOOD, quantity: 2 }, { kind: 'option', id: CIDER, quantity: 3 }], deliverAt: slot.at, payment: 'note',
+  })).body.data;
+  const { body } = await staff(base, 'GET', `/planning/order-cards?from=${isoPlus(-1)}&to=${isoPlus(3)}`);
+  const card = body.days.flatMap((d) => d.cards).find((c) => c.orderId === orderId);
+  assert.deepEqual(card.lines, ['2 × Panier de bois']);
+  const mine = (await call('GET', `/public/v1/guest/orders/${orderId}`)).body.data;
+  assert.equal(mine.lines.some((l) => 'needsStaff' in l), false, 'the guest reads its lines as before');
 });
 
 withStaff('rules 27bis, 43: an order of breakfast or bath only has no « Commande client » card — they have their own cards', async ({ base }) => {

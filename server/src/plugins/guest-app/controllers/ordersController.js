@@ -321,10 +321,12 @@ function buildOrdersController({
       .catch(() => {});
   }
 
+  // Rule 43 — a staff-prepared line says so in the order's own snapshot: the planning card lists those lines only.
   const snapshot = (judged, byKey, lang) => judged.lines.filter((l) => !l.unavailable).map((l) => {
     const view = lineView(l, byKey, lang);
     const { unavailableMornings, label, ...kept } = view;
     if (kept.sessions) kept.sessions = l.kept.map(({ date, start, end }) => ({ date, start, end }));
+    if (l.item && isStaffItem(l.item)) kept.needsStaff = true;
     return kept;
   });
 
@@ -473,7 +475,7 @@ function buildOrdersController({
       id: order.id,
       createdAt: order.createdAt,
       deliverAt: order.deliverAt,
-      lines: order.lines.map((l) => ({ ...l, label: labels.lineLabel(l, lang), totalLabel: labels.priceLabel(l.total, lang) })),
+      lines: order.lines.map(({ needsStaff, ...l }) => ({ ...l, label: labels.lineLabel(l, lang), totalLabel: labels.priceLabel(l.total, lang) })),
       total: order.total,
       totalLabel: labels.priceLabel(order.total, lang),
       payment: order.payment,
