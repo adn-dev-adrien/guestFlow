@@ -10,6 +10,9 @@
 const { sellabilityOf } = require('../sellable');
 const { parisDate } = require('../currentStay');
 const { adminStockView, editorLabel } = require('../stock');
+const sdk = require('../../sdk');
+
+const { toPublicOption, toPublicResource } = sdk.coreModule('publicCatalogProjection');
 
 const KINDS = Object.freeze(['option', 'resource']);
 const FIELDS = Object.freeze([
@@ -92,8 +95,17 @@ const operatorName = (req) => {
   return String(user.displayName || user.firstName || user.username || user.email || '').trim() || null;
 };
 
+/** « 4,50 € », « Inclus (0 €) »: the lodging's own price, as the studio's Boutique lists it (rule 48). */
+function lodgingPriceLabel(price) {
+  const amount = Number(price || 0);
+  if (amount === 0) return 'Inclus (0 €)';
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency', currency: 'EUR', minimumFractionDigits: Number.isInteger(amount) ? 0 : 2, maximumFractionDigits: 2,
+  }).format(amount).replace(/[\u202f\u00a0]/g, ' ');
+}
+
 function buildItemsController({
-  items, stock, alertStock = () => {}, now = () => new Date(),
+  items, stock, alertStock = () => {}, now = () => new Date(), translator = null,
 }) {
   const stateOf = (kind, id) => stock().state(kind, id, now());
   const viewOf = (found) => toView(found, stateOf(found.kind, found.core.id));
@@ -107,8 +119,31 @@ function buildItemsController({
     return { kind, id };
   }
 
+  /**
+   * `?propertyId=` — rule 48: only the articles linked to that lodging in GuestFlow (the options it applies, the
+   * resources explicitly linked to it), each with that lodging's price, for the studio's Boutique screen.
+   */
   function list(req, res) {
-    return res.json(items().listAll().map(viewOf));
+    if (req.query.propertyId === undefined) return res.json(items().listAll().map(viewOf));
+    const propertyId = typeof req.query.propertyId === 'string' && /^\d+$/.test(req.query.propertyId) ? Number(req.query.propertyId) : 0;
+    if (!propertyId) return res.status(400).json({ error: 'Identifiant invalide' });
+    const catalogue = items().catalogueFor(propertyId);
+    const translate = translator ? translator('fr') : null;
+    const rows = new Map([
+      ...catalogue.options.map((row) => [`option:${Number(row.id)}`, { kind: 'option', row }]),
+      ...catalogue.resources.filter((row) => catalogue.linkedResourceIds.has(Number(row.id))).map((row) => [`resource:${Number(row.id)}`, { kind: 'resource', row }]),
+    ]);
+    const listed = items().listAll().filter((found) => rows.has(`${found.kind}:${Number(found.core.id)}`) && !found.core.archivedAt);
+    return res.json(listed.map((found) => {
+      const { kind, row } = rows.get(`${found.kind}:${Number(found.core.id)}`);
+      const projected = translate ? (kind === 'resource' ? toPublicResource(row, 'fr', translate) : toPublicOption(row, 'fr', translate)) : null;
+      return {
+        ...viewOf(found),
+        price: Number(row.price || 0),
+        priceLabel: lodgingPriceLabel(row.price),
+        priceUnitLabel: projected && Number(row.price || 0) > 0 ? projected.priceUnitLabel || null : null,
+      };
+    }));
   }
 
   function read(req, res) {

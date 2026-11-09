@@ -150,3 +150,24 @@ test('rule 22: the sell switch is the admin’s, a restricted role is refused', 
     });
   });
 });
+
+// specs/guest-app.md rule 48 — the studio's Boutique lists the articles linked to the chosen lodging, at its price.
+test('rule 48: ?propertyId= lists only the lodging’s articles, each with that lodging’s price', async () => {
+  const db = freshDb();
+  addOption(db, { id: 1, title: 'Cidre', category: 'Boissons', price: 4.5, prices: { 2: 0 } });
+  addOption(db, { id: 2, title: 'Bois', lodgings: [1] });
+  addResource(db, { id: 20, name: 'Bain nordique', lodgings: [2] });
+  const ctx = await startApi(db);
+  try {
+    const granja = await ctx.call('GET', '/api/guest-app/items?propertyId=1');
+    assert.equal(granja.status, 200);
+    assert.deepEqual(granja.body.map((i) => `${i.kind}:${i.id}`).sort(), ['option:1', 'option:2']);
+    assert.equal(granja.body.find((i) => i.id === 1).priceLabel, '4,50 €');
+    const estiva = await ctx.call('GET', '/api/guest-app/items?propertyId=2');
+    assert.deepEqual(estiva.body.map((i) => `${i.kind}:${i.id}`).sort(), ['option:1', 'resource:20']);
+    assert.equal(estiva.body.find((i) => i.id === 1).priceLabel, 'Inclus (0 €)');
+    assert.equal((await ctx.call('GET', '/api/guest-app/items?propertyId=x')).status, 400);
+  } finally {
+    await ctx.close();
+  }
+});
