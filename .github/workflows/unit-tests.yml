@@ -202,6 +202,34 @@ jobs:
           cd apps/guest && npm run build
           cd ../.. && node scripts/check-bundle-budget.mjs --dist apps/guest/dist --budget 200000
 
+  # specs/guest-app.md rules 47-50 — the booklet studio is its own Vite app in `apps/studio`: its suites and its
+  # build. It reads GuestFlow's shared components and the guest app's renderers through aliases, with its own copy
+  # of their dependencies, so only its own install is needed.
+  studio-app:
+    name: studio app (vitest + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          check-latest: true
+
+      - name: 📚 Install studio deps
+        run: cd apps/studio && npm ci
+
+      - name: 🧪 Run the studio suites
+        run: cd apps/studio && npm test
+
+      - name: 🏗️ Build the studio
+        run: cd apps/studio && npm run build
+
   # specs/control-plane-plans-and-access.md — the control plane (the operator console) is its own app
   # in `control-plane/`, deployed separately, tested here with the rest. Its server requires
   # GuestFlow's licence and password modules and runs `server/scripts/create-first-admin.js` in the
