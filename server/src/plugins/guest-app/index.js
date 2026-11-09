@@ -144,7 +144,7 @@ function buildGuestApi({
         lodgings, booklet, appName, guestHost, now,
       }),
       items: buildItemsController({
-        items, stock, alertStock, now,
+        items, stock, alertStock, now, translator,
       }),
       studioSettings: buildStudioSettingsController({
         lodgings, settingsStore, soliomapFeed, now,
