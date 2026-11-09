@@ -157,8 +157,10 @@ is pushed every order.
 12. **The gate app already exists** (the one Sowel's key URL opens — the same link as the emails'
     `{{gateAccessUrl}}`). The guest app **does not rebuild any gate screen**: the « Portail » tile opens the
     stay's key URL (new tab / standalone window). No new gate logic: GuestFlow still never calls the house.
-13. **Source and window.** The URL is read from the `gate-access` plugin (`gate_key_results` of the stay)
-    and returned only for a stay session inside the gate window. Before the key exists (Sowel has not pulled
+13. **Source and window.** The URL is read from the `gate-access` plugin — the very `{{gateAccessUrl}}` of its e-mail
+    context (`gate_key_results` of the stay), read through what that plugin declares, never its tables — and returned
+    only for a stay session inside the gate window (`GET /gate` and the gate tile carry `state` `active` | `preparing` |
+    `outside`). Before the key exists (Sowel has not pulled
     yet) the tile reads « Accès en préparation » and is not clickable; outside the window the tile is absent.
     On arrival day, while the key does not exist yet, the highlight reads « Votre accès au portail se prépare » and « La tuile Portail s'activera dès que votre accès
     sera prêt. », with no time promised.
@@ -360,14 +362,17 @@ is pushed every order.
       à 24 — Sophie, 6 nov. 14:02 »), « Prévenir sous » (optional low-stock threshold);
     - « En rupture » (a manual switch, independent of the count: on = sold out now, whatever the count says).
     One stock per article for the whole estate (a single cellar), never per lodging. Hourly resources (the bath)
-    have no stock: the resource planning is their truth (rule 28).
+    have no stock: the resource planning is their truth (rule 28); neither has the breakfast, ordered by the morning
+    (rule 27bis) — the editor refuses the switch for both (`NO_STOCK`). Switching « Suivre le stock » on asks for « En
+    stock » once; a restock is what the cellar holds *now*: what the stays already took is not taken from it again.
 37ter. **Every sale counts, when the article leaves the cellar** (Adrien, 2026-11-06). The stock goes down for the
     app's orders *and* for the lines the website or the staff put on a reservation, at the moment the article is
     actually taken:
     - an app order counts when it is confirmed (note, 0 €) or paid (card); a card order **holds** its units while it
       awaits its payment (rule 35) and releases them when it expires or is abandoned;
-    - a line already on the reservation counts on the **arrival day** of the stay (the plugin's daily task at
-      00:05, and at once for a stay created or moved to a start date already reached); a line added or raised
+    - a line already on the reservation counts on the **arrival day** of the stay (the plugin's arrival sweep —
+      idempotent, every 5 minutes, so within minutes of midnight — and at once for a stay created or moved to a start
+      date already reached); a line added or raised
       during the stay counts when it is written; a stay cancelled before its arrival never counted anything;
     - a counted quantity that goes down (a line lowered or removed, a cancellation after arrival) returns to the stock.
     The plugin keeps what it has counted per reservation and article (`guest_app_stock_counts`) and reacts to the
@@ -378,7 +383,7 @@ is pushed every order.
 37quater. **Sold out = the app stops selling it, the staff is told.** An article whose stock (minus the units held)
     is 0 or less, or switched « En rupture », shows **« Épuisé »** in the app, its « Ajouter » disabled; the
     stepper stops at what is left (« Plus que 2 »); a quote or an order beyond it answers 409 `OUT_OF_STOCK` with
-    the units left, and the cart shows the line « Plus que 1 disponible » with the quantity lowered. The website keeps
+    the units left (`{ itemKey, left }`), and the cart shows the line « Plus que 1 disponible » with the quantity lowered. The website keeps
     selling it for future stays (the cellar will be restocked) and the reservation editor shows a warning
     « Stock : épuisé » without blocking. Reaching the « Prévenir sous » threshold, then 0, pushes the channel
     « Commandes clients » once each (« Stock bas : Cidre — plus que 3 », « Cidre épuisé ») until the next restock.
@@ -410,7 +415,9 @@ is pushed every order.
 41bis. **Delivered or picked up — one setting for every lodging** (Adrien, 2026-11-06). Studio › Réglages ›
     Service holds « Les commandes sont… » **Livrées au logement** (default) | **À retirer**; « À retirer » asks for
     the **pickup place**, one plain text field (e.g. « À l'accueil, maison principale — sonnez à la porte
-    verte »), required to save, relayed as typed in both languages. Pickup mode only changes the words: the cart asks
+    verte »), required to save, relayed as typed in both languages. The mode and the place are stored on each order
+    when it is taken, so a later change rewrites no order; « À retirer » saved without a place (through the generic
+    plugin settings, which judge one key at a time) leaves the orders delivered rather than pointing nowhere. Pickup mode only changes the words: the cart asks
     « Quand souhaitez-vous la récupérer ? », a time t means « ready at t » (the same preparation interval as rule
     41), the push and the Commandes clients page say « à retirer » and their check reads « Retirée ».
 41ter. **After ordering, the guest knows when and where.** The confirmation screen (once paid for a card order) and
@@ -482,7 +489,8 @@ is pushed every order.
 51. **One codebase, three layouts.** Mobile: bottom tab bar (Accueil · Livret · Boutique · Commandes) +
     floating cart bar. Tablet (≥ 900 px): navigation rail + two-pane booklet (index | page) and shop (catalogue
     | cart). Desktop (≥ 1200 px): same, content max 1200 px, hero wider.
-52. **Installable PWA.** Manifest (name from the studio, theme fir-green), icons, standalone display,
+52. **Installable PWA.** Manifest (`GET /public/v1/guest/manifest.webmanifest`: name from the studio, theme fir-green
+    `#2E3B2A`, ground `#F5F0E6`, icons `/icons/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`), standalone display,
     offline shell + booklet (rule 21). After the second visit a discreet « Installer l'app » card (Android
     `beforeinstallprompt`; iOS: a sheet with the share → « Sur l'écran d'accueil » steps). Never on first load.
 53. **Look & feel** — §6: the Domaine Solio identity of the site and the gate app (Marcellus + Karla,
@@ -568,10 +576,18 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `orderExpiryRunner.js` | C | Every minute: expire unpaid orders, release holds (rule 36) |
 | `plugins/guest-app/` | `planningCards.js` | C | `planning.days` server feed: « Commande client » cards on the delivery day (rule 43) |
 | `plugins/guest-app/` | `migrations.js` | C | Tables of §5 |
+| `plugins/guest-app/models/` | `stockModel.js` | C | The stock of rules 37bis-37ter: held units of the unpaid card orders, a reservation's counts brought to date (idempotent), the restock, the arrival sweep's reads, the low / out alerts due |
+| `plugins/guest-app/` | `stock.js` | C | Pure: the editor's « Stock » view and restock line, the shop's `stock`, the quote's `outOfStock`, the editor warning, the push texts (rule 37quater) |
+| `plugins/guest-app/controllers/` | `studioSettingsController.js` | C | The studio's lodging switcher read live, the app settings judged together (« À retirer » needs its place), « Synchroniser » (rules 41bis, 48) |
+| `plugins/guest-app/` | `gate.js` | C | The gate tile's state and URL, read from `gate-access`'s own e-mail context (rules 12-14) |
+| `plugins/guest-app/` | `sun.js` | C | Pure: sunrise / sunset at the estate, `isNight` (§6.1) |
+| `plugins/guest-app/` | `webManifest.js` | C | The install manifest (rule 52) |
+| `plugins/guest-app/` | `appHosting.js` | C | Serves the guest build on the guest host and the studio build at `/studio` for an admin (caching, SPA fallback, CSP, 503 without a build) — plan step 50 |
+| `plugins/sdk/createContext.js` · `registry.js` · `plugins/loader.js` | — | T | `ctx.webApp({ key, path?, host?, handler })` and `mountWebApps` (`plugins-phase-1-sdk.md` rule 47): a web app on the plugin's own host or path, the core's trees kept |
 | `utils/` | `publicCatalogProjection.js` | C | `toPublicOption` / `toPublicResource` moved out of `website-booking/publicProjections.js` (which imports them back) so the guest app does not depend on the website plugin |
 | `plugins/sdk/createContext.js` · `coreServices.js` | — | T | Three SDK hooks: `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`), `ctx.resourceHolds(fn)` and `ctx.paymentBasket({ source, paid })` (rules 35-36); the core exposes `coreServices.resourceScheduler()` and `coreServices.payments` — plugins never `require` each other |
 | `plugins/hourly-resources/` | `index.js` | T | Declares the scheduler: `slotsForStay` (occupancy + `buildDays` + `priceSessions`, rule 28), `validateSessions`; reads every holds source as pending occupancy in **every** consumer (planning page, SAS picker, outside bookings) |
-| `plugins/gate-access/` | `index.js` | T | Declares a gate-key provider hook (`keyUrlForReservation(id, now)`, rules 12-13); `window.js` moves to core `utils/stayWindow.js` |
+| `plugins/gate-access/` | `index.js` | T | `window.js` moves to core `utils/stayWindow.js`; no new hook: the guest app reads the stay's key link from the e-mail context this plugin already declares (`gateAccessUrl`, rules 12-13) |
 | `utils/paymentRequestService.js` | — | T | `complement` link type with explicit basket and 30-min lifetime (rule 35) |
 | `utils/` | `basketPayments.js` | C | `ctx.core.payments`: mint, read on demand and withdraw a basket's link (rules 33, 35) |
 | `models/paymentLinksModel.js` · `utils/ledgerLinks.js` · `utils/reservationLedger.js` | — | T | `basketJson` read and written; a basket link is no bucket's link (stale, settled, the complement row); the ledger row « Commande client à rembourser » (rule 36) |
@@ -580,7 +596,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `utils/` | `stayWindow.js` | C | The stay window, moved from `gate-access/window.js` (rule 2) |
 | `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.22.0), `guestOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
 | `middleware/` | `rateLimiters.js` | T | `guestSessionLimiter` (30/h/IP), `guestLookupLimiter` (5/15 min/IP), `guestOrderLimiter` (10/h/session), each `GUEST_*_RATELIMIT_*`-overridable |
-| `index.js` | — | T | Serve the guest app build on the guest host and the studio build at `/studio` (only while the plugin is live) |
+| `index.js` | — | T | `pluginLoader.mountWebApps(app)` before the favicon and the client: the plugin serves its guest app on the guest host and its studio at `/studio`, only while it is live |
 | `database.js` | — | T | `payment_links.basketJson` (nullable), through `utils/paymentLinksProviderMigration.js`: the only core column, the link's own basket (rule 35); everything else is in plugin migrations |
 
 New dependency: `qrcode` (server, QR poster + wifi QR) if not already present; `pdfkit` already serves the
@@ -589,7 +605,8 @@ devis PDF.
 ### 4.2 Client side
 
 Two new Vite apps in the repo (`apps/guest/`, `apps/studio/`, shipped inside the `guest-app` plugin
-package by `scripts/build-plugin-packages.mjs`), plus plugin contributions to the GuestFlow admin client.
+package by `scripts/build-plugin-packages.mjs`, which copies their `dist/` into the package's `server/assets/<name>`; a
+build not made is skipped with a warning and that app answers 503), plus plugin contributions to the GuestFlow admin client.
 
 **`apps/guest/` — the guest PWA** (React, MUI with its own theme `apps/guest/src/theme.js` carrying the Domaine Solio
 tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus + Karla self-hosted in
@@ -645,24 +662,28 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 |---|---|---|---|---|
 | POST | `/public/v1/guest/sessions` | — | `{ stayToken }` or `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt?, ended? }` + cookie; a `lodgingCode` always opens the visitor mode; unknown → 404 `CODE_NOT_FOUND` (one answer for every unknown, stale, revoked or disabled code) |
 | POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
-| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, tiles:[…], suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; a pre-arrival session on the arrival day, before the window, adds `opensAt` and `openingLine`; visitor: `{ mode, lodging, language, tiles:[…], welcome }` — nothing of any stay (rule 3); dead session 401 `SESSION_EXPIRED` |
+| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, isNight, tiles:[{key,label,order, state?, url?, stateLabel?}] (the gate tile carries rule 13's `state`, its `url` once active, « Accès en préparation » before), highlight?.detail (the arrival-day « se prépare » card), suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; a pre-arrival session on the arrival day, before the window, adds `opensAt` and `openingLine`; visitor: `{ mode, lodging, language, tiles:[…], welcome }` — nothing of any stay (rule 3); dead session 401 `SESSION_EXPIRED` |
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
 | GET | `/public/v1/guest/lodging` | session or `lodgingCode` | — | `{ name, heroUrl, modules:[{key, label, order}], wifi?:{network, password, note?, joinQr}, contacts:[…] }` — only enabled modules / configured facts |
-| GET | `/public/v1/guest/gate` | stay session | — | `{ state:'active'\|'preparing'\|'outside', url? }` |
-| GET | `/public/v1/guest/shop` | stay or pre-arrival session (visitor → 404 `MODULE_OFF`) | — | `{ open, closedReason?, service (slice C), canPayCard, canPayNote, categories:[{ name, items:[{ kind:'option'\|'breakfast'\|'resource', id, title, shortDescription, imageUrl, price, priceLabel, priceUnitLabel, included?, includedLeft?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason? }] }] }`; a `breakfast` item adds `state:'included'\|'sold'`, `defaultTime`, `mornings:[{date,label}]`, `occurrences:[{date,time}]` |
+| GET | `/public/v1/guest/gate` | session | — | `{ state:'active'\|'preparing'\|'outside', url? }` — `url` only when `active` (a stay session whose key exists); any other session `outside`; the lodging's gate module off → 404 `MODULE_OFF`; `gate-access` off → 404 `{ error:'PLUGIN_INACTIVE', plugin:'gate-access' }` |
+| GET | `/public/v1/guest/shop` | stay or pre-arrival session (visitor → 404 `MODULE_OFF`) | — | `{ open, closedReason?, service (slice C), canPayCard, canPayNote, categories:[{ name, items:[{ kind:'option'\|'breakfast'\|'resource', id, title, shortDescription, imageUrl, price, priceLabel, priceUnitLabel, included?, includedLeft?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason?, stock?:{ soldOut, left, leftLabel } }] }] }` (`stock` only on a tracked article: `left` never below 0, `leftLabel` « Plus que 2 » once `left` ≤ `maxQuantity`, rule 37quater); a `breakfast` item adds `state:'included'\|'sold'`, `defaultTime`, `mornings:[{date,label}]`, `occurrences:[{date,time}]` |
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
-| POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
-| POST | `/public/v1/guest/orders/quote` | stay session, `shop` module, shop open | `{ lines:[{kind:'option',id,quantity} \| {kind:'resource',id,sessions:[{date,start,end}]} \| {kind:'breakfast',id,mornings,time,persons}], deliverAt? }` | `{ lines:[{kind, id, title, label, quantity?, sessions?:[{…, unavailable?, reason?, reasonLabel?}], mornings?, unavailableMornings?, unitPrice, total, totalLabel, unavailable?, unavailableReason?}], total, totalLabel, needsDelivery, deliverAt?, deliverAtUnavailable? }`; 409 `SHOP_CLOSED`, 400 `INVALID_INPUT` / `ORDER_LIMIT` |
-| POST | `/public/v1/guest/orders` | idem, 10 / hour / session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN`, `OUT_OF_STOCK` (`{ itemKey, left }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `STAY_NOT_WRITABLE`; 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 |
+| POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, mode:'delivery'\|'pickup', question (« Quand souhaitez-vous la recevoir ? » / « … la récupérer ? », rule 41bis), asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
+| POST | `/public/v1/guest/orders/quote` | stay session, `shop` module, shop open | `{ lines:[{kind:'option',id,quantity} \| {kind:'resource',id,sessions:[{date,start,end}]} \| {kind:'breakfast',id,mornings,time,persons}], deliverAt? }` | `{ lines:[{kind, id, title, label, quantity?, sessions?:[{…, unavailable?, reason?, reasonLabel?}], mornings?, unavailableMornings?, unitPrice, total, totalLabel, unavailable?, unavailableReason?, outOfStock?:{left, label}}], total, totalLabel, needsDelivery, deliverAt?, deliverAtUnavailable? }`; 409 `SHOP_CLOSED`, 400 `INVALID_INPUT` / `ORDER_LIMIT` |
+| POST | `/public/v1/guest/orders` | idem, 10 / hour / session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN` (details `{ quote }`), `OUT_OF_STOCK` (details `{ itemKey:'option:12', left, quote }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `STAY_NOT_WRITABLE`; 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 |
 | POST | `/public/v1/guest/orders/:id/abandon` | idem | — | the order, `abandoned`, with `cartLines`; 409 `ORDER_NOT_PENDING` |
-| GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel}] }` |
+| GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel, deliveryLabel?, fulfilment:'delivery'\|'pickup', promise:string\|null, extraPromises?:[string], movedNotice:string\|null, notices?, cartLines?}] }` — `promise` (rule 41ter) once the order stands (confirmed, paid) and has a `deliverAt`: « Livrée à L'Estiva aujourd'hui vers 17 h 30 » / « Prête aujourd'hui à 17 h 30. Lieu de retrait : … »; `extraPromises` the bath's own lines (« Bain nordique — ven. 9 oct., 20 h, il sera chaud »); `movedNotice` « Votre commande sera prête un peu plus tard que prévu »; `deliveryLabel` « Prévue … » / « Livrée », pickup « Prête … » / « Retirée » |
 | GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
-| GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name |
-| GET | `/api/guest-app/items` | admin | — | every option and resource: `{ kind, id, title, priceType, category?, archived?, sellable:{ok, reason}, sold, mediaId, shortDescriptionFr, shortDescriptionEn, maxQuantity, needsStaff, leadMinutes }` |
-| GET/PUT | `/api/guest-app/items/:kind/:id` | admin | `{ sold?, mediaId?, shortDescriptionFr?, shortDescriptionEn?, maxQuantity?, needsStaff?, leadMinutes? }` (only the keys sent are written; unknown keys refused) | the item view; 400 on a description over 140 characters, `maxQuantity` outside 1-50, `leadMinutes` outside 0-240, an unknown `mediaId`; 400 `NOT_SELLABLE` + the reason for `sold:true` on a type rule 23 excludes; `needsStaff` always false for a resource |
-| GET/PUT | `/api/guest-app/lodgings/:propertyId` | admin | `{ enabled, displayName, heroMediaId, modules:[{key, on, order}], wifi:{available, network, password, note}, contacts:[{name, role?, phone?, whatsapp?, email?}] }` — a PUT writes the keys it names; a `wifi` without `password` keeps the stored one, `''` clears it | the lodging config with `hasLodgingCode`, never the code itself (rules 11bis-11quater) |
+| GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name (rule 52), `application/manifest+json`, `Cache-Control: no-cache` |
+| GET | `/api/guest-app/items` | admin | — | every option and resource: `{ kind, id, title, priceType, category?, archived?, sellable:{ok, reason}, sold, mediaId, shortDescriptionFr, shortDescriptionEn, maxQuantity, needsStaff, leadMinutes, stockable, stock:{ tracked, quantity, quantityLabel (« −2 »), held, heldLabel, left, alertBelow, soldOut, out, restockLine (« Stock réglé à 24 — Sophie, 6 nov. 14:02 ») } }` |
+| GET | `/api/guest-app/stock` | admin, reception | — | `{ items:[{ kind, id, title, quantity, held, left, soldOut, out, label:'Stock : épuisé'\|'Stock : 3' }] }` — the tracked articles, for the reservation editor's warning (rule 37quater), never a refusal |
+| GET/PUT | `/api/guest-app/items/:kind/:id` | admin | `{ sold?, mediaId?, shortDescriptionFr?, shortDescriptionEn?, maxQuantity?, needsStaff?, leadMinutes?, stockTracked?, stockQuantity? (0-100 000, a restock), stockAlertBelow?, soldOut? }` (only the keys sent are written; unknown keys refused) | the item view; 400 on a description over 140 characters, `maxQuantity` outside 1-50, `leadMinutes` outside 0-240, an unknown `mediaId`; 400 `NOT_SELLABLE` + the reason for `sold:true` on a type rule 23 excludes; `needsStaff` always false for a resource; 400 `NO_STOCK` for a stock on an hourly resource or the breakfast; 400 « Indiquez la quantité en stock. » for tracking without a count |
+| GET | `/api/guest-app/studio/lodgings` | admin | — | `{ lodgings:[{ propertyId, name, enabled, hasLodgingCode, stateLabel:'Hors application'\|null }] }` — every GuestFlow property, by name as GuestFlow lists them, read live (rule 48) |
+| GET/PUT | `/api/guest-app/studio/settings` | admin | PUT any of `{ appName, guestHost, soliomapUrl, soliomapEmbed (boolean), maxOrderTotal, fulfilment:'delivery'\|'pickup', pickupPlace (≤ 200) }` | `{ appName, guestHost, soliomapUrl, soliomapEmbed, maxOrderTotal, fulfilment, pickupPlace, soliomap:{ syncedAt, syncedLabel (« Synchronisé il y a 2 min »), ok, count } }`; 400 on an unknown key, a key its own check refuses, « À retirer » without a place |
+| POST | `/api/guest-app/studio/soliomap/sync` | admin | — | the `soliomap` sync state after reading the feed again now; 409 without a Soliomap address (rule 48) |
+| GET/PUT | `/api/guest-app/lodgings/:propertyId` | admin | `{ enabled, heroMediaId, modules:[{key, on, order}], wifi:{available, network, password, note}, contacts:[{name, role?, phone?, whatsapp?, email?}] }` — a PUT writes the keys it names, an unknown key (`displayName` included: the name is GuestFlow's, rule 48) refused; a `wifi` without `password` keeps the stored one, `''` clears it | the lodging config with `hasLodgingCode`, never the code itself (rules 11bis-11quater) |
 | POST | `/api/guest-app/studio/pages/:id/duplicate` | admin | `{ toPropertyId }` | the new independent page |
 | PUT | `/api/guest-app/studio/lodgings/:propertyId/booklet` | admin | `{ pages:[{pageId, sortOrder, published}] }` | that lodging's page order and visibility |
 | GET/PUT | `/api/guest-app/service-hours[?propertyId=]` | admin | PUT `{ weekly:{0..6 (0 = Sunday):[{from,to}]}, exceptions:[{date, closed:true} \| {date, ranges:[{from,to}]}] }` (both keys required, the whole configuration replaced) | `{ propertyId, shared, weekly, exceptions }`; 400 on more than 3 ranges, a bad `HH:MM`, start ≥ end, an overlap, a duplicate date, a closed exception with ranges |
@@ -677,12 +698,21 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/api/guest-app/reservations/:id/stay-link` | admin, reception | — | `{ url, qrDataUri, createdAt, validUntil, validUntilLabel }` (« Le lien vaut jusqu’au lun. 9 nov., 12 h. », the window's end), created on first need, `no-store`; 404 unknown reservation, 409 not a live reservation, lodging off or guest host not set (rules 1, 9bis) |
 | POST | `/api/guest-app/reservations/:id/stay-link/regenerate` | admin, reception | — | the new link, same shape; the old link and every session opened from it die at once (lookup sessions survive); same 404 / 409 |
 | GET | `/api/guest-app/lodgings/:propertyId/qr-poster.pdf` | admin | — | A4 PDF of `https://<guestHost>/l/<code>`; 409 if the lodging is off or the guest host is not set |
-| GET | `/api/guest-app/orders?status=todo\|all` | admin, reception | — | `{ orders:[{ id, reservationId, lodging, guest, lines:[{label,total,totalLabel}], deliverAt, deliverLabel, payment, paymentLabel, status, statusLabel, total, totalLabel, canMarkDelivered }] }` by delivery time; `todo` (default) = on the fiche, not delivered; `all` = the last 30 days (rule 45) |
+| GET | `/api/guest-app/orders?status=todo\|all` | admin, reception | — | `{ orders:[{ id, reservationId, lodging, guest, lines:[{label,total,totalLabel}], deliverAt, deliverLabel, payment, paymentLabel, status, statusLabel, total, totalLabel, canMarkDelivered }] }` by delivery time, each row also `fulfilment`, `fulfilmentLabel` (« Livraison au logement » / « À retirer »), `markLabel` (« Marquer livrée » / « Marquer retirée »), `pickupPlace?`, a delivered pickup's `statusLabel` « Retirée », a pickup's `deliverLabel` « À retirer ven. 9 oct., 18 h »; `todo` (default) = on the fiche, not delivered; `all` = the last 30 days (rule 45) |
 | POST | `/api/guest-app/orders/:id/delivered` | admin, reception | — | `{ status:'delivered' }` (twice is once); 409 `ORDER_NOT_DELIVERABLE`, 404 |
-| GET | `/api/guest-app/planning/order-cards?from&to` | admin, reception | — | `{ days:[{ date, cards:[{ orderId, reservationId, time, timeLabel, lodging, guest, lines, paymentLabel, delivered }] }] }` — the staff-prepared lines only (rule 43) |
+| GET | `/api/guest-app/planning/order-cards?from&to` | admin, reception | — | `{ days:[{ date, cards:[{ orderId, reservationId, time, timeLabel (pickup: « À retirer 18 h »), lodging, guest, lines, paymentLabel, delivered, fulfilment, doneLabel:'Livrée'\|'Retirée' }] }] }` — the staff-prepared lines only (rule 43) |
 
 Rate limits: sessions 30/h/IP, lookup 5/15 min/IP, orders 10/h/session,
 reads under the existing `publicApiLimiter` budget.
+
+**The two apps' pages** (plan step 50, through `ctx.webApp`): on the guest host, every path but `/api`, `/public`,
+`/uploads` and `/plugin-assets` is the guest app — a file of its build, else its `index.html` (`/`, `/s/<token>`,
+`/l/<code>`, `/retrouver`, `/commande/<id>`, `/livret/…`); a missing file with an extension is a 404. `/assets/*` is
+`Cache-Control: public, max-age=31536000, immutable`, `index.html`, `sw.js` and `manifest.webmanifest` `no-cache`,
+the rest a day. Policy: `default-src 'self'`, styles `'self' 'unsafe-inline'` (MUI), images `'self' data: blob:`,
+`frame-src` the Soliomap origin only while « Intégrer dans l'app » is on, else `'none'`, `frame-ancestors 'none'`. The
+studio is the same at `/studio` on any other host, for an admin session: none → 302 `/login?next=/studio…`, another role
+→ 403. No build → 503 « Application indisponible ».
 
 ---
 
@@ -691,17 +721,18 @@ reads under the existing `publicApiLimiter` budget.
 **One core column only:** `payment_links.basketJson` (`{ source, ref, refundOwed? }`), the basket a `complement` link
 bills (rule 35). Everything below is created by the `guest-app` plugin's migrations:
 
-- `guest_app_lodgings(propertyId PK, enabled INTEGER DEFAULT 0, lodgingCode TEXT UNIQUE, displayName,
+- `guest_app_lodgings(propertyId PK, enabled INTEGER DEFAULT 0, lodgingCode TEXT UNIQUE,
   heroMediaId, modulesJson, wifiAvailable INTEGER DEFAULT 0, wifiNetwork, wifiPasswordEncrypted, wifiNote,
-  contactsJson)` — the per-lodging configuration (rules 11bis-11quater). `displayName`, written by lot A, is no longer read nor
-  written (rule 48: the name is GuestFlow's); a later migration drops it. The QR code is generated when a
+  contactsJson, bookletSeededAt)` — the per-lodging configuration (rules 11bis-11quater). No name: it is GuestFlow's (rule
+  48); the `displayName` lot A wrote is gone from the v1 migration, which never shipped. The QR code is generated when a
   lodging is enabled, never logged. The wifi password is encrypted at rest like the other stored secrets
   (`settingsModel` encryption helper) — it is shown to guests, but must not sit in clear in a backup.
 - `guest_app_items(kind 'option'|'resource', itemId, sold INTEGER DEFAULT 0, mediaId, shortDescriptionFr,
   shortDescriptionEn, maxQuantity DEFAULT 10, needsStaff INTEGER DEFAULT 0, leadMinutes DEFAULT 30,
   sortOrder, stockTracked INTEGER DEFAULT 0, stockQuantity INTEGER NULL, stockSetAt, stockSetBy, stockAlertBelow NULL,
-  soldOut INTEGER DEFAULT 0, PRIMARY KEY(kind,itemId))` — the sell switch, its presentation and the stock (rules 22,
-  37bis, 39). `stockQuantity` is what is left now: set at a restock, lowered and raised by the counts of rule 37ter.
+  soldOut INTEGER DEFAULT 0, stockLowPushedAt, stockOutPushedAt, PRIMARY KEY(kind,itemId))` — the sell switch, its
+  presentation and the stock (rules 22, 37bis, 39); the two `…PushedAt` keep rule 37quater's pushes to once each until
+  the next restock clears them. `stockQuantity` is what is left now: set at a restock, lowered and raised by the counts of rule 37ter.
 - `guest_app_stock_counts(reservationId, kind, itemId, quantity, PRIMARY KEY(reservationId,kind,itemId))` — what
   rule 37ter has already taken from the stock for each reservation (a later event moves the stock by the difference). Default
   `sold = 0`: nothing is sold until the operator flags it.
@@ -723,7 +754,7 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
   resized at upload (1600 / 800 / 400 px, WebP).
 - `guest_orders(id, reservationId, sessionId, payment 'card'|'note'|'none', status 'awaiting_payment'|
   'confirmed'|'paid'|'delivered'|'expired'|'paid_conflict'|'abandoned', linesJson (priced snapshot, sessions included),
-  total, deliverAt NULL, deliverMoved, heldUntil NULL, paymentLinkId NULL, createdAt, confirmedAt, paidAt, closedAt,
+  total, deliverAt NULL, deliverMoved, fulfilment 'delivery'|'pickup', pickupPlace NULL, heldUntil NULL, paymentLinkId NULL, createdAt, confirmedAt, paidAt, closedAt,
   deliveredAt, deliveredBy)` — `heldUntil` makes the hourly `holds` provider cheap to query.
 - Plugin settings (`ctx.settings.declare`): `appName`, `soliomapUrl`, `soliomapEmbed` (default off), `maxOrderTotal`,
   `fulfilment` (`delivery` | `pickup`, default `delivery`), `pickupPlace` (rule 41bis),
@@ -953,15 +984,26 @@ le nom et le numéro. »
 - [x] `tests/payment-complement-link.unit.test.js` (7) — `ensurePaymentLink` / `applyPaidEffect` complement
   branch, refusal without basket, 30 min, no arrival lapse, « à rembourser », `ctx.paymentBasket`
 - [x] `tests/guest-order-commit.unit.test.js` (9) — rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
-- [ ] `…/guest-app-stock.unit.test.js` — rules 37bis-37quater: restock sets the count, « En rupture », holds of an
-  unpaid card order released on expiry / abandon, a site line counted on the arrival day and not before, a line added
-  mid-stay counted at once, lowered / cancelled after arrival returned, the app order not counted twice by the event,
-  `OUT_OF_STOCK` with `left`, website and staff never refused, the two pushes once each, late payment → `paid_conflict`
-- [ ] `…/guest-app-fulfilment.unit.test.js` — rules 41bis-41ter: pickup needs a place, the sentence of the
-  confirmation per mode, longest lead of the staff items only, the bath and self-service items carry no time, moved time
-- [ ] `…/guest-app-studio-lodgings.unit.test.js` — rule 48: a property added in GuestFlow listed greyed, renamed,
-  archived; « Synchroniser » refreshes the Soliomap cache
-- [ ] `…/guest-app-gate.unit.test.js` — rules 12-14, no URL outside the window
+- [x] `…/guest-app-stock.unit.test.js` (11) — rules 37bis-37quater: restock sets the count with its history line and
+  is what the cellar holds now, « En rupture », no stock for the bath or the breakfast, holds of an unpaid card order
+  released on expiry / abandon and counted once paid, a site line counted on the arrival day and not before, a line
+  added mid-stay counted at once, lowered / cancelled / deleted after arrival returned, the app order not counted twice
+  by the event, the four reservation events listened to, `OUT_OF_STOCK` with `left`, website and staff never refused
+  (« −2 », « Stock : épuisé »), the two pushes once each until a restock, late payment without its units → `paid_conflict`
+- [x] `…/guest-app-fulfilment.unit.test.js` (6) — rules 41bis-41ter: pickup needs a place, the picker's question, the
+  sentence per mode with the order's own place, longest lead of the staff items only, the bath's own line and no time for
+  a self-service order, the moved time and its notice, the staff's « à retirer » / « Retirée »
+- [x] `…/guest-app-studio-lodgings.unit.test.js` (4) — rule 48: every property listed live in GuestFlow's order, a new one
+  greyed « Hors application », a renamed one renamed, no name of the plugin's; the settings read and judged together;
+  « Synchroniser » re-reads the Soliomap feed at once (GuestFlow properties are never archived: nothing to hide)
+- [x] `…/guest-app-gate.unit.test.js` (6) — rules 11bis, 12-14: active with the key URL, « Accès en préparation » and the
+  arrival-day card, no URL outside the window or for a visitor, module off, plugin off, the URL read from gate-access's
+  e-mail context
+- [x] `…/guest-app-install.unit.test.js` (4) — rules 52, 53: the manifest, `isNight` by the season's sun
+- [x] `…/guest-app-hosting.unit.test.js` (4) — rules 15, 47, 52 (plan step 50): caching, the app's routes, 404, no file
+  outside the build, the CSP and its Soliomap frame, 503 without a build, the studio's admin gate
+- [x] `tests/plugins-web-apps.unit.test.js` (4) — `plugins-phase-1-sdk.md` rule 47: host and path web apps, the core's
+  trees kept, a plugin not live falls through, registration refusals
 - [x] `…/guest-app-home.unit.test.js` — rules 10-11
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
   then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
@@ -1155,7 +1197,7 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
 | E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.22.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
 | D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `guestOrderCommit`, `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.22.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
-| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08); stock server side and the lot A `displayName` removal come with them |
+| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |
 
