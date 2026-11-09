@@ -215,10 +215,11 @@ export default function ResourcePlanningPage() {
     setDialogOpen(true);
   }
 
-  async function handleSave(data) {
+  // `id`: the booking being edited, or the one this dialog already created (its payment step was refused).
+  async function handleSave(data, id = editingBooking?.id) {
     try {
-      const saved = editingBooking
-        ? await api.updateResourceBooking(editingBooking.id, data)
+      const saved = id
+        ? await api.updateResourceBooking(id, data)
         : await api.createResourceBooking({ resourceId: selectedResourceId, ...data });
       loadBookings();
       showSuccess('Réservation enregistrée.');
@@ -591,6 +592,7 @@ export default function ResourcePlanningPage() {
           onClose={() => setDialogOpen(false)}
           onSave={handleSave}
           onDelete={handleDelete}
+          onCommitted={loadBookings}
           onArrival={(b) => { setDialogOpen(false); setArrivalId(b.id); }}
         />
       )}

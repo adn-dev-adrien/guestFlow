@@ -10,7 +10,7 @@
  */
 
 const {
-  carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, CLIENT_MONEY_MESSAGE,
+  carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, bookingMoneyBlocker, CLIENT_MONEY_MESSAGE,
 } = require('../utils/deletionGuard');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
@@ -312,7 +312,7 @@ function createModel(database) {
   function deletionBlocker(id) {
     const ids = idsOfOwner(database, 'clientId', id);
     if (carriesMoney(database, ids)) return CLIENT_MONEY_MESSAGE;
-    return historyBlocker(database, ids, 'client');
+    return bookingMoneyBlocker(database, 'clientId', id) || historyBlocker(database, ids, 'client');
   }
 
   function rowIdsToDelete(id) {
@@ -376,13 +376,20 @@ function createModel(database) {
     };
   }
 
+  // A client booked on a resource outside any stay (plugin `hourly-resources`, its table only once installed) is no
+  // orphan: the booking names him (specs/resource-booking-pricing-and-invoicing.md rule 34).
+  const hasResourceBookings = () => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get());
+  const noBookingOf = (alias) => (hasResourceBookings()
+    ? ` AND NOT EXISTS (SELECT 1 FROM resource_bookings b WHERE b.clientId = ${alias}.id)`
+    : '');
+
   // List clients with neither a reservation nor a devis — the candidates surfaced in the selective
   // cleanup popup. Same filter as the bulk `cleanupOrphans` (devis-linked clients are protected).
   function listOrphans() {
     return database.prepare(`
       SELECT c.id, c.firstName, c.lastName, c.email, c.phone
         FROM clients c
-       WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+       WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)${noBookingOf('c')}
        ORDER BY c.lastName, c.firstName
     `).all();
   }
@@ -401,7 +408,7 @@ function createModel(database) {
     const isOrphan = database.prepare(`
       SELECT 1 FROM clients c
        WHERE c.id = ?
-         AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+         AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)${noBookingOf('c')}
     `);
     const del = database.prepare('DELETE FROM clients WHERE id = ?');
 
@@ -427,7 +434,7 @@ function createModel(database) {
     // is kept. "Kept with devis" = no real reservation but at least one devis.
     const deletableRow = database.prepare(`
       SELECT COUNT(*) AS count FROM clients c
-      WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)
+      WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = c.id)${noBookingOf('c')}
     `).get();
     const keptRow = database.prepare(`
       SELECT COUNT(*) AS count FROM clients c
@@ -439,7 +446,7 @@ function createModel(database) {
     if (deletedCount > 0) {
       database.prepare(`
         DELETE FROM clients
-        WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = clients.id)
+        WHERE NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = clients.id)${noBookingOf('clients')}
       `).run();
     }
     return { deletedCount, keptWithDevisCount };

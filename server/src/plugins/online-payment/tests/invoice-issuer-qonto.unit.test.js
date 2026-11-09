@@ -4,7 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildQontoClient, INVOICING_SCOPES, DEFAULT_SCOPES } = require('../../../utils/qonto/qontoClient');
-const { createQontoInvoiceIssuer, wireItems, foldedItems } = require('../invoiceIssuer');
+const {
+  createQontoInvoiceIssuer, wireItems, foldedItems, uuidKey,
+} = require('../invoiceIssuer');
 const { FAR_YEAR: Y } = require('../../../tests/farYearFixture');
 
 function stubFetch(routes) {
@@ -50,12 +52,14 @@ test('rule 14 — an individual client, an HT invoice whose lines add up to the 
     ['/v2/client_invoices', 200, { client_invoice: { id: 'inv_9', number: `F-${Y}-0142`, status: 'unpaid', total_amount_cents: 9500 } }],
   ]);
   const out = await issuerOn(clientOf(fetchImpl)).issue(REQUEST);
-  assert.deepEqual(out, { invoiceId: 'inv_9', number: `F-${Y}-0142`, totalCents: 9500, clientId: 'cl_9', markedPaid: true });
+  assert.deepEqual(out, {
+    invoiceId: 'inv_9', number: `F-${Y}-0142`, totalCents: 9500, clientId: 'cl_9', markedPaid: true, markPending: false,
+  });
   const [clientCall, invoiceCall, paidCall] = calls;
   assert.equal(clientCall.body.kind, 'individual');
   assert.equal(clientCall.body.last_name, 'Martin');
   assert.equal('billing_address' in clientCall.body, false, 'rule 25 — no partial address is sent');
-  assert.equal(clientCall.headers['X-Qonto-Idempotency-Key'], 'resource-booking:5:invoice:0:client');
+  assert.equal(clientCall.headers['X-Qonto-Idempotency-Key'], uuidKey('resource-booking:5:invoice:0', 'client', 'Martin', 'Claire', '', '', '', 'FR'));
   assert.deepEqual(invoiceCall.body.items.map((i) => i.unit_price.value), ['41.67', '58.33', '-20.83']);
   assert.equal(invoiceCall.body.payment_methods.iban, 'FR7600000000000000000000000');
   assert.equal(invoiceCall.body.issue_date, `${Y}-11-09`);
@@ -77,7 +81,7 @@ test('rule 14 (Q3) — a refused negative line is folded into the lines, same to
   assert.equal(out.number, 'F-2');
   assert.equal(out.markedPaid, false, 'rule 14 (Q4) — no mark-paid endpoint: the invoice stays « à payer »');
   const second = calls.filter((c) => c.url.endsWith('/v2/client_invoices'))[1];
-  assert.equal(second.key, 'resource-booking:5:invoice:0:invoice-folded');
+  assert.equal(second.key, uuidKey('resource-booking:5:invoice:0', 'invoice-folded', 'cl'));
   assert.ok(second.body.items.every((i) => Number(i.unit_price.value) > 0));
 });
 
@@ -130,7 +134,7 @@ test('rules 18-19 — the invoice PDF is uploaded to the transaction, multipart,
   assert.deepEqual(out, { attachmentId: 'att_new' });
   const upload = calls.find((c) => c.url.endsWith('/v2/transactions/tx-day/attachments'));
   assert.equal(upload.method, 'POST');
-  assert.equal(upload.headers['X-Qonto-Idempotency-Key'], 'resource-booking:5:attach:tx-day');
+  assert.equal(upload.headers['X-Qonto-Idempotency-Key'], uuidKey('resource-booking:5:attach:tx-day'));
   assert.equal('Content-Type' in upload.headers, false, 'the multipart boundary is the runtime\'s');
   const file = upload.body.get('file');
   assert.equal(file.name, `F-${Y}-0142.pdf`);

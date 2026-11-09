@@ -9,7 +9,7 @@
 
 const sdk = require('../sdk');
 const {
-  MIGRATIONS, resetHourlyColumns, countHourlySettings, hasTable, hasColumn,
+  migrationsFor, resetHourlyColumns, countHourlySettings, hasTable, hasColumn,
 } = require('./migrations');
 const bookingsModel = require('./bookingsModel');
 const schedulingModel = require('./schedulingModel');
@@ -28,9 +28,10 @@ const plural = (n, one, many) => (n > 1 ? `${n} ${many}` : `1 ${one}`);
 const euros = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function register(ctx) {
-  ctx.migrations(MIGRATIONS);
   // specs/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
   ctx.settings.declare(SETTINGS);
+  const standaloneVatRate = () => standaloneVatRateOf(ctx.settings);
+  ctx.migrations(migrationsFor((db, row) => bookingsModel.create(db, { standaloneVatRate }).vatFor(row).rate));
 
   // Built on first use: `resource_bookings` exists only once the plugin is installed, and an erasure
   // drops it.
@@ -43,7 +44,7 @@ function register(ctx) {
     get.reset = () => { built = null; };
     return get;
   };
-  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate: () => standaloneVatRateOf(ctx.settings) }));
+  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate }));
   const scheduling = lazy(() => schedulingModel.create(ctx.db));
   const planningCards = lazy(() => planningCardsModel.buildModel(ctx.db));
   const reservations = sdk.coreModule('reservationsModel');
@@ -77,19 +78,36 @@ function register(ctx) {
   ctx.sasData((reservationId) => sasStep.data(reservationId));
   ctx.sasCommit(sasStep.hook);
 
-  // Rule 17 (P16) — warn, then erase: the external bookings hold money that is in no ledger.
+  // Rule 17 (P16) — warn, then erase: the external bookings hold money, journaled or not.
   ctx.data({
     tables: ['resource_bookings'],
     describe: (db) => {
       const lines = [];
       if (hasTable(db, 'resource_bookings')) {
         const all = db.prepare('SELECT COUNT(*) AS n FROM resource_bookings').get().n;
-        // Money that is in no ledger: the bookings paid for an amount.
-        const paid = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(totalPrice), 0) AS amount FROM resource_bookings WHERE paid = 1 AND totalPrice > 0').get();
-        if (paid.n > 0) {
+        // The bookings paid for an amount. A payment recorded since 1.4.0 with a part on the books is a sale of the
+        // accounting export: the erase takes it out of every month re-exported (specs/resource-booking-pricing-and-invoicing.md
+        // rule 21). A « Payé » ticked before (A4), or all in caisse interne, is in no ledger.
+        const recorded = hasColumn(db, 'resource_bookings', 'paymentRecordedAt');
+        const paidRows = db.prepare(`SELECT totalPrice, reservationId${recorded ? ', paymentRecordedAt, paymentTenders' : ''} FROM resource_bookings WHERE paid = 1 AND totalPrice > 0`).all();
+        const onTheBooks = (row) => {
+          if (!row.paymentRecordedAt || row.reservationId) return false;
+          try { return JSON.parse(row.paymentTenders || '[]').some((t) => !t.internal); } catch { return false; }
+        };
+        const sum = (rows) => rows.reduce((total, row) => total + Number(row.totalPrice || 0), 0);
+        const sold = paidRows.filter(onTheBooks);
+        const unledgered = paidRows.filter((row) => !onTheBooks(row));
+        if (sold.length > 0) {
           lines.push({
-            label: `${plural(paid.n, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(paid.amount)} encaissés, absents de la compta`,
-            count: paid.n,
+            label: `${plural(sold.length, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(sum(sold))} encaissés, retirés de l’export comptable`,
+            count: sold.length,
+            warning: true,
+          });
+        }
+        if (unledgered.length > 0) {
+          lines.push({
+            label: `${plural(unledgered.length, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(sum(unledgered))} encaissés, absents de la compta`,
+            count: unledgered.length,
             warning: true,
           });
         }
@@ -99,7 +117,7 @@ function register(ctx) {
         if (invoiced > 0) {
           lines.push({ label: `${plural(invoiced, 'facture Qonto émise', 'factures Qonto émises')} : elles restent dans Qonto`, count: invoiced, warning: true });
         }
-        const unpaid = all - paid.n;
+        const unpaid = all - paidRows.length;
         if (unpaid > 0) lines.push({ label: plural(unpaid, 'réservation hors séjour', 'réservations hors séjour'), count: unpaid });
       }
       const configured = countHourlySettings(db);
