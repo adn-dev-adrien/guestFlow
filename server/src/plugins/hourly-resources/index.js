@@ -9,7 +9,7 @@
 
 const sdk = require('../sdk');
 const {
-  MIGRATIONS, resetHourlyColumns, countHourlySettings, hasTable,
+  MIGRATIONS, resetHourlyColumns, countHourlySettings, hasTable, hasColumn,
 } = require('./migrations');
 const bookingsModel = require('./bookingsModel');
 const schedulingModel = require('./schedulingModel');
@@ -19,6 +19,8 @@ const { buildRouter } = require('./routes');
 const { createHourlyContributor } = require('./pricing');
 const { createSasStep } = require('./sasStep');
 const { buildCatalogueLines } = require('./catalogueLines');
+const { createInvoicing } = require('./invoicing');
+const { SETTINGS, standaloneVatRateOf } = require('./settings');
 
 const id = 'hourly-resources';
 
@@ -27,6 +29,8 @@ const euros = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFra
 
 function register(ctx) {
   ctx.migrations(MIGRATIONS);
+  // specs/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
+  ctx.settings.declare(SETTINGS);
 
   // Built on first use: `resource_bookings` exists only once the plugin is installed, and an erasure
   // drops it.
@@ -39,11 +43,17 @@ function register(ctx) {
     get.reset = () => { built = null; };
     return get;
   };
-  const bookings = lazy(() => bookingsModel.create(ctx.db));
+  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate: () => standaloneVatRateOf(ctx.settings) }));
   const scheduling = lazy(() => schedulingModel.create(ctx.db));
   const planningCards = lazy(() => planningCardsModel.buildModel(ctx.db));
   const reservations = sdk.coreModule('reservationsModel');
-  const controller = lazy(() => createController({ bookings, scheduling, planningCards, reservations }));
+  const invoicing = lazy(() => createInvoicing({ bookings }));
+  const controller = lazy(() => createController({ bookings, scheduling, planningCards, reservations, invoicing }));
+
+  // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
+  ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
+  // Rules 18, A2 — the attachments still to join, the invoices cancelled by hand in Qonto.
+  ctx.jobs.every({ name: 'resource-invoices-watch', intervalMs: 60 * 60 * 1000, bootDelayMs: 5 * 60 * 1000, run: () => invoicing().watch() });
 
   // Rule 11 — the `per_hour` lines of a quote.
   ctx.priceLineContributor(createHourlyContributor());
@@ -83,6 +93,12 @@ function register(ctx) {
             warning: true,
           });
         }
+        const invoiced = hasColumn(db, 'resource_bookings', 'invoiceCancelledAt')
+          ? db.prepare('SELECT COUNT(*) AS n FROM resource_bookings WHERE qontoInvoiceId IS NOT NULL AND invoiceCancelledAt IS NULL').get().n
+          : 0;
+        if (invoiced > 0) {
+          lines.push({ label: `${plural(invoiced, 'facture Qonto émise', 'factures Qonto émises')} : elles restent dans Qonto`, count: invoiced, warning: true });
+        }
         const unpaid = all - paid.n;
         if (unpaid > 0) lines.push({ label: plural(unpaid, 'réservation hors séjour', 'réservations hors séjour'), count: unpaid });
       }
@@ -95,6 +111,7 @@ function register(ctx) {
     purge: (db) => {
       resetHourlyColumns(db);
       bookings.reset();
+      invoicing.reset();
       scheduling.reset();
       planningCards.reset();
       controller.reset();

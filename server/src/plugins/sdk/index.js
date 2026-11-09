@@ -115,6 +115,10 @@ const CORE_MODULES = Object.freeze({
   paymentTenders: '../../utils/paymentTenders',
   paymentSettlementsModel: '../../models/paymentSettlementsModel',
   paymentSettlementService: '../../utils/paymentSettlementService',
+  // hourly-resources, online-payment, accounting-export — the invoice issuer and the sales made outside any stay
+  // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
+  invoiceIssuers: '../../utils/invoiceIssuers',
+  standaloneSales: '../../utils/standaloneSales',
 });
 
 function coreModule(name) {

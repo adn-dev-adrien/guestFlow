@@ -14,6 +14,12 @@ const { allocateFifo, summarize, validatePairs } = require('./allocation');
 const { runAutoConfirm } = require('./autoConfirm');
 const { decorateRows } = require('./deadlineDecorator');
 const { randomUUID } = require('crypto');
+const sdk = require('../../sdk');
+
+const standaloneSales = sdk.coreModule('standaloneSales');
+// A card batch is named after the day of its payments, credited that day or a few days later.
+const BATCH_LOOKBACK_DAYS = 7;
+const shiftDay = (iso, days) => new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 
 const MIN_READ_GAP_MS = 60 * 1000;
 const CREDIT_WINDOW_DAYS = 31;
@@ -129,7 +135,11 @@ function createReconciliationController({ db, settings, transactions, model, wri
         alreadyCovered: !unbounded && r.expectedCents > 0 && covered >= r.expectedCents,
       };
     });
-    const { byTransaction } = buildProposals({ transactions: matchable, receipts: openReceipts, discarded, settings: cfg });
+    // specs/resource-booking-pricing-and-invoicing.md rule 20 — the card sales made outside any stay, over the days the
+    // credits cover.
+    const days = matchable.map((t) => String(t.settledAt).slice(0, 10)).sort();
+    const standalone = days.length ? standaloneSales.list({ from: shiftDay(days[0], -BATCH_LOOKBACK_DAYS), to: days[days.length - 1] }) : [];
+    const { byTransaction } = buildProposals({ transactions: matchable, receipts: openReceipts, discarded, settings: cfg, standalone });
 
     const proposalsByReceipt = new Map();
     const alternativesByReceipt = new Map();

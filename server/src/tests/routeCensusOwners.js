@@ -43,8 +43,13 @@ const PLUGIN_ROUTES = {
   ],
   'hourly-resources': [
     'DELETE /api/resource-bookings/:id',
+    'DELETE /api/resource-bookings/:id/payment',
     'POST /api/planning/resource-cards/done',
     'POST /api/resource-bookings',
+    'POST /api/resource-bookings/:id/arrival',
+    'POST /api/resource-bookings/:id/invoice',
+    'POST /api/resource-bookings/:id/invoice/attach',
+    'POST /api/resource-bookings/:id/payment',
     'POST /api/resource-bookings/preview',
     'PUT /api/resource-bookings/:id',
   ],

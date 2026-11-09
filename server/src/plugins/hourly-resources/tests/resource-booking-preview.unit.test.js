@@ -5,6 +5,7 @@
 // external 30 / 40 €/h; logement 2 offers 60 min.
 
 const test = require('node:test');
+const { bookingsV2 } = require('../migrations');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -41,6 +42,7 @@ const DDL = `
 function seed(overrides = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
+  bookingsV2(db);
   const r = {
     name: 'Bain fictif', quantity: 1, price: 25, priceType: 'per_hour', turnoverMinutes: 0,
     minimumUsageMinutes: 60, slotDuration: 30, isComplex: 1, openTime: '10:00', closeTime: '22:00',

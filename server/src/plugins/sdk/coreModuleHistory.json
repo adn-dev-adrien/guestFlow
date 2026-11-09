@@ -223,6 +223,19 @@
         "paymentSettlementService"
       ],
       "names": {}
+    },
+    {
+      "version": "2.25.0",
+      "modules": [
+        "invoiceIssuers",
+        "standaloneSales"
+      ],
+      "names": {
+        "paymentTenders": [
+          "methodLabel",
+          "validateSettlement"
+        ]
+      }
     }
   ]
 }
