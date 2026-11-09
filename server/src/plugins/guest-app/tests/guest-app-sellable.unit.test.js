@@ -1,5 +1,6 @@
 // specs/guest-app.md rules 23, 25 — which items a lodging's shop shows, and their free / included state, on the
 // catalogue the pricing engine reads.
+// specs/plugins-phase-1-sdk.md rule 44 — `publicCatalogProjection`, `midStayExtrasWindow` and the `pricing` names the shop reads.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

@@ -39,6 +39,7 @@ const MAX_LINES = 20;
 const LABELS = Object.freeze({
   fr: Object.freeze({
     included: 'Inclus',
+    perPersonPerMorning: 'par personne et par matin',
     alreadyIncluded: 'Déjà inclus dans votre séjour',
     preArrival: 'Disponible pendant votre séjour',
     closed: 'La boutique est fermée — bon retour !',
@@ -55,6 +56,7 @@ const LABELS = Object.freeze({
   }),
   en: Object.freeze({
     included: 'Included',
+    perPersonPerMorning: 'per person per morning',
     alreadyIncluded: 'Already included in your stay',
     preArrival: 'Available during your stay',
     closed: 'The shop is closed — safe travels home!',
@@ -174,7 +176,8 @@ function buildShopController({
       imageUrl: mediaPath ? `/uploads/${mediaPath}` : null,
       price: included ? 0 : projected.price,
       priceLabel: included ? L.included : priceLabel(projected.price, lang),
-      priceUnitLabel: included ? null : projected.priceUnitLabel,
+      // Rule 27bis — the breakfast is shown « par personne et par matin », whatever its catalogue unit says.
+      priceUnitLabel: included ? null : (kind === BREAKFAST ? L.perPersonPerMorning : projected.priceUnitLabel),
       ...(included ? { included: true } : {}),
       ...(sold.includedLeft !== null && !sold.alreadyIncluded ? { includedLeft: sold.includedLeft } : {}),
       ...(freeLabel ? { freeLeftLabel: freeLabel } : {}),
@@ -323,7 +326,13 @@ function buildShopController({
     const { stay, lodging } = req.guest;
     const lang = languageOf(req, stay);
     const wanted = new Set(req.body.lines.map((line) => `${line.kind}:${line.id}`));
-    const staff = soldFor(req.guest).sold.filter((s) => isStaffItem(s) && wanted.has(`option:${Number(s.row.id)}`));
+    const sold = soldFor(req.guest).sold;
+    const staffOptions = sold.filter((s) => isStaffItem(s) && wanted.has(`option:${Number(s.row.id)}`));
+    // Rule 27bis — the breakfast keeps its own hour on its mornings, never the cart's delivery time: asked alone (its
+    // sheet), it answers the times its own lead allows; beside other staff items, the cart's time is theirs only.
+    const staffBreakfasts = sold.filter((s) => s.kind === BREAKFAST && Number(s.item.needsStaff) === 1
+      && wanted.has(`${BREAKFAST}:${Number(s.row.id)}`));
+    const staff = staffOptions.length ? staffOptions : staffBreakfasts;
     // Rule 41bis — delivered to the lodging or picked up: the picker asks its own question.
     const { mode } = fulfilment();
     const asked = { mode, question: deliveryQuestion(mode, lang) };

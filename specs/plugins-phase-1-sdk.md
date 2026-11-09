@@ -178,6 +178,9 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
       `{ tokens, flags }`.
     - The email context builder merges `build()` from **active** plugins only. An inactive plugin's
       variables render empty, and its `{{#if}}` blocks read false.
+    - *(2026-11-09, specs/guest-app.md rule 9bis b.)* A token or a flag may name the e-mails it belongs to,
+      `in: ['j7', 'j2']` — the sections of the core catalogue's own `in` — and the template editor offers its chip
+      in those e-mails only (still everywhere it is already used); without `in` it is offered in every e-mail.
     - The four email paths (preview, auto-send, guest sequence, manual send) all go through the builder,
       so they no longer call gate code.
 11. **Core services** — what a plugin needs of the core, in one reviewed place:
@@ -520,32 +523,47 @@ Optional: a plugin that declares nothing reads « Actif ».
     `sdk ^2.23.0`. Tests: `plugins/accounting-export/tests/accounting-synthesis-books.unit.test.js`,
     `plugins-sdk-core-modules-contract.unit.test.js`, `plugins-sdk-core-module-floor.unit.test.js`,
     `plugin-core-hardening-floor.unit.test.js`.
+42. *(Added 2026-11-09, [mixed-method-payments.md](mixed-method-payments.md) rules 26-28, 32, SDK 2.24.0.)*
+    **`coreModule()` hands the plugins the payments split over several methods**: `paymentTenders`
+    (`settlementFigures`, what one settlement put on the books, in the caisse and at the bank),
+    `paymentSettlementsModel` (`buildModel`, the stay's settlements) and `paymentSettlementService`
+    (`prepare`, `flippedParts`, `record`, the one writer). `accounting-export` 1.1.0 books a split payment
+    settlement by settlement, `online-payment` 1.6.0 expects only its card, cheque and transfer lines at the
+    bank, `sas` 1.8.0 records « Plusieurs moyens » at the check-in and the check-out; the three ask for
+    `sdk ^2.24.0`. A MINOR bump (modules added to `coreModules.json`, recorded under 2.24.0 in
+    `coreModuleHistory.json`). Tests: `plugin-core-hardening-floor.unit.test.js`,
+    `plugins/accounting-export/tests/accounting-mixed-method-payments.unit.test.js`,
+    `plugins/online-payment/tests/reconciliation-mixed-method-payments.unit.test.js`,
+    `plugins/sas/tests/sas-mixed-method-payments.unit.test.js`.
 
-42. *(Added 2026-11-05, specs/guest-app.md rule 2, SDK 2.22.0.)* **`coreModule('stayWindow')` and
+43. *(Added 2026-11-05, specs/guest-app.md rule 2, SDK 2.25.0.)* **`coreModule('stayWindow')` and
     `coreModule('encryption')`.** The stay window leaves `gate-access` for `utils/stayWindow.js`, so the guest app reads
-    it without that plugin; `gate-access` 1.3.3 and `guest-app` 1.0.0 ask for `sdk ^2.22.0`. `encryption` holds the
-    lodging's wifi password at rest. `coreModule('rateLimiters')` gains `guestSessionLimiter` and `guestLookupLimiter`. A
-    MINOR bump (modules and names added to `coreModules.json`, recorded under 2.22.0 in `coreModuleHistory.json`). Tests:
+    it without that plugin; `gate-access` 1.3.3 and `guest-app` 1.0.0 ask for `sdk ^2.25.0`. `encryption` holds the
+    lodging's wifi password at rest. (The guest app's limiters, first added to `coreModule('rateLimiters')`, live in the
+    plugin since 2026-11-09: the core keeps only generic extension points.) A MINOR bump (modules and names added to `coreModules.json`, recorded under 2.25.0 in `coreModuleHistory.json`). Tests:
     `stay-window.unit.test.js` (the moved gate-window suite, its assertions unchanged).
-43. *(Added 2026-11-05, specs/guest-app.md rules 23-25, SDK 2.22.0.)* **`coreModule('publicCatalogProjection')`,
+44. *(Added 2026-11-05, specs/guest-app.md rules 23-25, SDK 2.25.0.)* **`coreModule('publicCatalogProjection')`,
     `coreModule('midStayExtrasWindow')` and three `pricing` names.** `toPublicOption` / `toPublicResource` and their
     helpers leave `website-booking` for `utils/publicCatalogProjection.js` (website-booking 1.8.13 re-exports them
-    unchanged and asks for `^2.22.0`); `pricing` adds `applyFreeUnitsToLine`, `getApplicableOptions`,
+    unchanged and asks for `^2.25.0`); `pricing` adds `applyFreeUnitsToLine`, `getApplicableOptions`,
     `getApplicableResources`, so the guest app's shop reads the catalogue the engine prices. Tests:
     `guest-app-sellable`, `guest-app-shop` and every website-booking projection suite.
-44. *(Added 2026-11-05, specs/guest-app.md rules 28-31 and 35, SDK 2.22.0.)* **`ctx.resourceScheduler(provider)` and
+45. *(Added 2026-11-05, specs/guest-app.md rules 28-31 and 35, SDK 2.25.0.)* **`ctx.resourceScheduler(provider)` and
     `ctx.resourceHolds(fn)`.** One scheduler app-wide (`{ slotsForStay, validateSessions }`, declared by
     `hourly-resources` 1.4.0), read through `ctx.core.resourceScheduler()`, null unless its plugin is live; any plugin
     may declare one holds source, collected by `ctx.core.resourceHolds({ resourceId, from, to })` (a source that throws
-    is logged and holds nothing) and shown as occupied by the planning, the SAS picker and outside bookings. A row of
-    `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.22.0`. Tests:
+    is logged and holds nothing) and shown as occupied by the planning, the SAS picker and outside bookings. A hold
+    may carry `label`, the planning's words on the slot (« Commande client en attente de paiement »); without it
+    `hourly-resources` reads « Créneau réservé, en attente ». A row of
+    `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.25.0`. Tests:
     `resource-scheduler-hook.unit.test.js`, `guest-app-slots.unit.test.js`.
-45. *(Added 2026-11-05, specs/guest-app.md rules 15bis and 47-49, SDK 2.22.0.)* **`coreModule('safeFeedFetch')` and
+46. *(Added 2026-11-05, specs/guest-app.md rules 15bis and 47-49, SDK 2.25.0.)* **`coreModule('safeFeedFetch')` and
     `coreModule('instancePaths')`.** The iCal import's public-only fetch (`fetchPublic`, `readCapped`,
     `FeedFetchError`) serves the guest app's Soliomap feed; `instancePaths` exposes `uploadsDir` for the studio's
     media. Tests: `guest-app-suggestion`, `guest-app-media`.
-46. *(Added 2026-11-06, specs/guest-app.md rules 24, 30, 33-36, SDK 2.22.0.)* **`ctx.paymentBasket({ source, paid })`,
-    `ctx.core.payments` and `coreModule('guestOrderCommit')`.** A plugin bills its own basket (a guest order) through a
+47. *(Added 2026-11-06, specs/guest-app.md rules 24, 30, 33-36, SDK 2.25.0; generic since 2026-11-09.)*
+    **`ctx.paymentBasket({ source, paid, labels? })`, `ctx.core.payments` and `coreModule('midStayOrderCommit')`.** A
+    plugin bills its own basket (the guest app: an order) through a
     `complement` payment link: `ctx.core.payments.basketLink(reservationId, { source, ref, title, lines })` mints it at
     the lines' exact total, as a VAT basket at the stay's rate, for 30 minutes, never lapsed by the arrival;
     `refreshBasketLink(linkId)` reads it at the provider on demand and `withdrawBasketLink(linkId)` withdraws it like
@@ -554,15 +572,19 @@ Optional: a plugin that declares nothing reads « Actif ».
     complement. When it is paid, on time or late, `applyPaidEffect` hands it to the live plugin that declared its
     `source` (one per source): `paid({ reservationId, ref, linkId, amountCents, paidDate, paidAt, providerPaymentId })`
     runs synchronously and answers `{ effect }`, or `{ refundOwed: true, reason }` — the core then flags the link, writes
-    « Remboursement à faire » in the stay's history and the ledger shows the row « Commande client à rembourser »; with
-    no live owner the payment is `basket-unallocated` and the admin is alerted. `guestOrderCommit` prices an order by the
+    « Remboursement à faire » in the stay's history and the ledger shows the row in the owner's words
+    (`labels: { refundOne, refundMany }`, the guest app's « Commande client à rembourser »), else the core's neutral
+    « Paiement en ligne à rembourser »; with no live owner the payment is `basket-unallocated` and the admin is
+    alerted. The provider sees the origin `basket`. `midStayOrderCommit` prices an order by the
     fiche's own save played without writing (`priceOrder`) and writes it as mid-stay extras through `performUpdate`, a
-    card order's money as a settled mid-stay note, in one transaction with the plugin's own step (`commitOrder`).
-    `coreModule('rateLimiters')` gains `guestOrderLimiter` (10 / hour / guest session). A row of
-    `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.22.0`. Tests:
-    `payment-complement-link.unit.test.js`, `guest-order-commit.unit.test.js`, `guest-app-order-card`,
+    card order's money as a settled mid-stay note `{ source, ref }`, in one transaction with the plugin's own step
+    (`commitOrder(reservationId, { source, ref, history: { field, label, text }, lines, paid?, within? })` — the
+    caller names its order and writes the history entry in its own words; an order not named is refused before
+    anything is written). A row of
+    `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.25.0`. Tests:
+    `payment-complement-link.unit.test.js`, `mid-stay-order-commit.unit.test.js`, `guest-app-order-card`,
     `guest-app-order-note`.
-47. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.22.0 — unreleased, recorded with the
+48. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.25.0 — unreleased, recorded with the
     other guest-app entry points.)* **`ctx.webApp({ key, path?, host?, handler })` — a web app the plugin serves
     itself.** `path` is one segment of the plugin's own (`/studio`), answered on every host; `host()` is read on each
     request and claims every path of that hostname (the guest app on `sejour.domainesolio.com`); one of the two is
@@ -571,7 +593,7 @@ Optional: a plugin that declares nothing reads « Actif ».
     before the favicon and the GuestFlow client, and reads the live plugins on every request: a plugin activated or
     configured later answers at once, a deactivated one falls through to the core. The handler owns its answer (its
     caching, its policy, its own access check). A row of `plugin-core-hardening-floor.unit.test.js` makes a plugin
-    calling it floor at `^2.22.0`. Tests: `plugins-web-apps.unit.test.js`, `guest-app-hosting`.
+    calling it floor at `^2.25.0`. Tests: `plugins-web-apps.unit.test.js`, `guest-app-hosting`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

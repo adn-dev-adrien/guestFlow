@@ -81,7 +81,7 @@ withCard('rule 35: paid → the lines join the reservation and the payment is re
   assert.equal(optionLine(stayId, CIDER).quantity, 2);
   const note = notesOf(stayId).find((n) => n.source === 'guestOrder');
   assert.ok(note, JSON.stringify(notesOf(stayId)));
-  assert.deepEqual([note.orderId, note.total, note.paidCash, note.reference], [orderId, 12, 0, `pay_${linkOf(orderRow(orderId)).providerLinkId}`]);
+  assert.deepEqual([note.ref, note.total, note.paidCash, note.reference], [String(orderId), 12, 0, `pay_${linkOf(orderRow(orderId)).providerLinkId}`]);
   assert.equal(endOfStayDetail(stayId).filter((l) => l.key === `opt:${CIDER}`).length, 0, 'the remainder owes nothing for the order');
   assert.ok(historyOf(stayId).some((c) => c.field === 'guestOrder' && c.to === `Commande client #${orderId} — payée par carte`));
   await flush();

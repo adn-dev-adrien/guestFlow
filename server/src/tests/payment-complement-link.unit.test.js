@@ -1,7 +1,7 @@
-// specs/guest-app.md rules 35, 36 — the `complement` link type wired end to end for a basket (a guest order): minted only
+// specs/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app.md rules 35, 36) — the `complement` link type wired end to end for a plugin's basket: minted only
 // with an explicit basket, at its exact total and VAT lines, for 30 minutes and never lapsed by the arrival; no reader of
 // the stay's own buckets takes it for the stay's complement; its paid effect is the owning plugin's
-// (specs/plugins-phase-1-sdk.md rule 46, `ctx.paymentBasket`), money it cannot honour flagged « à rembourser ».
+// (specs/plugins-phase-1-sdk.md rule 47, `ctx.paymentBasket`), money it cannot honour flagged « à rembourser ».
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -51,12 +51,12 @@ function deps(db, links, over = {}) {
   };
 }
 
-const BASKET = { source: 'guestOrder', ref: 4, title: 'Commande #4', lines: [{ title: 'Cidre', amountCents: 1200 }, { title: 'Bain nordique', amountCents: 3000 }] };
+const BASKET = { source: 'shopOrder', ref: 4, title: 'Commande #4', lines: [{ title: 'Cidre', amountCents: 1200 }, { title: 'Bain nordique', amountCents: 3000 }] };
 
 test('rule 35: `complement` is refused without an explicit basket — no provider call', async () => {
   const { db, id, links } = seed();
   const { deps: d, created } = deps(db, links);
-  for (const basket of [undefined, {}, { source: 'guestOrder', ref: 4, lines: [] }, { source: 'guestOrder', ref: 4, lines: [{ title: 'x', amountCents: 0 }] }]) {
+  for (const basket of [undefined, {}, { source: 'shopOrder', ref: 4, lines: [] }, { source: 'shopOrder', ref: 4, lines: [{ title: 'x', amountCents: 0 }] }]) {
     await assert.rejects(ensurePaymentLink(d, id, 'complement', { basket }), (e) => e.httpStatus === 400 && e.error === 'BASKET_REQUIRED');
   }
   assert.equal(created.length, 0);
@@ -73,7 +73,7 @@ test('rule 35: a basket link bills exactly its lines, as a VAT basket, for 30 mi
   assert.deepEqual(created[0].items.filter((i) => i.vatRate === 10).map((i) => i.title), ['Cidre', 'Bain nordique']);
   assert.equal(created[0].redirectUrl, 'https://sejour.example.test/commande/4');
   const row = links.findById(link.id);
-  assert.deepEqual(JSON.parse(row.basketJson), { source: 'guestOrder', ref: '4' });
+  assert.deepEqual(JSON.parse(row.basketJson), { source: 'shopOrder', ref: '4' });
   assert.equal(row.expiresAt, '2099-07-07T10:30:00.000Z');
 });
 
@@ -100,10 +100,10 @@ test('rule 35: no reader of the stay’s buckets takes a basket link for the sta
   assert.equal(complement && complement.detail && complement.detail.link, undefined);
 });
 
-function liveOwner(paid) {
+function liveOwner(paid, labels) {
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
-  createContext('guest-app', {}).paymentBasket({ source: 'guestOrder', paid });
+  createContext('shop', {}).paymentBasket({ source: 'shopOrder', paid, ...(labels ? { labels } : {}) });
 }
 
 test('rules 35, 36: a paid basket link is settled by the live plugin that owns its source', async () => {
@@ -112,10 +112,10 @@ test('rules 35, 36: a paid basket link is settled by the live plugin that owns i
   const link = await ensurePaymentLink(d, id, 'complement', { basket: BASKET });
   links.markPaid(link.id, { providerPaymentId: 'pay_9', paidAt: '2099-07-07T10:05:00Z' });
   const calls = [];
-  liveOwner((event) => { calls.push(event); return { effect: 'guest-order-paid' }; });
+  liveOwner((event) => { calls.push(event); return { effect: 'shop-order-paid' }; });
   try {
     const effect = applyPaidEffect({ database: db, link: links.findById(link.id), paidDate: '2099-07-07', paidAt: '2099-07-07T10:05:00Z' });
-    assert.equal(effect.effect, 'guest-order-paid');
+    assert.equal(effect.effect, 'shop-order-paid');
     assert.deepEqual(calls, [{
       reservationId: id, ref: '4', linkId: link.id, amountCents: 4200, paidDate: '2099-07-07', paidAt: '2099-07-07T10:05:00Z', providerPaymentId: 'pay_9',
     }]);
@@ -132,26 +132,29 @@ test('rule 36: money the plugin cannot honour is flagged « à rembourser » on 
   const { deps: d } = deps(db, links);
   const link = await ensurePaymentLink(d, id, 'complement', { basket: BASKET });
   links.markPaid(link.id, { providerPaymentId: 'pay_9', paidAt: '2099-07-07T10:05:00Z' });
-  liveOwner(() => ({ refundOwed: true, reason: 'créneau plus libre' }));
+  const refundRow = () => buildLedger({ row: db.prepare('SELECT * FROM reservations WHERE id = ?').get(id), links: links.listForReservation(id) })
+    .rows.find((r) => r.key === 'basketRefunds');
+  liveOwner(() => ({ refundOwed: true, reason: 'créneau plus libre' }), { refundOne: 'Commande boutique à rembourser' });
   try {
     assert.equal(applyPaidEffect({ database: db, link: links.findById(link.id), paidDate: '2099-07-07' }).effect, 'basket-refund-owed');
+    assert.equal(refundRow().label, 'Commande boutique à rembourser', 'the owner’s own words');
   } finally {
     registry.reset();
   }
   assert.equal(JSON.parse(links.findById(link.id).basketJson).refundOwed, true);
   const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).flatMap((r) => JSON.parse(r.changedFields));
   assert.ok(history.some((c) => c.field === 'refundOwed' && c.to.includes('créneau plus libre')));
-  const row = buildLedger({ row: db.prepare('SELECT * FROM reservations WHERE id = ?').get(id), links: links.listForReservation(id) }).rows.find((r) => r.key === 'basketRefunds');
-  assert.deepEqual([row.label, row.amount, row.stateLabel], ['Commande client à rembourser', 42, 'À rembourser']);
+  assert.deepEqual([refundRow().label, refundRow().amount, refundRow().stateLabel], ['Paiement en ligne à rembourser', 42, 'À rembourser'], 'no owner declared: the core’s neutral words');
 });
 
-test('specs/plugins-phase-1-sdk.md rule 46: `ctx.paymentBasket` needs a source and a paid function, one plugin per source', () => {
+test('specs/plugins-phase-1-sdk.md rule 47: `ctx.paymentBasket` needs a source and a paid function, one plugin per source', () => {
   registry.reset();
   try {
-    assert.throws(() => createContext('a', {}).paymentBasket({ source: 'guestOrder' }), /needs a paid function/);
+    assert.throws(() => createContext('a', {}).paymentBasket({ source: 'shopOrder' }), /needs a paid function/);
     assert.throws(() => createContext('a', {}).paymentBasket({ source: 'Bad source', paid: () => ({}) }), /needs a source/);
-    createContext('a', {}).paymentBasket({ source: 'guestOrder', paid: () => ({}) });
-    assert.throws(() => createContext('b', {}).paymentBasket({ source: 'guestOrder', paid: () => ({}) }), /already declared by a/);
+    createContext('a', {}).paymentBasket({ source: 'shopOrder', paid: () => ({}) });
+    assert.throws(() => createContext('b', {}).paymentBasket({ source: 'shopOrder', paid: () => ({}) }), /already declared by a/);
+    assert.throws(() => createContext('c', {}).paymentBasket({ source: 'other', paid: () => ({}), labels: { refundOne: '' } }), /labels/);
   } finally {
     registry.reset();
   }

@@ -38,6 +38,8 @@ const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationComp
 const { buildModel: buildPenaltiesModel } = sdk.coreModule('platformPenaltiesModel');
 const { parseComplementAllocation } = sdk.coreModule('complementAllocation');
 const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
+const { settlementFigures, targetFigures, currentCentsOf } = sdk.coreModule('paymentTenders');
+const { buildModel: buildSettlementsModel } = sdk.coreModule('paymentSettlementsModel');
 
 // The residue the export absorbs on the last credit of a contrib-driven entry (rounding cents).
 const CONTRIB_RESIDUE_TOLERANCE_TTC = 0.02;
@@ -121,6 +123,13 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const compensations = buildCompensationsModel(database);
   // Platform penalties (specs/reconciliation-assisted-matching.md rule 28), same lazy discipline.
   const penalties = buildPenaltiesModel(database);
+  // specs/mixed-method-payments.md rule 26 — a payment split over several methods is booked settlement by
+  // settlement, at each one's date, for its share on the books. A schema without the table has none.
+  const settlementsStore = buildSettlementsModel(database);
+  const hasSettlements = hasTable(database, 'payment_settlements');
+  const settlementClause = hasSettlements
+    ? 'OR EXISTS (SELECT 1 FROM payment_settlements s WHERE s.reservationId = r.id AND s.paidDate >= ? AND s.paidDate < ?)'
+    : '';
   // Tax collected at check-in (→ complement) only when WE charge the guest directly, i.e. a non-direct platform that
   // does NOT collect the tax from the guest (case 3 « owner » of specs/per-platform-tourist-tax-three-way.md).
   // Mirrors the pricing engine's `isTouristTaxCollectedOnArrival` without recomputing a full quote.
@@ -145,7 +154,10 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     if (!paid) return splits;
     const salesRegime = vatRegimeModel.forRow(database, row);
     const context = { ...buildCommissionContext(settings.read()), vatRate: salesRegime.rate, salesRegime: salesRegime.regime };
-    const entry = buildEntry(row, kind, buildPerLineData(database, row), context, taxContextOf(row));
+    const whole = buildEntry(row, kind, buildPerLineData(database, row), context, taxContextOf(row));
+    // specs/mixed-method-payments.md rule 26 — a bucket paid with several methods booked only its share.
+    const bookedShare = bookedShareOf(settlementsStore.listFor(row.id), kind, row);
+    const entry = whole && bookedShare !== 1 ? scaleEntry(whole, bookedShare, null) : whole;
     const splitFrom = readTtcSplitFrom(database);
     for (const bucket of (entry && entry.buckets) || []) {
       const { ht, vat } = bookedBucketSplit(entry, bucket, splitFrom);
@@ -209,9 +221,10 @@ function createAccountingModel(database, { settings = createAccountSettings(data
             (r.endOfStayComplementPaid = 1 AND r.endOfStayComplementPaidDate >= ? AND r.endOfStayComplementPaidDate < ? AND COALESCE(r.endOfStayComplementPaidCash, 0) = 0)
             ${installmentClause}
             ${midStayNotesClause}
+            ${settlementClause}
           )
         ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate, r.endOfStayComplementPaidDate), r.id
-      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth, ...(hasInstallments ? [from, nextMonth] : []), ...midStayNotesParams(from));
+      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth, ...(hasInstallments ? [from, nextMonth] : []), ...midStayNotesParams(from), ...(hasSettlements ? [from, nextMonth] : []));
 
       // Read the global commission config once per export run (settings + platforms).
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
@@ -230,35 +243,45 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         const taxContext = taxContextOf(row);
         const entries = [];
         const inMonth = (paid, date) => paid && date && date >= from && date < nextMonth;
+        // specs/mixed-method-payments.md rule 26 — what a split payment paid is booked by its settlements below,
+        // never a second time as a whole bucket, note or installment.
+        const settlements = settlementsStore.listFor(row.id);
+        const split = splitTargetsOf(settlements);
         // Cash-collected stay buckets are settled off the books → never emitted as an encaissement
         // (specs/collect-stay-payment-at-check-in.md §3.4).
-        if (inMonth(row.depositPaid, row.depositPaidDate) && Number(row.depositPaidCash || 0) === 0) {
+        if (inMonth(row.depositPaid, row.depositPaidDate) && Number(row.depositPaidCash || 0) === 0 && !split.buckets.has('deposit')) {
           entries.push(buildEntry(row, 'deposit', perLineData, rowContext, taxContext));
         }
-        if (inMonth(row.balancePaid, row.balancePaidDate) && Number(row.balancePaidCash || 0) === 0) {
+        if (inMonth(row.balancePaid, row.balancePaidDate) && Number(row.balancePaidCash || 0) === 0 && !split.buckets.has('balance')) {
           entries.push(buildEntry(row, 'balance', perLineData, rowContext, taxContext));
         }
         // One encaissement per installment collected in the month (specs/direct-installments.md): the plan
         // replaces the acompte and the solde, so these are the pre-arrival money of such a stay.
-        if (hasInstallments) {
-          const plan = database.prepare(`SELECT number, amountCents, paidDate, paid, ${paidSplitCol} FROM reservation_installments WHERE reservationId = ? ORDER BY number`).all(row.id);
-          // The tax shares are those of the whole plan, so they add up to the tax once every installment is in.
-          // specs/platform-added-guests-tourist-tax.md rule 27 — without the added guests' share: it rides the complement.
-          const shares = taxShares(Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100), plan.map((i) => Number(i.amountCents)));
-          plan.forEach((installment, index) => {
-            if (Number(installment.paid) === 1 && inMonth(1, installment.paidDate)) {
-              entries.push(buildInstallmentEntry(row, installment, plan.length, shares[index] / 100, perLineData, rowContext, taxContext));
-            }
-          });
-        }
+        const plan = hasInstallments
+          ? database.prepare(`SELECT id, number, amountCents, paidDate, paid, ${paidSplitCol} FROM reservation_installments WHERE reservationId = ? ORDER BY number`).all(row.id)
+          : [];
+        // The tax shares are those of the whole plan, so they add up to the tax once every installment is in.
+        // specs/platform-added-guests-tourist-tax.md rule 27 — without the added guests' share: it rides the complement.
+        const shares = plan.length
+          ? taxShares(Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100), plan.map((i) => Number(i.amountCents)))
+          : [];
+        const installmentEntry = (installment) => {
+          const index = plan.indexOf(installment);
+          return buildInstallmentEntry(row, installment, plan.length, shares[index] / 100, perLineData, rowContext, taxContext);
+        };
+        plan.forEach((installment) => {
+          if (Number(installment.paid) === 1 && inMonth(1, installment.paidDate) && !split.installments.has(String(installment.id))) {
+            entries.push(installmentEntry(installment));
+          }
+        });
         // Cash complements are settled off the books → never emitted as an encaissement.
-        if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0) {
+        if (inMonth(row.complementPaid, row.complementPaidDate) && Number(row.complementPaidCash || 0) === 0 && !split.buckets.has('complement')) {
           entries.push(buildEntry(row, 'complement', perLineData, rowContext, taxContext));
         }
         // End-of-stay complement (SAS): a flat TTC amount booked as a « prestation complémentaire »
         // at the app general VAT rate (specs/cash-complement-and-endofstay-finance.md §3.1). Excluded
         // when paid in cash.
-        if (inMonth(row.endOfStayComplementPaid, row.endOfStayComplementPaidDate) && Number(row.endOfStayComplementPaidCash || 0) === 0) {
+        if (inMonth(row.endOfStayComplementPaid, row.endOfStayComplementPaidDate) && Number(row.endOfStayComplementPaidCash || 0) === 0 && !split.buckets.has('endOfStayComplement')) {
           entries.push(buildEndOfStayEntry(row, rowContext.vatRate));
         }
         // « Notes en séjour » (specs/mid-stay-notes.md §3.4 rule 14): one entry per SETTLED note, at
@@ -267,7 +290,37 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         for (const note of parseNotes(row.midStaySettledNotes)) {
           if (Number(note.paidCash || 0) === 1) continue;
           if (!inMonth(1, note.paidDate)) continue;
+          if (split.notes.has(String(note.id))) continue;
           entries.push(buildMidStayNoteEntry(row, note, rowContext.vatRate));
+        }
+        // specs/mixed-method-payments.md rules 18, 26 — each settlement of the month: the entries of what it paid,
+        // at its date, scaled to its share on the books (gross of its réduction), then the réduction itself.
+        const partEntry = (part) => {
+          if (part.kind === 'deposit' || part.kind === 'balance' || part.kind === 'complement') {
+            return buildEntry(row, part.kind, perLineData, rowContext, taxContext);
+          }
+          if (part.kind === 'endOfStayComplement') return buildEndOfStayEntry(row, rowContext.vatRate);
+          if (part.kind === 'note') {
+            const note = parseNotes(row.midStaySettledNotes).find((n) => String(n.id) === String(part.key));
+            return note ? buildMidStayNoteEntry(row, note, rowContext.vatRate) : null;
+          }
+          if (part.kind === 'installment') {
+            const installment = plan.find((i) => String(i.id) === String(part.key));
+            return installment ? installmentEntry(installment) : null;
+          }
+          return null;
+        };
+        const targetOf = targetReader(settlements, row);
+        for (const settlement of settlements) {
+          if (!inMonth(1, settlement.paidDate)) continue;
+          const { booksCents, bookedWaivedCents, share } = bookedFigures(settlement, targetOf(settlement));
+          if (share > 0) {
+            for (const part of settlement.parts) {
+              const entry = partEntry(part);
+              if (entry) entries.push(scaleEntry(entry, share, settlement));
+            }
+          }
+          if (bookedWaivedCents > 0) entries.push(buildSettlementDiscountEntry(row, settlement, bookedWaivedCents / 100, rowContext.vatRate));
         }
         // Stamp the group on the entries it named, so the Comptabilité can render one card for one
         // collection. A cash group emits no entry at all (its buckets are off the books), so there is
@@ -698,6 +751,111 @@ function buildInstallmentEntry(row, installment, count, taxShare, perLineData, c
       bucketFromTtc('options',       frozen.optionsCents / 100,       vatRate),
       bucketFromTtc('resources',     frozen.resourcesCents / 100,     vatRate),
     ].filter((b) => b.ht > 0 || b.vat > 0),
+  };
+}
+
+/**
+ * specs/mixed-method-payments.md rule 26 — what the split payments of a stay paid, so the ordinary emission
+ * leaves those buckets, notes and installments to their settlements.
+ */
+function splitTargetsOf(settlements) {
+  const out = { buckets: new Set(), notes: new Set(), installments: new Set() };
+  for (const s of settlements || []) {
+    for (const p of s.parts || []) {
+      if (p.kind === 'note') out.notes.add(String(p.key));
+      else if (p.kind === 'installment') out.installments.add(String(p.key));
+      else out.buckets.add(p.kind);
+    }
+  }
+  return out;
+}
+
+// Rule 39 — each settlement's target, read at what it is worth now (`paymentTenders.targetFigures`).
+function targetReader(settlements, row) {
+  const byTarget = new Map();
+  for (const s of settlements || []) {
+    const key = `${s.targetKind}:${s.targetKey}`;
+    if (!byTarget.has(key)) byTarget.set(key, []);
+    byTarget.get(key).push(s);
+  }
+  const figures = new Map();
+  return (settlement) => {
+    const key = `${settlement.targetKind}:${settlement.targetKey}`;
+    if (!figures.has(key)) {
+      const list = byTarget.get(key) || [settlement];
+      figures.set(key, targetFigures(list, { currentCents: currentCentsOf(list[0].parts, row) }));
+    }
+    return figures.get(key);
+  };
+}
+
+/**
+ * What one settlement puts on the books (rules 18, 26, 39): its lines on the books and its booked geste, both
+ * scaled by what still stands of them once the target's amount moved, and the share of the target's entries
+ * that carries them. The entries are built at the target's current amount, so the share is taken over it: a
+ * rise not yet collected books nothing, a fall books what is still owed of the money received.
+ */
+function bookedFigures(settlement, target) {
+  const f = settlementFigures(settlement);
+  const booksCents = f.booksCents * target.receivedFactor;
+  const bookedWaivedCents = f.bookedWaivedCents * target.waivedFactor;
+  const base = target.currentCents;
+  return { booksCents, bookedWaivedCents, share: base > 0 ? (booksCents + bookedWaivedCents) / base : 0 };
+}
+
+// The share of a bucket the books carry, all its settlements together; 1 when it was not split.
+function bookedShareOf(settlements, bucket, row) {
+  const mine = (settlements || []).filter((s) => (s.parts || []).some((p) => p.kind === bucket));
+  if (mine.length === 0) return 1;
+  const targetOf = targetReader(settlements, row);
+  return mine.reduce((sum, s) => sum + bookedFigures(s, targetOf(s)).share, 0);
+}
+
+// One entry scaled to a settlement's share: the export prorates every credit by `fraction` and absorbs the
+// rounding cent on the last one, so scaling the gross, the net, the tax and the fraction keeps it balanced.
+function scaleEntry(entry, share, settlement) {
+  const scaled = {
+    ...entry,
+    fraction: Number(entry.fraction == null ? 1 : entry.fraction) * share,
+    encaissementTtc: round2(Number(entry.encaissementTtc || 0) * share),
+    encaissementNetTtc: round2(Number(entry.encaissementNetTtc == null ? entry.encaissementTtc : entry.encaissementNetTtc) * share),
+    taxTtc: round2(Number(entry.taxTtc || 0) * share),
+    commission: entry.commission ? {
+      ...entry.commission,
+      ttc: round2(Number(entry.commission.ttc || 0) * share),
+      ht: round2(Number(entry.commission.ht || 0) * share),
+      vat: round2(Number(entry.commission.vat || 0) * share),
+    } : entry.commission,
+  };
+  if (settlement) {
+    scaled.paidDate = settlement.paidDate;
+    scaled.settlementId = settlement.id;
+  }
+  return scaled;
+}
+
+// specs/mixed-method-payments.md rule 18 — the geste commercial of a settlement, booked like the single arrival
+// payment's réduction accordée (rabais on 70900000 at the stay's rate), at the settlement's date.
+function buildSettlementDiscountEntry(row, settlement, ttc, vatRate) {
+  const rate = Number.isFinite(Number(vatRate)) ? Number(vatRate) : 10;
+  const ht = round2(ttc / (1 + rate / 100));
+  return {
+    reservationId: row.id,
+    kind: 'discount',
+    direction: 'discount',
+    paidDate: settlement.paidDate,
+    settlementId: settlement.id,
+    client: { firstName: row.firstName || '', lastName: row.lastName || '' },
+    propertyName: row.propertyName || '',
+    platform: row.platform || 'direct',
+    finalPrice: round2(row.finalPrice),
+    taxTtc: 0,
+    commission: null,
+    buckets: [],
+    fraction: 1,
+    encaissementTtc: round2(ttc),
+    encaissementNetTtc: round2(ttc),
+    discount: { account: DISCOUNT_ACCOUNT, ttc: round2(ttc), ht, vat: round2(ttc - ht), ratePercent: rate },
   };
 }
 

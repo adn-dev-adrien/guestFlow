@@ -29,7 +29,7 @@ async function refreshBasketLink(linkId) {
   if (link.status === 'open' && link.providerLinkId && provider && link.provider === provider.id) {
     try {
       links.touchPolled(link.id);
-      const pay = await provider.getPayment(link.providerLinkId, { origin: 'guest-order' });
+      const pay = await provider.getPayment(link.providerLinkId, { origin: 'basket' });
       if (pay && pay.paid) {
         const { processPaidLink } = require('./paymentPollRunner');
         await processPaidLink({ ...deps(), paymentLinksModel: links, link, paidPayment: pay });

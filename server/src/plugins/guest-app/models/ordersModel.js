@@ -25,6 +25,9 @@ function parseLines(text) {
 
 const toOrder = (row) => (row ? { ...row, lines: parseLines(row.linesJson) } : null);
 
+// Rule 35 — the planning's words on a slot an order awaiting payment holds.
+const HELD_LABEL = 'Commande client en attente de paiement';
+
 function createOrdersModel(db) {
   function linesOf(reservationId, statuses) {
     return db.prepare(`SELECT linesJson FROM guest_orders WHERE reservationId = ? AND status IN (${statuses.map(() => '?').join(', ')})`)
@@ -152,7 +155,8 @@ function createOrdersModel(db) {
 
     /**
      * Rule 35 — the sessions of `resourceId` between `from` and `to` that an order awaiting payment still holds
-     * at `now` (`heldUntil` not passed): `[{ date, start, end, reservationId }]`, the `ctx.resourceHolds` source.
+     * at `now` (`heldUntil` not passed): `[{ date, start, end, reservationId, label }]`, the `ctx.resourceHolds` source —
+     * `label` is what the planning shows on the held slot.
      */
     heldSessions({ resourceId, from, to, now }) {
       return db.prepare("SELECT reservationId, linesJson FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil > ?")
@@ -161,7 +165,9 @@ function createOrdersModel(db) {
           .filter((line) => line && line.kind === 'resource' && Number(line.id) === Number(resourceId) && Array.isArray(line.sessions))
           .flatMap((line) => line.sessions)
           .filter((s) => s && typeof s.date === 'string' && s.date >= from && s.date <= to)
-          .map((s) => ({ date: s.date, start: s.start, end: s.end, reservationId: Number(row.reservationId) })));
+          .map((s) => ({
+            date: s.date, start: s.start, end: s.end, reservationId: Number(row.reservationId), label: HELD_LABEL,
+          })));
     },
   };
 }

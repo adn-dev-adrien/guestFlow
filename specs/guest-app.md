@@ -105,9 +105,12 @@ is pushed every order.
    le livret, la boutique et le bain »), the gate keypad code, « Partager » (native share sheet, else « Copier le
    lien »), « Régénérer le lien », and a discreet « QR du portail seul » that shows today's gate QR for weak
    coverage. Plugin inactive, lodging disabled → the step is today's gate step, unchanged (contribution through
-   the existing `sas.portal` slot, rule 22). (b) The J-7 and J-1 reminder e-mails: the plugin contributes the
-   variable `{{stayAppUrl}}` and its sentence; while the plugin is inactive, the lodging disabled or the stay has
-   no e-mail, the e-mails keep the gate link (`{{gateAccessUrl}}`) as today. (c) The fiche: « Lien Mon séjour »
+   the existing `sas.portal` slot, rule 22). (b) The J-7 and J-1 reminder e-mails: the plugin declares its own
+   variable `{{stayAppUrl}}` « Lien Mon séjour » and the condition `hasStayApp` (offered in the J-7 and J-2 e-mails
+   only), like `gate-access` declares the gate's: the stay link, else the gate key's link (lodging disabled, no
+   e-mail address), `hasStayApp` true only for the app's own link. It is not a core variable (Adrien, 2026-11-09:
+   the core keeps only generic extension points): while the plugin is inactive both are empty, so a template
+   writes the app's sentence under `{{#if hasStayApp}}` and keeps its gate paragraph under `{{#if hasGateAccess}}`. (c) The fiche: « Lien Mon séjour »
    (copy, regenerate) contributed to the reservation page.
 
 ### 3.B Home
@@ -567,8 +570,9 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `currentStay.js` | C | Pure: lodging + instant → current stay (rules 2, 3, 5, 6) |
 | `plugins/guest-app/` | `nameMatch.js` | C | Pure: normalisation + comparison, for the fallback lookup only (rule 7) |
 | `plugins/guest-app/models/` | `stayLinksModel.js` | C | The stay links: create on first need, read back for the SAS / e-mails / fiche, regenerate (rule 1); a token that no longer decrypts is replaced like a regeneration |
-| `utils/` | `emailContextBuilder.js` | T | `{{stayAppUrl}}` = the guest app's stay link, else the gate key's `{{gateAccessUrl}}`, else empty (rule 9bis b) |
-| `utils/` | `templateTokens.js` | T | `stayAppUrl` « Lien Mon séjour » in the catalogue (J-7, J-2 chips): a core variable, so it exists, with its fallback, while the plugin is absent; the plugin declares only the flag `hasStayApp` « Si lien Mon séjour » |
+| `plugins/guest-app/` | `emailContext.js` | C | The plugin's own e-mail variable `{{stayAppUrl}}` « Lien Mon séjour » and condition `hasStayApp` (J-7, J-2): the stay link, else the gate key's link (rule 9bis b) |
+| `plugins/guest-app/` | `rateLimiters.js` | C | The plugin's own limits, built with the core's `express-rate-limit`: sessions 30/h/IP, lookup 5/15 min/IP, orders 10/h/session, each `GUEST_*_RATELIMIT_*`-overridable |
+| `utils/` | `templateTokens.js` | T | Generic: a plugin's e-mail variable or condition may name its e-mails (`in`), honoured by the editor's chips like the catalogue's (`plugins-phase-1-sdk.md` rule 13) |
 | `plugins/guest-app/` | `sellable.js` | C | Pure: which items a lodging's shop shows and their free / included state (rules 23, 25) |
 | `plugins/guest-app/` | `serviceHours.js` | C | Pure: open ranges for a date, next opening, delivery slots from now + lead time to check-out, ignition-in-hours check (rules 31, 40-42) |
 | `plugins/guest-app/` | `homeHighlight.js` | C | Pure: status line + the single highlight (rules 10, 11) |
@@ -583,19 +587,18 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `sun.js` | C | Pure: sunrise / sunset at the estate, `isNight` (§6.1) |
 | `plugins/guest-app/` | `webManifest.js` | C | The install manifest (rule 52) |
 | `plugins/guest-app/` | `appHosting.js` | C | Serves the guest build on the guest host and the studio build at `/studio` for an admin (caching, SPA fallback, CSP, 503 without a build) — plan step 50 |
-| `plugins/sdk/createContext.js` · `registry.js` · `plugins/loader.js` | — | T | `ctx.webApp({ key, path?, host?, handler })` and `mountWebApps` (`plugins-phase-1-sdk.md` rule 47): a web app on the plugin's own host or path, the core's trees kept |
+| `plugins/sdk/createContext.js` · `registry.js` · `plugins/loader.js` | — | T | `ctx.webApp({ key, path?, host?, handler })` and `mountWebApps` (`plugins-phase-1-sdk.md` rule 48): a web app on the plugin's own host or path, the core's trees kept |
 | `utils/` | `publicCatalogProjection.js` | C | `toPublicOption` / `toPublicResource` moved out of `website-booking/publicProjections.js` (which imports them back) so the guest app does not depend on the website plugin |
-| `plugins/sdk/createContext.js` · `coreServices.js` | — | T | Three SDK hooks: `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`), `ctx.resourceHolds(fn)` and `ctx.paymentBasket({ source, paid })` (rules 35-36); the core exposes `coreServices.resourceScheduler()` and `coreServices.payments` — plugins never `require` each other |
+| `plugins/sdk/createContext.js` · `coreServices.js` | — | T | Three generic SDK hooks: `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`), `ctx.resourceHolds(fn)` (a hold may carry the planning's `label`) and `ctx.paymentBasket({ source, paid, labels })` (rules 35-36; `labels` = the owner's refund words); the core exposes `coreServices.resourceScheduler()` and `coreServices.payments` — plugins never `require` each other |
 | `plugins/hourly-resources/` | `index.js` | T | Declares the scheduler: `slotsForStay` (occupancy + `buildDays` + `priceSessions`, rule 28), `validateSessions`; reads every holds source as pending occupancy in **every** consumer (planning page, SAS picker, outside bookings) |
 | `plugins/gate-access/` | `index.js` | T | `window.js` moves to core `utils/stayWindow.js`; no new hook: the guest app reads the stay's key link from the e-mail context this plugin already declares (`gateAccessUrl`, rules 12-13) |
 | `utils/paymentRequestService.js` | — | T | `complement` link type with explicit basket and 30-min lifetime (rule 35) |
 | `utils/` | `basketPayments.js` | C | `ctx.core.payments`: mint, read on demand and withdraw a basket's link (rules 33, 35) |
-| `models/paymentLinksModel.js` · `utils/ledgerLinks.js` · `utils/reservationLedger.js` | — | T | `basketJson` read and written; a basket link is no bucket's link (stale, settled, the complement row); the ledger row « Commande client à rembourser » (rule 36) |
-| `utils/paymentPollRunner.js` | — | T | `applyPaidEffect` `complement` branch → `guestOrderCommit` |
-| `utils/` | `guestOrderCommit.js` | C | **Core**: commits an order's lines (options + resource sessions) as mid-stay extras, records a complement payment when paid, history entry — one transaction (rules 30, 34, 35) |
+| `models/paymentLinksModel.js` · `utils/ledgerLinks.js` · `utils/reservationLedger.js` | — | T | `basketJson` read and written; a basket link is no bucket's link (stale, settled, the complement row); the ledger row of a basket to refund, in the owner's words (« Commande client à rembourser », else the core's neutral « Paiement en ligne à rembourser », rule 36) |
+| `utils/paymentPollRunner.js` | — | T | `applyPaidEffect` `complement` branch → the basket owner's `paid` (`ctx.paymentBasket`) |
+| `utils/` | `midStayOrderCommit.js` | C | **Core, generic**: commits a plugin's order lines (options + resource sessions) as mid-stay extras, records a card payment as a settled note `{ source, ref }`, the history entry in the caller's words — one transaction (rules 30, 34, 35). The guest app names its orders « Commande client #N » |
 | `utils/` | `stayWindow.js` | C | The stay window, moved from `gate-access/window.js` (rule 2) |
-| `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.22.0), `guestOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
-| `middleware/` | `rateLimiters.js` | T | `guestSessionLimiter` (30/h/IP), `guestLookupLimiter` (5/15 min/IP), `guestOrderLimiter` (10/h/session), each `GUEST_*_RATELIMIT_*`-overridable |
+| `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.25.0), `midStayOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
 | `index.js` | — | T | `pluginLoader.mountWebApps(app)` before the favicon and the client: the plugin serves its guest app on the guest host and its studio at `/studio`, only while it is live |
 | `database.js` | — | T | `payment_links.basketJson` (nullable), through `utils/paymentLinksProviderMigration.js`: the only core column, the link's own basket (rule 35); everything else is in plugin migrations |
 
@@ -608,18 +611,28 @@ Two new Vite apps in the repo (`apps/guest/`, `apps/studio/`, shipped inside the
 package by `scripts/build-plugin-packages.mjs`, which copies their `dist/` into the package's `server/assets/<name>`; a
 build not made is skipped with a warning and that app answers 503), plus plugin contributions to the GuestFlow admin client.
 
-**`apps/guest/` — the guest PWA** (React, MUI with its own theme `apps/guest/src/theme.js` carrying the Domaine Solio
-tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus + Karla self-hosted in
-`apps/guest/public/fonts/`; icons `lucide-react`):
+**`apps/guest/` — the guest PWA** (React 19, MUI 9 for the modal layer of the sheets only, React Router 8; its own
+package and lockfile; `src/theme.js` is the single source of the §6.1 tokens, written as CSS custom properties on the
+`.app` root and as the MUI theme; the look itself is `src/styles.css`, the validated review boards v5 ported to a real
+viewport — safe areas, `46dvh` hero, rail and two panes from 900 px, content capped at 1200 px from 1200 px; fonts: the
+site's own Marcellus 400 and Karla variable woff2 in `public/fonts/` (OFL), preloaded, no request to Google; icons
+`lucide-react`, tree-shaken, 1.75 px stroke):
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `pages/` | `HomePage`, `BookletIndexPage`, `BookletPage`, `ShopPage`, `SlotPickerPage`, `CartPage`, `OrderPage`, `OrdersPage`, `SoliomapPage`, `LookupPage`, `LodgingEntryPage` (`/l/:code`) | C | Route-level views |
-| `components/` | `AppShell` (`TabBar` / `NavRail`), `HeroHeader`, `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `BlockRenderer` + one renderer per block type, `ProductCard`, `ProductSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `PaymentChoice`, `OrderTimeline`, `StatusChip`, `InstallPrompt`, `OfflineBanner` | C | Rendering only — anatomy in §6.4 |
-| `services/` | `api.js` | C | `fetch` with credentials, error envelope → typed errors |
-| `hooks/` | `useSession`, `useCart` (local state + localStorage), `useOrderStatus` (poll) | C | UI state |
-| `i18n/` | `fr.json`, `en.json` | C | App chrome strings (booklet content comes from the server) |
-| `public/` | `manifest.webmanifest`, `sw.js`, icons | C | Install + offline booklet |
+| `src/` | `main.jsx`, `App.jsx` | C | Mount, routes, the `.app` root (register tokens, `wide` / `desk` layout classes, `lang`), the service worker registration and its warm-up |
+| `src/` | `theme.js`, `styles.css` | C | Tokens (day / night) and the look |
+| `pages/` | `HomePage`, `BookletPages` (index + search + page, two panes from 900 px), `ShopPage`, `SlotPickerPage` (`/boutique/bain/:id`), `CartPage`, `OrdersPages` (`OrdersPage`, `OrderPage` — confirmation, detail, the Qonto return `/commande/:id`), `SoliomapPage` (`/activites`), `LookupPage` (`/retrouver`), `EntryPage` (`/s/:token`, `/l/:code`), `GateScreens` (unknown code, app unavailable) | C | Route-level views |
+| `components/` | `AppShell` (tab bar / rail, cart bar, offline pill), `AppBar`, `HeroHeader` (+ the language / day-night pill), `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `Photo`, `BlockRenderer` + `blocks/*` (one renderer per block type, props only), `ProductCard`, `ProductSheet`, `BreakfastSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `CartBody` (phone page and tablet panel), `PaymentChoice`, `OrderCard`, `OrderTimeline`, `StatusChip`, `Banner`, `EmptyState`, `ErrorAlert`, `Skeleton`, `BottomSheet` (sheet on a phone, centred dialog from 900 px, pull-to-dismiss), `Toast`, `InstallPrompt`, `OfflineBanner`, `Icon` | C | Rendering only — anatomy in §6.4 |
+| `services/` | `api.js`, `device.js` | C | `fetch` with the cookie, the envelope → `ApiError`, `?lang=`, one re-exchange on `SESSION_EXPIRED`; what the device keeps (stay link, poster code, language, register, visits, the cart) |
+| `hooks/` | `useSession`, `useCart`, `useLineQuote`, `useOrderStatus`, `useLoad`, `useLayout`, `useOnline`, `useActions` | C | UI state: the session and its re-exchange (rules 4, 9), the cart and its quotes (rule 32), the price of one prospective line (§6.5 rule 4), the order poll, the layout of rule 51, the network, what a tile / button opens |
+| `utils/` | `format.js` | C | Presentational only: a clock time `HH:MM` or an instant as the guest reads it, the stay card's « 6 → 9 nov. », copy to the clipboard |
+| `i18n/` | `index.js`, `fr.json`, `en.json` | C | App chrome strings (booklet content, titles, prices and order words come from the server) |
+| `public/` | `sw.js`, `icons/`, `fonts/`, `img/hero-domaine.jpg` | C | Offline shell + booklet (rule 21), install icons (sapin ground, the site's Marcellus « S »), the default lodging photo (the site's home hero). The manifest is the server's `GET /public/v1/guest/manifest.webmanifest` |
+
+Built to `apps/guest/dist` (`npm run build`), checked by `node scripts/check-bundle-budget.mjs --dist apps/guest/dist
+--budget 200000` (151 kB gzip on 2026-11-09). Development: `cd apps/guest && GUEST_API=http://localhost:4000 npm start`
+(port 5175, `/public/v1/guest` and `/uploads` proxied).
 
 **`apps/studio/` — the booklet studio** (React, MUI using GuestFlow's `client/src/theme.js`):
 
@@ -662,11 +675,11 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 |---|---|---|---|---|
 | POST | `/public/v1/guest/sessions` | — | `{ stayToken }` or `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt?, ended? }` + cookie; a `lodgingCode` always opens the visitor mode; unknown → 404 `CODE_NOT_FOUND` (one answer for every unknown, stale, revoked or disabled code) |
 | POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
-| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, isNight, tiles:[{key,label,order, state?, url?, stateLabel?}] (the gate tile carries rule 13's `state`, its `url` once active, « Accès en préparation » before), highlight?.detail (the arrival-day « se prépare » card), suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; a pre-arrival session on the arrival day, before the window, adds `opensAt` and `openingLine`; visitor: `{ mode, lodging, language, tiles:[…], welcome }` — nothing of any stay (rule 3); dead session 401 `SESSION_EXPIRED` |
+| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, appName, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, isNight, tiles:[{key,label,order, state?, url?, stateLabel?}] (the gate tile carries rule 13's `state`, its `url` once active, « Accès en préparation » before), highlight?.detail (the arrival-day « se prépare » card), suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; a pre-arrival session on the arrival day, before the window, adds `opensAt` and `openingLine`; visitor: `{ mode, lodging, language, tiles:[…], welcome }` — nothing of any stay (rule 3); dead session 401 `SESSION_EXPIRED` |
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
-| GET | `/public/v1/guest/lodging` | session or `lodgingCode` | — | `{ name, heroUrl, modules:[{key, label, order}], wifi?:{network, password, note?, joinQr}, contacts:[…] }` — only enabled modules / configured facts |
+| GET | `/public/v1/guest/lodging` | session or `lodgingCode` | — | `{ name, heroUrl, modules:[{key, label, order}], wifi?:{network, password, note?, joinQr}, contacts:[…], soliomap?:{url, embed} }` (`soliomap` only while the module shows; `embed` = the studio switch « Intégrer dans l'app », rule 15) — only enabled modules / configured facts |
 | GET | `/public/v1/guest/gate` | session | — | `{ state:'active'\|'preparing'\|'outside', url? }` — `url` only when `active` (a stay session whose key exists); any other session `outside`; the lodging's gate module off → 404 `MODULE_OFF`; `gate-access` off → 404 `{ error:'PLUGIN_INACTIVE', plugin:'gate-access' }` |
 | GET | `/public/v1/guest/shop` | stay or pre-arrival session (visitor → 404 `MODULE_OFF`) | — | `{ open, closedReason?, service (slice C), canPayCard, canPayNote, categories:[{ name, items:[{ kind:'option'\|'breakfast'\|'resource', id, title, shortDescription, imageUrl, price, priceLabel, priceUnitLabel, included?, includedLeft?, freeLeftLabel?, maxQuantity, needsStaff, scheduling?:'hourly', unavailableReason?, stock?:{ soldOut, left, leftLabel } }] }] }` (`stock` only on a tracked article: `left` never below 0, `leftLabel` « Plus que 2 » once `left` ≤ `maxQuantity`, rule 37quater); a `breakfast` item adds `state:'included'\|'sold'`, `defaultTime`, `mornings:[{date,label}]`, `occurrences:[{date,time}]` |
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
@@ -946,8 +959,8 @@ le nom et le numéro. »
   errors, payload minimisation
 - [x] `…/guest-app-stay-links.unit.test.js` (11) — rules 1, 2, 9, 9bis, 11quater: created on first need and shown
   again, regenerate kills the old link and its sessions, undecryptable token replaced, cancelled stay / lodging
-  off / no guest host → 409, SAS switch reads without writing, e-mail URL (none without an address), the core
-  `{{stayAppUrl}}` → gate-link fallback, reception allowed
+  off / no guest host → 409, SAS switch reads without writing, e-mail URL (none without an address), the plugin's
+  own `{{stayAppUrl}}` → gate-link fallback (absent from the core context), reception allowed
 - [x] `client/src/plugins/sas/__tests__/ReservationSasDialog.stay-app.test.jsx` (7) — rules 1, 9bis a: « Mon séjour »
   replaces the step, « QR du portail seul », regenerate after confirmation, plugin off / lodging off → gate step,
   link unreadable → warning + gate step
@@ -983,7 +996,7 @@ le nom et le numéro. »
 - [x] `…/guest-app-orders-admin.unit.test.js` (6) — rules 11, 38, 43, 45: the list, « Marquer livrée », planning cards, reception
 - [x] `tests/payment-complement-link.unit.test.js` (7) — `ensurePaymentLink` / `applyPaidEffect` complement
   branch, refusal without basket, 30 min, no arrival lapse, « à rembourser », `ctx.paymentBasket`
-- [x] `tests/guest-order-commit.unit.test.js` (9) — rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
+- [x] `tests/mid-stay-order-commit.unit.test.js` (10) — rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
 - [x] `…/guest-app-stock.unit.test.js` (11) — rules 37bis-37quater: restock sets the count with its history line and
   is what the cellar holds now, « En rupture », no stock for the bath or the breakfast, holds of an unpaid card order
   released on expiry / abandon and counted once paid, a site line counted on the arrival day and not before, a line
@@ -1002,11 +1015,24 @@ le nom et le numéro. »
 - [x] `…/guest-app-install.unit.test.js` (4) — rules 52, 53: the manifest, `isNight` by the season's sun
 - [x] `…/guest-app-hosting.unit.test.js` (4) — rules 15, 47, 52 (plan step 50): caching, the app's routes, 404, no file
   outside the build, the CSP and its Soliomap frame, 503 without a build, the studio's admin gate
-- [x] `tests/plugins-web-apps.unit.test.js` (4) — `plugins-phase-1-sdk.md` rule 47: host and path web apps, the core's
+- [x] `tests/plugins-web-apps.unit.test.js` (4) — `plugins-phase-1-sdk.md` rule 48: host and path web apps, the core's
   trees kept, a plugin not live falls through, registration refusals
 - [x] `…/guest-app-home.unit.test.js` — rules 10-11
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
   then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
+
+### Guest app client tests (Vitest, `apps/guest/src/__tests__/`, 41)
+- [x] `HomePage.modules.test.jsx` (6) — rules 3, 5, 10, 11, 11bis, 13, 51: server tiles in order, gate « Accès en
+  préparation » / absent outside, no shop tab without shop, visitor home, the highlight's words
+- [x] `ShopPage.free-states.test.jsx` (6) — rules 25, 27, 32, 37quater, 42: included / free chips, « Épuisé » without
+  « + », « Plus que 2 », unavailable reason, pre-arrival read only, closed-service banner, the cart bar's server total
+- [x] `SlotGrid.states.test.jsx` (4) — rules 28-31: only the slots sent, evening rate, FR / EN times, several picks
+- [x] `CartPage.payment-choice.test.jsx` (6) — rules 25, 32, 33, 37quater, 41bis: note / card choice and the button's
+  server total, card off → note stated, 0 € → « Réserver », a line lowered to the stock left, pickup question, the order
+- [x] `BlockRenderer.blocks.test.jsx` (10) — rules 11ter, 18, 49: every block type, wifi copy / « Pas de wifi », targets
+- [x] `AppShell.night.test.jsx` (4) — §6.1, rules 19, 53: day / server night / device dark, the guest's choice kept, EN
+- [x] `session.reexchange.test.jsx` (5) — rules 1, 4, 9, 22: the stay link kept, a dead session reopened once, a stale
+  link forgotten, the poster's visitor fallback, « Application indisponible »
 
 ### Manual UI verification
 - [ ] Happy path mobile (390 px): scan QR → home → order 2 drinks for 18 h + 1 h bath → note with name → push
@@ -1058,9 +1084,9 @@ Decided by Adrien:
 
 Points the rules left open, decided in code:
 - The plugin owning a basket settles its payment through `ctx.paymentBasket({ source, paid })`
-  (`specs/plugins-phase-1-sdk.md` rule 46); with no live owner the effect is `basket-unallocated` and the usual admin
+  (`specs/plugins-phase-1-sdk.md` rule 47); with no live owner the effect is `basket-unallocated` and the usual admin
   alert fires.
-- A card payment is a settled mid-stay note (`midStaySettledNotes`, `source: guestOrder`, the provider's reference
+- A card payment is a settled mid-stay note (`midStaySettledNotes`, `source: guestOrder`, `ref` = the order id, the provider's reference
   and payment day). `paid_conflict` books no note (it would count as revenue): the link stays paid with `refundOwed`,
   the history says « Remboursement à faire » and the ledger shows « Commande client à rembourser ».
 - A late payment on an abandoned order is handled like an expired one: booked if its slots are free, else
@@ -1106,13 +1132,29 @@ Points the rules left open, decided in code and recorded here:
 - A token that no longer decrypts (key changed) is revoked and replaced, like a regeneration.
 - The stay-link routes answer 409 for a non-active reservation, a lodging off the app or an unset app host, and
   404 for an unknown reservation. Reception may read and regenerate (it runs the SAS).
-- `{{stayAppUrl}}` is a core template variable with its gate-link fallback in `emailContextBuilder.js`, so it works
-  without the plugin; the operator writes the sentence in the template under `{{#if hasStayApp}}`. A guest with no
+- `{{stayAppUrl}}` was first a core template variable; since 2026-11-09 (« cœur générique ») it is the plugin's own
+  (`emailContext.js`), its gate-link fallback computed in the plugin, empty while the plugin is inactive; the
+  operator writes the sentence in the template under `{{#if hasStayApp}}`. A guest with no
   e-mail address gets no link from the e-mails.
 - The `sas.portal` slot: a contribution flagged `leadsStep: { title }` leads the step while its SAS data says
   `available`; the other contributions are passed to it as `gateStep`, so the keypad code shows once
   (`specs/plugins-phase-1-sdk.md`, slots table).
 - The SAS line « Le lien vaut jusqu'au… » shows the end of the stay window (check-out + 2 h).
+
+### Resolved (2026-11-09, « cœur générique »)
+
+Adrien: the feature is a plugin — what GuestFlow does not have is built in the plugin; the core keeps only generic
+extension points any plugin could use, with no guest-app name or wording, and the money and the reservation write
+stay on the core's path (plugins phase 2 rule 2). Applied:
+- the session / lookup / order limits live in the plugin (`rateLimiters.js`), no longer in the core's limiters;
+- `coreModule('guestOrderCommit')` became `coreModule('midStayOrderCommit')`: the caller names its order (`source`,
+  `ref`) and writes the history entry in its own words;
+- `ctx.paymentBasket({ source, paid, labels })`: the ledger row of a basket to refund reads its owner's words, the
+  core's neutral « Paiement en ligne à rembourser » otherwise; the provider origin is `basket`;
+- a resource hold carries its `label` (« Commande client en attente de paiement »), hourly-resources showing
+  « Créneau réservé, en attente » for a hold without one;
+- `{{stayAppUrl}}` is the plugin's own e-mail variable (rule 9bis b); a plugin e-mail variable may name its e-mails
+  (`in`).
 
 ### Resolved (2026-11-08, review of the boards v5)
 
@@ -1193,11 +1235,11 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | Slice | State |
 |---|---|
 | A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); A6 (Q10, one link per stay, step 13bis) done 2026-11-06: stay links, poster visitor-only, name confirmation removed, SAS « Mon séjour », `{{stayAppUrl}}`; the fiche's « Lien Mon séjour » has its server routes, its card comes with the UI lots |
-| B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.22.0); full server suite 10 561 / 10 561 |
-| C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
-| E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.22.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
-| D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `guestOrderCommit`, `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.22.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
-| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next |
+| B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.25.0); full server suite 10 561 / 10 561 |
+| C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.25.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
+| E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.25.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
+| D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `midStayOrderCommit` (generic since 2026-11-09), `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.25.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
+| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next. Guest app (slice F) built 2026-11-09 on `feature/guest-app-pwa`: every screen of §6.6 on the boards v5, offline booklet, install, FR / EN, night; 41 client tests; first load 151 kB gzip; walked at 390 / 900 / 1280 px, day and night, EN, against the plugin's routers; axe 0 serious on every screen in both registers. The studio (slice G) is next |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |
 

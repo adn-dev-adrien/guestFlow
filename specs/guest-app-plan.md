@@ -83,7 +83,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 11. `controllers/sessionController.js`: `POST /sessions`, `POST /sessions/lookup` (generic 404, constant
     time), `GET /me` (rule 8 minimisation), (name confirmation removed on 2026-11-06, Q10),
     `GET /lodging`. Cookie `gf_guest` `HttpOnly; Secure; SameSite=Strict`.
-12. `middleware/rateLimiters.js`: `guestSessionLimiter`, `guestLookupLimiter` (env-overridable like the
+12. `plugins/guest-app/rateLimiters.js` (in the core's `middleware/rateLimiters.js` until 2026-11-09): the session and lookup limits (env-overridable like the
     others).
 13. Pure `homeHighlight.js` (status line + single highlight, rules 10-11) with a clock argument.
 
@@ -173,12 +173,12 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 ## Slice D — Orders and payment (rules 32-38, 43-46)
 
 ### D1 — The core commit (money stays core)
-26. Core `utils/guestOrderCommit.js`: one transaction — add option quantities to the existing line or
+26. Core `utils/midStayOrderCommit.js` (named `guestOrderCommit` until 2026-11-09, made generic): one transaction — add option quantities to the existing line or
     create it, add resource sessions to the stay's `reservation_resources` line (raising sold hours), all
     through the same path as `PUT /api/reservations/:id` on a locked fiche (`ARRIVAL_EXTRAS_FROZEN` /
     `MID_STAY_EXTRAS_CLOSED` respected), history entry « Commande client #N », optional `complement`
     payment recorded in the ledger. Exposed in `coreModules.json`.
-27. `tests/guest-order-commit.unit.test.js` (core): note → `endOfStayComplementDetail` lines
+27. `tests/mid-stay-order-commit.unit.test.js` (core): note → `endOfStayComplementDetail` lines
     `source:'midStayExtra'`; paid → lines + ledger payment, complement unchanged; quantities merge; closed
     window refused.
 
@@ -192,7 +192,7 @@ guest UI, so the riskiest code is the most tested before a guest can reach it.
 30. `utils/paymentRequestService.js`: `ensurePaymentLink` accepts `complement` **only** with an explicit
     basket `{ source: 'guestOrder', orderId, lines }`; VAT basket from the lines; lifetime 30 min; exempt
     from the arrival-day lapse.
-31. `utils/paymentPollRunner.js`: `applyPaidEffect` `complement` branch → `guestOrderCommit`; late payment
+31. `utils/paymentPollRunner.js`: `applyPaidEffect` `complement` branch → the basket owner's `paid`, which calls `midStayOrderCommit`; late payment
     after expiry → commit if slots still free, else `paid_conflict` + push.
 32. Return URL on the guest host (`/commande/:id`), added to the allowed return origins next to
     `publicSiteOrigin`.

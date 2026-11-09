@@ -19,8 +19,14 @@ test('rule 8 — one action per due row; « Caisse interne » only on the comple
   const id = createStay();
   db.prepare('UPDATE reservations SET complementAmount = 24 WHERE id = ?').run(id);
   const q = await liveQuote(id);
-  assert.deepEqual(rowIn(q, 'deposit').action, { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' });
-  assert.deepEqual(rowIn(q, 'balance').action, { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' });
+  // specs/mixed-method-payments.md rule 21 — a markable row also offers « Plusieurs moyens » (`split`), never shown before
+  // the form is open: the action itself is unchanged.
+  const { split: depositSplit, ...depositAction } = rowIn(q, 'deposit').action;
+  const { split: balanceSplit, ...balanceAction } = rowIn(q, 'balance').action;
+  assert.deepEqual(depositAction, { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' });
+  assert.deepEqual(balanceAction, { kind: 'mark', label: 'Marquer perçu', dateLabel: 'Perçu le' });
+  assert.equal(depositSplit.dueCents, Math.round(rowIn(q, 'deposit').amount * 100));
+  assert.ok(balanceSplit.methods.length === 6);
   assert.equal(rowIn(q, 'cautionReceived').action.label, 'Recevoir');
   const stored = await liveQuote(id, { complementAmountOverride: 24 });
   assert.equal(rowIn(stored, 'complement').action.cash, true);

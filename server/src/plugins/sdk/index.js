@@ -104,7 +104,7 @@ const CORE_MODULES = Object.freeze({
   // linen, school-holidays, hourly-resources — the date window of every entered date (reservations-backend-mvc rule 13)
   stayDates: '../../utils/stayDates',
   // gate-access, guest-app, hourly-resources — one stay window for the gate keys, the guest sessions and the guest's
-  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.22.0)
+  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.25.0)
   stayWindow: '../../utils/stayWindow',
   // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app.md §5)
   encryption: '../../utils/encryption',
@@ -116,8 +116,8 @@ const CORE_MODULES = Object.freeze({
   safeFeedFetch: '../../utils/safeFeedFetch',
   // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
   instancePaths: '../../utils/instancePaths',
-  // guest-app — an order written on the fiche as a mid-stay extra and priced by its engine (specs/guest-app.md rules 24, 30, 34, 35)
-  guestOrderCommit: '../../utils/guestOrderCommit',
+  // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 47)
+  midStayOrderCommit: '../../utils/midStayOrderCommit',
   // accounting-export — the accounting synthesis reads the core's own finance figures, never a second
   // derivation (specs/accounting-synthesis.md rules 7-10, SDK 2.23.0)
   financeModel: '../../models/financeModel', // the stays' revenue of a window and the tourist-tax extraction
@@ -125,6 +125,11 @@ const CORE_MODULES = Object.freeze({
   financeWindow: '../../utils/financeWindow', // the custom window's refusals, shared with the Suivi financier
   fiscalYear: '../../utils/fiscalYear', // the exercise bounds of the app's closing month
   yearOverYear: '../../utils/yearOverYear', // one year earlier, and the change in percent
+  // accounting-export, online-payment, sas — one payment split over several methods (specs/mixed-method-payments.md,
+  // SDK 2.24.0): its rules, its settlements, and the one writer the SAS records them through
+  paymentTenders: '../../utils/paymentTenders',
+  paymentSettlementsModel: '../../models/paymentSettlementsModel',
+  paymentSettlementService: '../../utils/paymentSettlementService',
 });
 
 function coreModule(name) {

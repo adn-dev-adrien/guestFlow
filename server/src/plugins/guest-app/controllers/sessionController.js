@@ -48,8 +48,12 @@ async function wifiView(wifi) {
   return { network: wifi.network, password: wifi.password, ...(wifi.note ? { note: wifi.note } : {}), joinQr };
 }
 
+// The settings' own default (settings.js `appName`).
+const DEFAULT_APP_NAME = 'Domaine Solio';
+
 function buildSessionController({
   lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, readGateUrl = gate.keyUrlOf,
+  appName = () => null, soliomapEmbed = () => false,
 }) {
   function factsOf(lodging) {
     return {
@@ -193,7 +197,7 @@ function buildSessionController({
     const { tiles, gateState } = withGate(tilesOf(shown), req.guest, lang);
     // §6.1 — the night register from sunset to sunrise at the estate, the same moment on every device.
     const base = {
-      mode, lodging: lodgingView(lodging), language: lang, isNight: isNight(at), tiles,
+      mode, appName: String(appName() || '').trim() || DEFAULT_APP_NAME, lodging: lodgingView(lodging), language: lang, isNight: isNight(at), tiles,
     };
     // Rule 3 — a visitor learns nothing of any stay, not even that one starts today.
     if (!stay) return publicHttp.ok(res, { ...base, welcome: welcomeLine(lodging.name, lang) });
@@ -238,6 +242,8 @@ function buildSessionController({
       modules: shown,
       ...(has('wifi') ? { wifi: await wifiView(shownLodging.wifi) } : {}),
       contacts: has('contacts') ? shownLodging.contacts : [],
+      // Rule 15 — the « Activités » tile opens Soliomap in the app's frame only once the studio switch says it may.
+      ...(has('soliomap') ? { soliomap: { url: soliomapUrl(), embed: soliomapEmbed() } } : {}),
     });
   }
 

@@ -10,6 +10,9 @@ const sdk = require('../sdk');
 const { priceSessions } = require('./hourlyPricing');
 const resourceOccupancyModel = require('./occupancyModel');
 
+// A slot a plugin holds before it reaches the planning, when its source names it in no words of its own.
+const HELD_SLOT = 'Créneau réservé, en attente';
+
 const JOIN_QUERY = `
   SELECT rb.*,
     r.name AS resourceName, r.slotDuration, COALESCE(prp.price, r.price) AS resourcePrice, r.openTime, r.closeTime, r.turnoverMinutes, r.openDays,
@@ -360,7 +363,7 @@ function createModel(database) {
       endTime: hold.end,
       turnoverMinutes: Number(resource.turnoverMinutes || 0),
       propertyName: '',
-      displayName: 'Commande en attente de paiement',
+      displayName: hold.label || HELD_SLOT,
       paid: false,
     }));
   }

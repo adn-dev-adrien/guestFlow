@@ -166,7 +166,7 @@ function basketOfLink(database, link) {
 }
 
 // Rules 35-36 — the live plugin that declared the basket's source settles it (`ctx.paymentBasket`). Money it keeps
-// nothing for (`refundOwed`, a guest order whose slot was taken meanwhile) is flagged on the link — the ledger shows
+// nothing for (`refundOwed`: an order the plugin could no longer honour) is flagged on the link — the ledger shows
 // it « à rembourser » — and written in the stay's history. With no live owner the money is the admin's to sort out.
 function settleBasket({ database, link, basket, paidDate, paidAt }) {
   const registry = require('../plugins/sdk/registry');
@@ -195,7 +195,7 @@ function settleBasket({ database, link, basket, paidDate, paidAt }) {
     const amount = require('./reservationLedger').formatEuros(Number(link.amountCents || 0) / 100);
     database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
       .run(Number(link.reservationId), JSON.stringify([{
-        field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés (lien ${link.id}) : ${outcome.reason || 'commande non honorée'}, à rembourser depuis l’espace du prestataire`,
+        field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés (lien ${link.id}) : ${outcome.reason || 'achat non honoré'}, à rembourser depuis l’espace du prestataire`,
       }]));
     return { effect: 'basket-refund-owed', reservationId: Number(link.reservationId) };
   }

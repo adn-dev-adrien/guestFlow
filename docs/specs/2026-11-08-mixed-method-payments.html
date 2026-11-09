@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Un paiement, plusieurs moyens — GuestFlow</title>
+<style>
+  :root {
+    --primary: #2F5D46; --primary-dark: #244A37; --primary-soft: #E3ECE6;
+    --honey: #C99038;
+    --paper: #F8F5EF; --card: #FFFFFF; --ink: #27251F; --muted: #6E6A5E; --line: #E6E0D4;
+    --success: #3E7D54; --success-soft: #E6EFE7;
+    --error: #A8432F; --error-soft: #F6E4DF;
+    --warning: #8A6216; --warning-soft: #F5ECD9;
+    --serif: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --radius: 14px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); }
+  ::selection { background: var(--primary-soft); color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+  a { color: var(--primary); text-underline-offset: 3px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; color: var(--ink); text-wrap: balance; }
+  h1 { font-size: 2.3rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 10px; }
+  h2 { font-size: 1.45rem; line-height: 1.2; letter-spacing: -0.01em; margin: 56px 0 14px; }
+  h3 { font-size: 1.08rem; margin: 0 0 6px; }
+  p { margin: 0 0 12px; max-width: 72ch; }
+  .lede { font-size: 1.08rem; color: var(--muted); max-width: 70ch; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .pill.draft { background: var(--warning-soft); border-color: transparent; color: var(--warning); font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+  ul.plain { margin: 0; padding-left: 20px; max-width: 74ch; }
+  ul.plain li { margin: 0 0 7px; }
+  .grid2 { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; }
+
+  /* ---------- Mock controls ---------- */
+  .stage-bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 0 0 14px; }
+  .seg { display: inline-flex; background: #EEE9DF; border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: transparent; font: 600 13px var(--sans); color: var(--muted); padding: 8px 14px; border-radius: 999px; cursor: pointer; min-height: 36px; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(39,37,31,.12); }
+  .reset { border: 0; background: none; color: var(--primary); font: 600 13px var(--sans); cursor: pointer; padding: 8px 4px; }
+  .stage { display: grid; gap: 20px; grid-template-columns: 1fr; align-items: start; }
+  @media (min-width: 1000px) { .stage { grid-template-columns: minmax(0, 1fr) 300px; } }
+  .device { background: #E9E3D7; border-radius: 22px; padding: 18px; display: flex; justify-content: center; overflow: hidden; }
+  .screen { width: 100%; max-width: 760px; container-type: inline-size; transition: max-width 420ms var(--ease); }
+  .device.mobile .screen { max-width: 390px; }
+  @media (prefers-reduced-motion: reduce) { .screen { transition: none; } }
+
+  /* ---------- App replica ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 2px rgba(39,37,31,.06), 0 6px 20px rgba(39,37,31,.06); padding: 18px; }
+  .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .card-head h3 { font-size: 1.15rem; margin: 0; }
+  .card-head .total { font-weight: 700; }
+  .row { padding: 13px 0; border-top: 1px solid var(--line); }
+  .row:first-of-type { border-top: 0; }
+  .row-main { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; }
+  .row-main > div:first-child { flex: 1 1 150px; min-width: 0; }
+  .row-label { font-weight: 600; }
+  .row-sub { color: var(--muted); font-size: 13px; }
+  .row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; margin-left: auto; }
+  .amount { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .badge.ok { background: var(--success-soft); color: var(--success); }
+  .badge.due { background: var(--warning-soft); color: var(--warning); }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .btn { white-space: nowrap; font: 600 14px var(--sans); border-radius: 999px; min-height: 44px; padding: 0 18px; cursor: pointer; border: 1px solid transparent; transition: background 160ms, transform 100ms ease-out, opacity 160ms; }
+  .btn:active:not(:disabled) { transform: scale(0.97); }
+  .btn.primary { background: var(--primary); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn.primary:disabled { opacity: .38; cursor: not-allowed; }
+  .btn.outline { background: var(--card); border-color: var(--primary); color: var(--primary); }
+  .btn.text { background: none; color: var(--ink); padding: 0 12px; }
+  .btn.quiet { background: none; color: var(--muted); padding: 0 10px; font-weight: 500; text-decoration: underline; text-decoration-color: #CFC8B8; text-underline-offset: 4px; }
+  .btn.quiet:hover { color: var(--ink); }
+  .btn.mode { background: var(--card); border-color: var(--line); color: var(--ink); flex: 1 1 140px; }
+  .btn.mode:hover { border-color: var(--primary); }
+
+  .form { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--paper); display: grid; gap: 12px; animation: open 220ms var(--ease); }
+  @keyframes open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .form, .lines, .tline { animation: fade 150ms ease-out !important; } @keyframes fade { from { opacity: 0; } to { opacity: 1; } } }
+  .field { display: grid; gap: 4px; }
+  .field label, .flabel { font-size: 12px; font-weight: 600; color: var(--muted); }
+  input[type=text], input[type=date], select { font: 16px var(--sans); color: var(--ink); background: var(--card); border: 1px solid #D6CFC0; border-radius: 8px; min-height: 44px; padding: 0 12px; width: 100%; }
+  input[type=text] { font-variant-numeric: tabular-nums; }
+  input:focus, select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  input.err { border-color: var(--error); box-shadow: 0 0 0 3px var(--error-soft); }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .actions .spacer { flex: 1; }
+  .switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; min-height: 44px; font-size: 14px; user-select: none; -webkit-user-select: none; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch .track { width: 38px; height: 22px; border-radius: 999px; background: #CFC8B8; position: relative; transition: background 180ms; flex-shrink: 0; }
+  .switch .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 220ms var(--ease); }
+  .switch input:checked + .track { background: var(--primary); }
+  .switch input:checked + .track::after { transform: translateX(16px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  /* Tender lines */
+  .lines { display: grid; gap: 10px; animation: open 240ms var(--ease); }
+  .tline { display: grid; gap: 8px; grid-template-columns: 1fr; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; animation: open 220ms var(--ease); }
+  .tline-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 8px; align-items: center; }
+  .tline-row .switch.mini { grid-row: 2; grid-column: 1 / -1; }
+  @container (min-width: 560px) {
+    .tline { grid-template-columns: 170px minmax(0,1fr); align-items: center; }
+    .tline-row { grid-template-columns: minmax(0,1fr) auto auto; }
+    .tline-row .switch.mini { grid-row: auto; grid-column: auto; min-height: 44px; }
+    .tline-row .icon-btn { grid-column: 3; }
+  }
+  .amt-wrap { position: relative; }
+  .amt-wrap input { padding-right: 64px; }
+  .amt-wrap .suffix { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--muted); pointer-events: none; }
+  .tline.auto input { color: var(--muted); background: #FBFAF7; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .icon-btn:hover { background: #EEE9DF; color: var(--ink); }
+  .icon-btn[hidden] { display: none; }
+  .switch.mini { font-size: 13px; color: var(--ink); }
+  .switch.mini[hidden] { display: none; }
+  .meter { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 2px 4px; font-size: 14px; }
+  .meter .val { font-weight: 700; font-variant-numeric: tabular-nums; transition: color 180ms; }
+  .meter.ok .val { color: var(--success); }
+  .meter.over .val { color: var(--error); }
+  .add { justify-self: start; }
+  .msg { color: var(--error); font-weight: 600; font-size: 13.5px; min-height: 0; }
+  .msg:empty { display: none; }
+
+  .tenders { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+  .tenders li { font-size: 13px; color: var(--muted); display: flex; gap: 8px; font-variant-numeric: tabular-nums; }
+  .tenders li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #CFC8B8; margin-top: 8px; flex-shrink: 0; }
+  .tenders .tag { color: var(--warning); font-weight: 600; }
+  .undo { margin-top: 6px; }
+
+  /* SAS */
+  .sas-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .sas-step { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .sas-item { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px; background: var(--paper); border-radius: 10px; margin-bottom: 14px; }
+  .modes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .modes .btn[aria-pressed="true"] { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+  .sas-done { padding: 14px; border-radius: 10px; background: var(--success-soft); color: var(--success); font-weight: 600; }
+
+  /* Side: what counts */
+  .counts h3 { margin-bottom: 12px; }
+  .count { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .count:first-of-type { border-top: 0; }
+  .count .k { font-size: 14px; }
+  .count .k small { display: block; color: var(--muted); font-size: 12.5px; }
+  .count .v { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; transition: color 200ms; }
+  .count .v.changed { animation: bump 500ms var(--ease); }
+  @keyframes bump { 0% { color: var(--primary); } 100% { color: var(--ink); } }
+  .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+  .compare { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .compare th, .compare td { text-align: left; padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+  .compare th { font-size: 12.5px; color: var(--muted); font-weight: 600; border-top: 0; }
+  .table-scroll { overflow-x: auto; }
+  .decision { display: grid; gap: 4px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .decision:first-of-type { border-top: 0; padding-top: 0; }
+  .decision b { font-weight: 600; }
+  .decision span { color: var(--muted); font-size: 14px; }
+  .open-q { border-left: 0; background: var(--warning-soft); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .open-q b { color: var(--warning); }
+  .meter.short .val { color: var(--warning); }
+  .shortfall { display: grid; gap: 10px; padding: 12px; border-radius: 10px; background: var(--warning-soft); animation: open 220ms var(--ease); }
+  .shortfall[hidden] { display: none; }
+  .short-title { font-weight: 600; color: var(--warning); font-size: 14px; }
+  .choices { display: grid; gap: 8px; grid-template-columns: 1fr; }
+  @container (min-width: 520px) { .choices { grid-template-columns: 1fr 1fr; } }
+  .choice { text-align: left; font: inherit; color: var(--ink); background: var(--card); border: 1px solid #E2D3B4; border-radius: 10px; padding: 11px 13px; cursor: pointer; min-height: 44px; display: grid; gap: 2px; transition: border-color 160ms, box-shadow 160ms; }
+  .choice:hover { border-color: var(--warning); }
+  .choice b { font-size: 14px; }
+  .choice span { font-size: 13px; color: var(--muted); }
+  .choice[aria-pressed="true"] { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
+  .choice[aria-pressed="true"] b::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-right: 7px; vertical-align: 1px; }
+  .month-warn { font-size: 13.5px; color: var(--warning); font-weight: 600; }
+  .month-warn:empty { display: none; }
+  .settle { margin-top: 8px; }
+  .settle + .settle { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .settle-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .settle-head .row-sub { margin: 0; }
+  .tenders .short-line { color: var(--warning); }
+  .tenders .waived-line { color: var(--warning); }
+  .remainder { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--warning-soft); }
+  .remainder span { font-weight: 600; color: var(--warning); font-size: 14px; }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .hist { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); list-style: none; display: grid; gap: 8px; }
+  .hist li { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .hist:empty { display: none; }
+  footer { margin-top: 64px; color: var(--muted); font-size: 13px; }
+  @media (max-width: 600px) {
+    .wrap { padding: 28px 16px 60px; }
+    h1 { font-size: 1.85rem; }
+    .device { padding: 10px; border-radius: 16px; }
+    .card { padding: 14px; }
+    .actions .btn { flex: 1 1 100%; }
+    .actions .spacer { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Un paiement, plusieurs moyens</h1>
+  <p class="lede">Le 8 novembre, les clients ont pris le ménage de fin de séjour au départ et l'ont payé en partie en espèces, en partie par carte. GuestFlow ne sait pas l'enregistrer : un paiement est soit entièrement en compta, soit entièrement en caisse interne.</p>
+  <div class="meta">
+    <span class="pill draft">Spec à valider · version 2</span>
+    <span class="pill">9 novembre 2026</span>
+    <span class="pill">specs/mixed-method-payments.md</span>
+  </div>
+
+  <h2>Ce qui change depuis la version 1</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>On peut corriger après coup</h3>
+      <p>Un paiement réparti affiche « Modifier ». Le formulaire revient prérempli : date, moyens, montants, caisse interne. « Enregistrer » remplace l'encaissement, et l'historique garde l'avant et l'après. C'est refusé là où « Annuler l'encaissement » le serait déjà, par exemple si la ligne CB est rapprochée de la banque.</p>
+    </div>
+    <div class="panel">
+      <h3>Une somme non couverte n'est plus refusée</h3>
+      <p>Si les moyens font moins que le dû, une alerte apparaît avant de valider : « 8,00 € ne sont pas couverts ». Il faut choisir : <b>Reste à percevoir</b> (la fiche garde 8 € à encaisser plus tard, même avec un autre moyen) ou <b>Geste commercial</b> (8 € accordés, enregistrés en réduction comme celle du paiement unique). Au-dessus du dû, la saisie reste refusée.</p>
+    </div>
+  </div>
+
+  <h2>Essayer</h2>
+  <p>Fin de séjour de 122,00 €. « Marquer payé », puis « Plusieurs moyens ». Tapez 50 en espèces : la CB prend 72 toute seule. Puis tapez 64 dans la ligne CB pour faire apparaître l'alerte. Une fois encaissé, essayez « Modifier » et l'encaissement du reste.</p>
+
+  <div class="stage-bar">
+    <div class="seg" role="group" aria-label="Écran">
+      <button type="button" data-scene="fiche" aria-pressed="true">Fiche de réservation</button>
+      <button type="button" data-scene="sas" aria-pressed="false">SAS de départ</button>
+    </div>
+    <div class="seg" role="group" aria-label="Largeur">
+      <button type="button" data-width="desktop" aria-pressed="true">Bureau</button>
+      <button type="button" data-width="mobile" aria-pressed="false">Mobile 390 px</button>
+    </div>
+    <button type="button" class="reset" id="reset">Recommencer</button>
+  </div>
+
+  <div class="stage">
+    <div class="device" id="device"><div class="screen" id="screen"></div></div>
+    <aside class="panel counts" aria-live="polite">
+      <h3>Ce que comptent les chiffres</h3>
+      <div class="count"><div class="k">En compta<small>« Déjà payé », export</small></div><div class="v" id="c-books">—</div></div>
+      <div class="count"><div class="k">Caisse interne<small>hors compta</small></div><div class="v" id="c-internal">—</div></div>
+      <div class="count"><div class="k">Attendu en banque<small>rapprochement : CB, chèque, virement</small></div><div class="v" id="c-bank">—</div></div>
+      <div class="count"><div class="k">Geste commercial<small id="c-waived-sub">réduction accordée</small></div><div class="v" id="c-waived">—</div></div>
+      <div class="count"><div class="k">Reste dû sur la fiche</div><div class="v" id="c-due">122,00 €</div></div>
+      <p class="note" id="c-note">Rien n'est encore encaissé.</p>
+      <ul class="hist" id="c-hist" aria-label="Historique"></ul>
+    </aside>
+  </div>
+
+  <h2>Ce qu'on propose</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>Invisible tant qu'on ne le demande pas</h3>
+      <p>Une fiche au repos ne change pas. Le lien « Plusieurs moyens » n'apparaît qu'une fois le geste de paiement commencé : formulaire « Marquer payé » ouvert, ou étape de paiement du SAS à l'écran. « Modifier » et l'encaissement du reste n'existent que sur un paiement déjà réparti.</p>
+    </div>
+    <div class="panel">
+      <h3>Partout où l'on encaisse à la main</h3>
+      <p>Acompte, solde, complément, fin de séjour, paiement unique à l'arrivée, notes de mi-séjour, échéances, SAS d'arrivée et de départ. Jamais sur un lien de paiement, un versement de plateforme, un remboursement ou la caution.</p>
+    </div>
+    <div class="panel">
+      <h3>Le reste se répartit tout seul</h3>
+      <p>Deux lignes proposées (Espèces, puis CB), jusqu'à quatre. La dernière prend le reste. Le compteur affiche « Reste 0,00 € », « 8,00 € non couverts » (alerte et choix) ou « 8,00 € de trop » (refusé).</p>
+    </div>
+    <div class="panel">
+      <h3>Les chiffres suivent la vraie part</h3>
+      <p>La compta, la TVA et « Déjà payé » ne comptent que la part en compta, répartie au prorata sur les lignes de revenu. Le rapprochement bancaire n'attend que CB, chèque et virement. Le geste commercial ne touche jamais la taxe de séjour, qui se calcule sur le séjour.</p>
+    </div>
+  </div>
+
+  <h2>Comment font les autres</h2>
+  <div class="panel table-scroll">
+    <table class="compare">
+      <thead><tr><th></th><th>HIPPOCAMP</th><th>GuestFlow, proposé</th></tr></thead>
+      <tbody>
+        <tr><td><b>Saisie mixte</b></td><td>Un paiement après l'autre sur la facture (« Saisir un autre mouvement »)</td><td>Toutes les lignes en un seul geste, le reste calculé</td></tr>
+        <tr><td><b>Moyens</b></td><td>Liste paramétrable (13 dans la démo), journal comptable par moyen</td><td>Liste fixe : CB, Espèces, Chèque, Virement, Chèques-vacances, Autre</td></tr>
+        <tr><td><b>Espèces</b></td><td>Passent par une caisse : fond, comptage, clôture, remise en banque</td><td>Caisse interne cochée par défaut, sans module de caisse</td></tr>
+        <tr><td><b>Visibilité</b></td><td>Toujours visible (bouton « Paiements » sur chaque facture)</td><td>Caché jusqu'au lien « Plusieurs moyens »</td></tr>
+        <tr><td><b>Correction</b></td><td>Modifier une ligne tant que la caisse n'est pas clôturée</td><td>« Modifier » tant que rien n'est rapproché ni verrouillé</td></tr>
+        <tr><td><b>Paiement incomplet</b></td><td>La facture reste « paiement partiel », reste à payer affiché</td><td>Alerte, puis choix : reste à percevoir ou geste commercial</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <ul class="plain">
+    <li>Une liste de moyens paramétrable, un journal comptable par moyen.</li>
+    <li>Un module de caisse (fond, comptage, clôture, remises en banque).</li>
+    <li>Répartir un paiement par lien ou un versement de plateforme ; envoyer un lien pour un reste à percevoir.</li>
+    <li>Modifier un paiement ordinaire (un seul moyen) : on annule et on refait, comme aujourd'hui.</li>
+    <li>Un pourboire quand les moyens dépassent le dû : refusé.</li>
+    <li>Le détail « par moyen de paiement » dans la synthèse comptable : les données existeront, le panneau viendra ensuite.</li>
+  </ul>
+
+  <h2>Le risque</h2>
+  <ul class="plain">
+    <li>Tous les endroits qui lisent aujourd'hui « caisse interne oui/non » ou « payé oui/non » (compta, Suivi, rapprochement, chiffre d'affaires, reste à payer) doivent passer par une seule fonction serveur. Un endroit oublié compterait 122 € au lieu de 72 €, ou dirait « soldé » avec 8 € encore dus. Un test par endroit verrouille ce point.</li>
+    <li>Le reste à percevoir introduit un état nouveau, « Perçu en partie ». Il est limité aux paiements répartis : un paiement ordinaire reste tout ou rien.</li>
+    <li>Rien ne change pour les paiements existants : aucune donnée n'est réécrite, les nouvelles lignes vont dans deux tables à part.</li>
+  </ul>
+
+  <h2>Décisions</h2>
+  <div class="panel">
+    <div class="decision"><b>Accès : bouton discret</b><span>Tranché le 08/11 — « Plusieurs moyens » dans chaque geste de paiement manuel.</span></div>
+    <div class="decision"><b>Espèces : caisse interne cochée par défaut</b><span>Tranché le 08/11 — décochable ligne par ligne.</span></div>
+    <div class="decision"><b>Moyens : liste fixe</b><span>Tranché le 08/11 — six moyens.</span></div>
+    <div class="decision"><b>Corriger un paiement réparti</b><span>Demandé le 09/11 — « Modifier » sur la ligne payée.</span></div>
+    <div class="decision"><b>Somme non couverte : alerte et choix</b><span>Demandé le 09/11 — remplace « égal au dû » du 08/11. Proposé : reste à percevoir ou geste commercial.</span></div>
+  </div>
+  <h3 style="margin-top:22px">En attente</h3>
+  <div class="open-q"><b>Caisse interne sur un chèque ?</b> Proposé : non, seulement sur les espèces.</div>
+  <div class="open-q"><b>Chèques-vacances attendus en banque ?</b> L'ANCV rembourse plus tard, commission déduite. Proposé : non attendus, comme les espèces.</div>
+
+  <footer>GuestFlow · page autonome, sans réseau · spec de référence : specs/mixed-method-payments.md</footer>
+</div>
+
+<script>
+(() => {
+  const DUE = 12200;
+  const TODAY = '2026-11-08';
+  const METHODS = [
+    { v: 'card', l: 'CB' }, { v: 'cash', l: 'Espèces' }, { v: 'cheque', l: 'Chèque' },
+    { v: 'transfer', l: 'Virement' }, { v: 'holidayVoucher', l: 'Chèques-vacances' }, { v: 'other', l: 'Autre' },
+  ];
+  const label = (v) => METHODS.find((m) => m.v === v).l;
+  const eur = (c) => (c / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const plain = (c) => (c / 100).toFixed(2).replace('.', ',');
+  const frDate = (d) => d.split('-').reverse().join('/');
+  const parse = (s) => {
+    const t = String(s || '').replace(/\s/g, '').replace(/,/g, '.');
+    if (!t) return null;
+    const parts = t.match(/[+\-]?[0-9.]+/g);
+    if (!parts || parts.join('') !== t) return NaN;
+    const v = parts.reduce((a, p) => a + Number(p), 0);
+    return Number.isFinite(v) ? Math.round(v * 100) : NaN;
+  };
+  const icon = {
+    x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    plus: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="vertical-align:-3px;margin-right:6px"><path d="M12 5v14M5 12h14"/></svg>',
+    split: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" style="vertical-align:-3px;margin-right:6px"><path d="M4 7h16M4 12h10M4 17h6"/></svg>',
+    back: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" style="vertical-align:-3px;margin-right:6px"><path d="M4 12h16"/></svg>',
+  };
+
+  // form: null | { kind: 'new' | 'edit' | 'remainder', split, idx?, date, origDate?, lines, shortKind, error }
+  let state;
+  const fresh = (scene) => ({ scene: scene || 'fiche', open: false, form: null, settlements: [], single: null, sasMode: null, history: [] });
+  const newLines = () => ([
+    { method: 'cash', amount: '', internal: true, typed: false },
+    { method: 'card', amount: '', internal: false, typed: false },
+  ]);
+  const remainingDue = () => {
+    const last = state.settlements[state.settlements.length - 1];
+    return last && last.shortKind === 'due' ? last.short : 0;
+  };
+  const formDue = () => {
+    const f = state.form;
+    if (!f) return DUE;
+    if (f.kind === 'edit') return state.settlements[f.idx].due;
+    if (f.kind === 'remainder') return remainingDue();
+    return DUE;
+  };
+  const fmtLines = (tenders) => tenders.map((t) => `${label(t.method)} ${eur(t.cents)}${t.internal ? ' (caisse interne)' : ''}`).join(' · ');
+
+  // UX hint (rule 7): the last untyped line shows the remainder. The server re-checks everything.
+  const compute = () => {
+    const f = state.form; const due = formDue();
+    const ls = f.lines;
+    const autoIdx = ls.length && !ls[ls.length - 1].typed ? ls.length - 1 : -1;
+    let sum = 0, bad = false;
+    ls.forEach((l, i) => { if (i === autoIdx) return; const c = parse(l.amount); if (Number.isNaN(c)) bad = true; else if (c) sum += c; });
+    const autoVal = autoIdx >= 0 ? Math.max(due - sum, 0) : null;
+    const total = sum + (autoVal || 0);
+    return { due, autoIdx, autoVal, total, gap: due - total, bad };
+  };
+  const canSubmit = () => {
+    const { gap, total, bad } = compute();
+    if (bad || total <= 0) return false;
+    if (gap === 0) return true;
+    return gap > 0 && Boolean(state.form.shortKind);
+  };
+  const meterTxt = (gap) => gap === 0 ? 'Reste 0,00 €' : gap < 0 ? `${eur(-gap)} de trop` : `${eur(gap)} non couverts`;
+  const meterCls = (gap) => 'meter ' + (gap === 0 ? 'ok' : gap < 0 ? 'over' : 'short');
+  const submitLabel = () => {
+    const { total, gap } = compute();
+    const verb = state.form.kind === 'edit' ? 'Enregistrer' : 'Encaisser';
+    return state.form.kind === 'edit' ? verb : `${verb} ${eur(gap > 0 ? total : compute().due)}`;
+  };
+
+  // The server's check (rules 6, 8, 15, 18, 25), mocked.
+  const serverCheck = () => {
+    const f = state.form;
+    const { autoIdx, autoVal, gap, bad, due } = compute();
+    const lines = f.lines.map((l, i) => ({ ...l, cents: i === autoIdx ? autoVal : parse(l.amount) }));
+    if (bad) return { error: 'Montant illisible.' };
+    if (lines.some((l) => !l.cents || l.cents <= 0)) return { error: 'Chaque moyen doit avoir un montant.' };
+    if (gap < 0) return { error: `Les moyens font ${eur(due - gap)} pour ${eur(due)} dus.` };
+    if (gap > 0 && !f.shortKind) return { error: 'Choisissez ce que deviennent les ' + eur(gap) + ' non couverts.' };
+    const seen = new Set();
+    for (const l of lines) {
+      const k = l.method + ':' + (l.method === 'cash' && l.internal ? 'i' : 'b');
+      if (seen.has(k)) return { error: `Une seule ligne ${label(l.method)}${l.method === 'cash' ? (l.internal ? ' en caisse interne' : ' en compta') : ''}.` };
+      seen.add(k);
+    }
+    if (f.kind === 'edit' && f.idx < state.settlements.length - 1) {
+      const cur = state.settlements[f.idx];
+      if (gap !== cur.short || f.shortKind !== 'due') {
+        return { error: `Un reste a déjà été encaissé le ${frDate(state.settlements[f.idx + 1].date)} : modifiez-le d'abord.` };
+      }
+    }
+    return { ok: true, settlement: { date: f.date, due, tenders: lines.map((l) => ({ method: l.method, cents: l.cents, internal: l.method === 'cash' && l.internal })), short: Math.max(gap, 0), shortKind: gap > 0 ? f.shortKind : null } };
+  };
+
+  const screen = document.getElementById('screen');
+
+  const linesHtml = () => {
+    const f = state.form;
+    const { autoIdx, autoVal, gap, due } = compute();
+    const items = f.lines.map((l, i) => {
+      const isAuto = i === autoIdx;
+      const val = isAuto ? (autoVal ? plain(autoVal) : '') : l.amount;
+      return `<div class="tline ${isAuto ? 'auto' : ''}" data-i="${i}">
+        <select aria-label="Moyen ${i + 1}" data-k="method">${METHODS.map((m) => `<option value="${m.v}" ${m.v === l.method ? 'selected' : ''}>${m.l}</option>`).join('')}</select>
+        <div class="tline-row">
+          <div class="amt-wrap"><input type="text" inputmode="decimal" autocomplete="off" aria-label="Montant ${label(l.method)}" data-k="amount" value="${val}" placeholder="0,00"><span class="suffix">${isAuto ? 'reste' : '€'}</span></div>
+          <label class="switch mini" ${l.method === 'cash' ? '' : 'hidden'}><input type="checkbox" data-k="internal" ${l.internal ? 'checked' : ''}><span class="track"></span>Caisse interne</label>
+          <button type="button" class="icon-btn" data-k="remove" aria-label="Retirer cette ligne" ${f.lines.length > 1 ? '' : 'hidden'}>${icon.x}</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="lines">${items}
+      ${f.lines.length < 4 ? `<button type="button" class="btn quiet add" data-act="add">${icon.plus}Ajouter un moyen</button>` : ''}
+      <div class="${meterCls(gap)}" aria-live="polite"><span>Dû ${eur(due)}</span><span class="val">${meterTxt(gap)}</span></div>
+      <div class="shortfall" ${gap > 0 ? '' : 'hidden'} role="group" aria-label="Somme non couverte">
+        <div class="short-title" data-short-title>${gap > 0 ? eur(gap) : ''} ne sont pas couverts.</div>
+        <div class="choices">
+          <button type="button" class="choice" data-short="due" aria-pressed="${f.shortKind === 'due'}"><b>Reste à percevoir</b><span data-short-due>La fiche garde ${gap > 0 ? eur(gap) : ''} à encaisser plus tard.</span></button>
+          <button type="button" class="choice" data-short="waived" aria-pressed="${f.shortKind === 'waived'}"><b>Geste commercial</b><span data-short-waived>${gap > 0 ? eur(gap) : ''} accordés, enregistrés en réduction.</span></button>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  const formHtml = () => {
+    const f = state.form;
+    const isSplit = f.kind !== 'new' || f.split;
+    const monthWarn = f.origDate && f.date.slice(0, 7) !== f.origDate.slice(0, 7)
+      ? `Le mois comptable change : ${f.origDate.slice(5, 7)}/${f.origDate.slice(0, 4)} → ${f.date.slice(5, 7)}/${f.date.slice(0, 4)}.` : '';
+    return `<form class="form" data-form>
+      <div class="field"><label for="d">Perçu le</label><input id="d" type="date" value="${f.date}"></div>
+      <div class="month-warn">${monthWarn}</div>
+      ${isSplit ? linesHtml() : `<label class="switch"><input type="checkbox" id="single-internal"><span class="track"></span>Caisse interne</label>`}
+      <div class="msg" role="alert">${f.error || ''}</div>
+      <div class="actions">
+        <button type="submit" class="btn primary" ${!isSplit || canSubmit() ? '' : 'disabled'}>${isSplit ? submitLabel() : 'Valider'}</button>
+        <button type="button" class="btn text" data-act="cancel">Annuler</button>
+        <span class="spacer"></span>
+        ${f.kind === 'new' ? `<button type="button" class="btn quiet" data-act="toggle">${f.split ? icon.back + 'Un seul moyen' : icon.split + 'Plusieurs moyens'}</button>` : ''}
+      </div>
+    </form>`;
+  };
+
+  const tendersList = (s) => `<ul class="tenders">${s.tenders.map((x) => `<li><span>${label(x.method)} ${eur(x.cents)}</span>${x.internal ? '<span class="tag">caisse interne</span>' : ''}</li>`).join('')}
+    ${s.shortKind === 'waived' ? `<li class="waived-line"><span>Geste commercial ${eur(s.short)}</span></li>` : ''}</ul>`;
+
+  const settlementsHtml = () => state.settlements.map((s, i) => {
+    const editing = state.form && state.form.kind === 'edit' && state.form.idx === i;
+    const head = i === 0 ? `Perçu le ${frDate(s.date)} · plusieurs moyens` : `Reste perçu le ${frDate(s.date)}`;
+    return `<div class="settle">
+      <div class="settle-head"><div class="row-sub">${head}</div>${editing || state.form ? '' : `<button type="button" class="btn quiet" data-edit="${i}">Modifier</button>`}</div>
+      ${editing ? formHtml() : tendersList(s)}
+    </div>`;
+  }).join('');
+
+  const ficheHtml = () => {
+    let endRow;
+    const rest = remainingDue();
+    if (state.settlements.length) {
+      const badge = rest ? '<span class="badge due"><span class="dot"></span>Perçu en partie</span>' : '<span class="badge ok"><span class="dot"></span>Perçu</span>';
+      const remainderBlock = rest
+        ? (state.form && state.form.kind === 'remainder'
+          ? `<div class="settle"><div class="row-sub">Encaisser le reste de ${eur(rest)}</div>${formHtml()}</div>`
+          : `<div class="remainder"><span>Reste à percevoir ${eur(rest)}</span>${state.form ? '' : '<button type="button" class="btn outline" data-act="remainder">Marquer payé</button>'}</div>`)
+        : '';
+      endRow = `<div class="row-main"><div><div class="row-label">Fin de séjour</div><div class="row-sub">Ménage de fin de séjour</div></div>
+        <div class="row-right"><span class="amount">${eur(DUE)}</span>${badge}</div></div>
+        ${settlementsHtml()}
+        ${remainderBlock}
+        ${state.form ? '' : '<div class="row-actions"><button type="button" class="btn quiet" data-act="undo">Annuler l\'encaissement</button></div>'}`;
+    } else if (state.single) {
+      endRow = `<div class="row-main"><div><div class="row-label">Fin de séjour</div><div class="row-sub">Ménage de fin de séjour</div></div>
+        <div class="row-right"><span class="amount">${eur(DUE)}</span><span class="badge ok"><span class="dot"></span>Perçu</span></div></div>
+        <div class="row-sub" style="margin-top:6px">Perçu le ${frDate(state.single.date)} · ${state.single.internal ? 'caisse interne' : 'CB / chèque'}</div>
+        <div class="row-actions"><button type="button" class="btn quiet" data-act="undo">Annuler l'encaissement</button></div>`;
+    } else {
+      endRow = `<div class="row-main"><div><div class="row-label">Fin de séjour</div><div class="row-sub">Ménage de fin de séjour</div></div>
+        <div class="row-right"><span class="amount">${eur(DUE)}</span>${state.form ? '' : '<button type="button" class="btn outline" data-act="open">Marquer payé</button>'}</div></div>
+        ${state.form ? formHtml() : '<div style="margin-top:6px"><span class="badge due"><span class="dot"></span>À percevoir</span></div>'}`;
+    }
+    return `<div class="card">
+      <div class="card-head"><h3>Finance</h3><span class="total num">Séjour 842,00 €</span></div>
+      <div class="row"><div class="row-main"><div><div class="row-label">Acompte</div><div class="row-sub">Perçu le 12/09/2026 · lien de paiement</div></div><div class="row-right"><span class="amount">216,00 €</span><span class="badge ok"><span class="dot"></span>Perçu</span></div></div></div>
+      <div class="row"><div class="row-main"><div><div class="row-label">Solde</div><div class="row-sub">Perçu le 03/11/2026 · lien de paiement</div></div><div class="row-right"><span class="amount">504,00 €</span><span class="badge ok"><span class="dot"></span>Perçu</span></div></div></div>
+      <div class="row">${endRow}</div>
+    </div>`;
+  };
+
+  const sasHtml = () => {
+    if (state.settlements.length || state.single) {
+      const s = state.settlements[0];
+      const rest = remainingDue();
+      return `<div class="card"><div class="sas-head"><span class="sas-step">Départ · étape 3 sur 3</span></div>
+        <h3 style="font-size:1.15rem">Récapitulatif</h3>
+        <div class="sas-done" ${rest ? 'style="background:var(--warning-soft);color:var(--warning)"' : ''}>${rest ? `Ménage de fin de séjour : ${eur(DUE - rest)} encaissés, ${eur(rest)} à percevoir` : `Ménage de fin de séjour encaissé — ${eur(DUE)}`}</div>
+        ${s ? tendersList(s) : `<p class="row-sub" style="margin-top:8px">${state.single.later ? 'Reporté' : state.single.internal ? 'Payé en liquide · caisse interne' : 'CB / Chèque'}</p>`}
+        <button type="button" class="btn quiet undo" data-act="undo">Revenir à l'étape de paiement</button></div>`;
+    }
+    const f = state.form;
+    const m = state.sasMode;
+    const ok = f.split ? canSubmit() : Boolean(m);
+    return `<div class="card">
+      <div class="sas-head"><span class="sas-step">Départ · étape 2 sur 3</span></div>
+      <h3 style="font-size:1.15rem">Ce qui reste à régler</h3>
+      <div class="sas-item"><span>Ménage de fin de séjour</span><span class="amount">${eur(DUE)}</span></div>
+      ${f.split ? '' : `<div class="modes" role="group" aria-label="Mode de paiement">
+        <button type="button" class="btn mode" data-mode="card" aria-pressed="${m === 'card'}">CB / Chèque</button>
+        <button type="button" class="btn mode" data-mode="cash" aria-pressed="${m === 'cash'}">Payé en liquide</button>
+        <button type="button" class="btn mode" data-mode="later" aria-pressed="${m === 'later'}">Pas maintenant</button>
+      </div>`}
+      <form class="form" data-form style="background:none;padding:12px 0 0">
+        ${f.split ? linesHtml() : ''}
+        <div class="msg" role="alert">${f.error || ''}</div>
+        <div class="actions">
+          <button type="submit" class="btn primary" ${ok ? '' : 'disabled'}>${f.split ? submitLabel() : 'Continuer'}</button>
+          <span class="spacer"></span>
+          <button type="button" class="btn quiet" data-act="toggle">${f.split ? icon.back + 'Un seul moyen' : icon.split + 'Plusieurs moyens'}</button>
+        </div>
+      </form>
+    </div>`;
+  };
+
+  const counts = () => {
+    const set = (id, v) => { const el = document.getElementById(id); if (el.textContent !== v) { el.textContent = v; el.classList.remove('changed'); void el.offsetWidth; el.classList.add('changed'); } };
+    let books = 0, internal = 0, bank = 0, waived = 0, waivedBooks = 0;
+    state.settlements.forEach((s) => {
+      let received = 0, sb = 0;
+      s.tenders.forEach((t) => { received += t.cents; if (t.internal) internal += t.cents; else { books += t.cents; sb += t.cents; } if (['card', 'cheque', 'transfer'].includes(t.method)) bank += t.cents; });
+      if (s.shortKind === 'waived') { waived += s.short; waivedBooks += Math.round(s.short * sb / received); }
+    });
+    const single = state.single && !state.single.later ? state.single : null;
+    if (single) { if (single.internal) internal = DUE; else { books = DUE; bank = DUE; } }
+    const any = state.settlements.length || single;
+    const rest = state.settlements.length ? remainingDue() : (single ? 0 : DUE);
+    set('c-books', any ? eur(books) : '—');
+    set('c-internal', any ? eur(internal) : '—');
+    set('c-bank', any ? eur(bank) : '—');
+    set('c-waived', waived ? eur(waived) : '—');
+    document.getElementById('c-waived-sub').textContent = waived ? `dont ${eur(waivedBooks)} en rabais dans la compta` : 'réduction accordée';
+    set('c-due', eur(rest));
+    let note = "Rien n'est encore encaissé.";
+    if (state.single && state.single.later) note = 'Reporté : reste dû.';
+    else if (single) note = single.internal ? 'Comme aujourd’hui : tout en caisse interne.' : 'Comme aujourd’hui : tout en compta.';
+    else if (state.settlements.length) {
+      note = rest ? `La fiche n'est pas soldée : ${eur(rest)} restent à percevoir.` : (books && internal ? `La compta voit ${eur(books)}, réparti au prorata sur les lignes de revenu.` : 'Fiche soldée.');
+    }
+    document.getElementById('c-note').textContent = note;
+    document.getElementById('c-hist').innerHTML = state.history.slice(-3).reverse().map((h) => `<li>${h}</li>`).join('');
+  };
+
+  const render = (focusSel) => {
+    const active = document.activeElement;
+    const keep = active && active.closest && active.closest('.tline') ? { i: active.closest('.tline').dataset.i, k: active.dataset.k, pos: active.selectionStart } : null;
+    screen.innerHTML = state.scene === 'fiche' ? ficheHtml() : sasHtml();
+    counts();
+    if (keep) {
+      const el = screen.querySelector(`.tline[data-i="${keep.i}"] [data-k="${keep.k}"]`);
+      if (el) { el.focus(); if (keep.pos != null && el.setSelectionRange) try { el.setSelectionRange(keep.pos, keep.pos); } catch {} }
+    } else if (focusSel) { const el = screen.querySelector(focusSel); if (el) el.focus(); }
+  };
+
+  // Light refresh while typing: the auto line, the meter, the shortfall block and the submit button.
+  const refresh = () => {
+    const { autoIdx, autoVal, gap } = compute();
+    screen.querySelectorAll('.tline').forEach((row, i) => {
+      const isAuto = i === autoIdx;
+      row.classList.toggle('auto', isAuto);
+      row.querySelector('.suffix').textContent = isAuto ? 'reste' : '€';
+      if (isAuto) row.querySelector('input[data-k="amount"]').value = autoVal ? plain(autoVal) : '';
+    });
+    const meter = screen.querySelector('.meter');
+    meter.className = meterCls(gap);
+    meter.querySelector('.val').textContent = meterTxt(gap);
+    const short = screen.querySelector('.shortfall');
+    short.hidden = !(gap > 0);
+    if (gap > 0) {
+      short.querySelector('[data-short-title]').textContent = `${eur(gap)} ne sont pas couverts.`;
+      short.querySelector('[data-short-due]').textContent = `La fiche garde ${eur(gap)} à encaisser plus tard.`;
+      short.querySelector('[data-short-waived]').textContent = `${eur(gap)} accordés, enregistrés en réduction.`;
+    }
+    const btn = screen.querySelector('[type=submit]');
+    btn.disabled = !canSubmit();
+    btn.textContent = submitLabel();
+    const msg = screen.querySelector('.msg'); if (msg && state.form.error) { state.form.error = ''; msg.textContent = ''; }
+  };
+
+  screen.addEventListener('input', (e) => {
+    const row = e.target.closest('.tline');
+    if (!row || e.target.dataset.k !== 'amount') return;
+    const i = Number(row.dataset.i);
+    const l = state.form.lines[i];
+    l.amount = e.target.value;
+    if (i === state.form.lines.length - 1) l.typed = e.target.value.trim() !== '';
+    refresh();
+  });
+  screen.addEventListener('change', (e) => {
+    if (e.target.id === 'd') { state.form.date = e.target.value || state.form.date; render(); return; }
+    const row = e.target.closest('.tline');
+    if (!row) return;
+    const l = state.form.lines[Number(row.dataset.i)];
+    if (e.target.dataset.k === 'method') { l.method = e.target.value; l.internal = l.method === 'cash'; state.form.error = ''; render(); }
+    if (e.target.dataset.k === 'internal') { l.internal = e.target.checked; }
+  });
+  screen.addEventListener('focusin', (e) => {
+    const row = e.target.closest && e.target.closest('.tline.auto');
+    if (row && e.target.dataset.k === 'amount') e.target.select();
+  });
+  screen.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-act],[data-mode],[data-k="remove"],[data-short],[data-edit]');
+    if (!t) return;
+    if (t.dataset.mode) { state.sasMode = t.dataset.mode; render(); return; }
+    if (t.dataset.short) { state.form.shortKind = t.dataset.short; state.form.error = ''; render(); return; }
+    if (t.dataset.edit != null) {
+      const i = Number(t.dataset.edit); const s = state.settlements[i];
+      state.form = { kind: 'edit', idx: i, date: s.date, origDate: s.date, shortKind: s.shortKind, error: '',
+        lines: s.tenders.map((x) => ({ method: x.method, amount: plain(x.cents), internal: x.internal, typed: true })) };
+      render('.tline [data-k="amount"]'); return;
+    }
+    if (t.dataset.k === 'remove') {
+      state.form.lines.splice(Number(t.closest('.tline').dataset.i), 1);
+      const last = state.form.lines[state.form.lines.length - 1];
+      if (last && !last.amount) last.typed = false;
+      render(); return;
+    }
+    const a = t.dataset.act;
+    if (a === 'open') { state.form = { kind: 'new', split: false, date: TODAY, lines: newLines(), shortKind: null, error: '' }; render('#d'); }
+    if (a === 'remainder') { state.form = { kind: 'remainder', date: '2026-11-10', lines: [{ method: 'cash', amount: '', internal: true, typed: false }], shortKind: null, error: '' }; render('.tline [data-k="amount"]'); }
+    if (a === 'cancel') { state.form = null; render(); }
+    if (a === 'toggle') { state.form.split = !state.form.split; state.form.error = ''; state.form.lines = newLines(); state.form.shortKind = null; render(state.form.split ? '.tline [data-k="amount"]' : null); }
+    if (a === 'add') {
+      const used = new Set(state.form.lines.map((l) => l.method));
+      const next = METHODS.find((m) => !used.has(m.v)) || METHODS[5];
+      const { autoIdx, autoVal } = compute();
+      if (autoIdx >= 0) { state.form.lines[autoIdx].amount = autoVal ? plain(autoVal) : ''; state.form.lines[autoIdx].typed = true; }
+      state.form.lines.push({ method: next.v, amount: '', internal: next.v === 'cash', typed: false });
+      render(`.tline[data-i="${state.form.lines.length - 1}"] select`);
+    }
+    if (a === 'undo') {
+      if (state.settlements.length || state.single) state.history.push(`Fin de séjour : encaissement annulé.`);
+      const h = state.history; const scene = state.scene; state = fresh(scene); state.history = h;
+      if (scene === 'sas') state.form = { kind: 'new', split: false, date: TODAY, lines: newLines(), shortKind: null, error: '' };
+      render();
+    }
+  });
+  screen.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const f = state.form;
+    const isSplit = f.kind !== 'new' || f.split;
+    if (isSplit) {
+      const res = serverCheck();
+      if (!res.ok) { f.error = res.error; render(); return; }
+      const s = res.settlement;
+      const shortTxt = s.shortKind === 'due' ? ` · reste à percevoir ${eur(s.short)}` : s.shortKind === 'waived' ? ` · geste commercial ${eur(s.short)}` : '';
+      if (f.kind === 'edit') {
+        const before = state.settlements[f.idx];
+        const bShort = before.shortKind === 'due' ? ` · reste à percevoir ${eur(before.short)}` : before.shortKind === 'waived' ? ` · geste commercial ${eur(before.short)}` : '';
+        state.settlements[f.idx] = s;
+        state.history.push(`Fin de séjour corrigée : ${fmtLines(before.tenders)}${bShort} → ${fmtLines(s.tenders)}${shortTxt}${before.date !== s.date ? ` (date ${frDate(before.date)} → ${frDate(s.date)})` : ''}`);
+      } else {
+        state.settlements.push(s);
+        state.history.push(`Fin de séjour ${f.kind === 'remainder' ? 'reste payé' : 'payée'} le ${frDate(s.date)} : ${fmtLines(s.tenders)}${shortTxt}`);
+      }
+    } else if (state.scene === 'fiche') {
+      state.single = { date: f.date, internal: document.getElementById('single-internal').checked };
+      state.history.push(`Fin de séjour payée le ${frDate(f.date)}${state.single.internal ? ' (caisse interne)' : ''}`);
+    } else {
+      if (!state.sasMode) return;
+      state.single = state.sasMode === 'later' ? { later: true } : { date: TODAY, internal: state.sasMode === 'cash' };
+    }
+    state.form = null;
+    render();
+  });
+
+  const start = (scene) => {
+    state = fresh(scene);
+    if (scene === 'sas') state.form = { kind: 'new', split: false, date: TODAY, lines: newLines(), shortKind: null, error: '' };
+    render();
+  };
+  document.querySelectorAll('[data-scene]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-scene]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    start(b.dataset.scene);
+  }));
+  document.querySelectorAll('[data-width]').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('[data-width]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    document.getElementById('device').classList.toggle('mobile', b.dataset.width === 'mobile');
+  }));
+  document.getElementById('reset').addEventListener('click', () => start(state.scene));
+
+  start('fiche');
+})();
+</script>
+</body>
+</html>

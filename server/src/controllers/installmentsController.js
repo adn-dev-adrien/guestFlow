@@ -307,8 +307,18 @@ function buildController({
     }
     if (row.kind !== 'reservation') return res.status(409).json({ error: 'RESERVATION_NOT_ACTIVE', message: 'Cette réservation n’est plus active.' });
     if (Number(installment.paid) === 1) return res.status(409).json({ error: 'ALREADY_PAID', message: 'Cette échéance est déjà payée. Relire la fiche.' });
-    const method = String((req.body && req.body.method) || 'transfer');
-    if (!MANUAL_METHODS.includes(method)) return res.status(400).json({ error: 'INVALID_METHOD', message: 'Mode de paiement invalide.' });
+    // specs/mixed-method-payments.md rules 1, 12 — the installment paid with several methods: validated first,
+    // recorded as 'mixed', its lines in the settlement.
+    const split = req.body && req.body.tenders !== undefined;
+    let prepared = null;
+    if (split) {
+      prepared = require('../utils/paymentSettlementService').prepare({
+        tenders: req.body.tenders, dueCents: installment.amountCents, shortfall: req.body.shortfall,
+      });
+      if (!prepared.ok) return res.status(400).json({ error: prepared.error, message: prepared.error, field: prepared.field });
+    }
+    const method = split ? 'mixed' : String((req.body && req.body.method) || 'transfer');
+    if (!split && !MANUAL_METHODS.includes(method)) return res.status(400).json({ error: 'INVALID_METHOD', message: 'Mode de paiement invalide.' });
     const today = todayOf();
     const rawDate = req.body && req.body.paidDate;
     let paidDate = today;
@@ -317,7 +327,19 @@ function buildController({
       if (!checked.ok) return res.status(400).json({ error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: 'paidDate' });
       paidDate = String(rawDate).slice(0, 10);
     }
-    recordInstallmentPayment({ db: database, emit }, { installmentId, paidDate, method });
+    const outcome = recordInstallmentPayment({ db: database, emit }, { installmentId, paidDate, method });
+    if (split) {
+      // Paid in the meantime by another path (a link, a second tab): these lines did not pay it.
+      if (!outcome.flipped) return res.status(409).json({ error: 'ALREADY_PAID', message: 'Cette échéance est déjà payée. Relire la fiche.' });
+      const recorded = require('../utils/paymentSettlementService').record({
+        reservationId: id, targetKind: 'installment', targetKey: installmentId, paidDate, prepared,
+        parts: [{ kind: 'installment', key: installmentId, amountCents: Number(installment.amountCents) }],
+      });
+      if (!recorded.ok) {
+        installmentsModel.markUnpaid(installmentId);
+        return res.status(recorded.status).json({ error: recorded.error, message: recorded.error });
+      }
+    }
     return res.json({ installmentPlan: planFor(id) });
   }
 

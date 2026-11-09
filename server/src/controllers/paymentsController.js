@@ -316,7 +316,7 @@ const ensureBasketLinkFor = (id, basket, { redirectUrl = null } = {}) => withPro
   ...deps,
   vatRateFor: (stayId) => vatRegimeModel.rateForRow(database, { id: stayId }),
   ...(redirectUrl ? { redirectUrl } : {}),
-  origin: 'guest-order',
+  origin: 'basket',
 }, Number(id), 'complement', { basket }));
 
 module.exports = {

@@ -65,6 +65,8 @@ function createModel(database) {
         kind: 'hold',
         bookingId: null,
         reservationId: h?.reservationId ? Number(h.reservationId) : null,
+        // The holding plugin's own words for the slot (« Commande client en attente de paiement »), else neutral.
+        label: typeof h?.label === 'string' && h.label.trim() ? h.label.trim().slice(0, 80) : null,
       }))
       .filter((h) => ISO_DATE.test(h.date) && h.date >= from && h.date <= to && h.start && h.end);
   }

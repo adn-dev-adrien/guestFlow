@@ -559,9 +559,6 @@
   "rateLimiters": [
     "apiLimiter",
     "bookingRequestLimiter",
-    "guestLookupLimiter",
-    "guestOrderLimiter",
-    "guestSessionLimiter",
     "loginLimiter",
     "paymentStartLimiter",
     "paymentStatusLimiter",
@@ -861,7 +858,7 @@
   "instancePaths": [
     "uploadsDir"
   ],
-  "guestOrderCommit": [
+  "midStayOrderCommit": [
     "commitOrder",
     "mergeOrderLines",
     "priceOrder"
@@ -915,5 +912,18 @@
     "monthsTouched",
     "shiftMonth",
     "shiftYear"
+  ],
+  "paymentTenders": [
+    "currentCentsOf",
+    "settlementFigures",
+    "targetFigures"
+  ],
+  "paymentSettlementsModel": [
+    "buildModel"
+  ],
+  "paymentSettlementService": [
+    "flippedParts",
+    "prepare",
+    "record"
   ]
 }

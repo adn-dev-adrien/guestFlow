@@ -73,10 +73,28 @@ function bucketStates(r = {}) {
   };
 }
 
+/**
+ * specs/mixed-method-payments.md rules 16, 27 — what the split payments of a stay take off the books.
+ * The stay's row carries the aggregates (models/paymentSettlementsModel); a row without them reads 0.
+ *   offBooks    cash lines put in the caisse interne on a payment otherwise on the books
+ *   waived      gestes commerciaux on such payments
+ *   waivedCash  gestes commerciaux on a payment entirely in the caisse interne
+ *   due         « reste à percevoir » still to collect on a payment marked paid
+ */
+function splitAdjustment(r = {}) {
+  return {
+    offBooks: round2(r.splitOffBooksAmount),
+    waived: round2(r.splitWaivedAmount),
+    waivedCash: round2(r.splitWaivedCashAmount),
+    due: round2(r.splitShortfallDue),
+  };
+}
+
 // specs/finance-overview-rework.md §3.3 — a reservation is « soldé » when every applicable component
-// is paid OR marked caisse interne. A non-applicable component is trivially settled.
+// is paid OR marked caisse interne. A non-applicable component is trivially settled. A split payment
+// that left a « reste à percevoir » is not (specs/mixed-method-payments.md rule 16).
 function isSettled(r) {
-  return Object.values(bucketStates(r)).every((b) => !b.applicable || b.settled);
+  return Object.values(bucketStates(r)).every((b) => !b.applicable || b.settled) && splitAdjustment(r).due <= 0;
 }
 
 // « Reste à payer » = the real outstanding amount (specs/finance-operational-remaining-to-pay.md §3):
@@ -97,7 +115,7 @@ function remainingToPay(r) {
   const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm - platformPenalty(r) : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
-  return round2(deposit + balance + complement + endOfStay + round2(r.installmentsUnpaidAmount));
+  return round2(deposit + balance + complement + endOfStay + round2(r.installmentsUnpaidAmount) + splitAdjustment(r).due);
 }
 
 /**
@@ -195,8 +213,17 @@ function comptaCollected(r) {
     - refundsBook(r)
     // …and the single arrival payment may have been made for less (réduction) or more (pourboire)
     // than its buckets: what the operator received is what the bank shows.
-    + arrivalPaymentAdjustment(r).net,
+    + arrivalPaymentAdjustment(r).net
+    // …and a split payment counts only its lines on the books (specs/mixed-method-payments.md rule 27).
+    - splitBooksDeduction(r),
   );
+}
+
+// What a split payment's target counts for less than its marked amount on the books: its caisse-interne
+// lines, its geste commercial, and its reste à percevoir (that one counts in `remainingToPay`).
+function splitBooksDeduction(r) {
+  const a = splitAdjustment(r);
+  return round2(a.offBooks + a.waived + a.due);
 }
 
 /**
@@ -214,7 +241,10 @@ function cashCollected(r = {}) {
     + inCash('complementPaid', 'complementPaidCash', 'complementAmount')
     + inCash('endOfStayComplementPaid', 'endOfStayComplementPaidCash', 'endOfStayComplementAmount')
     + round2(midStayNotesTotal(r, { withCash: true }) - midStayNotesTotal(r))
-    + groupNet,
+    + groupNet
+    // specs/mixed-method-payments.md rule 27 — the cash lines of a split payment kept on the books, less the
+    // geste commercial of one entirely in the caisse.
+    + splitAdjustment(r).offBooks - splitAdjustment(r).waivedCash,
   );
 }
 
@@ -222,4 +252,5 @@ module.exports = {
   cashCollected,
   bucketStates, isSettled, remainingToPay, platformCommission, platformPenalty, attributionDate, stayDueAtArrival,
   midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, round2,
+  splitAdjustment, splitBooksDeduction,
 };

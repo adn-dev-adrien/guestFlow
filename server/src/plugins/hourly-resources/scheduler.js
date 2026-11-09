@@ -1,5 +1,5 @@
 /**
- * The resource scheduler this plugin declares to the core (specs/guest-app.md rules 28-31, SDK 2.22.0): the
+ * The resource scheduler this plugin declares to the core (specs/guest-app.md rules 28-31, SDK 2.25.0): the
  * slots of an hourly resource over a stay, and the authoritative check of the sessions a guest asks for. Built
  * on the plugin's own functions, so a guest sees exactly what the SAS picker and Calendrier › Ressources see:
  *   - occupancy = `occupancyModel.listForStay` — every guest session, every outside booking, every held slot,

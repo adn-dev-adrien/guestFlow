@@ -24,6 +24,7 @@ const { arrivalPaymentAdjustment, platformPenalty } = require('../utils/reservat
 const { paceStartOf, revenueOfNights } = require('../utils/bookingPace');
 const { withoutTouristTax } = require('../utils/stayProfile');
 const { comparisonWindow, compare } = require('../utils/financeComparison');
+const { settlementFigures } = require('../utils/paymentTenders');
 
 const H = financeModel.helpers;
 
@@ -454,14 +455,30 @@ function createDashboardModel(database, finance) {
     // collected installment is a payment of its own, on the day it was received.
     const planned = reservations.filter((r) => round2(r.installmentsPaidAmount) > 0).map((r) => r.id);
     const installments = planned.length && hasTable('reservation_installments')
-      ? database.prepare(`SELECT i.reservationId, i.number, i.paidDate, i.amountCents,
+      ? database.prepare(`SELECT i.id, i.reservationId, i.number, i.paidDate, i.amountCents,
                                  (SELECT COUNT(*) FROM reservation_installments a WHERE a.reservationId = i.reservationId) AS count
                             FROM reservation_installments i
                            WHERE i.paid = 1 AND i.reservationId IN (${planned.map(() => '?').join(',')})
                            ORDER BY i.reservationId, i.number`).all(...planned)
       : [];
+    // specs/mixed-method-payments.md rule 27 — a payment split over several methods is listed once per
+    // settlement, for what it put on the books, on the day it was received (a reste collected later is a
+    // row of its own). The buckets, note or installment it paid are not listed a second time.
+    const settlementsModel = require('./paymentSettlementsModel').buildModel(database);
+    const splitStays = hasTable('payment_settlements')
+      ? new Set(database.prepare('SELECT DISTINCT reservationId FROM payment_settlements').all().map((x) => Number(x.reservationId)))
+      : new Set();
+    const settlementsOf = (id) => (splitStays.has(Number(id)) ? settlementsModel.listFor(id) : []);
+    const SPLIT_LABEL = {
+      deposit: 'Acompte', balance: 'Solde', complement: 'Complément', endOfStayComplement: 'Complément fin de séjour',
+    };
     const rows = [];
     for (const r of reservations) {
+      const settlements = settlementsOf(r.id);
+      const splitBuckets = new Set(settlements.filter((s) => s.targetKind === 'bucket' || s.targetKind === 'arrivalGroup')
+        .flatMap((s) => s.parts.map((p) => p.kind)));
+      const splitNotes = new Set(settlements.filter((s) => s.targetKind === 'midStayNote').map((s) => String(s.targetKey)));
+      const splitInstallments = new Set(settlements.filter((s) => s.targetKind === 'installment').map((s) => String(s.targetKey)));
       const base = {
         reservationId: r.id, clientName: `${r.firstName || ''} ${r.lastName || ''}`.trim(),
         propertyName: r.propertyName, platform: r.platform,
@@ -477,15 +494,21 @@ function createDashboardModel(database, finance) {
           ...(withCommission && round2(indemnity) > 0 ? { indemnity: round2(indemnity) } : {}),
         });
       };
-      if (r.depositPaid && !r.depositPaidCash) add(r.depositPaidDate, 'deposit', 'Acompte', Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0), r.acompteCommissionAmount);
-      if (r.balancePaid && !r.balancePaidCash) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r), Number(r.platformCommissionAmount || 0) + platformPenalty(r));
-      if (r.complementPaid && !r.complementPaidCash) add(r.complementPaidDate, 'complement', 'Complément', Number(r.complementAmount || 0));
-      if (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) add(r.endOfStayComplementPaidDate, 'endOfStay', 'Complément fin de séjour', Number(r.endOfStayComplementAmount || 0));
-      for (const i of installments.filter((x) => x.reservationId === r.id)) {
+      if (r.depositPaid && !r.depositPaidCash && !splitBuckets.has('deposit')) add(r.depositPaidDate, 'deposit', 'Acompte', Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0), r.acompteCommissionAmount);
+      if (r.balancePaid && !r.balancePaidCash && !splitBuckets.has('balance')) add(r.balancePaidDate, 'balance', isPlatformStay(r) ? 'Versement plateforme' : 'Solde', Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r), Number(r.platformCommissionAmount || 0) + platformPenalty(r));
+      if (r.complementPaid && !r.complementPaidCash && !splitBuckets.has('complement')) add(r.complementPaidDate, 'complement', 'Complément', Number(r.complementAmount || 0));
+      if (r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash && !splitBuckets.has('endOfStayComplement')) add(r.endOfStayComplementPaidDate, 'endOfStay', 'Complément fin de séjour', Number(r.endOfStayComplementAmount || 0));
+      for (const i of installments.filter((x) => x.reservationId === r.id && !splitInstallments.has(String(x.id)))) {
         add(i.paidDate, 'installment', `Échéance ${i.number}/${i.count}`, Number(i.amountCents || 0) / 100);
       }
       for (const n of parseNotes(r.midStaySettledNotes)) {
-        if (Number(n.paidCash || 0) === 0) add(n.paidDate, 'note', 'Note en séjour', Number(n.total) || 0);
+        if (Number(n.paidCash || 0) === 0 && !splitNotes.has(String(n.id))) add(n.paidDate, 'note', 'Note en séjour', Number(n.total) || 0);
+      }
+      for (const s of settlements) {
+        const label = s.targetKind === 'midStayNote' ? 'Note en séjour'
+          : s.targetKind === 'installment' ? 'Échéance'
+            : s.targetKind === 'arrivalGroup' ? 'Paiement unique' : (SPLIT_LABEL[s.targetKey] || 'Paiement');
+        add(s.paidDate, 'split', `${label} · plusieurs moyens`, settlementFigures(s).booksCents / 100);
       }
       const adjustment = arrivalPaymentAdjustment(r).net;
       if (adjustment) add((parseGroup(r.arrivalPaymentGroup) || {}).at, 'adjustment', adjustment > 0 ? 'Pourboire à l\'arrivée' : 'Réduction à l\'arrivée', adjustment);

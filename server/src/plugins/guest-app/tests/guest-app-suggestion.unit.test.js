@@ -24,7 +24,7 @@ test('rule 15bis: the nearest event of the days left, with its date, drive time 
   assert.deepEqual(card, {
     id: 'theatre-chiche-t-es-pas-cap',
     name: 'Théâtre : Chiche, t\'es pas cap !',
-    category: 'patrimoine',
+    category: 'Patrimoine', // Soliomap's lower-case category, shown as a label
     dateLabel: 'sam. 7 nov.',
     driveLabel: '8 min en voiture',
     url: `${URL}/#theatre-chiche-t-es-pas-cap`,
