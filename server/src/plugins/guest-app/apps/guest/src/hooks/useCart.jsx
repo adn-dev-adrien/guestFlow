@@ -26,13 +26,17 @@ export function unitsOf(lines) {
   return lines.reduce((n, l) => n + (l.kind === 'option' ? l.quantity : l.kind === 'resource' ? l.sessions.length : 1), 0);
 }
 
-/** Merge a line into the cart: quantities add, sessions join, a breakfast replaces the previous choice. */
-export function mergeLine(lines, line) {
+/**
+ * Merge a line into the cart: quantities add, up to `max` (the item's bound, when known), sessions join, a
+ * breakfast replaces the previous choice.
+ */
+export function mergeLine(lines, line, max = Infinity) {
+  const bound = typeof max === 'number' ? max : Infinity;
   const i = lines.findIndex((l) => lineKey(l) === lineKey(line));
-  if (i < 0) return [...lines, line];
+  if (i < 0) return [...lines, line.kind === 'option' ? { ...line, quantity: Math.min(line.quantity, bound) } : line];
   const next = lines.slice();
   const prev = lines[i];
-  if (line.kind === 'option') next[i] = { ...prev, quantity: prev.quantity + line.quantity };
+  if (line.kind === 'option') next[i] = { ...prev, quantity: Math.min(prev.quantity + line.quantity, Math.max(prev.quantity, bound)) };
   else if (line.kind === 'resource') next[i] = { ...prev, sessions: [...prev.sessions, ...line.sessions.filter((s) => !prev.sessions.some((p) => sameSession(p, s)))] };
   else next[i] = line;
   return next;
@@ -125,7 +129,8 @@ export function CartProvider({ children }) {
             .filter((c) => c.kind !== 'option' || c.quantity > 0));
         }
       } catch (err) {
-        if (mine === seq.current) setQuoteError(err);
+        // M1 — a total that no longer matches the cart is never shown nor ordered: no quote until one succeeds.
+        if (mine === seq.current) { setQuote(null); setQuoteError(err); }
       } finally {
         if (mine === seq.current) setQuoting(false);
       }
@@ -136,7 +141,7 @@ export function CartProvider({ children }) {
   const remember = useCallback((key, info) => setMeta((m) => ({ ...m, [key]: { ...(m[key] || {}), ...info } })), []);
 
   const add = useCallback((line, info) => {
-    setLines((cur) => mergeLine(cur, line));
+    setLines((cur) => mergeLine(cur, line, info && info.max));
     if (info) remember(lineKey(line), info);
   }, [remember]);
 
@@ -178,8 +183,10 @@ export function CartProvider({ children }) {
 
   const clear = useCallback(() => { setLines([]); setDeliverAt(null); setStockNotes({}); }, []);
 
-  /** Rule 35 — an abandoned card order gives its lines back. */
-  const restore = useCallback((cartLines) => { setLines(cartLines || []); }, []);
+  /** Rule 35 — an abandoned card order gives its lines back, merged into what the cart holds since. */
+  const restore = useCallback((cartLines) => {
+    setLines((cur) => (cartLines || []).reduce((all, line) => mergeLine(all, line), cur));
+  }, []);
 
   const value = useMemo(() => ({
     lines,

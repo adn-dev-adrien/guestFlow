@@ -135,6 +135,8 @@
  "order.home": "Retour à l’accueil",
  "order.verifying": "Paiement en cours de vérification",
  "order.verifyingText": "Quelques secondes : Qonto nous confirme le paiement.",
+ "order.stalled": "Le paiement n’est pas encore confirmé. Si vous avez payé, vérifiez à nouveau dans un instant.",
+ "order.recheck": "Vérifier à nouveau",
  "tl.received": "Reçue",
  "tl.paidCard": "Payée par carte",
  "tl.cardPending": "Paiement par carte en attente",

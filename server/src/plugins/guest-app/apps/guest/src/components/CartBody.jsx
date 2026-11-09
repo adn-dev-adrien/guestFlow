@@ -64,7 +64,8 @@ export default function CartBody({ shop, inPanel = false }) {
   }
 
   const quoted = cart.lines.map((line, i) => ({ line, q: quotedLine(quote, line, i) }));
-  const blocked = quoted.some(({ q }) => q && q.unavailable);
+  // A line gone, or a bath session of a line that is no longer free: checkout waits until it is removed (M3).
+  const blocked = quoted.some(({ q }) => q && (q.unavailable || (q.sessions || []).some((s) => s.unavailable)));
   const zero = Boolean(quote) && quote.total === 0;
   const fresh = Boolean(quote) && !cart.quoting;
   const needsTime = Boolean(cart.delivery && cart.delivery.needed);
@@ -74,7 +75,7 @@ export default function CartBody({ shop, inPanel = false }) {
         : needsTime && !cart.deliverAt ? t('cart.noDelivery')
           : (shop && shop.open === false && shop.closedReason) || '';
   const pay = zero ? 'none' : payment;
-  const disabled = Boolean(why) || !fresh || busy || (!zero && !pay);
+  const disabled = Boolean(why) || !fresh || Boolean(cart.quoteError) || busy || (!zero && !pay);
   const total = quote ? quote.totalLabel : '…';
   const cta = zero ? t('cart.ctaFree') : pay === 'card' ? t('cart.ctaCard', { total }) : t('cart.ctaNote', { total });
 
@@ -137,7 +138,12 @@ export default function CartBody({ shop, inPanel = false }) {
                 {!gone && q && line.kind === 'resource' && q.sessions ? q.sessions.filter((s) => !s.unavailable).map((s) => <span key={`${s.date}${s.start}`}>{s.label}</span>) : null}
                 {!gone && q && line.kind === 'breakfast' ? <span>{q.label}</span> : null}
                 {!gone ? <span className="fig" style={{ fontSize: 13 }}>{q ? q.totalLabel : '…'}</span> : null}
-                {!gone && q && q.sessions ? q.sessions.filter((s) => s.unavailable).map((s) => <span key={`${s.date}${s.start}`} className="hint bad">{s.label} · {s.reasonLabel}</span>) : null}
+                {!gone && q && q.sessions ? q.sessions.filter((s) => s.unavailable).map((s) => (
+                  <span key={`${s.date}${s.start}`} className="hint bad gone-session">
+                    <span>{s.label} · {s.reasonLabel}</span>
+                    <button type="button" className="x" aria-label={`${t('common.remove')} ${s.label}`} onClick={() => cart.removeSession(key, s)}><Icon name="trash" /></button>
+                  </span>
+                )) : null}
                 {!gone && note ? <span style={{ marginTop: 3, display: 'inline-flex' }}><StatusChip tone="warn">{note}</StatusChip></span> : null}
               </div>
               {control}

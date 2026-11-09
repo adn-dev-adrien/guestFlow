@@ -3,7 +3,8 @@
  * the stepper bounded by `maxQuantity` and the stock left (rule 37quater), and the primary button carrying
  * the server's total for that quantity. Pre-arrival: read only, « Disponible pendant votre séjour ».
  *
- * Props: `item`, `category`, `readOnly`, `open`, `onClose`, `onAdd(quantity)`.
+ * Props: `item`, `category`, `readOnly`, `inCart` (the quantity the cart already holds), `open`, `onClose`,
+ *        `onAdd(quantity)`.
  */
 import { useEffect, useState } from 'react';
 import BottomSheet from './BottomSheet';
@@ -21,12 +22,13 @@ export function maxFor(item) {
   return Math.max(0, Math.min(item.maxQuantity || 1, left, included));
 }
 
-export default function ProductSheet({ item, category, readOnly, open, onClose, onAdd }) {
+export default function ProductSheet({ item, category, readOnly, inCart = 0, open, onClose, onAdd }) {
   const t = useT();
   const [quantity, setQuantity] = useState(1);
   useEffect(() => { if (open) setQuantity(1); }, [open, item && item.id]);
   const can = item && !readOnly && orderable(item);
-  const max = item ? maxFor(item) : 1;
+  // M10 — what the cart already holds counts against the item's bound.
+  const max = item ? Math.max(0, maxFor(item) - inCart) : 1;
   const { quote, loading } = useLineQuote(item && can ? { kind: item.kind, id: item.id, quantity } : null, open && can);
   if (!item) return null;
   return (
@@ -40,7 +42,7 @@ export default function ProductSheet({ item, category, readOnly, open, onClose, 
         {can ? <QuantityStepper value={quantity} max={max} onChange={setQuantity} label={item.title} /> : null}
       </div>
       {can && item.stock && item.stock.leftLabel ? <div className="stock"><StatusChip tone="warn">{item.stock.leftLabel}</StatusChip></div> : null}
-      {can && quantity >= max && max === item.maxQuantity ? <p className="hint">{t('shop.maxReached', { n: item.maxQuantity })}</p> : null}
+      {can && quantity >= max && maxFor(item) === item.maxQuantity ? <p className="hint">{t('shop.maxReached', { n: item.maxQuantity })}</p> : null}
       {item.needsStaff ? <p className="hint">{item.leadMinutes ? t('shop.staffLead', { n: item.leadMinutes }) : t('shop.staff')}</p> : null}
       {readOnly ? <Banner tone="mut">{t('cart.preArrival')}</Banner> : null}
       {can ? (

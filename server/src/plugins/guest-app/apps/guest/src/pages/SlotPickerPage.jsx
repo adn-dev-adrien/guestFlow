@@ -56,12 +56,14 @@ export default function SlotPickerPage() {
     const key = slotKey(date, slot);
     setPicked((cur) => (selected.has(key) ? cur.filter((s) => `${s.date}|${s.start}|${s.end}` !== key) : [...cur, { date, start: slot.start, end: slot.end }]));
   };
-  const confirm = () => {
-    cart.replace({ kind: 'resource', id: resourceId, sessions: picked }, cartInfo(resource.item));
-    navigate('/panier');
-  };
   const quoteLine = quote && quote.lines && quote.lines[0];
   const unavailable = quoteLine && quoteLine.sessions ? quoteLine.sessions.filter((s) => s.unavailable) : [];
+  // M3 — a session the server says is no longer free never goes to the cart.
+  const isUnavailable = (s) => unavailable.some((u) => u.date === s.date && u.start === s.start && u.end === s.end);
+  const confirm = () => {
+    cart.replace({ kind: 'resource', id: resourceId, sessions: picked.filter((s) => !isUnavailable(s)) }, cartInfo(resource.item));
+    navigate('/panier');
+  };
 
   return (
     <>

@@ -2,7 +2,7 @@
  * « Mes commandes » and one order (rules 35-38, 41ter, §6.6): the current orders first, the past ones folded;
  * the confirmation right after ordering (the gold check drawn once, the server's promise — « Livrée à
  * L'Estiva vers 18 h » / « Prête à 18 h. Lieu de retrait : … »), and the return from Qonto, which polls the
- * order until the payment is confirmed.
+ * order until the payment is confirmed — and, once it has stopped trying, offers « Vérifier à nouveau ».
  */
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
@@ -64,14 +64,17 @@ export function OrderPage() {
   const [params] = useSearchParams();
   const { lang } = useSession();
   const cart = useCart();
-  const { order, error, polling } = useOrderStatus(id, lang);
+  const {
+    order, error, polling, stalled, recheck,
+  } = useOrderStatus(id, lang);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
   const fromPayment = params.get('retour') === '1' || /^\/commande\//.test(window.location.pathname);
   const confirmation = params.get('confirmation') === '1' || fromPayment;
 
+  const recheckButton = <button type="button" className="btn ghost block" onClick={recheck}>{t('order.recheck')}</button>;
   if (error && !order) {
-    return <div className="scroll enter"><AppBar title={t('orders.title')} back="/commandes" /><div className="pad"><ErrorAlert error={error} /></div></div>;
+    return <div className="scroll enter"><AppBar title={t('orders.title')} back="/commandes" /><div className="pad"><ErrorAlert error={error} />{recheckButton}</div></div>;
   }
   if (!order && !fromPayment) {
     return <div className="scroll enter"><AppBar title={t('orders.title')} back="/commandes" /><Skeleton lines={5} label={t('common.loading')} /></div>;
@@ -123,6 +126,7 @@ export function OrderPage() {
       <div className="pad">
         {[order.promise, ...(order.extraPromises || []), order.movedNotice].filter(Boolean).map((text) => <p key={text} style={{ margin: 0 }}>{text}</p>)}
         {actionError ? <ErrorAlert error={actionError} /> : null}
+        {stalled && order.status === 'awaiting_payment' ? <><p className="hint">{t('order.stalled')}</p>{recheckButton}</> : null}
         <OrderCard order={order} onAbandon={abandon} busy={busy} />
       </div>
     </div>

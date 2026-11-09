@@ -161,6 +161,7 @@ export default function ShopPage() {
         item={sheet && sheet.item.kind !== 'breakfast' ? sheet.item : null}
         category={sheet ? sheet.category : null}
         readOnly={readOnly}
+        inCart={sheet ? ((cart.lines.find((l) => lineKey(l) === keyOf(sheet.item)) || {}).quantity || 0) : 0}
         open={Boolean(sheet) && sheet.item.kind !== 'breakfast'}
         onClose={() => setSheet(null)}
         onAdd={(quantity) => { cart.add({ kind: sheet.item.kind, id: sheet.item.id, quantity }, cartInfo(sheet.item)); setSheet(null); }}
