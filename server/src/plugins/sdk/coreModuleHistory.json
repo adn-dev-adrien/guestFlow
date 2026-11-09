@@ -227,13 +227,28 @@
     {
       "version": "2.25.0",
       "modules": [
+        "invoiceIssuers",
+        "standaloneSales"
+      ],
+      "names": {
+        "paymentTenders": [
+          "methodLabel",
+          "validateSettlement"
+        ]
+      }
+    },
+    {
+      "version": "2.26.0",
+      "modules": [
         "stayWindow",
         "encryption",
         "publicCatalogProjection",
         "midStayExtrasWindow",
         "safeFeedFetch",
         "instancePaths",
-        "midStayOrderCommit"
+        "midStayOrderCommit",
+        "securityConfig",
+        "requireAuth"
       ],
       "names": {
         "pricing": [

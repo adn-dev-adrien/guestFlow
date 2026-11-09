@@ -422,6 +422,33 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         .map((row) => buildCompensationEntry(row, { account, vatRatePercent: rateOf(row) }))
         .filter(Boolean);
     },
+
+    // specs/resource-booking-pricing-and-invoicing.md rules 21-22 — the sales a plugin made outside any stay (the
+    // nordic bath of a walk-in guest), on their payment day, for their part on the books: the caisse interne stays
+    // off, exactly as a fiche's settlement (mixed-method-payments D2).
+    standaloneSalesByMonth({ month, year }) {
+      const mm = String(month).padStart(2, '0');
+      const yyyy = String(year);
+      const last = new Date(Date.UTC(Number(yyyy), Number(mm), 0)).getUTCDate();
+      return sdk.coreModule('standaloneSales').list({ from: `${yyyy}-${mm}-01`, to: `${yyyy}-${mm}-${String(last).padStart(2, '0')}` })
+        .filter((sale) => sale.booksCents > 0)
+        .map(buildStandaloneEntry);
+    },
+  };
+}
+
+function buildStandaloneEntry(sale) {
+  return {
+    reservationId: null,
+    kind: 'standalone',
+    direction: 'standalone',
+    standaloneKey: sale.key,
+    standaloneLabel: sale.label,
+    paidDate: sale.date,
+    client: sale.client || { firstName: '', lastName: '' },
+    encaissementTtc: Math.round(sale.booksCents) / 100,
+    vatRatePercent: sale.vatRate === null || sale.vatRate === undefined ? null : Number(sale.vatRate),
+    piece: sale.invoiceNumber || '',
   };
 }
 
@@ -1477,6 +1504,7 @@ function bucketFromTtc(name, ttc, ratePercent) {
 }
 
 module.exports = {
+  buildStandaloneEntry,
   create: createAccountingModel,
   __test: { buildEntry, buildEndOfStayEntry, splitByDestination, buildInstallmentEntry, buildRefundEntry },
 };

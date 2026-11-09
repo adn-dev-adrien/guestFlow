@@ -116,6 +116,11 @@ acompte is kept as an indemnity, and the books say so correctly.
 5. For a **devis** (`kind = 'devis'`), `depositDueDate = validUntil` — the quote already promises the
    dates until that date. On conversion to a reservation the due date is re-derived by rule 3 from
    the conversion date, unless the acompte was already paid online (then it is left as-is).
+   **Amended 2026-11-09 (D23, audit R33-DB-L1).** The conversion re-derived nothing: it copied the devis's
+   dates, and that is the right behaviour — the reservation owes what the quote promised. The conversion
+   keeps the devis's schedule (its acompte due on `validUntil`, then frozen by rule 4); a devis owing one
+   payment under rule 56 hands the reservation that single payment, due on `validUntil` (never before the
+   conversion day), and the reservation's later saves keep it while its arrival stays the one quoted.
 6. `depositDueDate` is `NULL` when there is no acompte to collect (`depositDisabled`,
    `depositAmount = 0`, or a non-direct platform).
    **Amended 2026-10-28** (specs/settings-input-guards.md rules 9, 11-12, 15): `depositDueDays` is a
@@ -611,6 +616,19 @@ acompte is kept as an indemnity, and the books say so correctly.
     >   with no refund (622600 +27,42 €, 75880000 −27,42 €, 706, 4457, 4671 and the client at 0). A refund that
     >   moves the kept total, a kept bucket or the commission total stays refused.
 
+56. **A devis never owes its acompte after its solde** _(added 2026-11-09, decision D23, audits R33-M-M1 =
+    R33-DB-M1)_. Rule 5 dates a devis's acompte on `validUntil` and rule 7 its solde on `start −
+    balanceDaysBefore`, so a devis with an acompte for a stay 31 to `30 + validity` days out (31 to 44 days with
+    a 15-day validity) had its solde due first, the PDF asked for it first, and the converted reservation was
+    listed « Solde à demander » then « À annuler » before its acompte fell due. Rule 47 capped only a
+    reservation's fresh acompte. Such a devis now carries no acompte and owes ONE payment due on `validUntil`
+    (specs/deposit-blocks-the-dates.md rule 19); the conversion carries it (rule 5 amendment). Rule 47 for
+    reservations is unchanged.
+    **Amended 2026-11-09 (audit R33 N1).** The devis's stored columns always say that single payment
+    (specs/deposit-blocks-the-dates.md rule 20: re-stored at boot and after a logement save, its stale links
+    withdrawn), so a conversion copies what the devis asks. One exception: an acompte link paid on columns that
+    still held the acompte (before the re-store) converts at that stored split, the acompte paid.
+
 
 ---
 
@@ -802,6 +820,13 @@ One line per reservation:
 ## 7. Test plan
 
 ### Server unit tests — **55 new, suite at 9347 green (2026-11-02)**
+- [x] `tests/devis-single-payment-by-validity.unit.test.js` (27, 2026-11-09, D23) — rules 5 amendment and 56: a
+      devis 30 to 61 days out never owes its acompte after its solde, one payment due on `validUntil` inside the
+      window, on the devis, its PDF, its link quote, its conversion and the converted stay's later saves; rule 47 for
+      a reservation unchanged (specs/deposit-blocks-the-dates.md rule 19).
+- [x] `tests/devis-single-payment-restore.unit.test.js` (6, 2026-11-09, audit R33 N1) — rule 56 amendment: the
+      stored columns re-stored as the single payment, an acompte link paid before the re-store converts at the
+      stored split (specs/deposit-blocks-the-dates.md rule 20).
 - [x] `tests/refund-before-cancellation.unit.test.js` (16 of 22, 2026-11-02) — rule 55: acompte 274 €, 100 €
       given back, then cancelled → 174 € kept (avoir, card, register); every 706 / 4457 / 4671 account, 75880000
       and the client account at 0 once the rest goes back; a paid solde absorbs the refund (274 € kept); a plan

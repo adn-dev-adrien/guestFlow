@@ -2,9 +2,10 @@
 // rule 14): the ignition of a resource, a session of a stay, or a booking made outside a stay.
 import React, { useState } from 'react';
 import {
-  Box, Card, CardContent, Chip, Typography,
+  Box, Card, CardContent, Chip, Typography, Button,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import { useNavigate } from 'react-router';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { api, OptionDayCard, useToast } from '../sdk';
 
@@ -24,7 +25,10 @@ const toMinutes = (time) => {
 const toTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
 function BookingCard({ booking }) {
+  const navigate = useNavigate();
   const turnover = Number(booking.turnoverMinutes || 0);
+  // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day.
+  const canArrive = booking.external === true && !booking.arrived;
   return (
     <Card variant="outlined" sx={(t) => ({ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: alpha(t.palette.info.main, 0.04) })}>
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
@@ -34,6 +38,12 @@ function BookingCard({ booking }) {
             {booking.resourceName || 'Ressource'}
           </Typography>
           {booking.paid && <Chip label="Payé" size="small" color="success" sx={{ height: 18, fontSize: 10 }} />}
+          {booking.external === true && !booking.paid && <Chip label="À encaisser" size="small" color="warning" variant="outlined" sx={{ height: 18, fontSize: 10 }} />}
+          {canArrive && (
+            <Button size="small" variant="outlined" onClick={() => navigate(`/resource-planning?arrival=${booking.id}`)} sx={{ ml: 'auto', minHeight: 44 }}>
+              Arrivée
+            </Button>
+          )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <Chip

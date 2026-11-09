@@ -7,8 +7,8 @@
  */
 
 const sdk = require('../sdk');
-const { priceSessions } = require('./hourlyPricing');
 const resourceOccupancyModel = require('./occupancyModel');
+const { priceBookingLines, offeredRefusal } = require('./bookingPricing');
 
 // A slot a plugin holds before it reaches the planning, when its source names it in no words of its own.
 const HELD_SLOT = 'Créneau réservé, en attente';
@@ -69,15 +69,81 @@ function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+function parseTenders(raw) {
+  try {
+    const parsed = JSON.parse(raw || 'null');
+    return Array.isArray(parsed) ? parsed : null;
+  } catch { return null; }
+}
+
+// What the screens read of a booking's money (rules 11, 15, 19, 28). The flags are the server's answer: the client
+// never derives « frozen », « may invoice » or « may arrive » from the columns.
 function enrichBooking(b) {
   b.displayName = (b.firstName || b.lastName)
     ? [b.firstName, b.lastName].filter(Boolean).join(' ')
     : (b.clientName || 'Client externe');
-  b.paid = Boolean(b.paid);
+  const tenders = parseTenders(b.paymentTenders);
+  b.paid = Boolean(b.paidAt) || Boolean(b.paid);
+  b.payment = b.paid
+    ? {
+      paidAt: b.paidAt || null,
+      tenders: tenders || [],
+      internalCents: (tenders || []).filter((t) => t.internal).reduce((sum, t) => sum + Number(t.amountCents || 0), 0),
+      label: tenders && tenders.length ? tenders.map((t) => (t.internal ? `${methodLabel(t.method)} (caisse interne)` : methodLabel(t.method))).join(' · ') : 'Moyen non saisi',
+      onTheBooks: Boolean(tenders && tenders.length) && !tenders.some((t) => t.internal),
+      hasCard: Boolean(tenders && tenders.some((t) => t.method === 'card')),
+    }
+    : null;
+  b.frozen = Boolean(b.qontoInvoiceId) && !b.invoiceCancelledAt;
+  b.invoice = b.qontoInvoiceId
+    ? {
+      number: b.invoiceNumber || null,
+      issuedAt: b.invoiceIssuedAt || null,
+      cancelled: Boolean(b.invoiceCancelledAt),
+      markedPaid: Boolean(b.invoiceMarkedPaid),
+      attachment: { state: b.attachmentState || null, attempts: Number(b.attachmentAttempts || 0), error: b.attachmentLastError || null },
+    }
+    : null;
+  b.external = !b.reservationId;
+  b.arrived = Boolean(b.arrivedAt);
+  b.billing = { street: b.billingStreet || '', postcode: b.billingPostcode || '', city: b.billingCity || '' };
   return b;
 }
 
-function createModel(database) {
+const methodLabel = (method) => sdk.coreModule('paymentTenders').methodLabel(method);
+
+// Rules 25-26 — the billing address of a guest with no client record: every part optional, the postcode 5 digits.
+const POSTCODE = /^\d{5}$/;
+function billingRefusal(billing) {
+  if (billing === undefined || billing === null) return null;
+  if (typeof billing !== 'object' || Array.isArray(billing)) return refused('Adresse invalide.');
+  for (const field of ['street', 'postcode', 'city']) {
+    if (!isText(billing[field])) return refused('Texte attendu.');
+  }
+  const postcode = String(billing.postcode || '').trim();
+  if (postcode && !POSTCODE.test(postcode)) return refused('Code postal : 5 chiffres.');
+  return null;
+}
+function billingOf(billing) {
+  const clean = (value) => (typeof value === 'string' && value.trim() ? value.trim().slice(0, 200) : null);
+  return { street: clean(billing && billing.street), postcode: clean(billing && billing.postcode), city: clean(billing && billing.city) };
+}
+
+// Rule 15 — what an issued invoice states. A cancelled invoice (A2) frees the booking again.
+const FROZEN_FIELDS = ['date', 'startTime', 'endTime', 'offeredMinutes', 'clientId', 'clientName', 'propertyId', 'reservationId'];
+const FROZEN_MESSAGE = 'Facturée : à annuler dans Qonto avant de modifier.';
+const isFrozen = (row) => Boolean(row && row.qontoInvoiceId) && !row.invoiceCancelledAt;
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const todayInParis = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(now);
+
+/**
+ * @param {object} database
+ * @param {object} [options]
+ * @param {() => number} [options.standaloneVatRate] the « TVA des ventes hors séjour » setting, in percent (rule 5)
+ * @param {() => Date} [options.now]
+ */
+function createModel(database, { standaloneVatRate = () => 20, now = () => new Date() } = {}) {
   // Bound to the same database handle so the test factory and production agree on what « occupied » is.
   const occupancyModel = resourceOccupancyModel.create(database);
 
@@ -85,70 +151,44 @@ function createModel(database) {
    * The price of a booking and how it is made up — the one function behind the preview and the stored
    * `totalPrice` (specs/resource-supplements-total-server-side.md rule 1). Pure read.
    */
-  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId }) {
-    const durationMinutes = Math.max(0, toMinutes(endTime) - toMinutes(startTime));
+  // Rule 5 — the VAT a booking is sold with: none when the instance is out of VAT, the « TVA des ventes hors séjour »
+  // setting for a guest with no lodging reservation, the stay's own rate otherwise.
+  function vatFor({ reservationId, date }) {
+    const vatRegime = sdk.coreModule('vatRegimeModel');
+    let regime;
+    try {
+      regime = reservationId
+        ? vatRegime.forRow(database, { id: Number(reservationId) })
+        : vatRegime.forRow(database, { newSale: true, startDate: date });
+    } catch {
+      // A minimal schema without the core's settings: the plugin's own rate for a sale outside a stay.
+      return { rate: reservationId ? null : standaloneVatRate() };
+    }
+    if (!regime || regime.regime === 'not_subject') return { rate: null };
+    return { rate: reservationId ? Number(regime.rate) : standaloneVatRate() };
+  }
+
+  /**
+   * The price of a booking and how it is made up — the one function behind the preview, the stored `totalPrice` and
+   * the invoice (specs/resource-booking-pricing-and-invoicing.md rules 3-10). Pure read.
+   */
+  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date }) {
     const pid = Number(propertyId || 0);
     const override = pid > 0
       ? database.prepare('SELECT price, freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(pid, Number(resource.id))
       : null;
-    const guestDayRate = Number(override?.price ?? resource.price ?? 0);
-    const freeMinutes = Math.max(0, Number(override?.freeMinutes || 0));
-    const base = {
-      total: 0, pricing: 'free', rateGrid: null, durationMinutes,
-      freeMinutesApplied: 0, billedMinutes: 0, grossTotal: 0, bands: [], freeValue: 0,
-    };
+    return priceBookingLines({
+      resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat: vatFor({ reservationId, date }),
+    });
+  }
 
-    if (resource.priceType === 'free') return base;
-
-    // Hourly-scheduled resource: time-banded grid (specs/resource-hourly-scheduling.md §3.5). A booking
-    // with no reservation = « extérieur » → external rate pair (falling back to the guest grid).
-    const hourlyScheduled = Number(resource.showsPlanningCard || 0) === 1 && resource.priceType === 'per_hour';
-    if (hourlyScheduled) {
-      const isExternal = !reservationId;
-      const guestEveningRate = Number(resource.hourlyEveningRate) || 0;
-      const dayRate = isExternal && Number(resource.hourlyExternalDayRate) > 0
-        ? Number(resource.hourlyExternalDayRate) : guestDayRate;
-      const eveningRate = isExternal
-        ? (Number(resource.hourlyExternalEveningRate) > 0 ? Number(resource.hourlyExternalEveningRate) : (guestEveningRate > 0 ? guestEveningRate : dayRate))
-        : guestEveningRate;
-      const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
-      const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, freeMinutes);
-      if (priced.validSessions.length) {
-        return {
-          ...base,
-          total: priced.totalPrice,
-          pricing: 'banded',
-          rateGrid: isExternal ? 'external' : 'guest',
-          freeMinutesApplied: priced.freeMinutesApplied,
-          billedMinutes: priced.billedMinutes,
-          grossTotal: priced.grossPrice,
-          bands: priced.bands,
-          freeValue: priced.freeValue,
-        };
-      }
-      // off-grid range → fall through to the flat computation below.
-    }
-
-    if (resource.priceType === 'per_hour') {
-      const freeMinutesApplied = Math.min(durationMinutes, freeMinutes);
-      const billedMinutes = durationMinutes - freeMinutesApplied;
-      const total = roundMoney((guestDayRate * billedMinutes) / 60);
-      const grossTotal = roundMoney((guestDayRate * durationMinutes) / 60);
-      return {
-        ...base,
-        total,
-        pricing: 'flat-hourly',
-        freeMinutesApplied,
-        billedMinutes,
-        grossTotal,
-        bands: durationMinutes > 0
-          ? [{ band: 'day', from: startTime, to: endTime, minutes: durationMinutes, rate: roundMoney(guestDayRate), amount: grossTotal }]
-          : [],
-        freeValue: roundMoney(grossTotal - total),
-      };
-    }
-    const total = roundMoney(guestDayRate);
-    return { ...base, total, pricing: 'fixed', grossTotal: total };
+  // Rule 9 — offered time is judged against the duration and the property's free minutes.
+  function offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date }) {
+    const free = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes: 0, date });
+    const message = offeredRefusal(offeredMinutes, {
+      durationMinutes: free.durationMinutes, freeMinutesApplied: free.freeMinutesApplied, perHour: resource.priceType === 'per_hour',
+    });
+    return message ? refused(message) : null;
   }
 
   // The refusals shared by the preview and the commit: a real day inside the date window (unless it is the
@@ -180,7 +220,7 @@ function createModel(database) {
    * Returns the breakdown, or `{ error, status }` with the very refusals the commit would give.
    */
   function priceBooking(draft = {}) {
-    const { resourceId, bookingId, date, startTime, endTime, propertyId } = draft;
+    const { resourceId, bookingId, date, startTime, endTime, propertyId, offeredMinutes = 0 } = draft;
     if (!resourceId || !date || !startTime || !endTime) {
       return { error: 'resourceId, date, startTime, endTime sont requis', status: 400 };
     }
@@ -200,9 +240,10 @@ function createModel(database) {
       storedDate = existing.date;
       storedTimes = existing;
     }
-    const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate, storedTimes });
+    const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate, storedTimes })
+      || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date });
     if (refusal) return refusal;
-    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId });
+    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date });
   }
 
   // Rule 15 — what the screen showed is compared with what is stored, never enforced.
@@ -374,33 +415,45 @@ function createModel(database) {
   }
 
   function createBooking(payload) {
-    const { resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, paid } = payload;
+    const { resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes } = payload;
+    const offeredMinutes = Number(payload.offeredMinutes) || 0;
     if (!resourceId || !date || !startTime || !endTime) {
       return { error: 'resourceId, date, startTime, endTime sont requis', status: 400 };
     }
     if (positiveId(resourceId) === null) return refused('Identifiant invalide.');
-    const shape = shapeRefusal(payload) || linkRefusal(payload);
+    const shape = shapeRefusal(payload) || linkRefusal(payload) || billingRefusal(payload.billing);
     if (shape) return shape;
     const resource = getResourceForBooking(positiveId(resourceId));
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
 
-    const refusal = checkBookable({ resource, date, startTime, endTime });
+    const refusal = checkBookable({ resource, date, startTime, endTime })
+      || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes: payload.offeredMinutes, date });
     if (refusal) return refusal;
 
-    const totalPrice = breakdownOf({ resource, startTime, endTime, propertyId, reservationId }).total;
+    const totalPrice = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date }).total;
+    const billing = billingOf(payload.billing);
     const result = database.prepare(
-      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).run(resource.id, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, paid ? 1 : 0);
+      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)'
+    ).run(resource.id, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, offeredMinutes, billing.street, billing.postcode, billing.city);
     return { ok: true, id: result.lastInsertRowid, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
 
   function update(id, payload) {
     const existing = database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(id);
     if (!existing) return { error: 'Réservation non trouvée', status: 404 };
-    const shape = shapeRefusal(payload, existing) || linkRefusal(payload, existing);
+    const shape = shapeRefusal(payload, existing) || linkRefusal(payload, existing) || billingRefusal(payload.billing);
     if (shape) return shape;
+    // Rule 15 — an invoiced booking keeps everything its invoice states; only the notes move.
+    if (isFrozen(existing)) {
+      const moved = FROZEN_FIELDS.some((field) => payload[field] !== undefined && String(payload[field] ?? '') !== String(existing[field] ?? ''));
+      if (moved) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
+      if (payload.notes !== undefined) {
+        database.prepare("UPDATE resource_bookings SET notes = ?, updatedAt = datetime('now') WHERE id = ?").run(payload.notes ?? '', id);
+      }
+      return { ok: true, totalPrice: existing.totalPrice, warning: null };
+    }
 
-    const { reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, paid } = payload;
+    const { reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes } = payload;
     const newDate = date !== undefined ? date : existing.date;
     const newStart = startTime !== undefined ? startTime : existing.startTime;
     const newEnd = endTime !== undefined ? endTime : existing.endTime;
@@ -408,15 +461,21 @@ function createModel(database) {
     const resource = getResourceForBooking(existing.resourceId);
     if (!resource) return { error: 'Ressource non trouvée', status: 404 };
 
-    const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id, storedDate: existing.date, storedTimes: existing });
-    if (refusal) return refusal;
-
     const nextPropertyId = propertyId !== undefined ? propertyId : existing.propertyId;
     const nextReservationId = reservationId !== undefined ? (reservationId || null) : existing.reservationId;
-    const totalPrice = breakdownOf({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId }).total;
+    const nextOffered = payload.offeredMinutes !== undefined ? payload.offeredMinutes : existing.offeredMinutes;
+    const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id, storedDate: existing.date, storedTimes: existing })
+      || offeredCheck({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate });
+    if (refusal) return refusal;
+    const totalPrice = breakdownOf({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate }).total;
+    // Rule 12 — a recorded payment covers the total it was taken for: a price that moves takes it back.
+    if (existing.paidAt && Math.abs(Number(existing.totalPrice) - totalPrice) >= 0.005) {
+      return { error: 'Le prix change : retirer d’abord le paiement enregistré.', status: 409, code: 'BOOKING_PAID' };
+    }
+    const billing = payload.billing !== undefined ? billingOf(payload.billing) : { street: existing.billingStreet, postcode: existing.billingPostcode, city: existing.billingCity };
 
     database.prepare(
-      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,paid=?,updatedAt=datetime('now') WHERE id=?"
+      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,updatedAt=datetime('now') WHERE id=?"
     ).run(
       reservationId !== undefined ? (reservationId || null) : existing.reservationId,
       clientId !== undefined ? (clientId || null) : existing.clientId,
@@ -426,20 +485,194 @@ function createModel(database) {
       newDate, newStart, newEnd,
       notes !== undefined ? (notes ?? '') : existing.notes,
       totalPrice,
-      paid !== undefined ? (paid ? 1 : 0) : existing.paid,
+      Number(nextOffered) || 0,
+      billing.street || null, billing.postcode || null, billing.city || null,
       id,
     );
     return { ok: true, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
 
   function remove(id) {
-    const existing = database.prepare('SELECT id FROM resource_bookings WHERE id = ?').get(id);
+    const existing = database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(id);
     if (!existing) return { error: 'Non trouvée', status: 404 };
+    if (isFrozen(existing)) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
     database.prepare('DELETE FROM resource_bookings WHERE id = ?').run(id);
     return { ok: true };
   }
 
+  function rawById(id) {
+    return database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(id) || null;
+  }
+
+  /**
+   * Rules 11-12 — the payment of a booking, through the fiches' tender rules: the lines must cover the total, cash may
+   * go to the caisse interne. Refused on an invoiced booking (its invoice states the payment).
+   */
+  function recordPayment(id, { tenders, paidAt } = {}) {
+    const existing = rawById(id);
+    if (!existing) return { error: 'Réservation non trouvée', status: 404 };
+    if (isFrozen(existing)) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
+    const day = paidAt === undefined || paidAt === null || paidAt === '' ? todayInParis(now()) : paidAt;
+    if (typeof day !== 'string' || !ISO_DAY.test(day) || sdk.coreModule('stayDates').entryDateMessage(day)) return refused('Date du paiement invalide.');
+    const dueCents = Math.round(Number(existing.totalPrice || 0) * 100);
+    if (dueCents <= 0) return refused('Rien à encaisser.');
+    const check = sdk.coreModule('paymentTenders').validateSettlement({ tenders, dueCents, shortfall: null });
+    if (!check.ok) return refused(check.error);
+    database.prepare(`UPDATE resource_bookings SET paymentTenders = ?, paidAt = ?, paymentRecordedAt = datetime('now'), paid = 1,
+      updatedAt = datetime('now') WHERE id = ?`).run(JSON.stringify(check.lines), day, id);
+    return { ok: true };
+  }
+
+  function clearPayment(id) {
+    const existing = rawById(id);
+    if (!existing) return { error: 'Réservation non trouvée', status: 404 };
+    if (isFrozen(existing)) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
+    database.prepare(`UPDATE resource_bookings SET paymentTenders = NULL, paidAt = NULL, paymentRecordedAt = NULL, paid = 0,
+      updatedAt = datetime('now') WHERE id = ?`).run(id);
+    return { ok: true };
+  }
+
+  /**
+   * Rules 28-31 — the arrival of a guest with no stay, in one transaction: offered time, billing address, arrival,
+   * then the payment when one is given. The invoice is the caller's, after the commit (rule 30).
+   */
+  function recordArrival(id, { offeredMinutes, payment, billing } = {}) {
+    const existing = rawById(id);
+    if (!existing) return { error: 'Réservation non trouvée', status: 404 };
+    if (existing.reservationId) return { error: 'Cette séance appartient à un séjour : son sas d’arrivée est celui du séjour.', status: 409, code: 'BOOKING_HAS_STAY' };
+    // A refusal inside the steps rolls every step back: it is thrown out of the transaction, then returned.
+    const stop = (result) => { const err = new Error('refused'); err.refusal = result; throw err; };
+    try {
+      database.transaction(() => {
+        if (!isFrozen(existing) && !existing.paidAt) {
+          const moved = update(id, {
+            ...(offeredMinutes !== undefined ? { offeredMinutes } : {}),
+            ...(billing !== undefined ? { billing } : {}),
+          });
+          if (moved.error) stop(moved);
+        } else if (billing !== undefined) {
+          const shape = billingRefusal(billing);
+          if (shape) stop(shape);
+          const b = billingOf(billing);
+          database.prepare('UPDATE resource_bookings SET billingStreet = ?, billingPostcode = ?, billingCity = ? WHERE id = ?').run(b.street, b.postcode, b.city, id);
+        }
+        database.prepare("UPDATE resource_bookings SET arrivedAt = COALESCE(arrivedAt, datetime('now')) WHERE id = ?").run(id);
+        if (payment && !rawById(id).paidAt) {
+          const paid = recordPayment(id, payment);
+          if (paid.error) stop(paid);
+        }
+      })();
+    } catch (err) {
+      if (err && err.refusal) return err.refusal;
+      throw err;
+    }
+    return { ok: true };
+  }
+
+  // Rule 25 — the address typed after Qonto asked for it: allowed on a frozen-to-be booking, never moves the price.
+  function recordArrivalBilling(id, billing) {
+    if (!rawById(id)) return { error: 'Réservation non trouvée', status: 404 };
+    const shape = billingRefusal(billing);
+    if (shape) return shape;
+    const b = billingOf(billing);
+    database.prepare('UPDATE resource_bookings SET billingStreet = ?, billingPostcode = ?, billingCity = ? WHERE id = ?').run(b.street, b.postcode, b.city, id);
+    return { ok: true };
+  }
+
+  /** The frozen breakdown an invoice copies (rule 14): the stored booking, priced as stored. */
+  function invoiceBasis(id) {
+    const row = rawById(id);
+    if (!row) return null;
+    const resource = getResourceForBooking(row.resourceId);
+    if (!resource) return null;
+    const breakdown = breakdownOf({
+      resource, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, reservationId: row.reservationId,
+      offeredMinutes: row.offeredMinutes, date: row.date,
+    });
+    const client = row.clientId ? database.prepare('SELECT firstName, lastName, address FROM clients WHERE id = ?').get(row.clientId) : null;
+    const [first, ...rest] = String(row.clientName || '').trim().split(/\s+/);
+    // A guest of the clients directory is one Qonto client: the one an earlier invoice of his already made.
+    const knownQontoClient = row.clientId
+      ? (database.prepare('SELECT qontoClientId FROM resource_bookings WHERE clientId = ? AND qontoClientId IS NOT NULL ORDER BY id DESC LIMIT 1').get(row.clientId) || {}).qontoClientId
+      : null;
+    return {
+      row: enrichBooking({ ...row }),
+      resource,
+      breakdown,
+      who: client
+        ? { firstName: client.firstName || '', lastName: client.lastName || client.firstName || 'Client', clientId: knownQontoClient || row.qontoClientId || null }
+        : { firstName: rest.length ? first : '', lastName: rest.length ? rest.join(' ') : (first || 'Client'), clientId: row.qontoClientId || null },
+    };
+  }
+
+  function storeInvoice(id, { invoiceId, number, clientId, vatRate, total, markedPaid }) {
+    database.prepare(`UPDATE resource_bookings SET qontoInvoiceId = ?, invoiceNumber = ?, qontoClientId = ?, invoiceIssuedAt = datetime('now'),
+      invoiceVatRate = ?, invoiceTotal = ?, invoiceMarkedPaid = ?, invoiceCancelledAt = NULL, attachmentState = ?, attachmentAttempts = 0,
+      attachmentLastError = NULL, attachmentTransactionId = NULL, attachmentId = NULL, updatedAt = datetime('now') WHERE id = ?`)
+      .run(invoiceId, number, clientId, vatRate, total, markedPaid ? 1 : 0, null, id);
+  }
+
+  function setAttachment(id, { state, transactionId = null, attachmentId = null, error = null, countAttempt = false }) {
+    database.prepare(`UPDATE resource_bookings SET attachmentState = ?, attachmentTransactionId = COALESCE(?, attachmentTransactionId),
+      attachmentId = COALESCE(?, attachmentId), attachmentLastError = ?, attachmentAttempts = attachmentAttempts + ? WHERE id = ?`)
+      .run(state, transactionId, attachmentId, error, countAttempt ? 1 : 0, id);
+  }
+
+  function markInvoiceCancelled(id) {
+    database.prepare("UPDATE resource_bookings SET invoiceCancelledAt = datetime('now'), attachmentState = NULL WHERE id = ?").run(id);
+  }
+
+  // Rules 18, A2 — the invoiced bookings the hourly job still looks after: an attachment to find, or an invoice that
+  // may be cancelled in Qonto.
+  function invoicedToWatch() {
+    return database.prepare(`SELECT * FROM resource_bookings WHERE qontoInvoiceId IS NOT NULL AND invoiceCancelledAt IS NULL
+      AND date >= date('now', '-60 days') ORDER BY id`).all().map((r) => enrichBooking(r));
+  }
+
+  /**
+   * Rules 20-21, A4 — the sales of the window, for the journal and the card batch: payments recorded since the install,
+   * on their payment day, with their part on the books (total minus caisse interne).
+   */
+  function standaloneSales({ from, to }) {
+    const rows = database.prepare(`SELECT rb.*, c.firstName, c.lastName, r.name AS resourceName FROM resource_bookings rb
+      LEFT JOIN clients c ON c.id = rb.clientId LEFT JOIN resources r ON r.id = rb.resourceId
+      WHERE rb.reservationId IS NULL AND rb.paymentRecordedAt IS NOT NULL AND rb.paidAt >= ? AND rb.paidAt <= ? ORDER BY rb.paidAt, rb.id`).all(from, to);
+    return rows.map((row) => {
+      const tenders = parseTenders(row.paymentTenders) || [];
+      const totalCents = Math.round(Number(row.totalPrice || 0) * 100);
+      const internalCents = tenders.filter((t) => t.internal).reduce((sum, t) => sum + Number(t.amountCents || 0), 0);
+      const cardCents = tenders.filter((t) => t.method === 'card').reduce((sum, t) => sum + Number(t.amountCents || 0), 0);
+      const [first, ...rest] = String(row.clientName || '').trim().split(/\s+/);
+      const vat = row.invoiceVatRate !== null && row.invoiceVatRate !== undefined
+        ? Number(row.invoiceVatRate)
+        : vatFor({ reservationId: null, date: row.date }).rate;
+      return {
+        key: `resource-booking:${row.id}`,
+        date: row.paidAt,
+        totalCents,
+        booksCents: Math.max(0, totalCents - internalCents),
+        cardCents,
+        label: `${row.resourceName || 'Ressource'} du ${row.date.split('-').reverse().join('/')}`,
+        client: row.clientId ? { firstName: row.firstName || '', lastName: row.lastName || '' } : { firstName: rest.length ? first : '', lastName: rest.length ? rest.join(' ') : (first || '') },
+        vatRate: vat,
+        invoiceNumber: row.qontoInvoiceId && !row.invoiceCancelledAt ? row.invoiceNumber : null,
+      };
+    });
+  }
+
   return {
+    recordArrivalBilling,
+    recordPayment,
+    clearPayment,
+    recordArrival,
+    invoiceBasis,
+    storeInvoice,
+    setAttachment,
+    markInvoiceCancelled,
+    invoicedToWatch,
+    standaloneSales,
+    rawById,
+    breakdownOf,
     priceBooking,
     checkBookable,
     minimumUsageMinutes,
@@ -455,4 +688,4 @@ function createModel(database) {
   };
 }
 
-module.exports = { create: createModel };
+module.exports = { create: createModel, enrichBooking, isFrozen, FROZEN_MESSAGE };

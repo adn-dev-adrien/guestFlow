@@ -31,6 +31,7 @@ const ORIGINS = {
   webhook: 'notification Qonto',
   'webhook-register': 'abonnement au webhook',
   reconciliation: 'rapprochement bancaire',
+  invoicing: 'facture d’une vente hors séjour',
   admin: 'réglages',
   billing: 'facturation des abonnements',
   basket: 'paiement d’un panier en ligne',

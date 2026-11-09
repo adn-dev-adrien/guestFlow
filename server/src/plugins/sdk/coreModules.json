@@ -921,8 +921,10 @@
   ],
   "paymentTenders": [
     "currentCentsOf",
+    "methodLabel",
     "settlementFigures",
-    "targetFigures"
+    "targetFigures",
+    "validateSettlement"
   ],
   "paymentSettlementsModel": [
     "buildModel"
@@ -931,5 +933,12 @@
     "flippedParts",
     "prepare",
     "record"
+  ],
+  "invoiceIssuers": [
+    "current",
+    "ready"
+  ],
+  "standaloneSales": [
+    "list"
   ]
 }

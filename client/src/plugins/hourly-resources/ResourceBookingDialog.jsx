@@ -2,13 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Box, Alert, TextField, FormControl, InputLabel, Select, MenuItem,
-  FormControlLabel, Checkbox, Typography, Divider, Switch, Autocomplete, LinearProgress, useMediaQuery, useTheme,
+  FormControlLabel, Typography, Divider, Switch, Autocomplete, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
 import { api, formatCurrency } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
+import ResourceBookingSummary from './ResourceBookingSummary';
+import OfferedTimeField from './OfferedTimeField';
+import BookingPaymentFields, { paymentBody, allOnTheBooks, hasCard } from './BookingPaymentFields';
+import BookingInvoiceBlock from './BookingInvoiceBlock';
+
+const EMPTY_BILLING = { street: '', postcode: '', city: '' };
+const dayMonth = (iso) => (iso ? iso.split('-').reverse().slice(0, 2).join('/') : '');
 
 function timeToMinutes(t) {
   const [h, m] = (t || '00:00').split(':').map(Number);
@@ -42,18 +49,6 @@ function isSlotAvailable(slotStart, slotEnd, occupiedSlots) {
 
 const BOOKING_STEP_MINUTES = 5;
 
-// Wording only: every figure and minute count below is a field of the server's answer.
-function offeredBilledLabel(price) {
-  const offered = price.freeMinutesApplied;
-  const billed = price.billedMinutes;
-  return `${formatDuration(offered)} offert${offered > 1 && offered !== 60 ? 'es' : 'e'} · ${formatDuration(billed)} facturé${billed > 1 && billed !== 60 ? 'es' : 'e'}`;
-}
-
-const BAND_LABELS = { day: 'jour', evening: 'soir' };
-function bandsLabel(bands) {
-  return bands.map((b) => `${BAND_LABELS[b.band] || b.band} ${formatCurrency(b.amount)}`).join(' · ');
-}
-
 export default function ResourceBookingDialog({
   open,
   resource,
@@ -63,6 +58,7 @@ export default function ResourceBookingDialog({
   onClose,
   onSave,
   onDelete,
+  onArrival,
 }) {
   const slotDuration = resource?.slotDuration || 5;
   const turnoverMinutes = Number(resource?.turnoverMinutes || 0);
@@ -90,7 +86,13 @@ export default function ResourceBookingDialog({
   const [propertyId, setPropertyId] = useState('');
   const [properties, setProperties] = useState([]);
   const [notes, setNotes] = useState('');
-  const [paid, setPaid] = useState(false);
+  const [offeredMinutes, setOfferedMinutes] = useState(0);
+  // Rule 11 (Q9) — paying is a moment of its own: « À l'arrivée » by default.
+  const [payWhen, setPayWhen] = useState('arrival');
+  const [payment, setPayment] = useState(null);
+  const [invoiceChecked, setInvoiceChecked] = useState(false);
+  const [billing, setBilling] = useState(EMPTY_BILLING);
+  const [invoiceOutcome, setInvoiceOutcome] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedWarning, setSavedWarning] = useState(null);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
@@ -149,8 +151,8 @@ export default function ResourceBookingDialog({
   // The price is the server's: the draft below is all the dialog sends, and the answer is rendered as is
   // (specs/resource-supplements-total-server-side.md rules 8-14).
   const draft = useMemo(() => resourceBookingDraft({
-    resourceId: resource?.id, bookingId: booking?.id, date, startTime: selectedStart, endTime: selectedEnd, propertyId,
-  }), [resource?.id, booking?.id, date, selectedStart, selectedEnd, propertyId]);
+    resourceId: resource?.id, bookingId: booking?.id, date, startTime: selectedStart, endTime: selectedEnd, propertyId, offeredMinutes,
+  }), [resource?.id, booking?.id, date, selectedStart, selectedEnd, propertyId, offeredMinutes]);
   const preview = useResourceBookingPreview({ draft, enabled: open });
   const price = preview.price;
 
@@ -190,7 +192,8 @@ export default function ResourceBookingDialog({
       setSelectedStart(booking.startTime || '');
       setSelectedEnd(booking.endTime || '');
       setNotes(booking.notes || '');
-      setPaid(Boolean(booking.paid));
+      setOfferedMinutes(Number(booking.offeredMinutes || 0));
+      setBilling(booking.billing || EMPTY_BILLING);
       setPropertyId(booking.propertyId ? String(booking.propertyId) : '');
       if (booking.clientId) {
         setExternalMode(false);
@@ -206,13 +209,18 @@ export default function ResourceBookingDialog({
       setSelectedStart('');
       setSelectedEnd('');
       setNotes('');
-      setPaid(false);
+      setOfferedMinutes(0);
+      setBilling(EMPTY_BILLING);
       setPropertyId('');
       setExternalMode(true);
       setClientName('');
       setClientPhone('');
       setSelectedClient(null);
     }
+    setPayWhen('arrival');
+    setPayment(null);
+    setInvoiceChecked(false);
+    setInvoiceOutcome(null);
   }, [booking, initialDate, open]); // eslint-disable-line
 
   // Handle MiniDayPlanner time selection
@@ -220,12 +228,27 @@ export default function ResourceBookingDialog({
     if (type === 'start') {
       setSelectedStart(time);
       setSelectedEnd(''); // Reset end when changing start
+      setOfferedMinutes(0);
     } else if (type === 'end') {
       setSelectedEnd(time);
     }
   };
 
+  // Booking, then — when paid now — the payment and the invoice, each the server's own step: a refused invoice keeps the
+  // booking and its payment (rule 25), and says why where the invoice is.
   async function handleSave() {
+    if (invoiceOutcome) {
+      setSaving(true);
+      try {
+        await api.issueResourceBookingInvoice(invoiceOutcome.id, externalMode ? { billing } : {});
+        onClose();
+      } catch (err) {
+        setInvoiceOutcome({ code: err.code || null, message: err.message, id: invoiceOutcome.id });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological || !meetsMinimumDuration) return; // Block save if invalid
     setSaving(true);
     try {
@@ -234,21 +257,41 @@ export default function ResourceBookingDialog({
         startTime,
         endTime,
         notes,
-        paid,
+        offeredMinutes,
         propertyId: propertyId || null,
         displayedTotal: price ? price.total : undefined,
+        ...(externalMode ? { billing } : {}),
         ...(externalMode
           ? { clientId: null, clientName: clientName.trim() || null, clientPhone: clientPhone.trim() || null }
           : { clientId: selectedClient?.id || null, clientName: null, clientPhone: null }),
       };
       const saved = await onSave(data);
-      if (saved?.warning) setSavedWarning(saved.warning);
-      else if (saved) onClose();
+      if (!saved) return;
+      const id = booking?.id || saved.id;
+      if (payNow && id) {
+        await api.recordResourceBookingPayment(id, paymentBody(payment));
+        if (wantsInvoice) {
+          try {
+            await api.issueResourceBookingInvoice(id, externalMode ? { billing } : {});
+          } catch (err) {
+            setInvoiceOutcome({ code: err.code || null, message: err.message, id });
+            return;
+          }
+        }
+      }
+      if (saved.warning) setSavedWarning(saved.warning);
+      else onClose();
     } finally {
       setSaving(false);
     }
   }
 
+  const editable = !booking?.frozen;
+  const payNow = payWhen === 'now' && !booking?.paid && Boolean(price && price.total > 0);
+  const qontoReady = Boolean(price ? price.invoiceReady : booking?.invoiceReady);
+  const invoiceOffered = payNow && allOnTheBooks(payment);
+  const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
+  const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
   const canSave = Boolean(
     date
     && selectedStart
@@ -257,6 +300,7 @@ export default function ResourceBookingDialog({
     && meetsMinimumDuration
     && (externalMode ? clientName.trim() : selectedClient)
     && slotAvailable
+    && (!payNow || Boolean(payment && payment.canSubmit))
   );
   const shownPrice = draft ? price : null;
   const showRefusal = Boolean(draft && preview.refusal && !preview.pending);
@@ -297,6 +341,7 @@ export default function ResourceBookingDialog({
               type="date"
               value={date}
               onChange={(e) => { setDate(e.target.value); setSelectedStart(''); setSelectedEnd(''); }}
+              disabled={!editable}
               fullWidth
               size="small"
               slotProps={{
@@ -313,7 +358,7 @@ export default function ResourceBookingDialog({
               closeTime={closeTime}
               slotDuration={BOOKING_STEP_MINUTES}
               minimumDuration={minimumDurationMinutes}
-              disabled={false}
+              disabled={!editable}
             />
           </Box>
 
@@ -334,47 +379,38 @@ export default function ResourceBookingDialog({
                 sx={{
                   position: 'relative', overflow: 'hidden', minHeight: 64,
                   px: 1.5, py: 1, borderRadius: 1,
-                  bgcolor: slotAvailable && !showRefusal ? '#e8f5e9' : '#ffebee',
-                  borderLeft: `3px solid ${slotAvailable && !showRefusal ? '#4caf50' : '#f44336'}`,
+                  border: 1,
+                  borderColor: slotAvailable && !showRefusal ? 'divider' : 'error.main',
+                  bgcolor: slotAvailable && !showRefusal ? 'background.paper' : 'error.light',
                 }}
               >
-                <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                  {selectedStart} → {selectedEnd} · {formatDuration(durationMinutes)}
-                  {shownPrice && (
-                    <Box
-                      component="span"
-                      sx={{
-                        opacity: preview.pending ? 0.55 : 1,
-                        transition: 'opacity 150ms ease-out',
-                        '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
-                      }}
-                    >
-                      {' · '}{formatCurrency(shownPrice.total)}
-                    </Box>
-                  )}
-                  {!shownPrice && draft && preview.pending && (
-                    <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}> · Calcul du prix…</Box>
-                  )}
-                  {showUnavailable && (
-                    <>
-                      <Box component="span" sx={{ fontWeight: 400, color: 'error.main' }}> · Prix indisponible</Box>
-                      <Button size="small" onClick={preview.retry} sx={{ ml: 1, minHeight: 44, minWidth: 44 }}>Réessayer</Button>
-                    </>
-                  )}
-                </Typography>
-                {shownPrice && (
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{
-                      display: 'block', fontVariantNumeric: 'tabular-nums',
-                      opacity: preview.pending ? 0.55 : 1,
-                    }}
-                  >
-                    {[
-                      shownPrice.freeMinutesApplied > 0 ? offeredBilledLabel(shownPrice) : null,
-                      shownPrice.pricing === 'banded' && shownPrice.bands.length > 0 ? bandsLabel(shownPrice.bands) : null,
-                    ].filter(Boolean).join(' · ')}
+                {shownPrice ? (
+                  <ResourceBookingSummary
+                    price={shownPrice}
+                    pending={preview.pending}
+                    heading={`${selectedStart} → ${selectedEnd} · ${formatDuration(durationMinutes)}`}
+                    offerSlot={(
+                      <OfferedTimeField
+                        value={offeredMinutes}
+                        max={durationForOffer}
+                        onChange={setOfferedMinutes}
+                        refusal={showRefusal && /offert/i.test(preview.refusal || '') ? preview.refusal : null}
+                        disabled={!editable || Boolean(booking?.paid)}
+                      />
+                    )}
+                  />
+                ) : (
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                    {selectedStart} → {selectedEnd} · {formatDuration(durationMinutes)}
+                    {draft && preview.pending && (
+                      <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}> · Calcul du prix…</Box>
+                    )}
+                    {showUnavailable && (
+                      <>
+                        <Box component="span" sx={{ fontWeight: 400, color: 'error.main' }}> · Prix indisponible</Box>
+                        <Button size="small" onClick={preview.retry} sx={{ ml: 1, minHeight: 44, minWidth: 44 }}>Réessayer</Button>
+                      </>
+                    )}
                   </Typography>
                 )}
                 {showRefusal ? (
@@ -418,6 +454,7 @@ export default function ResourceBookingDialog({
                 <Select
                   label="Heure début"
                   value={selectedStart}
+                  disabled={!editable}
                   onChange={(e) => {
                     const nextStart = e.target.value;
                     setSelectedStart(nextStart);
@@ -445,7 +482,7 @@ export default function ResourceBookingDialog({
                 <Select
                   label="Heure fin"
                   value={selectedEnd}
-                  disabled={!selectedStart}
+                  disabled={!selectedStart || !editable}
                   onChange={(e) => setSelectedEnd(e.target.value)}
                 >
                   <MenuItem value="">
@@ -523,11 +560,60 @@ export default function ResourceBookingDialog({
               size="small"
             />
 
-            {/* Paid */}
-            <FormControlLabel
-              control={<Checkbox checked={paid} onChange={(e) => setPaid(e.target.checked)} size="small" />}
-              label={<Typography variant="body2">Payé</Typography>}
-            />
+            {/* Payment (rule 11, Q9): at the arrival by default, or now with the fiches' tender lines */}
+            <Divider />
+            <Box sx={{ display: 'grid', gap: 1.25 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>Paiement</Typography>
+              {booking?.paid ? (
+                <Alert severity="success">Encaissé : {booking.payment?.label || 'Moyen non saisi'}, {formatCurrency(booking.totalPrice)}, le {dayMonth(booking.payment?.paidAt)}.</Alert>
+              ) : (
+                <>
+                  <ToggleButtonGroup
+                    exclusive
+                    size="small"
+                    value={payWhen}
+                    onChange={(_, next) => { if (next) { setPayWhen(next); setPayment(null); setInvoiceChecked(false); } }}
+                    aria-label="Moment du paiement"
+                  >
+                    <ToggleButton value="arrival" sx={{ minHeight: 44, px: 2 }}>À l'arrivée</ToggleButton>
+                    <ToggleButton value="now" disabled={!price || !(price.total > 0)} sx={{ minHeight: 44, px: 2 }}>Maintenant</ToggleButton>
+                  </ToggleButtonGroup>
+                  {payWhen === 'arrival' ? (
+                    <Typography variant="caption" color="text.secondary">Le paiement et la facture se feront dans le sas d'arrivée, le jour de la séance.</Typography>
+                  ) : (price && price.total > 0 && (
+                    <BookingPaymentFields
+                      dueCents={Math.round(Number(price.total) * 100)}
+                      value={payment}
+                      onChange={(next) => {
+                        setPayment(next);
+                        if (!payment || hasCard(next) !== hasCard(payment)) setInvoiceChecked(hasCard(next));
+                      }}
+                    />
+                  ))}
+                </>
+              )}
+            </Box>
+
+            {(payNow || booking?.invoice || invoiceOutcome) && (
+              <Box sx={{ display: 'grid', gap: 1.25 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700 }}>Facture</Typography>
+                {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
+                <BookingInvoiceBlock
+                  booking={booking}
+                  qontoReady={qontoReady}
+                  offered={invoiceOffered || Boolean(invoiceOutcome)}
+                  checked={invoiceChecked}
+                  onCheck={setInvoiceChecked}
+                  billing={billing}
+                  onBilling={setBilling}
+                  addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
+                  internalCash={payNow && Boolean(payment) && !allOnTheBooks(payment)}
+                  cardDay={dayMonth(booking?.payment?.paidAt || payment?.paidAt)}
+                  showAddress={externalMode}
+                  busy={saving}
+                />
+              </Box>
+            )}
           </Box>
         </Box>
         )}
@@ -538,13 +624,18 @@ export default function ResourceBookingDialog({
         ) : (
           <>
             {booking && (
-              <Button color="error" onClick={() => onDelete(booking.id)} disabled={saving}>
+              <Button color="error" onClick={() => onDelete(booking.id)} disabled={saving || booking.frozen} sx={{ mr: 'auto' }}>
                 Supprimer
               </Button>
             )}
+            {booking && booking.external && onArrival && (
+              <Button onClick={() => onArrival(booking)} disabled={saving} sx={{ minHeight: 44 }}>
+                {booking.arrived ? "Voir l'arrivée" : 'Arrivée'}
+              </Button>
+            )}
             <Button onClick={onClose} disabled={saving}>Annuler</Button>
-            <Button variant="contained" onClick={handleSave} disabled={!canSave || !preview.fresh || saving}>
-              {saving ? 'Enregistrement...' : (draft && preview.pending ?'Calcul du prix…' : 'Enregistrer')}
+            <Button variant="contained" onClick={handleSave} disabled={invoiceOutcome ? saving : (!canSave || !preview.fresh || saving)} sx={{ minHeight: 44 }}>
+              {saving ? 'Enregistrement…' : (invoiceOutcome ? 'Créer la facture' : (draft && preview.pending ? 'Calcul du prix…' : (wantsInvoice ? 'Enregistrer et facturer' : 'Enregistrer')))}
             </Button>
           </>
         )}

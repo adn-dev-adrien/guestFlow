@@ -16,6 +16,7 @@ const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
+const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
 // The web apps of plugins never shadow the core's trees (rule 47).
@@ -55,7 +56,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (!isPublic && !path.startsWith('/api/')) throw new Error(`${prefix} mounts must live under /api/`);
       record.mounts.push({ path, router, public: isPublic });
     },
-    // SDK 2.25.0 (specs/plugins-phase-1-sdk.md rule 48) — a web app the plugin serves itself: under `path` (one
+    // SDK 2.26.0 (specs/plugins-phase-1-sdk.md rule 48) — a web app the plugin serves itself: under `path` (one
     // segment of its own, e.g. '/studio') on every host, or on its own `host()` (a hostname, read on each request;
     // null = none yet) at every path. Never under /api, /public, /uploads or /plugin-assets: those stay the core's,
     // on every host. Reached only while the plugin is live.
@@ -130,7 +131,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       });
       record.priceLineContributor = contributor;
     },
-    // SDK 2.25.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
+    // SDK 2.26.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
     // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and
     // `validateSessions(args)` → `{ results }` | null. One per instance; the core hands it out as
     // `ctx.core.resourceScheduler()`, so a plugin never requires another.
@@ -142,7 +143,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
     },
-    // SDK 2.25.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
+    // SDK 2.26.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
     // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
     // `ctx.core.resourceHolds(...)` as occupancy. Synchronous, one per plugin.
     resourceHolds(source) {
@@ -150,7 +151,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (record.resourceHolds) throw new Error(`${prefix} resourceHolds is already declared`);
       record.resourceHolds = source;
     },
-    // SDK 2.25.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
+    // SDK 2.26.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
     // (`ctx.core.payments.basketLink(...)`): `paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId })`
     // runs, synchronously, when such a link is paid — on time or late — and answers `{ effect }`; `refundOwed: true`
     // marks money the stay keeps nothing for. One plugin per `source`.
@@ -174,6 +175,23 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (typeof build !== 'function') throw new Error(`${prefix} resourceCatalogueLines needs a function`);
       if (record.resourceCatalogueLines) throw new Error(`${prefix} resourceCatalogueLines is already declared`);
       record.resourceCatalogueLines = build;
+    },
+    // The invoice issuer (specs/resource-booking-pricing-and-invoicing.md rule 14): numbers and keeps the invoices a
+    // plugin asks for, and joins their PDF to a bank transaction. One per instance, like the payment provider.
+    invoiceIssuer(issuer) {
+      ISSUER_MEMBERS.forEach((m) => {
+        if (issuer == null || issuer[m] == null) throw new Error(`${prefix} invoice issuer lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.invoiceIssuer);
+      if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
+      record.invoiceIssuer = issuer;
+    },
+    // ({ from, to }) → [sale] — what the plugin sold outside any stay, for the journal and the card batch
+    // (specs/resource-booking-pricing-and-invoicing.md rules 20-21). Synchronous, reads the plugin's own tables.
+    standaloneSales(list) {
+      if (typeof list !== 'function') throw new Error(`${prefix} standaloneSales needs a function`);
+      if (record.standaloneSales) throw new Error(`${prefix} standaloneSales is already declared`);
+      record.standaloneSales = list;
     },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {

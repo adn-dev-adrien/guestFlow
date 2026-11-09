@@ -1,1 +1,1 @@
-- plugin:gate-access The key window now comes from the core (`utils/stayWindow.js`), same computation; the plugin asks for SDK 2.25.0.
+- plugin:gate-access The key window now comes from the core (`utils/stayWindow.js`), same computation; the plugin asks for SDK 2.26.0.

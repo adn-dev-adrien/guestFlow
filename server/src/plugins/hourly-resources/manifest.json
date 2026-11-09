@@ -1,11 +1,12 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
     "Calendrier › Ressources",
+    "Le sas d’arrivée d’un client sans séjour",
     "Le sélecteur de séances de la fiche",
     "L’allumage et les séances du planning",
     "L’étape « créneaux » du sas",
@@ -13,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.25.0",
+  "sdk": "^2.26.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -90,9 +91,18 @@
       "Compatible avec le SDK 2.20 de GuestFlow."
     ],
     "1.4.0": [
+      "Le prix d’une réservation de ressource se détaille ligne par ligne : jour, soir, offert par le logement, temps offert, TVA.",
+      "Du temps offert par tranches de 15 minutes, sans changer le créneau bloqué au planning.",
+      "Le paiement se fait à la réservation ou à l’arrivée, avec les moyens des fiches et la caisse interne pour les espèces.",
+      "Un sas d’arrivée d’un seul écran pour un client sans séjour : sa séance, le temps offert, le paiement et la facture.",
+      "La facture se crée dans Qonto et se joint au lot CB du jour ; l’adresse de facturation reste facultative.",
+      "Réglage « TVA des ventes hors séjour », 20 % par défaut.",
+      "Compatible avec le SDK 2.25 de GuestFlow."
+    ],
+    "1.5.0": [
       "L’application clients propose les créneaux libres d’une ressource à l’heure, lus dans ce planning : séances des autres séjours, réservations extérieures, remise en état, chauffe et maintien en température.",
       "Un créneau d’une commande client en attente de paiement est bloqué dans le planning, le sas et les réservations extérieures.",
-      "Demande le SDK 2.25 de GuestFlow."
+      "Demande le SDK 2.26 de GuestFlow."
     ]
   }
 }

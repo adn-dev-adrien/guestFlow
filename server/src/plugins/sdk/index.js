@@ -104,7 +104,7 @@ const CORE_MODULES = Object.freeze({
   // linen, school-holidays, hourly-resources — the date window of every entered date (reservations-backend-mvc rule 13)
   stayDates: '../../utils/stayDates',
   // gate-access, guest-app, hourly-resources — one stay window for the gate keys, the guest sessions and the guest's
-  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.25.0)
+  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.26.0)
   stayWindow: '../../utils/stayWindow',
   // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app.md §5)
   encryption: '../../utils/encryption',
@@ -134,6 +134,10 @@ const CORE_MODULES = Object.freeze({
   paymentTenders: '../../utils/paymentTenders',
   paymentSettlementsModel: '../../models/paymentSettlementsModel',
   paymentSettlementService: '../../utils/paymentSettlementService',
+  // hourly-resources, online-payment, accounting-export — the invoice issuer and the sales made outside any stay
+  // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
+  invoiceIssuers: '../../utils/invoiceIssuers',
+  standaloneSales: '../../utils/standaloneSales',
 });
 
 function coreModule(name) {

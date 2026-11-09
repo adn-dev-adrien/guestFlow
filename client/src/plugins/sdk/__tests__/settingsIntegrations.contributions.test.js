@@ -19,6 +19,8 @@ test('rule 4: each contributing plugin declares a short tab label', () => {
     'airbnb-intake': 'Airbnb',
     'google-vacation-rentals': 'Google Vacation Rentals',
     'guest-app': 'Application clients',
+    // specs/resource-booking-pricing-and-invoicing.md rule 5 — « TVA des ventes hors séjour ».
+    'hourly-resources': 'Ressources à l’heure',
   };
   const shipped = shippedPlugins();
   expect(Object.fromEntries(byPlugin)).toEqual(Object.fromEntries(Object.entries(expected).filter(([id]) => shipped.includes(id))));

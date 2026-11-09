@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.25.0",
+  "sdk": "^2.26.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -142,7 +142,7 @@
     ],
     "1.8.13": [
       "Les prix et libellés des options et des ressources viennent désormais d’une projection commune de GuestFlow, partagée avec l’application clients : rien ne change sur le site.",
-      "Demande le SDK 2.25 de GuestFlow."
+      "Demande le SDK 2.26 de GuestFlow."
     ]
   }
 }

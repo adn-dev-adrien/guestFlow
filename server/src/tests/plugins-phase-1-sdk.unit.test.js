@@ -340,7 +340,7 @@ test('rule 25: a value a rollback wrote in the old columns is carried forward; a
 
 // ---------- jobs (rule 8) ----------
 
-test('rule 8: the jobs keep today’s intervals and boot delays, and skip their tick while inactive', { skip: skipWithout(['airbnb-intake', 'gate-access', 'gites-de-france-intake', 'google-calendar', 'google-vacation-rentals', 'guest-app', 'neat', 'online-payment', 'school-holidays', 'tariff-recipes', 'website-booking']) }, async () => {
+test('rule 8: the jobs keep today’s intervals and boot delays, and skip their tick while inactive', { skip: skipWithout(['airbnb-intake', 'gate-access', 'gites-de-france-intake', 'google-calendar', 'google-vacation-rentals', 'guest-app', 'hourly-resources', 'neat', 'online-payment', 'school-holidays', 'tariff-recipes', 'website-booking']) }, async () => {
   const db = freshDb();
   boot(db, { installed: MODULE_IDS, active: [] });
   const intervals = [];
@@ -358,8 +358,9 @@ test('rule 8: the jobs keep today’s intervals and boot delays, and skip their 
   // the purge of expired guest sessions: daily, first at 200 s (specs/guest-app.md §5);
   // the expiry of unpaid guest orders: every minute, first at 30 s (specs/guest-app.md rule 36);
   // the stock's arrival sweep: every 5 min, first at 45 s (specs/guest-app.md rule 37ter).
-  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [60 * 1000, 5 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR]);
-  assert.deepEqual(timeouts.sort((a, b) => a - b), [30 * 1000, 45 * 1000, 60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 200 * 1000, 240 * 1000, 600 * 1000, 900 * 1000]);
+  // the invoices of resource bookings: hourly, first at 5 min (specs/resource-booking-pricing-and-invoicing.md rule 18).
+  assert.deepEqual(intervals.map(([, ms]) => ms).sort((a, b) => a - b), [60 * 1000, 5 * 60 * 1000, 5 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, 15 * 60 * 1000, HOUR, HOUR, HOUR, HOUR, 8 * HOUR, 8 * HOUR, 24 * HOUR, 24 * HOUR, 24 * HOUR]);
+  assert.deepEqual(timeouts.sort((a, b) => a - b), [30 * 1000, 45 * 1000, 60 * 1000, 110 * 1000, 120 * 1000, 130 * 1000, 140 * 1000, 150 * 1000, 150 * 1000, 160 * 1000, 180 * 1000, 200 * 1000, 240 * 1000, 300 * 1000, 600 * 1000, 900 * 1000]);
   const ran = [];
   const record = registry.get('school-holidays');
   record.jobs[0].run = () => { ran.push('tick'); };

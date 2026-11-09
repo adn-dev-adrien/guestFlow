@@ -27,6 +27,7 @@ const EXEMPT = {
     'DELETE /api/reservations/:id/platform-penalties/:penaltyId',
     'DELETE /api/reservations/:id/refunds/:refundId',
     'DELETE /api/resource-bookings/:id',
+    'DELETE /api/resource-bookings/:id/payment',
     'DELETE /api/resources/:id',
     'DELETE /api/school-holidays/:id',
     'DELETE /api/settings/logo',

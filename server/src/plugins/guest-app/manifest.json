@@ -15,11 +15,11 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0 <4.0.0",
-  "sdk": "^2.25.0",
+  "sdk": "^2.26.0",
   "changelog": {
     "1.0.0": [
       "Première version : réglages par logement, code QR de chaque logement (livret seul), lien « Mon séjour » propre à chaque séjour (sas d’arrivée, e-mails, fiche), sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, commandes du séjour (sur la note, à 0 € ou par carte, inscrites sur la fiche), commandes clients côté équipe, stock par article (épuisé, alertes), commandes livrées ou à retirer, portail du séjour, Studio lu en direct depuis GuestFlow, manifeste d’installation et service de l’application clients et du Studio, l’application clients « Mon séjour » (téléphone, tablette, ordinateur, hors ligne pour le livret), le Studio du livret et, dans GuestFlow, la section « Application clients » des options et ressources, la page « Commandes clients », la carte du planning et le lien « Mon séjour » de la fiche.",
-      "Prévu pour le SDK 2.25 de GuestFlow."
+      "Prévu pour le SDK 2.26 de GuestFlow."
     ]
   }
 }

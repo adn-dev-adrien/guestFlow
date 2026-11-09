@@ -145,6 +145,29 @@ function isLastMinuteStay({ bookingDate = null, startDate = null, balanceDaysBef
 }
 
 /**
+ * D23 — does a quote owe ONE payment, due on its validity date? (specs/deposit-blocks-the-dates.md rule 19)
+ *
+ * True when the solde deadline `startDate − balanceDaysBefore` falls on or before `validUntil`: an acompte
+ * due on the validity date would then be owed after the solde. The last-minute switch (rule 4) seen from
+ * the quote's validity date instead of its issue day. Either date missing → false.
+ */
+function owesSinglePaymentByValidity({ startDate = null, validUntil = null, balanceDaysBefore = 30 } = {}) {
+  const start = toIsoDay(startDate);
+  const until = toIsoDay(validUntil);
+  if (!start || !until) return false;
+  const soldeDue = addDaysToIsoDate(start, -positiveDays(balanceDaysBefore, 30));
+  return Boolean(soldeDue) && soldeDue <= until;
+}
+
+/**
+ * D23 — the deadline of the single payment a reservation keeps from the devis it was converted from: the
+ * devis's validity date, never before the reservation's own booking day (an expired quote converted late).
+ */
+function devisPromiseDueDate({ validUntil = null, bookingDate = null } = {}) {
+  return [toIsoDay(validUntil), toIsoDay(bookingDate)].filter(Boolean).sort().pop() || null;
+}
+
+/**
  * Cancellation deadline (rule 11) — the day from which an unpaid solde may cost the stay.
  */
 function resolveCancelOn({ balanceDueDate = null, cancelAfterBalanceDueDays = 7 } = {}) {
@@ -166,6 +189,8 @@ module.exports = {
   resolveDepositDueDate,
   resolveBalanceDueDate,
   isLastMinuteStay,
+  owesSinglePaymentByValidity,
+  devisPromiseDueDate,
   resolveCancelOn,
   daysBetween,
   toIsoDay,

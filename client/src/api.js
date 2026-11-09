@@ -212,7 +212,7 @@ const api = {
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, values) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: values }),
   // A plugin's own routes under `/api` (its `ctx.mount`), through the same session, errors and data-changed event as
-  // every core call — so a plugin keeps its endpoints in its own folder instead of this file (SDK 2.25.0).
+  // every core call — so a plugin keeps its endpoints in its own folder instead of this file (SDK 2.26.0).
   pluginRequest: (path, options) => request(path, options),
   // Saisie Gîtes de France plugin (specs/gites-de-france-mail-intake.md §4.4).
   getGdfIntakeForReservation: (reservationId) => request(`/gdf-intake/reservation/${reservationId}`),
@@ -415,9 +415,16 @@ const api = {
   previewResourceBooking: (draft, { signal } = {}) => request('/resource-bookings/preview', {
     method: 'POST', body: draft, signal, readOnly: true,
   }),
+  getResourceBooking: (id) => request(`/resource-bookings/${id}`),
   createResourceBooking: (data) => request('/resource-bookings', { method: 'POST', body: data }),
   updateResourceBooking: (id, data) => request(`/resource-bookings/${id}`, { method: 'PUT', body: data }),
   deleteResourceBooking: (id) => request(`/resource-bookings/${id}`, { method: 'DELETE' }),
+  // specs/resource-booking-pricing-and-invoicing.md §4.3 — payment, arrival and Qonto invoice of a booking.
+  recordResourceBookingPayment: (id, body) => request(`/resource-bookings/${id}/payment`, { method: 'POST', body }),
+  clearResourceBookingPayment: (id) => request(`/resource-bookings/${id}/payment`, { method: 'DELETE' }),
+  recordResourceBookingArrival: (id, body) => request(`/resource-bookings/${id}/arrival`, { method: 'POST', body }),
+  issueResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice`, { method: 'POST', body }),
+  attachResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice/attach`, { method: 'POST', body }),
 
   // Reservations
   getReservations: (params) => {

@@ -34,7 +34,9 @@ const { portionCap, clampPortions } = require('./mealPortions');
 const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
-const { resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay } = require('./paymentSchedule');
+const {
+  resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromiseDueDate, toIsoDay,
+} = require('./paymentSchedule');
 const { readInstallmentSummary } = require('./installmentSummary');
 const {
   findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
@@ -1566,6 +1568,9 @@ function calculateReservationQuote({
   // 'reservation' (default) | 'devis'. A devis takes `validUntil` as its acompte deadline (rule 5).
   kind: quoteKind = 'reservation',
   validUntil = null,
+  // D23 (specs/deposit-blocks-the-dates.md rule 19) — on a reservation converted from a devis: that devis's
+  // start date and validity date, `{ startDate, validUntil }`. Null everywhere else.
+  devisPromise = null,
   // specs/neat-cancellation-insurance-subscription.md §3.2 rule 13 — the Neat-derived guest price
   // of the cancellation insurance, for the WHOLE stay (premium + margin, euro-ceiled), resolved
   // asynchronously by the caller BEFORE invoking the engine. When a finite number, it replaces the
@@ -2672,7 +2677,20 @@ function calculateReservationQuote({
   const keepsStoredSchedule = channel.ownChannel && channel.namedChannel && Number(bookingId) > 0
     && storedDepositKnown && !depositPaid && !depositDisabled
     && (depositAmountOverride === null || depositAmountOverride === undefined || depositAmountOverride === '');
-  if (keepsStoredSchedule) {
+  // D23 (specs/deposit-blocks-the-dates.md rule 19) — a devis whose solde would fall on or before its
+  // validity date carries no acompte: due on the validity date, it would be owed after the solde. A devis
+  // collects nothing before it is converted, so this outranks every branch below, platform included.
+  const devisSinglePayment = String(quoteKind) === 'devis'
+    && owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore: property.balanceDaysBefore });
+  // The reservation converted from such a devis keeps its single payment and its deadline for the dates
+  // quoted; moved, the stay takes the reservation rules. Last in the chain, like the last-minute switch.
+  const keepsDevisPromise = String(quoteKind) !== 'devis' && !platformIsNonDirect && Boolean(devisPromise)
+    && toIsoDay(devisPromise.startDate) === toIsoDay(startDate)
+    && owesSinglePaymentByValidity({ startDate, validUntil: devisPromise.validUntil, balanceDaysBefore: property.balanceDaysBefore });
+  if (devisSinglePayment) {
+    resolvedDepositAmount = 0;
+    resolvedBalanceAmount = roundMoney(preArrivalAmount);
+  } else if (keepsStoredSchedule) {
     resolvedDepositAmount = roundMoney(Math.min(Math.max(0, Number(depositAmount) || 0), accommodationPreArrival));
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - resolvedDepositAmount));
   } else if (platformIsNonDirect) {
@@ -2750,7 +2768,7 @@ function calculateReservationQuote({
       : autoDepositAmount;
     resolvedDepositAmount = clamped;
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - clamped));
-  } else if (isLastMinuteStay({ bookingDate, startDate, balanceDaysBefore: property.balanceDaysBefore })) {
+  } else if (isLastMinuteStay({ bookingDate, startDate, balanceDaysBefore: property.balanceDaysBefore }) || keepsDevisPromise) {
     // specs/deposit-blocks-the-dates.md rules 4-6 (implementing specs/online-payments-qonto.md §3.7) —
     // the stay starts inside the solde window, so an acompte would be due at the same time as the solde
     // it is supposed to precede. The guest owes ONE payment: the whole pre-arrival total. Last in the
@@ -2848,8 +2866,10 @@ function calculateReservationQuote({
     // specs/deposit-blocks-the-dates.md rule 7 — with no acompte, a DIRECT devis owes its single
     // payment on its validity date, not on the issue day the clamp would produce. A devis carrying an
     // OTA name never had an acompte to lose, so it keeps the guest-facing derivation (rule 3 above).
-    dueOnValidUntil: String(quoteKind) === 'devis' && !platformIsNonDirect && resolvedDepositAmount === 0,
-    validUntil,
+    // D23 — the reservation converted from a devis owing one payment keeps the devis's deadline, never
+    // before its own booking day.
+    dueOnValidUntil: (String(quoteKind) === 'devis' || keepsDevisPromise) && !platformIsNonDirect && resolvedDepositAmount === 0,
+    validUntil: keepsDevisPromise ? devisPromiseDueDate({ validUntil: devisPromise.validUntil, bookingDate }) : validUntil,
   });
   const depositDueDate = resolveDepositDueDate({
     kind: quoteKind,

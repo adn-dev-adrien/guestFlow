@@ -72,6 +72,7 @@ test('send builds the transport lazily and forwards from/to/subject/text correct
     port: 465,
     secure: true,
     auth: { user: 'noreply@example.com', pass: 'secret' },
+    name: 'example.com',
   });
   assert.equal(calls.sendMail.length, 1);
   assert.deepEqual(calls.sendMail[0], {

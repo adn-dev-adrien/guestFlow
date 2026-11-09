@@ -89,6 +89,7 @@ import {
   LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER, UNLOCKED_FICHE_BANNER, UNLOCKED_NEW_FICHE_BANNER,
 } from '../constants/reservationLock';
 import { isQuotableStay, stayDatesMessage } from '../utils/stayDates';
+import usePostalCodeCities from '../hooks/usePostalCodeCities';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -144,6 +145,8 @@ function parseCustomPrice(value) {
 const CONVERT_TO_DEVIS_DIRTY_REASON = "Enregistrer d'abord les modifications.";
 // The clean baseline of a prefilled devis: no form snapshot equals it (rule 51).
 const PREFILLED_DEVIS_BASELINE = 'prefilled-devis';
+// Thrown by a page load once a newer load of the page has started: it stops there, silently.
+const STALE_LOAD = Symbol('stale-load');
 const NO_ARRIVAL_LINES = {};
 const NO_FROZEN_CUSTOM_IDS = [];
 
@@ -212,6 +215,8 @@ export default function ReservationPage() {
   // creation like any other and gets the pack too: same channel, same rate, same promise
   // (specs/devis-extras-parity-and-price-lock.md §3 rule 5).
   const isBlankNewBooking = !editingReservationId && !editingDevisId && !prefillDevis;
+  // specs/deposit-blocks-the-dates.md rule 19 — a devis not saved yet is quoted as the devis its create stores.
+  const newDevisQuoteMarker = isDevisMode && !editingDevisId ? { kind: 'devis' } : {};
 
   const theme = useTheme();
   const downSm = useMediaQuery(theme.breakpoints.down('sm'));
@@ -258,6 +263,7 @@ export default function ReservationPage() {
   // The `updatedAt` this fiche was built on, sent back on save: the server refuses a save made on an
   // older version instead of reverting what an import, a mail or another tab wrote meanwhile.
   const loadedUpdatedAtRef = useRef(null);
+  const initLoadSeqRef = useRef(0);
   // « Enregistrer quand même » : the one save that goes without the version, an explicit overwrite.
   const overwriteOnceRef = useRef(false);
   useEffect(() => {
@@ -286,7 +292,7 @@ export default function ReservationPage() {
   // que le « total de séjour » et le split des compléments suivent.
   const [refundsVersion, setRefundsVersion] = useState(0);
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
-  const [newClientCityOptions, setNewClientCityOptions] = useState([]);
+  const newClientCityOptions = usePostalCodeCities(newClient.postalCode, newClient.city, { enabled: createClientOpen });
   const [propertyOptions, setPropertyOptions] = useState([]);
   // Server-computed option grouping for the fiche (specs/option-categories.md §4.2) — `{ ungrouped,
   // groups }`, already visibility-filtered and ordered. null until a property is loaded, and on
@@ -344,10 +350,11 @@ export default function ReservationPage() {
   // from the edit path (the historical option set on a saved reservation must stay frozen —
   // rule 30). The function merges defaults into selectedOptions + offeredOptionIds; existing
   // entries are preserved (no duplicate, no override of operator picks).
-  const applyPropertyDefaultsAsync = useCallback(async (propertyId) => {
+  const applyPropertyDefaultsAsync = useCallback(async (propertyId, isCurrent = () => true) => {
     if (!propertyId) return;
     try {
       const defaults = await api.getPropertyOptionDefaults(propertyId);
+      if (!isCurrent()) return;
       const list = Array.isArray(defaults) ? defaults : [];
       // Cache the list so the toggle behaviour (setOptionQuantity) can consult it later when
       // the operator manually re-adds an option on an existing reservation.
@@ -381,11 +388,13 @@ export default function ReservationPage() {
   // so a new devis showed a fiche with no option at all (specs/devis-extras-parity-and-price-lock.md
   // §1 root cause 1). Returns the effective option list so callers can read an option's config
   // without re-fetching the catalogue.
-  const loadPropertyContext = useCallback(async (propertyId, propertiesList = []) => {
+  // `isCurrent` false once the load that asked is superseded: nothing is written (audit R33-C-L1).
+  const loadPropertyContext = useCallback(async (propertyId, propertiesList = [], isCurrent = () => true) => {
     const numId = Number(propertyId);
     if (!numId) return { property: null, options: [] };
     // The fiche reads no pricing season: `view=stay` leaves them out (specs/inte-performance.md rule 14).
     const propDetails = await api.getProperty(numId, 'stay');
+    if (!isCurrent()) return { property: null, options: [] };
     // `propDetails.options` is the property-scoped, priced, grouped list.
     const options = Array.isArray(propDetails?.options) ? propDetails.options : [];
     availabilityKey.current = '';
@@ -895,6 +904,15 @@ export default function ReservationPage() {
 
   // ==================== INITIALIZATION & DATA LOADING ====================
   useEffect(() => {
+    // Audit R33-C-L1 — one load per route: a load superseded by a newer one (the re-read after a re-issued devis save,
+    // still on its way when « Accepté » has converted and navigated) stops at its next step and writes nothing more.
+    const loadSeq = initLoadSeqRef.current + 1;
+    initLoadSeqRef.current = loadSeq;
+    const isCurrentLoad = () => initLoadSeqRef.current === loadSeq;
+    const current = (value) => {
+      if (!isCurrentLoad()) throw STALE_LOAD;
+      return value;
+    };
     const initPage = async () => {
       try {
         setLoading(true);
@@ -905,7 +923,7 @@ export default function ReservationPage() {
         setPricingQuote(null);
         resnapshotAfterQuoteRef.current = null;
         setNotFound(false);
-        const props = await api.getProperties();
+        const props = current(await api.getProperties());
         setProperties(props);
 
         // Determine initial property
@@ -921,9 +939,9 @@ export default function ReservationPage() {
         if (prefillDevis?.form) {
           const prefillPropertyId = Number(prefillDevis.propertyId || prefillDevis.form.propertyId || 0) || null;
           if (prefillPropertyId) {
-            await loadPropertyContext(prefillPropertyId, props);
+            current(await loadPropertyContext(prefillPropertyId, props, isCurrentLoad));
 
-            const allRes = await api.getReservations({ propertyId: prefillPropertyId, view: 'occupancy' });
+            const allRes = current(await api.getReservations({ propertyId: prefillPropertyId, view: 'occupancy' }));
             setReservations(allRes || []);
             setExcludeReservationIdForDevis(null);
           }
@@ -945,18 +963,18 @@ export default function ReservationPage() {
         
         // Load reservation details if editing
         if (reservationId) {
-          const res = await api.getReservation(reservationId).catch(markMissingLookup);
+          const res = current(await api.getReservation(reservationId).catch(markMissingLookup));
           loadedUpdatedAtRef.current = res.updatedAt || null;
           setDatesTaken(res.datesTaken || null);
           setExistingReservationLocked(Boolean(res.editLock?.locked));
           setEditLock(res.editLock || null);
           setPastUnlocked(false);
-          const loaded = await loadPropertyContext(res.propertyId, props);
+          const loaded = current(await loadPropertyContext(res.propertyId, props, isCurrentLoad));
           const catalogueOptions = addFrozenOptions(loaded.options, res.frozenOptions);
           setFrozenResources(Array.isArray(res.frozenResources) ? res.frozenResources : []);
 
           // Load all reservations for this property to check conflicts
-          const allRes = await api.getReservations({ propertyId: res.propertyId, view: 'occupancy' });
+          const allRes = current(await api.getReservations({ propertyId: res.propertyId, view: 'occupancy' }));
           setReservations(allRes);
           setExcludeReservationIdForDevis(null);
 
@@ -1100,18 +1118,18 @@ export default function ReservationPage() {
           frozenResourceUnitByQuantityRef.current = frozenUnitPrices(res.resources, 'resourceId');
 
           // Load resources
-          await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id);
-          await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id);
+          current(await loadResourcesAvailability(res.startDate, res.endDate, res.propertyId, res.id));
+          current(await loadBabyBedAvailability(res.startDate, res.endDate, res.propertyId, res.id));
         } else if (editingDevisId) {
-          const devis = await api.getDevisById(editingDevisId).catch(markMissingLookup);
+          const devis = current(await api.getDevisById(editingDevisId).catch(markMissingLookup));
           loadedUpdatedAtRef.current = devis.updatedAt || null;
           setCgvBlock(devis.cgv || null);
           setOnlinePayment(devis.onlinePayment || null);
-          const loaded = await loadPropertyContext(devis.propertyId, props);
+          const loaded = current(await loadPropertyContext(devis.propertyId, props, isCurrentLoad));
           const catalogueOptions = addFrozenOptions(loaded.options, devis.frozenOptions);
           setFrozenResources(Array.isArray(devis.frozenResources) ? devis.frozenResources : []);
 
-          const allRes = await api.getReservations({ propertyId: devis.propertyId, view: 'occupancy' });
+          const allRes = current(await api.getReservations({ propertyId: devis.propertyId, view: 'occupancy' }));
           setReservations(allRes || []);
 
           // Exclude the reservation that matches this devis' dates (if it was transformed into a reservation)
@@ -1222,8 +1240,8 @@ export default function ReservationPage() {
             endDate: devis.endDate,
           };
 
-          await loadResourcesAvailability(devis.startDate, devis.endDate, devis.propertyId, null);
-          await loadBabyBedAvailability(devis.startDate, devis.endDate, devis.propertyId, null);
+          current(await loadResourcesAvailability(devis.startDate, devis.endDate, devis.propertyId, null));
+          current(await loadBabyBedAvailability(devis.startDate, devis.endDate, devis.propertyId, null));
         } else if (initialPropId) {
           // A brand-new booking — reservation OR devis. One branch for the three entry points
           // (specs/devis-extras-parity-and-price-lock.md §3 rule 2): the calendar (propertyId +
@@ -1231,7 +1249,7 @@ export default function ReservationPage() {
           // (« Nouvelle réservation », « Nouveau devis »). Whatever the URL carries, the logement's
           // context — catalogue, categories, resources, defaults, caution, horaires — is loaded the
           // same way; only the pricing quote needs a complete stay range.
-          const { property: prop } = await loadPropertyContext(initialPropId, props);
+          const { property: prop } = current(await loadPropertyContext(initialPropId, props, isCurrentLoad));
           const hasStayRange = isQuotableStay(startDate, endDate, { today: windowToday });
           const defaultCheckIn = prop?.defaultCheckIn || '15:00';
           const defaultCheckOut = prop?.defaultCheckOut || '10:00';
@@ -1249,15 +1267,17 @@ export default function ReservationPage() {
               extraGuestSurchargeOffered: false,
               offeredOptionIds: [],
               platform: 'direct',
+              ...newDevisQuoteMarker,
             })
             : null;
+          current();
           if (calc) {
             setPricingQuote(calc);
             setNightlyBreakdown(calc.nightlyBreakdown || []);
             applyQuoteMinNights(calc);
           }
 
-          const allRes = await api.getReservations({ propertyId: initialPropId, view: 'occupancy' });
+          const allRes = current(await api.getReservations({ propertyId: initialPropId, view: 'occupancy' }));
           setReservations(allRes);
           setExcludeReservationIdForDevis(null);
 
@@ -1326,15 +1346,16 @@ export default function ReservationPage() {
           });
 
           // A URL range the fiche refuses (rules 12-13) is asked for nothing: its departure is dropped above.
-          await loadResourcesAvailability(startDate, hasStayRange ? endDate : '', initialPropId);
-          await loadBabyBedAvailability(startDate, hasStayRange ? endDate : '', initialPropId);
+          current(await loadResourcesAvailability(startDate, hasStayRange ? endDate : '', initialPropId));
+          current(await loadBabyBedAvailability(startDate, hasStayRange ? endDate : '', initialPropId));
           // §3.7 — pre-populate selectedOptions with the property's defaults (linen options
           // typically). Soft-fail; awaiting so the form is consistent before the user can interact.
-          await applyPropertyDefaultsAsync(initialPropId);
+          current(await applyPropertyDefaultsAsync(initialPropId, isCurrentLoad));
         }
 
         setLoading(false);
       } catch (err) {
+        if (err === STALE_LOAD || !isCurrentLoad()) return;
         if (err && err.status === 404 && err.missingLookup) setNotFound(true);
         else setInitError(true);
         setLoading(false);
@@ -1525,6 +1546,7 @@ export default function ReservationPage() {
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
+        ...newDevisQuoteMarker,
         // specs/reservation-payment-ledger.md rule 7 — the ledger follows the transfer typed on the fiche.
         platformPayoutAmount: form.platformPayoutAmount,
         };
@@ -1564,38 +1586,6 @@ export default function ReservationPage() {
     refreshBasePrice();
   }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion, windowToday]);
 
-  useEffect(() => {
-    const cp = (newClient.postalCode || '').trim();
-    if (!createClientOpen || cp.length < 2) {
-      setNewClientCityOptions([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const cityQuery = (newClient.city || '').trim();
-        const params = new URLSearchParams({
-          codePostal: cp,
-          fields: 'nom,code,codesPostaux',
-          limit: '20',
-        });
-        if (cityQuery) params.set('nom', cityQuery);
-        const res = await fetch(`https://geo.api.gouv.fr/communes?${params.toString()}`, { signal: controller.signal });
-        if (!res.ok) return;
-        const data = await res.json();
-        const options = Array.from(new Set((data || []).map((c) => c.nom).filter(Boolean)));
-        setNewClientCityOptions(options);
-      } catch (e) {
-        if (e.name !== 'AbortError') setNewClientCityOptions([]);
-      }
-    }, 250);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [createClientOpen, newClient.postalCode, newClient.city]);
 
   // ==================== CAPACITY & PRICING CALCULATIONS ====================
   const maxSingleBeds = selectedProperty ? Number(selectedProperty.singleBeds ?? 0) : null;
@@ -2125,14 +2115,12 @@ export default function ReservationPage() {
   const closeCreateClient = () => {
     setCreateClientOpen(false);
     setNewClient(EMPTY_CLIENT);
-    setNewClientCityOptions([]);
     setClientDialogMode('create');
   };
 
   const openCreateClient = () => {
     setClientDialogMode('create');
     setNewClient(EMPTY_CLIENT);
-    setNewClientCityOptions([]);
     setCreateClientOpen(true);
   };
 
@@ -2142,14 +2130,12 @@ export default function ReservationPage() {
     if (!form.clientId && pendingClient) {
       setClientDialogMode('edit');
       setNewClient({ ...EMPTY_CLIENT, ...pendingClient });
-      setNewClientCityOptions([]);
       setCreateClientOpen(true);
       return;
     }
     if (!form.clientId) return;
     setClientDialogMode('edit');
     setNewClient({ ...EMPTY_CLIENT, ...(selectedClient || {}) });
-    setNewClientCityOptions([]);
     setCreateClientOpen(true);
     api.getClient(form.clientId).then((c) => { if (c) setNewClient({ ...EMPTY_CLIENT, ...c }); }).catch(() => {});
   };
@@ -2248,6 +2234,7 @@ export default function ReservationPage() {
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
+        ...newDevisQuoteMarker,
       }) : null,
       api.getReservations({ propertyId: nextPropertyId, view: 'occupancy' }),
     ]);
@@ -2389,6 +2376,7 @@ export default function ReservationPage() {
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
+        ...newDevisQuoteMarker,
         forceCurrentPricing: true,
         customPrice: '',
       });
@@ -2555,6 +2543,7 @@ export default function ReservationPage() {
         // A saved devis locks its prices while it is still valid — the server replays its stored
         // lines so this preview equals what the save will store (specs/devis-extras-parity-and-price-lock.md §3 rule 13).
         ...(editingDevisId ? { devisId: editingDevisId } : {}),
+        ...newDevisQuoteMarker,
       });
       setPricingQuote(quote);
       applyQuoteMinNights(quote);

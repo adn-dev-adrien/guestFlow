@@ -14,6 +14,12 @@ function buildRouter(controller) {
   router.get('/', (req, res) => controller().list(req, res));
   router.get('/:id', (req, res) => controller().getOne(req, res));
   router.post('/', (req, res) => controller().create(req, res));
+  // specs/resource-booking-pricing-and-invoicing.md §4.3.
+  router.post('/:id/payment', (req, res) => controller().recordPayment(req, res));
+  router.delete('/:id/payment', (req, res) => controller().clearPayment(req, res));
+  router.post('/:id/arrival', (req, res, next) => Promise.resolve(controller().arrival(req, res)).catch(next));
+  router.post('/:id/invoice', (req, res, next) => Promise.resolve(controller().issueInvoice(req, res)).catch(next));
+  router.post('/:id/invoice/attach', (req, res, next) => Promise.resolve(controller().attachInvoice(req, res)).catch(next));
   router.put('/:id', (req, res) => controller().update(req, res));
   router.delete('/:id', (req, res) => controller().remove(req, res));
   return router;

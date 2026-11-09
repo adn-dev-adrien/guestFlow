@@ -123,13 +123,27 @@ test('a last-minute DEVIS owes its single payment on its validity date', () => {
   db.close();
 });
 
+// D23 (rule 19, 2026-11-09): 31 days out with a 03-09 validity, the solde (03-02) fell before the acompte (03-09);
+// such a devis owes one payment now. A devis whose solde falls after its validity date keeps the split.
 test('a devis that still carries an acompte keeps the stay-relative solde date', () => {
   const db = createDb();
   const q = calculateReservationQuote({
-    ...BASE, ...AHEAD, db, kind: 'devis', validUntil: '2026-03-09',
+    ...BASE, startDate: '2026-05-01', endDate: '2026-05-03', db, kind: 'devis', validUntil: '2026-03-09', // date-literal-ok: pure engine, booking day injected
   });
   assert.equal(q.depositAmount, 60);
-  assert.equal(q.balanceDueDate, '2026-03-02', 'arrival − 30 days, unchanged');
+  assert.equal(q.depositDueDate, '2026-03-09'); // date-literal-ok: pure engine, booking day injected
+  assert.equal(q.balanceDueDate, '2026-04-01', 'arrival − 30 days, unchanged'); // date-literal-ok: pure engine, booking day injected
+  db.close();
+});
+
+test('rule 19 — a devis whose solde would fall before its validity date owes one payment on that date', () => {
+  const db = createDb();
+  const q = calculateReservationQuote({
+    ...BASE, ...AHEAD, db, kind: 'devis', validUntil: '2026-03-09', // date-literal-ok: pure engine, booking day injected
+  });
+  assert.equal(q.depositAmount, 0);
+  assert.equal(q.depositDueDate, null);
+  assert.equal(q.balanceDueDate, '2026-03-09'); // date-literal-ok: pure engine, booking day injected
   db.close();
 });
 

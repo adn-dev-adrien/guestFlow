@@ -53,14 +53,18 @@ function emptyRecord(id) {
     pushChannels: [],
     // specs/reconciliation-assisted-matching.md rule 22 — (rows) → rows, applied to the home's « Échéances » card (SDK 2.9.0).
     paymentDeadlineDecorator: null,
-    // specs/guest-app.md rules 28-31, 35 (SDK 2.25.0) — the hourly slots of a stay, and the slots a plugin holds.
+    // specs/guest-app.md rules 28-31, 35 (SDK 2.26.0) — the hourly slots of a stay, and the slots a plugin holds.
     resourceScheduler: null,
     resourceHolds: null,
-    // specs/guest-app.md rules 35-36 (SDK 2.25.0) — [{ source, paid }]: what a paid basket link does.
+    // specs/guest-app.md rules 35-36 (SDK 2.26.0) — [{ source, paid }]: what a paid basket link does.
     paymentBaskets: [],
-    // specs/plugins-phase-1-sdk.md rule 48, specs/guest-app.md rules 47, 52 (SDK 2.25.0) — [{ key, path, host, handler }]:
+    // specs/plugins-phase-1-sdk.md rule 48, specs/guest-app.md rules 47, 52 (SDK 2.26.0) — [{ key, path, host, handler }]:
     // a web app the plugin serves itself, at a path of its own or on a host of its own.
     webApps: [],
+    // specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20 (SDK 2.25.0) — the instance's invoice issuer (at
+    // most one) and a plugin's sales made outside any stay.
+    invoiceIssuer: null,
+    standaloneSales: null,
   };
 }
 

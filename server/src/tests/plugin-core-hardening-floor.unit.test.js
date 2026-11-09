@@ -43,15 +43,17 @@ const HARDENINGS = [
   // specs/plugins-phase-1-sdk.md rule 40 (specs/public-api.md rule 24) — audit R24 public finding 1.
   { feature: 'visitor times judged against the neighbours', sdk: '2.22.0', pattern: /\bstayTimesRefused\b/ },
   // specs/guest-app.md rules 28-31, 35 — the hourly slots a plugin schedules or holds through the core.
-  { feature: 'resource scheduler and holds', sdk: '2.25.0', pattern: /\b(?:resourceScheduler|resourceHolds)\(/ },
+  { feature: 'resource scheduler and holds', sdk: '2.26.0', pattern: /\b(?:resourceScheduler|resourceHolds)\(/ },
   // specs/plugins-phase-1-sdk.md rule 47 — the card payment of a plugin's basket and its paid effect.
-  { feature: 'payment baskets', sdk: '2.25.0', pattern: /\b(?:paymentBasket\(|core\.payments\b)/ },
+  { feature: 'payment baskets', sdk: '2.26.0', pattern: /\b(?:paymentBasket\(|core\.payments\b)/ },
   // specs/plugins-phase-1-sdk.md rule 48 — a web app the plugin serves on its own host or under its own path.
-  { feature: 'web apps', sdk: '2.25.0', pattern: /\bctx\.webApp\(/ },
+  { feature: 'web apps', sdk: '2.26.0', pattern: /\bctx\.webApp\(/ },
   // specs/plugins-phase-1-sdk.md rule 41 (specs/accounting-synthesis.md rules 7-9).
   { feature: 'finance readings of the accounting synthesis', sdk: '2.23.0', pattern: /coreModule\(\s*['"`]financeDashboardModel['"`]/ },
   // specs/plugins-phase-1-sdk.md rule 42 (specs/mixed-method-payments.md rules 26-28, 32).
   { feature: 'payments split over several methods', sdk: '2.24.0', pattern: /coreModule\(\s*['"`]payment(Tenders|SettlementsModel|SettlementService)['"`]/ },
+  // specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21 — the invoice issuer and the sales outside a stay.
+  { feature: 'invoice issuer and sales outside a stay', sdk: '2.25.0', pattern: /coreModule\(\s*['"`](invoiceIssuers|standaloneSales)['"`]|ctx\.(invoiceIssuer|standaloneSales)\(/ },
 ];
 
 function sourceFiles(dir) {
@@ -105,7 +107,7 @@ for (const [id, hits] of relying) {
       assert.equal(satisfies(before, m.sdk), false, `${id} ${m.sdk} still loads on SDK ${before} (${h.feature})`);
     }
     // « This one » is the running SDK. The floor may sit above the newest hardening: a plugin can need a later
-    // SDK for another reason (website-booking 1.8.12 reads `publicCatalogProjection`, SDK 2.25.0).
+    // SDK for another reason (website-booking 1.8.12 reads `publicCatalogProjection`, SDK 2.26.0).
     assert.ok(satisfies(SDK_VERSION, m.sdk), `${id} ${m.sdk} refuses SDK ${SDK_VERSION}`);
     assert.ok((m.changelog[m.version] || []).some((line) => /SDK 2\.\d+/.test(line)), `${id} ${m.version} names its SDK`);
   });
