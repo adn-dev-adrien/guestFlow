@@ -87,7 +87,8 @@ function pickSuggestion(activities, { mode, stay, now, lang = 'fr', soliomapUrl 
   return {
     id: best.id,
     name: best.name,
-    category: typeof best.category === 'string' ? best.category : null,
+    // Soliomap stores its categories in lower case; the card shows a label.
+    category: typeof best.category === 'string' && best.category ? best.category.charAt(0).toLocaleUpperCase('fr-FR') + best.category.slice(1) : null,
     dateLabel: dateLabel(best, lang),
     driveLabel: driveLabel(best.driveMinutes, lang),
     url: `${String(soliomapUrl).replace(/\/+$/, '')}/#${encodeURIComponent(best.id)}`,

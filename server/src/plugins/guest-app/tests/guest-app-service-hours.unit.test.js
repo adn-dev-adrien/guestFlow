@@ -296,3 +296,21 @@ withApi('rule 41: POST /shop/delivery-slots — the longest lead of the cart’s
   assert.equal(evening.days[0].slots[0].label, '8 h 30');
   assert.equal(evening.bannerLabel, 'Le service reprend demain à 8 h — vous pouvez commander dès maintenant pour plus tard');
 });
+
+withApi('rule 27bis: the breakfast sheet asks its own times — alone, its lead; beside other staff items, the cart time is theirs', async ({ db, api, call, clock }) => {
+  addStay(db);
+  addOption(db, { id: 1, title: 'Petit déjeuner', priceType: 'per_person_per_night', price: 12, autoOptionType: 'breakfast' });
+  addOption(db, { id: 2, title: 'Cidre' });
+  sell(db, 'option', 1, { needsStaff: 1 });
+  sell(db, 'option', 2, { needsStaff: 1 });
+  db.prepare('UPDATE guest_app_items SET leadMinutes = 60 WHERE itemId = 1').run();
+  openService(db, [['07:00', '12:00'], ['16:00', '20:00']]);
+  clock.now = paris('2099-07-07', '21:00');
+  const cookie = await scan(api, db, call);
+  const post = async (lines) => (await call('POST', '/public/v1/guest/shop/delivery-slots', { lines }, { cookie })).body.data;
+  const alone = await post([{ kind: 'breakfast', id: 1 }]);
+  assert.equal(alone.needed, true);
+  assert.equal(alone.days[0].slots[0].label, '8 h', 'opening at 7 h + its own hour of preparation');
+  const mixed = await post([{ kind: 'breakfast', id: 1 }, { kind: 'option', id: 2 }]);
+  assert.equal(mixed.days[0].slots[0].label, '7 h 30', 'the cider’s 30 min, not the breakfast’s hour');
+});

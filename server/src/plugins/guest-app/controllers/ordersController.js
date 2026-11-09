@@ -1,7 +1,7 @@
 /**
  * Orders (specs/guest-app.md rules 25, 29-38quater, 41-44): the quote, the order, its card payment, its follow-up.
  *
- * Every amount is the core engine's (`guestOrderCommit.priceOrder`, the fiche's own save played without writing):
+ * Every amount is the core engine's (`midStayOrderCommit.priceOrder`, the fiche's own save played without writing):
  * the quote, the order and the line written on the fiche cannot disagree (rule 24). What the plugin judges is what
  * only it knows — what the lodging's shop sells, the 0 € allowance of the stay, the hourly slots read from the
  * resource planning (rule 29), the breakfast mornings and the delivery times of the service hours (rules 27bis, 41).
@@ -32,6 +32,14 @@ const MAX_LINES = 20;
 const MAX_SESSIONS = 20;
 const MAX_MORNINGS = 31;
 const HOLD_MS = 30 * 60 * 1000;
+// Rules 34-35, 46 — the guest app's basket source, and the words the fiche's history and ledger use for its orders.
+const ORDER_SOURCE = 'guestOrder';
+const ORDER_REFUND_LABELS = Object.freeze({ refundOne: 'Commande client à rembourser', refundMany: 'Commandes clients à rembourser' });
+const orderNaming = (orderId, { paid = false } = {}) => ({
+  source: ORDER_SOURCE,
+  ref: Number(orderId),
+  history: { field: ORDER_SOURCE, label: 'Commande client', text: `Commande client #${Number(orderId)}${paid ? ' — payée par carte' : ''}` },
+});
 const KINDS = Object.freeze(['option', 'breakfast', 'resource']);
 const PAYMENTS = Object.freeze(['card', 'note', 'none']);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -355,7 +363,7 @@ function buildOrdersController({
             reservationId: stay.id, sessionId: req.guest.session.id, payment: free ? 'none' : 'note', status: 'confirmed',
             lines, total: priced.total, deliverAt: judged.deliverAt, ...delivery, now: at,
           });
-          const written = commit.commitOrder(stay.id, { orderId: order.id, lines: priced.lines });
+          const written = commit.commitOrder(stay.id, { ...orderNaming(order.id), lines: priced.lines });
           if (!written || written.status !== 200) {
             refusal = engineRefusal(written || { body: {} });
             throw refusal;
@@ -382,7 +390,7 @@ function buildOrdersController({
     const host = guestHost();
     try {
       const link = await payments().basketLink(stay.id, {
-        source: 'guestOrder',
+        source: ORDER_SOURCE,
         ref: order.id,
         title: `Commande #${order.id}`,
         lines: lines.filter((l) => l.total > 0).map((l) => ({ title: l.title, amountCents: Math.round(l.total * 100) })),
@@ -547,7 +555,7 @@ function buildOrdersController({
       if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || !unitsStillLeft(order, at)) return conflict();
       const delivery = deliveryAfterPayment(order, stay, at);
       const written = commit.commitOrder(order.reservationId, {
-        orderId: order.id,
+        ...orderNaming(order.id, { paid: true }),
         lines: commitLinesOf(order),
         paid: { amountCents, paidDate, reference: providerPaymentId },
         within: () => orders().markPaid(order.id, { now: at, paidAt, deliverAt: delivery.deliverAt, deliverMoved: delivery.moved }),
@@ -573,4 +581,6 @@ function buildOrdersController({
   };
 }
 
-module.exports = { buildOrdersController, orderInputError };
+module.exports = {
+  ORDER_SOURCE, ORDER_REFUND_LABELS, buildOrdersController, orderInputError,
+};

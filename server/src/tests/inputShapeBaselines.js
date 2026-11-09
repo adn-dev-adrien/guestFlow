@@ -141,6 +141,9 @@ async function baselines(app, admin, active) {
     ['POST', `/api/reservations/${s.platformStay}/platform-penalties/preview`, { amount: 1, date: dayAt(0), reason: 'Frais', source: 'fiche', payoutIncludesPenalty: true }],
     ['POST', `/api/reservations/${s.platformStay}/platform-penalties`, { amount: 1, date: dayAt(0), reason: 'Frais', source: 'fiche', payoutIncludesPenalty: true }],
     ['POST', `${url.stay}/arrival-payment`, { method: 'card', mode: 'card', date: dayAt(0), amount: 1, keys: ['balance'], touristTax: true }],
+    // specs/mixed-method-payments.md §4.3 — the stay has no split payment: the reste and the correction stop at « nothing to act on ».
+    ['POST', `${url.stay}/settlements`, { targetKind: 'bucket', targetKey: 'endOfStayComplement', date: dayAt(0), tenders: [{ method: 'card', amountCents: 100, internal: false }], shortfall: { kind: 'due' } }, { ok: [409] }],
+    ['PUT', `${url.stay}/settlements/1`, { date: dayAt(0), tenders: [{ method: 'card', amountCents: 100, internal: false }], shortfall: { kind: 'due' } }, { ok: [404] }],
     ['POST', `/api/payments/reservations/${s.direct}/payment-links`, { type: 'deposit', installmentId: 1 }, { plugin: 'online-payment', ok: [409] }],
     ['POST', `/api/payments/reservations/${s.direct}/payment-emails`, { type: 'deposit', installmentId: 1 }, { plugin: 'online-payment', ok: [409] }],
     ['POST', '/api/payments/reconciliation/discards', { transactionId: 'tx-1', reservationId: s.direct, ledgerKey: 'deposit' }, reconciliation],

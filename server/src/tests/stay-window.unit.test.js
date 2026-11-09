@@ -1,3 +1,4 @@
+// specs/plugins-phase-1-sdk.md rule 43 — `coreModule('stayWindow')`: the stay window the core now owns (moved from gate-access).
 const test = require('node:test');
 const { mock } = test;
 const assert = require('node:assert/strict');

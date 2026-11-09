@@ -193,28 +193,10 @@
     },
     {
       "version": "2.22.0",
-      "modules": [
-        "stayWindow",
-        "encryption",
-        "publicCatalogProjection",
-        "midStayExtrasWindow",
-        "safeFeedFetch",
-        "instancePaths",
-        "guestOrderCommit"
-      ],
+      "modules": [],
       "names": {
         "blockedDates": [
           "stayTimesRefused"
-        ],
-        "rateLimiters": [
-          "guestLookupLimiter",
-          "guestOrderLimiter",
-          "guestSessionLimiter"
-        ],
-        "pricing": [
-          "applyFreeUnitsToLine",
-          "getApplicableOptions",
-          "getApplicableResources"
         ]
       }
     },
@@ -230,6 +212,34 @@
       "names": {
         "vatRegimeModel": [
           "regimesDuring"
+        ]
+      }
+    },
+    {
+      "version": "2.24.0",
+      "modules": [
+        "paymentTenders",
+        "paymentSettlementsModel",
+        "paymentSettlementService"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.25.0",
+      "modules": [
+        "stayWindow",
+        "encryption",
+        "publicCatalogProjection",
+        "midStayExtrasWindow",
+        "safeFeedFetch",
+        "instancePaths",
+        "midStayOrderCommit"
+      ],
+      "names": {
+        "pricing": [
+          "applyFreeUnitsToLine",
+          "getApplicableOptions",
+          "getApplicableResources"
         ]
       }
     }

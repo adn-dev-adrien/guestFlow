@@ -4031,6 +4031,22 @@ function createReservationsModel(database) {
     },
   };
 
+  // specs/mixed-method-payments.md — a settlement never outlives the payment it described: every write that
+  // can take a payment back (a bucket released, a group undone or dissolved, a note cancelled, a SAS
+  // re-committed, the fiche saved) drops the settlements whose target is no longer paid and refreshes the
+  // stay's split aggregates.
+  const settlements = require('./paymentSettlementsModel').buildModel(database);
+  for (const name of ['releaseStayBucket', 'releaseEndOfStayBucket', 'releaseComplementBucket', 'releaseArrivalPaymentGroup',
+    'settleArrivalBuckets', 'cancelMidStayNote', 'commitArrivalSas', 'commitDepartureSas', 'updateReservation']) {
+    const original = model[name];
+    if (typeof original !== 'function') continue;
+    model[name] = function keepingSettlementsInStep(...args) {
+      const out = original.apply(this, args);
+      settlements.sync(args[0]);
+      return out;
+    };
+  }
+
   return model;
 }
 

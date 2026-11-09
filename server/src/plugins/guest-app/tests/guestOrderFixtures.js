@@ -4,6 +4,7 @@
 
 process.env.DB_PATH = ':memory:';
 
+const { ORDER_SOURCE, ORDER_REFUND_LABELS } = require('../controllers/ordersController');
 const { applyPluginSchema, optionalPlugin } = require('../../sdk/testing');
 const registry = require('../../sdk/registry');
 const { createContext } = require('../../sdk/createContext');
@@ -115,7 +116,7 @@ function livePlugins(api, { card = null } = {}) {
   if (card) registry.ensure('online-payment').paymentProvider = card.provider;
   const own = registry.ensure('guest-app');
   own.resourceHolds = api.heldSessions;
-  own.paymentBaskets.push({ source: 'guestOrder', paid: api.orderPaid });
+  own.paymentBaskets.push({ source: ORDER_SOURCE, paid: api.orderPaid, labels: ORDER_REFUND_LABELS });
   return () => registry.reset();
 }
 

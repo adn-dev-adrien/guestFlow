@@ -150,7 +150,7 @@ async function mintBasketLink(deps, id, basket) {
     linkArgs.expectedTotalCents = expectedTotalCents;
   }
   if (deps.redirectUrl) linkArgs.redirectUrl = deps.redirectUrl;
-  const link = await provider.createLink(linkArgs, { origin: deps.origin || 'guest-order' });
+  const link = await provider.createLink(linkArgs, { origin: deps.origin || 'basket' });
   const createdAt = mintClock(deps);
   const row = paymentLinksModel.create({
     reservationId: Number(id), type: 'complement', amountCents,

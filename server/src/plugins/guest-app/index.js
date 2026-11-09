@@ -28,7 +28,7 @@ const { buildLodgingsController } = require('./controllers/lodgingsController');
 const { buildStayLinksController } = require('./controllers/stayLinksController');
 const { buildItemsController } = require('./controllers/itemsController');
 const { buildShopController } = require('./controllers/shopController');
-const { buildOrdersController } = require('./controllers/ordersController');
+const { buildOrdersController, ORDER_SOURCE, ORDER_REFUND_LABELS } = require('./controllers/ordersController');
 const { buildOrdersAdminController } = require('./controllers/ordersAdminController');
 const { buildServiceHoursController } = require('./controllers/serviceHoursController');
 const { buildBookletController, buildBookletResolver } = require('./controllers/bookletController');
@@ -36,6 +36,9 @@ const { buildStudioController } = require('./controllers/studioController');
 const { buildStudioSettingsController } = require('./controllers/studioSettingsController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
+const { createGuestLimiters } = require('./rateLimiters');
+const gate = require('./gate');
+const stayAppEmail = require('./emailContext');
 
 const id = 'guest-app';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -75,9 +78,9 @@ const corePush = () => sdk.coreModule('pushService');
 
 function buildGuestApi({
   db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
-  appName = () => null, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
+  appName = () => null, soliomapEmbed = () => false, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
-  commit = sdk.coreModule('guestOrderCommit'), payments = corePayments, push = corePush,
+  commit = sdk.coreModule('midStayOrderCommit'), payments = corePayments, push = corePush,
   settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl,
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
@@ -117,7 +120,8 @@ function buildGuestApi({
   }
   const guestSession = buildGuestSession({ sessions, stays, stayLinks, lodgings, now });
   const controller = buildSessionController({
-    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, ...(readGateUrl ? { readGateUrl } : {}),
+    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
+    ...(readGateUrl ? { readGateUrl } : {}),
   });
   const links = buildStayLinksController({
     stayLinks, stays, lodgings, guestHost, now,
@@ -174,18 +178,16 @@ function register(ctx) {
   ctx.settings.declare(settings.DECLARED);
   ctx.pushChannel({ key: 'guest-orders', label: 'Commandes clients' });
 
-  const rateLimiters = sdk.coreModule('rateLimiters');
   const api = buildGuestApi({
     db: () => ctx.db,
     soliomapUrl: () => ctx.settings.get('soliomapUrl'),
     appName: () => ctx.settings.get('appName'),
+    soliomapEmbed: () => ['1', 1, true].includes(ctx.settings.get('soliomapEmbed')),
     guestHost: () => ctx.settings.get('guestHost'),
     maxOrderTotal: () => Number(ctx.settings.get('maxOrderTotal')) || 500,
     settingsStore: () => ctx.settings,
     limiters: {
-      session: rateLimiters.guestSessionLimiter,
-      lookup: rateLimiters.guestLookupLimiter,
-      order: rateLimiters.guestOrderLimiter,
+      ...createGuestLimiters(),
       read: sdk.middleware.publicApiLimiter,
     },
   });
@@ -196,7 +198,11 @@ function register(ctx) {
   ].filter(Boolean).join(', ') || null);
   ctx.resourceHolds(api.heldSessions);
   // Rules 35-36 — a paid card link of an order commits it, or flags its money « à rembourser ».
-  ctx.paymentBasket({ source: 'guestOrder', paid: api.orderPaid });
+  ctx.paymentBasket({
+    source: ORDER_SOURCE,
+    paid: api.orderPaid,
+    labels: ORDER_REFUND_LABELS,
+  });
   ctx.mount('/public/v1/guest', api.publicRouter, { public: true });
   // Plan step 50 — the guest app on its own host, the studio at /studio for an admin (rule 47).
   const guestDist = (() => { let dir = null; return () => { if (!dir) dir = hosting.distDirOf('guest'); return dir; }; })();
@@ -230,15 +236,11 @@ function register(ctx) {
   ]);
   // Rule 9bis (a) — the SAS « Portail » step becomes « Mon séjour » while this stay has a link to show.
   ctx.sasData((reservationId) => ({ available: api.stayLinkAvailable(reservationId) }));
-  // Rule 9bis (b) — the reminder e-mails carry the stay link. `stayAppUrl` is a core variable (it falls back to
-  // the gate link without this plugin), so only the flag is declared here.
+  // Rule 9bis (b) — the reminder e-mails' « Lien Mon séjour », declared by this plugin (emailContext.js).
   ctx.emailContext({
-    tokens: [],
-    flags: [{ name: 'hasStayApp', label: 'Si lien Mon séjour' }],
-    build: (reservationId) => {
-      const url = api.stayAppUrl(reservationId);
-      return { tokens: { stayAppUrl: url }, flags: { hasStayApp: Boolean(url) } };
-    },
+    tokens: [...stayAppEmail.TOKENS],
+    flags: [...stayAppEmail.FLAGS],
+    build: (reservationId) => stayAppEmail.stayAppEmailContext({ stayUrl: api.stayAppUrl(reservationId), gateUrl: gate.keyUrlOf(reservationId) }),
   });
 
   // Rule 36 — every minute, an order unpaid 30 minutes on expires and its slots go back to the planning.

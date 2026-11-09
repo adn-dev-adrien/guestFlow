@@ -78,6 +78,22 @@ withShop('rule 37quater: the shop says what is left, « Épuisé » once nothing
   assert.deepEqual((await itemOf()).stock, { soldOut: false, left: 40, leftLabel: null }, 'more than a full order: no label');
 });
 
+withShop('rule 37bis: « En rupture » stops the app on an article whose stock is not followed, and an order of it is refused', async ({ call }) => {
+  nextId += 1;
+  const id = addOption({ id: nextId, title: `Jus ${nextId}`, price: 4 });
+  sell('option', id);
+  const itemOf = async () => (await call('GET', '/public/v1/guest/shop')).body.data.categories.flatMap((c) => c.items).find((i) => i.id === id);
+  assert.equal((await itemOf()).stock, undefined, 'not followed, not sold out: never limited');
+  assert.equal((await call('PUT', `/api/guest-app/items/option/${id}`, { soldOut: true })).status, 200);
+  assert.deepEqual((await itemOf()).stock, { soldOut: true, left: 0, leftLabel: null });
+  const res = await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id, quantity: 1 }], payment: 'note' });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.error.code, 'OUT_OF_STOCK');
+  assert.equal(res.body.error.details.left, 0);
+  assert.equal((await call('PUT', `/api/guest-app/items/option/${id}`, { soldOut: false })).status, 200);
+  assert.equal((await itemOf()).stock, undefined);
+});
+
 withShop('rule 37quater: beyond what is left, the quote says « Plus que 2 disponibles » and the order answers 409 OUT_OF_STOCK with the units left', async ({ call, stayId }) => {
   const id = await tracked(call, { quantity: 2 });
   const quote = (await call('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'option', id, quantity: 3 }] })).body.data;

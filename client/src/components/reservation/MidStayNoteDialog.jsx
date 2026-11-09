@@ -11,6 +11,8 @@ import api from '../../api';
 import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/optionTypedCount';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { formatCurrency } from '../../utils/formatters';
+import TenderLines from '../TenderLines';
+import { TENDER_TEXTS } from '../../constants/tenderMethods';
 
 /**
  * « Nouvelle note » — specs/mid-stay-notes.md §3.2 + §6.
@@ -46,6 +48,9 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
   const [checkedKeys, setCheckedKeys] = useState([]);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(NO_PREVIEW);
+  // specs/mixed-method-payments.md rules 1, 21-22 — « Plusieurs moyens », closed on every opening.
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [tenders, setTenders] = useState(null);
   // The sold options when the dialog opened: « Annuler » must leave the reservation exactly as it was,
   // catalogue additions and removals included (§3.5 edge cases; non-card-option-served-persons.md rule 31).
   // State, not a ref: what the note adds is measured against it (rule 33), so it has to render.
@@ -65,6 +70,8 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
     setCheckedKeys([]);
     setBusy(false);
     setPreview(NO_PREVIEW);
+    setSplitOpen(false);
+    setTenders(null);
     // Snapshot once per opening; `form.selectedOptions` intentionally not a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -253,6 +260,9 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total de la note</Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{formatCurrency(noteTotal)}</Typography>
           </Box>
+          {splitOpen && noteTotal > 0 && (
+            <TenderLines dueCents={Math.round(noteTotal * 100)} onChange={setTenders} disabled={busy} autoFocus />
+          )}
           {preview.arrivalNotMarked && (
             <Typography variant="caption" color="text.secondary">Arrivée non marquée : la vente rejoint le solde.</Typography>
           )}
@@ -267,21 +277,46 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
           </Button>
         )}
         <Button
-          variant="outlined"
+          variant="text"
+          data-split-toggle="note"
           disabled={busy || noteTotal <= 0}
-          onClick={() => run(() => onSettle(instruction(), true))}
+          onClick={() => { setSplitOpen((v) => !v); setTenders(null); }}
+          sx={{ color: 'text.secondary' }}
           fullWidth={isMobile}
         >
-          Caisse interne
+          {splitOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
         </Button>
-        <Button
-          variant="contained"
-          disabled={busy || noteTotal <= 0}
-          onClick={() => run(() => onSettle(instruction(), false))}
-          fullWidth={isMobile}
-        >
-          CB / Chèque
-        </Button>
+        {splitOpen ? (
+          <Button
+            variant="contained"
+            disabled={busy || noteTotal <= 0 || !(tenders && tenders.canSubmit)}
+            onClick={() => run(() => onSettle(instruction(), false, {
+              expectedAmountCents: Math.round(noteTotal * 100), tenders: tenders.tenders, shortfall: tenders.shortfall,
+            }))}
+            fullWidth={isMobile}
+          >
+            {TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : noteTotal))}
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outlined"
+              disabled={busy || noteTotal <= 0}
+              onClick={() => run(() => onSettle(instruction(), true))}
+              fullWidth={isMobile}
+            >
+              Caisse interne
+            </Button>
+            <Button
+              variant="contained"
+              disabled={busy || noteTotal <= 0}
+              onClick={() => run(() => onSettle(instruction(), false))}
+              fullWidth={isMobile}
+            >
+              CB / Chèque
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );

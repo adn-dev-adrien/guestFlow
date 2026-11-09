@@ -439,7 +439,7 @@ export function contentHash(dir) {
   return hash.digest('hex');
 }
 
-// The web apps a plugin serves through `ctx.webApp` (specs/plugins-phase-1-sdk.md rule 47): built by Vite in the
+// The web apps a plugin serves through `ctx.webApp` (specs/plugins-phase-1-sdk.md rule 48): built by Vite in the
 // repository, shipped inside the plugin's server folder.
 export const EXTRA_ASSETS = Object.freeze({
   'guest-app': Object.freeze({ guest: 'apps/guest/dist', studio: 'apps/studio/dist' }),

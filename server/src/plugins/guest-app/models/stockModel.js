@@ -39,6 +39,9 @@ function orderLineUnits(line) {
 function createStockModel(db) {
   const tracked = () => db.prepare('SELECT * FROM guest_app_items WHERE stockTracked = 1').all();
   const trackedRow = (kind, id) => db.prepare('SELECT * FROM guest_app_items WHERE kind = ? AND itemId = ? AND stockTracked = 1').get(kind, Number(id)) || null;
+  // Rule 37bis — « En rupture » stops the app whatever the count says, even on an article whose stock is not followed.
+  const limited = () => db.prepare('SELECT * FROM guest_app_items WHERE stockTracked = 1 OR soldOut = 1').all();
+  const limitedRow = (kind, id) => db.prepare('SELECT * FROM guest_app_items WHERE kind = ? AND itemId = ? AND (stockTracked = 1 OR soldOut = 1)').get(kind, Number(id)) || null;
 
   /** Rule 37ter — the units every unpaid card order holds at `at`, by `kind:id`. */
   function heldByKey(at) {
@@ -70,16 +73,16 @@ function createStockModel(db) {
     };
   }
 
-  /** Rule 37quater — a tracked article's stock now, or null when it is not tracked (never limited). */
+  /** Rule 37quater — a tracked or « En rupture » article's stock now, or null when nothing limits it. */
   function state(kind, id, at) {
-    const row = trackedRow(kind, id);
+    const row = limitedRow(kind, id);
     return row ? stateOf(row, heldByKey(at)) : null;
   }
 
-  /** Every tracked article's stock now, by `kind:id`. */
+  /** Every tracked or « En rupture » article's stock now, by `kind:id`. */
   function states(at) {
     const held = heldByKey(at);
-    return new Map(tracked().map((row) => [keyOf(row.kind, row.itemId), stateOf(row, held)]));
+    return new Map(limited().map((row) => [keyOf(row.kind, row.itemId), stateOf(row, held)]));
   }
 
   /**

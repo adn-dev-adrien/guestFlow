@@ -199,7 +199,11 @@ function statusOf(installment, today) {
   return installment.dueDate > today ? 'upcoming' : 'toRequest';
 }
 
-const METHOD_LABELS = { link: 'lien', transfer: 'virement', cash: 'espèces', cheque: 'chèque', card: 'carte', other: 'autre' };
+const METHOD_LABELS = {
+  link: 'lien', transfer: 'virement', cash: 'espèces', cheque: 'chèque', card: 'carte', other: 'autre',
+  // specs/mixed-method-payments.md rule 12 — an installment paid with several methods.
+  mixed: 'plusieurs moyens',
+};
 
 function statusLabel(installment, status) {
   switch (status) {

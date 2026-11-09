@@ -99,6 +99,8 @@ withApi('rule 11bis: /me and /lodging follow the lodging’s switches', async ({
   assert.equal(me.body.data.tiles.some((t) => t.key === 'booklet'), true);
   const lodging = await call('GET', '/public/v1/guest/lodging');
   assert.equal(lodging.body.data.modules.some((m) => m.key === 'soliomap'), false);
+  assert.equal(lodging.body.data.soliomap, undefined, 'rule 15: no Soliomap frame for a lodging without the module');
+  assert.equal(me.body.data.appName, 'Domaine Solio', 'rule 52: the app name the studio sets, its default here');
 });
 
 withApi('rule 11bis: the shop follows the items sold for this lodging, the other lodging keeps its own', async ({ db, api, call }) => {
@@ -143,6 +145,8 @@ withApi('rule 11ter: wifi facts reach /lodging with a join QR; wifi off → no t
   assert.equal(on.wifi.password, 'sapin:42');
   assert.equal(on.wifi.note, 'Dans la pièce principale');
   assert.match(on.wifi.joinQr, /^data:image\/png;base64,/);
+  assert.equal(on.soliomap.embed, false, 'rule 15: framed only once the studio switch allows it');
+  assert.match(on.soliomap.url, /^https:\/\//);
   await call('PUT', '/api/guest-app/lodgings/1', { wifi: { available: false } });
   const off = (await call('GET', '/public/v1/guest/lodging')).body.data;
   assert.equal(off.wifi, undefined);

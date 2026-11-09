@@ -20,6 +20,8 @@
 // not reach it (specs/finance-dashboard-redesign.md rule 57), nothing else moved.
 // On 2026-11-06 for `finance/operational` and `finance/detail/*` (each operational row carries `settleAllFields`, D20,
 // specs/reservation-payment-ledger.md rule 68, nothing else moved).
+// On 2026-11-09 for `finance/summary/*`, `finance/detail/*/toCollect|late` and `finance/operational`: each stay row carries the
+// four split aggregates of specs/mixed-method-payments.md §5 (all 0 here), nothing else moved (checked field by field).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');

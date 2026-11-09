@@ -120,6 +120,7 @@ withShop('rule 27bis: the breakfast carries its state, the mornings left and the
   assert.equal(sold.state, 'sold');
   assert.equal(sold.price, 12);
   assert.equal(sold.defaultTime, '08:30');
+  assert.equal(sold.priceUnitLabel, 'par personne et par matin', 'the guest reads mornings, never nights');
   assert.deepEqual(sold.mornings.map((m) => m.date), ['2099-07-08', '2099-07-09'], 'today’s service is over at noon');
   assert.equal(sold.mornings[0].label, 'mer. 8 juil.');
   assert.deepEqual(sold.occurrences, []);
