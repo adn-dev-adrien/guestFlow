@@ -6,7 +6,7 @@
 // Such a devis now carries NO acompte and owes ONE full payment due on its validity date — one condition in the
 // engine (start − balanceDaysBefore <= validUntil). The devis, its live quote (new or saved), its read, its PDF, its
 // e-mail tokens, its payment-link quote, the site's public quote, its conversion (both ways) and the dashboard
-// deadlines read the same schedule; payment-schedule rule 47 for reservations is unchanged.
+// deadlines read the same schedule; specs/payment-schedule-and-cancellation.md rule 47 for reservations is unchanged.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
@@ -182,8 +182,8 @@ test('D23 — « Transformer en devis » on a stay inside the window gives a dev
   setValidity(15);
   const rid = f.createStay({ startDate: inDays(38), endDate: inDays(40) });
   const reservation = rowOf(rid);
-  assert.ok(reservation.depositAmount > 0, 'the reservation keeps its acompte (rule 47)');
-  assert.ok(reservation.depositDueDate <= reservation.balanceDueDate, 'rule 47 unchanged: the acompte never after the solde');
+  assert.ok(reservation.depositAmount > 0, 'the reservation keeps its acompte (specs/payment-schedule-and-cancellation.md rule 47)');
+  assert.ok(reservation.depositDueDate <= reservation.balanceDueDate, 'specs/payment-schedule-and-cancellation.md rule 47 unchanged: the acompte never after the solde');
   const made = devisModel.convertFromReservation(rid);
   assert.ok(made.ok, JSON.stringify(made));
   const devis = rowOf(made.data.id);
@@ -194,7 +194,7 @@ test('D23 — « Transformer en devis » on a stay inside the window gives a dev
   assert.deepEqual(pick(devisModel.findById(made.data.id)), pick(devis), 'stored = read');
 });
 
-test('D23 — rule 47 for reservations unchanged: a reservation created 35 days out keeps an acompte capped at its solde', () => {
+test('D23 — specs/payment-schedule-and-cancellation.md rule 47 unchanged: a reservation created 35 days out keeps an acompte capped at its solde', () => {
   const rid = f.createStay({ startDate: inDays(35), endDate: inDays(37) });
   const row = rowOf(rid);
   assert.ok(row.depositAmount > 0);
