@@ -568,6 +568,16 @@ signed-off releases over HTTPS, when the operator asks for it.
     untouched sides only (SHA-256), at the same boot as v1 on an install that never ran it. An operator who edited
     the sentence keeps their text, and with it the old behaviour under a rollback. Test:
     `payment-link-valid-until-rollback.unit.test.js`.
+54. **A core MAJOR never switches the plugins off by itself** (D24, Adrien, 2026-11-09; audit R34-CON-H1).
+    A release boots its plugins from packages (`plugins-dist/SHA256SUMS`), each judged against the root
+    `package.json` version. A core major is a decision about this repository's outside consumers (rule 2); a
+    plugin's contract is the SDK (`sdk/version.js`), so a plugin is judged on its `sdk` range and on the floor
+    of its `guestflow` range, never on a ceiling (`plugins-phase-4-registry.md` rule 62). Installing 4.0.0 over
+    3.x keeps every bundled and installed plugin loaded while SDK 2 is served. The release cannot ship a
+    plugin its own core refuses: `check-plugin-versions` reads the bundled manifests against the version
+    released (the skill's pre-flight with `--core-version X.Y.Z`, then the release PR's CI and the `verify`
+    job on the root version) and fails otherwise; the health check alone would not see it, plugins refused at
+    boot do not fail `/api/health`. Test: `plugins-bundled-admit-release.unit.test.js`.
 
 ---
 
@@ -685,6 +695,8 @@ something genuinely needs them. Each step carries a check.
 2. **Pre-flight**: on `master`, up to date, tree clean of *tracked* changes, then server suite,
    client Vitest, client build and `npm run test:e2e`, all green. Untracked files are reported, not
    treated as a blocker; a tracked modification stops the release (CLAUDE.md §5.4).
+   `node scripts/check-plugin-versions.mjs --core-version X.Y.Z` passes: every bundled plugin admits the
+   version about to be released (rule 54, added 2026-11-09).
 3. **Changelog**: `node scripts/build-changelog.mjs --release X.Y.Z`, then rewrite the folded section
    into operator-facing English prose, and **write the `### Summary` digest in French** (rule 20c).
    `--check-digest X.Y.Z` must pass. An empty section means there is nothing to release.

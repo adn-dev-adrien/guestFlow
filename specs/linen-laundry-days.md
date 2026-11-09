@@ -198,6 +198,7 @@ and the stock forecast knows the linen is unavailable until it actually comes ba
     blanchisserie par semaine. », « Délai de la blanchisserie : le linge revient quand il est prêt, et le
     stock le sait. », « Une rupture de linge dit jusqu'à quand. » (and one line for the bath-mat label). The
     manifest's `guestflow` range is `>=3.18.0 <4.0.0`, the current core: the host names and api methods ship in the same core build as `linen` 1.2.0 (§4).
+    _(2026-11-09: the ceiling is gone; registry rule 62 (D24) has `guestflow` written as a floor only, `>=3.18.0`, and the `sdk` range judges compatibility.)_
 26. **`laundryWeekday` is frozen.** The generic `PUT /api/plugins/linen/settings` refuses any non-empty
     `laundryWeekday` with its `INVALID_SETTING` error (`400`, as every setting validation) whose message
     points to `PUT /api/laundry/schedule`; nothing reads it any more, it stays stored for a rollback.
@@ -238,6 +239,7 @@ the registry); `client/src/plugins/hostModules.*` exports three more MUI compone
 `ToggleButton`, `ToggleButtonGroup`); `utils/planningDateRange.js` rejects non-calendar dates
 (`9999-99-99` used to slip under the cap); and the manifest's `guestflow` range is `>=3.18.0 <4.0.0` (the core this repository is at) — the
 release that ships these host names and api methods.
+_(2026-11-09: the ceiling is gone; registry rule 62 (D24) has `guestflow` written as a floor only, `>=3.18.0`, and the `sdk` range judges compatibility.)_
 
 ### 4.1 Server side (`server/src/plugins/linen/`)
 

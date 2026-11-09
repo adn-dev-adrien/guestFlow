@@ -276,6 +276,11 @@ below are the recommended ones; each is reversible in a later spec.
     Plugins page (`CORE_INCOMPATIBLE`), « Incompatible avec cette version. » for a package refused at
     boot. *(Corrected 2026-10-18, second review: the text first quoted rule 33's « Nécessite une version
     plus récente de GuestFlow. », which is for a core too old.)*
+    > **Superseded 2026-11-09 by rule 62 (D24, Adrien; audit R34-CON-H1 / R34-P1).** The release after
+    > 3.21 is 4.0.0, and this rule would have switched off all sixteen plugins at its first boot, with no
+    > compatible version to offer. The `guestflow` range is read as a floor again (the reading rule 2's
+    > implementation note started from); the ceiling, written or derived, is no longer applied. The
+    > boot message « Incompatible avec cette version. » stays for a package refused on its SDK range.
 35. **What `coreModule()` hands a server plugin is part of the SDK contract** (added 2026-10-18, code
     review M3). `server/src/plugins/sdk/coreModules.json` lists every module of `CORE_MODULES` and the
     names it exports. A unit test fails when a listed module or name is no longer exported, when the
@@ -510,6 +515,27 @@ below are the recommended ones; each is reversible in a later spec.
     (audit r6, 2026-10-30).
     Tests: `plugin-requirement-moves.unit.test.js`, `plugin-switched-off-out-of-range.unit.test.js`,
     `plugin-switched-off-stale.unit.test.js`.
+62. **A core major never switches off a plugin whose contract holds** (D24, Adrien, 2026-11-09; audit
+    R34-CON-H1 / R34-P1; supersedes rule 34). What a plugin calls is the SDK contract, so its `sdk` range
+    is what judges it: a core at or above the floor of `guestflow` runs a package whatever ceiling its
+    manifest wrote, while the SDK satisfies `sdk` and the app exposes its `hostImports` (rule 33).
+    - *Install, update, offer and boot alike* (`pluginOffers.rangeRefusal`, read by the loader, the
+      offers and `switch-plugin-package.js`): a core below the floor → `CORE_TOO_OLD` « Nécessite
+      GuestFlow 4.1 ou plus récent. »; an SDK outside `sdk` → `SDK_INCOMPATIBLE`; an unreadable range
+      fails closed (`CORE_INCOMPATIBLE`). A package already installed with « <4.0.0 » (every 3.x package
+      built under rule 34) keeps loading on GuestFlow 4, 5…; an SDK major (3.0.0) still refuses it.
+    - *A manifest writes the floor it is read as.* Every source manifest's `guestflow` is `>=X.Y.Z`,
+      nothing else; the package build refuses any other form, so no ceiling can come back and drift
+      from the core. The sixteen plugins moved from `>=3.x.0 <4.0.0` to `>=3.x.0` in one patch bump
+      each, with « Compatible avec GuestFlow 4 (SDK 2.N). » (N = the floor of its `sdk` range).
+    - *The gate.* `check-plugin-versions` (every PR, the release `verify` job, the release skill's
+      pre-flight as `--core-version X.Y.Z`, before the bump) refuses a release whose bundled manifests
+      its own core or SDK would refuse: a range that is not a floor, a floor above the core, an `sdk`
+      range `SDK_VERSION` does not satisfy. It reads the ranges without a dependency; a unit test holds
+      it equal to `rangeRefusal` over the bundled manifests and a grid of core and SDK versions.
+    - *Not covered:* a changed signature behind an unchanged SDK name stays a matter of review and of the
+      SDK major (rule 35's clarification).
+    Tests: `plugins-bundled-admit-release.unit.test.js`, `plugins-manifest-upper-bound.unit.test.js`.
 
 
 ---
@@ -542,7 +568,7 @@ below are the recommended ones; each is reversible in a later spec.
 | `models/` | `pluginsModel.js` | T | _(added 2026-10-08)_ `switchVersion`, `rollBack`, `expireRollback`, `syncBundled` |
 | `scripts/` | `seed-e2e.js` | T | _(added 2026-10-08)_ `E2E_SEED_PLUGINS` picks the installed plugins; rows are `bundled` |
 | `plugins/sdk/` | `coreModules.json` | C | _(added 2026-10-18)_ The modules and names `coreModule()` exposes (rule 35) |
-| `utils/` | `semverRange.js` | T | _(added 2026-10-18)_ `hasUpperBound`, `boundedRange` (rule 34) |
+| `utils/` | `semverRange.js` | T | _(added 2026-10-18)_ `coreFloor`, `isFloorRange` (rule 62; `hasUpperBound` and `boundedRange` of rule 34 removed 2026-11-09) |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -616,6 +642,10 @@ word per line (seen in the browser check of 2026-10-17).
   `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
 - _(added 2026-10-27)_ `plugins-deactivate-required-by.unit.test.js` (rule 36, 4 tests).
 - _(added 2026-10-27, adversarial review)_ `plugins-activate-requires-active.unit.test.js` (rule 37, 3 tests; the refusal failed on the code before the fix).
+- _(added 2026-11-09, D24)_ rule 62: `plugins-bundled-admit-release.unit.test.js` (7 tests: the bundled
+  plugins admit the root version, the next two majors and `SDK_VERSION`; `loadPackages` on « <4.0.0 »
+  packages at 4.0.0 and 5.0.0; the gate equals the loader; the gate red on a ceiling, a floor above the
+  core, an SDK major; the skill runs it) and `plugins-manifest-upper-bound.unit.test.js` rewritten (4).
 - _(added 2026-10-28, audit)_ rules 38–41: `plugin-install-hooks-after-restart.unit.test.js`, `plugin-install-requirement-inactive.unit.test.js`, `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`, `Slot.isolation.test.jsx`.
 
 ## 8. Out of scope
@@ -662,6 +692,14 @@ and the client SDK's `AttentionCard` raise the SDK to **1.4.0** (minor); `bookin
 2026-10-19 — UI/UX review, proposal 19 (`specs/plugins-phase-0-foundation.md` rule 25): `ctx.setupStatus`
 raises the SDK to **1.5.0** (minor). The four plugins that declare it ask for `sdk ^1.5.0` and
 `guestflow >=3.10.0`: `google-calendar` 1.1.0, `neat` 1.1.0, `online-payment` 1.1.0, `weather-alerts` 1.1.0.
+
+2026-11-09 — D24 (`fix/audit-r34-core`): rule 62 supersedes rule 34. The sixteen manifests write a floor
+(`>=3.9.0`, `>=3.10.0`, `>=3.18.0`), one patch bump each; the loader reads any `guestflow` range as its floor;
+`check-plugin-versions` refuses a release its bundled plugins would refuse. Measured with the real
+`loader.loadPackages` over packages built by `build-plugin-packages.mjs` (host list of the build, SDK 2.24.0):
+the sixteen built from this branch and the sixteen built from `inte/plugins` at ad4dff66 (« <4.0.0 ») all load
+at 3.21.0, 4.0.0 and 5.0.0; the loader of ad4dff66 refused all sixteen of both sets at 4.0.0. v3.21.0 itself
+ships no package (`master` runs the three intakes from sources), so no older package exists in production.
 
 | Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
 |---|---|

@@ -277,7 +277,8 @@ test('rule 10: the highest compatible version is offered; the archive copy wins 
 test('rule 22: a core too old is said « Nécessite GuestFlow 4.1 ou plus récent. »', () => {
   assert.deepEqual(rangeRefusal(manifest('linen', '2.0.0', { guestflow: '>=4.1.0' }), ENV), { code: 'CORE_TOO_OLD', message: 'Nécessite GuestFlow 4.1 ou plus récent.' });
   assert.equal(rangeRefusal(manifest('linen', '2.0.0', { sdk: '^3.0.0' }), ENV).code, 'SDK_INCOMPATIBLE');
-  assert.equal(rangeRefusal(manifest('linen', '2.0.0', { guestflow: '<3.0.0' }), ENV).message, 'Incompatible avec cette version de GuestFlow.');
+  // Rule 62 (D24): the core range is a floor, an SDK out of range is what makes a package incompatible.
+  assert.equal(rangeRefusal(manifest('linen', '2.0.0', { sdk: '^3.0.0' }), ENV).message, 'Incompatible avec cette version de GuestFlow.');
   assert.equal(rangeRefusal(manifest('linen', '2.0.0', { guestflow: '>=9.0.0' }), { ...ENV, coreVersion: '0.0.0-dev' }), null);
   assert.equal(floorLabel('>=4.1.2'), '4.1.2');
 });

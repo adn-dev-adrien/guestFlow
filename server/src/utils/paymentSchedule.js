@@ -160,6 +160,18 @@ function owesSinglePaymentByValidity({ startDate = null, validUntil = null, bala
 }
 
 /**
+ * Does a devis promise ONE payment, due on its validity date? Its stored acompte is 0 (a direct devis with no
+ * acompte, specs/deposit-blocks-the-dates.md rule 7), or its solde falls on or before its validity date (D23,
+ * rule 19). The conversion and the converted reservation's later saves keep that promise (rule 22, audit
+ * R34-RES-L2). The caller judges the channel: an OTA devis never had an acompte to lose.
+ */
+function devisPromisesOnePayment({ startDate = null, validUntil = null, balanceDaysBefore = 30, depositAmount = null } = {}) {
+  if (!toIsoDay(validUntil)) return false;
+  const storedNoAcompte = depositAmount !== null && depositAmount !== undefined && depositAmount !== '' && Number(depositAmount) === 0;
+  return storedNoAcompte || owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore });
+}
+
+/**
  * D23 — the deadline of the single payment a reservation keeps from the devis it was converted from: the
  * devis's validity date, never before the reservation's own booking day (an expired quote converted late).
  */
@@ -190,6 +202,7 @@ module.exports = {
   resolveBalanceDueDate,
   isLastMinuteStay,
   owesSinglePaymentByValidity,
+  devisPromisesOnePayment,
   devisPromiseDueDate,
   resolveCancelOn,
   daysBetween,
