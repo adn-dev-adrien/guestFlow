@@ -315,17 +315,25 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
 // No commission line ever: the owner refunds the guest from their own bank account, whatever the
 // platform of the original sale. Σ debits == credit, the rounding residue absorbed on the last debit
 // (the sale path absorbs it on the last credit).
+// specs/mixed-method-payments.md rule 56 — a refund closing a split stay's books (`entry.closing`, set by the model)
+// debits what is left on each sale account instead of its buckets: a rabais left on 70900000 is credited back.
 function refundEntryToRows(entry) {
   const { day, month, year } = splitIsoDate(entry.paidDate);
   const libelle = libelleFor(entry);
   const clientAccount = buildClientAccount(entry.client.lastName);
   const piece = '';
   const creditTtc = round2(entry.encaissementTtc);
-  const taxTtc = round2(entry.taxTtc || 0);
+  const closing = entry.closing || null;
+  const closingTax = closing ? closing.find((leg) => leg.role === 'touristTax') : null;
+  const taxTtc = closing ? round2(closingTax ? closingTax.amount : 0) : round2(entry.taxTtc || 0);
 
   const revenueLines = [];
   const vatByRate = new Map();
-  for (const bucket of entry.buckets || []) {
+  for (const leg of closing || []) {
+    if (leg.role === 'revenue') revenueLines.push({ account: leg.account, amount: round2(leg.amount), rate: Number(leg.ratePercent) || 0, role: 'revenue' });
+    if (leg.role === 'vat') vatByRate.set(Number(leg.ratePercent) || 0, round2((vatByRate.get(Number(leg.ratePercent) || 0) || 0) + leg.amount));
+  }
+  for (const bucket of closing ? [] : entry.buckets || []) {
     const account = BUCKET_TO_ACCOUNT[bucket.name];
     if (!account) continue;
     const ht = round2(bucket.ht || 0);
@@ -350,7 +358,7 @@ function refundEntryToRows(entry) {
     rate,
     role: 'vat',
   }));
-  const taxLines = taxTtc > 0
+  const taxLines = taxTtc > 0 || (closing && taxTtc !== 0)
     ? [{ account: PASS_THROUGH_ACCOUNTS.TOURIST_TAX, amount: taxTtc, role: 'touristTax' }]
     : [];
 
@@ -374,10 +382,11 @@ function refundEntryToRows(entry) {
     '', creditTtc,
     '', '', '',
   ]), 'client'));
-  // 2..N) Debit lines: revenue, then VAT, then the tourist-tax pass-through.
+  // 2..N) Debit lines: revenue, then VAT, then the tourist-tax pass-through (a closing refund's negative leg: a credit).
   for (const line of allDebits) {
     rows.push(tagRow(zerofyMoneyColumns([
-      day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account, line.amount, '', '', '', '',
+      day, month, year, SALES_JOURNAL_CODE, piece, libelle, line.account,
+      line.amount < 0 ? '' : line.amount, line.amount < 0 ? round2(-line.amount) : '', '', '', '',
     ]), line.role, line.rate == null ? null : line.rate));
   }
   return rows;

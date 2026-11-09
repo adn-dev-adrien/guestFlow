@@ -640,6 +640,15 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     *Reading of 2026-11-05 (audit R24 verification DB-2):* a SAS takes back only what it settled: a solde ticked on the fiche then
     « Pas maintenant » at the arrival, or an end-of-stay complement ticked outside the departure SAS then « Pas maintenant » at the
     departure, keeps its mark and is never refused for a refund on it (pinned by `untick-with-open-refund`).
+53. **A book refund is never dated before the stay's last book payment** _(verification R35b, finding 5, 2026-11-09)_. The
+    create endpoint refuses with 400 `REFUND_BEFORE_PAYMENT` « Date antérieure au dernier paiement (JJ/MM/AAAA). » before
+    anything is written when the refund (any method but the caisse interne) is dated before the latest day a payment of the
+    stay reached the books (`lastBookPaymentDateOf`): a paid acompte, solde, arrival or end-of-stay complement not in the
+    caisse interne, a paid installment, a note settled on the books, a settlement with a book tender. The same day passes;
+    caisse-interne payments and refunds are not judged; stored refunds are not re-judged. The dialog shows the server's
+    message and stays open (`RefundDialog.before-payment`). *Why:* the refund that closes a stay's books (mixed-method-payments
+    rules 56, 58) reads the encaissements up to its own date; a split solde paid on the 12th and refunded « on the 9th »
+    skipped that encaissement and left 70600000 −10,68 / 70900000 +10,68 open. Test: `reservation-refunds-before-last-payment`.
 
 ---
 
@@ -672,6 +681,8 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `controllers/` | `refundsController.js` | T | Rule 49 reading — on a cancelled stay, hands `collectedByLine` (with `bookedStayBuckets`, read on `deps.database`) to `buildRefundableLines` |
 | `utils/` | `refunds.js` | T | Rule 49 second reading — `spreadBucketRefund(lines, amount, roomOf)` spreads the avoir on the lines as they stood when it was written; the unoffered rounding cents (`STORED_SPLIT_ROUNDING_TTC`) go on the line with the most room |
 | `controllers/` | `refundsController.js` | T | Rule 48 — on `kind = 'cancelled'`, passes the budget to both and answers `collectedTtc` = the budget |
+| `utils/` | `refunds.js` | T | Rule 53 — `lastBookPaymentDateOf(row, { installments, settlements })`; `validateRefundPayload({ lastBookPaymentDate })` refuses `REFUND_BEFORE_PAYMENT` |
+| `controllers/` | `refundsController.js` | T | Rule 53 — hands the stay's installments and settlements to `lastBookPaymentDateOf` on create |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 48 — `buildRefundEntry` carries `indemnity` (account + rate of the compensation settings); `refundEntryToRows` debits it |
 | `utils/` | `reservationLedger.js` | T | Rule 46 reading of 2026-11-02 — « Acompte conservé » / « Échéances conservées » row, « Rendu sur l'indemnité » |
 | `utils/` | `refunds.js` | T | Rule 6 reading (R15-C1) — `refundDeletionRefusal`, `madeAfterCancellation`; rule 48 readings — `cancelledRefundBudget({ cashCollectedTtc })` (`cashLeftTtc`, the `commission` lines out of `indemnityLeftTtc`), `collectedByLine({ cash })`, the lines' `cashTtc`, `splitOnIndemnity` per method (`REFUND_CASH_ONLY_IN_CASH`) |
@@ -730,7 +741,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/reservations/:id/refunds` | — | `{ refunds, refundableLines, refundTotals: { book, withCash }, collectedTtc }` | Admin only. Also inlined in `GET /api/reservations/:id` so the fiche needs no extra round-trip — hence the `refund*` prefixes (a bare `totals` would collide in the reservation payload). `collectedTtc` feeds the dialog's over-refund caption. |
-| POST | `/api/reservations/:id/refunds` | `{ refundDate, method, reason?, lines: [{ key?, label, bucket, quantity?, unitPrice?, amountTtc }] }` | `201 { refund, refunds, refundableLines, refundTotals, collectedTtc }` | Server recomputes `totalTtc` and freezes `vatRate` per line. |
+| POST | `/api/reservations/:id/refunds` | `{ refundDate, method, reason?, lines: [{ key?, label, bucket, quantity?, unitPrice?, amountTtc }] }` | `201 { refund, refunds, refundableLines, refundTotals, collectedTtc }` | Server recomputes `totalTtc` and freezes `vatRate` per line. 400 `REFUND_BEFORE_PAYMENT` on a book refund dated before the last book payment (rule 53). |
 | DELETE | `/api/reservations/:id/refunds/:refundId` | — | `200 { refunds, refundableLines, refundTotals, collectedTtc }` | 404 when the refund doesn't belong to `:id`. |
 
 Auth: `requireAuth` + admin role (403 `FORBIDDEN_ROLE` for reception/accountant).
@@ -906,6 +917,8 @@ like « Nouvelle note », not a page-level one).
       declaration, a sub-night refund changing nothing, `net + retiré = brut` (rules 27–33).
 - [x] `tests/reception-role-allowlist.unit.test.js` (existing drift test) — still red-flags the new
       refund paths as admin-only (rule 15).
+
+Round 35c (2026-11-09): `reservation-refunds-before-last-payment` (5, rule 53); client `RefundDialog.before-payment` (1).
 
 Round 22 (2026-11-05): `live-refund-above-collected` (6, rule 50), `plugins/accounting-export/tests/cancelled-register-complement-before-solde` (10, rule 49 reading), `cancelled-register-lowered-line` (5, rule 49 reading), `cancelled-register-complement-no-split` (10, the same readings on a complement with no split, as every production complement has today); `refunds-model` and `refund-exceeds-overpayment` reviewed: their stubs now hold a paid solde, the assertions unchanged.
 

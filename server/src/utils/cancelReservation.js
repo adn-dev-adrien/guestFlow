@@ -30,6 +30,8 @@ const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
 const { isOffBooks, isRetainedDeposit, COMMISSION_KEY } = require('./refunds');
 const { storedMoneyBuckets } = require('./storedMoneySplit');
 const { taxRidesTheComplement } = require('./touristTaxFreeze');
+const { bucketSharesOf } = require('./paymentTenders');
+const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -124,13 +126,48 @@ function saleCollectedOf(database, reservationsModel, row, vatRate) {
   return { ...storedMoneyBuckets(database, row, { kind: 'balance', revenueTtc: round2(balance - tax), vatRate }), touristTax: tax };
 }
 
+// specs/mixed-method-payments.md rule 57 (verification R35b, finding 1) — a solde paid with several methods put on the
+// books only its book share, less its geste (`bucketSharesOf`, the reading `collectedByLine` takes): its caisse-interne
+// money and its geste never reached 706, so they absorb no book refund. Read whole, they did, and the acompte kept the
+// difference as a phantom 7588 indemnity. The geste comes off the accommodation, then the extras pro rata, the tax last
+// (rule 54).
+function saleBooksOf(database, reservationsModel, row, vatRate) {
+  const gross = saleCollectedOf(database, reservationsModel, row, vatRate);
+  const split = gross && bucketSharesOf(paymentSettlementsModel.buildModel(database).listFor(row.id), row).balance;
+  if (!split) return gross;
+  // Exact cents, rounded once at the end (largest remainder) like the register's split reading (rule 55).
+  const out = Object.fromEntries(Object.entries(gross).map(([bucket, amount]) => [bucket, Number(amount || 0) * 100 * split.books]));
+  let geste = Math.round(Number(split.waivedBooks || 0) * 100);
+  const takeFrom = (bucket, want) => {
+    const taken = Math.min(want, Math.max(0, out[bucket] || 0));
+    if (taken > 0) out[bucket] -= taken;
+    geste -= taken;
+  };
+  if (out.accommodation != null) takeFrom('accommodation', geste);
+  const extras = ['options', 'resources'].filter((bucket) => out[bucket] > 0);
+  const held = extras.reduce((sum, bucket) => sum + out[bucket], 0);
+  if (geste > 0 && held > 0) {
+    const share = Math.min(1, geste / held);
+    for (const bucket of extras) takeFrom(bucket, out[bucket] * share);
+  }
+  if (geste > 1e-9 && out.touristTax != null) takeFrom('touristTax', geste);
+  const keys = Object.keys(out);
+  const exact = keys.map((bucket) => Math.max(0, Math.round(out[bucket] * 1e6) / 1e6));
+  const floors = exact.map((c) => Math.floor(c));
+  let left = Math.round(exact.reduce((sum, c) => sum + c, 0)) - floors.reduce((sum, c) => sum + c, 0);
+  keys.map((_, i) => i).sort((x, y) => (exact[y] - floors[y]) - (exact[x] - floors[x]) || x - y).forEach((i) => {
+    if (left > 0) { floors[i] += 1; left -= 1; }
+  });
+  return Object.fromEntries(keys.map((bucket, i) => [bucket, floors[i] / 100]));
+}
+
 // Rule 55 reading of 2026-11-02 (review of PR #926, residual A) — the commissions the payment provider withheld on the
 // acompte and solde paid to the books, and the buckets the solde was booked on.
 function withheldCommissionsOf(database, reservationsModel, row, vatRate) {
   const book = (paid, cash) => Number(row[paid]) === 1 && !Number(row[cash] || 0);
   const depositTtc = book('depositPaid', 'depositPaidCash') ? Math.max(0, round2(row.acompteCommissionAmount)) : 0;
   const soldeTtc = book('balancePaid', 'balancePaidCash') ? Math.max(0, round2(row.platformCommissionAmount)) : 0;
-  return { depositTtc, soldeTtc, soldeBuckets: soldeTtc > 0 ? saleCollectedOf(database, reservationsModel, row, vatRate) : null };
+  return { depositTtc, soldeTtc, soldeBuckets: soldeTtc > 0 ? saleBooksOf(database, reservationsModel, row, vatRate) : null };
 }
 
 /**
@@ -162,8 +199,9 @@ function requalificationOf(deps, row, givenBack, { today = null, vatRate = 0, re
     depositBuckets: depositBucketsOf(database, reservationsModel, row, vatRate),
     installmentsRetained: installmentsRetainedOf(installmentsModel, database, Number(row.id), row),
     givenBack,
-    // A solde collected in the caisse interne holds no book money: it absorbs no book refund (audit R15-L1).
-    saleCollected: Object.keys(givenBack).length && !Number(row.balancePaidCash || 0) ? saleCollectedOf(database, reservationsModel, row, vatRate) : null,
+    // A solde collected in the caisse interne holds no book money: it absorbs no book refund (audit R15-L1); paid with
+    // several methods, only its book share does (mixed-method-payments rule 57).
+    saleCollected: Object.keys(givenBack).length && !Number(row.balancePaidCash || 0) ? saleBooksOf(database, reservationsModel, row, vatRate) : null,
     withheldCommissions: withheldCommissionsOf(database, reservationsModel, row, vatRate),
     cancellationDate: today,
     vatRate,

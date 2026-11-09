@@ -17,6 +17,7 @@ const nodemailer = require('nodemailer');
 const { testEmailBody } = require('./emailTemplates');
 const platformMail = require('./platformMail');
 const { outboxDir, writeMessageToOutbox } = require('./mailOutbox');
+const { ehloName } = require('./smtpEhloName');
 
 // A login on a transport without implicit TLS requires STARTTLS: the UI promises it, and nodemailer would
 // otherwise send the password in clear to a server, or an on-path attacker, not offering the upgrade
@@ -32,11 +33,6 @@ function transportOptions({ host, port, secure, auth, fromAddress }) {
     ...(auth && !secure ? { requireTLS: true } : {}),
     ...(name ? { name } : {}),
   };
-}
-
-function ehloName(address) {
-  const domain = String(address || '').trim().split('@')[1] || '';
-  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domain) ? domain.toLowerCase() : '';
 }
 
 function createEmailService(settings, {

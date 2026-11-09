@@ -25,9 +25,10 @@ const sdk = require('../sdk');
 const { taxShares } = sdk.coreModule('installmentPlan');
 const {
   DEFAULT_COMMISSION_ACCOUNT, VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT,
+  BUCKET_TO_ACCOUNT, vatAccountForRate,
 } = require('./accountPlan');
-const { createAccountSettings, readTtcSplitFrom } = require('./settings');
-const { bookedBucketSplit } = require('./accountingExport');
+const { createAccountSettings, readTtcSplitFrom, readStayClosingFrom } = require('./settings');
+const { bookedBucketSplit, entryVentilation } = require('./accountingExport');
 
 const { isPlatformCollectingTouristTax } = sdk.coreModule('pricing');
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
@@ -166,16 +167,10 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     return splits;
   };
 
-  return {
-    // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
-    // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
-    encaissementsByMonth({ month, year }) {
-      const mm = String(month).padStart(2, '0');
-      const yyyy = String(year);
-      const from = `${yyyy}-${mm}-01`;
-      // SQLite quirk: 'YYYY-MM-DD' compares lexicographically; build an exclusive upper bound.
-      const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
-
+  // Every encaissement paid in [from, nextMonth): of the month, or (`reservationId`) of one stay over any window — the
+  // books a closing refund settles (specs/mixed-method-payments.md rule 56).
+  const encaissementsIn = (from, nextMonth, reservationId = null) => {
+      const oneStay = reservationId != null;
       const reservations = database.prepare(`
         SELECT r.id, r.propertyId, r.clientId, r.startDate, r.endDate,
                r.checkInTime, r.checkOutTime,
@@ -209,7 +204,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         -- already be at the accountant's, and that month must never change. The requalification is
         -- booked in the cancellation month instead (avoir + indemnité).
         WHERE r.kind IN ('reservation', 'cancelled')
-          AND (
+          AND ${oneStay ? 'r.id = ?' : `(
             -- A stay collected in the caisse interne is excluded too (same rule as the complements).
             (r.depositPaid = 1 AND r.depositPaidDate >= ? AND r.depositPaidDate < ? ${depositCashFilter})
             OR
@@ -222,9 +217,10 @@ function createAccountingModel(database, { settings = createAccountSettings(data
             ${installmentClause}
             ${midStayNotesClause}
             ${settlementClause}
-          )
+          )`}
         ORDER BY COALESCE(r.depositPaidDate, r.balancePaidDate, r.complementPaidDate, r.endOfStayComplementPaidDate), r.id
-      `).all(from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth, ...(hasInstallments ? [from, nextMonth] : []), ...midStayNotesParams(from), ...(hasSettlements ? [from, nextMonth] : []));
+      `).all(...(oneStay ? [Number(reservationId)]
+        : [from, nextMonth, from, nextMonth, from, nextMonth, from, nextMonth, ...(hasInstallments ? [from, nextMonth] : []), ...midStayNotesParams(from), ...(hasSettlements ? [from, nextMonth] : [])]));
 
       // Read the global commission config once per export run (settings + platforms).
       // accounting-platform-commission-and-no-deposit.md §3.5 rule 11.
@@ -346,6 +342,82 @@ function createAccountingModel(database, { settings = createAccountSettings(data
         // Pure-tax entries are dropped (see `buildEntry`).
         return entries.filter(Boolean);
       });
+  };
+
+  // One refund's avoir (specs/reservation-refunds.md §3.4).
+  const refundEntry = (row) => {
+    // Rule 48 — the share a cancelled stay gives back from its indemnity debits the account the indemnity was credited
+    // on, at its rate: read only when such a share exists, so a minimal test schema without settings never needs them.
+    const indemnity = (row.lines || []).some((line) => line.bucket === 'indemnity') ? compensationSettings(settings.read()) : null;
+    // specs/payment-schedule-and-cancellation.md rule 55 — a requalification avoir netted of the stay's earlier refunds
+    // mirrors their split: read only for such an avoir, so every other entry stays byte-identical.
+    const adjusted = row.method === 'retained' && (row.lines || []).some(isAdjustedLine);
+    return buildRefundEntry(row, {
+      indemnity: indemnity ? {
+        account: indemnity.account,
+        vatRatePercent: vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : indemnity.vatRatePercent,
+        priorTtc: refunds.indemnityGivenBefore(row),
+      } : null,
+      earlier: adjusted ? earlierRefundsOf(row).filter((other) => other.method !== 'retained') : null,
+      solde: adjusted ? bookedSplitsOf(row.reservationId, 'balance') : null,
+      deposit: row.method === 'retained' ? bookedSplitsOf(row.reservationId, 'deposit') : null,
+    });
+  };
+  // The stay's refunds on the books before `row`, in the order they were made.
+  const earlierRefundsOf = (row) => refunds.listByReservation(row.reservationId)
+    .filter((other) => other.method !== 'internal'
+      && (other.refundDate < row.refundDate || (other.refundDate === row.refundDate && other.id < row.id)));
+
+  // specs/mixed-method-payments.md rule 56 (verification R35 leftovers, R34b-3) — a stay paid with several methods books
+  // each settlement's share entry by entry (`scaleEntry`), its refunds line by line from the register: the two round
+  // their cents apart. The refund that gives back the last of its book money therefore debits what is left on each sale
+  // account instead of its lines, so every 706 / 706010 / 709 / 4457 / 4671 account of the stay ends at exactly 0.
+  // Rule 58 (verification R35b, finding 2) — a stay paid with one method rounds its cents apart too: its refunds close
+  // the same way from the month after this version was installed, so a month already exported keeps its cents.
+  const refundEntryReader = () => {
+    const memo = new Map();
+    const closingFrom = readStayClosingFrom(database);
+    const closes = (row) => String(row.refundDate || '') >= closingFrom
+      || (hasSettlements && settlementsStore.listFor(row.reservationId).length > 0);
+    const stayEntries = new Map();
+    const entriesOfStay = (reservationId) => {
+      if (!stayEntries.has(reservationId)) stayEntries.set(reservationId, encaissementsIn('0000-01-01', '9999-12-31', reservationId));
+      return stayEntries.get(reservationId);
+    };
+    const entryOf = (row) => {
+      if (!memo.has(row.id)) {
+        const entry = refundEntry(row);
+        memo.set(row.id, entry && closes(row) ? closeStayBooks(entry, row) : entry);
+      }
+      return memo.get(row.id);
+    };
+    const closeStayBooks = (entry, row) => {
+      const left = new Map();
+      for (const e of entriesOfStay(row.reservationId)) if (String(e.paidDate || '') <= row.refundDate) addSaleLegs(left, e);
+      for (const other of earlierRefundsOf(row)) {
+        const e = entryOf(other);
+        if (e) addSaleLegs(left, e);
+      }
+      const own = addSaleLegs(new Map(), entry);
+      const sum = (legs) => [...legs.values()].reduce((total, leg) => total + leg.cents, 0);
+      if (sum(left) !== -sum(own)) return entry;
+      const closing = [...left.entries()].filter(([, leg]) => leg.cents !== 0)
+        .map(([account, leg]) => ({ account, role: leg.role, ratePercent: leg.ratePercent, amount: leg.cents / 100 }));
+      return { ...entry, closing };
+    };
+    return entryOf;
+  };
+
+  return {
+    // List every encaissement (deposit + balance) whose paid date falls in [`YYYY-MM-01`, end of month].
+    // Returns enriched entries already carrying the per-bucket HT/VAT and the platform info.
+    encaissementsByMonth({ month, year }) {
+      const mm = String(month).padStart(2, '0');
+      const yyyy = String(year);
+      const from = `${yyyy}-${mm}-01`;
+      // SQLite quirk: 'YYYY-MM-DD' compares lexicographically; build an exclusive upper bound.
+      const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
+      return encaissementsIn(from, nextMonth);
     },
 
     // Remboursements of the month (specs/reservation-refunds.md §3.4): one REVERSED entry per
@@ -356,30 +428,8 @@ function createAccountingModel(database, { settings = createAccountSettings(data
       const yyyy = String(year);
       const from = `${yyyy}-${mm}-01`;
       const nextMonth = Number(mm) === 12 ? `${Number(yyyy) + 1}-01-01` : `${yyyy}-${String(Number(mm) + 1).padStart(2, '0')}-01`;
-      const rows = refunds.listByMonth({ from, nextMonth });
-      // specs/reservation-refunds.md rule 48 — the share a cancelled stay gives back from its indemnity debits the
-      // account the indemnity was credited on, at its rate: read only when such a share exists, so a minimal test
-      // schema without settings never needs them.
-      const fromIndemnity = rows.some((row) => (row.lines || []).some((line) => line.bucket === 'indemnity'));
-      const indemnity = fromIndemnity ? compensationSettings(settings.read()) : null;
-      // specs/payment-schedule-and-cancellation.md rule 55 — a requalification avoir netted of the stay's earlier
-      // refunds mirrors their split: read only for such an avoir, so every other entry stays byte-identical.
-      const adjusted = (row) => row.method === 'retained' && (row.lines || []).some(isAdjustedLine);
-      const earlierRefundsOf = (row) => (adjusted(row)
-        ? refunds.listByReservation(row.reservationId).filter((other) => !['retained', 'internal'].includes(other.method)
-          && (other.refundDate < row.refundDate || (other.refundDate === row.refundDate && other.id < row.id)))
-        : null);
-      const indemnityOf = (row) => (indemnity ? {
-        account: indemnity.account,
-        vatRatePercent: vatRegimeModel.forRow(database, { id: row.reservationId }).regime === 'not_subject' ? 0 : indemnity.vatRatePercent,
-        priorTtc: refunds.indemnityGivenBefore(row),
-      } : null);
-      return rows.map((row) => buildRefundEntry(row, {
-        indemnity: indemnityOf(row),
-        earlier: earlierRefundsOf(row),
-        solde: adjusted(row) ? bookedSplitsOf(row.reservationId, 'balance') : null,
-        deposit: row.method === 'retained' ? bookedSplitsOf(row.reservationId, 'deposit') : null,
-      })).filter(Boolean);
+      const entryOf = refundEntryReader();
+      return refunds.listByMonth({ from, nextMonth }).map(entryOf).filter(Boolean);
     },
 
     // Pénalités plateforme du mois (specs/reconciliation-assisted-matching.md rule 28): one entry per
@@ -836,6 +886,25 @@ function bookedShareOf(settlements, bucket, row) {
   if (mine.length === 0) return 1;
   const targetOf = targetReader(settlements, row);
   return mine.reduce((sum, s) => sum + bookedFigures(s, targetOf(s)).share, 0);
+}
+
+// Rule 56 — what an entry left on the stay's sale accounts (credit − debit, in cents): the sale revenue (706, 706010,
+// the activities, the rabais 709), the VAT collected and the tourist tax. An avoir's indemnity share is not a sale: its
+// 7588 line is left out, and so is the VAT it debited on the shared VAT account.
+const SALE_REVENUE_ACCOUNTS = new Set([...Object.values(BUCKET_TO_ACCOUNT), DISCOUNT_ACCOUNT]);
+function addSaleLegs(legs, entry) {
+  const add = (account, role, ratePercent, cents) => {
+    const leg = legs.get(account) || { cents: 0, role, ratePercent };
+    leg.cents += cents;
+    legs.set(account, leg);
+  };
+  for (const line of entryVentilation(entry)) {
+    const sale = (line.role === 'revenue' && SALE_REVENUE_ACCOUNTS.has(line.account)) || line.role === 'vat' || line.role === 'touristTax';
+    if (sale) add(line.account, line.role, line.ratePercent, Math.round((line.credit - line.debit) * 100));
+  }
+  const indemnityVat = entry.indemnity ? Math.round(Number(entry.indemnity.vat || 0) * 100) : 0;
+  if (indemnityVat > 0) add(vatAccountForRate(entry.indemnity.ratePercent), 'vat', Number(entry.indemnity.ratePercent) || 0, indemnityVat);
+  return legs;
 }
 
 // One entry scaled to a settlement's share: the export prorates every credit by `fraction` and absorbs the

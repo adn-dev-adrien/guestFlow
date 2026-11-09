@@ -615,6 +615,11 @@ acompte is kept as an indemnity, and the books say so correctly.
     >   21,42 / 6,00 €); the refund was refused although, deleted and everything then given back, the books end as
     >   with no refund (622600 +27,42 €, 75880000 −27,42 €, 706, 4457, 4671 and the client at 0). A refund that
     >   moves the kept total, a kept bucket or the commission total stays refused.
+    > - **Verification R35b, finding 1 (2026-11-09) — a split solde absorbs only its book money.** A solde paid with
+    >   several methods absorbs the earlier refunds at its book share less its geste (mixed-method-payments rule 57,
+    >   `saleBooksOf`), never its caisse-interne money or its geste, which never reached 706. *Why:* acompte by card,
+    >   solde with 70,01 € in the caisse and a 13,33 € geste, everything on the books given back live, then cancelled →
+    >   the avoir kept 83,34 € as a 7588 indemnity. Now none (`mixed-method-payments-refund-then-cancel`).
 
 56. **A devis never owes its acompte after its solde** _(added 2026-11-09, decision D23, audits R33-M-M1 =
     R33-DB-M1)_. Rule 5 dates a devis's acompte on `validUntil` and rule 7 its solde on `start −
@@ -628,6 +633,9 @@ acompte is kept as an indemnity, and the books say so correctly.
     (specs/deposit-blocks-the-dates.md rule 20: re-stored at boot and after a logement save, its stale links
     withdrawn), so a conversion copies what the devis asks. One exception: an acompte link paid on columns that
     still held the acompte (before the re-store) converts at that stored split, the acompte paid.
+    **Accepted 2026-11-09 (verification R33b, L3).** That stay keeps its stored split as it was: its acompte, paid,
+    can read a due date after its solde's (acompte 60 € due 09/12, paid; solde due 14/11). Nothing depends on the
+    date of a paid acompte (no dashboard card, no cancellation), so it is not rewritten.
 57. **A reservation keeps the single payment its devis promised** _(added 2026-11-09, audits R34-RES-L1 and
     R34-RES-L2)_. Rule 5's amendment held « later saves keep it » for a rule-56 devis only. A direct devis
     stored with no acompte owes one payment on `validUntil` too (specs/deposit-blocks-the-dates.md rule 7): its

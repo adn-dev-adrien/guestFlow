@@ -842,20 +842,11 @@ function generateDevisNumber() {
     const parts = existing.devisNumber.split('-');
     increment = parseInt(parts[2] || '0', 10) + 1;
   }
-  // A number retired by the purge of untouched website requests is never handed out again
-  // (specs/public-request-abuse-and-grouping.md rule 10): a quote number may have gaps, not repeats.
+  // A number retired by a deleted devis is never handed out again (specs/public-request-abuse-and-grouping.md
+  // rules 10 and 35): a quote number may have gaps, not repeats.
   const retired = db.prepare('SELECT lastIncrement FROM devis_number_retired WHERE prefix = ?').get(prefix);
   if (retired && Number(retired.lastIncrement) >= increment) increment = Number(retired.lastIncrement) + 1;
   return `${prefix}${String(increment).padStart(3, '0')}`;
-}
-
-/** Remember a devis number about to be deleted, so `generateDevisNumber` skips past it. */
-function retireDevisNumber(devisNumber) {
-  const m = /^(\d{4}-\d{2}-)(\d+)$/.exec(String(devisNumber || ''));
-  if (!m) return;
-  db.prepare(`INSERT INTO devis_number_retired (prefix, lastIncrement) VALUES (?, ?)
-    ON CONFLICT(prefix) DO UPDATE SET lastIncrement = MAX(lastIncrement, excluded.lastIncrement)`)
-    .run(m[1], parseInt(m[2], 10));
 }
 
 db.exec(`
@@ -863,6 +854,17 @@ db.exec(`
     prefix        TEXT PRIMARY KEY,
     lastIncrement INTEGER NOT NULL
   );
+  -- specs/public-request-abuse-and-grouping.md rules 10 and 35 (audit R34b N3-2): every deleted devis retires its
+  -- number, whatever deleted it (« Supprimer… », the purge of untouched website requests, a client's or a logement's
+  -- cascade), so generateDevisNumber never hands it out again.
+  CREATE TRIGGER IF NOT EXISTS devis_number_retire_on_delete
+  AFTER DELETE ON reservations
+  WHEN OLD.kind = 'devis' AND OLD.devisNumber GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9]*'
+  BEGIN
+    INSERT INTO devis_number_retired (prefix, lastIncrement)
+      VALUES (substr(OLD.devisNumber, 1, 8), CAST(substr(OLD.devisNumber, 9) AS INTEGER))
+      ON CONFLICT(prefix) DO UPDATE SET lastIncrement = MAX(lastIncrement, excluded.lastIncrement);
+  END;
   -- Operator notifications grouped by window (utils/notificationDigest.js,
   -- specs/public-request-abuse-and-grouping.md rule 9): the first event of a window is mailed at once,
   -- the next ones wait here for the summary. In the database so a restart neither loses nor repeats it.
@@ -886,7 +888,6 @@ if (!db.prepare('PRAGMA table_info(notification_digest_items)').all().some((c) =
 }
 
 db.generateDevisNumber = generateDevisNumber;
-db.retireDevisNumber = retireDevisNumber;
 
 // Initialize default timed options for existing properties when schema supports it.
 // Silent when the schema isn't ready or the property table is empty; surfaces a count line

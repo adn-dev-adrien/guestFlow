@@ -126,7 +126,7 @@ test('rule 20 — the logement\'s « Solde dû … jours avant » moves an open 
   assert.deepEqual(pick(devisModel.findById(id)), pick(rowOf(id)), 'out of the window again: columns = read');
 });
 
-test('rule 20 — out of reach: a devis outside the window, a converted one, another logement\'s', async () => {
+test('rule 20 — out of reach: a devis outside the window keeps its acompte and its link (rule 25 moves its date only), a converted one, another logement\'s', async () => {
   const outside = legacyDevis({ startIn: 70 });
   const outsideLink = openDepositLink(outside.id);
   const other = legacyDevis({ startIn: 50, propertyId: 2 });

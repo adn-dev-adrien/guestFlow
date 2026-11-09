@@ -237,12 +237,15 @@ function bucketSharesOf(settlements, row = null) {
     if (!(current > 0)) continue;
     const f = targetFigures(list, { currentCents: current });
     const waivedInternalCents = f.waivedCents - f.bookedWaivedCents;
+    // Rule 55 (verification R34b-3) — the geste in whole cents, its two sides adding up to it.
+    const waivedBooksCents = Math.round(f.bookedWaivedCents);
+    const waivedCents = Math.round(f.waivedCents);
     parts.forEach((p, i) => {
       out[p.kind] = {
         books: (f.booksCents + f.bookedWaivedCents) / current,
         internal: (f.internalCents + waivedInternalCents) / current,
-        waivedBooks: i === 0 ? Math.round(f.bookedWaivedCents) / 100 : 0,
-        waivedInternal: i === 0 ? Math.round(waivedInternalCents) / 100 : 0,
+        waivedBooks: i === 0 ? waivedBooksCents / 100 : 0,
+        waivedInternal: i === 0 ? (waivedCents - waivedBooksCents) / 100 : 0,
       };
     });
   }

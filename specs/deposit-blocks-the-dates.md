@@ -203,7 +203,8 @@ booking is settled by the platform and carries no such promise.
     devis — the logement's balance delay is the only setting that moves a stored devis into the window (its
     acompte switch and percentage do not move a stored split; a devis's own dates, validity and « Prolonger »
     go through its save, which already re-stores and withdraws). A devis outside the window, a converted one
-    and another logement's are not touched. The window is judged on the validity the fiche shows and the engine
+    and another logement's are not touched (amended by rule 25: outside the window the columns follow the read's
+    dates too). The window is judged on the validity the fiche shows and the engine
     prices: a legacy row stored without a validity date reads on its backfill (rule 7), never on « no date ».
     An acompte link paid **before** the re-store converts the devis at
     its stored split (`convertToReservation(…, { paidLinkType: 'deposit' })`): the stay keeps the acompte the
@@ -231,7 +232,7 @@ booking is settled by the platform and carries no such promise.
     is the one condition of the conversion and of the engine); moved elsewhere the stay takes the reservation
     rules, moved back it keeps the promise again. A devis converted with an acompte outside the window keeps
     the reservation rules at its saves (payment-schedule-and-cancellation rule 5 amendment). An OTA devis is not
-    judged. *Why:* a devis for a stay 103 days out, one payment due 24/11, converted: the first priced save of
+    judged (by the conversion and, since rule 24, by the engine too). *Why:* a devis for a stay 103 days out, one payment due 24/11, converted: the first priced save of
     the stay moved its deadline to start − 30 (21/01/2027) without a word, while an identical stay never
     saved still read 24/11.
     **Decision D27 (Adrien, 2026-11-09): option (a), « Garder le 23/10 ».** The stay keeps the deadline its devis
@@ -247,6 +248,29 @@ booking is settled by the platform and carries no such promise.
     A stay set aside as a duplicate (`kind = 'superseded'`) can be restored to a reservation, so its devis stays
     refused like a live stay's. *Why:* devis converted, stay cancelled, then « Supprimer… » on the devis: 409
     « porte l'échéance de la réservation » forever, with no deadline left to protect.
+
+24. **Only a direct devis hands its promise to the stay** _(added 2026-11-09, audit R35-RES-L1)_. Rule 22's promise
+    is the one a DIRECT devis makes (`isDirectChannel` of the devis's own platform, as the conversion judges it). An
+    OTA devis always stores `depositAmount = 0` and promised the solde on rule 7's stay-relative date: its stored 0
+    is no promise. The engine input `devisPromise` now carries the devis's platform, and the converted stay keeps
+    the promise only when that platform is a direct channel, whatever channel the stay itself is switched to.
+    *Why:* devis on Booking for a stay 130 days out (solde due start − 30), converted, then the fiche's platform
+    corrected to Direct: the live quote and the save moved the solde to the devis's validity date (24/11, three
+    months early), while an identical direct stay read start − 30.
+
+25. **Every open devis agrees with its read, inside the window or not** _(added 2026-11-09, audits R33b L1 and L2)_.
+    `restoreSinglePayments` (every boot, every logement save) re-writes any open devis whose columns differ from
+    its read (`scheduleReadOf`), not only the D23 window rows of rule 20:
+    - outside the window, a change of « Solde dû … jours avant » moves the read's solde date; the columns follow
+      (same amounts, so no link is withdrawn), and the e-mail tokens and the conversion read the date the fiche and
+      the PDF print;
+    - a legacy row stored without a validity date is stamped with the date it reads on (rule 7's backfill), once:
+      the conversion and the converted stay's promise (rule 22) read that date, never the raw NULL, and a later
+      change of « Validité des devis » no longer moves the row.
+    Devis the engine stored already agree with their read: the re-store writes nothing for them. *Why:* a devis at
+    +100 days and a delay moved from 30 to 40 days: the row, the e-mail and the conversion said 18/01, the fiche and
+    the PDF 08/01. A NULL-validity devis converted re-split into an acompte on the stay's first quote, or owed its
+    payment in the past.
 
 ---
 
@@ -414,6 +438,13 @@ summary needs no change: a 0 € acompte already renders as no acompte.
 - [x] `tests/devis-converted-promise-cancelled.unit.test.js` (3, 2026-11-09, audit R34 L-N2) — rule 23: the
       converted devis of a cancelled stay is deleted and the stay is untouched; its CGV acceptance and its money
       still refuse the delete; a duplicate set aside and a live stay keep the 409 `DEVIS_HOLDS_PROMISE`.
+- [x] `tests/devis-ota-promise-channel.unit.test.js` (2, 2026-11-09, audit R35-RES-L1) — rule 24: an OTA devis
+      converted then switched to direct reads start − 30 on its live quote and its save, as a fresh direct stay; a
+      direct devis still hands its promise.
+- [x] `tests/devis-restore-read-dates.unit.test.js` (5, 2026-11-09, audits R33b L1, L2) — rule 25: outside the window
+      a delay change moves the columns with the read (acompte and link kept, e-mail and conversion on the new date);
+      a no-acompte devis keeps its validity deadline; devis the engine stored are never re-written; a legacy NULL
+      validity is stamped and its converted stay keeps the single payment; an expired one converts due today.
 
 ### Client tests
 - [x] `pages/__tests__/ReservationPage.new-devis-quote-kind.test.jsx` (6, 2026-11-09) — rule 19: « Nouveau

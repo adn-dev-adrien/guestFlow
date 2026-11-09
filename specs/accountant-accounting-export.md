@@ -298,6 +298,10 @@ standard).
     *Why:* the second pass of the final review (minor 3) noted that production, which never had the
     split, may export October before installing this version: a fixed 1 October cutoff would then
     move October's cents on a re-export.
+    *Reading of 2026-11-09 (verification R35b, finding 2):* the same cutoff guards the closing refund of a
+    stay paid with one method (mixed-method-payments rule 58): accounting-export 1.2.2 stores
+    `stayClosingFrom` = the first day of the next month (migration `stay_closing_from_v1`, written once;
+    erased → 1 December 2026); a refund dated before it keeps its lines.
 
 ---
 

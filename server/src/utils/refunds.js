@@ -511,7 +511,11 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
     && (!deposit || describes('accommodationAcompteContribTtc', 'acompteContribTtc', 'touristTaxAcompteContribTtc', row.depositAmount))
     && (!balance || describes('accommodationSoldeContribTtc', 'soldeContribTtc', 'touristTaxSoldeContribTtc', row.balanceAmount));
   const out = {};
-  const add = (key, amount) => { out[key] = round2((out[key] || 0) + amount); };
+  // Rule 55 (verification R34b-3) — a split's shares are not whole cents: its lines are summed exact and rounded once, at
+  // the end (`settleSplitCents`), so they add up to the money received on each side, never a cent short.
+  const exact = hasSplitShares(splitShares);
+  const cent = (amount) => (exact ? amount : round2(amount));
+  const add = (key, amount) => { out[key] = cent((out[key] || 0) + amount); };
   const addLateOffTheFiche = (onTheFiche) => {
     for (const [key, { amount }] of late) if (!onTheFiche.has(key)) add(key, amount);
   };
@@ -536,9 +540,9 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
       // tax. Left out, the requalification came off the complement's money alone, whose sale room fell to 0: 42,40 €
       // collected stayed on no line of the register. A plan never sits beside a paid acompte or solde (D2).
       const plan = (!cash && booked && booked.installments) || { accommodation: 0, touristTax: 0, options: 0, resources: 0 };
-      out[ACCOMMODATION_KEY] = round2(depositShare * nz(depositBuckets && depositBuckets.accommodation) + balanceShare * nz(soldeBuckets && soldeBuckets.accommodation)
+      out[ACCOMMODATION_KEY] = cent(depositShare * nz(depositBuckets && depositBuckets.accommodation) + balanceShare * nz(soldeBuckets && soldeBuckets.accommodation)
         + plan.accommodation + (!complement ? 0 : complementShare * (split ? splitAccommodation : nz(row.extraGuestComplementSurcharge))));
-      out[TOURIST_TAX_KEY] = round2(plan.touristTax + (!complement
+      out[TOURIST_TAX_KEY] = cent(plan.touristTax + (!complement
         ? balanceShare * soldeTax
         : (split ? balanceShare * soldeTax + complementShare * splitTax
           : complementShare * (balance || taxOnArrival ? round2(row.touristTaxTotal) : nz(row.touristTaxAddedGuestsAmount)))));
@@ -551,9 +555,10 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
         if (beyond > STORED_SPLIT_ROUNDING_TTC) out[key] = beyond;
       }
     }
-    addLinesOnlyTheSplitNames(out, splitOf, billed, complementShare);
+    addLinesOnlyTheSplitNames(out, splitOf, billed, complementShare, cent);
     addLateOffTheFiche(new Set(billed.map(keyOf)));
-    takeGesteOffAccommodation(out, splitShares, cash);
+    takeGesteOff(out, splitShares, cash);
+    settleSplitCents(out, exact);
     return Object.keys(out).length ? out : null;
   }
   for (const line of lines) {
@@ -576,7 +581,7 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
     if (split) complementAccommodation = splitAccommodation;
     else complementAccommodation = balance ? Math.max(0, accommodationTtc - accommodationContribs) : nz(row.extraGuestComplementSurcharge);
   }
-  out[ACCOMMODATION_KEY] = round2(depositShare * (nz(row.accommodationAcompteContribTtc) + acompteTax)
+  out[ACCOMMODATION_KEY] = cent(depositShare * (nz(row.accommodationAcompteContribTtc) + acompteTax)
     + balanceShare * Math.max(0, nz(row.accommodationSoldeContribTtc) - acompteTax)
     + complementShare * complementAccommodation);
   const taxContribs = acompteTax + nz(row.touristTaxSoldeContribTtc);
@@ -585,19 +590,58 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
     if (split) complementTax = splitTax;
     else complementTax = balance || taxOnArrival ? Math.max(0, round2(row.touristTaxTotal) - taxContribs) : nz(row.touristTaxAddedGuestsAmount);
   }
-  out[TOURIST_TAX_KEY] = round2(balanceShare * taxContribs + complementShare * complementTax);
-  addLinesOnlyTheSplitNames(out, splitOf, lines, complementShare);
+  out[TOURIST_TAX_KEY] = cent(balanceShare * taxContribs + complementShare * complementTax);
+  addLinesOnlyTheSplitNames(out, splitOf, lines, complementShare, cent);
   addLateOffTheFiche(new Set(lines.map(keyOf)));
-  takeGesteOffAccommodation(out, splitShares, cash);
+  takeGesteOff(out, splitShares, cash);
+  settleSplitCents(out, exact);
   return out;
 }
 
+const hasSplitShares = (splitShares) => Boolean(splitShares) && Object.keys(splitShares).length > 0;
+
 // specs/mixed-method-payments.md rule 52 (audit R34 NEW-3) — the geste commercial of a split payment, its lines read gross
-// (`bucketSharesOf`), comes off the accommodation alone, as the export books it on 70900000.
-function takeGesteOffAccommodation(out, splitShares, cash) {
-  if (!splitShares || out[ACCOMMODATION_KEY] == null) return;
-  const geste = Object.values(splitShares).reduce((sum, s) => sum + Number((cash ? s.waivedInternal : s.waivedBooks) || 0), 0);
-  if (geste > 0) out[ACCOMMODATION_KEY] = Math.max(0, round2(out[ACCOMMODATION_KEY] - geste));
+// (`bucketSharesOf`), comes off the accommodation, as the export books it on 70900000. Rule 54 (verification R34b-2): a geste
+// the accommodation cannot hold (a complement paid before the solde) comes off the other lines for the rest, the extras
+// pro rata, the tax last, so no line answers for more than it collected.
+function takeGesteOff(out, splitShares, cash) {
+  if (!splitShares) return;
+  let geste = Object.values(splitShares).reduce((sum, s) => sum + Number((cash ? s.waivedInternal : s.waivedBooks) || 0), 0);
+  if (!(geste > 0)) return;
+  const takeFrom = (key, amount) => {
+    const taken = Math.min(amount, Math.max(0, out[key] || 0));
+    if (taken > 0) out[key] -= taken;
+    geste -= taken;
+  };
+  if (out[ACCOMMODATION_KEY] != null) takeFrom(ACCOMMODATION_KEY, geste);
+  const extras = Object.keys(out).filter((key) => key !== ACCOMMODATION_KEY && key !== TOURIST_TAX_KEY && out[key] > 0);
+  const held = extras.reduce((sum, key) => sum + out[key], 0);
+  if (geste > 0 && held > 0) {
+    const share = Math.min(1, geste / held);
+    for (const key of extras) takeFrom(key, out[key] * share);
+  }
+  if (geste > 1e-9 && out[TOURIST_TAX_KEY] != null) takeFrom(TOURIST_TAX_KEY, geste);
+}
+
+// Rule 55 (verification R34b-3) — the exact amounts of a split reading, in cents that add up to their exact total:
+// each line its whole cents, the cents left to the lines with the largest remainders (largest-remainder rounding). Any
+// other reading is in cents per line (a geste spread over the extras, rule 54, included).
+function settleSplitCents(out, exact) {
+  const keys = Object.keys(out);
+  if (!exact) {
+    for (const key of keys) out[key] = round2(out[key]);
+    return;
+  }
+  const exactCents = keys.map((key) => Math.max(0, Math.round(Number(out[key]) * 1e8) / 1e6));
+  const floors = exactCents.map((c) => Math.floor(c));
+  let left = Math.round(exactCents.reduce((sum, c) => sum + c, 0)) - floors.reduce((sum, c) => sum + c, 0);
+  const order = keys.map((_, i) => i).sort((a, b) => (exactCents[b] - floors[b]) - (exactCents[a] - floors[a]) || a - b);
+  for (const i of order) {
+    if (left <= 0) break;
+    floors[i] += 1;
+    left -= 1;
+  }
+  keys.forEach((key, i) => { out[key] = floors[i] / 100; });
 }
 
 // What a stay collected after its arrival on the books, per line key: a paid end-of-stay complement's lines (the excess of
@@ -622,10 +666,10 @@ function collectedAfterArrival(row, splitShares = null) {
 }
 
 // A line the complement's split names that left the fiche since: what it collected still reads on its key.
-function addLinesOnlyTheSplitNames(out, splitOf, lines, share = 1) {
+function addLinesOnlyTheSplitNames(out, splitOf, lines, share = 1, cent = round2) {
   const onTheFiche = new Set(lines.map((line) => (line.removed ? line.key : billedLineKey(line))));
   for (const [key, amount] of splitOf) {
-    if (!onTheFiche.has(key)) out[key] = round2((out[key] || 0) + share * amount);
+    if (!onTheFiche.has(key)) out[key] = cent((out[key] || 0) + share * amount);
   }
 }
 
@@ -716,6 +760,30 @@ function splitHtVat(amountTtc, vatRate) {
   return { ht: round2(ttc - vat), vat };
 }
 
+/**
+ * specs/reservation-refunds.md rule 53 (verification R35b, finding 5) — the latest day a payment of the stay reached the
+ * books: a paid acompte, solde, arrival or end-of-stay complement off the caisse interne, a paid installment, a note
+ * settled on the books, a settlement with a book tender. `null` when none did. A book refund dated before it is refused:
+ * the refund closing the stay's books (mixed-method-payments rules 56, 58) reads the encaissements up to its own date.
+ */
+function lastBookPaymentDateOf(row, { installments = [], settlements = [] } = {}) {
+  const r = row || {};
+  const days = [];
+  for (const [flag, cash, date] of [
+    ['depositPaid', 'depositPaidCash', 'depositPaidDate'],
+    ['balancePaid', 'balancePaidCash', 'balancePaidDate'],
+    ['complementPaid', 'complementPaidCash', 'complementPaidDate'],
+    ['endOfStayComplementPaid', 'endOfStayComplementPaidCash', 'endOfStayComplementPaidDate'],
+  ]) if (Number(r[flag]) === 1 && !Number(r[cash] || 0)) days.push(r[date]);
+  for (const installment of installments) if (Number(installment.paid) === 1) days.push(installment.paidDate);
+  for (const note of parseNotes(r.midStaySettledNotes)) if (note && !Number(note.paidCash || 0)) days.push(note.paidDate);
+  for (const settlement of settlements) {
+    if ((settlement.tenders || []).some((t) => !(Number(t.internal) === 1 || t.internal === true) && Number(t.amountCents) > 0)) days.push(settlement.paidDate);
+  }
+  const real = days.map((day) => String(day || '').slice(0, 10)).filter(isRealIsoDay).sort();
+  return real.length ? real[real.length - 1] : null;
+}
+
 function invalid(code, error, status = 400) {
   return { code, error, status };
 }
@@ -732,7 +800,7 @@ function invalid(code, error, status = 400) {
 function validateRefundPayload(payload, context) {
   const {
     refundableLines = [], finalPrice = 0, touristTaxTotal = 0,
-    alreadyRefundedTotal = 0, vatRate = 0, today, cancelled = null, liveCollectedTtc = null,
+    alreadyRefundedTotal = 0, vatRate = 0, today, cancelled = null, liveCollectedTtc = null, lastBookPaymentDate = null,
   } = context || {};
 
   const refundDate = String((payload && payload.refundDate) || '').trim();
@@ -750,6 +818,11 @@ function validateRefundPayload(payload, context) {
   const method = String((payload && payload.method) || 'transfer');
   if (!SELECTABLE_REFUND_METHODS.includes(method)) {
     return invalid('REFUND_INVALID_METHOD', 'Moyen de remboursement inconnu');
+  }
+  // Rule 53 — a book refund is never dated before the stay's last book payment.
+  if (!isOffBooks(method) && lastBookPaymentDate && refundDate < lastBookPaymentDate) {
+    const [y, m, d] = lastBookPaymentDate.split('-');
+    return invalid('REFUND_BEFORE_PAYMENT', `Date antérieure au dernier paiement (${d}/${m}/${y}).`);
   }
 
   const rawLines = Array.isArray(payload && payload.lines) ? payload.lines : [];
@@ -933,6 +1006,7 @@ function splitOnIndemnity(lines, byKey, budget, offBooks = false) {
 }
 
 module.exports = {
+  lastBookPaymentDateOf,
   REFUND_METHODS,
   SELECTABLE_REFUND_METHODS,
   RETAINED_DEPOSIT_METHOD,

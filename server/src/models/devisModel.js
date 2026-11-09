@@ -208,12 +208,16 @@ function createModel(database) {
   }
 
   /**
-   * specs/deposit-blocks-the-dates.md rule 20 — the columns of an open devis always agree with its D23 read. A devis
-   * whose solde falls on or before its validity date reads as ONE payment (rule 19); a row still holding an acompte
-   * there (stored before the rule, or its logement's « Solde dû … jours avant » changed since) is re-written as that
-   * payment, and the open links billing the old split are withdrawn (`retireStaleLinks`: an open acompte link stays
-   * payable only while the columns ask for it). Run at every boot and after every save of a logement
-   * (`propertyId`). A converted devis is never touched: its stay holds what was paid. Returns the re-stored ids.
+   * specs/deposit-blocks-the-dates.md rule 20 — the columns of an open devis always agree with its read
+   * (`scheduleReadOf`). A devis whose solde falls on or before its validity date reads as ONE payment (rule 19); a row
+   * still holding an acompte there (stored before the rule, or its logement's « Solde dû … jours avant » changed since)
+   * is re-written as that payment, and the open links billing the old split are withdrawn (`retireStaleLinks`: an open
+   * acompte link stays payable only while the columns ask for it). Outside the window the same change of delay moves
+   * the read's solde date: the columns follow it too (rule 25, audit R33b L1; same amounts, so no link is withdrawn).
+   * A legacy row with no validity date is stamped with the date it reads on (rule 25, audit R33b L2), so the
+   * conversion and the converted stay's promise read the one date the fiche shows. Run at every boot and after every
+   * save of a logement (`propertyId`). A converted devis is never touched: its stay holds what was paid. Returns the
+   * re-stored ids.
    */
   function restoreSinglePayments({ propertyId = null } = {}) {
     const byProperty = propertyId != null;
@@ -224,20 +228,17 @@ function createModel(database) {
     for (const row of rows) {
       const property = database.prepare('SELECT id, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
       if (!property) continue;
-      const single = owesSinglePaymentByValidity({
-        startDate: row.startDate, validUntil: validUntilOf(row), balanceDaysBefore: property.balanceDaysBefore,
-      });
-      if (!single) continue;
+      const stampValidUntil = row.validUntil ? null : validUntilOf(row);
       const read = scheduleReadOf(row, property);
-      const same = row.depositAmount != null && row.balanceAmount != null
+      const same = !stampValidUntil && row.depositAmount != null && row.balanceAmount != null
         && roundMoney(Number(row.depositAmount)) === read.depositAmount && (row.depositDueDate || null) === (read.depositDueDate || null)
         && roundMoney(Number(row.balanceAmount)) === read.balanceAmount && (row.balanceDueDate || null) === (read.balanceDueDate || null);
       if (same) continue;
       database.transaction(() => {
         const before = snapshotFromDb(row.id);
         database.prepare(`UPDATE reservations SET depositAmount = ?, depositDueDate = ?, balanceAmount = ?, balanceDueDate = ?,
-          updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'`)
-          .run(read.depositAmount, read.depositDueDate || null, read.balanceAmount, read.balanceDueDate || null, row.id);
+          validUntil = COALESCE(validUntil, ?), updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'`)
+          .run(read.depositAmount, read.depositDueDate || null, read.balanceAmount, read.balanceDueDate || null, stampValidUntil, row.id);
         addHistoryEntry(row.id, 'update', computeAuditChanges(before, snapshotFromDb(row.id)));
       })();
       retireStaleLinks(row.id);
@@ -1272,7 +1273,6 @@ function createModel(database) {
         .map((t) => t.name)
         .filter((name) => database.prepare(`PRAGMA table_info("${name}")`).all().some((c) => c.name === 'reservationId'));
       tables.forEach((name) => database.prepare(`DELETE FROM "${name}" WHERE reservationId = ?`).run(numId));
-      if (typeof database.retireDevisNumber === 'function') database.retireDevisNumber(row.devisNumber);
       database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(numId);
       return { deleted: true, clientId: row.clientId, devisNumber: row.devisNumber };
     });
