@@ -44,13 +44,17 @@ export default function HomePage() {
   const { openSoliomap, soliomapEmbedded } = useActions();
   const [sheet, setSheet] = useState(null);
   const stay = me.mode === 'stay' || me.mode === 'preArrival';
-  const gate = useGate(has('gate'), lang);
+  // Rule 13 — the gate tile carries its state in `/me`; older servers answer it at `/gate`.
+  const gateTile = (me.tiles || []).find((tile) => tile.key === 'gate');
+  const gateInMe = Boolean(gateTile && gateTile.state);
+  const gate = useGate(has('gate') && !gateInMe, lang);
   const orders = useLoad(() => (me.mode === 'stay' && has('orders') ? api.orders() : Promise.resolve(null)), [me.mode, lang]);
   const booklet = useLoad(() => (has('booklet') ? api.booklet() : Promise.resolve(null)), [lang]);
 
-  const gateState = gate.data ? gate.data.state : null;
+  const gateInfo = gateInMe ? gateTile : gate.data;
+  const gateState = gateInfo ? gateInfo.state : null;
   const openGate = () => {
-    if (gate.data && gate.data.state === 'active' && gate.data.url) window.open(gate.data.url, '_blank', 'noopener');
+    if (gateInfo && gateInfo.state === 'active' && gateInfo.url) window.open(gateInfo.url, '_blank', 'noopener');
   };
 
   const tileAction = {
@@ -102,7 +106,7 @@ export default function HomePage() {
           label={tile.label}
           external={tile.key === 'gate' || (tile.key === 'soliomap' && !soliomapEmbedded)}
           disabled={tile.key === 'gate' && !gateState}
-          disabledReason={tile.key === 'gate' && gateState === 'preparing' ? t('tile.preparing') : null}
+          disabledReason={tile.key === 'gate' && gateState === 'preparing' ? ((gateInfo && gateInfo.stateLabel) || t('tile.preparing')) : null}
           onClick={tileAction[tile.key]}
         />
       ))}

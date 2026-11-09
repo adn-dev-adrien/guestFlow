@@ -9,8 +9,11 @@ import { useSession } from './useSession';
 
 export function useActions() {
   const navigate = useNavigate();
-  const { lodging } = useSession();
-  const soliomap = (lodging && lodging.soliomap) || null;
+  const { lodging, me } = useSession();
+  // Rule 15 — Soliomap's address and the « Intégrer dans l'app » switch, as `/lodging` gives them; without them, the
+  // suggestion's own link tells where Soliomap lives, opened outside the app.
+  const fromSuggestion = me && me.suggestion && me.suggestion.url ? { url: new URL(me.suggestion.url).origin, embed: false } : null;
+  const soliomap = (lodging && lodging.soliomap) || fromSuggestion;
 
   /** Rule 15 — in the app's frame when the studio allows it, else a new tab. */
   const openSoliomap = useCallback((url) => {

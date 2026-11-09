@@ -2,7 +2,10 @@
 /**
  * The JavaScript every first page pays for, against a budget (specs/inte-performance.md rule 4).
  *
- *   cd client && npm run build && cd .. && node scripts/check-bundle-budget.mjs [--dist client/dist]
+ *   cd client && npm run build && cd .. && node scripts/check-bundle-budget.mjs [--dist client/dist] [--budget <bytes gzip>]
+ *
+ * The guest app « Mon séjour » runs it with `--dist apps/guest/dist --budget 200000` (specs/guest-app.md plan step 60:
+ * 200 kB gzip on first load, fonts excluded — they are woff2 files, never counted here).
  *
  * Reads the Vite manifest (`build.manifest: true`) and sums the gzip size of the entry, of every chunk
  * it imports statically, and of the chunks it imports dynamically at boot (`App` and the plugin
@@ -64,7 +67,13 @@ function main() {
     process.exit(1);
   }
   const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-  const result = checkBudget(manifest, (file) => zlib.gzipSync(fs.readFileSync(path.join(dist, file))).length);
+  const budgetAt = process.argv.indexOf('--budget');
+  const budget = budgetAt > -1 ? Number(process.argv[budgetAt + 1]) : BUDGET_GZIP;
+  if (!(budget > 0)) {
+    console.error('--budget takes a positive number of bytes.');
+    process.exit(1);
+  }
+  const result = checkBudget(manifest, (file) => zlib.gzipSync(fs.readFileSync(path.join(dist, file))).length, budget);
   const kB = (bytes) => `${(bytes / 1000).toFixed(1)} kB`;
   console.log(`Initial JavaScript: ${kB(result.total)} gzip (budget ${kB(result.budget)}).`);
   if (!result.ok) {

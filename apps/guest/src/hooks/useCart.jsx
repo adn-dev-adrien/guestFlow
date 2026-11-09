@@ -101,8 +101,9 @@ export function CartProvider({ children }) {
         if (mine !== seq.current) return;
         setQuote(q);
         setQuoteError(null);
-        // Rule 37quater — a line beyond what is left comes back lowered, the cart says how many are left.
-        const lowered = (q.lines || []).filter((l) => l.outOfStock && typeof l.quantity === 'number' && l.outOfStock.left < l.quantity);
+        // Rule 37quater — a line beyond what is left comes back lowered, the cart says how many are left; a line
+        // with nothing left stays, struck « Épuisé » by the server, for the guest to remove.
+        const lowered = (q.lines || []).filter((l) => l.outOfStock && typeof l.quantity === 'number' && l.outOfStock.left > 0 && l.outOfStock.left < l.quantity);
         if (lowered.length) {
           setStockNotes((n) => ({ ...n, ...Object.fromEntries(lowered.map((l) => [lineKey(l), l.outOfStock.label])) }));
           setLines((cur) => cur
@@ -160,7 +161,7 @@ export function CartProvider({ children }) {
 
   /** Rule 37quater — `OUT_OF_STOCK { itemKey, left }`: the line comes down to what is left. */
   const lowerTo = useCallback((key, left, label) => {
-    setLines((cur) => cur.map((l) => (lineKey(l) === key && l.kind === 'option' ? { ...l, quantity: Math.max(0, left) } : l)).filter((l) => l.kind !== 'option' || l.quantity > 0));
+    if (left > 0) setLines((cur) => cur.map((l) => (lineKey(l) === key && l.kind === 'option' ? { ...l, quantity: left } : l)));
     if (label) setStockNotes((n) => ({ ...n, [key]: label }));
   }, []);
 

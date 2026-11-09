@@ -608,18 +608,28 @@ Two new Vite apps in the repo (`apps/guest/`, `apps/studio/`, shipped inside the
 package by `scripts/build-plugin-packages.mjs`, which copies their `dist/` into the package's `server/assets/<name>`; a
 build not made is skipped with a warning and that app answers 503), plus plugin contributions to the GuestFlow admin client.
 
-**`apps/guest/` — the guest PWA** (React, MUI with its own theme `apps/guest/src/theme.js` carrying the Domaine Solio
-tokens of §6.1 and GuestFlow's semantic colours, React Router; fonts Marcellus + Karla self-hosted in
-`apps/guest/public/fonts/`; icons `lucide-react`):
+**`apps/guest/` — the guest PWA** (React 19, MUI 9 for the modal layer of the sheets only, React Router 8; its own
+package and lockfile; `src/theme.js` is the single source of the §6.1 tokens, written as CSS custom properties on the
+`.app` root and as the MUI theme; the look itself is `src/styles.css`, the validated review boards v5 ported to a real
+viewport — safe areas, `46dvh` hero, rail and two panes from 900 px, content capped at 1200 px from 1200 px; fonts: the
+site's own Marcellus 400 and Karla variable woff2 in `public/fonts/` (OFL), preloaded, no request to Google; icons
+`lucide-react`, tree-shaken, 1.75 px stroke):
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `pages/` | `HomePage`, `BookletIndexPage`, `BookletPage`, `ShopPage`, `SlotPickerPage`, `CartPage`, `OrderPage`, `OrdersPage`, `SoliomapPage`, `LookupPage`, `LodgingEntryPage` (`/l/:code`) | C | Route-level views |
-| `components/` | `AppShell` (`TabBar` / `NavRail`), `HeroHeader`, `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `BlockRenderer` + one renderer per block type, `ProductCard`, `ProductSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `PaymentChoice`, `OrderTimeline`, `StatusChip`, `InstallPrompt`, `OfflineBanner` | C | Rendering only — anatomy in §6.4 |
-| `services/` | `api.js` | C | `fetch` with credentials, error envelope → typed errors |
-| `hooks/` | `useSession`, `useCart` (local state + localStorage), `useOrderStatus` (poll) | C | UI state |
-| `i18n/` | `fr.json`, `en.json` | C | App chrome strings (booklet content comes from the server) |
-| `public/` | `manifest.webmanifest`, `sw.js`, icons | C | Install + offline booklet |
+| `src/` | `main.jsx`, `App.jsx` | C | Mount, routes, the `.app` root (register tokens, `wide` / `desk` layout classes, `lang`), the service worker registration and its warm-up |
+| `src/` | `theme.js`, `styles.css` | C | Tokens (day / night) and the look |
+| `pages/` | `HomePage`, `BookletPages` (index + search + page, two panes from 900 px), `ShopPage`, `SlotPickerPage` (`/boutique/bain/:id`), `CartPage`, `OrdersPages` (`OrdersPage`, `OrderPage` — confirmation, detail, the Qonto return `/commande/:id`), `SoliomapPage` (`/activites`), `LookupPage` (`/retrouver`), `EntryPage` (`/s/:token`, `/l/:code`), `GateScreens` (unknown code, app unavailable) | C | Route-level views |
+| `components/` | `AppShell` (tab bar / rail, cart bar, offline pill), `AppBar`, `HeroHeader` (+ the language / day-night pill), `StayCard`, `QuickTile`, `MomentCard`, `PhotoCard`, `Photo`, `BlockRenderer` + `blocks/*` (one renderer per block type, props only), `ProductCard`, `ProductSheet`, `BreakfastSheet`, `QuantityStepper`, `SlotGrid`, `DeliveryTimeChips`, `ServiceHoursBanner`, `CartBar`, `CartBody` (phone page and tablet panel), `PaymentChoice`, `OrderCard`, `OrderTimeline`, `StatusChip`, `Banner`, `EmptyState`, `ErrorAlert`, `Skeleton`, `BottomSheet` (sheet on a phone, centred dialog from 900 px, pull-to-dismiss), `Toast`, `InstallPrompt`, `OfflineBanner`, `Icon` | C | Rendering only — anatomy in §6.4 |
+| `services/` | `api.js`, `device.js` | C | `fetch` with the cookie, the envelope → `ApiError`, `?lang=`, one re-exchange on `SESSION_EXPIRED`; what the device keeps (stay link, poster code, language, register, visits, the cart) |
+| `hooks/` | `useSession`, `useCart`, `useLineQuote`, `useOrderStatus`, `useLoad`, `useLayout`, `useOnline`, `useActions` | C | UI state: the session and its re-exchange (rules 4, 9), the cart and its quotes (rule 32), the price of one prospective line (§6.5 rule 4), the order poll, the layout of rule 51, the network, what a tile / button opens |
+| `utils/` | `format.js` | C | Presentational only: a clock time `HH:MM` or an instant as the guest reads it, the stay card's « 6 → 9 nov. », copy to the clipboard |
+| `i18n/` | `index.js`, `fr.json`, `en.json` | C | App chrome strings (booklet content, titles, prices and order words come from the server) |
+| `public/` | `sw.js`, `icons/`, `fonts/`, `img/hero-domaine.jpg` | C | Offline shell + booklet (rule 21), install icons (sapin ground, the site's Marcellus « S »), the default lodging photo (the site's home hero). The manifest is the server's `GET /public/v1/guest/manifest.webmanifest` |
+
+Built to `apps/guest/dist` (`npm run build`), checked by `node scripts/check-bundle-budget.mjs --dist apps/guest/dist
+--budget 200000` (151 kB gzip on 2026-11-09). Development: `cd apps/guest && GUEST_API=http://localhost:4000 npm start`
+(port 5175, `/public/v1/guest` and `/uploads` proxied).
 
 **`apps/studio/` — the booklet studio** (React, MUI using GuestFlow's `client/src/theme.js`):
 
@@ -1008,6 +1018,19 @@ le nom et le numéro. »
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
   then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
 
+### Guest app client tests (Vitest, `apps/guest/src/__tests__/`, 41)
+- [x] `HomePage.modules.test.jsx` (6) — rules 3, 5, 10, 11, 11bis, 13, 51: server tiles in order, gate « Accès en
+  préparation » / absent outside, no shop tab without shop, visitor home, the highlight's words
+- [x] `ShopPage.free-states.test.jsx` (6) — rules 25, 27, 32, 37quater, 42: included / free chips, « Épuisé » without
+  « + », « Plus que 2 », unavailable reason, pre-arrival read only, closed-service banner, the cart bar's server total
+- [x] `SlotGrid.states.test.jsx` (4) — rules 28-31: only the slots sent, evening rate, FR / EN times, several picks
+- [x] `CartPage.payment-choice.test.jsx` (6) — rules 25, 32, 33, 37quater, 41bis: note / card choice and the button's
+  server total, card off → note stated, 0 € → « Réserver », a line lowered to the stock left, pickup question, the order
+- [x] `BlockRenderer.blocks.test.jsx` (10) — rules 11ter, 18, 49: every block type, wifi copy / « Pas de wifi », targets
+- [x] `AppShell.night.test.jsx` (4) — §6.1, rules 19, 53: day / server night / device dark, the guest's choice kept, EN
+- [x] `session.reexchange.test.jsx` (5) — rules 1, 4, 9, 22: the stay link kept, a dead session reopened once, a stale
+  link forgotten, the poster's visitor fallback, « Application indisponible »
+
 ### Manual UI verification
 - [ ] Happy path mobile (390 px): scan QR → home → order 2 drinks for 18 h + 1 h bath → note with name → push
   received → bath session visible on Calendrier › Ressources and its ignition card, order card on the
@@ -1197,7 +1220,7 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
 | E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.22.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
 | D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `guestOrderCommit`, `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.22.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
-| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next |
+| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next. Guest app (slice F) built 2026-11-09 on `feature/guest-app-pwa`: every screen of §6.6 on the boards v5, offline booklet, install, FR / EN, night; 41 client tests; first load 151 kB gzip; walked at 390 / 900 / 1280 px, day and night, EN, against the plugin's routers; axe 0 serious on every screen in both registers. The studio (slice G) is next |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |
 
