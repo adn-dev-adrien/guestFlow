@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -138,6 +138,13 @@
       "Compatible avec GuestFlow 4 (SDK 2.25)."
     ],
     "1.7.2": [
+      "Facture Qonto : « marquer payée » n’est plus bloquant, la facture numérotée est gardée et le marquage réessayé.",
+      "Facture Qonto : clés d’idempotence au format UUID ; l’adresse saisie après un refus atteint Qonto.",
+      "Facture Qonto : les lignes hors taxe retombent toujours sur le total payé (au besoin une ligne « Arrondi de TVA »), sinon refus avant tout appel.",
+      "Le PDF de la facture se télécharge en https seulement et dans le délai des autres appels Qonto.",
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.7.3": [
       "Rapprochement bancaire : une commande de l’application clients payée par carte est attendue sur le compte, pour tout ce qui a été payé.",
       "Demande le SDK 2.26 de GuestFlow."
     ]

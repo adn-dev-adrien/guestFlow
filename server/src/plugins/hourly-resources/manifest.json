@@ -102,6 +102,18 @@
     "1.4.1": [
       "Compatible avec GuestFlow 4 (SDK 2.25)."
     ],
+    "1.4.2": [
+      "Une séance payée ne se supprime plus : retirer d’abord le paiement, depuis la réservation (« Retirer le paiement »), après confirmation.",
+      "La TVA d’une vente hors séjour est figée au paiement : changer le réglage ne modifie plus ni l’export comptable ni la facture d’une séance déjà encaissée.",
+      "Les notes et le client d’une séance payée s’enregistrent même après un changement de tarif ; une facture au tarif changé est refusée avant Qonto.",
+      "Une facture numérotée par Qonto est toujours gardée, même si « marquer payée » échoue ; la tâche horaire réessaie.",
+      "L’adresse d’un client enregistré part sur sa facture ; une facture annulée dans Qonto peut être refaite depuis la réservation.",
+      "L’arrivée se valide le jour de la séance, aussi pour un client qui a payé à la réservation.",
+      "L’avertissement avant effacement dit quelles ventes quittent l’export comptable.",
+      "« Valider l’arrivée » d’un client qui a payé à la réservation ne crée plus de facture Qonto sans qu’on la demande : « Créer la facture » reste le geste explicite.",
+      "Une séance créée dont le paiement a été refusé se déplace sans se gêner elle-même dans le planning.",
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
     "1.5.0": [
       "L’application clients propose les créneaux libres d’une ressource à l’heure, lus dans ce planning : séances des autres séjours, réservations extérieures, remise en état, chauffe et maintien en température.",
       "Un créneau d’une commande client en attente de paiement est bloqué dans le planning, le sas et les réservations extérieures.",

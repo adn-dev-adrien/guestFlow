@@ -137,12 +137,38 @@ function bookingsV2(db) {
   db.exec(`UPDATE resource_bookings SET paidAt = ${day} WHERE paid = 1 AND paidAt IS NULL`);
 }
 
-const MIGRATIONS = [
-  { name: 'tables_v1', up: createTables },
-  { name: 'tag_evening_supplements_v1', up: tagEveningSupplements },
-  { name: 'resource_bookings_v2', up: bookingsV2 },
+// specs/resource-booking-pricing-and-invoicing.md rules 34-36 — the VAT rate is frozen with the payment (`paidVatRate`,
+// NULL = not subject), and an invoice whose « marquer payée » Qonto did not take is retried (`invoiceMarkPending`).
+// A booking paid before this migration gets the rate in force now — the rate its sale was journaled with until then;
+// an invoiced one keeps the rate its invoice states.
+const BOOKING_COLUMNS_V3 = [
+  ['paidVatRate', 'REAL'],
+  ['invoiceMarkPending', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 
+function bookingsV3(db, rateOf) {
+  if (!hasTable(db, 'resource_bookings')) return;
+  BOOKING_COLUMNS_V3.forEach(([column, type]) => {
+    if (!hasColumn(db, 'resource_bookings', column)) db.exec(`ALTER TABLE resource_bookings ADD COLUMN ${column} ${type}`);
+  });
+  const rows = db.prepare('SELECT id, reservationId, date, invoiceVatRate, qontoInvoiceId FROM resource_bookings WHERE paidAt IS NOT NULL').all();
+  const freeze = db.prepare('UPDATE resource_bookings SET paidVatRate = ? WHERE id = ?');
+  rows.forEach((row) => {
+    const rate = row.qontoInvoiceId && row.invoiceVatRate !== null ? row.invoiceVatRate : rateOf(db, row);
+    freeze.run(rate === undefined ? null : rate, row.id);
+  });
+}
+
+/** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
+function migrationsFor(rateOf) {
+  return [
+    { name: 'tables_v1', up: createTables },
+    { name: 'tag_evening_supplements_v1', up: tagEveningSupplements },
+    { name: 'resource_bookings_v2', up: bookingsV2 },
+    { name: 'resource_bookings_v3', up: (db) => bookingsV3(db, rateOf) },
+  ];
+}
+
 module.exports = {
-  MIGRATIONS, BOOKING_COLUMNS_V2, bookingsV2, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, bookingsV2, bookingsV3, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

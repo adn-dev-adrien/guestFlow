@@ -9,6 +9,7 @@ import PlanningResourceCard from '../PlanningResourceCard';
 import { countResourceTasks } from '../planningTasks';
 import { loadResourceDays } from '../planningDays';
 import api from '../../../api';
+import { localIsoDate } from '../localDate';
 
 vi.mock('../../../api', () => ({
   default: {
@@ -46,7 +47,7 @@ test('a booking outside a stay shows its slot and payment, with nothing to tick'
 // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, until he has.
 test('rule 28 — an unpaid booking outside a stay offers « Arrivée » and says it is to collect', () => {
   render(<MemoryRouter><PlanningResourceCard entry={{ key: 'rb-5', time: '18:00', kind: 'booking', item: {
-    id: 5, resourceName: 'Bain nordique', startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: false, external: true, arrived: false,
+    id: 5, resourceName: 'Bain nordique', date: localIsoDate(), startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: false, external: true, arrived: false,
   } }} reload={vi.fn()} /></MemoryRouter>);
   expect(screen.getByText('À encaisser')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Arrivée' })).toBeInTheDocument();
@@ -75,4 +76,14 @@ test('the cards of a window are keyed by day, each with its time', async () => {
   const days = await loadResourceDays({ from: '2026-10-10', to: '2026-10-11' });
   expect(days['2026-10-10'].map((e) => [e.kind, e.time])).toEqual([['session', '15:00'], ['ignition', '11:00']]);
   expect(days['2026-10-11'].map((e) => [e.kind, e.time])).toEqual([['booking', '18:00']]);
+});
+
+// specs/resource-booking-pricing-and-invoicing.md rule 28 (R35-C-L4) — « on its day only ».
+test('rule 28 — a booking of another day offers no « Arrivée »', () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  render(<MemoryRouter><PlanningResourceCard entry={{ key: 'rb-7', time: '18:00', kind: 'booking', item: {
+    id: 7, resourceName: 'Bain nordique', date: localIsoDate(tomorrow), startTime: '18:00', endTime: '19:00', displayName: 'Martin', paid: true, external: true, arrived: false,
+  } }} reload={vi.fn()} /></MemoryRouter>);
+  expect(screen.queryByRole('button', { name: 'Arrivée' })).toBeNull();
 });

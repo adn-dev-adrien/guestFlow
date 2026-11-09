@@ -4,13 +4,15 @@
 // plugin's setting, passed in.
 
 const Database = require('better-sqlite3');
-const { bookingsV2 } = require('../migrations');
+const { bookingsV2, bookingsV3 } = require('../migrations');
 const bookingsModel = require('../bookingsModel');
 const { FAR_YEAR } = require('../../../tests/farYearFixture');
 
 const DDL = `
   CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
-  CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, address TEXT);
+  CREATE TABLE clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, address TEXT, streetNumber TEXT, street TEXT, postalCode TEXT, city TEXT
+  );
   CREATE TABLE resources (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, quantity INTEGER DEFAULT 1, price REAL DEFAULT 0,
     priceType TEXT DEFAULT 'per_stay', turnoverMinutes INTEGER DEFAULT 0, minimumUsageMinutes INTEGER DEFAULT 0,
@@ -37,6 +39,7 @@ function seed({ resource = {}, vatRate = 20, now } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
   bookingsV2(db);
+  bookingsV3(db, () => vatRate);
   const r = {
     name: 'Bain fictif', quantity: 1, price: 25, priceType: 'per_hour', turnoverMinutes: 0,
     minimumUsageMinutes: 60, slotDuration: 30, isComplex: 1, openTime: '10:00', closeTime: '22:00',
