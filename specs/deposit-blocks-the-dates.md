@@ -218,8 +218,8 @@ booking is settled by the platform and carries no such promise.
     `DELETE /api/devis/:id` on a devis whose `convertedReservationId` names a row that still exists answers
     409 `DEVIS_HOLDS_PROMISE` « Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas
     être supprimé. », nothing written and no link touched (judged with the CGV and money refusals, before any
-    link is deactivated). Once the stay is deleted the devis can be deleted again; an unconverted devis is not
-    judged. *Why:* devis +35 days, one payment of 772,80 € due 24/11, converted, then deleted: the stay's next
+    link is deactivated). Once the stay is deleted (or cancelled, rule 23) the devis can be deleted again; an
+    unconverted devis is not judged. *Why:* devis +35 days, one payment of 772,80 € due 24/11, converted, then deleted: the stay's next
     save asked an acompte of 229,68 € and moved its deadline to 14/11.
 
 22. **A converted devis with no acompte keeps its deadline for the dates quoted** _(added 2026-11-09, audit
@@ -234,6 +234,19 @@ booking is settled by the platform and carries no such promise.
     judged. *Why:* a devis for a stay 103 days out, one payment due 24/11, converted: the first priced save of
     the stay moved its deadline to start − 30 (21/01/2027) without a word, while an identical stay never
     saved still read 24/11.
+    **Decision D27 (Adrien, 2026-11-09): option (a), « Garder le 23/10 ».** The stay keeps the deadline its devis
+    promised, rows stored before this rule included. Production example: reservation 22306, converted from devis
+    22305 for a stay on 30/12/2026, 1 834,20 € unpaid, stored due 23/10. It stays due 23/10 and reads overdue
+    since then (its cancel-on date is 30/10); it does not move to 30/11 at its next save, which the code before
+    this rule would have done.
+
+23. **The converted devis of a cancelled stay can be deleted again** _(added 2026-11-09, audit R34 L-N2)_. Rule 21
+    protects a deadline the stay still reads. A cancelled stay (`kind = 'cancelled'`) is never re-priced (409
+    `RESERVATION_CANCELLED`) and never brought back, so its devis holds no deadline any more: `DELETE
+    /api/devis/:id` judges it under the older refusals only (the CGV acceptance it carries, money on the devis).
+    A stay set aside as a duplicate (`kind = 'superseded'`) can be restored to a reservation, so its devis stays
+    refused like a live stay's. *Why:* devis converted, stay cancelled, then « Supprimer… » on the devis: 409
+    « porte l'échéance de la réservation » forever, with no deadline left to protect.
 
 ---
 
@@ -264,6 +277,7 @@ booking is settled by the platform and carries no such promise.
 | `models/` | `propertiesModel.js` | T | Rule 20: a logement save re-stores that logement's open devis. |
 | `utils/` | `paymentPollRunner.js` | T | Rule 20: the paid-link conversion names the link type (`paidLinkType`). |
 | `index.js` | — | T | Rule 20: the re-store at every boot, before the server listens (skipped with `SKIP_MIGRATIONS=true`). |
+| `models/` | `devisModel.js` | T | Rules 21 and 23: `removeRefusal` refuses a converted devis while its stay exists (409 `DEVIS_HOLDS_PROMISE`), unless that stay is cancelled. |
 | `routes/` | — | — | (none — the endpoint keeps its shape) |
 | `database.js` | — | — | (none — no schema change; the email template arrives through the existing boot seed) |
 | `scheduledTasks.js` | — | — | (none) |
@@ -397,6 +411,9 @@ summary needs no change: a 0 € acompte already renders as no acompte.
       deadline at its conversion, live quote and priced save, takes start − 30 when moved and the promise again when
       moved back, an expired one converted late owes from today, a devis converted with an acompte keeps the
       reservation rules.
+- [x] `tests/devis-converted-promise-cancelled.unit.test.js` (3, 2026-11-09, audit R34 L-N2) — rule 23: the
+      converted devis of a cancelled stay is deleted and the stay is untouched; its CGV acceptance and its money
+      still refuse the delete; a duplicate set aside and a live stay keep the 409 `DEVIS_HOLDS_PROMISE`.
 
 ### Client tests
 - [x] `pages/__tests__/ReservationPage.new-devis-quote-kind.test.jsx` (6, 2026-11-09) — rule 19: « Nouveau

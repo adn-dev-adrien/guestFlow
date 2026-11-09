@@ -635,6 +635,9 @@ acompte is kept as an indemnity, and the books say so correctly.
     (deposit-blocks-the-dates rule 22), and the devis carrying the promise cannot be deleted while its stay
     exists (rule 21). A devis converted with an acompte outside the window is unchanged: the reservation rules
     apply at its saves. Rows stored before this rule keep their columns; their next save keeps the promise.
+    **Decision D27 (Adrien, 2026-11-09): option (a).** The promise is kept, rows stored before this rule included
+    (production reservation 22306 stays due 23/10, see specs/deposit-blocks-the-dates.md rule 22). Once the stay
+    is cancelled its devis no longer holds a deadline and can be deleted (deposit-blocks-the-dates rule 23).
 
 
 ---

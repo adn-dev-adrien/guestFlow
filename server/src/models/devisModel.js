@@ -1291,9 +1291,10 @@ function createModel(database) {
       return { error: 'Un paiement est enregistré sur ce devis : le conserver plutôt que le supprimer.', status: 409, code: 'DEVIS_CARRIES_MONEY' };
     }
     // specs/deposit-blocks-the-dates.md rule 21 (R34-RES-L1) — the stay reads the devis's promise on this row
-    // (its single payment and deadline): deleting it would silently re-price the stay's schedule.
+    // (its single payment and deadline): deleting it would silently re-price the stay's schedule. A cancelled stay
+    // is never re-priced nor brought back, so it holds no deadline any more (rule 23).
     if (existing.convertedReservationId
-      && database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind != 'devis'").get(existing.convertedReservationId)) {
+      && database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind NOT IN ('devis', 'cancelled')").get(existing.convertedReservationId)) {
       return { error: "Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409, code: 'DEVIS_HOLDS_PROMISE' };
     }
     return null;
