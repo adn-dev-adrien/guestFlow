@@ -326,6 +326,9 @@ const dynamicFavicon = buildFaviconHandler({
   settingsModel: settingsModelForFavicon,
   uploadsDir: faviconUploadsDir,
 });
+// specs/plugins-phase-1-sdk.md rule 48 — the web apps plugins serve themselves (the guest app on its own host, the
+// booklet studio at /studio), before the favicon and the GuestFlow client claim every remaining path.
+pluginLoader.mountWebApps(app);
 app.get(['/favicon.ico', '/favicon.svg'], dynamicFavicon);
 
 // In production, serve the built React app for non-API routes.

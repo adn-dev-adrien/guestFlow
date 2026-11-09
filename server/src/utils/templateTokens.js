@@ -244,8 +244,9 @@ function pluginNames() {
     const conditions = [];
     registry.all().forEach((record) => record.emailProviders.forEach((p) => {
       const live = registry.isLive(record.id);
-      p.tokens.forEach((t) => variables.push({ name: t.name, label: t.label, live }));
-      (p.flags || []).forEach((f) => conditions.push({ name: f.name, label: f.label, live }));
+      // A plugin's name may name the e-mails it belongs to (`in`, like the catalogue's), else it is offered in every one.
+      p.tokens.forEach((t) => variables.push({ name: t.name, label: t.label, live, ...(t.in ? { in: t.in } : {}) }));
+      (p.flags || []).forEach((f) => conditions.push({ name: f.name, label: f.label, live, ...(f.in ? { in: f.in } : {}) }));
     }));
     return { variables, conditions };
   } catch {
@@ -283,8 +284,8 @@ function chipsForTemplate(template) {
   const pick = (list) => list.filter((e) => inScope(e, section) || used.has(e.name)).map(({ name, label }) => ({ name, label }));
   const plugins = pluginNames();
   return {
-    variables: [...pick(VARIABLES), ...plugins.variables.filter((v) => v.live || used.has(v.name)).map(({ name, label }) => ({ name, label }))],
-    conditions: [...pick(FLAGS), ...plugins.conditions.filter((f) => f.live || used.has(f.name)).map(({ name, label }) => ({ name, label }))],
+    variables: [...pick(VARIABLES), ...plugins.variables.filter((v) => (v.live && inScope(v, section)) || used.has(v.name)).map(({ name, label }) => ({ name, label }))],
+    conditions: [...pick(FLAGS), ...plugins.conditions.filter((f) => (f.live && inScope(f, section)) || used.has(f.name)).map(({ name, label }) => ({ name, label }))],
   };
 }
 

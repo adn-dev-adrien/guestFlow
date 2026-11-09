@@ -12,6 +12,9 @@
  *   client/         one ES module `index.js` plus its chunks, built by Vite with React, the router,
  *                   MUI and the SDK as externals resolved at run time to the host's own modules
  *                   (client/src/plugins/hostModules.json, runtime.js); icons are bundled
+ *   server/assets/  the web apps a plugin serves itself: each `server/src/plugins/<id>/apps/<name>/` (its own
+ *                   package.json, built by Vite to `dist/`) ships as `server/assets/<name>`, never its sources;
+ *                   a build not made is skipped with a warning, and the plugin answers 503 for that app
  * `<out>/<id>/` is the same package unpacked — what a `bundled` row runs from — and
  * `<out>/SHA256SUMS` lists the archives.
  *
@@ -95,9 +98,12 @@ function walk(dir, acc = []) {
 
 export function buildServer(id, destDir) {
   const pluginDir = path.join(SERVER_PLUGINS, id);
+  // A plugin's web apps (`apps/<name>/`) are sources with their own toolchain: only their builds ship (copyExtraAssets).
+  const appsDir = path.join(pluginDir, 'apps');
   const dependencies = Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'server', 'package.json'), 'utf8')).dependencies || {});
   const errors = [];
   for (const file of walk(pluginDir)) {
+    if (file.startsWith(`${appsDir}${path.sep}`)) continue;
     const dest = path.join(destDir, path.relative(pluginDir, file));
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     if (!file.endsWith('.js')) {
@@ -436,6 +442,32 @@ export function contentHash(dir) {
   return hash.digest('hex');
 }
 
+// The web apps a plugin serves through `ctx.webApp` (specs/plugins-phase-1-sdk.md rule 48): each lives in the plugin's
+// server folder as `apps/<name>/` with its own package.json, is built by Vite to `dist/`, and ships as `assets/<name>`.
+/** `{ [name]: '<repo-relative dist>' }` — the web apps of plugin `id`. */
+export function pluginWebApps(id, { root = ROOT } = {}) {
+  const appsDir = path.join(root, 'server', 'src', 'plugins', id, 'apps');
+  if (!fs.existsSync(appsDir)) return {};
+  return Object.fromEntries(fs.readdirSync(appsDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(appsDir, e.name, 'package.json')))
+    .map((e) => e.name).sort()
+    .map((name) => [name, path.relative(root, path.join(appsDir, name, 'dist')).split(path.sep).join('/')]));
+}
+
+/** Copies a plugin's web app builds into `<serverDir>/assets/<name>`. → the warnings of the builds not found. */
+export function copyExtraAssets(id, serverDir, { root = ROOT, apps = pluginWebApps(id, { root }) } = {}) {
+  const warnings = [];
+  Object.entries(apps).forEach(([name, rel]) => {
+    const from = path.join(root, rel);
+    if (!fs.existsSync(path.join(from, 'index.html'))) {
+      warnings.push(`${id}: ${rel} is not built — the ${name} app answers 503 in this package`);
+      return;
+    }
+    fs.cpSync(from, path.join(serverDir, 'assets', name), { recursive: true });
+  });
+  return warnings;
+}
+
 export async function buildPackage(id, outDir, usage = {}) {
   const own = {};
   const { readSourceManifest } = require(path.join(SERVER_PLUGINS, 'manifest.js'));
@@ -452,6 +484,8 @@ export async function buildPackage(id, outDir, usage = {}) {
   fs.writeFileSync(path.join(stage, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   const errors = [...buildServer(id, path.join(stage, 'server')), ...(await buildClient(id, path.join(stage, 'client'), own))];
   if (errors.length) throw new Error(`plugin ${id}:\n  ${errors.join('\n  ')}`);
+  // eslint-disable-next-line no-console
+  copyExtraAssets(id, path.join(stage, 'server')).forEach((warning) => console.warn(`⚠ ${warning}`));
   // The package's manifest records what was built, so a release can tell a changed bundle that kept
   // its version (scripts/check-plugin-versions.mjs --built).
   // `hostImports` — what the bundle takes from the app — lets an instance refuse a version its own

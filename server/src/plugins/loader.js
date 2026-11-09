@@ -244,6 +244,29 @@ function unmountRecord(id) {
   mountedIds.delete(id);
 }
 
+// specs/plugins-phase-1-sdk.md rule 48 — the core's own trees, on every host, whatever a web app claims.
+const CORE_TREES = /^\/(api|public|uploads|plugin-assets)(\/|$)/;
+
+const hostOf = (req) => String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
+
+/**
+ * The web apps of the live plugins (rule 47): a request on a plugin's own host, or under its path, goes to its handler.
+ * Read on every request, so a plugin activated or configured later answers at once and a deactivated one falls through.
+ */
+function mountWebApps(app) {
+  app.use((req, res, next) => {
+    if (CORE_TREES.test(req.path)) return next();
+    const host = hostOf(req);
+    const apps = registry.all().filter((record) => record.webApps.length && registry.isLive(record.id)).flatMap((r) => r.webApps);
+    const own = apps.find((w) => {
+      if (!w.host) return false;
+      const wanted = String(w.host() || '').toLowerCase();
+      return Boolean(wanted) && wanted === host;
+    }) || apps.find((w) => w.path && (req.path === w.path || req.path.startsWith(`${w.path}/`)));
+    return own ? own.handler(req, res, next) : next();
+  });
+}
+
 function mountRecordPublic(router, record) {
   trackLayers(router, record.id, () => {
     record.mounts.filter((m) => m.public).forEach((m) => router.use(m.path, gate(record.id), m.router));
@@ -449,6 +472,7 @@ module.exports = {
   setHookTimeoutForTests,
   mountPublic,
   mountApi,
+  mountWebApps,
   startJobs,
   roleMatchers,
   receptionMatchers,

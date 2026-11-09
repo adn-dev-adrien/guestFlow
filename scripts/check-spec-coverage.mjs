@@ -26,9 +26,9 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── Lecture des specs ────────────────────────────────────────────────────────
 
-// Un numéro de règle : 10, 2bis, 20c. Gardé en chaîne, minuscule — c'est un identifiant, pas un
+// Un numéro de règle : 10, 2bis, 11quater, 20c. Gardé en chaîne, minuscule — c'est un identifiant, pas un
 // nombre : « 2 » et « 2bis » sont deux règles distinctes.
-const RULE_ID = String.raw`\d+(?:bis|ter|[a-z])?`;
+const RULE_ID = String.raw`\d+(?:bis|ter|quater|[a-z])?`;
 const RULE_LINE = new RegExp(String.raw`^(${RULE_ID})\.\s`, 'i');
 // Une règle déclarée non testable le dit DANS la spec, sous elle. Jamais en silence (règle 5).
 const EXEMPT_LINE = /^\s*>?\s*\*\*Sans test\*\*\s*[—-]?\s*(.*)$/i;
@@ -127,7 +127,7 @@ function expandGroup(group) {
 // Une date (« 2026-08-31 ») ressemble à une plage de règles. Et aucune spec n'a 200 règles : au-delà,
 // c'est un numéro de version, une année ou un montant. Les deux filtres évitent des couvertures
 // fantômes, qui seraient pires que pas de couverture du tout.
-const PLAUSIBLE_RULE = /^\d{1,3}(?:bis|ter|[a-z])?$/i;
+const PLAUSIBLE_RULE = /^\d{1,3}(?:bis|ter|quater|[a-z])?$/i;
 const isPlausible = (id) => PLAUSIBLE_RULE.test(id) && Number.parseInt(id, 10) <= 200;
 
 // Une citation est rattachée à la spec nommée juste au-dessus d'elle — mais « juste » veut dire dans
@@ -298,6 +298,8 @@ function readCitations(knownSpecs) {
     ...listFiles(path.join(ROOT, 'server', 'src', 'tests'), isTestFile),
     // specs/plugins-phase-1-sdk.md rule 1 — a plugin module carries its tests in its own folder.
     ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/tests\/.*\.test\.js$/.test(f)),
+    // specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) carry their own suites.
+    ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/apps\/[^/]+\/src\/.*__tests__\/.*\.test\.jsx?$/.test(f)),
     ...listFiles(path.join(ROOT, 'client', 'src'), isTestFile),
     ...listFiles(path.join(ROOT, 'e2e'), isTestFile),
     // specs/control-plane-plans-and-access.md — the control plane is its own app in the same repo.

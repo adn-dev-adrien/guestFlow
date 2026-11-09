@@ -71,11 +71,12 @@ test('the audit case: accounting-export reaches installmentPlan, so it declares 
 // too, and its consumers declare that floor; the tariff recipes reach the window through the core models. online-payment
 // joined with its reconciliation start date (audit R20-P1).
 // specs/plugins-phase-1-sdk.md rule 41 — accounting-export reads the entered-date window for the synthesis's periods.
-test('rule 37: stayDates is an SDK 2.20.0 module; accounting-export, linen, online-payment, school-holidays and hourly-resources declare ^2.20.0 at least', () => {
+// guest-app joins with specs/guest-app.md rules 28, 40 (the service-hour exception dates, the slot dates it reads).
+test('rule 37: stayDates is an SDK 2.20.0 module; accounting-export, linen, online-payment, school-holidays, hourly-resources and guest-app declare ^2.20.0 at least', () => {
   assert.equal(moduleSince.get('stayDates'), '2.20.0');
   assert.deepEqual(Object.keys(require('../utils/stayDates')).sort(), [...CONTRACT.stayDates].sort());
   assert.ok(CONTRACT.stayDates.includes('stayItemDatesRefusal'));
   const consumers = PLUGIN_IDS.filter((id) => /coreModule\('stayDates'\)/.test(pluginSources(id))).sort();
-  assert.deepEqual(consumers, ['accounting-export', 'hourly-resources', 'linen', 'online-payment', 'school-holidays'].filter((id) => PLUGIN_IDS.includes(id)));
+  assert.deepEqual(consumers, ['accounting-export', 'guest-app', 'hourly-resources', 'linen', 'online-payment', 'school-holidays'].filter((id) => PLUGIN_IDS.includes(id)));
   consumers.forEach((id) => assert.ok(semver.gte(semver.minVersion(readSourceManifest(id).sdk), '2.20.0'), id));
 });

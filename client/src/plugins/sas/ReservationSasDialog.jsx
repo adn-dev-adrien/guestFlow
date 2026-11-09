@@ -364,6 +364,10 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const arrivalPluginSteps = useSlot('sas.arrival.steps');
   const departurePluginSteps = useSlot('sas.departure.steps');
   const pluginSteps = mode === 'arrival' ? arrivalPluginSteps : departurePluginSteps;
+  // specs/guest-app.md rule 9bis (a) — a `sas.portal` contribution marked `leadsStep` takes the « Portail » step
+  // over (title included) while its plugin's SAS data says it is available; the other contributions (the gate
+  // key) are handed to it as `gateStep`, its fallback.
+  const portalContributions = useSlot('sas.portal');
   const [pluginStepData, setPluginStepData] = useState({});
   const pluginStepFor = (key) => pluginSteps.find((c) => c.key === key) || null;
   // specs/plugins-phase-3c-hourly-resources.md rule 6 — a step without `load` reads what its plugin
@@ -380,9 +384,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const setPluginStepValue = (key) => (update) => setPluginStepValues((prev) => ({
     ...prev, [key]: typeof update === 'function' ? update(prev[key]) : update,
   }));
+  const portalLead = portalContributions.find((c) => c.leadsStep && data?.pluginData?.[c.pluginId]?.available) || null;
   const metaFor = (key) => {
     const step = pluginStepFor(key);
-    return step ? { title: step.title, Icon: step.Icon } : stepMeta(key, mode);
+    if (step) return { title: step.title, Icon: step.Icon };
+    if (key === 'portal' && portalLead) return { title: portalLead.leadsStep.title, Icon: DialpadIcon };
+    return stepMeta(key, mode);
   };
 
   useEffect(() => {
@@ -619,7 +626,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       return placePluginSteps([
         'intro',
         // The keypad code of the property, and/or the key a plugin holds for the stay (rule 17).
-        (data.portalCode || data.pluginData?.['gate-access']?.available) ? 'portal' : null,
+        (data.portalCode || data.pluginData?.['gate-access']?.available || portalLead) ? 'portal' : null,
         cautionStep ? 'caution' : null,
         // specs/collect-stay-payment-at-check-in.md §3.2 rule 5 — the door-money pages are grouped,
         // caution first. Served `applicable: false` when there is nothing to collect (the ordinary
@@ -666,7 +673,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       'recap',
     ].filter(Boolean), shownPluginSteps);
   }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
-    breakfastSold, cateringWanted]);
+    breakfastSold, cateringWanted, portalLead]);
 
   const goNext = useCallback(() => {
     const i = activeKeys.indexOf(stepKey);
@@ -1186,13 +1193,27 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           </Stack>
         );
       }
-      case 'portal':
+      case 'portal': {
         // specs/plugins-phase-1-sdk.md rule 17 — the keypad code is a SAS fact; when a plugin holds a
         // key for the stay (Sowel: code + QR, specs/gate-access-sowel-connector.md §3.5 rules 24-25)
         // its component takes the page and keeps the keypad code as the fallback.
-        return data.pluginData?.['gate-access']?.available
-          ? <Slot name="sas.portal" reservationId={r.id} available portalCode={data.portalCode} />
-          : <SasKeypadCode portalCode={data.portalCode} />;
+        const gateAvailable = Boolean(data.pluginData?.['gate-access']?.available);
+        const gateSteps = (portalCode) => portalContributions.filter((c) => !c.leadsStep).map(({ key, pluginId, Component }) => (
+          <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
+            <Component reservationId={r.id} available portalCode={portalCode} />
+          </Contribution>
+        ));
+        if (portalLead) {
+          const Lead = portalLead.Component;
+          return (
+            <Contribution pluginId={portalLead.pluginId}>
+              {/* The lead shows the keypad code itself: the gate step under it does not repeat it. */}
+              <Lead reservationId={r.id} portalCode={data.portalCode} gateStep={gateAvailable ? gateSteps('') : null} />
+            </Contribution>
+          );
+        }
+        return gateAvailable ? gateSteps(data.portalCode) : <SasKeypadCode portalCode={data.portalCode} />;
+      }
       case 'caution':
       case 'cautionReport':
         return (

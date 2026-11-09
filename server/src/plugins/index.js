@@ -20,4 +20,5 @@ module.exports = [
   require('./booking-intake'),
   require('./airbnb-intake'),
   require('./google-vacation-rentals'),
+  require('./guest-app'),
 ];

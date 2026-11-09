@@ -53,7 +53,7 @@ function enrichStayComponent(database, id, type, components) {
 // The stored columns a link of each type charges. A full payment is the acompte plus the solde — what
 // its payment marks paid (specs/deposit-blocks-the-dates.md rule 18).
 const LINK_TYPES   = { deposit: ['depositAmount'], balance: ['balanceAmount'], full: ['depositAmount', 'balanceAmount'] };
-const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour', installment: 'Échéance séjour' };
+const LINK_TITLES  = { deposit: 'Acompte séjour', balance: 'Solde séjour', full: 'Paiement séjour', installment: 'Échéance séjour', complement: 'Prestations du séjour' };
 // Template per request type. Deposit (use case 1), balance (online-deposit solde,
 // specs/public-online-deposit.md) and full (a last-minute stay owes one payment,
 // specs/deposit-blocks-the-dates.md rule 11).
@@ -104,8 +104,62 @@ function stayLockKey(database, id) {
   return `reservation:${Number((row && row.convertedReservationId) || id)}`;
 }
 
-function ensurePaymentLink(deps, id, type) {
+// specs/guest-app.md rule 35 — `complement` bills an explicit basket only (`{ source, ref, title, lines }`, a guest
+// order): never the stay's complement, which has no link of its own.
+function ensurePaymentLink(deps, id, type, { basket } = {}) {
+  if (type === 'complement') {
+    const refusal = basketRefusal(basket);
+    if (refusal) return Promise.reject(refusal);
+    return withLinkLock(`basket:${basket.source}:${basket.ref}`, () => mintBasketLink(deps, id, basket));
+  }
   return withLinkLock(stayLockKey(deps.database, id), () => mintPaymentLink(deps, id, type));
+}
+
+// Rule 35 — a guest order is paid at once or not at all: its link lives 30 minutes, and the arrival never lapses it
+// (a `complement` is no pre-arrival type, payment-link-lifecycle.md rule 9).
+const BASKET_LINK_MINUTES = 30;
+const BASKET_REQUIRED = { httpStatus: 400, error: 'BASKET_REQUIRED', message: 'Un lien de complément facture un panier explicite.' };
+
+function basketRefusal(basket) {
+  if (!basket || typeof basket !== 'object' || typeof basket.source !== 'string' || !basket.source) return { ...BASKET_REQUIRED };
+  if (basket.ref == null || String(basket.ref) === '') return { ...BASKET_REQUIRED };
+  const lines = Array.isArray(basket.lines) ? basket.lines : [];
+  const sound = lines.length > 0 && lines.every((l) => l && typeof l.title === 'string' && Number.isInteger(l.amountCents) && l.amountCents > 0);
+  return sound ? null : { ...BASKET_REQUIRED };
+}
+
+async function mintBasketLink(deps, id, basket) {
+  const { database, paymentLinksModel, provider } = deps;
+  const r = database.prepare('SELECT id, kind FROM reservations WHERE id = ?').get(Number(id));
+  if (!r) throw { httpStatus: 404, error: 'RESERVATION_NOT_FOUND', message: 'Réservation introuvable.' };
+  if (r.kind !== 'reservation') {
+    const closed = refusalForKind(r.kind);
+    throw closed ? { httpStatus: closed.status, error: closed.body.code, message: closed.body.error } : { httpStatus: 409, error: 'NOT_A_STAY', message: 'Un complément se paie sur un séjour.' };
+  }
+  const amountCents = basket.lines.reduce((sum, l) => sum + l.amountCents, 0);
+  const title = String(basket.title || LINK_TITLES.complement);
+  const linkArgs = { title, amountCents };
+  // The VAT basket of the lines, at the rate of the stay's regime; trusted only when it sums to the charge.
+  const vatRatePercent = typeof deps.vatRateFor === 'function' ? Number(deps.vatRateFor(Number(id)) || 0) : 0;
+  const { items, expectedTotalCents } = buildVatItems({
+    components: basket.lines.map((l) => ({ title: l.title, grossCents: l.amountCents, taxable: true })),
+    vatRatePercent,
+  });
+  if (expectedTotalCents === amountCents && items.length) {
+    linkArgs.items = items;
+    linkArgs.expectedTotalCents = expectedTotalCents;
+  }
+  if (deps.redirectUrl) linkArgs.redirectUrl = deps.redirectUrl;
+  const link = await provider.createLink(linkArgs, { origin: deps.origin || 'basket' });
+  const createdAt = mintClock(deps);
+  const row = paymentLinksModel.create({
+    reservationId: Number(id), type: 'complement', amountCents,
+    provider: provider.id, providerLinkId: link.id, url: link.url, status: link.status,
+    createdAt: createdAt.toISOString().replace('T', ' ').slice(0, 19),
+    expiresAt: new Date(createdAt.getTime() + BASKET_LINK_MINUTES * 60 * 1000).toISOString(),
+    basket: { source: basket.source, ref: String(basket.ref) },
+  });
+  return { id: row.id, type: 'complement', amountCents, url: link.url, status: link.status, providerLinkId: link.id, expiresAt: row.expiresAt, reused: false };
 }
 
 // specs/payment-link-lifecycle.md rule 63 — the same lock for an installment plan's creation or resize: a stay link
@@ -518,5 +572,6 @@ async function sendPaymentRequest(deps, id, requestedType) {
 
 module.exports = {
   ensurePaymentLink, withStayLinkLock, sendPaymentRequest, ensureInstallmentLink, sendInstallmentRequest, resolveRequestType, LINK_TYPES, LINK_TITLES, REQUEST_TEMPLATES,
+  BASKET_LINK_MINUTES,
   __test: { storeUnlessNightsLost },
 };

@@ -211,6 +211,9 @@ const api = {
   // A plugin module's own settings (specs/plugins-phase-1-sdk.md rule 7): a secret reads `<key>Set`.
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, values) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: values }),
+  // A plugin's own routes under `/api` (its `ctx.mount`), through the same session, errors and data-changed event as
+  // every core call — so a plugin keeps its endpoints in its own folder instead of this file (SDK 2.26.0).
+  pluginRequest: (path, options) => request(path, options),
   // Saisie Gîtes de France plugin (specs/gites-de-france-mail-intake.md §4.4).
   getGdfIntakeForReservation: (reservationId) => request(`/gdf-intake/reservation/${reservationId}`),
   applyGdfIntake: (intakeId, body = {}) => request(`/gdf-intake/${intakeId}/apply`, { method: 'POST', body }),

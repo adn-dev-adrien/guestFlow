@@ -63,10 +63,43 @@ const LINK_TYPES_BY_ROW = { deposit: ['deposit'], balance: ['balance', 'full'], 
 /**
  * The link shown on a row (rule 28): the open one when there is one, else the latest.
  */
+function basketRefundOwed(link) {
+  if (!link || !link.basketJson) return false;
+  try { return JSON.parse(link.basketJson).refundOwed === true; } catch { return false; }
+}
+
+// What a basket link owes back: the part its owner flagged (`refundCents`), else the whole payment.
+function basketRefundCents(link) {
+  try {
+    const part = Number(JSON.parse(link.basketJson).refundCents);
+    if (Number.isInteger(part) && part > 0) return part;
+  } catch { /* the whole payment */ }
+  return Number(link.amountCents || 0);
+}
+
+const NEUTRAL_REFUND = Object.freeze({ refundOne: 'Paiement en ligne à rembourser', refundMany: 'Paiements en ligne à rembourser' });
+const basketSource = (link) => { try { return String(JSON.parse(link.basketJson).source || ''); } catch { return ''; } };
+
+/**
+ * The row's words for refunds owed on baskets (specs/plugins-phase-1-sdk.md rule 47): the owning plugin's own labels
+ * (`ctx.paymentBasket({ labels })`) when every owed link is one declared source, the core's neutral words otherwise.
+ */
+function basketRefundLabel(owed) {
+  const sources = [...new Set(owed.map(basketSource))];
+  const registry = require('../plugins/sdk/registry');
+  const declared = sources.length === 1 ? registry.all()
+    .flatMap((r) => r.paymentBaskets || []).find((basket) => basket.source === sources[0]) : null;
+  const labels = { ...NEUTRAL_REFUND, ...((declared && declared.labels) || {}) };
+  return owed.length > 1 ? labels.refundMany : labels.refundOne;
+}
+
+// specs/plugins-phase-1-sdk.md rule 47 — a link billing its own basket (a plugin's order) is no bucket's link.
+const ofRow = (types) => (l) => types.includes(String(l.type)) && !l.basketJson;
+
 function pickLink(links, rowKey) {
   const types = LINK_TYPES_BY_ROW[rowKey];
   if (!types) return null;
-  const mine = (links || []).filter((l) => types.includes(String(l.type)));
+  const mine = (links || []).filter(ofRow(types));
   if (mine.length === 0) return null;
   const byNewest = [...mine].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
   return byNewest.find((l) => l.status === 'open') || byNewest[0];
@@ -78,7 +111,7 @@ function pickLink(links, rowKey) {
 function otherOpenLinks(links, rowKey, shown) {
   const types = LINK_TYPES_BY_ROW[rowKey] || [];
   return (links || [])
-    .filter((l) => types.includes(String(l.type)) && (l.status === 'open' || unsettledPayment(l)) && (!shown || l.id !== shown.id))
+    .filter((l) => ofRow(types)(l) && (l.status === 'open' || unsettledPayment(l)) && (!shown || l.id !== shown.id))
     .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
 }
 
@@ -609,6 +642,24 @@ function buildLedger({
       stateLabel: notes.length > 1 ? `${notes.length} notes perçues` : '1 note perçue',
       action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       detail: { slot: 'midStayNotes' },
+    });
+  }
+  // specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
+  // the money is on the link, nothing reached the fiche, the operator refunds it from the provider's space.
+  const owedBaskets = (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
+  if (owedBaskets.length > 0) {
+    rows.push({
+      key: 'basketRefunds', label: basketRefundLabel(owedBaskets),
+      amount: owedBaskets.reduce((sum, l) => sum + basketRefundCents(l), 0) / 100, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+      action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      detail: {
+        lines: owedBaskets.map((l) => {
+          const paid = Number(l.amountCents || 0);
+          const owed = basketRefundCents(l);
+          const head = owed < paid ? `${formatEuros(owed / 100)} à rendre sur ${formatEuros(paid / 100)}` : formatEuros(paid / 100);
+          return `${head} payés${l.paidAt ? ` le ${shortDate(localIsoDate(new Date(Date.parse(l.paidAt))), stayYear)}` : ''} par carte, lien ${l.id}`;
+        }),
+      },
     });
   }
   if ((!deferred || endOfStayApart) && (endOfStayAmount > 0 || endAdjusted)) {

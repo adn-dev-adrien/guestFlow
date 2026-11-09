@@ -34,6 +34,7 @@ const ORIGINS = {
   invoicing: 'facture d’une vente hors séjour',
   admin: 'réglages',
   billing: 'facturation des abonnements',
+  basket: 'paiement d’un panier en ligne',
 };
 
 const WEBHOOK_CHECK = 'webhook-register';

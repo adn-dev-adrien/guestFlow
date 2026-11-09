@@ -166,10 +166,14 @@ function candidateStarts({ norm, ranges, dayStart }) {
 
 /**
  * Classify one candidate block. Returns `{ state, warm }` with
- * `state ∈ closed | past | taken | heating | free`, checked from the most immovable constraint down
+ * `state ∈ closed | past | taken | heating | staff | free`, checked from the most immovable constraint down
  * so the reason shown to the operator is the most useful one.
+ *
+ * `canIgnite(absoluteMinutes)` is the caller's say on who lights the resource: a block that starts cold
+ * needs someone at `start − heatUpMinutes`, and when the caller answers no it is `staff`
+ * (specs/guest-app.md rule 31). Without one, every ignition is possible — the operator lights it.
  */
-function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter = Infinity }) {
+function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter = Infinity, canIgnite = null }) {
   const warm = isWarmAt(ranges, start, norm.retention);
   if (dayClosed) return { state: 'closed', warm };
   const dayStart = Math.floor(start / MINUTES_PER_DAY) * MINUTES_PER_DAY;
@@ -184,6 +188,7 @@ function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfte
   // Thermal readiness: warm → the turnover (already enforced above) is the only wait;
   // cold → the resource has to be brought up to temperature first.
   if (!warm && start < notBefore + norm.heatUp) return { state: 'heating', warm };
+  if (!warm && norm.heatUp > 0 && canIgnite && !canIgnite(start - norm.heatUp)) return { state: 'staff', warm };
   return { state: 'free', warm };
 }
 
@@ -198,9 +203,12 @@ function classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfte
  * @param {object[]} args.pending       blocks placed in the current SAS run, not saved yet
  * @param {number}   args.notBefore     absolute minutes: `max(now, check-in)`
  * @param {number}   args.notAfter      absolute minutes: the check-out
+ * @param {Function} [args.canIgnite]   absolute minutes → whether someone can light the resource then
  * @returns {object[]} `[{ date, weekdayLabel, closed, occupancy, slots }]`
  */
-function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], pending = [], notBefore = -Infinity, notAfter = Infinity }) {
+function buildDays({
+  resource, dayRate = 0, stayDates = [], occupancy = [], pending = [], notBefore = -Infinity, notAfter = Infinity, canIgnite = null,
+}) {
   const norm = normalizeResource(resource);
   // Pending blocks gate the slots exactly like a saved booking — they hold their slot and keep the
   // resource warm for the next one — but they are kept OUT of the displayed strip: that strip exists
@@ -222,7 +230,7 @@ function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], pend
 
     for (const { start, offGrid } of candidateStarts({ norm, ranges, dayStart })) {
       const end = start + norm.minDuration;
-      const { state, warm } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter });
+      const { state, warm } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter, canIgnite });
       // The grid is shown whole — a blocked slot has to say WHY. An off-grid start exists only to
       // offer the moment a reset ends, so it earns its place only when it is actually bookable;
       // otherwise it would be a stray odd time explaining nothing.
@@ -260,9 +268,11 @@ function buildDays({ resource, dayRate = 0, stayDates = [], occupancy = [], pend
  * this and refuses rather than double-booking (§3.4 rule 27).
  *
  * @returns {{ ok: true } | { ok: false, reason: string }} reason ∈
- *   `duration | closed | past | taken | heating | budget`
+ *   `duration | closed | past | taken | heating | staff | budget`
  */
-function validateBlock({ resource, block, occupancy = [], notBefore = -Infinity, notAfter = Infinity, remainingMinutes = Infinity }) {
+function validateBlock({
+  resource, block, occupancy = [], notBefore = -Infinity, notAfter = Infinity, remainingMinutes = Infinity, canIgnite = null,
+}) {
   const norm = normalizeResource(resource);
   const ranges = toRanges(occupancy);
   const start = toAbsMinutes(block?.date, block?.start);
@@ -280,7 +290,7 @@ function validateBlock({ resource, block, occupancy = [], notBefore = -Infinity,
   if (duration > remainingMinutes) return { ok: false, reason: 'budget' };
 
   const dayClosed = !norm.openDays.includes(weekdayOf(block.date)) || norm.closedDays.includes(String(block.date));
-  const { state } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter });
+  const { state } = classifyBlock({ norm, ranges, dayClosed, start, end, notBefore, notAfter, canIgnite });
   return state === 'free' ? { ok: true } : { ok: false, reason: state };
 }
 

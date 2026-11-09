@@ -260,4 +260,4 @@ function createModel(database) {
   };
 }
 
-module.exports = { create: createModel };
+module.exports = { create: createModel, eachDate };

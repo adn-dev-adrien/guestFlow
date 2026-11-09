@@ -3,7 +3,9 @@
  * (specs/hourly-resource-quantity-and-sas-scheduling.md rule 28 « and vice versa », fixed at the
  * 2026-10-27 spec review): the external bookings and the sessions of the OTHER stays. The same union the
  * hourly-resources plugin's occupancy model reads when an external booking is created; `resource_bookings`
- * and `resources.turnoverMinutes` exist only once that plugin is installed, hence the guards.
+ * and `resources.turnoverMinutes` exist only once that plugin is installed, hence the guards. The slots the live
+ * plugins hold for another stay (`ctx.resourceHolds`, plugins-phase-1-sdk.md rule 47 — an order awaiting its card
+ * payment) are occupied too, as the planning shows them.
  */
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -15,7 +17,10 @@ function parseSessions(raw) {
   return Array.isArray(list) ? list.filter((s) => s && ISO_DATE.test(String(s.date || '').slice(0, 10))) : [];
 }
 
-function buildModel(database) {
+// The live plugins' holds, read through the core's own collector.
+const liveHolds = (query) => require('../plugins/sdk/coreServices').resourceHolds(query);
+
+function buildModel(database, { holds = liveHolds } = {}) {
   const hasTable = (name) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
   const hasColumn = (table, column) => {
     try { return database.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column); }
@@ -45,6 +50,10 @@ function buildModel(database) {
             .filter((s) => String(s.date).slice(0, 10) === String(date))
             .forEach((s) => out.push({ start: s.start, end: s.end })));
       }
+      (holds({ resourceId: Number(resourceId), from: String(date), to: String(date) }) || [])
+        .filter((h) => h && String(h.date || '').slice(0, 10) === String(date) && h.start && h.end)
+        .filter((h) => !exclude || Number(h.reservationId || 0) !== exclude)
+        .forEach((h) => out.push({ start: h.start, end: h.end }));
       return out;
     },
 

@@ -236,6 +236,27 @@
           "validateSettlement"
         ]
       }
+    },
+    {
+      "version": "2.26.0",
+      "modules": [
+        "stayWindow",
+        "encryption",
+        "publicCatalogProjection",
+        "midStayExtrasWindow",
+        "safeFeedFetch",
+        "instancePaths",
+        "midStayOrderCommit",
+        "securityConfig",
+        "requireAuth"
+      ],
+      "names": {
+        "pricing": [
+          "applyFreeUnitsToLine",
+          "getApplicableOptions",
+          "getApplicableResources"
+        ]
+      }
     }
   ]
 }

@@ -178,6 +178,9 @@ move into it in phases 2 and 3, and plugin downloads arrive in phase 4.
       `{ tokens, flags }`.
     - The email context builder merges `build()` from **active** plugins only. An inactive plugin's
       variables render empty, and its `{{#if}}` blocks read false.
+    - *(2026-11-09, specs/guest-app.md rule 9bis b.)* A token or a flag may name the e-mails it belongs to,
+      `in: ['j7', 'j2']` — the sections of the core catalogue's own `in` — and the template editor offers its chip
+      in those e-mails only (still everywhere it is already used); without `in` it is offered in every e-mail.
     - The four email paths (preview, auto-send, guest sequence, manual send) all go through the builder,
       so they no longer call gate code.
 11. **Core services** — what a plugin needs of the core, in one reviewed place:
@@ -233,9 +236,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     | `settings.integrations` | Intégrations page sections, one tab per plugin (`tabLabel?`, `keywords?` — specs/integrations-tab-per-plugin.md rules 4, 8) | google-calendar, weather-alerts, gate-access |
     | `dashboard.alerts.urgent` | Dashboard alert stack, under the payment deadlines | gate-access (keys) |
     | `dashboard.alerts` | Dashboard alert stack, under the new iCal reservations | tariff-recipes (runs) |
-    | `reservation.cards` | reservation page, after the finance section | gate-access |
+    | `reservation.cards` | reservation page, after the finance section | gate-access, guest-app (« Lien Mon séjour ») |
+    | `options.fields`, `resources.fields` | option and resource editors; with `section: { title }` a section of its own, saved after the core row (rule 49) | hourly-resources (`resources.fields`), guest-app |
+    | `nav.items` | the side menu's top level, after the entry named by `after` (rule 49) | guest-app (Commandes clients) |
     | `sas.arrival.steps` | SAS dialog, just before the recap | weather-alerts |
-    | `sas.portal` | the SAS « Portail » step, when the SAS data says the plugin holds a key (rule 17) | gate-access |
+    | `sas.portal` | the SAS « Portail » step, when the SAS data says the plugin holds a key (rule 17). A contribution with `leadsStep: { title }` takes the whole step and its title while its plugin's SAS data says `available`, the others handed to it as `gateStep` (specs/guest-app.md rule 9bis, 2026-11-06) | gate-access, guest-app (`leadsStep`) |
     | `calendar.dayMarkers` | month view, week view, property pricing calendar, their legends | school-holidays |
     | `closures.tabs` | Vacances & fermetures, before « Fermetures » | school-holidays |
     | `property.tariff` | pricing seasons page | tariff-recipes (the recipe card) |
@@ -532,6 +537,85 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugins/accounting-export/tests/accounting-mixed-method-payments.unit.test.js`,
     `plugins/online-payment/tests/reconciliation-mixed-method-payments.unit.test.js`,
     `plugins/sas/tests/sas-mixed-method-payments.unit.test.js`.
+
+43. *(Added 2026-11-05, specs/guest-app.md rule 2, SDK 2.26.0.)* **`coreModule('stayWindow')` and
+    `coreModule('encryption')`.** The stay window leaves `gate-access` for `utils/stayWindow.js`, so the guest app reads
+    it without that plugin; `gate-access` 1.3.5 and `guest-app` 1.0.0 ask for `sdk ^2.26.0`. `encryption` holds the
+    lodging's wifi password at rest. (The guest app's limiters, first added to `coreModule('rateLimiters')`, live in the
+    plugin since 2026-11-09: the core keeps only generic extension points.) A MINOR bump (modules and names added to `coreModules.json`, recorded under 2.26.0 in `coreModuleHistory.json`). Tests:
+    `stay-window.unit.test.js` (the moved gate-window suite, its assertions unchanged).
+44. *(Added 2026-11-05, specs/guest-app.md rules 23-25, SDK 2.26.0.)* **`coreModule('publicCatalogProjection')`,
+    `coreModule('midStayExtrasWindow')` and three `pricing` names.** `toPublicOption` / `toPublicResource` and their
+    helpers leave `website-booking` for `utils/publicCatalogProjection.js` (website-booking 1.8.14 re-exports them
+    unchanged and asks for `^2.26.0`); `pricing` adds `applyFreeUnitsToLine`, `getApplicableOptions`,
+    `getApplicableResources`, so the guest app's shop reads the catalogue the engine prices. Tests:
+    `guest-app-sellable`, `guest-app-shop` and every website-booking projection suite.
+45. *(Added 2026-11-05, specs/guest-app.md rules 28-31 and 35, SDK 2.26.0.)* **`ctx.resourceScheduler(provider)` and
+    `ctx.resourceHolds(fn)`.** One scheduler app-wide (`{ slotsForStay, validateSessions }`, declared by
+    `hourly-resources` 1.5.0), read through `ctx.core.resourceScheduler()`, null unless its plugin is live; any plugin
+    may declare one holds source, collected by `ctx.core.resourceHolds({ resourceId, from, to })` (a source that throws
+    is logged and holds nothing) and shown as occupied by the planning, the SAS picker and outside bookings. A hold
+    may carry `label`, the planning's words on the slot (« Commande client en attente de paiement »); without it
+    `hourly-resources` reads « Créneau réservé, en attente ». A row of
+    `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.26.0`. Tests:
+    `resource-scheduler-hook.unit.test.js`, `guest-app-slots.unit.test.js`.
+46. *(Added 2026-11-05, specs/guest-app.md rules 15bis and 47-49, SDK 2.26.0.)* **`coreModule('safeFeedFetch')` and
+    `coreModule('instancePaths')`.** The iCal import's public-only fetch (`fetchPublic`, `readCapped`,
+    `FeedFetchError`) serves the guest app's Soliomap feed; `instancePaths` exposes `uploadsDir` for the studio's
+    media. Tests: `guest-app-suggestion`, `guest-app-media`.
+47. *(Added 2026-11-06, specs/guest-app.md rules 24, 30, 33-36, SDK 2.26.0; generic since 2026-11-09.)*
+    **`ctx.paymentBasket({ source, paid, labels? })`, `ctx.core.payments` and `coreModule('midStayOrderCommit')`.** A
+    plugin bills its own basket (the guest app: an order) through a
+    `complement` payment link: `ctx.core.payments.basketLink(reservationId, { source, ref, title, lines })` mints it at
+    the lines' exact total, as a VAT basket at the stay's rate, for 30 minutes, never lapsed by the arrival;
+    `refreshBasketLink(linkId)` reads it at the provider on demand and `withdrawBasketLink(linkId)` withdraws it like
+    « Retirer le lien ». The link names its basket in the new `payment_links.basketJson` (`{ source, ref }`), so no
+    reader of the stay's own buckets (stale links, settled links, the ledger's complement row) takes it for the stay's
+    complement. When it is paid, on time or late, `applyPaidEffect` hands it to the live plugin that declared its
+    `source` (one per source): `paid({ reservationId, ref, linkId, amountCents, paidDate, paidAt, providerPaymentId })`
+    runs synchronously — whatever became of the stay, cancelled or deleted — and answers `{ effect }`, or `{ refundOwed: true, reason, refundCents? }`
+    (`refundCents`: only that part of the payment is owed back) — the core then flags the link, writes
+    « Remboursement à faire » in the stay's history and the ledger shows the row in the owner's words
+    (`labels: { refundOne, refundMany }`, the guest app's « Commande client à rembourser »), else the core's neutral
+    « Paiement en ligne à rembourser »; with no live owner the payment is `basket-unallocated` and the admin is
+    alerted. The provider sees the origin `basket`. `midStayOrderCommit` prices an order by the
+    fiche's own save played without writing (`priceOrder(reservationId, lines, { pending? })`: the caller's promised,
+    unwritten lines — a card order awaiting payment — take their allowances first) and writes it as mid-stay extras through `performUpdate`, a
+    card order's money as a settled mid-stay note `{ source, ref }`, in one transaction with the plugin's own step
+    (`commitOrder(reservationId, { source, ref, history: { field, label, text }, lines, paid?, within? })` — the
+    caller names its order and writes the history entry in its own words; an order not named is refused before
+    anything is written). A row of
+    `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.26.0`. Tests:
+    `payment-complement-link.unit.test.js`, `mid-stay-order-commit.unit.test.js`, `guest-app-order-card`,
+    `guest-app-order-note`.
+48. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.26.0 — unreleased, recorded with the
+    other guest-app entry points.)* **`ctx.webApp({ key, path?, host?, handler })` — a web app the plugin serves
+    itself.** `path` is one segment of the plugin's own (`/studio`), answered on every host; `host()` is read on each
+    request and claims every path of that hostname (the guest app on `sejour.domainesolio.com`); one of the two is
+    required. The core's trees — `/api`, `/public`, `/uploads`, `/plugin-assets` — stay the core's on every host, and a
+    `path` naming one of them, `/login` or `/assets` is refused at registration. `pluginLoader.mountWebApps(app)` sits
+    before the favicon and the GuestFlow client, and reads the live plugins on every request: a plugin activated or
+    configured later answers at once, a deactivated one falls through to the core. The handler owns its answer (its
+    caching, its policy, its own access check). `coreModule('requireAuth')` (`revalidate`: the user re-read as `requireAuth` does —
+    gone, deactivated, demoted or due to change their password) and `coreModule('securityConfig')` (`shouldEnforceHttps`,
+    the rule of the core's session cookie) let it check a session and set its own cookie the way the core does. A row of `plugin-core-hardening-floor.unit.test.js` makes a plugin
+    calling it floor at `^2.26.0`. A plugin's web app sources live in its server folder as `apps/<name>/` (their own
+    `package.json`, built by Vite to `dist/`): `scripts/build-plugin-packages.mjs` never ships them and copies each build
+    into the package's `server/assets/<name>` (a build not made: a warning, the app answers 503); the release builds every
+    plugin app first, and the server's source scans skip them (browser code). Tests: `plugins-web-apps.unit.test.js`,
+    `guest-app-hosting`, `plugin-web-app-packaging.unit.test.js`.
+49. *(Added 2026-11-09, specs/guest-app.md rules 22, 37bis, 45 and 47, SDK 2.26.0.)* **Client points a plugin needs to
+    keep its screens and calls in its own folder.** `options.fields` mirrors `resources.fields` in the option editor; a
+    `*.fields` contribution may carry `section: { title }`: it gets a section of its own at the bottom, counted by
+    « Enregistrer » and the unsaved guard, and is saved after the core row (an editor with only plugin changes no longer
+    rewrites the core row; without `section` a contribution behaves as before). `nav.items` draws a plugin page at the
+    top level of the side menu, after the core entry named by `after` (else after « Calendrier »), only while its route
+    is visible to the role. `api.pluginRequest(path, options)` calls `/api<path>` with the client's session, errors and
+    data-changed event, so a plugin's HTTP wrappers live in the plugin (the core `api.js` holds none of guest-app's).
+    `/login?next=<path>` reopens a same-origin path after sign-in (`safeReturnPath`: no `//`, scheme, backslash or
+    control character, never `/login`), for a backend page that needs a session. Tests:
+    `OptionEditorPanel.plugin-fields.test.jsx`, `ResourceEditorPanel.plugin-fields.test.jsx`,
+    `navMenu.plugin-entries.test.js`, `navigation.safe-return-path.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

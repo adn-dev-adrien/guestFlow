@@ -5,6 +5,7 @@
     "Autocomplete",
     "Box",
     "Button",
+    "ButtonBase",
     "Card",
     "CardActionArea",
     "CardContent",

@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.25.0",
+  "sdk": "^2.26.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -113,6 +113,11 @@
       "« Valider l’arrivée » d’un client qui a payé à la réservation ne crée plus de facture Qonto sans qu’on la demande : « Créer la facture » reste le geste explicite.",
       "Une séance créée dont le paiement a été refusé se déplace sans se gêner elle-même dans le planning.",
       "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.5.0": [
+      "L’application clients propose les créneaux libres d’une ressource à l’heure, lus dans ce planning : séances des autres séjours, réservations extérieures, remise en état, chauffe et maintien en température.",
+      "Un créneau d’une commande client en attente de paiement est bloqué dans le planning, le sas et les réservations extérieures.",
+      "Demande le SDK 2.26 de GuestFlow."
     ]
   }
 }

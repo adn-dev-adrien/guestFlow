@@ -15,8 +15,13 @@ const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', '
 const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
+const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
+
+// The web apps of plugins never shadow the core's trees (rule 47).
+const WEB_APP_PATH = /^\/[a-z0-9][a-z0-9-]*$/;
+const RESERVED_WEB_PATHS = Object.freeze(['/api', '/public', '/uploads', '/plugin-assets', '/login', '/assets']);
 
 function createContext(id, { db, settingsModel, dataDir = null } = {}) {
   const record = registry.ensure(id);
@@ -50,6 +55,20 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (isPublic && !path.startsWith('/public/')) throw new Error(`${prefix} public mounts must live under /public/`);
       if (!isPublic && !path.startsWith('/api/')) throw new Error(`${prefix} mounts must live under /api/`);
       record.mounts.push({ path, router, public: isPublic });
+    },
+    // SDK 2.26.0 (specs/plugins-phase-1-sdk.md rule 48) — a web app the plugin serves itself: under `path` (one
+    // segment of its own, e.g. '/studio') on every host, or on its own `host()` (a hostname, read on each request;
+    // null = none yet) at every path. Never under /api, /public, /uploads or /plugin-assets: those stay the core's,
+    // on every host. Reached only while the plugin is live.
+    webApp({ key, path = null, host = null, handler } = {}) {
+      if (!key || typeof key !== 'string') throw new Error(`${prefix} a web app needs a key`);
+      if (typeof handler !== 'function') throw new Error(`${prefix} web app "${key}" needs a handler`);
+      if (path === null && host === null) throw new Error(`${prefix} web app "${key}" needs a path or a host`);
+      if (path !== null && (!WEB_APP_PATH.test(String(path)) || RESERVED_WEB_PATHS.includes(path))) {
+        throw new Error(`${prefix} web app "${key}" path must be one segment of its own, like "/studio"`);
+      }
+      if (host !== null && typeof host !== 'function') throw new Error(`${prefix} web app "${key}" host must be a function`);
+      record.webApps.push({ key, path, host, handler });
     },
     // One route under a core prefix, at its full URL (rule 5).
     route(method, path, ...handlers) {
@@ -111,6 +130,43 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
         if (other) throw new Error(`${prefix} the "${type}" lines are already priced by ${other.id}`);
       });
       record.priceLineContributor = contributor;
+    },
+    // SDK 2.26.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
+    // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and
+    // `validateSessions(args)` → `{ results }` | null. One per instance; the core hands it out as
+    // `ctx.core.resourceScheduler()`, so a plugin never requires another.
+    resourceScheduler(provider) {
+      SCHEDULER_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} resource scheduler lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.resourceScheduler);
+      if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
+      record.resourceScheduler = provider;
+    },
+    // SDK 2.26.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
+    // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
+    // `ctx.core.resourceHolds(...)` as occupancy. Synchronous, one per plugin.
+    resourceHolds(source) {
+      if (typeof source !== 'function') throw new Error(`${prefix} resourceHolds needs a function`);
+      if (record.resourceHolds) throw new Error(`${prefix} resourceHolds is already declared`);
+      record.resourceHolds = source;
+    },
+    // SDK 2.26.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
+    // (`ctx.core.payments.basketLink(...)`): `paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId })`
+    // runs, synchronously, when such a link is paid — on time or late — and answers `{ effect }`; `refundOwed: true`
+    // marks money the stay keeps nothing for. One plugin per `source`.
+    paymentBasket({ source, paid, labels } = {}) {
+      if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(source || ''))) throw new Error(`${prefix} a payment basket needs a source like "shopOrder"`);
+      if (typeof paid !== 'function') throw new Error(`${prefix} payment basket "${source}" needs a paid function`);
+      const other = registry.all().find((r) => (r.paymentBaskets || []).some((b) => b.source === source));
+      if (other) throw new Error(`${prefix} the payment basket "${source}" is already declared by ${other.id}`);
+      // The ledger's words for a payment of this basket the core must refund (« Commande client à rembourser »);
+      // without them it reads « Paiement en ligne à rembourser ».
+      if (labels !== undefined && (!labels || typeof labels !== 'object'
+        || ['refundOne', 'refundMany'].some((k) => labels[k] !== undefined && (typeof labels[k] !== 'string' || !labels[k].trim())))) {
+        throw new Error(`${prefix} payment basket "${source}" labels are { refundOne?, refundMany? } texts`);
+      }
+      record.paymentBaskets.push({ source, paid, labels: { ...(labels || {}) } });
     },
     // (resource, { properties }) → { lines?: [{ label, value }], footer?: string } | null — what the plugin
     // adds to a resource's card on Options & ressources while it is live (specs/options-resources-ux.md

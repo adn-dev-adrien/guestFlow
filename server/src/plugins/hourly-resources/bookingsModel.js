@@ -10,6 +10,9 @@ const sdk = require('../sdk');
 const resourceOccupancyModel = require('./occupancyModel');
 const { priceBookingLines, offeredRefusal } = require('./bookingPricing');
 
+// A slot a plugin holds before it reaches the planning, when its source names it in no words of its own.
+const HELD_SLOT = 'Créneau réservé, en attente';
+
 const JOIN_QUERY = `
   SELECT rb.*,
     r.name AS resourceName, r.slotDuration, COALESCE(prp.price, r.price) AS resourcePrice, r.openTime, r.closeTime, r.turnoverMinutes, r.openDays,
@@ -345,7 +348,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
         .all(resourceId, date)
     ).map((b) => ({ ...enrichBooking(b), kind: 'booking' }));
 
-    return [...bookings, ...listReservationSessions({ resourceId, from, to })]
+    return [...bookings, ...listReservationSessions({ resourceId, from, to }), ...listHeldSlots({ resourceId, from, to })]
       .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.startTime).localeCompare(String(b.startTime)));
   }
 
@@ -393,6 +396,31 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       }
     }
     return out;
+  }
+
+  /**
+   * The slots a guest order awaiting payment holds (specs/guest-app.md rule 35), shaped like a guest session —
+   * read-only, opening the stay's fiche — so the operator sees the slot taken before the money arrives.
+   */
+  function listHeldSlots({ resourceId, from, to }) {
+    const holds = occupancyModel.listHolds({ resourceId, from, to });
+    if (!holds.length) return [];
+    const resource = database.prepare('SELECT name, turnoverMinutes FROM resources WHERE id = ?').get(Number(resourceId)) || {};
+    return holds.map((hold) => ({
+      id: `hold-${hold.reservationId || 0}-${hold.date}-${hold.start}`,
+      kind: 'session',
+      held: true,
+      reservationId: hold.reservationId,
+      resourceId: Number(resourceId),
+      resourceName: resource.name,
+      date: hold.date,
+      startTime: hold.start,
+      endTime: hold.end,
+      turnoverMinutes: Number(resource.turnoverMinutes || 0),
+      propertyName: '',
+      displayName: hold.label || HELD_SLOT,
+      paid: false,
+    }));
   }
 
   function findById(id) {

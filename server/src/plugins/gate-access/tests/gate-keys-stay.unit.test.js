@@ -12,7 +12,7 @@ const Database = require('better-sqlite3');
 const { freshDb, addStay, fakePush, silent } = require('./gateKeysFixtures');
 const { buildKeyList } = require('../keys');
 const { receiveResults } = require('../results');
-const { toParisIso } = require('../window');
+const { toParisIso } = require('../../../utils/stayWindow');
 const { migratePropertyId } = require('../keysModel');
 
 const at = (iso) => new Date(iso);

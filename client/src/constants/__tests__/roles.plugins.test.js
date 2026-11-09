@@ -4,6 +4,7 @@
 import { canSeeRoute, canSeeAnyRoute, ROUTE_ROLES } from '../roles';
 import { PLUGIN_IDS, ROUTE_PLUGINS, isRouteEnabled, isPluginEnabled } from '../plugins';
 import { visibleSettingsMenu, SETTINGS_MENU } from '../settingsMenu';
+import PLUGIN_MODULES from '../../plugins';
 
 // An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
 const admin = (enabledPlugins) => ({ roles: ['admin'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true });
@@ -30,6 +31,13 @@ describe('plugin gate on routes', () => {
     for (const id of ['google-calendar', 'neat', 'weather-alerts', 'gate-access']) {
       expect(canSeeRoute(admin([id]), '/settings/integrations')).toBe(true);
     }
+  });
+
+  test('Intégrations stays while any plugin that contributes a section to it is active, guest-app included', () => {
+    const contributors = PLUGIN_MODULES.filter((mod) => (mod.contributes?.['settings.integrations'] || []).length).map((mod) => mod.id);
+    expect(contributors).toContain('guest-app');
+    for (const id of contributors) expect(canSeeRoute(admin([id]), '/settings/integrations')).toBe(true);
+    expect(canSeeRoute(admin(['linen']), '/settings/integrations')).toBe(false);
   });
 
   test('the accountant loses the accounting pages with the accounting export', () => {

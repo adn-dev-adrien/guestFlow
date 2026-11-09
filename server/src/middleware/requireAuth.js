@@ -31,12 +31,16 @@ function isOpenSupportSession(req, user) {
   return Boolean(user && user.isSupport && req.session && req.session.supportAccessId);
 }
 
-function createRequireAuth(users) {
-  return function requireAuth(req, res, next) {
+/**
+ * The session's user re-read from the database, for every gate that serves a signed-in user (this `/api`
+ * middleware, a plugin's own web app): `{ user }` — `req.session.user` and `req.user` refreshed — or
+ * `{ refused: 'unauthenticated' | 'password', revoke? }`. `revoke` = the user is gone or deactivated: the
+ * caller destroys the session.
+ */
+function createRevalidate(users) {
+  return function revalidate(req) {
     const snapshot = req.session && req.session.user;
-    if (!snapshot) {
-      return res.status(401).json({ error: 'UNAUTHENTICATED' });
-    }
+    if (!snapshot) return { refused: 'unauthenticated' };
 
     let fresh = null;
     try {
@@ -46,30 +50,37 @@ function createRequireAuth(users) {
     }
 
     // Row gone (hard-deleted) or deactivated (soft-deleted) while the session was live → revoke
-    // this session and reject. `destroy` clears the store row so the cookie is dead from now on.
-    // `isActive` comes from the model as a boolean; we reject only when it is explicitly false so
-    // a model that omits the flag is treated as active.
-    if (!fresh || (fresh.isActive === false && !isOpenSupportSession(req, fresh))) {
-      if (req.session && typeof req.session.destroy === 'function') {
-        return req.session.destroy(() => res.status(401).json({ error: 'UNAUTHENTICATED' }));
-      }
-      return res.status(401).json({ error: 'UNAUTHENTICATED' });
-    }
-
-    if (fresh.mustChangePassword) {
-      return res.status(403).json({ error: 'PASSWORD_CHANGE_REQUIRED' });
-    }
+    // this session and reject. `isActive` comes from the model as a boolean; we reject only when
+    // it is explicitly false so a model that omits the flag is treated as active.
+    if (!fresh || (fresh.isActive === false && !isOpenSupportSession(req, fresh))) return { refused: 'unauthenticated', revoke: true };
+    if (fresh.mustChangePassword) return { refused: 'password' };
 
     // Refresh the persisted snapshot so a role change (and any identity edit) takes effect on the
     // next request without a logout/login, and downstream reads of req.user are current.
     req.session.user = fresh;
     req.user = fresh;
-    return next();
+    return { user: fresh };
+  };
+}
+
+function createRequireAuth(users) {
+  const revalidate = createRevalidate(users);
+  return function requireAuth(req, res, next) {
+    const checked = revalidate(req);
+    if (checked.user) return next();
+    if (checked.refused === 'password') return res.status(403).json({ error: 'PASSWORD_CHANGE_REQUIRED' });
+    // `destroy` clears the store row so the cookie is dead from now on.
+    if (checked.revoke && req.session && typeof req.session.destroy === 'function') {
+      return req.session.destroy(() => res.status(401).json({ error: 'UNAUTHENTICATED' }));
+    }
+    return res.status(401).json({ error: 'UNAUTHENTICATED' });
   };
 }
 
 const requireAuth = createRequireAuth(defaultUsersModel);
 requireAuth.create = createRequireAuth;
+requireAuth.createRevalidate = createRevalidate;
+requireAuth.revalidate = createRevalidate(defaultUsersModel);
 requireAuth.isOpenSupportSession = isOpenSupportSession;
 
 module.exports = requireAuth;

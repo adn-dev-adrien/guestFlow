@@ -43,6 +43,23 @@ const reservationBrief = (row) => ({
 });
 
 /**
+ * specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 35) — a paid link billing a plugin's own basket (a guest
+ * order) lands on the account like any link payment: its whole amount, whatever part is flagged « à rembourser »
+ * (that money leaves later, as a refund). On a platform stay as on a direct one: the guest paid GuestFlow, not
+ * the platform.
+ */
+function basketReceipts(row, links, brief, platform) {
+  return links.filter((l) => l.status === 'paid' && l.basketJson && Number(l.amountCents) > 0).map((l) => ({
+    reservationId: row.id, ledgerKey: `basket-${l.id}`, label: `Paiement en ligne (lien ${l.id})`,
+    channel: 'link', platform,
+    expectedCents: Number(l.amountCents), grossCents: Number(l.amountCents), payoutRecorded: true,
+    expectedDate: day(l.paidAt), dueDate: day(l.paidAt), paid: true, paidDate: day(l.paidAt),
+    linkPaidAt: day(l.paidAt),
+    reservation: brief,
+  }));
+}
+
+/**
  * @param {object} row                 the stored reservation row joined with its client and property
  * @param {object} deps
  * @param {Function} deps.buildLedger  the core's ledger
@@ -61,16 +78,17 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
   const isPlatform = platform.trim().toLowerCase() !== 'direct';
   const out = [];
   const isPaid = (r) => String(r.state).startsWith('paid');
+  const baskets = basketReceipts(row, links, brief, platform);
 
   if (isPlatform) {
     const balance = ledger.rows.find((r) => r.key === 'balance');
-    if (!balance) return out;
+    if (!balance) return baskets;
     const paid = isPaid(balance);
     const grossRaw = row.platformGrossAmount != null && row.platformGrossAmount !== ''
       ? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
     const payout = row.platformPayoutAmount != null && row.platformPayoutAmount !== '' && Number(row.platformPayoutAmount) > 0
       ? Number(row.platformPayoutAmount) : null;
-    if (!(grossRaw > 0) && payout == null) return out;
+    if (!(grossRaw > 0) && payout == null) return baskets;
     // Rule 46 — the solde credit of a platform that took an acompte carries the solde only.
     const acompteNet = platformAcompteNet(row);
     // Rule 31 of the reconciliation spec — what the platform kept as a penalty never reaches the account.
@@ -86,7 +104,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
       paid, paidDate: paid ? day(row.balancePaidDate) : null,
       reservation: brief,
     });
-    return out;
+    return [...out, ...baskets];
   }
 
   // specs/mixed-method-payments.md rule 28 — a payment split over several methods is expected settlement by
@@ -156,7 +174,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
       reservation: brief,
     });
   });
-  return out;
+  return [...out, ...baskets];
 }
 
 // The stay's split payments, read through the core's model (specs/mixed-method-payments.md rule 28).

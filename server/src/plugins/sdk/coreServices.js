@@ -18,6 +18,8 @@ const clients = lazy('../../models/clientsModel');
 const database = lazy('../../database');
 const pricing = lazy('../../utils/pricing');
 const clientValidation = lazy('../../utils/clientValidation');
+const registry = lazy('./registry');
+const basketPayments = lazy('../../utils/basketPayments');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
@@ -102,6 +104,29 @@ function updateClient(id, patch) {
   return clients().update(Number(id), { ...current, ...patch });
 }
 
+// SDK 2.26.0 (specs/guest-app.md rules 28-31) — the scheduler a live plugin declared, or null: without it nothing
+// sells an hourly slot outside the fiche.
+function resourceScheduler() {
+  const record = registry().all().find((r) => r.resourceScheduler && registry().isLive(r.id));
+  return record ? record.resourceScheduler : null;
+}
+
+// SDK 2.26.0 (specs/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
+// source that fails holds nothing: the planning keeps working, and the commit re-checks the slot anyway.
+function resourceHolds({ resourceId, from, to }) {
+  return registry().all()
+    .filter((r) => r.resourceHolds && registry().isLive(r.id))
+    .flatMap((r) => {
+      try {
+        const held = r.resourceHolds({ resourceId: Number(resourceId), from, to });
+        return Array.isArray(held) ? held : [];
+      } catch (err) {
+        console.error(`[plugin:${r.id}] resource holds failed:`, err && err.message); // eslint-disable-line no-console
+        return [];
+      }
+    });
+}
+
 module.exports = Object.freeze({
   reservations: Object.freeze({
     getByIdWithDetails: (id) => reservations().getByIdWithDetails(id),
@@ -132,5 +157,14 @@ module.exports = Object.freeze({
   }),
   text: Object.freeze({
     sentenceCase: (s) => textFormatters().sentenceCase(s),
+  }),
+  resourceScheduler,
+  resourceHolds,
+  // SDK 2.26.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
+  // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
+  payments: Object.freeze({
+    basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),
+    refreshBasketLink: (linkId) => basketPayments().refreshBasketLink(linkId),
+    withdrawBasketLink: (linkId) => basketPayments().withdrawBasketLink(linkId),
   }),
 });

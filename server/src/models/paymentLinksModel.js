@@ -112,14 +112,18 @@ function isPollDue(link, nowMs, cadence = POLL_CADENCE_DEFAULTS) {
 function buildModel(database) {
   const OWES_LAST_LOOK = "status = 'expired' OR (status = 'cancelled' AND cancelReason = 'dates-taken')";
 
+  // specs/guest-app.md rule 35 — the basket a `complement` link bills (a guest order). A schema without the column
+  // (a unit suite's own table) has no basket link.
+  const HAS_BASKET = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'basketJson');
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
-    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId`;
+    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId${HAS_BASKET ? ', basketJson' : ''}`;
 
+  // A basket link is written whole, its basket in the same statement: no reader ever sees it as a bucket's link.
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
-      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, createdAt, expiresAt, installmentId)
+      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, createdAt, expiresAt, installmentId${HAS_BASKET ? ', basketJson' : ''})
     VALUES
-      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, COALESCE(@createdAt, datetime('now')), @expiresAt, @installmentId)
+      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, COALESCE(@createdAt, datetime('now')), @expiresAt, @installmentId${HAS_BASKET ? ', @basketJson' : ''})
   `);
 
   function findById(id) {
@@ -127,6 +131,11 @@ function buildModel(database) {
   }
 
   function create(payload) {
+    if (payload.basket != null && !HAS_BASKET) throw new Error('payment_links has no basket column');
+    return insertLink(payload);
+  }
+
+  function insertLink(payload) {
     const type = String(payload.type || '');
     if (!VALID_TYPES.has(type)) throw new Error(`Invalid payment link type: ${type}`);
     const status = payload.status ? String(payload.status) : 'open';
@@ -143,6 +152,7 @@ function buildModel(database) {
       createdAt: payload.createdAt == null ? null : String(payload.createdAt),
       expiresAt: payload.expiresAt == null ? null : String(payload.expiresAt),
       installmentId: payload.installmentId == null ? null : Number(payload.installmentId),
+      ...(HAS_BASKET ? { basketJson: payload.basket == null ? null : JSON.stringify(payload.basket) } : {}),
     });
     return findById(info.lastInsertRowid);
   }
@@ -219,7 +229,7 @@ function buildModel(database) {
            (l.type = 'deposit' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1)
            OR (l.type IN ('balance', 'full') AND COALESCE(c.balancePaid, r.balancePaid, 0) = 1)
            OR (l.type = 'full' AND COALESCE(c.depositPaid, r.depositPaid, 0) = 1 AND COALESCE(c.depositAmount, r.depositAmount, 0) > 0)
-           OR (l.type = 'complement' AND COALESCE(c.complementPaid, r.complementPaid, 0) = 1)
+           OR (l.type = 'complement' AND COALESCE(c.complementPaid, r.complementPaid, 0) = 1${HAS_BASKET ? ' AND l.basketJson IS NULL' : ''})
            OR (l.type = 'installment' AND EXISTS (
              SELECT 1 FROM reservation_installments i WHERE i.id = l.installmentId AND i.paid = 1
            ))

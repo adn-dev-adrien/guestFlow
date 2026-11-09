@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -144,6 +144,10 @@
       "« Plusieurs moyens » réservé à l’administrateur ; l’accueil enregistre le départ avec un seul moyen.",
       "Un acompte réparti va tout en compta ou tout en caisse interne, sans reste ni geste ; un paiement déjà rapproché avec la banque ne se répartit plus.",
       "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.9.0": [
+      "L’étape « Portail » du sas d’arrivée peut laisser la place à l’étape « Mon séjour » de l’application clients, le QR du portail restant à portée.",
+      "Compatible avec le SDK 2.24 de GuestFlow."
     ]
   }
 }

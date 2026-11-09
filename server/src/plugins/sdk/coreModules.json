@@ -380,6 +380,7 @@
   "pricing": [
     "__test",
     "addDaysToIsoDate",
+    "applyFreeUnitsToLine",
     "buildDefaultProgressiveTiers",
     "buildProgressivePreview",
     "calculateBaseStayPrice",
@@ -389,6 +390,8 @@
     "computePercentOfStayAmount",
     "computeTouristTaxBreakdown",
     "effectiveMinNightsForDate",
+    "getApplicableOptions",
+    "getApplicableResources",
     "getBoundsFromDateRanges",
     "getRuleNightBaseForDate",
     "getTypeMultiplier",
@@ -810,6 +813,61 @@
     "stayDatesRefusal",
     "stayDatesRefusalBody",
     "stayItemDatesRefusal"
+  ],
+  "stayWindow": [
+    "CLOSES_AFTER_CHECK_OUT_MS",
+    "DEFAULT_CHECK_IN",
+    "DEFAULT_CHECK_OUT",
+    "OPENS_BEFORE_CHECK_IN_MS",
+    "TIME_ZONE",
+    "__test",
+    "computeWindow",
+    "toParisIso",
+    "wallClockToDate"
+  ],
+  "encryption": [
+    "decrypt",
+    "encrypt",
+    "isEncrypted",
+    "safeDecrypt"
+  ],
+  "publicCatalogProjection": [
+    "hoursLabel",
+    "isOfferedPlural",
+    "isResolver",
+    "labelsFor",
+    "optionPriceLabels",
+    "resolveTitle",
+    "resourceFreeLabel",
+    "toPublicOption",
+    "toPublicResource"
+  ],
+  "midStayExtrasWindow": [
+    "arrivalExtrasViolations",
+    "arrivalLineFloors",
+    "buildEditLock",
+    "extrasContentChanged",
+    "isMidStayExtrasWindowOpen",
+    "midStayExtrasWindow"
+  ],
+  "safeFeedFetch": [
+    "FeedFetchError",
+    "fetchPublic",
+    "readCapped"
+  ],
+  "instancePaths": [
+    "uploadsDir"
+  ],
+  "midStayOrderCommit": [
+    "commitOrder",
+    "mergeOrderLines",
+    "priceOrder"
+  ],
+  "securityConfig": [
+    "shouldEnforceHttps"
+  ],
+  "requireAuth": [
+    "revalidate"
   ],
   "financeModel": [
     "buildModel",

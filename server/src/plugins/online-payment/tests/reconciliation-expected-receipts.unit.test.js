@@ -77,3 +77,19 @@ test('rule 8 — an échéance with nothing to collect is not an expected receip
   const id = addReservation({ balanceAmount: 0, finalPrice: 0 });
   assert.deepEqual(of(id), []);
 });
+
+test('specs/plugins-phase-1-sdk.md rule 47 — a paid basket link (a guest order) is expected for its whole amount, on a direct stay as on a platform one', () => {
+  const basket = (reservationId, status, cents, refund = null) => db.prepare(`INSERT INTO payment_links
+      (reservationId, type, providerLinkId, url, amountCents, currency, status, createdAt, paidAt, basketJson)
+      VALUES (?, 'complement', ?, 'https://pay.example.test', ?, 'EUR', ?, ?, ?, ?)`)
+    .run(reservationId, `pl_b${reservationId}${cents}`, cents, status, `${dayAt(-2)} 10:00:00`, status === 'paid' ? `${dayAt(-2)}T10:05:00Z` : null,
+      JSON.stringify({ source: 'guestOrder', ref: '7', ...(refund ? { refundOwed: true, refundCents: refund } : {}) })).lastInsertRowid;
+  const direct = addReservation({ depositAmount: 200, balanceAmount: 500, finalPrice: 700 });
+  const paid = basket(direct, 'paid', 1800, 600);
+  basket(direct, 'expired', 900);
+  assert.deepEqual(of(direct).filter((r) => r.ledgerKey.startsWith('basket')).map((r) => [r.ledgerKey, r.expectedCents, r.channel, r.paid, r.paidDate]),
+    [[`basket-${paid}`, 1800, 'link', true, dayAt(-2)]]);
+  const platform = addReservation({ platform: 'Airbnb', balanceAmount: 300, finalPrice: 300, platformGrossAmount: 300, balanceDueDate: dayAt(26) });
+  basket(platform, 'paid', 1200);
+  assert.deepEqual(of(platform).map((r) => [r.channel, r.expectedCents]), [['platform:Airbnb', 30000], ['link', 1200]]);
+});

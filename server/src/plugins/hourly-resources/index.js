@@ -19,6 +19,7 @@ const { buildRouter } = require('./routes');
 const { createHourlyContributor } = require('./pricing');
 const { createSasStep } = require('./sasStep');
 const { buildCatalogueLines } = require('./catalogueLines');
+const { createScheduler } = require('./scheduler');
 const { createInvoicing } = require('./invoicing');
 const { SETTINGS, standaloneVatRateOf } = require('./settings');
 
@@ -72,6 +73,13 @@ function register(ctx) {
     { method: 'POST', re: /^\/planning\/resource-cards\/done$/ },
     { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
   ]);
+
+  // specs/guest-app.md rules 28-31 — the slots a guest books from the app, read from this planning.
+  const scheduler = lazy(() => createScheduler(ctx.db));
+  ctx.resourceScheduler({
+    slotsForStay: (args) => scheduler().slotsForStay(args),
+    validateSessions: (args) => scheduler().validateSessions(args),
+  });
 
   // Rule 12 — the « Planifier » step of the arrival SAS.
   const sasStep = createSasStep({ scheduling, reservations });
@@ -132,6 +140,7 @@ function register(ctx) {
       invoicing.reset();
       scheduling.reset();
       planningCards.reset();
+      scheduler.reset();
       controller.reset();
     },
   });
