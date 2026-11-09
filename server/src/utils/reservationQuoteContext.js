@@ -59,9 +59,14 @@ function midStayQuoteInputs(db, reservationId) {
 // which no recompute may move. No stored row (creation, public quote) → the booking happens today.
 // `editedStartDate`, on the live quote of an unsaved devis edit: the validity date is the one the save will write
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1), never the raw stored one.
-function scheduleQuoteInputs(db, bookingId, { editedStartDate } = {}) {
+// `newDevis`, on the live quote of a devis not saved yet: it is priced as the devis the create will store,
+// with the validity date the create will write (specs/deposit-blocks-the-dates.md rule 19, audit R33-M-L1).
+function scheduleQuoteInputs(db, bookingId, { editedStartDate, newDevis = false } = {}) {
   const fallback = { bookingDate: getTodayIsoDate(), existingDepositDueDate: null, kind: 'reservation', validUntil: null };
-  if (!bookingId || bookingId <= 0) return fallback;
+  if (!bookingId || bookingId <= 0) {
+    if (!newDevis) return fallback;
+    return { ...fallback, kind: 'devis', validUntil: editedDevisValidUntil(db, {}, editedStartDate) || null };
+  }
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(bookingId));
   if (!row) return fallback;
   return {
@@ -69,9 +74,21 @@ function scheduleQuoteInputs(db, bookingId, { editedStartDate } = {}) {
     existingDepositDueDate: row.depositDueDate || null,
     kind: row.kind || 'reservation',
     validUntil: (editedStartDate && row.kind === 'devis' ? editedDevisValidUntil(db, row, editedStartDate) : row.validUntil) || null,
+    devisPromise: row.kind === 'devis' ? null : devisPromiseOf(db, row.id),
     // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9).
     paidSoldeCaptured: Number(row.balancePaid || 0) === 1 && row.accommodationSoldeContribTtc != null,
   };
+}
+
+// D23 — the devis a reservation was converted from: the dates it quoted and the day it promised them until.
+// A minimal suite schema without the devis columns has no devis to read: no promise.
+function devisPromiseOf(db, reservationId) {
+  let devis = null;
+  try {
+    devis = db.prepare("SELECT startDate, validUntil FROM reservations WHERE kind = 'devis' AND convertedReservationId = ? ORDER BY id DESC LIMIT 1")
+      .get(Number(reservationId));
+  } catch { return null; }
+  return devis && devis.validUntil ? { startDate: devis.startDate, validUntil: devis.validUntil } : null;
 }
 
 function editedDevisValidUntil(db, row, startDate) {

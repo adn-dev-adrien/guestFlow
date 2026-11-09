@@ -19,7 +19,9 @@ const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
-const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
+const {
+  resolveDepositDueDate, resolveBalanceDueDate, owesSinglePaymentByValidity, devisPromiseDueDate,
+} = require('../utils/paymentSchedule');
 const { buildHistoryRows } = require('../utils/reservationAudit');
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
@@ -160,12 +162,20 @@ function createModel(database) {
     // A legacy row with no stored split at all (NULL — never 0, which is a legitimate « no acompte »
     // on a last-minute stay) keeps the historic derivation rather than displaying nothing.
     const hasStoredSplit = row.depositAmount != null && row.balanceAmount != null;
-    const depositAmount = hasStoredSplit
+    // D23 (specs/deposit-blocks-the-dates.md rule 19) — a devis whose solde falls on or before its validity
+    // date carries no acompte, as the engine decides: a row stored with one (before the rule, or copied
+    // from a reservation) reads as the single payment the engine, the link and the conversion use.
+    const singlePayment = owesSinglePaymentByValidity({
+      startDate: row.startDate, validUntil: row.validUntil, balanceDaysBefore: property?.balanceDaysBefore,
+    });
+    const storedDeposit = hasStoredSplit
       ? roundMoney(Number(row.depositAmount))
       : roundMoney(totalStayPrice * (depositPercent / 100));
-    const balanceAmount = hasStoredSplit
+    const storedBalance = hasStoredSplit
       ? roundMoney(Number(row.balanceAmount))
-      : roundMoney(totalStayPrice - depositAmount);
+      : roundMoney(totalStayPrice - storedDeposit);
+    const depositAmount = singlePayment ? 0 : storedDeposit;
+    const balanceAmount = singlePayment ? roundMoney(storedDeposit + storedBalance) : storedBalance;
     // specs/payment-schedule-and-cancellation.md §3.1 rule 5 — a devis promises its dates until its
     // validity date: that IS its acompte deadline. The solde keeps the stay-relative derivation,
     // clamped so it can never fall before the day the quote was issued.
@@ -1293,6 +1303,26 @@ function createModel(database) {
     }) || 0;
   }
 
+  // The schedule a converted stay starts with. A devis stored with an acompte outside D23 keeps its stored
+  // columns as they were (rule 5 reading R33: the conversion keeps the devis's promise).
+  function convertedSchedule(devisRow, property) {
+    const stored = {
+      depositAmount: devisRow.depositAmount, depositDueDate: devisRow.depositDueDate,
+      balanceAmount: devisRow.balanceAmount, balanceDueDate: devisRow.balanceDueDate,
+    };
+    const single = isDirectChannel(devisRow.platform) && owesSinglePaymentByValidity({
+      startDate: devisRow.startDate, validUntil: devisRow.validUntil, balanceDaysBefore: property.balanceDaysBefore,
+    });
+    if (!single) return stored;
+    const read = resolvePaymentSchedule(devisRow, property);
+    return {
+      depositAmount: 0,
+      depositDueDate: null,
+      balanceAmount: read.balanceAmount,
+      balanceDueDate: read.balanceAmount > 0 ? devisPromiseDueDate({ validUntil: devisRow.validUntil, bookingDate: todayIso() }) : null,
+    };
+  }
+
   // `options.allowConflict` is for the paid-link path only: the money is already in, so the stay is
   // created anyway and the caller flags the clash (specs/devis-accept-to-reservation.md rules 9 and 10).
   function convertToReservation(id, options = {}) {
@@ -1319,6 +1349,12 @@ function createModel(database) {
       if (noStock) return { error: noStock, status: 409, code: 'STOCK_UNAVAILABLE' };
     }
 
+    // D23 (specs/deposit-blocks-the-dates.md rule 19) — the stay owes what the devis asked for: its schedule as the
+    // devis reads it, the single payment of a devis whose solde fell on or before its validity date included,
+    // due on that date (never before today: an expired quote converted late). The engine keeps it on the
+    // reservation's later saves (scheduleQuoteInputs → devisPromise).
+    const schedule = convertedSchedule(devisRow, property);
+
     const tx = database.transaction(() => {
       const info = database.prepare(`
         INSERT INTO reservations (
@@ -1333,7 +1369,7 @@ function createModel(database) {
         devisRow.adults, devisRow.children, devisRow.teens, devisRow.babies,
         devisRow.singleBeds, devisRow.doubleBeds, devisRow.babyBeds, devisRow.checkInTime, devisRow.checkOutTime, devisRow.platform,
         devisRow.totalPrice, devisRow.touristTaxRate, devisRow.touristTaxTotal, devisRow.discountPercent, devisRow.customPrice, devisRow.finalPrice,
-        devisRow.depositAmount, devisRow.depositDueDate, devisRow.balanceAmount, devisRow.balanceDueDate, devisRow.cautionAmount, devisRow.notes,
+        schedule.depositAmount, schedule.depositDueDate, schedule.balanceAmount, schedule.balanceDueDate, devisRow.cautionAmount, devisRow.notes,
       );
       const reservationId = info.lastInsertRowid;
       copyLineGraph(numId, reservationId);
@@ -1429,6 +1465,13 @@ function createModel(database) {
     const createdAtDate = todayIso();
     const quoteValidityDays = readQuoteValidityDays();
     const validUntil = computeValidUntil({ createdAtIsoDate: createdAtDate, startDateIso: reservation.startDate, quoteValidityDays }) || null;
+    // The quote's own schedule, as findById will read it: its acompte due on its validity date, or no acompte
+    // at all when its solde falls on or before that date (D23, specs/deposit-blocks-the-dates.md rule 19).
+    const property = database.prepare('SELECT id, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(reservation.propertyId);
+    const schedule = resolvePaymentSchedule(
+      { ...reservation, validUntil, createdAt },
+      { ...property, depositEnabled: readDepositEnabled(reservation.propertyId) },
+    );
 
     const tx = database.transaction(() => {
       const info = database.prepare(`
@@ -1442,7 +1485,7 @@ function createModel(database) {
         reservation.adults, reservation.children, reservation.teens, reservation.babies,
         reservation.singleBeds, reservation.doubleBeds, reservation.babyBeds, reservation.checkInTime, reservation.checkOutTime, reservation.platform,
         reservation.totalPrice, reservation.touristTaxRate, reservation.touristTaxTotal, reservation.discountPercent, reservation.customPrice, reservation.finalPrice,
-        reservation.depositAmount, reservation.depositDueDate, reservation.balanceAmount, reservation.balanceDueDate, reservation.cautionAmount || 0, reservation.notes,
+        schedule.depositAmount, schedule.depositDueDate, schedule.balanceAmount, schedule.balanceDueDate, reservation.cautionAmount || 0, reservation.notes,
         validUntil, createdAt,
       );
       const devisId = info.lastInsertRowid;
