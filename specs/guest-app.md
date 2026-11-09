@@ -374,7 +374,10 @@ is pushed every order.
     gap is theirs, left on the end-of-stay complement. When it costs less (a price lowered), the order is committed and
     only the gap is flagged « à rembourser » on the link (`basketJson.refundCents`), with its history entry
     (« 6,00 € sur 18,00 € payés… ») and the ledger row for that part. An order paid while it still awaited its payment
-    held its units: it is never judged on the stock (rule 37quater is for a late payment).
+    held its units: it is never judged on the stock (rule 37quater is for a late payment). **One card order waits for
+    its payment at a time** (final review of 2026-11-09): while one's link is live, a second card order is refused
+    (`CARD_ORDER_PENDING`), the note staying open — two pending card orders paid out of order would see the later one
+    take the earlier one's allowance. A hold that has lapsed holds nothing, even before the expiry job flips its order.
 36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, its holds are
     released, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
     order if its slots are still free; otherwise the order goes `paid_conflict`, the operator is pushed, and
