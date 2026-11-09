@@ -11,6 +11,7 @@ const sdk = require('../sdk');
 const { DECLARED, reconciliationDeclared, KEYS, createSettingsStore, bind } = require('./settingsStore');
 const { mountReconciliation } = require('./reconciliation');
 const { createQontoProvider } = require('./provider');
+const { createQontoInvoiceIssuer } = require('./invoiceIssuer');
 const { createWebhookController } = require('./webhookController');
 const { resolvePaymentPollTickMs } = require('./paymentPollSchedule');
 const { createPaymentJobs } = require('./paymentJobs');
@@ -19,6 +20,7 @@ const { createPaymentJobs } = require('./paymentJobs');
 // control plane: the plugin wires it to the instance's settings and routes.
 const { createQontoSettingsController, mountQontoSettingsRoutes } = sdk.coreModule('qonto').qontoSettingsController;
 const { ensureWebhookSubscription } = sdk.coreModule('qonto').qontoWebhookRegistrar;
+const { DEFAULT_SCOPES, INVOICING_SCOPES } = sdk.coreModule('qonto').qontoClient;
 
 const id = 'online-payment';
 
@@ -66,13 +68,16 @@ function register(ctx) {
   bind(store);
   const provider = createQontoProvider({ settings: store });
   ctx.paymentProvider(provider);
+  // specs/resource-booking-pricing-and-invoicing.md rule 14 — Qonto numbers and keeps the invoices a plugin asks for.
+  ctx.invoiceIssuer(createQontoInvoiceIssuer({ store: () => store, iban: () => String(coreSettings().read().companyIban || '') }));
   // specs/plugins-phase-0-foundation.md rule 25 — the Plugins card says the connection is missing.
   ctx.setupStatus(() => (store.qontoConnected() ? null : 'à connecter'));
 
   // Rule 11 — the settings page endpoints, at the URLs the Paiements page and Qonto (OAuth redirect)
   // already know.
   const router = express.Router();
-  mountQontoSettingsRoutes(router, createQontoSettingsController({ settings: store }));
+  // Q6 — the consent asks the invoicing scopes too; a connection made before them is told to reconnect when it invoices.
+  mountQontoSettingsRoutes(router, createQontoSettingsController({ settings: store, scopes: [...DEFAULT_SCOPES, ...INVOICING_SCOPES] }));
   ctx.mount('/api/payments', router);
 
   // Rule 12 — the URL registered at Qonto.

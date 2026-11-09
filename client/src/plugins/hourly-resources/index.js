@@ -18,6 +18,8 @@ export default {
     // What the settings search finds Options & ressources by while hours are sold
     // (specs/platform-settings-relay-and-review.md rule 10).
     'settings.keywords': [{ key: 'hourly', path: '/parametres/options-ressources', keywords: ['Ressources à l’heure', 'Créneaux', 'Sauna', 'Spa'] }],
+    // specs/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
+    'settings.integrations': [{ key: 'hourly-vat', order: 60, tabLabel: 'Ressources à l’heure', keywords: ['TVA', 'Bain nordique', 'Hors séjour'], Component: lazy(() => import('./SettingsSection')) }],
     'resources.fields': [{
       key: 'hourly', appliesTo: isPerHour, Component: lazy(() => import('./HourlyResourceFields')),
     }],

@@ -15,6 +15,7 @@ const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', '
 const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
+const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
 function createContext(id, { db, settingsModel, dataDir = null } = {}) {
@@ -118,6 +119,23 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (typeof build !== 'function') throw new Error(`${prefix} resourceCatalogueLines needs a function`);
       if (record.resourceCatalogueLines) throw new Error(`${prefix} resourceCatalogueLines is already declared`);
       record.resourceCatalogueLines = build;
+    },
+    // The invoice issuer (specs/resource-booking-pricing-and-invoicing.md rule 14): numbers and keeps the invoices a
+    // plugin asks for, and joins their PDF to a bank transaction. One per instance, like the payment provider.
+    invoiceIssuer(issuer) {
+      ISSUER_MEMBERS.forEach((m) => {
+        if (issuer == null || issuer[m] == null) throw new Error(`${prefix} invoice issuer lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.invoiceIssuer);
+      if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
+      record.invoiceIssuer = issuer;
+    },
+    // ({ from, to }) → [sale] — what the plugin sold outside any stay, for the journal and the card batch
+    // (specs/resource-booking-pricing-and-invoicing.md rules 20-21). Synchronous, reads the plugin's own tables.
+    standaloneSales(list) {
+      if (typeof list !== 'function') throw new Error(`${prefix} standaloneSales needs a function`);
+      if (record.standaloneSales) throw new Error(`${prefix} standaloneSales is already declared`);
+      record.standaloneSales = list;
     },
     // A commit hook for one of the plugin's arrival SAS steps (rule 6).
     sasCommit(hook) {

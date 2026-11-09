@@ -27,7 +27,7 @@ const BOOKING = {
 };
 const PRICE = (total, extra = {}) => ({
   total, pricing: 'banded', rateGrid: 'external', durationMinutes: 120, freeMinutesApplied: 0, billedMinutes: 120,
-  grossTotal: total, bands: [], freeValue: 0, ...extra,
+  grossTotal: total, bands: [], freeValue: 0, lines: [], vat: null, ...extra,
 });
 
 function mount(props = {}) {
@@ -58,7 +58,7 @@ test('rules 8, 9 — the draft is the price-relevant state, with no amount and n
   mount();
   await waitFor(() => expect(api.previewResourceBooking).toHaveBeenCalledTimes(1));
   expect(api.previewResourceBooking.mock.calls[0][0]).toEqual({
-    resourceId: 3, bookingId: 9, date: '2099-02-13', startTime: '18:00', endTime: '20:00', propertyId: null,
+    resourceId: 3, bookingId: 9, date: '2099-02-13', startTime: '18:00', endTime: '20:00', propertyId: null, offeredMinutes: 0,
   });
   expect(await screen.findByText(/70,00 €/)).toBeInTheDocument();
 
@@ -128,25 +128,32 @@ test("rule 14 — a refusal of the range shows the server's message", async () =
   expect(saveButton()).toBeDisabled();
 });
 
-test('rule 16 — a free range reads 0,00 €, and the offered / billed minutes and bands come from the answer', async () => {
+test('rule 16 — a free range reads 0,00 €, its total the answer\'s', async () => {
   api.previewResourceBooking.mockResolvedValue(PRICE(0, {
     pricing: 'free', rateGrid: null,
   }));
   mount();
-  expect(await screen.findByText(/0,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText('Total TTC')).toBeInTheDocument();
+  expect(screen.getAllByText('0,00 €').length).toBeGreaterThan(0);
 });
 
-test('rule 8 — the offered hour and the bands are rendered as the server returned them', async () => {
+// specs/resource-booking-pricing-and-invoicing.md rules 4-5 — the lines, the total and the VAT are the server's, rendered as is.
+test('rule 4 — every line of the answer is rendered, with its detail; rule 5 — the VAT is the answer\'s', async () => {
   api.previewResourceBooking.mockResolvedValue(PRICE(40, {
     freeMinutesApplied: 60, billedMinutes: 60, grossTotal: 70, freeValue: 30,
-    bands: [
-      { band: 'day', from: '18:00', to: '19:00', minutes: 60, rate: 30, amount: 30 },
-      { band: 'evening', from: '19:00', to: '20:00', minutes: 60, rate: 40, amount: 40 },
+    lines: [
+      { key: 'band:day:18:00', label: 'Jour · 18:00–19:00', detail: '1 h × 30,00 €', amount: 30 },
+      { key: 'band:evening:19:00', label: 'Soir · 19:00–20:00', detail: '1 h × 40,00 €', amount: 40 },
+      { key: 'free', label: 'Offert par le logement', detail: '1 h', amount: -30 },
     ],
+    vat: { rate: 20, amount: 6.67, net: 33.33 },
   }));
   mount();
-  expect(await screen.findByText(/^· 40,00 €$/)).toBeInTheDocument();
-  expect(screen.getByText(/1h offerte · 1h facturée · jour 30,00 € · soir 40,00 €/)).toBeInTheDocument();
+  expect(await screen.findByText('Jour · 18:00–19:00')).toBeInTheDocument();
+  expect(screen.getByText('1 h × 40,00 €')).toBeInTheDocument();
+  expect(screen.getByText('−30,00 €')).toBeInTheDocument();
+  expect(screen.getAllByText('40,00 €')).toHaveLength(2); // the evening line and the total
+  expect(screen.getByText('dont TVA 20 % : 6,67 € · HT 33,33 €')).toBeInTheDocument();
 });
 
 test('rule 15 — the commit carries the displayed total; a differing stored price keeps the dialog open on a notice', async () => {
