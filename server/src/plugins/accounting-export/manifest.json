@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -9,7 +9,7 @@
     "Le rôle « Comptable »"
   ],
   "requires": [],
-  "guestflow": ">=3.18.0 <4.0.0",
+  "guestflow": ">=3.18.0",
   "sdk": "^2.25.0",
   "changelog": {
     "1.0.0": [
@@ -141,6 +141,9 @@
     "1.2.0": [
       "Les ventes hors séjour (bain nordique d’un client de passage) entrent dans le journal, avec le numéro de facture Qonto en pièce.",
       "Compatible avec le SDK 2.25 de GuestFlow."
+    ],
+    "1.2.1": [
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
     ]
   }
 }

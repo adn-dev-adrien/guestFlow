@@ -20,7 +20,7 @@ const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
 const {
-  resolveDepositDueDate, resolveBalanceDueDate, owesSinglePaymentByValidity, devisPromiseDueDate,
+  resolveDepositDueDate, resolveBalanceDueDate, owesSinglePaymentByValidity, devisPromisesOnePayment, devisPromiseDueDate,
 } = require('../utils/paymentSchedule');
 const { buildHistoryRows } = require('../utils/reservationAudit');
 const { buildHistoryNameContext } = require('./historyNamesModel');
@@ -1290,6 +1290,13 @@ function createModel(database) {
     if (carriesMoney(database, [existing.id])) {
       return { error: 'Un paiement est enregistré sur ce devis : le conserver plutôt que le supprimer.', status: 409, code: 'DEVIS_CARRIES_MONEY' };
     }
+    // specs/deposit-blocks-the-dates.md rule 21 (R34-RES-L1) — the stay reads the devis's promise on this row
+    // (its single payment and deadline): deleting it would silently re-price the stay's schedule. A cancelled stay
+    // is never re-priced nor brought back, so it holds no deadline any more (rule 23).
+    if (existing.convertedReservationId
+      && database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind NOT IN ('devis', 'cancelled')").get(existing.convertedReservationId)) {
+      return { error: "Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409, code: 'DEVIS_HOLDS_PROMISE' };
+    }
     return null;
   }
 
@@ -1348,7 +1355,8 @@ function createModel(database) {
     }) || 0;
   }
 
-  // The schedule a converted stay starts with. A devis stored with an acompte outside D23 keeps its stored
+  // The schedule a converted stay starts with. A devis owing one payment (D23, or stored with no acompte: rule 22)
+  // gives it due on its validity date, never before today. A devis stored with an acompte outside D23 keeps its stored
   // columns as they were (rule 5 reading R33: the conversion keeps the devis's promise). An acompte link paid on
   // columns that still hold that acompte (not re-stored yet, specs/deposit-blocks-the-dates.md rule 20) is the money
   // those columns asked for: the stay keeps them, never a 0 € acompte under a paid link.
@@ -1358,8 +1366,9 @@ function createModel(database) {
       balanceAmount: devisRow.balanceAmount, balanceDueDate: devisRow.balanceDueDate,
     };
     if (paidLinkType === 'deposit' && Number(devisRow.depositAmount) > 0) return stored;
-    const single = isDirectChannel(devisRow.platform) && owesSinglePaymentByValidity({
+    const single = isDirectChannel(devisRow.platform) && devisPromisesOnePayment({
       startDate: devisRow.startDate, validUntil: devisRow.validUntil, balanceDaysBefore: property.balanceDaysBefore,
+      depositAmount: devisRow.balanceAmount == null ? null : devisRow.depositAmount,
     });
     if (!single) return stored;
     const read = resolvePaymentSchedule(devisRow, property);

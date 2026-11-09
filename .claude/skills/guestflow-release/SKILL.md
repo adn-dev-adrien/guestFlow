@@ -131,7 +131,9 @@ The GitHub release body IS the CHANGELOG section, and the operator reads it in t
 before clicking « Installer ». No section, no release.
 
 ```bash
-node scripts/check-plugin-versions.mjs            # must pass: every changed plugin was bumped in its PR
+node scripts/check-plugin-versions.mjs --core-version X.Y.Z   # must pass: every changed plugin was bumped
+                                                               # in its PR, and every bundled plugin admits
+                                                               # X.Y.Z and the SDK (rule 62)
 node scripts/build-changelog.mjs                  # preview the pending fragments
 node scripts/build-changelog.mjs --release X.Y.Z   # fold them into a dated section
 ```
@@ -139,7 +141,9 @@ node scripts/build-changelog.mjs --release X.Y.Z   # fold them into a dated sect
 The release PR never edits a plugin manifest (specs/plugins-phase-4-registry.md rule 28): each pull
 request that changes a plugin bumps its version and writes its French changelog lines in that
 plugin's `manifest.json`, and CI refuses it otherwise. If the check above fails, stop the release and
-fix the plugin's version in an ordinary PR first.
+fix the plugin's version in an ordinary PR first. A « would refuse these bundled plugins at boot » means
+the release would switch those plugins off on the instance that installs it (D24): fix their ranges in an
+ordinary PR, never in the release PR.
 
 Then do the two pieces of writing this step exists for.
 

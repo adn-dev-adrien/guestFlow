@@ -45,23 +45,16 @@ function rangeNeed(range, version, { of = 'version' } = {}) {
 }
 
 /**
- * Whether a range stops below some future major (`>=3.9.0 <4.0.0`, `^1.2.0`): an open range
- * (`>=3.9.0`) would accept a core that renamed what the plugin calls (specs/plugins-phase-4-registry.md
- * rule 34).
+ * The lowest core a `guestflow` range accepts, or null when the range does not parse. The core reads
+ * that range as a floor only (D24, specs/plugins-phase-4-registry.md rule 62): what a plugin calls is
+ * the SDK contract, judged by its `sdk` range, so a newer core major never switches it off by itself.
  */
-function hasUpperBound(range) {
-  if (!isRange(range)) return false;
-  return !semver.intersects(range, '>=1000000.0.0');
+function coreFloor(range) {
+  const min = isRange(range) ? semver.minVersion(range) : null;
+  return min ? min.version : null;
 }
 
-/**
- * The range a core reads: an open range is capped at the next major of its floor (rule 34), so a
- * package published before the cap existed is still refused by GuestFlow 4.
- */
-function boundedRange(range) {
-  if (!isRange(range) || hasUpperBound(range)) return range;
-  const min = semver.minVersion(range);
-  return min ? `${range} <${min.major + 1}.0.0` : range;
-}
+/** Whether a `guestflow` range is written as the floor it is read as (`>=3.18.0`): no ceiling to drift. */
+const isFloorRange = (range) => typeof range === 'string' && /^>=\d+\.\d+\.\d+$/.test(range.trim());
 
-module.exports = { isVersion, isRange, satisfies, compare, highest, floorLabel, rangeNeed, hasUpperBound, boundedRange };
+module.exports = { isVersion, isRange, satisfies, compare, highest, floorLabel, rangeNeed, coreFloor, isFloorRange };
