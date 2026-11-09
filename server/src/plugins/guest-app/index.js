@@ -28,7 +28,7 @@ const { buildLodgingsController } = require('./controllers/lodgingsController');
 const { buildStayLinksController } = require('./controllers/stayLinksController');
 const { buildItemsController } = require('./controllers/itemsController');
 const { buildShopController } = require('./controllers/shopController');
-const { buildOrdersController } = require('./controllers/ordersController');
+const { buildOrdersController, ORDER_SOURCE, ORDER_REFUND_LABELS } = require('./controllers/ordersController');
 const { buildOrdersAdminController } = require('./controllers/ordersAdminController');
 const { buildServiceHoursController } = require('./controllers/serviceHoursController');
 const { buildBookletController, buildBookletResolver } = require('./controllers/bookletController');
@@ -196,7 +196,11 @@ function register(ctx) {
   ].filter(Boolean).join(', ') || null);
   ctx.resourceHolds(api.heldSessions);
   // Rules 35-36 — a paid card link of an order commits it, or flags its money « à rembourser ».
-  ctx.paymentBasket({ source: 'guestOrder', paid: api.orderPaid });
+  ctx.paymentBasket({
+    source: ORDER_SOURCE,
+    paid: api.orderPaid,
+    labels: ORDER_REFUND_LABELS,
+  });
   ctx.mount('/public/v1/guest', api.publicRouter, { public: true });
   // Plan step 50 — the guest app on its own host, the studio at /studio for an admin (rule 47).
   const guestDist = (() => { let dir = null; return () => { if (!dir) dir = hosting.distDirOf('guest'); return dir; }; })();

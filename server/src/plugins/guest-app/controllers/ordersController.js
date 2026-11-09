@@ -34,6 +34,7 @@ const MAX_MORNINGS = 31;
 const HOLD_MS = 30 * 60 * 1000;
 // Rules 34-35, 46 — the guest app's basket source, and the words the fiche's history and ledger use for its orders.
 const ORDER_SOURCE = 'guestOrder';
+const ORDER_REFUND_LABELS = Object.freeze({ refundOne: 'Commande client à rembourser', refundMany: 'Commandes clients à rembourser' });
 const orderNaming = (orderId, { paid = false } = {}) => ({
   source: ORDER_SOURCE,
   ref: Number(orderId),
@@ -581,4 +582,5 @@ function buildOrdersController({
 }
 
 module.exports = {
-  ORDER_SOURCE, buildOrdersController, orderInputError };
+  ORDER_SOURCE, ORDER_REFUND_LABELS, buildOrdersController, orderInputError,
+};

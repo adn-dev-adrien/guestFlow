@@ -67,7 +67,23 @@ function basketRefundOwed(link) {
   try { return JSON.parse(link.basketJson).refundOwed === true; } catch { return false; }
 }
 
-// specs/guest-app.md rule 35 — a link billing its own basket (a guest order) is no bucket's link.
+const NEUTRAL_REFUND = Object.freeze({ refundOne: 'Paiement en ligne à rembourser', refundMany: 'Paiements en ligne à rembourser' });
+const basketSource = (link) => { try { return String(JSON.parse(link.basketJson).source || ''); } catch { return ''; } };
+
+/**
+ * The row's words for refunds owed on baskets (specs/plugins-phase-1-sdk.md rule 46): the owning plugin's own labels
+ * (`ctx.paymentBasket({ labels })`) when every owed link is one declared source, the core's neutral words otherwise.
+ */
+function basketRefundLabel(owed) {
+  const sources = [...new Set(owed.map(basketSource))];
+  const registry = require('../plugins/sdk/registry');
+  const declared = sources.length === 1 ? registry.all()
+    .flatMap((r) => r.paymentBaskets || []).find((basket) => basket.source === sources[0]) : null;
+  const labels = { ...NEUTRAL_REFUND, ...((declared && declared.labels) || {}) };
+  return owed.length > 1 ? labels.refundMany : labels.refundOne;
+}
+
+// specs/plugins-phase-1-sdk.md rule 46 — a link billing its own basket (a plugin's order) is no bucket's link.
 const ofRow = (types) => (l) => types.includes(String(l.type)) && !l.basketJson;
 
 function pickLink(links, rowKey) {
@@ -618,12 +634,12 @@ function buildLedger({
       detail: { slot: 'midStayNotes' },
     });
   }
-  // specs/guest-app.md rule 36 — a guest order paid by card that could not be honoured (its slot taken meanwhile):
+  // specs/plugins-phase-1-sdk.md rule 46 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
   // the money is on the link, nothing reached the fiche, the operator refunds it from the provider's space.
   const owedBaskets = (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
   if (owedBaskets.length > 0) {
     rows.push({
-      key: 'basketRefunds', label: owedBaskets.length > 1 ? 'Commandes clients à rembourser' : 'Commande client à rembourser',
+      key: 'basketRefunds', label: basketRefundLabel(owedBaskets),
       amount: owedBaskets.reduce((sum, l) => sum + Number(l.amountCents || 0), 0) / 100, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
       action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
       detail: { lines: owedBaskets.map((l) => `${formatEuros(Number(l.amountCents || 0) / 100)} payés${l.paidAt ? ` le ${shortDate(localIsoDate(new Date(Date.parse(l.paidAt))), stayYear)}` : ''} par carte, lien ${l.id}`) },
