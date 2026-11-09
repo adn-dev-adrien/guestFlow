@@ -206,6 +206,16 @@ withApi('rule 6: name + number from J-7 → pre-arrival, without the gate', asyn
   assert.equal(db.prepare('SELECT origin FROM guest_sessions').get().origin, 'lookup');
 });
 
+withApi('rule 6: two stays sharing a reservation number — each is tried against the name', async ({ call, db, clock }) => {
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (2, 'Paul', 'Martin', 'paul@example.test')").run();
+  addStay(db, { clientId: 2, propertyId: 2 });
+  const marie = addStay(db);
+  clock.now = paris('2099-07-07', '12:00');
+  const res = await call('POST', '/public/v1/guest/sessions/lookup', LOOKUP);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(db.prepare("SELECT reservationId FROM guest_sessions WHERE origin = 'lookup'").get().reservationId, Number(marie));
+});
+
 withApi('rule 6: every failure is the one generic error', async ({ call, db, clock }) => {
   addStay(db);
   addStay(db, { reservationNumber: 'R-99-CXL', kind: 'cancelled', startDate: '2099-08-01', endDate: '2099-08-04' });

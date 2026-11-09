@@ -151,18 +151,22 @@ function buildSessionController({
   }
 
   // POST /sessions/lookup — rules 6, 7, 11quater. Every failure is the one generic 404, and the name is
-  // compared even when no stay carries that number.
+  // compared even when no stay carries that number. Two stays sharing a number are each tried against the name.
   function lookup(req, res) {
     const { lastName, reservationNumber } = req.body || {};
-    const stay = isText(lastName) && isText(reservationNumber)
+    const candidates = isText(lastName) && isText(reservationNumber)
       ? stays().byReservationNumber(reservationNumber.trim())
-      : null;
-    const nameOk = nameMatches(lastName, [stay ? stay.clientLastName : '']);
-    const lodging = stay && lodgings().findEnabled(stay.propertyId);
-    const resolved = stay && nameOk && lodging ? resolveLookup(stay, now()) : null;
-    if (!resolved) return publicHttp.fail(res, 404, 'STAY_NOT_FOUND', NOT_FOUND_MESSAGE);
+      : [];
+    const at = now();
+    const found = (candidates.length ? candidates : [null]).map((stay) => {
+      const nameOk = nameMatches(lastName, [stay ? stay.clientLastName : '']);
+      const lodging = stay && lodgings().findEnabled(stay.propertyId);
+      const resolved = stay && nameOk && lodging ? resolveLookup(stay, at) : null;
+      return resolved ? { stay, lodging, resolved } : null;
+    }).find(Boolean);
+    if (!found) return publicHttp.fail(res, 404, 'STAY_NOT_FOUND', NOT_FOUND_MESSAGE);
     return open(req, res, {
-      lodging, reservationId: stay.id, mode: resolved.mode, origin: 'lookup', expiresAt: resolved.window.end,
+      lodging: found.lodging, reservationId: found.stay.id, mode: found.resolved.mode, origin: 'lookup', expiresAt: found.resolved.window.end,
     });
   }
 

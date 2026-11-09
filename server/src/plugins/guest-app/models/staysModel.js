@@ -17,11 +17,12 @@ function createStaysModel(db) {
         .get(Number(id)) || null;
     },
 
+    /** Rule 6 — every live reservation carrying the number: two stays may share one, the name tells them apart. */
     byReservationNumber(number) {
       return db.prepare(`
         SELECT ${COLUMNS} FROM reservations r LEFT JOIN clients c ON c.id = r.clientId
-        WHERE r.reservationNumber = ? COLLATE NOCASE AND r.kind = 'reservation'
-      `).get(String(number)) || null;
+        WHERE r.reservationNumber = ? COLLATE NOCASE AND r.kind = 'reservation' ORDER BY r.id
+      `).all(String(number));
     },
   };
 }
