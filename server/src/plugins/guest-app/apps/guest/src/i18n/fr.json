@@ -90,6 +90,7 @@
  "bk.pickOne": "Choisissez au moins un matin",
  "bk.noMorning": "Plus aucun matin possible avant votre départ.",
  "bk.perPersonMorning": "par personne et par matin",
+ "bk.notAt": "pas à {time}",
  "cart.title": "Votre panier",
  "cart.panel": "Panier",
  "cart.view": "Voir le panier",

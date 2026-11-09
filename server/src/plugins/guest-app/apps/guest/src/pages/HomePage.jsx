@@ -30,8 +30,9 @@ const TILE_ICON = { gate: 'gate', wifi: 'wifi', shop: 'shop', bath: 'bath', soli
 const LIVE_ORDER = new Set(['confirmed', 'paid', 'awaiting_payment']);
 export const DEFAULT_HERO = '/img/hero-domaine.jpg';
 
+// A gate read without network is not « Accès en préparation »: the tile says the connection is needed.
 function useGate(enabled, lang) {
-  return useLoad(() => (enabled ? api.gate().catch((err) => ({ state: 'preparing', error: err })) : Promise.resolve(null)), [enabled, lang]);
+  return useLoad(() => (enabled ? api.gate().catch((err) => ({ state: err.code === 'NETWORK' ? 'offline' : 'preparing', error: err })) : Promise.resolve(null)), [enabled, lang]);
 }
 
 export default function HomePage() {
@@ -105,8 +106,10 @@ export default function HomePage() {
           icon={TILE_ICON[tile.key] || 'info'}
           label={tile.label}
           external={tile.key === 'gate' || (tile.key === 'soliomap' && !soliomapEmbedded)}
-          disabled={tile.key === 'gate' && !gateState}
-          disabledReason={tile.key === 'gate' && gateState === 'preparing' ? ((gateInfo && gateInfo.stateLabel) || t('tile.preparing')) : null}
+          disabled={tile.key === 'gate' && (!gateState || gateState === 'offline')}
+          disabledReason={tile.key !== 'gate' ? null
+            : gateState === 'offline' ? t('net.needed')
+              : gateState === 'preparing' ? ((gateInfo && gateInfo.stateLabel) || t('tile.preparing')) : null}
           onClick={tileAction[tile.key]}
         />
       ))}

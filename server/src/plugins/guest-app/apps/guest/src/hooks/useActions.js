@@ -7,12 +7,21 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useSession } from './useSession';
 
+/** A suggestion link that is not a URL leaves the app without Soliomap, not without a screen. */
+function originOf(url) {
+  try {
+    return { url: new URL(url).origin, embed: false };
+  } catch {
+    return null;
+  }
+}
+
 export function useActions() {
   const navigate = useNavigate();
   const { lodging, me } = useSession();
   // Rule 15 — Soliomap's address and the « Intégrer dans l'app » switch, as `/lodging` gives them; without them, the
   // suggestion's own link tells where Soliomap lives, opened outside the app.
-  const fromSuggestion = me && me.suggestion && me.suggestion.url ? { url: new URL(me.suggestion.url).origin, embed: false } : null;
+  const fromSuggestion = me && me.suggestion && me.suggestion.url ? originOf(me.suggestion.url) : null;
   const soliomap = (lodging && lodging.soliomap) || fromSuggestion;
 
   /** Rule 15 — in the app's frame when the studio allows it, else a new tab. */

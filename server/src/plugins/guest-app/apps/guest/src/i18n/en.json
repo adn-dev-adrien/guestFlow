@@ -90,6 +90,7 @@
  "bk.pickOne": "Pick at least one morning",
  "bk.noMorning": "No morning left before you leave.",
  "bk.perPersonMorning": "per person and per morning",
+ "bk.notAt": "not at {time}",
  "cart.title": "Your basket",
  "cart.panel": "Basket",
  "cart.view": "View basket",

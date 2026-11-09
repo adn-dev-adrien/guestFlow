@@ -54,6 +54,11 @@ export default function BreakfastSheet({ item, partySize, readOnly, open, onClos
     if (!staffTimes) return item && item.defaultTime ? [item.defaultTime] : [];
     return [...new Set([...byMorning.values()].flatMap((s) => [...s]))].sort();
   }, [staffTimes, byMorning, item]);
+  // A time the delivery times no longer offer (the item's default, a cart line from yesterday) would strike every
+  // morning with no hour left to pick: the first hour offered is taken instead.
+  useEffect(() => {
+    if (hours.length && !hours.includes(time)) setTime(hours[0]);
+  }, [hours, time]);
   const fits = (date) => !staffTimes || (byMorning.get(date) || new Set()).has(time);
   const chosen = mornings.filter(fits);
   const line = item && chosen.length && time ? { kind: 'breakfast', id: item.id, mornings: chosen, time, persons } : null;
@@ -77,7 +82,7 @@ export default function BreakfastSheet({ item, partySize, readOnly, open, onClos
             <div className="dchips">
               {item.mornings.map((m) => (
                 <button key={m.date} type="button" className="chip" aria-pressed={mornings.includes(m.date) && fits(m.date)} aria-disabled={!fits(m.date)} onClick={() => fits(m.date) && toggle(m.date)}>
-                  {m.label}{fits(m.date) ? '' : ` · ${lang === 'en' ? 'not at' : 'pas à'} ${clockLabel(time, lang)}`}
+                  {m.label}{fits(m.date) ? '' : ` · ${t('bk.notAt', { time: clockLabel(time, lang) })}`}
                 </button>
               ))}
             </div>
@@ -88,6 +93,12 @@ export default function BreakfastSheet({ item, partySize, readOnly, open, onClos
               <div className="dchips">
                 {hours.map((h) => <button key={h} type="button" className="chip" aria-pressed={time === h} onClick={() => setTime(h)}>{clockLabel(h, lang)}</button>)}
               </div>
+            </div>
+          ) : null}
+          {hours.length === 1 ? (
+            <div className="dgroup">
+              <small>{t('bk.time')}</small>
+              <b className="fig">{clockLabel(hours[0], lang)}</b>
             </div>
           ) : null}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>

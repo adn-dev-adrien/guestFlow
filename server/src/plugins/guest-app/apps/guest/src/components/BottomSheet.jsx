@@ -3,6 +3,9 @@
  * Responsive: max 560 px from 900 px). Built on MUI's Modal for the focus trap, Escape and scroll lock; the
  * look is the boards' `.layer` / `.sheet`.
  *
+ * A « Fermer » button sits in its top corner, on the phone and in the centred dialog alike: the grab handle,
+ * the scrim and Escape are not the only ways out.
+ *
  * The grab handle follows the finger 1:1 and lets go with the finger's speed: a pull past a third of the
  * sheet, or a flick, closes it; anything less springs back (apple-design: direct manipulation, momentum).
  *
@@ -11,12 +14,15 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Modal from '@mui/material/Modal';
+import Icon from './Icon';
+import { useT } from '../i18n';
 
 const CLOSE_MS = 240;
 
 export default function BottomSheet({
   open, onClose, label, labelledBy, children, as: Tag = 'div', onSubmit,
 }) {
+  const t = useT();
   const [closing, setClosing] = useState(false);
   const sheet = useRef(null);
   const drag = useRef(null);
@@ -79,6 +85,7 @@ export default function BottomSheet({
           <div className="grabzone" aria-hidden="true" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
             <div className="grab" />
           </div>
+          <button type="button" className="x sheet-close" aria-label={t('common.close')} onClick={close}><Icon name="x" /></button>
           {children}
         </Tag>
       </div>

@@ -115,7 +115,7 @@ summary::-webkit-details-marker{display:none}
 .back svg{width:18px;height:18px}
 .appbar .ttl{display:grid;gap:3px;min-width:0;flex:1}
 .appbar h1{font-size:21px;text-transform:uppercase;letter-spacing:.06em;line-height:1.1}
-.appbar .act{border:1px solid var(--line);background:var(--card);border-radius:2px;min-height:40px;padding:0 10px;display:flex;align-items:center;gap:6px;font:700 10.5px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--sapin)}
+.appbar .act{border:1px solid var(--line);background:var(--card);border-radius:2px;min-height:44px;padding:0 10px;display:flex;align-items:center;gap:6px;font:700 10.5px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--sapin)}
 .appbar .act svg{width:14px;height:14px}
 .pad{padding:0 18px;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 .pad>*{min-width:0}
@@ -177,6 +177,9 @@ summary::-webkit-details-marker{display:none}
 .sheet.closing{transform:translateY(100%);transition:transform .24s var(--ease-sheet)}
 .grabzone{display:grid;place-items:center;height:30px;margin:-10px -20px -6px;touch-action:none;cursor:grab}
 .grab{width:42px;height:5px;border-radius:9px;background:var(--ctl)}
+.sheet>.sheet-close{position:absolute;top:2px;right:6px;z-index:2;color:var(--ink)}
+.sheet-close::before{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--paper);border:1px solid var(--line)}
+.sheet-close svg{position:relative;width:16px;height:16px}
 .sheet .ph{height:180px;border-radius:4px}
 .sheet h3{font-size:24px;line-height:1.15}
 .sheet p{margin:0;color:var(--ink-soft);font-size:14.5px}
@@ -278,7 +281,7 @@ summary::-webkit-details-marker{display:none}
 .wifi::before{left:-9px} .wifi::after{right:-9px}
 .wifi small{display:block;font:700 10.5px var(--body);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
 .wifi b{font:700 16.5px var(--body);display:block;margin-bottom:8px;word-break:break-all}
-.wifi .btn{min-height:40px;padding:0 12px;font-size:11px}
+.wifi .btn{min-height:44px;padding:0 12px;font-size:11px}
 .qr{width:68px;height:68px;background:conic-gradient(from 90deg at 30% 30%,var(--ink) 0 25%,transparent 0 50%,var(--ink) 0 75%,transparent 0) 0 0/17px 17px;border:4px solid var(--card);outline:1px solid var(--line)}
 .callout{display:flex;gap:12px;background:var(--chip);border-radius:4px;padding:14px 15px;font-size:14.5px}
 .callout svg{width:20px;height:20px;color:var(--ocre-ink);margin-top:2px}
@@ -305,7 +308,7 @@ summary::-webkit-details-marker{display:none}
 .cached{margin:22px 20px 0;font-size:12px;color:var(--ink-soft);display:flex;gap:6px;align-items:center}
 .cached svg{width:14px;height:14px}
 .search{height:50px;border-radius:2px;border:1px solid var(--ctl);background:var(--card);display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--ink-soft)}
-.search:focus-within{border-color:var(--sapin)}
+.search:focus-within{border-color:var(--sapin);box-shadow:0 0 0 3px var(--ring)}
 .search svg{width:18px;height:18px}
 .search input:focus,.search input:focus-visible{outline:none;box-shadow:none}
 .search input{border:0;background:transparent;flex:1;height:100%;font:500 16px var(--body);color:var(--ink);outline:none;min-width:0}

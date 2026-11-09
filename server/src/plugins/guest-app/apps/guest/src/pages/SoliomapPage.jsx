@@ -9,13 +9,24 @@ import Icon from '../components/Icon';
 import { useSession } from '../hooks/useSession';
 import { useT } from '../i18n';
 
+/** The address asked for, when it is on Soliomap's own origin: a prefix test would let `….com.evil.tld` through. */
+export function soliomapUrl(wanted, base) {
+  if (!base) return null;
+  if (!wanted) return base;
+  try {
+    return new URL(wanted).origin === new URL(base).origin ? wanted : base;
+  } catch {
+    return base;
+  }
+}
+
 export default function SoliomapPage() {
   const t = useT();
   const [params] = useSearchParams();
   const { lodging } = useSession();
   const base = lodging && lodging.soliomap ? lodging.soliomap.url : null;
   const wanted = params.get('url');
-  const url = wanted && base && wanted.startsWith(base) ? wanted : base;
+  const url = soliomapUrl(wanted, base);
   return (
     <>
       <div className="scroll" style={{ paddingBottom: 0 }}>
