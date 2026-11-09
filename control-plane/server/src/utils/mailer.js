@@ -5,6 +5,7 @@
  */
 
 const nodemailer = require('nodemailer');
+const { smtpEhloName } = require('./gf');
 
 function createMailer(env = process.env, log = (msg) => console.log(msg)) {
   const host = env.CP_SMTP_HOST;
@@ -19,6 +20,7 @@ function createMailer(env = process.env, log = (msg) => console.log(msg)) {
   }
   const secure = String(env.CP_SMTP_PORT) === '465';
   const auth = env.CP_SMTP_USER ? { user: env.CP_SMTP_USER, pass: env.CP_SMTP_PASS } : undefined;
+  const name = smtpEhloName.ehloName(from);
   const transport = nodemailer.createTransport({
     host,
     port: Number(env.CP_SMTP_PORT || 587),
@@ -26,6 +28,8 @@ function createMailer(env = process.env, log = (msg) => console.log(msg)) {
     auth,
     // A login never leaves in clear (specs/admin-account-management.md rule 16, reading of 2026-11-04).
     requireTLS: Boolean(auth) && !secure,
+    // Greets with the From domain, never the VM's `[127.0.0.1]` (specs/admin-account-management.md rule 21, audit R35-CON-L1).
+    ...(name ? { name } : {}),
   });
   return {
     async send({ to, subject, text }) {
