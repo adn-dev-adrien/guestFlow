@@ -108,6 +108,9 @@ withShop('rule 37quater: beyond what is left, the quote says « Plus que 2 dispo
   assert.equal(optionLine(stayId, id), undefined, 'nothing reached the fiche');
   assert.equal((await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id, quantity: 2 }], payment: 'note' })).status, 200);
   assert.equal(stockOf(id), 0);
+  const after = (await call('GET', `/api/guest-app/items/option/${id}`)).body.stock;
+  assert.equal(after.quantity, 0);
+  assert.match(after.restockLine, /^Stock réglé à 2, /, 'the restock line keeps the count set, not what is left');
 });
 
 withShop('rule 37ter: an app order counts in its commit, and the reservation event that follows finds nothing left to count', async ({ call, api, stayId }) => {

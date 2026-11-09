@@ -33,6 +33,7 @@ const TABLES_SQL = `
     stockQuantity      INTEGER,
     stockSetAt         TEXT,
     stockSetBy         TEXT,
+    stockSetQuantity   INTEGER,
     stockAlertBelow    INTEGER,
     soldOut            INTEGER NOT NULL DEFAULT 0,
     stockLowPushedAt   TEXT,

@@ -171,9 +171,9 @@ function createStockModel(db) {
         writeCount.run({ reservationId, kind, itemId: Number(id), quantity: targetFor(reservationId, today, keys).get(key) || 0 });
       });
       db.prepare(`
-        UPDATE guest_app_items SET stockQuantity = ?, stockSetAt = ?, stockSetBy = ?, stockLowPushedAt = NULL, stockOutPushedAt = NULL
+        UPDATE guest_app_items SET stockQuantity = ?, stockSetQuantity = ?, stockSetAt = ?, stockSetBy = ?, stockLowPushedAt = NULL, stockOutPushedAt = NULL
          WHERE kind = ? AND itemId = ?
-      `).run(Number(quantity), at.toISOString(), by || null, kind, Number(id));
+      `).run(Number(quantity), Number(quantity), at.toISOString(), by || null, kind, Number(id));
     })();
   }
 

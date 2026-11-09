@@ -32,7 +32,7 @@ function adminStockView(row, state) {
     alertBelow: row.stockAlertBelow === null || row.stockAlertBelow === undefined ? null : Number(row.stockAlertBelow),
     soldOut: Number(row.soldOut) === 1,
     out: Boolean(state && state.out),
-    restockLine: tracked ? restockLine({ quantity: Number(row.stockQuantity || 0), setAt: row.stockSetAt, setBy: row.stockSetBy }) : null,
+    restockLine: tracked ? restockLine({ quantity: Number(row.stockSetQuantity ?? row.stockQuantity ?? 0), setAt: row.stockSetAt, setBy: row.stockSetBy }) : null,
   };
 }
 
