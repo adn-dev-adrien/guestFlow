@@ -474,17 +474,20 @@ export default function FinanceSection() {
     await reloadReservationFinance();
   };
   // The note's settlement runs after the fiche's save, which does not wait for it: the dialog waits here, so a refusal
-  // keeps it open with the server's wording instead of closing on an unseen error.
-  const saveThenSettle = (action) => new Promise((resolve, reject) => {
+  // keeps it open with the server's wording instead of closing on an unseen error. Only the settlement decides: the
+  // re-read that follows is best effort, so a failed one never reports a stored settlement as refused nor leaves the
+  // dialog busy (mid-stay-notes rule 24 reading R32-C-L2).
+  const saveThenSettle = (settle) => new Promise((resolve, reject) => {
     Promise.resolve(saveThenRun(async () => {
+      let refusal = null;
       try {
-        await action();
-        resolve();
+        await settle();
       } catch (err) {
+        refusal = err;
         showError(err?.message || 'Encaissement impossible.');
-        await reloadReservationFinance();
-        reject(err);
       }
+      try { await reloadReservationFinance(); } catch { /* the settlement's outcome is already known */ }
+      if (refusal) reject(refusal); else resolve();
     })).then((saved) => { if (saved !== true) resolve(); }, reject);
   });
 
@@ -1086,12 +1089,9 @@ export default function FinanceSection() {
             open={Boolean(midStayNoteOpen)}
             onClose={() => setMidStayNoteOpen(false)}
             pendingLines={pendingMidStayLines}
-            onSettle={({ checkedKeys, opening }, cash) => saveThenSettle(async () => {
-              await api.markPayment(editingReservationId, {
-                settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
-              });
-              await reloadReservationFinance();
-            })}
+            onSettle={({ checkedKeys, opening }, cash) => saveThenSettle(() => api.markPayment(editingReservationId, {
+              settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
+            }))}
             onSellOnly={() => saveThenRun(reloadReservationFinance)}
           />
         )}
