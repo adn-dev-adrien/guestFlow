@@ -5,6 +5,7 @@ import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
+import guestAppApi from '../../guest-app/guestAppApi';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 import { lacksPlugins } from '../../sdk/testing';
@@ -20,9 +21,10 @@ vi.mock('../../../api', () => ({
     commitDepartureSas: vi.fn().mockResolvedValue({ ok: true }),
     getReservationWeatherAlerts: vi.fn(),
     getReservationGateAccess: vi.fn(),
-    getStayLink: vi.fn(),
-    regenerateStayLink: vi.fn(),
   },
+}));
+vi.mock('../../guest-app/guestAppApi', () => ({
+  default: { getStayLink: vi.fn(), regenerateStayLink: vi.fn() },
 }));
 
 const LINK = {
@@ -39,7 +41,7 @@ beforeEach(() => {
   enabled.clear();
   api.getReservationWeatherAlerts.mockResolvedValue({ alerts: [] });
   api.getReservationGateAccess.mockResolvedValue({ sas: { status: 'ok', code: '4K7M-9QT2', qrDataUri: null, windowLabel: '' } });
-  api.getStayLink.mockResolvedValue(LINK);
+  guestAppApi.getStayLink.mockResolvedValue(LINK);
 });
 
 async function openPortalStep(payload) {
@@ -59,7 +61,7 @@ test.skipIf(lacksPlugins(NEEDS))('rule 9bis (a): the step becomes « Mon séjour
   expect(screen.getByText(LINK.validUntilLabel)).toBeTruthy();
   expect(screen.getByText('Mon séjour')).toBeTruthy();
   expect(screen.getByText('4719')).toBeTruthy();
-  expect(api.getStayLink).toHaveBeenCalledWith(1);
+  expect(guestAppApi.getStayLink).toHaveBeenCalledWith(1);
   expect(screen.queryByText('4K7M-9QT2')).toBeNull();
 });
 
@@ -80,12 +82,12 @@ test.skipIf(lacksPlugins(NEEDS))('rule 9bis (a): without a gate key there is no 
 
 test.skipIf(lacksPlugins(NEEDS))('rule 1: « Régénérer le lien » asks first, then shows the new link', async () => {
   enabled.add('guest-app').add('gate-access');
-  api.regenerateStayLink.mockResolvedValue({ ...LINK, qrDataUri: 'data:image/png;base64,BBBB' });
+  guestAppApi.regenerateStayLink.mockResolvedValue({ ...LINK, qrDataUri: 'data:image/png;base64,BBBB' });
   await openPortalStep({ pluginData: both });
   fireEvent.click(await screen.findByRole('button', { name: 'Régénérer le lien' }));
   expect(await screen.findByText('Régénérer le lien ?')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Régénérer' }));
-  await waitFor(() => expect(api.regenerateStayLink).toHaveBeenCalledWith(1));
+  await waitFor(() => expect(guestAppApi.regenerateStayLink).toHaveBeenCalledWith(1));
   await waitFor(() => expect(screen.getByAltText('QR du lien Mon séjour').getAttribute('src')).toBe('data:image/png;base64,BBBB'));
 });
 
@@ -94,19 +96,19 @@ test.skipIf(lacksPlugins(NEEDS))('rule 9bis (a): the guest app inactive, or no l
   await openPortalStep({ portalCode: '4719', pluginData: both });
   expect(await screen.findByText('4K7M-9QT2')).toBeTruthy();
   expect(screen.queryByText(/Flashez pour ouvrir Mon séjour/)).toBeNull();
-  expect(api.getStayLink).not.toHaveBeenCalled();
+  expect(guestAppApi.getStayLink).not.toHaveBeenCalled();
 });
 
 test.skipIf(lacksPlugins(NEEDS))('rule 9bis (a): a lodging out of the app keeps the gate step', async () => {
   enabled.add('guest-app').add('gate-access');
   await openPortalStep({ portalCode: '4719', pluginData: { 'gate-access': { available: true }, 'guest-app': { available: false } } });
   expect(await screen.findByText('4K7M-9QT2')).toBeTruthy();
-  expect(api.getStayLink).not.toHaveBeenCalled();
+  expect(guestAppApi.getStayLink).not.toHaveBeenCalled();
 });
 
 test.skipIf(lacksPlugins(NEEDS))('rule 9bis (a): the link unreadable → a warning, a retry, and the gate step as the way in', async () => {
   enabled.add('guest-app').add('gate-access');
-  api.getStayLink.mockRejectedValue(new Error('boom'));
+  guestAppApi.getStayLink.mockRejectedValue(new Error('boom'));
   await openPortalStep({ portalCode: '4719', pluginData: both });
   expect(await screen.findByText('Le lien « Mon séjour » est indisponible pour ce séjour.')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Réessayer' })).toBeTruthy();

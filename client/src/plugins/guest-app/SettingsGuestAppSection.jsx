@@ -4,6 +4,7 @@
  * (`PUT /api/plugins/guest-app/settings`) and its message is shown on the field.
  *
  * Like the other cards with a draft, it has no Save of its own: the page's bar saves it through the ref.
+ * « Ouvrir le Studio » opens the booklet studio (`/studio`, rule 47) in a new tab.
  *
  * Props:
  *   onDirtyChange  (dirty: boolean) => void   fired when the card gains or loses unsaved changes
@@ -11,7 +12,10 @@
  *   isDirty(), save(), reset()
  */
 import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
-import { Box, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
+import {
+  Box, Button, Card, CardContent, Stack, TextField, Typography,
+} from '@mui/material';
+import ArrowOutwardIcon from '@mui/icons-material/ArrowOutward';
 import { api } from '../sdk';
 
 const PLUGIN = 'guest-app';
@@ -75,6 +79,21 @@ function SettingsGuestAppSection({ onDirtyChange }, ref) {
             helperText={error || HELP}
             inputProps={{ autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false, inputMode: 'url' }}
           />
+          <Box>
+            <Button
+              variant="outlined"
+              href="/studio"
+              target="_blank"
+              rel="noopener"
+              startIcon={<ArrowOutwardIcon />}
+              sx={{ minHeight: 44 }}
+            >
+              Ouvrir le Studio
+            </Button>
+            <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.75 }}>
+              Le livret, la boutique, les horaires du service et les QR codes des logements.
+            </Typography>
+          </Box>
         </Stack>
       </CardContent>
     </Card>

@@ -19,7 +19,8 @@ import { Alert, Box, Button, Collapse, Stack, Typography } from '@mui/material';
 import ShareIcon from '@mui/icons-material/Share';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AutorenewIcon from '@mui/icons-material/Autorenew';
-import { api, SasKeypadCode as KeypadCode, useAppDialogs } from '../sdk';
+import { SasKeypadCode as KeypadCode, useAppDialogs } from '../sdk';
+import guestAppApi from './guestAppApi';
 
 export const STAY_APP_TEXT = {
   lead: 'Flashez pour ouvrir Mon séjour : le portail, le livret, la boutique et le bain',
@@ -75,7 +76,7 @@ export default function SasStayAppStep({ reservationId, portalCode, gateStep = n
     if (!reservationId) return;
     setBusy(true);
     try {
-      setLink(await (regenerate ? api.regenerateStayLink(reservationId) : api.getStayLink(reservationId)));
+      setLink(await (regenerate ? guestAppApi.regenerateStayLink(reservationId) : guestAppApi.getStayLink(reservationId)));
       setError(false);
     } catch {
       setError(true);
