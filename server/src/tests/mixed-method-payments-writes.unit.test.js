@@ -243,3 +243,23 @@ test('rules 1, 10 — the single arrival payment with several methods records on
   assert.equal(call(controller.settleArrivalPayment, { id }, { mode: 'undo' }).statusCode, 200);
   assert.equal(settlementsModel.listFor(id).length, 0);
 });
+
+test('rules 13, 38 — taking a mark back drops only its own settlement from the refund guard', () => {
+  const { untickRefusal } = require('../utils/refundUntickGuard');
+  const id = departedStay();
+  payEndOfStay(id, [cashIn(5000), card(7200)]);
+  const r = row(id);
+  // The solde taken back leaves 216 + 72 on the books: a 300 € book refund no longer fits.
+  assert.notEqual(untickRefusal(r, { balancePaid: 0 }, [{ method: 'transfer', totalTtc: 300 }]), null);
+  // The split cleaning taken back leaves the 720 € paid by link, its 50 € in the caisse with it.
+  assert.equal(untickRefusal(r, { endOfStayComplementPaid: 0 }, [{ method: 'transfer', totalTtc: 700 }]), null);
+});
+
+test('rules 23, 37 — a correction dated on a day that does not exist is refused', () => {
+  const id = departedStay();
+  payEndOfStay(id, [cashIn(5000), card(7200)]);
+  const [s] = settlementsModel.listFor(id);
+  const res = call(settlementsController.modify, { id, settlementId: s.id }, { date: '2026-02-31', tenders: [cashIn(5000), card(7200)] }); // date-literal-ok: an impossible day, whatever today is
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.field, 'date');
+});

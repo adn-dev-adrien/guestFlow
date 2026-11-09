@@ -317,8 +317,8 @@ function buildController({
       });
       if (!prepared.ok) return res.status(400).json({ error: prepared.error, message: prepared.error, field: prepared.field });
     }
-    const method = split ? 'other' : String((req.body && req.body.method) || 'transfer');
-    if (!MANUAL_METHODS.includes(method)) return res.status(400).json({ error: 'INVALID_METHOD', message: 'Mode de paiement invalide.' });
+    const method = split ? 'mixed' : String((req.body && req.body.method) || 'transfer');
+    if (!split && !MANUAL_METHODS.includes(method)) return res.status(400).json({ error: 'INVALID_METHOD', message: 'Mode de paiement invalide.' });
     const today = todayOf();
     const rawDate = req.body && req.body.paidDate;
     let paidDate = today;
@@ -327,9 +327,10 @@ function buildController({
       if (!checked.ok) return res.status(400).json({ error: checked.reason, code: 'INVALID_PAYMENT_DATE', field: 'paidDate' });
       paidDate = String(rawDate).slice(0, 10);
     }
-    recordInstallmentPayment({ db: database, emit }, { installmentId, paidDate, method });
+    const outcome = recordInstallmentPayment({ db: database, emit }, { installmentId, paidDate, method });
     if (split) {
-      database.prepare("UPDATE reservation_installments SET paidMethod = 'mixed' WHERE id = ?").run(installmentId);
+      // Paid in the meantime by another path (a link, a second tab): these lines did not pay it.
+      if (!outcome.flipped) return res.status(409).json({ error: 'ALREADY_PAID', message: 'Cette échéance est déjà payée. Relire la fiche.' });
       const recorded = require('../utils/paymentSettlementService').record({
         reservationId: id, targetKind: 'installment', targetKey: installmentId, paidDate, prepared,
         parts: [{ kind: 'installment', key: installmentId, amountCents: Number(installment.amountCents) }],

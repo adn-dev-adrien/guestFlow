@@ -22,9 +22,10 @@
  *   replace(id, { paidDate, shortfallCents, shortfallKind, lines })
  *   removeForTarget(reservationId, kind, key)
  *   sync(reservationId)                        → { removed }
+ *   projectedAggregates(row)                   → the four aggregates once `row` is written, or null
  */
 
-const { parseParts, reservationAggregates } = require('../utils/paymentTenders');
+const { parseParts, reservationAggregates, currentCentsOf } = require('../utils/paymentTenders');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
 const { parseNotes } = require('../utils/midStayExtras');
 
@@ -124,17 +125,29 @@ function buildModel(database) {
     return false;
   }
 
-  function refreshAggregates(reservationId, row, settlements) {
+  function aggregatesOf(row, settlements) {
     const byTarget = new Map();
     for (const s of settlements) {
       const key = `${s.targetKind}:${s.targetKey}`;
-      if (!byTarget.has(key)) byTarget.set(key, { settlements: [], flagged: targetFlagged(row, s) });
+      // Rule 39 — the target is read at what it is worth now: a bucket whose amount moved since is owed or overpaid.
+      if (!byTarget.has(key)) byTarget.set(key, { settlements: [], flagged: targetFlagged(row, s), currentCents: currentCentsOf(parseParts(s.parts), row) });
       byTarget.get(key).settlements.push(s);
     }
-    const agg = reservationAggregates([...byTarget.values()]);
+    return reservationAggregates([...byTarget.values()]);
+  }
+
+  function refreshAggregates(reservationId, row, settlements) {
+    const agg = aggregatesOf(row, settlements);
     database.prepare(`UPDATE reservations SET splitOffBooksAmount = ?, splitWaivedAmount = ?, splitWaivedCashAmount = ?, splitShortfallDue = ? WHERE id = ?`)
       .run(agg.splitOffBooksAmount, agg.splitWaivedAmount, agg.splitWaivedCashAmount, agg.splitShortfallDue, Number(reservationId));
     return agg;
+  }
+
+  // The aggregates the stay would carry once `row` (a hypothetical state: a mark taken back) is written: only the
+  // settlements whose target stays paid count. Null on a schema without settlements.
+  function projectedAggregates(row) {
+    if (!ready() || !row || row.id == null) return null;
+    return aggregatesOf(row, listFor(row.id).filter((s) => targetStillPaid(row, s)));
   }
 
   function sync(reservationId) {
@@ -187,7 +200,7 @@ function buildModel(database) {
     sync(reservationId);
   }
 
-  return { listFor, findById, listForTarget, insert, replace, removeForTarget, sync };
+  return { listFor, findById, listForTarget, insert, replace, removeForTarget, sync, projectedAggregates };
 }
 
 const defaultModel = (() => {

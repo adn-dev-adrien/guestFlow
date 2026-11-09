@@ -465,7 +465,10 @@ function createDashboardModel(database, finance) {
     // settlement, for what it put on the books, on the day it was received (a reste collected later is a
     // row of its own). The buckets, note or installment it paid are not listed a second time.
     const settlementsModel = require('./paymentSettlementsModel').buildModel(database);
-    const settlementsOf = (id) => settlementsModel.listFor(id);
+    const splitStays = hasTable('payment_settlements')
+      ? new Set(database.prepare('SELECT DISTINCT reservationId FROM payment_settlements').all().map((x) => Number(x.reservationId)))
+      : new Set();
+    const settlementsOf = (id) => (splitStays.has(Number(id)) ? settlementsModel.listFor(id) : []);
     const SPLIT_LABEL = {
       deposit: 'Acompte', balance: 'Solde', complement: 'Complément', endOfStayComplement: 'Complément fin de séjour',
     };

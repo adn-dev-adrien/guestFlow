@@ -308,7 +308,7 @@ export default function FinanceSection() {
   // specs/mixed-method-payments.md rules 21-22 — « Plusieurs moyens » on the single payment, closed by default.
   const [arrivalSplitOpen, setArrivalSplitOpen] = useState(false);
   const [arrivalTenders, setArrivalTenders] = useState(null);
-  // Rules 17, 20 — the inline form under a recorded split payment: { rowKey, kind: 'modify' | 'remainder', settlementId? }.
+  // Rules 17, 20, 41 — the inline form under a recorded split payment: { rowKey, kind: 'modify' | 'remainder', settlementId?, target? }.
   const [splitPanel, setSplitPanel] = useState(null);
   // The one open panel under a row: { key, kind: 'mark' | 'edit' | 'statement' | 'locked' }.
   const [panel, setPanel] = useState(null);
@@ -699,29 +699,38 @@ export default function FinanceSection() {
             )}
           </Box>
         ))}
-        {split.remainder && (open && open.kind === 'remainder' ? (
-          <PaymentMarkForm
-            row={{ key: row.key, action: {} }}
-            mode="remainder"
-            split={{ dueCents: split.remainder.dueCents, methods: split.methods }}
-            today={todayStr()}
-            dateLabel="Perçu le"
-            formatAmountInput={formatAmountInput}
-            onCancel={() => setSplitPanel(null)}
-            onSubmit={({ date, tenders, shortfall }) => runSplit(() => api.collectSettlementRemainder(editingReservationId, {
-              targetKind: split.remainder.targetKind, targetKey: split.remainder.targetKey, date, tenders, shortfall,
-            }))}
-          />
-        ) : (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, p: 1.25, borderRadius: 1.5, bgcolor: 'warning.soft' }}>
-            <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.text' }}>{split.remainder.label}</Typography>
-            {!open && (
-              <Button variant="outlined" onClick={() => setSplitPanel({ rowKey: row.key, kind: 'remainder' })} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
-                Marquer payé
-              </Button>
-            )}
-          </Box>
+        {(split.overpaid || []).map((o) => (
+          <Typography key={o.label} variant="body2" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'warning.soft', color: 'warning.text', fontWeight: 600 }}>
+            {o.label}
+          </Typography>
         ))}
+        {(split.remainders || []).map((r) => {
+          const key = `${r.targetKind}:${r.targetKey}`;
+          return open && open.kind === 'remainder' && open.target === key ? (
+            <PaymentMarkForm
+              key={key}
+              row={{ key: row.key, action: {} }}
+              mode="remainder"
+              split={{ dueCents: r.dueCents, methods: split.methods }}
+              today={todayStr()}
+              dateLabel="Perçu le"
+              formatAmountInput={formatAmountInput}
+              onCancel={() => setSplitPanel(null)}
+              onSubmit={({ date, tenders, shortfall }) => runSplit(() => api.collectSettlementRemainder(editingReservationId, {
+                targetKind: r.targetKind, targetKey: r.targetKey, date, tenders, shortfall,
+              }))}
+            />
+          ) : (
+            <Box key={key} sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, p: 1.25, borderRadius: 1.5, bgcolor: 'warning.soft' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.text' }}>{r.label}</Typography>
+              {!open && (
+                <Button variant="outlined" onClick={() => setSplitPanel({ rowKey: row.key, kind: 'remainder', target: key })} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
+                  Marquer payé
+                </Button>
+              )}
+            </Box>
+          );
+        })}
       </Box>
     );
   };

@@ -48,6 +48,11 @@ the whole thing out of sight until asked for.
 - D6 — When the lines do not cover the amount due, the form **warns** and asks what becomes of the
   amount not received, instead of refusing.
 
+**Review of 2026-11-09 (AskUserQuestion):**
+- D7 — A paid split bucket whose amount moves afterwards is **read again at its new amount**: a rise is a
+  reste à percevoir, a fall cancels the reste and the geste and is then said as a trop-perçu (rules 39-40).
+  Not chosen: refusing the change, or undoing the split payment.
+
 ## 2. Goal
 
 When a guest settles one amount with several methods (cash + card, cheque + cash…), the operator
@@ -215,14 +220,45 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     buttons) by the tender lines, in place — no dialog. « Un seul moyen » closes them and restores the
     ordinary form with the date kept.
 
+### 3.10 Guards (review of 2026-11-09)
+
+34. « Plusieurs moyens » is offered only where the server accepts it: on a platform sale
+    (`saleChannel().platformSale`) the acompte and the solde rows carry no `action.split` (rule 2).
+35. A mid-stay note paid with several methods is not edited in place (`adjustMidStayNote`: total, means,
+    date): the PATCH answers 409 « Ce paiement est réparti sur plusieurs moyens : modifiez-le plutôt. », as
+    `mode: 'adjust'` does on the single arrival payment (rule 18). It is corrected through its settlement.
+36. The installment schedule labels an installment paid with several methods « Payée le … · plusieurs
+    moyens » (rule 12), and a split recorded on an installment paid in the meantime by another path is
+    refused (409 `ALREADY_PAID`).
+37. Collecting a reste and correcting a settlement accept the same date as every payment mark
+    (`validateCollectionDate`: a real calendar day, not in the future, not before today − 5 years).
+38. The refund guard of an undo (reservation-refunds.md rule 52) drops only the settlements of the payment
+    taken back: the other split payments of the stay keep their deduction from what stays collected.
+
+### 3.11 An amount that moves after the payment (D7, Adrien, 2026-11-09)
+
+39. A bucket paid with several methods may still change amount afterwards (a paid complement adjusted, a
+    final price saved on a locked fiche). Its settlements stay as they were typed; every reader takes the
+    target at what it is worth **now** (`paymentTenders.targetFigures` with `currentCentsOf`):
+    - a **rise** is a reste à percevoir: added to `splitShortfallDue`, never booked, collected with the
+      remainder's « Marquer payé » (rule 17) like any other reste;
+    - a **fall** cancels the reste first, then the geste commercial; what is left of it was received beyond
+      what is owed, and the money counted comes down by the same factor on the books and in the caisse, so
+      `encaissé + reste à payer = total de séjour` keeps holding and the journal books what is still owed.
+    A target entirely in the caisse that rises is owed without being booked. A paid installment and a split
+    note cannot change amount (rule 35), so only the four buckets of the stay are read again.
+40. A fall beyond the reste and the geste is said on the row, under its settlements: « Trop-perçu 22,00 € :
+    le montant a baissé depuis l'encaissement ». Nothing is refunded automatically; the refund stays the
+    operator's gesture.
+41. The « Notes en séjour » row gathers every note: each note settled with several methods keeps its own
+    « Note du … : Reste à percevoir … » block and its own « Marquer payé » (`split.remainders[]`).
+
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
 - A single line equal to the amount due → accepted; it records the method (« Chèque 122,00 € »).
 - Amount due changes between opening and submitting (another tab) → the server refuses on
   `expectedAmountCents` exactly as today; the form shows the new amount and keeps the lines.
-- Amount due changes after a « Reste à percevoir » (an option added later) → the shortfall due is
-  recomputed as `dueCents − receivedCents − waivedCents` of the target; never negative (an amount lowered
-  below what was received is the existing overpayment path).
+- Amount due changes after the payment, a reste or not → rules 39-40.
 - 0,01 € residue after typing `61,005` → amounts are rounded to the cent on input; the meter shows the
   real remainder.
 - Platform reservation complement paid at the desk (`isDirectChannel` false) → allowed: it is a desk
@@ -305,7 +341,7 @@ due, a mandatory `shortfall`. When `tenders` is absent behaviour is unchanged.
 | POST | SAS arrival / departure commit (`plugins/sas`) | `arrivalPaymentMode: 'split'` + `tenders`; `complementsTenders` (+ `shortfall`) |
 | POST | `/api/reservations/:id/settlements` | **new** — collect a remainder: `{ target, date, tenders, shortfall? }` (rule 17) |
 | PUT | `/api/reservations/:id/settlements/:settlementId` | **new** — modify: `{ date, tenders, shortfall? }` (rules 20-25) |
-| GET | `/api/reservations/:id` (and the quote) | `ledger` rows (`ledgerFor` → `buildLedger`) gain `action.split` and paid `settlements[]` |
+| GET | `/api/reservations/:id` (and the quote) | `ledger` rows (`ledgerFor` → `buildLedger`) gain `action.split`; a paid row gains `split { settlements[], remainders[], overpaid[], methods }` (rules 30, 40, 41) |
 
 Refusals: `400 { error, field: 'tenders' | 'shortfall' | 'date' }`, French message naming the problem
 (rules 6, 8, 15, 18, 25); `409` with the undo guard's message (rule 22). Same role guard as the existing
@@ -388,16 +424,21 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] `tests/mixed-method-payments.unit.test.js` (17) — `validateSettlement` (over, under with and without a
       choice, 1 and 5 lines, duplicate method, caisse interne on a non-cash line, cents), settlement and target
       figures, stay aggregates, history wording (rules 4-9, 11, 14-18, 26-28).
-- [x] `tests/mixed-method-payments-writes.unit.test.js` (15) — PATCH payment (fin de séjour, acompte, platform
+- [x] `tests/mixed-method-payments-writes.unit.test.js` (17) — PATCH payment (fin de séjour, acompte, platform
       refusal, one at a time), the undo that takes the settlement, reste à percevoir then its collection,
       geste commercial, corrections (lines, shortfall, date, refusal 25), the single arrival payment split and
-      undone (rules 1-2, 6, 10-25).
-- [x] `tests/mixed-method-payments-targets.unit.test.js` (3) — an installment recorded as 'mixed', the geste
-      commercial under its settlement, the lines of a note on the « Notes en séjour » row (rules 12, 19, 31).
+      undone, the refund guard on an undo, an impossible correction date (rules 1-2, 6, 10-25, 37-38).
+- [x] `tests/mixed-method-payments-amount-change.unit.test.js` (6) — a rise is a reste then collected, a fall
+      cancels the reste then the geste, a trop-perçu said on the row, a rise in the caisse, one reste per note
+      (rules 39-41).
+- [x] `tests/mixed-method-payments-targets.unit.test.js` (5) — an installment recorded as 'mixed' and labelled so,
+      the geste commercial under its settlement, the lines of a note on the « Notes en séjour » row, no split on
+      a platform sale's acompte, a split note not edited in place (rules 12, 19, 31, 34-36).
 - [x] `tests/mixed-method-payments-finance.unit.test.js` (5) — `encaissé + reste à payer = total de séjour` on
       four shapes; the turnover (rule 27).
-- [x] `plugins/accounting-export/tests/accounting-mixed-method-payments.unit.test.js` (5) — the books share,
-      the rabais, a reste booked in its own month, all in the caisse books nothing (rules 18, 26).
+- [x] `plugins/accounting-export/tests/accounting-mixed-method-payments.unit.test.js` (7) — the books share,
+      the rabais, a reste booked in its own month, all in the caisse books nothing, an amount raised or lowered
+      after the payment (rules 18, 26, 39).
 - [x] `plugins/online-payment/tests/reconciliation-mixed-method-payments.unit.test.js` (2) — only card, cheque
       and transfer expected, once (rule 28).
 - [x] `plugins/sas/tests/sas-mixed-method-payments.unit.test.js` (5) — the check-out SAS (rules 1, 6, 10-11, 16).

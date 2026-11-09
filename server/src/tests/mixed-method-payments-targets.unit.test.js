@@ -25,7 +25,7 @@ const call = (handler, params, body) => {
   return res;
 };
 
-test('specs/mixed-method-payments.md rule 12 — an installment paid with several methods is recorded as mixed', () => {
+test('specs/mixed-method-payments.md rules 12, 36 — an installment paid with several methods is recorded as mixed', () => {
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, finalPrice)
     VALUES (1, 1, date(?, '+60 day'), date(?, '+65 day'), 'direct', 2, 600)`).run(TODAY, TODAY).lastInsertRowid);
   const [first] = installmentsModel.replacePlan(id, [
@@ -37,6 +37,7 @@ test('specs/mixed-method-payments.md rule 12 — an installment paid with severa
   });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(installmentsModel.findById(first.id).paidMethod, 'mixed');
+  assert.match(res.body.installmentPlan.installments[0].statusLabel, /· plusieurs moyens$/);
   const [s] = settlements.listFor(id);
   assert.equal(s.targetKind, 'installment');
   assert.equal(db.prepare('SELECT splitOffBooksAmount FROM reservations WHERE id = ?').get(id).splitOffBooksAmount, 100);
@@ -62,7 +63,7 @@ test('specs/mixed-method-payments.md rule 19 — the geste commercial is shown u
   const row = ledger.rows.find((r) => r.key === 'endOfStayComplement');
   assert.equal(plain(row.split.settlements[0].shortfall.label), 'Geste commercial 8,00 €');
   assert.deepEqual(row.split.settlements[0].lines.map((l) => plain(l.label)), ['Espèces 50,00 €', 'CB 64,00 €']);
-  assert.equal(row.split.remainder, null);
+  assert.deepEqual(row.split.remainders, []);
   assert.match(row.stateLabel, /plusieurs moyens/);
 });
 
@@ -81,4 +82,33 @@ test('specs/mixed-method-payments.md rule 31 — the « Notes en séjour » row 
   const row = ledger.rows.find((r) => r.key === 'midStayNotes');
   assert.ok(row, 'the notes row');
   assert.deepEqual(row.split.settlements[0].lines.map((l) => [plain(l.label), l.internal]), [['Espèces 10,00 €', true], ['CB 20,00 €', false]]);
+});
+
+test('specs/mixed-method-payments.md rules 2, 34 — a platform sale offers no « Plusieurs moyens » on its acompte or solde', () => {
+  const ledger = buildLedger({
+    row: {
+      id: 10, kind: 'reservation', platform: 'Booking', startDate: TODAY, endDate: TODAY, finalPrice: 500,
+      depositAmount: 150, balanceAmount: 350,
+    },
+    today: TODAY,
+  });
+  for (const key of ['deposit', 'balance']) {
+    const row = ledger.rows.find((r) => r.key === key);
+    if (row && row.action) assert.equal(row.action.split, undefined, `${key} must not be split`);
+  }
+});
+
+test('specs/mixed-method-payments.md rules 20, 35 — a note paid with several methods is not edited in place', () => {
+  const controller = require('../controllers/reservationsController');
+  const note = { id: 7, total: 30, paidDate: TODAY, paidCash: 0, items: [] };
+  const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, finalPrice, midStaySettledNotes)
+    VALUES (1, 1, ?, ?, 'direct', 2, 600, ?)`).run(TODAY, TODAY, JSON.stringify([note])).lastInsertRowid);
+  settlements.insert({
+    reservationId: id, targetKind: 'midStayNote', targetKey: 7, paidDate: TODAY, dueCents: 3000,
+    parts: [{ kind: 'note', key: 7, amountCents: 3000 }],
+    lines: [{ method: 'cash', amountCents: 1000, internal: true }, { method: 'card', amountCents: 2000, internal: false }],
+  });
+  const res = call(controller.updatePayment, { id }, { adjustMidStayNote: { id: 7, total: 40 } });
+  assert.equal(res.statusCode, 409);
+  assert.equal(JSON.parse(db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(id).midStaySettledNotes)[0].total, 30);
 });

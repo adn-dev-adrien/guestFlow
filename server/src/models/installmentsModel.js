@@ -58,9 +58,12 @@ function buildModel(database) {
     syncSettlements(reservationId);
   }
 
-  // specs/mixed-method-payments.md — an installment taken back or deleted takes its settlement with it.
+  // specs/mixed-method-payments.md — an installment taken back or deleted takes its settlement with it. Built
+  // once, on first use (the settlements model requires this database's schema to be migrated).
+  let settlements = null;
   function syncSettlements(reservationId) {
-    require('./paymentSettlementsModel').buildModel(database).sync(reservationId);
+    if (!settlements) settlements = require('./paymentSettlementsModel').buildModel(database);
+    settlements.sync(reservationId);
   }
 
   function replacePlan(reservationId, rows, targetCents) {

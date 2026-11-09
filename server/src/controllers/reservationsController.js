@@ -2802,6 +2802,13 @@ function captureRes() {
 // settlement never outlives the payment it described (`sync` drops it once its target is no longer paid).
 function updatePayment(req, res) {
   if (req.body && req.body.tenders !== undefined) return updatePaymentSplit(req, res);
+  // A note paid with several methods is corrected through its settlement: an edit in place (total, means, date)
+  // would leave its lines describing another payment.
+  const adjust = req.body && req.body.adjustMidStayNote;
+  if (adjust && adjust.id != null
+    && paymentSettlementsModel.listForTarget(Number(req.params.id), 'midStayNote', adjust.id).length > 0) {
+    return res.status(409).json({ error: 'Ce paiement est réparti sur plusieurs moyens : modifiez-le plutôt.' });
+  }
   const capture = captureRes();
   updatePaymentCore(req, capture);
   if (capture.statusCode < 400) paymentSettlementsModel.sync(Number(req.params.id));

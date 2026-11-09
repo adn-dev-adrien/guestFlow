@@ -21,7 +21,7 @@ const { END_OF_STAY_BEFORE_CHECKOUT_CAPTION } = require('./endOfStayCheckout');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
-const { METHODS: TENDER_METHODS, methodLabel, targetFigures } = require('./paymentTenders');
+const { METHODS: TENDER_METHODS, methodLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
 
 const NBSP = ' ';
 
@@ -793,7 +793,7 @@ function buildLedger({
     }
   }
 
-  decorateSplitRows(rows, { settlements, canAct, stayYear, installmentPlan });
+  decorateSplitRows(rows, { stay: row, settlements, canAct, stayYear, installmentPlan, ota });
 
   // ── Reste à percevoir (rule 5) ────────────────────────────────────────────
   const remaining = remainingToPay({
@@ -826,9 +826,13 @@ const SPLIT_BUCKET_OF_ROW = {
 };
 const SPLIT_METHODS = TENDER_METHODS.map((m) => ({ value: m.value, label: m.label }));
 
-function decorateSplitRows(rows, { settlements, canAct, stayYear, installmentPlan }) {
+// Rule 2 — on a platform sale the acompte and the solde are the platform's money: never split at the desk.
+const PLATFORM_MONEY_ROWS = new Set(['deposit', 'balance']);
+
+function decorateSplitRows(rows, { stay = null, settlements, canAct, stayYear, installmentPlan, ota = false }) {
   for (const row of rows) {
-    const markable = canAct && SPLIT_BUCKET_OF_ROW[row.key] && row.action && row.action.kind === 'mark'
+    const markable = canAct && SPLIT_BUCKET_OF_ROW[row.key] && !(ota && PLATFORM_MONEY_ROWS.has(row.key))
+      && row.action && row.action.kind === 'mark'
       && !row.action.payout && !row.action.disabled && Number(row.amount) > 0 && !String(row.state).startsWith('paid');
     if (markable) row.action = { ...row.action, split: { dueCents: cents(row.amount), methods: SPLIT_METHODS } };
   }
@@ -854,9 +858,10 @@ function decorateSplitRows(rows, { settlements, canAct, stayYear, installmentPla
       || (first.targetKind === 'installment' && x.key === `installment-${installmentNumber(first.targetKey)}`)));
     if (!row) continue;
     if (first.targetKind !== 'midStayNote') used.add(row);
-    const f = targetFigures(list);
+    const f = targetFigures(list, { currentCents: currentCentsOf(first.parts, stay) });
+    const dueCents = Math.round(f.shortfallDueCents);
     const views = list.map((s, i) => {
-      // The reste still due has its own block (`split.remainder`), with its « Marquer payé »: not repeated here.
+      // The reste still due has its own block (`split.remainders`), with its « Marquer payé »: not repeated here.
       const shortfall = s.shortfallKind === 'waived'
         ? { kind: 'waived', label: `Geste commercial ${formatEuros(s.shortfallCents / 100)}` }
         : null;
@@ -874,20 +879,26 @@ function decorateSplitRows(rows, { settlements, canAct, stayYear, installmentPla
         } : null,
       };
     });
-    const split = (row.split && row.split.settlements) ? row.split : { settlements: [], remainder: null, methods: SPLIT_METHODS };
+    // The « Notes en séjour » row gathers every note: each settled one keeps its own reste (rule 41).
+    const split = (row.split && row.split.settlements) ? row.split : { settlements: [], remainders: [], overpaid: [], methods: SPLIT_METHODS };
     split.settlements.push(...views);
-    if (f.shortfallDueCents > 0 && canAct) {
-      split.remainder = {
-        dueCents: f.shortfallDueCents,
+    const noteLabel = first.targetKind === 'midStayNote' ? `Note du ${shortDate(first.paidDate, stayYear)} : ` : '';
+    if (dueCents > 0 && canAct) {
+      split.remainders.push({
+        dueCents,
         targetKind: first.targetKind,
         targetKey: String(first.targetKey),
-        label: `Reste à percevoir ${formatEuros(f.shortfallDueCents / 100)}`,
-      };
+        label: `${noteLabel}Reste à percevoir ${formatEuros(dueCents / 100)}`,
+      });
+    }
+    // Rule 40 — the amount came down after the payment: what was received beyond it is said, never silently kept.
+    if (f.overpaidCents > 0) {
+      split.overpaid.push({ label: `${noteLabel}Trop-perçu ${formatEuros(f.overpaidCents / 100)} : le montant a baissé depuis l'encaissement` });
     }
     row.split = split;
     if (first.targetKind !== 'midStayNote') {
-      row.stateLabel = f.shortfallDueCents > 0 ? 'Perçu en partie' : `Perçu le ${shortDate(first.paidDate, stayYear)} · plusieurs moyens`;
-      if (f.shortfallDueCents > 0) row.tone = 'due';
+      row.stateLabel = dueCents > 0 ? 'Perçu en partie' : `Perçu le ${shortDate(first.paidDate, stayYear)} · plusieurs moyens`;
+      if (dueCents > 0) row.tone = 'due';
     }
   }
 }

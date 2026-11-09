@@ -90,3 +90,24 @@ test('rule 11 — everything in the caisse books nothing', () => {
   settle(db, [{ method: 'cash', amountCents: 12200, internal: true }]);
   assert.deepEqual(journal(db), []);
 });
+
+test('rule 39 — the cleaning raised after the payment: the books carry only the 72 € received, balanced', () => {
+  const db = seed();
+  settle(db, [{ method: 'cash', amountCents: 5000, internal: true }, { method: 'card', amountCents: 7200, internal: false }]);
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 142 WHERE id = 1').run();
+  const [entry] = journal(db);
+  assert.equal(entry.encaissementTtc, 72);
+  assert.equal(round2(debit(entry)), round2(credit(entry)));
+});
+
+test('rule 39 — the cleaning lowered beyond its geste: the geste is gone, the card share comes down with the amount', () => {
+  const db = seed();
+  settle(db, [{ method: 'cash', amountCents: 5000, internal: true }, { method: 'card', amountCents: 6400, internal: false }], { shortfallCents: 800, shortfallKind: 'waived' });
+  db.prepare('UPDATE reservations SET endOfStayComplementAmount = 100 WHERE id = 1').run();
+  const entries = journal(db);
+  assert.equal(entries.some((e) => e.kind === 'discount'), false);
+  const sale = entries.find((e) => e.kind === 'endOfStayComplement');
+  // 14 € received beyond the 100 € now owed, taken off the books and the caisse alike: 64 × 100/114.
+  assert.equal(sale.encaissementTtc, round2(64 * 100 / 114));
+  assert.equal(round2(debit(sale)), round2(credit(sale)));
+});

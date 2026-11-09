@@ -38,7 +38,7 @@ const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationComp
 const { buildModel: buildPenaltiesModel } = sdk.coreModule('platformPenaltiesModel');
 const { parseComplementAllocation } = sdk.coreModule('complementAllocation');
 const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
-const { settlementFigures } = sdk.coreModule('paymentTenders');
+const { settlementFigures, targetFigures, currentCentsOf } = sdk.coreModule('paymentTenders');
 const { buildModel: buildSettlementsModel } = sdk.coreModule('paymentSettlementsModel');
 
 // The residue the export absorbs on the last credit of a contrib-driven entry (rounding cents).
@@ -156,7 +156,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
     const context = { ...buildCommissionContext(settings.read()), vatRate: salesRegime.rate, salesRegime: salesRegime.regime };
     const whole = buildEntry(row, kind, buildPerLineData(database, row), context, taxContextOf(row));
     // specs/mixed-method-payments.md rule 26 — a bucket paid with several methods booked only its share.
-    const bookedShare = bookedShareOf(settlementsStore.listFor(row.id), kind);
+    const bookedShare = bookedShareOf(settlementsStore.listFor(row.id), kind, row);
     const entry = whole && bookedShare !== 1 ? scaleEntry(whole, bookedShare, null) : whole;
     const splitFrom = readTtcSplitFrom(database);
     for (const bucket of (entry && entry.buckets) || []) {
@@ -310,19 +310,17 @@ function createAccountingModel(database, { settings = createAccountSettings(data
           }
           return null;
         };
+        const targetOf = targetReader(settlements, row);
         for (const settlement of settlements) {
           if (!inMonth(1, settlement.paidDate)) continue;
-          const figures = settlementFigures(settlement);
-          const coveredCents = settlement.parts.reduce((sum, p) => sum + (Number(p.amountCents) || 0), 0);
-          if (coveredCents <= 0) continue;
-          const share = (figures.booksCents + figures.bookedWaivedCents) / coveredCents;
+          const { booksCents, bookedWaivedCents, share } = bookedFigures(settlement, targetOf(settlement));
           if (share > 0) {
             for (const part of settlement.parts) {
               const entry = partEntry(part);
               if (entry) entries.push(scaleEntry(entry, share, settlement));
             }
           }
-          if (figures.bookedWaivedCents > 0) entries.push(buildSettlementDiscountEntry(row, settlement, figures.bookedWaivedCents / 100, rowContext.vatRate));
+          if (bookedWaivedCents > 0) entries.push(buildSettlementDiscountEntry(row, settlement, bookedWaivedCents / 100, rowContext.vatRate));
         }
         // Stamp the group on the entries it named, so the Comptabilité can render one card for one
         // collection. A cash group emits no entry at all (its buckets are off the books), so there is
@@ -772,16 +770,45 @@ function splitTargetsOf(settlements) {
   return out;
 }
 
+// Rule 39 — each settlement's target, read at what it is worth now (`paymentTenders.targetFigures`).
+function targetReader(settlements, row) {
+  const byTarget = new Map();
+  for (const s of settlements || []) {
+    const key = `${s.targetKind}:${s.targetKey}`;
+    if (!byTarget.has(key)) byTarget.set(key, []);
+    byTarget.get(key).push(s);
+  }
+  const figures = new Map();
+  return (settlement) => {
+    const key = `${settlement.targetKind}:${settlement.targetKey}`;
+    if (!figures.has(key)) {
+      const list = byTarget.get(key) || [settlement];
+      figures.set(key, targetFigures(list, { currentCents: currentCentsOf(list[0].parts, row) }));
+    }
+    return figures.get(key);
+  };
+}
+
+/**
+ * What one settlement puts on the books (rules 18, 26, 39): its lines on the books and its booked geste, both
+ * scaled by what still stands of them once the target's amount moved, and the share of the target's entries
+ * that carries them. The entries are built at the target's current amount, so the share is taken over it: a
+ * rise not yet collected books nothing, a fall books what is still owed of the money received.
+ */
+function bookedFigures(settlement, target) {
+  const f = settlementFigures(settlement);
+  const booksCents = f.booksCents * target.receivedFactor;
+  const bookedWaivedCents = f.bookedWaivedCents * target.waivedFactor;
+  const base = target.currentCents;
+  return { booksCents, bookedWaivedCents, share: base > 0 ? (booksCents + bookedWaivedCents) / base : 0 };
+}
+
 // The share of a bucket the books carry, all its settlements together; 1 when it was not split.
-function bookedShareOf(settlements, bucket) {
+function bookedShareOf(settlements, bucket, row) {
   const mine = (settlements || []).filter((s) => (s.parts || []).some((p) => p.kind === bucket));
   if (mine.length === 0) return 1;
-  return mine.reduce((sum, s) => {
-    const covered = s.parts.reduce((t, p) => t + (Number(p.amountCents) || 0), 0);
-    if (covered <= 0) return sum;
-    const f = settlementFigures(s);
-    return sum + (f.booksCents + f.bookedWaivedCents) / covered;
-  }, 0);
+  const targetOf = targetReader(settlements, row);
+  return mine.reduce((sum, s) => sum + bookedFigures(s, targetOf(s)).share, 0);
 }
 
 // One entry scaled to a settlement's share: the export prorates every credit by `fraction` and absorbs the

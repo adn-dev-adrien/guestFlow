@@ -14,11 +14,12 @@
 const db = require('../database');
 const settlementsModel = require('../models/paymentSettlementsModel');
 const {
-  validateSettlement, targetFigures, settlementText, frDate, euros, METHODS, toCents,
+  validateSettlement, targetFigures, currentCentsOf, settlementText, frDate, euros, METHODS, toCents,
 } = require('./paymentTenders');
 const { parseGroup, serialiseGroup } = require('./arrivalPaymentGroup');
 const { parseNotes } = require('./midStayExtras');
 const { comptaCollected } = require('./reservationSettlement');
+const { validateCollectionDate } = require('./arrivalPaymentDate');
 
 const BUCKETS = ['deposit', 'balance', 'complement', 'endOfStayComplement'];
 const BUCKET_LABEL = {
@@ -71,6 +72,11 @@ function targetLabel(targetKind, targetKey, parts = []) {
   return BUCKET_LABEL[(parts[0] && parts[0].kind) || targetKey] || 'Paiement';
 }
 
+// A target's figures at what it is worth now (rule 39): a bucket's amount may have moved since it was settled.
+function figuresNow(reservationId, settlements) {
+  return targetFigures(settlements, { currentCents: currentCentsOf(settlements[0] && settlements[0].parts, getRow(reservationId)) });
+}
+
 /**
  * Rule 11 — the target's own caisse-interne flag follows its settlements: set only when every line of every
  * settlement is in the caisse and nothing is left to collect. Refreshes the stay's aggregates.
@@ -78,7 +84,7 @@ function targetLabel(targetKind, targetKey, parts = []) {
 function applyCashFlag(reservationId, targetKind, targetKey) {
   const settlements = settlementsModel.listForTarget(reservationId, targetKind, targetKey);
   if (settlements.length === 0) return;
-  const flag = targetFigures(settlements).allInternal ? 1 : 0;
+  const flag = figuresNow(reservationId, settlements).allInternal ? 1 : 0;
   const parts = settlements[0].parts || [];
   db.transaction(() => {
     const row = getRow(reservationId);
@@ -131,11 +137,9 @@ function record({ reservationId, targetKind, targetKey, paidDate, prepared, part
 
 const todayIso = () => require('./reservationHelpers').getTodayIsoDate();
 
-function validDate(date) {
-  const d = typeof date === 'string' ? date : '';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return 'Date invalide.';
-  if (d > todayIso()) return 'La date ne peut pas être dans le futur.';
-  return null;
+// The same day every payment mark accepts: a real calendar day, not in the future, not before today − 5 years.
+function checkedDate(date) {
+  return validateCollectionDate(date, { today: todayIso(), invalidReason: 'Date invalide.' });
 }
 
 // The bank reconciliation already matched a line of this settlement: the plugin's table, when it exists.
@@ -155,7 +159,7 @@ function refundRefusal(reservationId) {
   if (!row) return null;
   let refunded = 0;
   try {
-    refunded = Number(db.prepare("SELECT COALESCE(SUM(totalTtc), 0) AS t FROM reservation_refunds WHERE reservationId = ? AND method IN ('transfer','cash')").get(Number(reservationId)).t) || 0;
+    refunded = Number(require('../models/refundsModel').totalsByReservation(Number(reservationId)).book) || 0;
   } catch {
     refunded = 0;
   }
@@ -197,23 +201,25 @@ function moveTargetDate(reservationId, settlement, date) {
 function collectRemainder({ reservationId, targetKind, targetKey, date, tenders, shortfall }) {
   const settlements = settlementsModel.listForTarget(reservationId, targetKind, targetKey);
   const last = settlements[settlements.length - 1];
-  if (!last || last.shortfallKind !== 'due' || !(last.shortfallCents > 0)) {
+  // Rule 39 — the reste is read at what the target is worth now: a rise since the payment is to collect too.
+  const dueCents = last ? Math.round(figuresNow(reservationId, settlements).shortfallDueCents) : 0;
+  if (!(dueCents > 0)) {
     return { ok: false, status: 409, error: 'Plus rien à percevoir sur ce paiement.' };
   }
-  const dateError = validDate(date);
-  if (dateError) return { ok: false, status: 400, error: dateError, field: 'date' };
-  const prepared = prepare({ tenders, dueCents: last.shortfallCents, shortfall });
+  const checked = checkedDate(date);
+  if (!checked.ok) return { ok: false, status: 400, error: checked.reason, field: 'date' };
+  const prepared = prepare({ tenders, dueCents, shortfall });
   if (!prepared.ok) return { ok: false, status: 400, error: prepared.error, field: prepared.field };
   const settlementId = settlementsModel.insert({
-    reservationId, targetKind, targetKey, paidDate: date, dueCents: prepared.dueCents,
+    reservationId, targetKind, targetKey, paidDate: checked.date, dueCents: prepared.dueCents,
     shortfallCents: prepared.shortfallCents, shortfallKind: prepared.shortfallKind, parts: last.parts, lines: prepared.lines,
   });
   applyCashFlag(reservationId, targetKind, targetKey);
   const s = settlementsModel.findById(settlementId);
   addHistory(reservationId, {
     field: 'mixedPayment',
-    label: `${targetLabel(targetKind, targetKey, last.parts)} : reste payé le ${frDate(date)}`,
-    from: `reste à percevoir ${euros(last.shortfallCents)}`,
+    label: `${targetLabel(targetKind, targetKey, last.parts)} : reste payé le ${frDate(checked.date)}`,
+    from: `reste à percevoir ${euros(dueCents)}`,
     to: settlementText(s),
   });
   return { ok: true, settlementId };
@@ -222,13 +228,14 @@ function collectRemainder({ reservationId, targetKind, targetKey, date, tenders,
 /**
  * Rules 20-25 — replaces a settlement's date, lines and shortfall.
  */
-function modify({ reservationId, settlementId, date, tenders, shortfall }) {
+function modify({ reservationId, settlementId, date: rawDate, tenders, shortfall }) {
   const current = settlementsModel.findById(settlementId);
   if (!current || Number(current.reservationId) !== Number(reservationId)) {
     return { ok: false, status: 404, error: 'Encaissement introuvable.' };
   }
-  const dateError = validDate(date);
-  if (dateError) return { ok: false, status: 400, error: dateError, field: 'date' };
+  const checked = checkedDate(rawDate);
+  if (!checked.ok) return { ok: false, status: 400, error: checked.reason, field: 'date' };
+  const { date } = checked;
   const prepared = prepare({ tenders, dueCents: current.dueCents, shortfall });
   if (!prepared.ok) return { ok: false, status: 400, error: prepared.error, field: prepared.field };
   const siblings = settlementsModel.listForTarget(reservationId, current.targetKind, current.targetKey);

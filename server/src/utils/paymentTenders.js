@@ -116,40 +116,92 @@ function settlementFigures(settlement) {
   return { receivedCents, booksCents, internalCents, bankCents, waivedCents, bookedWaivedCents, byMethod };
 }
 
+// The stay columns a bucket part is worth now. A paid installment and a split note cannot change amount
+// (their amount is not editable once paid, rule 35), so their part keeps the amount it was written with.
+const BUCKET_AMOUNT = {
+  deposit: 'depositAmount', balance: 'balanceAmount', complement: 'complementAmount', endOfStayComplement: 'endOfStayComplementAmount',
+};
+
 /**
- * The figures of one target, all its settlements together (rules 16-18). `shortfallDueCents` is what the
- * last settlement left to collect: a remainder collected later is a settlement of its own (rule 17).
- * `allInternal` drives the target's caisse-interne flag (rule 11).
+ * Rule 39 — what the parts of a target are worth NOW, read from the stay: a bucket's amount may still move
+ * after it was paid (a complement adjusted, a final price saved on a locked fiche). Without a row, the amounts
+ * frozen at the write.
  */
-function targetFigures(settlements) {
+function currentCentsOf(parts, row = null) {
+  return (parts || []).reduce((sum, p) => {
+    const column = BUCKET_AMOUNT[p.kind];
+    const now = row && column ? toCents(Number(row[column] || 0) * 100) : null;
+    return sum + (now == null ? Number(p.amountCents) || 0 : now);
+  }, 0);
+}
+
+/**
+ * The figures of one target, all its settlements together (rules 16-18). `shortfallDueCents` is what is left
+ * to collect: the reste the last settlement left (a remainder collected later is a settlement of its own,
+ * rule 17), plus what the target gained since (rule 39). `allInternal` drives its caisse-interne flag (rule 11).
+ *
+ * Rule 39 — the target is worth `currentCents` now, `coveredCents` (received + geste + reste) when it was
+ * settled. A rise is still to collect. A fall cancels the reste first, then the geste commercial; what is left
+ * of it was received beyond what is owed (`overpaidCents`, signalled on the fiche), and the money counted is
+ * scaled down by `receivedFactor`, the same on the books and in the caisse. `waivedFactor` is the share of the
+ * geste that still stands. Every reader of the target (aggregates, journal, fiche) takes these figures.
+ *
+ * @param {Array} settlements
+ * @param {{currentCents?:number|null}} [options] what the target is worth now; omitted → as settled
+ */
+function targetFigures(settlements, { currentCents = null } = {}) {
   const list = [...(settlements || [])].sort((a, b) => (a.id || 0) - (b.id || 0));
-  const total = { receivedCents: 0, booksCents: 0, internalCents: 0, bankCents: 0, waivedCents: 0, bookedWaivedCents: 0 };
+  const raw = { receivedCents: 0, booksCents: 0, internalCents: 0, bankCents: 0, waivedCents: 0, bookedWaivedCents: 0 };
   for (const s of list) {
     const f = settlementFigures(s);
-    for (const k of Object.keys(total)) total[k] += f[k];
+    for (const k of Object.keys(raw)) raw[k] += f[k];
   }
   const last = list[list.length - 1];
-  const shortfallDueCents = last && last.shortfallKind === 'due' ? Number(last.shortfallCents) || 0 : 0;
+  const lastDueCents = last && last.shortfallKind === 'due' ? Number(last.shortfallCents) || 0 : 0;
+  const coveredCents = raw.receivedCents + raw.waivedCents + lastDueCents;
+  const now = currentCents == null ? coveredCents : Math.max(0, Math.round(currentCents));
+  const fall = Math.max(0, coveredCents - now);
+  const dueCut = Math.min(fall, lastDueCents);
+  const waivedCut = Math.min(fall - dueCut, raw.waivedCents);
+  const overpaidCents = fall - dueCut - waivedCut;
+  const receivedFactor = raw.receivedCents > 0 ? (raw.receivedCents - overpaidCents) / raw.receivedCents : 1;
+  const waivedFactor = raw.waivedCents > 0 ? (raw.waivedCents - waivedCut) / raw.waivedCents : 1;
+  const shortfallDueCents = lastDueCents - dueCut + Math.max(0, now - coveredCents);
+  const booksCents = raw.booksCents * receivedFactor;
   return {
-    ...total,
+    receivedCents: raw.receivedCents * receivedFactor,
+    booksCents,
+    internalCents: raw.internalCents * receivedFactor,
+    // What reached the bank stays what reached it: the reconciliation matches real credits (rule 28).
+    bankCents: raw.bankCents,
+    waivedCents: raw.waivedCents * waivedFactor,
+    bookedWaivedCents: raw.bookedWaivedCents * waivedFactor,
     shortfallDueCents,
-    allInternal: list.length > 0 && total.booksCents === 0 && shortfallDueCents === 0,
+    currentCents: now,
+    overpaidCents,
+    receivedFactor,
+    waivedFactor,
+    allInternal: list.length > 0 && booksCents === 0 && shortfallDueCents === 0,
   };
 }
 
 /**
- * The four per-reservation aggregates every money reader adds to its row (rules 16, 27). A target whose
+ * The four per-reservation aggregates every money reader adds to its row (rules 16, 27, 39). A target whose
  * own caisse-interne flag is set (rule 11: every line internal, nothing left due) is already off the books
- * whole: only its geste commercial is subtracted, from the caisse.
+ * whole: only its geste commercial is subtracted, from the caisse. A rise of such a target since (rule 39) is
+ * owed without being on the books: it is added to the reste and taken back from the off-books amount, so the
+ * books stay as they are, the caisse does not count it and `collected + remaining = total` keeps holding.
  *
- * @param {Array<{settlements:Array, flagged:boolean}>} targets
+ * @param {Array<{settlements:Array, flagged:boolean, currentCents?:number|null}>} targets
  */
 function reservationAggregates(targets) {
   const out = { splitOffBooksAmount: 0, splitWaivedAmount: 0, splitWaivedCashAmount: 0, splitShortfallDue: 0 };
-  for (const { settlements, flagged } of targets) {
-    const f = targetFigures(settlements);
+  for (const { settlements, flagged, currentCents = null } of targets) {
+    const f = targetFigures(settlements, { currentCents });
     if (flagged) {
       out.splitWaivedCashAmount += f.waivedCents;
+      out.splitOffBooksAmount -= f.shortfallDueCents;
+      out.splitShortfallDue += f.shortfallDueCents;
     } else {
       out.splitOffBooksAmount += f.internalCents;
       out.splitWaivedAmount += f.waivedCents;
@@ -182,6 +234,6 @@ const frDate = (iso) => String(iso || '').slice(0, 10).split('-').reverse().join
 module.exports = {
   METHODS, BANK_METHODS, MAX_LINES, toCents,
   methodLabel, euros, frDate,
-  validateSettlement, parseParts, settlementFigures, targetFigures, reservationAggregates,
+  validateSettlement, parseParts, settlementFigures, currentCentsOf, targetFigures, reservationAggregates,
   linesText, settlementText,
 };

@@ -61,7 +61,8 @@ const splitPaid = (extra = {}) => paidRow('endOfStayComplement', 'Fin de séjour
       shortfall: null,
       edit: { dueCents: 12200, tenders: [{ method: 'cash', amountCents: 5000, internal: true }, { method: 'card', amountCents: 7200, internal: false }], shortfallKind: null },
     }],
-    remainder: null,
+    remainders: [],
+    overpaid: [],
     ...extra,
   },
 });
@@ -92,7 +93,7 @@ test('rule 17 — the reste à percevoir is collected from its own block', async
   const user = userEvent.setup();
   renderFinance({
     editingReservationId: 7, reservationId: 7,
-    ledger: ledgerOf([splitPaid({ remainder: { dueCents: 800, targetKind: 'bucket', targetKey: 'endOfStayComplement', label: 'Reste à percevoir 8,00 €' } })]),
+    ledger: ledgerOf([splitPaid({ remainders: [{ dueCents: 800, targetKind: 'bucket', targetKey: 'endOfStayComplement', label: 'Reste à percevoir 8,00 €' }] })]),
   });
   expect(screen.getByText('Reste à percevoir 8,00 €')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Marquer payé' }));
