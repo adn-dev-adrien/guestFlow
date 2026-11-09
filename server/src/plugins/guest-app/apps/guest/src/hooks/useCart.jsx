@@ -39,7 +39,8 @@ export function mergeLine(lines, line) {
 }
 
 export function CartProvider({ children }) {
-  const { me, lodging, lang } = useSession();
+  const { me, lodging, lang, status } = useSession();
+  const anonymous = status === 'unknown' || Boolean(me && me.mode === 'visitor');
   const stayKey = me && me.mode !== 'visitor' && lodging ? `cart:${me.lodging.id}:${me.stay ? me.stay.arrival : ''}` : null;
   const [lines, setLines] = useState([]);
   const [meta, setMeta] = useState({});
@@ -51,12 +52,15 @@ export function CartProvider({ children }) {
   const [stockNotes, setStockNotes] = useState({});
   const [deliveryNonce, setDeliveryNonce] = useState(0);
   const loadedKey = useRef(null);
+  // The commit that reads a stay's cart back still holds the previous lines: it must not write them over it.
+  const justLoaded = useRef(false);
   const seq = useRef(0);
 
   // The cart belongs to one stay: read it back for that stay, never carry it to another (edge case « stay cancelled mid-cart »).
   useEffect(() => {
     if (loadedKey.current === stayKey) return;
     loadedKey.current = stayKey;
+    justLoaded.current = true;
     const saved = stayKey ? device.get(stayKey) : null;
     setLines((saved && saved.lines) || []);
     setMeta((saved && saved.meta) || {});
@@ -65,7 +69,14 @@ export function CartProvider({ children }) {
     setStockNotes({});
   }, [stayKey]);
 
+  // Edge case « stay cancelled mid-cart »: back to the visitor mode (or no session at all), the cart is cleared,
+  // on the device too.
   useEffect(() => {
+    if (anonymous) device.forget((name) => name.startsWith('cart:'));
+  }, [anonymous]);
+
+  useEffect(() => {
+    if (justLoaded.current) { justLoaded.current = false; return; }
     if (stayKey && loadedKey.current === stayKey) device.set(stayKey, lines.length ? { lines, meta } : null);
   }, [stayKey, lines, meta]);
 

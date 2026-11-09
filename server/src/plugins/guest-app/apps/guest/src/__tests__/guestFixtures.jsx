@@ -44,9 +44,13 @@ export const SHOP = {
 
 const json = (status, body) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body) });
 
+/** A route answer that fails like a phone without network (`fetch` rejects). */
+export const OFFLINE = Object.freeze({ offline: true });
+
 /**
  * `stubApi({ 'GET /me': ME_STAY, 'POST /orders/quote': (body) => ({ … }) })` — a value answers `{ data: value }`
- * with 200; `{ status, error }` answers that error; a function receives the parsed body. Unknown routes 404.
+ * with 200; `{ status, error }` answers that error; `OFFLINE` fails as without network; a function receives the
+ * parsed body. Unknown routes 404.
  */
 export function stubApi(routes) {
   const calls = [];
@@ -62,6 +66,7 @@ export function stubApi(routes) {
     if (!key) return json(404, { error: { code: 'NOT_STUBBED', message: `${method} ${path}` } });
     let answer = routes[key];
     if (typeof answer === 'function') answer = answer(body, calls);
+    if (answer === OFFLINE) return Promise.reject(new TypeError('Failed to fetch'));
     if (answer && answer.status && answer.error) return json(answer.status, { error: answer.error });
     return json(200, { data: answer });
   });

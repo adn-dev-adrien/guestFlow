@@ -30,4 +30,10 @@ export const device = {
     else all[name] = value;
     writeAll(all);
   },
+  /** Drops every entry whose name passes `test` (the carts of past stays). */
+  forget: (test) => {
+    const all = readAll();
+    const kept = Object.fromEntries(Object.entries(all).filter(([name]) => !test(name)));
+    if (Object.keys(kept).length !== Object.keys(all).length) writeAll(kept);
+  },
 };

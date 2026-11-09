@@ -19,8 +19,13 @@ export const SessionContext = createContext(null);
 
 const prefersDark = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-/** One exchange of what the device holds; true when a session is open again. */
+/**
+ * One exchange of what the device holds: true when a session is open again, false when nothing the device
+ * holds opens one any more. Throws the network error when the network alone kept it from opening: the link is
+ * kept for the next try.
+ */
 async function reopenFromDevice() {
+  let offline = null;
   const stayToken = device.get('stayToken');
   if (stayToken) {
     try {
@@ -29,7 +34,8 @@ async function reopenFromDevice() {
       return true;
     } catch (err) {
       if (err.code === 'CODE_NOT_FOUND') device.set('stayToken', null);
-      else if (err.code !== 'NETWORK') throw err;
+      else if (err.code === 'NETWORK') offline = err;
+      else throw err;
     }
   }
   const lodgingCode = device.get('lodgingCode');
@@ -39,10 +45,18 @@ async function reopenFromDevice() {
       return true;
     } catch (err) {
       if (err.code === 'CODE_NOT_FOUND') device.set('lodgingCode', null);
-      else if (err.code !== 'NETWORK') throw err;
+      else if (err.code === 'NETWORK') offline = offline || err;
+      else throw err;
     }
   }
+  if (offline) throw offline;
   return false;
+}
+
+/** M12 — a device that no longer holds a stay keeps nothing personal offline: the worker drops its data cache. */
+function purgeOfflineData() {
+  const worker = typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (worker) worker.postMessage({ type: 'purge' });
 }
 
 export function SessionProvider({ children }) {
@@ -51,12 +65,22 @@ export function SessionProvider({ children }) {
   const [nightChoice, setNightChoice] = useState(() => device.get('register') || null);
   const [darkScheme, setDarkScheme] = useState(prefersDark);
   const reopening = useRef(null);
+  const loads = useRef(0);
+  const read = useRef(null);
 
-  // Rule 4 — every dead session goes back through the stored link once, whoever noticed it first.
+  // Rule 4 — every dead session goes back through the stored link once, whoever noticed it first. The session
+  // reopened may not be the one shown (the stay ended, was cancelled, its link regenerated): `/me` and `/lodging`
+  // are read again, and a device nothing reopens goes to « Ce code n'est pas reconnu ».
   useEffect(() => {
     onSessionExpired(() => {
       if (!reopening.current) {
-        reopening.current = reopenFromDevice().finally(() => { reopening.current = null; });
+        reopening.current = reopenFromDevice()
+          .then((reopened) => {
+            if (!reopened) setState({ status: 'unknown', me: null, lodging: null, error: null });
+            else if (!loads.current) read.current({ noRetry: true });
+            return reopened;
+          })
+          .finally(() => { reopening.current = null; });
       }
       return reopening.current;
     });
@@ -71,43 +95,53 @@ export function SessionProvider({ children }) {
     return () => mq.removeEventListener?.('change', onChange);
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options) => {
     setLanguage(langChoice);
+    loads.current += 1;
     try {
-      const [me, lodging] = await Promise.all([api.me(), api.lodging()]);
+      const [me, lodging] = await Promise.all([api.me(options), api.lodging(options)]);
       setState({ status: 'ready', me, lodging, error: null });
     } catch (err) {
       if (err.code === 'PLUGIN_INACTIVE') setState({ status: 'inactive', me: null, lodging: null, error: err });
       else if (err.status === 401 || err.code === 'CODE_NOT_FOUND') setState({ status: 'unknown', me: null, lodging: null, error: err });
       else setState((s) => ({ ...s, status: s.me ? 'ready' : 'error', error: err }));
+    } finally {
+      loads.current -= 1;
     }
   }, [langChoice]);
+  read.current = load;
 
-  /** `/s/:token`, `/l/:code` and the lookup: open, remember what opened it, then read the session. */
+  /**
+   * `/s/:token`, `/l/:code` and the lookup: open, remember what opened it, then read the session → `{ opened, error }`.
+   * What opened it is kept before the exchange, so a network failure never loses the link; only a code the server
+   * does not know is forgotten.
+   */
   const enter = useCallback(async (how) => {
-    setState((s) => ({ ...s, status: 'loading' }));
+    setState((s) => ({ ...s, status: 'loading', error: null }));
+    if (how.stayToken) device.set('stayToken', how.stayToken);
+    if (how.lodgingCode) device.set('lodgingCode', how.lodgingCode);
     try {
       if (how.stayToken) {
         const opened = await api.openStay(how.stayToken);
-        device.set('stayToken', how.stayToken);
         device.set('ended', Boolean(opened && opened.ended));
       } else if (how.lodgingCode) {
         await api.openLodging(how.lodgingCode);
-        device.set('lodgingCode', how.lodgingCode);
         device.set('ended', false);
       }
     } catch (err) {
-      if (err.code === 'PLUGIN_INACTIVE') { setState({ status: 'inactive', me: null, lodging: null, error: err }); return false; }
-      if (err.code === 'CODE_NOT_FOUND') {
+      if (err.code === 'PLUGIN_INACTIVE') {
+        setState({ status: 'inactive', me: null, lodging: null, error: err });
+      } else if (err.code === 'CODE_NOT_FOUND') {
         if (how.stayToken && device.get('stayToken') === how.stayToken) device.set('stayToken', null);
+        if (how.lodgingCode && device.get('lodgingCode') === how.lodgingCode) device.set('lodgingCode', null);
         setState({ status: 'unknown', me: null, lodging: null, error: err });
-        return false;
+      } else {
+        setState({ status: 'error', me: null, lodging: null, error: err });
       }
-      setState({ status: 'error', me: null, lodging: null, error: err });
-      return false;
+      return { opened: false, error: err };
     }
     await load();
-    return true;
+    return { opened: true, error: null };
   }, [load]);
 
   /** After a successful lookup the server holds the session; the app only reads it. */
@@ -128,6 +162,9 @@ export function SessionProvider({ children }) {
     return () => clearTimeout(timer);
   }, [opensAt, load]);
 
+  const anonymous = state.status === 'unknown' || Boolean(state.me && state.me.mode === 'visitor');
+  useEffect(() => { if (anonymous) purgeOfflineData(); }, [anonymous]);
+
   const lang = langChoice || (state.me && state.me.language) || 'fr';
   // §6.1 — the night register: the guest's choice, else the device's dark scheme or the server's night.
   const night = nightChoice ? nightChoice === 'night' : (darkScheme || Boolean(state.me && state.me.isNight));
@@ -140,7 +177,7 @@ export function SessionProvider({ children }) {
   }, [night]);
 
   const value = useMemo(() => ({
-    ...state, lang, night, chooseLang, toggleNight, reload: load, enter, afterLookup,
+    ...state, lang, night, chooseLang, toggleNight, reload: () => load(), enter, afterLookup,
   }), [state, lang, night, chooseLang, toggleNight, load, enter, afterLookup]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
