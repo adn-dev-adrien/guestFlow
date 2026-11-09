@@ -44,6 +44,7 @@ const PLUGIN_ROUTES = {
     'POST /api/guest-app/studio/pages/:id/blocks',
     'POST /api/guest-app/studio/pages/:id/duplicate',
     'POST /api/guest-app/studio/pages/:id/placements',
+    'POST /api/guest-app/studio/soliomap/sync',
     'POST /public/v1/guest/orders',
     'POST /public/v1/guest/orders/:id/abandon',
     'POST /public/v1/guest/orders/quote',
@@ -58,6 +59,7 @@ const PLUGIN_ROUTES = {
     'PUT /api/guest-app/studio/media/:id',
     'PUT /api/guest-app/studio/pages/:id',
     'PUT /api/guest-app/studio/pages/:id/blocks/order',
+    'PUT /api/guest-app/studio/settings',
   ],
   'google-calendar': [
     'POST /api/google-calendar/oauth/disconnect',

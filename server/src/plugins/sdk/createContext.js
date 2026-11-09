@@ -18,6 +18,10 @@ const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
+// The web apps of plugins never shadow the core's trees (rule 47).
+const WEB_APP_PATH = /^\/[a-z0-9][a-z0-9-]*$/;
+const RESERVED_WEB_PATHS = Object.freeze(['/api', '/public', '/uploads', '/plugin-assets', '/login', '/assets']);
+
 function createContext(id, { db, settingsModel, dataDir = null } = {}) {
   const record = registry.ensure(id);
   const prefix = `[plugin:${id}]`;
@@ -50,6 +54,20 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (isPublic && !path.startsWith('/public/')) throw new Error(`${prefix} public mounts must live under /public/`);
       if (!isPublic && !path.startsWith('/api/')) throw new Error(`${prefix} mounts must live under /api/`);
       record.mounts.push({ path, router, public: isPublic });
+    },
+    // SDK 2.22.0 (specs/plugins-phase-1-sdk.md rule 47) — a web app the plugin serves itself: under `path` (one
+    // segment of its own, e.g. '/studio') on every host, or on its own `host()` (a hostname, read on each request;
+    // null = none yet) at every path. Never under /api, /public, /uploads or /plugin-assets: those stay the core's,
+    // on every host. Reached only while the plugin is live.
+    webApp({ key, path = null, host = null, handler } = {}) {
+      if (!key || typeof key !== 'string') throw new Error(`${prefix} a web app needs a key`);
+      if (typeof handler !== 'function') throw new Error(`${prefix} web app "${key}" needs a handler`);
+      if (path === null && host === null) throw new Error(`${prefix} web app "${key}" needs a path or a host`);
+      if (path !== null && (!WEB_APP_PATH.test(String(path)) || RESERVED_WEB_PATHS.includes(path))) {
+        throw new Error(`${prefix} web app "${key}" path must be one segment of its own, like "/studio"`);
+      }
+      if (host !== null && typeof host !== 'function') throw new Error(`${prefix} web app "${key}" host must be a function`);
+      record.webApps.push({ key, path, host, handler });
     },
     // One route under a core prefix, at its full URL (rule 5).
     route(method, path, ...handlers) {

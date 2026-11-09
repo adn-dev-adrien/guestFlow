@@ -20,6 +20,7 @@ const createMediaModel = require('./models/mediaModel');
 const createStockModel = require('./models/stockModel');
 const { alertPush } = require('./stock');
 const { parisDate } = require('./currentStay');
+const hosting = require('./appHosting');
 const { createSoliomapFeed } = require('./soliomapFeed');
 const { buildGuestSession } = require('./middleware/guestSession');
 const { buildSessionController } = require('./controllers/sessionController');
@@ -197,6 +198,24 @@ function register(ctx) {
   // Rules 35-36 — a paid card link of an order commits it, or flags its money « à rembourser ».
   ctx.paymentBasket({ source: 'guestOrder', paid: api.orderPaid });
   ctx.mount('/public/v1/guest', api.publicRouter, { public: true });
+  // Plan step 50 — the guest app on its own host, the studio at /studio for an admin (rule 47).
+  const guestDist = (() => { let dir = null; return () => { if (!dir) dir = hosting.distDirOf('guest'); return dir; }; })();
+  const studioDist = (() => { let dir = null; return () => { if (!dir) dir = hosting.distDirOf('studio'); return dir; }; })();
+  ctx.webApp({
+    key: 'guest',
+    host: () => ctx.settings.get('guestHost') || null,
+    handler: hosting.staticApp({
+      dir: guestDist,
+      csp: () => hosting.guestCsp({
+        frameOrigin: hosting.soliomapFrameOrigin({ soliomapUrl: ctx.settings.get('soliomapUrl'), soliomapEmbed: ctx.settings.get('soliomapEmbed') }),
+      }),
+    }),
+  });
+  ctx.webApp({
+    key: 'studio',
+    path: '/studio',
+    handler: hosting.adminOnly(hosting.staticApp({ dir: studioDist, base: '/studio', csp: () => hosting.guestCsp() })),
+  });
   ctx.mount('/api/guest-app', api.adminRouter);
   // Rule 9bis (a) — the reception runs the arrival SAS, where the stay link is shown and regenerated; rules 43, 45 —
   // it prepares and delivers the orders.

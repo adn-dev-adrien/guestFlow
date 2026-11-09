@@ -251,7 +251,11 @@ function buildOrdersController({
     };
   }
 
-  const fail = (res, refusal, details) => publicHttp.fail(res, refusal.status, refusal.code, refusal.message, details);
+  // The envelope's `details` (§4.3): an object here — the units left, the fresh quote — which publicHttp.fail, built for
+  // lists of field errors, would drop.
+  const fail = (res, refusal, details) => (details && !Array.isArray(details)
+    ? res.status(refusal.status).json({ error: { code: refusal.code, message: refusal.message, details } })
+    : publicHttp.fail(res, refusal.status, refusal.code, refusal.message, details));
 
   function guarded(handler) {
     return async (req, res) => {

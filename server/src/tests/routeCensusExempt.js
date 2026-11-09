@@ -108,7 +108,7 @@ const EXEMPT = {
     'POST /api/reservations/:id/sas/departure/preview',
     'PUT /api/plugins/:id/settings',
   ],
-  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin.': [
+  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin, guest-app-studio-lodgings and guest-app-fulfilment (the studio settings, judged together; « Synchroniser », which reads no body).': [
     'POST /api/guest-app/orders/:id/delivered',
     'DELETE /api/guest-app/studio/blocks/:id',
     'DELETE /api/guest-app/studio/pages/:id',
@@ -121,6 +121,7 @@ const EXEMPT = {
     'POST /api/guest-app/studio/pages/:id/blocks',
     'POST /api/guest-app/studio/pages/:id/duplicate',
     'POST /api/guest-app/studio/pages/:id/placements',
+    'POST /api/guest-app/studio/soliomap/sync',
     'POST /public/v1/guest/orders',
     'POST /public/v1/guest/orders/:id/abandon',
     'POST /public/v1/guest/orders/quote',
@@ -135,6 +136,7 @@ const EXEMPT = {
     'PUT /api/guest-app/studio/media/:id',
     'PUT /api/guest-app/studio/pages/:id',
     'PUT /api/guest-app/studio/pages/:id/blocks/order',
+    'PUT /api/guest-app/studio/settings',
   ],
   'An action on what the URL names; the handler reads no body.': [
     'POST /api/accounting/cancellation-compensations/:id/reopen',

@@ -58,6 +58,9 @@ function emptyRecord(id) {
     resourceHolds: null,
     // specs/guest-app.md rules 35-36 (SDK 2.22.0) — [{ source, paid }]: what a paid basket link does.
     paymentBaskets: [],
+    // specs/plugins-phase-1-sdk.md rule 47, specs/guest-app.md rules 47, 52 (SDK 2.22.0) — [{ key, path, host, handler }]:
+    // a web app the plugin serves itself, at a path of its own or on a host of its own.
+    webApps: [],
   };
 }
 

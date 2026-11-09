@@ -39,6 +39,10 @@ function syncView(last, now) {
 function buildStudioSettingsController({
   lodgings, settingsStore, soliomapFeed, now,
 }) {
+  // A feed handed by a suite may know only `activities()`: it has never synchronised, and refreshes by reading.
+  const lastSync = () => (typeof soliomapFeed.lastSync === 'function' ? soliomapFeed.lastSync() : null);
+  const refresh = () => (typeof soliomapFeed.refresh === 'function' ? soliomapFeed.refresh() : soliomapFeed.activities());
+
   function lodgingsList(req, res) {
     return res.json({
       lodgings: lodgings().listAll().map((l) => ({
@@ -61,7 +65,7 @@ function buildStudioSettingsController({
       maxOrderTotal: Number(get('maxOrderTotal')) || 500,
       fulfilment: get('fulfilment') === 'pickup' ? 'pickup' : 'delivery',
       pickupPlace: get('pickupPlace') || '',
-      soliomap: syncView(soliomapFeed.lastSync(), now()),
+      soliomap: syncView(lastSync(), now()),
     };
   }
 
@@ -98,7 +102,7 @@ function buildStudioSettingsController({
 
   async function sync(req, res) {
     if (!settingsStore().get('soliomapUrl')) return res.status(409).json({ error: 'Renseignez d’abord l’adresse de Soliomap.' });
-    await soliomapFeed.refresh();
+    await refresh();
     return res.json(view().soliomap);
   }
 
