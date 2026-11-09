@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved (2026-11-04) |
+| **Status** | Implemented (2026-11-09) — approved 2026-11-04 |
 | **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `inte/plugins` |
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
@@ -690,7 +690,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 |---|---|---|---|---|
 | POST | `/public/v1/guest/sessions` | — | `{ stayToken }` or `{ lodgingCode }` | `{ mode: 'stay'\|'preArrival'\|'visitor', lodging:{id,name,slug}, opensAt?, ended? }` + cookie; a `lodgingCode` always opens the visitor mode; unknown → 404 `CODE_NOT_FOUND` (one answer for every unknown, stale, revoked or disabled code) |
 | POST | `/public/v1/guest/sessions/lookup` | — | `{ lastName, reservationNumber }` | same; 404 `STAY_NOT_FOUND` generic |
-| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, appName, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, isNight, tiles:[{key,label,order, state?, url?, stateLabel?}] (the gate tile carries rule 13's `state`, its `url` once active, « Accès en préparation » before), highlight?.detail (the arrival-day « se prépare » card), suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; a pre-arrival session on the arrival day, before the window, adds `opensAt` and `openingLine`; visitor: `{ mode, lodging, language, tiles:[…], welcome }` — nothing of any stay (rule 3); dead session 401 `SESSION_EXPIRED` |
+| GET | `/public/v1/guest/me` | session | — | stay / pre-arrival: `{ mode, appName, guest:{firstName}, lodging, stay:{arrival,departure,partySize,statusLine}, language, isNight, tiles:[{key,label,order, state?, url?, stateLabel?}] (the gate tile carries rule 13's `state`, its `url` once active, « Accès en préparation » before), highlight?.detail (the arrival-day « se prépare » card), suggestion?:{id,name,category,dateLabel,driveLabel,url}, highlight?:{key,text,module,page?} }`; a pre-arrival session on the arrival day, before the window, adds `opensAt` and `openingLine`; visitor: `{ mode, appName, lodging, language, tiles:[…], welcome }` — nothing of any stay (rule 3); dead session 401 `SESSION_EXPIRED` |
 | GET | `/public/v1/guest/booklet?lang=` | session or `lodgingCode` | — | `{ version, pages:[{slug,icon,title,cover}] }` |
 | GET | `/public/v1/guest/booklet/pages/:slug?lang=` | idem | — | `{ slug, title, cover, blocks:[{type, …}] }` |
 | GET | `/public/v1/guest/booklet/search?q=&lang=` | idem | — | `{ results:[{slug,title,excerpt}] }` |
@@ -1037,7 +1037,7 @@ le nom et le numéro. »
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
   then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
 
-### Guest app client tests (Vitest, `apps/guest/src/__tests__/`, 41)
+### Guest app client tests (Vitest, `apps/guest/src/__tests__/`, 46)
 - [x] `HomePage.modules.test.jsx` (6) — rules 3, 5, 10, 11, 11bis, 13, 51: server tiles in order, gate « Accès en
   préparation » / absent outside, no shop tab without shop, visitor home, the highlight's words
 - [x] `ShopPage.free-states.test.jsx` (6) — rules 25, 27, 32, 37quater, 42: included / free chips, « Épuisé » without
@@ -1049,6 +1049,27 @@ le nom et le numéro. »
 - [x] `AppShell.night.test.jsx` (4) — §6.1, rules 19, 53: day / server night / device dark, the guest's choice kept, EN
 - [x] `session.reexchange.test.jsx` (5) — rules 1, 4, 9, 22: the stay link kept, a dead session reopened once, a stale
   link forgotten, the poster's visitor fallback, « Application indisponible »
+- [x] `sw.offline.test.js` (5) — rule 21: the service worker run without network: the booklet, `/me` and `/lodging`
+  from the cache, the photos stale-while-revalidate, the shell offline; the shop, orders, gate and sessions never cached
+
+### Studio client tests (Vitest, `apps/studio/src/__tests__/`, 27)
+- [x] `ModulesPage.test.jsx` (4), `LodgingSwitcher.test.jsx` (2) — rules 10, 11bis, 48: the lodging's tiles, a
+  lodging « Hors application » greyed but selectable
+- [x] `PageEditor.blocks.test.jsx` (6), `richText.test.js` (3) — rules 16-18, 49: one editor per block type, a shared
+  page's block kept to one lodging, only what changed written, a partial refusal keeps the draft
+- [x] `ShopItemsPage.test.jsx` (4) — rule 50: the lodging's own articles at its price, the sell switch shown, edited
+  in GuestFlow
+- [x] `ServiceHoursPage.test.jsx` (5), `SettingsPage.test.jsx` (3) — rules 38-41ter, 47: shared and per-lodging hours,
+  « À retirer » needs a place, the app settings
+
+### GuestFlow admin client tests (Vitest, `client/src/`)
+- [x] `GuestAppItemFields.sell` (7), `GuestAppItemFields.stock` (5) — rules 22, 37bis: the sell switch and its
+  reason, the stock group (follow, count, restock line, « Prévenir sous », « En rupture »)
+- [x] `GuestOrdersPage` (6), `PlanningOrderCard` (4) — rules 43-45: by delivery time, « Marquer livrée / retirée »,
+  the push deep-link; the planning card and the day counter
+- [x] `StayLinkCard` (4), `StockLineWarning` (2), `ReservationSasDialog.stay-app` (7) — rules 1, 9bis, 37quater
+- [x] `OptionEditorPanel.plugin-fields` (4), `ResourceEditorPanel.plugin-fields` (2), `navMenu.plugin-entries` (3),
+  `navigation.safe-return-path` (3) — the generic client points (`plugins-phase-1-sdk.md` rule 49)
 
 ### Manual UI verification
 - [ ] Happy path mobile (390 px): scan QR → home → order 2 drinks for 18 h + 1 h bath → note with name → push
@@ -1255,7 +1276,7 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.25.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
 | E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.25.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
 | D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `midStayOrderCommit` (generic since 2026-11-09), `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.25.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
-| F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next. Guest app (slice F) built 2026-11-09 on `feature/guest-app-pwa`: every screen of §6.6 on the boards v5, offline booklet, install, FR / EN, night; 41 client tests; first load 151 kB gzip; walked at 390 / 900 / 1280 px, day and night, EN, against the plugin's routers; axe 0 serious on every screen in both registers. The studio (slice G) is next |
+| F-G — Guest app, studio, GuestFlow screens | Done (2026-11-09). The studio (`feature/guest-app-studio`): every screen of rules 47-50, the phone preview, 27 tests, plus `GET /api/guest-app/items?propertyId=`. The GuestFlow screens (`feature/guest-app-admin`): « Application clients » in the option / resource editors with the stock, « Stock : épuisé », « Commandes clients » (admin), the planning card, « Lien Mon séjour », « Ouvrir le Studio »; generic client points (SDK rule 49). Both apps moved into the plugin's folder and shipped in its package (SDK rule 48). Earlier: unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next. Guest app (slice F) built 2026-11-09 on `feature/guest-app-pwa`: every screen of §6.6 on the boards v5, offline booklet, install, FR / EN, night; 41 client tests; first load 151 kB gzip; walked at 390 / 900 / 1280 px, day and night, EN, against the plugin's routers; axe 0 serious on every screen in both registers. The studio (slice G) is next |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |
 

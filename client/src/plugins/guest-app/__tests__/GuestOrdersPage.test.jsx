@@ -18,7 +18,7 @@ const order = (over = {}) => ({
   lodging: 'L’Estiva',
   guest: 'Thomas Ribeiro',
   lines: [{ label: '2 × Cidre', total: 9, totalLabel: '9,00 €' }],
-  deliverAt: '2026-11-07T17:00:00.000Z',
+  deliverAt: '2026-11-07T17:00:00.000Z', // date-literal-ok: the server's order, rendered as sent
   deliverLabel: 'sam. 7 nov. 18 h',
   fulfilment: 'delivery',
   fulfilmentLabel: 'Livraison au logement',

@@ -21,7 +21,7 @@ const WEEK = {
   weekly: {
     0: [{ from: '09:00', to: '12:00' }], 1: [{ from: '08:00', to: '12:00' }, { from: '16:00', to: '20:00' }], 2: [], 3: [], 4: [], 5: [], 6: [],
   },
-  exceptions: [{ date: '2026-12-25', closed: true }],
+  exceptions: [{ date: '2026-12-25', closed: true }], // date-literal-ok: an exception saved as typed
 };
 
 function setup({ settings = SETTINGS, hours = WEEK } = {}) {
@@ -54,7 +54,7 @@ describe('ServicePage (rules 40, 41bis)', () => {
     expect(propertyId).toBeNull();
     expect(config.weekly[2]).toEqual([{ from: '08:00', to: '12:00' }]);
     expect(config.weekly[1]).toHaveLength(2);
-    expect(config.exceptions).toEqual([{ date: '2026-12-25', closed: true }]);
+    expect(config.exceptions).toEqual([{ date: '2026-12-25', closed: true }]); // date-literal-ok: an exception saved as typed
     expect(api.saveSettings).not.toHaveBeenCalled();
   });
 
