@@ -77,7 +77,7 @@ function SettingsGuestAppSection({ onDirtyChange }, ref) {
             onChange={(event) => { setDraft(event.target.value); setError(null); }}
             error={Boolean(error)}
             helperText={error || HELP}
-            inputProps={{ autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false, inputMode: 'url' }}
+            slotProps={{ htmlInput: { autoCapitalize: 'none', autoCorrect: 'off', spellCheck: false, inputMode: 'url' } }}
           />
           <Box>
             <Button

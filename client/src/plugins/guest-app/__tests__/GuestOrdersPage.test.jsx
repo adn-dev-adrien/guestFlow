@@ -108,3 +108,17 @@ test('a failed read offers « Réessayer »', async () => {
   await userEvent.click(await screen.findByRole('button', { name: /Réessayer/ }));
   expect(await screen.findByText(/Aucune commande à préparer/)).toBeInTheDocument();
 });
+
+test('only the latest read lands: « À préparer » answered after « Toutes » does not replace it', async () => {
+  let answerTodo;
+  guestAppApi.getOrders
+    .mockImplementationOnce(() => new Promise((resolve) => { answerTodo = resolve; }))
+    .mockResolvedValueOnce({ orders: [order({ id: 12, status: 'expired', statusLabel: 'Expirée', canMarkDelivered: false })] });
+  renderPage();
+  await userEvent.click(await screen.findByRole('tab', { name: 'Toutes' }));
+  expect(await screen.findByText('Expirée')).toBeInTheDocument();
+  answerTodo({ orders: [order({ id: 99, deliverLabel: 'dim. 8 nov. 9 h' })] });
+  await new Promise((resolve) => { setTimeout(resolve, 20); });
+  expect(screen.queryByText('dim. 8 nov. 9 h')).not.toBeInTheDocument();
+  expect(screen.getByText('Expirée')).toBeInTheDocument();
+});

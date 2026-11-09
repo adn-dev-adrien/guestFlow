@@ -1,13 +1,14 @@
 // specs/guest-app.md rules 1 and 9bis (a) — while the guest app gives this stay a link, the SAS « Portail » step
 // becomes « Mon séjour »: the stay link's QR, the keypad code, Partager, Régénérer le lien, and « QR du portail
 // seul » for the gate key. Plugin inactive or no link for the stay → today's gate step, unchanged.
+// Lives with the guest app: the SAS's own suites test the `leadsStep` mechanism with a fake contribution.
 import { screen, waitFor, fireEvent, configure } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
-import guestAppApi from '../../guest-app/guestAppApi';
-import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
-import { previewLikeTheServer } from './sasPreviewFake';
+import guestAppApi from '../guestAppApi';
+import { sasPayload, renderDialog, clickBtn } from '../../sas/__tests__/sasFixtures';
+import { previewLikeTheServer } from '../../sas/__tests__/sasPreviewFake';
 import { lacksPlugins } from '../../sdk/testing';
 
 // The step's components load lazily (the SAS dialog, then the plugin's step): under the full suite's load that can
@@ -27,7 +28,7 @@ vi.mock('../../../api', () => ({
     getReservationGateAccess: vi.fn(),
   },
 }));
-vi.mock('../../guest-app/guestAppApi', () => ({
+vi.mock('../guestAppApi', () => ({
   default: { getStayLink: vi.fn(), regenerateStayLink: vi.fn() },
 }));
 
@@ -55,7 +56,7 @@ async function openPortalStep(payload) {
   clickBtn('Commencer');
 }
 
-const NEEDS = ['guest-app', 'gate-access'];
+const NEEDS = ['guest-app', 'gate-access', 'sas'];
 
 test.skipIf(lacksPlugins(NEEDS))('rule 9bis (a): the step becomes « Mon séjour » with the stay link’s QR and the keypad code', async () => {
   enabled.add('guest-app').add('gate-access');

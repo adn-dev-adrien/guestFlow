@@ -52,3 +52,14 @@ test('rule 47: « Ouvrir le Studio » opens the booklet studio in a new tab', as
   expect(link).toHaveAttribute('href', '/studio');
   expect(link).toHaveAttribute('target', '_blank');
 });
+
+test('the address field is typed as a URL: no capitals, no correction, no spell check', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  render(<SettingsGuestAppSection />);
+  const field = await screen.findByLabelText(FIELD);
+  expect(field).toHaveAttribute('inputmode', 'url');
+  expect(field).toHaveAttribute('autocapitalize', 'none');
+  expect(field).toHaveAttribute('spellcheck', 'false');
+  expect(errors).not.toHaveBeenCalled();
+  errors.mockRestore();
+});

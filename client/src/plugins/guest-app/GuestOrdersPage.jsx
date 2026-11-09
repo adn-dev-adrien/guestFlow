@@ -8,7 +8,7 @@
  * The « Commandes clients » push opens `/commandes-app?order=<id>`: that order is outlined and scrolled into view,
  * looked for in « Toutes » when it is no longer to prepare.
  *
- * Admin and reception (the reception prepares and delivers).
+ * Admin only (`index.js`); the reception delivers from the order card of the planning (`PlanningOrderCard`).
  */
 import React, {
   useCallback, useEffect, useRef, useState,
@@ -144,13 +144,16 @@ export default function GuestOrdersPage() {
   const rows = useRef(new Map());
   const { showError } = useToast();
 
+  // Only the latest read lands: « Toutes » answered after « À préparer » was picked again must not replace it.
+  const seq = useRef(0);
   const load = useCallback(async (which) => {
+    const mine = ++seq.current;
     setError(false);
     try {
       const body = await guestAppApi.getOrders(which);
-      setOrders((body && body.orders) || []);
+      if (mine === seq.current) setOrders((body && body.orders) || []);
     } catch {
-      setError(true);
+      if (mine === seq.current) setError(true);
     }
   }, []);
 
