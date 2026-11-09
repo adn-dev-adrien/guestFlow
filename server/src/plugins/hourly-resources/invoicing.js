@@ -20,6 +20,8 @@ function invoiceRefusal(row, issuer) {
   if (row.frozen) return { status: 409, code: 'BOOKING_INVOICED', error: 'Déjà facturée.' };
   if (!(Number(row.totalPrice) > 0)) return { status: 400, code: 'NOTHING_TO_INVOICE', error: 'Total à 0 € : pas de facture.' };
   if (!row.payment) return { status: 400, code: 'NOT_PAID', error: 'Enregistrer d’abord le paiement.' };
+  // Rule 43 — a « Payé » ticked before 1.4.0 names no method: it is no caisse interne, it is unknown.
+  if (!row.payment.tenders.length) return { status: 400, code: 'NO_METHOD', error: 'Moyen de paiement non saisi : retirer le paiement puis l’enregistrer à nouveau.' };
   if (!row.payment.onTheBooks) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
   if (!issuer || !issuer.isReady()) return { status: 409, code: 'ISSUER_UNAVAILABLE', error: 'Facturation Qonto non connectée.' };
   return null;
@@ -36,7 +38,7 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     const discountCents = negative.reduce((sum, l) => sum + cents(-l.amount), 0);
     return {
       idempotencyKey: `resource-booking:${row.id}:invoice:${row.invoiceCancelledAt ? Date.parse(row.invoiceCancelledAt) || 1 : 0}`,
-      client: { ...who, street: row.billing.street, postcode: row.billing.postcode, city: row.billing.city, countryCode: 'FR' },
+      client: { ...who, countryCode: 'FR' },
       issueDate: row.payment.paidAt,
       performanceDate: row.date,
       items,
@@ -53,12 +55,17 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     const issuer = issuers();
     const refusal = invoiceRefusal(basis.row, issuer);
     if (refusal) return refusal;
+    // Rule 36 — the lines Qonto would state are today's tariff: when it moved since the payment, they no longer add up
+    // to what was paid. Refused before Qonto numbers anything.
+    if (cents(basis.breakdown.total) !== cents(basis.row.totalPrice)) {
+      return { status: 409, code: 'TARIFF_CHANGED', error: 'Le tarif a changé depuis le paiement : facture à établir dans Qonto.' };
+    }
     let issued;
     try {
       issued = await issuer.issue(requestOf(basis));
     } catch (err) {
       const known = {
-        ISSUER_NEEDS_ADDRESS: 422, ISSUER_REAUTH: 409, ISSUER_AMOUNT_MISMATCH: 502,
+        ISSUER_NEEDS_ADDRESS: 422, ISSUER_REAUTH: 409, ISSUER_AMOUNT_MISMATCH: 502, ISSUER_AMOUNT_UNREACHABLE: 422,
       }[err && err.code];
       if (known) return { error: err.message, status: known, code: err.code === 'ISSUER_NEEDS_ADDRESS' ? 'QONTO_NEEDS_ADDRESS' : err.code };
       logger.error(`[hourly-resources] invoice of booking ${id} failed:`, err && err.message);
@@ -67,6 +74,7 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     bookings().storeInvoice(id, {
       invoiceId: issued.invoiceId, number: issued.number, clientId: issued.clientId,
       vatRate: basis.breakdown.vat ? basis.breakdown.vat.rate : null, total: Number(basis.row.totalPrice), markedPaid: issued.markedPaid,
+      markPending: Boolean(issued.markPending),
     });
     if (basis.row.payment.hasCard) {
       bookings().setAttachment(id, { state: 'pending' });
@@ -111,6 +119,15 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
         // eslint-disable-next-line no-await-in-loop
         const status = await issuer.invoiceStatus(row.qontoInvoiceId);
         if (status === 'canceled' || status === 'cancelled') { bookings().markInvoiceCancelled(row.id); continue; }
+        // Rule 38 — the « marquer payée » Qonto did not take at issue, tried again until it is paid there.
+        if (Number(row.invoiceMarkPending) === 1) {
+          if (status === 'paid') bookings().settleInvoiceMark(row.id, { markedPaid: true });
+          else if (typeof issuer.markPaid === 'function') {
+            // eslint-disable-next-line no-await-in-loop
+            const marked = await issuer.markPaid({ invoiceId: row.qontoInvoiceId, paidAt: row.payment ? row.payment.paidAt : null });
+            bookings().settleInvoiceMark(row.id, { markedPaid: Boolean(marked && marked.done) });
+          }
+        }
         // eslint-disable-next-line no-await-in-loop
         if (row.payment && row.payment.hasCard && row.invoice.attachment.state === 'pending') await attach(row.id);
       } catch (err) {

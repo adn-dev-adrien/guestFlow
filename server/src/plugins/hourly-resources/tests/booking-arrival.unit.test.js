@@ -1,13 +1,16 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 28-33 — the one-screen arrival of a guest with no stay.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { seed, book, card } = require('./standaloneBookingFixture');
+const { seed, book, card, DAY } = require('./standaloneBookingFixture');
 const { createController } = require('../controller');
 const { createInvoicing } = require('../invoicing');
 const { FAR_YEAR: Y } = require('../../../tests/farYearFixture');
 
+// The arrival is recorded on the session's day (rule 28): the clock stands on it.
+const onTheDay = () => new Date(`${DAY}T15:00:00Z`);
+
 function app(issuerOver = {}) {
-  const { model, resourceId, db } = seed();
+  const { model, resourceId, db } = seed({ now: onTheDay });
   const issuer = { id: 'fake', isReady: () => true, async issue(r) { return { invoiceId: 'inv', number: 'F-1', totalCents: r.expectedTotalCents, clientId: 'c', markedPaid: false }; }, async findCardBatch() { return null; }, async attach() { return { attachmentId: 'a' }; }, async invoiceStatus() { return 'unpaid'; }, ...issuerOver };
   const invoicing = createInvoicing({ bookings: () => model, issuers: () => issuer, logger: { error() {}, warn() {} } });
   const controller = createController({ bookings: () => model, invoicing: () => invoicing });

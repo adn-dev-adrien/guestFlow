@@ -8,6 +8,7 @@ import { alpha } from '@mui/material/styles';
 import { useNavigate } from 'react-router';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
 import { api, OptionDayCard, useToast } from '../sdk';
+import { localIsoDate } from './localDate';
 
 // « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
 // (specs/resource-ignition-task.md §3 rule 5). A night-time ignition carries no hour of its own: the
@@ -28,7 +29,7 @@ function BookingCard({ booking }) {
   const navigate = useNavigate();
   const turnover = Number(booking.turnoverMinutes || 0);
   // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day.
-  const canArrive = booking.external === true && !booking.arrived;
+  const canArrive = booking.external === true && !booking.arrived && booking.date === localIsoDate();
   return (
     <Card variant="outlined" sx={(t) => ({ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: alpha(t.palette.info.main, 0.04) })}>
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>

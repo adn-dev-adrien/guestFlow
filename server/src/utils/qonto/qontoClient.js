@@ -438,14 +438,39 @@ function buildQontoClient(config = {}) {
       const att = await send(`${apiBase}/v2/attachments/${encodeURIComponent(inv.attachment_id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get attachment');
       const url = (att.attachment || att).url;
       if (!url) return null;
-      const res = await fetchImpl(url);
-      if (!res.ok) {
-        const err = new Error(`Qonto attachment download failed (HTTP ${res.status})`);
-        err.status = res.status;
+      // specs/resource-booking-pricing-and-invoicing.md rule 42 — the signed URL is read like every Qonto call: https
+      // only, and within the same timeout (the click that issues the invoice waits for it).
+      let parsed;
+      try { parsed = new URL(String(url)); } catch { parsed = null; }
+      if (!parsed || parsed.protocol !== 'https:') {
+        const err = new Error('Qonto attachment URL refused (https only)');
+        err.code = 'ATTACHMENT_URL_REFUSED';
         throw err;
       }
-      const bytes = Buffer.from(await res.arrayBuffer());
-      return { bytes, fileName: `${inv.number || inv.id}.pdf` };
+      const controller = new AbortController();
+      let timer;
+      const timedOut = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const err = new Error(`Qonto attachment download timeout: no answer within ${Math.round(timeoutMs / 1000)} s`);
+          err.code = 'ETIMEDOUT';
+          controller.abort();
+          reject(err);
+        }, timeoutMs);
+      });
+      try {
+        return await Promise.race([(async () => {
+          const res = await fetchImpl(parsed.href, { signal: controller.signal });
+          if (!res.ok) {
+            const err = new Error(`Qonto attachment download failed (HTTP ${res.status})`);
+            err.status = res.status;
+            throw err;
+          }
+          const bytes = Buffer.from(await res.arrayBuffer());
+          return { bytes, fileName: `${inv.number || inv.id}.pdf` };
+        })(), timedOut]);
+      } finally {
+        clearTimeout(timer);
+      }
     },
 
     // One PDF joined to a bank transaction (multipart, field `file`). The idempotency key is the caller's, stable

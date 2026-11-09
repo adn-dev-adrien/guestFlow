@@ -7,8 +7,10 @@
  *   ISSUER_NEEDS_ADDRESS  — Qonto wants a billing address it was not given (rule 25)
  *   ISSUER_REAUTH         — the connection predates the invoicing scopes (Q6): reconnect Qonto
  *   ISSUER_AMOUNT_MISMATCH — Qonto computed another total; the invoice it made is cancelled (rule 14)
+ *   ISSUER_AMOUNT_UNREACHABLE — no set of lines excluding VAT adds up to the total charged: refused before any call (rule 40)
  */
 
+const crypto = require('crypto');
 const sdk = require('../sdk');
 
 const { withQonto } = sdk.coreModule('qonto').qontoService;
@@ -31,20 +33,56 @@ const isScopeRefusal = (err) => Number(err && err.status) === 403 || /insufficie
 const isAddressRefusal = (err) => Number(err && err.status) === 422 && /address|zip|city|street/.test(bodyText(err));
 const isLineRefusal = (err) => Number(err && err.status) === 422 && /unit_price|items|amount/.test(bodyText(err));
 
-// Qonto takes each line excluding VAT and adds the VAT itself; GuestFlow's lines are the prices the guest paid. Each
-// line goes back to its HT, and the largest one moves by a cent until the totals Qonto will compute (each line
-// rounded) add up to the total charged — the money guard of `createClientInvoice` then checks Qonto's own figure.
+// Rule 39 — Qonto's idempotency key is a UUID: the caller's key and what the request depends on, hashed into that
+// shape (the control plane's own rule). A retry of the same request carries the same key; another request never does.
+function uuidKey(...parts) {
+  const h = crypto.createHash('sha256').update(parts.map((p) => String(p ?? '')).join('|')).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+// Rule 40 — Qonto takes each line excluding VAT and adds the VAT itself, line by line (Q3); GuestFlow's lines are the
+// prices the guest paid. Each line goes back to its HT, and the lines move by a cent or two — any of them, the fewest
+// cents moved off each line's own price — until the totals Qonto will compute add up to the total charged. A total no such set reaches (a single
+// line whose TTC falls between two roundings) gets a « Arrondi de TVA » line of a cent or two; when even that cannot
+// reach it, `null`: the caller refuses before Qonto numbers anything. The money guard of `createClientInvoice` still
+// checks Qonto's own figure.
 const ttcOf = (htCents, rate) => Math.round(htCents * (1 + Number(rate || 0) / 100));
+const NUDGE = [0, -1, 1, -2, 2, -3, 3];
+const ROUNDING_TITLE = 'Arrondi de TVA';
+
+function solveLines(lines, expectedTotalCents) {
+  const bases = lines.map((l) => Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)));
+  let best = null;
+  const walk = (i, chosen, total, cost) => {
+    if (best && cost >= best.cost) return;
+    if (i === lines.length) {
+      if (total === expectedTotalCents) best = { chosen: [...chosen], cost };
+      return;
+    }
+    for (const d of NUDGE) {
+      const ht = bases[i] + d;
+      const ttc = ttcOf(ht, lines[i].vatRate);
+      chosen.push(ht);
+      walk(i + 1, chosen, total + ttc, cost + Math.abs(ttc - lines[i].amountCents) * 10 + Math.abs(d));
+      chosen.pop();
+    }
+  };
+  walk(0, [], 0, 0);
+  return best ? lines.map((l, i) => ({ ...l, amountCents: best.chosen[i] })) : null;
+}
+
 function toExcludingVat(lines, expectedTotalCents) {
-  const out = lines.map((l) => ({ ...l, amountCents: Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)) }));
-  if (expectedTotalCents == null || out.length === 0) return out;
-  const largest = out.reduce((best, l, i) => (Math.abs(l.amountCents) > Math.abs(out[best].amountCents) ? i : best), 0);
-  for (let step = 0; step < 4; step += 1) {
-    const gap = expectedTotalCents - out.reduce((sum, l) => sum + ttcOf(l.amountCents, l.vatRate), 0);
-    if (gap === 0) break;
-    out[largest] = { ...out[largest], amountCents: out[largest].amountCents + Math.sign(gap) };
+  if (expectedTotalCents == null || lines.length === 0) {
+    return lines.map((l) => ({ ...l, amountCents: Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)) }));
   }
-  return out;
+  const solved = solveLines(lines, expectedTotalCents);
+  if (solved) return solved;
+  const rate = lines[0].vatRate;
+  for (const cent of [1, -1, 2, -2]) {
+    const withRounding = solveLines([...lines, { title: ROUNDING_TITLE, amountCents: ttcOf(cent, rate), vatRate: rate }], expectedTotalCents);
+    if (withRounding) return withRounding;
+  }
+  return null;
 }
 
 function wireItems(items, discount, expectedTotalCents = null) {
@@ -82,6 +120,8 @@ function createQontoInvoiceIssuer({ store, iban, env = process.env, withQontoImp
 
   async function issue(request) {
     const { idempotencyKey, client: who, issueDate, performanceDate, items, discount, expectedTotalCents, paid } = request;
+    const wired = wireItems(items, discount, expectedTotalCents);
+    if (!wired) throw refusal('ISSUER_AMOUNT_UNREACHABLE', 'Total impossible à facturer au centime près : facture à établir dans Qonto.');
     try {
       return await call('invoicing', async (client, accessToken) => {
         const clientId = who.clientId || (await client.createIndividualClient({
@@ -92,7 +132,7 @@ function createQontoInvoiceIssuer({ store, iban, env = process.env, withQontoImp
           postcode: who.postcode,
           city: who.city,
           countryCode: who.countryCode || 'FR',
-          idempotencyKey: `${idempotencyKey}:client`,
+          idempotencyKey: uuidKey(idempotencyKey, 'client', who.lastName, who.firstName, who.street, who.postcode, who.city, who.countryCode || 'FR'),
         })).id;
         const base = {
           accessToken, clientId, issueDate, dueDate: issueDate,
@@ -101,17 +141,28 @@ function createQontoInvoiceIssuer({ store, iban, env = process.env, withQontoImp
         };
         let invoice;
         try {
-          invoice = await client.createClientInvoice({ ...base, items: wireItems(items, discount, expectedTotalCents), idempotencyKey: `${idempotencyKey}:invoice` });
+          invoice = await client.createClientInvoice({ ...base, items: wired, idempotencyKey: uuidKey(idempotencyKey, 'invoice', clientId) });
         } catch (err) {
           if (!(discount && discount.amountCents && isLineRefusal(err))) throw err;
-          invoice = await client.createClientInvoice({ ...base, items: foldedItems(items, discount, expectedTotalCents), idempotencyKey: `${idempotencyKey}:invoice-folded` });
+          const folded = foldedItems(items, discount, expectedTotalCents);
+          if (!folded) throw refusal('ISSUER_AMOUNT_UNREACHABLE', 'Total impossible à facturer au centime près : facture à établir dans Qonto.');
+          invoice = await client.createClientInvoice({ ...base, items: folded, idempotencyKey: uuidKey(idempotencyKey, 'invoice-folded', clientId) });
         }
+        // Rule 38 — the invoice is numbered: from here nothing may lose it. « Marquer payée » is optional (Q4): its
+        // failure leaves the invoice « à payer » in Qonto and the watch job tries again.
         let markedPaid = false;
+        let markPending = false;
         if (paid) {
-          const marked = await client.markClientInvoicePaid({ accessToken, id: invoice.id, paidAt: issueDate });
-          markedPaid = Boolean(marked.supported);
+          try {
+            const marked = await client.markClientInvoicePaid({ accessToken, id: invoice.id, paidAt: issueDate });
+            markedPaid = Boolean(marked.supported);
+          } catch (err) {
+            markPending = true;
+            // eslint-disable-next-line no-console
+            console.warn(`[online-payment] invoice ${invoice.number || invoice.id} not marked paid in Qonto:`, err && err.message);
+          }
         }
-        return { invoiceId: invoice.id, number: invoice.number, totalCents: invoice.totalCents, clientId, markedPaid };
+        return { invoiceId: invoice.id, number: invoice.number, totalCents: invoice.totalCents, clientId, markedPaid, markPending };
       });
     } catch (err) {
       if (err && err.body && err.body.code === 'AMOUNT_MISMATCH') {
@@ -150,13 +201,19 @@ function createQontoInvoiceIssuer({ store, iban, env = process.env, withQontoImp
       return await call('invoicing', async (client, accessToken) => {
         const pdf = await client.getClientInvoicePdf({ accessToken, id: invoiceId });
         if (!pdf) throw refusal('ISSUER_PDF_PENDING', 'PDF de la facture pas encore prêt chez Qonto.');
-        const att = await client.uploadTransactionAttachment({ accessToken, transactionId, bytes: pdf.bytes, fileName: pdf.fileName, idempotencyKey });
+        const att = await client.uploadTransactionAttachment({ accessToken, transactionId, bytes: pdf.bytes, fileName: pdf.fileName, idempotencyKey: uuidKey(idempotencyKey) });
         return { attachmentId: att.id };
       });
     } catch (err) {
       if (isScopeRefusal(err)) throw refusal('ISSUER_REAUTH', 'Reconnecter Qonto dans Réglages → Intégrations pour facturer.', err);
       throw err;
     }
+  }
+
+  // Rule 38 — `{ done: true }` marked paid, `{ done: false }` Qonto does not offer it; a failure is thrown (retried).
+  async function markPaid({ invoiceId, paidAt }) {
+    const marked = await call('invoicing', (client, accessToken) => client.markClientInvoicePaid({ accessToken, id: invoiceId, paidAt }));
+    return { done: Boolean(marked.supported) };
   }
 
   async function invoiceStatus(invoiceId) {
@@ -170,8 +227,11 @@ function createQontoInvoiceIssuer({ store, iban, env = process.env, withQontoImp
     issue,
     findCardBatch,
     attach,
+    markPaid,
     invoiceStatus,
   };
 }
 
-module.exports = { createQontoInvoiceIssuer, wireItems, foldedItems, toExcludingVat };
+module.exports = {
+  createQontoInvoiceIssuer, wireItems, foldedItems, toExcludingVat, ttcOf, uuidKey,
+};

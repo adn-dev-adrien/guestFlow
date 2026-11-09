@@ -12,6 +12,15 @@ const MONEY_MESSAGE = 'Un paiement est enregistré sur ce séjour : l’annuler 
 const CLIENT_MONEY_MESSAGE = 'Un paiement est enregistré sur une réservation de ce client : l’annuler plutôt que la supprimer.';
 const PROPERTY_MONEY_MESSAGE = 'Un paiement est enregistré sur une réservation de ce logement : l’annuler plutôt que la supprimer.';
 
+// specs/resource-booking-pricing-and-invoicing.md rule 34 — a resource booking sold outside a stay (plugin
+// `hourly-resources`) whose payment is recorded is a sale of the journal; once invoiced, Qonto states it. A delete of
+// what it points at would drop it (resource: cascade) or blank its buyer (client, property: SET NULL).
+const BOOKING_MONEY_MESSAGES = {
+  clientId: 'Une séance payée ou facturée est enregistrée pour ce client : retirer d’abord son paiement.',
+  propertyId: 'Une séance payée ou facturée est enregistrée sur ce logement : retirer d’abord son paiement.',
+  resourceId: 'Une séance payée ou facturée utilise cette ressource : retirer d’abord son paiement.',
+};
+
 const HISTORY_MESSAGES = {
   client: { cancelled: 'Ce client a une réservation annulée.', superseded: 'Ce client a une réservation écartée.', cgv: 'Ce client a accepté des CGV.' },
   property: { cancelled: 'Ce logement a une réservation annulée.', superseded: 'Ce logement a une réservation écartée.', cgv: 'Ce logement a des CGV acceptées.' },
@@ -50,6 +59,23 @@ function carriesMoney(database, ids) {
 }
 
 /**
+ * Rule 34 — the refusal when a resource booking pointing at `column = id` is paid or carries a live Qonto invoice, or
+ * null. The table and its invoice columns belong to the plugin: read only when present.
+ */
+function bookingMoneyBlocker(database, column, id) {
+  if (!Object.prototype.hasOwnProperty.call(BOOKING_MONEY_MESSAGES, column)) throw new Error('unsupported booking column');
+  const table = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get();
+  if (!table) return null;
+  const columns = new Set(database.prepare('PRAGMA table_info(resource_bookings)').all().map((c) => c.name));
+  if (!columns.has('paid')) return null;
+  const invoiced = columns.has('qontoInvoiceId') && columns.has('invoiceCancelledAt')
+    ? ' OR (qontoInvoiceId IS NOT NULL AND invoiceCancelledAt IS NULL)'
+    : '';
+  const held = database.prepare(`SELECT 1 FROM resource_bookings WHERE ${column} = ? AND (paid = 1${invoiced}) LIMIT 1`).get(Number(id));
+  return held ? BOOKING_MONEY_MESSAGES[column] : null;
+}
+
+/**
  * The refusal when a delete of the rows `ids` would wipe history the per-row routes protect, or null: a
  * cancelled or set-aside stay (accounting history, rule 25) or the CGV acceptance a converted devis carries
  * (specs/terms-acceptance-record.md rule 29). A forced client or property delete obeys the same refusals.
@@ -77,5 +103,5 @@ function idsOfOwner(database, column, ownerId) {
 
 module.exports = {
   MONEY_MESSAGE, CLIENT_MONEY_MESSAGE, PROPERTY_MONEY_MESSAGE, HISTORY_MESSAGES, isHistoryMessage,
-  withConvertedDevis, carriesMoney, historyBlocker, idsOfOwner,
+  BOOKING_MONEY_MESSAGES, withConvertedDevis, carriesMoney, historyBlocker, idsOfOwner, bookingMoneyBlocker,
 };

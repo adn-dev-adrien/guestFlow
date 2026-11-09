@@ -364,6 +364,12 @@ signed-off releases over HTTPS, when the operator asks for it.
     caisse-interne share and its reste à percevoir on the books), and its « Annuler l'encaissement » writes the paid flag
     alone, leaving the settlement and its aggregates behind. Roll-forward: every boot runs `paymentSettlementsModel.syncAll()`
     before the server answers (mixed-method-payments rule 48), which drops such a settlement and refreshes the aggregates.
+    **Accepted exception (2026-11-09, audit R35-DB-L1):** the `resource_bookings_v2` / `_v3` columns of `hourly-resources`
+    (payment, invoice, frozen VAT rate) are additive and nullable, so the floor stays green. A release below 1.4.0 knows only
+    the `paid` flag: its untick writes `paid = 0` and leaves `paidAt` and the tender lines behind, and it can edit or delete
+    an invoiced booking (it has no freeze). Roll-forward: `paid` is the truth of a payment (resource-booking-pricing rule
+    37) — such a booking reads unpaid and leaves the journal; an invoiced booking edited during the window keeps its Qonto
+    invoice, to be corrected in Qonto by hand.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
