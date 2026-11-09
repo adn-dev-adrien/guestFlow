@@ -349,8 +349,29 @@ function buildShopController({
     });
   }
 
+  /**
+   * Rule 11 — the home's bath card: the first slot still bookable today (`HH:MM`) on an hourly resource the stay's
+   * shop sells while it is open, read from the planning like the slot picker; null when there is none.
+   */
+  function firstBathSlotToday(guest, at) {
+    if (!scheduler()) return null;
+    const { stay, lodging, mode } = guest;
+    const today = parisDate(at);
+    const { sold, extras } = soldFor(guest);
+    if (!shopState(mode, extras.window, today).open) return null;
+    const canIgnite = ignitionInHours(scheduleOf(lodging, at));
+    const starts = sold.filter((s) => s.kind === 'resource' && s.hourly).flatMap((s) => {
+      const found = scheduler().slotsForStay({
+        resourceId: Number(s.row.id), propertyId: lodging.propertyId, stay, now: at, canIgnite,
+      });
+      const day = found && found.days.find((d) => d.date === today);
+      return day ? day.slots.filter((slot) => BOOKABLE.has(slot.state)).map((slot) => slot.start) : [];
+    });
+    return starts.length ? starts.sort()[0] : null;
+  }
+
   return {
-    read, slots, deliverySlots, soldKeysOf, soldFor, scheduleOf,
+    read, slots, deliverySlots, soldKeysOf, soldFor, scheduleOf, firstBathSlotToday,
   };
 }
 

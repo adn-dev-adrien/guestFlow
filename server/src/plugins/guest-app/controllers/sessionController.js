@@ -53,7 +53,7 @@ const DEFAULT_APP_NAME = 'Domaine Solio';
 
 function buildSessionController({
   lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, readGateUrl = gate.keyUrlOf,
-  appName = () => null, soliomapEmbed = () => false,
+  appName = () => null, soliomapEmbed = () => false, firstBathSlot = () => null,
 }) {
   function factsOf(lodging) {
     return {
@@ -207,6 +207,7 @@ function buildSessionController({
       now: at,
       shown: shown.map((m) => m.key),
       orderReady: orders().deliveredRecently(stay.id, at),
+      bathFirstSlot: shown.some((m) => m.key === 'bath') ? firstBathSlot(req.guest, at) : null,
       gatePreparing: gateState === 'preparing',
       lang,
     }) : null;

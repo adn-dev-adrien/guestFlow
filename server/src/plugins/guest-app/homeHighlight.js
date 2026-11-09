@@ -8,15 +8,18 @@ const { addDays, daysBetween, parisDate } = require('./currentStay');
 
 const { toParisIso } = sdk.coreModule('stayWindow');
 
-/** The Europe/Paris wall clock of an instant, as written: « 16 h », « 16 h 30 » / « 4 pm », « 4:30 pm ». */
-function timeLabel(instant, lang = 'fr') {
-  const [hour, minute] = toParisIso(instant).slice(11, 16).split(':').map(Number);
+/** A wall clock `HH:MM` as written: « 16 h », « 16 h 30 » / « 4 pm », « 4:30 pm ». */
+function clockLabel(hhmm, lang = 'fr') {
+  const [hour, minute] = String(hhmm).split(':').map(Number);
   const mm = String(minute).padStart(2, '0');
   if (lang !== 'en') return minute ? `${hour} h ${mm}` : `${hour} h`;
   const suffix = hour < 12 ? 'am' : 'pm';
   const h12 = hour % 12 || 12;
   return minute ? `${h12}:${mm} ${suffix}` : `${h12} ${suffix}`;
 }
+
+/** The Europe/Paris wall clock of an instant, as written (`clockLabel`). */
+const timeLabel = (instant, lang = 'fr') => clockLabel(toParisIso(instant).slice(11, 16), lang);
 
 const STATUS = {
   fr: {
@@ -67,6 +70,7 @@ function openingLine(opening, lang = 'fr') {
 const welcomeLine = (name, lang = 'fr') => (lang === 'en' ? `Welcome to ${name}` : `Bienvenue à ${name}`);
 
 const DEPARTURE_PAGE = 'depart';
+const EVENING = '18:00';
 
 // Most urgent first. An order waiting on the terrace goes cold, and a guest on arrival day needs the gate.
 // The eve of departure comes before the bath: a slot is free on nearly every evening, so the other order
@@ -83,33 +87,56 @@ const HIGHLIGHTS = Object.freeze([
     detail: { fr: 'La tuile Portail s’activera dès que votre accès sera prêt.', en: 'The Gate tile will light up as soon as your access is ready.' },
   },
   { key: 'departure', module: 'booklet', page: DEPARTURE_PAGE, when: (f) => f.isDepartureEve, text: { fr: 'Départ demain : les consignes', en: 'Leaving tomorrow: the instructions' } },
-  { key: 'bath', module: 'bath', when: (f) => f.bathFreeToday, text: { fr: 'Prolongez votre bain nordique ce soir', en: 'Extend your nordic bath tonight' } },
+  // « aujourd'hui » while the first bookable slot starts before the evening, « ce soir » from it; the hour follows.
+  {
+    key: 'bath',
+    module: 'bath',
+    when: (f) => f.bathFreeToday,
+    text: {
+      fr: (f) => (f.bathFirstSlot && f.bathFirstSlot < EVENING ? 'Un bain nordique aujourd’hui ?' : 'Un bain nordique ce soir ?'),
+      en: (f) => (f.bathFirstSlot && f.bathFirstSlot < EVENING ? 'A nordic bath today?' : 'A nordic bath tonight?'),
+    },
+    detail: {
+      fr: (f) => (f.bathFirstSlot ? `Premier créneau libre à ${clockLabel(f.bathFirstSlot, 'fr')}` : null),
+      en: (f) => (f.bathFirstSlot ? `First free slot at ${clockLabel(f.bathFirstSlot, 'en')}` : null),
+    },
+  },
 ]);
+
+const wordsOf = (words, lang, facts) => {
+  const found = words && (words[lang] || words.fr);
+  return typeof found === 'function' ? found(facts) : found;
+};
 
 /**
  * Rule 11 — at most one card, only among the lodging's shown modules. `shown`: the keys of the shown
- * modules. `orderReady` and `bathFreeToday` come from the orders and the planning.
+ * modules. `orderReady` comes from the orders; `bathFirstSlot` (`HH:MM`, or null) is the first slot of a sold hourly
+ * resource still bookable today, read from the planning.
  */
 function chooseHighlight({
-  stay, now, shown, orderReady = false, bathFreeToday = false, gatePreparing = false, lang = 'fr',
+  stay, now, shown, orderReady = false, bathFirstSlot = null, gatePreparing = false, lang = 'fr',
 }) {
   const today = parisDate(now);
   const facts = {
     orderReady,
     gatePreparing,
-    bathFreeToday,
+    bathFreeToday: Boolean(bathFirstSlot),
+    bathFirstSlot,
     isArrivalDay: String(stay.startDate) === today,
     isDepartureEve: addDays(today, 1) === String(stay.endDate),
   };
   const found = HIGHLIGHTS.find((h) => shown.includes(h.module) && h.when(facts));
   if (!found) return null;
+  const detail = wordsOf(found.detail, lang, facts);
   return {
     key: found.key,
-    text: found.text[lang] || found.text.fr,
-    ...(found.detail ? { detail: found.detail[lang] || found.detail.fr } : {}),
+    text: wordsOf(found.text, lang, facts),
+    ...(detail ? { detail } : {}),
     module: found.module,
     ...(found.page ? { page: found.page } : {}),
   };
 }
 
-module.exports = { chooseHighlight, openingLine, statusLine, timeLabel, welcomeLine };
+module.exports = {
+  chooseHighlight, clockLabel, openingLine, statusLine, timeLabel, welcomeLine,
+};

@@ -119,15 +119,16 @@ function buildGuestApi({
     alertStock([...new Set([...ids].flatMap((reservationId) => stock().reconcile(reservationId, today)))]);
   }
   const guestSession = buildGuestSession({ sessions, stays, stayLinks, lodgings, now });
+  const shop = buildShopController({
+    items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment,
+  });
   const controller = buildSessionController({
     lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
+    firstBathSlot: shop.firstBathSlotToday,
     ...(readGateUrl ? { readGateUrl } : {}),
   });
   const links = buildStayLinksController({
     stayLinks, stays, lodgings, guestHost, now,
-  });
-  const shop = buildShopController({
-    items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment,
   });
   const orderBook = buildOrdersController({
     db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now, stock, alertStock, fulfilment,
