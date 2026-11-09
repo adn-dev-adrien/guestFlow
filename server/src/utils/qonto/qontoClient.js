@@ -29,6 +29,9 @@ const PROD_HOSTS = { oauth: 'https://oauth.qonto.com', api: 'https://thirdparty.
 // account). `webhook` is required to create the payment-link webhook subscription (POST
 // /v2/webhook_subscriptions) — see specs/public-online-payment.md §3bis.
 const DEFAULT_SCOPES = ['offline_access', 'organization.read', 'payment_link.read', 'payment_link.write', 'webhook'];
+// What invoicing a sale outside a stay needs on top (specs/resource-booking-pricing-and-invoicing.md rule 14, Q6): a
+// client, its invoice, and the PDF joined to the card credit. Asked by the `online-payment` consent only.
+const INVOICING_SCOPES = ['client.write', 'client_invoice.read', 'client_invoice.write', 'attachment.write'];
 
 // Maps a Qonto payment-link status to our `payment_links.status` enum.
 function mapQontoStatus(qontoStatus) {
@@ -390,6 +393,72 @@ function buildQontoClient(config = {}) {
       return mapInvoice(json.client_invoice || json);
     },
 
+    // ----- Invoices of sales outside a stay (specs/resource-booking-pricing-and-invoicing.md rules 14, 17) -----
+    // Scopes: `client.write`, `client_invoice.read`, `client_invoice.write`, `attachment.write` (INVOICING_SCOPES).
+
+    // A private person. The billing address goes only when it is whole: Qonto refuses a partial one, and whether it
+    // accepts none at all is measured, not assumed (rule 25, Q2) — the caller reads the refusal.
+    async createIndividualClient({ accessToken, firstName, lastName, email, street, postcode, city, countryCode = 'FR', idempotencyKey }) {
+      const whole = [street, postcode, city].every((v) => String(v || '').trim() !== '');
+      const payload = {
+        kind: 'individual',
+        first_name: String(firstName || '').trim() || String(lastName),
+        last_name: String(lastName),
+        currency: 'EUR',
+        locale: 'fr',
+        ...(email ? { email: String(email) } : {}),
+        ...(whole ? { billing_address: { street_address: String(street), zip_code: String(postcode), city: String(city), country_code: String(countryCode) } } : {}),
+      };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
+      const json = await send(`${apiBase}/v2/clients`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create individual client');
+      const c = json.client || json;
+      return { id: c.id, raw: c };
+    },
+
+    // Rule 14, Q4 — the API does not document this call: an answer that says it does not exist is `supported: false`,
+    // never an error, and the invoice simply stays « à payer » in Qonto.
+    async markClientInvoicePaid({ accessToken, id, paidAt }) {
+      try {
+        const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}/mark_as_paid`, {
+          method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(paidAt ? { paid_at: paidAt } : {}),
+        }, 'mark client invoice paid');
+        return { supported: true, invoice: mapInvoice(json.client_invoice || json) };
+      } catch (err) {
+        if ([404, 405, 501].includes(Number(err && err.status))) return { supported: false };
+        throw err;
+      }
+    },
+
+    // The invoice's PDF, as Qonto renders it: the invoice names its attachment, whose signed URL is short-lived and
+    // read at once. `null` while Qonto has not rendered it yet — the caller retries later.
+    async getClientInvoicePdf({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get client invoice');
+      const inv = json.client_invoice || json;
+      if (!inv.attachment_id) return null;
+      const att = await send(`${apiBase}/v2/attachments/${encodeURIComponent(inv.attachment_id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get attachment');
+      const url = (att.attachment || att).url;
+      if (!url) return null;
+      const res = await fetchImpl(url);
+      if (!res.ok) {
+        const err = new Error(`Qonto attachment download failed (HTTP ${res.status})`);
+        err.status = res.status;
+        throw err;
+      }
+      const bytes = Buffer.from(await res.arrayBuffer());
+      return { bytes, fileName: `${inv.number || inv.id}.pdf` };
+    },
+
+    // One PDF joined to a bank transaction (multipart, field `file`). The idempotency key is the caller's, stable
+    // across retries, so a lost answer never uploads the same invoice twice.
+    async uploadTransactionAttachment({ accessToken, transactionId, bytes, fileName, idempotencyKey }) {
+      const form = new FormData();
+      form.append('file', new Blob([bytes], { type: 'application/pdf' }), fileName);
+      const headers = { Authorization: `Bearer ${accessToken}`, 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID(), ...stagingHeader() };
+      const json = await send(`${apiBase}/v2/transactions/${encodeURIComponent(transactionId)}/attachments`, { method: 'POST', headers, body: form }, 'upload transaction attachment');
+      const att = json.attachment || json;
+      return { id: att.id || null, raw: att };
+    },
+
     // A payment link attached to an invoice: Qonto takes the invoice's number, debtor and amount.
     async createInvoicePaymentLink({ accessToken, invoiceId, invoiceNumber, debitorName, amountCents, currency = 'EUR', paymentMethods = ['credit_card', 'apple_pay'], idempotencyKey }) {
       const payload = {
@@ -423,4 +492,4 @@ function buildQontoClient(config = {}) {
   };
 }
 
-module.exports = { buildQontoClient, mapQontoStatus, mapInvoice, DEFAULT_SCOPES, SANDBOX_HOSTS, PROD_HOSTS };
+module.exports = { buildQontoClient, mapQontoStatus, mapInvoice, DEFAULT_SCOPES, INVOICING_SCOPES, SANDBOX_HOSTS, PROD_HOSTS };

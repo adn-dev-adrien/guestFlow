@@ -412,9 +412,16 @@ const api = {
   previewResourceBooking: (draft, { signal } = {}) => request('/resource-bookings/preview', {
     method: 'POST', body: draft, signal, readOnly: true,
   }),
+  getResourceBooking: (id) => request(`/resource-bookings/${id}`),
   createResourceBooking: (data) => request('/resource-bookings', { method: 'POST', body: data }),
   updateResourceBooking: (id, data) => request(`/resource-bookings/${id}`, { method: 'PUT', body: data }),
   deleteResourceBooking: (id) => request(`/resource-bookings/${id}`, { method: 'DELETE' }),
+  // specs/resource-booking-pricing-and-invoicing.md §4.3 — payment, arrival and Qonto invoice of a booking.
+  recordResourceBookingPayment: (id, body) => request(`/resource-bookings/${id}/payment`, { method: 'POST', body }),
+  clearResourceBookingPayment: (id) => request(`/resource-bookings/${id}/payment`, { method: 'DELETE' }),
+  recordResourceBookingArrival: (id, body) => request(`/resource-bookings/${id}/arrival`, { method: 'POST', body }),
+  issueResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice`, { method: 'POST', body }),
+  attachResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice/attach`, { method: 'POST', body }),
 
   // Reservations
   getReservations: (params) => {

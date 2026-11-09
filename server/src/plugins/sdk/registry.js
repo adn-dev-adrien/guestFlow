@@ -53,6 +53,10 @@ function emptyRecord(id) {
     pushChannels: [],
     // specs/reconciliation-assisted-matching.md rule 22 — (rows) → rows, applied to the home's « Échéances » card (SDK 2.9.0).
     paymentDeadlineDecorator: null,
+    // specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20 (SDK 2.25.0) — the instance's invoice issuer (at
+    // most one) and a plugin's sales made outside any stay.
+    invoiceIssuer: null,
+    standaloneSales: null,
   };
 }
 
