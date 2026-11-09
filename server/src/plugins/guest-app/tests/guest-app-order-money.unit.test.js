@@ -191,3 +191,18 @@ withCard('rule 25: a 0 € order never needs a link, whatever payment the cart a
   assert.equal(res.body.data.status, 'confirmed');
   assert.equal(card.created.length, 0);
 }, { skip: !hasHourly });
+
+withCard('rule 36: a card payment that lands after the stay was cancelled reaches its order — `paid_conflict`, the money « à rembourser »', async ({ stayId, call, card }) => {
+  const { processPaidLink } = require('../../../utils/paymentPollRunner');
+  const { buildPaymentEffectDeps } = require('../../../utils/paymentEffectDeps');
+  const { orderId } = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: cider(6), quantity: 1 }], payment: 'card' })).body.data;
+  db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(stayId);
+  const link = linkOf(orderId);
+  card.pay(link.providerLinkId);
+  await processPaidLink({
+    ...buildPaymentEffectDeps(), link, paidPayment: { paid: true, paymentId: `pay_${link.providerLinkId}`, paidAt: new Date().toISOString() },
+  });
+  assert.equal(orderRow(orderId).status, 'paid_conflict');
+  assert.equal(JSON.parse(linkOf(orderId).basketJson).refundOwed, true);
+  assert.ok(historyOf(stayId).some((c) => c.field === 'refundOwed'));
+});

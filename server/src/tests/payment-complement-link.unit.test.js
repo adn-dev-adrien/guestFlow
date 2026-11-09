@@ -147,6 +147,45 @@ test('rule 36: money the plugin cannot honour is flagged « à rembourser » on 
   assert.deepEqual([refundRow().label, refundRow().amount, refundRow().stateLabel], ['Paiement en ligne à rembourser', 42, 'À rembourser'], 'no owner declared: the core’s neutral words');
 });
 
+test('specs/guest-app.md rule 35: an owner that kept part of the money flags only the gap — the ledger row and the history say that part', async () => {
+  const { db, id, links } = seed();
+  const { deps: d } = deps(db, links);
+  const link = await ensurePaymentLink(d, id, 'complement', { basket: BASKET });
+  links.markPaid(link.id, { providerPaymentId: 'pay_9', paidAt: '2099-07-07T10:05:00Z' });
+  liveOwner(() => ({ effect: 'shop-order-paid', refundOwed: true, refundCents: 600, reason: 'prix baissé' }));
+  try {
+    assert.equal(applyPaidEffect({ database: db, link: links.findById(link.id), paidDate: '2099-07-07' }).effect, 'basket-refund-owed');
+  } finally {
+    registry.reset();
+  }
+  assert.equal(JSON.parse(links.findById(link.id).basketJson).refundCents, 600);
+  const row = buildLedger({ row: db.prepare('SELECT * FROM reservations WHERE id = ?').get(id), links: links.listForReservation(id) })
+    .rows.find((r) => r.key === 'basketRefunds');
+  assert.equal(row.amount, 6);
+  assert.match(row.detail.lines[0], /^6,00.€ à rendre sur 42,00.€ payés/);
+  const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).flatMap((r) => JSON.parse(r.changedFields));
+  assert.ok(history.some((c) => c.field === 'refundOwed' && /^6,00.€ sur 42,00.€ payés .*prix baissé/.test(c.to)), JSON.stringify(history));
+});
+
+test('specs/guest-app.md rule 36: a basket paid after its stay was cancelled still reaches its owner — the money flagged « à rembourser », never lost', async () => {
+  const { db, id, links } = seed();
+  const { deps: d } = deps(db, links);
+  const link = await ensurePaymentLink(d, id, 'complement', { basket: BASKET });
+  links.markPaid(link.id, { providerPaymentId: 'pay_9', paidAt: '2099-07-07T10:05:00Z' });
+  db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(id);
+  const calls = [];
+  liveOwner((event) => { calls.push(event.ref); return { refundOwed: true, reason: 'séjour annulé' }; });
+  try {
+    assert.equal(applyPaidEffect({ database: db, link: links.findById(link.id), paidDate: '2099-07-07' }).effect, 'basket-refund-owed');
+  } finally {
+    registry.reset();
+  }
+  assert.deepEqual(calls, ['4'], 'the owner settles its order');
+  assert.equal(JSON.parse(links.findById(link.id).basketJson).refundOwed, true);
+  const history = db.prepare('SELECT changedFields FROM reservation_history WHERE reservationId = ?').all(id).flatMap((r) => JSON.parse(r.changedFields));
+  assert.ok(history.some((c) => c.field === 'refundOwed' && c.to.includes('séjour annulé')));
+});
+
 test('specs/plugins-phase-1-sdk.md rule 47: `ctx.paymentBasket` needs a source and a paid function, one plugin per source', () => {
   registry.reset();
   try {

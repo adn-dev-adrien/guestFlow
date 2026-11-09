@@ -45,6 +45,16 @@ const { unavailableNights } = require('./closedStayDates');
 // The bucket goes through the same recorder as a manual tick (rule 1).
 function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, paidAt = null, recordPayment = recordOn(database), settledAlready = false }) {
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(link.reservationId);
+  // specs/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket,
+  // whatever became of the stay: a cancelled or deleted stay is the owner's to refuse (its order flagged, the money
+  // « à rembourser »). A stay gone keeps the admin's orphan alert.
+  if (link.type === 'complement') {
+    const basket = basketOfLink(database, link);
+    if (basket) {
+      const settled = settleBasket({ database, link, basket, paidDate, paidAt, stayExists: Boolean(row) });
+      return row ? settled : { ...settled, effect: 'no-reservation' };
+    }
+  }
   if (!row) return { effect: 'no-reservation' };
   // A payment that lands after the stay was cancelled is money to refund, never a paid stay.
   if (row.kind === 'cancelled') return { effect: 'reservation-cancelled' };
@@ -53,11 +63,6 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     ? database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(row.convertedReservationId)) : null;
   if (convertedRow && convertedRow.kind === 'cancelled') return { effect: 'reservation-cancelled' };
 
-  // specs/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket.
-  if (link.type === 'complement') {
-    const basket = basketOfLink(database, link);
-    if (basket) return settleBasket({ database, link, basket, paidDate, paidAt });
-  }
 
   // specs/direct-installments.md rule 15 — a paid link of an installment marks that installment paid.
   if (link.type === 'installment') {
@@ -169,7 +174,7 @@ function basketOfLink(database, link) {
 // nothing for (`refundOwed`: an order the plugin could no longer honour) is flagged on the link — the ledger shows
 // it « à rembourser » — and written in the stay's history; `refundCents` (below the link's amount) flags only that part,
 // the gap between what was paid and what the basket finally cost. With no live owner the money is the admin's to sort out.
-function settleBasket({ database, link, basket, paidDate, paidAt }) {
+function settleBasket({ database, link, basket, paidDate, paidAt, stayExists = true }) {
   const registry = require('../plugins/sdk/registry');
   const owner = registry.all().filter((r) => registry.isLive(r.id))
     .flatMap((r) => (r.paymentBaskets || []).map((b) => ({ id: r.id, ...b })))
@@ -198,10 +203,12 @@ function settleBasket({ database, link, basket, paidDate, paidAt }) {
       .run(JSON.stringify({ ...basket, refundOwed: true, ...(part ? { refundCents: part } : {}) }), Number(link.id));
     const { formatEuros } = require('./reservationLedger');
     const amount = part ? `${formatEuros(part / 100)} sur ${formatEuros(paidCents / 100)}` : formatEuros(paidCents / 100);
-    database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
-      .run(Number(link.reservationId), JSON.stringify([{
-        field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés (lien ${link.id}) : ${outcome.reason || 'achat non honoré'}, à rembourser depuis l’espace du prestataire`,
-      }]));
+    if (stayExists) {
+      database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+        .run(Number(link.reservationId), JSON.stringify([{
+          field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés (lien ${link.id}) : ${outcome.reason || 'achat non honoré'}, à rembourser depuis l’espace du prestataire`,
+        }]));
+    }
     return { effect: 'basket-refund-owed', reservationId: Number(link.reservationId), ...(part ? { refundCents: part } : {}) };
   }
   return { effect: String(outcome.effect || 'basket-settled'), reservationId: Number(link.reservationId) };
