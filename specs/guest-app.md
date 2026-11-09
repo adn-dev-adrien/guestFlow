@@ -80,7 +80,8 @@ is pushed every order.
    opens that lodging's **visitor** mode, never a stay — so a photo of the poster shows nothing of anyone's stay,
    at any time. The visitor home offers « Vous séjournez ici ? Retrouver mon séjour » (rule 6).
 4. **A session is a stay capability.** Opening the link creates a `guest_sessions` row bound to `reservationId` +
-   `propertyId` (+ the link's id), returned as an `HttpOnly; Secure; SameSite=Strict` cookie `gf_guest` scoped to
+   `propertyId` (+ the link's id), returned as an `HttpOnly; SameSite=Strict` cookie `gf_guest` — `Secure` exactly when the core's own session cookie is
+   (`HTTPS_ENABLED`; over plain HTTP a browser drops a Secure cookie, review of 2026-11-09) — scoped to
    `/public/v1/guest` (32 random bytes, only its SHA-256 stored), expiring at the window's end (pre-arrival: when
    the window opens). The app keeps the stay link on the device and exchanges it again when a session ends, so a
    pre-arrival session becomes a stay session by itself at H-3. The same device reopening the link during the same
@@ -91,7 +92,8 @@ is pushed every order.
    number (`reservations.reservationNumber`, which carries the platform's number for OTA stays filled by the
    intake skills) and opens the same session as the stay link would (pre-arrival or stay), from **J-7 00:00**
    until the window's end. One generic error for every failure (« Nous n'avons pas trouvé ce séjour. Vérifiez le
-   nom et le numéro. »), 5 attempts / 15 min per IP, constant-time comparison.
+   nom et le numéro. »), 5 attempts / 15 min per IP, constant-time comparison. Two live stays sharing a number are each
+   tried against the name (review of 2026-11-09).
 7. **Name matching** (the fallback only). Normalised on both sides: NFD, accents stripped, lower-case, every
    non-letter removed (`Le Goff-Durand` = `legoffdurand`). Compared to the reservation's client `lastName`.
 8. **Data minimisation.** A session reads only: the guest's first name, lodging name, arrival / departure
@@ -128,7 +130,7 @@ is pushed every order.
     greyed tile).
 11. **Contextual highlight.** One card under the tiles, chosen by the server among: « Le portail est
     actif » (arrival day), « Un bain nordique ce soir ? » (« aujourd'hui » when the first bookable slot starts before 18 h) + the
-    first bookable hour (a slot in state `free` or `evening` remains today and the resource is sold in the app), « Votre commande est prête » (an order marked delivered in the last hour),
+    first bookable hour as the card's line « Premier créneau libre à 20 h » (a slot in state `free` or `evening` remains today on an hourly resource sold in the app while the shop is open, read from the resource planning like the slot picker), « Votre commande est prête » (an order marked delivered in the last hour),
     « Départ demain : les consignes » (eve of departure → booklet page *Départ*). At most one highlight, plus at most one suggestion (rule 15bis), never a marketing carousel. A highlight is only chosen among the lodging's enabled modules. Priority: the order,
     the gate, the departure, the bath: a bath slot is free on nearly every evening, so ahead of the departure
     it would keep the instructions from ever showing.
@@ -275,6 +277,9 @@ is pushed every order.
       already carries is shown « Déjà inclus dans votre séjour » and not sold again;
     - an item not linked to the stay's lodging is not shown;
     - a 0 € item (included or free) is limited per stay to its `maxQuantity`, counted across orders.
+    The quote prices an order **after** the stay's card orders awaiting payment (`priceOrder(…, { pending })`): those
+    hold the free units and minutes they were quoted with, so a later order never takes them and the shop's « déjà
+    utilisée » says the same (review of 2026-11-09).
     An order whose quote total is **0 €** (only free / included units) needs no payment and no name: one
     button « Réserver », the order is `confirmed` and written to the fiche like a note order (rule 34).
 26. **Categories.** Items are grouped by the existing option `category` (e.g. « Boissons »,
@@ -292,7 +297,8 @@ is pushed every order.
     breakfast line `cardOccurrences`. Priced per person and night by the core engine, shown to the guest « par
     personne et par matin »;
     it appears on the planning's `BreakfastDayCard` only, never on a « Commande client » card. A stay that already
-    includes it orders it at 0 €, which only sets its mornings and hour. Staff-prepared items also follow the
+    includes it orders it at 0 €, which only sets its mornings and hour; a stay's breakfast line with no morning
+    placed yet keeps its quantity — the order places mornings, never lowers the line. Staff-prepared items also follow the
     service hours of §3.G.
 
 #### Hourly resources — the GuestFlow resource planning is the only truth
@@ -340,7 +346,8 @@ is pushed every order.
     holds (review 2026-11-09). The cart survives a reload of the app.
 33. **Two ways to pay, the guest chooses** at checkout (for a non-zero total):
     - **« Payer maintenant »** (card): the server creates the order `awaiting_payment` and a Qonto payment
-      link of type `complement` for exactly its total, with the order's lines as VAT basket; the app
+      link of type `complement` for exactly its quoted total, with the order's lines as VAT basket (what the engine raised
+      beside them, such as a percentage of the stay, is one more line « Ajustement du séjour lié à la commande »); the app
       redirects to Qonto; the return lands on `/commande/<id>` which polls the order status.
       No name asked — the stay link is the proof (rule 2).
     - **« Ajouter à ma note »** (end-of-stay bill): no name asked either (rule 2); the order is `confirmed` at
@@ -360,13 +367,22 @@ is pushed every order.
     with an explicit guest-order basket, `applyPaidEffect` gets a `complement` branch that commits the order.
     Exempt from the arrival-day lapse (`payment-link-lifecycle.md` rule 9); its own lifetime is **30 min**.
     While `awaiting_payment` the order **holds** its hourly slots (rule 28) and the free minutes it uses; the guest can abandon it from « Mes commandes » (status `abandoned`, chip *Abandonnée*, holds released at
-    once, its lines back in the cart). At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
+    once, its lines back in the cart; a payment that lands on it anyway is `paid_conflict`, never committed). At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
+    **The fiche is never billed beyond the payment** (review of 2026-11-09): when the commit costs more than was paid
+    (a price raised meanwhile), the order is `paid_conflict` — unless orders committed while it awaited its payment
+    were quoted that amount above what they added to the fiche (they priced after it, rule 25; `deferredCents`): that
+    gap is theirs, left on the end-of-stay complement. When it costs less (a price lowered), the order is committed and
+    only the gap is flagged « à rembourser » on the link (`basketJson.refundCents`), with its history entry
+    (« 6,00 € sur 18,00 € payés… ») and the ledger row for that part. An order paid while it still awaited its payment
+    held its units: it is never judged on the stock (rule 37quater is for a late payment).
 36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, its holds are
     released, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
     order if its slots are still free; otherwise the order goes `paid_conflict`, the operator is pushed, and
     refunds by hand (refund out of scope). A `paid_conflict` payment is recorded on the reservation ledger as a
     `complement` payment flagged « à rembourser », with a history entry; no line is added. A late payment whose
-    `deliverAt` is already past moves to the next valid delivery time and the order says so.
+    `deliverAt` is already past moves to the next valid delivery time and the order says so. A payment that lands after the
+    stay was cancelled (or deleted) still reaches its order: the core hands a basket link to its owner before its
+    cancelled / missing-stay exits, and the order goes `paid_conflict`.
 37. **Limits.** Per order: ≤ 20 lines, each quantity 1…`maxQuantity` (plugin field, default 10), total
     ≤ 500 € (plugin setting). Per session: 10 orders / hour. Out-of-range → 400 with the documented code;
     the app's steppers already respect `maxQuantity` (UX only).
@@ -429,8 +445,10 @@ is pushed every order.
     interval [t − max(leadMinutes), t] lies after *now* inside one service range. Delivery times have no
     capacity limit (decided 2026-11-05): an order holds no delivery slot and there is no `DELIVERY_SLOT_GONE`. The first slot is preselected, labelled « Dès que possible — vers 17 h 30 » only while the service is open now.
     No service hours stored at all (neither shared nor per lodging) = no constraint: the service counts as always
-    open and the plugin's setup status says « horaires du service à configurer ». Once anything is stored, a day
-    without a range is closed. While nothing is stored, establishment closures are not applied either (a closed
+    open and the plugin's setup status says « horaires du service à configurer ». Once anything is stored — shared or
+    of any lodging — a day without a range is closed. A lodging with weekly ranges of its own follows them with its
+    own exceptions; one with exceptions only keeps the shared week, its dates replacing the shared ones (review of
+    2026-11-09). t is strictly before the check-out. While nothing is stored, establishment closures are not applied either (a closed
     domain has no stay in progress). An ignition may fall at the very end of a range.
 41bis. **Delivered or picked up — one setting for every lodging** (Adrien, 2026-11-06). Studio › Réglages ›
     Service holds « Les commandes sont… » **Livrées au logement** (default) | **À retirer**; « À retirer » asks for
@@ -456,7 +474,8 @@ is pushed every order.
     « Plus disponible pour votre séjour ».
 43. **The delivery time drives the staff.** The order carries `deliverAt`; the push of rule 44 states it;
     a planning card « Commande client » appears on the planning day of `deliverAt` (contributed by the plugin
-    through `planning.days`), with the lines and a « Livrée » check.
+    through `planning.days`), with the staff-prepared lines only (flagged `needsStaff` in the order's snapshot when it
+    was taken; a self-service article of the same order is not prepared) and a « Livrée » check.
 
 ### 3.H Staff side
 
@@ -468,7 +487,8 @@ is pushed every order.
 45. **Orders list in GuestFlow.** A page *Commandes clients* (the same name as the push channel, review of
     2026-11-05) (contributed by the plugin; sidebar, under the
     day-to-day group) lists orders by delivery time, filter « À préparer / Toutes », each row: lodging, guest,
-    lines, delivery time, payment mode, status, « Marquer livrée ». Bath sessions appear in the resource
+    lines, delivery time, payment mode, status, « Marquer livrée ». « À préparer » keeps to the stays not ended yet
+    (an undelivered order of a past stay ages out; « Toutes » still shows it). Bath sessions appear in the resource
     planning as any session (rule 30). The page is the admin's (2026-11-09): the reception role sees only the
     dashboard, the planning and its account (`reception-role-checkin-only.md`) and marks an order delivered from its
     planning card (rule 43), whose endpoints it may call.
@@ -480,7 +500,9 @@ is pushed every order.
 47. **A separate web app**, « Studio du livret », served by GuestFlow at `/studio` on the admin host while
     the plugin is active, with its own lightweight layout optimised for content editing (tablet-first),
     **signed in with the GuestFlow admin account** (same session cookie as `/api`, so no second login on the
-    same browser). Roles: admin only; the reception role has no access.
+    same browser). Roles: admin only; the reception role has no access. The user is re-read on every request through the
+    core's own `requireAuth.revalidate`: a deactivated, deleted or demoted admin, or one held to a password change,
+    gets no studio from an old session.
 48. **Lodging first, read from GuestFlow** (Adrien, 2026-11-06: nothing hard-coded). The studio opens on a
     **lodging switcher** listing every non-archived GuestFlow property, with its GuestFlow name, in GuestFlow's
     order, read on each load — a property added in GuestFlow appears without any action (greyed « Hors
@@ -570,7 +592,7 @@ plugins only through the functions they export to other plugins (no direct table
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `plugins/guest-app/` | `manifest.json`, `index.js` | C | Declares the plugin, push channel `guest-orders`, settings, migrations, public + admin mounts, the expiry runner |
+| `plugins/guest-app/` | `manifest.json`, `index.js` | C | Declares the plugin, push channel `guest-orders`, settings, migrations, public + admin mounts, its jobs (`ctx.jobs`: the order expiry every minute, rule 36; the stock's arrival sweep, rule 37ter; the session purge) |
 | `plugins/guest-app/routes/` | `public.js` | C | `/public/v1/guest/**` — thin: parse → controller → JSON |
 | `plugins/guest-app/routes/` | `admin.js` | C | `/api/guest-app/**` — items, studio, service hours, orders list; admin session guard |
 | `plugins/guest-app/middleware/` | `guestSession.js` | C | Reads `gf_guest`, loads the session, re-derives the window, 401 when dead |
@@ -581,7 +603,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/controllers/` | `itemsController.js` | C | Read/write `guest_app_items` (the switch + fields shown in GuestFlow's editors and the studio) |
 | `plugins/guest-app/controllers/` | `studioController.js` | C | CRUD pages / blocks / media / settings / service hours, publish, QR poster |
 | `plugins/guest-app/controllers/` | `ordersController.js` | C | Quote, order, follow-up, abandon (rules 24-38, 41); the order's side of its paid card link (`paid`, rules 35-36) and the expiry pass |
-| `plugins/guest-app/controllers/` | `ordersAdminController.js` | C | Orders list, mark delivered, the planning's « Commande client » cards (rules 43, 45) |
+| `plugins/guest-app/controllers/` | `ordersAdminController.js` | C | Orders list, mark delivered, the planning's « Commande client » cards — the `planning.days` server feed (rules 43, 45) |
 | `plugins/guest-app/` | `orderLabels.js` | C | Pure: the chips, notices, line labels and the staff push text (rules 38, 44) |
 | `plugins/guest-app/controllers/` | `lodgingsController.js` | C | Read/write the per-lodging configuration, validated at the boundary (rules 11bis-11quater) |
 | `plugins/guest-app/models/` | `lodgingsModel.js`, `sessionsModel.js`, `staysModel.js`, `itemsModel.js`, `bookletModel.js`, `ordersModel.js`, `mediaModel.js`, `serviceHoursModel.js` | C | DB access (prepared statements). `staysModel.js` holds the only SELECT of a reservation on the session path: rule 8's minimisation is its column list |
@@ -597,8 +619,10 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `serviceHours.js` | C | Pure: open ranges for a date, next opening, delivery slots from now + lead time to check-out, ignition-in-hours check (rules 31, 40-42) |
 | `plugins/guest-app/` | `homeHighlight.js` | C | Pure: status line + the single highlight (rules 10, 11) |
 | `plugins/guest-app/` | `soliomapFeed.js` | C | Reads Soliomap's `GET /api/activities` (outbound HTTPS, 1 h cache, 5 s timeout; a failure → no card) and picks the stay's suggestion (rule 15bis) |
-| `plugins/guest-app/` | `orderExpiryRunner.js` | C | Every minute: expire unpaid orders, release holds (rule 36) |
-| `plugins/guest-app/` | `planningCards.js` | C | `planning.days` server feed: « Commande client » cards on the delivery day (rule 43) |
+| `utils/paymentPollRunner.js` · `utils/reservationLedger.js` | — | T | A basket link goes to its owner before the cancelled / missing-stay exits; `refundCents` flags part of a payment « à rembourser » (rules 35, 36) |
+| `models/resourceOtherUsesModel.js` | — | T | The fiche save's conflict check reads the live plugins' holds (`coreServices.resourceHolds`) for another stay (rule 35) |
+| `middleware/requireAuth.js` · `plugins/sdk/index.js` | — | T | `requireAuth.revalidate` (generic, the session's user re-read) and the `requireAuth` / `securityConfig` core modules (rules 4, 47) |
+| `plugins/online-payment/reconciliation/` | `expectedReceipts.js` | T | A paid basket link is one expected receipt for its whole amount (online-payment 1.7.1) |
 | `plugins/guest-app/` | `migrations.js` | C | Tables of §5 |
 | `plugins/guest-app/models/` | `stockModel.js` | C | The stock of rules 37bis-37ter: held units of the unpaid card orders, a reservation's counts brought to date (idempotent), the restock, the arrival sweep's reads, the low / out alerts due |
 | `plugins/guest-app/` | `stock.js` | C | Pure: the editor's « Stock » view and restock line, the shop's `stock`, the quote's `outOfStock`, the editor warning, the push texts (rule 37quater) |
@@ -718,10 +742,10 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
 | POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, mode:'delivery'\|'pickup', question (« Quand souhaitez-vous la recevoir ? » / « … la récupérer ? », rule 41bis), asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
 | POST | `/public/v1/guest/orders/quote` | stay session, `shop` module, shop open | `{ lines:[{kind:'option',id,quantity} \| {kind:'resource',id,sessions:[{date,start,end}]} \| {kind:'breakfast',id,mornings,time,persons}], deliverAt? }` | `{ lines:[{kind, id, title, label, quantity?, sessions?:[{…, unavailable?, reason?, reasonLabel?}], mornings?, unavailableMornings?, unitPrice, total, totalLabel, unavailable?, unavailableReason?, outOfStock?:{left, label}}], total, totalLabel, needsDelivery, deliverAt?, deliverAtUnavailable? }`; 409 `SHOP_CLOSED`, 400 `INVALID_INPUT` / `ORDER_LIMIT` |
-| POST | `/public/v1/guest/orders` | idem, 10 / hour / session | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN` (details `{ quote }`), `OUT_OF_STOCK` (details `{ itemKey:'option:12', left, quote }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `STAY_NOT_WRITABLE`; 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 |
+| POST | `/public/v1/guest/orders` | idem, 10 / hour / session; optional header `Idempotency-Key` (8-100 of `A-Z a-z 0-9 . _ : -`, else 400): a replay within the session answers the first order's response, nothing created again | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN` (details `{ quote }`), `OUT_OF_STOCK` (details `{ itemKey:'option:12', left, quote }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `STAY_NOT_WRITABLE`; 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 |
 | POST | `/public/v1/guest/orders/:id/abandon` | idem | — | the order, `abandoned`, with `cartLines`; 409 `ORDER_NOT_PENDING` |
-| GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel, deliveryLabel?, fulfilment:'delivery'\|'pickup', promise:string\|null, extraPromises?:[string], movedNotice:string\|null, notices?, cartLines?}] }` — `promise` (rule 41ter) once the order stands (confirmed, paid) and has a `deliverAt`: « Livrée à L'Estiva aujourd'hui vers 17 h 30 » / « Prête aujourd'hui à 17 h 30. Lieu de retrait : … »; `extraPromises` the bath's own lines (« Bain nordique — ven. 9 oct., 20 h, il sera chaud »); `movedNotice` « Votre commande sera prête un peu plus tard que prévu »; `deliveryLabel` « Prévue … » / « Livrée », pickup « Prête … » / « Retirée » |
-| GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
+| GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel, deliveryLabel?, fulfilment:'delivery'\|'pickup', promise:string\|null, extraPromises?:[string], movedNotice:string\|null, notices?, cartLines?, paymentUrl?}] }` — `paymentUrl` (« Reprendre le paiement ») only on a card order still `awaiting_payment` whose link lives (its 30 minutes); `promise` (rule 41ter) once the order stands (confirmed, paid) and has a `deliverAt`: « Livrée à L'Estiva aujourd'hui vers 17 h 30 » / « Prête aujourd'hui à 17 h 30. Lieu de retrait : … »; `extraPromises` the bath's own lines (« Bain nordique — ven. 9 oct., 20 h, il sera chaud »); `movedNotice` « Votre commande sera prête un peu plus tard que prévu »; `deliveryLabel` « Prévue … » / « Livrée », pickup « Prête … » / « Retirée » |
+| GET | `/public/v1/guest/orders/:id` | stay session, the core's `paymentStatusLimiter` | — | one order (an unpaid card order reads its link at the provider, like `/booking-requests/:id/status`, at most once per 10 s per link) |
 | GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name (rule 52), `application/manifest+json`, `Cache-Control: no-cache` |
 | GET | `/api/guest-app/items` | admin | — | every option and resource: `{ kind, id, title, priceType, category?, archived?, sellable:{ok, reason}, sold, mediaId, shortDescriptionFr, shortDescriptionEn, maxQuantity, needsStaff, leadMinutes, stockable, stock:{ tracked, quantity, quantityLabel (« −2 »), held, heldLabel, left, alertBelow, soldOut, out, restockLine (« Stock réglé à 24 — Sophie, 6 nov. 14:02 ») } }` |
 | GET | `/api/guest-app/items?propertyId=` | admin | — | the studio's Boutique: only the options and resources linked to that lodging, each with that lodging's `price`, `priceLabel` (« 4,50 € », « Inclus (0 €) ») and `priceUnitLabel` (rule 50) |
@@ -749,6 +773,9 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | POST | `/api/guest-app/orders/:id/delivered` | admin, reception | — | `{ status:'delivered' }` (twice is once); 409 `ORDER_NOT_DELIVERABLE`, 404 |
 | GET | `/api/guest-app/planning/order-cards?from&to` | admin, reception | — | `{ days:[{ date, cards:[{ orderId, reservationId, time, timeLabel (pickup: « À retirer 18 h »), lodging, guest, lines, paymentLabel, delivered, fulfilment, doneLabel:'Livrée'\|'Retirée' }] }] }` — the staff-prepared lines only (rule 43) |
 
+A stay session only (`mode = 'stay'`, else 403 `STAY_REQUIRED`) reaches the slots, the delivery times, the quote, the
+orders and an order's page or abandon; a pre-arrival session reads `/shop` read-only (rule 27).
+
 Rate limits: sessions 30/h/IP, lookup 5/15 min/IP, orders 10/h/session,
 reads under the existing `publicApiLimiter` budget.
 
@@ -765,7 +792,8 @@ studio is the same at `/studio` on any other host, for an admin session: none �
 
 ## 5. Data model
 
-**One core column only:** `payment_links.basketJson` (`{ source, ref, refundOwed? }`), the basket a `complement` link
+**One core column only:** `payment_links.basketJson` (`{ source, ref, refundOwed?, refundCents? }` — `refundCents`: only
+that part of the payment is owed back, rule 35), the basket a `complement` link
 bills (rule 35). Everything below is created by the `guest-app` plugin's migrations:
 
 - `guest_app_lodgings(propertyId PK, enabled INTEGER DEFAULT 0, lodgingCode TEXT UNIQUE,
@@ -776,7 +804,8 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
   (`settingsModel` encryption helper) — it is shown to guests, but must not sit in clear in a backup.
 - `guest_app_items(kind 'option'|'resource', itemId, sold INTEGER DEFAULT 0, mediaId, shortDescriptionFr,
   shortDescriptionEn, maxQuantity DEFAULT 10, needsStaff INTEGER DEFAULT 0, leadMinutes DEFAULT 30,
-  sortOrder, stockTracked INTEGER DEFAULT 0, stockQuantity INTEGER NULL, stockSetAt, stockSetBy, stockAlertBelow NULL,
+  sortOrder, stockTracked INTEGER DEFAULT 0, stockQuantity INTEGER NULL, stockSetQuantity INTEGER NULL (the count typed at
+  the last restock, for its history line), stockSetAt, stockSetBy, stockAlertBelow NULL,
   soldOut INTEGER DEFAULT 0, stockLowPushedAt, stockOutPushedAt, PRIMARY KEY(kind,itemId))` — the sell switch, its
   presentation and the stock (rules 22, 37bis, 39); the two `…PushedAt` keep rule 37quater's pushes to once each until
   the next restock clears them. `stockQuantity` is what is left now: set at a restock, lowered and raised by the counts of rule 37ter.
@@ -791,7 +820,8 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
 - `guest_stay_links (id, reservationId UNIQUE while not revoked, tokenEncrypted, tokenHash UNIQUE, createdAt,
   revokedAt)` — one live link per reservation (rule 1); `tokenEncrypted` through the core encryption helper so
   the SAS, the e-mails and the fiche can show it again; regenerating revokes the row and creates a new one.
-- `guest_booklet_pages(id, slug, icon, coverMediaId, titleFr, titleEn, updatedAt)` — page content;
+- `guest_booklet_pages(id, slug, icon, coverMediaId, titleFr, titleEn, placeholder INTEGER DEFAULT 0, updatedAt)` — page
+  content (`placeholder`: a seeded page not written yet, shown as such in the studio, cleared at its first edit);
   `guest_booklet_placements(pageId, propertyId, sortOrder, published, PRIMARY KEY(pageId, propertyId))` —
   which lodgings' booklets show the page, where (a page placed in two lodgings is « shared », rule 17);
   `guest_booklet_blocks(id, pageId, sortOrder, onlyForPropertyIdsJson NULL, type, dataJson, updatedAt)`;
@@ -801,8 +831,12 @@ bills (rule 35). Everything below is created by the `guest-app` plugin's migrati
   resized at upload (1600 / 800 / 400 px, WebP).
 - `guest_orders(id, reservationId, sessionId, payment 'card'|'note'|'none', status 'awaiting_payment'|
   'confirmed'|'paid'|'delivered'|'expired'|'paid_conflict'|'abandoned', linesJson (priced snapshot, sessions included),
-  total, deliverAt NULL, deliverMoved, fulfilment 'delivery'|'pickup', pickupPlace NULL, heldUntil NULL, paymentLinkId NULL, createdAt, confirmedAt, paidAt, closedAt,
-  deliveredAt, deliveredBy)` — `heldUntil` makes the hourly `holds` provider cheap to query.
+  total, deliverAt NULL, deliverMoved, fulfilment 'delivery'|'pickup', pickupPlace NULL, heldUntil NULL, paymentLinkId NULL,
+  paymentUrl NULL, createdAt, confirmedAt, paidAt, closedAt, deliveredAt, deliveredBy, deferredCents DEFAULT 0, clientKey NULL,
+  UNIQUE(sessionId, clientKey))` — `heldUntil` makes the hourly `holds` provider cheap to query; `paymentUrl` the card
+  link's address (« Reprendre le paiement », an `Idempotency-Key` replay); `deferredCents` what an order was quoted above
+  what its commit added to the fiche because a card order awaiting payment held an allowance (rule 35); `clientKey` the
+  `Idempotency-Key` of §4.3. A line of `linesJson` carries `needsStaff: true` when staff-prepared (rule 43).
 - Plugin settings (`ctx.settings.declare`): `appName`, `soliomapUrl`, `soliomapEmbed` (default off), `maxOrderTotal`,
   `fulfilment` (`delivery` | `pickup`, default `delivery`), `pickupPlace` (rule 41bis),
   `guestHost`. The property has no slug column: `lodging.slug` is derived from its name (`L'Estiva` → `l-estiva`).
@@ -987,7 +1021,7 @@ le nom et le numéro. »
   DST, what the link opens before J-7 / from J-7 / in the window / after, cancelled, a pre-arrival link session
   ending at H-3, a lookup session moving on by itself)
 - [x] `…/guest-app-name-match.unit.test.js` — rule 7 (accents, hyphens, second name, empty)
-- [x] `…/guest-app-sessions.unit.test.js` (28) — rules 1-6, 8, 9, 33: the stay link (stay / pre-arrival from
+- [x] `…/guest-app-sessions.unit.test.js` (30) — rules 1-6, 8, 9, 33 (two stays sharing a number, the cookie's `Secure` following `HTTPS_ENABLED`): the stay link (stay / pre-arrival from
   J-7 / visitor before and « ended » after), the poster opens the visitor mode only and tells nothing of a stay,
   no name state left, phase-bound reuse, a regenerated link kills its sessions, lookup throttling, generic
   errors, payload minimisation
@@ -1011,27 +1045,31 @@ le nom et le numéro. »
 - [x] `…/guest-app-plugin-gating.unit.test.js` — rule 22: plugin inactive → 404 `PLUGIN_INACTIVE`, items
   rows kept, no core column touched
 - [x] `…/guest-app-items.unit.test.js` (9) — rules 22, 23, 27bis: the admin routes' validation, `NOT_SELLABLE`, roles
-- [x] `…/guest-app-shop.unit.test.js` (11) — rules 11bis, 24, 25, 26, 27, 27bis: payload per lodging and language, categories, window states, visitor, `canPayCard`
+- [x] `…/guest-app-shop.unit.test.js` (12) — rules 11bis, 24, 25, 26, 27, 27bis (a pre-arrival session reaches nothing but the catalogue): payload per lodging and language, categories, window states, visitor, `canPayCard`
 - [x] `…/guest-app-sellable.unit.test.js` (16 tests) — rules 23, 25, 27bis: per price type, archived, lodging scope, 0 € in
   one lodging and paid in the other, free units (direct only) and free minutes left after existing lines,
   offered-by-default already on the stay
 - [x] `…/guest-app-shop-quote.unit.test.js` (13) — rules 23, 24, 25, 27, 27bis, 29, 30, 32, 37, 41: quote equals the
   fiche's pricing engine for the same lines and writes nothing, free hour, sessions of one order judged together,
   `SLOT_TAKEN`, breakfast mornings, delivery time, input shapes, pre-arrival refused, « Modifiée par l'équipe »
-- [x] `plugins/hourly-resources/tests/resource-scheduler-hook.unit.test.js` (9) + `guest-app/tests/guest-app-slots.unit.test.js` (7) — rules 28-31: guest sessions of other
+- [x] `plugins/hourly-resources/tests/resource-scheduler-hook.unit.test.js` (9) + `guest-app/tests/guest-app-slots.unit.test.js` (8) — rules 11 (the home's bath card from the planning), 28-31: guest sessions of other
   stays, outside bookings, held orders, turnover, capacity, heat-up / retention, closed days, evening rate,
   multi-slot order, ignition outside service hours → `staff`, warm slot not constrained
-- [x] `…/guest-app-service-hours.unit.test.js` (14) — rules 39-42: weekly ranges, exceptions, establishment
+- [x] `…/guest-app-service-hours.unit.test.js` (16) — rules 39-42 (unconstrained only when nothing is stored, a lodging's exceptions over the shared week, t strictly before the check-out): weekly ranges, exceptions, establishment
   closures, lead time, next opening, last delivery before check-out
 - [x] `…/guest-app-order-note.unit.test.js` (12) — rules 11bis, 25, 27, 33, 34, 37, 38, 44: no name asked, 0 € order and
   its allowance, lines land on the fiche and in `endOfStayComplementDetail`, quantities merge, limits, 10 / hour, push
-- [x] `…/guest-app-order-card.unit.test.js` (9) — rules 33, 35, 36, 38, 44: complement link, paid → lines + payment,
+- [x] `…/guest-app-order-card.unit.test.js` (10) — rules 33, 35, 36, 38, 44 (the fiche refuses a held slot): complement link, paid → lines + payment,
   abandon, holds, expiry releases slots, late payment committed or `paid_conflict`, delivery moved
-- [x] `…/guest-app-orders-admin.unit.test.js` (6) — rules 11, 38, 43, 45: the list, « Marquer livrée », planning cards, reception
-- [x] `tests/payment-complement-link.unit.test.js` (7) — `ensurePaymentLink` / `applyPaidEffect` complement
+- [x] `…/guest-app-order-money.unit.test.js` (11) — rules 25, 33, 35, 36, 37quater, §4.3 (review of 2026-11-09): a card
+  order awaiting payment holds its free hour, a price raised → `paid_conflict`, lowered → the gap « à rembourser », on-time
+  payment never judged on the stock, abandoned → conflict, cancelled stay → conflict, provider read once per 10 s,
+  `Idempotency-Key`, the link equals the quote, a 0 € order needs no link, `paymentUrl` while the link lives
+- [x] `…/guest-app-orders-admin.unit.test.js` (8) — rules 11, 38, 43, 45 (staff-prepared lines only on the card, « À préparer » ages out): the list, « Marquer livrée », planning cards, reception
+- [x] `tests/payment-complement-link.unit.test.js` (9) — a part owed back (`refundCents`), a basket paid after its stay was cancelled, `ensurePaymentLink` / `applyPaidEffect` complement
   branch, refusal without basket, 30 min, no arrival lapse, « à rembourser », `ctx.paymentBasket`
-- [x] `tests/mid-stay-order-commit.unit.test.js` (10) — rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
-- [x] `…/guest-app-stock.unit.test.js` (11) — rules 37bis-37quater: restock sets the count with its history line and
+- [x] `tests/mid-stay-order-commit.unit.test.js` (12) — the pending lines priced first, a breakfast line kept, rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
+- [x] `…/guest-app-stock.unit.test.js` (13) — rules 37bis-37quater (a per-person article counts its people): restock sets the count with its history line and
   is what the cellar holds now, « En rupture », no stock for the bath or the breakfast, holds of an unpaid card order
   released on expiry / abandon and counted once paid, a site line counted on the arrival day and not before, a line
   added mid-stay counted at once, lowered / cancelled / deleted after arrival returned, the app order not counted twice
@@ -1047,7 +1085,7 @@ le nom et le numéro. »
   arrival-day card, no URL outside the window or for a visitor, module off, plugin off, the URL read from gate-access's
   e-mail context
 - [x] `…/guest-app-install.unit.test.js` (4) — rules 52, 53: the manifest, `isNight` by the season's sun
-- [x] `…/guest-app-hosting.unit.test.js` (4) — rules 15, 47, 52 (plan step 50): caching, the app's routes, 404, no file
+- [x] `…/guest-app-hosting.unit.test.js` (7) — rules 15, 47 (the studio's admin re-read), 52 (plan step 50): caching, the app's routes, 404, no file
   outside the build, the CSP and its Soliomap frame, 503 without a build, the studio's admin gate
 - [x] `tests/plugins-web-apps.unit.test.js` (4) — `plugins-phase-1-sdk.md` rule 48: host and path web apps, the core's
   trees kept, a plugin not live falls through, registration refusals

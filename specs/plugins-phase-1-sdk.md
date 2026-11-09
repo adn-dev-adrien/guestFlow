@@ -573,12 +573,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     reader of the stay's own buckets (stale links, settled links, the ledger's complement row) takes it for the stay's
     complement. When it is paid, on time or late, `applyPaidEffect` hands it to the live plugin that declared its
     `source` (one per source): `paid({ reservationId, ref, linkId, amountCents, paidDate, paidAt, providerPaymentId })`
-    runs synchronously and answers `{ effect }`, or `{ refundOwed: true, reason }` — the core then flags the link, writes
+    runs synchronously — whatever became of the stay, cancelled or deleted — and answers `{ effect }`, or `{ refundOwed: true, reason, refundCents? }`
+    (`refundCents`: only that part of the payment is owed back) — the core then flags the link, writes
     « Remboursement à faire » in the stay's history and the ledger shows the row in the owner's words
     (`labels: { refundOne, refundMany }`, the guest app's « Commande client à rembourser »), else the core's neutral
     « Paiement en ligne à rembourser »; with no live owner the payment is `basket-unallocated` and the admin is
     alerted. The provider sees the origin `basket`. `midStayOrderCommit` prices an order by the
-    fiche's own save played without writing (`priceOrder`) and writes it as mid-stay extras through `performUpdate`, a
+    fiche's own save played without writing (`priceOrder(reservationId, lines, { pending? })`: the caller's promised,
+    unwritten lines — a card order awaiting payment — take their allowances first) and writes it as mid-stay extras through `performUpdate`, a
     card order's money as a settled mid-stay note `{ source, ref }`, in one transaction with the plugin's own step
     (`commitOrder(reservationId, { source, ref, history: { field, label, text }, lines, paid?, within? })` — the
     caller names its order and writes the history entry in its own words; an order not named is refused before
