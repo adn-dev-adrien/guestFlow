@@ -119,7 +119,7 @@ function nextOpening(from, schedule) {
 }
 
 /**
- * Rule 41 — the delivery times t, 30-min steps, with check-in ≤ t ≤ check-out and [t − lead, t] after `now`
+ * Rule 41 — the delivery times t, 30-min steps, with check-in ≤ t < check-out and [t − lead, t] after `now`
  * inside ONE service range. → wall-clock moments in time order. A delivery time has no capacity.
  */
 function deliveryTimes({ now, stay, leadMinutes, schedule }) {
@@ -129,7 +129,7 @@ function deliveryTimes({ now, stay, leadMinutes, schedule }) {
   const latest = absolute(checkOut);
   if (schedule.unconstrained) {
     const list = [];
-    for (let t = Math.ceil(earliest / STEP_MINUTES) * STEP_MINUTES; t <= latest; t += STEP_MINUTES) {
+    for (let t = Math.ceil(earliest / STEP_MINUTES) * STEP_MINUTES; t < latest; t += STEP_MINUTES) {
       const day = Math.floor(t / MINUTES_PER_DAY);
       list.push({ date: dateOf(day), minutes: t - day * MINUTES_PER_DAY });
     }
@@ -141,7 +141,7 @@ function deliveryTimes({ now, stay, leadMinutes, schedule }) {
     const base = dayIndex(date) * MINUTES_PER_DAY;
     rangesOn(date, schedule).forEach((range) => {
       const opensAt = Math.max(base + range.from + lead, earliest);
-      for (let t = Math.ceil(opensAt / STEP_MINUTES) * STEP_MINUTES; t <= Math.min(base + range.to, latest); t += STEP_MINUTES) {
+      for (let t = Math.ceil(opensAt / STEP_MINUTES) * STEP_MINUTES; t <= base + range.to && t < latest; t += STEP_MINUTES) {
         times.set(t, { date, minutes: t - base });
       }
     });
@@ -185,7 +185,7 @@ function serviceState({ now, stay, schedule, lang }) {
   const at = wallClock(now);
   if (isOpenAt(at, schedule)) return { openNow: true };
   const next = nextOpening(at, schedule);
-  if (!next || absolute(next) > absolute(stayBounds(stay).checkOut)) return { openNow: false, bannerLabel: L.closedUntilDeparture };
+  if (!next || absolute(next) >= absolute(stayBounds(stay).checkOut)) return { openNow: false, bannerLabel: L.closedUntilDeparture };
   const when = next.date === at.date ? '' : (next.date === addDays(at.date, 1) ? L.resumesTomorrow : dayLabel(next.date, at.date, L));
   return { openNow: false, nextOpening: instantOf(next), bannerLabel: L.resumes(when, L.time(next.minutes)) };
 }

@@ -64,7 +64,20 @@ test('rule 40: nothing stored yet → unconstrained; once a range or an exceptio
   const own = createServiceHoursModel(freshDb());
   own.save(2, { weekly: { 3: [range('17:00', '19:00')] }, exceptions: [] });
   assert.equal(own.scheduleFor(2, { from: '2099-07-01' }).unconstrained, false);
-  assert.equal(own.scheduleFor(1, { from: '2099-07-01' }).unconstrained, true, 'a lodging following shared hours nobody set');
+  assert.equal(own.scheduleFor(1, { from: '2099-07-01' }).unconstrained, false, 'rule 41: something is stored — the other lodging’s days without a range are closed');
+});
+
+test('rules 40-41: an exception stored for one lodging alone keeps the shared week — its date replaces the shared one', () => {
+  const db = freshDb();
+  const model = createServiceHoursModel(db);
+  openService(db, [['08:00', '12:00']]);
+  db.prepare("INSERT INTO guest_app_service_exceptions (date, propertyId, closed) VALUES ('2099-07-14', NULL, 1), ('2099-07-15', NULL, 1)").run();
+  model.save(2, { weekly: {}, exceptions: [{ date: '2099-07-14', closed: false, ranges: [range('10:00', '11:00')] }] });
+  const schedule2 = model.scheduleFor(2, { from: '2099-07-01' });
+  assert.deepEqual(schedule2.weekly[3], [range('08:00', '12:00')], 'the shared week stays');
+  assert.deepEqual(rangesOn('2099-07-14', schedule2), [{ from: 600, to: 660 }], 'its own date wins');
+  assert.deepEqual(rangesOn('2099-07-15', schedule2), [], 'the shared exception still applies');
+  assert.deepEqual(rangesOn('2099-07-14', model.scheduleFor(1, { from: '2099-07-01' })), [], 'the other lodging follows the shared exception');
 });
 
 test('rules 31, 41-42: unconstrained — every ignition allowed, delivery from now + lead to the check-out, open, no banner', () => {
@@ -72,7 +85,7 @@ test('rules 31, 41-42: unconstrained — every ignition allowed, delivery from n
   assert.equal(ignitionInHours(free)({ date: '2099-07-07', time: '03:00' }), true);
   const list = times(deliveryTimes({ now: at('2099-07-08', '23:10'), stay: STAY, leadMinutes: 45, schedule: free }));
   assert.deepEqual(list.slice(0, 3), ['2099-07-09 00:00', '2099-07-09 00:30', '2099-07-09 01:00'], '23:10 + 45 min, across midnight');
-  assert.equal(list[list.length - 1], '2099-07-09 10:00');
+  assert.equal(list[list.length - 1], '2099-07-09 09:30', 'strictly before the check-out');
   assert.equal(times(deliveryTimes({ now: at('2099-07-01', '09:00'), stay: STAY, leadMinutes: 30, schedule: free }))[0], '2099-07-06 16:00', 'from the check-in');
   assert.deepEqual(serviceState({ now: paris('2099-07-07', '03:00'), stay: STAY, schedule: free, lang: 'fr' }), { openNow: true });
   assert.equal(deliveryPicker({ now: paris('2099-07-07', '03:00'), stay: STAY, leadMinutes: 30, schedule: free, lang: 'fr' }).asap.label, 'Dès que possible — vers 3 h 30');
@@ -101,7 +114,7 @@ test('rule 41: delivery times — 30-min steps, the lead inside ONE range, after
   assert.ok(list.includes('2099-07-07 12:00'), 'ready as the morning range closes');
   assert.ok(!list.includes('2099-07-07 12:30') && !list.includes('2099-07-07 16:30'), 'a preparation never spans the break');
   assert.ok(list.includes('2099-07-07 17:00') && list.includes('2099-07-07 20:00'));
-  assert.equal(list[list.length - 1], '2099-07-09 10:00', 'the check-out is the last time');
+  assert.equal(list[list.length - 1], '2099-07-09 09:30', 'strictly before the check-out: 10:00 is not a delivery time');
   const arrival = times(deliveryTimes({ now, stay: { ...STAY, startDate: '2099-07-07' }, leadMinutes: 30, schedule: schedule() }));
   assert.equal(arrival[0], '2099-07-07 16:30', 'not before the check-in, and prepared inside the afternoon range');
   const later = times(deliveryTimes({ now: at('2099-07-07', '17:10'), stay: STAY, leadMinutes: 30, schedule: schedule() }));

@@ -77,14 +77,23 @@ function createServiceHoursModel(db) {
   );
 
   /**
-   * Rule 40 — what `serviceHours.js` reads for a lodging: its hours, and the all-properties closures not over by
-   * `from`. `unconstrained` while the lodging follows hours nobody set (nothing shared, nothing of its own).
+   * Rules 40-41 — what `serviceHours.js` reads for a lodging: its hours, and the all-properties closures not over by
+   * `from`. A lodging with weekly ranges of its own follows them, with its own exceptions; one with exceptions only
+   * keeps the shared week, its own dates replacing the shared ones. `unconstrained` only while nothing at all is
+   * stored, shared or of any lodging: once anything is, a day without a range is closed.
    */
   function scheduleFor(propertyId, { from }) {
-    const { weekly, exceptions } = read(propertyId);
+    const shared = readScope(null);
+    const own = propertyId != null && hasOwn(propertyId) ? readScope(propertyId) : null;
+    const ownWeek = Boolean(own) && Object.values(own.weekly).some((ranges) => ranges.length);
+    const ownDates = new Set(own ? own.exceptions.map((e) => e.date) : []);
+    const exceptions = ownWeek ? own.exceptions : [
+      ...shared.exceptions.filter((e) => !ownDates.has(e.date)),
+      ...(own ? own.exceptions : []),
+    ].sort((a, b) => a.date.localeCompare(b.date));
     return {
-      unconstrained: !exceptions.length && Object.values(weekly).every((ranges) => !ranges.length),
-      weekly,
+      unconstrained: !isConfigured(),
+      weekly: ownWeek ? own.weekly : shared.weekly,
       exceptions,
       closures: closures.list({ from }).filter((c) => c.propertyId == null).map((c) => ({ startDate: c.startDate, endDate: c.endDate })),
     };
