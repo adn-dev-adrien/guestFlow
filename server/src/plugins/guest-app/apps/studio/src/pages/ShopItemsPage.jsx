@@ -57,7 +57,7 @@ function ItemRow({
           {photo ? <Box component="img" src={thumbOf(photo)} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <ButtonBase onClick={onToggle} aria-expanded={open} aria-controls={panelId} sx={{ display: 'flex', gap: 0.5, alignItems: 'center', textAlign: 'left', borderRadius: 1, minHeight: 32 }}>
+          <ButtonBase onClick={onToggle} aria-expanded={open} aria-controls={panelId} sx={{ display: 'flex', gap: 0.5, alignItems: 'center', textAlign: 'left', borderRadius: 1, minHeight: 44 }}>
             <Typography sx={{ fontWeight: 600 }}>{item.title}</Typography>
             <ExpandMoreIcon fontSize="small" sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 160ms', color: 'text.secondary' }} />
           </ButtonBase>

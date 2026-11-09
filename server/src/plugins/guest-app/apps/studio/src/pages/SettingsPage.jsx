@@ -52,7 +52,9 @@ export default function SettingsPage({ lodgings, onLodgingChange }) {
 
   const save = async () => {
     setBusy(true);
-    const patch = Object.fromEntries(FIELDS.filter((f) => form[f] !== saved[f]).map((f) => [f, f === 'maxOrderTotal' ? Number(form[f]) : form[f]]));
+    // An emptied ceiling is sent as null, which the server reads as its default (500 €) — never `Number('')`, 0.
+    const value = (f) => (f !== 'maxOrderTotal' ? form[f] : form[f] === '' || form[f] === null ? null : Number(form[f]));
+    const patch = Object.fromEntries(FIELDS.filter((f) => form[f] !== saved[f]).map((f) => [f, value(f)]));
     await act(async () => settings.setData(await api.saveSettings(patch)), 'Réglages enregistrés.');
     setBusy(false);
   };

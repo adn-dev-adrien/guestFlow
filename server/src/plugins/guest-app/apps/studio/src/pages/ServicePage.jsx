@@ -56,6 +56,8 @@ export default function ServicePage({ lodgings }) {
   const hoursDirty = Boolean(draft && savedHours && (own || !same(draft, savedHours)));
   const dirty = modeDirty || hoursDirty;
   useDirtyGuard(dirty);
+  // A lodging that follows the shared hours shows them `inert`: neither the pointer, the keyboard nor a screen reader
+  // reaches fields it cannot change.
   const editable = scope === SHARED || !followsShared || own;
 
   const save = async () => {
@@ -173,7 +175,7 @@ export default function ServicePage({ lodgings }) {
             {scopeName} a ses propres horaires.
           </Alert>
         ) : null}
-        <Box sx={{ display: 'grid', opacity: editable ? 1 : 0.6, pointerEvents: editable ? 'auto' : 'none' }} aria-disabled={!editable}>
+        <Box sx={{ display: 'grid', opacity: editable ? 1 : 0.6 }} inert={!editable}>
           {WEEKDAYS.map((d) => (
             <Box key={d.key} role="group" aria-label={d.label} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '120px 1fr' }, gap: 1, py: 1.5, borderBottom: 1, borderColor: 'divider', alignItems: 'start' }}>
               <Typography sx={{ fontWeight: 600, pt: { sm: 1.25 } }}>{d.label}</Typography>
@@ -191,7 +193,7 @@ export default function ServicePage({ lodgings }) {
         title="Exceptions"
         description="Jour férié, absence : un jour fermé ou des plages différentes. Les fermetures de l’établissement dans GuestFlow ferment aussi le service."
       >
-        <Box sx={{ display: 'grid', gap: 1.5, opacity: editable ? 1 : 0.6, pointerEvents: editable ? 'auto' : 'none' }} aria-disabled={!editable}>
+        <Box sx={{ display: 'grid', gap: 1.5, opacity: editable ? 1 : 0.6 }} inert={!editable}>
           {!draft.exceptions.length ? <Typography variant="body2" sx={{ color: 'text.secondary' }}>Aucune exception.</Typography> : null}
           {draft.exceptions.map((e) => (
             <Box key={e.date} sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 44px', sm: '160px 1fr 44px' }, gap: 1, alignItems: 'center', py: 1, borderBottom: 1, borderColor: 'divider' }}>
