@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
+
+// Lazy screens and key-by-key typing: give `findBy` / `waitFor` more than the default second under load.
+configure({ asyncUtilTimeout: 4000 });
 
 afterEach(() => { cleanup(); });
 

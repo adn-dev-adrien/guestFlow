@@ -52,6 +52,8 @@ export default defineConfig({
     setupFiles: ['./src/__tests__/setup.js'],
     css: false,
     restoreMocks: true,
+    // The editor suites type whole words key by key: on a loaded CI runner one test can pass Vitest's 5 s default.
+    testTimeout: 20000,
     server: { deps: { inline: [/client\/src/, /apps\/guest/] } },
   },
 });
