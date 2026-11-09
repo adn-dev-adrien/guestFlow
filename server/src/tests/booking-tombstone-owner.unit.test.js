@@ -75,8 +75,19 @@ const closed = (uid, start, end) => ({ uid, start, end, summary: 'CLOSED - Not a
 
 // A Booking stay that stays in the feed throughout, so removing the incident's stay never trips the
 // empty-feed guard.
-const ANCHOR = closed('anchor@booking.com', '20270611', '20270613');
-const STAY = closed('7ab42760@booking.com', '20261106', '20261108');
+// Dates are relative to today: the sync ignores stays already past, so fixed dates expire.
+const dayFromToday = (offset) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
+const ics = (iso) => iso.replace(/-/g, '');
+const STAY_IN = dayFromToday(60);
+const STAY_OUT = dayFromToday(62);
+const STAY_IN_ICS = ics(STAY_IN);
+const STAY_OUT_ICS = ics(STAY_OUT);
+const ANCHOR = closed('anchor@booking.com', ics(dayFromToday(300)), ics(dayFromToday(302)));
+const STAY = closed('7ab42760@booking.com', STAY_IN_ICS, STAY_OUT_ICS);
 
 function fresh() {
   const db = new Database(':memory:');
@@ -92,13 +103,13 @@ const stayOn = (db, startDate) => db.prepare("SELECT * FROM reservations WHERE s
 async function cancelBookingStay(db, model) {
   stubFetch([ANCHOR, STAY]);
   await model.syncSource(BOOKING);
-  assert.equal(stayOn(db, '2026-11-06').length, 1);
+  assert.equal(stayOn(db, STAY_IN).length, 1);
   stubFetch([ANCHOR]);
   await model.syncSource(BOOKING);
   const alert = db.prepare('SELECT id FROM ical_cancellation_alerts WHERE eventUid = ?').get(STAY.uid);
   assert.ok(alert, 'the vanished Booking stay raises a cancellation alert');
   icalCancellationModel.buildModel(db).approve(alert.id);
-  assert.equal(stayOn(db, '2026-11-06').length, 0, 'approving deletes the fiche');
+  assert.equal(stayOn(db, STAY_IN).length, 0, 'approving deletes the fiche');
 }
 
 const origFetch = global.fetch;
@@ -129,7 +140,7 @@ test('rule 14 — the incident: a cancelled Booking stay re-booked with the same
   const r = await model.syncSource(BOOKING);
   assert.equal(r.echoSkippedCount, 0);
   assert.equal(r.createdCount, 1);
-  const [resa] = stayOn(db, '2026-11-06');
+  const [resa] = stayOn(db, STAY_IN);
   assert.equal(resa.sourceIcalSourceId, 12);
   assert.equal(resa.sourceIcalEventUid, STAY.uid);
   assert.equal(db.prepare('SELECT sourceIcalSourceId FROM ical_export_tombstones').get().sourceIcalSourceId, 12);
@@ -139,49 +150,49 @@ test('rule 14 — re-booked under a new UID, it is created too', async () => {
   const { db, model } = fresh();
   await cancelBookingStay(db, model);
 
-  stubFetch([ANCHOR, closed('new-uid@booking.com', '20261106', '20261108')]);
+  stubFetch([ANCHOR, closed('new-uid@booking.com', STAY_IN_ICS, STAY_OUT_ICS)]);
   const r = await model.syncSource(BOOKING);
   assert.equal(r.echoSkippedCount, 0);
-  assert.equal(stayOn(db, '2026-11-06').length, 1);
+  assert.equal(stayOn(db, STAY_IN).length, 1);
 });
 
 test('rule 14 — non-regression: a cancelled GreenGo stay still covers the Booking echo for 72 h', async () => {
   const { db, model, ranges } = fresh();
-  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, platform, sourceType, sourceIcalSourceId) VALUES (50, 1, '2026-11-06', '2026-11-08', 'Greengo', 'ical', 7)").run();
+  db.prepare(`INSERT INTO reservations (id, propertyId, startDate, endDate, platform, sourceType, sourceIcalSourceId) VALUES (50, 1, '${STAY_IN}', '${STAY_OUT}', 'Greengo', 'ical', 7)`).run();
   ranges.refresh(1);
   db.prepare('DELETE FROM reservations WHERE id = 50').run();
 
-  stubFetch([closed('ghost@booking.com', '20261106', '20261108')]);
+  stubFetch([closed('ghost@booking.com', STAY_IN_ICS, STAY_OUT_ICS)]);
   const r = await model.syncSource(BOOKING);
   assert.equal(r.echoSkippedCount, 1);
-  assert.equal(stayOn(db, '2026-11-06').length, 0);
+  assert.equal(stayOn(db, STAY_IN).length, 0);
 });
 
 test('rule 14 — non-regression: a deleted hand-entered stay (no owner) still covers the Booking echo', async () => {
   const { db, model, ranges } = fresh();
-  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, platform, sourceType) VALUES (51, 1, '2026-11-06', '2026-11-08', 'Direct', 'manual')").run();
+  db.prepare(`INSERT INTO reservations (id, propertyId, startDate, endDate, platform, sourceType) VALUES (51, 1, '${STAY_IN}', '${STAY_OUT}', 'Direct', 'manual')`).run();
   ranges.refresh(1);
   db.prepare('DELETE FROM reservations WHERE id = 51').run();
 
-  stubFetch([closed('ghost@booking.com', '20261106', '20261108')]);
+  stubFetch([closed('ghost@booking.com', STAY_IN_ICS, STAY_OUT_ICS)]);
   const r = await model.syncSource(BOOKING);
   assert.equal(r.echoSkippedCount, 1);
 });
 
 test('rule 14 — a tombstone written before the upgrade (no owner) keeps covering, as before', async () => {
   const { db, model } = fresh();
-  db.prepare("INSERT INTO ical_export_tombstones (propertyId, startDate, endDate) VALUES (1, '2026-11-06', '2026-11-08')").run();
+  db.prepare(`INSERT INTO ical_export_tombstones (propertyId, startDate, endDate) VALUES (1, '${STAY_IN}', '${STAY_OUT}')`).run();
 
   stubFetch([STAY]);
   const r = await model.syncSource(BOOKING);
   assert.equal(r.echoSkippedCount, 1);
-  assert.equal(stayOn(db, '2026-11-06').length, 0);
+  assert.equal(stayOn(db, STAY_IN).length, 0);
 });
 
 test('rule 14 — a stay taken over by Booking then cancelled leaves a tombstone under Booking, even before the export is served again', async () => {
   const { db, model, ranges } = fresh();
   // Imported through the Lodgify relay, labelled Booking, and already published by the export.
-  stubFetch([{ uid: 'L1', start: '20261106', end: '20261108', summary: 'Closed' }]);
+  stubFetch([{ uid: 'L1', start: STAY_IN_ICS, end: STAY_OUT_ICS, summary: 'Closed' }]);
   await model.syncSource(LODGIFY);
   db.prepare("UPDATE reservations SET platform = 'Booking'").run();
   ranges.refresh(1);
@@ -190,7 +201,7 @@ test('rule 14 — a stay taken over by Booking then cancelled leaves a tombstone
   stubFetch([ANCHOR, STAY]);
   const r = await model.syncSource(BOOKING);
   assert.equal(r.takenOverCount, 1);
-  assert.equal(db.prepare("SELECT sourceIcalSourceId FROM ical_export_ranges WHERE startDate = '2026-11-06'").get().sourceIcalSourceId, 12,
+  assert.equal(db.prepare(`SELECT sourceIcalSourceId FROM ical_export_ranges WHERE startDate = '${STAY_IN}'`).get().sourceIcalSourceId, 12,
     'the snapshot follows the takeover at once');
 
   stubFetch([ANCHOR]);
@@ -201,7 +212,7 @@ test('rule 14 — a stay taken over by Booking then cancelled leaves a tombstone
   stubFetch([ANCHOR, STAY]);
   const back = await model.syncSource(BOOKING);
   assert.equal(back.echoSkippedCount, 0);
-  assert.equal(stayOn(db, '2026-11-06').length, 1);
+  assert.equal(stayOn(db, STAY_IN).length, 1);
 });
 
 test('rule 14 — merging two sources moves the export owners to the survivor', () => {
@@ -215,7 +226,7 @@ test('rule 14 — merging two sources moves the export owners to the survivor', 
     CREATE TABLE ical_export_tombstones (id INTEGER PRIMARY KEY, propertyId INTEGER, startDate TEXT, endDate TEXT, removedAt TEXT, sourceIcalSourceId INTEGER);
     INSERT INTO ical_sources VALUES (12, 1, 'http://booking/ical', 'booking', 'Booking', 'Booking'), (13, 1, '', 'bookingcom', 'Booking.com', 'Booking.com');
     INSERT INTO ical_export_ranges VALUES (1, '2026-12-01', '2026-12-03', 13);
-    INSERT INTO ical_export_tombstones VALUES (1, 1, '2026-11-06', '2026-11-08', datetime('now'), 13);
+    INSERT INTO ical_export_tombstones VALUES (1, 1, '${STAY_IN}', '${STAY_OUT}', datetime('now'), 13);
   `);
   mergePlatformDuplicates(db, { slugs: ['bookingcom'], targetName: 'Booking' });
   assert.equal(db.prepare('SELECT sourceIcalSourceId FROM ical_export_ranges').get().sourceIcalSourceId, 12);
@@ -226,14 +237,14 @@ test('rule 15 — a stay re-booked under a new UID before the alert is handled k
   const { db, model } = fresh();
   stubFetch([ANCHOR, STAY]);
   await model.syncSource(BOOKING);
-  const [original] = stayOn(db, '2026-11-06');
+  const [original] = stayOn(db, STAY_IN);
   stubFetch([ANCHOR]);
   await model.syncSource(BOOKING);
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 1);
 
-  stubFetch([ANCHOR, closed('new-uid@booking.com', '20261106', '20261108')]);
+  stubFetch([ANCHOR, closed('new-uid@booking.com', STAY_IN_ICS, STAY_OUT_ICS)]);
   await model.syncSource(BOOKING);
-  const [kept] = stayOn(db, '2026-11-06');
+  const [kept] = stayOn(db, STAY_IN);
   assert.equal(kept.id, original.id, 'the fiche is re-claimed, not duplicated');
   assert.equal(kept.sourceIcalEventUid, 'new-uid@booking.com');
   assert.equal(db.prepare('SELECT COUNT(*) c FROM ical_cancellation_alerts WHERE acknowledgedAt IS NULL').get().c, 0,
