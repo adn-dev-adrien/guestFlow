@@ -559,9 +559,6 @@
   "rateLimiters": [
     "apiLimiter",
     "bookingRequestLimiter",
-    "guestLookupLimiter",
-    "guestOrderLimiter",
-    "guestSessionLimiter",
     "loginLimiter",
     "paymentStartLimiter",
     "paymentStatusLimiter",
@@ -861,7 +858,7 @@
   "instancePaths": [
     "uploadsDir"
   ],
-  "guestOrderCommit": [
+  "midStayOrderCommit": [
     "commitOrder",
     "mergeOrderLines",
     "priceOrder"

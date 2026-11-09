@@ -116,8 +116,8 @@ const CORE_MODULES = Object.freeze({
   safeFeedFetch: '../../utils/safeFeedFetch',
   // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
   instancePaths: '../../utils/instancePaths',
-  // guest-app — an order written on the fiche as a mid-stay extra and priced by its engine (specs/guest-app.md rules 24, 30, 34, 35)
-  guestOrderCommit: '../../utils/guestOrderCommit',
+  // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 46)
+  midStayOrderCommit: '../../utils/midStayOrderCommit',
   // accounting-export — the accounting synthesis reads the core's own finance figures, never a second
   // derivation (specs/accounting-synthesis.md rules 7-10, SDK 2.23.0)
   financeModel: '../../models/financeModel', // the stays' revenue of a window and the tourist-tax extraction

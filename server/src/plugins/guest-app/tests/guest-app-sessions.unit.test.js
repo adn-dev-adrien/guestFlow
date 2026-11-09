@@ -3,12 +3,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const sdk = require('../../sdk');
 const {
   addStay, enable, freshDb, openStay, paris, startApi, stayToken,
 } = require('./guestAppFixtures');
 
-const rateLimiters = sdk.coreModule('rateLimiters');
+const { createGuestLimiters } = require('../rateLimiters');
 
 async function setup(options) {
   const db = freshDb();
@@ -230,7 +229,7 @@ withApi('rule 6: every failure is the one generic error', async ({ call, db, clo
 });
 
 test('rule 6: the sixth lookup in 15 minutes is throttled', async () => {
-  const ctx = await setup({ limiters: { lookup: rateLimiters.guestLookupLimiter } });
+  const ctx = await setup({ limiters: { lookup: createGuestLimiters().lookup } });
   try {
     const statuses = [];
     for (let i = 0; i < 6; i += 1) {
@@ -244,7 +243,7 @@ test('rule 6: the sixth lookup in 15 minutes is throttled', async () => {
 });
 
 test('§4.3: the 31st link opened in an hour is throttled', async () => {
-  const ctx = await setup({ limiters: { session: rateLimiters.guestSessionLimiter } });
+  const ctx = await setup({ limiters: { session: createGuestLimiters().session } });
   try {
     let last = null;
     for (let i = 0; i < 31; i += 1) {

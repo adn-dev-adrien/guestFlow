@@ -36,6 +36,7 @@ const { buildStudioController } = require('./controllers/studioController');
 const { buildStudioSettingsController } = require('./controllers/studioSettingsController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
+const { createGuestLimiters } = require('./rateLimiters');
 
 const id = 'guest-app';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -77,7 +78,7 @@ function buildGuestApi({
   db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
   appName = () => null, soliomapEmbed = () => false, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
-  commit = sdk.coreModule('guestOrderCommit'), payments = corePayments, push = corePush,
+  commit = sdk.coreModule('midStayOrderCommit'), payments = corePayments, push = corePush,
   settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl,
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
@@ -175,7 +176,6 @@ function register(ctx) {
   ctx.settings.declare(settings.DECLARED);
   ctx.pushChannel({ key: 'guest-orders', label: 'Commandes clients' });
 
-  const rateLimiters = sdk.coreModule('rateLimiters');
   const api = buildGuestApi({
     db: () => ctx.db,
     soliomapUrl: () => ctx.settings.get('soliomapUrl'),
@@ -185,9 +185,7 @@ function register(ctx) {
     maxOrderTotal: () => Number(ctx.settings.get('maxOrderTotal')) || 500,
     settingsStore: () => ctx.settings,
     limiters: {
-      session: rateLimiters.guestSessionLimiter,
-      lookup: rateLimiters.guestLookupLimiter,
-      order: rateLimiters.guestOrderLimiter,
+      ...createGuestLimiters(),
       read: sdk.middleware.publicApiLimiter,
     },
   });

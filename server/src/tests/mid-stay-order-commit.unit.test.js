@@ -1,6 +1,7 @@
-// specs/guest-app.md rules 24, 30, 34, 35 — the core commit of a guest order (`utils/guestOrderCommit.js`): the order's
-// lines added to the stored fiche and written by the operator's own save on a locked fiche, priced by the same engine,
-// in one transaction with the plugin's order row; a card order's money settled as a mid-stay note.
+// specs/plugins-phase-1-sdk.md rule 46 (first used by specs/guest-app.md rules 24, 30, 34, 35) — the core commit of a
+// plugin's order as mid-stay extras (`utils/midStayOrderCommit.js`): the order's lines added to the stored fiche and
+// written by the operator's own save on a locked fiche, priced by the same engine, in one transaction with the plugin's
+// order row, in the caller's own words; a card order's money settled as a mid-stay note marked with its source and ref.
 //
 // The boot schema (DB_PATH=:memory:) and stays around today: the mid-stay window is read on today's date.
 process.env.DB_PATH = ':memory:';
@@ -12,7 +13,10 @@ require('./hourlyResourcesFixture').liveHourlyResources();
 const { skipWithout } = require('../plugins/sdk/testing');
 
 const db = require('../database');
-const { priceOrder, commitOrder, mergeOrderLines } = require('../utils/guestOrderCommit');
+const { priceOrder, commitOrder, mergeOrderLines } = require('../utils/midStayOrderCommit');
+
+/** How a plugin names its order: a basket source, its own ref, the history entry in its own words. */
+const named = (ref) => ({ source: 'shopOrder', ref, history: { field: 'shopOrder', label: 'Commande boutique', text: `Commande boutique #${ref}` } });
 
 const isoPlus = (days) => {
   const d = new Date();
@@ -95,20 +99,20 @@ test('rules 30, 34: a note order lands as mid-stay extras — the end-of-stay co
   const id = seedStay();
   const before = money(id);
   let inside = null;
-  const result = commitOrder(id, { orderId: 12, lines: [{ kind: 'option', id: 102, quantity: 2 }], within: (r) => { inside = r; } });
+  const result = commitOrder(id, { ...named(12), lines: [{ kind: 'option', id: 102, quantity: 2 }], within: (r) => { inside = r; } });
   assert.equal(result.status, 200, JSON.stringify(result.body));
   assert.deepEqual(inside.byKey, { 'opt:102': 12 }, 'within() runs in the transaction, with the priced result');
   assert.deepEqual(midStay(id).map((l) => [l.key, l.amount]), [['opt:102', 12]]);
   const after = money(id);
   assert.deepEqual([after.depositAmount, after.balanceAmount, after.complementAmount], [before.depositAmount, before.balanceAmount, before.complementAmount]);
   const history = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ?").all(id).flatMap((r) => JSON.parse(r.changedFields));
-  assert.ok(history.some((c) => c.field === 'guestOrder' && c.to === 'Commande client #12'));
+  assert.ok(history.some((c) => c.field === 'shopOrder' && c.label === 'Commande boutique' && c.to === 'Commande boutique #12'));
 });
 
 test('rule 30: the order’s sessions join the stay’s resource line and raise its sold hours', { skip: skipWithout(['hourly-resources']) }, () => {
   const id = seedStay();
   const sessions = [{ date: isoPlus(1), start: '18:00', end: '20:00' }];
-  assert.equal(commitOrder(id, { orderId: 1, lines: [{ kind: 'resource', id: 202, sessions }] }).status, 200);
+  assert.equal(commitOrder(id, { ...named(1), lines: [{ kind: 'resource', id: 202, sessions }] }).status, 200);
   const line = db.prepare('SELECT quantity, sessions FROM reservation_resources WHERE reservationId = ? AND resourceId = 202').get(id);
   assert.equal(line.quantity, 2);
   assert.deepEqual(JSON.parse(line.sessions).map(({ date, start, end }) => ({ date, start, end })), sessions);
@@ -117,20 +121,20 @@ test('rule 30: the order’s sessions join the stay’s resource line and raise 
 test('rule 35: a paid order is collected at once — a settled note with the order and the provider’s reference, the remainder owes nothing', () => {
   const id = seedStay();
   const result = commitOrder(id, {
-    orderId: 7, lines: [{ kind: 'option', id: 102, quantity: 2 }], paid: { amountCents: 1200, paidDate: isoPlus(0), reference: 'pay_1' },
+    ...named(7), lines: [{ kind: 'option', id: 102, quantity: 2 }], paid: { amountCents: 1200, paidDate: isoPlus(0), reference: 'pay_1' },
   });
   assert.equal(result.status, 200);
   assert.equal(result.settledCents, 1200);
   assert.equal(result.excessCents, 0);
   assert.deepEqual(midStay(id), []);
   const [note] = JSON.parse(money(id).midStaySettledNotes);
-  assert.deepEqual([note.total, note.paidCash, note.source, note.orderId, note.reference, note.paidDate], [12, 0, 'guestOrder', 7, 'pay_1', isoPlus(0)]);
+  assert.deepEqual([note.total, note.paidCash, note.source, note.ref, note.reference, note.paidDate], [12, 0, 'shopOrder', '7', 'pay_1', isoPlus(0)]);
 });
 
 test('rule 34: a closed window refuses the order with the fiche’s own code — nothing written, within() never runs', () => {
   const id = seedStay({ endOfStayPaid: 1 });
   let ran = false;
-  const result = commitOrder(id, { orderId: 3, lines: [{ kind: 'option', id: 102, quantity: 1 }], within: () => { ran = true; } });
+  const result = commitOrder(id, { ...named(3), lines: [{ kind: 'option', id: 102, quantity: 1 }], within: () => { ran = true; } });
   assert.equal(result.status, 400);
   assert.equal(result.body.code, 'MID_STAY_EXTRAS_CLOSED');
   assert.equal(ran, false);
@@ -139,6 +143,14 @@ test('rule 34: a closed window refuses the order with the fiche’s own code —
 
 test('rule 34: a write the plugin’s own step refuses rolls the fiche back with it', () => {
   const id = seedStay();
-  assert.throws(() => commitOrder(id, { orderId: 4, lines: [{ kind: 'option', id: 102, quantity: 1 }], within: () => { throw new Error('order row gone'); } }), /order row gone/);
+  assert.throws(() => commitOrder(id, { ...named(4), lines: [{ kind: 'option', id: 102, quantity: 1 }], within: () => { throw new Error('order row gone'); } }), /order row gone/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ? AND optionId = 102').get(id).n, 0);
+});
+
+test('rule 46: an order the caller does not name is refused before anything is written', () => {
+  const id = seedStay();
+  const lines = [{ kind: 'option', id: 102, quantity: 1 }];
+  assert.throws(() => commitOrder(id, { lines }), /source/);
+  assert.throws(() => commitOrder(id, { source: 'shopOrder', lines }), /ref/);
+  assert.throws(() => commitOrder(id, { source: 'shopOrder', ref: 1, history: { field: 'x' }, lines }), /history/);
 });

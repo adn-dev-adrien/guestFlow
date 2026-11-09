@@ -1,13 +1,13 @@
 /**
- * A guest order lands on the fiche (specs/guest-app.md rules 24, 30, 34, 35). The money and the reservation write
- * stay core: an order is priced and written exactly as the operator's « Enregistrer » on a locked fiche writes a
- * mid-stay extra (specs/mid-stay-extras-on-locked-fiche.md rules 1, 9) — the stored state rebuilt as the fiche's
- * PUT body, the order's lines added to it, then `performUpdate`. The window, the arrival floors
- * (`ARRIVAL_EXTRAS_FROZEN`), the closed window (`MID_STAY_EXTRAS_CLOSED`), the session conflicts and the engine are
- * the fiche's own.
+ * A plugin's order lands on the fiche as mid-stay extras (specs/plugins-phase-1-sdk.md rule 46; first used by
+ * specs/guest-app.md rules 24, 30, 34, 35). The money and the reservation write stay core: an order is priced and
+ * written exactly as the operator's « Enregistrer » on a locked fiche writes a mid-stay extra
+ * (specs/mid-stay-extras-on-locked-fiche.md rules 1, 9) — the stored state rebuilt as the fiche's PUT body, the
+ * order's lines added to it, then `performUpdate`. The window, the arrival floors (`ARRIVAL_EXTRAS_FROZEN`), the
+ * closed window (`MID_STAY_EXTRAS_CLOSED`), the session conflicts and the engine are the fiche's own.
  *
  *   priceOrder(reservationId, lines)           → { status: 200, byKey, total } | { status, body }
- *   commitOrder(reservationId, { orderId, lines, paid?, within? }) → { status: 200, byKey, total, settledCents } | { status, body }
+ *   commitOrder(reservationId, { source, ref, history, lines, paid?, within? }) → { status: 200, byKey, total, settledCents } | { status, body }
  *
  * `lines` — the order's lines, already judged by the plugin (what is sold, the slots, the mornings):
  *   { kind: 'option', id, quantity }                       a unit, or one more person on a per-person option
@@ -16,6 +16,10 @@
  * `byKey` — what the order adds to the end-of-stay complement per line key (`opt:<id>`, `res:<id>`): the engine's
  * answer for the stay with the order minus its answer for the stay without it, so free units, free minutes, the
  * stay's price lock and per-lodging prices all apply as they do on the fiche. A 0 € line adds nothing.
+ *
+ * The caller names its order: `source` (its basket source, `[a-z][a-zA-Z0-9-]*`) and `ref` (its own id) mark the
+ * settled note of a paid order; `history: { field, label, text }` is the stay's history entry, written in the
+ * caller's words.
  *
  * `paid` — `{ amountCents, paidDate, reference }` for a card order: the order's sale is collected at once, as a
  * settled mid-stay note (specs/mid-stay-notes.md rule 1) carrying the order and the provider's reference, so the
@@ -31,7 +35,7 @@ const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
 const controller = () => require('../controllers/reservationsController');
 
-const ROLLBACK = Symbol('guest-order-rollback');
+const ROLLBACK = Symbol('mid-stay-order-rollback');
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const minutesOf = (time) => {
@@ -66,7 +70,7 @@ function withBreakfast(body, line) {
   const index = options.findIndex((o) => Number(o.optionId) === Number(line.id));
   const stored = index >= 0 ? normalizeOccurrences(options[index].cardOccurrences || []) : [];
   const chosen = new Set(line.mornings);
-  // A morning the guest chose takes the hour chosen; the others keep theirs (rule 27bis), a prepared one its flag.
+  // A morning the order names takes its hour; the others keep theirs (guest-app rule 27bis), a prepared one its flag.
   const merged = normalizeOccurrences([
     ...stored.filter((o) => !chosen.has(o.date)),
     ...stored.filter((o) => chosen.has(o.date) && o.done).map((o) => ({ ...o, time: line.time })),
@@ -168,7 +172,7 @@ function priceOrder(reservationId, lines) {
  * remainder the order just added, up to what was paid. What the order added beyond the payment stays on the
  * end-of-stay complement; what the payment brought beyond the sale is returned as `excessCents`.
  */
-function settlePaid(id, byKey, { orderId, amountCents, paidDate, reference }) {
+function settlePaid(id, byKey, { source, ref, amountCents, paidDate, reference }) {
   let left = round2(Number(amountCents || 0) / 100);
   const items = [];
   Object.entries(byKey).forEach(([key, amount]) => {
@@ -182,14 +186,27 @@ function settlePaid(id, byKey, { orderId, amountCents, paidDate, reference }) {
   const db = database();
   const notes = parseNotes(db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(id).midStaySettledNotes)
     .map((n) => (Number(n.id) === Number(note.id)
-      ? { ...n, ...(paidDate ? { paidDate } : {}), source: 'guestOrder', orderId: Number(orderId), ...(reference ? { reference: String(reference) } : {}) }
+      ? { ...n, ...(paidDate ? { paidDate } : {}), source: String(source), ref: String(ref), ...(reference ? { reference: String(reference) } : {}) }
       : n));
   db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(notes), id);
   return { settledCents: Math.round(round2(note.total) * 100), excessCents: Math.round(left * 100) };
 }
 
-/** Rules 30, 34, 35 — the order written on the fiche, its history entry and its payment, in one transaction. */
-function commitOrder(reservationId, { orderId, lines, paid = null, within = null } = {}) {
+const SOURCE = /^[a-z][a-zA-Z0-9-]{0,39}$/;
+
+function namingError({ source, ref, history }) {
+  if (!SOURCE.test(String(source || ''))) return 'commitOrder needs the caller\'s source';
+  if (ref === undefined || ref === null || String(ref) === '') return 'commitOrder needs the order\'s ref';
+  if (!history || typeof history !== 'object' || !history.field || !history.label || !history.text) return 'commitOrder needs a history entry { field, label, text }';
+  return null;
+}
+
+/** The order written on the fiche, its history entry and its payment, in one transaction. */
+function commitOrder(reservationId, {
+  source, ref, history, lines, paid = null, within = null,
+} = {}) {
+  const error = namingError({ source, ref, history });
+  if (error) throw new Error(error);
   const id = Number(reservationId);
   const db = database();
   let outcome = null;
@@ -213,9 +230,9 @@ function commitOrder(reservationId, { orderId, lines, paid = null, within = null
       }
       const priced = deltaOf(remainderByKey(base.row), remainderByKey(reservations().getRow(id)));
       reservations().addHistoryEntry(id, 'update', [{
-        field: 'guestOrder', label: 'Commande client', from: null, to: `Commande client #${Number(orderId)}${paid ? ' — payée par carte' : ''}`,
+        field: String(history.field), label: String(history.label), from: null, to: String(history.text),
       }]);
-      const money = paid ? settlePaid(id, priced.byKey, { orderId, ...paid }) : { settledCents: 0, excessCents: 0 };
+      const money = paid ? settlePaid(id, priced.byKey, { source, ref, ...paid }) : { settledCents: 0, excessCents: 0 };
       outcome = { status: 200, ...priced, ...money };
       if (typeof within === 'function') within(outcome);
     })();

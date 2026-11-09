@@ -200,16 +200,11 @@
         "midStayExtrasWindow",
         "safeFeedFetch",
         "instancePaths",
-        "guestOrderCommit"
+        "midStayOrderCommit"
       ],
       "names": {
         "blockedDates": [
           "stayTimesRefused"
-        ],
-        "rateLimiters": [
-          "guestLookupLimiter",
-          "guestOrderLimiter",
-          "guestSessionLimiter"
         ],
         "pricing": [
           "applyFreeUnitsToLine",

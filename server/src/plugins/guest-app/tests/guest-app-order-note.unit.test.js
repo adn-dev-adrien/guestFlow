@@ -139,7 +139,7 @@ withOrdering('rule 37: a session places 10 orders an hour at most — the 11th i
   const refused = await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 1 }], payment: 'note' });
   assert.equal(refused.status, 429);
   assert.equal(refused.body.error.code, 'TOO_MANY_REQUESTS');
-}, { limiters: { order: require('../../../middleware/rateLimiters').guestOrderLimiter } });
+}, { limiters: { order: require('../rateLimiters').createGuestLimiters().order } });
 
 withOrdering('rule 11bis: « Mes commandes » off for the lodging → its endpoint answers 404 MODULE_OFF', async ({ call }) => {
   const { defaultModules } = require('../modules');
