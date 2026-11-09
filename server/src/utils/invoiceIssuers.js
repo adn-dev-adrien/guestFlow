@@ -13,8 +13,12 @@
  *   findCardBatch(date)                → { transactionId, settledAt } | null — the day's on-site card credit
  *   attach({ invoiceId, transactionId, idempotencyKey }) → { attachmentId }
  *   invoiceStatus(invoiceId)           → 'paid' | 'unpaid' | 'canceled' | …
+ *   markPaid({ invoiceId, paidAt })    → { done } — optional (rule 38): « marquer payée » tried again after `issue`
+ *                                        answered `markPending: true`; `done: false` when the issuer does not offer it
  *
- * Refusals are thrown as errors carrying `code`: `ISSUER_NEEDS_ADDRESS`, `ISSUER_REAUTH`, `ISSUER_AMOUNT_MISMATCH`.
+ * `issue` answers `markPending: true` when the invoice is numbered but « marquer payée » failed: the invoice is kept.
+ * Refusals are thrown as errors carrying `code`: `ISSUER_NEEDS_ADDRESS`, `ISSUER_REAUTH`, `ISSUER_AMOUNT_MISMATCH`,
+ * `ISSUER_AMOUNT_UNREACHABLE`.
  */
 
 const registry = require('../plugins/sdk/registry');

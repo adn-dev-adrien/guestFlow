@@ -195,6 +195,9 @@ function createController(model, {
     const impact = model.getDeleteImpact(id);
     if (!impact) return res.status(404).json({ error: 'Ressource non trouvée' });
 
+    // specs/resource-booking-pricing-and-invoicing.md rule 34 — a paid or invoiced booking is a sale: even forced, the
+    // cascade never takes it.
+    if (impact.saleBlocker) return res.status(409).json({ error: impact.saleBlocker, code: 'RESOURCE_CARRIES_MONEY' });
     const inUse = impact.reservationsCount > 0 || impact.bookingsCount > 0;
     if (inUse && !force) {
       return res.status(409).json({

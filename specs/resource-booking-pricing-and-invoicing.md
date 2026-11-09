@@ -102,7 +102,8 @@ Rules are numbered once and never renumbered (new rules go at the end).
    - with VAT off for the instance (vat-optional-mode), `vat` is `null` and the summary says
      « TVA non applicable », whatever the setting.
    The rate is frozen on the booking when it is invoiced (rule 15): changing the setting later never
-   moves an issued invoice, and the preview of a non-invoiced booking follows the new rate.
+   moves an issued invoice, and the preview of a non-invoiced booking follows the new rate. Since 2026-11-09 the rate
+   is frozen earlier, at the payment (rule 35): only an unpaid booking's preview follows the setting.
 6. **External vs guest rates** keep their current rule: no `reservationId` → external rate pair.
    The breakdown names the grid: « Tarif extérieur » or « Tarif client du séjour ».
 
@@ -186,8 +187,9 @@ Rules are numbered once and never renumbered (new rules go at the end).
 
 21. Each paid standalone booking becomes one sales entry on its `paidAt` day **for its on-the-books
     part** (total minus the caisse-interne lines, exactly as a fiche's settlement; nothing when it is all
-    caisse interne), read through `standaloneSales`: debit the client account (existing auxiliary format, « EXT » for an
-    extérieur), credit `70601000` ACTIVITÉS DIVERSES (net) and the VAT account of its frozen rate.
+    caisse interne), read through `standaloneSales`: debit the client account (existing auxiliary format, derived from
+    the guest's name for an extérieur too — corrected 2026-11-09, audit R35-M-L5: this rule said « EXT », the code and its
+    test never did), credit `70601000` ACTIVITÉS DIVERSES (net) and the VAT account of its frozen rate.
     The offered time is not journaled (the net already excludes it).
 22. « Pièce » = the Qonto invoice number when there is one, empty otherwise (unchanged elsewhere).
 23. The synthesis reads the same month stream as the CSV, so these sales appear under the account
@@ -213,7 +215,9 @@ Rules are numbered once and never renumbered (new rules go at the end).
 
 28. **Who gets it.** A booking without `reservationId` (no lodging reservation). A booking linked to a
     stay never does: its stay's SAS covers it. It is offered from the booking's card in Calendrier ›
-    Ressources and from its planning card (« Arrivée »), on its day only. It belongs to
+    Ressources and from its planning card (« Arrivée »), on its day only — the server refuses another day (409
+    ARRIVAL_NOT_TODAY « Arrivée : le jour de la séance seulement. ») unless the arrival is already recorded (rule 32), and
+    the card and the dialog offer « Arrivée » on that day only (2026-11-09, audit R35-C-L4). It belongs to
     `hourly-resources` and works with the plugin `sas` off.
 29. **One screen, no departure SAS.** It holds, in this order:
     - **Sa séance**: date, slot, duration, the price lines of rule 4 and the total;
@@ -232,6 +236,63 @@ Rules are numbered once and never renumbered (new rules go at the end).
     (rule 15) except the notes.
 33. **Phone:** full screen, the total sticky at the top, the primary action « Valider l'arrivée »
     filled, last, at the bottom under the thumb (StepperPage / SAS rule).
+
+### 3.K Round 35 audit (2026-11-09)
+
+34. **A paid or invoiced booking is a sale: no delete takes it** (R35-C-M2, R35-DB-M1, R35-DB-M2). `DELETE
+    /api/resource-bookings/:id` on a paid booking → 409 BOOKING_PAID « Payée : retirer d'abord le paiement enregistré. »
+    (the invoiced one keeps rule 15's refusal); the dialog's « Supprimer » is disabled on it and asks a confirmation
+    otherwise. A resource, forced or not, is refused while one of its bookings is paid or carries a live invoice (409
+    RESOURCE_CARRIES_MONEY « Une séance payée ou facturée utilise cette ressource : retirer d'abord son paiement. »;
+    `getDeleteImpact.saleBlocker`, the screen refuses before asking); a client or a property alike (their deletion
+    blocker, 409 …_CARRIES_MONEY). A client booked on a resource, paid or not, is no orphan of the cleanup (preview, by
+    ids, bulk). The core reads the plugin table only when present (`utils/deletionGuard.bookingMoneyBlocker`).
+35. **The VAT rate is frozen with the payment** (R35-DB-M3 = R35-M-M1; extends rule 5). `recordPayment` stores the rate
+    in force (`paidVatRate`, NULL = not subject), `clearPayment` clears it. The journal (`standaloneSales`), the invoice
+    lines and the preview of a paid booking read it; a later change of the setting or of a VAT period never re-books a
+    paid sale. Migration `resource_bookings_v3` freezes the bookings paid before it at the rate in force at install (the
+    rate they were journaled with until then), an invoiced one at its invoice's rate.
+36. **A paid booking keeps the total its payment covers** (R35-M-L1). An edit that moves no priced input (date, times,
+    offered minutes, property, stay) — notes, client, address — saves at the stored total whatever the tariff now; a
+    priced move that changes the total keeps rule 12's 409 BOOKING_PAID. The invoice of a booking whose live breakdown no
+    longer adds up to the paid total is refused before any Qonto call: 409 TARIFF_CHANGED « Le tarif a changé depuis le
+    paiement : facture à établir dans Qonto. ».
+37. **`paid` is the truth of a payment** (R35-DB-L1). Every write of this release sets `paid` with the payment columns;
+    the planning, the payload, the guards and the journal read `paid = 1`. A release before 1.4.0 (rollback window)
+    unticks with `paid = 0` only: after the roll-forward the booking reads unpaid and leaves the journal (self-update rule
+    39, accepted exception).
+38. **A numbered invoice is never lost** (R35-EXT-1). « Marquer payée » (Q4) is optional: any failure after Qonto numbered
+    the invoice leaves `markedPaid: false, markPending: true`; the invoice is stored and the booking frozen as usual, so a
+    second click never makes a second invoice. The hourly job retries it (issuer member `markPaid`, optional in the
+    contract) until Qonto says paid; 404/405/501 is final (« à payer » in Qonto). Column `invoiceMarkPending`.
+39. **Qonto idempotency keys are UUIDs** (R35-EXT-2, R35-M-L3), hashed from the caller's key and what the request
+    depends on (the control plane's rule): the client key covers the name and the billing address, the invoice key the
+    Qonto client, the attachment key the booking and the transaction. The address typed after « Qonto demande l'adresse »
+    makes a new client and a new invoice key; a retry of the same request replays.
+40. **The HT lines always land on the TTC charged** (R35-EXT-3 = R35-M-L4 = R35-S1; amends rule 14's « the largest moves
+    by a cent »). Every line goes back to its HT and any line may move by up to 3 cents, the fewest cents off each line's
+    own price winning, until the per-line rounded totals add up to the total charged; a set no move reaches (a single
+    line whose TTC falls between two roundings) gets one « Arrondi de TVA » line of 1–2 cents HT; when even that cannot
+    reach it, ISSUER_AMOUNT_UNREACHABLE (422) « Total impossible à facturer au centime près : facture à établir dans
+    Qonto. » before any call. The money guard of rule 14 still checks Qonto's own total.
+41. **A registered client's address is his record's** (R35-M-L2): `streetNumber street` (else `address`), `postalCode`,
+    `city`; the booking's billing fields serve an « extérieur » only.
+42. **The invoice PDF is read like every Qonto call** (R35-EXT-4, R35-INJ-L1): its signed URL must be `https:`
+    (ATTACHMENT_URL_REFUSED otherwise, nothing fetched) and the download runs within the client's timeout, aborted past
+    it; a timeout leaves the attachment `pending` for the job.
+43. **A « Payé » with no method is refused as such** (R35-M-L5): invoicing a booking ticked before 1.4.0 → 400 NO_METHOD
+    « Moyen de paiement non saisi : retirer le paiement puis l'enregistrer à nouveau. », never « Caisse interne ».
+44. **The booking's money actions in its dialogs** (R35-C-M1, R35-C-L1/L2/L3/L5/L6):
+    - « Retirer le paiement » on a paid, non-invoiced booking (confirmation « Retirer le paiement ? »), calling `DELETE
+      /:id/payment`; the dialog then shows the booking unpaid without losing what is typed;
+    - « Créer la facture » on a payment on the books with no invoice or a cancelled one (A2), in both dialogs;
+    - an invoiced booking's « Réessayer » / « Choisir la transaction » work in both dialogs, a refusal is shown; its
+      date, times, client switch, client fields and logement are read-only;
+    - the payment is paid whole (`TenderLines whole`: no reste, no geste — §8);
+    - a payment refused after the booking is created is shown under the payment; the next click edits that booking,
+      never creates it again;
+    - the planning reloads after the dialog's last step (payment, invoice);
+    - a guest who paid at booking time gets « Valider l'arrivée » on his day, posting no payment.
 
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
@@ -314,12 +375,15 @@ total on its own row) is copied.
 
 ## 5. Data model
 
-`resource_bookings` (plugin migration `resource_bookings_v2`, idempotent `ADD COLUMN`):
-`offeredMinutes INTEGER NOT NULL DEFAULT 0`, `paymentTenders TEXT` (JSON lines), `paidAt TEXT`,
-`billingLastName/FirstName/Street/Postcode/City/Country TEXT`, `qontoClientId TEXT`,
-`qontoInvoiceId TEXT`, `invoiceNumber TEXT`, `invoiceIssuedAt TEXT`, `invoiceVatRate REAL`,
-`invoiceTotal REAL`, `arrivedAt TEXT`, `attachmentState TEXT`, `attachmentTransactionId TEXT`, `attachmentId TEXT`,
-`attachmentAttempts INTEGER NOT NULL DEFAULT 0`, `attachmentLastError TEXT`, `paymentRecordedAt TEXT`.
+`resource_bookings` (plugin migration `resource_bookings_v2`, idempotent `ADD COLUMN`, 22 columns — corrected
+2026-11-09, audit R35-DB-L2): `offeredMinutes INTEGER NOT NULL DEFAULT 0`, `paymentTenders TEXT` (JSON lines), `paidAt
+TEXT`, `paymentRecordedAt TEXT`, `arrivedAt TEXT`, `billingStreet/Postcode/City TEXT`, `billingCountry TEXT` (created,
+never written: Qonto gets `FR`), `qontoClientId TEXT`, `qontoInvoiceId TEXT`, `invoiceNumber TEXT`, `invoiceIssuedAt TEXT`,
+`invoiceVatRate REAL`, `invoiceTotal REAL`, `invoiceMarkedPaid INTEGER NOT NULL DEFAULT 0`, `invoiceCancelledAt TEXT`
+(A2: unfreezes), `attachmentState TEXT`, `attachmentTransactionId TEXT`, `attachmentId TEXT`, `attachmentAttempts INTEGER
+NOT NULL DEFAULT 0`, `attachmentLastError TEXT`. No billing name column: the name is `clientName` or the client record.
+Migration `resource_bookings_v3` (2026-11-09): `paidVatRate REAL` (rule 35, NULL = not subject), `invoiceMarkPending
+INTEGER NOT NULL DEFAULT 0` (rule 38).
 `clients` is not touched: the Qonto client of a registered guest is read back from his earlier invoiced booking.
 
 **Data impact:** existing rows keep their price (`offeredMinutes = 0`). `paid = 1` rows get
@@ -351,7 +415,18 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - [x] `…/booking-payment.unit.test.js` — rules 11–12
 - [x] `…/booking-arrival.unit.test.js` — rules 28–33
 - [x] `…/booking-billing-address.unit.test.js` — rules 25–26 (address optional, postcode shape, Qonto refusal keeps the payment)
-- [x] `…/booking-vat-standalone.unit.test.js` — rule 5 (20 % setting, stay-linked booking, VAT off, frozen rate)
+- [x] `…/booking-vat-standalone.unit.test.js` — rules 5, 21, 35 on a core database (20 % setting, stay-linked booking, VAT
+  off, rate frozen at payment, a split payment's books part, the v3 backfill). The line was ticked before the file existed;
+  written 2026-11-09 (audit R35-S2).
+- [x] `…/booking-paid-sale-guards.unit.test.js` — rules 34, 36, 37
+- [x] `…/booking-invoice-numbered-kept.unit.test.js` — rules 38, 41, 43
+- [x] `…/booking-arrival-day.unit.test.js` — rules 28, 32
+- [x] `…/hourly-erase-journaled-sales.unit.test.js` — rule 21 (erase warning)
+- [x] `tests/resource-booking-sale-deletes.unit.test.js` — rule 34 (resource, client, property, orphans)
+- [x] `plugins/online-payment/tests/invoice-issuer-mark-paid-optional.unit.test.js` — rule 38
+- [x] `…/invoice-issuer-idempotency-keys.unit.test.js` — rule 39
+- [x] `…/invoice-issuer-ht-rounding.unit.test.js` — rule 40
+- [x] `…/qonto-invoice-pdf-timeout.unit.test.js` — rule 42
 - [x] `…/booking-invoice.unit.test.js` — rules 13–16 (fake issuer)
 - [x] `plugins/online-payment/tests/invoice-issuer-qonto.unit.test.js` — rules 14, 17–19 (fake Qonto)
 - [x] `plugins/online-payment/tests/reconciliation-standalone-sales.unit.test.js` — rule 20
@@ -361,7 +436,8 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 ### Client
 - [x] Vitest per subject: `OfferedTimeField`, `BillingAddressFields`, `BookingInvoiceBlock`, `ResourceArrivalDialog`,
   `PlanningResourceCard` (rule 28), `ResourceBookingDialog.preview` (rules 4–5), `resourceBookingDraft` (rule 7),
-  `hooks/__tests__/usePostalCodeCities` (rule 27).
+  `hooks/__tests__/usePostalCodeCities` (rule 27), `ResourceBookingDialog.paid-actions`, `ResourceBookingDialog.payment-refused`,
+  `ResourceArrivalDialog.paid-before` (rules 28, 34, 44).
 
 ### Manual UI verification
 - [ ] Walk-in, 2 h across the evening switch, 30 min offered, CB, invoice → lines add up, number shown.
@@ -391,7 +467,8 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
   rounds the VAT per line (assumed) or on the total — a mismatch cancels the invoice (rule 14), it never invoices
   a wrong amount.
 - **Q4** — Can the API mark a client invoice paid (`mark_as_paid` is not documented)? If not, the
-  invoice stays « à payer » in Qonto until matched there by hand.
+  invoice stays « à payer » in Qonto until matched there by hand. Whatever it answers, it never loses the numbered
+  invoice (rule 38, 2026-11-09).
 - **Q5** — Invoice cancelled in Qonto. **Resolved 2026-11-09 (A2):** the booking is unfrozen and shows
   « Facture annulée dans Qonto ».
 - **Q6** — New OAuth scopes force a Qonto reconnection in Réglages → Intégrations once, in prod.
@@ -408,6 +485,8 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
     Qonto client invoicing calls and scopes, `usePostalCodeCities` hook (ClientsPage and ReservationPage use it);
   - plugins: `hourly-resources` 1.4.0, `online-payment` 1.7.0, `accounting-export` 1.2.0;
   - tests: 12 new server files (63 tests), 6 new client files + 4 updated; route, job and SDK censuses updated.
+- 2026-11-09 — audit round 35 (`fix/audit-r35-resources`): rules 34–44; `hourly-resources` 1.4.2, `online-payment` 1.7.2;
+  migration `resource_bookings_v3`; 10 new server files, 3 new client files + 2 updated.
 - Not verifiable without Qonto: Q2–Q4 and the real upload are coded for both outcomes and covered with stubs; they
   are measured in the Qonto sandbox before the first real invoice, then Qonto is reconnected once in production (Q6).
 

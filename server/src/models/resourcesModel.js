@@ -7,6 +7,7 @@
  */
 
 const db = require('../database');
+const { bookingMoneyBlocker } = require('../utils/deletionGuard');
 const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
 const { isBabyBedResource } = require('../utils/babyBedResource');
 const { peakCotsHeld, peakResourceHeld } = require('../utils/stockPeak');
@@ -351,6 +352,7 @@ function createModel(database) {
       reservations,
       bookingsCount: bookings.length,
       bookings,
+      saleBlocker: bookingMoneyBlocker(database, 'resourceId', id),
     };
   }
 

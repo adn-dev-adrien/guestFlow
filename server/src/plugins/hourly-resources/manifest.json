@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -100,6 +100,16 @@
       "Compatible avec le SDK 2.25 de GuestFlow."
     ],
     "1.4.1": [
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.4.2": [
+      "Une séance payée ne se supprime plus : retirer d’abord le paiement, depuis la réservation (« Retirer le paiement »), après confirmation.",
+      "La TVA d’une vente hors séjour est figée au paiement : changer le réglage ne modifie plus ni l’export comptable ni la facture d’une séance déjà encaissée.",
+      "Les notes et le client d’une séance payée s’enregistrent même après un changement de tarif ; une facture au tarif changé est refusée avant Qonto.",
+      "Une facture numérotée par Qonto est toujours gardée, même si « marquer payée » échoue ; la tâche horaire réessaie.",
+      "L’adresse d’un client enregistré part sur sa facture ; une facture annulée dans Qonto peut être refaite depuis la réservation.",
+      "L’arrivée se valide le jour de la séance, aussi pour un client qui a payé à la réservation.",
+      "L’avertissement avant effacement dit quelles ventes quittent l’export comptable.",
       "Compatible avec GuestFlow 4 (SDK 2.25)."
     ]
   }

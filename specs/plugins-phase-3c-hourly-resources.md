@@ -285,7 +285,11 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
       extérieurs) » — counted on **every** column the erasure resets, from the same list
       (`HOURLY_COLUMN_RESETS`): a resource carrying only a heat-up time is announced too
       (2026-10-23; it was reset unannounced before, `hourly-purge-announced.unit.test.js`). The external bookings paid for an amount get a warning line apart:
-      « N réservations hors séjour, X € encaissés, absents de la compta ». The erase button stays
+      « N réservations hors séjour, X € encaissés, absents de la compta ». Since 1.4.2 (2026-11-09, audit R35-P1), a
+      payment recorded since 1.4.0 with a part on the books is a sale of the accounting export
+      (resource-booking-pricing-and-invoicing.md rule 21): those get « N réservations hors séjour, X € encaissés, retirés
+      de l'export comptable », and only the « Payé » ticked before (or all in caisse interne) keeps « absents de la
+      compta » (`hourly-erase-journaled-sales.unit.test.js`). The erase button stays
       available (P16: warn, then erase).
 
 ### 3.D The plugin turned off (proposal P14)
