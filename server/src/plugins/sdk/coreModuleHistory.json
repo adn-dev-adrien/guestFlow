@@ -193,23 +193,10 @@
     },
     {
       "version": "2.22.0",
-      "modules": [
-        "stayWindow",
-        "encryption",
-        "publicCatalogProjection",
-        "midStayExtrasWindow",
-        "safeFeedFetch",
-        "instancePaths",
-        "midStayOrderCommit"
-      ],
+      "modules": [],
       "names": {
         "blockedDates": [
           "stayTimesRefused"
-        ],
-        "pricing": [
-          "applyFreeUnitsToLine",
-          "getApplicableOptions",
-          "getApplicableResources"
         ]
       }
     },
@@ -236,6 +223,25 @@
         "paymentSettlementService"
       ],
       "names": {}
+    },
+    {
+      "version": "2.25.0",
+      "modules": [
+        "stayWindow",
+        "encryption",
+        "publicCatalogProjection",
+        "midStayExtrasWindow",
+        "safeFeedFetch",
+        "instancePaths",
+        "midStayOrderCommit"
+      ],
+      "names": {
+        "pricing": [
+          "applyFreeUnitsToLine",
+          "getApplicableOptions",
+          "getApplicableResources"
+        ]
+      }
     }
   ]
 }

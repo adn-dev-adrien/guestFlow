@@ -244,7 +244,7 @@ function unmountRecord(id) {
   mountedIds.delete(id);
 }
 
-// specs/plugins-phase-1-sdk.md rule 47 — the core's own trees, on every host, whatever a web app claims.
+// specs/plugins-phase-1-sdk.md rule 48 — the core's own trees, on every host, whatever a web app claims.
 const CORE_TREES = /^\/(api|public|uploads|plugin-assets)(\/|$)/;
 
 const hostOf = (req) => String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();

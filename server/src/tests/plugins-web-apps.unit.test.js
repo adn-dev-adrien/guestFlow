@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 47 — `ctx.webApp`: a plugin serves a web app of its own, on its own host or under
+// specs/plugins-phase-1-sdk.md rule 48 — `ctx.webApp`: a plugin serves a web app of its own, on its own host or under
 // a path segment of its own, only while it is live; the core's trees (/api, /public, /uploads, /plugin-assets) stay the
 // core's on every host, and a path that would shadow one is refused at registration.
 const test = require('node:test');

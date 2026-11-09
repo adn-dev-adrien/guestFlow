@@ -55,7 +55,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (!isPublic && !path.startsWith('/api/')) throw new Error(`${prefix} mounts must live under /api/`);
       record.mounts.push({ path, router, public: isPublic });
     },
-    // SDK 2.22.0 (specs/plugins-phase-1-sdk.md rule 47) — a web app the plugin serves itself: under `path` (one
+    // SDK 2.25.0 (specs/plugins-phase-1-sdk.md rule 48) — a web app the plugin serves itself: under `path` (one
     // segment of its own, e.g. '/studio') on every host, or on its own `host()` (a hostname, read on each request;
     // null = none yet) at every path. Never under /api, /public, /uploads or /plugin-assets: those stay the core's,
     // on every host. Reached only while the plugin is live.
@@ -130,7 +130,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       });
       record.priceLineContributor = contributor;
     },
-    // SDK 2.22.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
+    // SDK 2.25.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
     // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and
     // `validateSessions(args)` → `{ results }` | null. One per instance; the core hands it out as
     // `ctx.core.resourceScheduler()`, so a plugin never requires another.
@@ -142,7 +142,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
     },
-    // SDK 2.22.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
+    // SDK 2.25.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
     // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by
     // `ctx.core.resourceHolds(...)` as occupancy. Synchronous, one per plugin.
     resourceHolds(source) {
@@ -150,7 +150,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (record.resourceHolds) throw new Error(`${prefix} resourceHolds is already declared`);
       record.resourceHolds = source;
     },
-    // SDK 2.22.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
+    // SDK 2.25.0 (specs/guest-app.md rules 35-36) — the baskets a plugin bills through a `complement` link
     // (`ctx.core.payments.basketLink(...)`): `paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId })`
     // runs, synchronously, when such a link is paid — on time or late — and answers `{ effect }`; `refundOwed: true`
     // marks money the stay keeps nothing for. One plugin per `source`.

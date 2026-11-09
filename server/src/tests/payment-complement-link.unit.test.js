@@ -1,7 +1,7 @@
-// specs/plugins-phase-1-sdk.md rule 46 (first used by specs/guest-app.md rules 35, 36) — the `complement` link type wired end to end for a plugin's basket: minted only
+// specs/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app.md rules 35, 36) — the `complement` link type wired end to end for a plugin's basket: minted only
 // with an explicit basket, at its exact total and VAT lines, for 30 minutes and never lapsed by the arrival; no reader of
 // the stay's own buckets takes it for the stay's complement; its paid effect is the owning plugin's
-// (specs/plugins-phase-1-sdk.md rule 46, `ctx.paymentBasket`), money it cannot honour flagged « à rembourser ».
+// (specs/plugins-phase-1-sdk.md rule 47, `ctx.paymentBasket`), money it cannot honour flagged « à rembourser ».
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -147,7 +147,7 @@ test('rule 36: money the plugin cannot honour is flagged « à rembourser » on 
   assert.deepEqual([refundRow().label, refundRow().amount, refundRow().stateLabel], ['Paiement en ligne à rembourser', 42, 'À rembourser'], 'no owner declared: the core’s neutral words');
 });
 
-test('specs/plugins-phase-1-sdk.md rule 46: `ctx.paymentBasket` needs a source and a paid function, one plugin per source', () => {
+test('specs/plugins-phase-1-sdk.md rule 47: `ctx.paymentBasket` needs a source and a paid function, one plugin per source', () => {
   registry.reset();
   try {
     assert.throws(() => createContext('a', {}).paymentBasket({ source: 'shopOrder' }), /needs a paid function/);

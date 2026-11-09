@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 28-31, 35 — the resource scheduler hourly-resources declares (SDK 2.22.0): the slots of
+// specs/guest-app.md rules 28-31, 35, specs/plugins-phase-1-sdk.md rule 45 — the resource scheduler hourly-resources declares (SDK 2.25.0): the slots of
 // a stay read from the resource planning (other stays, outside bookings, held orders, turnover, capacity, heat-up and
 // retention, closed days, evening rate), the check of a multi-slot request, and the holds every planning reader sees.
 // The clock is injected, the stay is in 2099; the outside-booking writes date themselves from today (date window).

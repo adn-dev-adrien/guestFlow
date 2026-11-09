@@ -104,7 +104,7 @@ const CORE_MODULES = Object.freeze({
   // linen, school-holidays, hourly-resources — the date window of every entered date (reservations-backend-mvc rule 13)
   stayDates: '../../utils/stayDates',
   // gate-access, guest-app, hourly-resources — one stay window for the gate keys, the guest sessions and the guest's
-  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.22.0)
+  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.25.0)
   stayWindow: '../../utils/stayWindow',
   // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app.md §5)
   encryption: '../../utils/encryption',
@@ -116,7 +116,7 @@ const CORE_MODULES = Object.freeze({
   safeFeedFetch: '../../utils/safeFeedFetch',
   // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
   instancePaths: '../../utils/instancePaths',
-  // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 46)
+  // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 47)
   midStayOrderCommit: '../../utils/midStayOrderCommit',
   // accounting-export — the accounting synthesis reads the core's own finance figures, never a second
   // derivation (specs/accounting-synthesis.md rules 7-10, SDK 2.23.0)

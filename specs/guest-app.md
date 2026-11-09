@@ -587,7 +587,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `plugins/guest-app/` | `sun.js` | C | Pure: sunrise / sunset at the estate, `isNight` (§6.1) |
 | `plugins/guest-app/` | `webManifest.js` | C | The install manifest (rule 52) |
 | `plugins/guest-app/` | `appHosting.js` | C | Serves the guest build on the guest host and the studio build at `/studio` for an admin (caching, SPA fallback, CSP, 503 without a build) — plan step 50 |
-| `plugins/sdk/createContext.js` · `registry.js` · `plugins/loader.js` | — | T | `ctx.webApp({ key, path?, host?, handler })` and `mountWebApps` (`plugins-phase-1-sdk.md` rule 47): a web app on the plugin's own host or path, the core's trees kept |
+| `plugins/sdk/createContext.js` · `registry.js` · `plugins/loader.js` | — | T | `ctx.webApp({ key, path?, host?, handler })` and `mountWebApps` (`plugins-phase-1-sdk.md` rule 48): a web app on the plugin's own host or path, the core's trees kept |
 | `utils/` | `publicCatalogProjection.js` | C | `toPublicOption` / `toPublicResource` moved out of `website-booking/publicProjections.js` (which imports them back) so the guest app does not depend on the website plugin |
 | `plugins/sdk/createContext.js` · `coreServices.js` | — | T | Three generic SDK hooks: `ctx.resourceScheduler(provider)` (one provider app-wide, like `paymentProvider`), `ctx.resourceHolds(fn)` (a hold may carry the planning's `label`) and `ctx.paymentBasket({ source, paid, labels })` (rules 35-36; `labels` = the owner's refund words); the core exposes `coreServices.resourceScheduler()` and `coreServices.payments` — plugins never `require` each other |
 | `plugins/hourly-resources/` | `index.js` | T | Declares the scheduler: `slotsForStay` (occupancy + `buildDays` + `priceSessions`, rule 28), `validateSessions`; reads every holds source as pending occupancy in **every** consumer (planning page, SAS picker, outside bookings) |
@@ -598,7 +598,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `utils/paymentPollRunner.js` | — | T | `applyPaidEffect` `complement` branch → the basket owner's `paid` (`ctx.paymentBasket`) |
 | `utils/` | `midStayOrderCommit.js` | C | **Core, generic**: commits a plugin's order lines (options + resource sessions) as mid-stay extras, records a card payment as a settled note `{ source, ref }`, the history entry in the caller's words — one transaction (rules 30, 34, 35). The guest app names its orders « Commande client #N » |
 | `utils/` | `stayWindow.js` | C | The stay window, moved from `gate-access/window.js` (rule 2) |
-| `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.22.0), `midStayOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
+| `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.25.0), `midStayOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
 | `index.js` | — | T | `pluginLoader.mountWebApps(app)` before the favicon and the client: the plugin serves its guest app on the guest host and its studio at `/studio`, only while it is live |
 | `database.js` | — | T | `payment_links.basketJson` (nullable), through `utils/paymentLinksProviderMigration.js`: the only core column, the link's own basket (rule 35); everything else is in plugin migrations |
 
@@ -1015,7 +1015,7 @@ le nom et le numéro. »
 - [x] `…/guest-app-install.unit.test.js` (4) — rules 52, 53: the manifest, `isNight` by the season's sun
 - [x] `…/guest-app-hosting.unit.test.js` (4) — rules 15, 47, 52 (plan step 50): caching, the app's routes, 404, no file
   outside the build, the CSP and its Soliomap frame, 503 without a build, the studio's admin gate
-- [x] `tests/plugins-web-apps.unit.test.js` (4) — `plugins-phase-1-sdk.md` rule 47: host and path web apps, the core's
+- [x] `tests/plugins-web-apps.unit.test.js` (4) — `plugins-phase-1-sdk.md` rule 48: host and path web apps, the core's
   trees kept, a plugin not live falls through, registration refusals
 - [x] `…/guest-app-home.unit.test.js` — rules 10-11
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
@@ -1084,7 +1084,7 @@ Decided by Adrien:
 
 Points the rules left open, decided in code:
 - The plugin owning a basket settles its payment through `ctx.paymentBasket({ source, paid })`
-  (`specs/plugins-phase-1-sdk.md` rule 46); with no live owner the effect is `basket-unallocated` and the usual admin
+  (`specs/plugins-phase-1-sdk.md` rule 47); with no live owner the effect is `basket-unallocated` and the usual admin
   alert fires.
 - A card payment is a settled mid-stay note (`midStaySettledNotes`, `source: guestOrder`, `ref` = the order id, the provider's reference
   and payment day). `paid_conflict` books no note (it would count as revenue): the link stays paid with `refundOwed`,
@@ -1235,10 +1235,10 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | Slice | State |
 |---|---|
 | A — Plugin, lodgings, sessions | Done on `feature/guest-app-plugin` (2026-11-05); A6 (Q10, one link per stay, step 13bis) done 2026-11-06: stay links, poster visitor-only, name confirmation removed, SAS « Mon séjour », `{{stayAppUrl}}`; the fiche's « Lien Mon séjour » has its server routes, its card comes with the UI lots |
-| B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.22.0); full server suite 10 561 / 10 561 |
-| C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.22.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
-| E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.22.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
-| D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `midStayOrderCommit` (generic since 2026-11-09), `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.22.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
+| B — Sellable catalogue (server) | Done (2026-11-05): items routes, shop payload, catalogue projections moved to the core (`publicCatalogProjection`, SDK 2.25.0); full server suite 10 561 / 10 561 |
+| C — Planning and service hours (server) | Done (2026-11-05): `ctx.resourceScheduler` / `ctx.resourceHolds` (SDK 2.25.0), hourly-resources 1.4.0, slots, delivery times, service hours; full server suite 10 591 / 10 591 before the last change, targeted suites green after it |
+| E — Booklet and studio API (server) | Done (2026-11-05): booklet per lodging with shared pages and versions, studio API, media, QR poster, the Soliomap suggestion (`safeFeedFetch`, `instancePaths` core modules, SDK 2.25.0); guest-app suites 186 / 186, full suite 10 631 / 10 632 (the one failure is a core baseline that fails between 0 h and 1 h Paris time on the previous commit too) |
+| D — Orders and payment (server) | Done (2026-11-06): quote and orders priced by the fiche's engine, note / 0 € / card, the core commit `midStayOrderCommit` (generic since 2026-11-09), `complement` basket links (`ctx.paymentBasket`, `ctx.core.payments`, `payment_links.basketJson`, SDK 2.25.0), abandon, expiry, late payment and `paid_conflict`, push, the orders list and planning cards (server); +56 server tests. The page and the card wait for the UI lots |
 | F-G — Guest app, studio | Unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next. Guest app (slice F) built 2026-11-09 on `feature/guest-app-pwa`: every screen of §6.6 on the boards v5, offline booklet, install, FR / EN, night; 41 client tests; first load 151 kB gzip; walked at 390 / 900 / 1280 px, day and night, EN, against the plugin's routers; axe 0 serious on every screen in both registers. The studio (slice G) is next |
 | H — Hardening and rollout | Not started |
 | I — Booklet content | Waiting for the user's booklets |

@@ -72,7 +72,7 @@ const NEUTRAL_REFUND = Object.freeze({ refundOne: 'Paiement en ligne à rembours
 const basketSource = (link) => { try { return String(JSON.parse(link.basketJson).source || ''); } catch { return ''; } };
 
 /**
- * The row's words for refunds owed on baskets (specs/plugins-phase-1-sdk.md rule 46): the owning plugin's own labels
+ * The row's words for refunds owed on baskets (specs/plugins-phase-1-sdk.md rule 47): the owning plugin's own labels
  * (`ctx.paymentBasket({ labels })`) when every owed link is one declared source, the core's neutral words otherwise.
  */
 function basketRefundLabel(owed) {
@@ -84,7 +84,7 @@ function basketRefundLabel(owed) {
   return owed.length > 1 ? labels.refundMany : labels.refundOne;
 }
 
-// specs/plugins-phase-1-sdk.md rule 46 — a link billing its own basket (a plugin's order) is no bucket's link.
+// specs/plugins-phase-1-sdk.md rule 47 — a link billing its own basket (a plugin's order) is no bucket's link.
 const ofRow = (types) => (l) => types.includes(String(l.type)) && !l.basketJson;
 
 function pickLink(links, rowKey) {
@@ -635,7 +635,7 @@ function buildLedger({
       detail: { slot: 'midStayNotes' },
     });
   }
-  // specs/plugins-phase-1-sdk.md rule 46 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
+  // specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
   // the money is on the link, nothing reached the fiche, the operator refunds it from the provider's space.
   const owedBaskets = (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
   if (owedBaskets.length > 0) {

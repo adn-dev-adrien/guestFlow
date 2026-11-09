@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 46 (first used by specs/guest-app.md rules 24, 30, 34, 35) — the core commit of a
+// specs/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app.md rules 24, 30, 34, 35) — the core commit of a
 // plugin's order as mid-stay extras (`utils/midStayOrderCommit.js`): the order's lines added to the stored fiche and
 // written by the operator's own save on a locked fiche, priced by the same engine, in one transaction with the plugin's
 // order row, in the caller's own words; a card order's money settled as a mid-stay note marked with its source and ref.

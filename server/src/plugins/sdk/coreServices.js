@@ -104,14 +104,14 @@ function updateClient(id, patch) {
   return clients().update(Number(id), { ...current, ...patch });
 }
 
-// SDK 2.22.0 (specs/guest-app.md rules 28-31) — the scheduler a live plugin declared, or null: without it nothing
+// SDK 2.25.0 (specs/guest-app.md rules 28-31) — the scheduler a live plugin declared, or null: without it nothing
 // sells an hourly slot outside the fiche.
 function resourceScheduler() {
   const record = registry().all().find((r) => r.resourceScheduler && registry().isLive(r.id));
   return record ? record.resourceScheduler : null;
 }
 
-// SDK 2.22.0 (specs/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
+// SDK 2.25.0 (specs/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
 // source that fails holds nothing: the planning keeps working, and the commit re-checks the slot anyway.
 function resourceHolds({ resourceId, from, to }) {
   return registry().all()
@@ -160,7 +160,7 @@ module.exports = Object.freeze({
   }),
   resourceScheduler,
   resourceHolds,
-  // SDK 2.22.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
+  // SDK 2.25.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
   // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
   payments: Object.freeze({
     basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),

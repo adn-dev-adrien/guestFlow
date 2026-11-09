@@ -1,5 +1,5 @@
 /**
- * A plugin's order lands on the fiche as mid-stay extras (specs/plugins-phase-1-sdk.md rule 46; first used by
+ * A plugin's order lands on the fiche as mid-stay extras (specs/plugins-phase-1-sdk.md rule 47; first used by
  * specs/guest-app.md rules 24, 30, 34, 35). The money and the reservation write stay core: an order is priced and
  * written exactly as the operator's « Enregistrer » on a locked fiche writes a mid-stay extra
  * (specs/mid-stay-extras-on-locked-fiche.md rules 1, 9) — the stored state rebuilt as the fiche's PUT body, the

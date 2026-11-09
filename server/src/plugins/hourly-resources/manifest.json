@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.22.0",
+  "sdk": "^2.25.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -92,7 +92,7 @@
     "1.4.0": [
       "L’application clients propose les créneaux libres d’une ressource à l’heure, lus dans ce planning : séances des autres séjours, réservations extérieures, remise en état, chauffe et maintien en température.",
       "Un créneau d’une commande client en attente de paiement est bloqué dans le planning, le sas et les réservations extérieures.",
-      "Demande le SDK 2.22 de GuestFlow."
+      "Demande le SDK 2.25 de GuestFlow."
     ]
   }
 }
