@@ -89,6 +89,7 @@ import {
   LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER, UNLOCKED_FICHE_BANNER, UNLOCKED_NEW_FICHE_BANNER,
 } from '../constants/reservationLock';
 import { isQuotableStay, stayDatesMessage } from '../utils/stayDates';
+import usePostalCodeCities from '../hooks/usePostalCodeCities';
 
 const DEVIS_STATUS_OPTIONS = [
   { value: 'draft', label: 'Brouillon' },
@@ -291,7 +292,7 @@ export default function ReservationPage() {
   // que le « total de séjour » et le split des compléments suivent.
   const [refundsVersion, setRefundsVersion] = useState(0);
   const [newClient, setNewClient] = useState(EMPTY_CLIENT);
-  const [newClientCityOptions, setNewClientCityOptions] = useState([]);
+  const newClientCityOptions = usePostalCodeCities(newClient.postalCode, newClient.city, { enabled: createClientOpen });
   const [propertyOptions, setPropertyOptions] = useState([]);
   // Server-computed option grouping for the fiche (specs/option-categories.md §4.2) — `{ ungrouped,
   // groups }`, already visibility-filtered and ordered. null until a property is loaded, and on
@@ -1585,38 +1586,6 @@ export default function ReservationPage() {
     refreshBasePrice();
   }, [selectedProp, pricingQuoteSignature, shouldLockExistingPricing, applyQuoteToForm, applyQuoteMinNights, useCurrentPricing, offeredOptionIds, refundsVersion, windowToday]);
 
-  useEffect(() => {
-    const cp = (newClient.postalCode || '').trim();
-    if (!createClientOpen || cp.length < 2) {
-      setNewClientCityOptions([]);
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const cityQuery = (newClient.city || '').trim();
-        const params = new URLSearchParams({
-          codePostal: cp,
-          fields: 'nom,code,codesPostaux',
-          limit: '20',
-        });
-        if (cityQuery) params.set('nom', cityQuery);
-        const res = await fetch(`https://geo.api.gouv.fr/communes?${params.toString()}`, { signal: controller.signal });
-        if (!res.ok) return;
-        const data = await res.json();
-        const options = Array.from(new Set((data || []).map((c) => c.nom).filter(Boolean)));
-        setNewClientCityOptions(options);
-      } catch (e) {
-        if (e.name !== 'AbortError') setNewClientCityOptions([]);
-      }
-    }, 250);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [createClientOpen, newClient.postalCode, newClient.city]);
 
   // ==================== CAPACITY & PRICING CALCULATIONS ====================
   const maxSingleBeds = selectedProperty ? Number(selectedProperty.singleBeds ?? 0) : null;
@@ -2146,14 +2115,12 @@ export default function ReservationPage() {
   const closeCreateClient = () => {
     setCreateClientOpen(false);
     setNewClient(EMPTY_CLIENT);
-    setNewClientCityOptions([]);
     setClientDialogMode('create');
   };
 
   const openCreateClient = () => {
     setClientDialogMode('create');
     setNewClient(EMPTY_CLIENT);
-    setNewClientCityOptions([]);
     setCreateClientOpen(true);
   };
 
@@ -2163,14 +2130,12 @@ export default function ReservationPage() {
     if (!form.clientId && pendingClient) {
       setClientDialogMode('edit');
       setNewClient({ ...EMPTY_CLIENT, ...pendingClient });
-      setNewClientCityOptions([]);
       setCreateClientOpen(true);
       return;
     }
     if (!form.clientId) return;
     setClientDialogMode('edit');
     setNewClient({ ...EMPTY_CLIENT, ...(selectedClient || {}) });
-    setNewClientCityOptions([]);
     setCreateClientOpen(true);
     api.getClient(form.clientId).then((c) => { if (c) setNewClient({ ...EMPTY_CLIENT, ...c }); }).catch(() => {});
   };

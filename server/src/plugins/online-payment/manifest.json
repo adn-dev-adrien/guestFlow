@@ -1,7 +1,7 @@
 {
   "id": "online-payment",
   "name": "Paiement en ligne (Qonto)",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Liens de paiement envoyés aux voyageurs, et rapprochement des virements du compte Qonto avec les fiches.",
   "icon": "payments",
   "surfaces": [
@@ -12,7 +12,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0 <4.0.0",
-  "sdk": "^2.24.0",
+  "sdk": "^2.25.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -127,6 +127,12 @@
     "1.6.0": [
       "Le rapprochement bancaire n’attend d’un paiement réparti que sa part CB, chèque et virement.",
       "Compatible avec le SDK 2.24 de GuestFlow."
+    ],
+    "1.7.0": [
+      "Qonto émet les factures des ventes hors séjour et joint leur PDF au lot CB du jour.",
+      "Le rapprochement compte les ventes hors séjour payées par carte dans le lot du jour.",
+      "La connexion Qonto demande aussi les droits de facturation : la reconnecter une fois pour facturer.",
+      "Compatible avec le SDK 2.25 de GuestFlow."
     ]
   }
 }

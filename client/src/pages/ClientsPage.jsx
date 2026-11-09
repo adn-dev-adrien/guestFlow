@@ -28,6 +28,7 @@ import { withFrom } from '../utils/navigation';
 import { formatCurrency } from '../utils/formatters';
 import { useToast, useAppDialogs } from '../components/DialogProvider';
 import { localIsoToday } from '../utils/isoDay';
+import usePostalCodeCities from '../hooks/usePostalCodeCities';
 import {
   VIEWS, SORTS, TEXTS, viewFromParam, paramFromView, viewLabel,
 } from '../constants/clientsDirectory';
@@ -118,7 +119,7 @@ export default function ClientsPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyClient);
   const [editId, setEditId] = useState(null);
-  const [cityOptions, setCityOptions] = useState([]);
+  const cityOptions = usePostalCodeCities(form.postalCode, form.city);
   const [clientReservations, setClientReservations] = useState([]);
   const [clientReservationsLoading, setClientReservationsLoading] = useState(false);
   // specs/clients.md rule 17: an answer about a client the operator has left never lands on screen.
@@ -313,37 +314,6 @@ export default function ClientsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlParams, clients]);
 
-  useEffect(() => {
-    const cp = (form.postalCode || '').trim();
-    if (cp.length < 2) {
-      setCityOptions([]);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const cityQuery = (form.city || '').trim();
-        const params = new URLSearchParams({
-          codePostal: cp,
-          fields: 'nom,code,codesPostaux',
-          limit: '20',
-        });
-        if (cityQuery) params.set('nom', cityQuery);
-        const res = await fetch(`https://geo.api.gouv.fr/communes?${params.toString()}`, { signal: controller.signal });
-        if (!res.ok) return;
-        const data = await res.json();
-        const options = Array.from(new Set((data || []).map((c) => c.nom).filter(Boolean)));
-        setCityOptions(options);
-      } catch (e) {
-        if (e.name !== 'AbortError') setCityOptions([]);
-      }
-    }, 250);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [form.postalCode, form.city]);
 
   const handleDelete = async (id) => {
     const current = beginDeleteImpact();

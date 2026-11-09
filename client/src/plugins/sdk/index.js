@@ -69,3 +69,5 @@ export { default as PlatformPenaltyDialog } from '../../components/reservation/P
 // sas — one payment split over several methods (specs/mixed-method-payments.md rule 32) — SDK 2.24.0.
 export { default as TenderLines } from '../../components/TenderLines';
 export { TENDER_TEXTS } from '../../constants/tenderMethods';
+// hourly-resources — the communes of a postcode (specs/resource-booking-pricing-and-invoicing.md rule 27) — SDK 2.25.0.
+export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';

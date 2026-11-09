@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bain nordique hors séjour : réserver, accueillir, encaisser, facturer — GuestFlow</title>
+<style>
+  :root {
+    --primary: #2F5D46; --primary-dark: #244A37; --primary-soft: #E3ECE6;
+    --honey: #C99038; --honey-soft: #F4E9D6;
+    --paper: #F8F5EF; --card: #FFFFFF; --ink: #27251F; --muted: #6E6A5E; --line: #E6E0D4;
+    --success: #3E7D54; --success-soft: #E6EFE7;
+    --error: #A8433A; --error-soft: #F7E8E5;
+    --warning: #7A5916; --warning-soft: #F6EDD7;
+    --info: #31556E; --info-soft: #E4EDF3;
+    --serif: 'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --radius: 14px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--sans); }
+  ::selection { background: var(--primary-soft); color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 6px; }
+  a { color: var(--primary); text-underline-offset: 3px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; text-wrap: balance; }
+  h1 { font-size: 2.3rem; line-height: 1.1; letter-spacing: -0.02em; margin: 0 0 10px; }
+  h2 { font-size: 1.45rem; line-height: 1.2; letter-spacing: -0.01em; margin: 56px 0 14px; }
+  h3 { font-size: 1.08rem; margin: 0 0 6px; }
+  p { margin: 0 0 12px; max-width: 72ch; }
+  .lede { font-size: 1.08rem; color: var(--muted); max-width: 70ch; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  .pill.draft { background: var(--warning-soft); border-color: transparent; color: var(--warning); font-weight: 600; }
+  .num { font-variant-numeric: tabular-nums; }
+  ul.plain { margin: 0; padding-left: 20px; max-width: 74ch; }
+  ul.plain li { margin: 0 0 7px; }
+  .grid2 { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; }
+  table.facts { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.facts th, table.facts td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+  table.facts th { font-weight: 600; color: var(--muted); font-size: 12.5px; border-top: 0; }
+  table.facts td:first-child { font-weight: 600; white-space: nowrap; }
+  .scroll-x { overflow-x: auto; }
+
+  /* ---------- stage ---------- */
+  .stage-bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 0 0 14px; }
+  .seg { display: inline-flex; background: #F1EDE4; border-radius: 999px; padding: 3px; flex-wrap: wrap; }
+  .seg button { border: 0; background: transparent; font: 600 13px var(--sans); color: var(--muted); padding: 8px 14px; border-radius: 999px; cursor: pointer; min-height: 36px; }
+  .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(39,37,31,.12); }
+  .seg-label { font-size: 12.5px; color: var(--muted); margin-right: 6px; }
+  .reset { border: 0; background: none; color: var(--primary); font: 600 13px var(--sans); cursor: pointer; padding: 8px 4px; }
+  .stage { display: grid; gap: 20px; grid-template-columns: 1fr; align-items: start; }
+  @media (min-width: 1080px) { .stage { grid-template-columns: minmax(0, 1fr) 280px; } }
+  .device { background: #E9E3D7; border-radius: 22px; padding: 18px; display: flex; justify-content: center; overflow: hidden; }
+  .screen { width: 100%; max-width: 820px; container-type: inline-size; transition: max-width 420ms var(--ease); }
+  .device.mobile .screen { max-width: 380px; }
+  @media (prefers-reduced-motion: reduce) { .screen { transition: none; } }
+  .notes { font-size: 13.5px; }
+  .notes .panel { padding: 16px 18px; }
+  .notes h3 { font-family: var(--sans); font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+  .notes ol { margin: 0; padding-left: 18px; }
+  .notes li { margin-bottom: 6px; }
+
+  /* ---------- dialog replica ---------- */
+  .dlg { background: var(--card); border-radius: 16px; box-shadow: 0 2px 4px rgba(39,37,31,.06), 0 16px 40px rgba(39,37,31,.12); }
+  .dlg-head { padding: 18px 20px 6px; }
+  .dlg-head .t { font: 600 1.2rem/1.2 var(--serif); }
+  .dlg-head .s { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  .dlg-body { padding: 12px 20px 16px; display: grid; gap: 18px 22px; grid-template-columns: minmax(0,1fr); grid-template-areas: "price" "left" "form"; }
+  @container (min-width: 620px) {
+    .dlg-body { grid-template-columns: 236px minmax(0,1fr); grid-template-areas: "left price" "left form"; }
+  }
+  .dlg-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 20px 16px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  @container (max-width: 619px) {
+    .dlg-foot .btn { flex: 1 1 100%; }
+    .dlg-foot .btn.danger { order: 3; }
+    .price { position: sticky; top: 0; z-index: 2; }
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label, .lbl { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .input { font: 15px var(--sans); color: var(--ink); border: 1px solid #D8D1C2; border-radius: 10px; padding: 9px 11px; min-height: 42px; background: var(--card); width: 100%; }
+  .input:focus { outline: 2px solid var(--primary); outline-offset: -1px; border-color: transparent; }
+  .input[readonly], .input:disabled { background: #F4F1EA; color: var(--muted); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+
+  /* planner */
+  .planner { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; user-select: none; -webkit-user-select: none; }
+  .slot { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-top: 1px solid #F0EBE1; font-size: 12px; color: var(--muted); cursor: pointer; position: relative; font-variant-numeric: tabular-nums; touch-action: manipulation; }
+  .slot:first-child { border-top: 0; }
+  .slot .h { width: 38px; flex-shrink: 0; }
+  .slot .h { white-space: nowrap; }
+  .slot.eve::after { content: ''; position: absolute; right: 10px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--honey); }
+  .slot:hover { background: #FAF8F3; }
+  .slot.busy { background: repeating-linear-gradient(135deg, #F3EFE6 0 6px, #ECE6DA 6px 12px); cursor: not-allowed; color: #9A9384; }
+  .slot.turn { background: #F6F2EA; cursor: not-allowed; color: #A39C8C; }
+  .slot.sel { background: var(--primary-soft); color: var(--primary-dark); font-weight: 600; }
+  .slot.sel.off { background: var(--honey-soft); color: #7A5A1E; }
+  .slot .tag { font-size: 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+
+  /* price */
+  .price { background: var(--card); }
+  .price-box { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; position: relative; }
+  .price-box.bad { border-color: #E3B8B1; background: var(--error-soft); }
+  .price-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 8px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .price-head .grid { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+  .pl { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 2px 12px; padding: 7px 0; border-top: 1px solid #F0EBE1; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .pl:first-of-type { border-top: 0; }
+  .pl .d { grid-column: 1; color: var(--muted); font-size: 12.5px; }
+  .pl .a { grid-row: 1; grid-column: 2; text-align: right; font-weight: 600; }
+  .pl.neg .a { color: var(--success); }
+  .pl.offer { align-items: center; }
+  .total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 9px; margin-top: 4px; border-top: 1px solid var(--ink); font-variant-numeric: tabular-nums; }
+  .total .v { font: 700 1.35rem var(--serif); letter-spacing: -0.01em; }
+  .vat { color: var(--muted); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+  .refusal { color: var(--error); font-size: 12.5px; margin-top: 6px; font-weight: 600; }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+  .fade { transition: opacity 150ms ease-out; }
+  .stale { opacity: .5; }
+  @media (prefers-reduced-motion: reduce) { .fade { transition: none; } }
+
+  /* stepper */
+  .stepper { display: inline-flex; align-items: center; border: 1px solid #D8D1C2; border-radius: 999px; overflow: hidden; }
+  .stepper button { border: 0; background: var(--card); width: 40px; height: 40px; font: 600 18px var(--sans); color: var(--primary); cursor: pointer; }
+  .stepper button:disabled { color: #C9C2B3; cursor: not-allowed; }
+  .stepper button:active:not(:disabled) { background: var(--primary-soft); }
+  .stepper input { width: 56px; border: 0; text-align: center; font: 600 14px var(--sans); color: var(--ink); font-variant-numeric: tabular-nums; height: 40px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+  .stepper input:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+  .stepper.err { border-color: var(--error); }
+  .pl .offer-row { grid-column: 1 / -1; }
+  .offer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 9px 0 3px; }
+  .offer-row .lbl { font-size: 13px; color: var(--ink); }
+  .offer-row .unit { font-size: 12.5px; color: var(--muted); margin-left: 6px; }
+
+  /* sections of form */
+  .sec { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .sec:first-child { border-top: 0; padding-top: 0; }
+  .sec-t { font-weight: 700; font-size: 13.5px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .switch { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; min-height: 40px; }
+  .switch input { appearance: none; width: 38px; height: 22px; border-radius: 999px; background: #CFC8B8; position: relative; cursor: pointer; transition: background 160ms; margin: 0; flex-shrink: 0; }
+  .switch input::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 220ms var(--ease); }
+  .switch input:checked { background: var(--primary); }
+  .switch input:checked::after { transform: translateX(16px); }
+  .switch input:disabled { opacity: .45; cursor: not-allowed; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid #D8D1C2; background: var(--card); color: var(--ink); font: 500 13.5px var(--sans); padding: 0 14px; min-height: 38px; border-radius: 999px; cursor: pointer; transition: background 140ms, border-color 140ms, transform 120ms; }
+  .chip:active:not(:disabled) { transform: scale(0.97); }
+  .chip[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+  .chip:disabled { opacity: .5; cursor: not-allowed; }
+  .fold { border: 1px dashed #D8D1C2; border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+  .fold-t { font-size: 12.5px; color: var(--muted); }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--primary); margin: 2px 0 0; flex-shrink: 0; }
+  .check small { display: block; color: var(--muted); font-size: 12.5px; }
+  .callout { border-radius: 12px; padding: 10px 12px; font-size: 13.5px; display: flex; gap: 10px; align-items: flex-start; }
+  .callout.info { background: var(--info-soft); color: var(--info); }
+  .callout.ok { background: var(--success-soft); color: #2D5E3F; }
+  .callout.warn { background: var(--warning-soft); color: var(--warning); }
+  .callout.err { background: var(--error-soft); color: var(--error); }
+  .callout svg { flex-shrink: 0; margin-top: 2px; }
+  .callout b { font-weight: 700; }
+  .callout .act { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .badge.ok { background: var(--success-soft); color: var(--success); }
+  .badge.due { background: var(--warning-soft); color: var(--warning); }
+  .badge.mute { background: #EEE9DF; color: var(--muted); }
+
+  .btn { white-space: nowrap; font: 600 14px var(--sans); border-radius: 999px; min-height: 44px; padding: 0 18px; cursor: pointer; border: 1px solid transparent; transition: background 160ms, transform 120ms; }
+  .btn:active:not(:disabled) { transform: scale(0.97); }
+  .btn.primary { background: var(--primary); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn.primary:disabled { opacity: .38; cursor: not-allowed; }
+  .btn.outline { background: var(--card); border-color: var(--primary); color: var(--primary); }
+  .btn.text { background: none; color: var(--ink); padding: 0 12px; }
+  .btn.danger { background: none; color: var(--error); padding: 0 12px; margin-right: auto; }
+  .btn.danger:disabled { color: #CFC8B8; cursor: not-allowed; }
+  .btn.sm { min-height: 34px; padding: 0 12px; font-size: 13px; }
+
+  /* flow diagram */
+  .flow { display: grid; gap: 10px; grid-template-columns: 1fr; counter-reset: f; }
+  @media (min-width: 900px) { .flow { grid-template-columns: repeat(5, 1fr); } }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; position: relative; }
+  .step .who { font-size: 12px; font-weight: 700; color: var(--primary); }
+  .step .who.q { color: var(--info); }
+  .step .who.c { color: #7A5A1E; }
+  .step h3 { font-family: var(--sans); font-size: 14px; margin: 4px 0 6px; }
+  .step p { font-size: 13px; color: var(--muted); margin: 0; }
+  .step.lit { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+  /* arbitrages */
+  .arb { display: grid; gap: 14px; }
+  .arb .panel { padding: 16px 18px; }
+  .arb .q { font-weight: 600; margin-bottom: 4px; }
+  .arb .why { color: var(--muted); font-size: 13.5px; margin-bottom: 10px; max-width: 80ch; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { text-align: left; border: 1px solid #D8D1C2; background: var(--card); border-radius: 12px; padding: 10px 12px; cursor: pointer; font: 14px var(--sans); color: var(--ink); max-width: 360px; flex: 1 1 240px; transition: border-color 140ms, background 140ms; }
+  .opt small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  .opt[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); }
+  .opt .rec { font-size: 12px; font-weight: 700; color: var(--primary); margin-left: 6px; }
+  .export { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .export textarea { width: 100%; min-height: 130px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid #D8D1C2; border-radius: 12px; padding: 12px; background: var(--card); color: var(--ink); resize: vertical; }
+  .toast { font-size: 13px; color: var(--success); font-weight: 600; min-height: 20px; }
+  footer { margin-top: 64px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<style>
+  .tabs { display: flex; gap: 6px; margin: 0 0 14px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: var(--card); color: var(--muted); font: 600 14px var(--sans); border-radius: 12px; padding: 10px 14px; cursor: pointer; text-align: left; min-height: 44px; }
+  .tab small { display: block; font-weight: 500; font-size: 12px; }
+  .tab[aria-selected="true"] { border-color: var(--primary); color: var(--ink); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .seg2 { display: inline-flex; background: #F1EDE4; border-radius: 999px; padding: 3px; }
+  .seg2 button { border: 0; background: transparent; font: 600 13.5px var(--sans); color: var(--muted); padding: 0 16px; min-height: 38px; border-radius: 999px; cursor: pointer; }
+  .seg2 button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(39,37,31,.12); }
+  .seg2 button:disabled { cursor: not-allowed; opacity: .5; }
+  .cp-wrap { position: static; }
+  .fold { position: relative; }
+  .listbox { position: absolute; z-index: 5; left: 0; right: 0; top: -6px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(39,37,31,.14); padding: 4px; max-height: 220px; overflow: auto; }
+  .listbox button { display: block; width: 100%; text-align: left; border: 0; background: none; font: 14px var(--sans); color: var(--ink); padding: 9px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
+  .listbox button:hover, .listbox button.act { background: var(--primary-soft); }
+  .listbox .none { padding: 9px 10px; font-size: 13px; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); }
+  .cards { display: grid; gap: 8px; }
+  .pcard { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .pcard .who { font-weight: 700; }
+  .pcard .when { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .pcard .rt { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .arr-sec { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 10px; }
+  .arr-sec:first-child { border-top: 0; padding-top: 0; }
+  .arr-t { font: 600 1.02rem var(--serif); }
+  .arr-body { padding: 14px 20px 16px; display: grid; gap: 16px; }
+  .arr-total { position: sticky; top: 0; z-index: 3; background: var(--card); display: flex; justify-content: space-between; align-items: baseline; padding: 10px 20px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .arr-total .v { font: 700 1.3rem var(--serif); }
+  .empty-stage { padding: 30px; text-align: center; color: var(--muted); }
+  .resolved { display: grid; gap: 8px; }
+  .resolved .panel { display: flex; gap: 12px; align-items: baseline; padding: 12px 16px; }
+  .resolved .id { font-weight: 700; color: var(--primary); min-width: 28px; }
+</style>
+<main class="wrap">
+
+<header>
+  <h1>Bain nordique hors séjour : réserver, accueillir, encaisser, facturer</h1>
+  <p class="lede">On réserve au téléphone, le prix détaillé sous les yeux. Le jour venu, un sas d'arrivée tenant sur un seul écran récapitule la séance, permet d'offrir du temps par quart d'heure, encaisse le paiement et crée la facture dans Qonto. La facture est jointe au lot CB du jour, puis part dans l'export de la comptable.</p>
+  <div class="meta">
+    <span class="pill">Spec approuvée · 9 novembre 2026</span>
+    <span class="pill">specs/resource-booking-pricing-and-invoicing.md</span>
+    <span class="pill">Plugins : Ressources à l'heure · Qonto · Export comptable</span>
+    <span class="pill">9 novembre 2026</span>
+  </div>
+</header>
+
+<h2>Ce qui change depuis la première version</h2>
+<ul class="plain">
+  <li><b>Le paiement se sépare de la réservation.</b> Par défaut, on réserve « à l'arrivée ». On peut aussi encaisser tout de suite.</li>
+  <li><b>Un sas d'arrivée sur un seul écran, sans sas de départ.</b> Il contient la séance et son prix, le temps offert, le paiement et la facture, rien d'autre. Il ne dépend pas du plugin Sas, et un client qui a un séjour garde le sas de son séjour.</li>
+  <li><b>Le temps offert va par tranches de 15 minutes.</b></li>
+  <li><b>L'adresse est facultative.</b> GuestFlow ne bloque jamais sur elle. Si Qonto la réclame, le refus s'affiche à l'endroit de la facture, et le paiement reste enregistré.</li>
+  <li><b>Code postal en chiffres seulement, ville choisie dans une liste.</b> C'est la même recherche que sur la fiche client, regroupée en un seul outil partagé.</li>
+  <li><b>Espèces comme sur les fiches</b> : caisse interne par défaut, hors compta et sans facture, avec un interrupteur pour les passer en compta. C'est le même code que le paiement en plusieurs moyens.</li>
+  <li><b>TVA à 20 %</b> pour les ventes à un client sans réservation de logement. C'est un réglage, figé sur chaque facture émise.</li>
+</ul>
+
+<h2>À manipuler</h2>
+<p>Dans l'ordre : réserver par téléphone, puis passer à « Sur place » et accueillir le client. Les montants simulent les règles de la spec. Dans l'application, ils viendront du serveur.</p>
+
+<div class="stage-bar">
+  <div><span class="seg-label">Écran</span><span class="seg" id="segDevice"><button aria-pressed="true" data-v="desktop">Ordinateur</button><button aria-pressed="false" data-v="mobile">Téléphone</button></span></div>
+  <div><span class="seg-label">Qonto</span><span class="seg" id="segQonto"><button aria-pressed="true" data-v="on">Connecté</button><button aria-pressed="false" data-v="off">Non connecté</button></span></div>
+  <div><span class="seg-label">Sans adresse, Qonto…</span><span class="seg" id="segAddr"><button aria-pressed="true" data-v="accept">accepte</button><button aria-pressed="false" data-v="refuse">refuse</button></span></div>
+  <button class="reset" id="resetBtn" type="button">Recommencer</button>
+</div>
+
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-t="book" id="tabBook">1 · Au téléphone<small>La réservation</small></button>
+  <button class="tab" role="tab" aria-selected="false" data-t="arrive" id="tabArrive">2 · Sur place<small>L'arrivée du client</small></button>
+</div>
+
+<div class="stage">
+  <div class="device" id="device">
+    <div class="screen" id="screen"></div>
+  </div>
+  <aside class="notes">
+    <div class="panel">
+      <h3>À essayer</h3>
+      <ol>
+        <li>Prendre 19:00 → 21:00 : le seuil de 20:00 coupe le créneau en deux lignes, jour et soir.</li>
+        <li>Offrir 15 puis 30 min avec + et −. On ne peut pas dépasser la durée réservée.</li>
+        <li>Garder « À l'arrivée », puis enregistrer.</li>
+        <li>Dans « Sur place », ouvrir « Arrivée », choisir CB, puis taper un code postal : 07200 (plusieurs communes), 07000 ou 07160. Les lettres sont ignorées.</li>
+        <li>Valider l'arrivée sans adresse, une fois avec « Qonto accepte », une fois avec « Qonto refuse ».</li>
+        <li>Choisir « Pas maintenant » : le client est arrivé, mais la séance reste à encaisser.</li>
+      </ol>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h3>Tarifs simulés</h3>
+      <p class="num" style="margin:0">Client sans séjour : 50 €/h le jour, 70 €/h dès 20:00. TVA à 20 %, le réglage « TVA des ventes hors séjour ».</p>
+    </div>
+  </aside>
+</div>
+
+<h2>Le circuit</h2>
+<div class="flow" id="flow">
+  <div class="step" data-s="0"><div class="who">GuestFlow · téléphone</div><h3>Réservation</h3><p>Créneau, temps offert, paiement « à l'arrivée ». Le prix est calculé par le serveur.</p></div>
+  <div class="step" data-s="1"><div class="who">GuestFlow · sur place</div><h3>Sas d'arrivée</h3><p>Séance, temps offert ajusté, CB. Le paiement est enregistré, même si la facture échoue ensuite.</p></div>
+  <div class="step" data-s="2"><div class="who q">Qonto</div><h3>Facture</h3><p>Qonto la numérote, avec la TVA à 20 % figée. L'adresse est envoyée si on l'a.</p></div>
+  <div class="step" data-s="3"><div class="who q">Qonto</div><h3>Pièce jointe au lot CB</h3><p>Le PDF est joint au crédit « Paiements-En-Personne » du jour. On réessaie pendant 7 jours.</p></div>
+  <div class="step" data-s="4"><div class="who c">Comptable</div><h3>Export mensuel</h3><p>Vente au 70601000, TVA à 20 %, n° Qonto dans « Pièce ». Seuls les paiements saisis après la mise en service y entrent.</p></div>
+</div>
+
+<h2>Ton avis sur le sas : le mien</h2>
+<div class="grid2">
+  <div class="panel">
+    <h3>D'accord avec un seul écran, centré sur le paiement</h3>
+    <p>Pour un client qui ne vient que pour le bain, il n'y a ni logement à vérifier ni départ à contrôler. Un vrai parcours en étapes ajouterait des clics sans rien apporter. J'ajoute seulement, en tête, le récapitulatif de sa séance (jour, créneau, prix ligne par ligne), comme tu le demandes. C'est ce qu'on lui annonce avant de passer la carte.</p>
+  </div>
+  <div class="panel">
+    <h3>Une seule chose en plus : le temps offert</h3>
+    <p>C'est au comptoir qu'on décide d'offrir un quart d'heure : un bain qui a tardé à chauffer, un client qui arrive en retard. Je le laisse donc réglable dans le sas. Changer le créneau lui-même reste réservé à la réservation (question Q10 ci-dessous). Je n'ai mis ni règlement à accepter ni liste de contrôle. Le jour où tu voudras faire signer des contre-indications, ce sera une section de plus.</p>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="plain">
+  <li>Les factures des séjours, plusieurs moyens de paiement sur une séance, les avoirs : une facture payée se corrige dans Qonto.</li>
+  <li>Le sas de départ pour ces clients.</li>
+  <li>La vente du bain sur le site ou par lien de paiement.</li>
+  <li>Les anciennes réservations « Payé » : elles restent hors de la compta (A4).</li>
+</ul>
+
+<h2>Arbitrages tranchés</h2>
+<div class="resolved">
+  <div class="panel"><span class="id">A1</span><span>Un seul taux pour les ventes hors séjour, <b>20 %</b>, modifiable dans les réglages. Chaque facture garde le taux du jour où elle a été émise.</span></div>
+  <div class="panel"><span class="id">A2</span><span>Une facture annulée à la main dans Qonto <b>débloque la réservation</b>.</span></div>
+  <div class="panel"><span class="id">A3</span><span>Temps offert par tranches de <b>15 minutes</b>.</span></div>
+  <div class="panel"><span class="id">A4</span><span>Export comptable <b>à partir de la mise en service</b>.</span></div>
+</div>
+
+<h2>Encore deux questions</h2>
+<div class="arb" id="arb"></div>
+<div class="export">
+  <textarea id="exportTxt" readonly aria-label="Réponses à copier"></textarea>
+  <div><button class="btn outline sm" id="copyBtn" type="button">Copier mes réponses</button> <span class="toast" id="toast" role="status"></span></div>
+</div>
+<p class="hint" style="margin-top:14px">À mesurer dans le bac à sable Qonto avant de coder : un particulier sans adresse, une ligne de remise négative, le passage d'une facture en « payée » par l'API. Il faudra aussi reconnecter Qonto une fois en prod pour les nouveaux droits.</p>
+
+<footer>Page autonome, sans ressource extérieure. Les communes de la démo sont une petite liste locale. L'application interroge geo.api.gouv.fr, comme la fiche client aujourd'hui. Les données sont fictives.</footer>
+</main>
+
+<script>
+(() => {
+  const OPEN = 11 * 60, CLOSE = 22 * 60, STEP = 30, EVE = 20 * 60, MIN = 60, TURN = 30, OFFER_STEP = 15, VAT = 20;
+  const DAY = 50, EVN = 70;
+  const BUSY = [{ s: 14 * 60, e: 16 * 60, who: 'Séjour La Granja' }];
+  const METHODS = [['card', 'CB'], ['cash', 'Espèces'], ['cheque', 'Chèque'], ['transfer', 'Virement'], ['holiday_vouchers', 'Chèques-vacances'], ['other', 'Autre']];
+  const COMMUNES = {
+    '07000': ['Privas', 'Coux', 'Creysseilles', 'Lyas', 'Pourchères', 'Veyras'],
+    '07200': ['Aubenas', 'Labégude', 'Lachapelle-sous-Aubenas', 'Mercuer', 'Saint-Didier-sous-Aubenas', 'Saint-Privat', 'Ucel', 'Vals-les-Bains'],
+    '07160': ['Le Cheylard'],
+    '69001': ['Lyon'], '75011': ['Paris'], '13001': ['Marseille'],
+  };
+  const $ = (id) => document.getElementById(id);
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  const dur = (m) => m < 60 ? m + ' min' : (m % 60 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') : (m / 60) + ' h');
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const methodLabel = (k) => (METHODS.find((m) => m[0] === k) || [k, k])[1];
+
+  const fresh = () => ({
+    tab: 'book', qonto: 'on', addrRule: 'accept',
+    start: null, end: null, offered: 0, ln: 'Martin', fn: 'Claire', ph: '06 12 34 56 78',
+    payWhen: 'arrival', method: null, invoice: false, internal: true,
+    street: '', cp: '', city: '', cityOpen: false,
+    saved: false, arrived: false, paid: false, payNow: null,
+    invoiceState: null, attach: null, arrivalOpen: false,
+  });
+  let st = fresh();
+
+  // ---- server rules, simulated ----
+  function price() {
+    if (st.start == null || st.end == null) return null;
+    const length = st.end - st.start;
+    const walk = (a, b) => { let d = 0, e = 0, dm = 0, em = 0; for (let t = a; t < b; t += 5) { if (t < EVE) { d += DAY / 12; dm += 5; } else { e += EVN / 12; em += 5; } } return { d, e, dm, em }; };
+    const all = walk(st.start, st.end);
+    const off = walk(st.start, st.start + st.offered);
+    const lines = [];
+    if (all.dm) lines.push({ l: 'Jour · ' + hhmm(st.start) + '–' + hhmm(Math.min(st.end, Math.max(st.start, EVE))), d: dur(all.dm) + ' × ' + fmt(DAY), a: r2(all.d) });
+    if (all.em) lines.push({ l: 'Soir · ' + hhmm(Math.max(st.start, EVE)) + '–' + hhmm(st.end), d: dur(all.em) + ' × ' + fmt(EVN), a: r2(all.e) });
+    const offerAmt = st.offered ? -r2(off.d + off.e) : 0;
+    const total = Math.max(0, r2(lines.reduce((s, x) => s + x.a, 0) + offerAmt));
+    const net = r2(total / (1 + VAT / 100));
+    return { lines, offerAmt, total, vat: r2(total - net), net, length };
+  }
+
+  // ---- shared pieces ----
+  const ICON = {
+    info: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 4.8v.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    ok: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.2 8.2l1.9 1.9 3.8-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    clock: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.3 1.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+    lock: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5.3a2.5 2.5 0 015 0V7" stroke="currentColor" stroke-width="1.5"/></svg>',
+  };
+  const frozen = () => st.invoiceState === 'issued';
+
+  function priceLines(p, editable) {
+    const row = (x) => '<div class="pl"><span>' + x.l + '</span><span class="a">' + fmt(x.a) + '</span><span class="d">' + x.d + '</span></div>';
+    const maxOffer = p.length;
+    const stepper = editable
+      ? '<div class="offer-row"><span style="white-space:nowrap"><span class="stepper"><button type="button" data-off="-" aria-label="Moins 15 minutes"' + (st.offered <= 0 ? ' disabled' : '') + '>−</button><input readonly aria-label="Minutes offertes" value="' + st.offered + '"><button type="button" data-off="+" aria-label="Plus 15 minutes"' + (st.offered + OFFER_STEP > maxOffer ? ' disabled' : '') + '>+</button></span><span class="unit">min offertes</span></span></div>'
+      : '<span class="d">' + (st.offered ? dur(st.offered) : 'Aucun') + '</span>';
+    return p.lines.map(row).join('') +
+      '<div class="pl neg offer"><span>Temps offert</span><span class="a">' + (p.offerAmt ? '−' + fmt(-p.offerAmt) : '0,00 €') + '</span>' + stepper + '</div>';
+  }
+  function bindOffer(root) {
+    root.querySelectorAll('[data-off]').forEach((b) => b.onclick = () => {
+      const p = price();
+      st.offered = Math.max(0, Math.min(p.length, st.offered + (b.dataset.off === '+' ? OFFER_STEP : -OFFER_STEP)));
+      render();
+    });
+  }
+
+  function addressBlock(required) {
+    const list = st.cityOpen && st.cp.length >= 2 ? Object.keys(COMMUNES).filter((k) => k.startsWith(st.cp)).flatMap((k) => COMMUNES[k].map((c) => [k, c])) : [];
+    const lb = st.cityOpen && st.cp.length >= 2
+      ? '<div class="listbox" role="listbox" id="cityList">' + (list.length ? list.map(([k, c], i) => '<button type="button" role="option" data-city="' + esc(c) + '" data-cp="' + k + '">' + esc(c) + ' <span class="hint">' + k + '</span></button>').join('') : '<div class="none">Aucune commune pour ' + esc(st.cp) + ' : saisir la ville à la main.</div>') + '</div>'
+      : '';
+    return '<div class="fold" id="addrFold"' + (required ? ' style="border-color:var(--error)"' : '') + '>' +
+      '<div class="fold-t">' + (required ? '<b style="color:var(--error)">Qonto demande l\'adresse de facturation pour émettre la facture.</b>' : 'Adresse de facturation · facultative') + '</div>' +
+      '<div class="field"><label for="street">Adresse</label><input class="input" id="street" value="' + esc(st.street) + '" autocomplete="street-address"></div>' +
+      '<div class="row3"><div class="field"><label for="cp">Code postal</label><input class="input" id="cp" value="' + esc(st.cp) + '" inputmode="numeric" maxlength="5" autocomplete="postal-code" aria-describedby="cpHint"></div>' +
+      '<div class="field cp-wrap"><label for="city">Ville</label><input class="input" id="city" value="' + esc(st.city) + '" autocomplete="address-level2" aria-autocomplete="list" aria-controls="cityList"></div></div>' + '<div style="position:relative">' + lb + '</div>' +
+      '<div class="hint" id="cpHint">Chiffres uniquement. Dès 2 chiffres, les communes du code postal s\'affichent.</div>' +
+      '</div>';
+  }
+  function bindAddress(root) {
+    const cp = root.querySelector('#cp'); if (!cp) return;
+    cp.oninput = () => {
+      const pos = cp.selectionStart; const before = cp.value;
+      st.cp = cp.value.replace(/\D/g, '').slice(0, 5);
+      const k = COMMUNES[st.cp];
+      if (st.cp.length === 5 && k && k.length === 1) { st.city = k[0]; st.cityOpen = false; } else st.cityOpen = st.cp.length >= 2;
+      render();
+      const n = $('cp'); n.focus(); const p = Math.max(0, pos - (before.length - st.cp.length)); n.setSelectionRange(p, p);
+    };
+    const city = root.querySelector('#city');
+    city.oninput = () => { st.city = city.value; };
+    city.onfocus = () => { if (st.cp.length >= 2 && !st.cityOpen) { st.cityOpen = true; render(); $('city').focus(); } };
+    root.querySelectorAll('[data-city]').forEach((b) => b.onmousedown = (e) => { e.preventDefault(); st.city = b.dataset.city; st.cp = b.dataset.cp; st.cityOpen = false; render(); });
+    root.querySelector('#street').oninput = (e) => { st.street = e.target.value; };
+  }
+  document.addEventListener('click', (e) => { if (st.cityOpen && !e.target.closest('.cp-wrap') && e.target.id !== 'cp') { st.cityOpen = false; render(); } });
+
+  function methodChips(disabled, withLater) {
+    return '<div class="chips" role="group" aria-label="Moyen de paiement">' +
+      METHODS.map(([k, l]) => '<button type="button" class="chip" data-m="' + k + '" aria-pressed="' + (st.method === k) + '"' + (disabled ? ' disabled' : '') + '>' + l + '</button>').join('') +
+      (withLater ? '<button type="button" class="chip" data-m="later" aria-pressed="' + (st.method === 'later') + '"' + (disabled ? ' disabled' : '') + '>Pas maintenant</button>' : '') + '</div>' +
+      (st.method === 'cash' ? '<label class="switch"><input type="checkbox" id="internal"' + (st.internal ? ' checked' : '') + (disabled ? ' disabled' : '') + '> Caisse interne <span class="hint">· hors comptabilité, comme sur les fiches</span></label>' : '');
+  }
+  function bindChips(root) {
+    root.querySelectorAll('[data-m]').forEach((b) => b.onclick = () => {
+      st.method = st.method === b.dataset.m ? null : b.dataset.m;
+      st.invoice = st.method === 'card';
+      st.internal = true;
+      render();
+    });
+    const i = root.querySelector('#internal'); if (i) i.onchange = (e) => { st.internal = e.target.checked; render(); };
+  }
+
+  function invoiceBlock(p) {
+    const day = '09/11';
+    if (st.invoiceState === 'issued') {
+      const a = st.attach === 'attached'
+        ? '<div class="callout ok">' + ICON.ok + '<div><b>Facture F-2026-0142</b>, pièce jointe au lot CB du ' + day + ' dans Qonto.</div></div>'
+        : st.paidMethod === 'card'
+          ? '<div class="callout warn">' + ICON.clock + '<div><b>Facture F-2026-0142</b> créée dans Qonto. En attente du lot CB du ' + day + ' pour y joindre la pièce.<div class="act"><button class="btn outline sm" type="button" id="arrive">Simuler l\'arrivée du lot</button></div></div></div>'
+          : '<div class="callout ok">' + ICON.ok + '<div><b>Facture F-2026-0142</b> créée dans Qonto.</div></div>';
+      return a + '<div class="callout info" style="margin-top:8px">' + ICON.lock + '<div>Facturée, donc à annuler dans Qonto avant de la modifier. Seule la note reste modifiable.</div></div>';
+    }
+    if (st.invoiceState === 'refused') {
+      return '<div class="callout err">' + ICON.info + '<div><b>Paiement enregistré</b> (' + methodLabel(st.paidMethod) + ', ' + fmt(p.total) + '). La facture n\'a pas été créée : Qonto demande l\'adresse de facturation.<div class="act"><button class="btn outline sm" type="button" id="retryInv">Créer la facture</button></div></div></div>' + addressBlock(true);
+    }
+    if (st.qonto === 'off') return '<div class="callout info">' + ICON.info + '<div>Facturation Qonto non connectée. Le paiement s\'enregistre, et la facture pourra être créée plus tard depuis la réservation.</div></div>';
+    if (!st.method || st.method === 'later') return '<div class="hint">La facture se propose une fois le moyen de paiement choisi.</div>';
+    if (st.method === 'cash' && st.internal) return '<div class="callout info">' + ICON.info + '<div>Caisse interne : hors comptabilité, pas de facture. Décocher « Caisse interne » pour la passer en compta et la facturer.</div></div>';
+    return '<label class="check"><input type="checkbox" id="invChk"' + (st.invoice ? ' checked' : '') + '><span>Créer la facture dans Qonto<small>' + (st.method === 'card' ? 'Elle sera jointe au lot CB du ' + day + '.' : 'Cochée d\'office pour la CB, à cocher pour les autres moyens.') + '</small></span></label>' + addressBlock(false);
+  }
+  function bindInvoice(root) {
+    const c = root.querySelector('#invChk'); if (c) c.onchange = (e) => { st.invoice = e.target.checked; render(); };
+    const a = root.querySelector('#arrive'); if (a) a.onclick = () => { st.attach = 'attached'; flow(3); render(); };
+    const r = root.querySelector('#retryInv'); if (r) r.onclick = () => issueInvoice();
+    bindAddress(root);
+  }
+  function issueInvoice() {
+    const hasAddr = st.street.trim() && st.cp.length === 5 && st.city.trim();
+    if (st.addrRule === 'refuse' && !hasAddr) { st.invoiceState = 'refused'; flow(1); render(); const s = $('street'); if (s) s.focus(); return; }
+    st.invoiceState = 'issued'; st.attach = null; flow(st.paidMethod === 'card' ? 2 : 2); render();
+  }
+
+  // ---- screen 1: booking dialog ----
+  function overlaps(a, b) { return BUSY.some((x) => a < x.e + TURN && b + TURN > x.s); }
+  function planner(disabled) {
+    let h = '';
+    for (let t = OPEN; t < CLOSE; t += STEP) {
+      const busy = BUSY.some((b) => t >= b.s && t < b.e), turn = BUSY.some((b) => t >= b.e && t < b.e + TURN);
+      const inSel = st.start != null && t >= st.start && t < (st.end ?? st.start + STEP);
+      const offered = inSel && st.end != null && t < st.start + st.offered;
+      let tag = '';
+      if (busy && t === BUSY[0].s) tag = BUSY[0].who;
+      if (turn && t === BUSY[0].e) tag = 'Remise en état';
+      if (inSel && t === st.start) tag = st.end ? hhmm(st.start) + ' → ' + hhmm(st.end) : 'Début · choisir la fin';
+      const cls = 'slot' + (t >= EVE ? ' eve' : '') + (busy ? ' busy' : turn ? ' turn' : '') + (inSel ? ' sel' : '') + (offered ? ' off' : '');
+      const live = !disabled && !busy && !turn;
+      h += '<div class="' + cls + '"' + (live ? ' role="button" tabindex="0" data-t="' + t + '"' : '') + ' aria-label="' + hhmm(t) + '"><span class="h">' + hhmm(t) + '</span><span class="tag">' + tag + '</span></div>';
+    }
+    return '<div class="planner">' + h + '</div><div class="legend"><span><i style="background:var(--primary-soft)"></i>Réservé</span><span><i style="background:var(--honey-soft)"></i>Offert</span><span><i style="background:#ECE6DA"></i>Pris</span><span><i style="background:var(--honey);border-radius:50%;width:6px;height:6px"></i> Tarif du soir</span></div>';
+  }
+  function bindPlanner(root) {
+    root.querySelectorAll('.slot[data-t]').forEach((d) => {
+      const t = Number(d.dataset.t);
+      const pick = () => {
+        if (st.start == null || st.end != null || t < st.start) { st.start = t; st.end = null; st.offered = 0; }
+        else { const end = t + STEP; if (end - st.start >= MIN && !overlaps(st.start, end)) st.end = end; else if (end - st.start < MIN) st.end = st.start + MIN; else { st.start = t; st.end = null; } }
+        render();
+      };
+      d.onclick = pick;
+      d.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+    });
+  }
+
+  function bookingScreen() {
+    const p = price();
+    const lock = st.saved;
+    const priceBox = !p ? '<div class="price-box"><div class="empty">Créneau à choisir dans le planning</div></div>'
+      : '<div class="price-box"><div class="price-head"><span style="white-space:nowrap">' + hhmm(st.start) + ' → ' + hhmm(st.end) + ' · ' + dur(p.length) + '</span><span class="grid">Tarif extérieur</span></div>' + priceLines(p, !lock) +
+        '<div class="total"><span>Total TTC</span><span class="v">' + fmt(p.total) + '</span></div><div class="vat">dont TVA ' + VAT + ' % : ' + fmt(p.vat) + ' · HT ' + fmt(p.net) + '</div></div>';
+    const pay = '<div class="sec"><div class="sec-t">Paiement</div>' +
+      '<span class="seg2" role="group" aria-label="Moment du paiement"><button type="button" data-when="arrival" aria-pressed="' + (st.payWhen === 'arrival') + '"' + (lock ? ' disabled' : '') + '>À l\'arrivée</button><button type="button" data-when="now" aria-pressed="' + (st.payWhen === 'now') + '"' + (lock || !p ? ' disabled' : '') + '>Maintenant</button></span>' +
+      (st.payWhen === 'arrival' ? '<div class="hint">Le paiement et la facture se feront dans le sas d\'arrivée, le jour de la séance.</div>' : methodChips(lock, false) + '<div class="field" style="max-width:220px"><label for="paidAt">Date du paiement</label><input class="input" id="paidAt" type="date" value="2026-11-09"' + (lock ? ' disabled' : '') + '></div>') +
+      '</div>' + (st.payWhen === 'now' ? '<div class="sec"><div class="sec-t">Facture</div>' + (p ? invoiceBlock(p) : '') + '</div>' : '');
+    const saved = lock ? '<div class="callout ok">' + ICON.ok + '<div><b>Réservation enregistrée</b>, à encaisser à l\'arrivée. Elle apparaît dans « Sur place ».<div class="act"><button class="btn outline sm" type="button" id="goArrive">Aller à l\'arrivée</button></div></div></div>' : '';
+    const okSave = p && st.ln.trim();
+    const label = st.payWhen === 'now' && st.method && st.invoice && st.qonto === 'on' && !(st.method === 'cash' && st.internal) ? 'Enregistrer et facturer' : 'Enregistrer';
+    return '<div class="dlg" role="dialog" aria-labelledby="dlgT"><div class="dlg-head"><div class="t" id="dlgT">' + (lock ? 'Réservation · Bain nordique' : 'Nouvelle réservation') + '</div><div class="s">Bain nordique · 11:00–22:00 · Min 60 min · Remise en état 30 min</div></div>' +
+      '<div class="dlg-body"><div style="grid-area:left;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="field"><label for="date">Date</label><input class="input" id="date" type="date" value="2026-11-09"' + (lock ? ' disabled' : '') + '></div>' + planner(lock) + '</div>' +
+      '<div class="price" style="grid-area:price;min-width:0">' + priceBox + '</div>' +
+      '<div style="grid-area:form;min-width:0;display:flex;flex-direction:column;gap:14px">' + saved +
+        '<div class="sec"><div class="sec-t">Client</div><div class="row2"><div class="field"><label for="ln">Nom *</label><input class="input" id="ln" value="' + esc(st.ln) + '"' + (lock ? ' disabled' : '') + '></div><div class="field"><label for="fn">Prénom</label><input class="input" id="fn" value="' + esc(st.fn) + '"' + (lock ? ' disabled' : '') + '></div></div>' +
+        '<div class="field"><label for="ph">Téléphone</label><input class="input" id="ph" value="' + esc(st.ph) + '" inputmode="tel"' + (lock ? ' disabled' : '') + '></div></div>' + pay +
+      '</div></div>' +
+      '<div class="dlg-foot">' + (lock ? '<button class="btn primary" type="button" id="closeB">Fermer</button>' : '<button class="btn text" type="button" id="cancelB">Annuler</button><button class="btn primary" type="button" id="saveB"' + (okSave ? '' : ' disabled') + '>' + label + '</button>') + '</div></div>';
+  }
+  function bindBooking(root) {
+    bindPlanner(root); bindOffer(root); bindChips(root); bindInvoice(root);
+    root.querySelectorAll('[data-when]').forEach((b) => b.onclick = () => { st.payWhen = b.dataset.when; if (st.payWhen === 'arrival') { st.method = null; st.invoice = false; } render(); });
+    ['ln', 'fn', 'ph'].forEach((id) => { const i = root.querySelector('#' + id); if (i) i.oninput = () => { st[id] = i.value; const s = $('saveB'); if (s) s.disabled = !(price() && st.ln.trim()); }; });
+    const save = root.querySelector('#saveB');
+    if (save) save.onclick = () => {
+      st.saved = true; flow(0);
+      if (st.payWhen === 'now' && st.method) { st.paid = true; st.paidMethod = st.method; if (st.invoice && st.qonto === 'on' && !(st.method === 'cash' && st.internal)) issueInvoice(); }
+      render();
+    };
+    const c = root.querySelector('#cancelB'); if (c) c.onclick = () => resetAll();
+    const g = root.querySelector('#goArrive'); if (g) g.onclick = () => setTab('arrive');
+    const cl = root.querySelector('#closeB'); if (cl) cl.onclick = () => setTab('arrive');
+  }
+
+  // ---- screen 2: arrival ----
+  function dayList() {
+    const p = price();
+    if (!st.saved || !p) return '<div class="dlg"><div class="empty-stage">Aucune réservation de bain aujourd\'hui. Commencer par l\'onglet « Au téléphone ».</div></div>';
+    const status = st.paid ? '<span class="badge ok"><span class="dot"></span>Payé ' + methodLabel(st.paidMethod) + (st.invoiceState === 'issued' ? ' · F-2026-0142' : '') + '</span>'
+      : st.arrived ? '<span class="badge due"><span class="dot"></span>Arrivé · à encaisser</span>' : '<span class="badge due"><span class="dot"></span>À encaisser</span>';
+    return '<div class="dlg"><div class="dlg-head"><div class="t">Ressources · lundi 9 novembre</div><div class="s">Bain nordique</div></div><div class="arr-body"><div class="cards">' +
+      '<div class="pcard"><div><div class="who">' + esc((st.fn + ' ' + st.ln).trim()) + ' · client extérieur</div><div class="when">' + hhmm(st.start) + ' → ' + hhmm(st.end) + ' · ' + fmt(p.total) + '</div></div><div class="rt">' + status + '<button class="btn primary sm" type="button" id="openArr">' + (st.arrived ? 'Voir l\'arrivée' : 'Arrivée') + '</button></div></div>' +
+      '<div class="pcard" style="opacity:.6"><div><div class="who">Séjour La Granja · Durand</div><div class="when">14:00 → 16:00 · séances du séjour, dans son propre sas</div></div></div>' +
+      '</div></div></div>';
+  }
+  function arrivalScreen() {
+    const p = price();
+    const ro = st.arrived && (st.invoiceState === 'issued' || st.paid);
+    const done = st.arrived;
+    const payNote = st.paid ? '<div class="callout ok">' + ICON.ok + '<div><b>Encaissé</b> : ' + methodLabel(st.paidMethod) + ', ' + fmt(p.total) + ', le 09/11.</div></div>'
+      : (done && st.method === 'later' ? '<div class="callout warn">' + ICON.clock + '<div>Client arrivé, <b>séance à encaisser</b>. Elle reste signalée au planning jusqu\'au paiement.</div></div>' : '');
+    return '<div class="dlg" role="dialog" aria-labelledby="arrT"><div class="dlg-head"><div class="t" id="arrT">Arrivée · ' + esc((st.fn + ' ' + st.ln).trim()) + '</div><div class="s">Bain nordique · client sans séjour</div></div>' +
+      '<div class="arr-total"><span>Total TTC</span><span class="v">' + fmt(p.total) + '</span></div>' +
+      '<div class="arr-body">' +
+        '<div class="arr-sec"><div class="arr-t">Sa séance</div><div class="price-box"><div class="price-head"><span style="white-space:nowrap">Lundi 9 nov. · ' + hhmm(st.start) + ' → ' + hhmm(st.end) + ' · ' + dur(p.length) + '</span><span class="grid">Tarif extérieur</span></div>' + priceLines(p, !ro && !st.paid) + '<div class="vat" style="margin-top:6px">dont TVA ' + VAT + ' % : ' + fmt(p.vat) + ' · HT ' + fmt(p.net) + '</div></div></div>' +
+        '<div class="arr-sec"><div class="arr-t">Paiement</div>' + (st.paid ? payNote : methodChips(false, true) + payNote) + '</div>' +
+        '<div class="arr-sec"><div class="arr-t">Facture</div>' + invoiceBlock(p) + '</div>' +
+      '</div>' +
+      '<div class="dlg-foot">' + (done ? '<button class="btn primary" type="button" id="backList">Fermer</button>' : '<button class="btn text" type="button" id="backList">Annuler</button><button class="btn primary" type="button" id="validate"' + (st.method ? '' : ' disabled') + '>Valider l\'arrivée</button>') + '</div></div>';
+  }
+  function bindArrival(root) {
+    bindOffer(root); bindChips(root); bindInvoice(root);
+    const v = root.querySelector('#validate');
+    if (v) v.onclick = () => {
+      st.arrived = true; flow(1);
+      if (st.method && st.method !== 'later') { st.paid = true; st.paidMethod = st.method; if (st.invoice && st.qonto === 'on' && !(st.method === 'cash' && st.internal)) { issueInvoice(); return; } }
+      render();
+    };
+    const b = root.querySelector('#backList'); if (b) b.onclick = () => { st.arrivalOpen = false; render(); };
+    const o = root.querySelector('#openArr'); if (o) o.onclick = () => { st.arrivalOpen = true; render(); };
+  }
+
+  // ---- render ----
+  function flow(n) { document.querySelectorAll('#flow .step').forEach((s) => s.classList.toggle('lit', Number(s.dataset.s) === n)); }
+  function render() {
+    const scr = $('screen');
+    if (st.tab === 'book') { scr.innerHTML = bookingScreen(); bindBooking(scr); }
+    else if (st.arrivalOpen && st.saved && price()) { scr.innerHTML = arrivalScreen(); bindArrival(scr); }
+    else { scr.innerHTML = dayList(); bindArrival(scr); }
+  }
+  function setTab(t) {
+    st.tab = t; if (t === 'arrive' && st.saved && !st.paid) st.arrivalOpen = false;
+    document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.t === t)));
+    if (t === 'arrive' && st.saved && !st.arrived) { st.method = null; st.invoice = false; }
+    render();
+  }
+  document.querySelectorAll('.tab').forEach((b) => b.onclick = () => setTab(b.dataset.t));
+  function seg(id, after) {
+    const el = $(id);
+    el.querySelectorAll('button').forEach((b) => b.onclick = () => { el.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); after(b.dataset.v); });
+  }
+  seg('segDevice', (v) => $('device').classList.toggle('mobile', v === 'mobile'));
+  seg('segQonto', (v) => { st.qonto = v; render(); });
+  seg('segAddr', (v) => { st.addrRule = v; render(); });
+  function resetAll() { const keep = { qonto: st.qonto, addrRule: st.addrRule }; st = Object.assign(fresh(), keep); flow(-1); setTab('book'); }
+  $('resetBtn').onclick = resetAll;
+  render();
+
+  // ---- open questions ----
+  const ARB = [
+    { id: 'Q9', q: 'Paiement proposé par défaut à la réservation', why: 'Au téléphone, le client paie presque toujours sur place.', o: [['À l\'arrivée', 'Le paiement et la facture se font dans le sas d\'arrivée.', true], ['Maintenant', 'Le moyen de paiement est demandé dès la réservation.']] },
+    { id: 'Q10', q: 'Le sas d\'arrivée peut-il changer le créneau ?', why: 'Un client en retard, ou qui veut prolonger : on peut lui offrir du temps dans le sas. Faut-il aussi pouvoir déplacer ou allonger son créneau à cet endroit ?', o: [['Non, seulement le temps offert', 'Pour changer le créneau, on rouvre la réservation, où le planning contrôle les conflits.', true], ['Oui, le créneau aussi', 'Le sas affiche alors le planning du jour, ce qui l\'alourdit.']] },
+  ];
+  const picks = {}; ARB.forEach((a) => { picks[a.id] = a.o.findIndex((o) => o[2]); });
+  function renderArb() {
+    const box = $('arb'); box.innerHTML = '';
+    ARB.forEach((a) => {
+      const p = document.createElement('div'); p.className = 'panel';
+      p.innerHTML = '<div class="q">' + a.id + ' · ' + a.q + '</div><div class="why">' + a.why + '</div>';
+      const opts = document.createElement('div'); opts.className = 'opts';
+      a.o.forEach((o, i) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'opt';
+        b.setAttribute('aria-pressed', String(picks[a.id] === i));
+        b.innerHTML = '<b>' + o[0] + '</b>' + (o[2] ? '<span class="rec">recommandé</span>' : '') + '<small>' + o[1] + '</small>';
+        b.onclick = () => { picks[a.id] = i; renderArb(); };
+        opts.appendChild(b);
+      });
+      p.appendChild(opts); box.appendChild(p);
+    });
+    $('exportTxt').value = 'Arbitrages v2 — bain nordique hors séjour\n' + ARB.map((a) => a.id + ' ' + a.q + ' : ' + a.o[picks[a.id]][0]).join('\n');
+  }
+  renderArb();
+  $('copyBtn').onclick = async () => {
+    const t = $('exportTxt');
+    try { await navigator.clipboard.writeText(t.value); } catch (e) { t.select(); document.execCommand('copy'); }
+    $('toast').textContent = 'Copié.'; setTimeout(() => { $('toast').textContent = ''; }, 2000);
+  };
+})();
+</script>
+</body>
+</html>

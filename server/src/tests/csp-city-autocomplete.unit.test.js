@@ -15,8 +15,9 @@ test('rule 12 — connect-src is self plus the exact commune lookup origin', () 
 test('rule 12 — every cross-origin fetch of the client forms targets an allowed origin', () => {
   const { directives } = buildHelmetOptions({ isProduction: true, httpsEnabled: true }).contentSecurityPolicy;
   const allowed = directives.connectSrc.filter((o) => o.startsWith('https://'));
-  for (const page of ['ReservationPage.jsx', 'ClientsPage.jsx']) {
-    const source = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'client', 'src', 'pages', page), 'utf8');
+  // specs/resource-booking-pricing-and-invoicing.md rule 27 — the lookup the two forms used is one shared hook now.
+  for (const page of ['hooks/usePostalCodeCities.js']) {
+    const source = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'client', 'src', page), 'utf8');
     const origins = [...source.matchAll(/fetch\(`(https:\/\/[^/`]+)/g)].map((m) => m[1]);
     assert.ok(origins.length > 0, `${page} still fetches the commune lookup`);
     for (const origin of origins) assert.ok(allowed.includes(origin), `${page}: ${origin} is allowed by connect-src`);

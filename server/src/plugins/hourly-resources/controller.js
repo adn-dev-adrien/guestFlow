@@ -19,7 +19,12 @@ const isIsoDate = (value) => typeof value === 'string' && ISO_DATE_RE.test(value
 // Only a number or its digits: Number([1]) is 1, Number({toString:1}) throws.
 const wholeNumber = (value) => (typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN);
 
-function createController({ bookings: model, scheduling, planningCards, reservations }) {
+function createController({ bookings: model, scheduling, planningCards, reservations, invoicing }) {
+  // Rule 2 — whether an invoice can be made now: the server's answer, never guessed by the screen.
+  const invoiceReady = () => sdk.coreModule('invoiceIssuers').ready();
+  const withReady = (booking) => (booking ? { ...booking, invoiceReady: invoiceReady() } : booking);
+  const fail = (res, result) => res.status(result.status).json({ error: result.error, ...(result.code ? { code: result.code } : {}) });
+
   function planningEvents(req, res) {
     const { from, to } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from and to required' });
@@ -51,7 +56,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   function getOne(req, res) {
     const booking = model().findById(req.params.id);
     if (!booking) return res.status(404).json({ error: 'Non trouvée' });
-    return res.json(booking);
+    return res.json(withReady(booking));
   }
 
   function create(req, res) {
@@ -67,19 +72,76 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   function preview(req, res) {
     const result = model().priceBooking(req.body || {});
     if (result.error) return res.status(result.status).json({ error: result.error });
-    return res.json(result);
+    return res.json({ ...result, invoiceReady: invoiceReady() });
   }
 
   function update(req, res) {
     const result = model().update(req.params.id, req.body);
-    if (result.error) return res.status(result.status).json({ error: result.error });
+    if (result.error) return fail(res, result);
     return res.json({ ok: true, totalPrice: result.totalPrice, warning: result.warning });
   }
 
   function remove(req, res) {
     const result = model().remove(req.params.id);
-    if (result.error) return res.status(result.status).json({ error: result.error });
+    if (result.error) return fail(res, result);
     return res.json({ ok: true });
+  }
+
+  // specs/resource-booking-pricing-and-invoicing.md rules 11-12 — POST/DELETE /:id/payment.
+  function recordPayment(req, res) {
+    const body = req.body || {};
+    const result = model().recordPayment(req.params.id, { tenders: body.tenders, paidAt: body.paidAt });
+    if (result.error) return fail(res, result);
+    return res.json(withReady(model().findById(req.params.id)));
+  }
+
+  function clearPayment(req, res) {
+    const result = model().clearPayment(req.params.id);
+    if (result.error) return fail(res, result);
+    return res.json(withReady(model().findById(req.params.id)));
+  }
+
+  /**
+   * Rules 28-31 — POST /:id/arrival `{ offeredMinutes?, payment: { tenders, paidAt } | null, invoice?, billing? }`. The
+   * arrival and the payment are committed first; the invoice is asked after, and its refusal never undoes them
+   * (rule 25): `{ booking, invoice: { ok, number } | { ok: false, code, error } | null }`.
+   */
+  async function arrival(req, res) {
+    const body = req.body || {};
+    if (body.payment !== undefined && body.payment !== null && (typeof body.payment !== 'object' || Array.isArray(body.payment))) {
+      return res.status(400).json({ error: 'Paiement invalide.' });
+    }
+    const result = model().recordArrival(req.params.id, {
+      offeredMinutes: body.offeredMinutes, payment: body.payment || null, billing: body.billing,
+    });
+    if (result.error) return fail(res, result);
+    let invoice = null;
+    if (body.invoice === true) {
+      const issued = await invoicing().issue(req.params.id);
+      invoice = issued.error ? { ok: false, code: issued.code || null, error: issued.error } : { ok: true, number: issued.invoice.number };
+    }
+    return res.json({ booking: withReady(model().findById(req.params.id)), invoice });
+  }
+
+  // Rules 13-16 — POST /:id/invoice `{ billing? }`: the address typed after a refusal goes with the retry.
+  async function issueInvoice(req, res) {
+    const body = req.body || {};
+    if (body.billing !== undefined) {
+      const stored = model().recordArrivalBilling(req.params.id, body.billing);
+      if (stored && stored.error) return fail(res, stored);
+    }
+    const result = await invoicing().issue(req.params.id);
+    if (result.error) return fail(res, result);
+    return res.json(withReady(model().findById(req.params.id)));
+  }
+
+  // Rules 18-19 — POST /:id/invoice/attach `{ transactionId? }`.
+  async function attachInvoice(req, res) {
+    const body = req.body || {};
+    const transactionId = typeof body.transactionId === 'string' && body.transactionId.trim() ? body.transactionId.trim() : null;
+    const result = await invoicing().attach(req.params.id, { transactionId });
+    if (result.error) return fail(res, result);
+    return res.json(withReady(model().findById(req.params.id)));
   }
 
   /**
@@ -154,6 +216,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
 
   return {
     planningEvents, occupiedSlots, list, getOne, create, preview, update, remove,
+    recordPayment, clearPayment, arrival, issueInvoice, attachInvoice,
     freeSlots, resourceCards, setResourceCardDone,
   };
 }
