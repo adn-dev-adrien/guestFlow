@@ -280,7 +280,7 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     same way (`prepare({ reservationId, target })`): the line would point at a receipt no longer expected. In both
     cases « Défaire » the reconciliation first, record the payment, confirm the credit again on its new receipt.
 44. **The acompte and the installments are paid whole (R34-M-M1 / R34-S1, refusal first).** They are the money a
-    cancellation keeps and requalifies (reservation-refunds rule 55, D8). Paid with several methods, the acompte goes
+    cancellation keeps and requalifies ([payment-schedule-and-cancellation.md](payment-schedule-and-cancellation.md) rule 55, D8). Paid with several methods, the acompte goes
     on the books whole or in the caisse interne whole, for its whole amount; an installment goes on the books whole (it
     has no caisse interne), for its whole amount. Refused 400 `field: 'tenders'`: « Acompte : tout en compta ou tout en
     caisse interne. », « Acompte : le montant entier, sans reste ni geste. », « Échéance : pas de caisse interne. »,

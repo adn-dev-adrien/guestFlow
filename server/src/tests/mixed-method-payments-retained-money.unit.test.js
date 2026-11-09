@@ -1,7 +1,7 @@
-// specs/mixed-method-payments.md rules 44, 46 (audit R34-M-M1 / R34-S1) — the acompte and the installments are the money
-// a cancellation keeps and requalifies (reservation-refunds rule 55, D8): paid with several methods, they go on the books
-// whole or in the caisse whole, for their whole amount. And a solde paid partly in the caisse interne gives its caisse
-// share back in the caisse interne once the stay is cancelled.
+// specs/mixed-method-payments.md rules 44, 46 (audit R34-M-M1 / R34-S1) — the acompte and the installments are the
+// money a cancellation keeps and requalifies (payment-schedule-and-cancellation rule 55, D8): paid with several methods,
+// they go on the books whole or in the caisse whole, for their whole amount. And a solde paid partly in the caisse
+// interne gives its caisse share back in the caisse interne once the stay is cancelled.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
