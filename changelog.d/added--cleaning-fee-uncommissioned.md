@@ -1,0 +1,1 @@
+- Tariff recipes: a platform cleaning fee can be declared uncommissioned (`feeCommissioned: false`) and is then shown at its net (`specs/tariff-recipe-platform-cleaning-fee.md` rule 14).

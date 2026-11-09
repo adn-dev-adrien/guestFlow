@@ -1,0 +1,1 @@
+- Gîte recipe `gite-2027` 3.8.0: Gîtes de France becomes a channel of the recipe — its ménage is billed apart at 80 €, passed through without commission, so the « Prix plateformes » grid shows 80 € (`specs/tariff-recipe-gite/spec.md` rules 2 and 14ter).

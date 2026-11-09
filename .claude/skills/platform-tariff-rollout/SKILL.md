@@ -1,6 +1,6 @@
 ---
 name: platform-tariff-rollout
-description: Roll a GuestFlow tariff recipe out to the booking platforms (Lodgify, Abracadaroom/UnicStay, GreenGo) and prove the result with comparable guest-side quotes and a self-contained verification page. Use when prices, degressivity, extra-guest rules, seasons, closures or listing titles change and the channels must follow, or when an operator asks what a platform is actually charging.
+description: Roll a GuestFlow tariff recipe out to the booking platforms (Airbnb, Booking, Abritel, GreenGo, Abracadaroom/UnicStay, Gîtes de France via ITEA) and prove the result with comparable guest-side quotes and a self-contained verification page. Use when prices, degressivity, extra-guest rules, seasons, closures or listing titles change and the channels must follow, or when an operator asks what a platform is actually charging.
 ---
 
 # Rolling a tariff recipe out to the platforms
@@ -58,7 +58,9 @@ outcome of the whole job. Non-negotiable:
   (Answered 2026-08-13: **the net target always wins**; round up rather than undershoot.)
 - **Internal costs** such as the welcome pack: financed by the displayed price but never shown.
   (Answered: keep the direct price unchanged, never display the pack anywhere.)
-- **Which channels are real.** Gîtes de France was in the spec and does not exist.
+- **Which channels are real.** Read them from the property's iCal sources, not from a spec. Gîtes de
+  France is one of them for the Gîte (Bureau Propriétaire ITEA, `prop.itea.fr`) and is rolled out like
+  the others since 2026-11-09 — it had been left out, and a recipe change reached every channel but it.
 - **All-inclusive means the fees must actually be removed**, on every platform, in every guise:
   mandatory fee, optional extra, and "compulsory supplement". Missing one costs the guest real money
   and makes the quote unreadable — GreenGo was still adding 46 € after the rest was correct.

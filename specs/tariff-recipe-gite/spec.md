@@ -54,11 +54,20 @@ a calendar.
    own degressivity curve against the 15 Gîtes-de-France stays on record — 288 / 302 / 341 / 413 €,
    residual 48,84 € ([étude §3](etude.md)). _(Owner's call, 2026-08-28: « tu calcules ce que je gagne
    avec Gîte de France et ça devient la référence […] je ne veux jamais descendre en dessous ».)_
-2. **Gîtes de France keeps the prices it charges today, and nothing is configured on that channel.**
-   Grossed up from the floor at its 10 %, it comes out at 320 / 336 / 379 / 459 / 937 / 1 009 € — the
-   constraint the whole grid is anchored on. _(Owner, 2026-08-28: « je ne veux pas toucher au tarif
-   sur Gîtes de France, et c'est eux qui doivent régir tout le reste ».)_ The rollout therefore
-   touches Lodgify, GreenGo and Abracadaroom, never Gîtes de France.
+2. **Gîtes de France follows the recipe like every other channel.** Its grid is the recipe quoted by
+   the engine at its 10 % — 320 / 336 / 379 / 459 / 937 / 1 009 € a night before degressivity — and
+   it is configured on ITEA like the other channels (rule 14ter). _(Owner, 2026-10-30: « il faut que
+   tu rentres Gîtes de France dans ce process de mise à jour tarifaire » ; 2026-11-09: « c'est ok pour
+   que tu appliques l'ensemble de ce tableau ».)_ Until then the rule read « nothing is configured on
+   that channel » _(owner, 2026-08-28)_, on the belief that ITEA already sold at the floor. **It did
+   not**: the inventory of 2026-10-30
+   ([docs/tarifs/2026-10-30-gite-gites-de-france-etat-des-lieux.html](../../docs/tarifs/2026-10-30-gite-gites-de-france-etat-des-lieux.html))
+   found ITEA at 504 € for two winter nights against 640 € for the recipe (+27 % from November to
+   March, +3 to +7 % in spring and autumn, flat in summer, the festive weeks priced as one block), its
+   price history untouched since 2025-12-25. The floor of rule 1 was measured on Gîtes de France
+   **payouts, which include the options** (ménage 80 €, linen) — the rent alone nets less. The floor
+   stays where it is; the owner chose to raise Gîtes de France to it rather than lower every other
+   channel.
 3. **Every channel is grossed up from the floor**, `ceil(net ÷ (1 − commission))`. Existing behaviour
    of [platform-price-from-commission](../platform-price-from-commission.md); the recipe only supplies
    the pivot it was missing.
@@ -337,6 +346,25 @@ only form Lodgify, Booking, GreenGo and Abracadaroom accept:
     being a public holiday, this needed the engine to stop folding the season minimum back in over a
     period's own ([tariff-recipes §3.3 rule 19bis](../tariff-recipes/spec.md)). The figures in rule
     13ter are those of the 2026-08-28 version — the recipe file is the source for current prices.
+14ter. **Gîtes de France is configured on ITEA from the engine, arrival date by arrival date.**
+    _(Applied 2026-11-09 to every arrival from 10/11/2026 to 31/12/2027: 3 327 prices, 90 closures,
+    zero mismatch on re-reading.)_ ITEA prices a stay by arrival date and length, not by season:
+    - **2 to 7 nights** — the engine's quote for that stay with every season at its Gîtes de France
+      price, rounded up to the euro. **1 night** takes the 2-night price (ITEA's own convention; the
+      length is closed anyway). **« Nuit supp »** — the single rate ITEA applies to every night past
+      the 7th — is the average of nights 8 to 14, not the 8th night alone: from 24 December the 8th
+      night is the réveillon, and its 937 € would otherwise be charged for every further night.
+      Stays of 8 nights and more are then totalled by ITEA itself.
+    - **Minimum stay: the higher of the two, date by date.** _(Owner, 2026-10-30: « tu prends les
+      plus élevés dans tous les cas ».)_ A length the recipe refuses is closed on ITEA (Très haute at
+      4 nights, the 3-night « ponts »); a length ITEA already refuses — the 3-night school-holiday
+      minimums set by the centrale on 2025-10-01 — is never reopened.
+    - **The ménage stays a separate ITEA option at 80 €**, passed through without commission
+      (Gîtes de France takes 10 % of the rent only, rounded to the euro: measured on 13 settled files).
+      The recipe declares it as an uncommissioned cleaning fee
+      ([tariff-recipe-platform-cleaning-fee §3.5 rule 14](../tariff-recipe-platform-cleaning-fee.md)), so
+      the « Prix plateformes » grid shows 80 €. Recipe 3.8.0.
+    - Arrivals past the recipe's horizon (1–7 January 2028) are left as ITEA had them.
 
 ### 3.4 Stay constraints
 

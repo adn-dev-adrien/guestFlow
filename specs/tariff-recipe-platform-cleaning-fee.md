@@ -98,6 +98,16 @@ The recipe declares what a ménage costs and which channels bill it as a separat
     Direct row of the grid, rule 10's edge case) blocks the apply with « Le canal direct ne facture pas
     de frais de ménage plateforme : <nom> » — it would be stored and never shown.
 
+### 3.5 Added 2026-11-09 — a fee the channel does not commission
+
+14. **An entry may say its fee is not commissioned.** `feeCommissioned: false` (optional boolean,
+    default `true`) means the channel passes the cleaning fee through untouched: the grid shows the net
+    itself, `ceil(net)`, instead of grossing it up at the channel's commission. Gîtes de France is the
+    case: its 10 % is taken on the rent only, the « Forfait ménage » option is reversed in full, so the
+    Gîte's 80 € ménage is configured at 80 €, not 89 €. The flag is stored only when `false`, so fees
+    stored before it existed keep their exact shape; flipping it is a change in the sense of rule 11
+    even when the net is unchanged.
+
 **Edge cases:**
 - `chargesCleaning: false` and `choresMinutes: 0` → net 0 → fee 0 €, shown as « 0 € » (declared, not
   absent).
@@ -114,12 +124,12 @@ The recipe declares what a ménage costs and which channels bill it as a separat
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `utils/` | `tariffRecipe.js` | T | Validates the `cleaning` block (rules 1–3). |
-| `utils/` | `platformCleaningFee.js` | C | Pure: net to recover per entry (rule 5); stored-vs-desired diff (rule 11). |
+| `utils/` | `tariffRecipe.js` | T | Validates the `cleaning` block (rules 1–3), and `feeCommissioned` (rule 14). |
+| `utils/` | `platformCleaningFee.js` | C | Pure: net to recover per entry (rule 5); stored-vs-desired diff (rule 11), the commission flag included (rule 14). |
 | `models/` | `tariffRecipeModel.js` | T | Apply: resolves platforms, blocks on unknown or own channel (rules 6, 13), diffs stored fees and counts them as a change (rule 11), writes on both paths (rules 4, 7). |
-| `models/` | `propertiesModel.js` | T | `setPlatformCleaningFees`; `platformPrices` serves `cleaningFee` + detail (rules 8–9). |
+| `models/` | `propertiesModel.js` | T | `setPlatformCleaningFees`; `platformPrices` serves `cleaningFee` + detail (rules 8–9), net when uncommissioned (rule 14). |
 | `database.js` | `database.js` | T | Idempotent `properties.platformCleaningFees TEXT DEFAULT '[]'`. |
-| `recipes/` | `gite-2027.json` | T | 3.6.0 — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }. |
+| `recipes/` | `gite-2027.json` | T | 3.6.0 — `cleaning` { 80, 25, Airbnb charges cleaning, 55 min }; 3.8.0 adds Gîtes de France, ménage only, uncommissioned (rule 14). |
 | `recipes/` | `aventura-lodge-2026.json` | T | 1.2.0 — `cleaning` { 30, 25, Airbnb chores only, 25 min }. |
 | `tests/` | `tariff-recipe-platform-cleaning-fee.unit.test.js` | C | Rules 1–9, including 122 € and 13 €. |
 
@@ -183,6 +193,12 @@ change (the card has no action).
 
 Eight existing suites build their own `properties` table: they gain the `platformCleaningFees` column,
 and the three that apply a shipped recipe gain a `platforms` table with Airbnb.
+
+### Server unit tests — `tariff-recipe-cleaning-uncommissioned.unit.test.js` (3 tests, rule 14)
+
+- `feeCommissioned` must be a boolean when present; absent keeps today's behaviour.
+- The grid shows Gîtes de France at 80 € (net) and Airbnb still at 122 € (grossed up).
+- Flipping the flag is a change even with the same net.
 
 ### Client unit tests
 - [x] `PlatformPriceCard.cleaning-fee.test.jsx` (2) — column present with a fee (value, net, make-up), absent without; « — » for a channel without one.
