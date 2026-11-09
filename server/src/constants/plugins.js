@@ -68,6 +68,7 @@ const PLUGIN_PAGES = Object.freeze({
   '/finance/rapprochement': [ONLINE_PAYMENT],
   '/school-holidays': [SCHOOL_HOLIDAYS],
   '/parametres/recettes': [TARIFF_RECIPES],
+  '/commandes-app': [GUEST_APP],
   '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP],
 });
 
