@@ -35,7 +35,7 @@ const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
 const {
-  resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromiseDueDate, toIsoDay,
+  resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromisesOnePayment, devisPromiseDueDate, toIsoDay,
 } = require('./paymentSchedule');
 const { readInstallmentSummary } = require('./installmentSummary');
 const {
@@ -2682,11 +2682,14 @@ function calculateReservationQuote({
   // collects nothing before it is converted, so this outranks every branch below, platform included.
   const devisSinglePayment = String(quoteKind) === 'devis'
     && owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore: property.balanceDaysBefore });
-  // The reservation converted from such a devis keeps its single payment and its deadline for the dates
-  // quoted; moved, the stay takes the reservation rules. Last in the chain, like the last-minute switch.
+  // The reservation converted from such a devis, or from a devis stored with no acompte (rule 22, R34-RES-L2),
+  // keeps its single payment and its deadline for the dates quoted; moved, the stay takes the reservation rules.
+  // Last in the chain, like the last-minute switch.
   const keepsDevisPromise = String(quoteKind) !== 'devis' && !platformIsNonDirect && Boolean(devisPromise)
     && toIsoDay(devisPromise.startDate) === toIsoDay(startDate)
-    && owesSinglePaymentByValidity({ startDate, validUntil: devisPromise.validUntil, balanceDaysBefore: property.balanceDaysBefore });
+    && devisPromisesOnePayment({
+      startDate, validUntil: devisPromise.validUntil, balanceDaysBefore: property.balanceDaysBefore, depositAmount: devisPromise.depositAmount,
+    });
   if (devisSinglePayment) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = roundMoney(preArrivalAmount);

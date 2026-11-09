@@ -628,6 +628,13 @@ acompte is kept as an indemnity, and the books say so correctly.
     (specs/deposit-blocks-the-dates.md rule 20: re-stored at boot and after a logement save, its stale links
     withdrawn), so a conversion copies what the devis asks. One exception: an acompte link paid on columns that
     still held the acompte (before the re-store) converts at that stored split, the acompte paid.
+57. **A reservation keeps the single payment its devis promised** _(added 2026-11-09, audits R34-RES-L1 and
+    R34-RES-L2)_. Rule 5's amendment held « later saves keep it » for a rule-56 devis only. A direct devis
+    stored with no acompte owes one payment on `validUntil` too (specs/deposit-blocks-the-dates.md rule 7): its
+    converted stay now keeps that deadline across its saves while the arrival is the one quoted
+    (deposit-blocks-the-dates rule 22), and the devis carrying the promise cannot be deleted while its stay
+    exists (rule 21). A devis converted with an acompte outside the window is unchanged: the reservation rules
+    apply at its saves. Rows stored before this rule keep their columns; their next save keeps the promise.
 
 
 ---
@@ -827,6 +834,9 @@ One line per reservation:
 - [x] `tests/devis-single-payment-restore.unit.test.js` (6, 2026-11-09, audit R33 N1) — rule 56 amendment: the
       stored columns re-stored as the single payment, an acompte link paid before the re-store converts at the
       stored split (specs/deposit-blocks-the-dates.md rule 20).
+- [x] `tests/devis-converted-promise.unit.test.js` (6, 2026-11-09, audits R34-RES-L1, L2) — rule 57: the stay of
+      a no-acompte devis keeps its single payment across saves, the devis carrying the promise is not deletable
+      while its stay exists (specs/deposit-blocks-the-dates.md rules 21, 22).
 - [x] `tests/refund-before-cancellation.unit.test.js` (16 of 22, 2026-11-02) — rule 55: acompte 274 €, 100 €
       given back, then cancelled → 174 € kept (avoir, card, register); every 706 / 4457 / 4671 account, 75880000
       and the client account at 0 once the rest goes back; a paid solde absorbs the refund (274 € kept); a plan

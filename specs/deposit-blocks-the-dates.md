@@ -212,6 +212,29 @@ booking is settled by the platform and carries no such promise.
     open acompte link: the fiche read one payment of 400 €, the link stayed payable, and paying it booked the
     120 € on a 0 € acompte and asked 400 € as the solde.
 
+21. **A converted devis whose stay exists cannot be deleted** _(added 2026-11-09, audit R34-RES-L1)_. The
+    reservation reads the devis's promise (its single payment and its deadline, rules 19 and 22) on the devis
+    row; deleting that row returned the stay to the reservation rules at its next priced save, in silence.
+    `DELETE /api/devis/:id` on a devis whose `convertedReservationId` names a row that still exists answers
+    409 `DEVIS_HOLDS_PROMISE` « Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas
+    être supprimé. », nothing written and no link touched (judged with the CGV and money refusals, before any
+    link is deactivated). Once the stay is deleted the devis can be deleted again; an unconverted devis is not
+    judged. *Why:* devis +35 days, one payment of 772,80 € due 24/11, converted, then deleted: the stay's next
+    save asked an acompte of 229,68 € and moved its deadline to 14/11.
+
+22. **A converted devis with no acompte keeps its deadline for the dates quoted** _(added 2026-11-09, audit
+    R34-RES-L2)_. A direct devis stored with `depositAmount = 0` owes one payment due on `validUntil` (rule 7),
+    inside the rule-19 window or outside it (an « Acompte » switch off, as both production logements, or a 0 %
+    acompte). The conversion gives the stay that payment due on `validUntil` (never before the conversion day,
+    as rule 19's), and the reservation's live quote and saves keep it while its arrival is the one quoted
+    (engine input `devisPromise`, which reads the devis's stored acompte; `paymentSchedule.devisPromisesOnePayment`
+    is the one condition of the conversion and of the engine); moved elsewhere the stay takes the reservation
+    rules, moved back it keeps the promise again. A devis converted with an acompte outside the window keeps
+    the reservation rules at its saves (payment-schedule-and-cancellation rule 5 amendment). An OTA devis is not
+    judged. *Why:* a devis for a stay 103 days out, one payment due 24/11, converted: the first priced save of
+    the stay moved its deadline to start − 30 (21/01/2027) without a word, while an identical stay never
+    saved still read 24/11.
+
 ---
 
 ## 4. Architecture
@@ -368,6 +391,12 @@ summary needs no change: a 0 € acompte already renders as no acompte.
       withdraws, back to 30 the columns still agree; outside the window, converted and another logement's devis
       untouched; a legacy row with no validity date read on its backfill, like its link quote; the boot runs it
       before listening.
+- [x] `tests/devis-converted-promise.unit.test.js` (6, 2026-11-09, audits R34-RES-L1, L2) — rule 21: a converted
+      devis whose stay exists is refused (409 `DEVIS_HOLDS_PROMISE`), the stay's priced save keeps its single
+      payment, deletable once the stay is gone; rule 22: outside the window a no-acompte devis's stay keeps its
+      deadline at its conversion, live quote and priced save, takes start − 30 when moved and the promise again when
+      moved back, an expired one converted late owes from today, a devis converted with an acompte keeps the
+      reservation rules.
 
 ### Client tests
 - [x] `pages/__tests__/ReservationPage.new-devis-quote-kind.test.jsx` (6, 2026-11-09) — rule 19: « Nouveau
