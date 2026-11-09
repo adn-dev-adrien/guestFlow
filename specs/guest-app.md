@@ -99,7 +99,12 @@ is pushed every order.
    nor any other stay. The visitor mode reads no personal data at all.
 9. **Session end.** At its expiry the session is dead (401 `SESSION_EXPIRED`); the app reopens the stored link,
    or falls back to the lodging's visitor mode, keeping the booklet. A cancelled or deleted reservation, a
-   regenerated link and a lodging switched off kill their sessions on the next request.
+   regenerated link and a lodging switched off kill their sessions on the next request. After any such
+   re-exchange the app reads `/me` and `/lodging` again, so the screen shows the session it now holds (visitor
+   mode, or « Ce code n'est pas reconnu » when nothing on the device reopens one); a re-exchange that fails for
+   the network alone keeps the session on screen and the link on the device (review 2026-11-09). The link of
+   `/s/:token` is kept on the device **before** its exchange and forgotten only on `CODE_NOT_FOUND`: opened
+   without network, the page stays, says « Pas de réseau » and « Réessayer » runs the exchange again.
 9bis. **Where the link is given.** (a) The arrival SAS: while `guest-app` is active and the lodging enabled, its
    « Portail » step becomes « Mon séjour » — the QR of the stay link (« Flashez pour ouvrir Mon séjour : le portail,
    le livret, la boutique et le bain »), the gate keypad code, « Partager » (native share sheet, else « Copier le
@@ -179,7 +184,8 @@ is pushed every order.
     `X-Frame-Options: SAMEORIGIN`, so framing needs the guest host allowed on Soliomap's side (§9 Q8). The
     studio switch « Intégrer dans l'app » is off by default and is turned on only once Soliomap allows the guest
     host; while it is off the tile and the suggestion card open Soliomap in a new tab (with ↗) — decided by that
-    switch, not detected at runtime.
+    switch, not detected at runtime. The frame opens an address asked for only when it has Soliomap's own
+    origin (compared as `URL.origin`, not as a prefix), else Soliomap's home (review 2026-11-09).
 15bis. **One activity suggestion on the home.** Under the contextual highlight, a card « À faire pendant
     votre séjour » shows ONE dated event read from Soliomap's feed (`GET /api/activities`, the items that
     carry `startsOn` / `endsOn`, cached by the server for an hour): among the events still to come during the
@@ -221,7 +227,10 @@ is pushed every order.
     (server-side, accent-insensitive).
 21. **Offline.** The resolved booklet (texts + images at mobile size) is cached by the service worker on
     first load and readable without network (the domain has weak mobile coverage). The shop and the gate
-    always require the network and say so (« Connexion nécessaire »).
+    always require the network and say so (« Connexion nécessaire », the gate tile included — never « Accès en
+    préparation » for a read that failed offline). The worker's data cache keeps at most 200 photos, oldest
+    dropped first, and is emptied (the shell kept) once the device holds no stay any more — visitor mode or no
+    session: the page posts it a `purge` message (review 2026-11-09).
 
 ### 3.F In-stay shop
 
@@ -308,7 +317,9 @@ is pushed every order.
     or more hourly resources, in one order; each slot is validated against the others of the same order
     (they occupy the resource too). Removing a slot re-validates the others; the quote returns any session no
     longer bookable (past, taken, heating, staff) as `unavailable`, and a slot that was warm only thanks to a
-    removed or moved session is re-checked under rule 31.
+    removed or moved session is re-checked under rule 31. In the cart each unavailable session has its own
+    « Retirer » and blocks the order until removed; from the slot picker only the sessions still free go to the
+    cart (review 2026-11-09).
 30. **Ordering writes the planning.** A committed order adds its sessions to the stay's
     `reservation_resources` line (creating the line if the stay had none, raising its sold hours otherwise),
     so the session appears at once on Calendrier › Ressources, on the day's planning card, and on the
@@ -324,7 +335,9 @@ is pushed every order.
 
 32. **Cart.** Lives on the device (local UI state, persisted in `localStorage` for the session only). The
     total shown is **always** the server's answer to `POST /guest/orders/quote` — the client never adds
-    prices.
+    prices. A quote that fails leaves no total: the order button waits for a quote that succeeds. Adding to
+    the cart never goes past the article's bound: the product sheet's stepper counts what the cart already
+    holds (review 2026-11-09). The cart survives a reload of the app.
 33. **Two ways to pay, the guest chooses** at checkout (for a non-zero total):
     - **« Payer maintenant »** (card): the server creates the order `awaiting_payment` and a Qonto payment
       link of type `complement` for exactly its total, with the order's lines as VAT basket; the app
@@ -394,7 +407,11 @@ is pushed every order.
 38. **Order follow-up.** « Mes commandes » lists the stay's orders with status chips: *En attente de paiement*, *Payée*, *Sur votre note*, *Offerte* (0 €), *Payée · à rembourser* (`paid_conflict`), *Expirée*, *Abandonnée*; a second chip *Prévue {jour heure}* / *Livrée* for orders with a delivery, *Prête {jour heure}* / *Retirée* in
     pickup mode (rule 41bis). An
     unpaid card order shows « Paiement par carte en attente » and no preparation step until it is paid. The guest cannot cancel a
-    confirmed order from the app (« Contactez-nous » → booklet contact block).
+    confirmed order from the app (« Contactez-nous » → booklet contact block). The return from Qonto follows the
+    order without giving up on the network (tried again, waiting longer each time); after its try limit it says
+    the payment is not confirmed yet and offers « Vérifier à nouveau ». « Abandonner et revenir au panier » merges
+    the order's lines into the cart as it stands (review 2026-11-09). « Reprendre le paiement » is not offered: the
+    order payload carries no payment link (§9).
 
 ### 3.G Service hours — orders that need someone on site
 
@@ -515,7 +532,8 @@ is pushed every order.
 - Qonto disconnected → « Payer maintenant » hidden, « Ajouter à ma note » only.
 - Reservation from a platform with no client last name (rare iCal-only stay) → the fallback lookup is
   impossible; the stay link works as for any stay.
-- Stay cancelled mid-cart → next request 401, app back to visitor mode, cart cleared.
+- Stay cancelled mid-cart → next request 401, app back to visitor mode, cart cleared — on the device too — and the
+  service worker's offline data purged (rules 9, 21).
 - Operator places a bath session from the fiche while the guest looks at the picker → the guest's next
   quote / order sees it (`SLOT_TAKEN` if they picked that slot); no cache between the planning and the app.
 - Operator moves or deletes a session that came from an app order → the planning is the truth; the order
@@ -1037,7 +1055,7 @@ le nom et le numéro. »
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
   then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
 
-### Guest app client tests (Vitest, `apps/guest/src/__tests__/`, 46)
+### Guest app client tests (Vitest, `apps/guest/src/__tests__/`, 75)
 - [x] `HomePage.modules.test.jsx` (6) — rules 3, 5, 10, 11, 11bis, 13, 51: server tiles in order, gate « Accès en
   préparation » / absent outside, no shop tab without shop, visitor home, the highlight's words
 - [x] `ShopPage.free-states.test.jsx` (6) — rules 25, 27, 32, 37quater, 42: included / free chips, « Épuisé » without
@@ -1049,10 +1067,23 @@ le nom et le numéro. »
 - [x] `AppShell.night.test.jsx` (4) — §6.1, rules 19, 53: day / server night / device dark, the guest's choice kept, EN
 - [x] `session.reexchange.test.jsx` (5) — rules 1, 4, 9, 22: the stay link kept, a dead session reopened once, a stale
   link forgotten, the poster's visitor fallback, « Application indisponible »
-- [x] `sw.offline.test.js` (5) — rule 21: the service worker run without network: the booklet, `/me` and `/lodging`
-  from the cache, the photos stale-while-revalidate, the shell offline; the shop, orders, gate and sessions never cached
+- [x] `sw.offline.test.js` (7) — rule 21: the service worker run without network: the booklet, `/me` and `/lodging`
+  from the cache, the photos stale-while-revalidate, the shell offline; the shop, orders, gate and sessions never cached; the data cache purged on `purge` (shell kept) and capped at 200 photos
+- [x] `session.recovery.test.jsx` (4) — rules 1, 4, 9, 21, edge case « stay cancelled mid-cart »: a link opened
+  offline kept and « Réessayer », a 401 reopened as a visitor or not at all (cart cleared, `purge` posted), a
+  re-exchange offline keeps the stay
+- [x] `cart.integrity.test.jsx` (5) — rules 24, 29, 32, 37quater: a failed quote leaves no total to order, an
+  unavailable bath session removed alone and blocking the order, the picker drops it, the sheet's bound counts the
+  cart, `mergeLine` clamps
+- [x] `OrderPage.unpaid.test.jsx` (2), `useOrderStatus.retry.test.jsx` (3) — rules 33, 35: « Vérifier à nouveau », an
+  abandoned order merged into the cart, network retries with a growing wait, the try limit, a refusal stops
+- [x] `BreakfastSheet.hours.test.jsx` (2), `BottomSheet.close.test.jsx` (3) — rules 27bis, 41, §6.4: the first hour
+  offered taken, a single hour stated, « pas à » / « not at »; « Fermer » named, 44 px, focus kept in the sheet
+- [x] `links.guard.test.jsx` (4), `HomePage.gate-offline.test.jsx` (1), `styles.touch-targets.test.js` (3) — rules 13,
+  15, 18, 21, §6.4: Soliomap's origin only, a bad suggestion URL, web links in a new tab, the gate tile offline,
+  44 px targets and the search focus ring
 
-### Studio client tests (Vitest, `apps/studio/src/__tests__/`, 27)
+### Studio client tests (Vitest, `apps/studio/src/__tests__/`, 35)
 - [x] `ModulesPage.test.jsx` (4), `LodgingSwitcher.test.jsx` (2) — rules 10, 11bis, 48: the lodging's tiles, a
   lodging « Hors application » greyed but selectable
 - [x] `PageEditor.blocks.test.jsx` (6), `richText.test.js` (3) — rules 16-18, 49: one editor per block type, a shared
@@ -1061,13 +1092,21 @@ le nom et le numéro. »
   in GuestFlow
 - [x] `ServiceHoursPage.test.jsx` (5), `SettingsPage.test.jsx` (3) — rules 38-41ter, 47: shared and per-lodging hours,
   « À retirer » needs a place, the app settings
+- [x] `PageEditor.save.test.jsx` (4) — rules 16-18, §4.2: clean after a save the server trimmed, a partial save
+  retried without the page read back creates each block once, « Annuler » resets the editors, blocks compared as stored
+- [x] `SettingsPage.max-order.test.jsx` (2), `studio.a11y.test.jsx` (2) — rules 40, 48: an emptied ceiling sent as
+  null; followed hours `inert`, the article toggle 44 px
 
 ### GuestFlow admin client tests (Vitest, `client/src/`)
 - [x] `GuestAppItemFields.sell` (7), `GuestAppItemFields.stock` (5) — rules 22, 37bis: the sell switch and its
   reason, the stock group (follow, count, restock line, « Prévenir sous », « En rupture »)
-- [x] `GuestOrdersPage` (6), `PlanningOrderCard` (4) — rules 43-45: by delivery time, « Marquer livrée / retirée »,
-  the push deep-link; the planning card and the day counter
-- [x] `StayLinkCard` (4), `StockLineWarning` (2), `ReservationSasDialog.stay-app` (7) — rules 1, 9bis, 37quater
+- [x] `GuestOrdersPage` (7), `PlanningOrderCard` (4) — rules 43-45: by delivery time, « Marquer livrée / retirée »,
+  the push deep-link, only the latest read lands; the planning card and the day counter
+- [x] `StayLinkCard` (4), `StockLineWarning` (2), `SasStayAppStep.sas-portal` (7, moved from the SAS folder), the SAS's
+  generic `ReservationSasDialog.portal-lead` (2) — rules 1, 9bis, 37quater
+- [x] `SettingsGuestAppSection` (5), `itemDraft.unsold` (3), `roles.plugins` (Intégrations follows every plugin that
+  contributes to it) — rules 22, 39, 47: the URL field's attributes through `slotProps`, the bound and lead time
+  judged only while sold, the Intégrations page kept visible for guest-app
 - [x] `OptionEditorPanel.plugin-fields` (4), `ResourceEditorPanel.plugin-fields` (2), `navMenu.plugin-entries` (3),
   `navigation.safe-return-path` (3) — the generic client points (`plugins-phase-1-sdk.md` rule 49)
 
@@ -1109,7 +1148,14 @@ le nom et le numéro. »
 
 ## 9. Open questions
 
-None open (2026-11-06).
+Raised by the browser-side review of 2026-11-09, both waiting on the server:
+- **Q11 — « Reprendre le paiement ».** `OrderCard` can offer it for an unpaid card order, but the order payload
+  (`orderView`) carries no payment URL: only `POST /orders` answers `paymentUrl`. Resuming needs the server to
+  expose the order's live link (or a « new link » endpoint); until then the app offers « Abandonner et revenir
+  au panier » only.
+- **Q12 — `lang="fr"` on French read in English.** Rule 19 falls back to the French per field, but the resolved
+  booklet does not say which fields fell back, so the app cannot mark them `lang="fr"` for screen readers. Needs
+  `resolvePages` to tag the fallback (e.g. a `lang` beside each picked text).
 
 ### Settled while implementing the orders (2026-11-06, lot D server)
 
