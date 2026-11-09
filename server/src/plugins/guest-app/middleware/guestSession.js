@@ -19,12 +19,21 @@ function readCookie(req) {
   return found ? found.slice(COOKIE.length + 1) : null;
 }
 
-const cookieOptions = (expires) => ({ httpOnly: true, secure: true, sameSite: 'strict', path: COOKIE_PATH, expires });
+// `Secure` exactly when the core's own session cookie is (`HTTPS_ENABLED`): over plain HTTP a browser drops a Secure
+// cookie, and no guest session would ever hold.
+const cookieOptions = (secure) => ({ httpOnly: true, secure: Boolean(secure), sameSite: 'strict', path: COOKIE_PATH });
 
-const setSessionCookie = (res, token, expires) => res.cookie(COOKIE, token, cookieOptions(expires));
-const clearSessionCookie = (res) => res.clearCookie(COOKIE, { httpOnly: true, secure: true, sameSite: 'strict', path: COOKIE_PATH });
+const setSessionCookie = (res, token, expires, { secure = true } = {}) => res.cookie(COOKIE, token, { ...cookieOptions(secure), expires });
+const clearSessionCookie = (res, { secure = true } = {}) => res.clearCookie(COOKIE, cookieOptions(secure));
 
-function buildGuestSession({ sessions, stays, stayLinks, lodgings, now }) {
+const coreHttps = () => sdk.coreModule('securityConfig').shouldEnforceHttps();
+
+function buildGuestSession({
+  sessions, stays, stayLinks, lodgings, now, httpsEnabled = coreHttps,
+}) {
+  const setCookie = (res, token, expires) => setSessionCookie(res, token, expires, { secure: httpsEnabled() });
+  const clearCookie = (res) => clearSessionCookie(res, { secure: httpsEnabled() });
+
   /** → { session, token, stay, window, lodging, mode } or null. */
   function load(req) {
     const token = readCookie(req);
@@ -54,22 +63,27 @@ function buildGuestSession({ sessions, stays, stayLinks, lodgings, now }) {
   function requireSession(req, res, next) {
     const guest = load(req);
     if (!guest) {
-      clearSessionCookie(res);
+      clearCookie(res);
       return publicHttp.fail(res, 401, 'SESSION_EXPIRED', 'Votre session a expiré.');
     }
     req.guest = guest;
     // The expiry follows the reservation: a moved stay moves the cookie with it.
-    setSessionCookie(res, guest.token, new Date(guest.session.expiresAt));
+    setCookie(res, guest.token, new Date(guest.session.expiresAt));
     return next();
   }
 
-  /** A stay's own data: a visitor session has none. */
+  /**
+   * §4.3 — what a stay session alone reaches (slots, delivery times, orders): a visitor has no stay, and a
+   * pre-arrival guest reads the shop's catalogue only (rule 27).
+   */
   function requireStay(req, res, next) {
-    if (!req.guest.stay) return publicHttp.fail(res, 403, 'STAY_REQUIRED', 'Cette action demande un séjour en cours.');
+    if (!req.guest.stay || req.guest.mode !== 'stay') return publicHttp.fail(res, 403, 'STAY_REQUIRED', 'Cette action demande un séjour en cours.');
     return next();
   }
 
-  return { load, requireSession, requireStay };
+  return {
+    load, requireSession, requireStay, setCookie, clearCookie,
+  };
 }
 
 /**

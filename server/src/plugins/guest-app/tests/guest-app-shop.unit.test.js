@@ -193,8 +193,28 @@ withShop('rule 27: open during the stay; read-only before it; closed once the co
   db.prepare('UPDATE reservations SET endOfStayComplementPaid = 1 WHERE id = ?').run(stay);
   const after = await shopOf(call, cookie);
   assert.equal(after.open, false);
-  assert.equal(after.closedReason, 'La boutique est fermée — bon retour !');
-  assert.equal((await shopOf(call, cookie, '?lang=en')).closedReason, 'The shop is closed — safe travels home!');
+  assert.equal(after.closedReason, 'La boutique est fermée. Bon retour chez vous !');
+  assert.equal((await shopOf(call, cookie, '?lang=en')).closedReason, 'The shop is closed. Safe travels home!');
+});
+
+withShop('rule 27, §4.3: a pre-arrival guest reads the catalogue only — slots, delivery times and orders are a stay session’s', async ({ db, api, call, clock }) => {
+  addStay(db);
+  addOption(db, { id: 1, title: 'Cidre' });
+  sell(db, 'option', 1);
+  enable(api, db, 1);
+  clock.now = paris('2099-07-03', '12:00');
+  const cookie = (await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) })).setCookie.split(';')[0];
+  const as = (method, url, body) => call(method, url, body, { cookie });
+  assert.equal((await as('GET', '/public/v1/guest/shop')).status, 200, 'the catalogue, read-only');
+  const refused = [
+    await as('GET', '/public/v1/guest/shop/resources/6/slots'),
+    await as('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: 1 }] }),
+    await as('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'option', id: 1, quantity: 1 }] }),
+    await as('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: 1, quantity: 1 }], payment: 'note' }),
+    await as('GET', '/public/v1/guest/orders/1'),
+    await as('POST', '/public/v1/guest/orders/1/abandon'),
+  ];
+  assert.deepEqual(refused.map((r) => [r.status, r.body.error && r.body.error.code]), Array(6).fill([403, 'STAY_REQUIRED']));
 });
 
 withShop('rules 11bis, 27: the shop module off answers 404 MODULE_OFF; a visitor has no shop; no session is 401', async ({ db, api, call }) => {
