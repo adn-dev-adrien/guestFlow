@@ -7,6 +7,8 @@
  * core ledger's.
  */
 
+const { euros } = require('./receiptStates');
+
 const CONFIDENCE_RANK = { sur: 3, probable: 2, verifier: 1 };
 const MAX_SUBSET = 6;
 const MAX_CANDIDATES = 22;
@@ -255,18 +257,27 @@ function acquiringProposals(tx, receipts, settings) {
     found.length === 1 ? 'sur' : 'probable', 'acquiring', 'Versement du prestataire de paiement, net de ses frais')];
 }
 
-/** Rule 31 — the day's on-site card payments, one batch. */
-function cardBatchProposals(tx, date, receipts) {
+/**
+ * Rule 31 — the day's on-site card payments, one batch. specs/resource-booking-pricing-and-invoicing.md rule 20: the
+ * card sales made outside any stay that day sit in the same credit; they are counted first, so the fiches are matched
+ * against what they leave, and the reason says so. They carry no fiche: nothing is written for them.
+ */
+function cardBatchProposals(tx, date, receipts, standalone = []) {
+  const outside = standalone.filter((s) => s.date === date && s.cardCents > 0);
+  const outsideCents = outside.reduce((sum, s) => sum + s.cardCents, 0);
+  const available = tx.remainingCents - outsideCents;
+  const reason = outside.length === 0
+    ? 'Paiements par carte sur place du jour'
+    : `Paiements par carte sur place du jour, dont ${outside.length} vente${outside.length > 1 ? 's' : ''} hors séjour (${euros(outsideCents)})`;
+  const extra = outside.length === 0 ? {} : { standalone: { count: outside.length, cents: outsideCents } };
   const paidThatDay = receipts.filter((r) => r.channel === 'direct' && r.paid && r.paidDate === date && r.openCents > 0);
   const total = paidThatDay.reduce((s, r) => s + r.openCents, 0);
-  if (paidThatDay.length === 0) return [];
-  if (total <= tx.remainingCents) {
-    return [proposal(tx, paidThatDay.map((r) => ({ receipt: r, allocCents: r.openCents })), 'probable', 'card-batch',
-      'Paiements par carte sur place du jour')];
+  if (paidThatDay.length === 0 || available <= 0) return [];
+  if (total <= available) {
+    return [proposal(tx, paidThatDay.map((r) => ({ receipt: r, allocCents: r.openCents })), 'probable', 'card-batch', reason, extra)];
   }
-  const found = smallestSubset(paidThatDay.map((r) => ({ receipt: r, cents: r.openCents })), tx.remainingCents, () => 0);
-  return found ? [proposal(tx, found.map((f) => ({ receipt: f.receipt, allocCents: f.cents })), 'probable', 'card-batch',
-    'Paiements par carte sur place du jour')] : [];
+  const found = smallestSubset(paidThatDay.map((r) => ({ receipt: r, cents: r.openCents })), available, () => 0);
+  return found ? [proposal(tx, found.map((f) => ({ receipt: f.receipt, allocCents: f.cents })), 'probable', 'card-batch', reason, extra)] : [];
 }
 
 const dueKey = (r) => String(r.dueDate || r.expectedDate || '9999');
@@ -395,9 +406,10 @@ function splitProposals(transactions, receipts, singleExact) {
  * @param {object[]} p.receipts      receipts with `openCents` (expected minus what is reconciled)
  * @param {Set<string>} p.discarded  `transactionId|reservationId|ledgerKey`
  * @param {object} p.settings        `{ patterns, batchPlatforms, acquiringFee, cardFeePercent, commissionRates }`
+ * @param {object[]} [p.standalone] the card sales made outside any stay (`standaloneSales`), `{ date, cardCents }`
  * @returns {{ byTransaction: Object<string, {kind: string, proposal: object|null, alternatives: object[]}> }}
  */
-function buildProposals({ transactions, receipts, discarded = new Set(), settings = {} }) {
+function buildProposals({ transactions, receipts, discarded = new Set(), settings = {}, standalone = [] }) {
   const all = [];
   const kinds = {};
   transactions.forEach((tx) => {
@@ -407,7 +419,7 @@ function buildProposals({ transactions, receipts, discarded = new Set(), setting
     let found = [];
     if (cls.kind === 'platform') found = platformProposals(tx, cls.platform, receipts, settings);
     else if (cls.kind === 'acquiring') found = acquiringProposals(tx, receipts, settings);
-    else if (cls.kind === 'cardBatch') found = cardBatchProposals(tx, cls.date, receipts);
+    else if (cls.kind === 'cardBatch') found = cardBatchProposals(tx, cls.date, receipts, standalone);
     else found = directProposals(tx, receipts);
     found.forEach((p) => {
       if (p.allocations.some((a) => discarded.has(`${tx.id}|${a.reservationId}|${a.ledgerKey}`))) return;

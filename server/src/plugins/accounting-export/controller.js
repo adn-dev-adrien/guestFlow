@@ -27,7 +27,9 @@ function monthEntries(accountingModel, params) {
   const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
   const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
   const penalties = accountingModel.platformPenaltiesByMonth ? accountingModel.platformPenaltiesByMonth(params) : [];
-  return [...sales, ...refunds, ...compensations, ...penalties]
+  // specs/resource-booking-pricing-and-invoicing.md rule 21 — the sales made outside any stay.
+  const standalone = accountingModel.standaloneSalesByMonth ? accountingModel.standaloneSalesByMonth(params) : [];
+  return [...sales, ...refunds, ...compensations, ...penalties, ...standalone]
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 

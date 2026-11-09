@@ -54,6 +54,7 @@
 
 const {
   BUCKET_TO_ACCOUNT,
+  REVENUE_ACCOUNTS,
   vatAccountForRate,
   buildClientAccount,
   accountLabel,
@@ -114,6 +115,7 @@ function libelleFor(entry) {
   if (joined) return joined.toUpperCase();
   // A compensation outlives its reservation, so the id fallback names the compensation itself.
   if (entry.direction === 'compensation') return `INDEMNITÉ ANNULATION #${entry.compensationId}`;
+  if (entry.direction === 'standalone') return 'VENTE HORS SÉJOUR';
   return `RÉSERVATION #${entry.reservationId}`;
 }
 
@@ -163,6 +165,7 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   if (entry && entry.direction === 'tip') return tipEntryToRows(entry);
   // Pénalité plateforme (reconciliation-assisted-matching.md rule 28).
   if (entry && entry.direction === 'penalty') return penaltyEntryToRows(entry);
+  if (entry && entry.direction === 'standalone') return standaloneEntryToRows(entry);
   const { day, month, year } = splitIsoDate(entry.paidDate);
   const libelle = libelleFor(entry);
   const clientAccount = buildClientAccount(entry.client.lastName);
@@ -502,6 +505,29 @@ function penaltyEntryToRows(entry) {
   ];
 }
 
+// specs/resource-booking-pricing-and-invoicing.md rules 21-22 — a sale made outside any stay (a walk-in nordic bath):
+//   - 1 DÉBIT client of its part on the books;
+//   - 1 CRÉDIT « Activité diverse » of its HT, 1 CRÉDIT TVA of its frozen rate (none when sold without VAT).
+// « Pièce » is the invoice number Qonto gave it, empty when no invoice was issued.
+function standaloneEntryToRows(entry) {
+  const { day, month, year } = splitIsoDate(entry.paidDate);
+  const libelle = libelleFor(entry);
+  const clientAccount = buildClientAccount(entry.client?.lastName);
+  const piece = entry.piece || '';
+  const ttc = round2(entry.encaissementTtc);
+  const rate = entry.vatRatePercent === null || entry.vatRatePercent === undefined ? 0 : Number(entry.vatRatePercent);
+  const ht = rate > 0 ? round2(ttc / (1 + rate / 100)) : ttc;
+  const vat = round2(ttc - ht);
+  const rows = [
+    tagRow(zerofyMoneyColumns([day, month, year, SALES_JOURNAL_CODE, piece, libelle, clientAccount, ttc, '', '', '', '']), 'client'),
+    tagRow(zerofyMoneyColumns([day, month, year, SALES_JOURNAL_CODE, piece, libelle, REVENUE_ACCOUNTS.ACTIVITIES, '', ht, '', '', '']), 'revenue', rate),
+  ];
+  if (vat > 0) {
+    rows.push(tagRow(zerofyMoneyColumns([day, month, year, SALES_JOURNAL_CODE, piece, libelle, vatAccountForRate(rate), '', vat, '', '', '']), 'vat', rate));
+  }
+  return rows;
+}
+
 // Column positions of the journal code and the account in a row (CSV_HEADERS).
 const JOURNAL_COLUMN = 3;
 const ACCOUNT_COLUMN = 6;
@@ -625,6 +651,8 @@ function entryToStructured(entry, plan) {
     direction: isRefund ? 'refund'
       : (isCompensation ? 'compensation'
         : (isDiscount ? 'discount' : (isTip ? 'tip' : (isPenalty ? 'penalty' : 'sale')))),
+    // specs/resource-booking-pricing-and-invoicing.md rule 22 — a sale made outside any stay, and its Qonto invoice.
+    standalone: entry.direction === 'standalone' ? { label: entry.standaloneLabel || '', invoiceNumber: entry.piece || null } : null,
     compensationId: entry.compensationId != null ? entry.compensationId : null,
     // The cancelled stay window, so the card can say WHICH séjour the indemnity replaces.
     compensationStay: isCompensation
