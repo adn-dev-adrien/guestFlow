@@ -322,6 +322,14 @@ them, reset their password, deactivate or delete them. Temporary passwords are d
     « Valeur refusée. », never the code. No server change.
     Test: `UserManagementPage.field-refusals`.
     *Reading of 2026-11-05 (R23 verification F5):* « Mon compte » reads the same `utils/fieldRefusalText.js` (`AccountPage`).
+21. **The SMTP client greets the server with the sender's domain (2026-11-09).** Every transport the server builds —
+    the operator's SMTP and the platform's — passes nodemailer `name` = the domain of the address it sends From
+    (`smtpFromEmail` / `companyEmail`, or `GUESTFLOW_PLATFORM_SMTP_FROM`), lower-cased. Without it nodemailer says
+    `EHLO [127.0.0.1]` on the production VM, and the receiving side records that in the `Received` header: a sender that
+    does not know its own name, read by spam filters as a weak negative signal. An address without a valid domain
+    leaves nodemailer's default. Found while diagnosing a guest's balance request landing in spam: the replay passed
+    SPF, DKIM and DMARC aligned on `domainesolio.com`, so authentication was not the cause; this was the only
+    header-level defect. Test: `smtp-ehlo-name.unit.test.js`.
 
 **Edge cases:**
 - SMTP is configured but the network is down at the moment of account creation → user is created
@@ -589,6 +597,9 @@ SMTP fields start empty — the new account-creation endpoint returns
       `validateHeaderSafeText` passes ordinary and accented display names, rejects an interior
       CR/LF, NUL, DEL or TAB, and tolerates surrounding whitespace; `validateEmail` rejects the
       same control characters ahead of its pattern check.
+- [x] `smtp-ehlo-name.unit.test.js` (new, 2026-11-09, 4 cases) — rule 21: the operator's SMTP greets with the From
+      domain (a real socket sees `EHLO domainesolio.com`), the platform transport with its noreply domain, upper case is
+      lowered, an address without a valid domain leaves nodemailer's default.
 - [x] `settings-controller-header-injection.unit.test.js` (new, 2026-08-17, 8 cases) — rule 16b at
       the controller boundary: a CRLF in `fromName` / `fromEmail` / `recipientEmail` returns
       `400 SETTINGS_INVALID` under the right error key and writes nothing; NUL and DEL are refused

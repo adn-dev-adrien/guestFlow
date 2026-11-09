@@ -21,8 +21,22 @@ const { outboxDir, writeMessageToOutbox } = require('./mailOutbox');
 // A login on a transport without implicit TLS requires STARTTLS: the UI promises it, and nodemailer would
 // otherwise send the password in clear to a server, or an on-path attacker, not offering the upgrade
 // (specs/admin-account-management.md rule 16, reading of 2026-11-04). A relay without a login is left alone.
-function transportOptions({ host, port, secure, auth }) {
-  return { host, port, secure, auth, ...(auth && !secure ? { requireTLS: true } : {}) };
+//
+// The client greets the server with the sender's domain (specs/admin-account-management.md rule 21):
+// nodemailer's default is the machine's hostname, `[127.0.0.1]` on the production VM, which receiving
+// filters read in the `Received` header as a sender that does not know its own name.
+function transportOptions({ host, port, secure, auth, fromAddress }) {
+  const name = ehloName(fromAddress);
+  return {
+    host, port, secure, auth,
+    ...(auth && !secure ? { requireTLS: true } : {}),
+    ...(name ? { name } : {}),
+  };
+}
+
+function ehloName(address) {
+  const domain = String(address || '').trim().split('@')[1] || '';
+  return /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(domain) ? domain.toLowerCase() : '';
 }
 
 function createEmailService(settings, {
@@ -61,6 +75,7 @@ function createEmailService(settings, {
             port: platform.port,
             secure: platform.port === 465,
             auth: platform.user ? { user: platform.user, pass: platform.pass } : undefined,
+            fromAddress: platform.from,
           }));
       }
       return transport;
@@ -76,6 +91,7 @@ function createEmailService(settings, {
       port: Number(settings.port) || 587,
       secure: Boolean(settings.secure),
       auth: settings.user ? { user: settings.user, pass: settings.password || '' } : undefined,
+      fromAddress: fromEmail,
     }));
     return transport;
   }
