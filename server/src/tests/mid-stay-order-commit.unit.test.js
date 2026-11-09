@@ -68,7 +68,7 @@ test('rule 34: mergeOrderLines adds to the stay’s line of the same item, never
   assert.deepEqual(body.options[0], { optionId: 9, quantity: 2 }, 'the stored body is not touched');
 });
 
-test('rule 27bis: a breakfast order sets the hour of the mornings it names, and adds the others', () => {
+test('specs/guest-app.md rule 27bis: a breakfast order sets the hour of the mornings it names, and adds the others', () => {
   const body = { options: [{ optionId: 5, quantity: 2, cardOccurrences: [{ date: '2099-07-07', time: '08:30' }, { date: '2099-07-08', time: '08:30', done: true }], cardPersons: 2 }], resources: [] };
   const next = mergeOrderLines(body, [{ kind: 'breakfast', id: 5, mornings: ['2099-07-07', '2099-07-08', '2099-07-09'], time: '09:30', persons: 3 }]);
   assert.deepEqual(next.options[0], {

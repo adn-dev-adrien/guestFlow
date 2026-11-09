@@ -49,11 +49,11 @@ const slotsOf = (result, date) => result.days.find((d) => d.date === date).slots
 const stateAt = (result, date, start) => (slotsOf(result, date).find((s) => s.start === start) || {}).state;
 const slots = (ctx, over = {}) => ctx.scheduler.slotsForStay({ resourceId: ctx.resourceId, propertyId: 1, stay: STAY, now: NOW, ...over });
 
-/** A live plugin holding the given sessions, as guest-app does for an order awaiting payment. */
+/** A live plugin holding the given sessions (as guest-app does for an order awaiting payment). */
 function holding(sessions) {
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
-  createContext('guest-app', {}).resourceHolds(({ resourceId, from, to }) => sessions
+  createContext('shop', {}).resourceHolds(({ resourceId, from, to }) => sessions
     .filter((s) => Number(s.resourceId) === Number(resourceId) && s.date >= from && s.date <= to));
   return () => registry.reset();
 }
@@ -166,7 +166,10 @@ test('rule 35: a held slot is taken for the guest app, the SAS picker, the plann
   const dates = { startDate: addDaysToIsoDate(day, -1), endDate: addDaysToIsoDate(day, 2), checkInTime: '16:00', checkOutTime: '10:00' };
   ctx.stay(600, 1, dates);
   ctx.sessionsOn(600, [], 2);
-  const release = holding([{ resourceId: ctx.resourceId, date: day, start: '14:00', end: '15:00', reservationId: 500 }]);
+  const release = holding([
+    { resourceId: ctx.resourceId, date: day, start: '14:00', end: '15:00', reservationId: 500, label: 'Commande boutique en attente' },
+    { resourceId: ctx.resourceId, date: day, start: '17:00', end: '18:00', reservationId: 500 },
+  ]);
   try {
     const now = new Date(`${dates.startDate}T08:00:00Z`);
     const guest = ctx.scheduler.slotsForStay({ resourceId: ctx.resourceId, propertyId: 1, stay: dates, now });
@@ -174,8 +177,10 @@ test('rule 35: a held slot is taken for the guest app, the SAS picker, the plann
     const sas = schedulingModel.create(ctx.db).getFreeSlots({ reservation: { id: 600, propertyId: 1, ...dates }, resourceId: ctx.resourceId, now });
     assert.equal(sas.days.find((d) => d.date === day).slots.find((s) => s.start === '14:00').state, 'taken', 'held for its own stay too');
     const bookings = bookingsModel.create(ctx.db);
-    const planning = bookings.listForResource({ resourceId: ctx.resourceId, date: day }).find((b) => b.held);
-    assert.equal(planning.displayName, 'Commande en attente de paiement');
+    const held = bookings.listForResource({ resourceId: ctx.resourceId, date: day }).filter((b) => b.held);
+    const planning = held.find((b) => b.startTime === '14:00');
+    assert.equal(planning.displayName, 'Commande boutique en attente', 'the holding plugin\'s own words');
+    assert.equal(held.find((b) => b.startTime === '17:00').displayName, 'Créneau réservé, en attente', 'none given: neutral');
     assert.equal(planning.kind, 'session', 'read-only on the planning: it opens the fiche');
     assert.equal(planning.reservationId, 500);
     assert.equal(bookings.createBooking({ resourceId: ctx.resourceId, date: day, startTime: '14:00', endTime: '15:00', propertyId: 1 }).status, 409);

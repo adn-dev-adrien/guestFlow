@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 13 — a plugin's e-mail variable or condition may name the e-mails it belongs to
+// specs/plugins-phase-1-sdk.md rule 10 — a plugin's e-mail variable or condition may name the e-mails it belongs to
 // (`in`, like the core catalogue's), so it is offered only there; without `in` it is offered in every e-mail. A
 // template that already uses it keeps its chip anywhere. First used by specs/guest-app.md rule 9bis (b).
 const test = require('node:test');
@@ -11,7 +11,7 @@ const { chipsForTemplate } = require('../utils/templateTokens');
 const J7 = { stableKey: 'arrival_reminder_7d', subject: '', body: '' };
 const THANKS = { stableKey: 'guest_thanks_j1', subject: '', body: '' };
 
-test('rule 13: a scoped plugin variable shows in its e-mails only, an unscoped one everywhere, a used one where it is used', () => {
+test('rule 10: a scoped plugin variable shows in its e-mails only, an unscoped one everywhere, a used one where it is used', () => {
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
   try {
