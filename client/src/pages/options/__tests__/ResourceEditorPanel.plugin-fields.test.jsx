@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 13 (specs/guest-app.md rule 22) — `resources.fields` keeps its inline blocks
+// specs/plugins-phase-1-sdk.md rules 13, 49 (specs/guest-app.md rule 22) — `resources.fields` keeps its inline blocks
 // under « Horaires » and gains the `section` kind: a section of its own, last, saved after the resource.
 import React, { useEffect } from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';

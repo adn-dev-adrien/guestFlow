@@ -13,30 +13,29 @@ const FIFTEEN_MIN = 15 * 60 * 1000;
 
 const callerKey = (req) => ipKeyGenerator(req.ip);
 const tooMany = (message) => ({ error: { code: 'TOO_MANY_REQUESTS', message } });
-const envNumber = (name, fallback) => Number(process.env[name]) || fallback;
 
 function createGuestLimiters() {
   return {
     session: rateLimit({
       keyGenerator: callerKey,
-      windowMs: envNumber('GUEST_SESSION_RATELIMIT_WINDOW_MS', ONE_HOUR),
-      max: envNumber('GUEST_SESSION_RATELIMIT_MAX', 30),
+      windowMs: Number(process.env.GUEST_SESSION_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+      max: Number(process.env.GUEST_SESSION_RATELIMIT_MAX) || 30,
       standardHeaders: true,
       legacyHeaders: false,
       message: tooMany('Trop de requêtes, réessayez plus tard.'),
     }),
     lookup: rateLimit({
       keyGenerator: callerKey,
-      windowMs: envNumber('GUEST_LOOKUP_RATELIMIT_WINDOW_MS', FIFTEEN_MIN),
-      max: envNumber('GUEST_LOOKUP_RATELIMIT_MAX', 5),
+      windowMs: Number(process.env.GUEST_LOOKUP_RATELIMIT_WINDOW_MS) || FIFTEEN_MIN,
+      max: Number(process.env.GUEST_LOOKUP_RATELIMIT_MAX) || 5,
       standardHeaders: true,
       legacyHeaders: false,
       message: tooMany('Trop de tentatives, réessayez plus tard.'),
     }),
     order: rateLimit({
       keyGenerator: (req) => (req.guest && req.guest.session ? `guest-session:${req.guest.session.id}` : callerKey(req)),
-      windowMs: envNumber('GUEST_ORDER_RATELIMIT_WINDOW_MS', ONE_HOUR),
-      max: envNumber('GUEST_ORDER_RATELIMIT_MAX', 10),
+      windowMs: Number(process.env.GUEST_ORDER_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+      max: Number(process.env.GUEST_ORDER_RATELIMIT_MAX) || 10,
       standardHeaders: true,
       legacyHeaders: false,
       skipFailedRequests: true,

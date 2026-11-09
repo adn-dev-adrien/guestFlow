@@ -1,4 +1,4 @@
-// The side menu's `nav.items` slot (specs/plugins-phase-1-sdk.md rule 13): a plugin page drawn after the core entry
+// The side menu's `nav.items` slot (specs/plugins-phase-1-sdk.md rules 13, 49): a plugin page drawn after the core entry
 // it names, else after « Calendrier », the end of the day-to-day group.
 import { withPluginEntries } from '../navMenu';
 

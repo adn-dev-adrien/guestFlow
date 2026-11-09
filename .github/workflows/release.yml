@@ -226,6 +226,15 @@ jobs:
       - name: ⚛️ Build the React client
         run: cd client && npm ci && npm run build
 
+      - name: 📱 Build the plugins' web apps
+        # specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) ship
+        # inside its package as their Vite build (`server/assets/<name>`); a build missing here would answer 503.
+        run: |
+          for app in server/src/plugins/*/apps/*/; do
+            [ -f "$app/package.json" ] || continue
+            (cd "$app" && npm ci && npm run build)
+          done
+
       - name: 🔌 Build the plugin packages
         # specs/plugins-phase-4-registry.md rule 23 — one package per plugin, shipped inside the core
         # archive (`plugins-dist/`) and attached to the release for the registry. The manifests are read

@@ -1,4 +1,4 @@
-// specs/plugins-phase-1-sdk.md rule 13 (specs/guest-app.md rule 22) — the option editor's `options.fields` slot,
+// specs/plugins-phase-1-sdk.md rules 13, 49 (specs/guest-app.md rule 22) — the option editor's `options.fields` slot,
 // mirroring `resources.fields`: nothing without a live contribution; a contribution with a `section` gets its own
 // section at the bottom, counts in « Enregistrer » and the guard, and is saved after the option.
 import React, { useEffect } from 'react';

@@ -298,6 +298,8 @@ function readCitations(knownSpecs) {
     ...listFiles(path.join(ROOT, 'server', 'src', 'tests'), isTestFile),
     // specs/plugins-phase-1-sdk.md rule 1 — a plugin module carries its tests in its own folder.
     ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/tests\/.*\.test\.js$/.test(f)),
+    // specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) carry their own suites.
+    ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/apps\/[^/]+\/src\/.*__tests__\/.*\.test\.jsx?$/.test(f)),
     ...listFiles(path.join(ROOT, 'client', 'src'), isTestFile),
     ...listFiles(path.join(ROOT, 'e2e'), isTestFile),
     // specs/control-plane-plans-and-access.md — the control plane is its own app in the same repo.

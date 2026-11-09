@@ -173,7 +173,7 @@ jobs:
           cd client && npm run build
           cd .. && node scripts/check-bundle-budget.mjs
 
-  # specs/guest-app.md plan steps 51, 60 — the guest app « Mon séjour » is its own Vite app in `apps/guest`: its
+  # specs/guest-app.md plan steps 51, 60 — the guest app « Mon séjour » is its own Vite app in `server/src/plugins/guest-app/apps/guest`: its
   # suites, its build, and its first-load budget (200 kB gzip, fonts excluded).
   guest-app:
     name: guest app (vitest + budget)
@@ -192,17 +192,17 @@ jobs:
           check-latest: true
 
       - name: 📚 Install guest app deps
-        run: cd apps/guest && npm ci
+        run: cd server/src/plugins/guest-app/apps/guest && npm ci
 
       - name: 🧪 Run the guest app suites
-        run: cd apps/guest && npm test
+        run: cd server/src/plugins/guest-app/apps/guest && npm test
 
       - name: 📦 First load within 200 kB gzip
         run: |
-          cd apps/guest && npm run build
-          cd ../.. && node scripts/check-bundle-budget.mjs --dist apps/guest/dist --budget 200000
+          cd server/src/plugins/guest-app/apps/guest && npm run build
+          cd $GITHUB_WORKSPACE && node scripts/check-bundle-budget.mjs --dist server/src/plugins/guest-app/apps/guest/dist --budget 200000
 
-  # specs/guest-app.md rules 47-50 — the booklet studio is its own Vite app in `apps/studio`: its suites and its
+  # specs/guest-app.md rules 47-50 — the booklet studio is its own Vite app in `server/src/plugins/guest-app/apps/studio`: its suites and its
   # build. It reads GuestFlow's shared components and the guest app's renderers through aliases, with its own copy
   # of their dependencies, so only its own install is needed.
   studio-app:
@@ -222,13 +222,13 @@ jobs:
           check-latest: true
 
       - name: 📚 Install studio deps
-        run: cd apps/studio && npm ci
+        run: cd server/src/plugins/guest-app/apps/studio && npm ci
 
       - name: 🧪 Run the studio suites
-        run: cd apps/studio && npm test
+        run: cd server/src/plugins/guest-app/apps/studio && npm test
 
       - name: 🏗️ Build the studio
-        run: cd apps/studio && npm run build
+        run: cd server/src/plugins/guest-app/apps/studio && npm run build
 
   # specs/control-plane-plans-and-access.md — the control plane (the operator console) is its own app
   # in `control-plane/`, deployed separately, tested here with the rest. Its server requires

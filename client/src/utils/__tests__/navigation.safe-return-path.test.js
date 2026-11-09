@@ -1,4 +1,4 @@
-// Generic sign-in return path (specs/guest-app.md rule 47 is its first user: a backend page that needs a session sends
+// specs/plugins-phase-1-sdk.md rule 49 — generic sign-in return path (specs/guest-app.md rule 47 is its first user: a backend page that needs a session sends
 // the operator to `/login?next=<its path>`) — only a path of this origin, never an open redirect.
 import { safeReturnPath } from '../navigation';
 

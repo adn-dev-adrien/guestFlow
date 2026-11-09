@@ -452,7 +452,9 @@ is pushed every order.
     2026-11-05) (contributed by the plugin; sidebar, under the
     day-to-day group) lists orders by delivery time, filter « À préparer / Toutes », each row: lodging, guest,
     lines, delivery time, payment mode, status, « Marquer livrée ». Bath sessions appear in the resource
-    planning as any session (rule 30).
+    planning as any session (rule 30). The page is the admin's (2026-11-09): the reception role sees only the
+    dashboard, the planning and its account (`reception-role-checkin-only.md`) and marks an order delivered from its
+    planning card (rule 43), whose endpoints it may call.
 46. **The fiche** shows the order's lines as normal lines (they are), and the history entry links to the
     order.
 
@@ -607,9 +609,12 @@ devis PDF.
 
 ### 4.2 Client side
 
-Two new Vite apps in the repo (`apps/guest/`, `apps/studio/`, shipped inside the `guest-app` plugin
-package by `scripts/build-plugin-packages.mjs`, which copies their `dist/` into the package's `server/assets/<name>`; a
-build not made is skipped with a warning and that app answers 503), plus plugin contributions to the GuestFlow admin client.
+Two new Vite apps, kept in the plugin's own folder (`server/src/plugins/guest-app/apps/guest/` and `…/apps/studio/`,
+2026-11-09: everything the feature needs lives in its plugin). `scripts/build-plugin-packages.mjs` finds any plugin's
+`apps/<name>/` (its own `package.json`), never ships its sources, and copies its `dist/` into the package's
+`server/assets/<name>` (`specs/plugins-phase-1-sdk.md` rule 48); a build not made is skipped with a warning and that
+app answers 503. The release builds every plugin app first. Below, `apps/<name>` is short for that folder. Plus plugin
+contributions to the GuestFlow admin client.
 
 **`apps/guest/` — the guest PWA** (React 19, MUI 9 for the modal layer of the sheets only, React Router 8; its own
 package and lockfile; `src/theme.js` is the single source of the §6.1 tokens, written as CSS custom properties on the
@@ -630,28 +635,38 @@ site's own Marcellus 400 and Karla variable woff2 in `public/fonts/` (OFL), prel
 | `i18n/` | `index.js`, `fr.json`, `en.json` | C | App chrome strings (booklet content, titles, prices and order words come from the server) |
 | `public/` | `sw.js`, `icons/`, `fonts/`, `img/hero-domaine.jpg` | C | Offline shell + booklet (rule 21), install icons (sapin ground, the site's Marcellus « S »), the default lodging photo (the site's home hero). The manifest is the server's `GET /public/v1/guest/manifest.webmanifest` |
 
-Built to `apps/guest/dist` (`npm run build`), checked by `node scripts/check-bundle-budget.mjs --dist apps/guest/dist
---budget 200000` (151 kB gzip on 2026-11-09). Development: `cd apps/guest && GUEST_API=http://localhost:4000 npm start`
+Built to `apps/guest/dist` (`npm run build`), checked by `node scripts/check-bundle-budget.mjs --dist
+server/src/plugins/guest-app/apps/guest/dist --budget 200000` (151 kB gzip on 2026-11-09). Development: `cd
+server/src/plugins/guest-app/apps/guest && GUEST_API=http://localhost:4000 npm start`
 (port 5175, `/public/v1/guest` and `/uploads` proxied).
 
-**`apps/studio/` — the booklet studio** (React, MUI using GuestFlow's `client/src/theme.js`):
+**`apps/studio/` — the booklet studio** (React, MUI using GuestFlow's `client/src/theme.js` and shared components,
+read-only through the `@guestflow` alias; the guest app's renderers and styles through `@guest` / `@guest-public`; its
+dependencies deduplicated to its own copy, so it tests and builds with its own install only). Base `/studio/`, two
+pages: `index.html` (the studio) and `preview.html` (the phone preview, isolated in an iframe so neither app's CSS
+reaches the other, rule 49). Development: `STUDIO_API=http://localhost:4000 npm start` (port 5176).
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `pages/` | `PagesListPage`, `PageEditorPage`, `ShopItemsPage`, `ServiceHoursPage`, `MediaLibraryPage`, `AppSettingsPage` | C | Studio screens |
-| `components/` | `BlockPalette`, `BlockEditor` (one per type), `BilingualField`, `PhonePreview` (imports `apps/guest/` renderers), `ImageCropper`, `SortableList`, `WeeklyHoursEditor` | C | Editing UI |
+| `pages/` | `ModulesPage`, `LodgingInfoPage`, `BookletPage` (pages list + page editor), `ShopItemsPage` (per lodging); `ServicePage`, `SettingsPage`, `MediaLibraryPage` (shared) | C | Studio screens (rules 47-50) |
+| `components/` | `StudioShell`, `StudioPage`, `LodgingSwitcher` (« Hors application » greyed, still selectable), `PagesList`, `PageEditor`, `BlockEditor` + `blockEditors/*` (one per type), `BilingualField`, `MediaDialog`, `MediaPicker`, `PhonePreview`, `RangesEditor`, `SortableList`, `Section`, `ModuleIcon` | C | Editing UI; every screen saves through `PageActionBar` |
+| `preview/` | the phone preview entry | C | Draws the guest app's own components from what the studio posts (home, a booklet page, the shop); fetches nothing itself, shows the saved draft and says so |
+| `hooks/`, `utils/`, `services/` | `useDirtyGuard`, `useLoad`, `usePreviewLang`; `pageDraft` (only what changed is written; a partial refusal keeps the draft and never creates a block twice), `previewViews`, `richText`; `api.js` (a 401 opens `/login?next=…`) | C | State, drafts, the API |
 
 **`client/` (GuestFlow admin) — only through the plugin's client module `client/src/plugins/guest-app/`:**
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| `plugins/guest-app/` | `index.js` | C | Contributions: `options.fields`, `resources.fields`, `routes` (`/commandes-app`), sidebar entry, `planning.days` card, `settings.integrations` card |
+| `plugins/guest-app/` | `index.js` | C | Contributions: `options.fields`, `resources.fields` (with `section`), `routes` (`/commandes-app`, admin only), `nav.items`, `planning.days` card, `reservation.cards` (« Lien Mon séjour »), `reservation.optionLine` / `resourceLine` (« Stock : épuisé »), `sas.portal`, `settings.integrations` card |
+| `plugins/guest-app/` | `guestAppApi.js` | C | Every `/api/guest-app/**` call, the stay link included, through the core's generic `api.pluginRequest` |
+| `plugins/guest-app/` | `StayLinkCard.jsx`, `StockLineWarning.jsx` | C | The fiche's « Lien Mon séjour » card (rule 9bis c); the never-blocking stock warning under a line (rule 37quater) |
 | `plugins/guest-app/` | `SasStayAppStep.jsx` | C | The SAS « Mon séjour » step (rule 9bis a): the stay link's QR and validity line, the keypad code, Partager / Copier le lien, Régénérer le lien (confirmed first), « QR du portail seul » unfolding the gate step. Contributed to `sas.portal` with `leadsStep: { title: 'Mon séjour' }` |
 | `plugins/sas/` | `ReservationSasDialog.jsx` | T | A `sas.portal` contribution with `leadsStep` takes the « Portail » step (and its title) while its plugin's SAS data says `available`; the other contributions are handed to it as `gateStep` (without the keypad code, shown once). Otherwise today's step |
-| `plugins/guest-app/` | `SettingsGuestAppSection.jsx` | C | « Application clients » card of Paramètres › Intégrations: the guest host, saved by the page's bar. The link to the studio joins it with slice G, when `/studio` exists |
-| `plugins/guest-app/` | `GuestAppItemFields.jsx` | C | « Application clients » section of the option / resource editor (rule 22) |
-| `plugins/guest-app/` | `GuestOrdersPage.jsx`, `PlanningOrderCard.jsx` | C | Orders list (rule 45) and planning card (rule 43) |
-| `pages/options/` | option editor panel | T | New contribution point `options.fields`, rendered like `resources.fields` in `ResourceEditorPanel.jsx` — empty when no live plugin contributes |
+| `plugins/guest-app/` | `SettingsGuestAppSection.jsx` | C | « Application clients » card of Paramètres › Intégrations: the guest host, saved by the page's bar, and « Ouvrir le Studio » |
+| `plugins/guest-app/` | `GuestAppItemFields.jsx`, `itemDraft.js`, `GuestAppMediaPicker.jsx` | C | « Application clients » section of the option / resource editor (rule 22) with its Stock group (rule 37bis); a new article shows « Enregistrez d'abord… » so the core row is never created twice |
+| `plugins/guest-app/` | `GuestOrdersPage.jsx`, `PlanningOrderCard.jsx`, `planningOrders.js`, `planningOrderTasks.js` | C | Orders list (rule 45, the push deep-link `?order=`) and planning card (rule 43) |
+| `pages/options/` | `OptionEditorPanel.jsx`, `ResourceEditorPanel.jsx`, `usePluginFields.js` | T | New contribution point `options.fields`, rendered like `resources.fields`; a `*.fields` contribution with `section: { title }` saves its own rows after the core row, counted by « Enregistrer » and the unsaved guard (an editor with only plugin changes no longer rewrites the core row) — empty when no live plugin contributes |
+| `constants/`, `App.jsx`, `api.js`, `utils/navigation.js` | `navMenu.js`, `App.jsx`, `api.js`, `navigation.js` | T | Generic points: `nav.items` (a plugin page at the top level of the side menu), `api.pluginRequest(path, options)`, `/login?next=` (same-origin paths only: no `//`, scheme, backslash or control character, never `/login`) |
 
 **Component reuse declaration:**
 
@@ -691,6 +706,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/orders/:id` | stay session | — | one order (triggers the on-demand Qonto poll like `/booking-requests/:id/status`) |
 | GET | `/public/v1/guest/manifest.webmanifest` | — | — | manifest with the plugin's app name (rule 52), `application/manifest+json`, `Cache-Control: no-cache` |
 | GET | `/api/guest-app/items` | admin | — | every option and resource: `{ kind, id, title, priceType, category?, archived?, sellable:{ok, reason}, sold, mediaId, shortDescriptionFr, shortDescriptionEn, maxQuantity, needsStaff, leadMinutes, stockable, stock:{ tracked, quantity, quantityLabel (« −2 »), held, heldLabel, left, alertBelow, soldOut, out, restockLine (« Stock réglé à 24 — Sophie, 6 nov. 14:02 ») } }` |
+| GET | `/api/guest-app/items?propertyId=` | admin | — | the studio's Boutique: only the options and resources linked to that lodging, each with that lodging's `price`, `priceLabel` (« 4,50 € », « Inclus (0 €) ») and `priceUnitLabel` (rule 50) |
 | GET | `/api/guest-app/stock` | admin, reception | — | `{ items:[{ kind, id, title, quantity, held, left, soldOut, out, label:'Stock : épuisé'\|'Stock : 3' }] }` — the tracked articles, for the reservation editor's warning (rule 37quater), never a refusal |
 | GET/PUT | `/api/guest-app/items/:kind/:id` | admin | `{ sold?, mediaId?, shortDescriptionFr?, shortDescriptionEn?, maxQuantity?, needsStaff?, leadMinutes?, stockTracked?, stockQuantity? (0-100 000, a restock), stockAlertBelow?, soldOut? }` (only the keys sent are written; unknown keys refused) | the item view; 400 on a description over 140 characters, `maxQuantity` outside 1-50, `leadMinutes` outside 0-240, an unknown `mediaId`; 400 `NOT_SELLABLE` + the reason for `sold:true` on a type rule 23 excludes; `needsStaff` always false for a resource; 400 `NO_STOCK` for a stock on an hourly resource or the breakfast; 400 « Indiquez la quantité en stock. » for tracking without a count |
 | GET | `/api/guest-app/studio/lodgings` | admin | — | `{ lodgings:[{ propertyId, name, enabled, hasLodgingCode, stateLabel:'Hors application'\|null }] }` — every GuestFlow property, by name as GuestFlow lists them, read live (rule 48) |

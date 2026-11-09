@@ -1,6 +1,6 @@
 /**
  * Serving the two web apps of the plugin (specs/guest-app.md §4.1, plan step 50), through `ctx.webApp`:
- *   - the guest app « Mon séjour » (`apps/guest`) on the guest host, at every path but the core's trees — the stay link
+ *   - the guest app « Mon séjour » (`apps/guest` in this folder) on the guest host, at every path but the core's trees — the stay link
  *     `/s/<token>`, the poster `/l/<code>`, `/retrouver`, the Qonto return `/commande/<id>`… all open the app;
  *   - the booklet studio (`apps/studio`) at `/studio` on the admin host, for an admin session only (rule 47).
  *
@@ -9,7 +9,7 @@
  * the app's own route: its `index.html`. A build that is not there answers a plain 503 page.
  *
  * Where the builds are: inside the plugin package (`server/assets/<name>`, copied there by
- * scripts/build-plugin-packages.mjs), else in the repository (`apps/<name>/dist`) when the plugin runs from its sources.
+ * scripts/build-plugin-packages.mjs), else this folder's own build (`apps/<name>/dist`) when the plugin runs from its sources.
  */
 
 const fs = require('fs');
@@ -23,7 +23,7 @@ const REVALIDATED = new Set(['/index.html', '/sw.js', '/manifest.webmanifest']);
 /** The build of `name`: the first candidate holding an `index.html`, or null. */
 function distDirOf(name, candidates = [
   path.join(__dirname, 'assets', name),
-  path.join(__dirname, '..', '..', '..', '..', 'apps', name, 'dist'),
+  path.join(__dirname, 'apps', name, 'dist'),
 ]) {
   return candidates.find((dir) => fs.existsSync(path.join(dir, 'index.html'))) || null;
 }

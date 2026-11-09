@@ -11,6 +11,9 @@ work builds on). All slices ship on ONE branch, `feature/guest-app-plugin`, as O
 commit per slice (the user's decision of 2026-11-05: the spec-coverage gate refuses code citing a spec still
 Approved, so the spec moves to Implemented in that single PR); `inte/plugins` is merged into the branch at
 every slice.
+> **2026-11-09 —** the two apps live in the plugin's own folder: read `apps/guest` / `apps/studio` below as
+> `server/src/plugins/guest-app/apps/guest` / `…/apps/studio` (`guest-app.md` §4.2, `plugins-phase-1-sdk.md` rule 48).
+
 **Surface (estimate):** 1 new plugin (`guest-app`, ~30 server files), 2 new front-end apps (`apps/guest`,
 `apps/studio`), 1 plugin client module, ~12 touched core / plugin files, ~18 new server test files,
 ~10 client test files, 1 E2E suite.

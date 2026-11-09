@@ -236,7 +236,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     | `settings.integrations` | Intégrations page sections, one tab per plugin (`tabLabel?`, `keywords?` — specs/integrations-tab-per-plugin.md rules 4, 8) | google-calendar, weather-alerts, gate-access |
     | `dashboard.alerts.urgent` | Dashboard alert stack, under the payment deadlines | gate-access (keys) |
     | `dashboard.alerts` | Dashboard alert stack, under the new iCal reservations | tariff-recipes (runs) |
-    | `reservation.cards` | reservation page, after the finance section | gate-access |
+    | `reservation.cards` | reservation page, after the finance section | gate-access, guest-app (« Lien Mon séjour ») |
+    | `options.fields`, `resources.fields` | option and resource editors; with `section: { title }` a section of its own, saved after the core row (rule 49) | hourly-resources (`resources.fields`), guest-app |
+    | `nav.items` | the side menu's top level, after the entry named by `after` (rule 49) | guest-app (Commandes clients) |
     | `sas.arrival.steps` | SAS dialog, just before the recap | weather-alerts |
     | `sas.portal` | the SAS « Portail » step, when the SAS data says the plugin holds a key (rule 17). A contribution with `leadsStep: { title }` takes the whole step and its title while its plugin's SAS data says `available`, the others handed to it as `gateStep` (specs/guest-app.md rule 9bis, 2026-11-06) | gate-access, guest-app (`leadsStep`) |
     | `calendar.dayMarkers` | month view, week view, property pricing calendar, their legends | school-holidays |
@@ -593,7 +595,23 @@ Optional: a plugin that declares nothing reads « Actif ».
     before the favicon and the GuestFlow client, and reads the live plugins on every request: a plugin activated or
     configured later answers at once, a deactivated one falls through to the core. The handler owns its answer (its
     caching, its policy, its own access check). A row of `plugin-core-hardening-floor.unit.test.js` makes a plugin
-    calling it floor at `^2.25.0`. Tests: `plugins-web-apps.unit.test.js`, `guest-app-hosting`.
+    calling it floor at `^2.25.0`. A plugin's web app sources live in its server folder as `apps/<name>/` (their own
+    `package.json`, built by Vite to `dist/`): `scripts/build-plugin-packages.mjs` never ships them and copies each build
+    into the package's `server/assets/<name>` (a build not made: a warning, the app answers 503); the release builds every
+    plugin app first, and the server's source scans skip them (browser code). Tests: `plugins-web-apps.unit.test.js`,
+    `guest-app-hosting`, `plugin-web-app-packaging.unit.test.js`.
+49. *(Added 2026-11-09, specs/guest-app.md rules 22, 37bis, 45 and 47, SDK 2.25.0.)* **Client points a plugin needs to
+    keep its screens and calls in its own folder.** `options.fields` mirrors `resources.fields` in the option editor; a
+    `*.fields` contribution may carry `section: { title }`: it gets a section of its own at the bottom, counted by
+    « Enregistrer » and the unsaved guard, and is saved after the core row (an editor with only plugin changes no longer
+    rewrites the core row; without `section` a contribution behaves as before). `nav.items` draws a plugin page at the
+    top level of the side menu, after the core entry named by `after` (else after « Calendrier »), only while its route
+    is visible to the role. `api.pluginRequest(path, options)` calls `/api<path>` with the client's session, errors and
+    data-changed event, so a plugin's HTTP wrappers live in the plugin (the core `api.js` holds none of guest-app's).
+    `/login?next=<path>` reopens a same-origin path after sign-in (`safeReturnPath`: no `//`, scheme, backslash or
+    control character, never `/login`), for a backend page that needs a session. Tests:
+    `OptionEditorPanel.plugin-fields.test.jsx`, `ResourceEditorPanel.plugin-fields.test.jsx`,
+    `navMenu.plugin-entries.test.js`, `navigation.safe-return-path.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

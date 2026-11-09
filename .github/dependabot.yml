@@ -41,6 +41,40 @@ updates:
         patterns: ['*']
         update-types: [minor, patch]
 
+  # ── Plugin guest-app : l'app clients « Mon séjour » (Vite + React) ──
+  - package-ecosystem: npm
+    directory: /server/src/plugins/guest-app/apps/guest
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies]
+    groups:
+      guest-app-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Plugin guest-app : le Studio du livret (Vite + React) ──
+  - package-ecosystem: npm
+    directory: /server/src/plugins/guest-app/apps/studio
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies]
+    groups:
+      studio-app-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
   # ── Serveur : API Express + better-sqlite3 (module NATIF, recompilé sur le Pi au déploiement) ──
   - package-ecosystem: npm
     directory: /server

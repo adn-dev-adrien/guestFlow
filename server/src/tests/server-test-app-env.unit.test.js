@@ -87,7 +87,10 @@ function sourceFiles(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name !== 'tests' && entry.name !== 'node_modules') sourceFiles(full, out);
+      // A plugin's web apps (`plugins/<id>/apps/<name>`, specs/plugins-phase-1-sdk.md rule 48) are browser code built
+      // by their own Vite toolchain: the server never reads them, nor their dev-server variables.
+      const pluginApps = entry.name === 'apps' && path.dirname(dir) === path.join(SRC, 'plugins');
+      if (entry.name !== 'tests' && entry.name !== 'node_modules' && !pluginApps) sourceFiles(full, out);
     } else if (/\.(c|m)?js$/.test(entry.name)) out.push(full);
   }
   return out;

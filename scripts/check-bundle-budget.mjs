@@ -4,7 +4,7 @@
  *
  *   cd client && npm run build && cd .. && node scripts/check-bundle-budget.mjs [--dist client/dist] [--budget <bytes gzip>]
  *
- * The guest app « Mon séjour » runs it with `--dist apps/guest/dist --budget 200000` (specs/guest-app.md plan step 60:
+ * The guest app « Mon séjour » runs it with `--dist server/src/plugins/guest-app/apps/guest/dist --budget 200000` (specs/guest-app.md plan step 60:
  * 200 kB gzip on first load, fonts excluded — they are woff2 files, never counted here).
  *
  * Reads the Vite manifest (`build.manifest: true`) and sums the gzip size of the entry, of every chunk

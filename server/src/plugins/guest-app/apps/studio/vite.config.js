@@ -9,7 +9,7 @@ import react from '@vitejs/plugin-react';
 
 // Where the two apps whose code the studio reads live. If the apps move (e.g. under the plugin's folder), these two
 // lines are the only ones to change.
-const GUESTFLOW_CLIENT = fileURLToPath(new URL('../../client/src', import.meta.url));
+const GUESTFLOW_CLIENT = fileURLToPath(new URL('../../../../../../client/src', import.meta.url));
 const GUEST_APP = fileURLToPath(new URL('../guest', import.meta.url));
 
 // `STUDIO_API` points the dev proxy at another GuestFlow server.
