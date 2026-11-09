@@ -21,7 +21,11 @@ function resolvePlatformCleaningFees(cleaning, platformNames = []) {
     if (!recorded) { unknown.push(entry.platform); continue; }
     const cleaningNet = entry.chargesCleaning ? round2(netCost) : 0;
     const choresNet = round2((Number(entry.choresMinutes || 0) / 60) * hourlyRate);
-    fees.push({ platform: recorded, cleaningNet, choresNet, net: round2(cleaningNet + choresNet) });
+    // Rule 14 — a channel that passes options through untouched (Gîtes de France) takes no
+    // commission on the fee: the gross to configure is then the net itself.
+    const fee = { platform: recorded, cleaningNet, choresNet, net: round2(cleaningNet + choresNet) };
+    if (entry.feeCommissioned === false) fee.feeCommissioned = false;
+    fees.push(fee);
   }
   return { fees, unknown };
 }
@@ -38,7 +42,10 @@ function diffPlatformCleaningFees(storedJson, desired = []) {
   for (const k of new Set([...before.keys(), ...after.keys()])) {
     const from = before.has(k) ? Number(before.get(k).net) : null;
     const to = after.has(k) ? Number(after.get(k).net) : null;
-    if (from !== to) changes.push({ platform: (after.get(k) || before.get(k)).platform, from, to });
+    const commissioned = (f) => (f ? f.feeCommissioned !== false : null);
+    if (from !== to || commissioned(before.get(k)) !== commissioned(after.get(k))) {
+      changes.push({ platform: (after.get(k) || before.get(k)).platform, from, to });
+    }
   }
   return changes;
 }

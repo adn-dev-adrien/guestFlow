@@ -690,7 +690,7 @@ function createPropertiesModel(database) {
         const fee = p.isDirect ? null : cleaningFeeByName.get(String(p.name || '').trim().toLowerCase());
         return {
           ...p,
-          cleaningFee: fee ? grossFromNet(fee.net, p.commissionPercent) : null,
+          cleaningFee: fee ? grossFromNet(fee.net, fee.feeCommissioned === false ? 0 : p.commissionPercent) : null,
           cleaningFeeDetail: fee ? { cleaningNet: fee.cleaningNet, choresNet: fee.choresNet, net: fee.net } : null,
         };
       });

@@ -325,6 +325,10 @@ Per-range `minNights`, `changeoverArrival` and `changeoverDeparture` ride inside
 
 ## 3. The recipe document
 
+> Shipped version 1.3.0 (2026-11-09): the `cleaning` block declares Airbnb (25 chores minutes, 13 €) and
+> Pitchup (0 € — the price is all-inclusive and Pitchup bans no chores). The sketch below is the 1.0.0
+> design document and does not show it.
+
 ```jsonc
 {
   "id": "aventura-lodge-2026",

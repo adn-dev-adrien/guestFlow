@@ -1193,7 +1193,45 @@ l'onglet Envoyés avant de renvoyer.**
 photos, tarifs, promotions, synchronisation iCal, widgets et statistiques — **aucune page de
 descriptif**. « Pour toute modification, veuillez contacter Gîtes de France Ardèche » : le contenu
 éditorial appartient au relais départemental, et passe donc par un message, pas par un formulaire.
-C'est le seul des six canaux qui ne se pilote pas.
+Les **tarifs**, eux, se pilotent — relevé du 2026-11-09 ci-dessous.
+
+## Gîtes de France — tarifs ITEA, relevé du 2026-11-09
+
+**La commission : 10 % de la location seule, options exclues, arrondie à l'euro** (66,50 → 66) —
+mesurée sur 13 dossiers soldés (`location + options − net propriétaire`). Le client paie en plus des
+**frais de dossier à la centrale : 5 % plafonnés à 70 €**, qui ne nous reviennent jamais.
+
+**Le modèle de prix : une ligne par date d'arrivée**, prix de 1 à 7 nuits + une « nuit supp » unique
+pour toute nuit au-delà de 7. Les saisons ITEA (B, V, E, M, J, G, I, H, S, O, T, N) ne servent qu'à la
+« Saisie simple » ; la « Saisie avancée » écrase tout, date par date. Exercices de janvier à janvier
+(`?exercice=2026` = 10/01/2026 → 08/01/2027).
+
+| Quoi | Où |
+|---|---|
+| Lire toute la grille d'un exercice | la réponse de `lib_2/ajax/passerelleBureauLocal.php?…prixSejour2.php&action=loadData` au chargement de `/v5/modifier_prix2.php?numeroGite=309700&exercice=AAAA` : `tarifs[]` avec `prix_public1..28`, `prix_public_nuit_supp`, `delai1..7` (`"-1"` = durée interdite) |
+| Historique des modifications | onglet « Historique » de la même page |
+| Devis voyageur | widget `widget-fngf.itea.fr/fiche-07G309700.html?&WIDGET=RESAFNGF&KEY=FNGF-009SJ596&LANGUE=FR&NUMGITE=07G309700`, puis `POST /lib_2/ajax/gereResa.php` `type=getHTMLTabPrixFormulesSejour` (`dateDeb`, `dateFin`, `nbAdultes`, `exercice`, `ident=gites07_b<exercice>.1.309700.G`) : `prixVente` = location + frais de dossier ; une durée interdite **ou un jour occupé** répond `contactSiNonVendable` |
+
+**Écrire : par la page elle-même, jamais en reconstruisant sa requête.** Sur la page de l'exercice,
+`_prixSejourData` porte une ligne par date ; `prixSejourChangeData(ligne, 'prix_publicN' |
+'prix_public_nuit_supp' | 'delaiN', valeur)` enregistre une modification comme une saisie dans la grille,
+puis `prixSejourConfirmSaveEdition()` ouvre la confirmation (elle liste les **variations de plus de
+20 %** — les relire) et « Confirmer les modifications et enregistrer » envoie tout en un lot. Relire
+ensuite `loadData` et comparer chaque cellule. Le 2026-11-09 : 3 327 prix et 90 fermetures en deux
+enregistrements (un par exercice), zéro écart.
+
+**Pièges.**
+- **La « nuit supp » est un prix unique** : la prendre égale à la 8e nuit facture le réveillon (937 €)
+  à chaque nuit au-delà de 7 pour une arrivée le 24/12. Prendre la moyenne des nuits 8 à 14.
+- **Au-delà de 7 nuits, ITEA recalcule lui-même** `prix_public8..28` — y compris pour des arrivées
+  antérieures dont le séjour long enjambe les dates modifiées : ce n'est pas une écriture parasite.
+- **Les minimums de 3 nuits pendant les vacances scolaires sont posés par la centrale** (opératrice
+  « MAEVA », 01/10/2025) : ne jamais les rouvrir. Règle d'Adrien : **le plus élevé des deux**, ITEA ou
+  recette, date par date.
+- **Le « À partir de … €/semaine » du widget** ne suit pas tout de suite une modification : se fier aux
+  devis datés.
+- La grille dérivée de la recette se calcule avec le moteur de GuestFlow (saisons au prix
+  `ceil(net ÷ 0,90)`), voir `specs/tariff-recipe-gite/spec.md` règle 14ter.
 
 ## Abracadaroom — la page publique sert une copie en retard de plus de 24 h
 
@@ -1602,3 +1640,23 @@ l'état fermé.
 **Lire un devis voyageur contre un séjour témoin.** Airbnb et Abritel ajoutent ménage, taxe et frais
 de service au total affiché. Plutôt que de décomposer le détail, quoter un séjour voisin inchangé
 (21→23 décembre) : la différence entre les deux totaux isole les nuits modifiées.
+
+## Pitchup — relevé du 2026-11-09 (compte non encore rouvert)
+
+- **Commission 15 %, comprise dans le prix payé par le client**, aucun frais de réservation ni
+  d'abonnement (page `/fr/join/` et accueil de l'extranet). **Parité tarifaire** exigée avec le site
+  direct. Paiement par Stripe : Pitchup garde les 15 % comme acompte, le solde est versé à l'hébergeur
+  à l'échéance ; option « le client règle à l'arrivée ».
+- **Extranet** : `pitchup.com/fr/supplier/campsite/domaine-solio/` (ID 42145). Tarifs :
+  `…/rates3/?start_date=AAAA-MM-JJ` ; disponibilités et iCal : `…/allocation/`. Une modale « clé
+  d'accès » (`#passkey-offer`) intercepte les clics : la retirer du DOM, ne pas y répondre.
+- **État au 2026-11-09** : annonce basique, réservations éteintes. « Ajouter des informations sur
+  votre établissement » répond « Vous êtes déjà enregistré. Contactez Pitchup.com pour souscrire à
+  nouveau » : **seul le support rouvre le compte** (enquiries@pitchup.com, +44 20 8434 7444). Un seul
+  hébergement : « Tente safari Aventura lodge 2 chambres » (L'Estiva), sans disponibilité ni tarif,
+  calendrier externe activé. **Pas d'hébergement pour le gîte.**
+- **À confirmer par le support** : la commission porte-t-elle sur le ménage et les options (la recette
+  suppose que oui : gîte 95 €), qui collecte la taxe de séjour, TVA sur la commission pour un
+  hébergeur français.
+- Recettes : `gite-2027` 3.8.0 et `aventura-lodge-2026` 1.3.0 déclarent Pitchup ; la plateforme
+  `Pitchup` (15 %) doit exister dans GuestFlow avant l'application.

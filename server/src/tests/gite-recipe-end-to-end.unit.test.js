@@ -247,7 +247,7 @@ test('applied to a property, the shipped recipe quotes the control cases to the 
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE platforms (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, commissionPercent REAL DEFAULT 0);
-    INSERT INTO platforms (name, commissionPercent) VALUES ('Airbnb', 15.5);
+    INSERT INTO platforms (name, commissionPercent) VALUES ('Airbnb', 15.5), ('GitesDeFrance', 10), ('Pitchup', 15);
     CREATE TABLE properties (id INTEGER PRIMARY KEY, name TEXT, depositPercent REAL DEFAULT 30,
       depositDaysBefore INTEGER DEFAULT 30, balanceDaysBefore INTEGER DEFAULT 7,
       defaultCheckIn TEXT DEFAULT '16:00', defaultCheckOut TEXT DEFAULT '10:00',
