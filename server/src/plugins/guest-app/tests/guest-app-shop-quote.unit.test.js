@@ -177,10 +177,10 @@ withQuote('rule 37: a request of another shape is refused before anything reads 
   assert.equal(payment.body.error.code, 'INVALID_INPUT');
 });
 
-withQuote('rule 27: a pre-arrival session reads the shop but orders nothing — 409 SHOP_CLOSED', async ({ call }) => {
+withQuote('rule 27, §4.3: a pre-arrival session reads the shop but quotes nothing — 403 STAY_REQUIRED', async ({ call }) => {
   const res = await quote(call, [{ kind: 'option', id: CIDER, quantity: 1 }]);
-  assert.equal(res.status, 409);
-  assert.equal(res.body.error.code, 'SHOP_CLOSED');
+  assert.equal(res.status, 403);
+  assert.equal(res.body.error.code, 'STAY_REQUIRED');
 }, { stay: { start: 3, end: 6 } });
 
 withQuote('edge case: the planning is the truth — a session of an order the operator removed reads « Modifiée par l’équipe »', async ({ stayId, call }) => {

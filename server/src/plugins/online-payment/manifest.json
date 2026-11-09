@@ -129,7 +129,8 @@
       "Compatible avec le SDK 2.24 de GuestFlow."
     ],
     "1.7.1": [
-      "Rapprochement bancaire : une commande de l’application clients payée par carte est attendue sur le compte, pour tout ce qui a été payé."
+      "Rapprochement bancaire : une commande de l’application clients payée par carte est attendue sur le compte, pour tout ce qui a été payé.",
+      "Compatible avec le SDK 2.24 de GuestFlow."
     ]
   }
 }
