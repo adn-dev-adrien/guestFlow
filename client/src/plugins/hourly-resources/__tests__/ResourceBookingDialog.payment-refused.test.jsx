@@ -66,6 +66,8 @@ test('rule 44 — a refused payment is shown, the booking is not created twice, 
   expect(onSave).toHaveBeenLastCalledWith(expect.any(Object), null);
   expect(onClose).not.toHaveBeenCalled();
   await waitFor(() => expect(onCommitted).toHaveBeenCalledTimes(1));
+  // The draft is now the created booking's (bookingId 41): its price is asked again before the next click.
+  await waitFor(() => expect(save()).toBeEnabled());
   fireEvent.click(save());
   await waitFor(() => expect(onClose).toHaveBeenCalled());
   expect(onSave).toHaveBeenLastCalledWith(expect.any(Object), 41);

@@ -257,6 +257,11 @@ Rules are numbered once and never renumbered (new rules go at the end).
     priced move that changes the total keeps rule 12's 409 BOOKING_PAID. The invoice of a booking whose live breakdown no
     longer adds up to the paid total is refused before any Qonto call: 409 TARIFF_CHANGED « Le tarif a changé depuis le
     paiement : facture à établir dans Qonto. ».
+    Once its payment is taken back (« Retirer le paiement »), the booking is unpaid and priced like any other: its next
+    save stores the live total, even when nothing priced moved (2026-11-09, audit R35b N2, accepted). It is never silent:
+    the dialog's preview and its payment fields already show that total before the save, the save warns when the shown and
+    stored totals differ, and the payment must then cover the new total. To correct only the method after a tariff change,
+    the operator re-records at the amount shown, or invoices by hand in Qonto.
 37. **`paid` is the truth of a payment** (R35-DB-L1). Every write of this release sets `paid` with the payment columns;
     the planning, the payload, the guards and the journal read `paid = 1`. A release before 1.4.0 (rollback window)
     unticks with `paid = 0` only: after the roll-forward the booking reads unpaid and leaves the journal (self-update rule
@@ -290,9 +295,17 @@ Rules are numbered once and never renumbered (new rules go at the end).
       date, times, client switch, client fields and logement are read-only;
     - the payment is paid whole (`TenderLines whole`: no reste, no geste — §8);
     - a payment refused after the booking is created is shown under the payment; the next click edits that booking,
-      never creates it again;
+      never creates it again; from then on the dialog previews it as itself (`bookingId` of the created booking) and its
+      own slot never counts as taken when the slot is moved (2026-11-09, audit R35b N3);
     - the planning reloads after the dialog's last step (payment, invoice);
     - a guest who paid at booking time gets « Valider l'arrivée » on his day, posting no payment.
+45. **No invoice without the operator's choice** (2026-11-09, audit R35b N1; reading of rule 13). A Qonto invoice is made
+    only by an explicit action: the box « Créer la facture dans Qonto » ticked (rule 13: ticked by default on a card
+    payment typed in the dialog, unticked otherwise) or the button « Créer la facture ». « Valider l'arrivée » of a guest
+    who paid at booking time records the arrival with `invoice: false`; the invoice block's « Créer la facture » records
+    the arrival then asks the invoice. Server side, `POST /:id/arrival` issues only on `invoice: true`, and an `invoice`
+    that is not a boolean is refused before anything is written (400 « Facture : oui ou non. »); recording a payment,
+    editing a booking and the hourly job never issue one.
 
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
@@ -367,7 +380,7 @@ total on its own row) is copied.
 | POST/PUT | `/api/resource-bookings[/:id]` | `+ offeredMinutes`, `+ billing` (external) | unchanged | 409 `BOOKING_INVOICED` when frozen. |
 | POST | `/api/resource-bookings/:id/payment` | `{ tenders: [{ method, amountCents, internal }], paidAt }` | booking | 400 with `validateSettlement`'s refusals. |
 | DELETE | `/api/resource-bookings/:id/payment` | — | booking | 409 when invoiced. |
-| POST | `/api/resource-bookings/:id/arrival` | `{ offeredMinutes, payment: { tenders, paidAt } \| null, invoice: bool, billing? }` | `{ booking, invoice: { ok, number? , refusal? } }` | Rules 30–31. |
+| POST | `/api/resource-bookings/:id/arrival` | `{ offeredMinutes, payment: { tenders, paidAt } \| null, invoice: bool, billing? }` | `{ booking, invoice: { ok, number? , refusal? } }` | Rules 30–31; 400 when `invoice` is not a boolean, issues only on `true` (rule 45). |
 | POST | `/api/resource-bookings/:id/invoice` | `{ billing? }` | `{ invoiceNumber, attachment }` | 409 `ISSUER_UNAVAILABLE`, 422 `QONTO_NEEDS_ADDRESS`, 502 Qonto. |
 | POST | `/api/resource-bookings/:id/invoice/attach` | `{ transactionId? }` | `{ attachment }` | Retry or manual choice. |
 
@@ -421,6 +434,8 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - [x] `…/booking-paid-sale-guards.unit.test.js` — rules 34, 36, 37
 - [x] `…/booking-invoice-numbered-kept.unit.test.js` — rules 38, 41, 43
 - [x] `…/booking-arrival-day.unit.test.js` — rules 28, 32
+- [x] `…/booking-invoice-explicit.unit.test.js` — rule 45
+- [x] `…/booking-payment-taken-back.unit.test.js` — rule 36 (re-priced after « Retirer le paiement »)
 - [x] `…/hourly-erase-journaled-sales.unit.test.js` — rule 21 (erase warning)
 - [x] `tests/resource-booking-sale-deletes.unit.test.js` — rule 34 (resource, client, property, orphans)
 - [x] `plugins/online-payment/tests/invoice-issuer-mark-paid-optional.unit.test.js` — rule 38
@@ -437,7 +452,8 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - [x] Vitest per subject: `OfferedTimeField`, `BillingAddressFields`, `BookingInvoiceBlock`, `ResourceArrivalDialog`,
   `PlanningResourceCard` (rule 28), `ResourceBookingDialog.preview` (rules 4–5), `resourceBookingDraft` (rule 7),
   `hooks/__tests__/usePostalCodeCities` (rule 27), `ResourceBookingDialog.paid-actions`, `ResourceBookingDialog.payment-refused`,
-  `ResourceArrivalDialog.paid-before` (rules 28, 34, 44).
+  `ResourceArrivalDialog.paid-before` (rules 28, 34, 44), `ResourceArrivalDialog.no-unasked-invoice` (rules 13, 45),
+  `ResourceBookingDialog.created-id` (rule 44).
 
 ### Manual UI verification
 - [ ] Walk-in, 2 h across the evening switch, 30 min offered, CB, invoice → lines add up, number shown.
@@ -487,6 +503,9 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
   - tests: 12 new server files (63 tests), 6 new client files + 4 updated; route, job and SDK censuses updated.
 - 2026-11-09 — audit round 35 (`fix/audit-r35-resources`): rules 34–44; `hourly-resources` 1.4.2, `online-payment` 1.7.2;
   migration `resource_bookings_v3`; 10 new server files, 3 new client files + 2 updated.
+- 2026-11-09 — audit round 35b (same branch): rule 45 (no invoice without the operator's choice), rule 36 note (re-priced
+  after « Retirer le paiement »), rule 44 (created booking previewed as itself); 2 new server files, 2 new client files +
+  1 updated.
 - Not verifiable without Qonto: Q2–Q4 and the real upload are coded for both outcomes and covered with stubs; they
   are measured in the Qonto sandbox before the first real invoice, then Qonto is reconnected once in production (Q6).
 

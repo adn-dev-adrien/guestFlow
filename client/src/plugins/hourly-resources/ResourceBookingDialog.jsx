@@ -67,6 +67,8 @@ export default function ResourceBookingDialog({
   // A booking created by this dialog whose payment step was refused: the next click edits it, never creates it again.
   const [createdId, setCreatedId] = useState(null);
   const booking = stored;
+  // The booking this dialog edits: the one it opened on, or the one it created (rule 44) — previewed and excluded as itself.
+  const ownId = booking?.id || createdId;
   const slotDuration = resource?.slotDuration || 5;
   const turnoverMinutes = Number(resource?.turnoverMinutes || 0);
   const minimumUsageMinutes = Number(resource?.minimumUsageMinutes || 0);
@@ -161,8 +163,8 @@ export default function ResourceBookingDialog({
   // The price is the server's: the draft below is all the dialog sends, and the answer is rendered as is
   // (specs/resource-supplements-total-server-side.md rules 8-14).
   const draft = useMemo(() => resourceBookingDraft({
-    resourceId: resource?.id, bookingId: booking?.id, date, startTime: selectedStart, endTime: selectedEnd, propertyId, offeredMinutes,
-  }), [resource?.id, booking?.id, date, selectedStart, selectedEnd, propertyId, offeredMinutes]);
+    resourceId: resource?.id, bookingId: ownId, date, startTime: selectedStart, endTime: selectedEnd, propertyId, offeredMinutes,
+  }), [resource?.id, ownId, date, selectedStart, selectedEnd, propertyId, offeredMinutes]);
   const preview = useResourceBookingPreview({ draft, enabled: open });
   const price = preview.price;
 
@@ -180,12 +182,11 @@ export default function ResourceBookingDialog({
       .then((result) => {
         if (!current) return;
         const slots = result.occupiedSlots || [];
-        const filtered = booking?.id ? slots.filter((slot) => Number(slot.id) !== Number(booking.id)) : slots;
-        setOccupiedSlots(filtered);
+        setOccupiedSlots(ownId ? slots.filter((slot) => Number(slot.id) !== Number(ownId)) : slots);
       })
       .catch(() => { if (current) setOccupiedSlots([]); });
     return () => { current = false; };
-  }, [open, date, resource?.id, booking?.id]);
+  }, [open, date, resource?.id, ownId]);
 
   useEffect(() => {
     if (open) {
@@ -285,12 +286,11 @@ export default function ResourceBookingDialog({
           ? { clientId: null, clientName: clientName.trim() || null, clientPhone: clientPhone.trim() || null }
           : { clientId: selectedClient?.id || null, clientName: null, clientPhone: null }),
       };
-      const knownId = booking?.id || createdId;
-      const saved = await onSave(data, knownId);
+      const saved = await onSave(data, ownId);
       if (!saved) return;
       wrote = true;
-      const id = knownId || saved.id;
-      if (!knownId && id) setCreatedId(id);
+      const id = ownId || saved.id;
+      if (!ownId && id) setCreatedId(id);
       if (payNow && id) {
         try {
           await api.recordResourceBookingPayment(id, paymentBody(payment));

@@ -76,7 +76,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   const canValidate = Boolean(booking) && !busy && (locked || mode === 'later' || total === 0 || Boolean(payment && payment.canSubmit)) && (locked || (preview.fresh && !preview.refusal));
 
-  async function validate() {
+  // `issue` — the invoice block's « Créer la facture »: the only way a booking paid earlier gets its invoice here (rule 45).
+  async function validate({ issue = false } = {}) {
     setBusy(true);
     setError(null);
     try {
@@ -89,7 +90,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       const res = await api.recordResourceBookingArrival(booking.id, {
         offeredMinutes: locked ? undefined : offeredMinutes,
         payment: payNow ? paymentBody(payment) : null,
-        invoice: wantsInvoice || (locked && wantsInvoiceLater()),
+        invoice: wantsInvoice || (issue && locked && wantsInvoiceLater()),
         billing: booking.external ? billing : undefined,
       });
       setBooking(res.booking);
@@ -214,7 +215,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
                   internalCash={(payNow && Boolean(payment) && !allOnTheBooks(payment)) || Boolean(booking.payment && !booking.payment.onTheBooks)}
                   cardDay={dayMonth(booking.payment?.paidAt || payment?.paidAt)}
-                  onIssue={validate}
+                  onIssue={() => validate({ issue: true })}
                   onAttach={() => attachWith({})}
                   onPickTransaction={(transactionId) => attachWith({ transactionId })}
                   showAddress={booking.external && !booking.clientId}
@@ -230,7 +231,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         {!closesOnly && <Button onClick={onClose} disabled={busy} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
         <Button
           variant="contained"
-          onClick={closesOnly ? onClose : validate}
+          onClick={closesOnly ? onClose : () => validate()}
           disabled={!canValidate}
           sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
         >

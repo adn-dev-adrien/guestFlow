@@ -110,6 +110,8 @@
       "L’adresse d’un client enregistré part sur sa facture ; une facture annulée dans Qonto peut être refaite depuis la réservation.",
       "L’arrivée se valide le jour de la séance, aussi pour un client qui a payé à la réservation.",
       "L’avertissement avant effacement dit quelles ventes quittent l’export comptable.",
+      "« Valider l’arrivée » d’un client qui a payé à la réservation ne crée plus de facture Qonto sans qu’on la demande : « Créer la facture » reste le geste explicite.",
+      "Une séance créée dont le paiement a été refusé se déplace sans se gêner elle-même dans le planning.",
       "Compatible avec GuestFlow 4 (SDK 2.25)."
     ]
   }

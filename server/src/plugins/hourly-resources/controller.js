@@ -102,7 +102,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
   }
 
   /**
-   * Rules 28-31 — POST /:id/arrival `{ offeredMinutes?, payment: { tenders, paidAt } | null, invoice?, billing? }`. The
+   * Rules 28-31, 45 — POST /:id/arrival `{ offeredMinutes?, payment: { tenders, paidAt } | null, invoice?: boolean, billing? }`. The
    * arrival and the payment are committed first; the invoice is asked after, and its refusal never undoes them
    * (rule 25): `{ booking, invoice: { ok, number } | { ok: false, code, error } | null }`.
    */
@@ -110,6 +110,10 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     const body = req.body || {};
     if (body.payment !== undefined && body.payment !== null && (typeof body.payment !== 'object' || Array.isArray(body.payment))) {
       return res.status(400).json({ error: 'Paiement invalide.' });
+    }
+    // Rule 45 — the invoice is the operator's explicit choice: anything but a boolean is refused before the arrival.
+    if (body.invoice !== undefined && typeof body.invoice !== 'boolean') {
+      return res.status(400).json({ error: 'Facture : oui ou non.' });
     }
     const result = model().recordArrival(req.params.id, {
       offeredMinutes: body.offeredMinutes, payment: body.payment || null, billing: body.billing,
