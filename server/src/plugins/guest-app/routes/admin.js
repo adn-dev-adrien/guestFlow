@@ -3,7 +3,7 @@
 const express = require('express');
 
 function buildAdminRouter({
-  lodgings, items, serviceHours, studio, stayLinks, orders,
+  lodgings, items, serviceHours, studio, studioSettings, stayLinks, orders,
 }) {
   const router = express.Router();
   router.get('/lodgings/:propertyId', lodgings.read);
@@ -15,12 +15,17 @@ function buildAdminRouter({
   router.get('/items', items.list);
   router.get('/items/:kind/:id', items.read);
   router.put('/items/:kind/:id', items.write);
+  router.get('/stock', items.stockList);
   router.get('/orders', orders.list);
   router.post('/orders/:id/delivered', orders.delivered);
   router.get('/planning/order-cards', orders.planningCards);
   router.get('/service-hours', serviceHours.read);
   router.put('/service-hours', serviceHours.write);
 
+  router.get('/studio/lodgings', studioSettings.lodgingsList);
+  router.get('/studio/settings', studioSettings.read);
+  router.put('/studio/settings', studioSettings.write);
+  router.post('/studio/soliomap/sync', studioSettings.sync);
   router.get('/studio/lodgings/:propertyId/booklet', studio.readBooklet);
   router.put('/studio/lodgings/:propertyId/booklet', studio.writeBooklet);
   router.get('/studio/lodgings/:propertyId/preview', studio.preview);

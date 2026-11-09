@@ -15,6 +15,8 @@ const { shownModules, tilesOf } = require('../modules');
 const { chooseHighlight, openingLine, statusLine, welcomeLine } = require('../homeHighlight');
 const { setSessionCookie } = require('../middleware/guestSession');
 const { pickSuggestion } = require('../soliomapFeed');
+const gate = require('../gate');
+const { isNight } = require('../sun');
 
 const publicHttp = sdk.coreModule('publicHttp');
 const { toParisIso } = sdk.coreModule('stayWindow');
@@ -47,7 +49,7 @@ async function wifiView(wifi) {
 }
 
 function buildSessionController({
-  lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now,
+  lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, readGateUrl = gate.keyUrlOf,
 }) {
   function factsOf(lodging) {
     return {
@@ -167,13 +169,32 @@ function buildSessionController({
     return pickSuggestion(activities, { mode, stay, now: at, lang, soliomapUrl: soliomapUrl() });
   }
 
+  /** Rule 13 — the gate tile says whether the key is ready; its URL only reaches a stay session. */
+  function withGate(tiles, guest, lang) {
+    if (!tiles.some((t) => t.key === 'gate')) return { tiles, gateState: null };
+    const state = gate.gateState({ mode: guest.mode, reservationId: guest.stay && guest.stay.id }, readGateUrl);
+    return {
+      gateState: state.state,
+      tiles: tiles.map((t) => (t.key !== 'gate' ? t : {
+        ...t,
+        state: state.state,
+        ...(state.url ? { url: state.url } : {}),
+        ...(gate.stateLabel(state.state, lang) ? { stateLabel: gate.stateLabel(state.state, lang) } : {}),
+      })),
+    };
+  }
+
   // GET /me — rule 8: this payload is the whole of what a session learns about its stay.
   async function me(req, res) {
     const { stay, window, lodging, mode } = req.guest;
     const lang = languageOf(req, stay);
     const at = now();
     const shown = shownFor(lodging, mode, lang);
-    const base = { mode, lodging: lodgingView(lodging), language: lang, tiles: tilesOf(shown) };
+    const { tiles, gateState } = withGate(tilesOf(shown), req.guest, lang);
+    // §6.1 — the night register from sunset to sunrise at the estate, the same moment on every device.
+    const base = {
+      mode, lodging: lodgingView(lodging), language: lang, isNight: isNight(at), tiles,
+    };
     // Rule 3 — a visitor learns nothing of any stay, not even that one starts today.
     if (!stay) return publicHttp.ok(res, { ...base, welcome: welcomeLine(lodging.name, lang) });
     const opening = mode === 'preArrival' ? openingToday(stay, window, at) : null;
@@ -182,6 +203,7 @@ function buildSessionController({
       now: at,
       shown: shown.map((m) => m.key),
       orderReady: orders().deliveredRecently(stay.id, at),
+      gatePreparing: gateState === 'preparing',
       lang,
     }) : null;
     const suggestion = await suggestionFor({ mode, stay, shown, at, lang });
@@ -219,6 +241,17 @@ function buildSessionController({
     });
   }
 
+  /**
+   * GET /gate — rules 12-14: `{ state, url? }`. `gate-access` off → its plugin is inactive; the lodging's gate module
+   * off → `MODULE_OFF`; any session but a stay → `outside`, never a URL.
+   */
+  function gateRead(req, res) {
+    if (!gate.gateLive()) return res.status(404).json({ error: 'PLUGIN_INACTIVE', plugin: gate.GATE_PLUGIN });
+    const { lodging, mode, stay } = req.guest;
+    if (!shownFor(lodging, 'stay').some((m) => m.key === 'gate')) return publicHttp.fail(res, 404, 'MODULE_OFF', 'Ce service n’est pas proposé dans ce logement.');
+    return publicHttp.ok(res, gate.gateState({ mode, reservationId: stay && stay.id }, readGateUrl));
+  }
+
   /** The keys a lodging shows a session of this mode. */
   const shownKeys = (shownLodging, mode) => shownFor(shownLodging, mode).map((m) => m.key);
 
@@ -226,7 +259,7 @@ function buildSessionController({
   const shownKeysOf = (req) => shownKeys(req.guest.lodging, req.guest.mode);
 
   return {
-    createSession, lodging, lookup, me, shownKeys, shownKeysOf,
+    createSession, gateRead, lodging, lookup, me, shownKeys, shownKeysOf,
   };
 }
 

@@ -8,8 +8,11 @@ const { readModules, modulesInputError } = require('../modules');
 const { lodgingUrl, renderQrPoster } = require('../qrPoster');
 
 const MAX = Object.freeze({
-  displayName: 80, network: 64, password: 128, note: 200, contacts: 10, contactName: 80, contactRole: 80, phone: 30, email: 120,
+  network: 64, password: 128, note: 200, contacts: 10, contactName: 80, contactRole: 80, phone: 30, email: 120,
 });
+
+// Rule 48 — the lodging's name is GuestFlow's, read live: nothing here names it.
+const FIELDS = Object.freeze(['enabled', 'heroMediaId', 'modules', 'wifi', 'contacts']);
 
 const isBoundedText = (value, max) => typeof value === 'string' && value.length <= max;
 
@@ -37,8 +40,8 @@ function contactsInputError(contacts) {
 /** → an error message or null. Only the keys present are judged: a screen saves its own. */
 function lodgingInputError(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Requête invalide.';
+  if (Object.keys(body).some((key) => !FIELDS.includes(key))) return 'Champ inconnu.';
   if (body.enabled !== undefined && typeof body.enabled !== 'boolean') return 'Indiquez si le logement est dans l’application.';
-  if (body.displayName !== undefined && body.displayName !== null && !isBoundedText(body.displayName, MAX.displayName)) return 'Le nom affiché est trop long.';
   if (body.heroMediaId !== undefined && body.heroMediaId !== null && !(Number.isInteger(body.heroMediaId) && body.heroMediaId > 0)) return 'La photo est invalide.';
   if (body.modules !== undefined) {
     const error = modulesInputError(body.modules);
@@ -59,7 +62,6 @@ const toView = (lodging) => ({
   propertyId: lodging.propertyId,
   enabled: lodging.enabled,
   hasLodgingCode: lodging.hasLodgingCode,
-  displayName: lodging.displayName,
   name: lodging.name,
   heroMediaId: lodging.heroMediaId,
   modules: readModules(lodging.modules),
@@ -88,9 +90,9 @@ function buildLodgingsController({
     if (!id) return res.status(400).json({ error: 'Identifiant invalide' });
     const error = lodgingInputError(req.body);
     if (error) return res.status(400).json({ error });
-    const { enabled, displayName, heroMediaId, modules, wifi, contacts } = req.body;
+    const { enabled, heroMediaId, modules, wifi, contacts } = req.body;
     const before = lodgings().get(id);
-    const saved = lodgings().save(id, { enabled, displayName, heroMediaId, modules, wifi, contacts });
+    const saved = lodgings().save(id, { enabled, heroMediaId, modules, wifi, contacts });
     if (!saved) return res.status(404).json({ error: 'Logement introuvable' });
     // §9 Q1 — a lodging entering the app for the first time starts with the neutral pages.
     if (saved.enabled && !before.enabled) booklet().seedPlaceholders(id, now());

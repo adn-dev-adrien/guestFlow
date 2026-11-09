@@ -562,6 +562,16 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.22.0`. Tests:
     `payment-complement-link.unit.test.js`, `guest-order-commit.unit.test.js`, `guest-app-order-card`,
     `guest-app-order-note`.
+47. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.22.0 — unreleased, recorded with the
+    other guest-app entry points.)* **`ctx.webApp({ key, path?, host?, handler })` — a web app the plugin serves
+    itself.** `path` is one segment of the plugin's own (`/studio`), answered on every host; `host()` is read on each
+    request and claims every path of that hostname (the guest app on `sejour.domainesolio.com`); one of the two is
+    required. The core's trees — `/api`, `/public`, `/uploads`, `/plugin-assets` — stay the core's on every host, and a
+    `path` naming one of them, `/login` or `/assets` is refused at registration. `pluginLoader.mountWebApps(app)` sits
+    before the favicon and the GuestFlow client, and reads the live plugins on every request: a plugin activated or
+    configured later answers at once, a deactivated one falls through to the core. The handler owns its answer (its
+    caching, its policy, its own access check). A row of `plugin-core-hardening-floor.unit.test.js` makes a plugin
+    calling it floor at `^2.22.0`. Tests: `plugins-web-apps.unit.test.js`, `guest-app-hosting`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

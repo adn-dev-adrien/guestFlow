@@ -9,7 +9,6 @@ const TABLES_SQL = `
     propertyId            INTEGER PRIMARY KEY,
     enabled               INTEGER NOT NULL DEFAULT 0,
     lodgingCode           TEXT UNIQUE,
-    displayName           TEXT,
     heroMediaId           INTEGER,
     modulesJson           TEXT,
     wifiAvailable         INTEGER NOT NULL DEFAULT 0,
@@ -30,7 +29,22 @@ const TABLES_SQL = `
     needsStaff         INTEGER NOT NULL DEFAULT 0,
     leadMinutes        INTEGER NOT NULL DEFAULT 30,
     sortOrder          INTEGER,
+    stockTracked       INTEGER NOT NULL DEFAULT 0,
+    stockQuantity      INTEGER,
+    stockSetAt         TEXT,
+    stockSetBy         TEXT,
+    stockAlertBelow    INTEGER,
+    soldOut            INTEGER NOT NULL DEFAULT 0,
+    stockLowPushedAt   TEXT,
+    stockOutPushedAt   TEXT,
     PRIMARY KEY (kind, itemId)
+  );
+  CREATE TABLE IF NOT EXISTS guest_app_stock_counts (
+    reservationId INTEGER NOT NULL,
+    kind          TEXT NOT NULL CHECK (kind IN ('option', 'resource')),
+    itemId        INTEGER NOT NULL,
+    quantity      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (reservationId, kind, itemId)
   );
   CREATE TABLE IF NOT EXISTS guest_app_service_hours (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,6 +137,8 @@ const TABLES_SQL = `
     total         REAL NOT NULL DEFAULT 0,
     deliverAt     TEXT,
     deliverMoved  INTEGER NOT NULL DEFAULT 0,
+    fulfilment    TEXT NOT NULL DEFAULT 'delivery' CHECK (fulfilment IN ('delivery', 'pickup')),
+    pickupPlace   TEXT,
     heldUntil     TEXT,
     paymentLinkId INTEGER,
     createdAt     TEXT NOT NULL,
@@ -138,7 +154,7 @@ const TABLES_SQL = `
 `;
 
 const TABLES = Object.freeze([
-  'guest_app_lodgings', 'guest_app_items', 'guest_app_service_hours', 'guest_app_service_exceptions',
+  'guest_app_lodgings', 'guest_app_items', 'guest_app_stock_counts', 'guest_app_service_hours', 'guest_app_service_exceptions',
   'guest_sessions', 'guest_stay_links', 'guest_booklet_pages', 'guest_booklet_placements', 'guest_booklet_blocks',
   'guest_booklet_versions', 'guest_media', 'guest_orders',
 ]);

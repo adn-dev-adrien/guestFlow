@@ -1,6 +1,7 @@
 /**
- * The words of an order, built by the server (specs/guest-app.md rules 38, 43-45): the guest's chips and notices,
- * the staff push and the orders page's labels. Pure: amounts, instants and the language come in.
+ * The words of an order, built by the server (specs/guest-app.md rules 38, 41bis-41ter, 43-45): the guest's chips,
+ * notices and promise, the staff push and the orders page's labels. Pure: amounts, instants, the delivery mode and the
+ * language come in. An order is `delivery` (« Livrée au logement ») or `pickup` (« À retirer », at a place typed once).
  */
 
 const sdk = require('../sdk');
@@ -70,7 +71,17 @@ const TEXT = Object.freeze({
       abandoned: 'Abandonnée',
     },
     planned: (when) => `Prévue ${when}`,
+    ready: (when) => `Prête ${when}`,
     delivered: 'Livrée',
+    pickedUp: 'Retirée',
+    today: 'aujourd’hui',
+    tomorrow: 'demain',
+    on: (day) => `le ${day}`,
+    promiseDelivery: (lodging, day, time) => `Livrée à ${lodging} ${day} vers ${time}`,
+    promisePickup: (day, time, place) => `Prête ${day} à ${time}. Lieu de retrait : ${place}`,
+    warm: (title, when) => `${title} — ${when}, il sera chaud`,
+    later: 'Votre commande sera prête un peu plus tard que prévu',
+    question: { delivery: 'Quand souhaitez-vous la recevoir ?', pickup: 'Quand souhaitez-vous la récupérer ?' },
     awaitingCard: 'Paiement par carte en attente',
     moved: (when) => `Livraison décalée au ${when}`,
     movedNone: 'Livraison à convenir avec l’équipe',
@@ -102,7 +113,17 @@ const TEXT = Object.freeze({
       abandoned: 'Abandoned',
     },
     planned: (when) => `Planned ${when}`,
+    ready: (when) => `Ready ${when}`,
     delivered: 'Delivered',
+    pickedUp: 'Picked up',
+    today: 'today',
+    tomorrow: 'tomorrow',
+    on: (day) => `on ${day}`,
+    promiseDelivery: (lodging, day, time) => `Delivered to ${lodging} ${day} around ${time}`,
+    promisePickup: (day, time, place) => `Ready ${day} at ${time}. Pick-up point: ${place}`,
+    warm: (title, when) => `${title} — ${when}, it will be warm`,
+    later: 'Your order will be ready a little later than planned',
+    question: { delivery: 'When would you like it delivered?', pickup: 'When would you like to pick it up?' },
     awaitingCard: 'Card payment pending',
     moved: (when) => `Delivery moved to ${when}`,
     movedNone: 'Delivery to be arranged with the team',
@@ -140,11 +161,56 @@ function statusLabel(order, lang = 'fr') {
   return textOf(lang).status[statusKey(order)] || order.status;
 }
 
-/** Rule 38 — the second chip of an order with a delivery: « Prévue ven. 18 h 30 », then « Livrée ». */
+const isPickup = (order) => order.fulfilment === 'pickup';
+
+/**
+ * Rule 38 — the second chip of an order with a delivery: « Prévue ven. 18 h 30 », then « Livrée »; in pickup mode
+ * « Prête ven. 18 h 30 », then « Retirée » (rule 41bis).
+ */
 function deliveryChip(order, lang = 'fr') {
-  if (order.status === 'delivered') return textOf(lang).delivered;
-  if (order.deliverAt && ['confirmed', 'paid'].includes(order.status)) return textOf(lang).planned(momentLabel(order.deliverAt, lang));
+  const T = textOf(lang);
+  if (order.status === 'delivered') return isPickup(order) ? T.pickedUp : T.delivered;
+  if (order.deliverAt && ['confirmed', 'paid'].includes(order.status)) {
+    return (isPickup(order) ? T.ready : T.planned)(momentLabel(order.deliverAt, lang));
+  }
   return null;
+}
+
+/** « aujourd'hui », « demain », « le ven. 9 oct. » — a day said from `now`. */
+function relativeDay(date, now, lang = 'fr') {
+  const T = textOf(lang);
+  const today = parisMoment(now.toISOString()).date;
+  const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  if (date === today) return T.today;
+  if (date === tomorrow) return T.tomorrow;
+  return T.on(dayLabel(date, lang));
+}
+
+/** Rule 41bis — the delivery picker's question. */
+const deliveryQuestion = (mode, lang = 'fr') => textOf(lang).question[mode === 'pickup' ? 'pickup' : 'delivery'];
+
+/**
+ * Rule 41ter — once the order stands (confirmed, or paid for a card order): « Livrée à L'Estiva aujourd'hui vers
+ * 17 h 30 » or « Prête aujourd'hui à 17 h 30. Lieu de retrait : … ». Only the staff-prepared part carries a time:
+ * an order without `deliverAt` has no promise. → `{ promise, extraPromises, movedNotice }`.
+ */
+function promiseOf(order, { lodging, now, lang = 'fr' }) {
+  const T = textOf(lang);
+  const standing = ['confirmed', 'paid'].includes(order.status);
+  let promise = null;
+  if (standing && order.deliverAt) {
+    const { date, time } = parisMoment(order.deliverAt);
+    const day = relativeDay(date, now, lang);
+    promise = isPickup(order)
+      ? T.promisePickup(day, timeLabel(time, lang), order.pickupPlace || '')
+      : T.promiseDelivery(lodging, day, timeLabel(time, lang));
+  }
+  // An hourly resource keeps its own line: « Bain nordique — ven. 9 oct., 20 h, il sera chaud ».
+  const extraPromises = standing
+    ? order.lines.filter((l) => l.kind === 'resource' && Array.isArray(l.sessions) && l.sessions.length)
+      .flatMap((l) => l.sessions.map((s) => T.warm(l.title, `${dayLabel(s.date, lang)}, ${timeLabel(s.start, lang)}`)))
+    : [];
+  return { promise, extraPromises, movedNotice: standing && order.deliverMoved && order.deliverAt ? T.later : null };
 }
 
 /** A line as a guest or the staff reads it: « 2 × Cidre », « Bain nordique · ven. 9 oct., 20 h – 21 h ». */
@@ -162,7 +228,8 @@ function lineLabel(line, lang = 'fr') {
  * was ordered.
  */
 function pushText(order, { lodging, firstName }) {
-  const when = order.deliverAt ? ` pour ${timeLabel(parisMoment(order.deliverAt).time)}` : '';
+  const at = order.deliverAt ? timeLabel(parisMoment(order.deliverAt).time) : null;
+  const when = at ? (isPickup(order) ? ` à retirer ${at}` : ` pour ${at}`) : '';
   const prepared = order.lines.filter((l) => l.kind === 'option').map((l) => `${l.quantity} × ${l.title}`);
   const others = order.lines.filter((l) => l.kind !== 'option').map((line) => {
     if (line.kind === 'breakfast') return `${line.title} (${textOf('fr').breakfast((line.mornings || []).length, timeLabel(line.time))})`;
@@ -177,5 +244,5 @@ function pushText(order, { lodging, firstName }) {
 }
 
 module.exports = {
-  TEXT, dayLabel, deliveryChip, hoursLabel, lineLabel, momentLabel, parisMoment, priceLabel, pushText, sessionLabel, statusKey, statusLabel, textOf, timeLabel,
+  TEXT, dayLabel, deliveryChip, deliveryQuestion, hoursLabel, promiseOf, relativeDay, lineLabel, momentLabel, parisMoment, priceLabel, pushText, sessionLabel, statusKey, statusLabel, textOf, timeLabel,
 };

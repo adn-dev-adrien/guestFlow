@@ -12,7 +12,9 @@ const { getApplicableOptions, getApplicableResources } = sdk.coreModule('pricing
 
 const DEFAULTS = Object.freeze({
   sold: 0, mediaId: null, shortDescriptionFr: null, shortDescriptionEn: null, maxQuantity: 10, needsStaff: 0, leadMinutes: 30, sortOrder: null,
+  stockTracked: 0, stockQuantity: null, stockSetAt: null, stockSetBy: null, stockAlertBelow: null, soldOut: 0, stockLowPushedAt: null, stockOutPushedAt: null,
 });
+const COLUMNS = Object.keys(DEFAULTS);
 
 const CATALOGUE = Object.freeze({
   option: 'SELECT id, title, priceType, category, archivedAt, autoOptionType, isCancellationInsurance, displayToClient, showsPlanningCard FROM options',
@@ -42,12 +44,11 @@ function createItemsModel(db) {
   function save(kind, id, patch) {
     return db.transaction(() => {
       const next = { ...DEFAULTS, ...(rowOf(kind, id) || {}), ...patch, kind, itemId: Number(id) };
+      const row = Object.fromEntries(['kind', 'itemId', ...COLUMNS].map((c) => [c, next[c]]));
       db.prepare(`
-        INSERT OR REPLACE INTO guest_app_items
-          (kind, itemId, sold, mediaId, shortDescriptionFr, shortDescriptionEn, maxQuantity, needsStaff, leadMinutes, sortOrder)
-        VALUES
-          (@kind, @itemId, @sold, @mediaId, @shortDescriptionFr, @shortDescriptionEn, @maxQuantity, @needsStaff, @leadMinutes, @sortOrder)
-      `).run(next);
+        INSERT OR REPLACE INTO guest_app_items (kind, itemId, ${COLUMNS.join(', ')})
+        VALUES (@kind, @itemId, ${COLUMNS.map((c) => `@${c}`).join(', ')})
+      `).run(row);
       return get(kind, id);
     })();
   }

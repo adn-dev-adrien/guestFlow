@@ -171,10 +171,11 @@ withApi('rule 11ter: a password that no longer decrypts does not take the home d
   assert.equal((await call('GET', '/public/v1/guest/me')).status, 200);
 });
 
-withApi('rule 11ter: display name and contacts are per lodging; contacts follow their module', async ({ db, api, call }) => {
+withApi('rules 11ter, 48: the name is GuestFlow’s, read live; contacts are per lodging and follow their module', async ({ db, api, call }) => {
   const contacts = [{ name: 'Adrien', role: 'Accueil', phone: '0600000000' }];
-  const code = enable(api, db, 1, { displayName: 'Granja', contacts });
+  const code = enable(api, db, 1, { contacts });
   await call('POST', '/public/v1/guest/sessions', { lodgingCode: code });
+  db.prepare("UPDATE properties SET name = 'Granja' WHERE id = 1").run();
   const hidden = (await call('GET', '/public/v1/guest/lodging')).body.data;
   assert.equal(hidden.name, 'Granja');
   assert.deepEqual(hidden.contacts, []);
@@ -197,7 +198,7 @@ withApi('rule 11quater: a new property starts off, without a code; enabling issu
   assert.equal(initial.status, 200);
   assert.equal(initial.body.enabled, false);
   assert.equal(initial.body.hasLodgingCode, false);
-  const off = await call('PUT', '/api/guest-app/lodgings/2', { displayName: 'Estiva' });
+  const off = await call('PUT', '/api/guest-app/lodgings/2', { enabled: false });
   assert.equal(off.body.hasLodgingCode, false);
   const on = await call('PUT', '/api/guest-app/lodgings/2', { enabled: true });
   assert.equal(on.body.hasLodgingCode, true);
@@ -251,7 +252,7 @@ const BAD_BODIES = [
   ['too many contacts', { contacts: Array.from({ length: 11 }, () => ({ name: 'x' })) }],
   ['contact without a name', { contacts: [{ phone: '06' }] }],
   ['hero not an id', { heroMediaId: 'x' }],
-  ['display name too long', { displayName: 'x'.repeat(81) }],
+  ['a display name (rule 48: the name is GuestFlow’s)', { displayName: 'Granja' }],
 ];
 
 withApi('rule 11bis: the boundary refuses a bad body and stores nothing', async ({ db, call }) => {

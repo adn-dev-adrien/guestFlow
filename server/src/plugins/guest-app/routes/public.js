@@ -6,10 +6,17 @@
 const express = require('express');
 const { requireModule } = require('../middleware/guestSession');
 
+const { webManifest } = require('../webManifest');
+
 function buildPublicRouter({
-  controller, shop, orders, booklet, guestSession, limiters,
+  controller, shop, orders, booklet, guestSession, limiters, appName = () => null,
 }) {
   const router = express.Router();
+  // Rule 52 — the install manifest: the same for every guest, readable before any session, revalidated on each read.
+  router.get('/manifest.webmanifest', limiters.read, (req, res) => {
+    res.set({ 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.send(JSON.stringify(webManifest({ appName: appName() })));
+  });
   router.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
     next();
@@ -18,6 +25,8 @@ function buildPublicRouter({
   router.post('/sessions/lookup', limiters.lookup, controller.lookup);
   router.get('/me', limiters.read, guestSession.requireSession, controller.me);
   router.get('/lodging', limiters.read, controller.lodging);
+  // Rules 12-14 — the gate tile's door: the stay's key link, for a stay session only.
+  router.get('/gate', limiters.read, guestSession.requireSession, controller.gateRead);
   const shopRoute = [limiters.read, guestSession.requireSession, requireModule('shop', controller.shownKeysOf)];
   router.get('/shop', ...shopRoute, shop.read);
   router.get('/shop/resources/:id/slots', ...shopRoute, guestSession.requireStay, shop.slots);

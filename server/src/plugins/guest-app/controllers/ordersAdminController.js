@@ -1,5 +1,5 @@
 /**
- * The staff's side of the guest orders (specs/guest-app.md rules 43, 45): the « Commandes clients » page and the
+ * The staff's side of the guest orders (specs/guest-app.md rules 41bis, 43, 45): the « Commandes clients » page and the
  * planning's « Commande client » cards, both ready to render, and « Marquer livrée ». Admin and reception (the
  * reception prepares and delivers).
  *
@@ -24,6 +24,12 @@ const STAFF_STATUS = Object.freeze({
   expired: 'Expirée', abandoned: 'Abandonnée', paid_conflict: 'Payée · à rembourser',
 });
 
+const isPickup = (order) => order.fulfilment === 'pickup';
+// Rule 41bis — pickup mode only changes the words: « à retirer », and the check reads « Retirée ».
+const FULFILMENT_LABELS = Object.freeze({ delivery: 'Livraison au logement', pickup: 'À retirer' });
+const doneLabel = (order) => (isPickup(order) ? 'Retirée' : 'Livrée');
+const markLabel = (order) => (isPickup(order) ? 'Marquer retirée' : 'Marquer livrée');
+
 const addDays = (ymd, days) => new Date(Date.parse(`${ymd}T12:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 
 function buildOrdersAdminController({ orders, stays, lodgings, now }) {
@@ -46,14 +52,18 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
       guest,
       lines: order.lines.map((l) => ({ label: labels.lineLabel(l), total: l.total, totalLabel: labels.priceLabel(l.total) })),
       deliverAt: order.deliverAt,
-      deliverLabel: order.deliverAt ? labels.momentLabel(order.deliverAt) : null,
+      deliverLabel: order.deliverAt ? `${isPickup(order) ? 'À retirer ' : ''}${labels.momentLabel(order.deliverAt)}` : null,
+      fulfilment: isPickup(order) ? 'pickup' : 'delivery',
+      fulfilmentLabel: FULFILMENT_LABELS[isPickup(order) ? 'pickup' : 'delivery'],
+      ...(isPickup(order) && order.pickupPlace ? { pickupPlace: order.pickupPlace } : {}),
       payment: order.payment,
       paymentLabel: PAYMENT_LABELS[order.payment] || order.payment,
       status: order.status,
-      statusLabel: STAFF_STATUS[order.status] || order.status,
+      statusLabel: order.status === 'delivered' ? doneLabel(order) : (STAFF_STATUS[order.status] || order.status),
       total: order.total,
       totalLabel: labels.priceLabel(order.total),
       canMarkDelivered: ['confirmed', 'paid'].includes(order.status),
+      markLabel: markLabel(order),
     };
   }
 
@@ -99,12 +109,14 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
         orderId: order.id,
         reservationId: order.reservationId,
         time,
-        timeLabel: labels.timeLabel(time),
+        timeLabel: `${isPickup(order) ? 'À retirer ' : ''}${labels.timeLabel(time)}`,
         lodging: lodgingName(stay.propertyId),
         guest: [stay.clientFirstName, stay.clientLastName].filter(Boolean).join(' '),
         lines: prepared.map((l) => labels.lineLabel(l)),
         paymentLabel: PAYMENT_LABELS[order.payment] || order.payment,
         delivered: order.status === 'delivered',
+        fulfilment: isPickup(order) ? 'pickup' : 'delivery',
+        doneLabel: doneLabel(order),
       });
     });
     return res.json({ days: [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, cards]) => ({ date, cards })) });

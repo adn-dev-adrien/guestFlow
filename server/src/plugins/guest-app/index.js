@@ -17,6 +17,10 @@ const createStayLinksModel = require('./models/stayLinksModel');
 const createServiceHoursModel = require('./models/serviceHoursModel');
 const createBookletModel = require('./models/bookletModel');
 const createMediaModel = require('./models/mediaModel');
+const createStockModel = require('./models/stockModel');
+const { alertPush } = require('./stock');
+const { parisDate } = require('./currentStay');
+const hosting = require('./appHosting');
 const { createSoliomapFeed } = require('./soliomapFeed');
 const { buildGuestSession } = require('./middleware/guestSession');
 const { buildSessionController } = require('./controllers/sessionController');
@@ -29,11 +33,24 @@ const { buildOrdersAdminController } = require('./controllers/ordersAdminControl
 const { buildServiceHoursController } = require('./controllers/serviceHoursController');
 const { buildBookletController, buildBookletResolver } = require('./controllers/bookletController');
 const { buildStudioController } = require('./controllers/studioController');
+const { buildStudioSettingsController } = require('./controllers/studioSettingsController');
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 
 const id = 'guest-app';
 const DAY_MS = 24 * 60 * 60 * 1000;
+// Rule 37ter — the arrival sweep: idempotent, so it runs often and a stay counts within minutes of its arrival day.
+const STOCK_SWEEP_MS = 5 * 60 * 1000;
+const STOCK_EVENTS = Object.freeze(['reservation.created', 'reservation.updated', 'reservation.cancelled', 'reservation.deleted']);
+
+/** The plugin's settings for a suite: the declared defaults, then what the suite writes. */
+function memorySettings(initial = {}) {
+  const values = new Map(Object.entries(initial));
+  return {
+    get: (key) => (values.has(key) ? values.get(key) : (settings.DECLARED.find((d) => d.key === key) || {}).default ?? null),
+    set: (key, value) => { values.set(key, value); },
+  };
+}
 
 const once = (build) => {
   let built = null;
@@ -61,6 +78,7 @@ function buildGuestApi({
   appName = () => null, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
   commit = sdk.coreModule('guestOrderCommit'), payments = corePayments, push = corePush,
+  settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl,
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
@@ -72,29 +90,61 @@ function buildGuestApi({
   const serviceHours = once(() => createServiceHoursModel(db()));
   const booklet = once(() => createBookletModel(db()));
   const media = once(() => createMediaModel(db()));
+  const stock = once(() => createStockModel(db()));
+  const fulfilment = () => settings.fulfilmentOf((key) => settingsStore().get(key));
+
+  /** Rule 37quater — the low / out pushes a move of the stock made due, each once until the next restock. Best effort. */
+  function alertStock(keys) {
+    if (!keys || !keys.length) return;
+    stock().alertsDue(keys, now()).forEach((alert) => {
+      const [kind, itemId] = alert.key.split(':');
+      const found = items().get(kind, itemId);
+      const payload = { ...alertPush(alert, found ? found.core.title : ''), url: '/commandes-app' };
+      Promise.resolve().then(() => push().sendToPref('guest-orders', payload)).catch(() => {});
+    });
+  }
+
+  /** Rule 37ter — a reservation's counts brought to date, then the pushes it made due. */
+  function reconcileStock(reservationId) {
+    alertStock(stock().reconcile(reservationId, parisDate(now())));
+  }
+
+  /** Rule 37ter — the arrival day: every stay in progress, and every stay that took something and no longer should. */
+  function sweepStock() {
+    const today = parisDate(now());
+    const ids = new Set([...stock().staysInProgress(today), ...stock().countedReservations()]);
+    alertStock([...new Set([...ids].flatMap((reservationId) => stock().reconcile(reservationId, today)))]);
+  }
   const guestSession = buildGuestSession({ sessions, stays, stayLinks, lodgings, now });
   const controller = buildSessionController({
-    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now,
+    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, ...(readGateUrl ? { readGateUrl } : {}),
   });
   const links = buildStayLinksController({
     stayLinks, stays, lodgings, guestHost, now,
   });
-  const shop = buildShopController({ items, stayLines, orders, serviceHours, scheduler, translator, now });
+  const shop = buildShopController({
+    items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment,
+  });
   const orderBook = buildOrdersController({
-    db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now,
+    db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now, stock, alertStock, fulfilment,
   });
   const resolver = buildBookletResolver({
     booklet, media, soldKeysOf: shop.soldKeysOf, shownKeys: controller.shownKeys,
   });
   return {
     publicRouter: buildPublicRouter({
-      controller, shop, orders: orderBook, booklet: buildBookletController({ resolver, guestSession, lodgings }), guestSession, limiters,
+      controller, shop, orders: orderBook, booklet: buildBookletController({ resolver, guestSession, lodgings }), guestSession, limiters, appName,
     }),
     adminRouter: buildAdminRouter({
       lodgings: buildLodgingsController({
         lodgings, booklet, appName, guestHost, now,
       }),
-      items: buildItemsController({ items }),
+      items: buildItemsController({
+        items, stock, alertStock, now,
+      }),
+      studioSettings: buildStudioSettingsController({
+        lodgings, settingsStore, soliomapFeed, now,
+      }),
       serviceHours: buildServiceHoursController({ serviceHours }),
       studio: buildStudioController({
         booklet, media, lodgings, resolver, uploadsDir, now,
@@ -113,6 +163,9 @@ function buildGuestApi({
     // Rules 35-36 — the order's side of its paid card link, and the expiry of the unpaid ones.
     orderPaid: orderBook.paid,
     expireOrders: orderBook.expireDue,
+    // Rules 37ter-37quater — the stock follows every reservation, whoever wrote its lines.
+    reconcileStock,
+    sweepStock,
   };
 }
 
@@ -128,6 +181,7 @@ function register(ctx) {
     appName: () => ctx.settings.get('appName'),
     guestHost: () => ctx.settings.get('guestHost'),
     maxOrderTotal: () => Number(ctx.settings.get('maxOrderTotal')) || 500,
+    settingsStore: () => ctx.settings,
     limiters: {
       session: rateLimiters.guestSessionLimiter,
       lookup: rateLimiters.guestLookupLimiter,
@@ -144,6 +198,24 @@ function register(ctx) {
   // Rules 35-36 — a paid card link of an order commits it, or flags its money « à rembourser ».
   ctx.paymentBasket({ source: 'guestOrder', paid: api.orderPaid });
   ctx.mount('/public/v1/guest', api.publicRouter, { public: true });
+  // Plan step 50 — the guest app on its own host, the studio at /studio for an admin (rule 47).
+  const guestDist = (() => { let dir = null; return () => { if (!dir) dir = hosting.distDirOf('guest'); return dir; }; })();
+  const studioDist = (() => { let dir = null; return () => { if (!dir) dir = hosting.distDirOf('studio'); return dir; }; })();
+  ctx.webApp({
+    key: 'guest',
+    host: () => ctx.settings.get('guestHost') || null,
+    handler: hosting.staticApp({
+      dir: guestDist,
+      csp: () => hosting.guestCsp({
+        frameOrigin: hosting.soliomapFrameOrigin({ soliomapUrl: ctx.settings.get('soliomapUrl'), soliomapEmbed: ctx.settings.get('soliomapEmbed') }),
+      }),
+    }),
+  });
+  ctx.webApp({
+    key: 'studio',
+    path: '/studio',
+    handler: hosting.adminOnly(hosting.staticApp({ dir: studioDist, base: '/studio', csp: () => hosting.guestCsp() })),
+  });
   ctx.mount('/api/guest-app', api.adminRouter);
   // Rule 9bis (a) — the reception runs the arrival SAS, where the stay link is shown and regenerated; rules 43, 45 —
   // it prepares and delivers the orders.
@@ -153,6 +225,8 @@ function register(ctx) {
     { method: 'GET', re: /^\/guest-app\/orders$/ },
     { method: 'POST', re: /^\/guest-app\/orders\/\d+\/delivered$/ },
     { method: 'GET', re: /^\/guest-app\/planning\/order-cards$/ },
+    // Rule 37quater — the reservation editor's « Stock : épuisé » warning.
+    { method: 'GET', re: /^\/guest-app\/stock$/ },
   ]);
   // Rule 9bis (a) — the SAS « Portail » step becomes « Mon séjour » while this stay has a link to show.
   ctx.sasData((reservationId) => ({ available: api.stayLinkAvailable(reservationId) }));
@@ -173,6 +247,17 @@ function register(ctx) {
     intervalMs: 60 * 1000,
     bootDelayMs: 30 * 1000,
     run: async () => { api.expireOrders(); },
+  });
+
+  // Rule 37ter — the website and the staff sell too: every reservation event brings the stock to date.
+  STOCK_EVENTS.forEach((name) => ctx.events.on(name, ({ reservationId } = {}) => {
+    if (reservationId) api.reconcileStock(reservationId);
+  }));
+  ctx.jobs.every({
+    name: 'stock-arrivals',
+    intervalMs: STOCK_SWEEP_MS,
+    bootDelayMs: 45 * 1000,
+    run: async () => { api.sweepStock(); },
   });
 
   ctx.jobs.every({
@@ -198,4 +283,6 @@ function register(ctx) {
   });
 }
 
-module.exports = { id, register, buildGuestApi };
+module.exports = {
+  id, register, buildGuestApi, memorySettings,
+};

@@ -12,6 +12,9 @@
  *   client/         one ES module `index.js` plus its chunks, built by Vite with React, the router,
  *                   MUI and the SDK as externals resolved at run time to the host's own modules
  *                   (client/src/plugins/hostModules.json, runtime.js); icons are bundled
+ *   server/assets/  the web apps a plugin serves itself (EXTRA_ASSETS: the guest app and the studio of `guest-app`,
+ *                   specs/guest-app.md plan step 50), copied from their Vite builds; a build not made is skipped
+ *                   with a warning, and the plugin answers 503 for that app
  * `<out>/<id>/` is the same package unpacked — what a `bundled` row runs from — and
  * `<out>/SHA256SUMS` lists the archives.
  *
@@ -436,6 +439,26 @@ export function contentHash(dir) {
   return hash.digest('hex');
 }
 
+// The web apps a plugin serves through `ctx.webApp` (specs/plugins-phase-1-sdk.md rule 47): built by Vite in the
+// repository, shipped inside the plugin's server folder.
+export const EXTRA_ASSETS = Object.freeze({
+  'guest-app': Object.freeze({ guest: 'apps/guest/dist', studio: 'apps/studio/dist' }),
+});
+
+/** Copies a plugin's web app builds into `<serverDir>/assets/<name>`. → the warnings of the builds not found. */
+export function copyExtraAssets(id, serverDir, { root = ROOT, extra = EXTRA_ASSETS } = {}) {
+  const warnings = [];
+  Object.entries(extra[id] || {}).forEach(([name, rel]) => {
+    const from = path.join(root, rel);
+    if (!fs.existsSync(path.join(from, 'index.html'))) {
+      warnings.push(`${id}: ${rel} is not built — the ${name} app answers 503 in this package`);
+      return;
+    }
+    fs.cpSync(from, path.join(serverDir, 'assets', name), { recursive: true });
+  });
+  return warnings;
+}
+
 export async function buildPackage(id, outDir, usage = {}) {
   const own = {};
   const { readSourceManifest } = require(path.join(SERVER_PLUGINS, 'manifest.js'));
@@ -451,6 +474,8 @@ export async function buildPackage(id, outDir, usage = {}) {
   fs.writeFileSync(path.join(stage, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   const errors = [...buildServer(id, path.join(stage, 'server')), ...(await buildClient(id, path.join(stage, 'client'), own))];
   if (errors.length) throw new Error(`plugin ${id}:\n  ${errors.join('\n  ')}`);
+  // eslint-disable-next-line no-console
+  copyExtraAssets(id, path.join(stage, 'server')).forEach((warning) => console.warn(`⚠ ${warning}`));
   // The package's manifest records what was built, so a release can tell a changed bundle that kept
   // its version (scripts/check-plugin-versions.mjs --built).
   // `hostImports` — what the bundle takes from the app — lets an instance refuse a version its own

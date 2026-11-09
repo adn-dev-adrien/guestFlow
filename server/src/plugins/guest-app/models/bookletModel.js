@@ -43,10 +43,9 @@ function createBookletModel(db) {
   const pageRow = (pageId) => db.prepare('SELECT * FROM guest_booklet_pages WHERE id = ?').get(Number(pageId)) || null;
   const blockRow = (blockId) => db.prepare('SELECT * FROM guest_booklet_blocks WHERE id = ?').get(Number(blockId)) || null;
   const placementsOf = (pageId) => db.prepare(`
-    SELECT pl.propertyId, pl.sortOrder, pl.published, COALESCE(l.displayName, p.name) AS name
+    SELECT pl.propertyId, pl.sortOrder, pl.published, p.name AS name
     FROM guest_booklet_placements pl
     JOIN properties p ON p.id = pl.propertyId
-    LEFT JOIN guest_app_lodgings l ON l.propertyId = pl.propertyId
     WHERE pl.pageId = ? ORDER BY pl.propertyId
   `).all(Number(pageId));
   const propertyExists = (propertyId) => Boolean(db.prepare('SELECT 1 FROM properties WHERE id = ?').get(Number(propertyId)));

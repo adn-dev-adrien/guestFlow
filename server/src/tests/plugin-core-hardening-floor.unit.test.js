@@ -46,6 +46,8 @@ const HARDENINGS = [
   { feature: 'resource scheduler and holds', sdk: '2.22.0', pattern: /\b(?:resourceScheduler|resourceHolds)\(/ },
   // specs/plugins-phase-1-sdk.md rule 46 — the card payment of a plugin's basket and its paid effect.
   { feature: 'payment baskets', sdk: '2.22.0', pattern: /\b(?:paymentBasket\(|core\.payments\b)/ },
+  // specs/plugins-phase-1-sdk.md rule 47 — a web app the plugin serves on its own host or under its own path.
+  { feature: 'web apps', sdk: '2.22.0', pattern: /\bctx\.webApp\(/ },
   // specs/plugins-phase-1-sdk.md rule 41 (specs/accounting-synthesis.md rules 7-9).
   { feature: 'finance readings of the accounting synthesis', sdk: '2.23.0', pattern: /coreModule\(\s*['"`]financeDashboardModel['"`]/ },
 ];
