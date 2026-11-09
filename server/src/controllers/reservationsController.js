@@ -1377,7 +1377,11 @@ async function calculatePrice(req, res) {
     ...midStayQuoteInputs(db, reservationId),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
     // échéances shown on the fiche are the ones that will be stored.
-    ...scheduleQuoteInputs(db, reservationId > 0 ? reservationId : devisId, { editedStartDate: req.body.startDate }),
+    // A new devis (`kind: 'devis'`, no id) is priced as the devis its create stores (rule 19, audit R33-M-L1).
+    ...scheduleQuoteInputs(db, reservationId > 0 ? reservationId : devisId, {
+      editedStartDate: req.body.startDate,
+      newDevis: !(reservationId > 0) && !(devisId > 0) && req.body.kind === 'devis',
+    }),
     // specs/platform-commission-line.md — feed the operator-entered platform commission so the quote
     // returns the « total séjour − commission = net perçu » figures for the summary block.
     platformCommissionAmount: req.body.platformCommissionAmount,
@@ -1417,7 +1421,7 @@ async function calculatePrice(req, res) {
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
   // specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the validity date the save will write,
   // for the fiche's « Valide jusqu'au » chip while the edit is unsaved.
-  if (!(reservationId > 0) && devisId > 0 && engineInput.kind === 'devis') quote.validUntil = engineInput.validUntil || null;
+  if (!(reservationId > 0) && engineInput.kind === 'devis') quote.validUntil = engineInput.validUntil || null;
   quote.typedCountAlerts = alertsForQuote(
     quote, req.body, req.body.selectedOptions,
     reservationId > 0 || devisId > 0 ? model.getRow(reservationId > 0 ? reservationId : devisId) : null,

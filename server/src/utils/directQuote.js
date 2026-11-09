@@ -9,6 +9,8 @@
 // deps: { db, calculateReservationQuote, getTodayIsoDate, optionsModel, propertyOptionDefaultsModel,
 // mergePropertyDefaultsIntoPayload, isPerPersonCardOption }. The website-booking plugin binds them to
 // the modules it already reaches through the SDK; `buildEngineQuote` below is bound to the core's own.
+const { computeValidUntil, readQuoteValidityDays } = require('./devisValidity');
+
 function createDirectQuote({
   db, calculateReservationQuote, getTodayIsoDate, optionsModel, propertyOptionDefaultsModel,
   mergePropertyDefaultsIntoPayload, isPerPersonCardOption,
@@ -49,13 +51,20 @@ function createDirectQuote({
       propertyOptionDefaultsModel,
       { quantityFor: (optionId) => defaultPortionQuantity(input, optionId) },
     );
+    const today = getTodayIsoDate();
     return calculateReservationQuote({
       db,
       propertyId: input.propertyId,
       // specs/payment-schedule-and-cancellation.md §3.1 — a public quote is a booking happening now:
-      // the acompte is due `depositDueDays` from today and the solde is clamped to today at the
-      // earliest, so the site shows the deadlines the reservation will actually carry.
-      bookingDate: getTodayIsoDate(),
+      // the solde is clamped to today at the earliest.
+      bookingDate: today,
+      // specs/deposit-blocks-the-dates.md rule 19 (D23) — the site's request becomes a devis: it is priced
+      // as that devis, with the validity date its create writes, so the payment mode, the acompte and the
+      // deadlines shown are the ones the devis and its link carry.
+      kind: 'devis',
+      validUntil: computeValidUntil({
+        createdAtIsoDate: today, startDateIso: input.startDate, quoteValidityDays: readQuoteValidityDays(db),
+      }),
       startDate: input.startDate,
       endDate: input.endDate,
       checkInTime: input.checkInTime,

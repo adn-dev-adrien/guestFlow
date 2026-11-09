@@ -697,6 +697,9 @@ function createPropertiesModel(database) {
 
       writeEmailFacts(id, sentBody);
       applyOwnArticle(id, sentBody.name);
+      // specs/deposit-blocks-the-dates.md rule 20 — « Solde dû … jours avant » decides which open devis owe one payment:
+      // their columns follow at once, and an acompte link they no longer ask for is withdrawn.
+      require('./devisModel').buildModel(database).restoreSinglePayments({ propertyId: id });
 
       if (newPhoto && existing && existing.photo && existing.photo !== newPhoto) {
         removeUploadedFile(existing.photo);
