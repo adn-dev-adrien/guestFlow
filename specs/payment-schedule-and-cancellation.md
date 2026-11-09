@@ -628,6 +628,9 @@ acompte is kept as an indemnity, and the books say so correctly.
     (specs/deposit-blocks-the-dates.md rule 20: re-stored at boot and after a logement save, its stale links
     withdrawn), so a conversion copies what the devis asks. One exception: an acompte link paid on columns that
     still held the acompte (before the re-store) converts at that stored split, the acompte paid.
+    **Accepted 2026-11-09 (verification R33b, L3).** That stay keeps its stored split as it was: its acompte, paid,
+    can read a due date after its solde's (acompte 60 € due 09/12, paid; solde due 14/11). Nothing depends on the
+    date of a paid acompte (no dashboard card, no cancellation), so it is not rewritten.
 57. **A reservation keeps the single payment its devis promised** _(added 2026-11-09, audits R34-RES-L1 and
     R34-RES-L2)_. Rule 5's amendment held « later saves keep it » for a rule-56 devis only. A direct devis
     stored with no acompte owes one payment on `validUntil` too (specs/deposit-blocks-the-dates.md rule 7): its

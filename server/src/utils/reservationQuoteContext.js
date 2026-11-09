@@ -80,16 +80,16 @@ function scheduleQuoteInputs(db, bookingId, { editedStartDate, newDevis = false 
   };
 }
 
-// D23 — the devis a reservation was converted from: the dates it quoted, the day it promised them until, and the
-// acompte it stored (0 = one payment, specs/deposit-blocks-the-dates.md rule 22). A minimal suite schema without the
-// devis columns has no devis to read: no promise.
+// D23 — the devis a reservation was converted from: the dates it quoted, the day it promised them until, the
+// acompte it stored (0 = one payment, specs/deposit-blocks-the-dates.md rule 22) and its channel (an OTA devis
+// promises no direct deadline, rule 24). A minimal suite schema without the devis columns has no devis to read: no promise.
 function devisPromiseOf(db, reservationId) {
   let devis = null;
   try {
-    devis = db.prepare("SELECT startDate, validUntil, depositAmount FROM reservations WHERE kind = 'devis' AND convertedReservationId = ? ORDER BY id DESC LIMIT 1")
+    devis = db.prepare("SELECT startDate, validUntil, depositAmount, platform FROM reservations WHERE kind = 'devis' AND convertedReservationId = ? ORDER BY id DESC LIMIT 1")
       .get(Number(reservationId));
   } catch { return null; }
-  return devis && devis.validUntil ? { startDate: devis.startDate, validUntil: devis.validUntil, depositAmount: devis.depositAmount } : null;
+  return devis && devis.validUntil ? { startDate: devis.startDate, validUntil: devis.validUntil, depositAmount: devis.depositAmount, platform: devis.platform } : null;
 }
 
 function editedDevisValidUntil(db, row, startDate) {

@@ -260,6 +260,13 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
     2026-10-30; `website-booking` 1.8.7, SDK 2.17.0). Rule 24 says nothing resets the proof-of-work latch, yet a settings PUT
     with `null` did. Both keys are now refused by `PUT /api/plugins/website-booking/settings` and left out of the GET; the
     plugin still writes them and the online-booking card reads its own endpoint. Test: `tests/internal-settings.unit.test.js`.
+35. **Every deleted devis retires its number** (verification R34b core, N3-2, 2026-11-09). Rule 10's « a quote number
+    may have gaps, not repeats » held for the purge only: a devis deleted from its fiche (« Supprimer… », allowed again
+    on the devis of a cancelled stay by deposit-blocks-the-dates rule 23) or by the cascade of a client or a logement
+    deleted gave its number back, and the next devis of the month carried the number a guest already held on a PDF. An
+    `AFTER DELETE` trigger on `reservations` (`devis_number_retire_on_delete`, kind `devis`, number `YYYY-MM-N`) now
+    records it in `devis_number_retired`, whatever deleted the row; the purge's own call is gone. Test:
+    `server/src/tests/devis-number-never-reused.unit.test.js`.
 
 ## 4. Architecture
 
@@ -281,7 +288,7 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 | `scheduledTasks.js` | — | T | `flushDueDigests` every minute, and 45 s after boot. |
 | `models/` | `devisModel.js` | T | `updateFromPublicRequest` reusing the creation path (13), `appendPublicMessage` (rule 21), `markOperatorSeen`, `purgePublicRequest`; the flag set / cleared by `update` and `updateStatus`. |
 | `controllers/` | `devisController.js` | T | `getOne`, `pdf`, `history`, `extensionPreview` stamp `operatorSeenAt` (rule 25). |
-| `database.js` | — | T | The two columns, `devis_number_retired` (read by `generateDevisNumber`), the digest tables. |
+| `database.js` | — | T | The two columns, `devis_number_retired` (read by `generateDevisNumber`, written by the `devis_number_retire_on_delete` trigger, rule 35), the digest tables. |
 | `utils/` | `publicLabels.js` | T | `challengeInvalid`, `challengeMissing`, `requestsPendingForEmail` (fr + en). |
 | `plugins/website-booking/tests/` | `public-request-challenge.unit.test.js`, `public-request-grouping.unit.test.js`, `public-request-purge.unit.test.js` | C | Rules 1–16. |
 
@@ -319,7 +326,8 @@ someone else is attacking. One guest asking twice for the same stay gets one quo
 - `notification_digest_items.takenAt` (rule 26).
 - `reservations.publicUpdatedAfterSendAt TEXT` — rule 14 flag.
 - `reservations.operatorSeenAt TEXT` — rule 17.
-- `devis_number_retired (prefix PK, lastIncrement)` — core; the purge retires a number,
+- `devis_number_retired (prefix PK, lastIncrement)` — core; every deleted devis retires its number (trigger
+  `devis_number_retire_on_delete`, rule 35; the purge was the only writer before),
   `generateDevisNumber` skips past it (rule 10).
 - `notification_digest_windows (digestKey PK, windowStartedAt)` and `notification_digest_items (id,
   digestKey, refId, kind, createdAt)` — core; rule 9 survives a restart.
@@ -384,6 +392,8 @@ First implementation:
   1-5b, transition).
 - `public-request-grouping.unit.test.js` — 7 tests (rules 7, 12-16, double click, refused composition).
 - `public-request-purge.unit.test.js` — 5 tests (rule 10, retired number, `operatorSeenAt`).
+- `server/src/tests/devis-number-never-reused.unit.test.js` — 3 tests (rule 35, 2026-11-09): « Supprimer… » on the
+  latest devis, the devis of a cancelled stay, a client deleted with its devis — the next devis never gets the number.
 - `server/src/tests/site-request-email-digest.unit.test.js` — 2 tests (rules 9, 16, restart).
 - `server/src/tests/wordpress-plugin-proof-of-work.unit.test.js` — 7 tests (the solver run against the
   server's check, proxy route, drawer, strings).

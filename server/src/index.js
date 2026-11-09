@@ -138,12 +138,12 @@ try {
   logErrorMarker(`Encryption migration failed: ${err.message}`);
 }
 
-// specs/deposit-blocks-the-dates.md rule 20 — every boot, idempotent: an open devis whose columns still hold an acompte
-// inside the D23 window (stored before the rule) is re-stored as its single payment, its acompte links withdrawn.
+// specs/deposit-blocks-the-dates.md rules 20 and 25 — every boot, idempotent: an open devis whose columns disagree with its
+// read (an acompte left inside the D23 window, a solde date before a delay change, no validity date) is re-stored.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {
     const restored = require('./models/devisModel').restoreSinglePayments();
-    if (restored.length > 0) console.log(`[migration:devis-single-payment] ${restored.length} devis re-stored as one payment (${restored.join(', ')})`);
+    if (restored.length > 0) console.log(`[migration:devis-single-payment] ${restored.length} devis re-stored to their read (${restored.join(', ')})`);
   } catch (err) {
     logErrorMarker(`Devis single-payment re-store failed: ${err.message}`);
   }

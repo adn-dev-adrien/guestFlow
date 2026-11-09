@@ -2685,8 +2685,10 @@ function calculateReservationQuote({
     && owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore: property.balanceDaysBefore });
   // The reservation converted from such a devis, or from a devis stored with no acompte (rule 22, R34-RES-L2),
   // keeps its single payment and its deadline for the dates quoted; moved, the stay takes the reservation rules.
-  // Last in the chain, like the last-minute switch.
+  // Last in the chain, like the last-minute switch. Only a DIRECT devis made that promise (rule 24, audit R35-RES-L1):
+  // an OTA devis's stored acompte 0 is no promise, whatever channel the stay is switched to later.
   const keepsDevisPromise = String(quoteKind) !== 'devis' && !platformIsNonDirect && Boolean(devisPromise)
+    && isDirectChannel(devisPromise.platform)
     && toIsoDay(devisPromise.startDate) === toIsoDay(startDate)
     && devisPromisesOnePayment({
       startDate, validUntil: devisPromise.validUntil, balanceDaysBefore: property.balanceDaysBefore, depositAmount: devisPromise.depositAmount,
