@@ -75,7 +75,7 @@ const corePush = () => sdk.coreModule('pushService');
 
 function buildGuestApi({
   db, soliomapUrl, now = () => new Date(), limiters, translator = coreTranslator, scheduler = coreScheduler,
-  appName = () => null, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
+  appName = () => null, soliomapEmbed = () => false, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
   commit = sdk.coreModule('guestOrderCommit'), payments = corePayments, push = corePush,
   settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl,
@@ -117,7 +117,8 @@ function buildGuestApi({
   }
   const guestSession = buildGuestSession({ sessions, stays, stayLinks, lodgings, now });
   const controller = buildSessionController({
-    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, ...(readGateUrl ? { readGateUrl } : {}),
+    lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
+    ...(readGateUrl ? { readGateUrl } : {}),
   });
   const links = buildStayLinksController({
     stayLinks, stays, lodgings, guestHost, now,
@@ -179,6 +180,7 @@ function register(ctx) {
     db: () => ctx.db,
     soliomapUrl: () => ctx.settings.get('soliomapUrl'),
     appName: () => ctx.settings.get('appName'),
+    soliomapEmbed: () => ['1', 1, true].includes(ctx.settings.get('soliomapEmbed')),
     guestHost: () => ctx.settings.get('guestHost'),
     maxOrderTotal: () => Number(ctx.settings.get('maxOrderTotal')) || 500,
     settingsStore: () => ctx.settings,
