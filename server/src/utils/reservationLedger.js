@@ -68,6 +68,15 @@ function basketRefundOwed(link) {
   try { return JSON.parse(link.basketJson).refundOwed === true; } catch { return false; }
 }
 
+// What a basket link owes back: the part its owner flagged (`refundCents`), else the whole payment.
+function basketRefundCents(link) {
+  try {
+    const part = Number(JSON.parse(link.basketJson).refundCents);
+    if (Number.isInteger(part) && part > 0) return part;
+  } catch { /* the whole payment */ }
+  return Number(link.amountCents || 0);
+}
+
 const NEUTRAL_REFUND = Object.freeze({ refundOne: 'Paiement en ligne à rembourser', refundMany: 'Paiements en ligne à rembourser' });
 const basketSource = (link) => { try { return String(JSON.parse(link.basketJson).source || ''); } catch { return ''; } };
 
@@ -641,9 +650,16 @@ function buildLedger({
   if (owedBaskets.length > 0) {
     rows.push({
       key: 'basketRefunds', label: basketRefundLabel(owedBaskets),
-      amount: owedBaskets.reduce((sum, l) => sum + Number(l.amountCents || 0), 0) / 100, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+      amount: owedBaskets.reduce((sum, l) => sum + basketRefundCents(l), 0) / 100, state: 'due', tone: 'warning', stateLabel: 'À rembourser',
       action: null, amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
-      detail: { lines: owedBaskets.map((l) => `${formatEuros(Number(l.amountCents || 0) / 100)} payés${l.paidAt ? ` le ${shortDate(localIsoDate(new Date(Date.parse(l.paidAt))), stayYear)}` : ''} par carte, lien ${l.id}`) },
+      detail: {
+        lines: owedBaskets.map((l) => {
+          const paid = Number(l.amountCents || 0);
+          const owed = basketRefundCents(l);
+          const head = owed < paid ? `${formatEuros(owed / 100)} à rendre sur ${formatEuros(paid / 100)}` : formatEuros(paid / 100);
+          return `${head} payés${l.paidAt ? ` le ${shortDate(localIsoDate(new Date(Date.parse(l.paidAt))), stayYear)}` : ''} par carte, lien ${l.id}`;
+        }),
+      },
     });
   }
   if ((!deferred || endOfStayApart) && (endOfStayAmount > 0 || endAdjusted)) {

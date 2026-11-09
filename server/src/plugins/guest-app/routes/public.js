@@ -36,7 +36,8 @@ function buildPublicRouter({
   router.post('/orders/quote', ...stayShop, orders.quote);
   router.post('/orders', ...stayShop, limiters.order, orders.create);
   router.get('/orders', limiters.read, guestSession.requireSession, requireModule('orders', controller.shownKeysOf), guestSession.requireStay, orders.list);
-  router.get('/orders/:id', ...stayShop, orders.read);
+  // §4.3 — the return page polls the order, and an unpaid one is read at the provider: the core's payment-status budget.
+  router.get('/orders/:id', limiters.status, ...stayShop, orders.read);
   router.post('/orders/:id/abandon', ...stayShop, orders.abandon);
   // Rule 5 — the booklet reads for a session or, in visitor mode, for the printed code.
   const bookletRoute = [limiters.read, booklet.reader, requireModule('booklet', controller.shownKeysOf)];

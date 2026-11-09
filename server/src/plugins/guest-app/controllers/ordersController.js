@@ -8,6 +8,7 @@
  *
  *   POST /orders/quote    { lines, deliverAt? }                     → the priced lines, the total
  *   POST /orders          { lines, deliverAt?, payment, returnPath? } → note / 0 €: on the fiche at once; card: a link
+ *                         (`Idempotency-Key` header: a replay within the session answers the first order again)
  *   GET  /orders · /orders/:id · POST /orders/:id/abandon
  *
  * `paid(event)` is the order's side of a paid card link (`ctx.paymentBasket`): committed when its slots are still
@@ -32,6 +33,11 @@ const MAX_LINES = 20;
 const MAX_SESSIONS = 20;
 const MAX_MORNINGS = 31;
 const HOLD_MS = 30 * 60 * 1000;
+// §4.3 — the return page polls its order: the provider is read for one link at most this often.
+const REFRESH_MS = 10 * 1000;
+// §4.3 — a double tap sends the same key twice: the second answers the first order.
+const CLIENT_KEY = /^[A-Za-z0-9._:-]{8,100}$/;
+const PRICE_ROSE = Symbol('guest-order-price-rose');
 // Rules 34-35, 46 — the guest app's basket source, and the words the fiche's history and ledger use for its orders.
 const ORDER_SOURCE = 'guestOrder';
 const ORDER_REFUND_LABELS = Object.freeze({ refundOne: 'Commande client à rembourser', refundMany: 'Commandes clients à rembourser' });
@@ -210,11 +216,17 @@ function buildOrdersController({
     return { status: 409, code: 'STAY_NOT_WRITABLE', message: 'Commande impossible pour ce séjour : contactez l’équipe.' };
   }
 
-  /** Rule 24 — the judged lines priced by the core engine. → `{ lines, total }` or a refusal. */
+  /**
+   * Rules 24, 25, 35 — the judged lines priced by the core engine, after the stay's card orders awaiting payment:
+   * those hold the free units and minutes they were quoted with. → `{ lines, total }` or a refusal.
+   */
   function price(stay, judged) {
     const lines = commitLines(judged.lines);
     if (!lines.length) return { lines: [], byKey: {}, total: 0 };
-    const priced = commit.priceOrder(stay.id, lines);
+    const pending = orders().pendingLines(stay.id).map(cartLineOf);
+    let priced = commit.priceOrder(stay.id, lines, { pending });
+    // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is.
+    if (priced.status !== 200 && pending.length) priced = commit.priceOrder(stay.id, lines);
     if (priced.status !== 200) return { refusal: engineRefusal(priced) };
     return { lines, byKey: priced.byKey, total: priced.total };
   }
@@ -299,10 +311,11 @@ function buildOrdersController({
   };
 
   /** Rule 44 — « Commandes clients »: every confirmed or paid order, to the staff who subscribed. Best effort. */
-  function notifyStaff(order, { conflict = false } = {}) {
+  function notifyStaff(order, { conflict = false, refundCents = 0 } = {}) {
     const stay = stays().byId(order.reservationId) || {};
     const text = labels.pushText(order, { lodging: lodgingName(stay.propertyId), firstName: stay.clientFirstName });
-    const body = conflict ? `${text} — payée, mais créneau ou article plus disponible : à rembourser` : text;
+    const refund = refundCents > 0 ? `${text} — trop-perçu de ${labels.priceLabel(refundCents / 100)} à rembourser` : text;
+    const body = conflict ? `${text} — payée, mais créneau, article ou prix plus disponible : à rembourser` : refund;
     Promise.resolve()
       .then(() => push().sendToPref('guest-orders', { title: conflict ? 'Commande client à rembourser' : `Commande client #${order.id}`, body, url: `/commandes-app?order=${order.id}` }))
       .catch(() => {});
@@ -315,10 +328,28 @@ function buildOrdersController({
     return kept;
   });
 
+  /** §4.3 — the first answer to an order a replayed `Idempotency-Key` names. */
+  function replay(res, order) {
+    if (order.payment === 'card') {
+      if (order.paymentUrl) return publicHttp.ok(res, { orderId: order.id, paymentUrl: order.paymentUrl });
+      if (order.status === 'awaiting_payment') return fail(res, { status: 409, code: 'ORDER_IN_PROGRESS', message: 'Cette commande est en cours d’enregistrement.' });
+      return fail(res, { status: 502, code: 'PAYMENT_UNAVAILABLE', message: 'Le paiement par carte est indisponible.' });
+    }
+    return publicHttp.ok(res, { orderId: order.id, status: 'confirmed' });
+  }
+
+  const isUniqueClash = (err) => Boolean(err && err.code === 'SQLITE_CONSTRAINT_UNIQUE');
+
   /** `POST /orders` — rules 30, 33-37. */
   const create = guarded(async (req, res) => {
     const error = orderInputError(req.body, { withPayment: true });
     if (error) return fail(res, error);
+    const rawKey = req.get('Idempotency-Key');
+    if (rawKey !== undefined && !CLIENT_KEY.test(rawKey)) return fail(res, invalid('Requête invalide.'));
+    const clientKey = rawKey || null;
+    const sessionId = req.guest.session.id;
+    const earlier = clientKey ? orders().findByClientKey(sessionId, clientKey) : null;
+    if (earlier) return replay(res, earlier);
     const { stay } = req.guest;
     const lang = languageOf(req, stay);
     const at = now();
@@ -360,17 +391,20 @@ function buildOrdersController({
       try {
         db().transaction(() => {
           order = orders().create({
-            reservationId: stay.id, sessionId: req.guest.session.id, payment: free ? 'none' : 'note', status: 'confirmed',
-            lines, total: priced.total, deliverAt: judged.deliverAt, ...delivery, now: at,
+            reservationId: stay.id, sessionId, payment: free ? 'none' : 'note', status: 'confirmed',
+            lines, total: priced.total, deliverAt: judged.deliverAt, ...delivery, clientKey, now: at,
           });
           const written = commit.commitOrder(stay.id, { ...orderNaming(order.id), lines: priced.lines });
           if (!written || written.status !== 200) {
             refusal = engineRefusal(written || { body: {} });
             throw refusal;
           }
+          // Rule 35 — quoted after a card order awaiting payment, it adds less to the fiche than its quote: that order adds the rest.
+          orders().setDeferred(order.id, Math.round(priced.total * 100) - Math.round(Number(written.total || 0) * 100));
           moved = countStock(stay.id, at);
         })();
       } catch (err) {
+        if (clientKey && isUniqueClash(err)) return replay(res, orders().findByClientKey(sessionId, clientKey));
         if (err !== refusal) throw err;
         return fail(res, refusal);
       }
@@ -381,10 +415,16 @@ function buildOrdersController({
 
     // Rule 33 — « Payer maintenant »: the order holds its slots while its link lives (rule 35).
     if (!paymentProviders.active()) return fail(res, { status: 409, code: 'CARD_UNAVAILABLE', message: 'Le paiement par carte est indisponible : ajoutez la commande à votre note.' });
-    const order = orders().create({
-      reservationId: stay.id, sessionId: req.guest.session.id, payment: 'card', status: 'awaiting_payment',
-      lines, total: priced.total, deliverAt: judged.deliverAt, heldUntil: new Date(at.getTime() + HOLD_MS).toISOString(), ...delivery, now: at,
-    });
+    let order;
+    try {
+      order = orders().create({
+        reservationId: stay.id, sessionId, payment: 'card', status: 'awaiting_payment',
+        lines, total: priced.total, deliverAt: judged.deliverAt, heldUntil: new Date(at.getTime() + HOLD_MS).toISOString(), ...delivery, clientKey, now: at,
+      });
+    } catch (err) {
+      if (clientKey && isUniqueClash(err)) return replay(res, orders().findByClientKey(sessionId, clientKey));
+      throw err;
+    }
     // Rule 37ter — the units it holds lower what is left at once.
     alertStock([...stock().unitsOfLines(lines).keys()]);
     const host = guestHost();
@@ -393,15 +433,25 @@ function buildOrdersController({
         source: ORDER_SOURCE,
         ref: order.id,
         title: `Commande #${order.id}`,
-        lines: lines.filter((l) => l.total > 0).map((l) => ({ title: l.title, amountCents: Math.round(l.total * 100) })),
+        lines: basketLines(lines, priced.total),
       }, { redirectUrl: host ? `https://${host}/commande/${order.id}` : null });
-      orders().setPaymentLink(order.id, link.linkId);
+      orders().setPaymentLink(order.id, link.linkId, link.url);
       return publicHttp.ok(res, { orderId: order.id, paymentUrl: link.url });
     } catch (err) {
       orders().markFailed(order.id, now());
       return fail(res, { status: (err && err.httpStatus) || 502, code: (err && err.error) || 'PAYMENT_UNAVAILABLE', message: (err && err.message) || 'Le paiement par carte est indisponible.' });
     }
   });
+
+  /**
+   * Rule 33 — the link bills exactly the quoted total: the order's own lines, and what the engine raised beside them
+   * (a percentage of the stay, such as an insurance) as one more line.
+   */
+  function basketLines(lines, total) {
+    const own = lines.filter((l) => l.total > 0).map((l) => ({ title: l.title, amountCents: Math.round(l.total * 100) }));
+    const rest = Math.round(total * 100) - own.reduce((sum, l) => sum + l.amountCents, 0);
+    return rest > 0 ? [...own, { title: 'Ajustement du séjour lié à la commande', amountCents: rest }] : own;
+  }
 
   /** Rules 38, 41ter — what a guest reads of an order. */
   function orderView(order, { lang, resourceLines = null }) {
@@ -465,11 +515,16 @@ function buildOrdersController({
   };
   const notFound = (res) => publicHttp.fail(res, 404, 'ORDER_NOT_FOUND', 'Commande introuvable.');
 
-  /** `GET /orders/:id` — the return page polls it; an unpaid card order reads its link at the provider now. */
+  // §4.3 — when each link was last read at the provider for the return page.
+  const refreshedAt = new Map();
+
+  /** `GET /orders/:id` — the return page polls it; an unpaid card order reads its link at the provider, every 10 s at most. */
   async function read(req, res) {
     let order = ownOrder(req);
     if (!order) return notFound(res);
-    if (order.status === 'awaiting_payment' && order.paymentLinkId) {
+    const at = now().getTime();
+    if (order.status === 'awaiting_payment' && order.paymentLinkId && !(at - (refreshedAt.get(order.paymentLinkId) || -Infinity) < REFRESH_MS)) {
+      refreshedAt.set(order.paymentLinkId, at);
       await payments().refreshBasketLink(order.paymentLinkId);
       order = orders().findById(order.id);
     }
@@ -535,7 +590,9 @@ function buildOrdersController({
   /**
    * Rules 35-36 — the order's side of its paid link, run by the core inside the payment's effect. Committed with
    * its payment recorded on the ledger when its slots are still free (on time, or late after its expiry), else
-   * `paid_conflict`: nothing reaches the fiche and the core flags the money « à rembourser ».
+   * `paid_conflict`: nothing reaches the fiche and the core flags the money « à rembourser ». The fiche is never
+   * billed beyond the payment: an order that now costs more (beyond what the orders committed while it awaited its
+   * payment left to it) is a conflict; one that costs less has the gap flagged « à rembourser » (`refundCents`).
    */
   function paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId }) {
     const order = orders().findById(ref);
@@ -543,31 +600,57 @@ function buildOrdersController({
     if (['paid', 'delivered', 'paid_conflict', 'confirmed'].includes(order.status)) return { effect: 'guest-order-already-settled' };
     const at = now();
     const stay = stays().byId(order.reservationId);
+    const paidCents = Math.round(Number(amountCents) || 0);
     let outcome = null;
     let moved = [];
     db().transaction(() => {
       // Its own holds are not someone else's slot: lifted before the planning is read again.
       db().prepare('UPDATE guest_orders SET heldUntil = NULL WHERE id = ?').run(order.id);
-      const conflict = () => {
+      const conflict = (reason = 'créneau ou article plus disponible, commande non honorée') => {
         orders().markPaidConflict(order.id, { now: at, paidAt });
-        outcome = { refundOwed: true, reason: 'créneau ou article plus disponible, commande non honorée' };
+        outcome = { refundOwed: true, reason };
       };
-      if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || !unitsStillLeft(order, at)) return conflict();
+      // Rule 35 — abandoned, its lines went back to the cart: a payment landing now is never committed.
+      if (order.status === 'abandoned') return conflict('commande abandonnée avant le paiement, commande non honorée');
+      // Rule 37quater — paid while it awaited its payment, the order held its units; a late one finds what is left.
+      const late = order.status !== 'awaiting_payment';
+      if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || (late && !unitsStillLeft(order, at))) return conflict();
       const delivery = deliveryAfterPayment(order, stay, at);
-      const written = commit.commitOrder(order.reservationId, {
-        ...orderNaming(order.id, { paid: true }),
-        lines: commitLinesOf(order),
-        paid: { amountCents, paidDate, reference: providerPaymentId },
-        within: () => orders().markPaid(order.id, { now: at, paidAt, deliverAt: delivery.deliverAt, deliverMoved: delivery.moved }),
-      });
+      let written;
+      try {
+        written = commit.commitOrder(order.reservationId, {
+          ...orderNaming(order.id, { paid: true }),
+          lines: commitLinesOf(order),
+          paid: { amountCents: paidCents, paidDate, reference: providerPaymentId },
+          within: (result) => {
+            const gap = Math.round(Number(result.total || 0) * 100) - paidCents;
+            if (gap > 0) {
+              const deferred = orders().deferredFor(order);
+              if (deferred.available < gap) throw PRICE_ROSE;
+              deferred.take(gap);
+            }
+            orders().markPaid(order.id, { now: at, paidAt, deliverAt: delivery.deliverAt, deliverMoved: delivery.moved });
+          },
+        });
+      } catch (err) {
+        if (err !== PRICE_ROSE) throw err;
+        return conflict('prix de la commande augmenté avant le paiement, commande non honorée');
+      }
       if (!written || written.status !== 200) return conflict();
       moved = countStock(order.reservationId, at);
-      outcome = { effect: 'guest-order-paid' };
+      const excess = Number(written.excessCents) || 0;
+      outcome = excess > 0
+        ? {
+          effect: 'guest-order-paid', refundOwed: true, refundCents: excess,
+          reason: `commande facturée ${labels.priceLabel((paidCents - excess) / 100)} au lieu de ${labels.priceLabel(paidCents / 100)}`,
+        }
+        : { effect: 'guest-order-paid' };
       return null;
     })();
     alertStock(moved);
     const after = orders().findById(order.id);
-    notifyStaff(after, { conflict: Boolean(outcome && outcome.refundOwed) });
+    const conflicted = after.status === 'paid_conflict';
+    notifyStaff(after, { conflict: conflicted, refundCents: conflicted ? 0 : Number(outcome.refundCents) || 0 });
     return outcome;
   }
 

@@ -52,20 +52,59 @@ function createOrdersModel(db) {
 
     /** Rule 33 — a new order: `lines` is the priced snapshot (sessions, mornings and amounts included). */
     create({
-      reservationId, sessionId, payment, status, lines, total, deliverAt = null, heldUntil = null, fulfilment = 'delivery', pickupPlace = null, now,
+      reservationId, sessionId, payment, status, lines, total, deliverAt = null, heldUntil = null, fulfilment = 'delivery', pickupPlace = null,
+      clientKey = null, now,
     }) {
       const at = now.toISOString();
       // Rule 41bis — the mode and the place are the order's own: a later change of the setting rewrites no order.
       const info = db.prepare(`
-        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, fulfilment, pickupPlace, createdAt, confirmedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, fulfilment, pickupPlace, createdAt, confirmedAt, clientKey)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(Number(reservationId), sessionId == null ? null : Number(sessionId), payment, status, JSON.stringify(lines), Number(total),
-        deliverAt, heldUntil, fulfilment === 'pickup' ? 'pickup' : 'delivery', fulfilment === 'pickup' ? pickupPlace : null, at, status === 'confirmed' ? at : null);
+        deliverAt, heldUntil, fulfilment === 'pickup' ? 'pickup' : 'delivery', fulfilment === 'pickup' ? pickupPlace : null, at, status === 'confirmed' ? at : null,
+        clientKey || null);
       return findById(info.lastInsertRowid);
     },
 
-    setPaymentLink(id, linkId) {
-      db.prepare('UPDATE guest_orders SET paymentLinkId = ? WHERE id = ?').run(Number(linkId), Number(id));
+    /** §4.3 — the order a session already created under this `Idempotency-Key`, or null. */
+    findByClientKey(sessionId, clientKey) {
+      if (sessionId == null || !clientKey) return null;
+      return toOrder(db.prepare('SELECT * FROM guest_orders WHERE sessionId = ? AND clientKey = ?').get(Number(sessionId), String(clientKey)));
+    },
+
+    /**
+     * Rule 35 — what an order was quoted beyond what its commit added to the fiche, because a card order awaiting its
+     * payment held the free units or minutes (rule 25): that card order's commit will add it, and may use it.
+     */
+    setDeferred(id, cents) {
+      db.prepare('UPDATE guest_orders SET deferredCents = ? WHERE id = ?').run(Math.max(0, Math.round(Number(cents) || 0)), Number(id));
+    },
+
+    /**
+     * Rule 35 — the deferred amounts a paid card order may take: the stay's orders on the fiche, committed while it
+     * awaited its payment. `take(cents)` uses them oldest first. → { available, take }.
+     */
+    deferredFor(order) {
+      const rows = db.prepare(`
+        SELECT id, deferredCents FROM guest_orders
+         WHERE reservationId = ? AND id <> ? AND deferredCents > 0 AND status IN ('confirmed', 'paid', 'delivered') AND confirmedAt >= ?
+         ORDER BY id
+      `).all(Number(order.reservationId), Number(order.id), String(order.createdAt));
+      const available = rows.reduce((sum, r) => sum + Number(r.deferredCents), 0);
+      const take = (cents) => {
+        let left = cents;
+        rows.forEach((r) => {
+          if (left <= 0) return;
+          const used = Math.min(left, Number(r.deferredCents));
+          db.prepare('UPDATE guest_orders SET deferredCents = deferredCents - ? WHERE id = ?').run(used, r.id);
+          left -= used;
+        });
+      };
+      return { available, take };
+    },
+
+    setPaymentLink(id, linkId, url = null) {
+      db.prepare('UPDATE guest_orders SET paymentLinkId = ?, paymentUrl = ? WHERE id = ?').run(Number(linkId), url || null, Number(id));
       return findById(id);
     },
 
@@ -103,8 +142,9 @@ function createOrdersModel(db) {
       `).all(fromIso, toIso).map(toOrder);
     },
 
+    /** Rule 35 — an abandoned order's lines went back to the cart: its payment is a conflict, never a commit. */
     markPaid(id, { now, paidAt, deliverAt, deliverMoved }) {
-      return move(id, ['awaiting_payment', 'expired', 'abandoned'], 'paid', {
+      return move(id, ['awaiting_payment', 'expired'], 'paid', {
         paidAt: paidAt || now.toISOString(), confirmedAt: now.toISOString(), heldUntil: null, deliverAt, deliverMoved: deliverMoved ? 1 : 0,
       });
     },

@@ -6,7 +6,7 @@
  * order's lines added to it, then `performUpdate`. The window, the arrival floors (`ARRIVAL_EXTRAS_FROZEN`), the
  * closed window (`MID_STAY_EXTRAS_CLOSED`), the session conflicts and the engine are the fiche's own.
  *
- *   priceOrder(reservationId, lines)           → { status: 200, byKey, total } | { status, body }
+ *   priceOrder(reservationId, lines, { pending? }) → { status: 200, byKey, total } | { status, body }
  *   commitOrder(reservationId, { source, ref, history, lines, paid?, within? }) → { status: 200, byKey, total, settledCents } | { status, body }
  *
  * `lines` — the order's lines, already judged by the plugin (what is sold, the slots, the mornings):
@@ -16,6 +16,9 @@
  * `byKey` — what the order adds to the end-of-stay complement per line key (`opt:<id>`, `res:<id>`): the engine's
  * answer for the stay with the order minus its answer for the stay without it, so free units, free minutes, the
  * stay's price lock and per-lodging prices all apply as they do on the fiche. A 0 € line adds nothing.
+ * `pending` — the lines of the caller's orders not on the fiche yet but already promised (a card order awaiting its
+ * payment): they take their free units and minutes first, so the order is priced as the stay + pending + order minus
+ * the stay + pending, and a later order never takes an allowance a pending one was quoted with.
  *
  * The caller names its order: `source` (its basket source, `[a-z][a-zA-Z0-9-]*`) and `ref` (its own id) mark the
  * settled note of a paid order; `history: { field, label, text }` is the stay's history entry, written in the
@@ -77,7 +80,10 @@ function withBreakfast(body, line) {
     ...line.mornings.filter((date) => !stored.some((o) => o.date === date && o.done)).map((date) => ({ date, time: line.time })),
   ]);
   if (index >= 0) {
-    options[index] = { ...options[index], quantity: merged.length, cardOccurrences: merged };
+    // A line with no mornings placed yet keeps its quantity: the order places mornings, it never lowers what the stay
+    // already holds (an arrival-frozen or included line would refuse, or re-bill, a lower one).
+    const quantity = Math.max(Number(options[index].quantity) || 0, merged.length);
+    options[index] = { ...options[index], quantity, cardOccurrences: merged };
   } else {
     options.push({ optionId: Number(line.id), quantity: merged.length, cardOccurrences: merged, cardPersons: Number(line.persons) });
   }
@@ -154,15 +160,18 @@ function deltaOf(before, after) {
 
 const refusal = (result) => ({ status: result.status, body: result.body });
 
-/** Rule 24 — the order priced by the fiche's own engine, nothing written. */
-function priceOrder(reservationId, lines) {
+/** Rule 24 — the order priced by the fiche's own engine, after the pending orders, nothing written. */
+function priceOrder(reservationId, lines, { pending = [] } = {}) {
   const id = Number(reservationId);
-  const body = storedBody(id);
-  if (!body) return { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
+  const stored = storedBody(id);
+  if (!stored) return { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
+  const all = [...(pending || []), ...lines];
+  const rows = optionRows(database(), all);
+  const body = pending && pending.length ? mergeOrderLines(stored, pending, rows) : stored;
   const save = controller().performUpdate;
   const base = save(id, structuredClone(body), { dryRun: true });
   if (base.status !== 200) return refusal(base);
-  const next = save(id, mergeOrderLines(body, lines, optionRows(database(), lines)), { dryRun: true });
+  const next = save(id, mergeOrderLines(body, lines, rows), { dryRun: true });
   if (next.status !== 200) return refusal(next);
   return { status: 200, ...deltaOf(remainderByKey(base.row), remainderByKey(next.row)) };
 }

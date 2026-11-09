@@ -142,14 +142,18 @@ const TABLES_SQL = `
     pickupPlace   TEXT,
     heldUntil     TEXT,
     paymentLinkId INTEGER,
+    paymentUrl    TEXT,
     createdAt     TEXT NOT NULL,
     confirmedAt   TEXT,
     paidAt        TEXT,
     closedAt      TEXT,
     deliveredAt   TEXT,
-    deliveredBy   INTEGER
+    deliveredBy   INTEGER,
+    deferredCents INTEGER NOT NULL DEFAULT 0,
+    clientKey     TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_guest_orders_reservation ON guest_orders(reservationId);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_guest_orders_client_key ON guest_orders(sessionId, clientKey) WHERE clientKey IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_guest_orders_held ON guest_orders(heldUntil);
   CREATE INDEX IF NOT EXISTS idx_guest_orders_status ON guest_orders(status, deliverAt);
 `;

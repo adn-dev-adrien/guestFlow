@@ -66,7 +66,7 @@ async function startApi(db, {
     now: () => clock.now,
     translator: (lang) => forLang(lang, translationsModel.create(db)),
     limiters: {
-      session: passThrough, lookup: passThrough, read: passThrough, order: passThrough, ...limiters,
+      session: passThrough, lookup: passThrough, read: passThrough, order: passThrough, status: passThrough, ...limiters,
     },
   });
   const app = express();

@@ -118,11 +118,12 @@ function buildModel(database) {
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
     status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId${HAS_BASKET ? ', basketJson' : ''}`;
 
+  // A basket link is written whole, its basket in the same statement: no reader ever sees it as a bucket's link.
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
-      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, createdAt, expiresAt, installmentId)
+      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, createdAt, expiresAt, installmentId${HAS_BASKET ? ', basketJson' : ''})
     VALUES
-      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, COALESCE(@createdAt, datetime('now')), @expiresAt, @installmentId)
+      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, COALESCE(@createdAt, datetime('now')), @expiresAt, @installmentId${HAS_BASKET ? ', @basketJson' : ''})
   `);
 
   function findById(id) {
@@ -130,13 +131,8 @@ function buildModel(database) {
   }
 
   function create(payload) {
-    const created = insertLink(payload);
-    if (payload.basket != null) {
-      if (!HAS_BASKET) throw new Error('payment_links has no basket column');
-      database.prepare('UPDATE payment_links SET basketJson = ? WHERE id = ?').run(JSON.stringify(payload.basket), created.id);
-      return findById(created.id);
-    }
-    return created;
+    if (payload.basket != null && !HAS_BASKET) throw new Error('payment_links has no basket column');
+    return insertLink(payload);
   }
 
   function insertLink(payload) {
@@ -156,20 +152,9 @@ function buildModel(database) {
       createdAt: payload.createdAt == null ? null : String(payload.createdAt),
       expiresAt: payload.expiresAt == null ? null : String(payload.expiresAt),
       installmentId: payload.installmentId == null ? null : Number(payload.installmentId),
+      ...(HAS_BASKET ? { basketJson: payload.basket == null ? null : JSON.stringify(payload.basket) } : {}),
     });
     return findById(info.lastInsertRowid);
-  }
-
-  /** The basket a link bills (`{ source, ref }`), or null for a link of the stay's own buckets. */
-  function basketOf(link) {
-    const raw = link && Object.prototype.hasOwnProperty.call(link, 'basketJson') ? link.basketJson : (link && findById(link.id) || {}).basketJson;
-    if (!raw) return null;
-    try {
-      const basket = JSON.parse(raw);
-      return basket && typeof basket === 'object' && typeof basket.source === 'string' ? basket : null;
-    } catch {
-      return null;
-    }
   }
 
   function listOpen() {
@@ -555,7 +540,6 @@ function buildModel(database) {
 
   return {
     create,
-    basketOf,
     findById,
     listOpen,
     listOrphanOpen,

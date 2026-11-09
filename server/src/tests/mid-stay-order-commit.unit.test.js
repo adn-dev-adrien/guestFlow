@@ -77,6 +77,14 @@ test('specs/guest-app.md rule 27bis: a breakfast order sets the hour of the morn
   });
 });
 
+test('specs/guest-app.md rule 27bis: a breakfast line with no morning placed keeps its quantity — the order only places its mornings', () => {
+  const body = { options: [{ optionId: 5, quantity: 3, cardPersons: 2 }], resources: [] };
+  const next = mergeOrderLines(body, [{ kind: 'breakfast', id: 5, mornings: ['2099-07-08'], time: '09:00', persons: 2 }]);
+  assert.deepEqual(next.options[0], { optionId: 5, quantity: 3, cardPersons: 2, cardOccurrences: [{ date: '2099-07-08', time: '09:00' }] });
+  const more = mergeOrderLines(body, [{ kind: 'breakfast', id: 5, mornings: ['2099-07-07', '2099-07-08', '2099-07-09', '2099-07-10'], time: '09:00', persons: 2 }]);
+  assert.equal(more.options[0].quantity, 4, 'more mornings than the line held raise it');
+});
+
 test('rule 24: priceOrder is the engine’s own answer for the fiche with the order, and writes nothing', () => {
   const id = seedStay();
   const before = money(id);
@@ -93,6 +101,17 @@ test('rule 25: free minutes come from the engine — the first hour of the bath 
   const session = (start, end) => ({ date: isoPlus(1), start, end });
   assert.equal(priceOrder(id, [{ kind: 'resource', id: 202, sessions: [session('18:00', '19:00')] }]).total, 0);
   assert.deepEqual(priceOrder(id, [{ kind: 'resource', id: 202, sessions: [session('18:00', '20:00')] }]).byKey, { 'res:202': 30 });
+});
+
+test('rule 47: priceOrder prices after the pending lines — a later order never takes the free hour a pending order was quoted with', { skip: skipWithout(['hourly-resources']) }, () => {
+  const id = seedStay();
+  const session = (start, end) => ({ date: isoPlus(1), start, end });
+  const pending = [{ kind: 'resource', id: 202, sessions: [session('10:00', '12:00')] }];
+  assert.equal(priceOrder(id, pending).total, 30, 'the pending order alone: 2 h, the first offered');
+  const later = priceOrder(id, [{ kind: 'resource', id: 202, sessions: [session('18:00', '19:00')] }], { pending });
+  assert.equal(later.status, 200, JSON.stringify(later.body));
+  assert.deepEqual(later.byKey, { 'res:202': 30 }, 'the free hour is the pending order’s');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_resources WHERE reservationId = ?').get(id).n, 0, 'nothing written');
 });
 
 test('rules 30, 34: a note order lands as mid-stay extras — the end-of-stay complement only, the arrival money untouched, one history entry', () => {

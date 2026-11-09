@@ -189,6 +189,7 @@ function register(ctx) {
     limiters: {
       ...createGuestLimiters(),
       read: sdk.middleware.publicApiLimiter,
+      status: sdk.coreModule('rateLimiters').paymentStatusLimiter,
     },
   });
   // What the plugin still lacks: the guest host, and the service hours (rule 40 — unconstrained until set).
