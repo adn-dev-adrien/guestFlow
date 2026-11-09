@@ -1,6 +1,7 @@
 // specs/hourly-resource-quantity-and-sas-scheduling.md rules 28 + 34 « and vice versa » — fixed at the
 // 2026-10-27 spec review (F6): a fiche session placed on a slot an external booking (or another stay's
-// session) already holds on a resource that exists once was saved; it is now refused 409.
+// session) already holds on a resource that exists once was saved; it is now refused 409. Since
+// specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 35), a slot a plugin holds for another stay too.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -29,8 +30,8 @@ function freshDb({ turnover = 0 } = {}) {
   return db;
 }
 
-function check(db, sessions, reservationId = null) {
-  const model = buildModel(db);
+function check(db, sessions, reservationId = null, options = {}) {
+  const model = buildModel(db, options);
   return firstSessionConflict([{ resourceId: BATH, sessions }], () => 1, {
     occupiedOn: (resourceId, date) => model.occupiedOn({ resourceId, date, excludeReservationId: reservationId }),
     turnoverOf: (resourceId) => model.turnoverOf(resourceId),
@@ -81,4 +82,13 @@ test('without the plugin tables the check is the stay-only one', () => {
   assert.deepEqual(model.occupiedOn({ resourceId: BATH, date: '2026-11-07' }), []);
   assert.equal(model.turnoverOf(BATH), 0);
   assert.deepEqual(model.storedSessions({ reservationId: 1, resourceId: BATH }), []);
+});
+
+test('specs/plugins-phase-1-sdk.md rule 47: a slot a plugin holds for another stay is refused; the stay’s own hold is not', () => {
+  const db = freshDb();
+  const holds = ({ resourceId, from }) => (resourceId === BATH && from === '2026-11-09'
+    ? [{ date: '2026-11-09', start: '18:00', end: '19:00', reservationId: 9, label: 'Commande client en attente de paiement' }] : []);
+  assert.ok(check(db, [{ date: '2026-11-09', start: '18:00', end: '19:00' }], 5, { holds }));
+  assert.equal(check(db, [{ date: '2026-11-09', start: '18:00', end: '19:00' }], 9, { holds }), null);
+  assert.equal(check(db, [{ date: '2026-11-09', start: '19:00', end: '20:00' }], 5, { holds }), null);
 });

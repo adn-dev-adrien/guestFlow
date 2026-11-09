@@ -193,3 +193,17 @@ withCard('rule 36: paid late on a slot taken meanwhile → paid_conflict, nothin
   await flush();
   assert.ok(pushes.some((p) => /à rembourser/.test(p.payload.body)), 'rule 36: the operator is pushed');
 }, { skip: !hasHourly });
+
+withCard('rule 35: the fiche of another stay refuses a slot a card order awaiting payment holds, as the planning shows it', async ({ call }) => {
+  const controller = require('../../../controllers/reservationsController');
+  const reservationsModel = require('../../../models/reservationsModel');
+  const { toUpdateBody } = require('../../../utils/reservationUpdateBody');
+  const held = { date: TOMORROW, start: '16:00', end: '17:00' };
+  assert.equal((await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'resource', id: BATH, sessions: [held] }], payment: 'card' })).status, 200);
+  const other = seedStay({ propertyId: 2 });
+  const body = toUpdateBody(reservationsModel.getByIdWithDetails(other));
+  body.resources.push({ resourceId: BATH, quantity: 1, offered: false, inComplement: 0, sessions: [held] });
+  const saved = controller.performUpdate(other, body);
+  assert.equal(saved.status, 409, JSON.stringify(saved.body));
+  assert.equal(saved.body.code, 'RESOURCE_SLOT_TAKEN');
+}, { skip: !hasHourly });
