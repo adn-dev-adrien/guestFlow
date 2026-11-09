@@ -37,6 +37,8 @@ const { buildStudioSettingsController } = require('./controllers/studioSettingsC
 const { buildPublicRouter } = require('./routes/public');
 const { buildAdminRouter } = require('./routes/admin');
 const { createGuestLimiters } = require('./rateLimiters');
+const gate = require('./gate');
+const stayAppEmail = require('./emailContext');
 
 const id = 'guest-app';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -234,15 +236,11 @@ function register(ctx) {
   ]);
   // Rule 9bis (a) — the SAS « Portail » step becomes « Mon séjour » while this stay has a link to show.
   ctx.sasData((reservationId) => ({ available: api.stayLinkAvailable(reservationId) }));
-  // Rule 9bis (b) — the reminder e-mails carry the stay link. `stayAppUrl` is a core variable (it falls back to
-  // the gate link without this plugin), so only the flag is declared here.
+  // Rule 9bis (b) — the reminder e-mails' « Lien Mon séjour », declared by this plugin (emailContext.js).
   ctx.emailContext({
-    tokens: [],
-    flags: [{ name: 'hasStayApp', label: 'Si lien Mon séjour' }],
-    build: (reservationId) => {
-      const url = api.stayAppUrl(reservationId);
-      return { tokens: { stayAppUrl: url }, flags: { hasStayApp: Boolean(url) } };
-    },
+    tokens: [...stayAppEmail.TOKENS],
+    flags: [...stayAppEmail.FLAGS],
+    build: (reservationId) => stayAppEmail.stayAppEmailContext({ stayUrl: api.stayAppUrl(reservationId), gateUrl: gate.keyUrlOf(reservationId) }),
   });
 
   // Rule 36 — every minute, an order unpaid 30 minutes on expires and its slots go back to the planning.

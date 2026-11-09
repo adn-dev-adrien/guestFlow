@@ -1,6 +1,6 @@
 // specs/guest-app.md rules 1, 9, 9bis, 11quater — the stay link on the operator's side: created the first time
 // the SAS step, an e-mail or the fiche needs it, shown again, regenerated (the old link and its sessions die at
-// once); the SAS payload's switch and the `{{stayAppUrl}}` e-mail variable with its gate-link fallback.
+// once); the SAS payload's switch and the plugin's own `{{stayAppUrl}}` e-mail variable with its gate-link fallback.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -9,6 +9,7 @@ const {
 } = require('./guestAppFixtures');
 const { buildContext } = require('../../../utils/emailContextBuilder');
 const { validUntilLabel } = require('../controllers/stayLinksController');
+const { TOKENS, stayAppEmailContext } = require('../emailContext');
 
 const HOST = 'sejour.example.test';
 const LINK = (id) => `/api/guest-app/reservations/${id}/stay-link`;
@@ -132,13 +133,15 @@ test('rule 9bis (b): the reminder e-mails carry the stay link, created on first 
   assert.equal(api.stayAppUrl(id), '', 'lodging off');
 }));
 
-test('rule 9bis (b): `{{stayAppUrl}}` falls back to the gate link while the guest app gives none', () => {
-  const vars = (tokens) => buildContext({ reservation: { id: 1 }, pluginContext: { tokens, flags: {} } }).vars;
+test('rule 9bis (b): `{{stayAppUrl}}` is the plugin\'s own variable, falling back to the gate link while the app gives none', () => {
   const stayUrl = `https://${HOST}/s/abc`;
-  assert.equal(vars({ stayAppUrl: stayUrl, gateAccessUrl: 'https://gate.example.test/k' }).stayAppUrl, stayUrl);
-  assert.equal(vars({ stayAppUrl: '', gateAccessUrl: 'https://gate.example.test/k' }).stayAppUrl, 'https://gate.example.test/k', 'lodging off or no address');
-  assert.equal(vars({ gateAccessUrl: 'https://gate.example.test/k' }).stayAppUrl, 'https://gate.example.test/k', 'guest app not installed');
-  assert.equal(vars({}).stayAppUrl, '', 'neither plugin');
+  const gateUrl = 'https://gate.example.test/k';
+  assert.deepEqual(stayAppEmailContext({ stayUrl, gateUrl }), { tokens: { stayAppUrl: stayUrl }, flags: { hasStayApp: true } });
+  assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl }), { tokens: { stayAppUrl: gateUrl }, flags: { hasStayApp: false } }, 'lodging off or no address');
+  assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl: null }), { tokens: { stayAppUrl: '' }, flags: { hasStayApp: false } }, 'no gate key either');
+  assert.deepEqual(TOKENS.map((t) => [t.name, t.label, [...t.in]]), [['stayAppUrl', 'Lien Mon séjour', ['j7', 'j2']]]);
+  assert.equal(buildContext({ reservation: { id: 1 }, pluginContext: { tokens: {}, flags: {} } }).vars.stayAppUrl, undefined,
+    'not a core variable: absent while the plugin is not there');
 });
 
 test('rule 2: the validity line reads the end of the stay window in Europe/Paris', () => {
