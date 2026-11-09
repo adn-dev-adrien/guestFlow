@@ -9,19 +9,24 @@
  *   value     { tenders, canSubmit, paidAt } | null
  *   onChange  (next) => void
  *   disabled  boolean
+ *   error     string|null — the server's refusal of the payment, shown under the lines
+ *
+ * The amount is paid whole (`whole`): a booking takes one payment of its total, no « Reste à percevoir » nor « Geste
+ * commercial » (spec §8, rule 44).
  */
 import React from 'react';
-import { Box, TextField } from '@mui/material';
+import { Alert, Box, TextField } from '@mui/material';
 import { TenderLines } from '../sdk';
 import { localIsoDate } from './localDate';
 
-export default function BookingPaymentFields({ dueCents, value, onChange, disabled = false }) {
+export default function BookingPaymentFields({ dueCents, value, onChange, disabled = false, error = null }) {
   const paidAt = (value && value.paidAt) || localIsoDate();
   return (
     <Box sx={{ display: 'grid', gap: 1.5 }}>
       <TenderLines
         key={dueCents}
         dueCents={dueCents}
+        whole
         initialTenders={[{ method: 'card', amountCents: dueCents, internal: false }]}
         onChange={({ tenders, canSubmit, gapCents }) => onChange({ tenders, canSubmit: canSubmit && gapCents === 0, paidAt })}
         disabled={disabled}
@@ -36,6 +41,7 @@ export default function BookingPaymentFields({ dueCents, value, onChange, disabl
         sx={{ maxWidth: 220 }}
         slotProps={{ inputLabel: { shrink: true } }}
       />
+      {error && <Alert severity="error">{error}</Alert>}
     </Box>
   );
 }

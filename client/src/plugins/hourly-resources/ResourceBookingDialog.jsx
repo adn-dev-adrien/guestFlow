@@ -5,7 +5,7 @@ import {
   FormControlLabel, Typography, Divider, Switch, Autocomplete, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api, formatCurrency } from '../sdk';
+import { api, formatCurrency, ConfirmDialog } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
@@ -54,12 +54,19 @@ export default function ResourceBookingDialog({
   resource,
   initialDate,
   initialTime,
-  booking,
+  booking: bookingProp,
   onClose,
   onSave,
   onDelete,
   onArrival,
+  onCommitted = () => {},
 }) {
+  // The booking as last answered by the server: a payment taken back or an invoice made here updates it in place,
+  // without resetting what is being typed (specs/resource-booking-pricing-and-invoicing.md rule 44).
+  const [stored, setStored] = useState(bookingProp);
+  // A booking created by this dialog whose payment step was refused: the next click edits it, never creates it again.
+  const [createdId, setCreatedId] = useState(null);
+  const booking = stored;
   const slotDuration = resource?.slotDuration || 5;
   const turnoverMinutes = Number(resource?.turnoverMinutes || 0);
   const minimumUsageMinutes = Number(resource?.minimumUsageMinutes || 0);
@@ -96,6 +103,9 @@ export default function ResourceBookingDialog({
   const [saving, setSaving] = useState(false);
   const [savedWarning, setSavedWarning] = useState(null);
   const [occupiedSlots, setOccupiedSlots] = useState([]);
+  const [paymentError, setPaymentError] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [confirming, setConfirming] = useState(null);
 
   const openMinutes = timeToMinutes(openTime);
   const closeMinutes = timeToMinutes(closeTime);
@@ -186,7 +196,13 @@ export default function ResourceBookingDialog({
 
   useEffect(() => {
     if (!open) return;
+    setStored(bookingProp);
+    setCreatedId(null);
+    setPaymentError(null);
+    setActionError(null);
+    setConfirming(null);
     setSavedWarning(null);
+    const booking = bookingProp;
     if (booking) {
       setDate(booking.date || '');
       setSelectedStart(booking.startTime || '');
@@ -221,7 +237,7 @@ export default function ResourceBookingDialog({
     setPayment(null);
     setInvoiceChecked(false);
     setInvoiceOutcome(null);
-  }, [booking, initialDate, open]); // eslint-disable-line
+  }, [bookingProp, initialDate, open]); // eslint-disable-line
 
   // Handle MiniDayPlanner time selection
   const handleTimeSelect = (time, type) => {
@@ -235,12 +251,14 @@ export default function ResourceBookingDialog({
   };
 
   // Booking, then — when paid now — the payment and the invoice, each the server's own step: a refused invoice keeps the
-  // booking and its payment (rule 25), and says why where the invoice is.
+  // booking and its payment (rule 25), and says why where the invoice is. A refused payment keeps the booking and says
+  // why where the payment is; the next click edits that booking (rule 44). The planning reloads after the last step.
   async function handleSave() {
     if (invoiceOutcome) {
       setSaving(true);
       try {
-        await api.issueResourceBookingInvoice(invoiceOutcome.id, externalMode ? { billing } : {});
+        setStored(await api.issueResourceBookingInvoice(invoiceOutcome.id, externalMode ? { billing } : {}));
+        onCommitted();
         onClose();
       } catch (err) {
         setInvoiceOutcome({ code: err.code || null, message: err.message, id: invoiceOutcome.id });
@@ -251,6 +269,8 @@ export default function ResourceBookingDialog({
     }
     if (!slotAvailable || !selectedStart || !selectedEnd || !isChronological || !meetsMinimumDuration) return; // Block save if invalid
     setSaving(true);
+    setPaymentError(null);
+    let wrote = false;
     try {
       const data = {
         date,
@@ -265,11 +285,19 @@ export default function ResourceBookingDialog({
           ? { clientId: null, clientName: clientName.trim() || null, clientPhone: clientPhone.trim() || null }
           : { clientId: selectedClient?.id || null, clientName: null, clientPhone: null }),
       };
-      const saved = await onSave(data);
+      const knownId = booking?.id || createdId;
+      const saved = await onSave(data, knownId);
       if (!saved) return;
-      const id = booking?.id || saved.id;
+      wrote = true;
+      const id = knownId || saved.id;
+      if (!knownId && id) setCreatedId(id);
       if (payNow && id) {
-        await api.recordResourceBookingPayment(id, paymentBody(payment));
+        try {
+          await api.recordResourceBookingPayment(id, paymentBody(payment));
+        } catch (err) {
+          setPaymentError(err.message || "Paiement non enregistré.");
+          return;
+        }
         if (wantsInvoice) {
           try {
             await api.issueResourceBookingInvoice(id, externalMode ? { billing } : {});
@@ -282,14 +310,37 @@ export default function ResourceBookingDialog({
       if (saved.warning) setSavedWarning(saved.warning);
       else onClose();
     } finally {
+      if (wrote) onCommitted();
       setSaving(false);
     }
   }
 
+  // Rule 44 — the actions on a stored booking: take the payment back, make or join the invoice. Each answer is the
+  // booking as the server now has it; a refusal is shown where the action is.
+  async function act(run) {
+    setSaving(true);
+    setActionError(null);
+    try {
+      const next = await run();
+      if (next && next.id) setStored({ ...booking, ...next });
+      onCommitted();
+    } catch (err) {
+      setActionError(err.message || 'Action impossible.');
+    } finally {
+      setSaving(false);
+    }
+  }
+  const takeBackPayment = () => act(() => api.clearResourceBookingPayment(booking.id));
+  const issueLater = () => act(() => api.issueResourceBookingInvoice(booking.id, booking.external && !booking.clientId ? { billing } : {}));
+  const attachInvoice = () => act(() => api.attachResourceBookingInvoice(booking.id));
+  const pickTransaction = (transactionId) => act(() => api.attachResourceBookingInvoice(booking.id, { transactionId }));
+
   const editable = !booking?.frozen;
   const payNow = payWhen === 'now' && !booking?.paid && Boolean(price && price.total > 0);
   const qontoReady = Boolean(price ? price.invoiceReady : booking?.invoiceReady);
-  const invoiceOffered = payNow && allOnTheBooks(payment);
+  // Rule 44 (R35-C-L1) — a payment on the books whose invoice is still to make, or was cancelled in Qonto (A2).
+  const invoiceLater = Boolean(booking?.paid && booking.payment?.onTheBooks && (!booking.invoice || booking.invoice.cancelled));
+  const invoiceOffered = (payNow && allOnTheBooks(payment)) || invoiceLater;
   const wantsInvoice = invoiceOffered && invoiceChecked && qontoReady;
   const durationForOffer = durationMinutes - Number(price?.freeMinutesApplied || 0);
   const canSave = Boolean(
@@ -504,7 +555,7 @@ export default function ResourceBookingDialog({
 
             {/* Client toggle */}
             <FormControlLabel
-              control={<Switch checked={!externalMode} onChange={(e) => setExternalMode(!e.target.checked)} size="small" />}
+              control={<Switch checked={!externalMode} onChange={(e) => setExternalMode(!e.target.checked)} size="small" disabled={!editable} />}
               label={<Typography variant="body2">Client enregistré</Typography>}
             />
 
@@ -514,6 +565,7 @@ export default function ResourceBookingDialog({
                   label="Nom du client *"
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
+                  disabled={!editable}
                   fullWidth
                   size="small"
                 />
@@ -521,6 +573,7 @@ export default function ResourceBookingDialog({
                   label="Téléphone"
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
+                  disabled={!editable}
                   fullWidth
                   size="small"
                 />
@@ -531,6 +584,7 @@ export default function ResourceBookingDialog({
                 getOptionLabel={(c) => `${c.firstName || ''} ${c.lastName || ''}`.trim()}
                 value={selectedClient}
                 onChange={(_, v) => setSelectedClient(v)}
+                disabled={!editable}
                 renderInput={(params) => <TextField {...params} label="Client *" size="small" />}
                 isOptionEqualToValue={(o, v) => o.id === v?.id}
               />
@@ -543,6 +597,7 @@ export default function ResourceBookingDialog({
                 value={propertyId}
                 label="Logement (optionnel)"
                 onChange={(e) => setPropertyId(e.target.value)}
+                disabled={!editable}
               >
                 <MenuItem value="">— Aucun —</MenuItem>
                 {properties.map((p) => <MenuItem key={p.id} value={String(p.id)}>{p.name}</MenuItem>)}
@@ -565,7 +620,14 @@ export default function ResourceBookingDialog({
             <Box sx={{ display: 'grid', gap: 1.25 }}>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>Paiement</Typography>
               {booking?.paid ? (
-                <Alert severity="success">Encaissé : {booking.payment?.label || 'Moyen non saisi'}, {formatCurrency(booking.totalPrice)}, le {dayMonth(booking.payment?.paidAt)}.</Alert>
+                <Alert
+                  severity="success"
+                  action={editable ? (
+                    <Button size="small" color="inherit" onClick={() => setConfirming('payment')} disabled={saving} sx={{ minHeight: 44 }}>Retirer le paiement</Button>
+                  ) : null}
+                >
+                  Encaissé : {booking.payment?.label || 'Moyen non saisi'}, {formatCurrency(booking.totalPrice)}, le {dayMonth(booking.payment?.paidAt)}.
+                </Alert>
               ) : (
                 <>
                   <ToggleButtonGroup
@@ -582,6 +644,7 @@ export default function ResourceBookingDialog({
                     <Typography variant="caption" color="text.secondary">Le paiement et la facture se feront dans le sas d'arrivée, le jour de la séance.</Typography>
                   ) : (price && price.total > 0 && (
                     <BookingPaymentFields
+                      error={paymentError}
                       dueCents={Math.round(Number(price.total) * 100)}
                       value={payment}
                       onChange={(next) => {
@@ -594,7 +657,8 @@ export default function ResourceBookingDialog({
               )}
             </Box>
 
-            {(payNow || booking?.invoice || invoiceOutcome) && (
+            {actionError && <Alert severity="error">{actionError}</Alert>}
+            {(payNow || booking?.invoice || invoiceOutcome || invoiceLater) && (
               <Box sx={{ display: 'grid', gap: 1.25 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Facture</Typography>
                 {invoiceOutcome && invoiceOutcome.code !== 'QONTO_NEEDS_ADDRESS' && <Alert severity="error">{invoiceOutcome.message}</Alert>}
@@ -609,6 +673,9 @@ export default function ResourceBookingDialog({
                   addressAsked={Boolean(invoiceOutcome && invoiceOutcome.code === 'QONTO_NEEDS_ADDRESS')}
                   internalCash={payNow && Boolean(payment) && !allOnTheBooks(payment)}
                   cardDay={dayMonth(booking?.payment?.paidAt || payment?.paidAt)}
+                  onIssue={issueLater}
+                  onAttach={attachInvoice}
+                  onPickTransaction={pickTransaction}
                   showAddress={externalMode}
                   busy={saving}
                 />
@@ -624,11 +691,11 @@ export default function ResourceBookingDialog({
         ) : (
           <>
             {booking && (
-              <Button color="error" onClick={() => onDelete(booking.id)} disabled={saving || booking.frozen} sx={{ mr: 'auto' }}>
+              <Button color="error" onClick={() => setConfirming('delete')} disabled={saving || booking.frozen || booking.paid} sx={{ mr: 'auto', minHeight: 44 }}>
                 Supprimer
               </Button>
             )}
-            {booking && booking.external && onArrival && (
+            {booking && booking.external && onArrival && (booking.arrived || booking.date === localIsoDate()) && (
               <Button onClick={() => onArrival(booking)} disabled={saving} sx={{ minHeight: 44 }}>
                 {booking.arrived ? "Voir l'arrivée" : 'Arrivée'}
               </Button>
@@ -640,6 +707,21 @@ export default function ResourceBookingDialog({
           </>
         )}
       </DialogActions>
+      <ConfirmDialog
+        open={Boolean(confirming)}
+        onClose={() => setConfirming(null)}
+        onConfirm={() => {
+          const what = confirming;
+          setConfirming(null);
+          if (what === 'delete') onDelete(booking.id);
+          else takeBackPayment();
+        }}
+        title={confirming === 'delete' ? 'Supprimer la réservation ?' : 'Retirer le paiement ?'}
+        message={confirming === 'delete'
+          ? 'La réservation quitte le planning.'
+          : `${formatCurrency(Number(booking?.totalPrice || 0))} ne seront plus comptés comme encaissés.`}
+        confirmLabel={confirming === 'delete' ? 'Supprimer' : 'Retirer'}
+      />
     </Dialog>
   );
 }

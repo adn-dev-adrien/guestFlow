@@ -80,7 +80,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
     setBusy(true);
     setError(null);
     try {
-      if (invoiceOutcome || (locked && booking.paid && !booking.frozen && wantsInvoiceLater())) {
+      if (invoiceOutcome || (locked && !arrivalToRecord && booking.paid && !booking.frozen && wantsInvoiceLater())) {
         await api.issueResourceBookingInvoice(booking.id, booking.external ? { billing } : {});
         setInvoiceOutcome(null);
         onDone();
@@ -89,7 +89,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       const res = await api.recordResourceBookingArrival(booking.id, {
         offeredMinutes: locked ? undefined : offeredMinutes,
         payment: payNow ? paymentBody(payment) : null,
-        invoice: wantsInvoice,
+        invoice: wantsInvoice || (locked && wantsInvoiceLater()),
         billing: booking.external ? billing : undefined,
       });
       setBooking(res.booking);
@@ -105,14 +105,25 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       setBusy(false);
     }
   }
-  // An arrival paid earlier, still without its invoice: the button makes it.
-  function wantsInvoiceLater() { return Boolean(booking && booking.payment && booking.payment.onTheBooks && !booking.invoice && qontoReady); }
+  // An arrival paid earlier, still without its invoice — or whose invoice was cancelled in Qonto (A2): the button makes
+  // it (rule 44).
+  function wantsInvoiceLater() {
+    return Boolean(booking && booking.payment && booking.payment.onTheBooks && (!booking.invoice || booking.invoice.cancelled) && qontoReady);
+  }
+  // Rule 44 (R35-C-L4) — paid at booking time, not arrived yet: the arrival is still to record, with no payment.
+  const arrivalToRecord = Boolean(booking && !booking.arrived);
+  const attachWith = async (body) => {
+    setBusy(true);
+    setError(null);
+    try { setBooking(await api.attachResourceBookingInvoice(booking.id, body)); } catch (e) { setError(e.message || 'Pièce non jointe.'); } finally { setBusy(false); }
+  };
 
   const summaryPrice = price || (booking ? {
     total: Number(booking.totalPrice), lines: booking.lines || [], vat: booking.vat || null, rateGrid: 'external',
   } : null);
   const heading = booking ? `${booking.startTime} → ${booking.endTime}` : '';
-  const primaryLabel = invoiceOutcome ? 'Créer la facture' : (locked ? (wantsInvoiceLater() ? 'Créer la facture' : 'Fermer') : "Valider l'arrivée");
+  const closesOnly = locked && !arrivalToRecord && !wantsInvoiceLater() && !invoiceOutcome;
+  const primaryLabel = invoiceOutcome ? 'Créer la facture' : (closesOnly ? 'Fermer' : ((locked && !arrivalToRecord) ? 'Créer la facture' : "Valider l'arrivée"));
 
   return (
     <Dialog open={open} onClose={onClose} fullScreen={fullScreen} maxWidth="sm" fullWidth>
@@ -204,8 +215,8 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
                   internalCash={(payNow && Boolean(payment) && !allOnTheBooks(payment)) || Boolean(booking.payment && !booking.payment.onTheBooks)}
                   cardDay={dayMonth(booking.payment?.paidAt || payment?.paidAt)}
                   onIssue={validate}
-                  onAttach={async () => { setBusy(true); try { setBooking(await api.attachResourceBookingInvoice(booking.id)); } finally { setBusy(false); } }}
-                  onPickTransaction={async (transactionId) => { setBusy(true); try { setBooking(await api.attachResourceBookingInvoice(booking.id, { transactionId })); } finally { setBusy(false); } }}
+                  onAttach={() => attachWith({})}
+                  onPickTransaction={(transactionId) => attachWith({ transactionId })}
                   showAddress={booking.external && !booking.clientId}
                   busy={busy}
                 />
@@ -216,10 +227,10 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
         )}
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, p: 2, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
-        {!(locked && !wantsInvoiceLater()) && <Button onClick={onClose} disabled={busy} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
+        {!closesOnly && <Button onClick={onClose} disabled={busy} sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}>Annuler</Button>}
         <Button
           variant="contained"
-          onClick={locked && !wantsInvoiceLater() && !invoiceOutcome ? onClose : validate}
+          onClick={closesOnly ? onClose : validate}
           disabled={!canValidate}
           sx={{ minHeight: 44, width: { xs: '100%', sm: 'auto' } }}
         >

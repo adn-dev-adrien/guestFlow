@@ -112,6 +112,11 @@ export default function ResourcesPage({ barTabs }) {
   const handleDelete = async (item) => {
     let impact = null;
     try { impact = await api.getResourceDeleteImpact(item.id); } catch { impact = null; }
+    // specs/resource-booking-pricing-and-invoicing.md rule 34 — a paid or invoiced session is a sale: refused up front.
+    if (impact && impact.saleBlocker) {
+      showError(impact.saleBlocker);
+      return;
+    }
     const reservations = Number(impact && impact.reservationsCount) || 0;
     const bookings = Number(impact && impact.bookingsCount) || 0;
     const inUse = reservations > 0 || bookings > 0;
