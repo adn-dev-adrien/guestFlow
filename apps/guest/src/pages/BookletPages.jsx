@@ -83,6 +83,7 @@ function BookletIndex({ index, current, onOpen }) {
             autoCorrect="off"
             enterKeyHint="search"
           />
+          {query ? <button type="button" className="x" aria-label={t('common.close')} onClick={() => setQuery('')}><Icon name="x" /></button> : null}
         </label>
         {searching && list.length ? <p className="hint" aria-live="polite">{t('booklet.results', { n: list.length })}</p> : null}
         {searching && !list.length && !search.loading ? (

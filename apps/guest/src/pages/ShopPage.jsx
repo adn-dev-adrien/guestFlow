@@ -129,7 +129,7 @@ export default function ShopPage() {
         <AppBar title={t('shop.title')} />
         {data.categories.length > 1 ? (
           <div className="chips" role="group" aria-label={t('shop.categories')}>
-            {data.categories.map((c) => <button key={c.name} type="button" className="chip" aria-pressed={activeCat === c.name} onClick={() => goCat(c.name)}>{c.name}</button>)}
+            {data.categories.filter((c) => c.items.some((item) => !bath || item !== bath.item)).map((c) => <button key={c.name} type="button" className="chip" aria-pressed={activeCat === c.name} onClick={() => goCat(c.name)}>{c.name}</button>)}
           </div>
         ) : null}
       </div>

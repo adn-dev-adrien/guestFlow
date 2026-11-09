@@ -7,7 +7,8 @@
  * Props: `days` ([{ date, label, slots:[{ start, end, state, priceLabel }] }]), `day` (selected date),
  * `onDay(date)`, `selected` (Set of `date|start|end`), `onToggle(slot, date)`.
  */
-import { useT } from '../i18n';
+import { useLang, useT } from '../i18n';
+import { clockLabel } from '../utils/format';
 
 export const slotKey = (date, slot) => `${date}|${slot.start}|${slot.end}`;
 
@@ -19,6 +20,7 @@ function dayParts(label) {
 
 export default function SlotGrid({ days, day, onDay, selected, onToggle }) {
   const t = useT();
+  const lang = useLang();
   const current = days.find((d) => d.date === day) || days[0];
   return (
     <>
@@ -38,7 +40,7 @@ export default function SlotGrid({ days, day, onDay, selected, onToggle }) {
             const key = slotKey(current.date, slot);
             return (
               <button key={key} type="button" className={`slot ${slot.state}`} aria-pressed={selected.has(key)} onClick={() => onToggle(slot, current.date)}>
-                <b>{slot.start} – {slot.end}</b>
+                <b>{clockLabel(slot.start, lang)} – {clockLabel(slot.end, lang)}</b>
                 <span>{slot.priceLabel}{slot.state === 'evening' ? ` · ${t('bath.evening')}` : ''}</span>
               </button>
             );

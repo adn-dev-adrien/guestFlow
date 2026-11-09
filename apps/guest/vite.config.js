@@ -3,14 +3,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// `GUEST_API` points the dev proxy at another GuestFlow server (a test harness, a shadow copy).
+const API = process.env.GUEST_API || 'http://localhost:4000';
+
 export default defineConfig({
   plugins: [react()],
   build: { manifest: true, target: 'es2020', sourcemap: false },
   server: {
     port: 5175,
     proxy: {
-      '/public/v1/guest': 'http://localhost:4000',
-      '/uploads': 'http://localhost:4000',
+      '/public/v1/guest': API,
+      '/uploads': API,
     },
   },
   test: {

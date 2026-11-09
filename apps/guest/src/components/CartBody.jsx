@@ -131,11 +131,12 @@ export default function CartBody({ shop, inPanel = false }) {
           return (
             <div className={`cline${gone ? ' gone' : ''}`} key={key}>
               <Photo src={meta.imageUrl} imgSizes="54px" />
-              <div>
+              <div className="ct">
                 <b>{title}</b>
-                {gone ? <span>{q.unavailableReason}</span> : (
-                  <span>{q ? [q.label !== title ? q.label : null, q.totalLabel].filter(Boolean).join(' · ') : '…'}</span>
-                )}
+                {gone ? <span>{q.unavailableReason}</span> : null}
+                {!gone && q && line.kind === 'resource' && q.sessions ? q.sessions.filter((s) => !s.unavailable).map((s) => <span key={`${s.date}${s.start}`}>{s.label}</span>) : null}
+                {!gone && q && line.kind === 'breakfast' ? <span>{q.label}</span> : null}
+                {!gone ? <span className="fig" style={{ fontSize: 13 }}>{q ? q.totalLabel : '…'}</span> : null}
                 {!gone && q && q.sessions ? q.sessions.filter((s) => s.unavailable).map((s) => <span key={`${s.date}${s.start}`} className="hint bad">{s.label} · {s.reasonLabel}</span>) : null}
                 {!gone && note ? <span style={{ marginTop: 3, display: 'inline-flex' }}><StatusChip tone="warn">{note}</StatusChip></span> : null}
               </div>

@@ -67,11 +67,14 @@ export function OrderPage() {
   const { order, error, polling } = useOrderStatus(id, lang);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
-  const fromPayment = params.get('retour') === '1' || window.location.pathname.startsWith('/commande/');
+  const fromPayment = params.get('retour') === '1' || /^\/commande\//.test(window.location.pathname);
   const confirmation = params.get('confirmation') === '1' || fromPayment;
 
   if (error && !order) {
     return <div className="scroll enter"><AppBar title={t('orders.title')} back="/commandes" /><div className="pad"><ErrorAlert error={error} /></div></div>;
+  }
+  if (!order && !fromPayment) {
+    return <div className="scroll enter"><AppBar title={t('orders.title')} back="/commandes" /><Skeleton lines={5} label={t('common.loading')} /></div>;
   }
   if (!order || (fromPayment && polling)) {
     return (
