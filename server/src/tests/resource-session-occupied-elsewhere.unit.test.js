@@ -84,11 +84,14 @@ test('without the plugin tables the check is the stay-only one', () => {
   assert.deepEqual(model.storedSessions({ reservationId: 1, resourceId: BATH }), []);
 });
 
+// date-literal-ok: an input of the pure conflict check, never compared with today.
+const HELD_DAY = '2026-11-09';
+
 test('specs/plugins-phase-1-sdk.md rule 47: a slot a plugin holds for another stay is refused; the stay’s own hold is not', () => {
   const db = freshDb();
-  const holds = ({ resourceId, from }) => (resourceId === BATH && from === '2026-11-09'
-    ? [{ date: '2026-11-09', start: '18:00', end: '19:00', reservationId: 9, label: 'Commande client en attente de paiement' }] : []);
-  assert.ok(check(db, [{ date: '2026-11-09', start: '18:00', end: '19:00' }], 5, { holds }));
-  assert.equal(check(db, [{ date: '2026-11-09', start: '18:00', end: '19:00' }], 9, { holds }), null);
-  assert.equal(check(db, [{ date: '2026-11-09', start: '19:00', end: '20:00' }], 5, { holds }), null);
+  const holds = ({ resourceId, from }) => (resourceId === BATH && from === HELD_DAY
+    ? [{ date: HELD_DAY, start: '18:00', end: '19:00', reservationId: 9, label: 'Commande client en attente de paiement' }] : []);
+  assert.ok(check(db, [{ date: HELD_DAY, start: '18:00', end: '19:00' }], 5, { holds }));
+  assert.equal(check(db, [{ date: HELD_DAY, start: '18:00', end: '19:00' }], 9, { holds }), null);
+  assert.equal(check(db, [{ date: HELD_DAY, start: '19:00', end: '20:00' }], 5, { holds }), null);
 });
