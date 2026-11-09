@@ -73,7 +73,15 @@ const DEPARTURE_PAGE = 'depart';
 // would never let the departure instructions show.
 const HIGHLIGHTS = Object.freeze([
   { key: 'order', module: 'orders', when: (f) => f.orderReady, text: { fr: 'Votre commande est prête', en: 'Your order is ready' } },
-  { key: 'gate', module: 'gate', when: (f) => f.isArrivalDay, text: { fr: 'Le portail est actif', en: 'The gate is active' } },
+  { key: 'gate', module: 'gate', when: (f) => f.isArrivalDay && !f.gatePreparing, text: { fr: 'Le portail est actif', en: 'The gate is active' } },
+  // Rule 13 — on arrival day, before Sowel has read the key: no time promised.
+  {
+    key: 'gatePreparing',
+    module: 'gate',
+    when: (f) => f.isArrivalDay && f.gatePreparing,
+    text: { fr: 'Votre accès au portail se prépare', en: 'Your gate access is being prepared' },
+    detail: { fr: 'La tuile Portail s’activera dès que votre accès sera prêt.', en: 'The Gate tile will light up as soon as your access is ready.' },
+  },
   { key: 'departure', module: 'booklet', page: DEPARTURE_PAGE, when: (f) => f.isDepartureEve, text: { fr: 'Départ demain : les consignes', en: 'Leaving tomorrow: the instructions' } },
   { key: 'bath', module: 'bath', when: (f) => f.bathFreeToday, text: { fr: 'Prolongez votre bain nordique ce soir', en: 'Extend your nordic bath tonight' } },
 ]);
@@ -82,10 +90,13 @@ const HIGHLIGHTS = Object.freeze([
  * Rule 11 — at most one card, only among the lodging's shown modules. `shown`: the keys of the shown
  * modules. `orderReady` and `bathFreeToday` come from the orders and the planning.
  */
-function chooseHighlight({ stay, now, shown, orderReady = false, bathFreeToday = false, lang = 'fr' }) {
+function chooseHighlight({
+  stay, now, shown, orderReady = false, bathFreeToday = false, gatePreparing = false, lang = 'fr',
+}) {
   const today = parisDate(now);
   const facts = {
     orderReady,
+    gatePreparing,
     bathFreeToday,
     isArrivalDay: String(stay.startDate) === today,
     isDepartureEve: addDays(today, 1) === String(stay.endDate),
@@ -95,6 +106,7 @@ function chooseHighlight({ stay, now, shown, orderReady = false, bathFreeToday =
   return {
     key: found.key,
     text: found.text[lang] || found.text.fr,
+    ...(found.detail ? { detail: found.detail[lang] || found.detail.fr } : {}),
     module: found.module,
     ...(found.page ? { page: found.page } : {}),
   };

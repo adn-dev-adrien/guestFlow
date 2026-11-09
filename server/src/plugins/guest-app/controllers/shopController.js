@@ -13,6 +13,8 @@ const sdk = require('../../sdk');
 const { parisDate } = require('../currentStay');
 const { BREAKFAST, DEFAULT_BREAKFAST_TIME, remainingMornings, shopItems, stayConsumption } = require('../sellable');
 const { languageOf } = require('./sessionController');
+const { shopStockView } = require('../stock');
+const { deliveryQuestion } = require('../orderLabels');
 const {
   deliveryPicker, deliveryTimes, ignitionInHours, serviceState, wallClock,
 } = require('../serviceHours');
@@ -137,7 +139,10 @@ function deliveryLinesError(body) {
   return bad ? 'Un article du panier est invalide.' : null;
 }
 
-function buildShopController({ items, stayLines, orders, serviceHours, scheduler, translator, now }) {
+function buildShopController({
+  items, stayLines, orders, serviceHours, stock, scheduler, translator, now,
+  fulfilment = () => ({ mode: 'delivery', place: null }),
+}) {
   /**
    * Rules 25, 42 — why an item cannot be ordered: already in the stay, or staff-prepared with no delivery time
    * left before the check-out.
@@ -158,6 +163,9 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
     const mediaPath = item.mediaId ? mediaPaths.get(Number(item.mediaId)) : null;
     const freeLabel = included ? null : freeLeftLabel(sold, L, lang);
     const unavailable = unavailableReason(sold, context);
+    // Rule 37quater — a tracked article says what is left; the breakfast and the bath have no stock.
+    const stockState = kind === BREAKFAST ? null : context.stocks.get(`${kind}:${Number(row.id)}`);
+    const stockView = stockState ? shopStockView(stockState, item.maxQuantity, lang) : null;
     return {
       kind,
       id: projected.id,
@@ -174,6 +182,7 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
       needsStaff: kind !== 'resource' && Number(item.needsStaff) === 1,
       ...(sold.hourly ? { scheduling: 'hourly' } : {}),
       ...(unavailable ? { unavailableReason: unavailable } : {}),
+      ...(stockView ? { stock: stockView } : {}),
       ...(kind === BREAKFAST ? breakfastFields(sold, context) : {}),
     };
   }
@@ -259,6 +268,7 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
       canPayNote: state.open,
       categories: categoriesOf(sold, {
         lang, translate: translator(lang), L, mediaPaths: catalogue.mediaPaths, stay, extras, today, time: parisClock.format(at), schedule, wall: wallClock(at),
+        stocks: stock().states(at),
       }),
     });
   }
@@ -314,13 +324,17 @@ function buildShopController({ items, stayLines, orders, serviceHours, scheduler
     const lang = languageOf(req, stay);
     const wanted = new Set(req.body.lines.map((line) => `${line.kind}:${line.id}`));
     const staff = soldFor(req.guest).sold.filter((s) => isStaffItem(s) && wanted.has(`option:${Number(s.row.id)}`));
-    if (!staff.length) return publicHttp.ok(res, { needed: false, asap: null, days: [] });
+    // Rule 41bis — delivered to the lodging or picked up: the picker asks its own question.
+    const { mode } = fulfilment();
+    const asked = { mode, question: deliveryQuestion(mode, lang) };
+    if (!staff.length) return publicHttp.ok(res, { needed: false, asap: null, days: [], ...asked });
     const at = now();
     const schedule = scheduleOf(lodging, at);
     const leadMinutes = Math.max(...staff.map((s) => Number(s.item.leadMinutes) || 0));
     const service = serviceState({ now: at, stay, schedule, lang });
     return publicHttp.ok(res, {
       needed: true,
+      ...asked,
       ...deliveryPicker({ now: at, stay, leadMinutes, schedule, lang }),
       ...(service.bannerLabel ? { bannerLabel: service.bannerLabel } : {}),
     });

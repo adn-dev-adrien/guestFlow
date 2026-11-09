@@ -112,6 +112,7 @@ function createSoliomapFeed({
 }) {
   let cached = null;
   let inFlight = null;
+  let lastSync = null;
 
   async function load(feedUrl) {
     const controller = new AbortController();
@@ -136,13 +137,22 @@ function createSoliomapFeed({
     if (!inFlight) {
       inFlight = load(feedUrl).then((list) => {
         cached = { url: feedUrl, activities: list, until: now().getTime() + (list ? CACHE_MS : FAILURE_CACHE_MS) };
+        lastSync = { at: now(), ok: Boolean(list), count: list ? list.length : 0 };
         return list;
       }).finally(() => { inFlight = null; });
     }
     return inFlight;
   }
 
-  return { activities };
+  /** Rule 48 — « Synchroniser »: the feed read again now, whatever the cache holds. */
+  async function refresh() {
+    if (inFlight) await inFlight;
+    cached = null;
+    await activities();
+    return lastSync;
+  }
+
+  return { activities, refresh, lastSync: () => lastSync };
 }
 
 module.exports = {

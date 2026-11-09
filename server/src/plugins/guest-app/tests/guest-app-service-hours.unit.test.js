@@ -287,7 +287,9 @@ withApi('rule 41: POST /shop/delivery-slots — the longest lead of the cart’s
   assert.equal(both.asap.label, 'Dès que possible — vers 18 h', '16:10 + 1 h 30');
   assert.deepEqual(both.days.map((d) => d.label), ['Aujourd’hui', 'Demain', 'jeu. 9 juil.']);
   assert.equal(both.bannerLabel, undefined);
-  assert.deepEqual(await post([{ kind: 'option', id: 3 }, { kind: 'option', id: 99 }]), { needed: false, asap: null, days: [] });
+  assert.deepEqual(await post([{ kind: 'option', id: 3 }, { kind: 'option', id: 99 }]), {
+    needed: false, asap: null, days: [], mode: 'delivery', question: 'Quand souhaitez-vous la recevoir ?',
+  });
   clock.now = paris('2099-07-07', '21:00');
   const evening = await post([{ kind: 'option', id: 2 }]);
   assert.equal(evening.asap, null);

@@ -10,7 +10,8 @@ const MODULES = Object.freeze([
   { key: 'wifi', on: true, label: { fr: 'Wifi', en: 'Wifi' } },
   { key: 'shop', on: true, label: { fr: 'Boutique', en: 'Shop' } },
   { key: 'bath', on: true, label: { fr: 'Bain nordique', en: 'Nordic bath' } },
-  { key: 'soliomap', on: true, label: { fr: 'Soliomap', en: 'Soliomap' } },
+  // Rule 15 — the tile reads « Activités » (Adrien, 2026-11-06); the key stays `soliomap`.
+  { key: 'soliomap', on: true, label: { fr: 'Activités', en: 'Activities' } },
   { key: 'booklet', on: true, label: { fr: 'Livret', en: 'Booklet' } },
   { key: 'orders', on: true, label: { fr: 'Mes commandes', en: 'My orders' } },
   { key: 'contacts', on: false, label: { fr: 'Urgences & contacts', en: 'Emergency & contacts' } },

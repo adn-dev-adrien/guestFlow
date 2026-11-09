@@ -1,5 +1,5 @@
 /**
- * Orders (specs/guest-app.md rules 25, 29-38, 41-44): the quote, the order, its card payment, its follow-up.
+ * Orders (specs/guest-app.md rules 25, 29-38quater, 41-44): the quote, the order, its card payment, its follow-up.
  *
  * Every amount is the core engine's (`guestOrderCommit.priceOrder`, the fiche's own save played without writing):
  * the quote, the order and the line written on the fiche cannot disagree (rule 24). What the plugin judges is what
@@ -21,6 +21,7 @@ const { deliveryTimes, ignitionInHours, wallClock } = require('../serviceHours')
 const { languageOf } = require('./sessionController');
 const { isStaffItem, shopState } = require('./shopController');
 const labels = require('../orderLabels');
+const { outOfStockOf } = require('../stock');
 
 const publicHttp = sdk.coreModule('publicHttp');
 const { isRealIsoDay } = sdk.coreModule('stayDates');
@@ -98,7 +99,11 @@ const instantOfMoment = ({ date, minutes }) => wallClockToDate(date, `${String(M
 
 function buildOrdersController({
   db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now,
+  stock, alertStock = () => {}, fulfilment = () => ({ mode: 'delivery', place: null }),
 }) {
+  /** Rule 37ter — the stay's counts brought to date in the commit's own transaction. → the articles that moved. */
+  const countStock = (reservationId, at) => stock().reconcile(reservationId, parisDate(at));
+
   /** Rule 41 — the delivery times of the staff-prepared lines, as instants (ms) from `at`. */
   function deliveryInstants({ stay, lodging, leadMinutes, at }) {
     return deliveryTimes({ now: wallClock(at), stay, leadMinutes, schedule: shop.scheduleOf(lodging, at) })
@@ -118,6 +123,7 @@ function buildOrdersController({
     const today = parisDate(at);
     const clock = (toParisIso(at) || '').slice(11, 16);
     const canIgnite = ignitionInHours(shop.scheduleOf(lodging, at));
+    const stocks = stock().states(at);
     const judged = body.lines.map((asked) => {
       const item = sold.find((s) => s.kind === asked.kind && Number(s.row.id) === Number(asked.id));
       const base = { kind: asked.kind, id: Number(asked.id), title: item ? (item.row.title || item.row.name) : null };
@@ -158,6 +164,14 @@ function buildOrdersController({
       if (asked.sessions) throw invalid('Cet article ne se réserve pas sur un créneau.');
       if (asked.quantity > maxQuantity) throw limit(`${maxQuantity} au plus pour « ${base.title} ».`);
       if (item.included && asked.quantity > Number(item.includedLeft || 0)) return { ...base, asked, item, quantity: asked.quantity, unavailable: true, unavailableReason: T.allowanceUsed };
+      // Rule 37quater — never beyond what is left of a tracked article; the cart lowers the line to it.
+      const stockState = stocks.get(`${asked.kind}:${Number(asked.id)}`);
+      if (stockState && (stockState.out || asked.quantity > stockState.left)) {
+        const outOfStock = outOfStockOf(stockState, lang);
+        return {
+          ...base, asked, item, quantity: asked.quantity, unavailable: true, unavailableReason: outOfStock.label, outOfStock,
+        };
+      }
       return { ...base, asked, item, quantity: asked.quantity };
     });
     const staff = judged.filter((l) => l.item && !l.unavailable && isStaffItem(l.item));
@@ -213,6 +227,7 @@ function buildOrdersController({
       total,
       totalLabel: line.item && line.item.included && total === 0 ? T.included : labels.priceLabel(total, lang),
       ...(line.unavailable ? { unavailable: true, unavailableReason: line.unavailableReason } : {}),
+      ...(line.outOfStock ? { outOfStock: line.outOfStock } : {}),
     };
     if (line.title) view.label = labels.lineLabel({ ...view, sessions: line.kept || line.sessions, title: line.title }, lang);
     return view;
@@ -275,7 +290,7 @@ function buildOrdersController({
   function notifyStaff(order, { conflict = false } = {}) {
     const stay = stays().byId(order.reservationId) || {};
     const text = labels.pushText(order, { lodging: lodgingName(stay.propertyId), firstName: stay.clientFirstName });
-    const body = conflict ? `${text} — payée après le délai, créneau pris : à rembourser` : text;
+    const body = conflict ? `${text} — payée, mais créneau ou article plus disponible : à rembourser` : text;
     Promise.resolve()
       .then(() => push().sendToPref('guest-orders', { title: conflict ? 'Commande client à rembourser' : `Commande client #${order.id}`, body, url: `/commandes-app?order=${order.id}` }))
       .catch(() => {});
@@ -300,6 +315,12 @@ function buildOrdersController({
     if (out.refusal) return fail(res, out.refusal);
     const { judged, priced, quote: answer } = out;
     const gone = judged.lines.filter((l) => l.unavailable || (l.sessions || []).some((s) => s.unavailable) || l.unavailableMornings);
+    const short = gone.find((l) => l.outOfStock);
+    if (short) {
+      return fail(res, { status: 409, code: 'OUT_OF_STOCK', message: short.outOfStock.label }, {
+        itemKey: `${short.kind}:${short.id}`, left: short.outOfStock.left, quote: answer,
+      });
+    }
     if (gone.length) {
       const slot = gone.some((l) => (l.sessions || []).some((s) => s.unavailable && SLOT_REASONS.has(s.reason)));
       return fail(res, slot
@@ -316,27 +337,32 @@ function buildOrdersController({
     const lines = snapshot(judged, priced.byKey, lang);
     const free = priced.total <= 0;
     if (!free && req.body.payment === 'none') return fail(res, invalid('Choisissez un mode de paiement.'));
+    const mode = fulfilment();
+    const delivery = { fulfilment: mode.mode, pickupPlace: mode.place };
 
     // Rules 25, 34 — a note or 0 € order: confirmed and written on the fiche in one transaction.
     if (free || req.body.payment === 'note') {
       let refusal = null;
       let order = null;
+      let moved = [];
       try {
         db().transaction(() => {
           order = orders().create({
             reservationId: stay.id, sessionId: req.guest.session.id, payment: free ? 'none' : 'note', status: 'confirmed',
-            lines, total: priced.total, deliverAt: judged.deliverAt, now: at,
+            lines, total: priced.total, deliverAt: judged.deliverAt, ...delivery, now: at,
           });
           const written = commit.commitOrder(stay.id, { orderId: order.id, lines: priced.lines });
           if (!written || written.status !== 200) {
             refusal = engineRefusal(written || { body: {} });
             throw refusal;
           }
+          moved = countStock(stay.id, at);
         })();
       } catch (err) {
         if (err !== refusal) throw err;
         return fail(res, refusal);
       }
+      alertStock(moved);
       notifyStaff(order);
       return publicHttp.ok(res, { orderId: order.id, status: 'confirmed' });
     }
@@ -345,8 +371,10 @@ function buildOrdersController({
     if (!paymentProviders.active()) return fail(res, { status: 409, code: 'CARD_UNAVAILABLE', message: 'Le paiement par carte est indisponible : ajoutez la commande à votre note.' });
     const order = orders().create({
       reservationId: stay.id, sessionId: req.guest.session.id, payment: 'card', status: 'awaiting_payment',
-      lines, total: priced.total, deliverAt: judged.deliverAt, heldUntil: new Date(at.getTime() + HOLD_MS).toISOString(), now: at,
+      lines, total: priced.total, deliverAt: judged.deliverAt, heldUntil: new Date(at.getTime() + HOLD_MS).toISOString(), ...delivery, now: at,
     });
+    // Rule 37ter — the units it holds lower what is left at once.
+    alertStock([...stock().unitsOfLines(lines).keys()]);
     const host = guestHost();
     try {
       const link = await payments().basketLink(stay.id, {
@@ -363,10 +391,12 @@ function buildOrdersController({
     }
   });
 
-  /** Rule 38 — what a guest reads of an order. */
+  /** Rules 38, 41ter — what a guest reads of an order. */
   function orderView(order, { lang, resourceLines = null }) {
     const T = labels.textOf(lang);
     const chip = labels.deliveryChip(order, lang);
+    const stay = stays().byId(order.reservationId) || {};
+    const promised = labels.promiseOf(order, { lodging: lodgingName(stay.propertyId), now: now(), lang });
     const notices = [];
     if (order.status === 'awaiting_payment') notices.push(T.awaitingCard);
     if (order.status === 'paid_conflict') notices.push(T.conflict);
@@ -388,6 +418,10 @@ function buildOrdersController({
       status: order.status,
       statusLabel: labels.statusLabel(order, lang),
       ...(chip ? { deliveryLabel: chip } : {}),
+      fulfilment: order.fulfilment === 'pickup' ? 'pickup' : 'delivery',
+      promise: promised.promise,
+      ...(promised.extraPromises.length ? { extraPromises: promised.extraPromises } : {}),
+      movedNotice: promised.movedNotice,
       ...(notices.length ? { notices } : {}),
       // Rule 35 — an abandoned order's lines go back in the cart.
       ...(order.status === 'abandoned' ? { cartLines: order.lines.map(cartLineOf) } : {}),
@@ -456,8 +490,10 @@ function buildOrdersController({
       .filter((s) => s && isStaffItem(s));
     const lead = staff.length ? Math.max(...staff.map((s) => Number(s.item.leadMinutes) || 0)) : 0;
     const wanted = Date.parse(order.deliverAt);
-    if (wanted >= at.getTime() + lead * 60000) return { deliverAt: order.deliverAt, moved: false };
-    const next = deliveryInstants({ stay, lodging, leadMinutes: lead, at }).find((ms) => ms >= wanted);
+    const ready = at.getTime() + lead * 60000;
+    if (wanted >= ready) return { deliverAt: order.deliverAt, moved: false };
+    // The wall clock drops the seconds: the next time is judged against the payment's exact instant.
+    const next = deliveryInstants({ stay, lodging, leadMinutes: lead, at }).find((ms) => ms >= Math.max(wanted, ready));
     return { deliverAt: next ? new Date(next).toISOString() : null, moved: true };
   }
 
@@ -475,6 +511,15 @@ function buildOrdersController({
 
   const commitLinesOf = (order) => order.lines.map(cartLineOf);
 
+  /** Rule 37quater — a late payment whose units went meanwhile is a conflict, like a taken slot. Its own holds are lifted. */
+  function unitsStillLeft(order, at) {
+    const stocks = stock().states(at);
+    return [...stock().unitsOfLines(order.lines).entries()].every(([key, units]) => {
+      const state = stocks.get(key);
+      return !state || (!state.soldOut && state.left >= units);
+    });
+  }
+
   /**
    * Rules 35-36 — the order's side of its paid link, run by the core inside the payment's effect. Committed with
    * its payment recorded on the ledger when its slots are still free (on time, or late after its expiry), else
@@ -487,14 +532,15 @@ function buildOrdersController({
     const at = now();
     const stay = stays().byId(order.reservationId);
     let outcome = null;
+    let moved = [];
     db().transaction(() => {
       // Its own holds are not someone else's slot: lifted before the planning is read again.
       db().prepare('UPDATE guest_orders SET heldUntil = NULL WHERE id = ?').run(order.id);
       const conflict = () => {
         orders().markPaidConflict(order.id, { now: at, paidAt });
-        outcome = { refundOwed: true, reason: 'créneau plus libre, commande non honorée' };
+        outcome = { refundOwed: true, reason: 'créneau ou article plus disponible, commande non honorée' };
       };
-      if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at)) return conflict();
+      if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || !unitsStillLeft(order, at)) return conflict();
       const delivery = deliveryAfterPayment(order, stay, at);
       const written = commit.commitOrder(order.reservationId, {
         orderId: order.id,
@@ -503,9 +549,11 @@ function buildOrdersController({
         within: () => orders().markPaid(order.id, { now: at, paidAt, deliverAt: delivery.deliverAt, deliverMoved: delivery.moved }),
       });
       if (!written || written.status !== 200) return conflict();
+      moved = countStock(order.reservationId, at);
       outcome = { effect: 'guest-order-paid' };
       return null;
     })();
+    alertStock(moved);
     const after = orders().findById(order.id);
     notifyStaff(after, { conflict: Boolean(outcome && outcome.refundOwed) });
     return outcome;

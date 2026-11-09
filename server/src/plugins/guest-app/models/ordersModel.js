@@ -48,13 +48,16 @@ function createOrdersModel(db) {
     findById,
 
     /** Rule 33 — a new order: `lines` is the priced snapshot (sessions, mornings and amounts included). */
-    create({ reservationId, sessionId, payment, status, lines, total, deliverAt = null, heldUntil = null, now }) {
+    create({
+      reservationId, sessionId, payment, status, lines, total, deliverAt = null, heldUntil = null, fulfilment = 'delivery', pickupPlace = null, now,
+    }) {
       const at = now.toISOString();
+      // Rule 41bis — the mode and the place are the order's own: a later change of the setting rewrites no order.
       const info = db.prepare(`
-        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, createdAt, confirmedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, fulfilment, pickupPlace, createdAt, confirmedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(Number(reservationId), sessionId == null ? null : Number(sessionId), payment, status, JSON.stringify(lines), Number(total),
-        deliverAt, heldUntil, at, status === 'confirmed' ? at : null);
+        deliverAt, heldUntil, fulfilment === 'pickup' ? 'pickup' : 'delivery', fulfilment === 'pickup' ? pickupPlace : null, at, status === 'confirmed' ? at : null);
       return findById(info.lastInsertRowid);
     },
 

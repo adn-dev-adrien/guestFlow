@@ -53,9 +53,8 @@ function createLodgingsModel(db) {
       propertyId: property.id,
       enabled: Boolean(row && row.enabled),
       hasLodgingCode: Boolean(row && row.lodgingCode),
-      name: (row && row.displayName) || property.name,
+      name: property.name,
       slug: slugify(property.name),
-      displayName: (row && row.displayName) || null,
       heroMediaId: (row && row.heroMediaId) || null,
       modules: row ? parseJson(row.modulesJson) : null,
       wifi: {
@@ -66,6 +65,15 @@ function createLodgingsModel(db) {
       },
       contacts: (row && parseJson(row.contactsJson)) || [],
     };
+  }
+
+  /**
+   * Rule 48 — every GuestFlow property, in GuestFlow's own order (by name, as its lodging list), its name read live:
+   * a property added in GuestFlow is listed at once, off (rule 11quater), and its configuration needs no event.
+   */
+  function listAll() {
+    const rows = new Map(db.prepare('SELECT * FROM guest_app_lodgings').all().map((row) => [Number(row.propertyId), row]));
+    return db.prepare('SELECT id, name FROM properties ORDER BY name').all().map((property) => toLodging(property, rows.get(Number(property.id)) || null));
   }
 
   function get(propertyId) {
@@ -102,7 +110,6 @@ function createLodgingsModel(db) {
         propertyId: id,
         enabled: enabled ? 1 : 0,
         lodgingCode: row.lodgingCode || (enabled ? generateLodgingCode() : null),
-        displayName: has('displayName') ? (patch.displayName || null) : (row.displayName ?? null),
         heroMediaId: has('heroMediaId') ? patch.heroMediaId : (row.heroMediaId ?? null),
         modulesJson: has('modules') ? JSON.stringify(patch.modules) : (row.modulesJson ?? null),
         wifiAvailable: patch.wifi ? (wifi.available ? 1 : 0) : (row.wifiAvailable ?? 0),
@@ -114,9 +121,9 @@ function createLodgingsModel(db) {
       };
       db.prepare(`
         INSERT OR REPLACE INTO guest_app_lodgings
-          (propertyId, enabled, lodgingCode, displayName, heroMediaId, modulesJson, wifiAvailable, wifiNetwork, wifiPasswordEncrypted, wifiNote, contactsJson, bookletSeededAt)
+          (propertyId, enabled, lodgingCode, heroMediaId, modulesJson, wifiAvailable, wifiNetwork, wifiPasswordEncrypted, wifiNote, contactsJson, bookletSeededAt)
         VALUES
-          (@propertyId, @enabled, @lodgingCode, @displayName, @heroMediaId, @modulesJson, @wifiAvailable, @wifiNetwork, @wifiPasswordEncrypted, @wifiNote, @contactsJson, @bookletSeededAt)
+          (@propertyId, @enabled, @lodgingCode, @heroMediaId, @modulesJson, @wifiAvailable, @wifiNetwork, @wifiPasswordEncrypted, @wifiNote, @contactsJson, @bookletSeededAt)
       `).run(next);
       return get(id);
     })();
@@ -165,7 +172,7 @@ function createLodgingsModel(db) {
   }
 
   return {
-    codeOf, findEnabled, findEnabledByCode, get, mediaPath, regenerateCode, save, soldCounts,
+    codeOf, findEnabled, findEnabledByCode, get, listAll, mediaPath, regenerateCode, save, soldCounts,
   };
 }
 

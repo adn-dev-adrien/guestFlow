@@ -38,6 +38,10 @@ withApi('rule 22: every option and resource is listed with its plugin row merged
     kind: 'option', id: 1, title: 'Cidre', priceType: 'per_stay', category: 'Boissons', archived: false,
     sellable: { ok: true, reason: null }, sold: true, mediaId: null, shortDescriptionFr: null, shortDescriptionEn: null,
     maxQuantity: 4, needsStaff: false, leadMinutes: 30,
+    stockable: true,
+    stock: {
+      tracked: false, quantity: null, quantityLabel: null, held: 0, heldLabel: null, left: null, alertBelow: null, soldOut: false, out: false, restockLine: null,
+    },
   });
   const bath = res.body.find((i) => i.kind === 'resource' && i.id === 20);
   assert.equal(bath.sold, false, 'no plugin row: not sold, the table’s defaults');
