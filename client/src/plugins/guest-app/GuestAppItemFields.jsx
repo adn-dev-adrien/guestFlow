@@ -171,11 +171,11 @@ export default function GuestAppItemFields({
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>Photo (carrée)</Typography>
               <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
-                <Button variant="outlined" size="small" onClick={() => setPicking(true)} sx={{ minHeight: 40 }}>
+                <Button variant="outlined" size="small" onClick={() => setPicking(true)} sx={{ minHeight: 44 }}>
                   {draft.mediaId ? 'Changer la photo' : 'Choisir une photo'}
                 </Button>
                 {draft.mediaId && (
-                  <Button size="small" color="inherit" onClick={() => set({ mediaId: null })} sx={{ minHeight: 40 }}>Retirer</Button>
+                  <Button size="small" color="inherit" onClick={() => set({ mediaId: null })} sx={{ minHeight: 44 }}>Retirer</Button>
                 )}
               </Stack>
               <FormHelperText sx={{ mx: 0 }}>

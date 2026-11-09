@@ -1,7 +1,7 @@
 // specs/guest-app.md rules 1 and 9bis (a) — while the guest app gives this stay a link, the SAS « Portail » step
 // becomes « Mon séjour »: the stay link's QR, the keypad code, Partager, Régénérer le lien, and « QR du portail
 // seul » for the gate key. Plugin inactive or no link for the stay → today's gate step, unchanged.
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent, configure } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import api from '../../../api';
@@ -9,6 +9,10 @@ import guestAppApi from '../../guest-app/guestAppApi';
 import { sasPayload, renderDialog, clickBtn } from './sasFixtures';
 import { previewLikeTheServer } from './sasPreviewFake';
 import { lacksPlugins } from '../../sdk/testing';
+
+// The step's components load lazily (the SAS dialog, then the plugin's step): under the full suite's load that can
+// take longer than the default second.
+configure({ asyncUtilTimeout: 5000 });
 
 const enabled = new Set();
 vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: (id) => enabled.has(id) }));
@@ -111,6 +115,7 @@ test.skipIf(lacksPlugins(NEEDS))('rule 9bis (a): the link unreadable → a warni
   guestAppApi.getStayLink.mockRejectedValue(new Error('boom'));
   await openPortalStep({ portalCode: '4719', pluginData: both });
   expect(await screen.findByText('Le lien « Mon séjour » est indisponible pour ce séjour.')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Réessayer' })).toBeTruthy();
+  // A second read may still be running (« Lecture… »): wait for the button to settle.
+  expect(await screen.findByRole('button', { name: 'Réessayer' })).toBeTruthy();
   expect(await screen.findByText('4K7M-9QT2')).toBeTruthy();
 });

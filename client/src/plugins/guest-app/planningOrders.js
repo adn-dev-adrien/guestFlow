@@ -12,8 +12,4 @@ export async function loadOrderDays({ from, to }) {
   return out;
 }
 
-/** The day counter's share (specs/planning-day-task-count.md): each card is a task, done once delivered. */
-export function countOrderTasks(entries) {
-  const list = entries || [];
-  return { total: list.length, done: list.filter((e) => Boolean(e.item.delivered)).length };
-}
+export { countOrderTasks } from './planningOrderTasks';

@@ -1,7 +1,7 @@
 // Application clients — client module (specs/guest-app.md §4.2).
 import { lazy } from 'react';
 import RoomServiceOutlinedIcon from '@mui/icons-material/RoomServiceOutlined';
-import { countOrderTasks } from './planningOrders';
+import { countOrderTasks } from './planningOrderTasks';
 
 const itemFields = (key) => ({
   key,
@@ -36,8 +36,10 @@ export default {
     // Rule 37quater — « Stock : épuisé » under a line of the fiche, a warning that never blocks.
     'reservation.optionLine': [{ key: 'stock', appliesTo: () => true, Component: lazy(() => import('./StockLineWarning')) }],
     'reservation.resourceLine': [{ key: 'stock', appliesTo: () => true, Component: lazy(() => import('./StockLineWarning')) }],
-    // Rule 45 — « Commandes clients », for the admin and the reception, in the day-to-day group of the side menu.
-    routes: [{ path: '/commandes-app', Component: lazy(() => import('./GuestOrdersPage')), roles: ['admin', 'reception'] }],
+    // Rule 45 — « Commandes clients », in the day-to-day group of the side menu. Admin only: the reception role sees
+    // only the dashboard, the planning and its account (specs/reception-role-checkin-only.md); it marks an order
+    // delivered from the order's card on the planning.
+    routes: [{ path: '/commandes-app', Component: lazy(() => import('./GuestOrdersPage')), roles: ['admin'] }],
     'nav.items': [{ path: '/commandes-app', label: 'Commandes clients', Icon: RoomServiceOutlinedIcon, after: '/planning' }],
     // Rule 43 — the « Commande client » cards on the planning day of their delivery time.
     'planning.days': [{
