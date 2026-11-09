@@ -99,7 +99,7 @@ test('R33b L2 — a legacy devis with no validity date is stamped at the re-stor
   const id = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, totalPrice,
       finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, devisStatus, validUntil, createdAt, platform,
       checkInTime, checkOutTime)
-    VALUES ('devis', 1, 1, ?, ?, 2, 200, 200, 60, NULL, 140, ?, 'draft', NULL, datetime('now', '-5 days'), 'direct', '16:00', '10:00')`)
+    VALUES ('devis', 1, 1, ?, ?, 2, 200, 200, 60, NULL, 140, ?, 'draft', NULL, datetime('now', 'localtime', 'start of day', '-5 days', '+12 hours', 'utc'), 'direct', '16:00', '10:00')`)
     .run(inDays(40), inDays(42), inDays(10)).lastInsertRowid);
   const read = devisModel.findById(id);
   assert.equal(read.validUntil, inDays(10), 'its backfill: created 5 days ago + 15');
@@ -124,7 +124,7 @@ test('R33b L2 — an expired legacy devis with no validity date converts due tod
   const id = Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, totalPrice,
       finalPrice, depositAmount, depositDueDate, balanceAmount, balanceDueDate, devisStatus, validUntil, createdAt, platform,
       checkInTime, checkOutTime)
-    VALUES ('devis', 3, 1, ?, ?, 2, 200, 200, 0, NULL, 200, ?, 'draft', NULL, datetime('now', '-25 days'), 'direct', '16:00', '10:00')`)
+    VALUES ('devis', 3, 1, ?, ?, 2, 200, 200, 0, NULL, 200, ?, 'draft', NULL, datetime('now', 'localtime', 'start of day', '-25 days', '+12 hours', 'utc'), 'direct', '16:00', '10:00')`)
     .run(inDays(20), inDays(22), inDays(-10)).lastInsertRowid);
   devisModel.restoreSinglePayments();
   assert.equal(rowOf(id).validUntil, inDays(-10));

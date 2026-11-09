@@ -99,3 +99,13 @@ test('rule 57 — a solde with no split keeps its whole reading (one method, no 
   await cancel(stay.id);
   assert.deepEqual(retained(stay.id), []);
 });
+
+test('rule 57 — a geste larger than the solde\'s accommodation share (the card pays 5 €, extras on the solde): nothing retained, books empty', BOOKS, async () => {
+  const stay = fiche(WITH_ACOMPTE, 'direct', { customOptions: [free(33.33, 'Panier'), forced(17.77)] });
+  assert.equal(mark(stay.id, D).statusCode, 200);
+  splitSolde(stay.id, 0, cents(rowOf(stay.id).balanceAmount) - 500);
+  giveBackLive(stay.id);
+  await cancel(stay.id);
+  assert.deepEqual(retained(stay.id), [], 'the geste reaches past the accommodation into the extras, never into the acompte');
+  assert.deepEqual(booksOf(stay.id), {});
+});
