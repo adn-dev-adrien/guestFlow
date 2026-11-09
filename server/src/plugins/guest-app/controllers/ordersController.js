@@ -223,7 +223,7 @@ function buildOrdersController({
   function price(stay, judged) {
     const lines = commitLines(judged.lines);
     if (!lines.length) return { lines: [], byKey: {}, total: 0 };
-    const pending = orders().pendingLines(stay.id).map(cartLineOf);
+    const pending = orders().pendingLines(stay.id, { at: now() }).map(cartLineOf);
     let priced = commit.priceOrder(stay.id, lines, { pending });
     // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is.
     if (priced.status !== 200 && pending.length) priced = commit.priceOrder(stay.id, lines);
@@ -333,8 +333,13 @@ function buildOrdersController({
   /** §4.3 — the first answer to an order a replayed `Idempotency-Key` names. */
   function replay(res, order) {
     if (order.payment === 'card') {
-      if (order.paymentUrl) return publicHttp.ok(res, { orderId: order.id, paymentUrl: order.paymentUrl });
-      if (order.status === 'awaiting_payment') return fail(res, { status: 409, code: 'ORDER_IN_PROGRESS', message: 'Cette commande est en cours d’enregistrement.' });
+      const waiting = order.status === 'awaiting_payment';
+      const live = waiting && order.heldUntil && new Date(order.heldUntil) > now();
+      if (live && order.paymentUrl) return publicHttp.ok(res, { orderId: order.id, paymentUrl: order.paymentUrl });
+      if (live) return fail(res, { status: 409, code: 'ORDER_IN_PROGRESS', message: 'Cette commande est en cours d’enregistrement.' });
+      // Paid meanwhile: the first order stands, shown without a link to pay again.
+      if (['paid', 'delivered'].includes(order.status)) return publicHttp.ok(res, { orderId: order.id, status: order.status });
+      if (!waiting) return fail(res, { status: 409, code: 'ORDER_KEY_SPENT', message: 'Cette commande n’est plus en attente de paiement : recommencez la commande.' });
       return fail(res, { status: 502, code: 'PAYMENT_UNAVAILABLE', message: 'Le paiement par carte est indisponible.' });
     }
     return publicHttp.ok(res, { orderId: order.id, status: 'confirmed' });
@@ -416,6 +421,11 @@ function buildOrdersController({
     }
 
     // Rule 33 — « Payer maintenant »: the order holds its slots while its link lives (rule 35).
+    // Rule 35 — one card order waits for its payment at a time: a second one would be priced after the first's
+    // allowances, then committed before it if paid first (review of 2026-11-09).
+    if (orders().livePendingCard(stay.id, { at })) {
+      return fail(res, { status: 409, code: 'CARD_ORDER_PENDING', message: 'Une commande attend déjà son paiement : reprenez-la ou abandonnez-la dans « Mes commandes ».' });
+    }
     if (!paymentProviders.active()) return fail(res, { status: 409, code: 'CARD_UNAVAILABLE', message: 'Le paiement par carte est indisponible : ajoutez la commande à votre note.' });
     let order;
     try {
@@ -528,6 +538,7 @@ function buildOrdersController({
     let order = ownOrder(req);
     if (!order) return notFound(res);
     const at = now().getTime();
+    if (order.status !== 'awaiting_payment' && order.paymentLinkId) refreshedAt.delete(order.paymentLinkId);
     if (order.status === 'awaiting_payment' && order.paymentLinkId && !(at - (refreshedAt.get(order.paymentLinkId) || -Infinity) < REFRESH_MS)) {
       refreshedAt.set(order.paymentLinkId, at);
       await payments().refreshBasketLink(order.paymentLinkId);

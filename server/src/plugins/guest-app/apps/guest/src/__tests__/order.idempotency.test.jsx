@@ -41,6 +41,23 @@ describe('an order is created once (§4.3 Idempotency-Key)', () => {
     expect(keys[1]).toBe(keys[0]);
   });
 
+  it('the first send still being written (ORDER_IN_PROGRESS) keeps the key: the next tap is the same order', async () => {
+    seedCart([{ kind: 'option', id: 11, quantity: 2 }]);
+    let tries = 0;
+    const { fetchStub } = stubApi(baseRoutes({
+      'POST /orders/quote': QUOTE,
+      'POST /orders': () => { tries += 1; return { status: 409, error: { code: 'ORDER_IN_PROGRESS', message: 'Cette commande est en cours d’enregistrement.' } }; },
+    }));
+    useOrderStatus.mockReturnValue({ order: null, error: null, polling: false, stalled: false, recheck: vi.fn() });
+    renderApp('/panier');
+    fireEvent.click(await screen.findByRole('button', { name: 'Ajouter à ma note · 9 €' }));
+    await waitFor(() => expect(tries).toBe(1));
+    fireEvent.click(await screen.findByRole('button', { name: 'Ajouter à ma note · 9 €' }));
+    await waitFor(() => expect(tries).toBe(2));
+    const keys = keysSent(fetchStub);
+    expect(keys[1]).toBe(keys[0]);
+  });
+
   it('an order refused for a reason other than the network gets a new key next time', async () => {
     seedCart([{ kind: 'option', id: 11, quantity: 2 }]);
     let tries = 0;

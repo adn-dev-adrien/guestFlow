@@ -106,7 +106,8 @@ export default function CartBody({ shop, inPanel = false }) {
       }
       navigate(`/commandes/${out.orderId}?confirmation=1`);
     } catch (err) {
-      if (err.code !== 'NETWORK') attempt.current = null;
+      // A network failure, or the first send still being written, keeps the key: the next tap is the same order.
+      if (err.code !== 'NETWORK' && err.code !== 'ORDER_IN_PROGRESS') attempt.current = null;
       if (err.code === 'OUT_OF_STOCK' && err.details && err.details.itemKey) cart.lowerTo(err.details.itemKey, Number(err.details.left) || 0, err.message);
       if (err.code === 'DELIVERY_TIME_UNAVAILABLE') cart.refreshDelivery();
       setError(err);

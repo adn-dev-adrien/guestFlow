@@ -223,7 +223,7 @@ function buildShopController({
     const consumed = stayConsumption({
       optionLines: extras.optionLines,
       resourceLines: extras.resourceLines,
-      pendingOrderLines: orders().pendingLines(stay.id),
+      pendingOrderLines: orders().pendingLines(stay.id, { at: now() }),
       orderedLines: orders().orderedLines(stay.id),
     });
     const sold = shopItems({

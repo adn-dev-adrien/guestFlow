@@ -98,7 +98,7 @@ function createStockModel(db) {
     db.prepare(`
       SELECT ro.optionId AS id,
              SUM(CASE WHEN o.priceType = 'per_person'
-                      THEN COALESCE(ro.cardPersons, COALESCE(r.adults, 0) + COALESCE(r.teens, 0) + COALESCE(r.children, 0))
+                      THEN COALESCE(ro.quantity, 1) * COALESCE(ro.cardPersons, COALESCE(r.adults, 0) + COALESCE(r.teens, 0) + COALESCE(r.children, 0))
                       ELSE ro.quantity END) AS units
         FROM reservation_options ro
         JOIN options o ON o.id = ro.optionId

@@ -37,8 +37,10 @@ const find = (sold, kind, id) => sold.find((s) => s.kind === kind && Number(s.ro
 const ids = (sold) => sold.map((s) => `${s.kind}:${s.row.id}`).sort();
 
 function order(db, reservationId, status, lines) {
-  db.prepare(`INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt)
-    VALUES (?, 'card', ?, ?, 0, '2099-07-07T10:00:00Z')`).run(reservationId, status, JSON.stringify(lines));
+  // A card order awaiting its payment holds until its link lapses: far ahead here.
+  const heldUntil = status === 'awaiting_payment' ? '2999-01-01T00:00:00Z' : null; // date-literal-ok: a hold that never lapses
+  db.prepare(`INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt, heldUntil)
+    VALUES (?, 'card', ?, ?, 0, '2099-07-07T10:00:00Z', ?)`).run(reservationId, status, JSON.stringify(lines), heldUntil);
 }
 
 test('rule 23: options sell per stay, per person or free; every other price is refused with its reason', () => {

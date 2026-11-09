@@ -163,10 +163,40 @@ withCard('§4.3: a double tap sends the same `Idempotency-Key` — one order, th
   assert.deepEqual(twice.body, once.body);
   assert.equal(card.created.length, 1, 'one link');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM guest_orders WHERE reservationId = ?').get(stayId).n, 2);
-  const other = await postKeyed(ctx, 'tap-card-0002', paid);
-  assert.notEqual(other.body.data.orderId, once.body.data.orderId, 'another key is another order');
   assert.equal((await postKeyed(ctx, 'bad key!', paid)).status, 400);
 });
+
+withCard('rule 35: one card order waits for its payment at a time — a second is refused until the first is paid or abandoned; a key replayed after the abandon is spent', async (ctx) => {
+  const { call, card } = ctx;
+  const id = cider(6);
+  const paid = { lines: [{ kind: 'option', id, quantity: 1 }], payment: 'card' };
+  const first = await postKeyed(ctx, 'wait-card-0001', paid);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  const second = await postKeyed(ctx, 'wait-card-0002', paid);
+  assert.equal(second.status, 409);
+  assert.equal(second.body.error.code, 'CARD_ORDER_PENDING');
+  assert.match(second.body.error.message, /attend déjà son paiement/);
+  assert.equal(card.created.length, 1, 'no second link');
+  const note = await postKeyed(ctx, 'wait-note-0001', { ...paid, payment: 'note' });
+  assert.equal(note.status, 200, 'the note stays open meanwhile');
+  assert.equal((await call('POST', `/public/v1/guest/orders/${first.body.data.orderId}/abandon`)).status, 200);
+  const spent = await postKeyed(ctx, 'wait-card-0001', paid);
+  assert.equal(spent.status, 409);
+  assert.equal(spent.body.error.code, 'ORDER_KEY_SPENT', 'an abandoned order’s link is never handed back');
+  const again = await postKeyed(ctx, 'wait-card-0003', paid);
+  assert.equal(again.status, 200, JSON.stringify(again.body));
+  assert.notEqual(again.body.data.orderId, first.body.data.orderId);
+});
+
+withCard('rule 35: a hold that has lapsed holds nothing, even before the expiry job runs', async ({ call }) => {
+  const lines = (start, end) => [{ kind: 'resource', id: BATH, sessions: [slot(start, end)] }];
+  const a = await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'resource', id: BATH, sessions: [slot('11:00', '12:00'), slot('15:00', '16:00')] }], payment: 'card' });
+  assert.equal(a.status, 200, JSON.stringify(a.body));
+  assert.equal(orderRow(a.body.data.orderId).total, 30, '2 h, the first offered');
+  assert.equal((await call('POST', '/public/v1/guest/orders/quote', { lines: lines('16:00', '17:00') })).body.data.total, 30, 'held: the free hour is the pending order’s');
+  db.prepare('UPDATE guest_orders SET heldUntil = ? WHERE id = ?').run(new Date(Date.now() - 60 * 1000).toISOString(), a.body.data.orderId);
+  assert.equal((await call('POST', '/public/v1/guest/orders/quote', { lines: lines('16:00', '17:00') })).body.data.total, 0, 'lapsed: the free hour is free again');
+}, { skip: !hasHourly });
 
 withCard('rule 33: the link bills exactly the quoted total — what the engine raised beside the order’s lines is one more line of the basket', async ({ call, card }) => {
   const id = cider(6);

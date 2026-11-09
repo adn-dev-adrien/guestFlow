@@ -190,8 +190,17 @@ function createOrdersModel(db) {
      * free units once paid. A confirmed, paid or delivered order is on the fiche already (rule 34), an
      * expired, abandoned or conflicting one never reaches it.
      */
-    pendingLines(reservationId) {
-      return linesOf(reservationId, ['awaiting_payment']);
+    pendingLines(reservationId, { at = new Date() } = {}) {
+      // A hold that has lapsed holds nothing, even before the minute's expiry job flips its order.
+      return db.prepare("SELECT linesJson FROM guest_orders WHERE reservationId = ? AND status = 'awaiting_payment' AND heldUntil > ?")
+        .all(Number(reservationId), at.toISOString())
+        .flatMap((row) => parseLines(row.linesJson));
+    },
+
+    /** Rule 35 — the stay's card order still waiting for its payment, its link live; or null. */
+    livePendingCard(reservationId, { at = new Date() } = {}) {
+      return toOrder(db.prepare("SELECT * FROM guest_orders WHERE reservationId = ? AND payment = 'card' AND status = 'awaiting_payment' AND heldUntil > ? ORDER BY id LIMIT 1")
+        .get(Number(reservationId), at.toISOString()));
     },
 
     /** Rule 25 — the lines of every order that stands (an expired, abandoned or conflicting one sold nothing). */
