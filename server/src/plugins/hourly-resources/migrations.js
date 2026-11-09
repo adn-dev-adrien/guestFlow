@@ -96,11 +96,53 @@ function countHourlySettings(db) {
   return db.prepare(`SELECT COUNT(*) AS n FROM resources WHERE ${differs.join(' OR ')}`).get().n;
 }
 
+// specs/resource-booking-pricing-and-invoicing.md §5 — offered time, the payment (the fiches' tender lines), the arrival,
+// the billing address of a guest with no client record, and the Qonto invoice with its attachment. Every column is
+// nullable or defaulted: an existing booking keeps its price (`offeredMinutes = 0`).
+const BOOKING_COLUMNS_V2 = [
+  ['offeredMinutes', 'INTEGER NOT NULL DEFAULT 0'],
+  ['paymentTenders', 'TEXT'],
+  ['paidAt', 'TEXT'],
+  ['paymentRecordedAt', 'TEXT'],
+  ['arrivedAt', 'TEXT'],
+  ['billingStreet', 'TEXT'],
+  ['billingPostcode', 'TEXT'],
+  ['billingCity', 'TEXT'],
+  ['billingCountry', 'TEXT'],
+  ['qontoClientId', 'TEXT'],
+  ['qontoInvoiceId', 'TEXT'],
+  ['invoiceNumber', 'TEXT'],
+  ['invoiceIssuedAt', 'TEXT'],
+  ['invoiceVatRate', 'REAL'],
+  ['invoiceTotal', 'REAL'],
+  ['invoiceMarkedPaid', 'INTEGER NOT NULL DEFAULT 0'],
+  ['invoiceCancelledAt', 'TEXT'],
+  ['attachmentState', 'TEXT'],
+  ['attachmentTransactionId', 'TEXT'],
+  ['attachmentId', 'TEXT'],
+  ['attachmentAttempts', 'INTEGER NOT NULL DEFAULT 0'],
+  ['attachmentLastError', 'TEXT'],
+];
+
+// A booking ticked « Payé » before this spec keeps its tick: it gets a payment day (its last change) and no method.
+// `paymentRecordedAt` stays empty, so it never reaches the journal (A4).
+function bookingsV2(db) {
+  if (!hasTable(db, 'resource_bookings')) return;
+  BOOKING_COLUMNS_V2.forEach(([column, type]) => {
+    if (!hasColumn(db, 'resource_bookings', column)) db.exec(`ALTER TABLE resource_bookings ADD COLUMN ${column} ${type}`);
+  });
+  if (!hasColumn(db, 'resource_bookings', 'paid')) return;
+  const when = ['updatedAt', 'createdAt'].filter((c) => hasColumn(db, 'resource_bookings', c));
+  const day = when.length ? `date(COALESCE(${when.join(', ')}, 'now'))` : "date('now')";
+  db.exec(`UPDATE resource_bookings SET paidAt = ${day} WHERE paid = 1 AND paidAt IS NULL`);
+}
+
 const MIGRATIONS = [
   { name: 'tables_v1', up: createTables },
   { name: 'tag_evening_supplements_v1', up: tagEveningSupplements },
+  { name: 'resource_bookings_v2', up: bookingsV2 },
 ];
 
 module.exports = {
-  MIGRATIONS, createTables, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  MIGRATIONS, BOOKING_COLUMNS_V2, bookingsV2, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

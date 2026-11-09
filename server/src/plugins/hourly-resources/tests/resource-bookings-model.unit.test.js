@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { bookingsV2 } = require('../migrations');
 const Database = require('better-sqlite3');
 
 const resourceBookingsModel = require('../bookingsModel');
@@ -41,6 +42,7 @@ function tiedBooking(db, resourceId) {
 function freshModel(resourceOverrides = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
+  bookingsV2(db);
   db.exec("INSERT INTO properties (id, name) VALUES (1, 'Ombre')");
   const r = {
     name: 'Spa', quantity: 1, price: 60, priceType: 'per_hour', turnoverMinutes: 0,

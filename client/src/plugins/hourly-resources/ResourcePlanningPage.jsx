@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Button, IconButton, Select, MenuItem,
   FormControl, InputLabel, Tooltip, Chip, useMediaQuery, useTheme,
@@ -12,6 +12,7 @@ import {
   api, PageActionBar, EmptyState, ErrorAlert, useToast, withFrom,
 } from '../sdk';
 import ResourceBookingDialog from './ResourceBookingDialog';
+import ResourceArrivalDialog from './ResourceArrivalDialog';
 import { localIsoDate as todayStr } from './localDate';
 
 const PIXELS_PER_MINUTE = 1.5; // 60 min = 90px
@@ -183,6 +184,23 @@ export default function ResourcePlanningPage() {
     setClickedTime(selectedResource?.openTime || '08:00');
     setDialogOpen(true);
   }
+
+  // specs/resource-booking-pricing-and-invoicing.md rule 28 — the arrival of a guest with no stay, from his booking or
+  // from the planning card (`?arrival=<id>`).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const arrivalParam = searchParams.get('arrival');
+  const [arrivalId, setArrivalId] = useState(null);
+  useEffect(() => {
+    if (arrivalParam && /^\d+$/.test(arrivalParam)) setArrivalId(Number(arrivalParam));
+  }, [arrivalParam]);
+  const closeArrival = () => {
+    setArrivalId(null);
+    if (arrivalParam) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('arrival');
+      setSearchParams(next, { replace: true });
+    }
+  };
 
   function handleBookingClick(e, booking) {
     e.stopPropagation();
@@ -481,7 +499,7 @@ export default function ResourcePlanningPage() {
                         return (
                           <Tooltip
                             key={b.id}
-                            title={`${b.kind === 'session' ? 'Réservation · ' : ''}${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
+                            title={`${b.kind === 'session' ? 'Réservation · ' : ''}${b.startTime}→${b.endTime} · ${b.displayName}${b.propertyName ? ` · ${b.propertyName}` : ''}${b.kind === 'booking' ? (b.paid ? ` · Payé ${b.payment ? b.payment.label : ''}${b.invoice && !b.invoice.cancelled ? ` · ${b.invoice.number}` : ''}` : ' · À encaisser') : ''}${b.turnoverMinutes ? ` · remise en état ${b.turnoverMinutes} min` : ''}${b.notes ? ` · ${b.notes}` : ''}`}
                             arrow
                           >
                             <Box>
@@ -573,6 +591,15 @@ export default function ResourcePlanningPage() {
           onClose={() => setDialogOpen(false)}
           onSave={handleSave}
           onDelete={handleDelete}
+          onArrival={(b) => { setDialogOpen(false); setArrivalId(b.id); }}
+        />
+      )}
+      {arrivalId && (
+        <ResourceArrivalDialog
+          open={Boolean(arrivalId)}
+          bookingId={arrivalId}
+          onClose={closeArrival}
+          onDone={() => { closeArrival(); loadBookings(); showSuccess('Arrivée enregistrée.'); }}
         />
       )}
     </Box>

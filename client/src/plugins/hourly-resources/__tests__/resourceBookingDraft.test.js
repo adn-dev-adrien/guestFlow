@@ -7,9 +7,14 @@ const STATE = {
 };
 
 describe('resourceBookingDraft', () => {
+  // specs/resource-booking-pricing-and-invoicing.md rule 7 — the offered minutes are price-relevant: they travel in the draft.
+  it('rule 7 — carries the offered minutes as a number', () => {
+    expect(resourceBookingDraft({ ...STATE, offeredMinutes: '30' }).offeredMinutes).toBe(30);
+  });
+
   it('builds the draft from the dialog state, ids as numbers', () => {
     expect(resourceBookingDraft(STATE)).toEqual({
-      resourceId: 3, bookingId: null, date: '2099-02-13', startTime: '18:00', endTime: '20:00', propertyId: 2,
+      resourceId: 3, bookingId: null, date: '2099-02-13', startTime: '18:00', endTime: '20:00', propertyId: 2, offeredMinutes: 0,
     });
   });
 
@@ -17,7 +22,7 @@ describe('resourceBookingDraft', () => {
     const draft = resourceBookingDraft({
       ...STATE, clientName: 'Alex', clientPhone: '0600', notes: 'x', paid: true, totalPrice: 70,
     });
-    expect(Object.keys(draft).sort()).toEqual(['bookingId', 'date', 'endTime', 'propertyId', 'resourceId', 'startTime']);
+    expect(Object.keys(draft).sort()).toEqual(['bookingId', 'date', 'endTime', 'offeredMinutes', 'propertyId', 'resourceId', 'startTime']);
   });
 
   it('keeps the booking being edited', () => {
