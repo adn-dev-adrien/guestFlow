@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.12",
+  "version": "1.8.13",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -12,7 +12,7 @@
     "La carte « Site internet » de Paramètres › Intégrations"
   ],
   "requires": [],
-  "guestflow": ">=3.10.0 <4.0.0",
+  "guestflow": ">=3.10.0",
   "sdk": "^2.22.0",
   "changelog": {
     "1.0.0": [
@@ -139,6 +139,9 @@
       "Un numéro de téléphone collé avec une espace insécable ou un caractère invisible est accepté.",
       "Les prix lus par la veille tarifaire ne sont pas refusés pour les horaires.",
       "Compatible avec le SDK 2.22 de GuestFlow."
+    ],
+    "1.8.13": [
+      "Compatible avec GuestFlow 4 (SDK 2.22)."
     ]
   }
 }

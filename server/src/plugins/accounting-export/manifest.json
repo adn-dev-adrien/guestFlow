@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -9,7 +9,7 @@
     "Le rôle « Comptable »"
   ],
   "requires": [],
-  "guestflow": ">=3.18.0 <4.0.0",
+  "guestflow": ">=3.18.0",
   "sdk": "^2.24.0",
   "changelog": {
     "1.0.0": [
@@ -137,6 +137,9 @@
       "Un paiement réparti sur plusieurs moyens n’est comptabilisé que pour sa part hors caisse interne, à la date de chacun de ses encaissements.",
       "Un geste commercial accordé sur un tel paiement est passé en rabais.",
       "Compatible avec le SDK 2.24 de GuestFlow."
+    ],
+    "1.1.1": [
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
     ]
   }
 }

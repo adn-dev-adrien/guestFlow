@@ -1,7 +1,7 @@
 {
   "id": "airbnb-intake",
   "name": "Saisie Airbnb",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
   "icon": "mail",
   "surfaces": [
@@ -10,7 +10,7 @@
     "Une alerte du tableau de bord"
   ],
   "requires": [],
-  "guestflow": ">=3.18.0 <4.0.0",
+  "guestflow": ">=3.18.0",
   "sdk": "^2.21.0",
   "changelog": {
     "1.0.0": [
@@ -66,6 +66,9 @@
     "1.1.7": [
       "Appliquer deux fois le même mail (second onglet, réponse perdue) n’écrit plus rien la seconde fois, et un mail ignoré ne s’applique plus.",
       "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.1.8": [
+      "Compatible avec GuestFlow 4 (SDK 2.21)."
     ]
   }
 }
