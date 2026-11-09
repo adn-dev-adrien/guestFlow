@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
 
@@ -46,7 +46,7 @@ import SupportSessionBar, { SUPPORT_BAR_HEIGHT } from './components/SupportSessi
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import ReservationSearchBox from './components/ReservationSearchBox';
-import { withFrom } from './utils/navigation';
+import { safeReturnPath, withFrom } from './utils/navigation';
 import { LOGIN_PATH, logoutAsked, logoutThroughGuard, navigateThroughGuard, takeAskedLogout } from './utils/guardedNavigation';
 import api from './api';
 import { PLATFORM_COLORS, PLATFORM_TEXT_COLORS, normalizePlatformKey, setPlatformDisplayNames } from './constants/platforms';
@@ -54,6 +54,7 @@ import {
   visibleSettingsGroups, settingsGroupOf, SETTINGS_HOME_PATH, SETTINGS_PATHS, PROPERTIES_PATH, isSettingsPath, isEntrySelected,
 } from './constants/settingsMenu';
 import { CALENDAR_ENTRIES, CALENDAR_PATHS, isCalendarPath } from './constants/calendarMenu';
+import { withPluginEntries } from './constants/navMenu';
 import { isPluginEnabled, isRouteEnabled, SAS } from './constants/plugins';
 import { FINANCE_MENU, COMPENSATIONS_PATH, canSeeFinanceEntry, isFinancePath } from './constants/financeMenu';
 import { STAY_PROFILE_PATH } from './constants/stayProfile';
@@ -146,7 +147,7 @@ const MODULE_PAGES = allContributions('routes');
 // 256 px, labels wrap rather than being cut (specs/shell-and-home-day-first.md rule 17).
 const DRAWER_WIDTH = 256;
 
-const navItems = [
+const coreNavItems = [
   { label: 'Tableau de bord', path: '/', icon: <DashboardIcon /> },
   { label: 'Planning', path: '/planning', icon: <CalendarMonthIcon /> },
   { label: 'Calendrier', path: '/calendar', icon: <EventIcon /> },
@@ -157,6 +158,8 @@ const navItems = [
   { label: 'Clients', path: '/clients', icon: <PeopleIcon /> },
   { label: 'Paramètres', path: '/settings', icon: <SettingsIcon /> },
 ];
+// Plugin pages of the side menu (slot `nav.items`, constants/navMenu.js).
+const navItems = withPluginEntries(coreNavItems);
 
 // Children-of-each-parent map — keeps the parent visibility decision in one place. Hard-coded
 // (matches the JSX below) instead of derived from ROUTE_ROLES because the JSX itself is hand-rolled
@@ -911,12 +914,17 @@ function AppShell() {
 }
 
 // `/login` with a session: home, unless a page's prompt just sent the operator here from « Se déconnecter »
-// (specs/ui-review-2026-10-19-operations.md rule 42).
+// (specs/ui-review-2026-10-19-operations.md rule 42). A safe `?next=` (utils/navigation `safeReturnPath`) is
+// reopened instead, as a full page load: it may be a page the backend serves rather than a route of this app.
 function SignedInLoginRoute() {
   const { logout } = useAuth();
   const [asked] = useState(logoutAsked);
+  const [params] = useSearchParams();
+  const next = asked ? '' : safeReturnPath(params.get('next'));
   useEffect(() => { if (takeAskedLogout()) logout(); }, [logout]);
-  return asked ? null : <Navigate to="/" replace />;
+  useEffect(() => { if (next) window.location.replace(next); }, [next]);
+  if (asked || next) return null;
+  return <Navigate to="/" replace />;
 }
 
 function AuthGate() {

@@ -211,6 +211,9 @@ const api = {
   // A plugin module's own settings (specs/plugins-phase-1-sdk.md rule 7): a secret reads `<key>Set`.
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, values) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: values }),
+  // A plugin's own routes under `/api` (its `ctx.mount`), through the same session, errors and data-changed event as
+  // every core call — so a plugin keeps its endpoints in its own folder instead of this file (SDK 2.25.0).
+  pluginRequest: (path, options) => request(path, options),
   // Saisie Gîtes de France plugin (specs/gites-de-france-mail-intake.md §4.4).
   getGdfIntakeForReservation: (reservationId) => request(`/gdf-intake/reservation/${reservationId}`),
   applyGdfIntake: (intakeId, body = {}) => request(`/gdf-intake/${intakeId}/apply`, { method: 'POST', body }),
@@ -447,10 +450,6 @@ const api = {
   // Gate keys (specs/gate-access-sowel-connector.md §3.5): the stored key of a stay — the fiche's
   // card and the SAS step (code + QR). Read-only: every action lives in Sowel.
   getReservationGateAccess: (id) => request(`/reservations/${id}/gate-access`),
-  // The stay's « Mon séjour » link (specs/guest-app.md rules 1, 9bis): shown by the arrival SAS and the fiche,
-  // created by the server on first need; regenerating kills the old link and its sessions.
-  getStayLink: (id) => request(`/guest-app/reservations/${id}/stay-link`),
-  regenerateStayLink: (id) => request(`/guest-app/reservations/${id}/stay-link/regenerate`, { method: 'POST' }),
   // The connector's state (§3.6 rule 29) — no secret value — and the dashboard alert (§3.3).
   getGateConnector: () => request('/settings/gate-connector'),
   // Admin-only: guestFlow's address + both secrets, for the Sowel plugin's settings (§3.6 rule 29b).

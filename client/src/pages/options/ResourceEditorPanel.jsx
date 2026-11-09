@@ -4,7 +4,9 @@
  * Sections: Général (name, description, stock — « En service » for a resource sold by the hour — and its
  * properties, legacy « none selected = all »), Prix (type, base price, one line per property with its
  * price and, for an hourly resource, « 1re heure offerte »), Horaires (the `resources.fields` plugin
- * slot, only when a plugin has something for this resource), Mails (the sentence once booked).
+ * slot, only when a plugin has something for this resource), Mails (the sentence once booked), then the sections
+ * a live plugin adds with its own rows (a `resources.fields` contribution carrying `section`, usePluginFields); one
+ * « Enregistrer » saves the resource, then each of them.
  *
  * Props: open, resourceId (null = new), properties, onClose, onSaved({ id, isNew })
  */
@@ -22,8 +24,8 @@ import { useToast } from '../../components/DialogProvider';
 import { usePlugin } from '../../hooks/usePlugins';
 import { HOURLY_RESOURCES } from '../../constants/plugins';
 import { RESOURCE_PRICE_TYPES, TEXTS, UNIT_BY_PRICE_TYPE } from '../../constants/optionsResourcesTexts';
-import { useSlot } from '../../plugins/sdk';
 import { Contribution } from '../../plugins/sdk/Slot';
+import usePluginFields from './usePluginFields';
 import {
   emptyResource, formFromResource, toResourcePayload, validateResourceForm, withScope,
 } from './resourceForm';
@@ -92,7 +94,6 @@ function PropertyPriceLines({ form, setForm, properties, errors }) {
 export default function ResourceEditorPanel({ open, resourceId, properties, onClose, onSaved }) {
   const hourlyOn = usePlugin(HOURLY_RESOURCES);
   const { showError } = useToast();
-  const pluginFields = useSlot('resources.fields');
   const [form, setFormState] = useState(null);
   const [saved, setSaved] = useState('');
   const [loadError, setLoadError] = useState(false);
@@ -127,8 +128,10 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     setFormState(typeof next === 'function' ? next(form) : next);
   };
   const clientErrors = useMemo(() => (form ? validateResourceForm(form) : {}), [form]);
-  const dirty = Boolean(form) && JSON.stringify(form) !== saved;
-  const errors = dirty ? { ...clientErrors, ...serverErrors } : serverErrors;
+  const plugins = usePluginFields('resources.fields', form);
+  const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
+  const dirty = coreDirty || plugins.dirty;
+  const errors = coreDirty ? { ...clientErrors, ...serverErrors } : serverErrors;
   const errorFields = Object.keys(errors);
 
   const handleSave = async () => {
@@ -139,10 +142,14 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
       if (resourceId == null) {
         const created = await api.createResource(payload);
         onSaved({ id: created.id, isNew: true });
-      } else {
-        await api.updateResource(resourceId, payload);
-        onSaved({ id: resourceId, isNew: false });
+        return true;
       }
+      if (coreDirty) {
+        await api.updateResource(resourceId, payload);
+        setSaved(JSON.stringify(form));
+      }
+      await plugins.saveAll(resourceId);
+      onSaved({ id: resourceId, isNew: false });
       return true;
     } catch (err) {
       if (err.status === 422 && Array.isArray(err.details)) {
@@ -157,7 +164,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
   };
 
   const hourly = Boolean(form) && form.priceType === 'per_hour';
-  const contributions = form ? pluginFields.filter((c) => c.appliesTo(form)) : [];
+  const contributions = plugins.inline;
   const priceTypes = hourlyOn ? RESOURCE_PRICE_TYPES : RESOURCE_PRICE_TYPES.filter((t) => t.value !== 'per_hour');
   const hasError = (section) => errorFields.some((field) => sectionOf(field) === section);
   const hourErrors = HOURLY_FIELDS.filter((field) => errors[field]);
@@ -167,6 +174,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     { id: 'prices', label: 'Prix', hasError: hasError('prices') },
     ...(contributions.length > 0 ? [{ id: 'hours', label: 'Horaires', hasError: hasError('hours') }] : []),
     { id: 'mails', label: 'Mails' },
+    ...plugins.sections.map((c) => ({ id: `plugin-${c.pluginId}-${c.key}`, label: c.section.title })),
   ] : [];
 
   let body;
@@ -267,6 +275,14 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
             tokens={[{ name: 'slots', label: 'Créneaux' }]}
           />
         </SidePanelSection>
+
+        {plugins.sections.map((c) => (
+          <SidePanelSection key={`${c.pluginId}:${c.key}`} id={`plugin-${c.pluginId}-${c.key}`} title={c.section.title}>
+            <Contribution pluginId={c.pluginId}>
+              <c.Component kind="resource" itemId={resourceId} draft={form} {...plugins.bind(c)} />
+            </Contribution>
+          </SidePanelSection>
+        ))}
       </>
     );
   }

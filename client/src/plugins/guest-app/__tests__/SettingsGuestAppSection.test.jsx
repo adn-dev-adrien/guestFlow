@@ -45,3 +45,10 @@ test('a refused address keeps the draft and shows the server message on the fiel
   expect(screen.getByText('Saisissez un nom de domaine.')).toBeInTheDocument();
   expect(screen.getByLabelText(FIELD)).toHaveValue('pas un domaine');
 });
+
+test('rule 47: « Ouvrir le Studio » opens the booklet studio in a new tab', async () => {
+  render(<SettingsGuestAppSection />);
+  const link = await screen.findByRole('link', { name: /Ouvrir le Studio/ });
+  expect(link).toHaveAttribute('href', '/studio');
+  expect(link).toHaveAttribute('target', '_blank');
+});
