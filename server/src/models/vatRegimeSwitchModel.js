@@ -64,6 +64,13 @@ function monthsOfPayments(db, ids) {
     db.prepare(`SELECT paidDate FROM reservation_installments WHERE paid = 1 AND amountCents > 0 AND reservationId IN (${placeholders(ids)})`).all(...ids)
       .forEach((i) => dates.push(i.paidDate));
   }
+  // specs/mixed-method-payments.md rule 49 (audit R34-M-L1) — a split payment books each settlement in its own month (a reste
+  // collected later included), for its lines on the books.
+  if (tableExists(db, 'payment_settlements')) {
+    db.prepare(`SELECT DISTINCT s.paidDate FROM payment_settlements s JOIN payment_tenders t ON t.settlementId = s.id AND t.internal = 0
+      WHERE s.reservationId IN (${placeholders(ids)})`).all(...ids)
+      .forEach((i) => dates.push(i.paidDate));
+  }
   if (tableExists(db, 'reservation_refunds')) {
     db.prepare(`SELECT refundDate FROM reservation_refunds WHERE totalTtc > 0 AND COALESCE(method, '') != 'internal' AND reservationId IN (${placeholders(ids)})`).all(...ids)
       .forEach((i) => dates.push(i.refundDate));
@@ -493,4 +500,4 @@ function deletePeriod(db, id, { today = todayIso() } = {}) {
   return { ok: true, notRepriced };
 }
 
-module.exports = { previewSwitch, applySwitch, readState, deletePeriod, editRateInForce, deactivateAfterCommit, __test: { planReprice, ALLOWLIST } };
+module.exports = { previewSwitch, applySwitch, readState, deletePeriod, editRateInForce, deactivateAfterCommit, __test: { planReprice, ALLOWLIST, monthsOfPayments } };

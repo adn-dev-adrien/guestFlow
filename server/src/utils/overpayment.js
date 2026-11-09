@@ -14,20 +14,26 @@ const { isDirectChannel } = require('./platformNameFormat');
 
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
+// specs/mixed-method-payments.md rule 47 (audit R34-M-H1) — a bucket paid with several methods counts what it RECEIVED
+// (`utils/splitReceived`), never its marked amount: a « Reste à percevoir » or a « Geste commercial » was never money in.
+const receivedOf = (received, bucket) => (received && received[bucket] != null ? Number(received[bucket]) : null);
+
 /**
  * @param {object} row       reservation row (depositPaid/Cash, balancePaid/Cash, depositAmount, balanceAmount)
  * @param {{ deposit: (number|null), balance: (number|null) }} captured  Σ contribs per bucket, null when none
+ * @param {object|null} [received] what the buckets paid with several methods received (readSplitReceived)
  * @returns {number} the money received on the pre-arrival schedule
  */
-function collectedOnSchedule(row = {}, captured = {}) {
+function collectedOnSchedule(row = {}, captured = {}, received = null) {
   const sums = captured || {};
-  const bucket = (paid, cash, capturedSum, stored) => {
+  const bucket = (paid, cash, capturedSum, stored, split) => {
     if (!(Number(paid || 0) === 1 || Number(cash || 0) === 1)) return 0;
+    if (split != null) return split;
     return capturedSum == null ? Number(stored || 0) : Number(capturedSum);
   };
   return round2(
-    bucket(row.depositPaid, row.depositPaidCash, sums.deposit, row.depositAmount)
-    + bucket(row.balancePaid, row.balancePaidCash, sums.balance, row.balanceAmount),
+    bucket(row.depositPaid, row.depositPaidCash, sums.deposit, row.depositAmount, receivedOf(received, 'deposit'))
+    + bucket(row.balancePaid, row.balancePaidCash, sums.balance, row.balanceAmount, receivedOf(received, 'balance')),
   );
 }
 
@@ -36,11 +42,11 @@ function collectedOnSchedule(row = {}, captured = {}) {
  * buckets hold beyond what the stay now owes, or what the engine kept frozen above it. The unit the live
  * ledger compares a posted fiche and the stored stay in (a delta must not mix refund bases).
  */
-function engineExcessOf({ row = {}, captured = {}, depositAmount, balanceAmount, engineOverTtc = 0 }) {
+function engineExcessOf({ row = {}, captured = {}, depositAmount, balanceAmount, engineOverTtc = 0, received = null }) {
   if (!isDirectChannel(row.platform)) return 0;
   const pick = (given, stored) => Number((given === undefined ? stored : given) || 0);
   const due = pick(depositAmount, row.depositAmount) + pick(balanceAmount, row.balanceAmount);
-  return round2(Math.max(collectedOnSchedule(row, captured) - due, Number(engineOverTtc) || 0));
+  return round2(Math.max(collectedOnSchedule(row, captured, received) - due, Number(engineOverTtc) || 0));
 }
 
 /**
@@ -54,7 +60,7 @@ function engineExcessOf({ row = {}, captured = {}, depositAmount, balanceAmount,
  *   hold beyond what they now cover, when the engine kept their amounts frozen
  * @returns {number} ≥ 0 — the trop-perçu, 0 when the stay is not over-collected
  */
-function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount, balanceAmount, engineOverTtc = 0 }) {
+function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount, balanceAmount, engineOverTtc = 0, received = null }) {
   // Rule 38 — the guest of a platform stay paid the platform, which refunds them itself: GuestFlow has no
   // trop-perçu to give back there.
   if (!isDirectChannel(row.platform)) return 0;
@@ -62,7 +68,7 @@ function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount
   const due = pick(depositAmount, row.depositAmount) + pick(balanceAmount, row.balanceAmount);
   // A paid bucket lowered by the save (captured above the new amount), or kept frozen by the engine
   // above what the smaller stay now owes: the two ways a reduction leaves money received in excess.
-  const excess = Math.max(collectedOnSchedule(row, captured) - due, Number(engineOverTtc) || 0);
+  const excess = Math.max(collectedOnSchedule(row, captured, received) - due, Number(engineOverTtc) || 0);
   return Math.max(0, round2(excess - Number(refundedTtc || 0)));
 }
 
@@ -84,18 +90,20 @@ function overpaymentOf({ row = {}, captured = {}, refundedTtc = 0, depositAmount
  * @returns {number} ≥ 0
  */
 function storedOverpaymentOf({
-  row = {}, captured = {}, freeRefundedTtc = 0, installmentsPaidTtc = 0, midStayCollectedTtc = 0, autoComplementTtc = 0,
+  row = {}, captured = {}, freeRefundedTtc = 0, installmentsPaidTtc = 0, midStayCollectedTtc = 0, autoComplementTtc = 0, received = null,
 }) {
   if (!isDirectChannel(row.platform)) return 0;
   const sums = captured || {};
-  const bucket = (paid, cash, capturedSum, stored) => (
-    Number(paid || 0) === 1 || Number(cash || 0) === 1 ? Math.max(Number(capturedSum || 0), Number(stored || 0)) : 0
-  );
-  const schedule = bucket(row.depositPaid, row.depositPaidCash, sums.deposit, row.depositAmount)
-    + bucket(row.balancePaid, row.balancePaidCash, sums.balance, row.balanceAmount);
+  const bucket = (paid, cash, capturedSum, stored, split) => {
+    if (!(Number(paid || 0) === 1 || Number(cash || 0) === 1)) return 0;
+    return split != null ? split : Math.max(Number(capturedSum || 0), Number(stored || 0));
+  };
+  const schedule = bucket(row.depositPaid, row.depositPaidCash, sums.deposit, row.depositAmount, receivedOf(received, 'deposit'))
+    + bucket(row.balancePaid, row.balancePaidCash, sums.balance, row.balanceAmount, receivedOf(received, 'balance'));
   const adjusted = row.complementAmountOverride != null && row.complementAmountOverride !== '';
   const complementPaid = Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1;
-  const complement = complementPaid && !adjusted ? Number(row.complementAmount || 0) : 0;
+  const complementReceived = receivedOf(received, 'complement');
+  const complement = complementPaid && !adjusted ? (complementReceived != null ? complementReceived : Number(row.complementAmount || 0)) : 0;
   const collected = schedule + Number(installmentsPaidTtc || 0) + complement + Number(midStayCollectedTtc || 0);
   const owed = Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0) - (adjusted && complementPaid ? Number(autoComplementTtc || 0) : 0);
   return Math.max(0, round2(collected - owed - Number(freeRefundedTtc || 0)));
@@ -143,9 +151,11 @@ function currentByPoste(quote = {}) {
  *   complement carried on each poste beyond what the stay's complement now carries
  * @returns {Array<{ bucket, label, amountTtc, collectedTtc, dueTtc }>} one line per poste in excess
  */
-function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {}, leftover = {} }) {
+function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpaymentTtc = 0, complementLeft = {}, leftover = {}, received = null }) {
   const total = round2(overpaymentTtc);
   if (!(total > 0)) return [];
+  // Rule 47 — a bucket paid with several methods collected on each poste its share of what it received.
+  const byPoste = receivedByPoste(capturedByPoste, received);
   // What a collected complement holds above the stay (reservation-save-keeps-pricing.md rule 4) has no
   // captured split. A complement carries options, resources and the tax, never the accommodation: the
   // excess is what an option or a resource moved out of it (the bed linen), so it is booked on the
@@ -153,7 +163,7 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
   const complementExcess = Math.min(total, round2(quote.complementCollectedExcessTtc));
   if (complementExcess > 0) {
     const rest = round2(total - complementExcess);
-    const lines = rest > 0 ? scheduleLines({ row, capturedByPoste, quote, total: rest, leftover }) : [];
+    const lines = rest > 0 ? scheduleLines({ row, capturedByPoste: byPoste, quote, total: rest, leftover }) : [];
     let remaining = complementExcess;
     // The history window of the complement overlaps the schedule's: the hints can add up to more than the
     // complement lost. Only that overflow is taken back, from the postes the schedule share already covers
@@ -181,7 +191,21 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     add(complementExcessPoste(quote), remaining);
     return lines;
   }
-  return scheduleLines({ row, capturedByPoste, quote, total, leftover });
+  return scheduleLines({ row, capturedByPoste: byPoste, quote, total, leftover });
+}
+
+function receivedByPoste(capturedByPoste, received) {
+  if (!received || !capturedByPoste) return capturedByPoste;
+  const out = { ...capturedByPoste };
+  for (const bucket of ['deposit', 'balance']) {
+    const captured = out[bucket];
+    const got = receivedOf(received, bucket);
+    if (!captured || got == null) continue;
+    const sum = POSTES.reduce((t, { bucket: poste }) => t + Number(captured[poste] || 0), 0);
+    if (!(sum > 0)) continue;
+    out[bucket] = Object.fromEntries(POSTES.map(({ bucket: poste }) => [poste, round2((Number(captured[poste] || 0) * Math.min(got, sum)) / sum)]));
+  }
+  return out;
 }
 
 function complementExcessPoste(quote) {

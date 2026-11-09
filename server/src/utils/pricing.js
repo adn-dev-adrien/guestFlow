@@ -38,6 +38,7 @@ const {
   resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromisesOnePayment, devisPromiseDueDate, toIsoDay,
 } = require('./paymentSchedule');
 const { readInstallmentSummary } = require('./installmentSummary');
+const { readSplitReceived, unreceivedOf } = require('./splitReceived');
 const {
   findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
 } = require('./babyBedSupplement');
@@ -2802,6 +2803,29 @@ function calculateReservationQuote({
     resolvedBalanceAmount = paidBalanceAmount;
     resolvedDepositAmount = roundMoney(Math.max(0, Math.min(Number(depositAmount) || 0, roundMoney(preArrivalAmount - paidBalanceAmount))));
   }
+  // specs/mixed-method-payments.md rule 47 (audit R34-M-H1) — a paid bucket split with a « Reste à percevoir » or a
+  // « Geste commercial » received less than its amount: rule 36 keeps what it RECEIVED. A cut of the stay lowers it down
+  // to that before any trop-perçu is left; rule 39 then cancels the reste, then the geste, on the bucket's new amount.
+  // Rule 50 (D25 « Une seule somme ») — a settlement over several buckets received one sum for all of them: what a cut may
+  // take off a bucket is what its whole pool did not receive, read at the amounts its buckets are worth now.
+  const splitReceived = (depositPaid || balancePaid || complementPaid) ? readSplitReceived(db, bookingId) : null;
+  const splitAmountOf = (kind) => {
+    if (kind === 'deposit') return resolvedDepositAmount;
+    if (kind === 'balance') return resolvedBalanceAmount;
+    if (kind === 'complement') return complementPaid ? roundMoney(complementAmount) : 0;
+    return null;
+  };
+  if (splitReceived && (depositPaid || balancePaid)) {
+    let over = roundMoney((depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0)
+      - (totalStayPrice - complementForcedItemsTotal - taxInComplement - midStayTotal));
+    for (const [bucket, paid] of [['balance', balancePaid], ['deposit', depositPaid]]) {
+      if (!paid || !(over > 0)) continue;
+      const cut = roundMoney(Math.min(over, unreceivedOf(splitReceived, bucket, splitAmountOf)));
+      if (bucket === 'balance') resolvedBalanceAmount = roundMoney(resolvedBalanceAmount - cut);
+      else resolvedDepositAmount = roundMoney(resolvedDepositAmount - cut);
+      over = roundMoney(over - cut);
+    }
+  }
 
   // specs/direct-installments.md rules 4-5 — an installment plan replaces the acompte and the solde: the
   // pre-arrival amount (`preArrivalAmount`) is handed to the plan, which the caller rebalances after the
@@ -2938,9 +2962,15 @@ function calculateReservationQuote({
   // never an anonymous « Complément d'arrivée » line the total does not include. The operator's own
   // adjustment of the complement is his decision and is not second-guessed. A platform stay has no
   // trop-perçu to give back (reservation-refunds.md rule 38): the excess stays where it is (Adrien, 2026-10-29).
-  const complementCollectedExcess = complementPaid && !complementOverridden && !channel.platformSale
+  let complementCollectedExcess = complementPaid && !complementOverridden && !channel.platformSale
     ? roundMoney(Math.max(0, roundMoney(complementAmount) - rawComplement))
     : 0;
+  // Rule 47 — the same for a collected complement paid with several methods: its excess comes off what it did not receive.
+  if (splitReceived && complementCollectedExcess > 0) {
+    const cut = roundMoney(Math.min(complementCollectedExcess, unreceivedOf(splitReceived, 'complement', splitAmountOf)));
+    resolvedComplementAmount = roundMoney(resolvedComplementAmount - cut);
+    complementCollectedExcess = roundMoney(complementCollectedExcess - cut);
+  }
   const overCollectedTtc = roundMoney(scheduleOverCollectedTtc + complementCollectedExcess);
   // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20 — a collected arrival complement is
   // closed, so what was routed to it since (an extra added on the complement before any arrival

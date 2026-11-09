@@ -22,7 +22,9 @@
  *   replace(id, { paidDate, shortfallCents, shortfallKind, lines })
  *   removeForTarget(reservationId, kind, key)
  *   sync(reservationId)                        → { removed }
+ *   syncAll()                                  → how many settlements `sync` dropped over every stay (each boot)
  *   projectedAggregates(row)                   → the four aggregates once `row` is written, or null
+ *   droppedBy(row)                             → the settlements `row` (a state about to be written) would drop
  */
 
 const { parseParts, reservationAggregates, currentCentsOf } = require('../utils/paymentTenders');
@@ -150,6 +152,14 @@ function buildModel(database) {
     return aggregatesOf(row, listFor(row.id).filter((s) => targetStillPaid(row, s)));
   }
 
+  // The settlements a written state (`row`, a hypothetical: a mark taken back, a group dissolved, a note cancelled)
+  // would drop: their target no longer paid, or one of the buckets they paid no longer paid.
+  function droppedBy(row) {
+    if (!ready() || !row || row.id == null) return [];
+    return listFor(row.id).filter((s) => !targetStillPaid(row, s) || parseParts(s.parts)
+      .some((p) => PAID_FLAG[p.kind] && Number(row[PAID_FLAG[p.kind][0]] || 0) !== 1 && Number(row[PAID_FLAG[p.kind][1]] || 0) !== 1));
+  }
+
   function sync(reservationId) {
     if (!ready()) return { removed: 0 };
     let removed = 0;
@@ -167,6 +177,13 @@ function buildModel(database) {
       if (row) refreshAggregates(reservationId, row, kept);
     })();
     return { removed };
+  }
+
+  // Rule 48 — `sync` on every stay that holds a settlement (the boot's pass). Returns how many it dropped.
+  function syncAll() {
+    if (!ready()) return 0;
+    return database.prepare('SELECT DISTINCT reservationId FROM payment_settlements').all()
+      .reduce((total, { reservationId }) => total + sync(reservationId).removed, 0);
   }
 
   function insert({ reservationId, targetKind, targetKey, paidDate, dueCents, shortfallCents = 0, shortfallKind = null, parts = [], lines }) {
@@ -200,7 +217,7 @@ function buildModel(database) {
     sync(reservationId);
   }
 
-  return { listFor, findById, listForTarget, insert, replace, removeForTarget, sync, projectedAggregates };
+  return { listFor, findById, listForTarget, insert, replace, removeForTarget, sync, syncAll, projectedAggregates, droppedBy };
 }
 
 const defaultModel = (() => {

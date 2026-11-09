@@ -31,6 +31,7 @@ export const TENDER_TEXTS = Object.freeze({
   dueHelp: (amount) => `La fiche garde ${amount} à encaisser plus tard.`,
   waivedTitle: 'Geste commercial',
   waivedHelp: (amount) => `${amount} accordés, enregistrés en réduction.`,
+  whole: 'Le montant entier, sans reste ni geste.',
   collect: (amount) => `Encaisser ${amount}`,
   save: 'Enregistrer',
   modify: 'Modifier',

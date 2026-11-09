@@ -83,6 +83,7 @@ function gateInsurance(res, engineInput, bookingId) {
 }
 const refundsModel = require('../models/refundsModel');
 const { overpaymentOf, overpaymentLinesOf, engineExcessOf, storedOverpaymentOf } = require('../utils/overpayment');
+const { readSplitReceived } = require('../utils/splitReceived');
 const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
 const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
 const { formatCurrency } = require('../utils/devisHelpers');
@@ -438,9 +439,10 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
   } catch {
     storedOver = 0;
   }
-  const before = overpaymentOf({ row, captured, refundedTtc, engineOverTtc: storedOver });
+  const received = readSplitReceived(db, reservationId);
+  const before = overpaymentOf({ row, captured, refundedTtc, engineOverTtc: storedOver, received });
   const after = overpaymentOf({
-    row, captured, refundedTtc,
+    row, captured, refundedTtc, received,
     depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
   });
   if (after <= before + 0.01) return null;
@@ -450,7 +452,7 @@ function overpaymentIntroducedBy(reservationId, quote, overrides = {}) {
     overpaymentTtc: after,
     overpaymentMethod: refundMeansOf(row, round2(quote.complementCollectedExcessTtc), after),
     overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after,
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc: after, received,
       // Computed before the write: the stored lines are still the ones the complement collected.
       complementLeft: Number(quote.complementCollectedExcessTtc) > 0 ? complementLeftOf(reservationId, quote, row) : {},
       leftover: leftOfStayOf(reservationId, row, quote),
@@ -489,8 +491,9 @@ function liveOverpayment(reservationId, engineInput) {
   // The posted fiche priced by today's engine counts the drift since the stay was sold as excess: report the
   // stored figure, plus only what this edit adds on top of what the stored stay already held (rule 9).
   const captured = model.capturedScheduleContribs(reservationId);
+  const received = readSplitReceived(db, reservationId);
   const excessOf = (quote) => engineExcessOf({
-    row, captured, depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
+    row, captured, received, depositAmount: quote.depositAmount, balanceAmount: quote.balanceAmount, engineOverTtc: quote.overCollectedTtc,
   });
   const afterRaw = excessOf(asSaved);
   let beforeRaw = 0;
@@ -567,7 +570,7 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { stored
     overpaymentTtc,
     overpaymentMethod: refundMeansOf(row, complementExcess, overpaymentTtc),
     overpaymentLines: overpaymentLinesOf({
-      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc,
+      row, capturedByPoste: model.capturedScheduleContribsByPoste(reservationId), quote, overpaymentTtc, received: readSplitReceived(db, reservationId),
       complementLeft: complementExcess > 0 && overpaymentTtc > 0 ? complementLeftOf(reservationId, quote, row) : {},
       leftover: overpaymentTtc > 0 ? leftOfStayOf(reservationId, row, quote, { storedOnly }) : {},
     }),
@@ -651,6 +654,7 @@ function overpaymentOfQuote(reservationId, row, asSaved) {
     depositAmount: asSaved.depositAmount,
     balanceAmount: asSaved.balanceAmount,
     engineOverTtc: asSaved.overCollectedTtc,
+    received: readSplitReceived(db, reservationId),
   });
   return overpaymentResultOf(reservationId, row, asSaved, overpaymentTtc);
 }
@@ -663,9 +667,22 @@ function storedOverpaymentInputs(reservationId, row, replay) {
     installmentsPaidTtc = Number(db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ? AND paid = 1').get(Number(reservationId)).cents) / 100;
   } catch { installmentsPaidTtc = 0; }
   const eosPaid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
-  let midStayCollectedTtc = eosPaid ? storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) : 0;
+  // specs/mixed-method-payments.md rule 47 — an end of stay paid with several methods collected what it received: its
+  // mid-stay lines (the only ones inside the price; the departure's own lines are not) at the share it received.
+  const received = readSplitReceived(db, reservationId);
+  const eosReceived = received && received.endOfStayComplement != null ? Number(received.endOfStayComplement) : null;
+  let midStayCollectedTtc = 0;
+  if (eosPaid) {
+    const midStayLines = storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+    const eosAmount = Number(row.endOfStayComplementAmount) || 0;
+    midStayCollectedTtc = eosReceived != null && eosAmount > 0 ? (midStayLines * Math.min(eosReceived, eosAmount)) / eosAmount : midStayLines;
+  }
   try {
-    midStayCollectedTtc += (JSON.parse(row.midStaySettledNotes || '[]') || []).reduce((sum, note) => sum + (Number(note && note.total) || 0), 0);
+    const notesReceived = (received && received.notes) || {};
+    midStayCollectedTtc += (JSON.parse(row.midStaySettledNotes || '[]') || []).reduce((sum, note) => {
+      const split = note && notesReceived[String(note.id)];
+      return sum + (split != null ? Number(split) : (Number(note && note.total) || 0));
+    }, 0);
   } catch { /* no settled note */ }
   return {
     row,
@@ -674,6 +691,7 @@ function storedOverpaymentInputs(reservationId, row, replay) {
     installmentsPaidTtc: round2(installmentsPaidTtc),
     midStayCollectedTtc: round2(midStayCollectedTtc),
     autoComplementTtc: replay ? Number(replay.complementRoutedAmount || 0) : 0,
+    received,
   };
 }
 
@@ -902,8 +920,11 @@ function settleArrivalPayment(req, res) {
   if (dueCents > 0 && paymentSettlementService.toCents(req.body?.expectedAmountCents) !== dueCents) {
     return res.status(409).json({ error: 'Le montant à encaisser a changé. Rechargez la fiche.', code: 'AMOUNT_CHANGED' });
   }
-  const prepared = paymentSettlementService.prepare({ tenders: req.body?.tenders, dueCents, shortfall: req.body?.shortfall });
-  if (dueCents > 0 && !prepared.ok) return res.status(400).json({ error: prepared.error, field: prepared.field });
+  const prepared = paymentSettlementService.prepare({
+    tenders: req.body?.tenders, dueCents, shortfall: req.body?.shortfall,
+    reservationId: id, target: { kind: 'arrivalGroup', buckets: collectible.map((b) => b.bucket) },
+  });
+  if (dueCents > 0 && !prepared.ok) return res.status(prepared.status || 400).json({ error: prepared.error, field: prepared.field, ...(prepared.code ? { code: prepared.code } : {}) });
 
   const before = model.getRow(id);
   const capture = captureRes();
@@ -990,6 +1011,9 @@ function settleArrivalPaymentCore(req, res) {
   if (mode === 'undo') {
     const refusal = untickRefusal(row, arrivalUndoChanges(row), refundsModel.listByReservation(id));
     if (refusal) return res.status(refusal.status).json(refusal.body);
+    // specs/mixed-method-payments.md rule 43 — nor a split payment matched at the bank.
+    const reconciled = paymentSettlementService.takeBackReconciledRefusal(row, arrivalUndoChanges(row));
+    if (reconciled) return res.status(reconciled.status).json(reconciled.body);
   }
   const result = model.settleArrivalBuckets(id, { mode, date });
   const after = model.getRow(id);
@@ -2337,6 +2361,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const depositTakenBack = depositDisabledFlag && Number(storedPaymentForQuote.depositPaid || 0) === 1 ? { depositPaid: 0 } : {};
   const adjustRefusal = untickRefusal(storedPaymentForQuote, { ...adjustedComplementChanges(req.body), ...depositTakenBack }, refundsModel.listByReservation(id));
   if (adjustRefusal) return res.status(adjustRefusal.status).json(adjustRefusal.body);
+  // specs/mixed-method-payments.md rule 43 — a split acompte matched at the bank is not taken back by « Sans acompte ».
+  const reconciledTakeBack = paymentSettlementService.takeBackReconciledRefusal(storedPaymentForQuote, depositTakenBack);
+  if (reconciledTakeBack) return res.status(reconciledTakeBack.status).json(reconciledTakeBack.body);
   if (pastReservationLocked) {
     const allowedLockedFields = new Set([
       'clientId', 'platform', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice',
@@ -2820,6 +2847,8 @@ function updatePayment(req, res) {
 }
 
 const SPLIT_BUCKETS = ['deposit', 'balance', 'complement', 'endOfStayComplement'];
+// The buckets a split mark of `bucket` pays: a complement mark carries the end of stay when it is merged with it.
+const splitBucketsOf = (row, bucket) => (bucket === 'complement' && markCarriesEndOfStay(row) ? ['complement', 'endOfStayComplement'] : [bucket]);
 
 /**
  * specs/mixed-method-payments.md rules 1-14 — the same PATCH with tender lines: the lines are validated first,
@@ -2842,8 +2871,11 @@ function updatePaymentSplit(req, res) {
     || (['deposit', 'balance'].includes(flagged[0]) && !isDirectChannel(row.platform))) {
     return res.status(400).json({ error: 'Un versement de plateforme ne se répartit pas.', field: 'tenders' });
   }
-  const prepared = paymentSettlementService.prepare({ tenders, dueCents: rest.expectedAmountCents, shortfall });
-  if (!prepared.ok) return res.status(400).json({ error: prepared.error, field: prepared.field });
+  const prepared = paymentSettlementService.prepare({
+    tenders, dueCents: rest.expectedAmountCents, shortfall,
+    reservationId: id, target: note ? { kind: 'midStayNote', buckets: [] } : { kind: 'bucket', buckets: splitBucketsOf(row, flagged[0]) },
+  });
+  if (!prepared.ok) return res.status(prepared.status || 400).json({ error: prepared.error, field: prepared.field, ...(prepared.code ? { code: prepared.code } : {}) });
   const body = { ...rest };
   if (note) body.settleMidStayNote = { ...note, cash: prepared.allInternal };
   else if (flagged[0] === 'complement') body.complementPaidCash = prepared.allInternal;
@@ -2912,8 +2944,12 @@ function updatePaymentCore(req, res) {
   // specs/reservation-refunds.md rule 52 — a mark taken back never leaves book refunds above what stays collected.
   {
     const stored = model.getRow(Number(req.params.id)) || {};
-    const refusal = untickRefusal(stored, paymentPatchChanges(stored, req.body, getTodayIsoDate()), refundsModel.listByReservation(Number(req.params.id)));
+    const changes = paymentPatchChanges(stored, req.body, getTodayIsoDate());
+    const refusal = untickRefusal(stored, changes, refundsModel.listByReservation(Number(req.params.id)));
     if (refusal) return res.status(refusal.status).json(refusal.body);
+    // specs/mixed-method-payments.md rule 43 — nor a split payment matched at the bank.
+    const reconciled = paymentSettlementService.takeBackReconciledRefusal(stored, changes);
+    if (reconciled) return res.status(reconciled.status).json(reconciled.body);
   }
 
   // specs/mid-stay-notes.md — settle / cancel a « note en séjour ». Runs FIRST: both actions are

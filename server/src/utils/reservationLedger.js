@@ -834,7 +834,8 @@ function decorateSplitRows(rows, { stay = null, settlements, canAct, stayYear, i
     const markable = canAct && SPLIT_BUCKET_OF_ROW[row.key] && !(ota && PLATFORM_MONEY_ROWS.has(row.key))
       && row.action && row.action.kind === 'mark'
       && !row.action.payout && !row.action.disabled && Number(row.amount) > 0 && !String(row.state).startsWith('paid');
-    if (markable) row.action = { ...row.action, split: { dueCents: cents(row.amount), methods: SPLIT_METHODS } };
+    // Rule 44 — the acompte is paid whole, on the books or in the caisse: the lines offer no reste and no geste.
+    if (markable) row.action = { ...row.action, split: { dueCents: cents(row.amount), methods: SPLIT_METHODS, ...(row.key === 'deposit' ? { whole: true } : {}) } };
   }
   if (!Array.isArray(settlements) || settlements.length === 0) return;
   const byTarget = new Map();
@@ -876,6 +877,9 @@ function decorateSplitRows(rows, { stay = null, settlements, canAct, stayYear, i
           dueCents: s.dueCents,
           tenders: s.tenders.map((t) => ({ method: t.method, amountCents: t.amountCents, internal: Number(t.internal) === 1 })),
           shortfallKind: s.shortfallKind || null,
+          // Rule 44 — an acompte or an installment is corrected whole too.
+          ...(kinds.includes('deposit') || first.targetKind === 'installment' ? { whole: true } : {}),
+          ...(first.targetKind === 'installment' ? { noCaisse: true } : {}),
         } : null,
       };
     });

@@ -136,6 +136,9 @@ function getLineSplit(line, totalPrice) {
  *                                  labels and rows, with every per-line control left out, since a value
  *                                  shown as stored is never edited in place
  *   topNotice                      node rendered above « Prix hébergement » (the platform price alert)
+ *   ledgerRows                     the stored ledger's rows: a paid acompte, solde or complement whose split payment left a reste
+ *                                  reads the server's state (« Perçu en partie »), not « payé »
+ *                                  (specs/mixed-method-payments.md rule 16, audit R34-C-L3)
  */
 export default function PricingSummary({
   quote,
@@ -167,8 +170,19 @@ export default function PricingSummary({
   onRefreshTouristTax,
   mode = 'live',
   topNotice = null,
+  ledgerRows = null,
 }) {
   const stored = mode === 'stored';
+  // Rule 16 — a target paid with a reste still due is not settled: its badge says what the ledger says.
+  const partialLabel = (keys) => {
+    const wanted = [].concat(keys);
+    const row = (ledgerRows || []).find((r) => r && wanted.includes(r.key));
+    return row && row.split && (row.split.remainders || []).length > 0 ? row.stateLabel : null;
+  };
+  const paidBadge = (key, label) => {
+    const partial = partialLabel(key);
+    return partial ? <StatusBadge status="warning" label={partial} /> : <StatusBadge status="success" label={label} />;
+  };
   const lockChip = (chip) => {
     if (!routingLocked && !stored) return chip;
     return chip === 'on' ? 'readonly' : (chip === 'off' ? null : chip);
@@ -932,9 +946,7 @@ export default function PricingSummary({
                     {arrivalReduction > 0 && row('Réduction accordée', arrivalReduction, { sign: '− ', color: 'warning.main' })}
                     {arrivalTip > 0 && row('Pourboire', arrivalTip, { sign: '+ ', color: 'success.main' })}
                     {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
-                    {form.complementPaid && split.arrival > 0 && (
-                      <StatusBadge status="success" label="Complément payé" />
-                    )}
+                    {form.complementPaid && split.arrival > 0 && paidBadge(['complement', 'checkoutComplement'], 'Complément payé')}
                   </>
                 ) : (
                   <>
@@ -950,9 +962,7 @@ export default function PricingSummary({
                           </Typography>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(split.arrival)}</Typography>
                         </Box>
-                        {form.complementPaid && (
-                          <StatusBadge status="success" label="Complément payé" />
-                        )}
+                        {form.complementPaid && paidBadge(['complement', 'checkoutComplement'], 'Complément payé')}
                       </>
                     )}
                     {split.duringStay > 0 && (
@@ -1009,9 +1019,7 @@ export default function PricingSummary({
               À payer avant : {displayDate(form.depositDueDate)}
             </Typography>
           )}
-          {!form.depositDisabled && form.depositPaid && (
-            <StatusBadge status="success" label="Acompte payé" />
-          )}
+          {!form.depositDisabled && form.depositPaid && paidBadge('deposit', 'Acompte payé')}
 
           {/* Solde — when `depositDisabled` is on, the displayed amount is the SUM of the
               two form fields so the operator sees the consolidated total immediately on
@@ -1039,9 +1047,7 @@ export default function PricingSummary({
               À payer avant : {displayDate(form.balanceDueDate)}
             </Typography>
           )}
-          {form.balancePaid && (
-            <StatusBadge status="success" label="Solde payé" />
-          )}
+          {form.balancePaid && paidBadge('balance', 'Solde payé')}
 
           {/* Caution */}
           <Divider />
