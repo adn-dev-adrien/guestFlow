@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -144,6 +144,10 @@
     ],
     "1.2.1": [
       "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.2.2": [
+      "Séjour payé en plusieurs moyens puis remboursé en entier : chaque compte revient à 0, sans centime d'écart ni rabais laissé sur 709.",
+      "Toujours pour GuestFlow 4 (SDK 2.25)."
     ]
   }
 }

@@ -1,4 +1,4 @@
-// specs/mixed-method-payments.md rules 54 and 55 (verification R34b: R34b-1, R34b-2, R34b-3), rule 52.
+// specs/mixed-method-payments.md rules 54, 55 and 56 (verification R34b: R34b-1, R34b-2, R34b-3; R35 leftovers), rule 52.
 // - R34b-1: rule 52's geste came off the accommodation on the target's FIRST bucket only, and the caisse side read its
 //   own share; no test paid a geste over caisse + books on a pool of several buckets, so neither was pinned.
 // - R34b-2 (rule 54): a geste larger than what the accommodation holds came off no line, and the live register offered a
@@ -6,6 +6,8 @@
 // - R34b-3 (rule 55): the shares of a pool with a caisse share were rounded line by line; the register's lines added up
 //   to one cent less than the money received (634,79 for 634,80), and the books kept a cent on 4671 / 4457 after a full
 //   refund.
+// - Rule 56 (R35 leftovers): the export still rounded each settlement entry apart from the register's lines, so a full
+//   refund left 4671 +0,01 / 706010 −0,01; the refund that gives back the last book money now closes each account.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -71,18 +73,11 @@ for (const kind of ['due', 'waived']) {
     assert.equal(sumCents(reg.refundableLines.map((l) => l.cashTtc || 0)), cashCents, 'the caisse interne lines add up to 200 €');
   });
 
-  test(`rules 52, 55 — the same pool refunded in full: every account nets to zero, a rounding cent at most between two lines (${kind})`, BOOKS, async () => {
+  test(`rules 55, 56 — the same pool refunded in full: every account nets to exactly zero, 4671, 706, 706010 and 709 included (${kind})`, BOOKS, async () => {
     const { stay } = poolWithCaisse(kind);
     await cancel(stay.id);
     giveAll(stay.id);
-    const books = booksOf(stay.id);
-    assert.equal(round2(Object.values(books).reduce((sum, v) => sum + v, 0)), 0, JSON.stringify(books));
-    for (const [account, net] of Object.entries(books)) {
-      if (account === '70600000' || account === '70900000') continue;
-      assert.ok(Math.abs(net) <= 0.01, `${account} ${JSON.stringify(books)}`);
-    }
-    assert.ok(Math.abs(round2((books['70600000'] || 0) + (books['70900000'] || 0))) <= 0.01, JSON.stringify(books));
-    if (kind === 'due') assert.deepEqual(books, {}, 'a reste: nothing at all');
+    assert.deepEqual(booksOf(stay.id), {});
   });
 }
 
@@ -124,6 +119,42 @@ for (const [label, tenders, booksCents] of [['card 50', [card(5000)], 5000], ['c
     assert.equal(sumCents(lines.map((l) => l.availableTtc || 0)), booksCents);
   });
 }
+
+test('rule 54 — a pool paid 3 € by card, the rest a geste: the geste empties the accommodation, then the extra, then the tax, which keeps the 3 € (X2, X3)', () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(80)] });
+  const r0 = rowOf(stay.id);
+  const due = cents(r0.balanceAmount) + cents(r0.complementAmount);
+  assert.ok(cents(r0.touristTaxTotal) > 300, 'the tax is worth more than the 3 € received');
+  const res = respond();
+  controller.settleArrivalPayment({ params: { id: String(stay.id) }, body: {
+    mode: 'split', date: TODAY, expectedAmountCents: due, tenders: [card(300)], shortfall: { kind: 'waived' },
+  }, user: ADMIN }, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const lines = register(stay.id).refundableLines;
+  const byKey = Object.fromEntries(lines.map((l) => [l.key, l.availableTtc || 0]));
+  assert.equal(byKey.accommodation, 0, JSON.stringify(lines));
+  assert.equal(lines.find((l) => /forc/i.test(l.key)).availableTtc || 0, 0, JSON.stringify(lines));
+  assert.equal(byKey.touristTax, 3, JSON.stringify(lines));
+  assert.equal(sumCents(lines.map((l) => l.availableTtc || 0)), 300);
+});
+
+test('rule 56 — a negative custom line never reaches a split reading: the engine drops it, the lines add up to the money', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(80), forced(-20, 'Remise')] });
+  const stored = db.prepare('SELECT amount FROM reservation_custom_options WHERE reservationId = ?').all(stay.id).map((r) => r.amount);
+  assert.deepEqual(stored, [80]);
+  const r0 = rowOf(stay.id);
+  const due = cents(r0.balanceAmount) + cents(r0.complementAmount);
+  const res = respond();
+  controller.settleArrivalPayment({ params: { id: String(stay.id) }, body: {
+    mode: 'split', date: TODAY, expectedAmountCents: due, tenders: [cashIn(20000), card(due - 25000)], shortfall: { kind: 'waived' },
+  }, user: ADMIN }, res);
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  await cancel(stay.id);
+  const lines = register(stay.id).refundableLines;
+  assert.ok(lines.every((l) => l.refundableTtc >= 0 && (l.cashTtc || 0) >= 0), JSON.stringify(lines));
+  assert.equal(sumCents(lines.map((l) => l.refundableTtc)), due - 5000);
+  assert.equal(sumCents(lines.map((l) => l.cashTtc || 0)), 20000);
+});
 
 test('rule 55 — bucketSharesOf: the geste of each side adds up to the geste left, to the cent', () => {
   const settlement = {
