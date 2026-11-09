@@ -912,5 +912,18 @@
     "monthsTouched",
     "shiftMonth",
     "shiftYear"
+  ],
+  "paymentTenders": [
+    "currentCentsOf",
+    "settlementFigures",
+    "targetFigures"
+  ],
+  "paymentSettlementsModel": [
+    "buildModel"
+  ],
+  "paymentSettlementService": [
+    "flippedParts",
+    "prepare",
+    "record"
   ]
 }

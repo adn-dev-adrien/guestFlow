@@ -10,6 +10,8 @@ import MidStayNoteRow from './MidStayNoteRow';
 import { createPortal } from 'react-dom';
 import RefundDialog from './RefundDialog';
 import PaymentMarkForm from './PaymentMarkForm';
+import TenderLines from '../TenderLines';
+import { TENDER_TEXTS } from '../../constants/tenderMethods';
 import PlatformStatementEditor from './PlatformStatementEditor';
 import PlatformPenaltyDialog from './PlatformPenaltyDialog';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -303,6 +305,11 @@ export default function FinanceSection() {
   const [arrivalPayDate, setArrivalPayDate] = useState(todayStr());
   const [arrivalPayBusy, setArrivalPayBusy] = useState(false);
   const [arrivalPayError, setArrivalPayError] = useState('');
+  // specs/mixed-method-payments.md rules 21-22 — « Plusieurs moyens » on the single payment, closed by default.
+  const [arrivalSplitOpen, setArrivalSplitOpen] = useState(false);
+  const [arrivalTenders, setArrivalTenders] = useState(null);
+  // Rules 17, 20, 41 — the inline form under a recorded split payment: { rowKey, kind: 'modify' | 'remainder', settlementId?, target? }.
+  const [splitPanel, setSplitPanel] = useState(null);
   // The one open panel under a row: { key, kind: 'mark' | 'edit' | 'statement' | 'locked' }.
   const [panel, setPanel] = useState(null);
   // Rule 41 — the date of a payment undone in this visit, proposed again when it is redone.
@@ -434,7 +441,16 @@ export default function FinanceSection() {
     setArrivalPayBusy(true);
     setArrivalPayError('');
     try {
-      await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate);
+      if (mode === 'split') {
+        await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate, {
+          expectedAmountCents: Math.round(Number(form.arrivalPayment?.collectible?.total || 0) * 100),
+          tenders: arrivalTenders ? arrivalTenders.tenders : [],
+          shortfall: arrivalTenders ? arrivalTenders.shortfall : null,
+        });
+      } else {
+        await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate);
+      }
+      if (mode === 'split') setArrivalSplitOpen(false);
       await reloadReservationFinance();
     } catch (err) {
       setArrivalPayError(err?.message || 'L\'encaissement n\'a pas pu être enregistré.');
@@ -548,9 +564,17 @@ export default function FinanceSection() {
     setPanel({ key: row.key, kind: 'edit' });
   };
 
-  const submitMark = async (row, { date, cash, payout, commission }) => {
+  const submitMark = async (row, { date, cash, payout, commission, tenders, shortfall }) => {
     const fields = MARK_FIELDS[row.key];
     const body = { [fields.flag]: true, [fields.date]: date };
+    // specs/mixed-method-payments.md rules 1-10 — the lines replace the caisse-interne switch.
+    if (tenders) {
+      const res = await markFromLedger({
+        ...body, expectedAmountCents: row.action.split.dueCents, tenders, ...(shortfall ? { shortfall } : {}),
+      });
+      if (res && res.ok) close();
+      return res;
+    }
     if (cash && fields.cash) body[fields.cash] = true;
     // Rule 11 — the amount the operator saw, to the cent.
     if (AMOUNT_ROWS.has(row.key) && row.amount != null) body.expectedAmountCents = Math.round(Number(row.amount) * 100);
@@ -617,7 +641,108 @@ export default function FinanceSection() {
     </>
   );
 
+  // specs/mixed-method-payments.md rules 17, 20 — a correction or a reste goes straight to the server, then the
+  // fiche re-reads its money like after any other payment.
+  const runSplit = async (call) => {
+    try {
+      await call();
+      setSplitPanel(null);
+      await reloadReservationFinance();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message || 'Enregistrement impossible.', field: err?.field || null };
+    }
+  };
+
+  // Rule 30 — one block per settlement (its lines, the caisse, the shortfall), « Modifier », and the reste.
+  const renderSplit = (row) => {
+    const split = row.split;
+    if (!split || !Array.isArray(split.settlements) || split.settlements.length === 0) return null;
+    const open = splitPanel && splitPanel.rowKey === row.key ? splitPanel : null;
+    return (
+      <Box sx={{ mt: 0.5, display: 'grid', gap: 1 }} data-split-row={row.key}>
+        {split.settlements.map((s) => (
+          <Box key={s.id} data-settlement={s.id}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">{s.label}</Typography>
+              {s.edit && !open && (
+                <Button size="small" variant="text" onClick={() => setSplitPanel({ rowKey: row.key, kind: 'modify', settlementId: s.id })} sx={{ minHeight: 44, textTransform: 'none' }}>
+                  {TENDER_TEXTS.modify}
+                </Button>
+              )}
+            </Box>
+            {open && open.kind === 'modify' && open.settlementId === s.id ? (
+              <PaymentMarkForm
+                row={{ key: row.key, action: {} }}
+                mode="modify"
+                split={{ dueCents: s.edit.dueCents, methods: split.methods }}
+                initialTenders={s.edit.tenders}
+                initialShortfallKind={s.edit.shortfallKind}
+                initialDate={s.paidDate}
+                previousDate={s.paidDate}
+                today={todayStr()}
+                dateLabel="Perçu le"
+                formatAmountInput={formatAmountInput}
+                onCancel={() => setSplitPanel(null)}
+                onSubmit={({ date, tenders, shortfall }) => runSplit(() => api.modifySettlement(editingReservationId, s.id, { date, tenders, shortfall }))}
+              />
+            ) : (
+              <Box component="ul" sx={{ m: 0, pl: 2.25, color: 'text.secondary', fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' }}>
+                {s.lines.map((l) => (
+                  <li key={l.label}>
+                    {l.label}
+                    {l.internal && <Box component="span" sx={{ ml: 1, color: 'warning.text', fontWeight: 600 }}>{TENDER_TEXTS.internalTag}</Box>}
+                  </li>
+                ))}
+                {s.shortfall && <Box component="li" sx={{ color: 'warning.text' }}>{s.shortfall.label}</Box>}
+              </Box>
+            )}
+          </Box>
+        ))}
+        {(split.overpaid || []).map((o) => (
+          <Typography key={o.label} variant="body2" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'warning.soft', color: 'warning.text', fontWeight: 600 }}>
+            {o.label}
+          </Typography>
+        ))}
+        {(split.remainders || []).map((r) => {
+          const key = `${r.targetKind}:${r.targetKey}`;
+          return open && open.kind === 'remainder' && open.target === key ? (
+            <PaymentMarkForm
+              key={key}
+              row={{ key: row.key, action: {} }}
+              mode="remainder"
+              split={{ dueCents: r.dueCents, methods: split.methods }}
+              today={todayStr()}
+              dateLabel="Perçu le"
+              formatAmountInput={formatAmountInput}
+              onCancel={() => setSplitPanel(null)}
+              onSubmit={({ date, tenders, shortfall }) => runSplit(() => api.collectSettlementRemainder(editingReservationId, {
+                targetKind: r.targetKind, targetKey: r.targetKey, date, tenders, shortfall,
+              }))}
+            />
+          ) : (
+            <Box key={key} sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, p: 1.25, borderRadius: 1.5, bgcolor: 'warning.soft' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.text' }}>{r.label}</Typography>
+              {!open && (
+                <Button variant="outlined" onClick={() => setSplitPanel({ rowKey: row.key, kind: 'remainder', target: key })} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
+                  Marquer payé
+                </Button>
+              )}
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  };
+
   const renderDetail = (row) => {
+    const splitBlock = renderSplit(row);
+    const rest = renderDetailRest(row);
+    if (!splitBlock) return rest;
+    return <Box>{splitBlock}{rest}</Box>;
+  };
+
+  const renderDetailRest = (row) => {
     const d = row.detail || {};
     const bits = [];
     if (d.commission) bits.push(<span key="c">{d.commission}</span>);
@@ -979,12 +1104,46 @@ export default function FinanceSection() {
                     helperText={arrivalPayError || ' '}
                     sx={{ maxWidth: 200 }}
                   />
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5 }}>
-                    <Button variant="outlined" disabled={arrivalPayBusy || !arrivalPayDate} onClick={() => runArrivalPayment('card')} sx={{ textTransform: 'none', minHeight: 44 }}>
-                      CB / Chèque
-                    </Button>
-                    <Button variant="outlined" disabled={arrivalPayBusy || !arrivalPayDate} onClick={() => runArrivalPayment('cash')} sx={{ textTransform: 'none', minHeight: 44 }}>
-                      Caisse interne
+                  {arrivalSplitOpen && (
+                    <Box sx={{ mt: 0.5, mb: 1 }}>
+                      <TenderLines
+                        dueCents={Math.round(Number(form.arrivalPayment.collectible.total || 0) * 100)}
+                        methods={splitMethodsOf(rows)}
+                        onChange={setArrivalTenders}
+                        disabled={arrivalPayBusy}
+                        autoFocus
+                      />
+                    </Box>
+                  )}
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5, alignItems: { sm: 'center' } }}>
+                    {arrivalSplitOpen ? (
+                      <Button
+                        variant="contained"
+                        disabled={arrivalPayBusy || !arrivalPayDate || !(arrivalTenders && arrivalTenders.canSubmit)}
+                        onClick={() => runArrivalPayment('split')}
+                        sx={{ textTransform: 'none', minHeight: 44, borderRadius: 999 }}
+                      >
+                        {TENDER_TEXTS.collect(formatCurrency(arrivalTenders && arrivalTenders.gapCents > 0
+                          ? arrivalTenders.receivedCents / 100
+                          : form.arrivalPayment.collectible.total))}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="outlined" disabled={arrivalPayBusy || !arrivalPayDate} onClick={() => runArrivalPayment('card')} sx={{ textTransform: 'none', minHeight: 44 }}>
+                          CB / Chèque
+                        </Button>
+                        <Button variant="outlined" disabled={arrivalPayBusy || !arrivalPayDate} onClick={() => runArrivalPayment('cash')} sx={{ textTransform: 'none', minHeight: 44 }}>
+                          Caisse interne
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="text"
+                      data-split-toggle="arrival"
+                      onClick={() => { setArrivalSplitOpen((v) => !v); setArrivalTenders(null); setArrivalPayError(''); }}
+                      sx={{ textTransform: 'none', minHeight: 44, color: 'text.secondary', ml: { sm: 'auto !important' } }}
+                    >
+                      {arrivalSplitOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
                     </Button>
                   </Stack>
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
@@ -1089,8 +1248,10 @@ export default function FinanceSection() {
             open={Boolean(midStayNoteOpen)}
             onClose={() => setMidStayNoteOpen(false)}
             pendingLines={pendingMidStayLines}
-            onSettle={({ checkedKeys, opening }, cash) => saveThenSettle(() => api.markPayment(editingReservationId, {
+            onSettle={({ checkedKeys, opening }, cash, split = null) => saveThenSettle(() => api.markPayment(editingReservationId, {
               settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
+              // specs/mixed-method-payments.md rule 1 — the note's lines, checked against its total by the server.
+              ...(split ? { expectedAmountCents: split.expectedAmountCents, tenders: split.tenders, ...(split.shortfall ? { shortfall: split.shortfall } : {}) } : {}),
             }))}
             onSellOnly={() => saveThenRun(reloadReservationFinance)}
           />
@@ -1115,4 +1276,11 @@ export default function FinanceSection() {
       </CardContent>
     </Card>
   );
+}
+
+// The methods the server listed on any markable row (specs/mixed-method-payments.md rule 4); TenderLines falls
+// back to its own copy when none is at hand.
+function splitMethodsOf(rows) {
+  const row = (rows || []).find((r) => r && r.action && r.action.split && Array.isArray(r.action.split.methods));
+  return row ? row.action.split.methods : null;
 }

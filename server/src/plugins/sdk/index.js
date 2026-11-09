@@ -125,6 +125,11 @@ const CORE_MODULES = Object.freeze({
   financeWindow: '../../utils/financeWindow', // the custom window's refusals, shared with the Suivi financier
   fiscalYear: '../../utils/fiscalYear', // the exercise bounds of the app's closing month
   yearOverYear: '../../utils/yearOverYear', // one year earlier, and the change in percent
+  // accounting-export, online-payment, sas — one payment split over several methods (specs/mixed-method-payments.md,
+  // SDK 2.24.0): its rules, its settlements, and the one writer the SAS records them through
+  paymentTenders: '../../utils/paymentTenders',
+  paymentSettlementsModel: '../../models/paymentSettlementsModel',
+  paymentSettlementService: '../../utils/paymentSettlementService',
 });
 
 function coreModule(name) {

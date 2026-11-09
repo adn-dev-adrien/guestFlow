@@ -227,6 +227,15 @@
           "regimesDuring"
         ]
       }
+    },
+    {
+      "version": "2.24.0",
+      "modules": [
+        "paymentTenders",
+        "paymentSettlementsModel",
+        "paymentSettlementService"
+      ],
+      "names": {}
     }
   ]
 }

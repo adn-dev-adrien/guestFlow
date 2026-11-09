@@ -5,6 +5,7 @@ const cancellationController = require('../controllers/reservationCancellationCo
 const upcomingController = require('../controllers/upcomingReservationsController');
 const installmentsController = require('../controllers/installmentsController');
 const platformPenalties = require('../controllers/platformPenaltiesController');
+const settlementsController = require('../controllers/paymentSettlementsController');
 const { isReceptionOnly } = require('../constants/roles');
 const db = require('../database');
 const { guardReadOnly, guardNotDevis } = require('../utils/reservationReadOnly');
@@ -70,6 +71,9 @@ router.patch('/:id/payment', stayId, notDevis, controller.updatePayment);
 // specs/single-payment-from-the-fiche.md §4.3 — record (or undo) the single arrival payment
 // without running the SAS: `{ mode: 'card' | 'cash' | 'undo', date }`.
 router.post('/:id/arrival-payment', stayId, notDevis, noWriteOnClosedStay, controller.settleArrivalPayment);
+// specs/mixed-method-payments.md §4.3 — collect the reste of a split payment, or correct one.
+router.post('/:id/settlements', stayId, notDevis, noWriteOnClosedStay, notReception(settlementsController.collectRemainder));
+router.put('/:id/settlements/:settlementId', stayId, notDevis, noWriteOnClosedStay, notReception(settlementsController.modify));
 router.delete('/:id', stayId, controller.remove);
 
 module.exports = router;

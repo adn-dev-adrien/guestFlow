@@ -50,6 +50,8 @@ const HARDENINGS = [
   { feature: 'web apps', sdk: '2.22.0', pattern: /\bctx\.webApp\(/ },
   // specs/plugins-phase-1-sdk.md rule 41 (specs/accounting-synthesis.md rules 7-9).
   { feature: 'finance readings of the accounting synthesis', sdk: '2.23.0', pattern: /coreModule\(\s*['"`]financeDashboardModel['"`]/ },
+  // specs/plugins-phase-1-sdk.md rule 42 (specs/mixed-method-payments.md rules 26-28, 32).
+  { feature: 'payments split over several methods', sdk: '2.24.0', pattern: /coreModule\(\s*['"`]payment(Tenders|SettlementsModel|SettlementService)['"`]/ },
 ];
 
 function sourceFiles(dir) {

@@ -21,6 +21,7 @@ const { END_OF_STAY_BEFORE_CHECKOUT_CAPTION } = require('./endOfStayCheckout');
 const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
+const { METHODS: TENDER_METHODS, methodLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
 
 const NBSP = ' ';
 
@@ -263,7 +264,7 @@ function buildLedger({
   row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
   storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false, stayReadOnly = false,
-  nettedRefundIds = null, endOfStayCollectible = true,
+  nettedRefundIds = null, endOfStayCollectible = true, settlements = [],
 } = {}) {
   const r = row || {};
   const has = (k) => Object.prototype.hasOwnProperty.call(live, k) && live[k] !== undefined;
@@ -827,6 +828,8 @@ function buildLedger({
     }
   }
 
+  decorateSplitRows(rows, { stay: row, settlements, canAct, stayYear, installmentPlan, ota });
+
   // ── Reste à percevoir (rule 5) ────────────────────────────────────────────
   const remaining = remainingToPay({
     ...r,
@@ -849,6 +852,90 @@ function buildLedger({
       : { label: 'Reste à percevoir', amount: remaining, tone: 'due' },
     settled: remaining === 0,
   };
+}
+
+// specs/mixed-method-payments.md rules 21-22, 30-33 — the rows the operator marks by hand offer « Plusieurs
+// moyens » (`action.split`), and a row paid that way shows its settlements, their correction and the reste.
+const SPLIT_BUCKET_OF_ROW = {
+  deposit: 'deposit', balance: 'balance', complement: 'complement', checkoutComplement: 'complement', endOfStayComplement: 'endOfStayComplement',
+};
+const SPLIT_METHODS = TENDER_METHODS.map((m) => ({ value: m.value, label: m.label }));
+
+// Rule 2 — on a platform sale the acompte and the solde are the platform's money: never split at the desk.
+const PLATFORM_MONEY_ROWS = new Set(['deposit', 'balance']);
+
+function decorateSplitRows(rows, { stay = null, settlements, canAct, stayYear, installmentPlan, ota = false }) {
+  for (const row of rows) {
+    const markable = canAct && SPLIT_BUCKET_OF_ROW[row.key] && !(ota && PLATFORM_MONEY_ROWS.has(row.key))
+      && row.action && row.action.kind === 'mark'
+      && !row.action.payout && !row.action.disabled && Number(row.amount) > 0 && !String(row.state).startsWith('paid');
+    if (markable) row.action = { ...row.action, split: { dueCents: cents(row.amount), methods: SPLIT_METHODS } };
+  }
+  if (!Array.isArray(settlements) || settlements.length === 0) return;
+  const byTarget = new Map();
+  for (const s of settlements) {
+    const key = `${s.targetKind}:${s.targetKey}`;
+    if (!byTarget.has(key)) byTarget.set(key, []);
+    byTarget.get(key).push(s);
+  }
+  const installmentNumber = (id) => {
+    const found = installmentPlan && (installmentPlan.installments || []).find((i) => String(i.id) === String(id));
+    return found ? found.number : null;
+  };
+  const used = new Set();
+  for (const list of byTarget.values()) {
+    const first = list[0];
+    const kinds = (first.parts || []).map((p) => p.kind);
+    const row = rows.find((x) => !used.has(x) && String(x.state).startsWith('paid') && (
+      (first.targetKind === 'arrivalGroup' && x.state === 'paid-group')
+      || (first.targetKind === 'bucket' && kinds.includes(SPLIT_BUCKET_OF_ROW[x.key]))
+      || (first.targetKind === 'midStayNote' && x.key === 'midStayNotes')
+      || (first.targetKind === 'installment' && x.key === `installment-${installmentNumber(first.targetKey)}`)));
+    if (!row) continue;
+    if (first.targetKind !== 'midStayNote') used.add(row);
+    const f = targetFigures(list, { currentCents: currentCentsOf(first.parts, stay) });
+    const dueCents = Math.round(f.shortfallDueCents);
+    const views = list.map((s, i) => {
+      // The reste still due has its own block (`split.remainders`), with its « Marquer payé »: not repeated here.
+      const shortfall = s.shortfallKind === 'waived'
+        ? { kind: 'waived', label: `Geste commercial ${formatEuros(s.shortfallCents / 100)}` }
+        : null;
+      return {
+        id: s.id,
+        paidDate: s.paidDate,
+        // The row's state already says « Perçu le … · plusieurs moyens »: the first block is named for what it lists.
+        label: i === 0 ? 'Moyens de paiement' : `Reste perçu le ${shortDate(s.paidDate, stayYear)}`,
+        lines: s.tenders.map((t) => ({ label: `${methodLabel(t.method)} ${formatEuros(t.amountCents / 100)}`, internal: Number(t.internal) === 1 })),
+        shortfall,
+        edit: canAct ? {
+          dueCents: s.dueCents,
+          tenders: s.tenders.map((t) => ({ method: t.method, amountCents: t.amountCents, internal: Number(t.internal) === 1 })),
+          shortfallKind: s.shortfallKind || null,
+        } : null,
+      };
+    });
+    // The « Notes en séjour » row gathers every note: each settled one keeps its own reste (rule 41).
+    const split = (row.split && row.split.settlements) ? row.split : { settlements: [], remainders: [], overpaid: [], methods: SPLIT_METHODS };
+    split.settlements.push(...views);
+    const noteLabel = first.targetKind === 'midStayNote' ? `Note du ${shortDate(first.paidDate, stayYear)} : ` : '';
+    if (dueCents > 0 && canAct) {
+      split.remainders.push({
+        dueCents,
+        targetKind: first.targetKind,
+        targetKey: String(first.targetKey),
+        label: `${noteLabel}Reste à percevoir ${formatEuros(dueCents / 100)}`,
+      });
+    }
+    // Rule 40 — the amount came down after the payment: what was received beyond it is said, never silently kept.
+    if (f.overpaidCents > 0) {
+      split.overpaid.push({ label: `${noteLabel}Trop-perçu ${formatEuros(f.overpaidCents / 100)} : le montant a baissé depuis l'encaissement` });
+    }
+    row.split = split;
+    if (first.targetKind !== 'midStayNote') {
+      row.stateLabel = dueCents > 0 ? 'Perçu en partie' : `Perçu le ${shortDate(first.paidDate, stayYear)} · plusieurs moyens`;
+      if (dueCents > 0) row.tone = 'due';
+    }
+  }
 }
 
 function tidyDetail(detail) {

@@ -19,17 +19,37 @@
  *   checkPayout: async (payout) → { gapLabel, commissionLabel, commission } — rule 26
  *   formatAmountInput: (number) → « 829,42 »
  *   previousDate: `YYYY-MM-DD` — the date of a payment just undone on this row, proposed again
+ *
+ * Split payments (specs/mixed-method-payments.md rules 21-22, 20, 17):
+ *   - a row whose `action.split` is set offers « Plusieurs moyens » after « Annuler »: the lines replace the
+ *     caisse-interne switch in place, « Un seul moyen » brings it back with the date kept; the submit then
+ *     passes `{ date, tenders, shortfall }`;
+ *   mode:        'mark' (default) | 'modify' (a recorded settlement, prefilled, « Enregistrer ») |
+ *                'remainder' (the reste of a settlement, one cash line) — both always show the lines
+ *   split:       `{ dueCents, methods }` for 'modify' / 'remainder' (the row's `action.split` otherwise)
+ *   initialTenders, initialShortfallKind, initialDate: the prefill of a correction
  */
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material';
 import DateField from '../DateField';
+import TenderLines from '../TenderLines';
 import { evaluateArithmetic } from '../../utils/arithmetic';
+import { formatCurrency } from '../../utils/formatters';
+import { TENDER_TEXTS } from '../../constants/tenderMethods';
 
-export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCancel, checkPayout, formatAmountInput, previousDate = null, methods = null }) {
+export default function PaymentMarkForm({
+  row, today, dateLabel, onSubmit, onCancel, checkPayout, formatAmountInput, previousDate = null, methods = null,
+  mode = 'mark', split = null, initialTenders = null, initialShortfallKind = null, initialDate = null,
+}) {
   const action = row.action || {};
   const payoutMode = Boolean(action.payout);
+  const splitInfo = mode === 'mark' ? action.split || null : split;
+  const alwaysSplit = mode !== 'mark';
+  const [splitOpen, setSplitOpen] = useState(alwaysSplit);
+  const [tenderState, setTenderState] = useState(null);
+  const showLines = Boolean(splitInfo) && (alwaysSplit || splitOpen);
   // A mark redone after an undo proposes the day it was first recorded (its accounting month).
-  const [date, setDate] = useState(previousDate || today);
+  const [date, setDate] = useState(initialDate || previousDate || today);
   const [cash, setCash] = useState(false);
   const [method, setMethod] = useState(methods && methods.length ? methods[0].value : null);
   // Prefilled only when the net is known (a commission was entered): otherwise the transfer is typed —
@@ -61,6 +81,14 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
   const submit = async () => {
     setBusy(true);
     setError({ message: '', field: null });
+    if (showLines) {
+      const res = await onSubmit({ date, tenders: tenderState ? tenderState.tenders : [], shortfall: tenderState ? tenderState.shortfall : null });
+      setBusy(false);
+      if (res && res.ok === false && res.error) {
+        setError({ message: res.error, field: res.field && /date$/i.test(res.field) ? 'date' : null });
+      }
+      return;
+    }
     const payoutValue = payoutMode ? evaluateArithmetic(payout) : null;
     if (payoutMode && (payoutValue == null || payoutValue <= 0)) {
       setError({ message: 'Virement reçu : montant requis.', field: 'payout' });
@@ -111,7 +139,20 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
         helperText={dateError || ' '}
         slotProps={{ inputLabel: { shrink: true } }}
       />
-      {methods && (
+      {showLines && (
+        <TenderLines
+          key={splitOpen ? 'open' : 'closed'}
+          dueCents={splitInfo.dueCents}
+          methods={splitInfo.methods}
+          initialTenders={initialTenders}
+          initialShortfallKind={initialShortfallKind}
+          single={mode === 'remainder'}
+          autoFocus={mode !== 'modify'}
+          onChange={setTenderState}
+          disabled={busy}
+        />
+      )}
+      {methods && !showLines && (
         <TextField
           select
           label="Mode de paiement"
@@ -157,7 +198,7 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
           )}
         </Box>
       )}
-      {action.cash && (
+      {action.cash && !showLines && (
         <FormControlLabel
           control={<Switch checked={cash} onChange={(e) => setCash(e.target.checked)} />}
           label="Caisse interne"
@@ -168,11 +209,35 @@ export default function PaymentMarkForm({ row, today, dateLabel, onSubmit, onCan
         {formError}
       </Typography>
       <Box sx={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-        <Button type="submit" variant="contained" disabled={busy || !date} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
-          Valider
+        <Button
+          type="submit"
+          variant="contained"
+          disabled={busy || !date || (showLines && !(tenderState && tenderState.canSubmit))}
+          sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}
+        >
+          {submitLabel(showLines, mode, tenderState, splitInfo)}
         </Button>
         <Button variant="text" onClick={onCancel} sx={{ minHeight: 44, textTransform: 'none' }}>Annuler</Button>
+        {splitInfo && !alwaysSplit && (
+          <Button
+            variant="text"
+            data-split-toggle=""
+            onClick={() => { setSplitOpen((open) => !open); setError({ message: '', field: null }); }}
+            sx={{ minHeight: 44, textTransform: 'none', color: 'text.secondary', ml: { sm: 'auto' } }}
+          >
+            {splitOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
+          </Button>
+        )}
       </Box>
     </Box>
   );
+}
+
+// « Encaisser 122,00 € », or what is received when the operator chose what becomes of a shortfall.
+function submitLabel(showLines, mode, tenderState, splitInfo) {
+  if (!showLines) return 'Valider';
+  if (mode === 'modify') return TENDER_TEXTS.save;
+  const gap = tenderState ? tenderState.gapCents : 0;
+  const cents = tenderState && gap > 0 ? tenderState.receivedCents : splitInfo.dueCents;
+  return TENDER_TEXTS.collect(formatCurrency(cents / 100));
 }
