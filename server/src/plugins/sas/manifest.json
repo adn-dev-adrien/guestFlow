@@ -142,7 +142,8 @@
     "1.8.2": [
       "Chaque ouverture du sas repart sur un seul moyen de paiement : un départ sans rien à percevoir se termine normalement.",
       "« Plusieurs moyens » réservé à l’administrateur ; l’accueil enregistre le départ avec un seul moyen.",
-      "Un acompte réparti va tout en compta ou tout en caisse interne, sans reste ni geste ; un paiement déjà rapproché avec la banque ne se répartit plus."
+      "Un acompte réparti va tout en compta ou tout en caisse interne, sans reste ni geste ; un paiement déjà rapproché avec la banque ne se répartit plus.",
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
     ]
   }
 }
