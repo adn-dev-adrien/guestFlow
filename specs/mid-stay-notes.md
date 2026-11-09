@@ -201,6 +201,23 @@ becomes **the remainder** — collected at check-out exactly as today.
     meanwhile). True: the caption « Arrivée non marquée : la vente rejoint le solde. » under the total. No stay named, a
     stay not found or a failed preview: no caption. Tests: server `mid-stay-note-arrival-flag`, client
     `MidStayNoteDialog.arrival-not-marked`.
+24. **A refused note action is shown** (audit R30-C-L2, 2026-11-08). « Reporter au départ » on a note
+    (`cancelMidStayNote`) and the settlement of « Nouvelle note » (`settleMidStayNote`) show the server's refusal as an
+    error toast and re-read the fiche. The settlement runs after the fiche's save, which does not wait for it: the fiche
+    waits for it before closing the dialog, so a refusal (for example 409 `END_OF_STAY_BEFORE_CHECKOUT` from a stale tab)
+    leaves the dialog open on what was ticked. Both used to fail as an uncaught error, the dialog closing anyway. Test:
+    client `FinanceSection.silent-refusals`.
+    After such a refusal the dialog's opening snapshot is taken again: the settlement is refused only once
+    the fiche was saved, so « Annuler » returns the form to what is stored, never to the pre-save opening
+    (audit R31-C-L1, 2026-11-08; `MidStayNoteDialog.refused-settle-cancel`).
+    *Reading R32-C-L2 (2026-11-09).* Only the settlement's PATCH decides the outcome: the re-read that follows it is best
+    effort. A re-read failing after a refusal used to leave « Nouvelle note » busy, every button disabled (« Annuler »
+    included, no way out on a phone), and a stored settlement followed by a failed re-read was reported « Encaissement
+    impossible ». The refusal is now shown and the dialog usable again; a stored settlement closes the dialog. The fiche's
+    re-read of its money (`reloadReservationFinance`) is best effort everywhere for the same reason: it follows a write
+    whose outcome is already known, so a failed one never turns a stored write into an error (a ledger mark, the arrival
+    payment, a penalty removed, a link settled) nor leaves a mark waiting. Test: client
+    `FinanceSection.settle-reread-fails` (2 cases).
 
 **Edge cases:**
 
@@ -395,6 +412,9 @@ every step. No backfill, no loss.
       « dont encaissements en séjour ».
 - [x] The 4 `FinanceSection.*` suites now render inside `DialogProvider` (the block uses the app-wide
       confirm service).
+- [x] `FinanceSection.settle-reread-fails.test.jsx` (**new**, 2 — audit R32-C-L2, rule 24 reading) — refused then a
+      failed re-read: the refusal shows and the dialog is usable again; stored then a failed re-read: the dialog closes,
+      no refusal shown; no unhandled rejection in either.
 
 ### E2E (`npm run test:e2e`)
 

@@ -18,7 +18,8 @@ import PlatformChip from './PlatformChip';
  * most operator-critical list). The totals footer becomes a summary card on xs.
  *
  * Props:
- *  - rows:     enriched reservations (server-shaped amounts + *Paid/*PaidCash flags + due dates).
+ *  - rows:     enriched reservations (server-shaped amounts + *Paid/*PaidCash flags + due dates; `settleAllReason`
+ *              closes « Tout solder » with its tooltip).
  *  - totals:   column totals.
  *  - interactive: when true, Acompte/Solde get a paid checkbox and a « Tout solder » action.
  *  - showEndOfStayComplement: when true, adds the « Compl. fin de séjour » column.
@@ -50,6 +51,21 @@ function ScheduledBucketAmount({ amount, paid, dueDate, overdue, disabled }) {
       <Typography variant="body2" sx={{ color: paid ? 'success.main' : 'error.main', fontWeight: overdue ? 700 : 600, ...TABULAR }}>{formatCurrency(amount)}</Typography>
       {dueDate && <Typography variant="caption" sx={{ display: 'block', color: overdue ? 'error.main' : 'text.secondary', fontWeight: overdue ? 700 : 400 }}>{displayDate(dueDate)}</Typography>}
     </Box>
+  );
+}
+
+// « Tout solder »: closed with the server's reason when nothing can be ticked before the check-out
+// (specs/finance-dashboard-redesign.md rule 15, reading of 2026-11-06). The span keeps the tooltip on a disabled button.
+function SettleAllButton({ row, onSettleAll }) {
+  const reason = row.settleAllReason || null;
+  return (
+    <Tooltip title={reason || 'Tout solder'}>
+      <span>
+        <IconButton size="small" color="success" disabled={Boolean(reason)} onClick={() => onSettleAll?.(row)} aria-label="Tout solder">
+          <DoneAllIcon fontSize="small" />
+        </IconButton>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -129,10 +145,9 @@ export default function OperationalPaymentsTable({
                 </Line>
               </Stack>
               {interactive && (
-                <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }} onClick={stop}>
-                  <Tooltip title="Tout solder">
-                    <IconButton size="small" color="success" onClick={() => onSettleAll?.(r)} aria-label="Tout solder"><DoneAllIcon fontSize="small" /></IconButton>
-                  </Tooltip>
+                <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1 }} onClick={stop}>
+                  {r.settleAllReason && <Typography variant="caption" color="text.secondary">{r.settleAllReason}</Typography>}
+                  <SettleAllButton row={r} onSettleAll={onSettleAll} />
                 </Box>
               )}
             </Box>
@@ -202,11 +217,7 @@ export default function OperationalPaymentsTable({
                 <TableCell align="right" sx={{ fontWeight: 700, ...TABULAR }}>{formatCurrency(r.totalSejour)}</TableCell>
                 {interactive && (
                   <TableCell align="center" onClick={stop}>
-                    <Tooltip title="Tout solder">
-                      <IconButton size="small" color="success" onClick={() => onSettleAll?.(r)} aria-label="Tout solder">
-                        <DoneAllIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <SettleAllButton row={r} onSettleAll={onSettleAll} />
                   </TableCell>
                 )}
               </TableRow>

@@ -14,6 +14,7 @@ import { COARSE_POINTER, TOUCH_TARGET, touchHitArea } from './utils/touchHitArea
  *   sectionHeader serif 600 — section headings inside a page
  *   kpiValue      sans 700, tabular-nums — KPI figures (amounts/dates NEVER render in serif)
  *   kpiLabel      sans 600, muted — KPI captions
+ *   panelLabel    sans 600, uppercase, tracked — the small title of a report panel (specs/report-grammar.md)
  */
 
 const SERIF = "'Source Serif 4', 'Iowan Old Style', Charter, Georgia, serif";
@@ -42,8 +43,12 @@ const CHART = {
   // One per logement, in the server's slot order; each ≥ 3:1 and told apart under the three
   // colour-vision deficiencies (dataviz validator, adjacent pairs).
   series: [FIR, '#B07F2E', '#2F6690', '#A8433A', '#6A4F86', '#71792B'],
-  // The ink banner (rule 31).
-  onInk: { surface: '#27251F', accent: '#E3B566', muted: 'rgba(255, 255, 255, 0.8)', hairline: 'rgba(255, 255, 255, 0.12)', previous: 'rgba(255, 255, 255, 0.7)' },
+  // The categories of a report chart (specs/report-grammar.md rule 13): the same hues without the
+  // red, which stays for alerts — sapin, miel, bleu, olive, prune.
+  categorical: [FIR, '#B07F2E', '#2F6690', '#71792B', '#6A4F86'],
+  // The « Autres » of a part-to-whole past five categories (specs/report-grammar.md rule 32): a warm
+  // grey, never a recycled hue — 3.7:1.
+  other: '#8E8470',
 };
 // Every icon button except those sitting in a text field's adornment.
 const IN_FIELD_EXCLUDED = '&:not(:is(.MuiInputAdornment-root, .MuiAutocomplete-endAdornment) *)';
@@ -74,13 +79,14 @@ const theme = createTheme({
     sectionHeader: { fontFamily: SERIF, fontWeight: 600, fontSize: '1.05rem', lineHeight: 1.3 },
     kpiValue: { fontFamily: SANS, fontWeight: 700, fontSize: '1.6rem', lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' },
     kpiLabel: { fontFamily: SANS, fontWeight: 600, fontSize: '0.72rem', lineHeight: 1.4 },
+    panelLabel: { fontFamily: SANS, fontWeight: 600, fontSize: '0.74rem', lineHeight: 1.4, letterSpacing: '0.09em', textTransform: 'uppercase', color: INK_MUTED },
   },
   shape: { borderRadius: 14 },
   components: {
     MuiTypography: {
       defaultProps: {
         // Custom role variants need an element mapping; kpiLabel is a caption-like block.
-        variantMapping: { pageTitle: 'h1', sectionHeader: 'h2', kpiValue: 'p', kpiLabel: 'p' },
+        variantMapping: { pageTitle: 'h1', sectionHeader: 'h2', kpiValue: 'p', kpiLabel: 'p', panelLabel: 'p' },
       },
     },
     // Tabs — house style for every strip, whatever draws it (specs/ds-tabs.md rules 5, 6, 9).

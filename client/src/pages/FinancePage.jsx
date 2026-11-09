@@ -19,6 +19,11 @@ import FinanceDetailPanel from '../components/FinanceDetailPanel';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
+import NoComparisonNotice from '../components/NoComparisonNotice';
+import TrendChart from '../components/TrendChart';
+import { comparisonPill, rateOneDecimal, perNightAmount } from '../utils/comparisonPill';
+import { TILE_DEFINITIONS, HERO_DEFINITIONS } from '../constants/financeDefinitions';
+import FinanceDataChecksCard from '../components/FinanceDataChecksCard';
 import { seriesColor } from '../utils/chartColors';
 import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
@@ -29,19 +34,30 @@ import useServerToday from '../hooks/useServerToday';
 const DETAIL_ID = 'finance-detail';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
-const FORMAT = { amount: formatCurrencyRounded, percent, date: shortDate };
+const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percent, date: shortDate };
 // The browser's own calendar day, never the UTC one (rule 37).
 const iso = (d) => localIsoToday(d);
 
 // The tiles, in order, each with what its figure reads from `dashboard.tiles` (rule 13).
 const TILES = [
-  { key: 'collected', label: 'Encaissé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
+  { key: 'collected', label: 'Déjà payé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
   { key: 'toCollect', label: 'À encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), `${plural(t.stays, 'séjour')} · tous exercices`] },
   { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
   { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
-  { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), `${t.revPar == null ? '—' : formatCurrencyRounded(t.revPar)} de RevPAR`] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
+  { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), t.name] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
   { key: 'channels', label: 'Canaux', dot: 'chart.channels', read: (t) => [formatCurrencyRounded(t.commission), 'de commissions'] },
 ];
+
+// specs/finance-revpar-year-over-year.md rule 16 — the figures that carry a year-over-year pill, and how
+// last year's value is written in it.
+const TILE_PILLS = { collected: formatCurrencyRounded, stays: (n) => plural(n, 'séjour') };
+// Rule 24 — the per-night amounts to the cent under 100 €.
+const HERO_PILLS = {
+  nights: (n) => n.toLocaleString('fr-FR'), occupancy: rateOneDecimal,
+  revenuePerNight: perNightAmount, revPar: perNightAmount,
+};
+const pillsOf = (comparison, formats) => Object.fromEntries(Object.entries(formats).map(([k, f]) => [k, comparisonPill(comparison && comparison.metrics[k], f)]));
+const percentAxis = (x) => `${Math.round(x * 100)} %`;
 
 export default function FinancePage() {
   const navigate = useNavigate();
@@ -70,6 +86,8 @@ export default function FinancePage() {
 
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  // Rule 57 — the refusal's code: « Exercice en cours » answers `UNKNOWN_EXERCISE` only.
+  const [loadErrorCode, setLoadErrorCode] = useState(null);
   const [tile, setTile] = useState(null);
   const [detail, setDetail] = useState({ key: null, data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
@@ -91,7 +109,10 @@ export default function FinancePage() {
       const answer = await api.getFinanceDashboard(params);
       if (current()) setDashboard(answer);
     } catch (err) {
-      if (current()) setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+      if (current()) {
+        setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+        setLoadErrorCode((err && err.code) || null);
+      }
     }
   }, [paramsKey, periodRefusal]);
 
@@ -144,12 +165,9 @@ export default function FinancePage() {
     await refreshAll();
   };
   const handleTogglePayment = (reservation, field) => markPayment(reservation.id, { [field]: !reservation[field] });
+  // The flags « Tout solder » ticks come from the server (specs/reservation-payment-ledger.md rule 68, D20).
   const handleSettleAll = async (r) => {
-    const payload = {};
-    if (!r.depositDisabled && Number(r.depositAmount || 0) > 0 && !r.depositPaid) payload.depositPaid = true;
-    if (Number(r.balanceAmount || 0) > 0 && !r.balancePaid) payload.balancePaid = true;
-    if (Number(r.complementAmount || 0) > 0 && !r.complementPaid) payload.complementPaid = true;
-    if (Number(r.endOfStayComplementAmount || 0) > 0 && !r.endOfStayComplementPaid) payload.endOfStayComplementPaid = true;
+    const payload = Object.fromEntries((r.settleAllFields || []).map((field) => [field, true]));
     if (Object.keys(payload).length === 0) return;
     await markPayment(r.id, payload);
   };
@@ -172,6 +190,12 @@ export default function FinancePage() {
 
   const d = dashboard;
   const selectedProperty = d && d.propertyId ? d.properties.find((p) => p.propertyId === d.propertyId) : null;
+  const metrics = d && d.comparison ? d.comparison.metrics : null;
+  const tilePills = pillsOf(d && d.comparison, TILE_PILLS);
+  const shortOf = new Map(d ? d.revenueMonths.map((m) => [m.month, m.short || m.label]) : []);
+  const occupancyAll = d && d.occupancyAll;
+  const showByProperty = !occupancyAll || d.occupancy.length > 1;
+  const occupancyN1 = Boolean(occupancyAll) && occupancyAll.months.some((m) => m.previous != null);
   const defaultMonth = () => {
     const now = iso(new Date()).slice(0, 7);
     return d && d.months.some((m) => m.month === now) ? now : (d && d.months[0] ? d.months[0].month : now);
@@ -209,6 +233,12 @@ export default function FinancePage() {
             {params.propertyId && (
               <Button size="small" variant="outlined" onClick={() => setParams({ propertyId: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
                 Tous les logements
+              </Button>
+            )}
+            {/* specs/finance-dashboard-redesign.md rule 57 — an exercise the server refuses offers the current one. */}
+            {loadError && loadErrorCode === 'UNKNOWN_EXERCISE' && (
+              <Button size="small" variant="outlined" onClick={() => setParams({ fiscalYear: '', period: 'fy', month: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
+                Exercice en cours
               </Button>
             )}
           </Box>
@@ -254,7 +284,11 @@ export default function FinancePage() {
               propertyName={selectedProperty ? selectedProperty.name : null}
               fiscalYearLabel={d.fiscalYear.label}
               format={FORMAT}
+              comparisons={pillsOf(d.comparison, HERO_PILLS)}
+              definitions={metrics ? HERO_DEFINITIONS : undefined}
             />
+            {/* Rule 17 — one notice says why the pills read « — vs N-1 », or on how much they compare. */}
+            <NoComparisonNotice text={d.comparison && d.comparison.notice} sx={{ mt: -0.75, mb: 2 }} />
 
             <VatFranchiseCard data={franchise} onOpen={navigate} />
 
@@ -290,6 +324,8 @@ export default function FinancePage() {
                       selected={tile === t.key}
                       onClick={() => openTile(t.key)}
                       controls={DETAIL_ID}
+                      info={metrics ? TILE_DEFINITIONS[t.key] : undefined}
+                      comparison={tilePills[t.key]}
                     />
                   </Grid>
                 );
@@ -322,7 +358,8 @@ export default function FinancePage() {
               </Typography>
             )}
 
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {/* Rule 26 — each card at its own height: the shorter one leaves no blank inside. */}
+            <Grid container spacing={2} sx={{ mt: 0.5, alignItems: 'flex-start' }}>
               <Grid size={{ xs: 12, lg: 6 }}>
                 <Card sx={{ height: '100%' }}>
                   <CardContent>
@@ -344,9 +381,34 @@ export default function FinancePage() {
                   <CardContent>
                     <Typography variant="sectionHeader">Taux d'occupation</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                      Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement
+                      {occupancyAll
+                        ? `Nuits vendues ÷ nuits ouvertes, par mois · ${selectedProperty ? selectedProperty.name : 'tous les logements'}`
+                        : 'Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement'}
                     </Typography>
-                    <SmallMultiplesLineChart
+                    {/* Rule 18 — the scope's occupancy, last year dashed where it compares. */}
+                    {occupancyAll && (
+                      <TrendChart
+                        /* Rule 28 — the name says « et N-1 » only when last year's series is drawn. */
+                        ariaLabel={`Taux d'occupation par mois, ${d.fiscalYear.label}${occupancyN1 ? ` et ${d.fiscalYear.previousLabel}` : ''}`}
+                        categoryHeader="Mois"
+                        /* Rule 29 — rates: the copied data reads « 14,6 » under « 2026 (%) », as the table shows. */
+                        ratio
+                        formatValue={rateOneDecimal}
+                        formatAxis={percentAxis}
+                        yDomain={[0, 1]}
+                        categories={occupancyAll.months.map((m) => ({ key: m.month, label: shortOf.get(m.month) || m.label }))}
+                        series={[
+                          { key: 'current', name: d.fiscalYear.label, values: occupancyAll.months.map((m) => m.current), area: true, ...(selectedProperty ? { color: seriesColor(selectedProperty.colorIndex) } : {}) },
+                          ...(occupancyN1
+                            ? [{ key: 'previous', name: d.fiscalYear.previousLabel, values: occupancyAll.months.map((m) => m.previous), dashed: true }]
+                            : []),
+                        ]}
+                      />
+                    )}
+                    {occupancyAll && showByProperty && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, mb: 1 }}>Par logement</Typography>
+                    )}
+                    {showByProperty && <SmallMultiplesLineChart
                       currentLabel={d.fiscalYear.label}
                       previousLabel={d.fiscalYear.previousLabel}
                       formatValue={percent}
@@ -357,12 +419,15 @@ export default function FinancePage() {
                         caption: o.average == null ? '—' : `moy. ${percent(o.average)}`,
                         points: o.months.map((m) => ({ key: m.month, tick: m.initial, label: m.label, current: m.current, previous: m.previous })),
                       }))}
-                    />
+                    />}
                   </CardContent>
                 </Card>
               </Grid>
               <Grid size={12}>
                 <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
+              </Grid>
+              <Grid size={12}>
+                <FinanceDataChecksCard fiscalYear={d.fiscalYear.key} propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
             </Grid>
           </>

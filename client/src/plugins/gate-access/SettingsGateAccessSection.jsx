@@ -75,7 +75,7 @@ export default function SettingsGateAccessSection() {
               value={address.value}
               masked={false}
               helperText={address.source === 'request'
-                ? "Adresse déduite de ce navigateur : l'URL publique n'est pas renseignée (Réglages → Système)."
+                ? "Adresse déduite de ce navigateur : l'URL publique n'est pas renseignée (Paramètres → Système)."
                 : null}
             />
             <SecretRevealField label="Clé d’accès" value={secrets.apiKey} />

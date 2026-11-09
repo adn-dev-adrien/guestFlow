@@ -341,20 +341,24 @@ export default function FinanceSection() {
     : '';
   // §3.5 règles 29-30 — sur la ligne fusionnée l'opérateur saisit le TOTAL ; l'ajustement stocké reste
   // celui du complément d'ARRIVÉE.
-  const mergedAutoAmount = Math.round((arrivalAutoAmount + endOfStayAmountNow) * 100) / 100;
-  const mergedFloor = Math.round((Number(complementAdjustment.floor || 0) + endOfStayAmountNow) * 100) / 100;
+  // Règle 22 (defer-arrival-complement-to-checkout) — la carte fusionnée ne porte que la fin de séjour encore due : le
+  // bloc du serveur dit laquelle.
+  const mergedEndOfStay = complementDeferred ? Number(checkoutComplement.endOfStayAmount || 0) : endOfStayAmountNow;
+  const mergedAutoAmount = Math.round((arrivalAutoAmount + mergedEndOfStay) * 100) / 100;
+  const mergedFloor = Math.round((Number(complementAdjustment.floor || 0) + mergedEndOfStay) * 100) / 100;
   const commitArrivalOverride = (v) => {
     if (v === '' || v == null) { updateForm({ complementAmountOverride: '' }); return; }
     const floor = complementDeferred ? mergedFloor : Number(complementAdjustment.floor || 0);
     const target = Math.max(floor, Number(v));
-    const stored = complementDeferred ? Math.max(0, Math.round((target - endOfStayAmountNow) * 100) / 100) : target;
+    const stored = complementDeferred ? Math.max(0, Math.round((target - mergedEndOfStay) * 100) / 100) : target;
     updateForm({ complementAmountOverride: stored });
   };
   const mergedOverrideValue = arrivalAdjusted
-    ? Math.round((Number(form.complementAmountOverride) + endOfStayAmountNow) * 100) / 100
+    ? Math.round((Number(form.complementAmountOverride) + mergedEndOfStay) * 100) / 100
     : '';
 
   // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour ».
+  const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const deferAccess = complementDeferralAccess({
     editingReservationId,
     isDevisMode,
@@ -362,6 +366,7 @@ export default function FinanceSection() {
     complementPaid: Boolean(form.complementPaid) || Boolean(form.complementPaidCash),
     deferred: Boolean(form.complementDeferredToCheckout),
     locked: Boolean(isReservationLocked),
+    endOfStaySettled,
   });
   const onToggleDefer = async (next) => {
     if (next && deferAccess.needsConfirm) {
@@ -371,42 +376,55 @@ export default function FinanceSection() {
       });
       if (!ok) return;
     }
+    const reopens = next && deferAccess.needsConfirm;
+    // R30-C-L2 — the fiche moves only once the server took the switch: a refusal is shown and the stored state re-read.
+    try {
+      await api.markPayment(editingReservationId, {
+        complementDeferredToCheckout: next,
+        ...(reopens ? { complementPaid: false, complementPaidCash: false } : {}),
+      });
+    } catch (err) {
+      showError(err?.message || 'Report impossible.');
+      await reloadReservationFinance();
+      return;
+    }
     updateForm({
       complementDeferredToCheckout: next,
-      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false, complementPaidDate: '' } : {}),
-    });
-    await api.markPayment(editingReservationId, {
-      complementDeferredToCheckout: next,
-      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false } : {}),
+      ...(reopens ? { complementPaid: false, complementPaidCash: false, complementPaidDate: '' } : {}),
     });
     await reloadReservationFinance();
   };
   const deferButton = deferAccess.visible ? (
-    <Tooltip
-      title={deferAccess.reason
-        || (deferAccess.checked
+    <Box>
+      <Tooltip
+        title={deferAccess.reason ? '' : (deferAccess.checked
           ? 'Le complément d\'arrivée est encaissé au départ, avec le complément de fin de séjour — une seule collecte.'
           : 'Regrouper ce complément avec celui de fin de séjour : une seule ligne, un seul encaissement.')}
-    >
-      <span style={{ display: 'block' }}>
-        <Button
-          size="small"
-          variant={deferAccess.checked ? 'contained' : 'outlined'}
-          color={deferAccess.checked ? 'info' : 'inherit'}
-          disabled={deferAccess.disabled}
-          onClick={() => onToggleDefer(!deferAccess.checked)}
-          sx={{ textTransform: 'none', minHeight: 44 }}
-        >
-          {deferAccess.checked ? 'Perçu en fin de séjour ✓' : 'Percevoir en fin de séjour'}
-        </Button>
-      </span>
-    </Tooltip>
+      >
+        <span style={{ display: 'block' }}>
+          <Button
+            size="small"
+            variant={deferAccess.checked ? 'contained' : 'outlined'}
+            color={deferAccess.checked ? 'info' : 'inherit'}
+            disabled={deferAccess.disabled}
+            onClick={() => onToggleDefer(!deferAccess.checked)}
+            sx={{ textTransform: 'none', minHeight: 44 }}
+          >
+            {deferAccess.checked ? 'Perçu en fin de séjour ✓' : 'Percevoir en fin de séjour'}
+          </Button>
+        </span>
+      </Tooltip>
+      {deferAccess.reason ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          {deferAccess.reason}
+        </Typography>
+      ) : null}
+    </Box>
   ) : null;
 
   // specs/plugins-phase-p-productisation.md rule 45 — the server's answer, never the platform's name.
   const isPlatform = Boolean(isPlatformSale);
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
-  const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const showMidStayNotes = Boolean(midStayNote?.visible);
   const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
     .filter((l) => l && l.source === 'midStayExtra' && Number(l.amount) > 0);
@@ -448,9 +466,30 @@ export default function FinanceSection() {
       message: 'Ses prestations rejoignent le complément de fin de séjour, à encaisser en une seule fois. La note disparaît du registre.',
     });
     if (!ok) return;
-    await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
+    try {
+      await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
+    } catch (err) {
+      showError(err?.message || 'Report impossible.');
+    }
     await reloadReservationFinance();
   };
+  // The note's settlement runs after the fiche's save, which does not wait for it: the dialog waits here, so a refusal
+  // keeps it open with the server's wording instead of closing on an unseen error. Only the settlement decides: the
+  // re-read that follows is best effort, so a failed one never reports a stored settlement as refused nor leaves the
+  // dialog busy (mid-stay-notes rule 24 reading R32-C-L2).
+  const saveThenSettle = (settle) => new Promise((resolve, reject) => {
+    Promise.resolve(saveThenRun(async () => {
+      let refusal = null;
+      try {
+        await settle();
+      } catch (err) {
+        refusal = err;
+        showError(err?.message || 'Encaissement impossible.');
+      }
+      try { await reloadReservationFinance(); } catch { /* the settlement's outcome is already known */ }
+      if (refusal) reject(refusal); else resolve();
+    })).then((saved) => { if (saved !== true) resolve(); }, reject);
+  });
 
   // ── Ledger actions (rules 8-14, 19, 25-26, 28) ─────────────────────────────
   const rows = ledger?.rows || [];
@@ -1050,12 +1089,9 @@ export default function FinanceSection() {
             open={Boolean(midStayNoteOpen)}
             onClose={() => setMidStayNoteOpen(false)}
             pendingLines={pendingMidStayLines}
-            onSettle={({ checkedKeys, opening }, cash) => saveThenRun(async () => {
-              await api.markPayment(editingReservationId, {
-                settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
-              });
-              await reloadReservationFinance();
-            })}
+            onSettle={({ checkedKeys, opening }, cash) => saveThenSettle(() => api.markPayment(editingReservationId, {
+              settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
+            }))}
             onSellOnly={() => saveThenRun(reloadReservationFinance)}
           />
         )}

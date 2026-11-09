@@ -1,12 +1,13 @@
 // specs/reservation-refunds.md rule 49, reading of 2026-11-05 (audit R23 N5, N6) — money a cancelled stay collected stays on a
 // line of its register: the options and resources shares of paid installments beyond the lines still naming them, and a paid
 // end-of-stay complement. Given back whole, every account nets to 0. Replays of the auditor's a12, a1 and a2 probes.
+// A future stay holding a paid end of stay is a row stored before D20 (reservation-payment-ledger rule 68): written as stored.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, respond, ADMIN, TODAY, NO_ACOMPTE, S, C, forced, free, fiche, put, pay, cancel, register, offered, giveAll, net,
+  db, respond, ADMIN, TODAY, NO_ACOMPTE, S, C, forced, free, fiche, put, pay, storedEndOfStayPaid, cancel, register, offered, giveAll, net,
 } = require('./journalFixture');
 const installmentsController = require('../../../controllers/installmentsController');
 
@@ -17,7 +18,6 @@ db.prepare('INSERT INTO resource_properties (resourceId, propertyId) VALUES (72,
 
 const PLAN_OPTIONS = 'plan:options';
 const PLAN_RESOURCES = 'plan:resources';
-const E = { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY };
 
 async function plan(stay, paidCount = 2) {
   const set = respond();
@@ -92,7 +92,7 @@ test('N6 — solde, complement, one adult more, end of stay paid: the excess is 
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
-  pay(stay.id, E);
+  storedEndOfStayPaid(stay.id);
   await cancel(stay.id);
   const line = lineOf(stay.id, 'arrivalComplementExcess');
   assert.equal(line.refundableTtc, 42.4);
@@ -104,7 +104,7 @@ test('N6 — a 30 € mid-stay line paid on the end of stay: offered on its own 
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { customOptions: [forced(20), free(30, 'Ajout', null)] });
-  pay(stay.id, E);
+  storedEndOfStayPaid(stay.id);
   await cancel(stay.id);
   assert.equal(offered(stay.id)['custom:ajout'], 30);
   givesAll(stay.id);
@@ -114,7 +114,7 @@ test('N6 — the same line with no stamped split on the complement: never counte
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { customOptions: [forced(20), free(30, 'Ajout', null)] });
-  pay(stay.id, E);
+  storedEndOfStayPaid(stay.id);
   db.prepare('UPDATE reservations SET complementPaidSplit = NULL WHERE id = ?').run(stay.id);
   await cancel(stay.id);
   assert.equal(offered(stay.id)['custom:ajout'], 30);
@@ -124,7 +124,7 @@ test('N6 — an end of stay in the caisse interne stays off the register (review
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
-  pay(stay.id, { endOfStayComplementPaidCash: true, endOfStayComplementPaidDate: TODAY });
+  storedEndOfStayPaid(stay.id, { cash: true });
   await cancel(stay.id);
   assert.equal(lineOf(stay.id, 'arrivalComplementExcess'), undefined);
 });

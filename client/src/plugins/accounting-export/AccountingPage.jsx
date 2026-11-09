@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Card, CardContent, Typography, Table, TableHead, TableRow,
-  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton, Divider, useMediaQuery, useTheme, Alert,
+  TableCell, TableBody, Stack, Chip, Link, Tooltip, IconButton, Divider, useMediaQuery, useTheme, Alert, Button,
 } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -15,8 +15,16 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { alpha } from '@mui/material/styles';
 import {
   api, PageActionBar, MonthYearPicker, useAuth, userHasRole, ADMIN, formatCurrency, displayDate, useToast,
-  ErrorAlert, EmptyState, LoadingState, StatusBadge, PlatformChip,
+  ErrorAlert, EmptyState, LoadingState, StatusBadge, PlatformChip, PageTabs, useServerToday,
 } from '../sdk';
+import AccountingSynthesisTab from './AccountingSynthesisTab';
+import AccountingCollectionsTab from './AccountingCollectionsTab';
+import SynthesisPeriodBar from './SynthesisPeriodBar';
+import { TABS } from './synthesisCopy';
+
+// specs/accounting-synthesis.md rule 23 — the synthesis's period in the URL, beside the journal's own month.
+const PERIOD_PARAMS = { period: 'p', month: 'sm', quarter: 'sq', fiscalYear: 'sfy', from: 'sfrom', to: 'sto' };
+const TAB_KEYS = Object.keys(TABS);
 
 // The core page « Indemnités d'annulation » (specs/plugins-phase-2-hosts.md rule 21).
 const COMPENSATIONS_PATH = '/finance/indemnites';
@@ -77,8 +85,42 @@ export default function AccountingPage() {
     const y = Number(searchParams.get('year'));
     return Number.isInteger(y) && y >= 2000 && y <= 9999 ? y : defaultDate.year;
   })();
-  const setMonth = (m) => setSearchParams({ month: String(m), year: String(year) }, { replace: true });
-  const setYear = (y) => setSearchParams({ month: String(month), year: String(y) }, { replace: true });
+  // Rule 23 — one URL for the three tabs: a change keeps the other tab's choices.
+  const patchParams = (patch) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(patch).forEach(([k, v]) => { if (v == null || v === '') next.delete(k); else next.set(k, String(v)); });
+    setSearchParams(next, { replace: true });
+  };
+  const setMonth = (m) => patchParams({ tab: 'ecritures', month: m, year });
+  const setYear = (y) => patchParams({ tab: 'ecritures', month, year: y });
+  // A journal link (month + year, the way back from a reservation file) opens « Écritures »; otherwise the synthesis.
+  const tabParam = searchParams.get('tab');
+  const tab = TAB_KEYS.includes(tabParam) ? tabParam
+    : (searchParams.get('month') && searchParams.get('year') ? 'ecritures' : 'synthese');
+  const synthesisQuery = Object.fromEntries(Object.entries(PERIOD_PARAMS).map(([key, param]) => [key, searchParams.get(param) || '']));
+  const synthesisKey = JSON.stringify(synthesisQuery);
+  const setPeriod = (next) => patchParams({
+    tab: tab === 'ecritures' ? 'synthese' : tab,
+    ...Object.fromEntries(Object.entries(PERIOD_PARAMS).map(([key, param]) => [param, next[key]])),
+  });
+  const openEntriesMonth = ({ month: m, year: y }) => patchParams({ tab: 'ecritures', month: m, year: y });
+  const serverToday = useServerToday();
+  const [synthesis, setSynthesis] = useState(null);
+  const [synthesisError, setSynthesisError] = useState('');
+  const [synthesisLoading, setSynthesisLoading] = useState(true);
+  const [synthesisNonce, setSynthesisNonce] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setSynthesisLoading(true);
+    setSynthesisError('');
+    // A refused period keeps the selector and the last figures (rule 24): only the message changes.
+    Promise.resolve()
+      .then(() => api.getAccountingSynthesis(JSON.parse(synthesisKey)))
+      .then((d) => { if (alive) setSynthesis(d); })
+      .catch((err) => { if (alive) setSynthesisError((err && err.message) || 'Synthèse indisponible.'); })
+      .finally(() => { if (alive) setSynthesisLoading(false); });
+    return () => { alive = false; };
+  }, [synthesisKey, synthesisNonce]);
   const [preview, setPreview] = useState(null);
   const [sales, setSales] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -117,6 +159,8 @@ export default function AccountingPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      // Rule 16 — the stamp of this download shows in the synthesis's checks.
+      setSynthesisNonce((n) => n + 1);
     } catch (err) {
       showError(err.message || 'Téléchargement impossible.');
     } finally {
@@ -128,7 +172,22 @@ export default function AccountingPage() {
     <Box>
       <PageActionBar
         title="Comptabilité"
-        actionsBefore={[
+        tabs={(
+          <PageTabs
+            value={tab}
+            onChange={(next) => patchParams({ tab: next })}
+            ariaLabel="Vues de la comptabilité"
+            items={[
+              { value: 'synthese', label: TABS.synthese },
+              { value: 'encaissements', label: TABS.encaissements, count: synthesis ? synthesis.counts.payments : undefined },
+              // D-HC13 (rule 43) — the badge counts the entries of the month this tab shows.
+              // Rule 52 (V2-9) — no count while its month loads or after it failed: never the previous month's.
+              { value: 'ecritures', label: TABS.ecritures, count: sales && !salesLoading && !loadError ? sales.totals.entriesCount : undefined },
+            ]}
+          />
+        )}
+        // The CSV is the journal of one month: offered where that month is chosen.
+        actionsBefore={tab === 'ecritures' ? [
           {
             icon: <DescriptionIcon />,
             tooltip: 'Télécharger le CSV des ventes',
@@ -137,9 +196,35 @@ export default function AccountingPage() {
             disabled: downloading,
             ariaLabel: 'Télécharger le CSV des ventes',
           },
-        ]}
+        ] : []}
       />
 
+      {tab !== 'ecritures' && (
+        <Box sx={{ maxWidth: { xs: '100%', lg: 1180 }, mx: 'auto', px: { xs: 0, sm: 1 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <SynthesisPeriodBar
+            window={synthesis ? synthesis.window : null}
+            options={synthesis ? { ...synthesis.periodOptions, fiscalYears: synthesis.fiscalYears } : null}
+            today={serverToday || (synthesis && synthesis.today)}
+            onChange={setPeriod}
+          />
+          {synthesisError && (
+            <ErrorAlert message={synthesisError} onRetry={() => setSynthesisNonce((n) => n + 1)} />
+          )}
+          {/* Rule 41 (R2-5) — a period refused on the first load (an old link, a hand-typed URL) leaves a way back. */}
+          {synthesisError && !synthesis && (
+            <Box>
+              <Button variant="outlined" onClick={() => setPeriod({})}>Revenir au mois en cours</Button>
+            </Box>
+          )}
+          {synthesisLoading && !synthesis && <LoadingState label="Chargement de la synthèse…" py={3} />}
+          {synthesis && tab === 'synthese' && (
+            <AccountingSynthesisTab data={synthesis} canOpenReservation={canOpenReservation} onOpenEntriesMonth={openEntriesMonth} />
+          )}
+          {synthesis && tab === 'encaissements' && <AccountingCollectionsTab data={synthesis} />}
+        </Box>
+      )}
+
+      {tab === 'ecritures' && (
       <Box sx={{ maxWidth: { xs: '100%', md: 960 }, mx: 'auto', px: { xs: 0, sm: 1 } }}>
         {loadError && (
           <ErrorAlert message="Impossible de charger l'aperçu comptable." onRetry={() => setReloadNonce((n) => n + 1)} sx={{ mb: 2 }} />
@@ -303,6 +388,7 @@ export default function AccountingPage() {
           </CardContent>
         </Card>
       </Box>
+      )}
     </Box>
   );
 }

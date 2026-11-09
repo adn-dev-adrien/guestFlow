@@ -57,7 +57,9 @@ function midStayQuoteInputs(db, reservationId) {
 // specs/payment-schedule-and-cancellation.md §3.1 — the booking context every engine call needs:
 // the day the stay was booked (anchor of the acompte deadline) and the deadline already promised,
 // which no recompute may move. No stored row (creation, public quote) → the booking happens today.
-function scheduleQuoteInputs(db, bookingId) {
+// `editedStartDate`, on the live quote of an unsaved devis edit: the validity date is the one the save will write
+// (specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1), never the raw stored one.
+function scheduleQuoteInputs(db, bookingId, { editedStartDate } = {}) {
   const fallback = { bookingDate: getTodayIsoDate(), existingDepositDueDate: null, kind: 'reservation', validUntil: null };
   if (!bookingId || bookingId <= 0) return fallback;
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(bookingId));
@@ -66,10 +68,25 @@ function scheduleQuoteInputs(db, bookingId) {
     bookingDate: row.createdAt || fallback.bookingDate,
     existingDepositDueDate: row.depositDueDate || null,
     kind: row.kind || 'reservation',
-    validUntil: row.validUntil || null,
+    validUntil: (editedStartDate && row.kind === 'devis' ? editedDevisValidUntil(db, row, editedStartDate) : row.validUntil) || null,
     // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (D9).
     paidSoldeCaptured: Number(row.balancePaid || 0) === 1 && row.accommodationSoldeContribTtc != null,
   };
+}
+
+function editedDevisValidUntil(db, row, startDate) {
+  const { devisValidUntil, readQuoteValidityDays } = require('./devisValidity');
+  const { bookingDayOf } = require('./vatRegime');
+  const today = getTodayIsoDate();
+  return devisValidUntil({
+    stored: row.validUntil || null,
+    storedStartDate: row.startDate,
+    createdDay: bookingDayOf(row.createdAt) || today,
+    startDate,
+    today,
+    quoteValidityDays: readQuoteValidityDays(db),
+    reissueExpired: true,
+  });
 }
 
 // specs/platform-deposit-toggle.md — resolve the GLOBAL per-platform "takes an acompte?" flag from the

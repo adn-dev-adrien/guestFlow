@@ -12,10 +12,26 @@ const { create: createAccountingModel } = require('./accountingModel');
 const { create: createAccountingController } = require('./controller');
 const { create: createPlatformAccountsModel } = require('./platformAccountsModel');
 const { create: createPlatformAccountsController } = require('./platformAccountsController');
+const { create: createSynthesisModel } = require('./synthesisModel');
+const { create: createSynthesisController } = require('./synthesisController');
 const sdk = require('../sdk');
-const { PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings, readTtcSplitFrom, storeTtcSplitFrom } = require('./settings');
+const {
+  PLUGIN_ID, KEYS, DEFAULTS, DECLARED, createAccountSettings, readTtcSplitFrom, storeTtcSplitFrom, storeLastCsvExport,
+} = require('./settings');
 
 const id = PLUGIN_ID;
+
+// Rules 40 and 48 — the browser's own word on where a request comes from (Fetch Metadata), or the header the app's
+// own download sends (a page of another site cannot add a custom header to a navigation, and a cross-origin fetch
+// carrying one is refused at its CORS preflight). Plain HTTP and older Safari send no Fetch Metadata: the header
+// stamps there too.
+const DOWNLOAD_HEADER = 'x-guestflow-download';
+const isSameOriginRequest = (req) => {
+  const headers = (req && req.headers) || {};
+  if (headers['sec-fetch-site'] === 'same-origin') return true;
+  const crossSite = headers['sec-fetch-site'] && headers['sec-fetch-site'] !== 'same-origin';
+  return !crossSite && headers[DOWNLOAD_HEADER] === '1';
+};
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
 
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
@@ -59,11 +75,27 @@ function register(ctx) {
   // Built on first use: the plugins register while the core is still booting.
   let controller = null;
   let platformAccounts = null;
+  let synthesisModel = null;
+  let synthesis = null;
+  const plan = () => ({ ...createAccountSettings(ctx.db).read(), ttcSplitFrom: readTtcSplitFrom(ctx.db) });
   const getController = () => {
     if (!controller) controller = createAccountingController(createAccountingModel(ctx.db), {
-      plan: () => ({ ...createAccountSettings(ctx.db).read(), ttcSplitFrom: readTtcSplitFrom(ctx.db) }),
+      plan,
+      // Rule 40 — only a download the app's own page asked for stamps: a GET reached from elsewhere (a link
+      // opened from another site, a preview, a probe) writes nothing.
+      onCsvExported: (month, req) => { if (isSameOriginRequest(req)) storeLastCsvExport(ctx.db, month); },
     });
     return controller;
+  };
+  // specs/accounting-synthesis.md — the « Synthèse » tab of the Comptabilité page.
+  const getSynthesis = () => {
+    if (!synthesis) {
+      synthesis = createSynthesisController(() => {
+        if (!synthesisModel) synthesisModel = createSynthesisModel(ctx.db);
+        return synthesisModel;
+      }, { plan });
+    }
+    return synthesis;
   };
   const getPlatformAccounts = () => {
     if (!platformAccounts) {
@@ -77,6 +109,7 @@ function register(ctx) {
   ctx.route('get', '/api/accounting/sales.csv', (req, res) => getController().salesCsv(req, res));
   ctx.route('get', '/api/accounting/sales', (req, res) => getController().salesJson(req, res));
   ctx.route('get', '/api/accounting/platforms', (req, res) => getController().platformsPreview(req, res));
+  ctx.route('get', '/api/accounting/synthesis', (req, res) => getSynthesis().synthesis(req, res));
   // accounting-platform-commission-and-no-deposit.md §3.7 + §4.3 — the Plan comptable page. The
   // refresh re-runs the platform rescan so a brand-new platform name surfaces without a restart.
   ctx.route('get', '/api/accounting/platform-accounts', (req, res) => getPlatformAccounts().getAll(req, res));
@@ -88,6 +121,7 @@ function register(ctx) {
   ctx.roleAccess('accountant', [
     { method: 'GET', re: /^\/accounting\/sales(\.csv)?$/ },
     { method: 'GET', re: /^\/accounting\/platforms$/ },
+    { method: 'GET', re: /^\/accounting\/synthesis$/ },
     { method: 'GET', re: /^\/accounting\/platform-accounts$/ },
     { method: 'PUT', re: /^\/accounting\/platform-accounts$/ },
     { method: 'POST', re: /^\/accounting\/platform-accounts\/refresh$/ },

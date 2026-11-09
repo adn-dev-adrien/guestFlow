@@ -81,10 +81,13 @@ function serialiseGroup(group) {
  * departure, but a guest who pays everything on arrival has paid it as well — and on a platform
  * booking, where the acompte is disabled and nothing was sold at check-in, it is often the only other
  * money there is. Leaving it out made the control silently absent exactly when it was needed.
+ * D20 (2026-11-06, specs/reservation-payment-ledger.md rule 68) — only once the guest has left: before the
+ * check-out the end-of-stay complement is never collected, so it is offered only when the caller says
+ * `endOfStayCollectible` (utils/endOfStayCheckout `isCheckoutDone`). Absent = not offered.
  *
- * @returns {Array<{bucket: 'deposit'|'balance'|'complement', label: string, amount: number}>}
+ * @returns {Array<{bucket: 'deposit'|'balance'|'complement'|'endOfStayComplement', label: string, amount: number}>}
  */
-function collectibleArrivalBuckets(row = {}) {
+function collectibleArrivalBuckets(row = {}, { endOfStayCollectible = false } = {}) {
   const out = [];
   const add = (bucket, label, amount, applicable, paid) => {
     const value = round2(amount);
@@ -95,7 +98,7 @@ function collectibleArrivalBuckets(row = {}) {
   add('balance', 'solde', row.balanceAmount, true, row.balancePaid);
   add('complement', 'complément', row.complementAmount, true, row.complementPaid);
   // A cash-flagged bucket counts as settled, so it is never offered again (same rule as everywhere).
-  add('endOfStayComplement', 'complément de fin de séjour', row.endOfStayComplementAmount, true,
+  add('endOfStayComplement', 'complément de fin de séjour', row.endOfStayComplementAmount, Boolean(endOfStayCollectible),
     Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1);
   return out;
 }

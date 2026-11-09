@@ -46,6 +46,7 @@ const { hasGuestArrived } = require('../utils/arrivalMoment');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
 const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
+const { isCheckoutDone } = require('../utils/endOfStayCheckout');
 const { clearContribsOnUnflip, captureBucketSplit } = require('../utils/forceItemContribsCapture');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { ADDED_GUESTS_TAX_LABEL } = require('../utils/platformPaidGuests');
@@ -210,6 +211,14 @@ function markEndOfStayPaidAtDeparture(database, reservationId, value) {
   } catch {
     // Pas de colonne ici : l'encaissement tient quand même.
   }
+}
+
+// specs/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — the end-of-stay complement is collected (books or
+// caisse interne) and the departure SAS did not settle it: a row without the marker column reads as the SAS's own, as below.
+function endOfStayCollectedElsewhere(row) {
+  if (!row) return false;
+  const collected = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
+  return collected && Number(row.endOfStayComplementPaidAtDeparture ?? 1) !== 1;
 }
 
 // Sans la colonne, on retombe sur le comportement d'avant la règle 9bis (le SAS défait ce qu'il
@@ -1810,7 +1819,7 @@ function createReservationsModel(database) {
         }
 
         const cash = mode === 'cash' ? 1 : 0;
-        const collectible = collectibleArrivalBuckets(row);
+        const collectible = collectibleArrivalBuckets(row, { endOfStayCollectible: isCheckoutDone(row) });
         if (collectible.length === 0) return { buckets: [], total: 0, grouped: false };
 
         for (const { bucket } of collectible) {
@@ -2672,8 +2681,14 @@ function createReservationsModel(database) {
         // A collected complement never moves (specs/frozen-complement-trusts-client.md): what the run adds
         // is collected apart — the recap's « encaisser le supplément » warning.
         const stored = round2(row.complementAmount);
+        // specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the sale would ride the end-of-stay complement, which
+        // freezes once collected: one collected outside the departure SAS takes no sale that adds money.
+        const priorSold = round2(sasRows.filter((x) => !upsellIds.has(Number(x.optionId))).reduce((s, x) => s + Number(x.totalPrice || 0), 0));
+        const saleRaisesCollectedEndOfStay = Boolean(sales)
+          && endOfStayCollectedElsewhere(database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId))
+          && round2(soldLines.reduce((s, l) => s + l.total, 0)) > priorSold;
         return {
-          paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled,
+          paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled, saleRaisesCollectedEndOfStay,
           engineAfter: stored, arrivalComplementTotal: stored, supplementOutsideComplement: addedBilled, adjusted: null,
         };
       }
@@ -3897,6 +3912,10 @@ function createReservationsModel(database) {
       return {
         detail,
         offeredRefs,
+        // specs/recall-unpaid-arrival-complement-at-checkout.md rule 11 (audit R26 H1) — collected outside this SAS and raised by
+        // this run: the controller refuses it, nothing claims the rise otherwise.
+        raisesCollectedEndOfStay: endOfStayCollectedElsewhere(row)
+          && round2(reconciled.amount) > round2(Number(row.endOfStayComplementAmount || 0)),
         lines: [...lines, ...recalledLines],
         endOfStayTotal: reconciled.amount,
         extinguisherTotal,

@@ -106,7 +106,8 @@ test('rule 13: PUT /reservations/:id refuses an arrival moved before the window 
   const id = pastStay(s(20), s(23), 600);
   assertTooOld(await f.save(id, { startDate: before }, { unlockPast: true }), 'startDate');
   assert.equal(f.rowOf(id).startDate, s(20));
-  const moved = await f.save(id, { startDate: S }, { unlockPast: true });
+  // D21 (2026-11-06): the unlocked fiche keeps its final price, so the move pins it.
+  const moved = await f.save(id, { startDate: S, customPrice: f.rowOf(id).finalPrice }, { unlockPast: true });
   assert.equal(moved.statusCode, 200, JSON.stringify(moved.body));
   f.db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?').run(addDaysToIsoDate(S, -30), addDaysToIsoDate(S, -27), id);
   const kept = await f.save(id, { notes: 'Arrivée tardive' }, { unlockPast: true });

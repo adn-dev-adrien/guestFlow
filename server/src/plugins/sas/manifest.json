@@ -122,6 +122,15 @@
       "L’accueil ne voit plus le détail d’un remboursement dans un refus du SAS.",
       "Compatible avec le SDK 2.21 de GuestFlow."
     ],
+    "1.7.14": [
+      "Au départ, un complément de fin de séjour déjà encaissé ailleurs ne prend plus de frais : le décocher sur la fiche d’abord.",
+      "À l’arrivée, une vente qui irait sur ce complément encaissé est refusée de même.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.15": [
+      "À l’arrivée, « Plus tard » est refusé quand le complément de fin de séjour est déjà encaissé.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
     "1.8.0": [
       "L’étape « Portail » du sas d’arrivée peut laisser la place à l’étape « Mon séjour » de l’application clients, le QR du portail restant à portée.",
       "Compatible avec le SDK 2.21 de GuestFlow."

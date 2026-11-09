@@ -10,11 +10,15 @@ import DialogProvider from '../../components/DialogProvider';
 
 vi.mock('../../api', () => ({
   __esModule: true,
-  default: { getTouristTaxExtraction: vi.fn(), setTouristTaxDeclared: vi.fn() },
+  default: { getTouristTaxReport: vi.fn(), setTouristTaxDeclared: vi.fn() },
 }));
 
 import api from '../../api';
 import TouristTaxPage from '../TouristTaxPage';
+import { reportOf } from './touristTaxReportFixtures';
+
+// The legacy-shaped fixtures below, sent as the report payload (specs/tourist-tax-report-v2.md §4.3).
+const asReport = (d) => reportOf(d.reservations);
 
 const CAPTION = 'Déclarable une fois le séjour payé et terminé.';
 // The page opens on the month before this one: the fixtures live there, whatever today is.
@@ -42,13 +46,13 @@ const setPhone = (phone) => {
 
 beforeEach(() => {
   setPhone(false);
-  api.getTouristTaxExtraction.mockReset();
+  api.getTouristTaxReport.mockReset();
   api.setTouristTaxDeclared.mockReset().mockResolvedValue({ declaredAt: STORED_TICK });
 });
 afterAll(() => { delete window.matchMedia; });
 
 test('not declarable: disabled, with the caption', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue(dataOf({ ...STAY, declarable: false }));
+  api.getTouristTaxReport.mockResolvedValue(asReport(dataOf({ ...STAY, declarable: false })));
   renderPage();
   const box = await screen.findByRole('checkbox', { name: /Déclarée — Jean Dupont/ });
   expect(box).toBeDisabled();
@@ -57,14 +61,14 @@ test('not declarable: disabled, with the caption', async () => {
 
 test('not declarable, on a phone: disabled with the caption too', async () => {
   setPhone(true);
-  api.getTouristTaxExtraction.mockResolvedValue(dataOf({ ...STAY, declarable: false }));
+  api.getTouristTaxReport.mockResolvedValue(asReport(dataOf({ ...STAY, declarable: false })));
   renderPage();
   expect(await screen.findByRole('checkbox', { name: /Déclarée — Jean Dupont/ })).toBeDisabled();
   expect(screen.getByText(CAPTION)).toBeInTheDocument();
 });
 
 test('declarable: enabled, no caption, the tick goes', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue(dataOf({ ...STAY, declarable: true }));
+  api.getTouristTaxReport.mockResolvedValue(asReport(dataOf({ ...STAY, declarable: true })));
   renderPage();
   const box = await screen.findByRole('checkbox', { name: /Déclarée — Jean Dupont/ });
   expect(box).toBeEnabled();
@@ -74,7 +78,7 @@ test('declarable: enabled, no caption, the tick goes', async () => {
 });
 
 test('a stored tick on a stay no longer declarable can still go, with no caption', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue(dataOf({ ...STAY, declarable: false, touristTaxDeclaredAt: STORED_TICK }));
+  api.getTouristTaxReport.mockResolvedValue(asReport(dataOf({ ...STAY, declarable: false, touristTaxDeclaredAt: STORED_TICK })));
   api.setTouristTaxDeclared.mockResolvedValue({ declaredAt: null });
   renderPage();
   const box = await screen.findByRole('checkbox', { name: /Déclarée — Jean Dupont/ });
@@ -85,10 +89,10 @@ test('a stored tick on a stay no longer declarable can still go, with no caption
 });
 
 test('the row of its own follows its own flag, beside a declared main row', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue(dataOf(
+  api.getTouristTaxReport.mockResolvedValue(asReport(dataOf(
     { ...STAY, declarable: false, touristTaxDeclaredAt: STORED_TICK },
     { ...STAY, addedGuestsRow: true, declarable: false, adults: 1, taxAmount: 2.4, accommodationAmount: 0 },
-  ));
+  )));
   renderPage();
   const boxes = await screen.findAllByRole('checkbox');
   expect(boxes[0]).toBeEnabled();
@@ -97,7 +101,7 @@ test('the row of its own follows its own flag, beside a declared main row', asyn
 });
 
 test('a tick refused by the server (stale tab) reverts and says why', async () => {
-  api.getTouristTaxExtraction.mockResolvedValue(dataOf({ ...STAY, declarable: true }));
+  api.getTouristTaxReport.mockResolvedValue(asReport(dataOf({ ...STAY, declarable: true })));
   api.setTouristTaxDeclared.mockRejectedValue(new Error(CAPTION));
   renderPage();
   const box = await screen.findByRole('checkbox', { name: /Déclarée — Jean Dupont/ });

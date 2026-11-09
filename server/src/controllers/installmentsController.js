@@ -338,6 +338,21 @@ function buildController({
     });
   }
 
+  /**
+   * What the unpaid installments would take on if this save went through, in euros: the same rebalance
+   * syncAfterSave runs (rules 7-9a), read without writing; 0 without a plan or when the save leaves the own
+   * channels (the plan is then deleted). Reading of 2026-11-06 (audit R26 D21 review L3) of
+   * specs/mid-stay-extras-to-end-of-stay-complement.md rule 20.
+   */
+  function planClaimOf(reservationId, quote, platform) {
+    const rows = installmentsModel.listFor(reservationId);
+    if (rows.length === 0 || !isDirectChannel(platform)) return 0;
+    const { amounts } = plan.rebalance({ installments: rows, targetCents: Math.round(Number(quote.preArrivalAmount || 0) * 100) });
+    const cents = rows.filter((r) => Number(r.paid) !== 1)
+      .reduce((sum, r) => sum + amounts.get(r.number) - Number(r.amountCents), 0);
+    return cents / 100;
+  }
+
   // Rule 1 — money already collected through the plan keeps the reservation on the own channels.
   function platformChangeRefusal(reservationId, platform) {
     if (isDirectChannel(platform)) return null;
@@ -353,7 +368,7 @@ function buildController({
     return installmentsModel.listLate({ cutoff: addDaysToIsoDate(today, -plan.LATE_AFTER_DAYS), today });
   }
 
-  return { eligibilityOf, planFor, put, remove, markPaid, syncAfterSave, platformChangeRefusal, retireChangedLinks, lateInstallments };
+  return { eligibilityOf, planFor, put, remove, markPaid, syncAfterSave, planClaimOf, platformChangeRefusal, retireChangedLinks, lateInstallments };
 }
 
 // The controller bound to the application's database, built on first use so that requiring this module
@@ -390,6 +405,7 @@ module.exports = {
   remove: delegate('remove'),
   markPaid: delegate('markPaid'),
   syncAfterSave: delegate('syncAfterSave'),
+  planClaimOf: delegate('planClaimOf'),
   platformChangeRefusal: delegate('platformChangeRefusal'),
   retireChangedLinks: delegate('retireChangedLinks'),
   lateInstallments: delegate('lateInstallments'),

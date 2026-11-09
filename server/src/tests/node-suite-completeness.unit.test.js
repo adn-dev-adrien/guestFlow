@@ -15,6 +15,9 @@ const EXITS_AFTER_FIRST = [
   "test('never run', () => {});",
   "test.describe('never run either', () => { test('inner', () => {}); });",
 ].join('\n');
+// Audit R26-S1 — these cases test « ended early » and « complete file », never « never settles »: the child gets the package's
+// own kind of ceiling, not the 300 ms the timeout cases need (rule 5), which a loaded runner spends on booting node alone.
+const CHILD = { timeoutMs: 15000 };
 
 test('rule 10: both suites keep the spec report on stdout and add the completeness reporter', () => {
   for (const pkg of SUITES) {
@@ -37,7 +40,7 @@ test('rule 10: without the guard, a child ending early is a green run (the hole 
 for (const pkg of SUITES) {
   test(`rule 10: under ${pkg}'s flags, a child ending early fails the run and names the tests it never ran`, () => {
     withTestFile(EXITS_AFTER_FIRST, (file) => {
-      const run = runLikeSuite(pkg, file);
+      const run = runLikeSuite(pkg, file, CHILD);
       assert.notEqual(run.status, 0, run.output);
       assert.match(run.stderr, /probe\.test\.js: 3 of 4 tests never reported/);
       for (const name of ['ends the process', 'never run', 'never run either']) {
@@ -53,7 +56,7 @@ for (const pkg of SUITES) {
       "test('ends the process at once', () => { process.exit(0); });",
       "test('never run', () => {});",
     ].join('\n'), (file) => {
-      const run = runLikeSuite(pkg, file);
+      const run = runLikeSuite(pkg, file, CHILD);
       assert.notEqual(run.status, 0, run.output);
       assert.match(run.stderr, /probe\.test\.js: no test reported/);
     });
@@ -68,12 +71,12 @@ for (const pkg of SUITES) {
       "test.describe('suite', () => { test('inner', () => {}); });",
     ];
     withTestFile(body.join('\n'), (file) => {
-      const run = runLikeSuite(pkg, file);
+      const run = runLikeSuite(pkg, file, CHILD);
       assert.equal(run.status, 0, run.output);
       assert.doesNotMatch(run.stderr, /never reported|no test reported/);
     });
     withTestFile([...body, "test('fails', () => { throw new Error('boom'); });"].join('\n'), (file) => {
-      const run = runLikeSuite(pkg, file);
+      const run = runLikeSuite(pkg, file, CHILD);
       assert.notEqual(run.status, 0, run.output);
       assert.doesNotMatch(run.stderr, /never reported|no test reported/);
     });

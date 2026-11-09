@@ -350,6 +350,16 @@ patch. No new edge behavior is introduced.
    rule 15. `PATCH /devis/:id/status`: only a string can be a status. A write on `/reservations/<not digits>…` → 404.
    Test: `tests/stay-input-shape.unit.test.js`.
 
+25. **Added 2026-11-08 (audit R30-RES-L1) — a devis id is not a stay.** `PUT /reservations/:id`,
+   `PATCH /reservations/:id/payment`, `POST /reservations/:id/arrival-payment`, `DELETE /reservations/:id/installments`
+   and the platform penalties' preview, declaration and removal answer a devis id what `GET /reservations/:id` answers:
+   404 « Réservation non trouvée », nothing written (`guardNotDevis`, `utils/reservationReadOnly.js`). A devis is saved
+   through `PUT /devis/:id`, which keeps 409 `DEVIS_CONVERTED` on a converted quote; the refunds, the cancellation, the
+   SAS and the installment plan already refused one. *Why:* a crafted request marked a draft devis paid, re-saved it
+   through the stay pipeline (its acompte dropped to 0 and an option line was lost), and changed a converted quote's
+   frozen party, which its PDF then printed. The dashboard's snooze and reminder are left alone: a devis acompte
+   deadline may use them. Test: `tests/devis-id-on-stay-routes.unit.test.js`.
+
 ---
 
 ## 4. Architecture

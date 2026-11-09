@@ -85,7 +85,9 @@ import EmptyState from '../components/EmptyState';
 import { useAuth } from '../hooks/useAuth';
 import { ADMIN, userHasRole } from '../constants/roles';
 import { optionLineKey, resourceLineKey } from '../utils/arrivalLineKey';
-import { LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER } from '../constants/reservationLock';
+import {
+  LOCKED_FICHE_BANNER, MID_STAY_EXTRAS_BANNER, UNLOCKED_FICHE_BANNER, UNLOCKED_NEW_FICHE_BANNER,
+} from '../constants/reservationLock';
 import { isQuotableStay, stayDatesMessage } from '../utils/stayDates';
 
 const DEVIS_STATUS_OPTIONS = [
@@ -2674,6 +2676,17 @@ export default function ReservationPage() {
           if (savedDevis?.retiredPaymentLinks) showSuccess('Devis enregistré. Le lien de paiement en cours est retiré : le montant a changé.');
           // Rule 48 — the marker is live: moved onto free nights, the devis is no longer « Dates prises ».
           setDatesTaken(savedDevis?.datesTaken || null);
+          // specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the chip shows the validity the save
+          // wrote; a quote the save re-issued is re-read so its price lock follows the new promise.
+          if (savedDevis) {
+            setDevisValidity({
+              validUntil: savedDevis.validUntil || null,
+              expired: Boolean(savedDevis.expired),
+              extendable: Boolean(savedDevis.extendable),
+              converted: savedDevis.status === 'converted',
+            });
+            if (Boolean(savedDevis.expired) !== devisValidity.expired) setReloadToken((token) => token + 1);
+          }
           setInitialSnapshot(formSnapshot);
           clearTypedCountFlags();
           if (safeAfterSaveAction) {
@@ -3035,9 +3048,12 @@ export default function ReservationPage() {
 
   // Re-read the money the server owns after a note was settled / cancelled. Only the finance fields
   // are patched: the rest of the form is the operator's (possibly dirty) draft and must not move.
+  // Best effort (specs/mid-stay-notes.md rule 24 reading R32-C-L2): the re-read follows a write whose outcome is already
+  // known, so a failed one never turns a stored write into an error, nor leaves a dialog or a mark waiting.
   const reloadReservationFinance = useCallback(async () => {
     if (!editingReservationId) return;
-    const res = await api.getReservation(editingReservationId);
+    let res;
+    try { res = await api.getReservation(editingReservationId); } catch { return; }
     setStoredLedger(res.ledger || null);
     // The sold lines moved with the write (specs/reservation-refunds.md rule 43): the refund dialog reads them.
     setRefundRegister({
@@ -3222,7 +3238,7 @@ export default function ReservationPage() {
     applyRefundPayload(res);
     // The stored ledger moved with the refund (the trop-perçu row, the « Remboursement » row): re-read it, or a
     // second click refunds the same money again.
-    await reloadReservationFinance().catch(() => {});
+    await reloadReservationFinance();
   }, [editingReservationId, applyRefundPayload, reloadReservationFinance]);
 
   const deleteRefund = useCallback(async (refundId) => {
@@ -3620,7 +3636,7 @@ export default function ReservationPage() {
 
   const devisValidityChip = (editingDevisId && devisValidity.validUntil && !devisValidity.converted) ? (
     <DevisValidityChip
-      validUntil={devisValidity.validUntil}
+      validUntil={(!devisValidity.expired && pricingQuote?.validUntil) || devisValidity.validUntil}
       expired={devisValidity.expired}
       extendable={devisValidity.extendable}
       converted={devisValidity.converted}
@@ -4009,7 +4025,7 @@ export default function ReservationPage() {
         )}
         {pastUnlocked && (
           <Alert severity="warning" sx={{ mb: 1 }}>
-            Fiche déverrouillée : dates, logement et suppression sont modifiables. Le verrou revient dès la sortie de la fiche.
+            {reservationId ? UNLOCKED_FICHE_BANNER : UNLOCKED_NEW_FICHE_BANNER}
           </Alert>
         )}
         {pastNewReservation && isAdmin && !pastUnlocked && (

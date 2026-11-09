@@ -91,6 +91,8 @@ arrival stays frozen, and everything else on the fiche stays locked.
    - window **closed** and the extras changed → `400`, `code: 'MID_STAY_EXTRAS_CLOSED'`,
      `error: 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.'`
    - any other forbidden field → unchanged `PAST_RESERVATION_LOCKED`.
+   > **Reading of 2026-11-06 (D21).** The unlocked fiche no longer changes the price (settings-rationalization rule 35), so the
+   > window-closed message stops sending there: « Complément de fin de séjour déjà encaissé : décocher « payé » d’abord. ».
 10. The baseline is captured before the check (`captureArrivalExtrasBaselineIfDue`, already called
     before the lines are replaced), so the first save after arrival compares against the right state.
 11. The arrival complement, deposit and balance never move because of a sale inside the window: the

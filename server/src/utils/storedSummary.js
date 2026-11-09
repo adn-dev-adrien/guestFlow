@@ -13,6 +13,7 @@ const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
 const { displayCountOf } = require('./typedCounts');
+const { isComplementDeferred } = require('./checkoutComplement');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const flag = (v) => Number(v || 0) === 1;
@@ -164,7 +165,9 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
   // lines add up to the same « Total du séjour » as the sticky bar.
   const touristTaxOfferedByPlatform = (collects && !remittedByOwner) || withheld != null;
 
-  const deferred = flag(row.complementDeferredToCheckout);
+  // A deferred complement is filed at the end of stay while due, once settled together with it, or when the end of stay is
+  // 0 € (complement-buckets-by-moment rule 4, revision 2026-11-08; defer rules 22 and 24). Otherwise it was collected at check-in.
+  const deferred = isComplementDeferred(row);
   const endOfStay = round2(row.endOfStayComplementAmount);
   const complement = round2(row.complementAmount);
   const complementSplit = {

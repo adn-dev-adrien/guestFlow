@@ -27,15 +27,21 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
  * @param {number} params.endOfStayComplementTotal SAS lines + mid-stay remainder.
  * @param {boolean} params.deferred                the operator moved the arrival complement to the
  *                 door (`complementDeferredToCheckout`).
+ * @param {boolean} [params.filedAtEndOfStay]      the row-aware reading when the caller has the stored row
+ *                 (`isComplementDeferred`, through the block's `checkoutComplement.deferred`): it decides alone, so
+ *                 a complement settled together with the end of stay, or at a 0 € end of stay, stays filed at
+ *                 the end of stay as the ledger and the stored summary file it (rule 4, revision 2026-11-08).
  * @returns {{ arrival: number, duringStay: number, endOfStay: number }}
  */
 function splitComplementBuckets({
-  complementAmount, complementPaid, midStaySettledTotal, endOfStayComplementTotal, deferred,
+  complementAmount, complementPaid, midStaySettledTotal, endOfStayComplementTotal, deferred, filedAtEndOfStay,
 } = {}) {
   const arrival = round2(complementAmount);
   const endOfStay = round2(endOfStayComplementTotal);
   // Money already in the till was collected at check-in, whatever the marker says afterwards.
-  const collectedAtArrival = Number(complementPaid || 0) === 1 || !deferred;
+  const collectedAtArrival = typeof filedAtEndOfStay === 'boolean'
+    ? !filedAtEndOfStay
+    : Number(complementPaid || 0) === 1 || !deferred;
   return {
     arrival: collectedAtArrival ? arrival : 0,
     duringStay: round2(midStaySettledTotal),

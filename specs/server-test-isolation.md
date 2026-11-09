@@ -248,6 +248,11 @@ being on the preload's lists fails the run once the suite executes the read (rul
    guard covers whatever ends a file early, not only force-exit: a test calling `process.exit(0)`, a native
    crash reported as exit 0. Replayed with `--test-force-exit` under load (two files, 40 parallel runs), it
    failed each of the 6 truncated runs and named the missing tests. Test: `node-suite-completeness.unit.test.js`.
+   *Reading of 2026-11-06 (audit R26-S1):* the probe child of these cases runs under a 15 s `--test-timeout`, as
+   `node-suite-test-timeout`'s settling case and `server-test-env-trace` do. Under process isolation that timeout also
+   covers the child's boot (node and the three preloads), and the 300 ms of `runLikeSuite`'s default, meant for rule 5's
+   « never settles » cases, was spent on booting alone on a loaded runner: « test timed out after 300ms » on a complete
+   file. Replayed with a child boot slowed by 500 ms: 6 of 8 red before, 8 of 8 green after. Rule 5's cases keep 300 ms.
 
 11. **A client test awaits what an effect or a late answer produces** (added 2026-10-31, audit R10 M-1). After
    a `findBy*` or a `waitFor` on an API call, a client test asserts synchronously only what the SAME commit

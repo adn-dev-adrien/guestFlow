@@ -1016,7 +1016,7 @@ Decided by Adrien:
 
 Points the rules left open, decided in code:
 - The plugin owning a basket settles its payment through `ctx.paymentBasket({ source, paid })`
-  (`specs/plugins-phase-1-sdk.md` rule 45); with no live owner the effect is `basket-unallocated` and the usual admin
+  (`specs/plugins-phase-1-sdk.md` rule 46); with no live owner the effect is `basket-unallocated` and the usual admin
   alert fires.
 - A card payment is a settled mid-stay note (`midStaySettledNotes`, `source: guestOrder`, the provider's reference
   and payment day). `paid_conflict` books no note (it would count as revenue): the link stays paid with `refundOwed`,

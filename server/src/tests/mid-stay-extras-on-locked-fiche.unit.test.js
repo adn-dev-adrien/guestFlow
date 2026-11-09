@@ -292,13 +292,14 @@ test('changing dates or guests together with an option is refused as PAST_RESERV
   assert.deepEqual(optionIds(id), [101]);
 });
 
-// specs/mid-stay-extras-on-locked-fiche.md rules 4, 9
+// specs/mid-stay-extras-on-locked-fiche.md rules 4, 9 (reading of 2026-11-06: D21 closes the unlock to a price change,
+// so the message no longer sends there)
 test('an extras change after the end-of-stay complement is collected is refused as MID_STAY_EXTRAS_CLOSED', () => {
   const id = seedStay({ endOfStayPaid: 1 });
   const result = put(id, (b) => { b.options.push({ optionId: 102, quantity: 1 }); });
   assert.equal(result.status, 400);
   assert.equal(result.body.code, 'MID_STAY_EXTRAS_CLOSED');
-  assert.equal(result.body.error, 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.');
+  assert.equal(result.body.error, 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.');
   assert.deepEqual(optionIds(id), [101]);
   // …while a save that leaves the extras alone is still accepted, as before.
   assert.equal(put(id, () => {}).status, 200);

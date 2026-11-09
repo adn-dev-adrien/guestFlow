@@ -217,6 +217,21 @@
           "getApplicableResources"
         ]
       }
+    },
+    {
+      "version": "2.23.0",
+      "modules": [
+        "financeModel",
+        "financeDashboardModel",
+        "financeWindow",
+        "fiscalYear",
+        "yearOverYear"
+      ],
+      "names": {
+        "vatRegimeModel": [
+          "regimesDuring"
+        ]
+      }
     }
   ]
 }

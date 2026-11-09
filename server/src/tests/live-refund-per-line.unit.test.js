@@ -6,7 +6,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, respond, ADMIN, TODAY, NO_ACOMPTE, WITH_ACOMPTE, S, C, D, forced, free, fiche, put, pay, cancel, refund, register, rowOf,
+  db, respond, ADMIN, TODAY, NO_ACOMPTE, WITH_ACOMPTE, S, C, D, forced, free, fiche, put, pay, storedEndOfStayPaid, cancel, refund, register, rowOf,
 } = require('./moneyLedgerFixture');
 const installmentsController = require('../controllers/installmentsController');
 
@@ -144,7 +144,7 @@ test('an end-of-stay line once paid is available; before, it collected nothing',
   pay(stay.id, S, C);
   await put(stay, { customOptions: [forced(20), free(30, 'Ajout', null)] });
   assert.equal(line(stay.id, 'custom:ajout').availableTtc, 0);
-  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY });
+  storedEndOfStayPaid(stay.id);
   assert.equal(line(stay.id, 'custom:ajout').availableTtc, 30);
   assert.equal(refund(stay.id, [{ key: 'custom:ajout', amountTtc: 30 }]).statusCode, 201);
 });
@@ -202,6 +202,6 @@ test('a plan: what the end of stay collected on a line adds to its bucket’s sh
   await plan(stay);
   pay(stay.id, C);
   await put(stay, { customOptions: [free(130, 'Ligne'), forced(20)] });
-  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: TODAY });
+  storedEndOfStayPaid(stay.id);
   assert.equal(line(stay.id, 'custom:ligne').availableTtc, 130);
 });

@@ -201,9 +201,12 @@ function PaymentModeButtons({
 const RECAP_REFUSALS = { SLOT_CONFLICT: 'Ce créneau n’est plus libre.' };
 // specs/sas-departure-recap-server-side.md rule 29 — the server's ceiling, mirrored on the steppers as a hint.
 const MAX_SAS_COUNT = 999;
+// Refusals whose reason the server words: retrying sends the same draft, so only that reason is said. Rule 29 (a refused
+// count); recall-unpaid-arrival-complement-at-checkout rule 11 and sas-breakfast-and-catering-upsell rule 17 (audit R26 H1:
+// an end-of-stay complement collected elsewhere takes no charge nor sale).
+const saidByTheServer = (error) => error?.error === 'INVALID_QUANTITY' || error?.code === 'END_OF_STAY_ALREADY_COLLECTED';
 function RecapPreviewError({ error, onRetry, onBack, unavailable = 'Total indisponible : pas de réponse du serveur.' }) {
-  // A refused count: retrying sends the same draft, so only the server's reason is said.
-  if (error?.error === 'INVALID_QUANTITY') {
+  if (saidByTheServer(error)) {
     return (
       <Box role="alert" sx={(t) => ({ bgcolor: alpha(t.palette.error.main, 0.08), color: 'error.dark', borderRadius: 1.5, px: 1.5, py: 1 })}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>{error.message}</Typography>

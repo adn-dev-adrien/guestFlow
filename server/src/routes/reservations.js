@@ -7,13 +7,15 @@ const installmentsController = require('../controllers/installmentsController');
 const platformPenalties = require('../controllers/platformPenaltiesController');
 const { isReceptionOnly } = require('../constants/roles');
 const db = require('../database');
-const { guardReadOnly } = require('../utils/reservationReadOnly');
+const { guardReadOnly, guardNotDevis } = require('../utils/reservationReadOnly');
 const { ficheVersionHeaders } = require('../middleware/ficheVersionHeaders');
 
 // A duplicate set aside takes no write (specs/calendar-property-parity.md rule 22); a cancelled stay keeps the
 // writes its history needs (refunds, the plan it was cancelled with).
 const noWriteOnDuplicate = guardReadOnly(db, { cancelled: false });
 const noWriteOnClosedStay = guardReadOnly(db, { cancelled: true });
+// specs/reservations-backend-mvc.md rule 25 — a devis id is not a stay: its writes go through /devis/:id.
+const notDevis = guardNotDevis(db);
 
 // specs/reservations-backend-mvc.md rule 20 — a write on /reservations/undefined/… is a stay that does not exist.
 const stayId = (req, res, next) => (/^[1-9]\d*$/.test(req.params.id) ? next() : res.status(404).json({ error: 'Réservation non trouvée' }));
@@ -52,22 +54,22 @@ router.post('/:id/cancel', stayId, noWriteOnDuplicate, cancellationController.ca
 router.post('/:id/restore', stayId, controller.restoreSuperseded);
 // Échéancier d'une réservation directe (specs/direct-installments.md §4.3).
 router.put('/:id/installments', stayId, noWriteOnDuplicate, notReception(installmentsController.put));
-router.delete('/:id/installments', stayId, noWriteOnDuplicate, notReception(installmentsController.remove));
+router.delete('/:id/installments', stayId, notDevis, noWriteOnDuplicate, notReception(installmentsController.remove));
 router.post('/:id/installments/:installmentId/payment', stayId, noWriteOnDuplicate, notReception(installmentsController.markPaid));
 
 // Pénalités plateforme (specs/reconciliation-assisted-matching.md §4.3).
 const send = (res, answer) => res.status(answer.status).json(answer.body);
 router.get('/:id/platform-penalties', notReception((req, res) => send(res, platformPenalties.list(req.params.id))));
-router.post('/:id/platform-penalties/preview', stayId, notReception((req, res) => send(res, platformPenalties.preview(req.params.id, req.body))));
-router.post('/:id/platform-penalties', stayId, noWriteOnDuplicate, notReception((req, res) => send(res, platformPenalties.declare(req.params.id, req.body, req.user))));
-router.delete('/:id/platform-penalties/:penaltyId', noWriteOnDuplicate, notReception((req, res) => send(res, platformPenalties.remove(req.params.id, req.params.penaltyId))));
+router.post('/:id/platform-penalties/preview', stayId, notDevis, notReception((req, res) => send(res, platformPenalties.preview(req.params.id, req.body))));
+router.post('/:id/platform-penalties', stayId, notDevis, noWriteOnDuplicate, notReception((req, res) => send(res, platformPenalties.declare(req.params.id, req.body, req.user))));
+router.delete('/:id/platform-penalties/:penaltyId', notDevis, noWriteOnDuplicate, notReception((req, res) => send(res, platformPenalties.remove(req.params.id, req.params.penaltyId))));
 router.post('/calculate-price', controller.calculatePrice);
 router.post('/', controller.create);
-router.put('/:id', stayId, controller.update);
-router.patch('/:id/payment', stayId, controller.updatePayment);
+router.put('/:id', stayId, notDevis, controller.update);
+router.patch('/:id/payment', stayId, notDevis, controller.updatePayment);
 // specs/single-payment-from-the-fiche.md §4.3 — record (or undo) the single arrival payment
 // without running the SAS: `{ mode: 'card' | 'cash' | 'undo', date }`.
-router.post('/:id/arrival-payment', stayId, noWriteOnClosedStay, controller.settleArrivalPayment);
+router.post('/:id/arrival-payment', stayId, notDevis, noWriteOnClosedStay, controller.settleArrivalPayment);
 router.delete('/:id', stayId, controller.remove);
 
 module.exports = router;

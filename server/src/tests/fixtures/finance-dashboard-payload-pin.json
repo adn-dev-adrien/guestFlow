@@ -1,0 +1,2743 @@
+{
+ "fy": {
+  "params": {
+   "fiscalYear": 2024
+  },
+  "dashboard": {
+   "window": {
+    "kind": "fy",
+    "from": "2024-01-01",
+    "to": "2024-12-31",
+    "label": "Exercice 2024",
+    "asOf": "2024-12-31"
+   },
+   "fiscalYear": {
+    "key": 2024,
+    "label": "2024",
+    "from": "2024-01-01",
+    "to": "2024-12-31",
+    "isCurrent": false,
+    "previousLabel": "2023"
+   },
+   "months": [
+    {
+     "month": "2024-01",
+     "label": "janvier 2024"
+    },
+    {
+     "month": "2024-02",
+     "label": "février 2024"
+    },
+    {
+     "month": "2024-03",
+     "label": "mars 2024"
+    },
+    {
+     "month": "2024-04",
+     "label": "avril 2024"
+    },
+    {
+     "month": "2024-05",
+     "label": "mai 2024"
+    },
+    {
+     "month": "2024-06",
+     "label": "juin 2024"
+    },
+    {
+     "month": "2024-07",
+     "label": "juillet 2024"
+    },
+    {
+     "month": "2024-08",
+     "label": "août 2024"
+    },
+    {
+     "month": "2024-09",
+     "label": "septembre 2024"
+    },
+    {
+     "month": "2024-10",
+     "label": "octobre 2024"
+    },
+    {
+     "month": "2024-11",
+     "label": "novembre 2024"
+    },
+    {
+     "month": "2024-12",
+     "label": "décembre 2024"
+    }
+   ],
+   "propertyId": null,
+   "showHt": true,
+   "hero": {
+    "revenue": 1400,
+    "revenueHt": 0,
+    "stays": 4,
+    "nights": 15,
+    "occupancy": 0.0293,
+    "revenuePerNight": 107.69,
+    "directShare": 0.7857,
+    "yoy": {
+     "current": 1400,
+     "previous": 1000,
+     "change": 40,
+     "months": 8,
+     "totalMonths": 12
+    },
+    "goal": null,
+    "cumulative": [
+     {
+      "day": "2024-01-01",
+      "x": 0,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-08",
+      "x": 7,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-15",
+      "x": 14,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-22",
+      "x": 21,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-29",
+      "x": 28,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-05",
+      "x": 35,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-12",
+      "x": 42,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-19",
+      "x": 49,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-26",
+      "x": 56,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-04",
+      "x": 63,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-11",
+      "x": 70,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-18",
+      "x": 77,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-25",
+      "x": 84,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-01",
+      "x": 91,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-08",
+      "x": 98,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-15",
+      "x": 105,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-22",
+      "x": 112,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-29",
+      "x": 119,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-06",
+      "x": 126,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-13",
+      "x": 133,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-20",
+      "x": 140,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-27",
+      "x": 147,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-03",
+      "x": 154,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-10",
+      "x": 161,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-17",
+      "x": 168,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-24",
+      "x": 175,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-07-01",
+      "x": 182,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-07-08",
+      "x": 189,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-07-15",
+      "x": 196,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-07-22",
+      "x": 203,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-07-29",
+      "x": 210,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-08-05",
+      "x": 217,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-08-12",
+      "x": 224,
+      "current": 1100,
+      "previous": null
+     },
+     {
+      "day": "2024-08-19",
+      "x": 231,
+      "current": 1100,
+      "previous": null
+     },
+     {
+      "day": "2024-08-26",
+      "x": 238,
+      "current": 1100,
+      "previous": null
+     },
+     {
+      "day": "2024-09-02",
+      "x": 245,
+      "current": 1100,
+      "previous": null
+     },
+     {
+      "day": "2024-09-09",
+      "x": 252,
+      "current": 1100,
+      "previous": null
+     },
+     {
+      "day": "2024-09-16",
+      "x": 259,
+      "current": 1100,
+      "previous": null
+     },
+     {
+      "day": "2024-09-23",
+      "x": 266,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-09-30",
+      "x": 273,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-10-07",
+      "x": 280,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-10-14",
+      "x": 287,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-10-21",
+      "x": 294,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-10-28",
+      "x": 301,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-11-04",
+      "x": 308,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-11-11",
+      "x": 315,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-11-18",
+      "x": 322,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-11-25",
+      "x": 329,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-12-02",
+      "x": 336,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-12-09",
+      "x": 343,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-12-16",
+      "x": 350,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-12-23",
+      "x": 357,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-12-30",
+      "x": 364,
+      "current": 1400,
+      "previous": null
+     },
+     {
+      "day": "2024-12-31",
+      "x": 365,
+      "current": 1400,
+      "previous": null
+     }
+    ],
+    "curveCompact": false,
+    "axis": [
+     {
+      "x": 0,
+      "label": "janv."
+     },
+     {
+      "x": 31,
+      "label": "févr."
+     },
+     {
+      "x": 60,
+      "label": "mars"
+     },
+     {
+      "x": 91,
+      "label": "avr."
+     },
+     {
+      "x": 121,
+      "label": "mai"
+     },
+     {
+      "x": 152,
+      "label": "juin"
+     },
+     {
+      "x": 182,
+      "label": "juil."
+     },
+     {
+      "x": 213,
+      "label": "août"
+     },
+     {
+      "x": 244,
+      "label": "sept."
+     },
+     {
+      "x": 274,
+      "label": "oct."
+     },
+     {
+      "x": 305,
+      "label": "nov."
+     },
+     {
+      "x": 335,
+      "label": "déc."
+     }
+    ]
+   },
+   "insights": [
+    {
+     "key": "bestMonth",
+     "tone": "success",
+     "title": "Juillet, meilleur mois de l'exercice",
+     "text": "700 €, contre 500 € l'an dernier."
+    },
+    {
+     "key": "directSavings",
+     "tone": "success",
+     "title": "Commissions évitées par le direct : 100 €",
+     "text": "1 100 € réservés en direct, au taux moyen des plateformes (9 %)."
+    },
+    {
+     "key": "late",
+     "tone": "info",
+     "title": "Aucun paiement en retard",
+     "text": "Tout est à jour."
+    },
+    {
+     "key": "unpriced",
+     "tone": "warning",
+     "title": "1 séjour sans montant",
+     "text": "2 nuits sans revenu sur la période : montants à saisir.",
+     "action": {
+      "label": "Voir les séjours",
+      "tile": "stays",
+      "scope": "unpriced"
+     }
+    }
+   ],
+   "properties": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "revenue": 700,
+     "occupancy": 0.0327,
+     "revenuePerNight": 116.67
+    },
+    {
+     "propertyId": 2,
+     "name": "Tente",
+     "colorIndex": 1,
+     "revenue": 700,
+     "occupancy": 0.0255,
+     "revenuePerNight": 100
+    }
+   ],
+   "totalRevenue": 1400,
+   "totalOccupancy": 0.0293,
+   "tiles": {
+    "collected": {
+     "amount": 1400,
+     "shareOfRevenue": 1
+    },
+    "toCollect": {
+     "amount": 0,
+     "stays": 0
+    },
+    "late": {
+     "amount": 0,
+     "stays": 0,
+     "payouts": 0
+    },
+    "stays": {
+     "count": 4,
+     "upcoming": 0
+    },
+    "properties": {
+     "count": 2,
+     "leader": "Gite"
+    },
+    "channels": {
+     "commission": 30
+    }
+   },
+   "revenueMonths": [
+    {
+     "month": "2024-01",
+     "label": "janvier 2024",
+     "initial": "J",
+     "short": "janv.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "janvier 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-02",
+     "label": "février 2024",
+     "initial": "F",
+     "short": "févr.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "février 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-03",
+     "label": "mars 2024",
+     "initial": "M",
+     "short": "mars",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "mars 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-04",
+     "label": "avril 2024",
+     "initial": "A",
+     "short": "avr.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "avril 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-05",
+     "label": "mai 2024",
+     "initial": "M",
+     "short": "mai",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 200,
+     "previousLabel": "mai 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-06",
+     "label": "juin 2024",
+     "initial": "J",
+     "short": "juin",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "juin 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-07",
+     "label": "juillet 2024",
+     "initial": "J",
+     "short": "juil.",
+     "isCurrent": false,
+     "past": 700,
+     "upcoming": 0,
+     "revenue": 700,
+     "revenueHt": 0,
+     "nights": 6,
+     "previous": 500,
+     "previousLabel": "juillet 2023",
+     "inWindow": true,
+     "totalLabel": "700",
+     "labelOn": "past"
+    },
+    {
+     "month": "2024-08",
+     "label": "août 2024",
+     "initial": "A",
+     "short": "août",
+     "isCurrent": false,
+     "past": 400,
+     "upcoming": 0,
+     "revenue": 400,
+     "revenueHt": 0,
+     "nights": 4,
+     "previous": 300,
+     "previousLabel": "août 2023",
+     "inWindow": true,
+     "totalLabel": "400",
+     "labelOn": "past"
+    },
+    {
+     "month": "2024-09",
+     "label": "septembre 2024",
+     "initial": "S",
+     "short": "sept.",
+     "isCurrent": false,
+     "past": 300,
+     "upcoming": 0,
+     "revenue": 300,
+     "revenueHt": 0,
+     "nights": 3,
+     "previous": 0,
+     "previousLabel": "septembre 2023",
+     "inWindow": true,
+     "totalLabel": "300",
+     "labelOn": "past"
+    },
+    {
+     "month": "2024-10",
+     "label": "octobre 2024",
+     "initial": "O",
+     "short": "oct.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 2,
+     "previous": 0,
+     "previousLabel": "octobre 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-11",
+     "label": "novembre 2024",
+     "initial": "N",
+     "short": "nov.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "novembre 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-12",
+     "label": "décembre 2024",
+     "initial": "D",
+     "short": "déc.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "décembre 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    }
+   ],
+   "occupancy": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "average": 0.0327,
+     "months": [
+      {
+       "month": "2024-01",
+       "label": "janvier 2024",
+       "initial": "J",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-02",
+       "label": "février 2024",
+       "initial": "F",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-03",
+       "label": "mars 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-04",
+       "label": "avril 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-05",
+       "label": "mai 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": 0.0645
+      },
+      {
+       "month": "2024-06",
+       "label": "juin 2024",
+       "initial": "J",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-07",
+       "label": "juillet 2024",
+       "initial": "J",
+       "current": 0.1935,
+       "previous": 0.1613
+      },
+      {
+       "month": "2024-08",
+       "label": "août 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-09",
+       "label": "septembre 2024",
+       "initial": "S",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-10",
+       "label": "octobre 2024",
+       "initial": "O",
+       "current": 0.0645,
+       "previous": 0
+      },
+      {
+       "month": "2024-11",
+       "label": "novembre 2024",
+       "initial": "N",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-12",
+       "label": "décembre 2024",
+       "initial": "D",
+       "current": 0.0645,
+       "previous": 0
+      }
+     ]
+    },
+    {
+     "propertyId": 2,
+     "name": "Tente",
+     "colorIndex": 1,
+     "average": 0.0255,
+     "months": [
+      {
+       "month": "2024-01",
+       "label": "janvier 2024",
+       "initial": "J",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-02",
+       "label": "février 2024",
+       "initial": "F",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-03",
+       "label": "mars 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-04",
+       "label": "avril 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-05",
+       "label": "mai 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-06",
+       "label": "juin 2024",
+       "initial": "J",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-07",
+       "label": "juillet 2024",
+       "initial": "J",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-08",
+       "label": "août 2024",
+       "initial": "A",
+       "current": 0.129,
+       "previous": 0.0968
+      },
+      {
+       "month": "2024-09",
+       "label": "septembre 2024",
+       "initial": "S",
+       "current": 0.1,
+       "previous": 0
+      },
+      {
+       "month": "2024-10",
+       "label": "octobre 2024",
+       "initial": "O",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-11",
+       "label": "novembre 2024",
+       "initial": "N",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-12",
+       "label": "décembre 2024",
+       "initial": "D",
+       "current": null,
+       "previous": 0
+      }
+     ]
+    }
+   ]
+  },
+  "properties": {
+   "rows": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "nights": 8,
+     "occupancy": 0.0327,
+     "revenuePerNight": 116.67,
+     "revPar": 2.29,
+     "revenue": 700,
+     "revenueHt": 0,
+     "change": 0
+    },
+    {
+     "propertyId": 2,
+     "name": "Tente",
+     "colorIndex": 1,
+     "nights": 7,
+     "occupancy": 0.0255,
+     "revenuePerNight": 100,
+     "revPar": 2.55,
+     "revenue": 700,
+     "revenueHt": 0,
+     "change": 133.3
+    }
+   ],
+   "showHt": true,
+   "totals": {
+    "nights": 15,
+    "occupancy": 0.0293,
+    "revenuePerNight": 107.69,
+    "revPar": 2.41,
+    "revenue": 1400,
+    "revenueHt": 0
+   },
+   "comparableMonths": {
+    "months": 8,
+    "totalMonths": 12
+   }
+  },
+  "collected": {
+   "rows": [
+    {
+     "reservationId": 6,
+     "clientName": "Jean Dupont",
+     "propertyName": "Tente",
+     "platform": "Booking",
+     "date": "2024-09-20",
+     "kind": "balance",
+     "label": "Versement plateforme",
+     "amount": 300
+    },
+    {
+     "reservationId": 5,
+     "clientName": "Jean Dupont",
+     "propertyName": "Tente",
+     "platform": "direct",
+     "date": "2024-08-06",
+     "kind": "balance",
+     "label": "Solde",
+     "amount": 400
+    },
+    {
+     "reservationId": 4,
+     "clientName": "Jean Dupont",
+     "propertyName": "Gite",
+     "platform": "direct",
+     "date": "2024-07-14",
+     "kind": "balance",
+     "label": "Solde",
+     "amount": 500
+    },
+    {
+     "reservationId": 4,
+     "clientName": "Jean Dupont",
+     "propertyName": "Gite",
+     "platform": "direct",
+     "date": "2024-05-01",
+     "kind": "deposit",
+     "label": "Acompte",
+     "amount": 200
+    }
+   ],
+   "totals": {
+    "amount": 1400,
+    "count": 4
+   }
+  }
+ },
+ "gite": {
+  "params": {
+   "fiscalYear": 2024,
+   "propertyId": 1
+  },
+  "dashboard": {
+   "window": {
+    "kind": "fy",
+    "from": "2024-01-01",
+    "to": "2024-12-31",
+    "label": "Exercice 2024",
+    "asOf": "2024-12-31"
+   },
+   "fiscalYear": {
+    "key": 2024,
+    "label": "2024",
+    "from": "2024-01-01",
+    "to": "2024-12-31",
+    "isCurrent": false,
+    "previousLabel": "2023"
+   },
+   "months": [
+    {
+     "month": "2024-01",
+     "label": "janvier 2024"
+    },
+    {
+     "month": "2024-02",
+     "label": "février 2024"
+    },
+    {
+     "month": "2024-03",
+     "label": "mars 2024"
+    },
+    {
+     "month": "2024-04",
+     "label": "avril 2024"
+    },
+    {
+     "month": "2024-05",
+     "label": "mai 2024"
+    },
+    {
+     "month": "2024-06",
+     "label": "juin 2024"
+    },
+    {
+     "month": "2024-07",
+     "label": "juillet 2024"
+    },
+    {
+     "month": "2024-08",
+     "label": "août 2024"
+    },
+    {
+     "month": "2024-09",
+     "label": "septembre 2024"
+    },
+    {
+     "month": "2024-10",
+     "label": "octobre 2024"
+    },
+    {
+     "month": "2024-11",
+     "label": "novembre 2024"
+    },
+    {
+     "month": "2024-12",
+     "label": "décembre 2024"
+    }
+   ],
+   "propertyId": 1,
+   "showHt": true,
+   "hero": {
+    "revenue": 700,
+    "revenueHt": 0,
+    "stays": 2,
+    "nights": 8,
+    "occupancy": 0.0327,
+    "revenuePerNight": 116.67,
+    "directShare": 1,
+    "yoy": {
+     "current": 700,
+     "previous": 700,
+     "change": 0,
+     "months": 8,
+     "totalMonths": 12
+    },
+    "goal": null,
+    "cumulative": [
+     {
+      "day": "2024-01-01",
+      "x": 0,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-08",
+      "x": 7,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-15",
+      "x": 14,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-22",
+      "x": 21,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-01-29",
+      "x": 28,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-05",
+      "x": 35,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-12",
+      "x": 42,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-19",
+      "x": 49,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-02-26",
+      "x": 56,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-04",
+      "x": 63,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-11",
+      "x": 70,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-18",
+      "x": 77,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-03-25",
+      "x": 84,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-01",
+      "x": 91,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-08",
+      "x": 98,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-15",
+      "x": 105,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-22",
+      "x": 112,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-04-29",
+      "x": 119,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-06",
+      "x": 126,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-13",
+      "x": 133,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-20",
+      "x": 140,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-05-27",
+      "x": 147,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-03",
+      "x": 154,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-10",
+      "x": 161,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-17",
+      "x": 168,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-06-24",
+      "x": 175,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-07-01",
+      "x": 182,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-07-08",
+      "x": 189,
+      "current": 0,
+      "previous": null
+     },
+     {
+      "day": "2024-07-15",
+      "x": 196,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-07-22",
+      "x": 203,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-07-29",
+      "x": 210,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-08-05",
+      "x": 217,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-08-12",
+      "x": 224,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-08-19",
+      "x": 231,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-08-26",
+      "x": 238,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-09-02",
+      "x": 245,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-09-09",
+      "x": 252,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-09-16",
+      "x": 259,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-09-23",
+      "x": 266,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-09-30",
+      "x": 273,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-10-07",
+      "x": 280,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-10-14",
+      "x": 287,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-10-21",
+      "x": 294,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-10-28",
+      "x": 301,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-11-04",
+      "x": 308,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-11-11",
+      "x": 315,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-11-18",
+      "x": 322,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-11-25",
+      "x": 329,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-12-02",
+      "x": 336,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-12-09",
+      "x": 343,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-12-16",
+      "x": 350,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-12-23",
+      "x": 357,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-12-30",
+      "x": 364,
+      "current": 700,
+      "previous": null
+     },
+     {
+      "day": "2024-12-31",
+      "x": 365,
+      "current": 700,
+      "previous": null
+     }
+    ],
+    "curveCompact": false,
+    "axis": [
+     {
+      "x": 0,
+      "label": "janv."
+     },
+     {
+      "x": 31,
+      "label": "févr."
+     },
+     {
+      "x": 60,
+      "label": "mars"
+     },
+     {
+      "x": 91,
+      "label": "avr."
+     },
+     {
+      "x": 121,
+      "label": "mai"
+     },
+     {
+      "x": 152,
+      "label": "juin"
+     },
+     {
+      "x": 182,
+      "label": "juil."
+     },
+     {
+      "x": 213,
+      "label": "août"
+     },
+     {
+      "x": 244,
+      "label": "sept."
+     },
+     {
+      "x": 274,
+      "label": "oct."
+     },
+     {
+      "x": 305,
+      "label": "nov."
+     },
+     {
+      "x": 335,
+      "label": "déc."
+     }
+    ]
+   },
+   "insights": [
+    {
+     "key": "bestMonth",
+     "tone": "success",
+     "title": "Juillet, meilleur mois de l'exercice",
+     "text": "700 €, contre 500 € l'an dernier."
+    },
+    {
+     "key": "late",
+     "tone": "info",
+     "title": "Aucun paiement en retard",
+     "text": "Tout est à jour."
+    },
+    {
+     "key": "unpriced",
+     "tone": "warning",
+     "title": "1 séjour sans montant",
+     "text": "2 nuits sans revenu sur la période : montants à saisir.",
+     "action": {
+      "label": "Voir les séjours",
+      "tile": "stays",
+      "scope": "unpriced"
+     }
+    }
+   ],
+   "properties": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "revenue": 700,
+     "occupancy": 0.0327,
+     "revenuePerNight": 116.67
+    },
+    {
+     "propertyId": 2,
+     "name": "Tente",
+     "colorIndex": 1,
+     "revenue": 700,
+     "occupancy": 0.0255,
+     "revenuePerNight": 100
+    }
+   ],
+   "totalRevenue": 1400,
+   "totalOccupancy": 0.0293,
+   "tiles": {
+    "collected": {
+     "amount": 700,
+     "shareOfRevenue": 1
+    },
+    "toCollect": {
+     "amount": 0,
+     "stays": 0
+    },
+    "late": {
+     "amount": 0,
+     "stays": 0,
+     "payouts": 0
+    },
+    "stays": {
+     "count": 2,
+     "upcoming": 0
+    },
+    "properties": {
+     "count": 1,
+     "name": "Gite",
+     "revenue": 700,
+     "revPar": 2.29
+    },
+    "channels": {
+     "commission": 0
+    }
+   },
+   "revenueMonths": [
+    {
+     "month": "2024-01",
+     "label": "janvier 2024",
+     "initial": "J",
+     "short": "janv.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "janvier 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-02",
+     "label": "février 2024",
+     "initial": "F",
+     "short": "févr.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "février 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-03",
+     "label": "mars 2024",
+     "initial": "M",
+     "short": "mars",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "mars 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-04",
+     "label": "avril 2024",
+     "initial": "A",
+     "short": "avr.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "avril 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-05",
+     "label": "mai 2024",
+     "initial": "M",
+     "short": "mai",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 200,
+     "previousLabel": "mai 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-06",
+     "label": "juin 2024",
+     "initial": "J",
+     "short": "juin",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "juin 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-07",
+     "label": "juillet 2024",
+     "initial": "J",
+     "short": "juil.",
+     "isCurrent": false,
+     "past": 700,
+     "upcoming": 0,
+     "revenue": 700,
+     "revenueHt": 0,
+     "nights": 6,
+     "previous": 500,
+     "previousLabel": "juillet 2023",
+     "inWindow": true,
+     "totalLabel": "700",
+     "labelOn": "past"
+    },
+    {
+     "month": "2024-08",
+     "label": "août 2024",
+     "initial": "A",
+     "short": "août",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "août 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-09",
+     "label": "septembre 2024",
+     "initial": "S",
+     "short": "sept.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "septembre 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-10",
+     "label": "octobre 2024",
+     "initial": "O",
+     "short": "oct.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 2,
+     "previous": 0,
+     "previousLabel": "octobre 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-11",
+     "label": "novembre 2024",
+     "initial": "N",
+     "short": "nov.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "novembre 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-12",
+     "label": "décembre 2024",
+     "initial": "D",
+     "short": "déc.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "décembre 2023",
+     "inWindow": true,
+     "totalLabel": "",
+     "labelOn": null
+    }
+   ],
+   "occupancy": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "average": 0.0327,
+     "months": [
+      {
+       "month": "2024-01",
+       "label": "janvier 2024",
+       "initial": "J",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-02",
+       "label": "février 2024",
+       "initial": "F",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-03",
+       "label": "mars 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-04",
+       "label": "avril 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-05",
+       "label": "mai 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": 0.0645
+      },
+      {
+       "month": "2024-06",
+       "label": "juin 2024",
+       "initial": "J",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-07",
+       "label": "juillet 2024",
+       "initial": "J",
+       "current": 0.1935,
+       "previous": 0.1613
+      },
+      {
+       "month": "2024-08",
+       "label": "août 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-09",
+       "label": "septembre 2024",
+       "initial": "S",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-10",
+       "label": "octobre 2024",
+       "initial": "O",
+       "current": 0.0645,
+       "previous": 0
+      },
+      {
+       "month": "2024-11",
+       "label": "novembre 2024",
+       "initial": "N",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-12",
+       "label": "décembre 2024",
+       "initial": "D",
+       "current": 0.0645,
+       "previous": 0
+      }
+     ]
+    }
+   ]
+  },
+  "properties": {
+   "rows": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "nights": 8,
+     "occupancy": 0.0327,
+     "revenuePerNight": 116.67,
+     "revPar": 2.29,
+     "revenue": 700,
+     "revenueHt": 0,
+     "change": 0
+    }
+   ],
+   "showHt": true,
+   "totals": {
+    "nights": 8,
+    "occupancy": 0.0327,
+    "revenuePerNight": 116.67,
+    "revPar": 2.29,
+    "revenue": 700,
+    "revenueHt": 0
+   },
+   "comparableMonths": {
+    "months": 8,
+    "totalMonths": 12
+   }
+  },
+  "collected": {
+   "rows": [
+    {
+     "reservationId": 4,
+     "clientName": "Jean Dupont",
+     "propertyName": "Gite",
+     "platform": "direct",
+     "date": "2024-07-14",
+     "kind": "balance",
+     "label": "Solde",
+     "amount": 500
+    },
+    {
+     "reservationId": 4,
+     "clientName": "Jean Dupont",
+     "propertyName": "Gite",
+     "platform": "direct",
+     "date": "2024-05-01",
+     "kind": "deposit",
+     "label": "Acompte",
+     "amount": 200
+    }
+   ],
+   "totals": {
+    "amount": 700,
+    "count": 2
+   }
+  }
+ },
+ "month": {
+  "params": {
+   "fiscalYear": 2024,
+   "period": "month",
+   "month": "2024-08"
+  },
+  "dashboard": {
+   "window": {
+    "kind": "month",
+    "from": "2024-08-01",
+    "to": "2024-08-31",
+    "month": "2024-08",
+    "label": "août 2024",
+    "asOf": "2024-08-31"
+   },
+   "fiscalYear": {
+    "key": 2024,
+    "label": "2024",
+    "from": "2024-01-01",
+    "to": "2024-12-31",
+    "isCurrent": false,
+    "previousLabel": "2023"
+   },
+   "months": [
+    {
+     "month": "2024-01",
+     "label": "janvier 2024"
+    },
+    {
+     "month": "2024-02",
+     "label": "février 2024"
+    },
+    {
+     "month": "2024-03",
+     "label": "mars 2024"
+    },
+    {
+     "month": "2024-04",
+     "label": "avril 2024"
+    },
+    {
+     "month": "2024-05",
+     "label": "mai 2024"
+    },
+    {
+     "month": "2024-06",
+     "label": "juin 2024"
+    },
+    {
+     "month": "2024-07",
+     "label": "juillet 2024"
+    },
+    {
+     "month": "2024-08",
+     "label": "août 2024"
+    },
+    {
+     "month": "2024-09",
+     "label": "septembre 2024"
+    },
+    {
+     "month": "2024-10",
+     "label": "octobre 2024"
+    },
+    {
+     "month": "2024-11",
+     "label": "novembre 2024"
+    },
+    {
+     "month": "2024-12",
+     "label": "décembre 2024"
+    }
+   ],
+   "propertyId": null,
+   "showHt": true,
+   "hero": {
+    "revenue": 400,
+    "revenueHt": 0,
+    "stays": 1,
+    "nights": 4,
+    "occupancy": 0.0645,
+    "revenuePerNight": 100,
+    "directShare": 1,
+    "yoy": {
+     "current": 400,
+     "previous": 300,
+     "change": 33.3,
+     "months": 1,
+     "totalMonths": 1
+    },
+    "goal": null,
+    "cumulative": [
+     {
+      "day": "2024-08-01",
+      "x": 0,
+      "current": 0,
+      "previous": 0
+     },
+     {
+      "day": "2024-08-02",
+      "x": 1,
+      "current": 0,
+      "previous": 0
+     },
+     {
+      "day": "2024-08-03",
+      "x": 2,
+      "current": 0,
+      "previous": 0
+     },
+     {
+      "day": "2024-08-04",
+      "x": 3,
+      "current": 0,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-05",
+      "x": 4,
+      "current": 0,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-06",
+      "x": 5,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-07",
+      "x": 6,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-08",
+      "x": 7,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-09",
+      "x": 8,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-10",
+      "x": 9,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-11",
+      "x": 10,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-12",
+      "x": 11,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-13",
+      "x": 12,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-14",
+      "x": 13,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-15",
+      "x": 14,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-16",
+      "x": 15,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-17",
+      "x": 16,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-18",
+      "x": 17,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-19",
+      "x": 18,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-20",
+      "x": 19,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-21",
+      "x": 20,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-22",
+      "x": 21,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-23",
+      "x": 22,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-24",
+      "x": 23,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-25",
+      "x": 24,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-26",
+      "x": 25,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-27",
+      "x": 26,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-28",
+      "x": 27,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-29",
+      "x": 28,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-30",
+      "x": 29,
+      "current": 400,
+      "previous": 300
+     },
+     {
+      "day": "2024-08-31",
+      "x": 30,
+      "current": 400,
+      "previous": 300
+     }
+    ],
+    "curveCompact": false,
+    "axis": [
+     {
+      "x": 0,
+      "label": "1 août"
+     },
+     {
+      "x": 7,
+      "label": "8 août"
+     },
+     {
+      "x": 14,
+      "label": "15 août"
+     },
+     {
+      "x": 21,
+      "label": "22 août"
+     },
+     {
+      "x": 28,
+      "label": "29 août"
+     }
+    ]
+   },
+   "insights": [
+    {
+     "key": "bestMonth",
+     "tone": "success",
+     "title": "Juillet, meilleur mois de l'exercice",
+     "text": "700 €, contre 500 € l'an dernier."
+    },
+    {
+     "key": "late",
+     "tone": "info",
+     "title": "Aucun paiement en retard",
+     "text": "Tout est à jour."
+    }
+   ],
+   "properties": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "revenue": 0,
+     "occupancy": 0,
+     "revenuePerNight": null
+    },
+    {
+     "propertyId": 2,
+     "name": "Tente",
+     "colorIndex": 1,
+     "revenue": 400,
+     "occupancy": 0.129,
+     "revenuePerNight": 100
+    }
+   ],
+   "totalRevenue": 400,
+   "totalOccupancy": 0.0645,
+   "tiles": {
+    "collected": {
+     "amount": 400,
+     "shareOfRevenue": 1
+    },
+    "toCollect": {
+     "amount": 0,
+     "stays": 0
+    },
+    "late": {
+     "amount": 0,
+     "stays": 0,
+     "payouts": 0
+    },
+    "stays": {
+     "count": 1,
+     "upcoming": 0
+    },
+    "properties": {
+     "count": 2,
+     "leader": "Tente"
+    },
+    "channels": {
+     "commission": 0
+    }
+   },
+   "revenueMonths": [
+    {
+     "month": "2024-01",
+     "label": "janvier 2024",
+     "initial": "J",
+     "short": "janv.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "janvier 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-02",
+     "label": "février 2024",
+     "initial": "F",
+     "short": "févr.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "février 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-03",
+     "label": "mars 2024",
+     "initial": "M",
+     "short": "mars",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "mars 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-04",
+     "label": "avril 2024",
+     "initial": "A",
+     "short": "avr.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": null,
+     "previousLabel": "avril 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-05",
+     "label": "mai 2024",
+     "initial": "M",
+     "short": "mai",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 200,
+     "previousLabel": "mai 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-06",
+     "label": "juin 2024",
+     "initial": "J",
+     "short": "juin",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "juin 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-07",
+     "label": "juillet 2024",
+     "initial": "J",
+     "short": "juil.",
+     "isCurrent": false,
+     "past": 700,
+     "upcoming": 0,
+     "revenue": 700,
+     "revenueHt": 0,
+     "nights": 6,
+     "previous": 500,
+     "previousLabel": "juillet 2023",
+     "inWindow": false,
+     "totalLabel": "700",
+     "labelOn": "past"
+    },
+    {
+     "month": "2024-08",
+     "label": "août 2024",
+     "initial": "A",
+     "short": "août",
+     "isCurrent": false,
+     "past": 400,
+     "upcoming": 0,
+     "revenue": 400,
+     "revenueHt": 0,
+     "nights": 4,
+     "previous": 300,
+     "previousLabel": "août 2023",
+     "inWindow": true,
+     "totalLabel": "400",
+     "labelOn": "past"
+    },
+    {
+     "month": "2024-09",
+     "label": "septembre 2024",
+     "initial": "S",
+     "short": "sept.",
+     "isCurrent": false,
+     "past": 300,
+     "upcoming": 0,
+     "revenue": 300,
+     "revenueHt": 0,
+     "nights": 3,
+     "previous": 0,
+     "previousLabel": "septembre 2023",
+     "inWindow": false,
+     "totalLabel": "300",
+     "labelOn": "past"
+    },
+    {
+     "month": "2024-10",
+     "label": "octobre 2024",
+     "initial": "O",
+     "short": "oct.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 2,
+     "previous": 0,
+     "previousLabel": "octobre 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-11",
+     "label": "novembre 2024",
+     "initial": "N",
+     "short": "nov.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "novembre 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    },
+    {
+     "month": "2024-12",
+     "label": "décembre 2024",
+     "initial": "D",
+     "short": "déc.",
+     "isCurrent": false,
+     "past": 0,
+     "upcoming": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "nights": 0,
+     "previous": 0,
+     "previousLabel": "décembre 2023",
+     "inWindow": false,
+     "totalLabel": "",
+     "labelOn": null
+    }
+   ],
+   "occupancy": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "average": 0.0327,
+     "months": [
+      {
+       "month": "2024-01",
+       "label": "janvier 2024",
+       "initial": "J",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-02",
+       "label": "février 2024",
+       "initial": "F",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-03",
+       "label": "mars 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-04",
+       "label": "avril 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-05",
+       "label": "mai 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": 0.0645
+      },
+      {
+       "month": "2024-06",
+       "label": "juin 2024",
+       "initial": "J",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-07",
+       "label": "juillet 2024",
+       "initial": "J",
+       "current": 0.1935,
+       "previous": 0.1613
+      },
+      {
+       "month": "2024-08",
+       "label": "août 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-09",
+       "label": "septembre 2024",
+       "initial": "S",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-10",
+       "label": "octobre 2024",
+       "initial": "O",
+       "current": 0.0645,
+       "previous": 0
+      },
+      {
+       "month": "2024-11",
+       "label": "novembre 2024",
+       "initial": "N",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-12",
+       "label": "décembre 2024",
+       "initial": "D",
+       "current": 0.0645,
+       "previous": 0
+      }
+     ]
+    },
+    {
+     "propertyId": 2,
+     "name": "Tente",
+     "colorIndex": 1,
+     "average": 0.0255,
+     "months": [
+      {
+       "month": "2024-01",
+       "label": "janvier 2024",
+       "initial": "J",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-02",
+       "label": "février 2024",
+       "initial": "F",
+       "current": null,
+       "previous": null
+      },
+      {
+       "month": "2024-03",
+       "label": "mars 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-04",
+       "label": "avril 2024",
+       "initial": "A",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-05",
+       "label": "mai 2024",
+       "initial": "M",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-06",
+       "label": "juin 2024",
+       "initial": "J",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-07",
+       "label": "juillet 2024",
+       "initial": "J",
+       "current": 0,
+       "previous": null
+      },
+      {
+       "month": "2024-08",
+       "label": "août 2024",
+       "initial": "A",
+       "current": 0.129,
+       "previous": 0.0968
+      },
+      {
+       "month": "2024-09",
+       "label": "septembre 2024",
+       "initial": "S",
+       "current": 0.1,
+       "previous": 0
+      },
+      {
+       "month": "2024-10",
+       "label": "octobre 2024",
+       "initial": "O",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-11",
+       "label": "novembre 2024",
+       "initial": "N",
+       "current": 0,
+       "previous": 0
+      },
+      {
+       "month": "2024-12",
+       "label": "décembre 2024",
+       "initial": "D",
+       "current": null,
+       "previous": 0
+      }
+     ]
+    }
+   ]
+  },
+  "properties": {
+   "rows": [
+    {
+     "propertyId": 1,
+     "name": "Gite",
+     "colorIndex": 0,
+     "nights": 0,
+     "occupancy": 0,
+     "revenuePerNight": null,
+     "revPar": 0,
+     "revenue": 0,
+     "revenueHt": 0,
+     "change": null
+    },
+    {
+     "propertyId": 2,
+     "name": "Tente",
+     "colorIndex": 1,
+     "nights": 4,
+     "occupancy": 0.129,
+     "revenuePerNight": 100,
+     "revPar": 12.9,
+     "revenue": 400,
+     "revenueHt": 0,
+     "change": 33.3
+    }
+   ],
+   "showHt": true,
+   "totals": {
+    "nights": 4,
+    "occupancy": 0.0645,
+    "revenuePerNight": 100,
+    "revPar": 6.45,
+    "revenue": 400,
+    "revenueHt": 0
+   },
+   "comparableMonths": {
+    "months": 1,
+    "totalMonths": 1
+   }
+  },
+  "collected": {
+   "rows": [
+    {
+     "reservationId": 5,
+     "clientName": "Jean Dupont",
+     "propertyName": "Tente",
+     "platform": "direct",
+     "date": "2024-08-06",
+     "kind": "balance",
+     "label": "Solde",
+     "amount": 400
+    }
+   ],
+   "totals": {
+    "amount": 400,
+    "count": 1
+   }
+  }
+ }
+}

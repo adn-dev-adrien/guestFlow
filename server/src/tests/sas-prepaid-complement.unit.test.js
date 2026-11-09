@@ -8,7 +8,7 @@ process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  db, respond, ADMIN, TODAY, inDays, rowOf, NO_ACOMPTE, S, C, forced, fiche, put, pay, refund, register,
+  db, respond, ADMIN, TODAY, inDays, rowOf, NO_ACOMPTE, S, C, forced, fiche, put, pay, storedEndOfStayPaid, refund, register,
 } = require('./moneyLedgerFixture');
 const { applyPaymentMark } = require('../utils/reservationPaymentMark');
 const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
@@ -146,7 +146,7 @@ async function endOfStayPaidOnTheFiche() {
   const stay = fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] });
   pay(stay.id, S, C);
   await put(stay, { adults: 3 });
-  pay(stay.id, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: PAID_ON });
+  storedEndOfStayPaid(stay.id, { date: PAID_ON });
   const row = rowOf(stay.id);
   assert.ok(row.endOfStayComplementAmount > 0);
   assert.equal(row.endOfStayComplementPaidAtDeparture, 0);

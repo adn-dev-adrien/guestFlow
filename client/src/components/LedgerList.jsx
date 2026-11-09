@@ -5,7 +5,9 @@
  * same « row = amount + state + one action » shape serves any ledger.
  *
  * Props:
- *   rows:            [{ key, label, amount (number|null), stateLabel, tone, action?: { label, kind },
+ *   rows:            [{ key, label, amount (number|null), stateLabel, tone,
+ *                      action?: { label, kind, disabled?, reason? } — a disabled action is drawn closed, its
+ *                      reason as a caption under it,
  *                      amountEdit?: { editable, mode, reason } }]   (required)
  *   closing:         { label, amount|null, tone? } — the closing line (« Reste à percevoir » 614,40 € /
  *                    « Tout est perçu », amount null)
@@ -122,18 +124,30 @@ export default function LedgerList({
                 {/* §6 — an open panel replaces the state line while it is open. */}
                 {row.stateLabel && !open && <StatusBadge status={TONE_TO_STATUS[row.tone] || 'neutral'} label={row.stateLabel} wrap />}
               </Box>
-              <Box sx={{ gridArea: 'action', justifySelf: 'end' }}>
+              <Box sx={{ gridArea: 'action', justifySelf: 'end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
                 {action && (
                   <Button
                     data-ledger-action=""
                     aria-label={`${action.label} : ${row.label}`}
+                    aria-describedby={action.disabled && action.reason ? `ledger-reason-${row.key}` : undefined}
                     variant={action.kind === 'undo' || action.kind === 'deleteRefund' ? 'text' : 'outlined'}
                     color={action.kind === 'deleteRefund' ? 'error' : 'primary'}
+                    disabled={Boolean(action.disabled)}
                     onClick={() => onAction && onAction(row)}
                     sx={{ minHeight: 44, borderRadius: 999, whiteSpace: 'nowrap', textTransform: 'none', '&:active': { transform: 'scale(0.97)' } }}
                   >
                     {action.label}
                   </Button>
+                )}
+                {action && action.disabled && action.reason && (
+                  <Typography
+                    id={`ledger-reason-${row.key}`}
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ mt: 0.25, maxWidth: 150, textAlign: 'right', overflowWrap: 'anywhere' }}
+                  >
+                    {action.reason}
+                  </Typography>
                 )}
               </Box>
             </Box>

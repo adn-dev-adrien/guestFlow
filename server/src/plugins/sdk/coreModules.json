@@ -784,7 +784,8 @@
   "vatRegimeModel": [
     "forRow",
     "inForceBlock",
-    "rateForRow"
+    "rateForRow",
+    "regimesDuring"
   ],
   "storedMoneySplit": [
     "buildPerLineData",
@@ -864,5 +865,55 @@
     "commitOrder",
     "mergeOrderLines",
     "priceOrder"
+  ],
+  "financeModel": [
+    "buildModel",
+    "getGoalContext",
+    "getLedgerStays",
+    "getOperational",
+    "getPaceStays",
+    "getProjection",
+    "getSummary",
+    "getTouristTaxExtraction",
+    "getTouristTaxRows",
+    "helpers",
+    "setTouristTaxDeclared",
+    "withTouristTaxInTotal"
+  ],
+  "financeDashboardModel": [
+    "bestMonthOf",
+    "buildModel",
+    "getDashboard",
+    "getDashboardDetail",
+    "isPlatformStay",
+    "lastYearRange",
+    "paymentsLedger"
+  ],
+  "financeWindow": [
+    "MAX_CUSTOM_WINDOW_DAYS",
+    "MESSAGES",
+    "MONTH_NAMES",
+    "monthLabel",
+    "resolveWindow"
+  ],
+  "fiscalYear": [
+    "DEFAULT_END_MONTH",
+    "boundsForEndYear",
+    "containing",
+    "list",
+    "normaliseEndMonth",
+    "resolve"
+  ],
+  "yearOverYear": [
+    "change",
+    "clampToMonthsOver",
+    "comparableRange",
+    "coverageMonth",
+    "isComparableMonth",
+    "isMonthOver",
+    "lastYearSnapshotKnown",
+    "monthsTouched",
+    "shiftMonth",
+    "shiftYear"
   ]
 }

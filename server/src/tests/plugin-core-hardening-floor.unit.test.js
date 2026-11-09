@@ -44,8 +44,10 @@ const HARDENINGS = [
   { feature: 'visitor times judged against the neighbours', sdk: '2.22.0', pattern: /\bstayTimesRefused\b/ },
   // specs/guest-app.md rules 28-31, 35 — the hourly slots a plugin schedules or holds through the core.
   { feature: 'resource scheduler and holds', sdk: '2.22.0', pattern: /\b(?:resourceScheduler|resourceHolds)\(/ },
-  // specs/plugins-phase-1-sdk.md rule 45 — the card payment of a plugin's basket and its paid effect.
+  // specs/plugins-phase-1-sdk.md rule 46 — the card payment of a plugin's basket and its paid effect.
   { feature: 'payment baskets', sdk: '2.22.0', pattern: /\b(?:paymentBasket\(|core\.payments\b)/ },
+  // specs/plugins-phase-1-sdk.md rule 41 (specs/accounting-synthesis.md rules 7-9).
+  { feature: 'finance readings of the accounting synthesis', sdk: '2.23.0', pattern: /coreModule\(\s*['"`]financeDashboardModel['"`]/ },
 ];
 
 function sourceFiles(dir) {

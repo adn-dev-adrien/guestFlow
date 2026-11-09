@@ -22,6 +22,7 @@ const { cotsRefusal, resourceRefusal } = require('../utils/stockPeak');
 const { stayDatesRefusal, stayDatesRefusalBody, stayItemDatesRefusal } = require('../utils/stayDates');
 const { checkPlanningRange } = require('../utils/planningDateRange');
 const { parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
+const { endOfStaySettled, endOfStayCollectRefusal, isCheckoutDone } = require('../utils/endOfStayCheckout');
 const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
@@ -31,6 +32,7 @@ const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reserva
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
+const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
 const { checkGuestCapacity } = require('../utils/capacity');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
@@ -98,7 +100,10 @@ const {
 } = require('../utils/midStayExtrasWindow');
 const { matchStoredCustomLines } = require('../utils/storedCustomLines');
 const { withStoredLineContribs } = require('../utils/storedLineContribs');
-const { buildLiveCheckoutComplement } = require('../utils/checkoutComplement');
+const {
+  buildLiveCheckoutComplement, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay, deferralRefusal, endOfStayAloneRefusal,
+} = require('../utils/checkoutComplement');
+const { splitComplementBuckets } = require('../utils/complementBuckets');
 const { createResultRecorder } = require('../utils/resultRecorder');
 const { saveWithDraftClient } = require('../utils/draftClient');
 const { buildLedger } = require('../utils/reservationLedger');
@@ -159,6 +164,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
     stayReadOnly: id ? require('../utils/withdrawnPayments').stayIsReadOnly(db, id) : false,
     nettedRefundIds: id && String(row.kind) === 'cancelled' ? nettedRefundIdsOf(row, refunds) : null,
     providerLabel: (paymentProviders.declared() || {}).label || null,
+    endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }),
     today: getTodayIsoDate(),
   });
 }
@@ -852,7 +858,7 @@ function buildArrivalPaymentView(row) {
   // specs/single-payment-from-the-fiche.md rules 2-3 — no group yet: what could still be collected as
   // ONE payment. Fewer than two buckets is not an offer: the per-bucket buttons already cover it, and
   // calling a lone settlement « paiement unique » would be a lie.
-  const collectible = collectibleArrivalBuckets(row);
+  const collectible = collectibleArrivalBuckets(row, { endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }) });
   if (collectible.length < 2) return null;
   return {
     collectible: {
@@ -918,7 +924,12 @@ function settleArrivalPayment(req, res) {
     });
     if (!checked.ok) return res.status(400).json({ error: checked.reason });
     date = checked.date;
-    if (collectibleArrivalBuckets(row).length === 0) {
+    // Rule 68 (D20) — before the check-out the end-of-stay complement is not part of it: when it is all that
+    // is left, the answer says why rather than « nothing to collect ».
+    if (collectibleArrivalBuckets(row, { endOfStayCollectible: isCheckoutDone(row, { today: getTodayIsoDate() }) }).length === 0) {
+      const eosOnly = collectibleArrivalBuckets(row, { endOfStayCollectible: true }).length > 0;
+      const refusal = eosOnly ? endOfStayCollectRefusal(row, { today: getTodayIsoDate() }) : null;
+      if (refusal) return res.status(refusal.status).json(refusal.body);
       return res.status(409).json({ error: 'Il n\'y a plus rien à encaisser sur cette réservation.' });
     }
   }
@@ -977,6 +988,12 @@ function complementOverrideMoved(sent, stored) {
   return read(sent) !== read(stored ?? null);
 }
 
+// What a mark of the complement card collects: the merged card holds the end of stay still due (defer rules 6, 22).
+function mergedComplementAmount(row) {
+  const arrival = Number(row.complementAmount || 0);
+  return isComplementDeferred(row) ? arrival + mergedEndOfStayAmount(row) : arrival;
+}
+
 // What a payment PATCH would write on the money `comptaCollected` reads (rule 52), computed ahead of any write.
 function paymentPatchChanges(row, body, today) {
   const changes = {};
@@ -986,7 +1003,7 @@ function paymentPatchChanges(row, body, today) {
   if (body.complementPaid !== undefined || body.complementPaidCash !== undefined) {
     const { paid, cash } = resolved(body.complementPaid, body.complementPaidCash, row.complementPaid, row.complementPaidCash);
     Object.assign(changes, { complementPaid: paid, complementPaidCash: cash });
-    if (Number(row.complementDeferredToCheckout || 0) === 1 && Number(row.endOfStayComplementAmount || 0) > 0) {
+    if (markCarriesEndOfStay(row)) {
       Object.assign(changes, { endOfStayComplementPaid: paid, endOfStayComplementPaidCash: cash });
     }
   }
@@ -1308,7 +1325,7 @@ async function calculatePrice(req, res) {
     ...midStayQuoteInputs(db, reservationId),
     // specs/payment-schedule-and-cancellation.md §3.1 — same booking context as the save, so the
     // échéances shown on the fiche are the ones that will be stored.
-    ...scheduleQuoteInputs(db, reservationId > 0 ? reservationId : devisId),
+    ...scheduleQuoteInputs(db, reservationId > 0 ? reservationId : devisId, { editedStartDate: req.body.startDate }),
     // specs/platform-commission-line.md — feed the operator-entered platform commission so the quote
     // returns the « total séjour − commission = net perçu » figures for the summary block.
     platformCommissionAmount: req.body.platformCommissionAmount,
@@ -1346,6 +1363,9 @@ async function calculatePrice(req, res) {
   // call out and warms the cache the save then reads, so the fiche announces what the save will bill.
   quote = await quotePostProcessors.applyLive({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the validity date the save will write,
+  // for the fiche's « Valide jusqu'au » chip while the edit is unsaved.
+  if (!(reservationId > 0) && devisId > 0 && engineInput.kind === 'devis') quote.validUntil = engineInput.validUntil || null;
   quote.typedCountAlerts = alertsForQuote(
     quote, req.body, req.body.selectedOptions,
     reservationId > 0 || devisId > 0 ? model.getRow(reservationId > 0 ? reservationId : devisId) : null,
@@ -1357,6 +1377,16 @@ async function calculatePrice(req, res) {
   if (reservationId > 0) {
     const row = model.getRow(reservationId);
     if (row) quote.checkoutComplement = buildLiveCheckoutComplement({ row, quote });
+    // specs/complement-buckets-by-moment.md rule 4 (reading R30-C-L1) — the live panel files the complement where the
+    // merged card does: the block's row-aware `deferred`, never the raw marker.
+    if (row && quote.complementSplit) {
+      quote.complementSplit = splitComplementBuckets({
+        complementAmount: quote.complementAmount,
+        midStaySettledTotal: quote.complementSplit.duringStay,
+        endOfStayComplementTotal: quote.endOfStayComplementTotal,
+        filedAtEndOfStay: quote.checkoutComplement.deferred,
+      });
+    }
     // specs/reservation-refunds.md rule 34 — the trop-perçu the fiche shows, live.
     if (row) Object.assign(quote, liveOverpayment(reservationId, engineInput));
   }
@@ -1405,8 +1435,10 @@ async function calculatePrice(req, res) {
     // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
     const edit = req.body.ledgerEdit;
     if (edit && (edit.row === 'deposit' || edit.row === 'balance')) {
-      const pastLocked = Boolean(storedRow && storedRow.kind === 'reservation' && storedRow.startDate
-        && storedRow.startDate <= getTodayIsoDate()) && !(req.body.unlockPast && userHasRole(req.user, ADMIN));
+      const startedStay = Boolean(storedRow && storedRow.kind === 'reservation' && storedRow.startDate
+        && storedRow.startDate <= getTodayIsoDate());
+      const unlocked = Boolean(req.body.unlockPast && userHasRole(req.user, ADMIN));
+      const pastLocked = startedStay && !unlocked;
       quote.ledgerEdit = evaluateLedgerEdit({
         row: edit.row,
         amount: edit.amount,
@@ -1414,6 +1446,7 @@ async function calculatePrice(req, res) {
         ledger: quote.ledger,
         stored: storedRow || {},
         pastLocked,
+        priceFrozen: startedStay && unlocked,
         evaluate: (customPrice) => quotePostProcessors.applySync({
           engineInput: { ...engineInput, customPrice },
           quote: calculateReservationQuote({ ...engineInput, customPrice }),
@@ -1865,7 +1898,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
 
 const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ne peut plus être renommée une fois le séjour commencé.';
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
-const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.';
+const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.';
 
 // specs/mid-stay-extras-on-locked-fiche.md rule 8 — inside the window the routing of every line is
 // the stored one (a mid-stay sale goes to the end-of-stay complement whatever it is), so the payload
@@ -2227,11 +2260,21 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   }
   // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20, reading of 2026-11-05 (audit R23 N4) — D9 makes the end-of-stay
   // complement exist before arrival. Once collected nothing can claim a rise: same refusal as a started stay.
-  const notStarted = !(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
+  // Reading of 2026-11-06 (audit R26 MEDIUM 1) — a started, still locked fiche too, below: its price adjustments
+  // (discount, final price) are allowed fields. There only the part of the rise no unpaid bucket takes on is refused
+  // (reading of 2026-11-06, audit R26 finding 1): a checked-out stay with its solde open claims the rise on it.
+  const started = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
   const endOfStayCollected = Number(storedPaymentForQuote.endOfStayComplementPaid || 0) === 1 || Number(storedPaymentForQuote.endOfStayComplementPaidCash || 0) === 1;
-  if (notStarted && endOfStayCollected
-    && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0))) {
+  const raisesCollectedStay = endOfStayCollected
+    && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0));
+  if (!started && raisesCollectedStay) {
     return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
+  }
+  // specs/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — the admin unlock of a started stay
+  // exists to correct the amounts expected from the platforms: a save that moves the final price or the tourist tax is refused.
+  if (started && pastUnlocked) {
+    const unlockedRefusal = unlockedPriceRefusal(storedPaymentForQuote, quote);
+    if (unlockedRefusal) return res.status(409).json(unlockedRefusal);
   }
   // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
   // Reading of 2026-11-05 (audit R24-DB-2): « Sans acompte » on a paid acompte takes its mark back.
@@ -2276,6 +2319,15 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
         error: 'Cette réservation est passée ou en cours. Seuls le client, la plateforme, les ajustements de prix et les statuts de paiement/caution peuvent encore être modifiés.',
         code: 'PAST_RESERVATION_LOCKED',
       });
+    }
+    const savedPlatform = req.body.platform != null ? req.body.platform : storedPaymentForQuote.platform;
+    // Audit R27-RES-1 — the trop-perçu still open before the save is money collected: it claims a rise up to its amount.
+    if (raisesCollectedStay
+      && unclaimedRise(storedPaymentForQuote, quote, {
+        planClaim: installments.planClaimOf(id, quote, savedPlatform),
+        openOverpayment: (storedOverpayment(id) || { overpaymentTtc: 0 }).overpaymentTtc,
+      }) > 0) {
+      return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });
     }
   }
 
@@ -2493,6 +2545,21 @@ const PAYMENT_FLAG_FIELDS = [
 ];
 
 /**
+ * Rule 68 (D20) — a PATCH that would turn an unsettled end-of-stay complement into a collected one, before the
+ * check-out: its own mark (books or caisse interne), or the arrival complement ticked while it is deferred to
+ * the check-out (rule 8 of defer-arrival-complement-to-checkout settles both together). A mark sent on a
+ * complement already settled is not a collection and is left to the other guards.
+ */
+function endOfStayMarkRefusal(row, body, today) {
+  if (endOfStaySettled(row)) return null;
+  // The PATCH applies « Percevoir en fin de séjour » before the complement mark: the deferral it reads is the one sent.
+  const deferral = body.complementDeferredToCheckout === undefined ? {} : { complementDeferredToCheckout: body.complementDeferredToCheckout ? 1 : 0 };
+  const changes = paymentPatchChanges({ ...row, ...deferral }, body, today);
+  if (!endOfStaySettled(changes)) return null;
+  return endOfStayCollectRefusal(row, { today });
+}
+
+/**
  * specs/reservation-payment-ledger.md — the guards of a payment mark:
  *   - rule 9: every recorded date is a real day, not in the future (« not before the booking » is not
  *     applied: reservations typed after the fact carry a later `createdAt` than their payments);
@@ -2518,6 +2585,17 @@ function paymentMarkRefusal(row, body, today) {
   }
   for (const holder of [body.adjustMidStayNote, body.settleMidStayNote]) {
     const refusal = flagRefusal(holder, 'cash');
+    if (refusal) return refusal;
+  }
+  // specs/defer-arrival-complement-to-checkout.md rule 23 — never deferred over an end of stay already collected.
+  {
+    const refusal = body.complementDeferredToCheckout === undefined ? null : deferralRefusal(row, body.complementDeferredToCheckout);
+    if (refusal) return refusal;
+  }
+  // Rule 25 — the end of stay the merged card holds is collected with its arrival part, never alone; read on the deferral sent.
+  {
+    const deferral = body.complementDeferredToCheckout === undefined ? {} : { complementDeferredToCheckout: body.complementDeferredToCheckout ? 1 : 0 };
+    const refusal = endOfStayAloneRefusal({ ...row, ...deferral }, body);
     if (refusal) return refusal;
   }
   // specs/direct-installments.md rule 35 — a stay with a plan is collected installment by installment.
@@ -2559,11 +2637,10 @@ function paymentMarkRefusal(row, body, today) {
   // Rule 32 — a bucket with nothing to collect is never marked: a converted devis carried a 0 € acompte
   // and « Marquer acompte payé » ticked it, which the books then read as a payment.
   {
-    const deferredZero = Number(row.complementDeferredToCheckout || 0) === 1;
     const amountOf = {
       depositPaid: [row.depositAmount, row.depositPaid],
       balancePaid: [row.balanceAmount, row.balancePaid],
-      complementPaid: [deferredZero ? Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0) : row.complementAmount, row.complementPaid],
+      complementPaid: [mergedComplementAmount(row), row.complementPaid],
       endOfStayComplementPaid: [row.endOfStayComplementAmount, row.endOfStayComplementPaid],
     };
     const cashOf = { complementPaid: 'complementPaidCash', endOfStayComplementPaid: 'endOfStayComplementPaidCash' };
@@ -2590,6 +2667,11 @@ function paymentMarkRefusal(row, body, today) {
     if ((body[field] === true || body[field] === 1) && Number(already || 0) === 1) {
       return { status: 409, body: { error: `${ALREADY_LABELS[field]} Relire la fiche.`, code: 'ALREADY_PAID', field } };
     }
+  }
+  // Rule 68 (D20) — the end-of-stay complement is collected after the check-out, by every path that marks it.
+  {
+    const refusal = endOfStayMarkRefusal(row, body, today);
+    if (refusal) return refusal;
   }
   // Rule 34 — a payout is received with its transfer (and the commission it implies): the two figures
   // ride the mark, under its guards, so a past or locked fiche never needs a full save to record it.
@@ -2623,13 +2705,10 @@ function paymentMarkRefusal(row, body, today) {
     if (markedCount > 1) {
       return { status: 400, body: { error: 'Un montant attendu ne vaut que pour une échéance à la fois.', code: 'AMBIGUOUS_EXPECTED_AMOUNT' } };
     }
-    const deferred = Number(row.complementDeferredToCheckout || 0) === 1;
     const storedOf = {
       depositPaid: row.depositAmount,
       balancePaid: row.balanceAmount,
-      complementPaid: deferred
-        ? Number(row.complementAmount || 0) + Number(row.endOfStayComplementAmount || 0)
-        : row.complementAmount,
+      complementPaid: mergedComplementAmount(row),
       endOfStayComplementPaid: row.endOfStayComplementAmount,
     };
     const marked = Object.keys(storedOf).find((f) => body[f] === true || body[f] === 1);
@@ -2821,15 +2900,21 @@ function updatePayment(req, res) {
     if (paid && Number(before?.complementPaid || 0) !== 1) stampComplementPaidSplit(db, Number(id));
     // specs/defer-arrival-complement-to-checkout.md §3.2 rule 8 — when the complement was deferred to
     // check-out, the fiche shows ONE card for ONE collection: marking it paid (or « caisse interne »)
-    // settles BOTH buckets with the same date, and un-marking clears both. The amounts stay separate
-    // in the DB — only the payment marking is shared.
-    if (Number(before?.complementDeferredToCheckout || 0) === 1
-      && Number(before?.endOfStayComplementAmount || 0) > 0
+    // settles BOTH buckets with the same date, and un-marking (or switching the caisse of) a card settled
+    // together carries both. The amounts stay separate in the DB — only the payment marking is shared.
+    // Rule 22 (audit R28-C-M1, verification V1): never an end of stay collected apart, so a mark never
+    // re-dates, nor an un-tick clears, an end of stay collected on its own.
+    if (markCarriesEndOfStay(before)
       && endOfStayComplementPaid === undefined && endOfStayComplementPaidCash === undefined) {
       model.updatePaymentField(
         "UPDATE reservations SET endOfStayComplementPaid = ?, endOfStayComplementPaidDate = ?, endOfStayComplementPaidCash = ?, updatedAt = datetime('now') WHERE id = ?",
         paid, date, cash, id,
       );
+      // Rule 26 (audit R29-M-L1) — the end of stay flipped by the merged card is released as the explicit path below releases it.
+      if (Number(before?.endOfStayComplementPaid || 0) !== Number(paid || 0)) {
+        model.releaseEndOfStayBucket(Number(id));
+        model.clearEndOfStayDepartureMarker(Number(id));
+      }
     }
   }
   if (endOfStayComplementPaid !== undefined || endOfStayComplementPaidCash !== undefined) {
@@ -2958,5 +3043,5 @@ module.exports = {
 };
 
 // Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
-module.exports.__test = { paymentMarkRefusal, staleFicheRefusal, complementLeftOf };
+module.exports.__test = { paymentMarkRefusal, staleFicheRefusal, complementLeftOf, paymentPatchChanges };
 module.exports.storedOverpayment = storedOverpayment;

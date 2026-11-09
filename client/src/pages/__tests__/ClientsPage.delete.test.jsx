@@ -145,7 +145,8 @@ describe('ClientsPage — deleting from the client sheet', () => {
     await waitFor(() => {
       expect(screen.queryByText('Modifier le client')).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients?deleteClientId=42');
+    // specs/server-test-isolation.md rule 11 (audit R27-S2): the router commits the URL after the dialog closes.
+    await waitFor(() => expect(getUrl()).toBe('/clients?deleteClientId=42'));
     expect(api.deleteClient).not.toHaveBeenCalled();
   });
 
@@ -173,7 +174,7 @@ describe('ClientsPage — the confirmation dialog closes when asked (2026-09-25 
     await waitFor(() => {
       expect(screen.queryByText(CONFIRM_TITLE)).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients');
+    await waitFor(() => expect(getUrl()).toBe('/clients'));
     // The old race re-opened the dialog, which re-fetched the impact. Give the effect a chance
     // to misbehave, then prove it stayed closed.
     await waitFor(() => expect(screen.queryByText(CONFIRM_TITLE)).not.toBeInTheDocument());
@@ -207,7 +208,7 @@ describe('ClientsPage — the confirmation dialog closes when asked (2026-09-25 
     await waitFor(() => {
       expect(screen.queryByText(CONFIRM_TITLE)).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients');
+    await waitFor(() => expect(getUrl()).toBe('/clients'));
     // The bug: the dialog re-opened on a deleted client and asked the server for its impact again,
     // which answered 404 « Client non trouvé ».
     expect(api.getClientDeleteImpact.mock.calls.length).toBe(impactCallsBeforeDelete);

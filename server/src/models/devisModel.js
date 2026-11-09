@@ -25,7 +25,9 @@ const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 const bookingLinesModel = require('./bookingLinesModel');
-const { isDevisExpired, isDevisExtendable, computeValidUntil } = require('../utils/devisValidity');
+const {
+  isDevisExpired, isDevisExtendable, computeValidUntil, devisValidUntil, readQuoteValidityDays: readValidityDaysOf,
+} = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
 const { devisListRow } = require('../utils/devisListRow');
@@ -117,11 +119,20 @@ function createModel(database) {
   // override it on their isolated DBs (the prod-bound `settingsModel.read()` would otherwise
   // ignore the test-DB row). Returns 30 as the documented fallback.
   function readQuoteValidityDays() {
-    try {
-      const row = database.prepare('SELECT quoteValidityDays FROM app_settings WHERE id = 1').get();
-      const days = Number(row && row.quoteValidityDays);
-      return Number.isFinite(days) && days > 0 ? days : 30;
-    } catch { return 30; }
+    return readValidityDaysOf(database);
+  }
+
+  // §3.2 rule 7 reading R32-RES-M1 — the stored row's validity read for `startDate` (its own when omitted).
+  function validUntilOf(row, { startDate, reissueExpired = false } = {}) {
+    return devisValidUntil({
+      stored: row?.validUntil || null,
+      storedStartDate: row?.startDate || null,
+      createdDay: createdDayOf(row?.createdAt),
+      startDate: startDate || row?.startDate || null,
+      today: todayIso(),
+      quoteValidityDays: readQuoteValidityDays(),
+      reissueExpired,
+    });
   }
 
   // ---- payment schedule ----
@@ -213,19 +224,19 @@ function createModel(database) {
     const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
     const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
+    // Validity state, decided here so the fiche only renders it (specs/devis-extras-parity-and-price-lock.md
+    // §3 rule 16). `validUntil` is resolved rather than echoed: a legacy row stored NULL, and the
+    // operator still deserves to see the date their quote would carry; a row stored above its start − 2 reads
+    // capped, its schedule with it (§3.2 rule 7 reading R32-RES-M1).
+    const today = todayIso();
+    const resolvedValidUntil = validUntilOf(row);
     // specs/property-deposit-switch.md rule 8 — the switch feeds the schedule without widening the
     // property payload the fiche receives. Read apart and defensively: several unit suites build
     // their own minimal `properties` table, and a missing column means « acompte activé ».
-    const schedule = resolvePaymentSchedule(row, { ...property, depositEnabled: readDepositEnabled(row.propertyId) });
-    // Validity state, decided here so the fiche only renders it (specs/devis-extras-parity-and-price-lock.md
-    // §3 rule 16). `validUntil` is resolved rather than echoed: a legacy row stored NULL, and the
-    // operator still deserves to see the date their quote would carry.
-    const today = todayIso();
-    const resolvedValidUntil = row.validUntil || computeValidUntil({
-      createdAtIsoDate: createdDayOf(row.createdAt),
-      startDateIso: row.startDate,
-      quoteValidityDays: readQuoteValidityDays(),
-    }) || null;
+    const schedule = resolvePaymentSchedule(
+      { ...row, validUntil: row.validUntil ? resolvedValidUntil : row.validUntil },
+      { ...property, depositEnabled: readDepositEnabled(row.propertyId) },
+    );
     const expired = isDevisExpired(row.validUntil, today);
     return {
       ...row,
@@ -427,11 +438,7 @@ function createModel(database) {
       // is derived here with the same rule. Without it the engine falls back to the clamped derivation
       // and a last-minute quote comes out due on its issue day while the document says it stands until
       // its validity date (specs/deposit-blocks-the-dates.md rule 7).
-      validUntil: body.validUntil || existing?.validUntil || computeValidUntil({
-        createdAtIsoDate: createdDayOf(existing?.createdAt),
-        startDateIso: body.startDate || existing?.startDate,
-        quoteValidityDays: readQuoteValidityDays(),
-      }) || null,
+      validUntil: body.validUntil || validUntilOf(existing, { startDate: body.startDate }),
       // A devis being CREATED has no `createdAt` yet, but it is being booked today — and the engine has
       // no clock. Passing null used to persist a schedule computed as if the booking day were unknown:
       // a solde deadline free to land in the past, and (specs/deposit-blocks-the-dates.md rule 5) an
@@ -976,15 +983,10 @@ function createModel(database) {
     // without needing a data migration. specs/devis-extras-parity-and-price-lock.md §3 rule 14: a
     // devis that had EXPIRED is re-priced by `computeQuote`, so saving it re-issues a validity
     // window from today — the quote the operator just refreshed is a quote they can send again.
-    const resolvedValidUntil = (() => {
-      if (payload.validUntil !== undefined && payload.validUntil !== null) return payload.validUntil;
-      const quoteValidityDays = readQuoteValidityDays();
-      const startDateIso = payload.startDate || existing.startDate;
-      const today = todayIso();
-      if (existing.validUntil && !isDevisExpired(existing.validUntil, today)) return existing.validUntil;
-      const createdAtIsoDate = existing.validUntil ? today : createdDayOf(existing.createdAt);
-      return computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) || null;
-    })();
+    // §3.2 rule 7 reading R32-RES-M1 — the one resolver, shared with the fiche's live quote.
+    const resolvedValidUntil = payload.validUntil !== undefined && payload.validUntil !== null
+      ? payload.validUntil
+      : validUntilOf(existing, { startDate: payload.startDate, reissueExpired: true });
     // specs/deposit-blocks-the-dates.md rule 17 — the quote's due dates hang off the validity
     // date the save is about to write, never the expired one it replaces: a re-issued devis owes its
     // single payment on its new validity date, on the fiche and on the PDF alike.
