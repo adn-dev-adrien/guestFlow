@@ -14,7 +14,8 @@ import {
 import { api, onSessionExpired, setLanguage } from '../services/api';
 import { device } from '../services/device';
 
-const SessionContext = createContext(null);
+// Exported for the studio's phone preview, which renders these screens from the editor's state (rule 49).
+export const SessionContext = createContext(null);
 
 const prefersDark = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
