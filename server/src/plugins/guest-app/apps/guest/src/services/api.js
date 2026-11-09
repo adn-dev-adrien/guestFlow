@@ -42,13 +42,13 @@ async function readError(response) {
   return new ApiError(response.status, err.code, err.message, err.details);
 }
 
-async function once(method, path, { body, query } = {}) {
+async function once(method, path, { body, query, headers } = {}) {
   let response;
   try {
     response = await fetch(urlOf(path, query), {
       method,
       credentials: 'same-origin',
-      headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(headers || {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
@@ -86,7 +86,8 @@ export const api = {
   slots: (resourceId) => request('GET', `/shop/resources/${encodeURIComponent(resourceId)}/slots`),
   deliverySlots: (lines) => request('POST', '/shop/delivery-slots', { body: { lines } }),
   quote: (lines, deliverAt) => request('POST', '/orders/quote', { body: { lines, ...(deliverAt ? { deliverAt } : {}) } }),
-  order: (body) => request('POST', '/orders', { body }),
+  // §4.3 — `key` (Idempotency-Key): the same order sent again after a lost answer is not created twice.
+  order: (body, { key } = {}) => request('POST', '/orders', { body, ...(key ? { headers: { 'Idempotency-Key': key } } : {}) }),
   orders: () => request('GET', '/orders'),
   orderById: (id) => request('GET', `/orders/${encodeURIComponent(id)}`),
   abandon: (id) => request('POST', `/orders/${encodeURIComponent(id)}/abandon`),

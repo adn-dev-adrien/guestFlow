@@ -127,7 +127,12 @@ export function OrderPage() {
         {[order.promise, ...(order.extraPromises || []), order.movedNotice].filter(Boolean).map((text) => <p key={text} style={{ margin: 0 }}>{text}</p>)}
         {actionError ? <ErrorAlert error={actionError} /> : null}
         {stalled && order.status === 'awaiting_payment' ? <><p className="hint">{t('order.stalled')}</p>{recheckButton}</> : null}
-        <OrderCard order={order} onAbandon={abandon} busy={busy} />
+        <OrderCard
+          order={order}
+          onAbandon={abandon}
+          onResume={order.status === 'awaiting_payment' && order.paymentUrl ? () => window.location.assign(order.paymentUrl) : undefined}
+          busy={busy}
+        />
       </div>
     </div>
   );

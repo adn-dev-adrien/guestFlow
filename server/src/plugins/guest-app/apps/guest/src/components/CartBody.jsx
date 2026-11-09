@@ -10,7 +10,7 @@
  *
  * Props: `shop` (the `/shop` payload: `canPayCard`, `canPayNote`, `open`), `inPanel`.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import Photo from './Photo';
 import Icon from './Icon';
@@ -35,6 +35,14 @@ function quotedLine(quote, line, index) {
   return quote.lines.find((q) => lineKey(q) === lineKey(line)) || null;
 }
 
+/** An Idempotency-Key (§4.3): 128 random bits. */
+function newKey() {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export default function CartBody({ shop, inPanel = false }) {
   const t = useT();
   const navigate = useNavigate();
@@ -45,6 +53,7 @@ export default function CartBody({ shop, inPanel = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
+  const attempt = useRef(null);
   const { quote } = cart;
 
   const canCard = Boolean(shop && shop.canPayCard);
@@ -82,8 +91,14 @@ export default function CartBody({ shop, inPanel = false }) {
   const submit = async () => {
     setBusy(true);
     setError(null);
+    const body = { lines: cart.lines, ...(needsTime && cart.deliverAt ? { deliverAt: cart.deliverAt } : {}), payment: pay };
+    // The same order sent again (an answer lost on a weak network, a second tap) keeps its key, so the server answers
+    // the first order instead of creating another; a changed cart is a new order with a new key.
+    const signature = JSON.stringify(body);
+    if (!attempt.current || attempt.current.signature !== signature) attempt.current = { signature, key: newKey() };
     try {
-      const out = await api.order({ lines: cart.lines, ...(needsTime && cart.deliverAt ? { deliverAt: cart.deliverAt } : {}), payment: pay });
+      const out = await api.order(body, { key: attempt.current.key });
+      attempt.current = null;
       cart.clear();
       if (out.paymentUrl) {
         window.location.assign(out.paymentUrl);
@@ -91,6 +106,7 @@ export default function CartBody({ shop, inPanel = false }) {
       }
       navigate(`/commandes/${out.orderId}?confirmation=1`);
     } catch (err) {
+      if (err.code !== 'NETWORK') attempt.current = null;
       if (err.code === 'OUT_OF_STOCK' && err.details && err.details.itemKey) cart.lowerTo(err.details.itemKey, Number(err.details.left) || 0, err.message);
       if (err.code === 'DELIVERY_TIME_UNAVAILABLE') cart.refreshDelivery();
       setError(err);
