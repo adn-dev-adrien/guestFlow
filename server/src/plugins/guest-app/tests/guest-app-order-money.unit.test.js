@@ -206,3 +206,17 @@ withCard('rule 36: a card payment that lands after the stay was cancelled reache
   assert.equal(JSON.parse(linkOf(orderId).basketJson).refundOwed, true);
   assert.ok(historyOf(stayId).some((c) => c.field === 'refundOwed'));
 });
+
+withCard('rule 35: an unpaid card order carries its link while it lives — « Reprendre le paiement » — and not once expired or paid', async ({ call, card, clock, api }) => {
+  const { orderId, paymentUrl } = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: cider(6), quantity: 1 }], payment: 'card' })).body.data;
+  assert.equal((await call('GET', `/public/v1/guest/orders/${orderId}`)).body.data.paymentUrl, paymentUrl);
+  assert.equal((await call('GET', '/public/v1/guest/orders')).body.data.orders.find((o) => o.id === orderId).paymentUrl, paymentUrl);
+  clock.now = new Date(clock.now.getTime() + 31 * 60 * 1000);
+  assert.equal((await call('GET', `/public/v1/guest/orders/${orderId}`)).body.data.paymentUrl, undefined, 'its link lapsed');
+  api.expireOrders();
+  assert.equal((await call('GET', '/public/v1/guest/orders')).body.data.orders.find((o) => o.id === orderId).paymentUrl, undefined);
+  const other = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: cider(6), quantity: 1 }], payment: 'card' })).body.data;
+  const paid = await pay(call, card, other.orderId);
+  assert.equal(paid.status, 'paid');
+  assert.equal(paid.paymentUrl, undefined);
+});

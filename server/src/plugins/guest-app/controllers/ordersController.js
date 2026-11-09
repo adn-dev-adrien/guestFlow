@@ -487,6 +487,9 @@ function buildOrdersController({
       ...(promised.extraPromises.length ? { extraPromises: promised.extraPromises } : {}),
       movedNotice: promised.movedNotice,
       ...(notices.length ? { notices } : {}),
+      // Rule 35 — « Reprendre le paiement »: an unpaid card order's link, while it still lives (its 30 minutes).
+      ...(order.status === 'awaiting_payment' && order.paymentUrl && order.heldUntil && Date.parse(order.heldUntil) > now().getTime()
+        ? { paymentUrl: order.paymentUrl } : {}),
       // Rule 35 — an abandoned order's lines go back in the cart.
       ...(order.status === 'abandoned' ? { cartLines: order.lines.map(cartLineOf) } : {}),
     };
