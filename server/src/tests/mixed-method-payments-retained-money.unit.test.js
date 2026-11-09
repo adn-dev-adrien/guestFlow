@@ -145,3 +145,13 @@ test('specs/mixed-method-payments.md rule 46 — a solde paid partly in the cais
   const back = refund(stay.id, lines, 'internal');
   assert.equal(back.statusCode, 201, JSON.stringify(back.body));
 });
+
+test('specs/mixed-method-payments.md rule 44 — the ledger tells the form: the acompte row is paid whole, the solde row is not', () => {
+  const { ficheView } = require('./moneyLedgerFixture');
+  const stay = acompteStay();
+  const rows = ficheView(stay.id).ledger.rows;
+  const deposit = rows.find((r) => r.key === 'deposit');
+  const balance = rows.find((r) => r.key === 'balance');
+  assert.equal(deposit.action.split.whole, true);
+  assert.equal(balance.action.split.whole, undefined);
+});

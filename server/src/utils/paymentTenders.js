@@ -214,8 +214,13 @@ function reservationAggregates(targets) {
 
 /**
  * Rule 46 (audit R34-M-M1) — what a split payment put on the books and in the caisse interne, as a share of each bucket
- * it paid, read at what the bucket is worth now (rule 39): `{ [bucket]: { books, internal } }`. The readers that
- * spread a bucket over its lines (the refund register) scale it with these. Only the buckets a settlement paid.
+ * it paid, read at what the bucket is worth now (rule 39): `{ [bucket]: { books, internal, waivedBooks, waivedInternal } }`.
+ * The readers that spread a bucket over its lines (the refund register) scale it with these. Only the buckets a
+ * settlement paid.
+ *
+ * Rule 52 (audit R34 NEW-3) — like the export (rule 18: the lines booked gross, the geste on 70900000), each share counts
+ * the geste commercial of its side, and `waivedBooks` / `waivedInternal` (euros, on the target's first bucket only) say
+ * how much of it the reader takes off the accommodation: the tax and the extras keep their whole share.
  */
 function bucketSharesOf(settlements, row = null) {
   const byTarget = new Map();
@@ -231,7 +236,15 @@ function bucketSharesOf(settlements, row = null) {
     const current = currentCentsOf(parseParts(list[0].parts), row);
     if (!(current > 0)) continue;
     const f = targetFigures(list, { currentCents: current });
-    for (const p of parts) out[p.kind] = { books: f.booksCents / current, internal: f.internalCents / current };
+    const waivedInternalCents = f.waivedCents - f.bookedWaivedCents;
+    parts.forEach((p, i) => {
+      out[p.kind] = {
+        books: (f.booksCents + f.bookedWaivedCents) / current,
+        internal: (f.internalCents + waivedInternalCents) / current,
+        waivedBooks: i === 0 ? Math.round(f.bookedWaivedCents) / 100 : 0,
+        waivedInternal: i === 0 ? Math.round(waivedInternalCents) / 100 : 0,
+      };
+    });
   }
   return out;
 }

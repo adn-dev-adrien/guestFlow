@@ -346,3 +346,15 @@ test('once an error is gone the field shows the server value again, and the amou
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   expect(within(rowOf(1)).getByLabelText('Montant de l’échéance 1')).toHaveValue('400');
 });
+
+test('specs/mixed-method-payments.md rule 44 (mutant C7) — « Plusieurs moyens » on an installment: no caisse interne, the amount whole', async () => {
+  const user = userEvent.setup();
+  render(<Harness initial={planOf()} />);
+  await user.click(within(rowOf(1)).getByRole('button', { name: 'Marquer payée' }));
+  await user.click(screen.getByRole('button', { name: 'Plusieurs moyens' }));
+  expect(screen.queryByRole('switch', { name: 'Caisse interne' })).toBeNull();
+  fireEvent.change(document.querySelector('[data-tender-amount="0"]'), { target: { value: '100' } });
+  fireEvent.change(document.querySelector('[data-tender-amount="1"]'), { target: { value: '100' } });
+  expect(document.querySelector('[data-shortfall]')).toBeNull();
+  expect(document.querySelector('[data-tender-whole]')).not.toBeNull();
+});

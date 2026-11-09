@@ -553,6 +553,7 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
     }
     addLinesOnlyTheSplitNames(out, splitOf, billed, complementShare);
     addLateOffTheFiche(new Set(billed.map(keyOf)));
+    takeGesteOffAccommodation(out, splitShares, cash);
     return Object.keys(out).length ? out : null;
   }
   for (const line of lines) {
@@ -587,7 +588,16 @@ function collectedByLine({ reservation, options = [], resources = [], booked = n
   out[TOURIST_TAX_KEY] = round2(balanceShare * taxContribs + complementShare * complementTax);
   addLinesOnlyTheSplitNames(out, splitOf, lines, complementShare);
   addLateOffTheFiche(new Set(lines.map(keyOf)));
+  takeGesteOffAccommodation(out, splitShares, cash);
   return out;
+}
+
+// specs/mixed-method-payments.md rule 52 (audit R34 NEW-3) — the geste commercial of a split payment, its lines read gross
+// (`bucketSharesOf`), comes off the accommodation alone, as the export books it on 70900000.
+function takeGesteOffAccommodation(out, splitShares, cash) {
+  if (!splitShares || out[ACCOMMODATION_KEY] == null) return;
+  const geste = Object.values(splitShares).reduce((sum, s) => sum + Number((cash ? s.waivedInternal : s.waivedBooks) || 0), 0);
+  if (geste > 0) out[ACCOMMODATION_KEY] = Math.max(0, round2(out[ACCOMMODATION_KEY] - geste));
 }
 
 // What a stay collected after its arrival on the books, per line key: a paid end-of-stay complement's lines (the excess of

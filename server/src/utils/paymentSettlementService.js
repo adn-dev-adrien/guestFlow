@@ -49,6 +49,8 @@ function addHistory(reservationId, change) {
 }
 
 const RECONCILED = 'Déjà rapproché avec la banque : défaites le rapprochement d\'abord.';
+const TAKEN_BACK_IN_PART = 'Paiement en plusieurs moyens : annulez le paiement unique en entier.';
+const CAISSE_SWITCH = 'Paiement en plusieurs moyens : passer par « Modifier ».';
 
 // Whether the bank reconciliation holds a line on one of these receipt keys of the stay: the plugin's table, when it exists.
 function hasBankLines(reservationId, keys) {
@@ -107,12 +109,30 @@ function prepare({ tenders, dueCents, shortfall, reservationId = null, target = 
 
 /**
  * Rule 43 (audit R34-EXT-1) — a gesture that would take back a split payment whose receipt is matched at the bank is
- * refused, like its correction (rule 22): the bank line would point at a receipt that no longer exists.
+ * refused, like its correction (rule 22): the bank line would point at a receipt that no longer exists. Rule 51 — nor
+ * one that would take back only part of a payment over several buckets; rule 53 — nor a caisse switch on a bucket a
+ * payment with several methods paid.
  * @param {object} row the stay as stored; @param {object} changes the columns the gesture would write
  */
 function takeBackReconciledRefusal(row, changes) {
   if (!row || row.id == null) return null;
-  const dropped = settlementsModel.droppedBy ? settlementsModel.droppedBy({ ...row, ...changes }) : [];
+  const next = { ...row, ...changes };
+  const dropped = settlementsModel.droppedBy ? settlementsModel.droppedBy(next) : [];
+  // Rule 51 (audit R34 NEW-2) — a payment that paid several buckets is taken back whole: un-paying one of them would
+  // drop the settlement and leave the others paid in full on the books.
+  const inPart = dropped.some((s) => {
+    const buckets = (s.parts || []).map((p) => p.kind).filter((k) => BUCKETS.includes(k));
+    return buckets.length > 1 && buckets.some((b) => isPaid(next, b));
+  });
+  if (inPart) return { status: 409, body: { error: TAKEN_BACK_IN_PART, code: 'SPLIT_TAKEN_BACK_IN_PART' } };
+  // Rule 53 — nor is a bucket paid with several methods switched to or from the caisse interne: its lines say where its
+  // money is (rule 11), and only their correction moves it.
+  const droppedIds = new Set(dropped.map((s) => s.id));
+  const switched = (settlementsModel.listFor ? settlementsModel.listFor(row.id) : [])
+    .filter((s) => !droppedIds.has(s.id))
+    .some((s) => (s.parts || []).some((p) => BUCKETS.includes(p.kind)
+      && Number(next[`${p.kind}PaidCash`] || 0) !== Number(row[`${p.kind}PaidCash`] || 0)));
+  if (switched) return { status: 409, body: { error: CAISSE_SWITCH, code: 'SPLIT_CAISSE_SWITCH' } };
   if (!hasBankLines(row.id, dropped.map((s) => `settlement-${s.id}`))) return null;
   return { status: 409, body: { error: RECONCILED, code: 'SETTLEMENT_RECONCILED' } };
 }

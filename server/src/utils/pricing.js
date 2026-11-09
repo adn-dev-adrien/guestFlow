@@ -38,7 +38,7 @@ const {
   resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromiseDueDate, toIsoDay,
 } = require('./paymentSchedule');
 const { readInstallmentSummary } = require('./installmentSummary');
-const { readSplitReceived } = require('./splitReceived');
+const { readSplitReceived, unreceivedOf } = require('./splitReceived');
 const {
   findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
 } = require('./babyBedSupplement');
@@ -2803,14 +2803,21 @@ function calculateReservationQuote({
   // specs/mixed-method-payments.md rule 47 (audit R34-M-H1) — a paid bucket split with a « Reste à percevoir » or a
   // « Geste commercial » received less than its amount: rule 36 keeps what it RECEIVED. A cut of the stay lowers it down
   // to that before any trop-perçu is left; rule 39 then cancels the reste, then the geste, on the bucket's new amount.
+  // Rule 50 (D25 « Une seule somme ») — a settlement over several buckets received one sum for all of them: what a cut may
+  // take off a bucket is what its whole pool did not receive, read at the amounts its buckets are worth now.
   const splitReceived = (depositPaid || balancePaid || complementPaid) ? readSplitReceived(db, bookingId) : null;
+  const splitAmountOf = (kind) => {
+    if (kind === 'deposit') return resolvedDepositAmount;
+    if (kind === 'balance') return resolvedBalanceAmount;
+    if (kind === 'complement') return complementPaid ? roundMoney(complementAmount) : 0;
+    return null;
+  };
   if (splitReceived && (depositPaid || balancePaid)) {
     let over = roundMoney((depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0)
       - (totalStayPrice - complementForcedItemsTotal - taxInComplement - midStayTotal));
     for (const [bucket, paid] of [['balance', balancePaid], ['deposit', depositPaid]]) {
-      if (!paid || splitReceived[bucket] == null || !(over > 0)) continue;
-      const resolved = bucket === 'balance' ? resolvedBalanceAmount : resolvedDepositAmount;
-      const cut = roundMoney(Math.min(over, Math.max(0, resolved - splitReceived[bucket])));
+      if (!paid || !(over > 0)) continue;
+      const cut = roundMoney(Math.min(over, unreceivedOf(splitReceived, bucket, splitAmountOf)));
       if (bucket === 'balance') resolvedBalanceAmount = roundMoney(resolvedBalanceAmount - cut);
       else resolvedDepositAmount = roundMoney(resolvedDepositAmount - cut);
       over = roundMoney(over - cut);
@@ -2956,8 +2963,8 @@ function calculateReservationQuote({
     ? roundMoney(Math.max(0, roundMoney(complementAmount) - rawComplement))
     : 0;
   // Rule 47 — the same for a collected complement paid with several methods: its excess comes off what it did not receive.
-  if (splitReceived && splitReceived.complement != null && complementCollectedExcess > 0) {
-    const cut = roundMoney(Math.min(complementCollectedExcess, Math.max(0, resolvedComplementAmount - splitReceived.complement)));
+  if (splitReceived && complementCollectedExcess > 0) {
+    const cut = roundMoney(Math.min(complementCollectedExcess, unreceivedOf(splitReceived, 'complement', splitAmountOf)));
     resolvedComplementAmount = roundMoney(resolvedComplementAmount - cut);
     complementCollectedExcess = roundMoney(complementCollectedExcess - cut);
   }

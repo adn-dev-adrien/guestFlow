@@ -59,3 +59,22 @@ test('specs/mixed-method-payments.md rule 42 — a book refund above what the lo
   assert.match(res.body.error, /^Remboursement du /);
   assert.equal(rowOf(stay.id).complementAmount, 80);
 });
+
+test('specs/mixed-method-payments.md rule 42 — a refund between the stale and the true « after »: the lowered complement still saves', async () => {
+  // Solde paid whole on the books (604,80 €) + the split complement: once lowered to 20 €, the books hold
+  // 604,80 + 20 × 50 / 80 = 617,30 €. The aggregates of the old amount (30 € off the books) would read 594,80 €.
+  const stay = splitComplement();
+  assert.equal(mark(stay.id, { balancePaid: true, balancePaidDate: TODAY }).statusCode, 200);
+  const given = refund(stay.id, [{ key: 'accommodation', amountTtc: 600 }]);
+  assert.equal(given.statusCode, 201, JSON.stringify(given.body));
+  const res = await save(stay, { complementAmountOverride: 20 });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(rowOf(stay.id).complementAmount, 20);
+});
+
+test('specs/mixed-method-payments.md rule 42 — nothing refunded on the books: nothing to protect, whatever « after » reads', () => {
+  const { untickRefusal } = require('../utils/refundUntickGuard');
+  // An installment taken back beyond what the row recorded reads a negative « after »: with no book refund, no refusal.
+  assert.equal(untickRefusal({ installmentsPaidAmount: 0 }, { installmentsPaidAmount: -30 }, []), null);
+  assert.equal(untickRefusal({ installmentsPaidAmount: 0 }, { installmentsPaidAmount: -30 }, [{ method: 'internal', totalTtc: 30 }]), null);
+});

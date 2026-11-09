@@ -290,7 +290,11 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     `edit.whole` on their correction make `TenderLines` start a cash line on the books, offer no shortfall choice (« Le
     montant entier, sans reste ni geste. ») and, on an installment, show no « Caisse interne » switch; the single
     arrival payment carrying the acompte shows the server's refusal. Amends rule 1 and D2 for these two targets; the
-    desk cases the feature was written for (complement, end of stay, solde, notes) are unchanged.
+    desk cases the feature was written for (complement, end of stay, solde, notes) are unchanged. **Adrien's decision of
+    2026-11-09 (D26 « Garder la restriction »):** this restriction stands as written — the split acompte all on the books
+    or all in the caisse with no reste or geste, no caisse interne on an installment split, and the single arrival
+    payment carrying the acompte refused when it mixes caisse cash with CB; the root-fix alternative (the cancellation
+    reading `targetFigures`) is not taken.
 45. **Reception records a check-out with one method (R34-A1).** The SAS payload says `canSplitPayment: false` to a
     reception-only user and the departure step shows no « Plusieurs moyens »; a crafted `complementsTenders` still
     answers 403 with « Plusieurs moyens : réservé à l'administrateur. », nothing recorded (never dropped silently: the
@@ -307,7 +311,9 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
     The trop-perçu readers (`utils/overpayment`: the save's 409 `OVERPAID`, the live and stored « Trop-perçu » rows, the
     lines by poste, `unclaimedRise`'s open trop-perçu) count such a bucket, a split end of stay and a split note at what
     they received. Solde 600 € paid 400 € + reste, then 20 % off: no trop-perçu, solde 480 €, reste 80 €; paid 580 € +
-    geste 20 €, then 3 % off: geste 2 €; then 20 % off: trop-perçu 100 € (580 − 480), geste 0.
+    geste 20 €, then 3 % off: geste 2 €; then 20 % off: trop-perçu 100 € (580 − 480), geste 0. Reading of 2026-11-09
+    (R34 verification NEW-1): a settlement over several buckets is one pool, rule 50. A split end of stay counts its
+    mid-stay lines (the only ones inside the price) at the share it received, never its departure lines.
 48. **Every boot re-checks the split payments (R34-DB-L1).** `paymentSettlementsModel.syncAll()` runs at every boot
     before the server answers (beside the devis re-store): a settlement whose payment was taken back by a release that
     knew nothing of them (a rollback, then the roll-forward) is dropped and the aggregates refreshed. Accepted, recorded
@@ -316,6 +322,39 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 49. **The VAT regime switch names the months of a split payment (R34-M-L1).** `vatRegimeSwitchModel.monthsOfPayments`
     adds each settlement's month when it has a line on the books (a reste collected later included): the preview's
     `exportMonths` lists every month the switch rewrites ([vat-optional-mode.md](vat-optional-mode.md) rule 17).
+
+### 3.13 Round-34 verification (2026-11-09)
+
+50. **One payment over several buckets received one sum (NEW-1, D25 « Une seule somme », Adrien, 2026-11-09).** The
+    money a settlement received for several buckets (the single arrival payment, fiche and SAS; the SAS departure over
+    the complement and the end of stay; the complement carrying the end of stay) is ONE pool. The engine may lower any
+    paid bucket of the pool down to what the whole pool did not receive (`splitReceived.unreceivedOf`, at the amounts
+    its buckets are worth now), the solde first, so a cut lowers the reste, then the geste, before any trop-perçu: never
+    a false `OVERPAID`, never a refund prompt for money never received. Every trop-perçu reader (`collectedOnSchedule`,
+    `storedOverpaymentOf`, `receivedByPoste`) counts the pool once: `readSplitReceived` attributes it at the buckets'
+    current amounts, the end of stay, the complement and the acompte full first and the solde the rest. Solde 604,80 €
+    + complement 80 € paid 634,80 € + reste 50 €, then 5 % off: reste 50 − 30 = 20 €, no trop-perçu; the 80 € line
+    removed instead: trop-perçu 30 € (634,80 − 604,80), reste 0. The reste or geste is never refused on such a split.
+51. **A payment over several buckets is taken back whole (NEW-2).** Un-ticking ONE bucket of a settlement that paid
+    several (one row of the single arrival payment, the end of stay alone of the merged complement + end of stay, a
+    caller taking one flag back: the SAS re-commit, the reconciliation's « Défaire ») answers 409
+    `SPLIT_TAKEN_BACK_IN_PART` « Paiement en plusieurs moyens : annulez le paiement unique en entier. », nothing written:
+    dropping the settlement would leave the other bucket paid in full on the books (its caisse-interne share turned into
+    revenue) or forget the reste. The group's « Annuler » (`mode: 'undo'`) and the merged card's « Annuler » take the
+    whole payment back; a split over one bucket is un-ticked alone, as rule 13 says
+    (`paymentSettlementService.takeBackReconciledRefusal`, beside rule 43).
+52. **A geste comes off the accommodation (NEW-3).** The export books a split payment's lines gross and its geste on
+    70900000 (rule 18). The refund register reads it the same way: `bucketSharesOf` gives each side its share gross of
+    its geste (`books`, `internal`) and the geste apart (`waivedBooks`, `waivedInternal`, on the target's first bucket),
+    and `collectedByLine` takes the geste off the accommodation alone: the tourist tax and the extras keep their whole
+    share. A cancelled stay refunded in full leaves no tourist tax owed (only the geste's own 706 / 709 pair, which nets
+    to zero in the result); a live stay's accommodation answers for what it collected net of the geste (D15).
+53. **A bucket paid with several methods has no caisse switch (found with NEW-2).** Its lines say where its money is
+    (rule 11): a PATCH switching `complementPaidCash` / `endOfStayComplementPaidCash` on a bucket a kept settlement
+    paid (the bucket alone or one row of the single arrival payment) answers 409 `SPLIT_CAISSE_SWITCH` « Paiement en
+    plusieurs moyens : passer par « Modifier ». », nothing written; « Modifier » (rule 20) moves the money. Without it the
+    complement's card money went to the caisse while its caisse lines stayed deducted from the books. A bucket paid
+    with one method keeps its switch.
 
 **Edge cases:**
 - All lines `cash` + internal, no shortfall → same storage as « Caisse interne » + settlement (rule 11).
@@ -371,6 +410,10 @@ read the settlements themselves (`utils/paymentTenders.settlementFigures`).
 | `plugins/sas/` | `controller.js` | T | _(round 34)_ Rules 43-44 on both SAS splits; `canSplitPayment` and the French 403 (rule 45) |
 | `models/` | `vatRegimeSwitchModel.js` | T | _(round 34)_ Settlement months in `monthsOfPayments` (rule 49) |
 | — | `index.js` | T | _(round 34)_ `syncAll()` at every boot (rule 48) |
+| `utils/` | `splitReceived.js`, `pricing.js` | T | _(round 34b)_ `pools` + `unreceivedOf`: a settlement over several buckets is one pool, the engine's cut capacity is the pool's (rule 50) |
+| `utils/` | `paymentSettlementService.js` | T | _(round 34b)_ `takeBackReconciledRefusal` also refuses a partial take-back (rule 51) and a caisse switch on a split bucket (rule 53) |
+| `utils/` | `paymentTenders.js`, `refunds.js` | T | _(round 34b)_ `bucketSharesOf` gross of the geste + `waivedBooks` / `waivedInternal`; `collectedByLine` takes the geste off the accommodation (rule 52) |
+| `controllers/` | `reservationsController.js` | T | _(round 34b)_ A split end of stay counts its mid-stay lines at the share it received (rule 47 reading) |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -527,13 +570,20 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
       routes, `plugin-core-hardening-floor` (SDK 2.24.0), the VAT golden (the four aggregates, nothing else).
 - [x] _(round 34, 2026-11-09)_ `tests/mixed-method-payments-complement-lowered.unit.test.js` (3) — rule 42.
 - [x] _(round 34)_ `plugins/online-payment/tests/reconciliation-mixed-method-undo.unit.test.js` (5) — rules 22, 43.
-- [x] _(round 34)_ `tests/mixed-method-payments-retained-money.unit.test.js` (8) — rules 44, 46.
-- [x] _(round 34)_ `tests/mixed-method-payments-price-cut.unit.test.js` (4) — rule 47.
+- [x] _(round 34)_ `tests/mixed-method-payments-retained-money.unit.test.js` (9) — rules 44, 46.
+- [x] _(round 34)_ `tests/mixed-method-payments-price-cut.unit.test.js` (8) — rule 47.
 - [x] _(round 34)_ `tests/mixed-method-payments-boot-sync.unit.test.js` (2) — rule 48.
 - [x] _(round 34)_ `tests/mixed-method-payments-vat-switch-months.unit.test.js` (2) — rule 49.
 - [x] _(round 34)_ `plugins/sas/tests/sas-mixed-method-reception.unit.test.js` (2) — rule 45.
 - [x] _(round 34)_ Updated for rule 44: `mixed-method-payments-targets` (the installment split CB + chèque),
       `mixed-method-payments-writes` (the single arrival payment without an acompte in it).
+- [x] _(round 34b)_ `tests/mixed-method-payments-pooled-received.unit.test.js` (6) — rule 50.
+- [x] _(round 34b)_ `tests/mixed-method-payments-partial-take-back.unit.test.js` (10) — rules 51, 53.
+- [x] _(round 34b)_ `tests/mixed-method-payments-geste-accommodation.unit.test.js` (6) — rule 52.
+- [x] _(round 34b)_ Added cases: `mixed-method-payments-complement-lowered` (now 5: a refund between the stale and the
+      true « after », nothing refunded), `mixed-method-payments-price-cut` (now 8: lines by poste at what was received,
+      a split end of stay and a split note in the stored trop-perçu, an end of stay with a departure line),
+      `mixed-method-payments-retained-money` (now 9: the acompte row's `whole`).
 
 ### Client (Vitest)
 - [x] `components/__tests__/TenderLines.remainder.test.jsx` (6), `TenderLines.shortfall.test.jsx` (4).
@@ -543,6 +593,8 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
 - [x] _(round 34)_ `components/reservation/__tests__/FinanceSection.split-panel-stale.test.jsx` (1) — rule 32 reading.
 - [x] _(round 34)_ `plugins/sas/__tests__/ReservationSasDialog.split-reopen.test.jsx` (3) — rules 32, 45.
 - [x] _(round 34)_ `components/__tests__/PricingSummary.split-reste-badge.test.jsx` (2) — rule 16 reading.
+- [x] _(round 34b)_ `components/reservation/__tests__/FinanceSection.split-whole.test.jsx` (2) — rule 44 (the mark form
+      passes `whole`); `InstallmentPlanCard.test.jsx` gains one case — rule 44 (`whole` + `noCaisse` on an installment).
 
 ### Manual UI verification (2026-11-09, isolated server + client, Chromium 1280 and 390 px)
 - [x] Fiche: fin de séjour 122 € → « Plusieurs moyens », 50 € espèces, CB auto-filled to 72,00 €.
@@ -570,6 +622,10 @@ See the summary page for the interactive mock (fiche row, SAS departure, modific
   rolling forward restores the right export. No code.
 
 ## 9. Open questions
+
+- Resolved 2026-11-09 (Adrien, D25 « Une seule somme »): a settlement over several buckets is one pool; the reste or
+  geste on it is kept, never refused (rule 50).
+- Resolved 2026-11-09 (Adrien, D26 « Garder la restriction »): rule 44 stands (recorded under rule 44).
 
 - Q1: Should « Caisse interne » also be possible on a cheque line (cheque cashed outside the business
   account)? Proposed: no, cash only.

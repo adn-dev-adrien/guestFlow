@@ -91,3 +91,64 @@ test('specs/mixed-method-payments.md rule 47 — a complement split with a reste
   assert.equal(r.splitShortfallDue, 10);
   assert.equal(overRow(stay.id), undefined);
 });
+
+test('specs/mixed-method-payments.md rule 47 — the trop-perçu split by poste reads each poste at what the payment received', async () => {
+  const { stay, due } = soldeSplit(58000, 'waived');
+  const refused = await save(stay, { discountPercent: 20 });
+  assert.equal(refused.statusCode, 409, JSON.stringify(refused.body));
+  const accommodation = refused.body.overpaymentLines.find((l) => l.bucket === 'accommodation');
+  // The solde's accommodation (600 €) collected its share of the 580 € received, never its marked 600 €.
+  assert.equal(accommodation.collectedTtc, round2((600 * 58000) / due));
+});
+
+// A paid solde, then one more buy billed at the check-out (`kind` 'eos': the end-of-stay complement, 'note': a mid-stay
+// note), 50 €, paid by card for 40 € with a 10 € geste, then the stay's price lowered by 5 €: received 644,80 € for a
+// stay now worth 649,80 € — no trop-perçu. Read at its marked 50 €, the payment would show a false 5 € one.
+const { MID_STAY_SOURCE } = require('../utils/midStayExtras');
+
+function laterBuyWithGeste(kind) {
+  const { db } = require('./moneyLedgerFixture');
+  const settlementsModel = require('../models/paymentSettlementsModel');
+  const stay = fiche(NO_ACOMPTE, 'direct');
+  assert.equal(mark(stay.id, S).statusCode, 200);
+  const r = rowOf(stay.id);
+  const base = { reservationId: stay.id, paidDate: TODAY, dueCents: 5000, shortfallCents: 1000, shortfallKind: 'waived', lines: [card(4000)] };
+  if (kind === 'eos') {
+    db.prepare(`UPDATE reservations SET finalPrice = ?, endOfStayComplementAmount = 50, endOfStayComplementPaid = 1, endOfStayComplementPaidDate = ?,
+      endOfStayComplementDetail = ? WHERE id = ?`).run(Number(r.finalPrice) + 50, TODAY, JSON.stringify([{ key: 'menage', label: 'Ménage', amount: 50, source: MID_STAY_SOURCE }]), stay.id);
+    settlementsModel.insert({ ...base, targetKind: 'bucket', targetKey: 'endOfStayComplement', parts: [{ kind: 'endOfStayComplement', key: 'endOfStayComplement', amountCents: 5000 }] });
+  } else {
+    const note = { id: 'n1', paidDate: TODAY, total: 50, lines: [{ key: 'menage', label: 'Ménage', amount: 50 }] };
+    db.prepare('UPDATE reservations SET finalPrice = ?, midStaySettledNotes = ? WHERE id = ?').run(Number(r.finalPrice) + 50, JSON.stringify([note]), stay.id);
+    settlementsModel.insert({ ...base, targetKind: 'midStayNote', targetKey: 'n1', parts: [{ kind: 'note', key: 'n1', amountCents: 5000 }] });
+  }
+  db.prepare('UPDATE reservations SET finalPrice = finalPrice - 5 WHERE id = ?').run(stay.id);
+  return stay;
+}
+
+for (const kind of ['eos', 'note']) {
+  test(`specs/mixed-method-payments.md rule 47 — ${kind === 'eos' ? 'an end of stay' : 'a mid-stay note'} paid with a geste counts what it received in the stored trop-perçu`, () => {
+    const stay = laterBuyWithGeste(kind);
+    const { storedOverpayment } = require('../controllers/reservationsController');
+    const over = storedOverpayment(stay.id);
+    assert.ok(over, 'the stored stay is read');
+    assert.equal(over.overpaymentTtc, 0);
+  });
+}
+
+test('specs/mixed-method-payments.md rule 47 — an end of stay with a departure line (outside the price) paid with several methods: no trop-perçu', () => {
+  const { db } = require('./moneyLedgerFixture');
+  const settlementsModel = require('../models/paymentSettlementsModel');
+  const stay = fiche(NO_ACOMPTE, 'direct');
+  assert.equal(mark(stay.id, S).statusCode, 200);
+  // 30 € bought during the stay (inside the price) + 20 € of cleaning the departure added (outside it), paid 50 € whole.
+  const detail = [{ key: 'bois', label: 'Bois', amount: 30, source: MID_STAY_SOURCE }, { key: 'menage', label: 'Ménage', amount: 20 }];
+  db.prepare(`UPDATE reservations SET finalPrice = finalPrice + 30, endOfStayComplementAmount = 50, endOfStayComplementPaid = 1,
+    endOfStayComplementPaidDate = ?, endOfStayComplementDetail = ? WHERE id = ?`).run(TODAY, JSON.stringify(detail), stay.id);
+  settlementsModel.insert({
+    reservationId: stay.id, targetKind: 'bucket', targetKey: 'endOfStayComplement', paidDate: TODAY, dueCents: 5000,
+    parts: [{ kind: 'endOfStayComplement', key: 'endOfStayComplement', amountCents: 5000 }], lines: [card(2000), { method: 'cash', amountCents: 3000, internal: false }],
+  });
+  const { storedOverpayment } = require('../controllers/reservationsController');
+  assert.equal(storedOverpayment(stay.id).overpaymentTtc, 0);
+});

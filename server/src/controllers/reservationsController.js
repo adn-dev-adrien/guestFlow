@@ -667,11 +667,16 @@ function storedOverpaymentInputs(reservationId, row, replay) {
     installmentsPaidTtc = Number(db.prepare('SELECT COALESCE(SUM(amountCents), 0) AS cents FROM reservation_installments WHERE reservationId = ? AND paid = 1').get(Number(reservationId)).cents) / 100;
   } catch { installmentsPaidTtc = 0; }
   const eosPaid = Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
-  // specs/mixed-method-payments.md rule 47 — an end of stay paid with several methods collected what it received.
+  // specs/mixed-method-payments.md rule 47 — an end of stay paid with several methods collected what it received: its
+  // mid-stay lines (the only ones inside the price; the departure's own lines are not) at the share it received.
   const received = readSplitReceived(db, reservationId);
   const eosReceived = received && received.endOfStayComplement != null ? Number(received.endOfStayComplement) : null;
   let midStayCollectedTtc = 0;
-  if (eosPaid) midStayCollectedTtc = eosReceived != null ? eosReceived : storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+  if (eosPaid) {
+    const midStayLines = storedMidStayLines(row.endOfStayComplementDetail).reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+    const eosAmount = Number(row.endOfStayComplementAmount) || 0;
+    midStayCollectedTtc = eosReceived != null && eosAmount > 0 ? (midStayLines * Math.min(eosReceived, eosAmount)) / eosAmount : midStayLines;
+  }
   try {
     const notesReceived = (received && received.notes) || {};
     midStayCollectedTtc += (JSON.parse(row.midStaySettledNotes || '[]') || []).reduce((sum, note) => {
