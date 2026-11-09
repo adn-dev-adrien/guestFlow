@@ -50,7 +50,7 @@ export default function ResourceBookingSummary({ price, heading, pending = false
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', pt: 1, mt: 0.5, borderTop: 1, borderColor: 'text.primary' }}>
         <Typography variant="body2">Total TTC</Typography>
-        <Typography sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(price.total)}</Typography>
+        <Typography sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(price.total)}</Typography>
       </Box>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
         {price.vat ? `dont TVA ${String(price.vat.rate).replace('.', ',')} % : ${formatCurrency(price.vat.amount)} · HT ${formatCurrency(price.vat.net)}` : 'TVA non applicable'}

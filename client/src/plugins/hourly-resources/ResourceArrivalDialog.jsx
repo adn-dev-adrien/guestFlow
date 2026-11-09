@@ -125,7 +125,7 @@ export default function ResourceArrivalDialog({ open, bookingId, onClose, onDone
       {booking && (
         <Box sx={{ position: 'sticky', top: 0, zIndex: 2, bgcolor: 'background.paper', px: 3, py: 1, borderBottom: 1, borderColor: 'divider', display: { xs: 'flex', sm: 'none' }, justifyContent: 'space-between', alignItems: 'baseline' }}>
           <Typography variant="body2">Total TTC</Typography>
-          <Typography sx={{ fontFamily: (t) => t.typography.pageTitle.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(total)}</Typography>
+          <Typography sx={{ fontFamily: (t) => t.typography.pageTitle?.fontFamily, fontWeight: 700, fontSize: '1.3rem', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(total)}</Typography>
         </Box>
       )}
       <DialogContent sx={{ display: 'grid', gap: 2.5, pt: 2 }}>
