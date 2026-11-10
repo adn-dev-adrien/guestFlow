@@ -18,6 +18,7 @@ vi.mock('../../api', () => ({
     snoozePaymentDeadline: vi.fn(),
     remindPaymentDeadline: vi.fn(),
     cancelReservation: vi.fn(),
+    getCancellationPreview: vi.fn(),
   },
 }));
 
@@ -166,16 +167,18 @@ test('« Reporter » snoozes for a week and reloads', async () => {
 // bord, et passe par le récapitulatif de la règle 22 avant d'être confirmée.
 test('cancelling goes through the confirmation dialog and its recap', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE] });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 274, writtenOffBalance: 640 });
   api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 274 });
   renderCard();
   await userEvent.click(await screen.findByRole('button', { name: 'Annuler le séjour' }));
 
   const dialog = await screen.findByRole('dialog');
-  expect(within(dialog).getByText(/Acompte conservé/)).toBeInTheDocument();
+  expect(await within(dialog).findByText(/Conservé en indemnité/)).toBeInTheDocument();
   expect(within(dialog).getByText(/Solde abandonné/)).toBeInTheDocument();
   expect(within(dialog).getByText(/remises à la vente/)).toBeInTheDocument();
 
   await userEvent.type(within(dialog).getByLabelText('Motif'), 'Sans nouvelles');
+  await within(dialog).findByText('274,00 €');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler le séjour' }));
   await waitFor(() => expect(api.cancelReservation).toHaveBeenCalledWith(10, {
     reason: 'Sans nouvelles', notifyClient: true,

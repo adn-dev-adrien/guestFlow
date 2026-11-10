@@ -85,7 +85,15 @@ function formatMomentLong(instant, lang = 'fr') {
   return `${FR_WEEKDAYS[weekday]} ${part.day === 1 ? '1er' : part.day} ${FR_MONTHS[part.month - 1]} à ${part.hour} h ${minutes}`;
 }
 
+// `2027-10-04` → `04/10/2027`, the way the screens write a day (client displayDate). A value that is not a day is given
+// back as it is, so a refusal never loses what it names (audit R43-RES-L2).
+function formatDateNumeric(isoDate) {
+  const match = String(isoDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(isoDate || '');
+}
+
 module.exports = {
+  formatDateNumeric,
   formatDateLong,
   formatDateLongFr,
   formatMomentLong,

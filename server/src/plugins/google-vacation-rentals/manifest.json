@@ -1,7 +1,7 @@
 {
   "id": "google-vacation-rentals",
   "name": "Google Vacation Rentals",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Envoie à Google les prix du site et les disponibilités de chaque logement.",
   "icon": "travel-explore",
   "surfaces": [
@@ -36,6 +36,10 @@
     ],
     "1.0.5": [
       "Réglages : un logement inconnu est refusé ; le mode Envoi compte les seuls logements existants.",
+      "Compatible avec GuestFlow 4 (SDK 2.11)."
+    ],
+    "1.0.6": [
+      "Réglages : un logement écrit avec des zéros en tête (« 01 ») est refusé et ne compte pas pour le mode Envoi.",
       "Compatible avec GuestFlow 4 (SDK 2.11)."
     ]
   }

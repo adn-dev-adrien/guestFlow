@@ -2978,8 +2978,8 @@ export default function ReservationPage() {
         title: 'Séjour annulé',
         message: [
           result?.retainedDepositAmount > 0
-            ? `Les dates sont remises à la vente. L'acompte de ${formatCurrency(result.retainedDepositAmount)} est conservé à titre d'indemnité (hors TVA).`
-            : 'Les dates sont remises à la vente. Aucun acompte n\'avait été encaissé : rien n\'est conservé.',
+            ? `Les dates sont remises à la vente. ${formatCurrency(result.retainedDepositAmount)} conservés à titre d'indemnité (hors TVA).`
+            : 'Les dates sont remises à la vente. Rien n\'est conservé en indemnité.',
           // specs/plugins-phase-3a-online-payment.md rule 9 — worded by the server.
           result?.paymentLinksWarning,
           // specs/email-language-fr-en.md rule 12 — the notice asked for and not sent, worded by the server.
@@ -4264,9 +4264,6 @@ export default function ReservationPage() {
           propertyName: properties.find((p) => p.id === Number(form.propertyId))?.name || '',
           startDate: form.startDate,
           endDate: form.endDate,
-          // What the server would keep / write off, from the stored payment state.
-          retainedDepositAmount: form.depositPaid ? Number(pricingQuote?.depositAmount || 0) : 0,
-          balanceDue: form.balancePaid ? 0 : Number(pricingQuote?.balanceAmount || 0),
         }}
         onClose={() => setCancelDialogOpen(false)}
         onConfirm={handleCancelReservation}

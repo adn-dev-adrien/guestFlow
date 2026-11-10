@@ -763,7 +763,8 @@ function buildLedger({
     const returned = flag(r.cautionReturned);
     const caution = round2(cautionAmount);
     const none = { editable: false, mode: 'none', min: null, max: null, reason: null };
-    if (caution <= 0 && !received && !returned) {
+    // A cancelled stay never takes the caution it was not given (reservation-payment-ledger rule 74, audit R43-RES-L1).
+    if ((caution <= 0 || cancelled) && !received && !returned) {
       rows.push({ key: 'caution', label: 'Caution', amount: null, state: 'na', tone: 'muted', stateLabel: 'Sans objet', action: null, amountEdit: none, detail: null });
     } else {
       const recvDetail = { warnings: futureWarning(r.cautionReceivedDate) };

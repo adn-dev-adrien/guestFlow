@@ -59,7 +59,8 @@ function parsePropertiesSetting(raw) {
 function validateProperties(raw, allowedIds = null) {
   const parsed = parsePropertiesSetting(raw);
   if (!parsed) return 'Réglage des logements illisible.';
-  if (allowedIds && Object.keys(parsed).some((id) => !allowedIds.has(String(Number(id))))) return 'Logement inconnu.';
+  // Audit R43-DB-L1 — the key as written: « 01 » is not logement 1 to `properties()`, which reads `stored[String(p.id)]`.
+  if (allowedIds && Object.keys(parsed).some((id) => !allowedIds.has(id))) return 'Logement inconnu.';
   const codes = new Set();
   for (const entry of Object.values(parsed)) {
     if (entry.hotelCode && !HOTEL_CODE_RE.test(entry.hotelCode)) return 'Code Google : lettres minuscules, chiffres et tirets, 3 à 40 caractères.';
@@ -73,7 +74,7 @@ function validateProperties(raw, allowedIds = null) {
 }
 
 const anyEnabled = (parsed, knownIds = null) => Object.entries(parsed || {})
-  .some(([id, entry]) => entry.enabled && (!knownIds || knownIds.has(String(Number(id)))));
+  .some(([id, entry]) => entry.enabled && (!knownIds || knownIds.has(id)));
 
 // store: ctx.settings ({ get, set, raw }); listProperties: () → [{ id }] of the core (rule 20). Envoi counts only the
 // enabled entries of real logements.
@@ -117,7 +118,7 @@ function declared(store, { listProperties = null } = {}) {
       validate: (value, body) => {
         const known = knownIds();
         const stored = Object.keys(parsePropertiesSetting(store.get('properties')) || {});
-        const message = validateProperties(value, known && new Set([...known, ...stored.map((id) => String(Number(id)))]));
+        const message = validateProperties(value, known && new Set([...known, ...stored]));
         if (message) return message;
         if (current('mode', body) === 'envoi' && !anyEnabled(parsePropertiesSetting(value), known)) return 'Au moins un logement en mode Envoi.';
         return null;

@@ -669,6 +669,22 @@ acompte is kept as an indemnity, and the books say so correctly.
     a une réservation annulée. »), which is true and keeps the cancelled stay, instead of asking for a return no
     screen allowed. *Why:* a caution received, then the stay cancelled (the delete refusal itself suggests it): the
     return could never be recorded, and the client and logement deletes asked « la rendre d'abord ».
+60. **The cancel dialog shows what the cancellation will write** _(added 2026-11-10, audit R43-C-M1)_. `GET
+    /reservations/:id/cancel-preview` answers `{ cancellationReason, retainedDepositAmount, writtenOffBalance }`, read by
+    `utils/cancelReservation.cancellationFiguresOf` — the very function `cancelReservation` writes its history entry,
+    avoir and indemnity from — or the refusal the cancel would answer (404, 409 `ALREADY_CANCELLED`, 403
+    `PLATFORM_RESERVATION`, the duplicate set aside). It writes nothing. `ReservationCancelDialog` asks it when it opens
+    and renders it: « Conservé en indemnité » and « Solde abandonné »; while it loads the two amounts are placeholders and
+    the confirm waits; a refusal is shown in place of the figures and the confirm stays off. The dashboard's
+    `cancel_due` row says « conservé si annulation » from the same figure, and offers no cancellation the cancel would
+    refuse. *Why:* the dialog worked both figures out in React from the live quote (`depositPaid ? depositAmount : 0`,
+    `balancePaid ? 0 : balanceAmount`): on a plan with one paid échéance it read 0,00 € kept, 0,00 € written off and
+    « Aucun acompte n'a été encaissé », while the cancel kept 125 € as an indemnity and wrote 249,79 € off; it also
+    ignored a book refund before the cancellation (rule 55), an acompte in the caisse interne (D8), withheld commissions.
+    A cancellation cannot be undone: the operator decided on a false figure. Tests:
+    `tests/cancellation-preview.unit.test.js` (preview = cancel for a plan paid or not, a transfer acompte, a refund
+    before, a caisse-interne acompte, a split acompte, withheld commissions, nothing collected; the refusals; the
+    dashboard row), `client/src/components/__tests__/ReservationCancelDialog.server-figures.test.jsx`.
 
 
 ---
@@ -684,6 +700,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 |---|---|---|---|
 | `routes/` | `dashboard.js` | T | `GET /payment-deadlines`, `POST /payment-deadlines/:id/snooze`, `POST /payment-deadlines/:id/remind` |
 | `routes/` | `reservations.js` | T | `POST /:id/cancel` |
+| `routes/` | `reservations.js` | T | Rule 60 — `GET /:id/cancel-preview` (`stayId`, `noWriteOnDuplicate`) |
 | `controllers/` | `dashboardController.js` | T | Thin handlers over `paymentDeadlines` + snooze/remind orchestration |
 | `controllers/` | `reservationsController.js` | T | `cancel` handler; **the acompte request on `create` is removed**; 409 guard on `update` / `updatePayment` for cancelled rows |
 | `controllers/` | `reservationCancellationController.js` | C | Thin HTTP layer over `cancelReservation`, plus the two post-commit side effects (Google delete, notice email) |
@@ -700,6 +717,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `utils/` | `paymentDeadlines.js` | T | **Pure**: reservation rows + today → ready-to-render alert rows (state, amounts, days late, actions). Gains the two `*_to_request` states, the `requestSent` inputs and the `cancel_due` guard of rule 12bis |
 | `utils/` | `cancellationRequalification.js` | C | **Pure**: paid-acompte row → the avoir lines + the compensation payload of §3.6 |
 | `utils/` | `cancelReservation.js` | C | The cancellation transaction itself, every dependency injected — history → kind flip → requalification pair → payment-link cleanup |
+| `utils/`, `controllers/` | `cancelReservation.js`, `reservationCancellationController.js`, `dashboardController.js` | T | Rule 60 — `cancellationRefusalOf` + `cancellationFiguresOf`, shared by `cancelReservation` and `cancellationPreview`; `preview` / `previewFor`; the `cancel_due` row's `retainedDepositAmount` comes from `previewFor` (`paymentDeadlines.js` no longer works it out) |
 | `utils/` | `cancellationRequalification.js`, `cancelReservation.js` | T | Rule 55 — `netOfEarlierRefunds`: the avoir keeps what the earlier book refunds left, the paid solde absorbing them as one sum; `givenBackByBucket`, `depositBucketsOf`, `saleCollectedOf`, `bookedStayBuckets` |
 | `utils/` | `storedMoneySplit.js` | C | Rule 55 reading — the stored-money split of an encaissement (`buildPerLineData`, `splitByDestination`, `storedMoneyCollected`, `storedMoneyBucketTtcs`, `storedMoneyBuckets`), shared by the export and the cancellation |
 | `models/` | `reservationsModel.js` | T | Rule 55 reading — `soldeContribBuckets(id)`: what the paid solde collected per bucket, from its contribs |
@@ -733,6 +751,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `pages/` | `ReservationPage.jsx` | T | « Annuler le séjour » action + read-only cancelled banner |
 | `components/` | `PaymentDeadlinesAlert.jsx` | C | Dashboard card: fetches its rows, renders states, triggers the three actions |
 | `components/` | `ReservationCancelDialog.jsx` | C | Confirmation dialog of rule 22 (recap + reason + notify checkbox) |
+| `components/`, `pages/`, `api.js` | `ReservationCancelDialog.jsx`, `ReservationPage.jsx`, `api.js` | T | Rule 60 — the dialog fetches `getCancellationPreview(reservationId)` on open and renders it (placeholders while loading, the refusal instead); the fiche no longer passes figures from the quote |
 | `components/` | `CancellationCompensationsSection.jsx` | T | Shows `origin`, labels retained-deposit cards, links to the reservation |
 | `components/` | `CancellationCompensationsPendingAlert.jsx` | T | Same labelling (a retained-deposit card is born `received`, so it never appears here — guard only) |
 | `services/` | `api.js` | T | New endpoints |
@@ -755,6 +774,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 | POST | `/api/dashboard/payment-deadlines/:id/snooze` | `{ days?: 7 }` | `{ ok: true, snoozedUntil }` | Idempotent. |
 | POST | `/api/dashboard/payment-deadlines/:id/remind` | `{ type: 'deposit' \| 'balance' }` | `{ sent: true, url, recipientEmail }` | Unchanged — it now serves **both** the first request and the reminders, and is the only way a money email leaves. Relays `paymentRequestService` errors verbatim (400 `EMAIL_NOT_SENT`, 502…). |
 | POST | `/api/reservations/:id/cancel` | `{ reason?: string, notifyClient?: boolean }` | `{ ok, cancellationReason, retainedDepositAmount, writtenOffBalance, refundId, compensationId, emailSent }` | 409 `ALREADY_CANCELLED`; 403 `PLATFORM_RESERVATION`; 404 unknown. |
+| GET | `/api/reservations/:id/cancel-preview` | — | `{ cancellationReason, retainedDepositAmount, writtenOffBalance }` | Rule 60 — the cancel's own figures, nothing written; the cancel's refusals (409 / 403 / 404). |
 | GET | `/api/accounting/cancellation-compensations` | — | unchanged + `origin` on each row | Additive. |
 
 ---
@@ -837,6 +857,12 @@ One line per reservation:
   states plainly: « Les dates seront remises à la vente. L'acompte encaissé est requalifié en
   indemnité (hors TVA) dans la comptabilité du mois en cours. » When nothing was collected it reads
   « Aucun acompte n'a été encaissé : rien n'est conservé. » instead.
+  *Since rule 60 (2026-11-10):* the two lines read « Conservé en indemnité : … » and « Solde abandonné : … »,
+  the server's figures (`cancel-preview`); the warning reads « … Le montant conservé est requalifié en indemnité
+  (hors TVA) dans la comptabilité du mois en cours. », or « … Rien n'est requalifié en indemnité. » when nothing
+  is kept. While the figures load the amounts are placeholders and the confirm is off; a refusal replaces them.
+  The fiche's success message reads « {montant} conservés à titre d'indemnité (hors TVA). » or « Rien n'est
+  conservé en indemnité. ».
 - **Comptabilité → Indemnités d'annulation:** the section subtitle now covers both origins, and a
   retained-acompte row carries an « Acompte conservé » badge plus a « voir le séjour » link.
 - **Reservation page:** when cancelled, `PageActionBar` shows a red chip « Annulée le 19/08/2026 »
@@ -945,6 +971,9 @@ One line per reservation:
       `reservations-search` (+ a cancelled-stay case), `email-log-model`, `email-auto-send-runner`,
       `email-manual-queue`, `emails-controller`, `cancellation-compensations-model`,
       `ical-cancellation-approve-compensation`.
+- [x] Rule 60 (2026-11-10): `tests/cancellation-preview.unit.test.js` (10) — the preview equals the cancel's answer,
+      history entry and indemnity on every money shape, writes nothing, answers the cancel's refusals; the dashboard
+      `cancel_due` row takes the preview's figure. `payment-deadlines.unit.test.js`: the pure row no longer carries one.
 
 ### Client tests — **8 new, suite at 1006 green**
 - [x] `components/__tests__/PaymentDeadlinesAlert.test.jsx` (7) — renders nothing when empty; the
@@ -956,6 +985,9 @@ One line per reservation:
 - [x] `PropertyDetail.test.jsx` — the three delay fields render with the new labels and defaults, and
       the old « Acompte (jours avant) » is gone.
 - [x] `npx vitest run` green (127 files); `npm run test:e2e` green (Playwright).
+- [x] Rule 60 (2026-11-10): `ReservationCancelDialog.server-figures.test.jsx` (3) — the server's figures rendered,
+      placeholders and no confirm while loading, a refusal shown with the confirm off; `ReservationCancelDialog.test.jsx`
+      and the three `PaymentDeadlinesAlert` cancel tests read the preview.
 
 ### Manual UI verification
 - [x] Dashboard: the card renders the two states with their actions, and disappears when nothing is

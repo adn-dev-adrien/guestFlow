@@ -375,6 +375,13 @@ patch. No new edge behavior is introduced.
    tab left open on its seasons after its deletion) it answers 404 « Logement non trouvé », where « Une nouvelle saison »
    reached the new season's foreign-key INSERT and answered 500. The dialog shows the message. Nothing is written. Test:
    `tests/property-assign-dates-unknown-logement.unit.test.js`.
+27. **Added 2026-11-10 (audit R43-RES-L2) — a refusal writes its days in French.** The stay refused on a closure
+   (409 `CLOSURE_COVERS_DATE`, create and update) answers « Fermeture en place sur cette période : « {label} » du
+   04/10/2027 au 08/10/2027. », and the season overlap refusals of a logement's pricing (add, update, « Appliquer à un
+   autre logement ») write « (01/07/2027 au 31/08/2027) »: `utils/dateFr.formatDateNumeric`, DD/MM/YYYY as the screens
+   write a day. *Why:* both put the stored ISO days (« du 2027-10-04 au 2027-10-08 ») in a French sentence the fiche
+   shows as it is, where the devis refusal on the same closure already read French days. Test:
+   `tests/refusal-dates-french.unit.test.js`.
 
 ---
 
