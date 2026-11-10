@@ -123,6 +123,9 @@ async function create(req, res) {
 
 async function update(req, res) {
   const stored = model.getByIdWithDetails(req.params.id);
+  // specs/reservations-backend-mvc.md rule 26 (audit R41-DB-L2) — a save on a logement that no longer exists is refused,
+  // never a 200 « ok » on an UPDATE that touched nothing (with a photo written to /uploads for nobody).
+  if (!stored) return void res.status(404).json({ error: 'Logement non trouvé' });
   req.body = cleanPropertyText(req.body, stored);
   if (refuseInvalid(res, req.body, stored)) return;
   try {

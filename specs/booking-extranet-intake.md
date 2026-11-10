@@ -284,6 +284,12 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     safe integers) answers `404 NOT_FOUND`, nothing written; `1e999` was a datatype mismatch's 500. Plugin 1.3.10. Test:
     `tests/public-route.unit.test.js`.
 
+37. **Added 2026-11-10 (audit R41-DB-L3) — only a stay that exists is dismissed.** `POST
+    /api/booking-intake/pending/:reservationId/dismiss` answers 404 `NOT_FOUND` when the number names no reservation,
+    nothing stored. *Why:* reservation ids are AUTOINCREMENT, so a dismissal stored on an id not yet given hid the iCal
+    Booking stay that later received it from « À compléter », its « Paiement plateforme » block never filled. Test:
+    `public-route.unit.test.js` (rule 37: the route and the model).
+
 ---
 
 ## 4. Architecture

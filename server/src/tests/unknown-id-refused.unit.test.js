@@ -54,3 +54,26 @@ test('rule 26: a calendar note on a logement that does not exist, or a textual i
   const ok = call(calendarNotesController.upsert, { params: { propertyId: '1', date: todayIso() }, body: { note: 'x' } });
   assert.equal(ok.statusCode, 200, JSON.stringify(ok.body));
 });
+
+test('rule 26 (R41-DB-L2): saving a logement that does not exist → 404, never a 200 on an UPDATE that touched nothing', async () => {
+  const propertiesController = require('../controllers/propertiesController');
+  const res = await call(propertiesController.update, { params: { id: '99999' }, body: { name: 'X' } });
+  assert.equal(res.statusCode, 404, JSON.stringify(res.body));
+  assert.equal(res.body.error, 'Logement non trouvé');
+});
+
+test('rule 26 (R41-DB-L1): a document added to a logement that does not exist → 404, the uploaded file removed', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const propertiesModel = require('../models/propertiesModel');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-doc-'));
+  const filePath = path.join(dir, 'probe.pdf');
+  fs.writeFileSync(filePath, 'x');
+  const before = count('SELECT COUNT(*) AS n FROM documents');
+  const result = propertiesModel.addDocument(99999, { path: filePath, filename: 'probe.pdf', originalname: 'probe.pdf' }, {});
+  assert.deepEqual(result, { error: 'Logement non trouvé', status: 404 });
+  assert.equal(fs.existsSync(filePath), false, 'no orphan private file');
+  assert.equal(count('SELECT COUNT(*) AS n FROM documents'), before);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
