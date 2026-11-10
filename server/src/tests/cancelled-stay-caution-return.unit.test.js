@@ -95,3 +95,13 @@ test('rule 59: the cancelled fiche\'s ledger offers « Restituer » on a held ca
   const returned = ledger.rows.find((r) => r.key === 'cautionReturned');
   assert.equal(returned.action && returned.action.label, 'Restituer');
 });
+
+test('rule 59: the exception is for a cancelled stay only — a duplicate set aside with a held caution stays refused, nothing written', () => {
+  const id = f.createStay();
+  assert.equal(patch(id, { cautionReceived: true, cautionReceivedDate: addDaysToIsoDate(TODAY, -1) }).statusCode, 200);
+  f.db.prepare("UPDATE reservations SET kind = 'superseded' WHERE id = ?").run(id);
+  const res = patch(id, { cautionReturned: true });
+  assert.equal(res.statusCode, 409, JSON.stringify(res.body));
+  assert.equal(res.body.code, 'RESERVATION_SUPERSEDED');
+  assert.deepEqual(caution(id), { received: 1, returned: 0, returnedOn: null });
+});

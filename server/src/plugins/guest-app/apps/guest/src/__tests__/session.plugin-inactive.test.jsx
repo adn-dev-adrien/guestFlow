@@ -2,7 +2,7 @@
 // answered 404 `PLUGIN_INACTIVE` (the loader's bare code) shows the « app unavailable » screen, in the guest's
 // language, never the raw code under « Réessayer ». `gate-access` switched off (`/gate` names that plugin) leaves the
 // app open.
-import { screen } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { baseRoutes, renderApp, stubApi } from './guestFixtures';
 
@@ -25,9 +25,12 @@ describe('session — the plugin switched off mid-visit (rule 63)', () => {
   });
 
   it('`/gate` answered PLUGIN_INACTIVE for gate-access keeps the app open', async () => {
-    stubApi(baseRoutes({ 'GET /gate': { status: 404, error: 'PLUGIN_INACTIVE', plugin: 'gate-access' } }));
+    const { calls } = stubApi(baseRoutes({ 'GET /gate': { status: 404, error: 'PLUGIN_INACTIVE', plugin: 'gate-access' } }));
     renderApp('/');
     expect(await screen.findByRole('heading', { name: 'Bonjour Marie' })).toBeInTheDocument();
+    // The negative check is only worth something once the `/gate` answer has been read (verification R37 N2).
+    await waitFor(() => expect(calls.some((c) => c.method === 'GET' && c.path === '/gate')).toBe(true));
+    await act(async () => { await new Promise((resolve) => { setTimeout(resolve, 50); }); });
     expect(screen.queryByRole('heading', { name: 'Application indisponible' })).not.toBeInTheDocument();
   });
 });

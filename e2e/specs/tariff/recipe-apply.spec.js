@@ -10,7 +10,7 @@
 // `eventKey` was silently dropped once already.
 import { test, expect, request as pwRequest } from '@playwright/test';
 import path from 'path';
-import { createProperty } from '../../fixtures/apiSeed.js';
+import { createIcalSource, createProperty } from '../../fixtures/apiSeed.js';
 import { CLIENT_URL } from '../../clientUrl.js';
 
 const STORAGE_STATE = path.join(process.cwd(), 'e2e', '.auth', 'admin.json');
@@ -107,6 +107,9 @@ test.describe('tariff recipe', () => {
 
   test('the platform grid shows both extra-guest tiers', async ({ page }) => {
     const property = await bareProperty('E2E recette paliers');
+    // The grid lists the commissioned platforms only: a fresh E2E base has none, so the test brings its own
+    // (an inactive feed on a dead address — no sync ever runs) instead of leaning on what an earlier spec left.
+    await createIcalSource({ propertyId: property.id, name: 'E2E paliers', url: 'http://127.0.0.1:9/ical', platformKey: 'booking', platformLabel: 'Booking', disabled: true });
     await applyRecipe(property.id);
 
     await page.goto(`/properties/${property.id}/pricing-seasons`);
