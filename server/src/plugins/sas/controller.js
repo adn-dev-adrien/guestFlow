@@ -793,6 +793,11 @@ function commitDeparture(req, res) {
   if (grows) return res.status(grows.status).json(grows.body);
   const takeBack = refusalToTakeBack(id, departureTakeBackFlags(reservationsModel.getRow(id) || {}, { complementsSettled, complementsPaidCash }));
   if (takeBack) return res.status(takeBack.status).json(takeBackAnswer(req, takeBack));
+  // specs/reservation-payment-ledger.md rules 12-13 (audit R38-DB-L1) — the SAS obeys the PATCH's guard: no return
+  // of a caution that was never received (a stale SAS tab after « Caution reçue » was undone on the fiche).
+  if (cautionReturned !== undefined && Boolean(cautionReturned) && !Number(reservation.cautionReceived)) {
+    return res.status(409).json({ error: 'La caution n\'a pas encore été reçue.', code: 'CAUTION_NOT_RECEIVED' });
+  }
   const recap = departureRecapFor(reservation, plan);
   // specs/mixed-method-payments.md rules 1, 32 — « Plusieurs moyens » at the check-out: the lines are validated
   // against the recap's total first; the gesture is « Compléments encaissés », in the caisse when every line is.

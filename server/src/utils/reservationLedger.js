@@ -797,7 +797,8 @@ function buildLedger({
       } else {
         rows.push({
           key: 'cautionReturned', label: 'Caution restituée', amount: caution, state: 'due', tone: 'due',
-          stateLabel: 'À rendre au départ',
+          // A cancelled stay has no departure: its caution is owed back now (audit R38-C-L1).
+          stateLabel: cancelled ? 'À rendre' : 'À rendre au départ',
           // Cancellation rule 59 — a caution held on a cancelled stay is still given back.
           action: canAct || (stored && cancelled) ? { kind: 'mark', label: 'Restituer', dateLabel: 'Rendue le', after: isoDay(r.cautionReceivedDate) } : null,
           amountEdit: none, detail: null,

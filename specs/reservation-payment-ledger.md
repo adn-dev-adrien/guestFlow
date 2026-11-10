@@ -833,6 +833,16 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     > and an end of stay collected by a single payment that leaves the arrival part out keeps its own « paiement unique »
     > card. Tests: `deferred-card-state-matrix`, `reconciliation-deferred-end-of-stay-zero`.
 
+### 3.12 Audit R38-DB-L1 (2026-11-10) — the SAS obeys the caution guards
+
+70. **The SAS writes the caution under rules 12 and 14.** Rule 13 made the PATCH the only judge of the caution, but the
+    two SAS wrote their marks around it. Now the departure SAS refuses `cautionReturned: true` on a caution never
+    received (409 `CAUTION_NOT_RECEIVED`, nothing written: a stale SAS tab after « Caution reçue » was undone on the
+    fiche), and the arrival SAS's `cautionReceived: false` clears the return and its date with the receipt, as the
+    PATCH does. *Accepted:* a legacy row stored before rule 66 with a return dated before its receipt (stay 22209 on the
+    prod copy) is not re-judged. The cancelled fiche's due return reads « À rendre », no longer « À rendre au départ »
+    (audit R38-C-L1, cancellation rule 59). Tests: `sas-caution-guards.unit.test.js`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The rows, their states, the editable ranges, the refusals, the
