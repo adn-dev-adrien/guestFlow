@@ -17,6 +17,7 @@ const received = {
 const toReturn = {
   key: 'cautionReturned', label: 'Caution restituée', amount: 300, state: 'due', tone: 'due',
   stateLabel: 'À rendre au départ', amountEdit: { editable: false, mode: 'none' },
+  // date-literal-ok: the server's row as drawn; the closed line never reads `after`, the server stamps today
   action: { kind: 'mark', label: 'Restituer', dateLabel: 'Rendue le', after: '2026-11-02' },
 };
 
