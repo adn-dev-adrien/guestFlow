@@ -85,7 +85,7 @@ function receiveFile(req, res, next) {
     if (!error) return next();
     const message = error.code === 'LIMIT_FILE_SIZE'
       ? `Photo trop volumineuse (${MAX_UPLOAD_BYTES / 1024 / 1024} Mo au plus).`
-      : 'Envoyez une seule photo, avec son texte alternatif.';
+      : 'Une seule photo à la fois, avec son texte alternatif.';
     return res.status(400).json({ error: message });
   });
 }
@@ -142,7 +142,7 @@ function buildStudioController({
   async function search(req, res) {
     const lodging = lodgingOf(req, res);
     if (!lodging) return null;
-    if (typeof req.query.q !== 'string') return res.status(400).json({ error: 'Saisissez une recherche.' });
+    if (typeof req.query.q !== 'string') return res.status(400).json({ error: 'Recherche vide.' });
     const { pages } = await resolver.resolve({ lodging, mode: 'stay', lang: langOf(req), draft: true });
     const found = searchPages(pages, req.query.q);
     return found.error ? res.status(400).json({ error: found.error }) : res.json(found);
@@ -197,7 +197,7 @@ function buildStudioController({
     const id = idParam(req, res);
     if (!id) return null;
     if (!isPlainObject(req.body) || unknownKey(req.body, ['propertyId']) || !isPositiveInt(req.body.propertyId)) {
-      return res.status(400).json({ error: 'Choisissez un logement.' });
+      return res.status(400).json({ error: 'Logement à choisir.' });
     }
     return answer(res, booklet().placePage(id, req.body.propertyId), 'page');
   }
@@ -216,7 +216,7 @@ function buildStudioController({
     const id = idParam(req, res);
     if (!id) return null;
     if (!isPlainObject(req.body) || unknownKey(req.body, ['toPropertyId']) || !isPositiveInt(req.body.toPropertyId)) {
-      return res.status(400).json({ error: 'Choisissez un logement.' });
+      return res.status(400).json({ error: 'Logement à choisir.' });
     }
     return answer(res, booklet().duplicatePage(id, req.body.toPropertyId, now()), 'page');
   }

@@ -119,8 +119,9 @@ test('rule 9: the expiry follows dates changed by the operator', () => {
 
 test('rule 6: a lookup session moves from pre-arrival to the stay by itself and ends with the window', () => {
   const lookup = session({ origin: 'lookup', mode: 'preArrival' });
-  assert.equal(deriveSession(lookup, stay(), at('2099-07-01T12:00:00+02:00')).mode, 'preArrival');
-  const moved = deriveSession(lookup, stay(), at('2099-07-07T12:00:00+02:00'));
+  const ota = { platform: 'Otaexample', reservationNumber: 'OTA-1' };
+  assert.equal(deriveSession(lookup, stay(ota), at('2099-07-01T12:00:00+02:00')).mode, 'preArrival');
+  const moved = deriveSession(lookup, stay(ota), at('2099-07-07T12:00:00+02:00'));
   assert.equal(moved.mode, 'stay');
   assert.equal(moved.expiresAt.toISOString(), '2099-07-09T10:00:00.000Z');
 });

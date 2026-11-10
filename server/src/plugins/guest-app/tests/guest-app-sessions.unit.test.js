@@ -202,8 +202,11 @@ withApi('rule 5: the visitor mode carries no personal data and no stay module', 
 
 const LOOKUP = { lastName: 'le goff durand', reservationNumber: 'R-99-001' };
 
+// D28 — the lookup opens a platform stay carrying the platform's own number; core-made numbers: guest-app-lookup-core-numbers.
+const OTA = { platform: 'Otaexample' };
+
 withApi('rule 6: name + number from J-7 → pre-arrival, without the gate', async ({ call, db, clock }) => {
-  addStay(db);
+  addStay(db, OTA);
   clock.now = paris('2099-07-01', '12:00');
   const res = await call('POST', '/public/v1/guest/sessions/lookup', LOOKUP);
   assert.equal(res.status, 200);
@@ -216,8 +219,8 @@ withApi('rule 6: name + number from J-7 → pre-arrival, without the gate', asyn
 
 withApi('rule 6: two stays sharing a reservation number — each is tried against the name', async ({ call, db, clock }) => {
   db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (2, 'Paul', 'Martin', 'paul@example.test')").run();
-  addStay(db, { clientId: 2, propertyId: 2 });
-  const marie = addStay(db);
+  addStay(db, { clientId: 2, propertyId: 2, ...OTA });
+  const marie = addStay(db, OTA);
   clock.now = paris('2099-07-07', '12:00');
   const res = await call('POST', '/public/v1/guest/sessions/lookup', LOOKUP);
   assert.equal(res.status, 200, JSON.stringify(res.body));
@@ -225,8 +228,8 @@ withApi('rule 6: two stays sharing a reservation number — each is tried agains
 });
 
 withApi('rule 6: every failure is the one generic error', async ({ call, db, clock }) => {
-  addStay(db);
-  addStay(db, { reservationNumber: 'R-99-CXL', kind: 'cancelled', startDate: '2099-08-01', endDate: '2099-08-04' });
+  addStay(db, OTA);
+  addStay(db, { reservationNumber: 'R-99-CXL', kind: 'cancelled', startDate: '2099-08-01', endDate: '2099-08-04', ...OTA });
   clock.now = paris('2099-07-07', '12:00');
   const answers = [
     await call('POST', '/public/v1/guest/sessions/lookup', { lastName: 'Martin', reservationNumber: 'R-99-001' }),
@@ -334,23 +337,19 @@ withApi('rule 9 data model: a session row is purged 30 days after its expiry, no
   assert.equal(api.sessions().purgeExpired(new Date(expiry + 31 * DAY)), 1);
 });
 
-withApi('rules 1, 9: a regenerated link kills every session opened from it at once, not the lookup ones', async ({ call, db, cookies }) => {
+withApi('rules 1, 9: a regenerated link kills every session opened from it at once', async ({ call, db, cookies }) => {
   const id = addStay(db);
   await openStay(call, db, id);
   const fromLink = cookies.value;
-  cookies.value = null;
-  await call('POST', '/public/v1/guest/sessions/lookup', LOOKUP);
-  const fromLookup = cookies.value;
   require('../models/stayLinksModel')(db).regenerate(id, new Date());
   const dead = await call('GET', '/public/v1/guest/me', null, { cookie: fromLink });
   assert.equal(dead.status, 401);
   assert.equal(dead.body.error.code, 'SESSION_EXPIRED');
-  assert.equal((await call('GET', '/public/v1/guest/me', null, { cookie: fromLookup })).status, 200);
   assert.equal((await openStay(call, db, id)).body.data.mode, 'stay', 'the new link opens the stay');
 });
 
 withApi('rule 6: a lookup on the device that opened the link reuses its session', async ({ call, db }) => {
-  await openStay(call, db, addStay(db));
+  await openStay(call, db, addStay(db, OTA));
   await call('POST', '/public/v1/guest/sessions/lookup', LOOKUP);
   assert.equal(countSessions(db), 1);
 });

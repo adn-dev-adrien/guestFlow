@@ -106,7 +106,7 @@ export default function GuestAppItemFields({
       const now = latest.current;
       if (Object.keys(now.errors).length > 0) {
         setShowErrors(true);
-        throw new Error('Application clients : corrigez les champs signalés.');
+        throw new Error('Application clients : champs à corriger.');
       }
       try {
         const next = await guestAppApi.saveItem(now.kind, id, patchOf(now.saved, now.draft, { kind: now.kind }));
@@ -127,7 +127,7 @@ export default function GuestAppItemFields({
   if (itemId == null) {
     return (
       <Typography variant="body2" color="text.secondary">
-        {`Enregistrez d’abord ${NOUN[kind]} : elle pourra ensuite être vendue dans l’application « Mon séjour ».`}
+        {`Enregistrer d’abord ${NOUN[kind]} : elle pourra ensuite être vendue dans l’application « Mon séjour ».`}
       </Typography>
     );
   }
@@ -142,10 +142,6 @@ export default function GuestAppItemFields({
 
   return (
     <Stack spacing={2.25}>
-      <Typography variant="caption" color="text.secondary">
-        Ajouté par le plugin « Application clients ». Mêmes réglages que l’écran Boutique du Studio.
-      </Typography>
-
       <SwitchRow
         id={`guest-app-sold-${kind}-${itemId}`}
         label="Vendu dans l’app"
@@ -274,7 +270,7 @@ export default function GuestAppItemFields({
                   value={draft.stockQuantity}
                   onChange={(e) => set({ stockQuantity: e.target.value })}
                   error={Boolean(errorOf('stockQuantity'))}
-                  helperText={errorOf('stockQuantity') || [stock.restockLine, stock.heldLabel, 'Saisissez le compte au réassort.'].filter(Boolean).join(' · ')}
+                  helperText={errorOf('stockQuantity') || [stock.restockLine, stock.heldLabel, 'Compte à saisir au réassort.'].filter(Boolean).join(' · ')}
                   slotProps={numberInput}
                 />
                 <TextField

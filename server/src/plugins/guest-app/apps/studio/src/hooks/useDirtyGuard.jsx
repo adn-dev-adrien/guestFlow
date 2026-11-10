@@ -39,7 +39,7 @@ export function DirtyGuardProvider({ children }) {
       <ConfirmDialog
         open={Boolean(pending)}
         title="Quitter sans enregistrer ?"
-        message="Vos modifications de cet écran seront perdues."
+        message="Les modifications de cet écran seront perdues."
         confirmLabel="Quitter"
         cancelLabel="Rester"
         confirmColor="error"

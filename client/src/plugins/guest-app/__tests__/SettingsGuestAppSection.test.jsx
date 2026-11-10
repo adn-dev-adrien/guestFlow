@@ -1,18 +1,19 @@
-// specs/guest-app.md plan step 5 — the « Application clients » card of Paramètres › Intégrations.
+// specs/guest-app.md plan step 5, rule 58 — the « Application clients » card of Paramètres › Intégrations, saved through
+// the plugin's own settings route (the only one that writes the guest host).
 import React, { createRef } from 'react';
 import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { beforeEach, expect, test, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ getPluginSettings: vi.fn(), savePluginSettings: vi.fn() }));
-vi.mock('../../sdk', () => ({ api }));
+const api = vi.hoisted(() => ({ getSettings: vi.fn(), saveSettings: vi.fn() }));
+vi.mock('../guestAppApi', () => ({ default: api }));
 
 import SettingsGuestAppSection from '../SettingsGuestAppSection';
 
 const FIELD = 'Adresse de l’application';
 
 beforeEach(() => {
-  api.getPluginSettings.mockReset().mockResolvedValue({ guestHost: 'sejour.example.test' });
-  api.savePluginSettings.mockReset().mockResolvedValue({});
+  api.getSettings.mockReset().mockResolvedValue({ guestHost: 'sejour.example.test' });
+  api.saveSettings.mockReset().mockResolvedValue({});
 });
 
 test('shows the stored address and stays clean until it is edited', async () => {
@@ -30,19 +31,19 @@ test('the page bar saves the trimmed address through the ref', async () => {
   await waitFor(() => expect(screen.getByLabelText(FIELD)).toHaveValue('sejour.example.test'));
   fireEvent.change(screen.getByLabelText(FIELD), { target: { value: ' app.example.test ' } });
   await act(async () => { await ref.current.save(); });
-  expect(api.savePluginSettings).toHaveBeenCalledWith('guest-app', { guestHost: 'app.example.test' });
+  expect(api.saveSettings).toHaveBeenCalledWith({ guestHost: 'app.example.test' });
   expect(ref.current.isDirty()).toBe(false);
 });
 
 test('a refused address keeps the draft and shows the server message on the field', async () => {
-  const refusal = Object.assign(new Error('refused'), { errors: { guestHost: 'Saisissez un nom de domaine.' } });
-  api.savePluginSettings.mockRejectedValue(refusal);
+  const refusal = Object.assign(new Error('refused'), { error: 'Saisir un nom de domaine.' });
+  api.saveSettings.mockRejectedValue(refusal);
   const ref = createRef();
   render(<SettingsGuestAppSection ref={ref} />);
   await waitFor(() => expect(screen.getByLabelText(FIELD)).toHaveValue('sejour.example.test'));
   fireEvent.change(screen.getByLabelText(FIELD), { target: { value: 'pas un domaine' } });
   await act(async () => { await expect(ref.current.save()).rejects.toBe(refusal); });
-  expect(screen.getByText('Saisissez un nom de domaine.')).toBeInTheDocument();
+  expect(screen.getByText('Saisir un nom de domaine.')).toBeInTheDocument();
   expect(screen.getByLabelText(FIELD)).toHaveValue('pas un domaine');
 });
 
@@ -62,4 +63,16 @@ test('the address field is typed as a URL: no capitals, no correction, no spell 
   expect(field).toHaveAttribute('spellcheck', 'false');
   expect(errors).not.toHaveBeenCalled();
   errors.mockRestore();
+});
+
+test('rule 58: GuestFlow’s own address, refused by the server, is said on the field', async () => {
+  const own = 'C’est l’adresse de GuestFlow : en choisir une autre, par exemple sejour.domainesolio.com.';
+  api.saveSettings.mockRejectedValue(Object.assign(new Error(own), { error: own, field: 'guestHost' }));
+  const ref = createRef();
+  render(<SettingsGuestAppSection ref={ref} />);
+  await waitFor(() => expect(screen.getByLabelText(FIELD)).toHaveValue('sejour.example.test'));
+  fireEvent.change(screen.getByLabelText(FIELD), { target: { value: 'admin.example.test' } });
+  await act(async () => { await expect(ref.current.save()).rejects.toBeTruthy(); });
+  expect(screen.getByText(own)).toBeInTheDocument();
+  expect(ref.current.isDirty()).toBe(true);
 });

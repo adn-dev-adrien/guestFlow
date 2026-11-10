@@ -12,11 +12,12 @@
 const sdk = require('../../sdk');
 const { parisDate } = require('../currentStay');
 const { BREAKFAST, DEFAULT_BREAKFAST_TIME, remainingMornings, shopItems, stayConsumption } = require('../sellable');
-const { languageOf } = require('./sessionController');
+const { languageOf } = require('../language');
+const { fail, refusal } = require('../refusals');
 const { shopStockView } = require('../stock');
 const { deliveryQuestion } = require('../orderLabels');
 const {
-  deliveryPicker, deliveryTimes, ignitionInHours, serviceState, wallClock,
+  deliveryPicker, deliveryTimes, ignitionInHours, serviceState,
 } = require('../serviceHours');
 
 const publicHttp = sdk.coreModule('publicHttp');
@@ -132,13 +133,16 @@ const isStaffItem = (sold) => sold.kind === 'option' && Number(sold.item.needsSt
 
 const positiveId = (value) => (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN);
 
-/** `POST /shop/delivery-slots` — `{ lines: [{ kind, id, … }] }`, 1 to 20 lines; the other keys of a cart line are not read. */
+/**
+ * `POST /shop/delivery-slots` — `{ lines: [{ kind, id, … }] }`, 1 to 20 lines; the other keys of a cart line are not read.
+ * → the refusal key (refusals.js) or null.
+ */
 function deliveryLinesError(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some((k) => k !== 'lines')) return 'Requête invalide.';
-  if (!Array.isArray(body.lines) || body.lines.length < 1 || body.lines.length > MAX_LINES) return 'Le panier est invalide.';
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some((k) => k !== 'lines')) return 'invalidRequest';
+  if (!Array.isArray(body.lines) || body.lines.length < 1 || body.lines.length > MAX_LINES) return 'invalidCart';
   const bad = body.lines.some((line) => !line || typeof line !== 'object' || Array.isArray(line)
     || !ORDER_KINDS.includes(line.kind) || !Number.isInteger(line.id) || line.id <= 0);
-  return bad ? 'Un article du panier est invalide.' : null;
+  return bad ? 'invalidLine' : null;
 }
 
 function buildShopController({
@@ -149,9 +153,9 @@ function buildShopController({
    * Rules 25, 42 — why an item cannot be ordered: already in the stay, or staff-prepared with no delivery time
    * left before the check-out.
    */
-  function unavailableReason(sold, { L, stay, schedule, wall }) {
+  function unavailableReason(sold, { L, stay, schedule, at }) {
     if (sold.alreadyIncluded) return L.alreadyIncluded;
-    if (isStaffItem(sold) && !deliveryTimes({ now: wall, stay, leadMinutes: sold.item.leadMinutes, schedule }).length) return L.noDeliveryLeft;
+    if (isStaffItem(sold) && !deliveryTimes({ now: at, stay, leadMinutes: sold.item.leadMinutes, schedule }).length) return L.noDeliveryLeft;
     return null;
   }
 
@@ -270,7 +274,7 @@ function buildShopController({
       canPayCard: state.open && Boolean(paymentProviders.active()),
       canPayNote: state.open,
       categories: categoriesOf(sold, {
-        lang, translate: translator(lang), L, mediaPaths: catalogue.mediaPaths, stay, extras, today, time: parisClock.format(at), schedule, wall: wallClock(at),
+        lang, translate: translator(lang), L, mediaPaths: catalogue.mediaPaths, stay, extras, today, time: parisClock.format(at), schedule, at,
         stocks: stock().states(at),
       }),
     });
@@ -285,8 +289,8 @@ function buildShopController({
     const { stay, lodging } = req.guest;
     const resourceId = positiveId(req.params.id);
     const { from, to } = req.query;
-    if (!Number.isInteger(resourceId) || resourceId <= 0) return publicHttp.fail(res, 400, 'INVALID_INPUT', 'Identifiant invalide.');
-    if ([from, to].some((d) => d !== undefined && !isRealIsoDay(d))) return publicHttp.fail(res, 400, 'INVALID_INPUT', 'Date invalide.');
+    if (!Number.isInteger(resourceId) || resourceId <= 0) return fail(res, refusal(400, 'INVALID_INPUT', 'invalidId'));
+    if ([from, to].some((d) => d !== undefined && !isRealIsoDay(d))) return fail(res, refusal(400, 'INVALID_INPUT', 'invalidDate'));
     const lang = languageOf(req, stay);
     const L = LABELS[lang];
     const at = now();
@@ -294,7 +298,7 @@ function buildShopController({
     const found = sold && scheduler().slotsForStay({
       resourceId, propertyId: lodging.propertyId, stay, now: at, canIgnite: ignitionInHours(scheduleOf(lodging, at)),
     });
-    if (!found) return publicHttp.fail(res, 404, 'ITEM_NOT_FOUND', 'Cet article n’est pas proposé.');
+    if (!found) return fail(res, refusal(404, 'ITEM_NOT_FOUND', 'itemNotFound'));
     const freeLabel = sold.included ? null : freeLeftLabel(sold, L, lang);
     return publicHttp.ok(res, {
       freeMinutesLeft: sold.freeMinutes ? sold.freeMinutes.left : 0,
@@ -322,7 +326,7 @@ function buildShopController({
    */
   function deliverySlots(req, res) {
     const error = deliveryLinesError(req.body);
-    if (error) return publicHttp.fail(res, 400, 'INVALID_INPUT', error);
+    if (error) return fail(res, refusal(400, 'INVALID_INPUT', error));
     const { stay, lodging } = req.guest;
     const lang = languageOf(req, stay);
     const wanted = new Set(req.body.lines.map((line) => `${line.kind}:${line.id}`));

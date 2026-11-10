@@ -249,6 +249,16 @@ const CORE_TREES = /^\/(api|public|uploads|plugin-assets)(\/|$)/;
 
 const hostOf = (req) => String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
 
+// Rule 48, reading of 2026-11-10 (audit R36 A36-2) — a host-bound web app never claims GuestFlow's own public host: it
+// would take the back office over, its login and its settings included, with nothing left to undo it from.
+function isOwnHost(host) {
+  try {
+    return new URL(require('../models/settingsModel').publicUrl()).hostname.toLowerCase() === host;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The web apps of the live plugins (rule 47): a request on a plugin's own host, or under its path, goes to its handler.
  * Read on every request, so a plugin activated or configured later answers at once and a deactivated one falls through.
@@ -261,7 +271,7 @@ function mountWebApps(app) {
     const own = apps.find((w) => {
       if (!w.host) return false;
       const wanted = String(w.host() || '').toLowerCase();
-      return Boolean(wanted) && wanted === host;
+      return Boolean(wanted) && wanted === host && !isOwnHost(host);
     }) || apps.find((w) => w.path && (req.path === w.path || req.path.startsWith(`${w.path}/`)));
     return own ? own.handler(req, res, next) : next();
   });

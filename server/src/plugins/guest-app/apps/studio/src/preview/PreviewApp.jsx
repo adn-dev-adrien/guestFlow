@@ -47,7 +47,7 @@ function Home({ view, t }) {
 
 function Page({ view, t }) {
   const { page } = view;
-  if (!page) return <div className="scroll"><p className="pv-empty">{view.lang === 'en' ? 'Choose a page.' : 'Choisissez une page.'}</p></div>;
+  if (!page) return <div className="scroll"><p className="pv-empty">{view.lang === 'en' ? 'No page chosen.' : 'Aucune page choisie.'}</p></div>;
   return (
     <div className="scroll" lang={view.lang}>
       <Photo src={page.cover ? page.cover.url : null} sizes={page.cover ? page.cover.sizes : null} scrim className="cover">

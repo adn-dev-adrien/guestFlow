@@ -35,7 +35,7 @@ test('rule 37bis: following a stock asks for the count; the count typed is a res
   const { host } = renderFields();
   fireEvent.click(await screen.findByRole('switch', { name: /Suivre le stock/ }));
   await act(async () => { await expect(host.save({ itemId: 12 })).rejects.toThrow(); });
-  expect(screen.getByText('Indiquez la quantité en stock.')).toBeInTheDocument();
+  expect(screen.getByText('Quantité en stock requise.')).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('En stock'), { target: { value: '24' } });
   await act(async () => { await host.save({ itemId: 12 }); });
   expect(guestAppApi.saveItem).toHaveBeenCalledWith('option', 12, { stockTracked: true, stockQuantity: 24 });

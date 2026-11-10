@@ -37,11 +37,11 @@ function freshDb() {
 function addStay(db, over = {}) {
   const row = {
     propertyId: 1, clientId: 1, startDate: '2099-07-06', endDate: '2099-07-09', checkInTime: '16:00', checkOutTime: '10:00',
-    kind: 'reservation', reservationNumber: 'R-99-001', adults: 2, children: 1, teens: 0, babies: 0, ...over,
+    kind: 'reservation', reservationNumber: 'R-99-001', adults: 2, children: 1, teens: 0, babies: 0, platform: 'direct', ...over,
   };
   return db.prepare(`
-    INSERT INTO reservations (propertyId, clientId, startDate, endDate, checkInTime, checkOutTime, kind, reservationNumber, adults, children, teens, babies)
-    VALUES (@propertyId, @clientId, @startDate, @endDate, @checkInTime, @checkOutTime, @kind, @reservationNumber, @adults, @children, @teens, @babies)
+    INSERT INTO reservations (propertyId, clientId, startDate, endDate, checkInTime, checkOutTime, kind, reservationNumber, adults, children, teens, babies, platform)
+    VALUES (@propertyId, @clientId, @startDate, @endDate, @checkInTime, @checkOutTime, @kind, @reservationNumber, @adults, @children, @teens, @babies, @platform)
   `).run(row).lastInsertRowid;
 }
 
@@ -66,7 +66,7 @@ async function startApi(db, {
     now: () => clock.now,
     translator: (lang) => forLang(lang, translationsModel.create(db)),
     limiters: {
-      session: passThrough, lookup: passThrough, read: passThrough, order: passThrough, status: passThrough, ...limiters,
+      session: passThrough, lookup: passThrough, read: passThrough, order: passThrough, cardOrder: passThrough, status: passThrough, ...limiters,
     },
   });
   const app = express();

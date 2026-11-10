@@ -5,7 +5,7 @@
  */
 
 const COLUMNS = `
-  r.id, r.kind, r.propertyId, r.reservationNumber, r.startDate, r.endDate, r.checkInTime, r.checkOutTime,
+  r.id, r.kind, r.propertyId, r.platform, r.reservationNumber, r.startDate, r.endDate, r.checkInTime, r.checkOutTime,
   r.adults, r.teens, r.children, r.babies,
   c.firstName AS clientFirstName, c.lastName AS clientLastName, c.emailLanguage AS clientLanguage
 `;

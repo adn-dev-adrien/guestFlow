@@ -215,7 +215,7 @@ withApi('rule 11quater: a new property starts off, without a code; enabling issu
 });
 
 withApi('rule 11quater: a disabled lodging refuses its lookup and kills its sessions', async ({ db, api, call }) => {
-  addStay(db);
+  addStay(db, { platform: 'Otaexample' });
   enable(api, db, 1);
   await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) });
   assert.equal((await call('GET', '/public/v1/guest/me')).status, 200);

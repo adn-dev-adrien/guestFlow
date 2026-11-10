@@ -115,7 +115,7 @@ withStaff('rules 27bis, 43: an order of breakfast or bath only has no « Command
   assert.deepEqual(body.days, []);
 });
 
-test('rules 43, 45: the reception, who prepares and delivers, reads the orders and marks them delivered — nothing else', () => {
+test('rules 43, 45: the reception reads its planning cards and marks the orders delivered — the list and its amounts are the admin’s (audit R36 A36-3)', () => {
   const enforceRoleAccess = require('../../../middleware/enforceRoleAccess');
   require('../../loader').registerAll({ db: null, isInstalled: () => false });
   require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
@@ -125,7 +125,7 @@ test('rules 43, 45: the reception, who prepares and delivers, reads the orders a
     enforceRoleAccess({ user: { roles }, method, path }, res, () => { passed = true; });
     return passed;
   };
-  assert.equal(passes(['reception'], 'GET', '/guest-app/orders'), true);
+  assert.equal(passes(['reception'], 'GET', '/guest-app/orders'), false);
   assert.equal(passes(['reception'], 'POST', '/guest-app/orders/12/delivered'), true);
   assert.equal(passes(['reception'], 'GET', '/guest-app/planning/order-cards'), true);
   assert.equal(passes(['reception'], 'GET', '/guest-app/service-hours'), false);

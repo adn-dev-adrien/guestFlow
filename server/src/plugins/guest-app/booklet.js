@@ -173,10 +173,10 @@ function sentenceAround(chars, start, length) {
   return { excerpt: `${head}${sentence}${tail}`, highlight: { start: at, length } };
 }
 
-/** → { error } for a query too short or too long, else { results: [{ slug, title, excerpt, highlight }] }. */
+/** → { error: 'searchLength', params } (a refusal key, refusals.js) for a query too short or too long, else { results: [{ slug, title, excerpt, highlight }] }. */
 function searchPages(pages, q) {
   const query = foldQuery(q || '');
-  if (query.length < MIN_QUERY || query.length > MAX_QUERY) return { error: `La recherche fait de ${MIN_QUERY} à ${MAX_QUERY} caractères.` };
+  if (query.length < MIN_QUERY || query.length > MAX_QUERY) return { error: 'searchLength', params: { min: MIN_QUERY, max: MAX_QUERY } };
   const results = [];
   for (const page of pages) {
     for (const text of textsOf(page)) {

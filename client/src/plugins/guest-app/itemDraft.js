@@ -43,7 +43,7 @@ export function draftErrors(draft, { kind, saved }) {
     errors.leadMinutes = 'Un nombre de minutes, de 0 à 240.';
   }
   if (draft.stockTracked && String(draft.stockQuantity).trim() === '') {
-    errors.stockQuantity = 'Indiquez la quantité en stock.';
+    errors.stockQuantity = 'Quantité en stock requise.';
   } else if (draft.stockTracked && !isInteger(draft.stockQuantity) && (!saved || draft.stockQuantity !== saved.stockQuantity)) {
     errors.stockQuantity = 'Un nombre entier, 0 ou plus.';
   }

@@ -1,7 +1,7 @@
 /**
  * SettingsGuestAppSection — the « Application clients » card of Paramètres › Intégrations
- * (specs/guest-app.md plan step 5). It sets the address guests reach the app at; the server judges it
- * (`PUT /api/plugins/guest-app/settings`) and its message is shown on the field.
+ * (specs/guest-app.md plan step 5, rule 58). It sets the address guests reach the app at; the server judges it
+ * (`PUT /api/guest-app/studio/settings`, which refuses GuestFlow's own address) and its message is shown on the field.
  *
  * Like the other cards with a draft, it has no Save of its own: the page's bar saves it through the ref.
  * « Ouvrir le Studio » opens the booklet studio (`/studio`, rule 47) in a new tab.
@@ -16,11 +16,10 @@ import {
   Box, Button, Card, CardContent, Stack, TextField, Typography,
 } from '@mui/material';
 import ArrowOutwardIcon from '@mui/icons-material/ArrowOutward';
-import { api } from '../sdk';
+import guestAppApi from './guestAppApi';
 
-const PLUGIN = 'guest-app';
-const HELP = 'Le nom de domaine que les codes QR des logements ouvriront, par exemple sejour.domainesolio.com. '
-  + 'Il doit pointer vers GuestFlow.';
+const HELP = 'Le nom de domaine que les codes QR des logements ouvriront, par exemple sejour.domainesolio.com : '
+  + 'un nom à part, dirigé vers ce serveur, jamais l’adresse de GuestFlow.';
 
 function SettingsGuestAppSection({ onDirtyChange }, ref) {
   const [saved, setSaved] = useState('');
@@ -30,7 +29,7 @@ function SettingsGuestAppSection({ onDirtyChange }, ref) {
 
   useEffect(() => {
     let mounted = true;
-    api.getPluginSettings(PLUGIN)
+    guestAppApi.getSettings()
       .then((settings) => { if (mounted) setSaved(String((settings && settings.guestHost) || '')); })
       .catch(() => {});
     return () => { mounted = false; };
@@ -44,9 +43,9 @@ function SettingsGuestAppSection({ onDirtyChange }, ref) {
       if (!dirty) return;
       const value = draft.trim();
       try {
-        await api.savePluginSettings(PLUGIN, { guestHost: value });
+        await guestAppApi.saveSettings({ guestHost: value });
       } catch (err) {
-        setError((err && err.errors && err.errors.guestHost) || null);
+        setError((err && typeof err.error === 'string' && err.error) || null);
         throw err;
       }
       setSaved(value);
@@ -66,7 +65,7 @@ function SettingsGuestAppSection({ onDirtyChange }, ref) {
           <Box>
             <Typography variant="sectionHeader">Application clients</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              L’application « Mon séjour » que vos clients ouvrent avec le code QR de leur logement.
+              L’application « Mon séjour » que les clients ouvrent avec le code QR de leur logement.
             </Typography>
           </Box>
           <TextField

@@ -587,7 +587,12 @@ Optional: a plugin that declares nothing reads « Actif ».
     anything is written). A row of
     `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.26.0`. Tests:
     `payment-complement-link.unit.test.js`, `mid-stay-order-commit.unit.test.js`, `guest-app-order-card`,
-    `guest-app-order-note`.
+    `guest-app-order-note`. Reading of 2026-11-10 (audit R36-M-H1): the engine serves a per-person line at most
+    max(1, party, the lodging's capacity) persons, so persons ordered beyond it were written and never billed. Both
+    calls refuse such an order before anything is priced or written — `{ status: 409, body: { code:
+    'ORDER_PERSONS_EXCEEDED', key, left } }` — for a per-person option whose persons (the stay's line, the pending lines
+    and the order's) exceed the ceiling, and for a breakfast asking more persons than its line already serves (that
+    line keeps its persons). Tests: `mid-stay-order-persons.unit.test.js`, `guest-app-order-persons`.
 48. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.26.0 — unreleased, recorded with the
     other guest-app entry points.)* **`ctx.webApp({ key, path?, host?, handler })` — a web app the plugin serves
     itself.** `path` is one segment of the plugin's own (`/studio`), answered on every host; `host()` is read on each
@@ -603,7 +608,10 @@ Optional: a plugin that declares nothing reads « Actif ».
     `package.json`, built by Vite to `dist/`): `scripts/build-plugin-packages.mjs` never ships them and copies each build
     into the package's `server/assets/<name>` (a build not made: a warning, the app answers 503); the release builds every
     plugin app first, and the server's source scans skip them (browser code). Tests: `plugins-web-apps.unit.test.js`,
-    `guest-app-hosting`, `plugin-web-app-packaging.unit.test.js`.
+    `guest-app-hosting`, `plugin-web-app-packaging.unit.test.js`. Reading of 2026-11-10 (audit R36 A36-2): a `host()`
+    equal to the hostname of GuestFlow's own public URL claims nothing — the back office, its login and its settings stay
+    the core's on its own host whatever a plugin's setting says (`plugins-web-apps-own-host.unit.test.js`); the guest app
+    also refuses such a host at save (guest-app rule 58).
 49. *(Added 2026-11-09, specs/guest-app.md rules 22, 37bis, 45 and 47, SDK 2.26.0.)* **Client points a plugin needs to
     keep its screens and calls in its own folder.** `options.fields` mirrors `resources.fields` in the option editor; a
     `*.fields` contribution may carry `section: { title }`: it gets a section of its own at the bottom, counted by

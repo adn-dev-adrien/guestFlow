@@ -74,7 +74,7 @@ export default function ModulesPage({ lodging }) {
       preview={<PhonePreview view={view} title={`Aperçu · ${lodging.name}`} caption="Ce que verront les clients après « Enregistrer »." lang={lang} onLang={setLang} />}
     >
       {error ? <ErrorAlert message={error} /> : null}
-      <Section id="modules" title={`Ce que voient les clients de ${lodging.name}`} description="Glissez pour changer l’ordre des tuiles. Un module coupé disparaît de l’app, sans tuile grisée.">
+      <Section id="modules" title={`Ce que voient les clients de ${lodging.name}`} description="Glisser pour changer l’ordre des tuiles. Un module coupé disparaît de l’app, sans tuile grisée.">
         <SortableList
           items={draft}
           getKey={(m) => m.key}

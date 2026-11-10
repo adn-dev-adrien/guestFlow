@@ -83,10 +83,10 @@ test('rules 40-41: an exception stored for one lodging alone keeps the shared we
 test('rules 31, 41-42: unconstrained — every ignition allowed, delivery from now + lead to the check-out, open, no banner', () => {
   const free = { unconstrained: true, weekly: {}, exceptions: [], closures: [] };
   assert.equal(ignitionInHours(free)({ date: '2099-07-07', time: '03:00' }), true);
-  const list = times(deliveryTimes({ now: at('2099-07-08', '23:10'), stay: STAY, leadMinutes: 45, schedule: free }));
+  const list = times(deliveryTimes({ now: paris('2099-07-08', '23:10'), stay: STAY, leadMinutes: 45, schedule: free }));
   assert.deepEqual(list.slice(0, 3), ['2099-07-09 00:00', '2099-07-09 00:30', '2099-07-09 01:00'], '23:10 + 45 min, across midnight');
   assert.equal(list[list.length - 1], '2099-07-09 09:30', 'strictly before the check-out');
-  assert.equal(times(deliveryTimes({ now: at('2099-07-01', '09:00'), stay: STAY, leadMinutes: 30, schedule: free }))[0], '2099-07-06 16:00', 'from the check-in');
+  assert.equal(times(deliveryTimes({ now: paris('2099-07-01', '09:00'), stay: STAY, leadMinutes: 30, schedule: free }))[0], '2099-07-06 16:00', 'from the check-in');
   assert.deepEqual(serviceState({ now: paris('2099-07-07', '03:00'), stay: STAY, schedule: free, lang: 'fr' }), { openNow: true });
   assert.equal(deliveryPicker({ now: paris('2099-07-07', '03:00'), stay: STAY, leadMinutes: 30, schedule: free, lang: 'fr' }).asap.label, 'Dès que possible — vers 3 h 30');
 });
@@ -108,7 +108,7 @@ test('rule 40: the setup status asks for the service hours while none is stored'
 });
 
 test('rule 41: delivery times — 30-min steps, the lead inside ONE range, after now, from the check-in to the check-out', () => {
-  const now = at('2099-07-06', '09:00');
+  const now = paris('2099-07-06', '09:00');
   const list = times(deliveryTimes({ now, stay: STAY, leadMinutes: 60, schedule: schedule() }));
   assert.equal(list[0], '2099-07-07 09:00', 'Monday closed; Tuesday from 08:00 + 1 h of preparation');
   assert.ok(list.includes('2099-07-07 12:00'), 'ready as the morning range closes');
@@ -117,7 +117,7 @@ test('rule 41: delivery times — 30-min steps, the lead inside ONE range, after
   assert.equal(list[list.length - 1], '2099-07-09 09:30', 'strictly before the check-out: 10:00 is not a delivery time');
   const arrival = times(deliveryTimes({ now, stay: { ...STAY, startDate: '2099-07-07' }, leadMinutes: 30, schedule: schedule() }));
   assert.equal(arrival[0], '2099-07-07 16:30', 'not before the check-in, and prepared inside the afternoon range');
-  const later = times(deliveryTimes({ now: at('2099-07-07', '17:10'), stay: STAY, leadMinutes: 30, schedule: schedule() }));
+  const later = times(deliveryTimes({ now: paris('2099-07-07', '17:10'), stay: STAY, leadMinutes: 30, schedule: schedule() }));
   assert.equal(later[0], '2099-07-07 18:00', '17:10 + 30 min, on the next half hour');
   assert.deepEqual(deliveryTimes({ now, stay: STAY, leadMinutes: 300, schedule: schedule() }), [], 'a lead longer than every range');
 });

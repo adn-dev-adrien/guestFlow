@@ -52,7 +52,7 @@ function serviceHoursInputError(body, storedDates = new Set()) {
     if (dateError) return `Exception : ${dateError}`;
     if (seen.has(exception.date)) return `La date ${exception.date} a deux exceptions.`;
     seen.add(exception.date);
-    if (exception.closed !== undefined && typeof exception.closed !== 'boolean') return 'Indiquez si le service est fermé ce jour-là.';
+    if (exception.closed !== undefined && typeof exception.closed !== 'boolean') return 'Préciser si le service est fermé ce jour-là.';
     if (exception.closed === true && exception.ranges !== undefined) return `Le ${exception.date} est fermé ou a ses horaires, pas les deux.`;
     if (exception.closed !== true) {
       if (exception.ranges === undefined) return `Le ${exception.date} est fermé ou a ses horaires.`;

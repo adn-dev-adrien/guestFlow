@@ -138,7 +138,7 @@ export default function SasStayAppStep({ reservationId, portalCode, gateStep = n
       {link.validUntilLabel ? (
         <Typography variant="body2" color="text.secondary">{link.validUntilLabel}</Typography>
       ) : null}
-      {error ? <Alert severity="error" sx={{ width: '100%', textAlign: 'left' }}>Le lien n’a pas pu être régénéré. Réessayez.</Alert> : null}
+      {error ? <Alert severity="error" sx={{ width: '100%', textAlign: 'left' }}>Le lien n’a pas pu être régénéré. Réessayer.</Alert> : null}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ width: { xs: '100%', sm: 'auto' } }}>
         <ShareStayLink url={link.url} />
         <Button variant="outlined" startIcon={<AutorenewIcon />} onClick={regenerate} disabled={busy} sx={{ minHeight: 44 }}>

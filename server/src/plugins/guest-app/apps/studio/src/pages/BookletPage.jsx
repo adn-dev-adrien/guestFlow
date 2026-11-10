@@ -148,7 +148,7 @@ export default function BookletPage({ lodging, lodgings }) {
           modules: ['booklet', 'shop', 'orders'],
         })}
         title={`Aperçu · ${lodging.name}`}
-        caption={current && at < 0 ? 'Cette page est en brouillon dans ce livret : montrez-la pour la voir ici.' : 'Le brouillon enregistré, avec les vrais composants de l’app.'}
+        caption={current && at < 0 ? 'Cette page est en brouillon dans ce livret : la montrer pour la voir ici.' : 'Le brouillon enregistré, avec les vrais composants de l’app.'}
         lang={lang}
         onLang={setLang}
       />
@@ -214,7 +214,7 @@ export default function BookletPage({ lodging, lodgings }) {
     >
       {alerts}
       {list}
-      {booklet.pages.length ? <Typography variant="body2" sx={{ color: 'text.secondary' }}>Choisissez une page pour la modifier.</Typography> : null}
+      {booklet.pages.length ? <Typography variant="body2" sx={{ color: 'text.secondary' }}>Choisir une page pour la modifier.</Typography> : null}
       {dialog}
     </StudioPage>
   );

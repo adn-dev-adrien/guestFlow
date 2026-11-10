@@ -74,7 +74,7 @@ export default function SettingsPage({ lodgings, onLodgingChange }) {
     await act(async () => {
       const view = await api.regenerateQr(lodging.propertyId);
       onLodgingChange(lodging.propertyId, { hasLodgingCode: view.hasLodgingCode });
-    }, `Nouveau QR pour ${lodging.name} : imprimez la nouvelle affiche, l’ancienne ne mène plus à l’app.`);
+    }, `Nouveau QR pour ${lodging.name} : nouvelle affiche à imprimer, l’ancienne ne mène plus à l’app.`);
   };
 
   const bar = (
@@ -127,7 +127,7 @@ export default function SettingsPage({ lodgings, onLodgingChange }) {
             {syncing ? 'Synchronisation…' : 'Synchroniser'}
           </Button>
           <Typography variant="body2" sx={{ color: soliomap.ok === false ? 'error.main' : 'text.secondary' }} aria-live="polite">
-            {settings.data.soliomapUrl ? soliomap.syncedLabel : 'Renseignez d’abord l’adresse de Soliomap.'}
+            {settings.data.soliomapUrl ? soliomap.syncedLabel : 'Il manque l’adresse de Soliomap.'}
             {soliomap.ok && soliomap.count !== null && soliomap.count !== undefined ? ` · ${soliomap.count} événement${soliomap.count > 1 ? 's' : ''}` : ''}
           </Typography>
         </Box>
@@ -153,7 +153,7 @@ export default function SettingsPage({ lodgings, onLodgingChange }) {
                 Imprimer l’affiche (PDF)
               </Button>
               <Button variant="outlined" color="error" startIcon={<AutorenewIcon />} onClick={() => setRegenerate(l)} sx={{ minHeight: 44 }}>Régénérer</Button>
-              {hostMissing ? <StatusBadge status="warning" label="Renseignez l’adresse de l’app pour imprimer l’affiche" /> : null}
+              {hostMissing ? <StatusBadge status="warning" label="Adresse de l’app à renseigner pour imprimer l’affiche" /> : null}
             </Box>
           ) : <StatusBadge status="neutral" label="Hors application" />}
         </Section>

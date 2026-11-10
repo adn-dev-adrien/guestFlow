@@ -179,7 +179,7 @@ export default function PageEditor({
         {
           icon: <PublicIcon />,
           label: publishLabel,
-          tooltip: dirty ? 'Enregistrez d’abord le brouillon' : (upToDate ? 'Le livret publié est déjà à jour' : publishLabel),
+          tooltip: dirty ? 'Enregistrer d’abord le brouillon' : (upToDate ? 'Le livret publié est déjà à jour' : publishLabel),
           onClick: publish,
           color: 'success',
           ariaDisabled: dirty || upToDate || busy,
@@ -208,8 +208,8 @@ export default function PageEditor({
       {list}
       {error ? <ErrorAlert message={error} /> : null}
       {notice ? <Alert severity="success" onClose={() => setNotice(null)}>{notice}</Alert> : null}
-      {shared ? <Alert severity="info">Page partagée : ce que vous enregistrez ici modifie aussi le livret de {others.map((o) => o.name).join(' et de ')}.</Alert> : null}
-      {page.data.placeholder ? <Alert severity="warning">Page provisoire : remplacez son contenu par celui de votre livret.</Alert> : null}
+      {shared ? <Alert severity="info">Page partagée : un enregistrement ici modifie aussi le livret de {others.map((o) => o.name).join(' et de ')}.</Alert> : null}
+      {page.data.placeholder ? <Alert severity="warning">Page provisoire : son contenu est à remplacer par celui du livret.</Alert> : null}
 
       <Section id="page">
         <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
@@ -240,7 +240,7 @@ export default function PageEditor({
             <Menu anchorEl={duplicateAnchor} open={Boolean(duplicateAnchor)} onClose={() => setDuplicateAnchor(null)}>
               {lodgings.map((l) => <MenuItem key={l.propertyId} onClick={() => duplicate(l.propertyId)} sx={{ minHeight: 44 }}>{l.name}{l.propertyId === lodging.propertyId ? ' (ce livret)' : ''}</MenuItem>)}
             </Menu>
-            {dirty ? <Typography variant="caption" sx={{ color: 'text.secondary', alignSelf: 'center' }}>Enregistrez d’abord le brouillon pour partager ou dupliquer.</Typography> : null}
+            {dirty ? <Typography variant="caption" sx={{ color: 'text.secondary', alignSelf: 'center' }}>Enregistrer d’abord le brouillon pour partager ou dupliquer.</Typography> : null}
           </Box>
         ) : null}
       </Section>
@@ -295,7 +295,7 @@ export default function PageEditor({
           }}
         />
       ) : (
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>Cette page n’a pas encore de bloc : ajoutez-en un ci-dessous.</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>Cette page n’a pas encore de bloc.</Typography>
       )}
 
       <Section id="palette" title="Ajouter un bloc">

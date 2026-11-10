@@ -34,7 +34,7 @@ function buildPublicRouter({
   // Rules 32-38 — a stay's orders: the quote, the order and its page belong to the shop, the list to « Mes commandes ».
   const stayShop = [...shopRoute, guestSession.requireStay];
   router.post('/orders/quote', ...stayShop, orders.quote);
-  router.post('/orders', ...stayShop, limiters.order, orders.create);
+  router.post('/orders', ...stayShop, limiters.order, limiters.cardOrder, orders.create);
   router.get('/orders', limiters.read, guestSession.requireSession, requireModule('orders', controller.shownKeysOf), guestSession.requireStay, orders.list);
   // §4.3 — the return page polls the order, and an unpaid one is read at the provider: the core's payment-status budget.
   router.get('/orders/:id', limiters.status, ...stayShop, orders.read);

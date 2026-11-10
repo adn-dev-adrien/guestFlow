@@ -72,7 +72,7 @@ describe('ServicePage (rules 40, 41bis)', () => {
     await screen.findByText('Livraison ou retrait');
     await user.click(screen.getByRole('button', { name: 'À retirer' }));
     const place = screen.getByRole('textbox', { name: /Lieu de retrait/ });
-    expect(screen.getByText('Indiquez où le client récupère sa commande.')).toBeInTheDocument();
+    expect(screen.getByText('Lieu où le client récupère sa commande.')).toBeInTheDocument();
     await user.type(place, 'À l’accueil');
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }));
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ fulfilment: 'pickup', pickupPlace: 'À l’accueil' }));

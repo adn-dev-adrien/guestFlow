@@ -24,7 +24,7 @@ const DAY = new Intl.DateTimeFormat('fr-FR', {
 const validUntilLabel = (end) => `Le lien vaut jusqu’au ${DAY.format(end)}, ${timeLabel(end, 'fr')}.`;
 
 function buildStayLinksController({
-  stayLinks, stays, lodgings, guestHost, now,
+  stayLinks, stays, lodgings, sessions, guestHost, now,
 }) {
   /** → { stay, host } or { status, error }: why this reservation has no link. */
   function eligibility(reservationId) {
@@ -33,7 +33,7 @@ function buildStayLinksController({
     if (!isLiveStay(stay)) return { status: 409, error: 'Ce séjour n’est pas une réservation en cours : il n’a pas de lien Mon séjour.' };
     if (!lodgings().findEnabled(stay.propertyId)) return { status: 409, error: 'Ce logement n’est pas dans l’application clients.' };
     const host = guestHost();
-    if (!host) return { status: 409, error: 'Renseignez d’abord l’adresse de l’application (Paramètres › Intégrations).' };
+    if (!host) return { status: 409, error: 'Il manque l’adresse de l’application (Paramètres › Intégrations).' };
     return { stay, host };
   }
 
@@ -60,6 +60,8 @@ function buildStayLinksController({
     if (eligible.error) return res.status(eligible.status).json({ error: eligible.error });
     try {
       const link = write ? stayLinks().regenerate(id, now()) : stayLinks().ensure(id, now());
+      // D28, rule 54 — the lookup sessions of the stay end with its link: the operator's one way to close the stay.
+      if (write) sessions().endLookupSessions(id);
       res.set('Cache-Control', 'no-store');
       return res.json(await view(eligible, link));
     } catch (error) {

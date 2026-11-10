@@ -40,13 +40,20 @@ function createSessionsModel(db) {
     return byId(id);
   }
 
+  /** D28, rule 54 — « Régénérer le lien » also ends every session the lookup opened on that stay. */
+  function endLookupSessions(reservationId) {
+    return db.prepare("DELETE FROM guest_sessions WHERE reservationId = ? AND origin = 'lookup'").run(Number(reservationId)).changes;
+  }
+
   /** Rule 4 data model — a session row goes 30 days after its expiry. */
   function purgeExpired(now) {
     const before = new Date(now.getTime() - PURGE_AFTER_DAYS * DAY_MS).toISOString();
     return db.prepare('DELETE FROM guest_sessions WHERE expiresAt < ?').run(before).changes;
   }
 
-  return { create, findByToken, hashToken, purgeExpired, touch };
+  return {
+    create, endLookupSessions, findByToken, hashToken, purgeExpired, touch,
+  };
 }
 
 module.exports = createSessionsModel;

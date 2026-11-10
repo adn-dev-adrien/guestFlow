@@ -8,7 +8,7 @@ const QRCode = require('qrcode');
 const sdk = require('../../sdk');
 const registry = require('../../sdk/registry');
 const {
-  openingToday, preArrivalOpensAt, resolveLink, resolveLookup,
+  lookupAllowed, openingToday, preArrivalOpensAt, resolveLink, resolveLookup,
 } = require('../currentStay');
 const { nameMatches } = require('../nameMatch');
 const { shownModules, tilesOf } = require('../modules');
@@ -17,33 +17,31 @@ const { pickSuggestion } = require('../soliomapFeed');
 const gate = require('../gate');
 const { isNight } = require('../sun');
 
+const { languageOf } = require('../language');
+const { fail, refusal } = require('../refusals');
+
 const publicHttp = sdk.coreModule('publicHttp');
 const { toParisIso } = sdk.coreModule('stayWindow');
 
-const NOT_FOUND_MESSAGE = 'Nous n’avons pas trouvé ce séjour. Vérifiez le nom et le numéro.';
-const UNKNOWN_CODE_MESSAGE = 'Ce code n’est pas reconnu.';
 const VISITOR_SESSION_MS = 24 * 60 * 60 * 1000;
 const MAX_FIELD = 120;
 
 const isText = (v) => typeof v === 'string' && v.trim() !== '' && v.length <= MAX_FIELD;
-const SUPPORTED = new Set(['fr', 'en']);
-
-/** Rule 19 — the language asked for, else the guest's, else the browser's, French by default. */
-function languageOf(req, stay) {
-  const asked = String((req.query && req.query.lang) || '').toLowerCase();
-  if (SUPPORTED.has(asked)) return asked;
-  const onFile = stay && String(stay.clientLanguage || '').toLowerCase();
-  if (SUPPORTED.has(onFile)) return onFile;
-  return /^en\b/i.test(String(req.headers['accept-language'] || '')) ? 'en' : 'fr';
-}
 
 const lodgingView = (lodging) => ({ id: lodging.propertyId, name: lodging.name, slug: lodging.slug });
 
-/** Rule 18 `wifi` — the join QR a phone scans: the WIFI: scheme escapes these characters. */
-async function wifiView(wifi) {
-  const escape = (text) => String(text).replace(/([\;,:"])/g, '\\$1');
+/**
+ * Rule 18 `wifi` — the join text a phone reads from the QR. The WIFI: scheme escapes the backslash, `;`, `,`, `:` and
+ * `"` with a backslash (audit R36-INJ-L1: the backslash itself was left bare, and a phone joined with a wrong password).
+ */
+function wifiPayload(wifi) {
+  const escape = (text) => String(text ?? '').replace(/([\\;,:"])/g, '\\$1');
   const type = wifi.password ? 'WPA' : 'nopass';
-  const joinQr = await QRCode.toDataURL(`WIFI:T:${type};S:${escape(wifi.network)};P:${escape(wifi.password)};;`);
+  return `WIFI:T:${type};S:${escape(wifi.network)};P:${escape(wifi.password)};;`;
+}
+
+async function wifiView(wifi) {
+  const joinQr = await QRCode.toDataURL(wifiPayload(wifi));
   return { network: wifi.network, password: wifi.password, ...(wifi.note ? { note: wifi.note } : {}), joinQr };
 }
 
@@ -66,7 +64,7 @@ function buildSessionController({
 
   const shownFor = (lodging, mode, lang) => shownModules(lodging.modules, factsOf(lodging), mode, lang);
 
-  const unknownCode = (res) => publicHttp.fail(res, 404, 'CODE_NOT_FOUND', UNKNOWN_CODE_MESSAGE);
+  const unknownCode = (res) => fail(res, refusal(404, 'CODE_NOT_FOUND', 'unknownCode'));
 
   function answer(res, { mode, lodging, opensAt, ended }) {
     return publicHttp.ok(res, {
@@ -149,8 +147,9 @@ function buildSessionController({
     return openFromPoster(req, res, body.lodgingCode);
   }
 
-  // POST /sessions/lookup — rules 6, 7, 11quater. Every failure is the one generic 404, and the name is
-  // compared even when no stay carries that number. Two stays sharing a number are each tried against the name.
+  // POST /sessions/lookup — rules 6, 7, 11quater, 54. Every failure is the one generic 404, and the name is
+  // compared even when no stay carries that number. Two stays sharing a number are each tried against the name. A
+  // number the core made opens nothing (D28): it answers like an unknown stay.
   function lookup(req, res) {
     const { lastName, reservationNumber } = req.body || {};
     const candidates = isText(lastName) && isText(reservationNumber)
@@ -160,10 +159,10 @@ function buildSessionController({
     const found = (candidates.length ? candidates : [null]).map((stay) => {
       const nameOk = nameMatches(lastName, [stay ? stay.clientLastName : '']);
       const lodging = stay && lodgings().findEnabled(stay.propertyId);
-      const resolved = stay && nameOk && lodging ? resolveLookup(stay, at) : null;
+      const resolved = stay && nameOk && lodging && lookupAllowed(stay) ? resolveLookup(stay, at) : null;
       return resolved ? { stay, lodging, resolved } : null;
     }).find(Boolean);
-    if (!found) return publicHttp.fail(res, 404, 'STAY_NOT_FOUND', NOT_FOUND_MESSAGE);
+    if (!found) return fail(res, refusal(404, 'STAY_NOT_FOUND', 'stayNotFound'));
     return open(req, res, {
       lodging: found.lodging, reservationId: found.stay.id, mode: found.resolved.mode, origin: 'lookup', expiresAt: found.resolved.window.end,
     });
@@ -235,7 +234,7 @@ function buildSessionController({
     const guest = guestSession.load(req);
     const code = req.query && req.query.lodgingCode;
     const shownLodging = guest ? guest.lodging : (isText(code) && lodgings().findEnabledByCode(code));
-    if (!shownLodging) return publicHttp.fail(res, 401, 'SESSION_EXPIRED', 'Votre session a expiré.');
+    if (!shownLodging) return fail(res, refusal(401, 'SESSION_EXPIRED', 'sessionExpired'));
     const lang = languageOf(req, guest && guest.stay);
     const shown = shownFor(shownLodging, guest ? guest.mode : 'visitor', lang);
     const has = (key) => shown.some((m) => m.key === key);
@@ -258,7 +257,7 @@ function buildSessionController({
   function gateRead(req, res) {
     if (!gate.gateLive()) return res.status(404).json({ error: 'PLUGIN_INACTIVE', plugin: gate.GATE_PLUGIN });
     const { lodging, mode, stay } = req.guest;
-    if (!shownFor(lodging, 'stay').some((m) => m.key === 'gate')) return publicHttp.fail(res, 404, 'MODULE_OFF', 'Ce service n’est pas proposé dans ce logement.');
+    if (!shownFor(lodging, 'stay').some((m) => m.key === 'gate')) return fail(res, refusal(404, 'MODULE_OFF', 'moduleOff'));
     return publicHttp.ok(res, gate.gateState({ mode, reservationId: stay && stay.id }, readGateUrl));
   }
 
@@ -273,4 +272,4 @@ function buildSessionController({
   };
 }
 
-module.exports = { buildSessionController, languageOf, wifiView };
+module.exports = { buildSessionController, wifiPayload, wifiView };

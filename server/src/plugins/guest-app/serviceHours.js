@@ -118,38 +118,48 @@ function nextOpening(from, schedule) {
   return null;
 }
 
+const STEP_MS = STEP_MINUTES * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+
+const instantMs = ({ date, minutes }) => wallClockToDate(date, toTime(minutes)).getTime();
+
+/** A wall-clock moment as it is shown, with the real instant it names (ms). */
+const momentAt = (ms) => ({ ...wallClock(new Date(ms)), at: ms });
+
 /**
- * Rule 41 — the delivery times t, 30-min steps, with check-in ≤ t < check-out and [t − lead, t] after `now`
- * inside ONE service range. → wall-clock moments in time order. A delivery time has no capacity.
+ * Rule 41 — the delivery times t, 30-min steps, with check-in ≤ t < check-out and [t − lead, t] after `now` (an instant)
+ * inside ONE service range → `{ date, minutes, at }` in time order, `at` the real instant (ms). A delivery time has no
+ * capacity. Built on real instants (audit R36-S2): on the night the clocks go back the first time is still `lead`
+ * away, and on the night they go forward a wall time that does not exist (02:30) is never offered nor labelled.
  */
 function deliveryTimes({ now, stay, leadMinutes, schedule }) {
   const lead = Math.max(0, Number(leadMinutes) || 0);
   const { checkIn, checkOut } = stayBounds(stay);
-  const earliest = Math.max(absolute(checkIn), absolute(now) + lead);
-  const latest = absolute(checkOut);
+  const earliest = Math.max(instantMs(checkIn), now.getTime() + lead * MINUTE_MS);
+  const latest = instantMs(checkOut);
   if (schedule.unconstrained) {
+    // Paris is a whole number of hours from UTC: the half hours of the instants are the half hours of its wall clock.
     const list = [];
-    for (let t = Math.ceil(earliest / STEP_MINUTES) * STEP_MINUTES; t < latest; t += STEP_MINUTES) {
-      const day = Math.floor(t / MINUTES_PER_DAY);
-      list.push({ date: dateOf(day), minutes: t - day * MINUTES_PER_DAY });
-    }
+    for (let t = Math.ceil(earliest / STEP_MS) * STEP_MS; t < latest; t += STEP_MS) list.push(momentAt(t));
     return list;
   }
   const times = new Map();
-  const first = dayIndex(now.date) > dayIndex(checkIn.date) ? now.date : checkIn.date;
+  const today = wallClock(now).date;
+  const first = dayIndex(today) > dayIndex(checkIn.date) ? today : checkIn.date;
   for (let date = first; dayIndex(date) <= dayIndex(checkOut.date); date = addDays(date, 1)) {
-    const base = dayIndex(date) * MINUTES_PER_DAY;
     rangesOn(date, schedule).forEach((range) => {
-      const opensAt = Math.max(base + range.from + lead, earliest);
-      for (let t = Math.ceil(opensAt / STEP_MINUTES) * STEP_MINUTES; t <= base + range.to && t < latest; t += STEP_MINUTES) {
-        times.set(t, { date, minutes: t - base });
+      for (let m = Math.ceil((range.from + lead) / STEP_MINUTES) * STEP_MINUTES; m <= range.to; m += STEP_MINUTES) {
+        const at = instantMs({ date, minutes: m });
+        const shown = wallClock(new Date(at));
+        // A wall time the clocks skip names no instant of its own: never offered.
+        if (shown.date === date && shown.minutes === m && at >= earliest && at < latest) times.set(at, { ...shown, at });
       }
     });
   }
   return [...times.keys()].sort((a, b) => a - b).map((t) => times.get(t));
 }
 
-const instantOf = ({ date, minutes }) => toParisIso(wallClockToDate(date, toTime(minutes)));
+const instantOf = (moment) => toParisIso(new Date(moment.at !== undefined ? moment.at : instantMs(moment)));
 
 function dayLabel(date, today, L) {
   if (date === today) return L.today;
@@ -166,7 +176,7 @@ function dayLabel(date, today, L) {
 function deliveryPicker({ now, stay, leadMinutes, schedule, lang }) {
   const L = LABELS[lang] || LABELS.fr;
   const at = wallClock(now);
-  const times = deliveryTimes({ now: at, stay, leadMinutes, schedule });
+  const times = deliveryTimes({ now, stay, leadMinutes, schedule });
   const days = [];
   times.forEach((t) => {
     if (!days.length || days[days.length - 1].date !== t.date) days.push({ date: t.date, label: dayLabel(t.date, at.date, L), slots: [] });
