@@ -61,4 +61,21 @@ function guardNotDevis(database, idOf = (req) => req.params.id) {
   };
 }
 
-module.exports = { refusalForKind, readOnlyRefusal, refuseIfReadOnly, guardReadOnly, guardNotDevis };
+const CAUTION_RETURN_KEYS = new Set(['cautionReturned', 'cautionReturnedDate']);
+
+/**
+ * specs/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — the one write a cancelled stay takes on
+ * PATCH /payment: the return of a caution it still holds (received, not returned), the body carrying that mark and its
+ * date only. Anything else — another mark, a return taken back, a caution never received — stays the cancelled refusal.
+ */
+function cautionReturnOnCancelled(row, body) {
+  if (!row || row.kind !== 'cancelled' || !body || typeof body !== 'object') return false;
+  const keys = Object.keys(body);
+  if (!keys.length || keys.some((key) => !CAUTION_RETURN_KEYS.has(key))) return false;
+  if (body.cautionReturned !== true && body.cautionReturned !== 1) return false;
+  return Number(row.cautionReceived) === 1 && Number(row.cautionReturned) !== 1;
+}
+
+module.exports = {
+  refusalForKind, readOnlyRefusal, refuseIfReadOnly, guardReadOnly, guardNotDevis, cautionReturnOnCancelled,
+};

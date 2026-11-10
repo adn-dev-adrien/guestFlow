@@ -658,6 +658,17 @@ acompte is kept as an indemnity, and the books say so correctly.
     d'abord. », and an approved iCal cancellation keeps the stay as cancelled. A returned caution refuses nothing.
     *Why:* a Gîtes de France stay with no paid flag, a 13 € note settled, then « Supprimer » → 200, and the note's
     sale left the month's journal; a Booking stay holding a 500 € caution was deleted with it.
+59. **A caution held on a cancelled stay is still given back** _(added 2026-11-10, audit R37-RES-L1)_. Rule 25 keeps a
+    cancelled stay read-only, yet the caution it still holds (rule 58) is owed back to the guest: `PATCH
+    /reservations/:id/payment` takes, on a cancelled stay, a body carrying `cautionReturned: true` and its
+    `cautionReturnedDate` only, while the caution is received and not returned; the date is judged as on a live stay
+    (never before the receipt, today when absent). Any other key, a return taken back, or a caution never received
+    stays 409 `RESERVATION_CANCELLED`, nothing written. The ledger offers « Restituer » on the cancelled fiche, drawn
+    outside its disabled fieldset beside « + Nouveau remboursement » (confirmed, dated today). Once returned, the
+    caution no longer holds the client and the logement: their delete answers rule 53's history refusal (« Ce client
+    a une réservation annulée. »), which is true and keeps the cancelled stay, instead of asking for a return no
+    screen allowed. *Why:* a caution received, then the stay cancelled (the delete refusal itself suggests it): the
+    return could never be recorded, and the client and logement deletes asked « la rendre d'abord ».
 
 
 ---

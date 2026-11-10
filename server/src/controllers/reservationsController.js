@@ -91,7 +91,7 @@ const refundsController = require('./refundsController');
 const propertyOptionDefaultsModel = require('../models/propertyOptionDefaultsModel');
 const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
 const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
-const { readOnlyRefusal } = require('../utils/reservationReadOnly');
+const { readOnlyRefusal, cautionReturnOnCancelled } = require('../utils/reservationReadOnly');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toOccupancyRow } = require('../utils/upcomingArrivals');
@@ -2935,7 +2935,9 @@ function updatePaymentCore(req, res) {
   const existing = model.getBasic(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: 'Réservation non trouvée' });
   const cancelledPayment = readOnlyRefusal(db, Number(req.params.id));
-  if (cancelledPayment) return res.status(cancelledPayment.status).json(cancelledPayment.body);
+  if (cancelledPayment && !cautionReturnOnCancelled(model.getRow(Number(req.params.id)), req.body)) {
+    return res.status(cancelledPayment.status).json(cancelledPayment.body);
+  }
 
   // specs/reservation-payment-ledger.md rules 9, 11, 12 — the guards of a mark, all checked BEFORE
   // anything is written, so a refusal leaves the whole PATCH without effect.

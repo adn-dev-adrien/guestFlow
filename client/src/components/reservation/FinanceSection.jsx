@@ -945,9 +945,22 @@ export default function FinanceSection() {
   // specs/calendar-property-parity.md rule 25 reading of 2026-11-02 — so is the deletion of a refund made after the
   // cancellation; its row in the ledger, inside the fieldset, shows no button. A duplicate set aside takes no refund.
   const toDelete = closedActionsHost && refundHost ? rows.filter((r) => r.action && r.action.kind === 'deleteRefund') : [];
-  const ledgerRows = toDelete.length > 0 ? rows.map((r) => (toDelete.includes(r) ? { ...r, action: null } : r)) : rows;
+  // specs/payment-schedule-and-cancellation.md rule 59 — so is the return of a caution the cancelled stay still holds.
+  const toReturn = closedActionsHost && refundHost ? rows.filter((r) => r.key === 'cautionReturned' && r.action && r.action.kind === 'mark') : [];
+  const drawnOutside = [...toDelete, ...toReturn];
+  const ledgerRows = drawnOutside.length > 0 ? rows.map((r) => (drawnOutside.includes(r) ? { ...r, action: null } : r)) : rows;
+  const returnCaution = async () => {
+    const ok = await confirm({ title: 'Restituer la caution ?', message: 'Restitution datée d’aujourd’hui.', confirmLabel: 'Restituer', cancelLabel: 'Garder' });
+    if (!ok) return;
+    try {
+      await api.markPayment(editingReservationId, { cautionReturned: true });
+      await reloadReservationFinance();
+    } catch (err) {
+      showError(err.message || 'Restitution impossible.');
+    }
+  };
   const closedLineSx = { display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' };
-  const closedLines = (toSettle.length > 0 || toDelete.length > 0) ? (
+  const closedLines = (toSettle.length > 0 || toDelete.length > 0 || toReturn.length > 0) ? (
     <Stack spacing={0.5}>
       {toSettle.map((l) => (
         <Box key={l.settle.linkId} sx={closedLineSx}>
@@ -966,6 +979,20 @@ export default function FinanceSection() {
             color="error"
             aria-label={`${r.action.label} : ${r.label} ${formatCurrency(r.amount)}`}
             onClick={() => onAction(r)}
+            sx={{ minHeight: 44, textTransform: 'none' }}
+          >
+            {r.action.label}
+          </Button>
+        </Box>
+      ))}
+      {toReturn.map((r) => (
+        <Box key={r.key} sx={closedLineSx}>
+          <span style={{ overflowWrap: 'anywhere' }}>{`${r.label} ${formatCurrency(r.amount)} · ${r.stateLabel}`}</span>
+          <Button
+            size="small"
+            variant="text"
+            aria-label={`${r.action.label} : ${r.label} ${formatCurrency(r.amount)}`}
+            onClick={returnCaution}
             sx={{ minHeight: 44, textTransform: 'none' }}
           >
             {r.action.label}

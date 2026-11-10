@@ -3,27 +3,36 @@
  * `{ error: { code, message, details? } }` envelope turned into values and `ApiError`s.
  *
  * A dead session (401 `SESSION_EXPIRED`) is handed once to the registered `onSessionExpired` — the session
- * provider re-exchanges the stored stay link (rule 4, 9) — and the request is replayed once after it.
+ * provider re-exchanges the stored stay link (rule 4, 9) — and the request is replayed once after it. The plugin
+ * switched off (the loader's 404 `PLUGIN_INACTIVE` naming the guest app, any request) is handed to
+ * `onPluginInactive`: the session provider shows the « app unavailable » screen (rule 63).
  */
 
 export const BASE = '/public/v1/guest';
 
 export class ApiError extends Error {
-  constructor(status, code, message, details) {
+  constructor(status, code, message, details, plugin) {
     super(message || code || `HTTP ${status}`);
     this.status = status;
     this.code = code || null;
     this.details = details || null;
+    this.plugin = plugin || null;
   }
 }
 
+// The guest app's own plugin id: `/gate` answers PLUGIN_INACTIVE for `gate-access`, which leaves the app open.
+const OWN_PLUGIN = 'guest-app';
+
 let currentLang = null;
 let sessionExpiredHandler = null;
+let pluginInactiveHandler = null;
 
 /** The language every request asks for (`?lang=`): the guest's choice once made, else the server's. */
 export function setLanguage(lang) { currentLang = lang; }
 
 export function onSessionExpired(handler) { sessionExpiredHandler = handler; }
+
+export function onPluginInactive(handler) { pluginInactiveHandler = handler; }
 
 function urlOf(path, query) {
   const url = new URL(`${BASE}${path}`, window.location.origin);
@@ -37,7 +46,7 @@ async function readError(response) {
   let body = null;
   try { body = await response.json(); } catch { body = null; }
   // The plugin loader answers `{ error: 'PLUGIN_INACTIVE', plugin }` for every route of an inactive plugin.
-  if (body && typeof body.error === 'string') return new ApiError(response.status, body.error, body.error);
+  if (body && typeof body.error === 'string') return new ApiError(response.status, body.error, body.error, null, body.plugin);
   const err = (body && body.error) || {};
   return new ApiError(response.status, err.code, err.message, err.details);
 }
@@ -54,7 +63,12 @@ async function once(method, path, { body, query, headers } = {}) {
   } catch {
     throw new ApiError(0, 'NETWORK', 'network');
   }
-  if (!response.ok) throw await readError(response);
+  if (!response.ok) {
+    const err = await readError(response);
+    const ownPluginOff = err.code === 'PLUGIN_INACTIVE' && (!err.plugin || err.plugin === OWN_PLUGIN);
+    if (ownPluginOff && pluginInactiveHandler) pluginInactiveHandler(err);
+    throw err;
+  }
   const payload = await response.json();
   return payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
 }

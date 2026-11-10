@@ -84,10 +84,18 @@ jobs:
           done
           node scripts/check-test-dates.mjs --base "origin/${{ github.base_ref }}" --known origin/master,origin/inte/plugins --strict
 
+  # specs/server-test-isolation.md rule 19 — two shards. One process per test file, run one after another: the suite
+  # reached 13.8 min of its 15-minute cap, and 802b17ac was cancelled at it (audit R37-S1). `--test-shard` splits the
+  # FILES, so each shard keeps rule 10's completeness reporter and rule 15's per-file cap; `npm test` stays the one
+  # command (run-test-shard.mjs adds the flag to it), and locally it still runs everything.
   server:
-    name: server (node --test)
+    name: server (node --test ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     steps:
       - name: 📥 Checkout code
@@ -121,8 +129,8 @@ jobs:
           cd server
           env npm_config_build_from_source=true npm rebuild better-sqlite3
 
-      - name: 🧪 Run the server unit suite
-        run: cd server && npm test
+      - name: 🧪 Run the server unit suite (shard ${{ matrix.shard }}/2)
+        run: cd server && node ../scripts/test-runner/run-test-shard.mjs ${{ matrix.shard }}/2
 
   # specs/server-test-isolation.md rule 8 — three shards. Every test file pays its own fork, jsdom and imports
   # (~1.1 s on the runner), and the one-file-per-subject rule took the suite from 220 files to 625 in a week:

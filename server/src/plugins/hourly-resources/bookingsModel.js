@@ -6,6 +6,7 @@
  * Exports a default model bound to the production database, and a `create(db)` factory for tests.
  */
 
+const crypto = require('node:crypto');
 const sdk = require('../sdk');
 const resourceOccupancyModel = require('./occupancyModel');
 const { priceBookingLines, offeredRefusal } = require('./bookingPricing');
@@ -139,6 +140,11 @@ function billingOf(billing) {
 const FROZEN_FIELDS = ['date', 'startTime', 'endTime', 'offeredMinutes', 'clientId', 'clientName', 'propertyId', 'reservationId'];
 const FROZEN_MESSAGE = 'Facturée : à annuler dans Qonto avant de modifier.';
 const isFrozen = (row) => Boolean(row && row.qontoInvoiceId) && !row.invoiceCancelledAt;
+
+/** Rule 50 — what a Qonto client was created with (name, billing address), as one comparable digest. */
+const qontoClientIdentity = (who) => crypto.createHash('sha256')
+  .update(JSON.stringify([who.lastName, who.firstName, who.street, who.postcode, who.city, 'FR']))
+  .digest('hex');
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PAID_MESSAGE = 'Payée : retirer d’abord le paiement enregistré.';
@@ -630,10 +636,6 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     });
     const client = row.clientId ? database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId) : null;
     const [first, ...rest] = String(row.clientName || '').trim().split(/\s+/);
-    // A guest of the clients directory is one Qonto client: the one an earlier invoice of his already made.
-    const knownQontoClient = row.clientId
-      ? (database.prepare('SELECT qontoClientId FROM resource_bookings WHERE clientId = ? AND qontoClientId IS NOT NULL ORDER BY id DESC LIMIT 1').get(row.clientId) || {}).qontoClientId
-      : null;
     const text = (value) => (typeof value === 'string' ? value.trim() : (value === null || value === undefined ? '' : String(value).trim()));
     // Rule 14 — a registered client's address is his record's; an « extérieur » has the one typed on the booking.
     const address = client
@@ -643,21 +645,33 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
         city: text(client.city),
       }
       : { street: text(row.billingStreet), postcode: text(row.billingPostcode), city: text(row.billingCity) };
+    const person = client
+      ? { firstName: client.firstName || '', lastName: client.lastName || client.firstName || 'Client' }
+      : { firstName: rest.length ? first : '', lastName: rest.length ? rest.join(' ') : (first || 'Client') };
+    // Rule 50 — a Qonto client is reused only for the identity it was created with: this booking's own (a re-issue),
+    // else, for a guest of the clients directory, the one an earlier invoice of his made.
+    const clientIdentity = qontoClientIdentity({ ...person, ...address });
+    const sameIdentity = row.qontoClientId && row.qontoClientIdentity === clientIdentity ? row.qontoClientId : null;
+    const knownQontoClient = !sameIdentity && row.clientId
+      ? (database.prepare(`SELECT qontoClientId FROM resource_bookings WHERE clientId = ? AND qontoClientId IS NOT NULL
+        AND qontoClientIdentity = ? ORDER BY id DESC LIMIT 1`).get(row.clientId, clientIdentity) || {}).qontoClientId
+      : null;
     return {
       row: enrichBooking({ ...row }),
       resource,
       breakdown,
-      who: client
-        ? { firstName: client.firstName || '', lastName: client.lastName || client.firstName || 'Client', clientId: knownQontoClient || row.qontoClientId || null, ...address }
-        : { firstName: rest.length ? first : '', lastName: rest.length ? rest.join(' ') : (first || 'Client'), clientId: row.qontoClientId || null, ...address },
+      clientIdentity,
+      who: { ...person, clientId: sameIdentity || knownQontoClient || null, ...address },
     };
   }
 
-  function storeInvoice(id, { invoiceId, number, clientId, vatRate, total, markedPaid, markPending = false }) {
-    database.prepare(`UPDATE resource_bookings SET qontoInvoiceId = ?, invoiceNumber = ?, qontoClientId = ?, invoiceIssuedAt = datetime('now'),
+  function storeInvoice(id, {
+    invoiceId, number, clientId, clientIdentity = null, vatRate, total, markedPaid, markPending = false,
+  }) {
+    database.prepare(`UPDATE resource_bookings SET qontoInvoiceId = ?, invoiceNumber = ?, qontoClientId = ?, qontoClientIdentity = ?, invoiceIssuedAt = datetime('now'),
       invoiceVatRate = ?, invoiceTotal = ?, invoiceMarkedPaid = ?, invoiceMarkPending = ?, invoiceCancelledAt = NULL, attachmentState = ?, attachmentAttempts = 0,
       attachmentLastError = NULL, attachmentTransactionId = NULL, attachmentId = NULL, updatedAt = datetime('now') WHERE id = ?`)
-      .run(invoiceId, number, clientId, vatRate, total, markedPaid ? 1 : 0, markPending ? 1 : 0, null, id);
+      .run(invoiceId, number, clientId, clientIdentity, vatRate, total, markedPaid ? 1 : 0, markPending ? 1 : 0, null, id);
   }
 
   // Rule 38 — « marquer payée » settled later by the watch job: done, or Qonto does not offer it (stays « à payer »).

@@ -612,6 +612,30 @@ is pushed every order.
     are deleted once that transaction is over, and only when it dropped `guest_media`. A rolled-back erase (« Échec de
     l'effacement : rien n'a été effacé ») keeps the photos; a file deletion that fails after the commit is logged and
     leaves the files on the disk.
+60. **Free units explain a 0 € line only up to what they cover** (audit R37-M-L1, reading of rule 55). The exemption of
+    rule 55 for a priced article the engine adds nothing for holds only while the stay's free units left cover the
+    line's quantity (an option), or its free minutes left cover the line's hours (an hourly resource). A line the fiche
+    offers, asked beyond them, is refused 409 `ITEM_UNAVAILABLE` « « Fagot de bois » ne se commande pas dans
+    l'application pour ce séjour : contactez l'équipe. », on the quote and the order, nothing written. *Why:* an option
+    with 2 free units, offered on the fiche for 1 unit: an order of 4 units was confirmed at 0 €, the fiche line at 5
+    units for 0 €, 30 € delivered unbilled per order.
+61. **The article's title follows the request's language** (audit R37-C-L2, reading of rule 56). The quote's line
+    labels (« 2 × Farm cider ») and every refusal naming an article — its `maxQuantity`, rule 55's persons left or
+    none, rule 55 and 60's article not billable — read the title the shop shows in the request's language (the
+    translation catalogue, French when none). The order stores the French catalogue title, as the stay-link notes
+    say: its page, the staff's list, the push and the payment link read that one.
+62. **The studio's refusals are sentences** (audit R37-INJ-L1). A refusal key of the guest's table that a shared helper
+    returns (the booklet search's `searchLength`) reaches the studio as its French words, « La recherche fait de 2 à
+    100 caractères. », never as the key.
+63. **The plugin switched off during a visit shows « Application indisponible »** (audit R37-C-L1). Any request of the
+    guest app answered 404 `PLUGIN_INACTIVE` naming the guest app — the loader's bare code — opens the « app
+    unavailable » screen (§7, French or English), whichever page asked: never the code under « Réessayer ». `/gate`
+    answering `PLUGIN_INACTIVE` for `gate-access` leaves the app open (rule 14). The studio reads the same answer as
+    « Module inactif. ».
+64. **The booklet import never echoes the password** (audit R37-EXT-2). `specs/guest-app-livret/import.mjs` reads the
+    password at a prompt that writes nothing back (`prompt.mjs` `askSecret`: the question only, the typed keys never
+    reach the terminal, Ctrl-C still stops the script), so it stays out of the scrollback, a screen share or a
+    recording; `GUESTFLOW_PASSWORD` still replaces the prompt. The 2FA code keeps a plain prompt.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
@@ -1337,7 +1361,8 @@ Points the rules left open, decided in code:
   have none).
 - Push (French, link `/commandes-app?order=<id>`) on creation (note or 0 €), on payment, and on a conflict
   (« Commande client à rembourser »).
-- Stored line titles are the French catalogue titles. The payment link reads « Commande #N », VAT at the stay's
+- Stored line titles are the French catalogue titles (the quote and the refusals, which store nothing, read the
+  request's language, rule 61). The payment link reads « Commande #N », VAT at the stay's
   rate; the history writes « Commande client #N » (+ « — payée par carte »). Abandon returns `cartLines`. « Modifiée
   par l'équipe » shows when a booked session of the order is no longer on the stay record.
 - Expiry runs every 60 s (first pass at 30 s) on `heldUntil` (creation + 30 min); the link expires through its own

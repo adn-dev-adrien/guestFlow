@@ -72,7 +72,7 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
       return { error: 'Qonto n’a pas répondu : la facture n’est pas créée, le paiement reste enregistré.', status: 502, code: 'ISSUER_FAILED' };
     }
     bookings().storeInvoice(id, {
-      invoiceId: issued.invoiceId, number: issued.number, clientId: issued.clientId,
+      invoiceId: issued.invoiceId, number: issued.number, clientId: issued.clientId, clientIdentity: basis.clientIdentity,
       vatRate: basis.breakdown.vat ? basis.breakdown.vat.rate : null, total: Number(basis.row.totalPrice), markedPaid: issued.markedPaid,
       markPending: Boolean(issued.markPending),
     });

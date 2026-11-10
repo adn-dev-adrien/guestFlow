@@ -473,6 +473,20 @@ being on the preload's lists fails the run once the suite executes the read (rul
    `waitFor`; a test's explicit `{ timeout }` still wins. The rule-16 files no longer carry a per-test timeout. Older
    files that set 30 s themselves are left as they are (equal to the budget). The guest-app web apps' own Vitest
    configs are outside this rule (their plugin is not changed here).
+18. **An app a test file starts never outlives the file** (added 2026-11-10, audit R37-S2). The fuzz harness's app
+   (`inputShapeAppChild.js`, forked) and the documents test's `src/index.js` (spawned with an `'ipc'` stdio slot and
+   `-r tests/setup/exitWithParent.js`) exit as soon as their IPC channel closes: the parent's death closes it, however
+   the parent dies (`--test-timeout`, the exit watchdog, a SIGKILL), whereas `app.stop()` runs only from `test.after`.
+   *Why:* a file cut off by its cap left its app listening under ppid 1; the auditor counted 17 such processes on the
+   machine, three at 2.3-2.5 GB each, one 11 days old, feeding the very load that makes suites time out.
+19. **The PR server suite runs in two shards** (added 2026-11-10, audit R37-S1). The `server` job of `unit-tests.yml`
+   is a matrix of two (`fail-fast: false`), each under its own 15-minute cap, running
+   `node ../scripts/test-runner/run-test-shard.mjs N/2`: the package's own `npm test` command with `--test-shard=N/2`
+   set after `--test`, so every flag, preload and reporter is the one `npm test` runs, and the two shards together run
+   every file once. The runner splits the FILES: rule 10's completeness reporter and rule 15's per-file cap hold per
+   shard; no test is hidden. `npm test` alone still runs the whole suite locally. *Why:* one process per file, run one
+   after another, took 13.8 min of the 15 (11 727 tests), and the run of 802b17ac was cancelled at the cap. The release
+   workflow keeps one server job under its 20-minute cap (≈70 % used, rule 52 of self-update).
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,

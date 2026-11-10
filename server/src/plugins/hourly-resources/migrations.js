@@ -159,6 +159,20 @@ function bookingsV3(db, rateOf) {
   });
 }
 
+// specs/resource-booking-pricing-and-invoicing.md rule 50 — the identity (name and billing address) a booking's Qonto
+// client was created with: a later invoice reuses that client only for the same identity. NULL on a booking invoiced
+// before: its Qonto client is not reused, the next invoice creates one with what the record holds.
+const BOOKING_COLUMNS_V4 = [
+  ['qontoClientIdentity', 'TEXT'],
+];
+
+function bookingsV4(db) {
+  if (!hasTable(db, 'resource_bookings')) return;
+  BOOKING_COLUMNS_V4.forEach(([column, type]) => {
+    if (!hasColumn(db, 'resource_bookings', column)) db.exec(`ALTER TABLE resource_bookings ADD COLUMN ${column} ${type}`);
+  });
+}
+
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
 function migrationsFor(rateOf) {
   return [
@@ -166,9 +180,10 @@ function migrationsFor(rateOf) {
     { name: 'tag_evening_supplements_v1', up: tagEveningSupplements },
     { name: 'resource_bookings_v2', up: bookingsV2 },
     { name: 'resource_bookings_v3', up: (db) => bookingsV3(db, rateOf) },
+    { name: 'resource_bookings_v4', up: bookingsV4 },
   ];
 }
 
 module.exports = {
-  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, bookingsV2, bookingsV3, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, bookingsV2, bookingsV3, bookingsV4, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

@@ -16,6 +16,7 @@ const model = bookingsModel.create(db, { standaloneVatRate: () => setting });
 migrations.createTables(db);
 migrations.bookingsV2(db);
 migrations.bookingsV3(db, (d, row) => model.vatFor(row).rate);
+migrations.bookingsV4(db);
 const resourceId = Number(db.prepare(`INSERT INTO resources (name, quantity, price, priceType, slotDuration, openTime, closeTime,
   showsPlanningCard, hourlyEveningStart, hourlyEveningRate, hourlyExternalDayRate, hourlyExternalEveningRate)
   VALUES ('Bain fictif', 3, 25, 'per_hour', 30, '10:00', '22:00', 1, '19:00', 35, 50, 70)`).run().lastInsertRowid);

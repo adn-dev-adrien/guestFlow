@@ -288,6 +288,17 @@ booking is settled by the platform and carries no such promise.
     the stay reads no deadline from it. *Accepted (2026-11-10, verification R36b-core N3):* the refusal does not
     re-check the stay's dates or channel: a stay moved off the devis's start or onto an OTA keeps its devis refused
     while it lives, so moving it back restores the promise.
+27. **A devis holding the stay's payment link is kept** _(added 2026-11-10, audit R37-RES-L2)_. A link minted on a
+    devis keeps the devis id, and the stay converted from it reads that link as its own (`withConvertedDevis`): its
+    ledger, its stale links, its cancellation. While the stay lives (kind neither devis nor cancelled), deleting a
+    converted devis that owns a link still open, or one still owing the provider a deactivation or a last read
+    (`liveLinkReasonForStay(…, { openToo: true })`), is refused 409 `DEVIS_HOLDS_LINK` « Ce devis porte le lien de
+    paiement de la réservation qui en est issue : il ne peut pas être supprimé. », after the CGV, money and promise
+    refusals, before any link is touched. A paid or withdrawn link with nothing owed holds nothing; a cancelled stay's
+    devis is judged as before. This refusal sits beside rule 26's: a devis rule 26 lets go is still kept while it holds
+    the link. *Why:* a direct devis with an acompte outside the window, its acompte link sent, converted before the
+    guest paid, then « Supprimer… »: the link was withdrawn and the stay still asked for its acompte, with no link and
+    nothing said.
 
 ---
 

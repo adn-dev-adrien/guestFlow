@@ -113,8 +113,20 @@ const sessionsHours = (sessions) => sessions.reduce((sum, s) => sum + Math.max(0
 
 function buildOrdersController({
   db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now,
-  stock, alertStock = () => {}, fulfilment = () => ({ mode: 'delivery', place: null }),
+  stock, alertStock = () => {}, fulfilment = () => ({ mode: 'delivery', place: null }), translator = null,
 }) {
+  /**
+   * Rule 61 — the article's title in the request's language, as the shop shows it: the quote's labels and the
+   * refusals naming it. The order stores the French catalogue title (stay-link notes).
+   */
+  function shownTitleOf(item, lang) {
+    const french = item.row.title || item.row.name;
+    const tr = translator ? translator(lang) : null;
+    if (!tr) return french;
+    const id = Number(item.row.id);
+    return (item.kind === 'resource' ? tr.resourceName(id, item.row.name) : tr.optionTitle(id, item.row.title)) || french;
+  }
+
   /** Rule 37ter — the stay's counts brought to date in the commit's own transaction. → the articles that moved. */
   const countStock = (reservationId, at) => stock().reconcile(reservationId, parisDate(at));
 
@@ -139,7 +151,9 @@ function buildOrdersController({
     const stocks = stock().states(at);
     const judged = body.lines.map((asked) => {
       const item = sold.find((s) => s.kind === asked.kind && Number(s.row.id) === Number(asked.id));
-      const base = { kind: asked.kind, id: Number(asked.id), title: item ? (item.row.title || item.row.name) : null };
+      const base = {
+        kind: asked.kind, id: Number(asked.id), title: item ? (item.row.title || item.row.name) : null, shownTitle: item ? shownTitleOf(item, lang) : null,
+      };
       if (!item) return { ...base, asked, unavailable: true, unavailableReason: T.unavailable };
       if (item.alreadyIncluded) return { ...base, asked, item, unavailable: true, unavailableReason: T.alreadyIncluded };
       const maxQuantity = Number(item.item.maxQuantity);
@@ -175,7 +189,7 @@ function buildOrdersController({
         return { ...base, asked, item, sessions, kept, ...(kept.length ? {} : { unavailable: true, unavailableReason: sessions[0].reasonLabel }) };
       }
       if (asked.sessions) throw invalid('notOnSlot');
-      if (asked.quantity > maxQuantity) throw limit('maxQuantity', { max: maxQuantity, title: base.title });
+      if (asked.quantity > maxQuantity) throw limit('maxQuantity', { max: maxQuantity, title: base.shownTitle });
       if (item.included && asked.quantity > Number(item.includedLeft || 0)) return { ...base, asked, item, quantity: asked.quantity, unavailable: true, unavailableReason: T.allowanceUsed };
       // Rule 37quater — never beyond what is left of a tracked article; the cart lowers the line to it.
       const stockState = stocks.get(`${asked.kind}:${Number(asked.id)}`);
@@ -219,7 +233,7 @@ function buildOrdersController({
     if (code === 'ORDER_PERSONS_EXCEEDED') {
       const line = ((judged && judged.lines) || []).find((l) => keyOf(l) === body.key);
       const left = Math.max(0, Number(body.left) || 0);
-      const title = (line && line.title) || '';
+      const title = (line && line.shownTitle) || '';
       if (line && line.kind === 'breakfast') return refusal(409, 'PERSONS_EXCEEDED', 'breakfastPersons', { left });
       return refusal(409, 'PERSONS_EXCEEDED', left > 0 ? 'personsLeft' : 'personsNone', { left, title });
     }
@@ -250,7 +264,7 @@ function buildOrdersController({
     const view = {
       kind: line.kind,
       id: line.id,
-      title: line.title,
+      title: line.shownTitle || line.title,
       ...(line.quantity !== undefined ? { quantity: line.quantity } : {}),
       ...(line.sessions ? { sessions: line.sessions.map((s) => ({ ...s, label: labels.sessionLabel(s, lang) })) } : {}),
       ...(line.kind === 'breakfast' ? { mornings: line.mornings, time: line.time, persons: line.persons } : {}),
@@ -261,25 +275,31 @@ function buildOrdersController({
       ...(line.unavailable ? { unavailable: true, unavailableReason: line.unavailableReason } : {}),
       ...(line.outOfStock ? { outOfStock: line.outOfStock } : {}),
     };
-    if (line.title) view.label = labels.lineLabel({ ...view, sessions: line.kept || line.sessions, title: line.title }, lang);
+    if (view.title) view.label = labels.lineLabel({ ...view, sessions: line.kept || line.sessions }, lang);
     return view;
   }
 
   /**
    * Rule 55 — a priced article the engine adds nothing for (no free unit or minute left to explain it: a line the
-   * fiche offers, for one) would be delivered at 0 €: refused, never confirmed free.
+   * fiche offers, for one) would be delivered at 0 €: refused, never confirmed free. Rule 60 — the free units or
+   * minutes left explain only what they cover: the line's quantity, or its hours.
    */
-  const billable = (item) => Boolean(item) && !item.included && Number(item.row.price || 0) > 0
-    && !(item.freeUnits && item.freeUnits.left > 0) && !(item.freeMinutes && item.freeMinutes.left > 0);
+  const freeCovers = (line) => {
+    const { freeUnits, freeMinutes } = line.item;
+    if (freeUnits) return Number(line.quantity) <= Number(freeUnits.left || 0);
+    if (freeMinutes) return sessionsHours(line.kept || []) * 60 <= Number(freeMinutes.left || 0);
+    return false;
+  };
+  const billable = (line) => Boolean(line.item) && !line.item.included && Number(line.item.row.price || 0) > 0 && !freeCovers(line);
   const unbilledLine = (judged, byKey) => judged.lines.find((l) => !l.unavailable && l.kind !== 'breakfast'
-    && billable(l.item) && !(Number(byKey[keyOf(l)]) > 0));
+    && billable(l) && !(Number(byKey[keyOf(l)]) > 0));
 
   function quoteOf(guest, body, at, lang) {
     const judged = judge(guest, body, at, lang);
     const priced = price(guest.stay, judged);
     if (priced.refusal) return { refusal: priced.refusal };
     const unbilled = unbilledLine(judged, priced.byKey);
-    if (unbilled) return { refusal: refusal(409, 'ITEM_UNAVAILABLE', 'itemNotBillable', { title: unbilled.title }) };
+    if (unbilled) return { refusal: refusal(409, 'ITEM_UNAVAILABLE', 'itemNotBillable', { title: unbilled.shownTitle }) };
     const lines = judged.lines.map((l) => lineView(l, priced.byKey, lang));
     return {
       judged,
@@ -345,6 +365,7 @@ function buildOrdersController({
   const snapshot = (judged, byKey, lang) => judged.lines.filter((l) => !l.unavailable).map((l) => {
     const view = lineView(l, byKey, lang);
     const { unavailableMornings, label, ...kept } = view;
+    kept.title = l.title;
     if (kept.sessions) kept.sessions = l.kept.map(({ date, start, end }) => ({ date, start, end }));
     if (l.item && isStaffItem(l.item)) kept.needsStaff = true;
     return kept;

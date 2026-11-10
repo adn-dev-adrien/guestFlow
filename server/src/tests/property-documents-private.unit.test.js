@@ -12,6 +12,7 @@ const { spawn } = require('child_process');
 const Database = require('better-sqlite3');
 
 const SERVER_DIR = path.resolve(__dirname, '..', '..');
+const EXIT_WITH_PARENT = path.join(__dirname, 'setup', 'exitWithParent.js');
 
 function freePort() {
   return new Promise((resolve) => {
@@ -20,14 +21,15 @@ function freePort() {
 }
 
 function boot(dir, port) {
-  const child = spawn(process.execPath, ['src/index.js'], {
+  // Rule 18 of server-test-isolation — the app stops with this file, however the file is stopped.
+  const child = spawn(process.execPath, ['-r', EXIT_WITH_PARENT, 'src/index.js'], {
     cwd: SERVER_DIR,
     env: {
       ...process.env, PORT: String(port), DB_PATH: path.join(dir, 'g.db'), GUESTFLOW_UPLOADS_DIR: path.join(dir, 'uploads'),
       GUESTFLOW_LOCAL_ENV: path.join(dir, '.env.local'), NODE_ENV: 'development', GUESTFLOW_DEV: '1', GUESTFLOW_SMTP_DETECT: 'off',
       GUESTFLOW_MAIL_OUTBOX: path.join(dir, 'outbox'), GUESTFLOW_PLUGINS: 'sources',
     },
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
   });
   return child;
 }

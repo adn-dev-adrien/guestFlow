@@ -37,6 +37,7 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { todayIso } = require('../utils/localDate');
 const { bookingDayOf } = require('../utils/vatRegime');
 const { carriesMoney } = require('../utils/deletionGuard');
+const { PRE_ARRIVAL_TYPES } = require('../constants/paymentLinks');
 
 // Helpers shared between create + convertFromReservation
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3).
@@ -1307,7 +1308,19 @@ function createModel(database) {
     if (stay && holdsPromise(existing, stay.propertyId)) {
       return { error: "Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409, code: 'DEVIS_HOLDS_PROMISE' };
     }
+    // Rule 27 (R37-RES-L2) — a link minted on the devis keeps its id and the stay reads it as its own: deleting the
+    // devis would withdraw the link the guest is about to pay, unseen. Refused while it is open or still owes the
+    // provider a deactivation or a last read.
+    if (stay && stayLinkOnDevis(existing.id)) {
+      return { error: 'Ce devis porte le lien de paiement de la réservation qui en est issue : il ne peut pas être supprimé.', status: 409, code: 'DEVIS_HOLDS_LINK' };
+    }
     return null;
+  }
+
+  function stayLinkOnDevis(devisId) {
+    if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'payment_links'").get()) return false;
+    const links = require('./paymentLinksModel').buildModel(database);
+    return Boolean(links.liveLinkReasonForStay(devisId, [...PRE_ARRIVAL_TYPES, 'complement'], { openToo: true }));
   }
 
   function remove(id) {

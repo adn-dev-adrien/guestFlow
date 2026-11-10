@@ -798,7 +798,8 @@ function buildLedger({
         rows.push({
           key: 'cautionReturned', label: 'Caution restituée', amount: caution, state: 'due', tone: 'due',
           stateLabel: 'À rendre au départ',
-          action: canAct ? { kind: 'mark', label: 'Restituer', dateLabel: 'Rendue le', after: isoDay(r.cautionReceivedDate) } : null,
+          // Cancellation rule 59 — a caution held on a cancelled stay is still given back.
+          action: canAct || (stored && cancelled) ? { kind: 'mark', label: 'Restituer', dateLabel: 'Rendue le', after: isoDay(r.cautionReceivedDate) } : null,
           amountEdit: none, detail: null,
         });
       }

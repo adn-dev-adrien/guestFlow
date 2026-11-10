@@ -12,7 +12,11 @@ export function loginUrl(location = window.location) {
   return `${LOGIN_PATH}?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
 }
 
+// The loader's bare code for every route of the plugin switched off (rule 63): never shown as it is.
+const PLUGIN_INACTIVE = 'PLUGIN_INACTIVE';
+
 function toError(status, body) {
+  if (body && body.error === PLUGIN_INACTIVE) return Object.assign(new Error('Module inactif.'), { status, code: PLUGIN_INACTIVE });
   const message = (body && (typeof body.error === 'string' ? body.error : body.message)) || 'Le serveur ne répond pas correctement.';
   return Object.assign(new Error(message), { status, code: body && body.code });
 }

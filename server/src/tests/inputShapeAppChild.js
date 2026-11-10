@@ -1,5 +1,6 @@
 // The real `src/index.js` with a throw-away database, for authenticated-input-shape.unit.test.js: three accounts,
 // one client, one property, one stay and one devis. Nothing leaves the machine (see the parent's environment).
+require('./setup/exitWithParent');
 const routeCensus = require('./routeCensus');
 
 routeCensus.install();
