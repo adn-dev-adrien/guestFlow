@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 71, 87 (audit of the J-7 branch, items 3-5, 10-12) — what the arrival SAS step reads of the stay's app orders:
+// specs/guest-app.md rules 71, 87, 91 (audit of the J-7 branch, items 3-5, 10-12) — what the arrival SAS step reads of the stay's app orders:
 // the collapsible list's labels as the server words them (one row per article, the bath's evening supplement said inside its row, a key
 // namespace per kind), what it counts, when it disappears (arrival complement collected), what a refusal says (stock and the article's
 // own bound apart), and the staff's payment label of an order that will never be collected.

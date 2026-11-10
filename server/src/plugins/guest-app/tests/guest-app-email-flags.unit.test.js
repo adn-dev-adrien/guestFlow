@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 70, 89 — the flags the J-7 and J-2 e-mails hang their stay-app paragraph on, computed by the server:
+// specs/guest-app.md rules 68, 70, 89, 90 — the flags the J-7 and J-2 e-mails hang their stay-app paragraph on, computed by the server:
 // `hasStayAppShop` (the shop is shown, an article is sold, orders are taken for the stay now) and `hasStayAppBath` (on top, the stay
 // holds the nordic bath or has free minutes of it left). A template never promises what the link does not give.
 const fx = require('./guestOrderFixtures');
@@ -62,4 +62,22 @@ withStay('rule 89: no article sold, no bath clause even when the stay holds the 
   assert.equal(api.emailFacts(stayId).bath, hasHourly, 'the bath is itself an article sold');
   db.prepare('DELETE FROM guest_app_items').run();
   assert.deepEqual(api.emailFacts(stayId), { shop: false, bath: false });
+});
+
+withStay('rules 68, 90 (audit items 1, 2): a platform stay with nothing paid orders from J-7 — its J-7 carries the paragraph, the same judge as the shop', async ({ stayId, api }) => {
+  sell('option', CIDER);
+  assert.deepEqual(api.emailFacts(stayId), { shop: true, bath: false });
+  const commit = require('../../../utils/midStayOrderCommit');
+  assert.equal(commit.orderCollection(stayId), 'arrival');
+}, { stay: { balancePaid: 0, platform: 'booking' } });
+
+withStay('rule 90: the flag and the shop never disagree — whatever orderCollection refuses, emailFacts does not advertise', async ({ stayId, api }) => {
+  sell('option', CIDER);
+  const commit = require('../../../utils/midStayOrderCommit');
+  for (const [column, value] of [['balancePaid', 0], ['kind', 'cancelled'], ['endOfStayComplementPaid', 1]]) {
+    db.prepare(`UPDATE reservations SET ${column} = ? WHERE id = ?`).run(value, stayId);
+    const open = ['arrival', 'departure'].includes(commit.orderCollection(stayId));
+    assert.equal(api.emailFacts(stayId).shop, open, column);
+    db.prepare(`UPDATE reservations SET ${column} = ? WHERE id = ?`).run(column === 'kind' ? 'reservation' : (column === 'balancePaid' ? 1 : 0), stayId);
+  }
 });

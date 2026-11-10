@@ -1,4 +1,4 @@
-// specs/guest-app.md rule 83 (audit of the J-7 branch, item 13) — an order's evening charge travels the fiche's delete-and-
+// specs/guest-app.md rules 83, 92 (audit of the J-7 branch, item 13) — an order's evening charge travels the fiche's delete-and-
 // reinsert by the row's own id, never by its label: the SAS's evening supplement and two orders' charges share the same words,
 // a renamed or reordered line neither loses its key nor takes another's, and the SAS marker stays on the SAS line.
 process.env.DB_PATH = ':memory:';

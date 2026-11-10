@@ -1,4 +1,4 @@
-// specs/guest-app.md rules 70, 89 (amended 2026-11-10, third message), specs/guest-email-sequence.md rule 37 — the J-7 paragraph the operator script adds to the stored template: the
+// specs/guest-app.md rules 70, 89 (amended 2026-11-10, third message), specs/guest-email-sequence.md rule 38 — the J-7 paragraph the operator script adds to the stored template: the
 // link and what the guests can already do, no app name, nothing about paying, the bath sentence only when the server says the stay has
 // a bath to schedule. Rendered with the core's own renderer on the default J-7 template, in French and English.
 const test = require('node:test');
