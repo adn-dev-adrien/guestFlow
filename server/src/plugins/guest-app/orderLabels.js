@@ -65,11 +65,16 @@ const TEXT = Object.freeze({
       awaiting_payment: 'En attente de paiement',
       paid: 'Payée',
       note: 'Sur votre note',
+      dueOnArrival: 'À régler à l’arrivée',
+      settled: 'Réglée',
       offered: 'Offerte',
       paid_conflict: 'Payée · à rembourser',
       expired: 'Expirée',
       abandoned: 'Abandonnée',
+      cancelled: 'Annulée',
+      stayCancelled: 'Séjour annulé',
     },
+    amended: 'Modifiée à votre arrivée',
     planned: (when) => `Prévue ${when}`,
     ready: (when) => `Prête ${when}`,
     delivered: 'Livrée',
@@ -86,6 +91,7 @@ const TEXT = Object.freeze({
     moved: (when) => `Livraison décalée au ${when}`,
     movedNone: 'Livraison à convenir avec l’équipe',
     modified: 'Modifiée par l’équipe',
+    reviewTime: 'Horaire à revoir avec l’équipe',
     conflict: 'Le créneau n’était plus libre : l’équipe vous rembourse.',
     breakfast: (n, time) => `${n} matin${n > 1 ? 's' : ''} à ${time}`,
     included: 'Inclus',
@@ -107,11 +113,16 @@ const TEXT = Object.freeze({
       awaiting_payment: 'Awaiting payment',
       paid: 'Paid',
       note: 'On your bill',
+      dueOnArrival: 'To pay on arrival',
+      settled: 'Settled',
       offered: 'Complimentary',
       paid_conflict: 'Paid · to be refunded',
       expired: 'Expired',
       abandoned: 'Abandoned',
+      cancelled: 'Cancelled',
+      stayCancelled: 'Stay cancelled',
     },
+    amended: 'Changed on your arrival',
     planned: (when) => `Planned ${when}`,
     ready: (when) => `Ready ${when}`,
     delivered: 'Delivered',
@@ -128,6 +139,7 @@ const TEXT = Object.freeze({
     moved: (when) => `Delivery moved to ${when}`,
     movedNone: 'Delivery to be arranged with the team',
     modified: 'Changed by the team',
+    reviewTime: 'Time to review with the team',
     conflict: 'The slot was no longer free: the team will refund you.',
     breakfast: (n, time) => `${n} morning${n > 1 ? 's' : ''} at ${time}`,
     included: 'Included',
@@ -148,17 +160,24 @@ const TEXT = Object.freeze({
 
 const textOf = (lang) => TEXT[lang] || TEXT.fr;
 
-/** Rule 38 — the status chip: the payment mode once the order stands, the moment of a card order before. */
-function statusKey(order) {
+/**
+ * Rules 38, 76 — the status chip: the payment mode once the order stands, the moment of a card order before. An order
+ * collected at the arrival reads « À régler à l'arrivée » while the arrival complement is open, « Sur votre note » once it
+ * is deferred to the departure, « Réglée » once collected (`arrival` is the stay's state, from its stored markers).
+ */
+function statusKey(order, { arrival = null } = {}) {
+  if (order.status === 'cancelled') return 'cancelled';
   if (['confirmed', 'paid', 'delivered'].includes(order.status)) {
     if (order.payment === 'card') return 'paid';
-    return order.payment === 'none' ? 'offered' : 'note';
+    if (order.payment === 'none') return 'offered';
+    if (order.collectAt === 'arrival' && arrival) return { open: 'dueOnArrival', deferred: 'note', collected: 'settled' }[arrival];
+    return 'note';
   }
   return order.status;
 }
 
-function statusLabel(order, lang = 'fr') {
-  return textOf(lang).status[statusKey(order)] || order.status;
+function statusLabel(order, lang = 'fr', options = {}) {
+  return textOf(lang).status[statusKey(order, options)] || order.status;
 }
 
 const isPickup = (order) => order.fulfilment === 'pickup';
@@ -215,6 +234,8 @@ function promiseOf(order, { lodging, now, lang = 'fr' }) {
 
 /** A line as a guest or the staff reads it: « 2 × Cidre », « Bain nordique · ven. 9 oct., 20 h – 21 h ». */
 function lineLabel(line, lang = 'fr') {
+  // Rule 83 — the bath's evening supplement keeps its catalogue words, said in the language asked.
+  if (line.kind === 'charge') return lang === 'en' ? String(line.title).replace(/ — supplément soirée$/, ' — evening supplement') : String(line.title);
   if (line.kind === 'resource' && Array.isArray(line.sessions) && line.sessions.length) {
     return `${line.title} · ${line.sessions.map((s) => sessionLabel(s, lang)).join(' ; ')}`;
   }
@@ -227,11 +248,14 @@ function lineLabel(line, lang = 'fr') {
  * it in French; the breakfast is the breakfast card's, the bath the resource planning's, and both still say what
  * was ordered.
  */
-function pushText(order, { lodging, firstName }) {
-  const at = order.deliverAt ? timeLabel(parisMoment(order.deliverAt).time) : null;
+function pushText(order, { lodging, firstName, now = new Date() }) {
+  // Rule 75 — a time that is not today names its day: an order taken a week ahead is for another date.
+  const moment = order.deliverAt ? parisMoment(order.deliverAt) : null;
+  const day = moment && moment.date !== parisMoment(now.toISOString()).date ? `${dayLabel(moment.date)} ` : '';
+  const at = moment ? `${day}${timeLabel(moment.time)}` : null;
   const when = at ? (isPickup(order) ? ` à retirer ${at}` : ` pour ${at}`) : '';
   const prepared = order.lines.filter((l) => l.kind === 'option').map((l) => `${l.quantity} × ${l.title}`);
-  const others = order.lines.filter((l) => l.kind !== 'option').map((line) => {
+  const others = order.lines.filter((l) => l.kind !== 'option' && l.kind !== 'charge').map((line) => {
     if (line.kind === 'breakfast') return `${line.title} (${textOf('fr').breakfast((line.mornings || []).length, timeLabel(line.time))})`;
     if (Array.isArray(line.sessions) && line.sessions.length) {
       return `${hoursLabel(line.sessions)} ${String(line.title).toLowerCase()} ${dayLabel(line.sessions[0].date)} ${timeLabel(line.sessions[0].start)}`;
@@ -239,10 +263,21 @@ function pushText(order, { lodging, firstName }) {
     return `${line.quantity} × ${line.title}`;
   });
   const what = [prepared.length ? `${prepared.join(', ')}${when}` : null, ...others].filter(Boolean).join(', ');
-  const mode = { card: 'payée par carte', note: 'sur la note', none: 'offerte' }[order.payment] || '';
+  const mode = order.collectAt === 'arrival' && order.payment === 'note'
+    ? 'à régler à l’arrivée'
+    : ({ card: 'payée par carte', note: 'sur la note', none: 'offerte' }[order.payment] || '');
   return `${lodging}${firstName ? ` · ${firstName}` : ''} — ${what}${mode ? ` (${mode})` : ''}`;
 }
 
+/** Rule 71 — one article line of an order as the arrival SAS reads it: « 2 × 6,00 € » (the quantity and the unit price). */
+function unitLabel(line, lang = 'fr') {
+  if (line.kind === 'resource' && Array.isArray(line.sessions) && line.sessions.length) return line.sessions.map((s) => sessionLabel(s, lang)).join(' ; ');
+  if (line.kind === 'breakfast') return textOf(lang).breakfast((line.mornings || []).length, timeLabel(line.time, lang));
+  if (line.kind === 'charge') return '';
+  const unit = Number(line.unitPrice) > 0 ? ` × ${priceLabel(line.unitPrice, lang)}` : '';
+  return `${line.quantity}${unit}`;
+}
+
 module.exports = {
-  TEXT, dayLabel, deliveryChip, deliveryQuestion, hoursLabel, promiseOf, relativeDay, lineLabel, momentLabel, parisMoment, priceLabel, pushText, sessionLabel, statusKey, statusLabel, textOf, timeLabel,
+  unitLabel, TEXT, dayLabel, deliveryChip, deliveryQuestion, hoursLabel, promiseOf, relativeDay, lineLabel, momentLabel, parisMoment, priceLabel, pushText, sessionLabel, statusKey, statusLabel, textOf, timeLabel,
 };

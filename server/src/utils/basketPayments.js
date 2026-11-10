@@ -6,6 +6,8 @@
  *   basketLink(reservationId, basket, { redirectUrl }) → { linkId, url, amountCents, expiresAt }   throws { httpStatus, error, message }
  *   refreshBasketLink(linkId)  → the link's status after an on-demand read of the provider (`open`, `paid`, …), or null
  *   withdrawBasketLink(linkId) → the link's status once withdrawn (`cancelled`), `paid` when the guest paid meanwhile
+ *   flagBasketRefund(linkId, { cents?, reason }) → true when a PAID basket's money is flagged « à rembourser » (what the
+ *     plugin could no longer honour after the payment: a cancelled stay, specs/guest-app.md rule 88); idempotent
  */
 
 const paymentsController = () => require('../controllers/paymentsController');
@@ -61,4 +63,28 @@ async function withdrawBasketLink(linkId) {
   return now ? now.status : null;
 }
 
-module.exports = { basketLink, refreshBasketLink, withdrawBasketLink };
+function flagBasketRefund(linkId, { cents = null, reason = '' } = {}) {
+  const database = require('../database');
+  const link = paymentLinksModel().findById(Number(linkId));
+  if (!link || link.status !== 'paid' || !link.basketJson) return false;
+  let basket;
+  try { basket = JSON.parse(link.basketJson); } catch { return false; }
+  if (basket.refundOwed === true) return false;
+  const paidCents = Number(link.amountCents || 0);
+  const part = Number.isInteger(cents) && cents > 0 && cents < paidCents ? cents : null;
+  database.prepare('UPDATE payment_links SET basketJson = ? WHERE id = ?')
+    .run(JSON.stringify({ ...basket, refundOwed: true, ...(part ? { refundCents: part } : {}) }), Number(link.id));
+  const { formatEuros } = require('./reservationLedger');
+  database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
+    .run(Number(link.reservationId), JSON.stringify([{
+      field: 'refundOwed',
+      label: 'Remboursement à faire',
+      from: '',
+      to: `${formatEuros((part || paidCents) / 100)} payés (lien ${link.id}) : ${reason || 'achat non honoré'}, à rembourser depuis l’espace du prestataire`,
+    }]));
+  return true;
+}
+
+module.exports = {
+  basketLink, refreshBasketLink, withdrawBasketLink, flagBasketRefund,
+};

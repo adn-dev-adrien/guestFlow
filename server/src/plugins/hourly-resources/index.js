@@ -79,6 +79,7 @@ function register(ctx) {
   ctx.resourceScheduler({
     slotsForStay: (args) => scheduler().slotsForStay(args),
     validateSessions: (args) => scheduler().validateSessions(args),
+    orderSupplement: (args) => scheduler().orderSupplement(args),
   });
 
   // Rule 12 — the « Planifier » step of the arrival SAS.

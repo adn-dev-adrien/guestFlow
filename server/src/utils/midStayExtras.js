@@ -186,10 +186,13 @@ function parseNotes(raw) {
   } catch { return []; }
 }
 
-// Σ collected per line key, across every note.
-function settledByKey(notesRaw) {
+// Σ collected per line key, across the notes of the stay's mid-stay register. A note of the arrival moment (an order
+// paid by card before the arrival, specs/guest-app.md rule 85) is the arrival complement's, never the end-of-stay
+// remainder's: it is read only when `withArrival` asks for what each line collected (refunds, D15).
+function settledByKey(notesRaw, { withArrival = false } = {}) {
   const byKey = {};
   for (const note of parseNotes(notesRaw)) {
+    if (!withArrival && isArrivalNote(note)) continue;
     for (const line of ((note && note.lines) || [])) {
       const key = line && (line.key || extraLineKey(line));
       const amount = round2(line && line.amount);
@@ -198,6 +201,28 @@ function settledByKey(notesRaw) {
     }
   }
   return byKey;
+}
+
+const isArrivalNote = (note) => Boolean(note) && note.moment === 'arrival';
+
+/**
+ * specs/guest-app.md rule 85 — what orders paid before the arrival already collected: the arrival complement is read
+ * net of it. `{ total, byKey }`, from the notes of the arrival moment only.
+ */
+function arrivalPrepaid(notesRaw) {
+  const byKey = {};
+  let total = 0;
+  for (const note of parseNotes(notesRaw)) {
+    if (!isArrivalNote(note)) continue;
+    for (const line of ((note && note.lines) || [])) {
+      const key = line && (line.key || extraLineKey(line));
+      const amount = round2(line && line.amount);
+      if (!key || amount <= 0) continue;
+      byKey[key] = round2((byKey[key] || 0) + amount);
+      total = round2(total + amount);
+    }
+  }
+  return { total, byKey };
 }
 
 function notesTotal(notesRaw) {
@@ -319,6 +344,8 @@ module.exports = {
   parseNotes,
   parseDetail,
   settledByKey,
+  arrivalPrepaid,
+  isArrivalNote,
   notesTotal,
   nextNoteId,
   mergeMidStayIntoDetail,

@@ -23,12 +23,13 @@ const MODULE_KEYS = Object.freeze(MODULES.map((m) => m.key));
 // not hold it.
 const NOT_A_TILE = new Set(['orders']);
 
-// Rule 5 and rule 6: a visitor has no gate, no shop and no order; a pre-arrival guest reads the catalogue.
+// Rule 5 and rule 6: a visitor has no gate, no shop and no order. Rule 65 (2026-11-10): a pre-arrival guest uses the
+// shop, the bath and « Mes commandes » like a stay, from J-7; the gate stays the stay's.
 const MODES_OF = Object.freeze({
   gate: ['stay'],
   shop: ['stay', 'preArrival'],
-  bath: ['stay'],
-  orders: ['stay'],
+  bath: ['stay', 'preArrival'],
+  orders: ['stay', 'preArrival'],
 });
 
 // `gate`: the plugin is live; the window is the mode's — a stay session lives exactly in the gate window

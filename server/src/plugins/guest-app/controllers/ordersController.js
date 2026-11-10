@@ -18,7 +18,7 @@
 const sdk = require('../../sdk');
 const { parisDate } = require('../currentStay');
 const { remainingMornings } = require('../sellable');
-const { deliveryTimes, ignitionInHours } = require('../serviceHours');
+const { deliveryTimes, ignitionInHours, outsideStay } = require('../serviceHours');
 const { languageOf } = require('../language');
 const { fail: failGuest, refusal } = require('../refusals');
 const { isStaffItem, shopState } = require('./shopController');
@@ -50,8 +50,10 @@ const orderNaming = (orderId, { paid = false } = {}) => ({
 const KINDS = Object.freeze(['option', 'breakfast', 'resource']);
 const PAYMENTS = Object.freeze(['card', 'note', 'none']);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-// Rule 30 — a session the planning no longer lets the guest book; `SLOT_TAKEN` and the picker reloads.
+// Rules 30, 80 — a session the picker would not offer: `taken` is `SLOT_TAKEN`, every other reason `SLOT_UNAVAILABLE`.
 const SLOT_REASONS = new Set(['taken', 'past', 'heating', 'staff', 'closed', 'duration']);
+// Rule 83 — the evening supplement of an app session, written on the fiche as a charge tagged with its order.
+const chargeKey = (orderId, resourceId) => `guest-order:${orderId}:evening:${Number(resourceId)}`;
 
 const invalid = (key, params) => refusal(400, 'INVALID_INPUT', key, params);
 const limit = (key, params) => refusal(400, 'ORDER_LIMIT', key, params);
@@ -59,6 +61,7 @@ const limit = (key, params) => refusal(400, 'ORDER_LIMIT', key, params);
 const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const positiveInt = (v) => Number.isInteger(v) && v > 0;
 const keyOf = (line) => `${line.kind === 'resource' ? 'res' : 'opt'}:${Number(line.id)}`;
+const isCharge = (line) => Boolean(line) && line.kind === 'charge';
 
 function sessionError(s) {
   if (!isObject(s) || Object.keys(s).some((k) => !['date', 'start', 'end'].includes(k))) return 'invalidSlot';
@@ -143,7 +146,7 @@ function buildOrdersController({
   function judge(guest, body, at, lang) {
     const { stay, lodging } = guest;
     const T = labels.textOf(lang);
-    const { sold } = shop.soldFor(guest);
+    const { sold, extras } = shop.soldFor(guest);
     const party = Math.max(1, Number(stay.adults || 0) + Number(stay.teens || 0) + Number(stay.children || 0));
     const today = parisDate(at);
     const clock = (toParisIso(at) || '').slice(11, 16);
@@ -177,7 +180,7 @@ function buildOrdersController({
       if (item.hourly) {
         if (!asked.sessions) throw invalid('chooseSlot');
         const verdict = scheduler() && scheduler().validateSessions({
-          resourceId: Number(asked.id), propertyId: lodging.propertyId, stay, sessions: asked.sessions, now: at, canIgnite,
+          resourceId: Number(asked.id), propertyId: lodging.propertyId, stay, sessions: asked.sessions, now: at, heatFrom: at, canIgnite,
         });
         if (!verdict) return { ...base, asked, item, unavailable: true, unavailableReason: T.unavailable };
         const sessions = verdict.results.map((r) => ({
@@ -186,7 +189,9 @@ function buildOrdersController({
         const kept = sessions.filter((s) => !s.unavailable).map(({ date, start, end }) => ({ date, start, end }));
         const hours = sessionsHours(kept);
         if (item.included && hours > Number(item.includedLeft || 0)) return { ...base, asked, item, sessions, unavailable: true, unavailableReason: T.allowanceUsed };
-        return { ...base, asked, item, sessions, kept, ...(kept.length ? {} : { unavailable: true, unavailableReason: sessions[0].reasonLabel }) };
+        return {
+          ...base, asked, item, sessions, kept, heldHours: shop.includedHoursLeft(extras, asked.id), ...(kept.length ? {} : { unavailable: true, unavailableReason: sessions[0].reasonLabel }),
+        };
       }
       if (asked.sessions) throw invalid('notOnSlot');
       if (asked.quantity > maxQuantity) throw limit('maxQuantity', { max: maxQuantity, title: base.shownTitle });
@@ -229,6 +234,7 @@ function buildOrdersController({
     const body = result.body || {};
     const code = body.code;
     if (code === 'MID_STAY_EXTRAS_CLOSED') return SHOP_CLOSED;
+    if (code === 'ORDER_OFF_ARRIVAL_COMPLEMENT' || code === 'ORDER_STAY_PRICE_MOVED') return refusal(409, code, 'orderOffArrival');
     if (code === 'RESOURCE_SLOT_TAKEN' || code === 'SESSIONS_OVERLAP') return refusal(409, 'SLOT_TAKEN', 'slotJustTaken');
     if (code === 'ORDER_PERSONS_EXCEEDED') {
       const line = ((judged && judged.lines) || []).find((l) => keyOf(l) === body.key);
@@ -244,17 +250,46 @@ function buildOrdersController({
    * Rules 24, 25, 35 — the judged lines priced by the core engine, after the stay's card orders awaiting payment:
    * those hold the free units and minutes they were quoted with. → `{ lines, total }` or a refusal.
    */
-  function price(stay, judged) {
+  function price(stay, judged, lang) {
     const lines = commitLines(judged.lines);
-    if (!lines.length) return { lines: [], byKey: {}, total: 0 };
+    if (!lines.length) return { lines: [], charges: [], byKey: {}, total: 0 };
     const pending = orders().pendingLines(stay.id, { at: now() }).map(cartLineOf);
-    let priced = commit.priceOrder(stay.id, lines, { pending });
-    // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is. The persons a
-    // pending order holds stay held (rule 55).
-    const personsRefused = priced.body && priced.body.code === 'ORDER_PERSONS_EXCEEDED';
-    if (priced.status !== 200 && pending.length && !personsRefused) priced = commit.priceOrder(stay.id, lines);
+    const run = (list) => {
+      let priced = commit.priceOrder(stay.id, list, { pending });
+      // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is. The persons a
+      // pending order holds stay held (rule 55).
+      const personsRefused = priced.body && priced.body.code === 'ORDER_PERSONS_EXCEEDED';
+      if (priced.status !== 200 && pending.length && !personsRefused) priced = commit.priceOrder(stay.id, list);
+      return priced;
+    };
+    let priced = run(lines);
     if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
-    return { lines, byKey: priced.byKey, total: priced.total };
+    // Rule 83 — the evening supplement of the bath's sessions, priced once with the order.
+    const charges = eveningCharges(stay, judged, priced.byKey, lang);
+    if (charges.length) {
+      priced = run([...lines, ...charges.map((c) => ({ kind: 'charge', key: chargeKey('new', c.resourceId), label: c.label, amount: c.amount }))]);
+      if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
+    }
+    return { lines, charges, byKey: priced.byKey, total: priced.total };
+  }
+
+  /**
+   * Rules 81-83 — the bath's evening supplement per resource of the order, computed by `hourly-resources` from the sessions
+   * and what the order's line already bills: the hours the stay holds and the free minutes cover the day rate only.
+   */
+  function eveningCharges(stay, judged, byKey, lang) {
+    const provider = scheduler();
+    if (!provider || typeof provider.orderSupplement !== 'function') return [];
+    return judged.lines.filter((l) => !l.unavailable && l.kept && l.kept.length).map((line) => {
+      const hours = sessionsHours(line.kept);
+      const covered = Number(line.heldHours || 0) + (line.item.freeMinutes ? Number(line.item.freeMinutes.left || 0) / 60 : 0);
+      const amount = provider.orderSupplement({
+        resourceId: line.id, propertyId: stay.propertyId, sessions: line.kept,
+        lineGain: { amount: Number(byKey[keyOf(line)] || 0), hours: Math.max(0, Math.round((hours - covered) * 100) / 100) },
+      });
+      const label = `${line.title} — supplément soirée`;
+      return amount > 0 ? { resourceId: line.id, amount, label, shownLabel: lang === 'en' ? `${line.shownTitle} — evening supplement` : `${line.shownTitle} — supplément soirée` } : null;
+    }).filter(Boolean);
   }
 
   /** Rule 32 — a priced line ready to render; the snapshot an order stores is the same object. */
@@ -294,13 +329,19 @@ function buildOrdersController({
   const unbilledLine = (judged, byKey) => judged.lines.find((l) => !l.unavailable && l.kind !== 'breakfast'
     && billable(l) && !(Number(byKey[keyOf(l)]) > 0));
 
-  function quoteOf(guest, body, at, lang) {
+  function quoteOf(guest, body, at, lang, { early = null } = {}) {
     const judged = judge(guest, body, at, lang);
-    const priced = price(guest.stay, judged);
+    // Rule 80 — a session the picker would not offer is refused before anything is priced.
+    const crafted = early ? early(judged) : null;
+    if (crafted) return { refusal: crafted };
+    const priced = price(guest.stay, judged, lang);
     if (priced.refusal) return { refusal: priced.refusal };
     const unbilled = unbilledLine(judged, priced.byKey);
     if (unbilled) return { refusal: refusal(409, 'ITEM_UNAVAILABLE', 'itemNotBillable', { title: unbilled.shownTitle }) };
-    const lines = judged.lines.map((l) => lineView(l, priced.byKey, lang));
+    const lines = [
+      ...judged.lines.map((l) => lineView(l, priced.byKey, lang)),
+      ...priced.charges.map((c) => chargeView(c, lang)),
+    ];
     return {
       judged,
       priced,
@@ -313,6 +354,18 @@ function buildOrdersController({
       },
     };
   }
+
+  const chargeLinesOf = (orderId, charges) => (charges || []).map((c) => ({ kind: 'charge', key: chargeKey(orderId, c.resourceId), label: c.label, amount: c.amount }));
+
+  /** Rule 83 — the bath's evening supplement as a line of the order, ready to render. */
+  const chargeView = (charge, lang) => ({
+    kind: 'charge',
+    id: charge.resourceId,
+    title: charge.label,
+    label: charge.shownLabel,
+    total: charge.amount,
+    totalLabel: labels.priceLabel(charge.amount, lang),
+  });
 
   // The envelope's `details` (§4.3): an object here — the units left, the fresh quote — in the request's language.
   const fail = failGuest;
@@ -329,9 +382,17 @@ function buildOrdersController({
   }
 
   const SHOP_CLOSED = Object.freeze(refusal(409, 'SHOP_CLOSED', 'shopClosed'));
+  const ORDERS_OPEN_ON_ARRIVAL = Object.freeze(refusal(409, 'ORDERS_OPEN_ON_ARRIVAL', 'ordersOpenOnArrival'));
 
-  /** Rule 27 — orders are taken exactly while the fiche takes mid-stay extras, by a stay session. */
-  const shopOpen = (guest, at) => shopState(guest.mode, shop.soldFor(guest).extras.window, parisDate(at)).open;
+  /**
+   * Rules 27, 65-68 — orders are taken while the core collects them at the arrival or the departure: the refusal when
+   * they are not (`closed`, or the stay's money still due), else null. → `{ refused, collection }`.
+   */
+  function openness(guest) {
+    const collection = shop.collectionOf(guest.stay);
+    if (shopState(collection).open) return { collection };
+    return { collection, refused: collection === 'closed' ? SHOP_CLOSED : ORDERS_OPEN_ON_ARRIVAL };
+  }
 
   /** `POST /orders/quote` — rule 32: the cart's total is always this answer. */
   const quote = guarded((req, res) => {
@@ -339,7 +400,8 @@ function buildOrdersController({
     if (error) return fail(res, error);
     const lang = languageOf(req, req.guest.stay);
     const at = now();
-    if (!shopOpen(req.guest, at)) return fail(res, SHOP_CLOSED);
+    const { refused } = openness(req.guest);
+    if (refused) return fail(res, refused);
     const out = quoteOf(req.guest, req.body, at, lang);
     if (out.refusal) return fail(res, out.refusal);
     return publicHttp.ok(res, out.quote);
@@ -353,7 +415,7 @@ function buildOrdersController({
   /** Rule 44 — « Commandes clients »: every confirmed or paid order, to the staff who subscribed. Best effort. */
   function notifyStaff(order, { conflict = false, refundCents = 0 } = {}) {
     const stay = stays().byId(order.reservationId) || {};
-    const text = labels.pushText(order, { lodging: lodgingName(stay.propertyId), firstName: stay.clientFirstName });
+    const text = labels.pushText(order, { lodging: lodgingName(stay.propertyId), firstName: stay.clientFirstName, now: now() });
     const refund = refundCents > 0 ? `${text} — trop-perçu de ${labels.priceLabel(refundCents / 100)} à rembourser` : text;
     const body = conflict ? `${text} — payée, mais créneau, article ou prix plus disponible : à rembourser` : refund;
     Promise.resolve()
@@ -362,14 +424,15 @@ function buildOrdersController({
   }
 
   // Rule 43 — a staff-prepared line says so in the order's own snapshot: the planning card lists those lines only.
-  const snapshot = (judged, byKey, lang) => judged.lines.filter((l) => !l.unavailable).map((l) => {
+  const snapshot = (judged, byKey, lang, charges = []) => [...judged.lines.filter((l) => !l.unavailable).map((l) => {
     const view = lineView(l, byKey, lang);
     const { unavailableMornings, label, ...kept } = view;
     kept.title = l.title;
     if (kept.sessions) kept.sessions = l.kept.map(({ date, start, end }) => ({ date, start, end }));
     if (l.item && isStaffItem(l.item)) kept.needsStaff = true;
+    if (l.kept) kept.addedHours = Math.max(0, Math.round((sessionsHours(l.kept) - Number(l.heldHours || 0)) * 100) / 100);
     return kept;
-  });
+  }), ...charges.map((c) => ({ kind: 'charge', id: c.resourceId, title: c.label, total: c.amount }))];
 
   /** §4.3 — the first answer to an order a replayed `Idempotency-Key` names. */
   function replay(res, order) {
@@ -388,7 +451,17 @@ function buildOrdersController({
 
   const isUniqueClash = (err) => Boolean(err && err.code === 'SQLITE_CONSTRAINT_UNIQUE');
 
-  /** `POST /orders` — rules 30, 33-37. */
+  /**
+   * Rule 80 — a session the slot picker would not offer is refused first, before any pricing, nothing written: `SLOT_TAKEN`
+   * when another use of the bath holds it, `SLOT_UNAVAILABLE` for every other reason (closed, past, heating, staff, off the grid).
+   */
+  function craftedSession(judged) {
+    const bad = judged.lines.flatMap((l) => (l.sessions || []).filter((x) => x.unavailable && SLOT_REASONS.has(x.reason)));
+    if (!bad.length) return null;
+    return bad.some((x) => x.reason === 'taken') ? refusal(409, 'SLOT_TAKEN', 'slotGone') : refusal(409, 'SLOT_UNAVAILABLE', 'slotUnavailable');
+  }
+
+  /** `POST /orders` — rules 30, 33-37, 80. */
   const create = guarded(async (req, res) => {
     const error = orderInputError(req.body, { withPayment: true });
     if (error) return fail(res, error);
@@ -401,8 +474,9 @@ function buildOrdersController({
     const { stay } = req.guest;
     const lang = languageOf(req, stay);
     const at = now();
-    if (!shopOpen(req.guest, at)) return fail(res, SHOP_CLOSED);
-    const out = quoteOf(req.guest, req.body, at, lang);
+    const { refused } = openness(req.guest);
+    if (refused) return fail(res, refused);
+    const out = quoteOf(req.guest, req.body, at, lang, { early: craftedSession });
     if (out.refusal) return fail(res, out.refusal);
     const { judged, priced, quote: answer } = out;
     const gone = judged.lines.filter((l) => l.unavailable || (l.sessions || []).some((s) => s.unavailable) || l.unavailableMornings);
@@ -412,12 +486,7 @@ function buildOrdersController({
         itemKey: `${short.kind}:${short.id}`, left: short.outOfStock.left, quote: answer,
       });
     }
-    if (gone.length) {
-      const slot = gone.some((l) => (l.sessions || []).some((s) => s.unavailable && SLOT_REASONS.has(s.reason)));
-      return fail(res, slot
-        ? refusal(409, 'SLOT_TAKEN', 'slotGone')
-        : refusal(409, 'ITEM_UNAVAILABLE', 'itemGone'), { quote: answer });
-    }
+    if (gone.length) return fail(res, refusal(409, 'ITEM_UNAVAILABLE', 'itemGone'), { quote: answer });
     if (judged.needsDelivery && !judged.deliverAt) {
       return fail(res, req.body.deliverAt
         ? refusal(409, 'DELIVERY_TIME_UNAVAILABLE', 'deliveryGone')
@@ -425,7 +494,7 @@ function buildOrdersController({
     }
     const ceiling = Number(maxOrderTotal()) || 500;
     if (priced.total > ceiling) return fail(res, limit('maxTotal', { amount: labels.priceLabel(ceiling, lang) }));
-    const lines = snapshot(judged, priced.byKey, lang);
+    const lines = snapshot(judged, priced.byKey, lang, priced.charges);
     const free = priced.total <= 0;
     if (!free && req.body.payment === 'none') return fail(res, invalid('choosePayment'));
     const mode = fulfilment();
@@ -442,11 +511,13 @@ function buildOrdersController({
             reservationId: stay.id, sessionId, payment: free ? 'none' : 'note', status: 'confirmed',
             lines, total: priced.total, deliverAt: judged.deliverAt, ...delivery, clientKey, now: at,
           });
-          const written = commit.commitOrder(stay.id, { ...orderNaming(order.id), lines: priced.lines });
+          const written = commit.commitOrder(stay.id, { ...orderNaming(order.id), lines: [...priced.lines, ...chargeLinesOf(order.id, priced.charges)] });
           if (!written || written.status !== 200) {
             refused = engineRefusal(written || { body: {} }, judged);
             throw refused;
           }
+          // Rule 66 — the core says where the order is collected: the arrival complement or the end-of-stay one.
+          orders().setCollectAt(order.id, written.collectAt);
           // Rule 35 — quoted after a card order awaiting payment, it adds less to the fiche than its quote: that order adds the rest.
           orders().setDeferred(order.id, Math.round(priced.total * 100) - Math.round(Number(written.total || 0) * 100));
           moved = countStock(stay.id, at);
@@ -512,10 +583,13 @@ function buildOrdersController({
     const chip = labels.deliveryChip(order, lang);
     const stay = stays().byId(order.reservationId) || {};
     const promised = labels.promiseOf(order, { lodging: lodgingName(stay.propertyId), now: now(), lang });
+    const arrival = order.collectAt === 'arrival' ? stays().arrivalComplementState(order.reservationId) : null;
     const notices = [];
     if (order.status === 'awaiting_payment') notices.push(T.awaitingCard);
     if (order.status === 'paid_conflict') notices.push(T.conflict);
     if (order.deliverMoved && ['paid', 'confirmed'].includes(order.status)) notices.push(order.deliverAt ? T.moved(labels.momentLabel(order.deliverAt, lang)) : T.movedNone);
+    // Rule 73 — a stay moved under its order: the time is no longer inside the dates, the team replans it.
+    if (['paid', 'confirmed'].includes(order.status) && outsideStay(order, stay)) notices.push(T.reviewTime);
     // Edge case — the planning is the truth: a session of the order the operator moved or removed.
     if (resourceLines && ['confirmed', 'paid', 'delivered'].includes(order.status)) {
       const placed = new Set(resourceLines.flatMap((l) => (l.sessions || []).map((s) => `${l.resourceId}|${s.date}|${s.start}|${s.end}`)));
@@ -531,7 +605,10 @@ function buildOrdersController({
       totalLabel: labels.priceLabel(order.total, lang),
       payment: order.payment,
       status: order.status,
-      statusLabel: labels.statusLabel(order, lang),
+      statusLabel: labels.statusLabel(order, lang, { arrival }),
+      collectAt: order.collectAt === 'arrival' ? 'arrival' : 'departure',
+      // Rules 76, 87 — an order the team changed at the arrival says so, with its new lines and total above.
+      ...(order.amendmentsJson && order.amendmentsJson !== '[]' ? { amendedLabel: T.amended } : {}),
       ...(chip ? { deliveryLabel: chip } : {}),
       fulfilment: order.fulfilment === 'pickup' ? 'pickup' : 'delivery',
       promise: promised.promise,
@@ -542,11 +619,12 @@ function buildOrdersController({
       ...(order.status === 'awaiting_payment' && order.paymentUrl && order.heldUntil && Date.parse(order.heldUntil) > now().getTime()
         ? { paymentUrl: order.paymentUrl } : {}),
       // Rule 35 — an abandoned order's lines go back in the cart.
-      ...(order.status === 'abandoned' ? { cartLines: order.lines.map(cartLineOf) } : {}),
+      ...(order.status === 'abandoned' ? { cartLines: order.lines.filter((l) => !isCharge(l)).map(cartLineOf) } : {}),
     };
   }
 
   function cartLineOf(line) {
+    if (isCharge(line)) return { kind: 'charge', key: chargeKey('pending', line.id), label: line.title, amount: line.total };
     if (line.kind === 'breakfast') return { kind: 'breakfast', id: line.id, mornings: line.mornings, time: line.time, persons: line.persons };
     if (line.kind === 'resource' && Array.isArray(line.sessions) && line.sessions.length) {
       return { kind: 'resource', id: line.id, sessions: line.sessions.map(({ date, start, end }) => ({ date, start, end })) };
@@ -627,13 +705,15 @@ function buildOrdersController({
     const canIgnite = ignitionInHours(shop.scheduleOf(lodging, at));
     return order.lines.filter((l) => l.kind === 'resource' && Array.isArray(l.sessions) && l.sessions.length).every((line) => {
       const verdict = scheduler() && scheduler().validateSessions({
-        resourceId: Number(line.id), propertyId: stay.propertyId, stay, sessions: line.sessions, now: at, canIgnite,
+        resourceId: Number(line.id), propertyId: stay.propertyId, stay, sessions: line.sessions, now: at, heatFrom: at, canIgnite,
       });
       return Boolean(verdict && verdict.ok);
     });
   }
 
-  const commitLinesOf = (order) => order.lines.map(cartLineOf);
+  const commitLinesOf = (order) => order.lines.map((line) => (isCharge(line)
+    ? { kind: 'charge', key: chargeKey(order.id, line.id), label: line.title, amount: line.total }
+    : cartLineOf(line)));
 
   /** Rule 37quater — a late payment whose units went meanwhile is a conflict, like a taken slot. Its own holds are lifted. */
   function unitsStillLeft(order, at) {
@@ -686,6 +766,7 @@ function buildOrdersController({
               if (deferred.available < gap) throw PRICE_ROSE;
               deferred.take(gap);
             }
+            orders().setCollectAt(order.id, result.collectAt);
             orders().markPaid(order.id, { now: at, paidAt, deliverAt: delivery.deliverAt, deliverMoved: delivery.moved });
           },
         });

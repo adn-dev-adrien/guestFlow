@@ -31,6 +31,7 @@ const { buildItemsController } = require('./controllers/itemsController');
 const { buildShopController } = require('./controllers/shopController');
 const { buildOrdersController, ORDER_SOURCE, ORDER_REFUND_LABELS } = require('./controllers/ordersController');
 const { buildOrdersAdminController } = require('./controllers/ordersAdminController');
+const { buildArrivalOrdersController } = require('./controllers/arrivalOrdersController');
 const { buildServiceHoursController } = require('./controllers/serviceHoursController');
 const { buildBookletController, buildBookletResolver } = require('./controllers/bookletController');
 const { buildStudioController } = require('./controllers/studioController');
@@ -122,16 +123,58 @@ function buildGuestApi({
     const ids = new Set([...stock().staysInProgress(today), ...stock().countedReservations()]);
     alertStock([...new Set([...ids].flatMap((reservationId) => stock().reconcile(reservationId, today)))]);
   }
+  /**
+   * Rule 72 — a stay cancelled, superseded or deleted cancels its orders (`cancelled`, stock and holds released); the card
+   * money of a paid one is flagged « à rembourser » on its link (rule 88). → the orders moved.
+   */
+  function cancelOrdersOf(reservationId) {
+    const stay = stays().byId(reservationId);
+    if (stay && stay.kind === 'reservation') return [];
+    const moved = orders().cancelForStay(reservationId, { now: now() });
+    moved.filter((order) => order.payment === 'card' && order.paymentLinkId && ['paid', 'delivered'].includes(order.status)).forEach((order) => {
+      try {
+        payments().flagBasketRefund(order.paymentLinkId, {
+          cents: Math.round(Number(order.total) * 100),
+          reason: `séjour annulé : commande client #${order.id} à rembourser`,
+        });
+      } catch { /* the order stays cancelled; the operator reads the payment on the ledger */ }
+    });
+    reconcileStock(reservationId);
+    return moved;
+  }
+
+  /**
+   * Rules 70, 89 — `{ shop, bath }` for the reminder e-mails of a stay: the stay's lodging shows the shop with an article sold
+   * and takes orders now (`orderCollection` arrival or departure); the bath when it sells an hourly resource and the stay holds
+   * hours of it, or has free minutes of it left.
+   */
+  function emailFacts(reservationId) {
+    const stay = stays().byId(reservationId);
+    const lodging = stay && lodgings().findEnabled(stay.propertyId);
+    if (!lodging || !controller.shownKeys(lodging, 'preArrival').includes('shop')) return { shop: false, bath: false };
+    if (!['arrival', 'departure'].includes(commit.orderCollection(reservationId))) return { shop: false, bath: false };
+    const { sold, extras } = shop.soldFor({ stay, lodging: { propertyId: stay.propertyId } });
+    if (!sold.length) return { shop: false, bath: false };
+    const baths = sold.filter((s) => s.kind === 'resource' && s.hourly);
+    const holds = (s) => (extras.resourceLines || []).some((l) => Number(l.resourceId) === Number(s.row.id) && Number(l.quantity) > 0);
+    const bath = baths.some((s) => holds(s) || (s.freeMinutes && s.freeMinutes.left > 0));
+    return { shop: true, bath };
+  }
+
   const guestSession = buildGuestSession({
     sessions, stays, stayLinks, lodgings, now, ...(httpsEnabled ? { httpsEnabled } : {}),
   });
   const shop = buildShopController({
     items, stayLines, orders, serviceHours, stock, scheduler, translator, now, fulfilment,
+    orderCollection: (reservationId) => commit.orderCollection(reservationId),
   });
   const controller = buildSessionController({
     lodgings, sessions, stays, stayLinks, orders, guestSession, soliomapUrl, soliomapFeed, now, appName, soliomapEmbed,
     firstBathSlot: shop.firstBathSlotToday,
     ...(readGateUrl ? { readGateUrl } : {}),
+  });
+  const arrivalOrders = buildArrivalOrdersController({
+    orders, stays, shop, stock, alertStock, commit, scheduler, now,
   });
   const links = buildStayLinksController({
     stayLinks, stays, lodgings, sessions, guestHost, now,
@@ -161,7 +204,7 @@ function buildGuestApi({
         booklet, media, lodgings, resolver, uploadsDir, now,
       }),
       stayLinks: links,
-      orders: buildOrdersAdminController({ orders, stays, lodgings, now }),
+      orders: { ...buildOrdersAdminController({ orders, stays, lodgings, now }), amend: arrivalOrders.amend },
     }),
     sessions,
     // Rule 9bis — where the stay link is given: the SAS step and the reminder e-mails.
@@ -174,6 +217,11 @@ function buildGuestApi({
     // Rules 35-36 — the order's side of its paid card link, and the expiry of the unpaid ones.
     orderPaid: orderBook.paid,
     expireOrders: orderBook.expireDue,
+    // Rule 71 — what the arrival SAS names of the stay's app orders; rule 72 — a stay that is gone cancels them.
+    ordersAtArrival: arrivalOrders.dataFor,
+    cancelOrdersOf,
+    // Rules 70, 89 — what the J-7 and J-2 e-mails may promise: the shop, and the bath to schedule.
+    emailFacts,
     // Rules 37ter-37quater — the stock follows every reservation, whoever wrote its lines.
     reconcileStock,
     sweepStock,
@@ -241,17 +289,29 @@ function register(ctx) {
     { method: 'GET', re: /^\/guest-app\/reservations\/\d+\/stay-link$/ },
     { method: 'POST', re: /^\/guest-app\/reservations\/\d+\/stay-link\/regenerate$/ },
     { method: 'POST', re: /^\/guest-app\/orders\/\d+\/delivered$/ },
+    // Rule 87 — the arrival SAS changes an unpaid order; the reception only on its arrival day (judged by the handler).
+    { method: 'POST', re: /^\/guest-app\/orders\/\d+\/amend$/ },
     { method: 'GET', re: /^\/guest-app\/planning\/order-cards$/ },
     // Rule 37quater — the reservation editor's « Stock : épuisé » warning.
     { method: 'GET', re: /^\/guest-app\/stock$/ },
   ]);
-  // Rule 9bis (a) — the SAS « Portail » step becomes « Mon séjour » while this stay has a link to show.
-  ctx.sasData((reservationId) => ({ available: api.stayLinkAvailable(reservationId) }));
+  // Rule 9bis (a) — the SAS « Portail » step becomes « Mon séjour » while this stay has a link to show; rule 71 — the
+  // « Commandes Mon séjour » step lists the orders taken before the arrival, when there are some.
+  ctx.sasData((reservationId) => {
+    const ordersAtArrival = api.ordersAtArrival(reservationId);
+    return { available: api.stayLinkAvailable(reservationId), ...(ordersAtArrival ? { ordersAtArrival } : {}) };
+  });
   // Rule 9bis (b) — the reminder e-mails' « Lien Mon séjour », declared by this plugin (emailContext.js).
   ctx.emailContext({
     tokens: [...stayAppEmail.TOKENS],
     flags: [...stayAppEmail.FLAGS],
-    build: (reservationId) => stayAppEmail.stayAppEmailContext({ stayUrl: api.stayAppUrl(reservationId), gateUrl: gate.keyUrlOf(reservationId) }),
+    build: (reservationId) => {
+      const stayUrl = api.stayAppUrl(reservationId);
+      const facts = stayUrl ? api.emailFacts(reservationId) : {};
+      return stayAppEmail.stayAppEmailContext({
+        stayUrl, gateUrl: gate.keyUrlOf(reservationId), shop: facts.shop, bath: facts.bath,
+      });
+    },
   });
 
   // Rule 36 — every minute, an order unpaid 30 minutes on expires and its slots go back to the planning.
@@ -264,7 +324,10 @@ function register(ctx) {
 
   // Rule 37ter — the website and the staff sell too: every reservation event brings the stock to date.
   STOCK_EVENTS.forEach((name) => ctx.events.on(name, ({ reservationId } = {}) => {
-    if (reservationId) api.reconcileStock(reservationId);
+    if (!reservationId) return;
+    // Rule 72 — a stay that is no longer a reservation (cancelled, superseded, deleted) cancels its orders first.
+    if (name !== 'reservation.created') api.cancelOrdersOf(reservationId);
+    api.reconcileStock(reservationId);
   }));
   ctx.jobs.every({
     name: 'stock-arrivals',

@@ -21,7 +21,7 @@ async function withStaff(name, fn) {
     const stayId = seedStay();
     const ctx = await openOrdering(stayId);
     try {
-      const nextDelivery = async () => (await ctx.call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: WOOD }] })).body.data.days[0].slots;
+      const nextDelivery = async () => (await ctx.call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: WOOD }] })).body.data.days.filter((d) => d.available)[0].times;
       await fn({ stayId, nextDelivery, ...ctx });
     } finally {
       await ctx.close();

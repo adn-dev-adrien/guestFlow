@@ -18,7 +18,9 @@ const { eachDate } = require('./schedulingModel');
 const {
   buildDays, validateBlock, toAbsMinutes, minutesToTime, MINUTES_PER_DAY,
 } = require('./availability');
-const { normalizeConfig, priceRange, toMinutes } = require('./hourlyPricing');
+const {
+  normalizeConfig, priceRange, toMinutes, eveningSupplement,
+} = require('./hourlyPricing');
 
 const resourcesModel = sdk.coreModule('resourcesModel');
 const { toParisIso } = sdk.coreModule('stayWindow');
@@ -27,13 +29,22 @@ const HOURLY = 'per_hour';
 
 const dateOfAbsolute = (minutes) => new Date(Math.floor(minutes / MINUTES_PER_DAY) * 86400000).toISOString().slice(0, 10);
 
-/** `notBefore` = max(now, check-in), `notAfter` = check-out, in absolute minutes of the Paris wall clock. */
-function boundsOf(stay, now) {
+/**
+ * `notBefore` = max(now, check-in), `notAfter` = check-out, in absolute minutes of the Paris wall clock. `heatFrom`
+ * (hourly-resource-quantity-and-sas-scheduling.md rule 36) is the moment the heating can begin, when the caller counts it
+ * from somewhere other than `notBefore`: the guest app passes the present moment.
+ */
+function boundsOf(stay, now, heatFrom = null) {
   const paris = toParisIso(now) || '';
   const nowAbs = toAbsMinutes(paris.slice(0, 10), paris.slice(11, 16));
   const checkIn = toAbsMinutes(stay.startDate, stay.checkInTime || '15:00');
   const checkOut = toAbsMinutes(stay.endDate || stay.startDate, stay.checkOutTime || '10:00');
-  return { notBefore: Math.max(checkIn, nowAbs), notAfter: checkOut };
+  const bounds = { notBefore: Math.max(checkIn, nowAbs), notAfter: checkOut };
+  if (heatFrom) {
+    const heat = toParisIso(heatFrom) || '';
+    bounds.heatFrom = toAbsMinutes(heat.slice(0, 10), heat.slice(11, 16));
+  }
+  return bounds;
 }
 
 const igniterOf = (canIgnite) => (typeof canIgnite === 'function'
@@ -66,7 +77,9 @@ function createScheduler(database) {
    * resource is not an hourly resource of the lodging. `state ∈ free | evening | taken | closed | heating |
    * staff | past`; `evening` is a free slot that reaches the evening rate; `price` is the slot's gross price.
    */
-  function slotsForStay({ resourceId, propertyId, stay, now = new Date(), canIgnite = null }) {
+  function slotsForStay({
+    resourceId, propertyId, stay, now = new Date(), canIgnite = null, heatFrom = null,
+  }) {
     const resource = hourlyResource(resourceId, propertyId);
     if (!resource) return null;
     const rate = rateOf(resource);
@@ -76,11 +89,13 @@ function createScheduler(database) {
       dayRate: resource.price,
       stayDates: eachDate(stay.startDate, stay.endDate),
       occupancy: occupancyOf(resource, stay),
-      ...boundsOf(stay, now),
+      ...boundsOf(stay, now, heatFrom),
       canIgnite: igniterOf(canIgnite),
     });
     return {
       resourceId: Number(resource.id),
+      // The resource's own opening, for the thin bar of the day (guest-app rule 78): closed hours are greyed by the app.
+      opening: { from: resource.openTime || '00:00', to: resource.closeTime || '23:59' },
       days: days.map((day) => ({
         date: day.date,
         closed: day.closed,
@@ -88,6 +103,9 @@ function createScheduler(database) {
           start: slot.start,
           end: slot.end,
           state: slot.state === 'free' && toMinutes(slot.end) > eveningFrom ? 'evening' : slot.state,
+          // The slot's band and its evening difference (guest-app rule 84): the app words them, the plugin prices them.
+          band: toMinutes(slot.end) > eveningFrom ? 'evening' : 'day',
+          supplement: slot.supplement,
           price: priceRange(slot.start, slot.end, rate),
         })),
       })),
@@ -102,10 +120,12 @@ function createScheduler(database) {
    * that was refused is judged cold — its ignition is checked again.
    * `reason ∈ duration | closed | past | taken | heating | staff`.
    */
-  function validateSessions({ resourceId, propertyId, stay, sessions = [], now = new Date(), canIgnite = null }) {
+  function validateSessions({
+    resourceId, propertyId, stay, sessions = [], now = new Date(), canIgnite = null, heatFrom = null,
+  }) {
     const resource = hourlyResource(resourceId, propertyId);
     if (!resource) return null;
-    const bounds = boundsOf(stay, now);
+    const bounds = boundsOf(stay, now, heatFrom);
     const stored = occupancyOf(resource, stay);
     const ignite = igniterOf(canIgnite);
     const asked = (Array.isArray(sessions) ? sessions : []).map(asSession);
@@ -121,7 +141,25 @@ function createScheduler(database) {
     return { ok: results.every((r) => r.ok), results };
   }
 
-  return { slotsForStay, validateSessions };
+  /**
+   * Rule 83 (guest-app) / hourly rule 38 — the evening supplement of an order's sessions: the evening difference of those
+   * sessions minus what the order's line gain already bills above the day rate (rule 30), never below 0.
+   * `lineGain` = `{ amount, hours }`: what the order's line adds to the stay's billed total, and the billed hours it gains.
+   */
+  function orderSupplement({ resourceId, propertyId, sessions = [], lineGain = {} }) {
+    const resource = hourlyResource(resourceId, propertyId);
+    if (!resource) return 0;
+    const difference = eveningSupplement((Array.isArray(sessions) ? sessions : []).map(asSession), {
+      dayRate: Number(resource.price || 0),
+      eveningRate: Number(resource.hourlyEveningRate) || 0,
+      eveningStart: resource.hourlyEveningStart || null,
+      slotMinutes: Number(resource.slotDuration || 60),
+    });
+    const credit = Math.max(0, Math.round(((Number(lineGain.amount) || 0) - Number(resource.price || 0) * (Number(lineGain.hours) || 0)) * 100) / 100);
+    return Math.max(0, Math.round((difference - credit) * 100) / 100);
+  }
+
+  return { slotsForStay, validateSessions, orderSupplement };
 }
 
 module.exports = { createScheduler };

@@ -27,7 +27,7 @@ const { validateArrivalPaymentDate } = require('../utils/arrivalPaymentDate');
 const { buildArrivalPaymentDetail } = require('../utils/arrivalPaymentDetail');
 const { resolveArrivalPaymentAdjustment } = require('../utils/arrivalPaymentAdjustment');
 const { withdrawForStay, datesTakenMarker } = require('../utils/datesTaken');
-const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations } = require('../utils/occupancy');
+const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations, addIsoDays } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
@@ -1950,13 +1950,15 @@ async function retireStaleLinks(reservationId) {
 
 // `body` is the full PUT payload of the fiche (the model rewrites every column from it). `unlockPast`
 // is the admin's « Déverrouiller cette fiche » for this one save. `dryRun` plays the save inside a
-// transaction that is rolled back and returns the row it would have stored (`row`), without the
-// `reservation.updated` event. Returns `{ status, body }`.
+// transaction that is rolled back and returns the row it would have stored (`row`) and the stay's extra lines
+// (`lines`), without the `reservation.updated` event. `beforeArrival` (specs/guest-app.md rule 66) saves the stay
+// as the day before its arrival whatever the calendar says: a plugin's order taken while the arrival is not marked
+// lands as an ordinary line, never as a mid-stay sale. Returns `{ status, body }`.
 const DRY_RUN = Symbol('dry-run');
-function performUpdate(reservationId, body, { unlockPast = false, dryRun = false } = {}) {
+function performUpdate(reservationId, body, { unlockPast = false, dryRun = false, beforeArrival = false } = {}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast));
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { beforeArrival });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -1969,8 +1971,8 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   let preview = null;
   try {
     db.transaction(() => {
-      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true });
-      preview = { ...res.result(), row: model.getRow(Number(reservationId)) };
+      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, beforeArrival });
+      preview = { ...res.result(), row: model.getRow(Number(reservationId)), lines: model.readExtraLines(Number(reservationId)) };
       throw DRY_RUN;
     })();
   } catch (err) {
@@ -2046,7 +2048,7 @@ function enterMidStayExtrasWindow(id, body, today) {
   return { baseline, beforeLines };
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
+function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = false } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   const financeError = validateStayFinance(req.body, storedBefore);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
@@ -2104,7 +2106,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const numberError = reservationNumberOverrideError(req.body.reservationNumber, id);
   if (numberError) return res.status(400).json(numberError);
 
-  const todayIso = getTodayIsoDate();
+  const todayIso = beforeArrival && storedBefore ? addIsoDays(storedBefore.startDate, -1) : getTodayIsoDate();
   const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso);
   carryStoredCustomContribs(id, req.body);
   // The window pins the baseline at the write: every pricing of this save reads the one that write will store.

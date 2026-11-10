@@ -21,7 +21,7 @@ function withDisplayCount(line, nights) {
   return { ...line, displayCount: mornings ? nights : (line.servedPersons ?? line.servedNights ?? line.quantity) };
 }
 const {
-  resolveMidStaySplit, extraLineKey, settledByKey, buildMidStayLine,
+  resolveMidStaySplit, extraLineKey, settledByKey, arrivalPrepaid, buildMidStayLine,
   ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
 } = require('./midStayExtras');
 const { splitComplementBuckets } = require('./complementBuckets');
@@ -2951,7 +2951,11 @@ function calculateReservationQuote({
   } else {
     liveComplementAmount = preArrivalSettled ? autoGapBetweenDepositAndBalance : 0;
   }
-  let resolvedComplementAmount = complementPaid ? roundMoney(complementAmount) : liveComplementAmount;
+  // specs/guest-app.md rule 85 — orders the guests paid by card before the arrival: the arrival complement is read net of
+  // them on every pricing (never below 0), so the arrival SAS, the ledger and the payment links ask for what is left.
+  const prepaidByOrders = arrivalPrepaid(midStaySettledNotes);
+  const prepaidTaken = complementPaid ? 0 : roundMoney(Math.min(prepaidByOrders.total, liveComplementAmount));
+  let resolvedComplementAmount = complementPaid ? roundMoney(complementAmount) : roundMoney(liveComplementAmount - prepaidTaken);
   const complementOverridden = complementAmountOverride !== null && complementAmountOverride !== undefined
     && complementAmountOverride !== '' && Number.isFinite(Number(complementAmountOverride));
   // specs/reservation-save-keeps-pricing.md rule 4 — a collected complement stays at what was collected
@@ -2981,8 +2985,8 @@ function calculateReservationQuote({
   // collected too (its lines are frozen). Reading of 2026-11-05 (audit R23 N1): a plan never sets `balancePaid`, so all
   // its installments paid is the same proof.
   const bucketsAgreed = paidSoldeCaptured || Boolean(installmentPlan && installmentPlan.allPaid);
-  const routedToComplement = roundMoney(complementForcedItemsTotal + taxInComplement
-    + (bucketsAgreed && preArrivalSettled ? autoGapBetweenDepositAndBalance : 0));
+  const routedToComplement = roundMoney(Math.max(0, complementForcedItemsTotal + taxInComplement
+    + (bucketsAgreed && preArrivalSettled ? autoGapBetweenDepositAndBalance : 0) - prepaidByOrders.total));
   const arrivalComplementExcess = complementPaid && !complementOverridden && !endOfStayComplementSettled
     ? roundMoney(Math.max(0, routedToComplement - resolvedComplementAmount))
     : 0;
@@ -2999,7 +3003,7 @@ function calculateReservationQuote({
     })]
     : midStayExtras.lines;
   const midStayRemainingDue = roundMoney(midStayRemainingTotal + excessStillDue);
-  const midStaySettledAll = roundMoney(midStaySettledTotal + excessSettledByNotes);
+  const midStaySettledAll = roundMoney(midStaySettledTotal + excessSettledByNotes + prepaidByOrders.total);
   // What the engine would collect on its own — the « Calcul auto (X €) » the fiche shows under the
   // adjustment field, and the base the accounting ventilation is spread over (§3.6 rule 36).
   const autoComplementAmount = roundMoney(resolvedComplementAmount);
@@ -3021,6 +3025,7 @@ function calculateReservationQuote({
   const complementDetailLines = [];
   {
     const midStayLeft = { ...(midStayExtras.byKey || {}) };
+    const prepaidLeft = { ...prepaidByOrders.byKey };
     for (const line of [...finalOptionLines, ...resourceLines]) {
       if (!Number(line.inComplement || 0)) continue;
       if (Number(line.offered || 0) === 1 || line.offered === true) continue;
@@ -3029,7 +3034,9 @@ function calculateReservationQuote({
       const key = extraLineKey(line);
       const moved = key ? Math.min(full, roundMoney(Number(midStayLeft[key] || 0))) : 0;
       if (moved > 0) midStayLeft[key] = roundMoney(midStayLeft[key] - moved);
-      const amount = roundMoney(full - moved);
+      const paidBefore = key ? Math.min(roundMoney(full - moved), roundMoney(Number(prepaidLeft[key] || 0))) : 0;
+      if (paidBefore > 0) prepaidLeft[key] = roundMoney(prepaidLeft[key] - paidBefore);
+      const amount = roundMoney(full - moved - paidBefore);
       if (amount <= 0) continue;
       complementDetailLines.push({
         kind: line.resourceId != null ? 'resource' : 'option',
@@ -3294,7 +3301,11 @@ function calculateReservationQuote({
     arrivalPaymentReduction: resolvedArrivalReduction,
     arrivalPaymentTip: resolvedArrivalTip,
     complementSplit,
+    arrivalPrepaidByOrders: prepaidByOrders.total,
     preArrivalAmount,
+    // specs/guest-app.md rule 66 — the pre-arrival money is settled (acompte and solde paid, or every installment
+    // of a plan): a rise of the stay now goes to the arrival complement. Read by `midStayOrderCommit.orderCollection`.
+    preArrivalSettled,
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
     // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
     accommodationPreArrival,

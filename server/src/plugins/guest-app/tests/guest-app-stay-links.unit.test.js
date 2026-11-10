@@ -136,9 +136,15 @@ test('rule 9bis (b): the reminder e-mails carry the stay link, created on first 
 test('rule 9bis (b): `{{stayAppUrl}}` is the plugin\'s own variable, falling back to the gate link while the app gives none', () => {
   const stayUrl = `https://${HOST}/s/abc`;
   const gateUrl = 'https://gate.example.test/k';
-  assert.deepEqual(stayAppEmailContext({ stayUrl, gateUrl }), { tokens: { stayAppUrl: stayUrl }, flags: { hasStayApp: true } });
-  assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl }), { tokens: { stayAppUrl: gateUrl }, flags: { hasStayApp: false } }, 'lodging off or no address');
-  assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl: null }), { tokens: { stayAppUrl: '' }, flags: { hasStayApp: false } }, 'no gate key either');
+  const flags = (hasStayApp, shop = false, bath = false) => ({ hasStayApp, hasStayAppShop: shop, hasStayAppBath: bath });
+  assert.deepEqual(stayAppEmailContext({ stayUrl, gateUrl }), { tokens: { stayAppUrl: stayUrl }, flags: flags(true) });
+  assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl }), { tokens: { stayAppUrl: gateUrl }, flags: flags(false) }, 'lodging off or no address');
+  assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl: null }), { tokens: { stayAppUrl: '' }, flags: flags(false) }, 'no gate key either');
+  // Rules 70, 89 — the shop and the bath clause only ever follow the app's own link, and the bath only follows the shop.
+  assert.deepEqual(stayAppEmailContext({ stayUrl, gateUrl, shop: true, bath: true }).flags, flags(true, true, true));
+  assert.deepEqual(stayAppEmailContext({ stayUrl, gateUrl, shop: true, bath: false }).flags, flags(true, true, false));
+  assert.deepEqual(stayAppEmailContext({ stayUrl, gateUrl, shop: false, bath: true }).flags, flags(true, false, false), 'no shop, no bath sentence');
+  assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl, shop: true, bath: true }).flags, flags(false), 'never under the gate link');
   assert.deepEqual(TOKENS.map((t) => [t.name, t.label, [...t.in]]), [['stayAppUrl', 'Lien Mon séjour', ['j7', 'j2']]]);
   assert.equal(buildContext({ reservation: { id: 1 }, pluginContext: { tokens: {}, flags: {} } }).vars.stayAppUrl, undefined,
     'not a core variable: absent while the plugin is not there');

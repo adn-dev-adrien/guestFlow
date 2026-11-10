@@ -661,7 +661,7 @@ function collectedAfterArrival(row, splitShares = null) {
   }
   const notes = parseNotes(row.midStaySettledNotes).filter((note) => note && !Number(note.paidCash || 0));
   const labels = new Map(notes.flatMap((note) => note.lines || []).map((line) => [line && line.key, line && line.label]));
-  for (const [key, amount] of Object.entries(settledByKey(notes))) add(key, labels.get(key), amount);
+  for (const [key, amount] of Object.entries(settledByKey(notes, { withArrival: true }))) add(key, labels.get(key), amount);
   return out;
 }
 

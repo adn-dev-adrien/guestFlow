@@ -82,14 +82,16 @@ test('priceSessions: free hour capped to a short earliest session', () => {
 });
 
 // specs/resource-supplements-total-server-side.md §4.1 — the breakdown the booking preview renders.
+// Amended 2026-11-10 (hourly-resource-quantity-and-sas-scheduling.md rule 37): the offered hour is worth the DAY rate
+// wherever it falls, so an offered evening hour owes the evening supplement (35 - 25 = 10 on top of the second hour).
 test('priceSessions: bands and the offered minutes of 19:00-21:00 on the guest grid', () => {
   const grid = { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 30 };
   const out = priceSessions([{ date: '2026-07-10', start: '19:00', end: '21:00' }], grid, 60);
   assert.equal(out.grossPrice, 70);
-  assert.equal(out.totalPrice, 35);
+  assert.equal(out.totalPrice, 45);
   assert.equal(out.freeMinutesApplied, 60);
   assert.equal(out.billedMinutes, 60);
-  assert.equal(out.freeValue, 35);
+  assert.equal(out.freeValue, 25);
   assert.deepEqual(out.bands, [{ band: 'evening', from: '19:00', to: '21:00', minutes: 120, rate: 35, amount: 70 }]);
 });
 

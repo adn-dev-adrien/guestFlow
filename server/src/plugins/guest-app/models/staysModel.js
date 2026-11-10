@@ -17,6 +17,17 @@ function createStaysModel(db) {
         .get(Number(id)) || null;
     },
 
+    /**
+     * Rule 76 — where the stay's arrival complement stands, from its stored markers alone (no amount enters the
+     * plugin; `SELECT *` because a minimal schema may predate a marker): `collected` (paid, in cash or not), `deferred` to the departure, else `open`.
+     */
+    arrivalComplementState(id) {
+      const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
+      if (!row) return null;
+      if (Number(row.complementPaid) === 1 || Number(row.complementPaidCash) === 1) return 'collected';
+      return Number(row.complementDeferredToCheckout) === 1 ? 'deferred' : 'open';
+    },
+
     /** Rule 6 — every live reservation carrying the number: two stays may share one, the name tells them apart. */
     byReservationNumber(number) {
       return db.prepare(`

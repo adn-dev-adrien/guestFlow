@@ -166,5 +166,6 @@ module.exports = Object.freeze({
     basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),
     refreshBasketLink: (linkId) => basketPayments().refreshBasketLink(linkId),
     withdrawBasketLink: (linkId) => basketPayments().withdrawBasketLink(linkId),
+    flagBasketRefund: (linkId, details) => basketPayments().flagBasketRefund(linkId, details),
   }),
 });

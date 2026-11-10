@@ -149,7 +149,7 @@ withQuote('rule 41: a staff-prepared item needs a delivery time the service offe
   const refused = await call('POST', '/public/v1/guest/orders', { lines, deliverAt: past, payment: 'note' });
   assert.equal(refused.status, 409);
   assert.equal(refused.body.error.code, 'DELIVERY_TIME_UNAVAILABLE');
-  const offered = (await call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: WOOD }] })).body.data.days[0].slots[0].at;
+  const offered = (await call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: WOOD }] })).body.data.days.filter((d) => d.available)[0].times[0].at;
   const ok = await call('POST', '/public/v1/guest/orders', { lines, deliverAt: offered, payment: 'note' });
   assert.equal(ok.status, 200, JSON.stringify(ok.body));
   assert.equal(db.prepare('SELECT deliverAt FROM guest_orders WHERE id = ?').get(ok.body.data.orderId).deliverAt, new Date(offered).toISOString());
@@ -177,11 +177,17 @@ withQuote('rule 37: a request of another shape is refused before anything reads 
   assert.equal(payment.body.error.code, 'INVALID_INPUT');
 });
 
-withQuote('rule 27, §4.3: a pre-arrival session reads the shop but quotes nothing — 403 STAY_REQUIRED', async ({ call }) => {
+withQuote('rules 27, 65, §4.3: a pre-arrival session (J-3) quotes like a stay session', async ({ call }) => {
   const res = await quote(call, [{ kind: 'option', id: CIDER, quantity: 1 }]);
-  assert.equal(res.status, 403);
-  assert.equal(res.body.error.code, 'STAY_REQUIRED');
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.data.lines[0].quantity, 1);
 }, { stay: { start: 3, end: 6 } });
+
+withQuote('rules 5, 65, §4.3: before J-7 the link opens the visitor mode, which has no shop — 404 MODULE_OFF', async ({ call }) => {
+  const res = await quote(call, [{ kind: 'option', id: CIDER, quantity: 1 }]);
+  assert.equal(res.status, 404);
+  assert.equal(res.body.error.code, 'MODULE_OFF');
+}, { stay: { start: 9, end: 12 } });
 
 withQuote('edge case: the planning is the truth — a session of an order the operator removed reads « Modifiée par l’équipe »', async ({ stayId, call }) => {
   const placed = await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'resource', id: BATH, sessions: [slot('20:00', '21:00')] }], payment: 'note' });

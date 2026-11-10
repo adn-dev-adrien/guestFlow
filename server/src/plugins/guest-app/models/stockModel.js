@@ -17,6 +17,7 @@
 const HOURLY = 'per_hour';
 const BREAKFAST = 'breakfast';
 
+const { parisDate } = require('../currentStay');
 const keyOf = (kind, id) => `${kind}:${Number(id)}`;
 
 function parseLines(text) {
@@ -46,11 +47,16 @@ function createStockModel(db) {
   /** Rule 37ter — the units every unpaid card order holds at `at`, by `kind:id`. */
   function heldByKey(at) {
     const held = new Map();
-    db.prepare("SELECT linesJson FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil > ?").all(at.toISOString())
-      .forEach((row) => parseLines(row.linesJson).forEach((line) => {
-        const units = orderLineUnits(line);
-        if (units) held.set(units.key, (held.get(units.key) || 0) + units.units);
-      }));
+    const add = (row) => parseLines(row.linesJson).forEach((line) => {
+      const units = orderLineUnits(line);
+      if (units) held.set(units.key, (held.get(units.key) || 0) + units.units);
+    });
+    db.prepare("SELECT linesJson FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil > ?").all(at.toISOString()).forEach(add);
+    // Rule 74 — an order taken before the arrival holds its units until the arrival day, when the sweep counts the line.
+    db.prepare(`
+      SELECT o.linesJson FROM guest_orders o JOIN reservations r ON r.id = o.reservationId
+       WHERE o.collectAt = 'arrival' AND o.status IN ('confirmed', 'paid') AND r.kind = 'reservation' AND r.startDate > ?
+    `).all(parisDate(at)).forEach(add);
     return held;
   }
 

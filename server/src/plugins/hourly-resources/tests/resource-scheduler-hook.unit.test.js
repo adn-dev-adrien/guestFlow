@@ -86,7 +86,7 @@ test('rule 28: a session of another stay and the stay’s own sessions take thei
   assert.equal(stateAt(result, '2099-07-07', '16:00'), 'taken', 'the 15 min reset of the 15:00 use');
   assert.equal(stateAt(result, '2099-07-08', '12:00'), 'taken', 'an order adds to the stay’s sessions, it never replaces them');
   const slot = slotsOf(result, '2099-07-07')[0];
-  assert.deepEqual(Object.keys(slot).sort(), ['end', 'price', 'start', 'state']);
+  assert.deepEqual(Object.keys(slot).sort(), ['band', 'end', 'price', 'start', 'state', 'supplement'], 'prices and times only: no name');
 });
 
 test('rule 28: an outside booking takes its slot, the reset end is offered off the grid', () => {
@@ -118,8 +118,12 @@ test('rule 28: the past, check-in and check-out bound the slots; a closed day is
 test('rule 28: the evening rate — a slot reaching 20:00 is « evening », priced at the lodging’s rates', () => {
   const ctx = seed();
   const day = slotsOf(slots(ctx), '2099-07-07');
-  assert.deepEqual(day.find((s) => s.start === '18:00'), { start: '18:00', end: '19:00', state: 'free', price: 36 });
-  assert.deepEqual(day.find((s) => s.start === '20:00'), { start: '20:00', end: '21:00', state: 'evening', price: 50 });
+  assert.deepEqual(day.find((s) => s.start === '18:00'), {
+    start: '18:00', end: '19:00', state: 'free', band: 'day', supplement: 0, price: 36,
+  });
+  assert.deepEqual(day.find((s) => s.start === '20:00'), {
+    start: '20:00', end: '21:00', state: 'evening', band: 'evening', supplement: 14, price: 50,
+  });
   const estiva = ctx.scheduler.slotsForStay({ resourceId: ctx.resourceId, propertyId: 2, stay: STAY, now: NOW });
   assert.equal(slotsOf(estiva, '2099-07-07').find((s) => s.start === '18:00').price, 30, 'the base price elsewhere');
   assert.equal(ctx.scheduler.slotsForStay({ resourceId: 999, propertyId: 1, stay: STAY, now: NOW }), null);

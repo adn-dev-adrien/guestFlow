@@ -73,16 +73,16 @@ function buildGuestSession({
   }
 
   /**
-   * §4.3 — what a stay session alone reaches (slots, delivery times, orders): a visitor has no stay, and a
-   * pre-arrival guest reads the shop's catalogue only (rule 27).
+   * §4.3, rule 65 — what a session on a stay reaches (slots, delivery times, quote, orders): a stay session or, from
+   * J-7, a pre-arrival one. A visitor has no stay. The gate is not among these: it reads the mode itself (rule 13).
    */
-  function requireStay(req, res, next) {
-    if (!req.guest.stay || req.guest.mode !== 'stay') return fail(res, refusal(403, 'STAY_REQUIRED', 'stayRequired'));
+  function requireStayGuest(req, res, next) {
+    if (!req.guest.stay || !['stay', 'preArrival'].includes(req.guest.mode)) return fail(res, refusal(403, 'STAY_REQUIRED', 'stayRequired'));
     return next();
   }
 
   return {
-    load, requireSession, requireStay, setCookie, clearCookie,
+    load, requireSession, requireStayGuest, setCookie, clearCookie,
   };
 }
 

@@ -3003,6 +3003,55 @@ function createReservationsModel(database) {
       return tx();
     },
 
+    /**
+     * specs/guest-app.md rule 85 — an order paid by card BEFORE the arrival: its money is recorded as a settled note of
+     * the arrival moment (`moment: 'arrival'`). No end-of-stay line is touched (the order's lines are ordinary lines of
+     * the fiche): the engine reads the arrival complement net of these notes, and the books take the note on its
+     * `paidDate`. `items` are `[{ key, amount, label? }]`; the label falls back to the fiche line of the key.
+     */
+    settleOrderNoteBeforeArrival(reservationId, {
+      items = [], paidDate, source, ref, reference,
+    } = {}) {
+      if (!HAS_MID_STAY_NOTES) throw midStayError('NOTE_EMPTY', 'Notes en séjour indisponibles.');
+      const tx = database.transaction(() => {
+        const row = database.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(reservationId);
+        if (!row) throw midStayError('NOTE_NOT_FOUND', 'Réservation introuvable.');
+        const labelOf = (key) => {
+          const [kind, id] = String(key).split(':');
+          if (kind === 'opt') return (database.prepare('SELECT title FROM options WHERE id = ?').get(Number(id)) || {}).title;
+          if (kind === 'res') return (database.prepare('SELECT name FROM resources WHERE id = ?').get(Number(id)) || {}).name;
+          return String(key).slice(kind.length + 1);
+        };
+        const lines = [];
+        for (const item of (items || [])) {
+          const key = item && String(item.key || '');
+          const amount = round2(item && item.amount);
+          if (!key || amount <= 0) throw midStayError('NOTE_AMOUNT_INVALID', 'Montant de note invalide.');
+          const label = String(item.label || labelOf(key) || 'Commande').trim();
+          const { source: ignored, ...line } = buildMidStayLine({ label, unitPrice: amount, amount, key });
+          lines.push(line);
+        }
+        if (!lines.length) throw midStayError('NOTE_EMPTY', 'La note est vide.');
+        const notes = parseNotes(row.midStaySettledNotes);
+        const note = {
+          id: nextNoteId(notes),
+          moment: 'arrival',
+          paidDate: paidDate || localTodayIso(),
+          paidCash: 0,
+          total: round2(lines.reduce((sum, l) => sum + Number(l.amount || 0), 0)),
+          lines,
+          source: String(source),
+          ref: String(ref),
+          ...(reference ? { reference: String(reference) } : {}),
+        };
+        notes.push(note);
+        database.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?")
+          .run(JSON.stringify(notes), reservationId);
+        return note;
+      });
+      return tx();
+    },
+
     // Inverse move: the note's lines go back to « à percevoir », merged into the remainder line of
     // their key. Cancelling an encaissement never un-sells the prestations (§3.1 rule 3).
     cancelMidStayNote(reservationId, noteId) {
@@ -3018,6 +3067,9 @@ function createReservationsModel(database) {
         const notes = parseNotes(row.midStaySettledNotes);
         const note = notes.find((n) => Number(n.id) === Number(noteId));
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+        // specs/guest-app.md rule 85 — the money of an order paid by card before the arrival is the provider's: the
+        // refund path gives it back, a note of the register does not un-collect it.
+        if (note.moment === 'arrival') throw midStayError('NOTE_NOT_FOUND', 'Note de paiement en ligne : à rembourser, non annulable.');
 
         const detail = parseDetailLines(row.endOfStayComplementDetail);
         const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);

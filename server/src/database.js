@@ -1252,6 +1252,9 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 {
   const rcoCols = db.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name);
   if (!rcoCols.includes('sasLineKey')) db.exec('ALTER TABLE reservation_custom_options ADD COLUMN sasLineKey TEXT');
+  // specs/guest-app.md rule 83 — a charge an order of a plugin writes on the fiche (« Bain nordique — supplément soirée »)
+  // carries the order's key, so the arrival SAS knows the evening it already bills.
+  if (!rcoCols.includes('orderChargeKey')) db.exec('ALTER TABLE reservation_custom_options ADD COLUMN orderChargeKey TEXT');
 }
 
 // ---------- SAS ARRIVAL UPSELLS → CATALOGUE OPTION ----------

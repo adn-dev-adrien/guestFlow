@@ -142,7 +142,10 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const first = valid[0];
   const firstStart = toMinutes(first.start);
   const freeApplied = Math.min(free, toMinutes(first.end) - firstStart);
-  const freeValue = freeApplied > 0 ? priceMinutes(firstStart, firstStart + freeApplied, norm) : 0;
+  // specs/hourly-resource-quantity-and-sas-scheduling.md rule 37 — the free minutes are worth the DAY rate wherever they
+  // fall: an offered hour placed in the evening owes the evening supplement, as the arrival SAS already bills it.
+  const dayOnly = { ...norm, eveningRate: norm.dayRate, eveningStart: Infinity };
+  const freeValue = freeApplied > 0 ? priceMinutes(firstStart, firstStart + freeApplied, dayOnly) : 0;
 
   const billedMinutes = Math.max(0, totalMinutes - freeApplied);
   const billedHours = round2(billedMinutes / 60);

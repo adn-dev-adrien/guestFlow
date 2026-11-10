@@ -152,8 +152,19 @@ function createBookingLinesModel(database) {
       if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
       const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
       const qty = CUSTOM_OPTION_COLUMNS.has('quantity') ? 'quantity' : '1 AS quantity';
-      return database.prepare(`SELECT description, ${key}, ${qty} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
-        .all(bookingId).map((r) => ({ description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null, quantity: Number(r.quantity) || 1 }));
+      // specs/guest-app.md rule 83 — a charge an order of a plugin wrote travels the same way, by its label.
+      const charge = CUSTOM_OPTION_COLUMNS.has('orderChargeKey') ? 'orderChargeKey' : 'NULL AS orderChargeKey';
+      const chargeClause = CUSTOM_OPTION_COLUMNS.has('orderChargeKey') ? ' OR orderChargeKey IS NOT NULL' : '';
+      return database.prepare(`SELECT description, ${key}, ${qty}, ${charge}, COALESCE(sasArrivalOrigin, 0) AS sasArrivalOrigin
+                                 FROM reservation_custom_options WHERE reservationId = ? AND (COALESCE(sasArrivalOrigin, 0) = 1${chargeClause})
+                                ORDER BY sortOrder, id`)
+        .all(bookingId).map((r) => ({
+          description: String(r.description || '').trim(),
+          sasLineKey: r.sasLineKey || null,
+          quantity: Number(r.quantity) || 1,
+          orderChargeKey: r.orderChargeKey || null,
+          sasArrivalOrigin: Number(r.sasArrivalOrigin) === 1,
+        }));
     },
 
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = []) {
@@ -175,7 +186,8 @@ function createBookingLinesModel(database) {
           acompteContribTtc: forced ? null : (line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
           // The count the SAS stored travels with its marker (specs/arrival-departure-sas.md rule 29).
-          ...(sasLine ? { sasArrivalOrigin: 1, sasLineKey: sasLine.sasLineKey, quantity: sasLine.quantity } : {}),
+          ...(sasLine && sasLine.sasArrivalOrigin !== false ? { sasArrivalOrigin: 1, sasLineKey: sasLine.sasLineKey, quantity: sasLine.quantity } : {}),
+          ...(sasLine && sasLine.orderChargeKey ? { orderChargeKey: sasLine.orderChargeKey } : {}),
         });
         sortOrder += 1;
       }

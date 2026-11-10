@@ -82,6 +82,7 @@ function createModel(database) {
         : round2(row.totalPrice);
       const eveningCredit = Math.max(0, round2(lineAmount - Number(resource.price || 0) * billedUnits));
       return {
+        orderCharged: orderChargedFor(reservation.id, resource.id),
         resource,
         sessions,
         hoursSold,
@@ -90,6 +91,20 @@ function createModel(database) {
         eveningCredit,
       };
     }).filter(Boolean);
+  }
+
+  /**
+   * Rule 38 — what the evening charges of the guest app's orders already bill for this resource on the fiche
+   * (`orderChargeKey = 'guest-order:<id>:evening:<resourceId>'`): the arrival commit's recompute does not bill it again.
+   */
+  function orderChargedFor(reservationId, resourceId) {
+    if (!hasColumn('reservation_custom_options', 'orderChargeKey')) return 0;
+    try {
+      const rows = database.prepare(`SELECT amount, offered FROM reservation_custom_options
+                                      WHERE reservationId = ? AND orderChargeKey LIKE ?`)
+        .all(Number(reservationId), `guest-order:%:evening:${Number(resourceId)}`);
+      return round2(rows.reduce((sum, r) => sum + (Number(r.offered) === 1 ? 0 : Number(r.amount) || 0), 0));
+    } catch { return 0; }
   }
 
   const supplementLabel = (entry) => `${entry.resource.name} — supplément soirée`;
@@ -120,7 +135,7 @@ function createModel(database) {
 
   /** One resource's supplement for a set of blocks, what the SAS recap shows as it changes. */
   function supplementOf(entry, blocks) {
-    return Math.max(0, round2(eveningOf(entry, blocks) - entry.eveningCredit));
+    return Math.max(0, round2(eveningOf(entry, blocks) - entry.eveningCredit - (entry.orderCharged || 0)));
   }
 
   /** The supplements of the stored sessions — a commit whose scheduling step did not run. */
