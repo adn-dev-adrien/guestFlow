@@ -466,10 +466,15 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - [x] `…/booking-stay-link-refused.unit.test.js` (3, 2026-11-10) — rule 46
 - [x] `…/booking-invoice-attach-without-mark.unit.test.js` (4, 2026-11-10) — rule 47 (mark refused 403/422/500, the
   batch lands, the PDF joined; given up after 7 days)
-- [x] `tests/client-cleanup-keeps-resource-buyer.unit.test.js` (4, 2026-11-10) — rule 49 (logement delete, iCal import
-  clients, placeholders, no plugin table)
+- [x] `tests/client-cleanup-keeps-resource-buyer.unit.test.js` (5, 2026-11-10) — rule 49 (logement delete, iCal import
+  clients, placeholders, no plugin table; verification R36b L2: a real sync pass, `syncSourceAndRecord` with a stubbed
+  fetch, keeps the iCal client and the placeholder a booking names and drops the ones with nothing)
 - [x] `plugins/online-payment/tests/invoice-issuer-folded-signs.unit.test.js` (5, 2026-11-10) — rule 48 (the auditor's
   382 347-case sweep, discount equal to the larger then the smaller band, main path signs)
+- [x] `plugins/online-payment/tests/invoice-issuer-cent-signs.unit.test.js` (4, 2026-11-10, verification R36b L3) — rule
+  48 where the guard binds, on lines of a few cents: 1 c + 3 c at 20 % (main path), 1 c + 4 c with 1 c offered (folded),
+  a charged total below what the positive lines reach (null), and every cent-level case of both paths: every non-discount
+  line ≥ 1 cent HT, the discount ≤ −1 cent, Qonto's total exact
 - [x] `tests/resource-booking-sale-deletes.unit.test.js` — rule 34 (resource, client, property, orphans)
 - [x] `plugins/online-payment/tests/invoice-issuer-mark-paid-optional.unit.test.js` — rule 38
 - [x] `…/invoice-issuer-idempotency-keys.unit.test.js` — rule 39

@@ -462,7 +462,17 @@ being on the preload's lists fails the run once the suite executes the read (rul
    The hourly-resources dialog suites of #1002 (`ResourceBookingDialog.created-id`, `.payment-refused`,
    `.paid-actions`, `ResourceArrivalDialog.paid-before`, `.no-unasked-invoice`) and `ClientsPage.stale-impact` give each
    test 15 000 ms, as 24 client files already did; `ResourceArrivalDialog`'s offered-time case waits for the new total
-   before clicking (rule 11).
+   before clicking (rule 11). The per-test 15 000 ms of these files gave way to rule 17's suite budget (2026-11-10,
+   verification R36b).
+
+17. **The client suites share one budget on a loaded runner** (added 2026-11-10, verification R36b). Per-test timeouts
+   did not reach the cause: at load 55 to 66 other dialog suites (`ResourceBookingDialog.stale-slots`, `.preview`,
+   `ResourcePlanningPage.stale-bookings`) still hit Vitest's 5 s default, a `findBy` failed at Testing Library's 1 s, and
+   `created-id` took 16,5 s and 17,8 s against its own 15 s. `client/vitest.config.js` sets `testTimeout: 30000` for
+   every test and `client/src/setupTests.js` sets `configure({ asyncUtilTimeout: 5000 })` for every `findBy*` /
+   `waitFor`; a test's explicit `{ timeout }` still wins. The rule-16 files no longer carry a per-test timeout. Older
+   files that set 30 s themselves are left as they are (equal to the budget). The guest-app web apps' own Vitest
+   configs are outside this rule (their plugin is not changed here).
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -518,17 +528,22 @@ being on the preload's lists fails the run once the suite executes the read (rul
 
 ### 4.2 Client side
 
-API, data model and UI are unchanged. Rule 11 only:
+API, data model and UI are unchanged. Rules 11 and 17 only:
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `client/` | `vitest.slow-scheduler.config.js` | C | The unit config with `src/setupSlowScheduler.js` loaded first. |
 | `src/` | `setupSlowScheduler.js` | C | Delays every `setImmediate` (React's scheduler) by `SCHED_DELAY` ms, and drains the delayed ones before each file's jsdom is torn down. |
 | `client/` | `package.json` | T | `test:slow-scheduler` script. |
+| `client/` | `vitest.config.js` | T | Rule 17: `testTimeout: 30000` for every test. |
+| `src/` | `setupTests.js` | T | Rule 17: `configure({ asyncUtilTimeout: 5000 })` for every `findBy*` / `waitFor`. |
+| `src/**/__tests__/` | the rule-16 files | T | Rule 17: per-test timeouts dropped (tests only, no plugin version bump). |
 | `src/**/__tests__/` | `VatRegimeSwitchDialog.switch`, `SupportAccessBanner.states`, `LazyPage.loading`, `UpdateAvailableAlert`, `EmailSettingsPage.identity`, `EmailSettingsPage.social-links`, `PlatformAccountsPage`, `ReconciliationPage.filters`, `TariffRecipeCard`, `TariffRecipeCard.cleaning-fee`, `TariffRecipeCard.extra-guest-config`, `TariffRecipesPage`, `SettingsGoogleCalendarSection`, `ResourcePlanningPage.stale-bookings`, `ReservationSasDialog.plugins`, `CompensationsPage` | T | Await the post-condition (tests only, no plugin version bump). |
 
 Server side, rule 11: `tests/client-effect-race-sweep.unit.test.js` (C) pins the script, the config, the
 delay, and the sweep's absence from the normal config and from every CI workflow.
+Server side, rule 17: `tests/client-test-budget.unit.test.js` (C) pins the two budgets and the rule-16 files'
+dropped timeouts.
 
 ## 7. Test plan
 
@@ -565,6 +580,9 @@ delay, and the sweep's absence from the normal config and from every CI workflow
   fuzz split in two files over `tests/inputShapePerField.js` (3 398 + 1 743 requests, about 21 s and 5 s alone).
 - [x] Rule 16 (2026-11-10, audit R36-S3): the six client files listed give each test 15 000 ms; the hourly-resources
   dialog suites and `ClientsPage.stale-impact` pass 12 runs in a row on a loaded machine.
+- [x] Rule 17 (2026-11-10, verification R36b): `client-test-budget.unit.test.js` (3 tests) — `testTimeout: 30000` in
+  `vitest.config.js` (inherited by the race-sweep config), `configure({ asyncUtilTimeout: 5000 })` in `setupTests.js`,
+  and no per-test timeout left in the rule-16 files. Whole client suite at load 26: 863 files / 3 937 tests green.
 
 ## 8. Out of scope
 

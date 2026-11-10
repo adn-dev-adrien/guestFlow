@@ -35,7 +35,7 @@ const {
   normalizeExtraGuestTiers, resolveTierPrice, describeExtraGuestTiers,
 } = require('./extraGuestTiers');
 const {
-  resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromisesOnePayment, devisPromiseDueDate, toIsoDay,
+  resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromiseHeld, devisPromiseDueDate, toIsoDay,
 } = require('./paymentSchedule');
 const { readInstallmentSummary } = require('./installmentSummary');
 const { readSplitReceived, unreceivedOf } = require('./splitReceived');
@@ -2688,11 +2688,8 @@ function calculateReservationQuote({
   // Last in the chain, like the last-minute switch. Only a DIRECT devis made that promise (rule 24, audit R35-RES-L1):
   // an OTA devis's stored acompte 0 is no promise, whatever channel the stay is switched to later.
   const keepsDevisPromise = String(quoteKind) !== 'devis' && !platformIsNonDirect && Boolean(devisPromise)
-    && isDirectChannel(devisPromise.platform)
     && toIsoDay(devisPromise.startDate) === toIsoDay(startDate)
-    && devisPromisesOnePayment({
-      startDate, validUntil: devisPromise.validUntil, balanceDaysBefore: property.balanceDaysBefore, depositAmount: devisPromise.depositAmount,
-    });
+    && devisPromiseHeld({ devisPromise, balanceDaysBefore: property.balanceDaysBefore });
   if (devisSinglePayment) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = roundMoney(preArrivalAmount);

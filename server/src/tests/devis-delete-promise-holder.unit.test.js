@@ -54,3 +54,27 @@ test('rule 26 — D27 kept: a direct devis owing one payment stays refused while
     assert.ok(rowOf(id));
   }
 });
+
+// Verification R36b L1 — the holder reads the STAY's logement delay, the engine's own input (one helper,
+// `paymentSchedule.devisPromiseHeld`): a direct devis with an acompte, converted, its stay moved to a logement whose
+// « Solde dû » puts the devis's solde on or before its validity date. The engine then reads the single payment.
+test('rule 26 — the stay moved to a logement with a longer delay reads the promise: the devis stays refused', async () => {
+  db.prepare(`INSERT INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson, depositEnabled,
+      depositPercent, defaultCautionAmount, balanceDaysBefore)
+    VALUES (4, 'Roulotte', 8, 'per_day_per_person', 1.2, 1, 30, 0, 165)`).run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (4, 'Standard', 100)").run();
+  const { id, rid } = convert(170, 1);
+  const devis = rowOf(id);
+  assert.ok(devis.depositAmount > 0);
+  const moved = await f.save(rid, { propertyId: 4 });
+  assert.equal(moved.statusCode, 200, JSON.stringify(moved.body));
+  assert.deepEqual(schedule(rowOf(rid)), [0, devis.validUntil], 'the engine reads the devis as a single-payment promise');
+  const res = devisModel.remove(id);
+  assert.equal(res.status, 409, JSON.stringify(res));
+  assert.equal(res.code, 'DEVIS_HOLDS_PROMISE');
+  assert.ok(rowOf(id));
+  const back = await f.save(rid, { propertyId: 1 });
+  assert.equal(back.statusCode, 200, JSON.stringify(back.body));
+  assert.ok(rowOf(rid).depositAmount > 0, 'back on its logement the stay takes the reservation rules');
+  assert.equal(devisModel.remove(id).ok, true);
+});

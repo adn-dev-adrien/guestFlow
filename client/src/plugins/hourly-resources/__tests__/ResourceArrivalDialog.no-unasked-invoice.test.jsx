@@ -1,7 +1,8 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 13, 45 (R35b N1) — a guest who paid at booking time arrives:
 // « Valider l'arrivée » records the arrival and never makes a Qonto invoice nobody asked for; « Créer la facture » in the
 // invoice block is the explicit choice (arrival, then the invoice).
-// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
+// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — these dialog walks run under the client
+// suite's one 30 s budget (vitest.config.js), no per-test timeout.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -42,7 +43,7 @@ test.each([['cheque', CHEQUE], ['card', CARD]])('rule 45 — paid by %s before, 
   expect(body.invoice).toBe(false);
   expect(body.payment).toBeNull();
   expect(api.issueResourceBookingInvoice).not.toHaveBeenCalled();
-}, 15000);
+});
 
 test('rule 45 — « Créer la facture » is the explicit choice: the arrival goes with invoice true', async () => {
   const booking = paidBefore(CHEQUE);
@@ -54,4 +55,4 @@ test('rule 45 — « Créer la facture » is the explicit choice: the arrival go
   await waitFor(() => expect(onDone).toHaveBeenCalled());
   expect(api.recordResourceBookingArrival).toHaveBeenCalledTimes(1);
   expect(api.recordResourceBookingArrival.mock.calls[0][1].invoice).toBe(true);
-}, 15000);
+});

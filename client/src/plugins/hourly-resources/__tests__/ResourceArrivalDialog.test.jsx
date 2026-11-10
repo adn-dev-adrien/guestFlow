@@ -1,5 +1,6 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 25, 29-31 — the one-screen arrival of a guest with no stay.
-// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
+// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — the offered-time case waits for the new
+// total before it clicks (rule 11); every test runs under the client suite's one 30 s budget (rule 17).
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -65,7 +66,7 @@ test('rule 29 — offering 15 minutes asks the server again; rule 30 — one com
   expect(body.offeredMinutes).toBe(15);
   expect(body.invoice).toBe(true);
   expect(body.payment.tenders).toEqual([{ method: 'card', amountCents: 10750, internal: false }]);
-}, 15000);
+});
 
 test('rule 31 — « Pas maintenant » commits the arrival alone', async () => {
   api.recordResourceBookingArrival.mockResolvedValue({ booking: { ...BOOKING, arrived: true }, invoice: null });

@@ -1,7 +1,8 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 28, 44 (R35-C-L1, R35-C-L2, R35-C-L4) — the arrival of a guest who
 // paid at booking time is still recorded (no payment sent); an invoice cancelled in Qonto is offered again; a refused
 // attachment is said on screen.
-// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
+// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — these dialog walks run under the client
+// suite's one 30 s budget (vitest.config.js), no per-test timeout.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -39,7 +40,7 @@ test('rule 28 — paid at booking time: « Valider l\'arrivée » records the ar
   const body = api.recordResourceBookingArrival.mock.calls[0][1];
   expect(body.payment).toBeNull();
   expect(body.offeredMinutes).toBeUndefined();
-}, 15000);
+});
 
 test('A2 — arrived, paid, its invoice cancelled in Qonto: « Créer la facture » again', async () => {
   api.getResourceBooking.mockResolvedValue({ ...PAID, arrived: true, invoiceReady: true, invoice: { number: 'F-1', cancelled: true, attachment: { state: null } } });
@@ -49,7 +50,7 @@ test('A2 — arrived, paid, its invoice cancelled in Qonto: « Créer la facture
   const buttons = await screen.findAllByRole('button', { name: 'Créer la facture' });
   fireEvent.click(buttons[buttons.length - 1]);
   await waitFor(() => expect(api.issueResourceBookingInvoice).toHaveBeenCalledWith(5, expect.anything()));
-}, 15000);
+});
 
 test('rule 44 — a refused « Réessayer » of the attachment is shown, never swallowed', async () => {
   api.getResourceBooking.mockResolvedValue({
@@ -59,4 +60,4 @@ test('rule 44 — a refused « Réessayer » of the attachment is shown, never s
   render(<ResourceArrivalDialog open bookingId={5} onClose={() => {}} onDone={() => {}} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Réessayer' }));
   expect(await screen.findByText('Facturation Qonto non connectée.')).toBeInTheDocument();
-}, 15000);
+});
