@@ -1,0 +1,2 @@
+- Saving, or adding a document to, a logement that no longer exists now answers « Logement non trouvé ». The save used to report success while saving nothing, and the document attempt failed with an internal error. Neither leaves a stray file behind any more.
+- Booking intake: « Ignorer » refuses a fiche number that names no stay. Such a dismissal used to hide the stay that later received that number.

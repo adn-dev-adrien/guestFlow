@@ -66,8 +66,12 @@ function buildModel(db) {
     count() {
       return db.prepare('SELECT COUNT(*) AS n FROM booking_intakes').get().n;
     },
+    // Rule 36 (audit R41-DB-L3) — only a stay that exists is dismissed: an id not yet given would hide the iCal stay
+    // that later receives it. Answers whether the stay exists.
     dismissFiche(reservationId) {
+      if (!db.prepare('SELECT 1 FROM reservations WHERE id = ?').get(Number(reservationId))) return false;
       db.prepare('INSERT OR IGNORE INTO booking_dismissals (reservationId) VALUES (?)').run(Number(reservationId));
+      return true;
     },
   };
 }
