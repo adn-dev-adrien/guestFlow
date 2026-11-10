@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -151,6 +151,11 @@
     ],
     "1.9.1": [
       "Au départ, une caution jamais reçue ne peut pas être marquée rendue ; à l’arrivée, « non reçue » efface aussi la restitution.",
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.9.2": [
+      "À l’arrivée, une caution déjà reçue garde le montant perçu, même si la caution du logement a changé depuis.",
+      "Une coche du sas autre que oui ou non est refusée, sans rien enregistrer.",
       "Compatible avec GuestFlow 4 (SDK 2.24)."
     ]
   }

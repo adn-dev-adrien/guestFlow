@@ -1,0 +1,3 @@
+- The check-in sas no longer re-freezes a caution already received: the amount collected stays the one frozen at receipt, even after the property's caution changes (sas 1.9.2, SDK 2.24).
+- The check-in and check-out sas read every tick as the fiche does (true, false, 1 or 0): any other value, such as the text "false", is refused with 400 `INVALID_PAYMENT_FLAG` and nothing is written; it used to mark a payment collected or a caution returned (sas 1.9.2, SDK 2.24).
+- A control-plane test file cut off before its cleanup no longer leaves its GuestFlow instance running or its temp tree on disk.

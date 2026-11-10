@@ -8,6 +8,10 @@
 //   rule 10  update to a second release; a release that fails its health check is rolled back;
 //   rules 13, 14  a backup verified, then restored to a moment;
 //   rule 6   erase: no process, no route, no copies, no directory.
+//
+// specs/server-test-isolation.md rule 20 — required first: a run cut off before the `finally` below still stops the
+// instance it started and removes its temp tree.
+require('./setup/fileTempRoot');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

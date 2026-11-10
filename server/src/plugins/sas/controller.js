@@ -16,6 +16,9 @@ const { nothingToCollect } = require('./nothingToCollect');
 const { shapeArrivalRecap } = require('./arrivalRecap');
 const { shapeDepartureRecap } = require('./departureRecap');
 const { wholePiecesMessage, soldOptionsMessage, breakfastCountsMessage } = require('./sasQuantityBounds');
+const {
+  sasFlagsRefusal, ARRIVAL_FLAGS, ARRIVAL_LINES, DEPARTURE_FLAGS, DEPARTURE_LINES,
+} = require('./sasFlags');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -260,7 +263,10 @@ const quantityRefusal = (message) => (message ? { status: 400, body: { error: 'I
 function normaliseArrivalDraft(req, reservation) {
   let body = req.body || {};
   if (isReceptionOnly(req.user)) body = toReceptionSasCommit(body);
-  body = withoutLinenDecisions(Number(reservation.id), body);
+  // Rule 72 of reservation-payment-ledger — after reception's silent drop (collect-stay-payment rule 25), before any read.
+  const ticks = sasFlagsRefusal(body, ARRIVAL_FLAGS, ARRIVAL_LINES);
+  if (ticks.refusal) return { refusal: ticks.refusal };
+  body = withoutLinenDecisions(Number(reservation.id), ticks.body);
   const refusedQuantity = quantityRefusal(wholePiecesMessage(body.linenItems)
     || soldOptionsMessage(body.soldOptions, (optionId) => optionsModel.get(optionId)?.priceType, reservation.options)
     || breakfastCountsMessage(body, reservation));
@@ -722,7 +728,9 @@ function commitArrival(req, res) {
  * resolved to priced lines. `input` is what `planDepartureSas` and `commitDepartureSas` take.
  */
 function normaliseDepartureDraft(req, reservation) {
-  const body = req.body || {};
+  const ticks = sasFlagsRefusal(req.body || {}, DEPARTURE_FLAGS, DEPARTURE_LINES);
+  if (ticks.refusal) return { refusal: ticks.refusal };
+  const { body } = ticks;
   // specs/plugins-phase-p-productisation.md rule 16 — with the check off, no seal field is accepted.
   const checked = extinguisherCheckOn();
   const refusedQuantity = quantityRefusal(wholePiecesMessage(body.missingItems)

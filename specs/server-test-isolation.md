@@ -487,6 +487,16 @@ being on the preload's lists fails the run once the suite executes the read (rul
    shard; no test is hidden. `npm test` alone still runs the whole suite locally. *Why:* one process per file, run one
    after another, took 13.8 min of the 15 (11 727 tests), and the run of 802b17ac was cancelled at the cap. The release
    workflow keeps one server job under its 20-minute cap (≈70 % used, rule 52 of self-update).
+20. **A control-plane test file takes its instances and its temp tree with it** (added 2026-11-10, audit R39-S1).
+   Rule 18 for the console's suite. `control-plane/server`'s `npm test` preloads `src/tests/setup/fileTempRoot.js`
+   (and `hosting-lifecycle.integration.test.js` requires it first): in a test file's process it creates the file's own
+   temp root (`TMPDIR`, so every `os.tmpdir()` of the file lands in it) and spawns a detached reaper
+   (`reapTempRoot.js`) on an IPC channel. At the file's exit, or from the reaper when the channel closes because the file
+   died without one (`--test-timeout`, the exit watchdog, a SIGKILL), every live instance whose `instance.pid` (the
+   `local` process driver's pid file) lies in the root is killed and the root is removed. The driver itself is
+   unchanged: a detached instance is what the systemd units it stands for do. *Why:* a cut-off
+   `hosting-lifecycle.integration.test.js` left its GuestFlow instance listening under ppid 1 and its `cp-h1-*` tree
+   (≈ 1.6 GB) in the temp directory: the `finally` that stops it never ran.
 
 **Edge cases:**
 - A targeted `node --test <file>` used to open and migrate `server/guestflow.db` for 389 test files (audit R2,
@@ -523,7 +533,8 @@ being on the preload's lists fails the run once the suite executes the read (rul
 | `tests/` | `test-preload-real-qonto-guard.unit.test.js` | C | Pins rule 14 in child processes that never get past the guard. |
 | `tests/`, `plugins/hourly-resources/tests/` | the three offenders | T | Rule 3. |
 | `package.json` | `test` script | T | `--require ./src/tests/setup/isolateDefaultDb.js`; `--test-timeout=60000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10). |
-| `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10); `--require` of the Qonto guard (rule 14). |
+| `control-plane/server/package.json` | `test` script | T | `--test-timeout=180000` and the exit watchdog (rule 5); the `spec` and completeness reporters (rule 10); `--require` of the Qonto guard (rule 14) and of `fileTempRoot.js` (rule 20). |
+| `control-plane/server/src/tests/setup/` | `fileTempRoot.js`, `reapTempRoot.js` | C | Rule 20: the test file's temp root and its reaper; instances whose pid file lies in the root are killed and the root removed at exit or at the file's death. |
 | `scripts/test-runner/` (repo root) | `test-exit-watchdog.cjs` | C | Rule 5: in each test file's child, exits 1 naming the file when it is still alive 30 s after its last test. |
 | `scripts/test-runner/` (repo root) | `test-completeness-reporter.mjs` | C | Rule 10: fails the run and names the tests a file declared but never reported. |
 | `tests/` | `node-suite-test-timeout.unit.test.js` | C | Pins rule 5: both values, the watchdog and no force-exit in both scripts, and under each script's own flags that a hanging test, and a passing file left with an open handle, fail named within their limit on Node 22 and 24. |
@@ -597,6 +608,12 @@ dropped timeouts.
 - [x] Rule 17 (2026-11-10, verification R36b): `client-test-budget.unit.test.js` (4 tests) — `testTimeout: 30000` in
   `vitest.config.js` (inherited by the race-sweep config), `configure({ asyncUtilTimeout: 5000 })` in `setupTests.js`,
   and no per-test timeout left in the rule-16 files, nor one below 30 000 ms anywhere in `client/src` (verification R36b-core N1: the two accounting-export files at 20 000 ms, red before). Whole client suite at load 26: 863 files / 3 937 tests green.
+- [x] Rule 20 (2026-11-10, audit R39-S1): `control-plane/server/src/tests/test-instance-exits-with-file.unit.test.js`
+  (3 tests) — a miniature test file under the preload starts an instance with the real `local` driver, then is
+  SIGKILLed, or exits without its cleanup: the instance stops and the file's temp root is gone within seconds; `npm
+  test` preloads `fileTempRoot.js` and the lifecycle integration test requires it first. The two cut-offs were red with
+  an empty preload (the instance outlived its file). Replayed on the real `hosting-lifecycle.integration.test.js`: its
+  file process SIGKILLed 3 s in, with its instance up, left no process and an empty `TMPDIR`.
 
 ## 8. Out of scope
 
