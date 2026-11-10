@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 23a reading of 2026-11-10 (audits R45-RES-L1 = R45-DB-L1) — a
+// specs/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1 = R45-DB-L1) — a
 // cancellation confirmed with the optional « Motif » left empty stored the derived key (`unpaid_balance`) on its
 // history entry, and « Voir historique » printed « Motif : vide → unpaid_balance ». The key reads French at read time,
 // the stored row untouched; a reason the operator typed reads as typed.
@@ -12,20 +12,20 @@ const { buildHistoryRows } = require('../utils/reservationAudit');
 
 const motifOf = (changes) => buildHistoryRows(changes).changes.find((row) => row.field === 'cancellationReason');
 
-test('rule 23a reading — each derived cancellation key reads French', () => {
+test('rule 23 reading — each derived cancellation key reads French', () => {
   const read = (key) => motifOf([{ field: 'cancellationReason', label: 'Motif', from: null, to: key }]).toText;
   assert.equal(read('unpaid_deposit'), 'Acompte impayé');
   assert.equal(read('unpaid_balance'), 'Solde impayé');
   assert.equal(read('manual'), 'Annulation manuelle');
 });
 
-test('rule 23a reading — a reason the operator typed reads as typed, even one holding a key', () => {
+test('rule 23 reading — a reason the operator typed reads as typed, even one holding a key', () => {
   const read = (text) => motifOf([{ field: 'cancellationReason', label: 'Motif', from: null, to: text }]).toText;
   assert.equal(read('Le client a appelé'), 'Le client a appelé');
   assert.equal(read('manual check by phone'), 'manual check by phone');
 });
 
-test('rule 23a reading — a cancel with an empty Motif: the history reads the French label, the stored row keeps the key', async () => {
+test('rule 23 reading — a cancel with an empty Motif: the history reads the French label, the stored row keeps the key', async () => {
   const stay = fiche(WITH_ACOMPTE, 'direct');
   assert.equal(mark(stay.id, D).statusCode, 200);
   const res = respond();
