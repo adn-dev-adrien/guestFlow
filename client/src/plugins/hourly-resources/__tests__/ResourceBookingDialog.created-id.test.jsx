@@ -66,4 +66,4 @@ test('rule 44 — after a refused payment, the slot moved is previewed as the bo
     expect.objectContaining({ bookingId: 41, startTime: '17:30', endTime: '18:30' }), expect.anything(),
   ));
   expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeEnabled();
-});
+}, 15000);

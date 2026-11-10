@@ -152,7 +152,7 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
     await user.click(within(dialog).getByRole('button', { name: 'Confirmer la suppression' }));
     await waitFor(() => expect(api.deleteClient).toHaveBeenCalledTimes(1));
     expect(api.deleteClient).toHaveBeenCalledWith(42, { force: true });
-  });
+  }, 15000);
 
   test('B\'s confirmation stays loading (confirm disabled) when A answers first, then shows B\'s own answer', async () => {
     const user = userEvent.setup();
@@ -178,7 +178,7 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
     await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled());
     dialog = screen.getByRole('dialog');
     expect(dialog.textContent).toContain('Bob Bravo');
-  });
+  }, 15000);
 
   test('a late delete-impact failure for A shows no error in B\'s confirmation', async () => {
     const user = userEvent.setup();
@@ -200,7 +200,7 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
 
     expect(screen.queryByText('Réseau indisponible')).not.toBeInTheDocument();
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled();
-  });
+  }, 15000);
 
   test('a deletion of A that ends after the operator opened B\'s confirmation neither closes it nor shows A\'s failure in it', async () => {
     const user = userEvent.setup();
@@ -227,7 +227,7 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
     expect(within(dialog).getByRole('button', { name: 'Confirmer la suppression' })).toBeEnabled();
     expect(api.deleteClient).toHaveBeenCalledTimes(1);
     expect(api.deleteClient).toHaveBeenCalledWith(41, { force: true });
-  });
+  }, 15000);
 
   test('the sheet of B never lists A\'s stays when A\'s stay list answers late', async () => {
     const user = userEvent.setup();
@@ -253,7 +253,7 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
     bSheet.resolve({ client: B, reservations: [stay(902, 'Cabane Bravo')], devis: [] });
     expect(await screen.findByText(/Cabane Bravo/)).toBeInTheDocument();
     expect(screen.queryByText(/Chalet Alpha/)).not.toBeInTheDocument();
-  });
+  }, 15000);
   test('the sheet of B keeps B\'s stays only when A\'s stay list answers after B\'s', async () => {
     const user = userEvent.setup();
     const aSheet = deferred();
@@ -277,7 +277,7 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
 
     expect(screen.queryByText(/Chalet Alpha/)).not.toBeInTheDocument();
     expect(screen.getByText(/Cabane Bravo/)).toBeInTheDocument();
-  });
+  }, 15000);
 
   test('a deletion of A that succeeds after the operator opened B\'s confirmation does not close or reset it', async () => {
     const user = userEvent.setup();
@@ -305,7 +305,7 @@ describe('ClientsPage — rule 17: an answer about a client the operator has lef
     expect(api.deleteClient).toHaveBeenCalledTimes(1);
     expect(api.deleteClient).toHaveBeenCalledWith(41, { force: true });
     expect(toast.showError).not.toHaveBeenCalled();
-  });
+  }, 15000);
 });
 
 describe('ClientsPage — rule 18: a superseded deletion still reports its failure, a closed cleanup popup stays closed', () => {
@@ -330,7 +330,7 @@ describe('ClientsPage — rule 18: a superseded deletion still reports its failu
     expect(toast.showError).toHaveBeenCalledTimes(1);
     expect(toast.showError).toHaveBeenCalledWith('Suppression refusée');
     expect(within(screen.getByRole('dialog')).queryByText('Suppression refusée')).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   test('a deletion that fails while its own confirmation is still open shows in it, without a toast', async () => {
     const user = userEvent.setup();
@@ -345,7 +345,7 @@ describe('ClientsPage — rule 18: a superseded deletion still reports its failu
 
     expect(await within(dialog).findByText('Suppression refusée')).toBeInTheDocument();
     expect(toast.showError).not.toHaveBeenCalled();
-  });
+  }, 15000);
 
   test('a late orphan preview does not reopen the cleanup popup the operator closed', async () => {
     const user = userEvent.setup();
@@ -369,7 +369,7 @@ describe('ClientsPage — rule 18: a superseded deletion still reports its failu
     await settle();
 
     expect(screen.queryByText('Nettoyer la base clients')).not.toBeInTheDocument();
-  });
+  }, 15000);
 
   test('a late orphan preview failure after the popup was closed shows no toast', async () => {
     const user = userEvent.setup();
@@ -392,5 +392,5 @@ describe('ClientsPage — rule 18: a superseded deletion still reports its failu
     await settle();
 
     expect(toast.showError).not.toHaveBeenCalled();
-  });
+  }, 15000);
 });

@@ -1279,8 +1279,18 @@ function createModel(database) {
     return tx();
   }
 
+  function holdsPromise(devisRow) {
+    if (!isDirectChannel(devisRow.platform)) return false;
+    const property = database.prepare('SELECT balanceDaysBefore FROM properties WHERE id = ?').get(devisRow.propertyId) || {};
+    return devisPromisesOnePayment({
+      startDate: devisRow.startDate, validUntil: devisRow.validUntil,
+      balanceDaysBefore: property.balanceDaysBefore ?? 30, depositAmount: devisRow.depositAmount,
+    });
+  }
+
   function removeRefusal(id) {
-    const existing = database.prepare("SELECT id, convertedReservationId FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    const existing = database.prepare(`SELECT id, convertedReservationId, platform, startDate, validUntil, depositAmount, propertyId
+      FROM reservations WHERE id = ? AND kind = 'devis'`).get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     // The CGV acceptance of a converted request lives on this row and is the stay's proof
     // (specs/terms-acceptance-record.md rule 29): deleting the devis would cascade it away.
@@ -1292,8 +1302,10 @@ function createModel(database) {
     }
     // specs/deposit-blocks-the-dates.md rule 21 (R34-RES-L1) — the stay reads the devis's promise on this row
     // (its single payment and deadline): deleting it would silently re-price the stay's schedule. A cancelled stay
-    // is never re-priced nor brought back, so it holds no deadline any more (rule 23).
+    // is never re-priced nor brought back, so it holds no deadline any more (rule 23). Only a devis that made the promise
+    // holds one (rule 26, R36-RES-L2): a direct devis owing one payment (rules 22, 24), the same condition as the engine.
     if (existing.convertedReservationId
+      && holdsPromise(existing)
       && database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind NOT IN ('devis', 'cancelled')").get(existing.convertedReservationId)) {
       return { error: "Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409, code: 'DEVIS_HOLDS_PROMISE' };
     }

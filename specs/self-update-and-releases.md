@@ -370,6 +370,12 @@ signed-off releases over HTTPS, when the operator asks for it.
     an invoiced booking (it has no freeze). Roll-forward: `paid` is the truth of a payment (resource-booking-pricing rule
     37) — such a booking reads unpaid and leaves the journal; an invoiced booking edited during the window keeps its Qonto
     invoice, to be corrected in Qonto by hand.
+    **Accepted exception (2026-11-10, audit R36-DB-L3):** `payment_links.basketJson` (guest-app card orders, #1001) is
+    additive, so the floor stays green. A release before it reads a paid basket link (`type = 'complement'`) as an
+    ordinary complement link and its payment effect does nothing, with no alert: a card order paid inside its 30-minute
+    window while a rollback is live leaves its link `paid` and, after the roll-forward, the order is expired by
+    `expireDue` with no settled note. Rare (a rollback during an order's window); the operator finds the payment in Qonto
+    and settles the note by hand. Documentation only.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another

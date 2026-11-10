@@ -49,6 +49,8 @@ function positiveId(value) {
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 const refused = (message) => ({ error: message, status: 400 });
+const STAY_LINK_MESSAGE = 'Séance hors séjour : aucune réservation à lier.';
+const HAS_STAY_MESSAGE = 'Cette séance appartient à un séjour : son paiement est celui du séjour.';
 
 function shapeRefusal(payload, stored = null) {
   const kept = (field) => stored && payload[field] === stored[field];
@@ -287,11 +289,15 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
 
   // Rule 23 — what a booking links to: not sent, or a row that exists; a stored link sent back is not re-judged.
   const LINKS = [
-    ['reservationId', 'reservations', 'Réservation non trouvée'],
     ['clientId', 'clients', 'Client non trouvé'],
     ['propertyId', 'properties', 'Logement non trouvé'],
   ];
   function linkRefusal(payload, stored = null) {
+    // Rule 46 (R36-DB-L2) — a booking is a sale outside any stay: no screen links one to a stay, and money taken on such a
+    // link would be booked nowhere. A stored link sent back unchanged passes.
+    if (!notSent(payload.reservationId) && !(stored && payload.reservationId === stored.reservationId)) {
+      return { error: STAY_LINK_MESSAGE, status: 400, code: 'BOOKING_STAY_LINK' };
+    }
     for (const [field, table, missing] of LINKS) {
       const value = payload[field];
       if (notSent(value) || (stored && value === stored[field])) continue;
@@ -536,6 +542,8 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const existing = rawById(id);
     if (!existing) return { error: 'Réservation non trouvée', status: 404 };
     if (isFrozen(existing)) return { error: FROZEN_MESSAGE, status: 409, code: 'BOOKING_INVOICED' };
+    // Rule 46 — a stored row linked to a stay takes no money of its own: the stay's books do not read it.
+    if (existing.reservationId) return { error: HAS_STAY_MESSAGE, status: 409, code: 'BOOKING_HAS_STAY' };
     const day = paidAt === undefined || paidAt === null || paidAt === '' ? todayInParis(now()) : paidAt;
     if (typeof day !== 'string' || !ISO_DAY.test(day) || sdk.coreModule('stayDates').entryDateMessage(day)) return refused('Date du paiement invalide.');
     const dueCents = Math.round(Number(existing.totalPrice || 0) * 100);

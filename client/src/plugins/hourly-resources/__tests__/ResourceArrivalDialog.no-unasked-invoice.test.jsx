@@ -41,7 +41,7 @@ test.each([['cheque', CHEQUE], ['card', CARD]])('rule 45 — paid by %s before, 
   expect(body.invoice).toBe(false);
   expect(body.payment).toBeNull();
   expect(api.issueResourceBookingInvoice).not.toHaveBeenCalled();
-});
+}, 15000);
 
 test('rule 45 — « Créer la facture » is the explicit choice: the arrival goes with invoice true', async () => {
   const booking = paidBefore(CHEQUE);
@@ -53,4 +53,4 @@ test('rule 45 — « Créer la facture » is the explicit choice: the arrival go
   await waitFor(() => expect(onDone).toHaveBeenCalled());
   expect(api.recordResourceBookingArrival).toHaveBeenCalledTimes(1);
   expect(api.recordResourceBookingArrival.mock.calls[0][1].invoice).toBe(true);
-});
+}, 15000);

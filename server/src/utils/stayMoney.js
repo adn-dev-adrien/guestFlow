@@ -7,7 +7,7 @@
  *   holdsDates(database, row)         → a `kind = 'reservation'` row that carries money or comes from a platform
  *
  * « Money » is every paid flag and its cash twin, a paid installment, a payment link paid or carrying a payment
- * (`paidAt`). A minimal schema without a column or a table simply has no such money (the unit suites' fixtures).
+ * (`paidAt`), a settled mid-stay note (R36-DB-M2: a platform stay's only money while its payout is not ticked). A minimal schema without a column or a table simply has no such money (the unit suites' fixtures).
  * deletionGuard keeps its own reading: it answers whether a row may be deleted, not whether it holds dates.
  */
 
@@ -29,6 +29,7 @@ function shapeOf(database) {
     installments: hasTable('reservation_installments'),
     links: hasTable('payment_links'),
     converted: columns.has('convertedReservationId'),
+    notes: columns.has('midStaySettledNotes'),
   };
   shapes.set(database, shape);
   return shape;
@@ -37,6 +38,7 @@ function shapeOf(database) {
 function ownMoneySql(shape, alias) {
   const terms = shape.flags.map((flag) => `COALESCE(${alias}.${flag}, 0) = 1`);
   if (shape.installments) terms.push(`EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = ${alias}.id AND i.paid = 1)`);
+  if (shape.notes) terms.push(`(${alias}.midStaySettledNotes IS NOT NULL AND trim(${alias}.midStaySettledNotes) NOT IN ('', '[]'))`);
   if (shape.links) terms.push(`EXISTS (SELECT 1 FROM payment_links pl WHERE pl.reservationId = ${alias}.id AND (pl.status = 'paid' OR pl.paidAt IS NOT NULL))`);
   return terms.length ? `(${terms.join(' OR ')})` : '(0)';
 }

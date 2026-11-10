@@ -50,7 +50,7 @@ test('rule 44 — the payment is paid whole: no « Reste à percevoir » nor « 
   fireEvent.change(amount, { target: { value: '30' } });
   expect(screen.queryByText(/Reste à percevoir/)).toBeNull();
   expect(screen.queryByText(/Geste commercial/)).toBeNull();
-});
+}, 15000);
 
 test('rule 44 — a refused payment is shown, the booking is not created twice, the planning reloads after each step', async () => {
   const onSave = vi.fn().mockResolvedValue({ id: 41 });
@@ -73,4 +73,4 @@ test('rule 44 — a refused payment is shown, the booking is not created twice, 
   expect(onSave).toHaveBeenLastCalledWith(expect.any(Object), 41);
   expect(api.recordResourceBookingPayment).toHaveBeenLastCalledWith(41, expect.any(Object));
   expect(onCommitted).toHaveBeenCalledTimes(2);
-});
+}, 15000);

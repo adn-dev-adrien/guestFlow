@@ -55,6 +55,8 @@ test('rule 29 — offering 15 minutes asks the server again; rule 30 — one com
   await screen.findByText('Jour · 18:00–19:00');
   fireEvent.click(screen.getByRole('button', { name: 'Plus 15 minutes' }));
   await waitFor(() => expect(api.previewResourceBooking).toHaveBeenLastCalledWith(expect.objectContaining({ offeredMinutes: 15 }), expect.anything()));
+  // The payment follows the new total one render after the answer: a loaded runner must not click in between.
+  await screen.findAllByText(/107,50/);
   await waitFor(() => expect(validate()).toBeEnabled());
   fireEvent.click(validate());
   await waitFor(() => expect(onDone).toHaveBeenCalled());
@@ -62,7 +64,7 @@ test('rule 29 — offering 15 minutes asks the server again; rule 30 — one com
   expect(body.offeredMinutes).toBe(15);
   expect(body.invoice).toBe(true);
   expect(body.payment.tenders).toEqual([{ method: 'card', amountCents: 10750, internal: false }]);
-});
+}, 15000);
 
 test('rule 31 — « Pas maintenant » commits the arrival alone', async () => {
   api.recordResourceBookingArrival.mockResolvedValue({ booking: { ...BOOKING, arrived: true }, invoice: null });

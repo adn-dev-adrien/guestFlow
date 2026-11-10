@@ -37,7 +37,7 @@ const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 const notificationService = require('../utils/notificationService');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const { fetchPublic, readCapped, MAX_FEED_BYTES, FeedFetchError } = require('../utils/safeFeedFetch');
-const { removeOrphanIcalPlaceholders } = require('../utils/icalPlaceholderClientsMigration');
+const { removeOrphanIcalPlaceholders, removeOrphanIcalImportClients } = require('../utils/icalPlaceholderClientsMigration');
 // Establishment closures (2026-06-06, narrowed 2026-10-27 — specs/lodgify-decommission.md §3 rule 17):
 // the iCal sync inserts without `validateAvailability`, so it checks the closures itself. A new event
 // entirely inside a closure is the closure's own echo and is skipped (counted in the sync result); a
@@ -1131,12 +1131,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           // the commit.
           [...createdReservationIds, ...redatedReservationIds].forEach((id) => withdrawForStay(database, id));
 
-          // Cleanup orphan clients created by iCal imports.
-          database.prepare(`
-            DELETE FROM clients
-            WHERE NOT EXISTS (SELECT 1 FROM reservations WHERE reservations.clientId = clients.id)
-              AND notes LIKE 'iCal {%'
-          `).run();
+          removeOrphanIcalImportClients(database);
           removeOrphanIcalPlaceholders(database);
         });
 

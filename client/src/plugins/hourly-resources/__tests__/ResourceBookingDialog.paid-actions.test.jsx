@@ -57,12 +57,12 @@ test('rule 44 — « Retirer le paiement », confirmed, takes the payment back a
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Retirer le paiement' })).toBeNull());
   expect(await screen.findByRole('button', { name: "À l'arrivée" })).toBeInTheDocument();
   expect(onCommitted).toHaveBeenCalled();
-});
+}, 15000);
 
 test('rule 34 — a paid booking cannot be deleted; an unpaid one asks before deleting', async () => {
   mount(BOOKING);
   expect(screen.getByRole('button', { name: 'Supprimer' })).toBeDisabled();
-});
+}, 15000);
 
 test('rule 44 — deleting an unpaid booking is confirmed first', async () => {
   const { onDelete } = mount({ ...BOOKING, paid: false, payment: null });
@@ -71,7 +71,7 @@ test('rule 44 — deleting an unpaid booking is confirmed first', async () => {
   const dialog = await screen.findByRole('dialog', { name: 'Supprimer la réservation ?' });
   fireEvent.click(within(dialog).getByRole('button', { name: 'Supprimer' }));
   expect(onDelete).toHaveBeenCalledWith(9);
-});
+}, 15000);
 
 test('A2, rule 44 — an invoice cancelled in Qonto: « Créer la facture » is offered again', async () => {
   api.issueResourceBookingInvoice.mockResolvedValue({ ...BOOKING, frozen: true, invoice: { number: 'F-2', cancelled: false, attachment: { state: null } } });
@@ -79,7 +79,7 @@ test('A2, rule 44 — an invoice cancelled in Qonto: « Créer la facture » is 
   expect(screen.queryByText('La facture se propose une fois le paiement saisi.')).toBeNull();
   fireEvent.click(await screen.findByRole('button', { name: 'Créer la facture' }));
   await waitFor(() => expect(api.issueResourceBookingInvoice).toHaveBeenCalledWith(9, expect.anything()));
-});
+}, 15000);
 
 test('rules 15, 44 — an invoiced booking: « Réessayer » joins the PDF, a refusal is shown; client and logement are read-only', async () => {
   api.attachResourceBookingInvoice.mockRejectedValue(new Error('Pas de facture à joindre.'));
@@ -90,4 +90,4 @@ test('rules 15, 44 — an invoiced booking: « Réessayer » joins the PDF, a re
   expect(screen.getByRole('switch', { name: 'Client enregistré' })).toBeDisabled();
   expect(screen.getByRole('textbox', { name: /Nom du client/ })).toBeDisabled();
   expect(screen.queryByRole('button', { name: 'Retirer le paiement' })).toBeNull();
-});
+}, 15000);

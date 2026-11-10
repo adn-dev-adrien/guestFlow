@@ -73,10 +73,14 @@ test('rule 23 — create: each wrong field is refused, nothing stored', async ()
 });
 
 test('rule 23 — an id well typed but unknown is 404, not a foreign key', async () => {
-  for (const field of ['resourceId', 'reservationId', 'clientId', 'propertyId']) {
+  for (const field of ['resourceId', 'clientId', 'propertyId']) {
     const res = await refused('POST', '/api/resource-bookings', baseline({ [field]: 999999 }), field);
     assert.equal(res.status, 404, `${field} ${res.text}`);
   }
+  // Rule 46 (R36-DB-L2) — a stay is never linked, known or not.
+  const linked = await refused('POST', '/api/resource-bookings', baseline({ reservationId: 999999 }), 'reservationId');
+  assert.equal(linked.status, 400, linked.text);
+  assert.equal(linked.json.code, 'BOOKING_STAY_LINK');
   const res = await refused('POST', '/api/resource-bookings/preview', { resourceId, bookingId: 999999, date: free(), startTime: '10:00', endTime: '11:00' }, 'bookingId');
   assert.equal(res.status, 404);
 });
