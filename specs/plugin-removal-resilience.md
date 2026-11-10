@@ -521,8 +521,8 @@ All three lots are implemented. Deviations from the draft, each written into the
 rule 3 (core tests name the plugins they need instead of moving or being rewritten on a fixture), rule 5
 (engine suites keep real subjects but name them; one fixture suite added), rules 9, 11, 12 (a child-process
 pass runner instead of an in-process trigger; row counts taken from the erasure declarations; a
-pre-removal money snapshot), rule 16 (blockers cleared in the sweep's database), rule 18 (no per-process database preload: the suite is serial and
-takes ~3½ minutes on a free machine). Qonto and Neat are pointed at a dead local port (`QONTO_API_BASE`,
+pre-removal money snapshot), rule 16 (blockers cleared in the sweep's database), rule 18 (no per-process database preload: the suite is serial; it took ~3½ minutes when this was written and 13 to 15 minutes on CI by
+2026-11-10, so the removal cell's cap is 35 minutes — audit R38-S1). Qonto and Neat are pointed at a dead local port (`QONTO_API_BASE`,
 `NEAT_API_BASE`); Google and Météo-France have no credentials in the seeded database, so no cell reaches them.
 The wave's operator-managed mode hides the plugin lifecycle routes; the matrix removes code, not rows, and the
 sweep runs on a space that is not operator-managed.

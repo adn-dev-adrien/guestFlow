@@ -3349,7 +3349,9 @@ function createReservationsModel(database) {
             database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime('now') WHERE id = ?")
               .run(today, reservationId);
           } else {
-            database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
+            // specs/reservation-payment-ledger.md rule 14 (audit R38-DB-L1) — as on the PATCH, undoing the receipt
+            // undoes the return too: a caution is never « restituée » while « non reçue ».
+            database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, cautionReturned = 0, cautionReturnedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
           }
         }
