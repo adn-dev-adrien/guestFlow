@@ -3022,8 +3022,9 @@ function createReservationsModel(database) {
           const key = item && String(item.key || '');
           const amount = round2(item && item.amount);
           if (!key || amount <= 0) throw midStayError('NOTE_AMOUNT_INVALID', 'Montant de note invalide.');
-          const label = String(item.label || labelOf(key) || 'Commande').trim();
-          // The units the order sold, when they split the amount to the cent: the note then reads « 2 × 6,50 », not « 1 × 13 ».
+          // Rule 100 — what the order sold at the catalogue price is « units billed × price »; the free part is said in the label.
+          const free = Number(item.free) > 0 ? ` · ${String(round2(item.free)).replace('.', ',')}${item.freeHours ? ' h offerte' : ` offert${item.free >= 2 ? 's' : ''}`}` : '';
+          const label = `${String(item.label || labelOf(key) || 'Commande').trim()}${free}`;
           const units = Number(item.quantity);
           const unit = units >= 2 && Number.isInteger(units) ? round2(amount / units) : amount;
           const { source: ignored, ...line } = buildMidStayLine({ label, unitPrice: round2(unit * units) === amount ? unit : amount, amount, key });

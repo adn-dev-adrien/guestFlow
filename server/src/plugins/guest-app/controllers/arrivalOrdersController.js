@@ -25,6 +25,7 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const WORDS = Object.freeze({
   paidByCard: 'Payée par carte',
+  free: 'Offert',
   dueOnArrival: 'À régler à l’arrivée',
   notEditable: 'Commande non modifiable.',
   paidReadOnly: 'Commande payée par carte : non modifiable ici.',
@@ -50,7 +51,8 @@ function buildArrivalOrdersController({
   orders, stays, shop, stock, alertStock, commit, scheduler, now,
 }) {
   const standing = (order) => ['confirmed', 'delivered'].includes(order.status);
-  const unpaid = (order) => order.payment === 'note' && standing(order);
+  // Rule 103 — a 0 € order (the free bath hour) is an unpaid order like any other for the SAS: nothing to settle, editable and removable.
+  const unpaid = (order) => ['note', 'none'].includes(order.payment) && standing(order);
 
   /** The stay's pre-arrival money is settled, its arrival not marked, its arrival complement not collected. */
   const editableStay = (reservationId) => commit.orderCollection(reservationId) === 'arrival'
@@ -104,7 +106,7 @@ function buildArrivalOrdersController({
       id: order.id,
       number: order.id,
       deliveryLabel: order.deliverAt ? labels.momentLabel(order.deliverAt) : null,
-      statusLabel: paid ? WORDS.paidByCard : WORDS.dueOnArrival,
+      statusLabel: paid ? WORDS.paidByCard : (order.payment === 'none' ? WORDS.free : WORDS.dueOnArrival),
       paid,
       editable: editable && unpaid(order),
       totalLabel: labels.priceLabel(order.total),

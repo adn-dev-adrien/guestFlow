@@ -276,7 +276,14 @@ function unitLabel(line, lang = 'fr') {
   if (line.kind === 'resource' && Array.isArray(line.sessions) && line.sessions.length) return line.sessions.map((s) => sessionLabel(s, lang)).join(' ; ');
   if (line.kind === 'breakfast') return textOf(lang).breakfast((line.mornings || []).length, timeLabel(line.time, lang));
   if (line.kind === 'charge') return '';
-  const unit = Number(line.unitPrice) > 0 ? ` × ${priceLabel(line.unitPrice, lang)}` : '';
+  const price = Number(line.unitPrice);
+  // Rule 100 — an article with free units reads its true part: « 2 × 6,50 € · 2 offerts », never « 4 × 6,50 € » beside a 13 € total.
+  const billed = price > 0 ? Math.round((Number(line.total) / price) * 100) / 100 : 0;
+  if (price > 0 && Number.isInteger(billed) && billed >= 1 && billed < Number(line.quantity)) {
+    const free = Number(line.quantity) - billed;
+    return `${billed} × ${priceLabel(price, lang)} · ${free} ${lang === 'en' ? 'free' : `offert${free > 1 ? 's' : ''}`}`;
+  }
+  const unit = price > 0 ? ` × ${priceLabel(price, lang)}` : '';
   return `${line.quantity}${unit}`;
 }
 

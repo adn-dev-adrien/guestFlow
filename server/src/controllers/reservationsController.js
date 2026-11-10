@@ -1885,6 +1885,8 @@ async function update(req, res) {
     const id = Number(req.params.id);
     // specs/reservations-backend-mvc.md rule 20 — before anything reads the request. The internal writers
     // (`performUpdate`) build their own bodies and do not pass here.
+    // specs/guest-app.md rule 99 — `exactMergedTotals` is an internal switch of the order commit: a body of the HTTP route never raises it.
+    if (req.body && typeof req.body === 'object') delete req.body.exactMergedTotals;
     const stored = model.getRow(id);
     // Rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused first, whatever the body says.
     if (!stored) return res.status(404).json({ error: 'Réservation non trouvée' });

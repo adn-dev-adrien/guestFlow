@@ -51,6 +51,9 @@ export default function SlotPickerPage() {
   if (!shop.data || (resource && !slots.data)) return <div className="scroll enter">{bar}<Skeleton lines={4} label={t('common.loading')} /></div>;
   if (!resource) return <div className="scroll enter">{bar}<EmptyState icon="bath" title={t('bath.none')} /></div>;
 
+  if (slots.data && slots.data.open === false) {
+    return <div className="scroll enter">{bar}<div className="pad"><EmptyState icon="bath" title={slots.data.closedReason} /></div></div>;
+  }
   const days = slots.data.days || [];
   const toggle = (slot, date) => {
     const key = slotKey(date, slot);

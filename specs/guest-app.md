@@ -1034,13 +1034,51 @@ arrival.** Everything below is judged by the server; the apps render what it off
     now at 7 €: an order of 2 is billed 2 × 7 € = 14 €, the quote, the charge, the stored order and the stay's growth all say 14 €. The
     engine's merge of a locked line carries the exact merged total; its unit price is that total rounded, and the line used to be
     re-billed as units × that rounded price (3 × 6,83 € = 20,49 €, a cent short; 4 × 6,63 € on another case, two cents over). The
-    order's measure and write raise `exactMergedTotals` (the stored body of `midStayOrderCommit`, an engine input no HTTP route documents): an
+    order's measure and write raise `exactMergedTotals` (the stored body of `midStayOrderCommit`, an engine input no HTTP route accepts: rule 99): an
     option line raised on a locked line then keeps the merged total when no free unit cuts it. Every other save, and every golden
     of the engine, is byte-identical. *Test:* `guest-order-merged-line-price`.
 97. **The arrival note of a card order stores the quantity sold (fourth pass, 2026-11-10).** A card order before the arrival (rule 85)
     leaves a note line « 2 × 6,50 € », not « 1 × 13 € », whenever the units divide the amount paid to the cent; a payment short of the
     sale, or a sale in fractional units, keeps the amount on one unit. The arrival complement stays net of the card notes when the fiche
     re-prices afterwards (the operator adds an option: the complement is that option alone). *Test:* `guest-order-card-note`.
+98. **Paid bath hours work on a platform stay exactly as on a direct one (fifth pass, 2026-11-10).** `withResource` pushes a new bath
+    line with no routing flag: the engine's platform default (force-extras-complement-on-platform §3) sends it to the arrival
+    complement, so on a Booking, Gîtes de France or Lodgify-mode stay a paid hour grows `finalPrice` and the arrival complement by its
+    own amount (card or note), exactly as on a direct stay, and the free hour, the paid hours and the evening supplement are quoted and
+    committed. It used to pin `inComplement: 0`: the platform price absorbed the hour, the shop offered it and every order refused
+    (`ORDER_OFF_ARRIVAL_COMPLEMENT`). A bath line already stored at `inComplement 0` by an earlier guest order of this unreleased
+    branch (no production row exists: the feature has never shipped) is rewritten to 1 when an order merges into it on a platform stay;
+    an operator's own routing of a line the order does not touch is never moved. *Test:* `guest-order-platform-bath` (booking,
+    Gîtes de France, Lodgify and direct stays: quote and commit of the free hour, the paid hours and the evening supplement, the money
+    columns before and after; a stored 0 flag).
+99. **`exactMergedTotals` is the order commit's own switch (fifth pass, 2026-11-10).** Rule 96's flag is raised by
+    `midStayOrderCommit.storedBody` only. The operator's `PUT /api/reservations/:id` deletes it from the body before anything reads it,
+    and every save other than a guest order is byte-identical to master (an ordinary save raising a line held at 1 × 6,50 € to 3 units
+    keeps 3 × 6,83 € = 20,49 €). *Test:* `guest-order-exact-flag-internal` (kills the mutant that forces the flag on for every save, and
+    the one that stops stripping it from the HTTP body).
+100. **The arrival note of a card order, and the SAS list, state the TRUE unit price (fifth pass, 2026-11-10; amends rule 97).** The
+    note's quantity is the units *billed* at the catalogue price (the property's rate over the catalogue's): the amount divided by that
+    price when it makes whole units to the cent, the free part said in the label (« Bain nordique · 1 h offerte » at 1 × 30 €, « Cidre ·
+    2 offerts » at 2 × 6,50 € for 4 units sold with 2 free), never the amount spread over every unit sold (« 2 × 15 € », « 4 × 3,25 € »).
+    A payment short of the sale, or an amount that does not divide, stays on one unit of the amount paid; units that split the amount
+    only by rounding (3 units, 10 €) are never stored as « 3 × 3,33 € ». The SAS list reads an article with free units « 2 × 6,50 € ·
+    2 offerts » (EN « 2 free »), server-worded (`orderLabels.unitLabel`). *Test:* `guest-order-card-note-unit-price` (bath, free units,
+    short payment, non-dividing amount — kills the divisibility check), `guest-app-sas-free-order`.
+101. **The judge never promises what the measure refuses (fifth pass, 2026-11-10; completes rule 90).** After its cheap predicate,
+    `orderCollection` plays a probe order (one 1 € custom line carrying no routing flag, like the options and sessions of a real order)
+    through rule 66's dry-run measure, nothing written: a stay whose stored buckets do not agree with the engine's price (a past stay
+    reset by an operator, a platform mode that re-prices on an extra) reads `unavailable` exactly when every real order would be
+    refused, on the shop, the quote, the order, the J-7 and J-2 flags and the SAS. The commit paths, which run the real measure
+    next, call it with `{ probe: false }`. Judged by platform MODE (own channel, OTA, OTA taking the acompte, percentage tourist tax),
+    never by name. *Test:* `guest-order-collection-judge` (eight stay shapes: judge = quote = commit).
+102. **The bath slots follow the shop (fifth pass, 2026-11-10).** `GET /shop/resources/:id/slots` answers `open` beside its days; a
+    shop that does not take orders answers `{ open: false, closedReason, days: [] }` (the shop's own sentence) and the slot picker draws
+    that sentence, no day and no button; a crafted order for a session is refused before anything is priced (rule 94's refusal). *Test:*
+    `guest-app-sas-free-order`, guest app `SlotPickerPage.shop-closed`.
+103. **A 0 € order is an unpaid order for the SAS (fifth pass, 2026-11-10).** The free bath hour (`payment = 'none'`) reads « Offert »,
+    never « À régler à l'arrivée » (nothing to settle: it adds nothing to « à percevoir »), is editable and removable like any unpaid
+    order, and removing it cancels the order (`cancelReason = 'sas'`) and frees its slot. A card order stays read-only. *Test:*
+    `guest-app-sas-free-order`.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
@@ -1338,6 +1376,9 @@ studio is the same at `/studio` on any other host, for an admin session: none �
 | `controllers/` | `reservationsController.js` | T | *Fourth pass.* An order's pinned write skips the installment plan's re-sync (rule 95) |
 | `utils/` | `pricing.js` | T | *Fourth pass.* Engine input `exactMergedTotals` (default false): an option line raised on a locked line keeps its exact merged total when no free unit cuts it (rule 96) |
 | `models/` | `reservationsModel.js` | T | *Fourth pass.* `settleOrderNoteBeforeArrival` items accept `quantity` (rule 97) |
+| `utils/` | `midStayOrderCommit.js` | T | *Fifth pass.* `withResource` pushes a new bath line with no routing flag and restores the platform default on a stored 0 (rule 98); `orderCollection` plays a probe order through the measure (rule 101); a card note's quantity is the units billed at the catalogue price, the free part named (rule 100) |
+| `controllers/` | `reservationsController.js` | T | *Fifth pass.* `update` (HTTP) deletes `exactMergedTotals` from the body (rule 99) |
+| `models/` | `reservationsModel.js` | T | *Fifth pass.* `settleOrderNoteBeforeArrival` items accept `free` / `freeHours`, said in the line's label (rule 100) |
 | `utils/` | `pricing.js` | T | Return `preArrivalSettled` on the engine's result (additive field, read by `orderCollection`); no arithmetic changes |
 | `models/` | `reservationsModel.js` | — | Read only: `isArrivalNotMarked` (exists) |
 | `tests/` | `mid-stay-order-before-arrival.unit.test.js` | C | Rule 66-67 core cases (§7) |
@@ -1933,6 +1974,19 @@ as sent, 390 px single column), `SasArrivalOrdersStep.amend.test.jsx` (stepper a
 server's refusal shown, a paid order without any control), `GuestOrdersPage.stay-state.test.jsx`,
 `PlanningOrderCard.stay-state.test.jsx`.
 
+**Added by the fifth pass (2026-11-10, audit of the branch: rules 96-103)** — one file per subject:
+
+- core `guest-order-platform-bath.unit.test.js` (new, 6) — booking, Gîtes de France, Lodgify-mode and direct stays: the free hour, the paid
+  hours and the evening supplement are quoted and committed, `finalPrice` and the complement grow by the order's own amount and nothing
+  else moves; a stored `inComplement 0` takes a paid hour (kills the pinned 0);
+- core `guest-order-exact-flag-internal.unit.test.js` (new, 3) — an ordinary save keeps 20,49 € (kills the flag forced on), an order lands
+  on 20,50 €, the HTTP body's flag is stripped (kills the missing delete);
+- core `guest-order-card-note-unit-price.unit.test.js` (new, 4) — 1 h offered + 1 h paid reads 1 × 30 €, 4 units with 2 free read
+  2 × 6,50 €, a short payment and a non-dividing amount stay on one unit (kills the divisibility check);
+- core `guest-order-collection-judge.unit.test.js` (new, 10) — eight stay shapes: judge = quote = commit; the probe writes nothing;
+- plugin `guest-app-sas-free-order.unit.test.js` (new, 5) — the 0 € order reads « Offert », is editable, removable, frees its slot; the
+  SAS list's free units; the slots of a closed shop; guest app `SlotPickerPage.shop-closed.test.jsx` (new, 1).
+
 **Added by the fourth pass (2026-11-10, audit of the branch: rules 85, 93-97)** — one file per subject:
 
 - plugin `guest-app-complement-override.unit.test.js` (new, 3) — the shop, the quote, the order, `emailFacts` and the commit read
@@ -2280,7 +2334,7 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | F-G — Guest app, studio, GuestFlow screens | Done (2026-11-09). The studio (`feature/guest-app-studio`): every screen of rules 47-50, the phone preview, 27 tests, plus `GET /api/guest-app/items?propertyId=`. The GuestFlow screens (`feature/guest-app-admin`): « Application clients » in the option / resource editors with the stock, « Stock : épuisé », « Commandes clients » (admin), the planning card, « Lien Mon séjour », « Ouvrir le Studio »; generic client points (SDK rule 49). Both apps moved into the plugin's folder and shipped in its package (SDK rule 48). Earlier: unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next. Guest app (slice F) built 2026-11-09 on `feature/guest-app-pwa`: every screen of §6.6 on the boards v5, offline booklet, install, FR / EN, night; 41 client tests; first load 151 kB gzip; walked at 390 / 900 / 1280 px, day and night, EN, against the plugin's routers; axe 0 serious on every screen in both registers. The studio (slice G) is next |
 | H — Hardening and rollout | Audit round 36 (2026-11-10, `fix/audit-r36-guestapp`, guest-app 1.0.1): rules 54-59, readings of rules 6, 18, 19, 41, 45; D28 applied. Round 36b: rules 23, 54, 59 amended (exact core number shape, per-person resources refused, photos erased after the commit), the free-unit exemption pinned. Rollout not started |
 | I — Booklet content | Ready (2026-11-09): the two PDF booklets (La Granja 20 pages, L'Estiva 14) rewritten as one bilingual booklet of 17 pages (15 shared, lodging-only pages and blocks restricted), validated by Adrien on the review board `specs/guest-app-livret-planches.html` (every recommended decision, A2 « accueil en personne »; loop lengths, the Google review and Instagram links left for later). Source `specs/guest-app-livret/livret.mjs`; `node specs/guest-app-livret/import.mjs --base <GuestFlow> --email <admin> [--dry-run]` writes it through the studio API once guest-app is installed (refuses a booklet the operator already edited; deletes the starter pages; publishes both lodgings). The same script first adds the « Mon séjour » paragraph to the J-2 e-mail, in French and English, under `{{#if hasStayApp}}` before « Un imprévu… » (Adrien, 2026-11-09: J-2 only, not J-7); it skips a template that already has `{{stayAppUrl}}` and stops when it finds no anchor. Tried on a local GuestFlow: 16 + 15 pages published, nothing untranslated, rendered in the guest app; the J-2 preview carries each stay's own link. Run in production by the operator, never by Claude |
-| J — « Mon séjour » from J-7 (2026-11-10) | Implemented on `feature/guest-app-from-j7`; second pass (2026-11-10) fixed the 15 items of the branch audit (rules 90-92, readings of 66, 68, 71, 83, 85, 86, 87, 89); first written as: Spec (Draft): rules 65-76, readings of rules 2, 9bis, 11bis, 27, 33, 34, 37ter, 38, 41, 44, 45; summary `specs/guest-app-j7-resume.html`. Amended the same day by Adrien's second to fifth messages: rules 77-89 added, 66, 67, 69, 70, 71, 72, 76 amended, Q13-Q31 resolved, `hourly-resource-quantity-and-sas-scheduling.md` rules 36-38. Implemented (2026-11-10): core `midStayOrderCommit` (arrival measure, card note, hours first, charges, `amendOrder`), pricing net of arrival notes, `hourly-resources` 1.6.0 (`heatFrom`, day-rate free minutes, `orderSupplement`), `guest-app` 1.1.0 (J-7 sessions, shop, bath, cancellation, SAS data and `amend`, e-mail flags), guest app (payment choice, pickers), GuestFlow SAS step « Commandes Mon séjour ». Readings: `changed` in the SAS payload is true when the fiche's lines were lowered since the orders (rule 71), not when an order was amended at the SAS; the flag of rule 88 clearing on refunds is not implemented (the operator reads the ledger); `hasStayAppShopOnly` added to the J-7 paragraph (the renderer does not nest); third pass (2026-11-10): an order's write never re-prices the stay and re-judges no rule frozen at the sale (rule 93), the sas plugin 1.9.4 reloads its data with an error path, four test gaps closed; fourth pass (2026-11-10): a stay with an adjusted arrival complement orders on site (rule 94), an order never moves the installment plan (rule 95), a merged line never drifts by a cent (rule 96), a card note stores the quantity (rule 97). |
+| J — « Mon séjour » from J-7 (2026-11-10) | Implemented on `feature/guest-app-from-j7`; second pass (2026-11-10) fixed the 15 items of the branch audit (rules 90-92, readings of 66, 68, 71, 83, 85, 86, 87, 89); first written as: Spec (Draft): rules 65-76, readings of rules 2, 9bis, 11bis, 27, 33, 34, 37ter, 38, 41, 44, 45; summary `specs/guest-app-j7-resume.html`. Amended the same day by Adrien's second to fifth messages: rules 77-89 added, 66, 67, 69, 70, 71, 72, 76 amended, Q13-Q31 resolved, `hourly-resource-quantity-and-sas-scheduling.md` rules 36-38. Implemented (2026-11-10): core `midStayOrderCommit` (arrival measure, card note, hours first, charges, `amendOrder`), pricing net of arrival notes, `hourly-resources` 1.6.0 (`heatFrom`, day-rate free minutes, `orderSupplement`), `guest-app` 1.1.0 (J-7 sessions, shop, bath, cancellation, SAS data and `amend`, e-mail flags), guest app (payment choice, pickers), GuestFlow SAS step « Commandes Mon séjour ». Readings: `changed` in the SAS payload is true when the fiche's lines were lowered since the orders (rule 71), not when an order was amended at the SAS; the flag of rule 88 clearing on refunds is not implemented (the operator reads the ledger); `hasStayAppShopOnly` added to the J-7 paragraph (the renderer does not nest); third pass (2026-11-10): an order's write never re-prices the stay and re-judges no rule frozen at the sale (rule 93), the sas plugin 1.9.4 reloads its data with an error path, four test gaps closed; fourth pass (2026-11-10): a stay with an adjusted arrival complement orders on site (rule 94), an order never moves the installment plan (rule 95), a merged line never drifts by a cent (rule 96), a card note stores the quantity (rule 97); fifth pass (2026-11-10): paid bath hours work on platform stays (rule 98), `exactMergedTotals` is internal (rule 99), a card note states the true unit price (rule 100), the judge plays a probe order through the measure (rule 101), the bath slots follow the shop (rule 102), a 0 € order reads « Offert » and is editable (rule 103). |
 
 The whole spec ships in ONE pull request (the user's decision of 2026-11-05): the spec-coverage gate refuses
 code citing a spec that is still Approved, and only a spec moved to Implemented with every rule cited passes it.

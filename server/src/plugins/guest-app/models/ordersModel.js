@@ -100,7 +100,7 @@ function createOrdersModel(db) {
      */
     amend(id, { lines, total, entry, now }) {
       const order = findById(id);
-      if (!order || order.payment !== 'note' || !['confirmed', 'delivered'].includes(order.status)) return null;
+      if (!order || !['note', 'none'].includes(order.payment) || !['confirmed', 'delivered'].includes(order.status)) return null;
       const journal = (() => { try { const list = JSON.parse(order.amendmentsJson || '[]'); return Array.isArray(list) ? list : []; } catch { return []; } })();
       journal.push(entry);
       const emptied = !lines.length;

@@ -67,6 +67,7 @@ const { storedMidStayLines, parseNotes, extraLineKey } = require('./midStayExtra
 const { normalizeOccurrences } = require('./cardOccurrences');
 const { quoteStoredReservation } = require('./storedReservationQuote');
 const { readInstallmentSummary } = require('./installmentSummary');
+const { saleChannel } = require('./saleChannel');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
@@ -159,13 +160,16 @@ function withResource(body, line) {
     const storedSessions = Array.isArray(stored.sessions) ? stored.sessions : [];
     // Rule 82 — hours the stay already holds and has not placed come first: only the hours beyond them are sold more.
     const unplaced = sessions.length ? Math.max(0, round2(Number(stored.quantity || 0) - sessionsHours(storedSessions))) : 0;
+    // Rule 98 — an explicit 0 on the stored line (a bath ordered earlier on the unreleased branch stored one) would pin a platform
+    // stay's paid hours out of the arrival complement, where the platform price absorbs them: the platform default is restored.
     resources[index] = {
       ...stored,
+      ...(saleChannel(body.platform).platformSale && Number(stored.inComplement || 0) === 0 ? { inComplement: 1 } : {}),
       quantity: round2(Number(stored.quantity || 0) + Math.max(0, round2(added - unplaced))),
       sessions: [...storedSessions, ...sessions],
     };
   } else {
-    resources.push({ resourceId: Number(line.id), quantity: added, offered: false, inComplement: 0, sessions });
+    resources.push({ resourceId: Number(line.id), quantity: added, offered: false, sessions });
   }
   return { ...body, resources };
 }
@@ -270,9 +274,9 @@ const endOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) ===
  * platform's, whose extras the engine always routes there (the measure of rule 66 still guards the buckets) — `departure`
  * once the arrival is marked and the end-of-stay complement is open, `closed` once it is collected, `unavailable` when
  * an acompte, a solde or an installment is still due (an order would grow it), the arrival complement carries an operator's adjustment
- * (rule 94) or the stay is not a live reservation.
+ * (rule 94), the measure of rule 66 would refuse every order (rule 101) or the stay is not a live reservation.
  */
-function orderCollection(reservationId) {
+function orderCollection(reservationId, { probe = true } = {}) {
   const id = Number(reservationId);
   const row = reservations().getRow(id);
   if (!row || String(row.kind || 'reservation') !== 'reservation') return 'unavailable';
@@ -290,7 +294,20 @@ function orderCollection(reservationId) {
   }
   // A platform stay forces every extra into the arrival complement whatever its payment state (force-extras-complement-on-platform
   // §3), so an order can only grow that bucket there; a direct stay needs its pre-arrival money settled (rule 68).
-  return quote && !quote.error && (quote.preArrivalSettled || quote.platformSale) ? 'arrival' : 'unavailable';
+  if (!(quote && !quote.error && (quote.preArrivalSettled || quote.platformSale))) return 'unavailable';
+  // Rule 101 — the judge never promises what the measure refuses: a probe order (one custom line of 1 €, routed like an option) goes through the measure of rule
+  // 66, nothing written, so a stay whose platform mode re-prices on an extra (an acompte taken by the platform lowers the tax, a
+  // bucket that moves) reads `unavailable` here exactly when every real order would be refused. The commit paths, which run the real
+  // measure next, skip the probe.
+  if (!probe) return 'arrival';
+  const stored = storedBody(id);
+  if (!stored) return 'unavailable';
+  // The probe carries no routing flag, like the options and sessions of a real order: the engine routes it as it routes them.
+  const withProbe = {
+    ...stored,
+    customOptions: [...(stored.customOptions || []), { customKey: 'order-collection-probe', description: 'collection-probe', amount: 1, offered: false }],
+  };
+  return measureBeforeArrival(id, stored, withProbe).status === 200 ? 'arrival' : 'unavailable';
 }
 
 const totalsByKey = (lines) => {
@@ -361,7 +378,7 @@ function priceOrder(reservationId, lines, { pending = [] } = {}) {
   const persons = personsRefusal(body, lines, rows);
   if (persons) return persons;
   if (reservations().isArrivalNotMarked(id) && !endOfStayCollected(reservations().getRow(id))) {
-    if (orderCollection(id) !== 'arrival') return OFF_ARRIVAL_COMPLEMENT();
+    if (orderCollection(id, { probe: false }) !== 'arrival') return OFF_ARRIVAL_COMPLEMENT();
     return measureBeforeArrival(id, body, mergeOrderLines(body, lines, rows));
   }
   const save = controller().performUpdate;
@@ -384,6 +401,32 @@ function unitsByKey(lines) {
 }
 
 /**
+ * Rule 100 — the unit price an order line is billed at, the catalogue's (the property's own rate over the catalogue's): the
+ * note of a card order reads « units billed × that price », the free units or hours said apart, never the amount spread over every unit sold.
+ */
+function catalogueUnitPrice(db, stayId, key) {
+  const [kind, rawId] = String(key).split(':');
+  const id = Number(rawId);
+  const property = (db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(stayId) || {}).propertyId;
+  const { getApplicableOptions, getApplicableResources } = require('./pricing');
+  if (kind === 'opt') return Number((getApplicableOptions(db, property).find((o) => Number(o.id) === id) || {}).price) || 0;
+  if (kind === 'res') return Number((getApplicableResources(db, property).find((r) => Number(r.id) === id) || {}).price) || 0;
+  return 0;
+}
+
+/**
+ * Rule 100 — the quantity and the free part of a card note line: `{ quantity, free }` when the units billed at the catalogue
+ * price make the amount to the cent, `{}` otherwise (the amount stays on one unit: a payment short of the sale, a percentage line).
+ */
+function noteQuantity(db, stayId, key, amount, units) {
+  const unit = catalogueUnitPrice(db, stayId, key);
+  if (!(unit > 0) || !(units >= 1)) return {};
+  const billed = round2(amount / unit);
+  if (!Number.isInteger(billed) || billed < 1 || billed > units || round2(billed * unit) !== round2(amount)) return {};
+  return { quantity: billed, free: round2(units - billed) };
+}
+
+/**
  * Rule 35 — the card's money collects the order's sale at once: one settled note, its amounts taken from the
  * remainder the order just added, up to what was paid. What the order added beyond the payment stays on the
  * end-of-stay complement; what the payment brought beyond the sale is returned as `excessCents`.
@@ -396,7 +439,10 @@ function settlePaid(id, byKey, {
   Object.entries(byKey).forEach(([key, amount]) => {
     const take = round2(Math.min(amount, left));
     if (take <= 0) return;
-    items.push({ key, amount: take, ...(take === amount && units[key] >= 2 ? { quantity: units[key] } : {}) });
+    const split = take === amount && units[key] ? noteQuantity(database(), id, key, take, units[key]) : {};
+    items.push({
+      key, amount: take, ...(split.quantity >= 1 ? { quantity: split.quantity } : {}), ...(split.free > 0 ? { free: split.free, freeHours: key.startsWith('res:') } : {}),
+    });
     left = round2(left - take);
   });
   if (!items.length) return { settledCents: 0, excessCents: Math.round(left * 100) };
@@ -453,7 +499,7 @@ function commitOrder(reservationId, {
       const beforeArrival = reservations().isArrivalNotMarked(id) && !endOfStayCollected(reservations().getRow(id));
       let measured = null;
       if (beforeArrival) {
-        if (orderCollection(id) !== 'arrival') outcome = OFF_ARRIVAL_COMPLEMENT();
+        if (orderCollection(id, { probe: false }) !== 'arrival') outcome = OFF_ARRIVAL_COMPLEMENT();
         else {
           measured = measureBeforeArrival(id, body, mergeOrderLines(body, lines, rows));
           if (measured.status !== 200) outcome = measured;
@@ -603,7 +649,7 @@ function amendOrder(reservationId, {
           raised.push(target);
         }
       });
-      if (orderCollection(id) !== 'arrival') {
+      if (orderCollection(id, { probe: false }) !== 'arrival') {
         outcome = OFF_ARRIVAL_COMPLEMENT();
         throw ROLLBACK;
       }

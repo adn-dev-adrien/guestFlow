@@ -367,6 +367,9 @@ function buildShopController({
     const at = now();
     const { sold: items, extras } = soldFor(req.guest);
     const sold = items.find((s) => s.kind === 'resource' && s.hourly && Number(s.row.id) === resourceId);
+    // Rule 102 — a shop that does not take orders offers no slot: the picker reads the same judge as the shop's own state.
+    const state = shopState(collectionOf(stay));
+    if (sold && !state.open) return publicHttp.ok(res, { open: false, closedReason: L[state.closedReason], days: [] });
     const found = sold && scheduler().slotsForStay({
       resourceId, propertyId: lodging.propertyId, stay, now: at, heatFrom: at, canIgnite: ignitionInHours(scheduleOf(lodging, at)),
     });
@@ -375,6 +378,7 @@ function buildShopController({
     const hoursLeft = includedHoursLeft(extras, resourceId);
     const opening = found.opening || { from: '00:00', to: '24:00' };
     return publicHttp.ok(res, {
+      open: true,
       freeMinutesLeft: sold.freeMinutes ? sold.freeMinutes.left : 0,
       ...(freeLabel ? { freeLabel } : {}),
       includedHoursLeft: hoursLeft,
