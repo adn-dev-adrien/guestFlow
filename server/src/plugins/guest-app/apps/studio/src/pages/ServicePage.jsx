@@ -148,7 +148,7 @@ export default function ServicePage({ lodgings }) {
             onChange={(e) => setMode((m) => ({ ...m, pickupPlace: e.target.value }))}
             placeholder="À l’accueil, maison principale — sonnez à la porte verte"
             error={!mode.pickupPlace.trim()}
-            helperText={mode.pickupPlace.trim() ? 'Relayé tel quel au client, en français et en anglais.' : 'Indiquez où le client récupère sa commande.'}
+            helperText={mode.pickupPlace.trim() ? 'Relayé tel quel au client, en français et en anglais.' : 'Lieu où le client récupère sa commande.'}
             slotProps={{ htmlInput: { maxLength: 200 } }}
           />
         ) : (

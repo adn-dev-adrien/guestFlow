@@ -10,7 +10,9 @@
  * Soliomap feed, which lives outside GuestFlow, is (rule 15bis).
  */
 
-const { DECLARED, MAX_PICKUP_PLACE } = require('../settings');
+const {
+  DECLARED, MAX_PICKUP_PLACE, OWN_HOST_REFUSAL, ownHostsOf,
+} = require('../settings');
 
 const KEYS = Object.freeze(['appName', 'guestHost', 'soliomapUrl', 'soliomapEmbed', 'maxOrderTotal', 'fulfilment', 'pickupPlace']);
 const OUT_OF_APP = 'Hors application';
@@ -37,7 +39,7 @@ function syncView(last, now) {
 }
 
 function buildStudioSettingsController({
-  lodgings, settingsStore, soliomapFeed, now,
+  lodgings, settingsStore, soliomapFeed, now, publicUrl = () => '',
 }) {
   // A feed handed by a suite may know only `activities()`: it has never synchronised, and refreshes by reading.
   const lastSync = () => (typeof soliomapFeed.lastSync === 'function' ? soliomapFeed.lastSync() : null);
@@ -84,7 +86,7 @@ function buildStudioSettingsController({
     const body = req.body;
     if (!body || typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: 'Requête invalide.' });
     if (Object.keys(body).some((key) => !KEYS.includes(key))) return res.status(400).json({ error: 'Réglage inconnu.' });
-    if (body.soliomapEmbed !== undefined && typeof body.soliomapEmbed !== 'boolean') return res.status(400).json({ error: 'Indiquez si Soliomap est intégré.' });
+    if (body.soliomapEmbed !== undefined && typeof body.soliomapEmbed !== 'boolean') return res.status(400).json({ error: 'Préciser si Soliomap est intégré.' });
     if (body.pickupPlace !== undefined && body.pickupPlace !== null && typeof body.pickupPlace !== 'string') return res.status(400).json({ error: `Le lieu de retrait fait au plus ${MAX_PICKUP_PLACE} caractères.` });
     const patch = Object.fromEntries(Object.entries(body).map(([key, value]) => [key, stored(key, value)]));
     const failed = Object.entries(patch).map(([key, value]) => {
@@ -92,16 +94,20 @@ function buildStudioSettingsController({
       return declared && declared.validate ? declared.validate(value) : null;
     }).find(Boolean);
     if (failed) return res.status(400).json({ error: failed });
+    // Rule 58 — never GuestFlow's own address: the guest app would take the back office over on it.
+    if (patch.guestHost && ownHostsOf({ publicUrl: publicUrl(), req }).has(patch.guestHost.toLowerCase())) {
+      return res.status(400).json({ error: OWN_HOST_REFUSAL, field: 'guestHost' });
+    }
     // Rule 41bis — « À retirer » asks for the pickup place, required to save.
     const mode = patch.fulfilment !== undefined ? patch.fulfilment : settingsStore().get('fulfilment');
     const place = patch.pickupPlace !== undefined ? patch.pickupPlace : settingsStore().get('pickupPlace');
-    if (mode === 'pickup' && !String(place || '').trim()) return res.status(400).json({ error: 'Indiquez le lieu de retrait des commandes.' });
+    if (mode === 'pickup' && !String(place || '').trim()) return res.status(400).json({ error: 'Lieu de retrait des commandes requis.' });
     Object.entries(patch).forEach(([key, value]) => settingsStore().set(key, value));
     return res.json(view());
   }
 
   async function sync(req, res) {
-    if (!settingsStore().get('soliomapUrl')) return res.status(409).json({ error: 'Renseignez d’abord l’adresse de Soliomap.' });
+    if (!settingsStore().get('soliomapUrl')) return res.status(409).json({ error: 'Il manque l’adresse de Soliomap.' });
     await refresh();
     return res.json(view().soliomap);
   }

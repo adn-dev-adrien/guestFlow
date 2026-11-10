@@ -60,7 +60,7 @@ export default function MediaDialog({ open, onClose, onPick, ratio, selectedId }
         {error ? <ErrorAlert message={error} /> : null}
         {library.error ? <ErrorAlert message={library.error.message} onRetry={library.reload} /> : null}
         {!library.data && !library.error ? <LoadingState variant="skeleton" rows={2} /> : null}
-        {library.data && !library.data.length ? <EmptyState message="Aucune photo pour l’instant : envoyez la première." /> : null}
+        {library.data && !library.data.length ? <EmptyState message="Aucune photo pour l’instant." /> : null}
         {library.data && library.data.length ? (
           <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>
             {library.data.map((m) => (

@@ -61,7 +61,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
 
   function create(req, res) {
     const result = model().createBooking(req.body);
-    if (result.error) return res.status(result.status).json({ error: result.error });
+    if (result.error) return fail(res, result);
     return res.json({ id: result.id, totalPrice: result.totalPrice, warning: result.warning });
   }
 

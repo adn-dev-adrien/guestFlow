@@ -339,6 +339,12 @@ including the ones added later.
 20. **The snapshot server's port is a flag** (audit R4, 2026-10-29). `plugin-removal.mjs cell <id>` took the
     seed-time snapshot server's port as `--port` + 2, which collided with another process or another cell run on the
     same machine. `--snapshot-port` sets it; without it the port is still `--port` + 2.
+21. **A plugin's own tests name a sibling plugin by its relative path too** (audit R36-S1, 2026-11-10). From
+    `plugins/<id>/tests/`, another plugin is `'../../<other>/…'`, a form the guard of rules 3-4 did not read:
+    `hourly-resources/tests/booking-invoice-numbered-kept` required online-payment's issuer unguarded, and the
+    `removal: online-payment` cell died at load (MODULE_NOT_FOUND) while the guard stayed green. The guard now reads
+    `(../){2,}<id>/` in a file under a plugin's `tests/` (never in core tests, where it names no plugin), and that file
+    runs inside `requirePlugins(['online-payment'])`.
 
 **Edge cases:**
 - A plugin folder exists on one side only (server without client, or the reverse) → rule 13's guard
@@ -475,6 +481,10 @@ committed files of §4.3; nothing of the scratchpad is committed, and no real gu
 - [x] The Plugins page on a copy of the real shadow data with `weather-alerts`' folder deleted: the server
   boots, the card reads « Vigilance Météo-France — Paquet introuvable : à réinstaller. » and « Désinstaller »
   is offered, at 1280 and 390 px.
+
+- [x] Rule 21 (2026-11-10, audit R36-S1): `plugin-removal-matrix.unit.test.js` reads `'../../<id>/'` inside a plugin's
+  tests (three new cases of the rule 3 reader) and named `booking-invoice-numbered-kept → online-payment` before that
+  file was wrapped in `requirePlugins(['online-payment'])`.
 
 ## 8. Out of scope
 

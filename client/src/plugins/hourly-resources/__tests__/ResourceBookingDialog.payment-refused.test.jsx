@@ -1,6 +1,8 @@
 // specs/resource-booking-pricing-and-invoicing.md rule 44 (R35-C-L3, R35-C-L5, R35-C-L6) — a new booking paid « Maintenant »:
 // the payment is paid whole (no reste, no geste); a refused payment is said where the payment is and the next click edits
 // the booking just created instead of creating it twice; the planning reloads after the last step.
+// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — these dialog walks run under the client
+// suite's one 30 s budget (vitest.config.js), no per-test timeout.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

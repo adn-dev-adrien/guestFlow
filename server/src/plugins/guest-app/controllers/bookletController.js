@@ -9,7 +9,9 @@
 
 const sdk = require('../../sdk');
 const { searchPages } = require('../booklet');
-const { languageOf, wifiView } = require('./sessionController');
+const { wifiView } = require('./sessionController');
+const { languageOf } = require('../language');
+const { fail, refusal } = require('../refusals');
 
 const publicHttp = sdk.coreModule('publicHttp');
 
@@ -71,7 +73,7 @@ function buildBookletController({ resolver, guestSession, lodgings }) {
     }
     const code = req.query && req.query.lodgingCode;
     const lodging = typeof code === 'string' && code.length <= MAX_CODE ? lodgings().findEnabledByCode(code) : null;
-    if (!lodging) return publicHttp.fail(res, 401, 'SESSION_EXPIRED', 'Votre session a expiré.');
+    if (!lodging) return fail(res, refusal(401, 'SESSION_EXPIRED', 'sessionExpired'));
     req.guest = { lodging, mode: 'visitor', stay: null, session: null };
     return next();
   }
@@ -93,17 +95,17 @@ function buildBookletController({ resolver, guestSession, lodgings }) {
   async function page(req, res) {
     const { pages } = await resolvedFor(req);
     const found = pages.find((p) => p.slug === req.params.slug);
-    if (!found) return publicHttp.fail(res, 404, 'PAGE_NOT_FOUND', 'Cette page n’existe pas dans ce livret.');
+    if (!found) return fail(res, refusal(404, 'PAGE_NOT_FOUND', 'pageNotFound'));
     return publicHttp.ok(res, found);
   }
 
   // GET /booklet/search?q= — rule 20: titles and texts, accents and case ignored, the matching sentence.
   async function search(req, res) {
     const { q } = req.query;
-    if (typeof q !== 'string') return publicHttp.fail(res, 400, 'INVALID_INPUT', 'Saisissez une recherche.');
+    if (typeof q !== 'string') return fail(res, refusal(400, 'INVALID_INPUT', 'searchRequired'));
     const { pages } = await resolvedFor(req);
     const found = searchPages(pages, q);
-    if (found.error) return publicHttp.fail(res, 400, 'INVALID_INPUT', found.error);
+    if (found.error) return fail(res, refusal(400, 'INVALID_INPUT', found.error, found.params));
     return publicHttp.ok(res, found);
   }
 

@@ -171,7 +171,7 @@ export default function ShopItemsPage({ lodging }) {
     <StudioPage bar={bar} preview={<PhonePreview view={view} title={`Aperçu · ${lodging.name}`} caption="Ce que verront les clients après « Enregistrer »." lang={lang} onLang={setLang} />}>
       {error ? <ErrorAlert message={error} /> : null}
       <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-        Les articles liés à {lodging.name} dans GuestFlow. Touchez un article pour régler sa vente dans l’app ; le prix, le titre et le stock se modifient dans GuestFlow.
+        Les articles liés à {lodging.name} dans GuestFlow. Un article touché règle sa vente dans l’app ; le prix, le titre et le stock se modifient dans GuestFlow.
       </Typography>
       {!items.length ? <EmptyState message={`Aucune option ni ressource n’est liée à ${lodging.name} dans GuestFlow.`} /> : null}
       {items.map((item) => (

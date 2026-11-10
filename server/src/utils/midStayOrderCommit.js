@@ -24,6 +24,12 @@
  * settled note of a paid order; `history: { field, label, text }` is the stay's history entry, written in the
  * caller's words.
  *
+ * Persons (rule 47 reading of 2026-11-10, audit R36-M-H1): the engine serves a per-person line at most
+ * max(1, party, the lodging's capacity) persons, so persons ordered beyond what is left would be delivered and never
+ * billed. Such an order is refused before anything is priced: 409 `ORDER_PERSONS_EXCEEDED` with `{ key, left }` —
+ * a per-person option whose persons (the stay's line, the pending orders and this one) exceed the ceiling, and a
+ * breakfast asking more persons than its line already serves (that line keeps its persons, guest-app rule 27bis).
+ *
  * `paid` — `{ amountCents, paidDate, reference }` for a card order: the order's sale is collected at once, as a
  * settled mid-stay note (specs/mid-stay-notes.md rule 1) carrying the order and the provider's reference, so the
  * end-of-stay complement owes nothing for it and the books take it on the payment day. `within(result)` runs in
@@ -129,6 +135,50 @@ function withResource(body, line) {
   return { ...body, resources };
 }
 
+/** The most persons a per-person line of the stay can serve: `pricing.resolveServedPersons`'s own ceiling. */
+function personsCeiling(body, maxGuests) {
+  return Math.max(1, partyOf(body), Number(maxGuests) > 0 ? Math.floor(Number(maxGuests)) : 0);
+}
+
+/** The persons a stored line serves: its own count, else the party it follows. */
+const servedBy = (line, body) => (line && line.cardPersons != null ? Number(line.cardPersons) : partyOf(body));
+
+/**
+ * Pure — the first order line asking more persons than the stay can still be served, `{ key, left }`, or null.
+ * Read on the body BEFORE the line is merged, so the pending orders merged ahead of it count as served already.
+ */
+function personsShortfall(body, lines, rows, maxGuests) {
+  const ceiling = personsCeiling(body, maxGuests);
+  let next = { ...body, options: (body.options || []).slice(), resources: (body.resources || []).slice() };
+  for (const line of lines || []) {
+    const key = `opt:${Number(line.id)}`;
+    const stored = next.options.find((o) => Number(o.optionId) === Number(line.id));
+    const row = rows.get(Number(line.id));
+    if (line.kind === 'breakfast') {
+      const asked = Number(line.persons) || 0;
+      const left = stored ? servedBy(stored, next) : ceiling;
+      if (asked > left) return { key, left };
+    } else if (line.kind === 'option' && row && String(row.priceType) === 'per_person') {
+      const served = stored ? servedBy(stored, next) : 0;
+      if (served + Number(line.quantity) > ceiling) return { key, left: Math.max(0, ceiling - served) };
+    }
+    next = mergeOrderLines(next, [line], rows);
+  }
+  return null;
+}
+
+function personsRefusal(body, lines, rows) {
+  const capacity = reservations().getPropertyCapacity(Number(body.propertyId)) || {};
+  const short = personsShortfall(body, lines, rows, capacity.maxGuests);
+  if (!short) return null;
+  return {
+    status: 409,
+    body: {
+      error: 'Plus assez de personnes à servir pour cet article.', code: 'ORDER_PERSONS_EXCEEDED', key: short.key, left: short.left,
+    },
+  };
+}
+
 /** Pure — the fiche body with the order's lines added: quantities add to the stay's line of the same item (rule 34). */
 function mergeOrderLines(body, lines, rows = new Map()) {
   return (lines || []).reduce((next, line) => {
@@ -168,6 +218,8 @@ function priceOrder(reservationId, lines, { pending = [] } = {}) {
   const all = [...(pending || []), ...lines];
   const rows = optionRows(database(), all);
   const body = pending && pending.length ? mergeOrderLines(stored, pending, rows) : stored;
+  const persons = personsRefusal(body, lines, rows);
+  if (persons) return persons;
   const save = controller().performUpdate;
   const base = save(id, structuredClone(body), { dryRun: true });
   if (base.status !== 200) return refusal(base);
@@ -226,13 +278,19 @@ function commitOrder(reservationId, {
         outcome = { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
         throw ROLLBACK;
       }
+      const rows = optionRows(db, lines);
+      const persons = personsRefusal(body, lines, rows);
+      if (persons) {
+        outcome = persons;
+        throw ROLLBACK;
+      }
       const save = controller().performUpdate;
       const base = save(id, structuredClone(body), { dryRun: true });
       if (base.status !== 200) {
         outcome = refusal(base);
         throw ROLLBACK;
       }
-      const written = save(id, mergeOrderLines(body, lines, optionRows(db, lines)));
+      const written = save(id, mergeOrderLines(body, lines, rows));
       if (written.status !== 200) {
         outcome = refusal(written);
         throw ROLLBACK;

@@ -8,7 +8,7 @@
 const sdk = require('../../sdk');
 const { deriveSession } = require('../currentStay');
 
-const publicHttp = sdk.coreModule('publicHttp');
+const { fail, refusal } = require('../refusals');
 
 const COOKIE = 'gf_guest';
 const COOKIE_PATH = '/public/v1/guest';
@@ -64,7 +64,7 @@ function buildGuestSession({
     const guest = load(req);
     if (!guest) {
       clearCookie(res);
-      return publicHttp.fail(res, 401, 'SESSION_EXPIRED', 'Votre session a expiré.');
+      return fail(res, refusal(401, 'SESSION_EXPIRED', 'sessionExpired'));
     }
     req.guest = guest;
     // The expiry follows the reservation: a moved stay moves the cookie with it.
@@ -77,7 +77,7 @@ function buildGuestSession({
    * pre-arrival guest reads the shop's catalogue only (rule 27).
    */
   function requireStay(req, res, next) {
-    if (!req.guest.stay || req.guest.mode !== 'stay') return publicHttp.fail(res, 403, 'STAY_REQUIRED', 'Cette action demande un séjour en cours.');
+    if (!req.guest.stay || req.guest.mode !== 'stay') return fail(res, refusal(403, 'STAY_REQUIRED', 'stayRequired'));
     return next();
   }
 
@@ -93,7 +93,7 @@ function buildGuestSession({
 function requireModule(key, shownKeysOf) {
   return (req, res, next) => {
     if (shownKeysOf(req).includes(key)) return next();
-    return publicHttp.fail(res, 404, 'MODULE_OFF', 'Ce service n’est pas proposé dans ce logement.');
+    return fail(res, refusal(404, 'MODULE_OFF', 'moduleOff'));
   };
 }
 

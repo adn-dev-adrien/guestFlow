@@ -307,6 +307,32 @@ Rules are numbered once and never renumbered (new rules go at the end).
     that is not a boolean is refused before anything is written (400 « Facture : oui ou non. »); recording a payment,
     editing a booking and the hourly job never issue one.
 
+### 3.L Round 36 audit (2026-11-10)
+
+46. **A booking takes no stay link** (R36-DB-L2). No screen links a booking to a stay, and money recorded on such a
+    link was booked nowhere (`standaloneSales` skips it, the stay's books never read `resource_bookings`), then booked
+    late as a « VENTE HORS SÉJOUR » once the stay was deleted. `reservationId` sent in a create or an update (other than
+    the stored value sent back) → 400 `BOOKING_STAY_LINK` « Séance hors séjour : aucune réservation à lier. », nothing
+    written; a row stored with a link (legacy) takes no payment: 409 `BOOKING_HAS_STAY` « Cette séance appartient à un
+    séjour : son paiement est celui du séjour. », as its arrival already was.
+47. **The attachment never waits on « marquer payée »** (R36-EXT-1, reading of rule 38). The hourly job retries the mark
+    and joins the PDF in two separate steps: a mark Qonto keeps refusing (403, 422, 5xx) no longer skips the
+    attachment of a card credit that landed after the issue, so rule 18's 7-day cutoff applies again. The mark is
+    retried for 7 days after the issue (`invoiceIssuedAt`), then given up: `invoiceMarkPending` cleared, the invoice
+    left « à payer » in Qonto, as a 404/405/501 already was; Qonto is no longer called for it every hour.
+48. **The folded lines keep their sign** (R36-EXT-2, reading of rules 40 and Q3). The fallback sent after Qonto refused a
+    negative discount line leaves out a band the discount covers whole (never a 0 € line), moves the cents on the
+    positive lines only, never below 1 cent HT, and its « Arrondi de TVA » line is positive; nothing reachable leaves the
+    existing `ISSUER_AMOUNT_UNREACHABLE` refusal. The main path keeps each line's sign too (a band never 0 € or below, the
+    discount never 0 €). The description of a band left out is not carried over (accepted: the invoice states the
+    other band and its own share of the discount).
+49. **Every client cleanup keeps a buyer of a session** (R36-DB-M1 = R36-RES-L1, reading of rule 34). The logement
+    delete (clients of its stays left with no reservation) and the two iCal sync cleanups (clients created by an import,
+    « Ical » placeholders) share the orphan popup's condition, `utils/deletionGuard.noResourceBookingSql`: a client a
+    resource booking names, paid or not, on any logement or none, is kept, and his booking keeps him. *Why:* a logement
+    deleted with an unpaid stay of a client who had paid and invoiced a 50 € session: the client was deleted, the
+    session's buyer became « VENTE HORS SÉJOUR » and a later invoice went to « Client » with no address.
+
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
 - Two card payments of the bath on the same day + a card payment of a stay → one batch; three rows
@@ -437,6 +463,18 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - [x] `…/booking-invoice-explicit.unit.test.js` — rule 45
 - [x] `…/booking-payment-taken-back.unit.test.js` — rule 36 (re-priced after « Retirer le paiement »)
 - [x] `…/hourly-erase-journaled-sales.unit.test.js` — rule 21 (erase warning)
+- [x] `…/booking-stay-link-refused.unit.test.js` (3, 2026-11-10) — rule 46
+- [x] `…/booking-invoice-attach-without-mark.unit.test.js` (4, 2026-11-10) — rule 47 (mark refused 403/422/500, the
+  batch lands, the PDF joined; given up after 7 days)
+- [x] `tests/client-cleanup-keeps-resource-buyer.unit.test.js` (5, 2026-11-10) — rule 49 (logement delete, iCal import
+  clients, placeholders, no plugin table; verification R36b L2: a real sync pass, `syncSourceAndRecord` with a stubbed
+  fetch, keeps the iCal client and the placeholder a booking names and drops the ones with nothing)
+- [x] `plugins/online-payment/tests/invoice-issuer-folded-signs.unit.test.js` (5, 2026-11-10) — rule 48 (the auditor's
+  382 347-case sweep, discount equal to the larger then the smaller band, main path signs)
+- [x] `plugins/online-payment/tests/invoice-issuer-cent-signs.unit.test.js` (4, 2026-11-10, verification R36b L3) — rule
+  48 where the guard binds, on lines of a few cents: 1 c + 3 c at 20 % (main path), 1 c + 4 c with 1 c offered (folded),
+  a charged total below what the positive lines reach (null), and every cent-level case of both paths: every non-discount
+  line ≥ 1 cent HT, the discount ≤ −1 cent, Qonto's total exact
 - [x] `tests/resource-booking-sale-deletes.unit.test.js` — rule 34 (resource, client, property, orphans)
 - [x] `plugins/online-payment/tests/invoice-issuer-mark-paid-optional.unit.test.js` — rule 38
 - [x] `…/invoice-issuer-idempotency-keys.unit.test.js` — rule 39

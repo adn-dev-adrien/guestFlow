@@ -18,7 +18,7 @@ const isBoundedText = (value, max) => typeof value === 'string' && value.length 
 
 function wifiInputError(wifi) {
   if (!wifi || typeof wifi !== 'object' || Array.isArray(wifi)) return 'Le wifi est invalide.';
-  if (typeof wifi.available !== 'boolean') return 'Indiquez si le wifi est disponible.';
+  if (typeof wifi.available !== 'boolean') return 'Préciser si le wifi est disponible.';
   if (wifi.network !== undefined && !isBoundedText(wifi.network, MAX.network)) return 'Le nom du réseau est trop long.';
   if (wifi.password !== undefined && !isBoundedText(wifi.password, MAX.password)) return 'Le mot de passe est trop long.';
   if (wifi.note !== undefined && !isBoundedText(wifi.note, MAX.note)) return 'La note est trop longue.';
@@ -41,7 +41,7 @@ function contactsInputError(contacts) {
 function lodgingInputError(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Requête invalide.';
   if (Object.keys(body).some((key) => !FIELDS.includes(key))) return 'Champ inconnu.';
-  if (body.enabled !== undefined && typeof body.enabled !== 'boolean') return 'Indiquez si le logement est dans l’application.';
+  if (body.enabled !== undefined && typeof body.enabled !== 'boolean') return 'Préciser si le logement est dans l’application.';
   if (body.heroMediaId !== undefined && body.heroMediaId !== null && !(Number.isInteger(body.heroMediaId) && body.heroMediaId > 0)) return 'La photo est invalide.';
   if (body.modules !== undefined) {
     const error = modulesInputError(body.modules);
@@ -122,7 +122,7 @@ function buildLodgingsController({
     const lodging = enabledLodging(req, res);
     if (!lodging) return null;
     const host = guestHost();
-    if (!host) return res.status(409).json({ error: 'Renseignez d’abord l’adresse de l’application (Paramètres › Intégrations).' });
+    if (!host) return res.status(409).json({ error: 'Il manque l’adresse de l’application (Paramètres › Intégrations).' });
     try {
       const pdf = await renderQrPoster({
         appName: appName() || 'Mon séjour',

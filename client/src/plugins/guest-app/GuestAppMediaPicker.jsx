@@ -71,7 +71,7 @@ export default function GuestAppMediaPicker({
         {error && <Alert severity="error">{error}</Alert>}
         {media === null ? <LoadingState variant="skeleton" rows={2} /> : (
           media.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">Aucune photo pour l’instant : ajoutez la première.</Typography>
+            <Typography variant="body2" color="text.secondary">Aucune photo pour l’instant.</Typography>
           ) : (
             <Box
               role="listbox"

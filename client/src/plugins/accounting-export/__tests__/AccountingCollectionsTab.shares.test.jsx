@@ -36,4 +36,4 @@ test('rule 32 — the series is named by its granularity; last year only when se
   expect(screen.getByText('Encaissements journaliers et cumul')).toBeInTheDocument();
   await screen.findByRole('figure', {}, { timeout: 10000 });
   expect(screen.queryByText('Cumul N-1')).toBeNull();
-}, 20000);
+});

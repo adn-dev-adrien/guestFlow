@@ -1,4 +1,6 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 25, 29-31 — the one-screen arrival of a guest with no stay.
+// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — the offered-time case waits for the new
+// total before it clicks (rule 11); every test runs under the client suite's one 30 s budget (rule 17).
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
@@ -55,6 +57,8 @@ test('rule 29 — offering 15 minutes asks the server again; rule 30 — one com
   await screen.findByText('Jour · 18:00–19:00');
   fireEvent.click(screen.getByRole('button', { name: 'Plus 15 minutes' }));
   await waitFor(() => expect(api.previewResourceBooking).toHaveBeenLastCalledWith(expect.objectContaining({ offeredMinutes: 15 }), expect.anything()));
+  // The payment follows the new total one render after the answer: a loaded runner must not click in between.
+  await screen.findAllByText(/107,50/);
   await waitFor(() => expect(validate()).toBeEnabled());
   fireEvent.click(validate());
   await waitFor(() => expect(onDone).toHaveBeenCalled());

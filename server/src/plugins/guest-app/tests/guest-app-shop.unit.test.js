@@ -172,7 +172,7 @@ withShop('rule 23 edge: hourly-resources inactive → the hourly resource is abs
 }, { hourly: false });
 
 withShop('rule 27: open during the stay; read-only before it; closed once the complement is collected', async ({ db, api, call, clock }) => {
-  const stay = addStay(db);
+  const stay = addStay(db, { platform: 'Otaexample' });
   addOption(db, { id: 1, title: 'Cidre' });
   sell(db, 'option', 1);
   enable(api, db, 1);

@@ -55,7 +55,7 @@ test('an invalid quantity is shown on the field and nothing is sent', async () =
   const { host } = renderFields();
   fireEvent.change(await screen.findByLabelText('Quantité max. par commande'), { target: { value: '80' } });
   expect(screen.getByText('Un entier de 1 à 50.')).toBeInTheDocument();
-  await act(async () => { await expect(host.save({ itemId: 12 })).rejects.toThrow('corrigez les champs signalés'); });
+  await act(async () => { await expect(host.save({ itemId: 12 })).rejects.toThrow('champs à corriger'); });
   expect(guestAppApi.saveItem).not.toHaveBeenCalled();
 });
 
@@ -70,6 +70,6 @@ test('the server refusal is shown in the section and reaches the host', async ()
 
 test('an article not created yet: nothing to sell before it exists', () => {
   renderFields({ itemId: null });
-  expect(screen.getByText(/Enregistrez d’abord l’option/)).toBeInTheDocument();
+  expect(screen.getByText(/Enregistrer d’abord l’option/)).toBeInTheDocument();
   expect(guestAppApi.getItem).not.toHaveBeenCalled();
 });

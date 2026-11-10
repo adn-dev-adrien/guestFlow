@@ -21,10 +21,10 @@ export default function PagesList({
     <Section
       id="pages"
       title={`Livret de ${lodging.name}`}
-      description="L’ordre est propre à chaque logement. Glissez pour le changer."
+      description="L’ordre est propre à chaque logement. Glisser pour le changer."
       action={<Button variant="outlined" startIcon={<AddIcon />} onClick={onCreate} sx={{ minHeight: 44 }}>Nouvelle page</Button>}
     >
-      {!pages.length ? <Typography variant="body2" sx={{ color: 'text.secondary' }}>Aucune page : créez la première.</Typography> : null}
+      {!pages.length ? <Typography variant="body2" sx={{ color: 'text.secondary' }}>Aucune page pour l’instant.</Typography> : null}
       <SortableList
         items={pages}
         getKey={(p) => p.id}

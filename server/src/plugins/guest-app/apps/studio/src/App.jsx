@@ -50,7 +50,7 @@ export default function App() {
     <DirtyGuardProvider>
       <StudioShell lodgings={lodgings}>
         <Routes>
-          <Route path="/" element={first ? <Navigate to={`/${first.propertyId}/modules`} replace /> : <EmptyState title="Aucun logement" message="Créez d’abord un logement dans GuestFlow." />} />
+          <Route path="/" element={first ? <Navigate to={`/${first.propertyId}/modules`} replace /> : <EmptyState title="Aucun logement" message="Créer d’abord un logement dans GuestFlow." />} />
           <Route path="/reglages/service" element={<ServicePage lodgings={lodgings} />} />
           <Route path="/reglages/application" element={<SettingsPage lodgings={lodgings} onLodgingChange={updateLodging} />} />
           <Route path="/reglages/photos" element={<MediaLibraryPage />} />

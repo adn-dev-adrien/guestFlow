@@ -60,7 +60,7 @@ export default function StayLinkCard({ reservationId, cardSx, contentSx }) {
     try {
       setLink(await guestAppApi.regenerateStayLink(reservationId));
     } catch (err) {
-      setRefused(err.message || 'Le lien n’a pas pu être régénéré. Réessayez.');
+      setRefused(err.message || 'Le lien n’a pas pu être régénéré. Réessayer.');
     } finally {
       setBusy(false);
     }

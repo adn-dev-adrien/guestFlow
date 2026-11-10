@@ -19,6 +19,7 @@ const createBookletModel = require('./models/bookletModel');
 const createMediaModel = require('./models/mediaModel');
 const createStockModel = require('./models/stockModel');
 const { alertPush } = require('./stock');
+const mediaFiles = require('./media');
 const { parisDate } = require('./currentStay');
 const hosting = require('./appHosting');
 const { createSoliomapFeed } = require('./soliomapFeed');
@@ -72,6 +73,9 @@ const coreScheduler = () => sdk.core.resourceScheduler();
 // The booklet photos sit under the instance's uploads, served by `/uploads` (specs/guest-app.md §5).
 const coreUploadsDir = () => sdk.coreModule('instancePaths').uploadsDir();
 
+// Rule 58 — GuestFlow's own public address, which the guest host may never be.
+const corePublicUrl = () => sdk.coreModule('settingsModel').publicUrl();
+
 // Rules 34-35, 44 — the order is written, and paid, on the core's money path; the staff is told by push.
 const corePayments = () => sdk.core.payments;
 const corePush = () => sdk.coreModule('pushService');
@@ -81,7 +85,7 @@ function buildGuestApi({
   appName = () => null, soliomapEmbed = () => false, guestHost = () => null, uploadsDir = coreUploadsDir, maxOrderTotal = () => 500,
   soliomapFeed = createSoliomapFeed({ url: soliomapUrl, now }),
   commit = sdk.coreModule('midStayOrderCommit'), payments = corePayments, push = corePush,
-  settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl, httpsEnabled,
+  settingsStore = (() => { const store = memorySettings(); return () => store; })(), readGateUrl, httpsEnabled, publicUrl = () => '',
 }) {
   const lodgings = once(() => createLodgingsModel(db()));
   const sessions = once(() => createSessionsModel(db()));
@@ -130,7 +134,7 @@ function buildGuestApi({
     ...(readGateUrl ? { readGateUrl } : {}),
   });
   const links = buildStayLinksController({
-    stayLinks, stays, lodgings, guestHost, now,
+    stayLinks, stays, lodgings, sessions, guestHost, now,
   });
   const orderBook = buildOrdersController({
     db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now, stock, alertStock, fulfilment,
@@ -150,7 +154,7 @@ function buildGuestApi({
         items, stock, alertStock, now, translator,
       }),
       studioSettings: buildStudioSettingsController({
-        lodgings, settingsStore, soliomapFeed, now,
+        lodgings, settingsStore, soliomapFeed, now, publicUrl,
       }),
       serviceHours: buildServiceHoursController({ serviceHours }),
       studio: buildStudioController({
@@ -181,12 +185,15 @@ function register(ctx) {
   ctx.settings.declare(settings.DECLARED);
   ctx.pushChannel({ key: 'guest-orders', label: 'Commandes clients' });
 
+  // Rule 58 — a stored guest host equal to GuestFlow's own address is ignored: no link, no QR, no app on it.
+  const guestHost = () => settings.effectiveGuestHost(ctx.settings.get('guestHost'), corePublicUrl());
   const api = buildGuestApi({
     db: () => ctx.db,
     soliomapUrl: () => ctx.settings.get('soliomapUrl'),
     appName: () => ctx.settings.get('appName'),
     soliomapEmbed: () => ['1', 1, true].includes(ctx.settings.get('soliomapEmbed')),
-    guestHost: () => ctx.settings.get('guestHost'),
+    guestHost,
+    publicUrl: corePublicUrl,
     maxOrderTotal: () => Number(ctx.settings.get('maxOrderTotal')) || 500,
     settingsStore: () => ctx.settings,
     limiters: {
@@ -197,7 +204,7 @@ function register(ctx) {
   });
   // What the plugin still lacks: the guest host, and the service hours (rule 40 — unconstrained until set).
   ctx.setupStatus(() => [
-    ctx.settings.get('guestHost') ? null : 'adresse de l’application à configurer',
+    guestHost() ? null : 'adresse de l’application à configurer',
     api.serviceHoursConfigured() ? null : 'horaires du service à configurer',
   ].filter(Boolean).join(', ') || null);
   ctx.resourceHolds(api.heldSessions);
@@ -213,7 +220,7 @@ function register(ctx) {
   const studioDist = (() => { let dir = null; return () => { if (!dir) dir = hosting.distDirOf('studio'); return dir; }; })();
   ctx.webApp({
     key: 'guest',
-    host: () => ctx.settings.get('guestHost') || null,
+    host: guestHost,
     handler: hosting.staticApp({
       dir: guestDist,
       csp: () => hosting.guestCsp({
@@ -228,11 +235,11 @@ function register(ctx) {
   });
   ctx.mount('/api/guest-app', api.adminRouter);
   // Rule 9bis (a) — the reception runs the arrival SAS, where the stay link is shown and regenerated; rules 43, 45 —
-  // it prepares and delivers the orders.
+  // it delivers the orders from its planning cards, which carry no amount. The orders list, amounts and payment
+  // included, is the admin's page (reception-role-checkin-only.md rule 4: no money to the reception).
   ctx.reception([
     { method: 'GET', re: /^\/guest-app\/reservations\/\d+\/stay-link$/ },
     { method: 'POST', re: /^\/guest-app\/reservations\/\d+\/stay-link\/regenerate$/ },
-    { method: 'GET', re: /^\/guest-app\/orders$/ },
     { method: 'POST', re: /^\/guest-app\/orders\/\d+\/delivered$/ },
     { method: 'GET', re: /^\/guest-app\/planning\/order-cards$/ },
     // Rule 37quater — the reservation editor's « Stock : épuisé » warning.
@@ -280,11 +287,32 @@ function register(ctx) {
       const lines = [];
       const lodgings = count('guest_app_lodgings');
       if (lodgings) lines.push({ label: lodgings > 1 ? `${lodgings} logements configurés` : '1 logement configuré', count: lodgings });
+      // Rule 59 — the booklet work the erase drops, and the photos it deletes from the disk.
+      const pages = count('guest_booklet_pages');
+      if (pages) lines.push({ label: pages > 1 ? `${pages} pages de livret` : '1 page de livret', count: pages });
+      const photos = count('guest_media');
+      if (photos) lines.push({ label: photos > 1 ? `${photos} photos` : '1 photo', count: photos });
       const orders = count('guest_orders');
       if (orders) lines.push({ label: orders > 1 ? `${orders} commandes clients` : '1 commande client', count: orders });
       const sessions = count('guest_sessions');
       if (sessions) lines.push({ label: sessions > 1 ? `${sessions} sessions clients` : '1 session client', count: sessions });
       return lines;
+    },
+    // Rule 59 — the photos sit under the uploads, served by `/uploads`: erased with the tables, they are served no more.
+    // The core calls this inside its erase transaction, before the tables go: the files are deleted once that
+    // transaction is over, and only if it dropped the tables — a rolled-back erase keeps the photos (audit R36b N5).
+    purge: (db) => {
+      const uploadsDir = coreUploadsDir();
+      if (!db || !db.inTransaction) return mediaFiles.eraseAll(uploadsDir);
+      queueMicrotask(() => {
+        try {
+          if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'guest_media'").get()) return;
+          mediaFiles.eraseAll(uploadsDir);
+        } catch (err) {
+          console.error('[plugin:guest-app] photo erasure failed:', err && err.message ? err.message : err);
+        }
+      });
+      return undefined;
     },
   });
 }

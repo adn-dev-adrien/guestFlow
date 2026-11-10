@@ -44,7 +44,7 @@ const firstSlot = async (call, lines) => {
 withShop('rule 41bis: « À retirer » needs its place to save; the mode and the place are one setting for every lodging', async ({ call, store }) => {
   const refused = await call('PUT', '/api/guest-app/studio/settings', { fulfilment: 'pickup' });
   assert.equal(refused.status, 400);
-  assert.equal(refused.body.error, 'Indiquez le lieu de retrait des commandes.');
+  assert.equal(refused.body.error, 'Lieu de retrait des commandes requis.');
   assert.equal(store.get('fulfilment'), 'delivery', 'nothing written');
   const saved = await call('PUT', '/api/guest-app/studio/settings', { fulfilment: 'pickup', pickupPlace: '  À l’accueil, maison principale — sonnez à la porte verte ' });
   assert.equal(saved.status, 200);

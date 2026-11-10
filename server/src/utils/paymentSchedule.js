@@ -172,6 +172,20 @@ function devisPromisesOnePayment({ startDate = null, validUntil = null, balanceD
 }
 
 /**
+ * Does the devis a reservation was converted from still hold a promise for it? The devis was made on a direct
+ * channel (rule 24) and promises one payment (`devisPromisesOnePayment`) on its own dates and validity, judged with
+ * the delay of the STAY's logement, the one the engine prices (rule 26 reading R36b L1). The engine's
+ * `keepsDevisPromise` and the devis-delete refusal both read this, so they cannot drift apart.
+ */
+function devisPromiseHeld({ devisPromise = null, balanceDaysBefore = 30 } = {}) {
+  if (!devisPromise || !isDirectChannel(devisPromise.platform)) return false;
+  return devisPromisesOnePayment({
+    startDate: devisPromise.startDate, validUntil: devisPromise.validUntil,
+    balanceDaysBefore, depositAmount: devisPromise.depositAmount,
+  });
+}
+
+/**
  * D23 — the deadline of the single payment a reservation keeps from the devis it was converted from: the
  * devis's validity date, never before the reservation's own booking day (an expired quote converted late).
  */
@@ -203,6 +217,7 @@ module.exports = {
   isLastMinuteStay,
   owesSinglePaymentByValidity,
   devisPromisesOnePayment,
+  devisPromiseHeld,
   devisPromiseDueDate,
   resolveCancelOn,
   daysBetween,

@@ -32,17 +32,17 @@ const isShortText = (value) => value === null || (typeof value === 'string' && v
 function itemInputError(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Requête invalide.';
   if (Object.keys(body).some((key) => !FIELDS.includes(key))) return 'Champ inconnu.';
-  if (body.sold !== undefined && typeof body.sold !== 'boolean') return 'Indiquez si l’article est vendu dans l’application.';
+  if (body.sold !== undefined && typeof body.sold !== 'boolean') return 'Préciser si l’article est vendu dans l’application.';
   if (body.mediaId !== undefined && body.mediaId !== null && !(Number.isInteger(body.mediaId) && body.mediaId > 0)) return 'La photo est invalide.';
   if (body.shortDescriptionFr !== undefined && !isShortText(body.shortDescriptionFr)) return `La description courte fait au plus ${MAX_SHORT_DESCRIPTION} caractères.`;
   if (body.shortDescriptionEn !== undefined && !isShortText(body.shortDescriptionEn)) return `La description courte anglaise fait au plus ${MAX_SHORT_DESCRIPTION} caractères.`;
   if (body.maxQuantity !== undefined && !isIntegerIn(body.maxQuantity, QUANTITY)) return `La quantité maximale est un entier de ${QUANTITY.min} à ${QUANTITY.max}.`;
-  if (body.needsStaff !== undefined && typeof body.needsStaff !== 'boolean') return 'Indiquez si l’article est préparé par l’équipe.';
+  if (body.needsStaff !== undefined && typeof body.needsStaff !== 'boolean') return 'Préciser si l’article est préparé par l’équipe.';
   if (body.leadMinutes !== undefined && !isIntegerIn(body.leadMinutes, LEAD_MINUTES)) return `Le délai de préparation est un nombre entier de minutes, de ${LEAD_MINUTES.min} à ${LEAD_MINUTES.max}.`;
-  if (body.stockTracked !== undefined && typeof body.stockTracked !== 'boolean') return 'Indiquez si le stock est suivi.';
+  if (body.stockTracked !== undefined && typeof body.stockTracked !== 'boolean') return 'Préciser si le stock est suivi.';
   if (body.stockQuantity !== undefined && !isIntegerIn(body.stockQuantity, STOCK)) return `La quantité en stock est un entier de ${STOCK.min} à ${STOCK.max}.`;
   if (body.stockAlertBelow !== undefined && body.stockAlertBelow !== null && !isIntegerIn(body.stockAlertBelow, STOCK)) return 'Le seuil d’alerte est un entier positif.';
-  if (body.soldOut !== undefined && typeof body.soldOut !== 'boolean') return 'Indiquez si l’article est en rupture.';
+  if (body.soldOut !== undefined && typeof body.soldOut !== 'boolean') return 'Préciser si l’article est en rupture.';
   return null;
 }
 
@@ -173,7 +173,7 @@ function buildItemsController({
     // Rule 37bis — following a stock starts from a count: « En stock » is typed at the first switch-on.
     const tracksAfter = req.body.stockTracked !== undefined ? req.body.stockTracked : Number(found.item.stockTracked) === 1;
     if (tracksAfter && req.body.stockQuantity === undefined && (found.item.stockQuantity === null || found.item.stockQuantity === undefined)) {
-      return res.status(400).json({ error: 'Indiquez la quantité en stock.' });
+      return res.status(400).json({ error: 'Quantité en stock requise.' });
     }
     items().save(at.kind, at.id, toPatch(at.kind, req.body));
     if (tracksAfter && req.body.stockQuantity !== undefined) {

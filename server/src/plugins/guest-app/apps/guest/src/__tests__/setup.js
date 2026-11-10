@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
+
+// A loaded runner answers findBy* in more than the default second (audit R36-S3): as the studio's suite does.
+configure({ asyncUtilTimeout: 4000 });
 
 afterEach(() => { cleanup(); window.localStorage.clear(); });
 

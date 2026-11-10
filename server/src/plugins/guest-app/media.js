@@ -54,6 +54,12 @@ async function storeImage(buffer, uploadsDir) {
   }
 }
 
+/** Rule 59 — « Effacer aussi ses données »: every photo the plugin wrote, its folder under the uploads included. */
+function eraseAll(uploadsDir) {
+  if (!uploadsDir) return;
+  fs.rmSync(path.join(uploadsDir, FOLDER), { recursive: true, force: true });
+}
+
 module.exports = {
-  ACCEPTED_TYPES, MAX_UPLOAD_BYTES, MediaError, storeImage,
+  ACCEPTED_TYPES, MAX_UPLOAD_BYTES, MediaError, eraseAll, storeImage,
 };

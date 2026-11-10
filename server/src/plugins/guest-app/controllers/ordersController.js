@@ -18,8 +18,9 @@
 const sdk = require('../../sdk');
 const { parisDate } = require('../currentStay');
 const { remainingMornings } = require('../sellable');
-const { deliveryTimes, ignitionInHours, wallClock } = require('../serviceHours');
-const { languageOf } = require('./sessionController');
+const { deliveryTimes, ignitionInHours } = require('../serviceHours');
+const { languageOf } = require('../language');
+const { fail: failGuest, refusal } = require('../refusals');
 const { isStaffItem, shopState } = require('./shopController');
 const labels = require('../orderLabels');
 const { outOfStockOf } = require('../stock');
@@ -52,54 +53,54 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 // Rule 30 — a session the planning no longer lets the guest book; `SLOT_TAKEN` and the picker reloads.
 const SLOT_REASONS = new Set(['taken', 'past', 'heating', 'staff', 'closed', 'duration']);
 
-const invalid = (message) => ({ status: 400, code: 'INVALID_INPUT', message });
-const limit = (message) => ({ status: 400, code: 'ORDER_LIMIT', message });
+const invalid = (key, params) => refusal(400, 'INVALID_INPUT', key, params);
+const limit = (key, params) => refusal(400, 'ORDER_LIMIT', key, params);
 
 const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const positiveInt = (v) => Number.isInteger(v) && v > 0;
 const keyOf = (line) => `${line.kind === 'resource' ? 'res' : 'opt'}:${Number(line.id)}`;
 
 function sessionError(s) {
-  if (!isObject(s) || Object.keys(s).some((k) => !['date', 'start', 'end'].includes(k))) return 'Un créneau est invalide.';
-  if (!isRealIsoDay(s.date) || !HHMM.test(String(s.start)) || !HHMM.test(String(s.end)) || s.start >= s.end) return 'Un créneau est invalide.';
+  if (!isObject(s) || Object.keys(s).some((k) => !['date', 'start', 'end'].includes(k))) return 'invalidSlot';
+  if (!isRealIsoDay(s.date) || !HHMM.test(String(s.start)) || !HHMM.test(String(s.end)) || s.start >= s.end) return 'invalidSlot';
   return null;
 }
 
 function lineError(line) {
-  if (!isObject(line) || !KINDS.includes(line.kind) || !positiveInt(line.id)) return invalid('Un article du panier est invalide.');
+  if (!isObject(line) || !KINDS.includes(line.kind) || !positiveInt(line.id)) return invalid('invalidLine');
   if (line.kind === 'breakfast') {
-    if (Object.keys(line).some((k) => !['kind', 'id', 'mornings', 'time', 'persons'].includes(k))) return invalid('Un article du panier est invalide.');
+    if (Object.keys(line).some((k) => !['kind', 'id', 'mornings', 'time', 'persons'].includes(k))) return invalid('invalidLine');
     if (!Array.isArray(line.mornings) || !line.mornings.length || line.mornings.length > MAX_MORNINGS
-      || line.mornings.some((d) => !isRealIsoDay(d)) || new Set(line.mornings).size !== line.mornings.length) return invalid('Les matins choisis sont invalides.');
-    if (!HHMM.test(String(line.time))) return invalid('L’heure choisie est invalide.');
-    if (!positiveInt(line.persons) || line.persons > 50) return invalid('Le nombre de personnes est invalide.');
+      || line.mornings.some((d) => !isRealIsoDay(d)) || new Set(line.mornings).size !== line.mornings.length) return invalid('invalidMornings');
+    if (!HHMM.test(String(line.time))) return invalid('invalidTime');
+    if (!positiveInt(line.persons) || line.persons > 50) return invalid('invalidPersons');
     return null;
   }
-  if (Object.keys(line).some((k) => !['kind', 'id', 'quantity', 'sessions'].includes(k))) return invalid('Un article du panier est invalide.');
+  if (Object.keys(line).some((k) => !['kind', 'id', 'quantity', 'sessions'].includes(k))) return invalid('invalidLine');
   if (line.sessions !== undefined) {
-    if (line.kind !== 'resource' || !Array.isArray(line.sessions) || !line.sessions.length) return invalid('Un article du panier est invalide.');
-    if (line.sessions.length > MAX_SESSIONS) return limit(`${MAX_SESSIONS} créneaux au plus par article.`);
+    if (line.kind !== 'resource' || !Array.isArray(line.sessions) || !line.sessions.length) return invalid('invalidLine');
+    if (line.sessions.length > MAX_SESSIONS) return limit('maxSessions', { max: MAX_SESSIONS });
     const bad = line.sessions.map(sessionError).find(Boolean);
     if (bad) return invalid(bad);
-    return line.quantity === undefined ? null : invalid('Un créneau ne prend pas de quantité.');
+    return line.quantity === undefined ? null : invalid('slotNoQuantity');
   }
-  if (!Number.isInteger(line.quantity) || line.quantity < 1) return invalid('Une quantité est invalide.');
+  if (!Number.isInteger(line.quantity) || line.quantity < 1) return invalid('invalidQuantity');
   return null;
 }
 
-/** The request's shape, judged before anything reads it: `{ status, code, message }` or null. */
+/** The request's shape, judged before anything reads it: a refusal `{ status, code, key, params }` or null. */
 function orderInputError(body, { withPayment }) {
   const allowed = withPayment ? ['lines', 'deliverAt', 'payment', 'returnPath'] : ['lines', 'deliverAt'];
-  if (!isObject(body) || Object.keys(body).some((k) => !allowed.includes(k))) return invalid('Requête invalide.');
-  if (!Array.isArray(body.lines) || !body.lines.length) return invalid('Le panier est vide.');
-  if (body.lines.length > MAX_LINES) return limit(`${MAX_LINES} articles au plus par commande.`);
+  if (!isObject(body) || Object.keys(body).some((k) => !allowed.includes(k))) return invalid('invalidRequest');
+  if (!Array.isArray(body.lines) || !body.lines.length) return invalid('emptyCart');
+  if (body.lines.length > MAX_LINES) return limit('maxLines', { max: MAX_LINES });
   const bad = body.lines.map(lineError).find(Boolean);
   if (bad) return bad;
-  if (new Set(body.lines.map(keyOf)).size !== body.lines.length) return invalid('Un article apparaît deux fois dans le panier.');
+  if (new Set(body.lines.map(keyOf)).size !== body.lines.length) return invalid('duplicateLine');
   if (body.deliverAt !== undefined && body.deliverAt !== null
-    && (typeof body.deliverAt !== 'string' || body.deliverAt.length > 40 || !Number.isFinite(Date.parse(body.deliverAt)))) return invalid('L’heure de livraison est invalide.');
-  if (withPayment && !PAYMENTS.includes(body.payment)) return invalid('Le mode de paiement est invalide.');
-  if (withPayment && body.returnPath !== undefined && (typeof body.returnPath !== 'string' || body.returnPath.length > 200)) return invalid('Requête invalide.');
+    && (typeof body.deliverAt !== 'string' || body.deliverAt.length > 40 || !Number.isFinite(Date.parse(body.deliverAt)))) return invalid('invalidDeliverAt');
+  if (withPayment && !PAYMENTS.includes(body.payment)) return invalid('invalidPayment');
+  if (withPayment && body.returnPath !== undefined && (typeof body.returnPath !== 'string' || body.returnPath.length > 200)) return invalid('invalidRequest');
   return null;
 }
 
@@ -109,7 +110,6 @@ const minutesOf = (time) => {
 };
 const sessionsHours = (sessions) => sessions.reduce((sum, s) => sum + Math.max(0, minutesOf(s.end) - minutesOf(s.start)), 0) / 60;
 
-const instantOfMoment = ({ date, minutes }) => wallClockToDate(date, `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`);
 
 function buildOrdersController({
   db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now,
@@ -120,8 +120,7 @@ function buildOrdersController({
 
   /** Rule 41 — the delivery times of the staff-prepared lines, as instants (ms) from `at`. */
   function deliveryInstants({ stay, lodging, leadMinutes, at }) {
-    return deliveryTimes({ now: wallClock(at), stay, leadMinutes, schedule: shop.scheduleOf(lodging, at) })
-      .map((moment) => instantOfMoment(moment).getTime());
+    return deliveryTimes({ now: at, stay, leadMinutes, schedule: shop.scheduleOf(lodging, at) }).map((moment) => moment.at);
   }
 
   /**
@@ -145,7 +144,7 @@ function buildOrdersController({
       if (item.alreadyIncluded) return { ...base, asked, item, unavailable: true, unavailableReason: T.alreadyIncluded };
       const maxQuantity = Number(item.item.maxQuantity);
       if (asked.kind === 'breakfast') {
-        if (asked.persons > party) throw invalid('Le nombre de personnes dépasse celui du séjour.');
+        if (asked.persons > party) throw invalid('personsOverParty');
         const possible = new Set(remainingMornings({
           startDate: stay.startDate, endDate: stay.endDate, today, time: clock, serviceTime: item.row.breakfastTime,
         }));
@@ -162,7 +161,7 @@ function buildOrdersController({
         };
       }
       if (item.hourly) {
-        if (!asked.sessions) throw invalid('Choisissez un créneau.');
+        if (!asked.sessions) throw invalid('chooseSlot');
         const verdict = scheduler() && scheduler().validateSessions({
           resourceId: Number(asked.id), propertyId: lodging.propertyId, stay, sessions: asked.sessions, now: at, canIgnite,
         });
@@ -175,8 +174,8 @@ function buildOrdersController({
         if (item.included && hours > Number(item.includedLeft || 0)) return { ...base, asked, item, sessions, unavailable: true, unavailableReason: T.allowanceUsed };
         return { ...base, asked, item, sessions, kept, ...(kept.length ? {} : { unavailable: true, unavailableReason: sessions[0].reasonLabel }) };
       }
-      if (asked.sessions) throw invalid('Cet article ne se réserve pas sur un créneau.');
-      if (asked.quantity > maxQuantity) throw limit(`${maxQuantity} au plus pour « ${base.title} ».`);
+      if (asked.sessions) throw invalid('notOnSlot');
+      if (asked.quantity > maxQuantity) throw limit('maxQuantity', { max: maxQuantity, title: base.title });
       if (item.included && asked.quantity > Number(item.includedLeft || 0)) return { ...base, asked, item, quantity: asked.quantity, unavailable: true, unavailableReason: T.allowanceUsed };
       // Rule 37quater — never beyond what is left of a tracked article; the cart lowers the line to it.
       const stockState = stocks.get(`${asked.kind}:${Number(asked.id)}`);
@@ -208,12 +207,23 @@ function buildOrdersController({
     return { kind: l.kind, id: l.id, quantity: l.quantity };
   });
 
-  /** A core refusal of the fiche's save, in the words of the guest app. */
-  function engineRefusal(result) {
-    const code = result.body && result.body.code;
-    if (code === 'MID_STAY_EXTRAS_CLOSED') return { status: 409, code: 'SHOP_CLOSED', message: 'La boutique est fermée pour ce séjour.' };
-    if (code === 'RESOURCE_SLOT_TAKEN' || code === 'SESSIONS_OVERLAP') return { status: 409, code: 'SLOT_TAKEN', message: 'Ce créneau vient d’être pris.' };
-    return { status: 409, code: 'STAY_NOT_WRITABLE', message: 'Commande impossible pour ce séjour : contactez l’équipe.' };
+  /**
+   * A core refusal of the fiche's save, in the words of the guest app. Persons beyond what the stay can still be
+   * served (rule 55) name the article and what is left of it.
+   */
+  function engineRefusal(result, judged = null) {
+    const body = result.body || {};
+    const code = body.code;
+    if (code === 'MID_STAY_EXTRAS_CLOSED') return SHOP_CLOSED;
+    if (code === 'RESOURCE_SLOT_TAKEN' || code === 'SESSIONS_OVERLAP') return refusal(409, 'SLOT_TAKEN', 'slotJustTaken');
+    if (code === 'ORDER_PERSONS_EXCEEDED') {
+      const line = ((judged && judged.lines) || []).find((l) => keyOf(l) === body.key);
+      const left = Math.max(0, Number(body.left) || 0);
+      const title = (line && line.title) || '';
+      if (line && line.kind === 'breakfast') return refusal(409, 'PERSONS_EXCEEDED', 'breakfastPersons', { left });
+      return refusal(409, 'PERSONS_EXCEEDED', left > 0 ? 'personsLeft' : 'personsNone', { left, title });
+    }
+    return refusal(409, 'STAY_NOT_WRITABLE', 'stayNotWritable');
   }
 
   /**
@@ -225,9 +235,11 @@ function buildOrdersController({
     if (!lines.length) return { lines: [], byKey: {}, total: 0 };
     const pending = orders().pendingLines(stay.id, { at: now() }).map(cartLineOf);
     let priced = commit.priceOrder(stay.id, lines, { pending });
-    // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is.
-    if (priced.status !== 200 && pending.length) priced = commit.priceOrder(stay.id, lines);
-    if (priced.status !== 200) return { refusal: engineRefusal(priced) };
+    // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is. The persons a
+    // pending order holds stay held (rule 55).
+    const personsRefused = priced.body && priced.body.code === 'ORDER_PERSONS_EXCEEDED';
+    if (priced.status !== 200 && pending.length && !personsRefused) priced = commit.priceOrder(stay.id, lines);
+    if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
     return { lines, byKey: priced.byKey, total: priced.total };
   }
 
@@ -253,10 +265,21 @@ function buildOrdersController({
     return view;
   }
 
+  /**
+   * Rule 55 — a priced article the engine adds nothing for (no free unit or minute left to explain it: a line the
+   * fiche offers, for one) would be delivered at 0 €: refused, never confirmed free.
+   */
+  const billable = (item) => Boolean(item) && !item.included && Number(item.row.price || 0) > 0
+    && !(item.freeUnits && item.freeUnits.left > 0) && !(item.freeMinutes && item.freeMinutes.left > 0);
+  const unbilledLine = (judged, byKey) => judged.lines.find((l) => !l.unavailable && l.kind !== 'breakfast'
+    && billable(l.item) && !(Number(byKey[keyOf(l)]) > 0));
+
   function quoteOf(guest, body, at, lang) {
     const judged = judge(guest, body, at, lang);
     const priced = price(guest.stay, judged);
     if (priced.refusal) return { refusal: priced.refusal };
+    const unbilled = unbilledLine(judged, priced.byKey);
+    if (unbilled) return { refusal: refusal(409, 'ITEM_UNAVAILABLE', 'itemNotBillable', { title: unbilled.title }) };
     const lines = judged.lines.map((l) => lineView(l, priced.byKey, lang));
     return {
       judged,
@@ -271,11 +294,8 @@ function buildOrdersController({
     };
   }
 
-  // The envelope's `details` (§4.3): an object here — the units left, the fresh quote — which publicHttp.fail, built for
-  // lists of field errors, would drop.
-  const fail = (res, refusal, details) => (details && !Array.isArray(details)
-    ? res.status(refusal.status).json({ error: { code: refusal.code, message: refusal.message, details } })
-    : publicHttp.fail(res, refusal.status, refusal.code, refusal.message, details));
+  // The envelope's `details` (§4.3): an object here — the units left, the fresh quote — in the request's language.
+  const fail = failGuest;
 
   function guarded(handler) {
     return async (req, res) => {
@@ -288,7 +308,7 @@ function buildOrdersController({
     };
   }
 
-  const SHOP_CLOSED = Object.freeze({ status: 409, code: 'SHOP_CLOSED', message: 'La boutique est fermée pour ce séjour.' });
+  const SHOP_CLOSED = Object.freeze(refusal(409, 'SHOP_CLOSED', 'shopClosed'));
 
   /** Rule 27 — orders are taken exactly while the fiche takes mid-stay extras, by a stay session. */
   const shopOpen = (guest, at) => shopState(guest.mode, shop.soldFor(guest).extras.window, parisDate(at)).open;
@@ -336,11 +356,11 @@ function buildOrdersController({
       const waiting = order.status === 'awaiting_payment';
       const live = waiting && order.heldUntil && new Date(order.heldUntil) > now();
       if (live && order.paymentUrl) return publicHttp.ok(res, { orderId: order.id, paymentUrl: order.paymentUrl });
-      if (live) return fail(res, { status: 409, code: 'ORDER_IN_PROGRESS', message: 'Cette commande est en cours d’enregistrement.' });
+      if (live) return fail(res, refusal(409, 'ORDER_IN_PROGRESS', 'orderInProgress'));
       // Paid meanwhile: the first order stands, shown without a link to pay again.
       if (['paid', 'delivered'].includes(order.status)) return publicHttp.ok(res, { orderId: order.id, status: order.status });
-      if (!waiting) return fail(res, { status: 409, code: 'ORDER_KEY_SPENT', message: 'Cette commande n’est plus en attente de paiement : recommencez la commande.' });
-      return fail(res, { status: 502, code: 'PAYMENT_UNAVAILABLE', message: 'Le paiement par carte est indisponible.' });
+      if (!waiting) return fail(res, refusal(409, 'ORDER_KEY_SPENT', 'orderKeySpent'));
+      return fail(res, refusal(502, 'PAYMENT_UNAVAILABLE', 'cardUnavailable'));
     }
     return publicHttp.ok(res, { orderId: order.id, status: 'confirmed' });
   }
@@ -352,7 +372,7 @@ function buildOrdersController({
     const error = orderInputError(req.body, { withPayment: true });
     if (error) return fail(res, error);
     const rawKey = req.get('Idempotency-Key');
-    if (rawKey !== undefined && !CLIENT_KEY.test(rawKey)) return fail(res, invalid('Requête invalide.'));
+    if (rawKey !== undefined && !CLIENT_KEY.test(rawKey)) return fail(res, invalid('invalidRequest'));
     const clientKey = rawKey || null;
     const sessionId = req.guest.session.id;
     const earlier = clientKey ? orders().findByClientKey(sessionId, clientKey) : null;
@@ -367,32 +387,32 @@ function buildOrdersController({
     const gone = judged.lines.filter((l) => l.unavailable || (l.sessions || []).some((s) => s.unavailable) || l.unavailableMornings);
     const short = gone.find((l) => l.outOfStock);
     if (short) {
-      return fail(res, { status: 409, code: 'OUT_OF_STOCK', message: short.outOfStock.label }, {
+      return fail(res, { ...refusal(409, 'OUT_OF_STOCK'), message: short.outOfStock.label }, {
         itemKey: `${short.kind}:${short.id}`, left: short.outOfStock.left, quote: answer,
       });
     }
     if (gone.length) {
       const slot = gone.some((l) => (l.sessions || []).some((s) => s.unavailable && SLOT_REASONS.has(s.reason)));
       return fail(res, slot
-        ? { status: 409, code: 'SLOT_TAKEN', message: 'Un créneau n’est plus disponible.' }
-        : { status: 409, code: 'ITEM_UNAVAILABLE', message: 'Un article n’est plus disponible.' }, { quote: answer });
+        ? refusal(409, 'SLOT_TAKEN', 'slotGone')
+        : refusal(409, 'ITEM_UNAVAILABLE', 'itemGone'), { quote: answer });
     }
     if (judged.needsDelivery && !judged.deliverAt) {
       return fail(res, req.body.deliverAt
-        ? { status: 409, code: 'DELIVERY_TIME_UNAVAILABLE', message: 'Cette heure de livraison n’est plus possible.' }
-        : invalid('Choisissez une heure de livraison.'), { quote: answer });
+        ? refusal(409, 'DELIVERY_TIME_UNAVAILABLE', 'deliveryGone')
+        : invalid('chooseDelivery'), { quote: answer });
     }
     const ceiling = Number(maxOrderTotal()) || 500;
-    if (priced.total > ceiling) return fail(res, limit(`Une commande ne dépasse pas ${labels.priceLabel(ceiling)}.`));
+    if (priced.total > ceiling) return fail(res, limit('maxTotal', { amount: labels.priceLabel(ceiling, lang) }));
     const lines = snapshot(judged, priced.byKey, lang);
     const free = priced.total <= 0;
-    if (!free && req.body.payment === 'none') return fail(res, invalid('Choisissez un mode de paiement.'));
+    if (!free && req.body.payment === 'none') return fail(res, invalid('choosePayment'));
     const mode = fulfilment();
     const delivery = { fulfilment: mode.mode, pickupPlace: mode.place };
 
     // Rules 25, 34 — a note or 0 € order: confirmed and written on the fiche in one transaction.
     if (free || req.body.payment === 'note') {
-      let refusal = null;
+      let refused = null;
       let order = null;
       let moved = [];
       try {
@@ -403,8 +423,8 @@ function buildOrdersController({
           });
           const written = commit.commitOrder(stay.id, { ...orderNaming(order.id), lines: priced.lines });
           if (!written || written.status !== 200) {
-            refusal = engineRefusal(written || { body: {} });
-            throw refusal;
+            refused = engineRefusal(written || { body: {} }, judged);
+            throw refused;
           }
           // Rule 35 — quoted after a card order awaiting payment, it adds less to the fiche than its quote: that order adds the rest.
           orders().setDeferred(order.id, Math.round(priced.total * 100) - Math.round(Number(written.total || 0) * 100));
@@ -412,8 +432,8 @@ function buildOrdersController({
         })();
       } catch (err) {
         if (clientKey && isUniqueClash(err)) return replay(res, orders().findByClientKey(sessionId, clientKey));
-        if (err !== refusal) throw err;
-        return fail(res, refusal);
+        if (err !== refused) throw err;
+        return fail(res, refused);
       }
       alertStock(moved);
       notifyStaff(order);
@@ -424,9 +444,9 @@ function buildOrdersController({
     // Rule 35 — one card order waits for its payment at a time: a second one would be priced after the first's
     // allowances, then committed before it if paid first (review of 2026-11-09).
     if (orders().livePendingCard(stay.id, { at })) {
-      return fail(res, { status: 409, code: 'CARD_ORDER_PENDING', message: 'Une commande attend déjà son paiement : reprenez-la ou abandonnez-la dans « Mes commandes ».' });
+      return fail(res, refusal(409, 'CARD_ORDER_PENDING', 'cardPending'));
     }
-    if (!paymentProviders.active()) return fail(res, { status: 409, code: 'CARD_UNAVAILABLE', message: 'Le paiement par carte est indisponible : ajoutez la commande à votre note.' });
+    if (!paymentProviders.active()) return fail(res, refusal(409, 'CARD_UNAVAILABLE', 'cardToNote'));
     let order;
     try {
       order = orders().create({
@@ -451,7 +471,7 @@ function buildOrdersController({
       return publicHttp.ok(res, { orderId: order.id, paymentUrl: link.url });
     } catch (err) {
       orders().markFailed(order.id, now());
-      return fail(res, { status: (err && err.httpStatus) || 502, code: (err && err.error) || 'PAYMENT_UNAVAILABLE', message: (err && err.message) || 'Le paiement par carte est indisponible.' });
+      return fail(res, refusal((err && err.httpStatus) || 502, (err && err.error) || 'PAYMENT_UNAVAILABLE', 'cardUnavailable'));
     }
   });
 
@@ -528,7 +548,7 @@ function buildOrdersController({
     const order = Number.isInteger(id) ? orders().findById(id) : null;
     return order && Number(order.reservationId) === Number(req.guest.stay.id) ? order : null;
   };
-  const notFound = (res) => publicHttp.fail(res, 404, 'ORDER_NOT_FOUND', 'Commande introuvable.');
+  const notFound = (res) => fail(res, refusal(404, 'ORDER_NOT_FOUND', 'orderNotFound'));
 
   // §4.3 — when each link was last read at the provider for the return page.
   const refreshedAt = new Map();
@@ -551,7 +571,7 @@ function buildOrdersController({
   async function abandon(req, res) {
     const order = ownOrder(req);
     if (!order) return notFound(res);
-    if (order.status !== 'awaiting_payment') return publicHttp.fail(res, 409, 'ORDER_NOT_PENDING', 'Cette commande n’attend plus de paiement.');
+    if (order.status !== 'awaiting_payment') return fail(res, refusal(409, 'ORDER_NOT_PENDING', 'orderNotPending'));
     const moved = orders().markAbandoned(order.id, now());
     if (moved && order.paymentLinkId) {
       try { await payments().withdrawBasketLink(order.paymentLinkId); } catch { /* the link lapses within 30 minutes anyway */ }

@@ -61,8 +61,22 @@ test('rule 23: the cancellation insurance, an auto timed option and an internal 
 });
 
 test('rule 23: resources sell by the hour or by quantity, never per night', () => {
-  ['per_hour', 'per_stay', 'per_person', 'free'].forEach((priceType) => assert.equal(sellabilityOf('resource', { priceType }).ok, true, priceType));
+  ['per_hour', 'per_stay', 'free'].forEach((priceType) => assert.equal(sellabilityOf('resource', { priceType }).ok, true, priceType));
   ['per_night', 'per_person_per_night'].forEach((priceType) => assert.equal(sellabilityOf('resource', { priceType }).ok, false, priceType));
+});
+
+// Audit R36b N2 — the engine bills a per-person resource quantity × party (« 1 × Vélo » = 40 € for 4), the shop says
+// « par personne »: a guest ordering 4 for 4 people paid 16 persons. Refused, as the per-night prices are.
+test('rule 23 (R36b N2): a per-person resource is refused with its reason, and a stored switch sells nothing', () => {
+  const judged = sellabilityOf('resource', { priceType: 'per_person' });
+  assert.equal(judged.ok, false);
+  assert.equal(judged.reason, 'Une ressource au prix par personne ne se vend pas dans l’application.');
+  assert.equal(sellabilityOf('option', { priceType: 'per_person' }).ok, true, 'a per-person option still sells (unit = one person)');
+  const db = freshDb();
+  const stay = addStay(db);
+  addResource(db, { id: 9, name: 'Vélo', priceType: 'per_person', price: 10 });
+  sell(db, 'resource', 9);
+  assert.equal(find(soldFor(db, stay), 'resource', 9), undefined, 'switched on before the refusal: absent from the shop');
 });
 
 test('rule 23: archived, unlinked, unsold and non-sellable items are absent', () => {

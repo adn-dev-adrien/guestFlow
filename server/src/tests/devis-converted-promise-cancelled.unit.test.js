@@ -51,9 +51,10 @@ test('rule 23 — the older refusals still hold on a cancelled stay\'s devis: CG
   assert.ok(rowOf(withMoney.id));
 });
 
+// Rule 26 (R36-RES-L2): only a devis that made a promise is kept; these two owe one payment (inside the D23 window).
 test('rule 23 — a stay set aside as a duplicate (it can be restored) and a live stay keep their devis', () => {
   for (const kind of ['superseded', 'reservation']) {
-    const { id, rid } = convert(kind === 'superseded' ? 51 : 53);
+    const { id, rid } = convert(kind === 'superseded' ? 35 : 37);
     setKind(rid, kind);
     const refused = devisModel.remove(id);
     assert.equal(refused.code, 'DEVIS_HOLDS_PROMISE', kind);

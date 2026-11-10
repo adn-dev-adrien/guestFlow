@@ -14,6 +14,10 @@ const guestAppApi = {
   saveItem: (kind, id, patch) => call(`/items/${kind}/${id}`, { method: 'PUT', body: patch }),
   // Rule 37quater — the tracked articles' stock, for the fiche's non-blocking « Stock : épuisé ».
   getStock: () => call('/stock'),
+  // Rule 58 — the app settings through the plugin's own route, the only one that writes the guest host: it refuses
+  // GuestFlow's own address.
+  getSettings: () => call('/studio/settings'),
+  saveSettings: (patch) => call('/studio/settings', { method: 'PUT', body: patch }),
   // The studio's photo library, reused by the editors' « Photo » field.
   getMedia: () => call('/studio/media'),
   uploadMedia: (file, { altFr = '', altEn = '' } = {}) => {

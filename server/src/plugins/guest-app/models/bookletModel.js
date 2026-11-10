@@ -26,7 +26,7 @@ const parseJson = (text, fallback) => {
 
 // Rule 16, §9 Q1 — neutral pages until the user's booklets are entered (plan, slice I), marked as such.
 const PLACEHOLDER_TEXT = Object.freeze({
-  fr: '<p>Page d’exemple : remplacez ce texte depuis le studio du livret.</p>',
+  fr: '<p>Page d’exemple : texte à remplacer depuis le studio du livret.</p>',
   en: '<p>Sample page: replace this text from the booklet studio.</p>',
 });
 const PLACEHOLDER_PAGES = Object.freeze([
@@ -218,7 +218,7 @@ function createBookletModel(db) {
       const placements = placementsOf(pageId);
       if (!pageRow(pageId)) return { status: 404, error: 'Page introuvable' };
       if (!placements.some((p) => p.propertyId === Number(propertyId))) return { status: 404, error: 'La page n’est pas dans ce livret.' };
-      if (placements.length === 1) return { status: 409, error: 'La page n’est que dans ce livret : supprimez-la.' };
+      if (placements.length === 1) return { status: 409, error: 'La page n’est que dans ce livret : la supprimer plutôt.' };
       db.prepare('DELETE FROM guest_booklet_placements WHERE pageId = ? AND propertyId = ?').run(Number(pageId), Number(propertyId));
       blocksOf(pageId).filter((b) => b.onlyForPropertyIds && b.onlyForPropertyIds.includes(Number(propertyId))).forEach((b) => {
         db.prepare('UPDATE guest_booklet_blocks SET onlyForPropertyIdsJson = ? WHERE id = ?')

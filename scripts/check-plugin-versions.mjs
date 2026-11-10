@@ -30,9 +30,11 @@
  * (specs/plugin-dependencies.md rule 16).
  *
  * "Changed" means a file of `server/src/plugins/<id>/` or `client/src/plugins/<id>/` differs from the
- * previous tag, tests excepted (a test changes no package). The previous tag is the newest `v*` tag
- * reachable from HEAD — from HEAD's parent when HEAD itself is the tag being released. A plugin
- * with no manifest at that tag (its first packaged release) is never a violation.
+ * previous tag, tests excepted (a test changes no package) — or a file of the core client a web app of the plugin
+ * builds in (`server/src/plugins/<id>/apps/*` importing `@guestflow/…`, and what those files import in turn: rule 28,
+ * reading of 2026-11-10, audit R36-CON-L1). Its package carries that build, so the core change reaches it.
+ * The previous tag is the newest `v*` tag reachable from HEAD — from HEAD's parent when HEAD itself is the tag
+ * being released. A plugin with no manifest at that tag (its first packaged release) is never a violation.
  *
  * The decision is a pure function, exported for the unit suite.
  */
@@ -189,14 +191,66 @@ export function bumpPatch(version) {
   return `${m[1]}.${m[2]}.${Number(m[3]) + 1}`;
 }
 
-/** The plugin ids touched by a list of changed paths. */
-export function pluginsOf(files) {
+/**
+ * The plugin ids touched by a list of changed paths. `coreClient`: `{ <id>: Set(<client/src path>) }`, the core client
+ * files a plugin's web apps build in (`coreClientClosure`).
+ */
+export function pluginsOf(files, { coreClient = {} } = {}) {
   const ids = new Set();
   for (const file of files.filter(countsForPackage)) {
     const m = file.match(/^(?:server|client)\/src\/plugins\/([^/]+)\//);
     if (m && !HOST_DIRS.has(m[1])) ids.add(m[1]);
+    Object.entries(coreClient).forEach(([id, paths]) => { if (paths.has(file)) ids.add(id); });
   }
   return ids;
+}
+
+const CORE_CLIENT = 'client/src';
+const ALIAS = '@guestflow/';
+const SOURCE = /\.(m?jsx?|tsx?)$/;
+const IMPORTED = /(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]+)['"]/g;
+
+/** The file a specifier names, with the extensions and index files Vite resolves; null when there is none. */
+function resolveSource(root, base) {
+  const tries = [base, ...['.js', '.jsx', '.mjs', '.ts', '.tsx'].map((ext) => `${base}${ext}`), ...['index.js', 'index.jsx'].map((f) => path.join(base, f))];
+  return tries.find((candidate) => fs.existsSync(path.join(root, candidate)) && fs.statSync(path.join(root, candidate)).isFile()) || null;
+}
+
+const sourcesUnder = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => {
+  const full = path.join(dir, d.name);
+  if (d.isDirectory()) return d.name === 'node_modules' || d.name === 'dist' ? [] : sourcesUnder(full);
+  return SOURCE.test(d.name) ? [full] : [];
+}) : []);
+
+/**
+ * Rule 28 reading (audit R36-CON-L1) — `{ <id>: Set(<path>) }`: the core client files the web apps of each plugin
+ * build in. Starts from their `@guestflow/…` imports (the alias every app's Vite config maps on `client/src`) and
+ * follows the relative imports of those files inside `client/src`. A plugin whose apps import nothing of it is absent.
+ */
+export function coreClientClosure(root = ROOT) {
+  const out = {};
+  const pluginsDir = path.join(root, SERVER_PLUGINS);
+  if (!fs.existsSync(pluginsDir)) return out;
+  for (const id of fs.readdirSync(pluginsDir)) {
+    const appsDir = path.join(pluginsDir, id, 'apps');
+    const seeds = sourcesUnder(appsDir).flatMap((file) => [...fs.readFileSync(file, 'utf8').matchAll(IMPORTED)]
+      .map((m) => m[1]).filter((spec) => spec.startsWith(ALIAS))
+      .map((spec) => resolveSource(root, path.posix.join(CORE_CLIENT, spec.slice(ALIAS.length)))));
+    const seen = new Set();
+    const queue = seeds.filter(Boolean);
+    while (queue.length) {
+      const file = queue.shift();
+      if (seen.has(file)) continue;
+      seen.add(file);
+      for (const m of fs.readFileSync(path.join(root, file), 'utf8').matchAll(IMPORTED)) {
+        if (!m[1].startsWith('.')) continue;
+        const next = resolveSource(root, path.posix.join(path.posix.dirname(file), m[1]));
+        if (next && next.startsWith(`${CORE_CLIENT}/`)) queue.push(next);
+      }
+    }
+    if (seen.size) out[id] = seen;
+  }
+  return out;
 }
 
 function previousTag() {
@@ -259,8 +313,10 @@ function main() {
     process.stdout.write('No previous release tag: every plugin is new.\n');
     return 0;
   }
-  const files = git(['diff', '--name-only', base, '--', SERVER_PLUGINS, CLIENT_PLUGINS]).split('\n').filter(Boolean);
-  const changed = pluginsOf(files);
+  const coreClient = coreClientClosure();
+  const files = git(['diff', '--name-only', base, '--', SERVER_PLUGINS, CLIENT_PLUGINS, ...(Object.keys(coreClient).length ? [CORE_CLIENT] : [])])
+    .split('\n').filter(Boolean);
+  const changed = pluginsOf(files, { coreClient });
   const ids = [...changed].filter((id) => fs.existsSync(manifestPath(id)));
   const baseVersions = Object.fromEntries(ids.map((id) => [id, (manifestAt(base, id) || {}).version || null]));
   const headManifests = Object.fromEntries(ids.map((id) => [id, JSON.parse(fs.readFileSync(manifestPath(id), 'utf8'))]));

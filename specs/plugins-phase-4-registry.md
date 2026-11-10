@@ -240,6 +240,11 @@ below are the recommended ones; each is reversible in a later spec.
 28. **A plugin is versioned in the pull request that changes it.** CI refuses a PR that changes a
     plugin's files (tests excepted) without a new `version` in its manifest and French lines under
     `changelog["<version>"]`. The release PR never edits a manifest; it only folds `changelog.d/`.
+    Reading of 2026-11-10 (audit R36-CON-L1): a plugin's files include the core client files its web apps build in
+    (`apps/*` importing `@guestflow/…`, and what those files import in turn, `coreClientClosure` of
+    `check-plugin-versions.mjs`): its package carries that build, so a change to `StatusBadge` reached guest-app's
+    package under an unchanged version and only the release's `package` job (rule 27) saw it, after the tag. The release
+    skill's pre-flight builds the plugins' web apps before it builds and judges the packages, as that job does.
 29. **One plugin operation at a time, all or nothing.** An install takes the same lock as an update
     (409 « Mise à jour déjà en cours. »); a requirement installed for a plugin whose own install then
     fails is uninstalled again; an install that needs a restart (another version still loaded) is

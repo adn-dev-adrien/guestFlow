@@ -272,6 +272,23 @@ booking is settled by the platform and carries no such promise.
     the PDF 08/01. A NULL-validity devis converted re-split into an acompte on the stay's first quote, or owed its
     payment in the past.
 
+26. **Only a devis that made a promise is kept for its stay** _(added 2026-11-10, audit R36-RES-L2)_. Rule 21 protects
+    the promise the stay reads on the devis row; since rule 24 an OTA devis hands none, and a direct devis converted
+    with an acompte outside the window hands none either (rule 22: the stay takes the reservation rules). Rule 21's
+    refusal now applies only when the devis holds a promise, the engine's own condition: a direct platform
+    (`isDirectChannel` of the devis's platform) and `paymentSchedule.devisPromisesOnePayment` (stored acompte 0, or the
+    D23 window) on the devis's dates and validity, with the « Solde dû » delay of the logement the STAY is on now, the
+    one the engine prices (amended 2026-11-10, verification R36b L1: the rule first read the devis's own logement, so a
+    stay moved to a logement with a longer delay read a single-payment promise its devis could still be deleted under).
+    The engine's `keepsDevisPromise` and the refusal call one helper, `paymentSchedule.devisPromiseHeld`, so the two
+    cannot drift. Any other converted devis is judged by the older
+    refusals only (its CGV acceptance, its money) and is deleted, its stay untouched. D27 holds: a direct devis owing
+    one payment stays refused while its stay lives (rules 21, 23 unchanged for it). *Why:* devis 22330 on Booking,
+    converted, then « Supprimer… » → 409 « Ce devis porte l'échéance de la réservation qui en est issue », although
+    the stay reads no deadline from it. *Accepted (2026-11-10, verification R36b-core N3):* the refusal does not
+    re-check the stay's dates or channel: a stay moved off the devis's start or onto an OTA keeps its devis refused
+    while it lives, so moving it back restores the promise.
+
 ---
 
 ## 4. Architecture
@@ -302,6 +319,7 @@ booking is settled by the platform and carries no such promise.
 | `utils/` | `paymentPollRunner.js` | T | Rule 20: the paid-link conversion names the link type (`paidLinkType`). |
 | `index.js` | — | T | Rule 20: the re-store at every boot, before the server listens (skipped with `SKIP_MIGRATIONS=true`). |
 | `models/` | `devisModel.js` | T | Rules 21 and 23: `removeRefusal` refuses a converted devis while its stay exists (409 `DEVIS_HOLDS_PROMISE`), unless that stay is cancelled. |
+| `utils/` | `paymentSchedule.js`, `pricing.js` | T | Rule 26: `devisPromiseHeld({ devisPromise, balanceDaysBefore })` (direct devis + `devisPromisesOnePayment`) is the one condition of the engine's `keepsDevisPromise` and of `devisModel.removeRefusal`, both fed the delay of the stay's logement. |
 | `routes/` | — | — | (none — the endpoint keeps its shape) |
 | `database.js` | — | — | (none — no schema change; the email template arrives through the existing boot seed) |
 | `scheduledTasks.js` | — | — | (none) |
@@ -441,6 +459,12 @@ summary needs no change: a 0 € acompte already renders as no acompte.
 - [x] `tests/devis-ota-promise-channel.unit.test.js` (2, 2026-11-09, audit R35-RES-L1) — rule 24: an OTA devis
       converted then switched to direct reads start − 30 on its live quote and its save, as a fresh direct stay; a
       direct devis still hands its promise.
+- [x] `tests/devis-delete-promise-holder.unit.test.js` (4, 2026-11-10, audit R36-RES-L2, verification R36b L1) — rule 26:
+      a converted OTA devis and a direct devis converted with an acompte outside the window are deleted, their stay
+      untouched; a direct devis owing one payment, in and out of the window, stays refused (D27); a direct devis with an
+      acompte whose stay is moved to a logement with a 165-day delay reads the single payment and stays refused, back on
+      its logement it is deleted. `devis-converted-promise-cancelled`'s
+      superseded / live case now uses devis owing one payment.
 - [x] `tests/devis-restore-read-dates.unit.test.js` (5, 2026-11-09, audits R33b L1, L2) — rule 25: outside the window
       a delay change moves the columns with the read (acompte and link kept, e-mail and conversion on the new date);
       a no-acompte devis keeps its validity deadline; devis the engine stored are never re-written; a legacy NULL

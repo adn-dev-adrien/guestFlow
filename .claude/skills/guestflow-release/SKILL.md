@@ -107,9 +107,15 @@ The E2E suite needs ports 3000/4000. Free them without asking (`npm run stop`), 
 the dev database on the way through.
 
 Then the plugin packages, exactly as the release's `package` job will judge them — so that job can
-never stop the release after the tag (specs/plugins-phase-4-registry.md rule 27):
+never stop the release after the tag (specs/plugins-phase-4-registry.md rule 27). The plugins' web apps are
+built first, as that job builds them: a package without its apps' build differs from the published one, and
+one with a stale local build is judged on stale content:
 
 ```bash
+for app in server/src/plugins/*/apps/*/; do
+  [ -f "$app/package.json" ] || continue
+  (cd "$app" && npm ci && npm run build)
+done
 node scripts/build-plugin-packages.mjs
 PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
 rm -rf prev-dist && mkdir prev-dist && gh release download "$PREV" -p '*.tgz' -D prev-dist

@@ -30,7 +30,9 @@ const notSubject = () => db.prepare("UPDATE vat_periods SET regime = 'not_subjec
 test('rule 5 — a walk-in guest takes the setting; a booking on a stay its stay\'s rate', () => {
   setting = 20;
   assert.equal(model.priceBooking(draft()).vat.rate, 20);
-  const onStay = Number(model.createBooking({ ...draft({ startTime: '10:00', endTime: '11:00' }), reservationId: 101, clientName: 'X' }).id);
+  // A stay-linked row is a stored one (rule 46: no write links a booking to a stay any more).
+  const onStay = Number(model.createBooking({ ...draft({ startTime: '10:00', endTime: '11:00' }), clientName: 'X' }).id);
+  db.prepare('UPDATE resource_bookings SET reservationId = 101 WHERE id = ?').run(onStay);
   assert.equal(model.priceBooking(draft({ startTime: '10:00', endTime: '11:00', bookingId: onStay })).vat.rate, 10);
   setting = 10;
   assert.equal(model.priceBooking(draft()).vat.rate, 10, 'the preview of an unpaid booking follows the setting');

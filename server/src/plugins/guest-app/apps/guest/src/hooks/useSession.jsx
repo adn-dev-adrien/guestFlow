@@ -17,6 +17,9 @@ import { device } from '../services/device';
 // Exported for the studio's phone preview, which renders these screens from the editor's state (rule 49).
 export const SessionContext = createContext(null);
 
+// Rule 19 — the language the guest chose on this device is the one every request asks for from the first one on.
+setLanguage(device.get('lang') || null);
+
 const prefersDark = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 /**
@@ -169,7 +172,13 @@ export function SessionProvider({ children }) {
   // §6.1 — the night register: the guest's choice, else the device's dark scheme or the server's night.
   const night = nightChoice ? nightChoice === 'night' : (darkScheme || Boolean(state.me && state.me.isNight));
 
-  const chooseLang = useCallback((next) => { device.set('lang', next); setLangChoice(next); }, []);
+  // The API asks for the new language before any page re-reads its data (audit R36-C-L1): a child's effect runs before
+  // this provider's, and read the orders and the booklet again in the old one.
+  const chooseLang = useCallback((next) => {
+    device.set('lang', next);
+    setLanguage(next);
+    setLangChoice(next);
+  }, []);
   const toggleNight = useCallback(() => {
     const next = night ? 'day' : 'night';
     device.set('register', next);

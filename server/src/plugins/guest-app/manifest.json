@@ -1,8 +1,8 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.0.0",
-  "description": "L’application « Mon séjour » de vos clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
+  "version": "1.0.1",
+  "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
     "Intégrations › Application clients",
@@ -20,6 +20,16 @@
     "1.0.0": [
       "Première version : réglages par logement, code QR de chaque logement (livret seul), lien « Mon séjour » propre à chaque séjour (sas d’arrivée, e-mails, fiche), sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, commandes du séjour (sur la note, à 0 € ou par carte, inscrites sur la fiche), commandes clients côté équipe, stock par article (épuisé, alertes), commandes livrées ou à retirer, portail du séjour, Studio lu en direct depuis GuestFlow, manifeste d’installation et service de l’application clients et du Studio, l’application clients « Mon séjour » (téléphone, tablette, ordinateur, hors ligne pour le livret), le Studio du livret et, dans GuestFlow, la section « Application clients » des options et ressources, la page « Commandes clients », la carte du planning et le lien « Mon séjour » de la fiche.",
       "Prévu pour le SDK 2.26 de GuestFlow."
+    ],
+    "1.0.1": [
+      "« Retrouver mon séjour » n’ouvre plus un séjour dont le numéro vient de GuestFlow (vente directe ou numéro jamais remplacé par celui de la plateforme) : le lien du séjour reste la clé, et « Régénérer le lien » ferme aussi les sessions ouvertes par le nom et le numéro.",
+      "Une commande qui demande plus de personnes qu’il n’en reste à servir est refusée avec le nombre restant, au lieu d’être facturée en partie ou à 0 € ; un article payant qui ne serait pas facturé ne se commande pas.",
+      "L’adresse de l’application ne peut plus être celle de GuestFlow : refusée à l’enregistrement, ignorée si elle était déjà enregistrée, pour que GuestFlow reste joignable.",
+      "Les refus de l’application clients suivent la langue du client ; le changement de langue relit aussitôt les commandes et le livret.",
+      "Au plus six paiements par carte par séjour et par heure ; heures de livraison justes les nuits de changement d’heure ; QR du wifi correct avec une barre oblique inverse dans le mot de passe.",
+      "La réception ne lit plus la liste des commandes et leurs montants ; « Effacer aussi ses données » nomme les pages du livret et les photos, et supprime les fichiers des photos une fois l’effacement réussi ; textes de GuestFlow et du Studio impersonnels.",
+      "Une ressource au prix par personne ne se vend plus dans l’application : elle était facturée pour toutes les personnes du séjour à chaque unité.",
+      "Demande le SDK 2.26 de GuestFlow."
     ]
   }
 }

@@ -296,6 +296,7 @@ Optional environment variables (sensible defaults otherwise):
 | `GUEST_SESSION_RATELIMIT_MAX` / `GUEST_SESSION_RATELIMIT_WINDOW_MS` | Guest app: scanning a lodging's QR code, per IP | `30` / `3600000` |
 | `GUEST_LOOKUP_RATELIMIT_MAX` / `GUEST_LOOKUP_RATELIMIT_WINDOW_MS` | Guest app: name + reservation number fallback, per IP | `5` / `900000` |
 | `GUEST_ORDER_RATELIMIT_MAX` / `GUEST_ORDER_RATELIMIT_WINDOW_MS` | Guest app: orders, per guest session | `10` / `3600000` |
+| `GUEST_CARD_ORDER_RATELIMIT_MAX` / `GUEST_CARD_ORDER_RATELIMIT_WINDOW_MS` | Guest app: card orders (payment links), per stay | `6` / `3600000` |
 
 ### Public API (WordPress showcase site)
 
