@@ -77,7 +77,7 @@ test('rule 23 — an id well typed but unknown is 404, not a foreign key', async
     const res = await refused('POST', '/api/resource-bookings', baseline({ [field]: 999999 }), field);
     assert.equal(res.status, 404, `${field} ${res.text}`);
   }
-  // Rule 46 (R36-DB-L2) — a stay is never linked, known or not.
+  // specs/resource-booking-pricing-and-invoicing.md rule 46 (R36-DB-L2) — a stay is never linked, known or not.
   const linked = await refused('POST', '/api/resource-bookings', baseline({ reservationId: 999999 }), 'reservationId');
   assert.equal(linked.status, 400, linked.text);
   assert.equal(linked.json.code, 'BOOKING_STAY_LINK');
