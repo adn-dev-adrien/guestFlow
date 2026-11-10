@@ -292,15 +292,23 @@ const totalsByKey = (lines) => {
 const sameMoney = (a, b) => Math.abs(round2(Number(a) || 0) - round2(Number(b) || 0)) < 0.005;
 
 /**
+ * Both saves of a measure are priced fresh (`refreshTouristTax`: no pin of the stored price, no frozen tax): a stored stay the
+ * engine no longer reproduces to the cent (a platform's price, a tax rule moved since) would otherwise make the first save answer
+ * the stored figures and the second the engine's, and the difference would read as the order's growth (owner decision 2026-11-10:
+ * only the order's own growth is measured, never a replay of the stay).
+ */
+const freshPricing = (body) => ({ ...structuredClone(body), refreshTouristTax: true });
+
+/**
  * Rule 66 — the order measured on the arrival complement: both saves played as the day before the arrival, nothing
  * written. The order may grow the arrival complement and nothing else.
  */
 function measureBeforeArrival(id, body, merged) {
   const save = controller().performUpdate;
   const options = { dryRun: true, beforeArrival: true };
-  const base = save(id, structuredClone(body), options);
+  const base = save(id, freshPricing(body), options);
   if (base.status !== 200) return refusal(base);
-  const next = save(id, merged, options);
+  const next = save(id, freshPricing(merged), options);
   if (next.status !== 200) return refusal(next);
   // An order never re-prices the stay (rule 66): its own growth is all it may move, never the tourist tax.
   if (!sameMoney(next.row.touristTaxTotal, base.row.touristTaxTotal)) return STAY_PRICE_MOVED();
@@ -618,9 +626,9 @@ function stripChargeKeys(body) {
 function measureAmend(id, body, merged) {
   const options = { dryRun: true, beforeArrival: true };
   const save = controller().performUpdate;
-  const base = save(id, structuredClone(body), options);
+  const base = save(id, freshPricing(body), options);
   if (base.status !== 200) return refusal(base);
-  const next = save(id, stripChargeKeys(structuredClone(merged)), options);
+  const next = save(id, freshPricing(stripChargeKeys(merged)), options);
   if (next.status !== 200) return refusal(next);
   // An order never re-prices the stay (rule 66): its own growth is all it may move, never the tourist tax.
   if (!sameMoney(next.row.touristTaxTotal, base.row.touristTaxTotal)) return STAY_PRICE_MOVED();

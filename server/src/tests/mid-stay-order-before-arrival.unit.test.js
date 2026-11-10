@@ -129,6 +129,20 @@ test('rule 66 (owner 2026-11-10): a stored price the engine no longer reproduces
   assert.deepEqual([result.status, result.byKey, result.collectAt], [200, { 'opt:102': 6 }, 'arrival'], JSON.stringify(result.body));
 });
 
+test('rule 66 (shadow finding of the second pass): a stored stay whose tourist tax the engine now computes differently — the order is measured on its own growth, not refused', () => {
+  const id = seedStay({ start: 5, balancePaid: 0 });
+  db.prepare("UPDATE reservations SET platform = 'booking', depositAmount = 0, touristTaxTotal = 0 WHERE id = ?").run(id);
+  db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 1.5 WHERE id = 1').run();
+  try {
+    const priced = priceOrder(id, [{ kind: 'option', id: 102, quantity: 2 }]);
+    assert.deepEqual([priced.status, priced.byKey, priced.collectAt], [200, { 'opt:102': 12 }, 'arrival'], JSON.stringify(priced.body));
+    const result = commitOrder(id, { ...named(14), lines: [{ kind: 'option', id: 102, quantity: 2 }] });
+    assert.deepEqual([result.status, result.byKey], [200, { 'opt:102': 12 }], JSON.stringify(result.body));
+  } finally {
+    db.prepare('UPDATE properties SET touristTaxPerDayPerPerson = 0 WHERE id = 1').run();
+  }
+});
+
 test('rule 68 (owner 2026-11-10): a platform stay with nothing paid orders before the arrival, on the arrival complement', () => {
   const id = seedStay({ start: 5, balancePaid: 0 });
   db.prepare("UPDATE reservations SET platform = 'booking', depositAmount = 0 WHERE id = ?").run(id);
