@@ -145,7 +145,7 @@ export default function GuestAppItemFields({
       <SwitchRow
         id={`guest-app-sold-${kind}-${itemId}`}
         label="Vendu dans l’app"
-        help={sellable.ok || draft.sold ? 'Le prix et le titre restent ceux de GuestFlow, par logement.' : sellable.reason}
+        help={sellable.ok ? 'Le prix et le titre restent ceux de GuestFlow, par logement.' : sellable.reason}
         checked={draft.sold}
         disabled={!sellable.ok && !draft.sold}
         onChange={(sold) => set({ sold })}

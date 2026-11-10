@@ -40,7 +40,7 @@ test('rule 29 — the running total, last year dashed beside it only when the se
   renderTab(data);
   await screen.findByRole('figure', { name: 'Encaissements cumulés, T3 2099' }, { timeout: 10000 });
   expect(screen.queryByRole('button', { name: 'N-1' })).toBeNull();
-}, 20000);
+});
 
 test('rule 30 — both panels say they read the collections', () => {
   renderTab(synthesisPayload());

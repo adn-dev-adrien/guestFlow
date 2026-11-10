@@ -285,7 +285,9 @@ booking is settled by the platform and carries no such promise.
     refusals only (its CGV acceptance, its money) and is deleted, its stay untouched. D27 holds: a direct devis owing
     one payment stays refused while its stay lives (rules 21, 23 unchanged for it). *Why:* devis 22330 on Booking,
     converted, then « Supprimer… » → 409 « Ce devis porte l'échéance de la réservation qui en est issue », although
-    the stay reads no deadline from it.
+    the stay reads no deadline from it. *Accepted (2026-11-10, verification R36b-core N3):* the refusal does not
+    re-check the stay's dates or channel: a stay moved off the devis's start or onto an OTA keeps its devis refused
+    while it lives, so moving it back restores the promise.
 
 ---
 

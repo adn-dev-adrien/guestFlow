@@ -37,3 +37,23 @@ test('rule 17 — the rule-16 files carry no per-test timeout below the budget',
     assert.doesNotMatch(read(file), /\}, \d+\);\s*$/m, file);
   }
 });
+
+// Verification R36b-core N1: an explicit per-test timeout wins over the budget, so one below 30 s gives that test less
+// time than every unmarked one. Read across the whole client tree, not a list.
+test('rule 17 — no client test sets a per-test timeout below the 30 s budget', () => {
+  const below = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { if (entry.name !== 'node_modules') walk(full); continue; }
+      if (!/\.test\.jsx?$/.test(entry.name)) continue;
+      const lines = fs.readFileSync(full, 'utf8').split('\n');
+      lines.forEach((line, i) => {
+        const m = /^\}, (\d+)\);\s*$/.exec(line);
+        if (m && Number(m[1]) < 30000) below.push(`${path.relative(clientDir, full)}:${i + 1}`);
+      });
+    }
+  };
+  walk(path.join(clientDir, 'src'));
+  assert.deepEqual(below, []);
+});

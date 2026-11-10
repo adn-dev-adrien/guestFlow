@@ -128,6 +128,6 @@ test('D28 (R36b N1): the refused shape is the one the core generates — every m
     .run(far, farNext, `${year}-03-777`).lastInsertRowid;
   assert.equal(dehyphenateReservationNumbers(db), 1, 'the legacy form is the one the core reformats');
   assert.equal(onPlatform(db.prepare('SELECT reservationNumber FROM reservations WHERE id = ?').get(legacyId).reservationNumber), false);
-  ['4089123456', '5310061234', '2026110012', '19990700', `${year}13001`, `${year}00001`, `${year}0700`, `1999-07-001`, `${year}-7-001`]
+  ['4089123456', '5310061234', '2026110012', '19990700', `${year}13001`, `${year}00001`, `${year}0700`, `1999-07-001`, `${year}-7-001`, `${year}-07-0012`, '231107123']
     .forEach((n) => assert.equal(onPlatform(n), true, n));
 });

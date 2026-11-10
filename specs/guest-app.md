@@ -263,7 +263,8 @@ is pushed every order.
       N2):** a `per_person` resource is refused, « Une ressource au prix par personne ne se vend pas dans
       l'application. »: the engine bills it quantity × party (`pricing.getTypeMultiplier`), so « 1 × Vélo » for 4 people
       was 40 € under « 10 € par personne », and « 4 » ordered for them paid 16 persons. A switch already on sells
-      nothing (the shop re-judges every row).
+      nothing (the shop re-judges every row); its editor then shows the reason under the switch, which stays enabled
+      so it can be switched off (verification R36b R1, `GuestAppItemFields.stored-on.test.jsx`).
     Other types (`per_night`, `per_person_per_night`, `percent_of_stay`, progressive tiers, cancellation
     insurance, auto timed options such as late check-out) cannot be flagged — the switch is disabled with the
     reason. An item flagged but not linked to a lodging is simply absent from that lodging's shop.

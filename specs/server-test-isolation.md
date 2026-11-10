@@ -579,10 +579,10 @@ dropped timeouts.
   script, no server test option above it (the fuzz's 300 000 ms was the one, red before), the reader's forms, and the
   fuzz split in two files over `tests/inputShapePerField.js` (3 398 + 1 743 requests, about 21 s and 5 s alone).
 - [x] Rule 16 (2026-11-10, audit R36-S3): the six client files listed give each test 15 000 ms; the hourly-resources
-  dialog suites and `ClientsPage.stale-impact` pass 12 runs in a row on a loaded machine.
-- [x] Rule 17 (2026-11-10, verification R36b): `client-test-budget.unit.test.js` (3 tests) — `testTimeout: 30000` in
+  dialog suites and `ClientsPage.stale-impact` pass 12 runs in a row on a loaded machine. _Superseded 2026-11-10 by rule 17: no per-test timeout, the 30 s suite budget._
+- [x] Rule 17 (2026-11-10, verification R36b): `client-test-budget.unit.test.js` (4 tests) — `testTimeout: 30000` in
   `vitest.config.js` (inherited by the race-sweep config), `configure({ asyncUtilTimeout: 5000 })` in `setupTests.js`,
-  and no per-test timeout left in the rule-16 files. Whole client suite at load 26: 863 files / 3 937 tests green.
+  and no per-test timeout left in the rule-16 files, nor one below 30 000 ms anywhere in `client/src` (verification R36b-core N1: the two accounting-export files at 20 000 ms, red before). Whole client suite at load 26: 863 files / 3 937 tests green.
 
 ## 8. Out of scope
 
