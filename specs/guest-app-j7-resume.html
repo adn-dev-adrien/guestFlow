@@ -684,7 +684,7 @@ footer{margin-top:3rem;color:var(--mute);font-size:.85rem;border-top:1px solid v
     $('s-stepper').innerHTML = steps.map(function(s){ return '<span class="' + (s === cur ? 'cur' : '') + '">' + s + '</span>'; }).join('');
     if (sasStep === 'orders') {
       var n = orders.filter(live).length;
-      html += '<div class="fold"><button type="button" class="sum" id="s-fold" aria-expanded="' + foldOpen + '" aria-controls="s-foldbody"><span><span class="sumt">Commandes Mon séjour</span><span class="sums">' + n + ' commande' + (n > 1 ? 's' : '') + ' · ' + eur(toCollect()) + (collected ? ' perçus' : ' à percevoir') + (paidTotal() ? ' · ' + eur(paidTotal()) + ' payés par carte' : '') + '</span></span>'
+      html += '<div class="fold"><button type="button" class="sum" id="s-fold" aria-expanded="' + foldOpen + '" aria-controls="s-foldbody"><span class="sumt">' + n + ' commande' + (n > 1 ? 's' : '') + ' · ' + eur(toCollect()) + (collected ? ' perçus' : ' à percevoir') + (paidTotal() ? ' · ' + eur(paidTotal()) + ' payés par carte' : '') + '</span>'
         + '<svg class="chev" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
         + '<div class="foldbody' + (foldOpen ? ' open' : '') + '" id="s-foldbody"><div>' + orders.map(orderHtml).join('')
         + '<div class="tots"><div class="row"><b>Total à percevoir</b><b>' + eur(toCollect()) + '</b></div>' + (paidTotal() ? '<div class="row"><span>Déjà payé par carte</span><span>' + eur(paidTotal()) + '</span></div>' : '') + '</div></div></div></div>';

@@ -35,7 +35,7 @@ const WORDS = Object.freeze({
   cancelledNothing: 'Rien à percevoir',
   chargeSuffix: (amount) => `+ ${amount} soirée`,
   offered: 'offerte',
-  summary: (count, toCollect) => `${count} commande${count > 1 ? 's' : ''}${toCollect ? ` · ${toCollect} à percevoir` : ''}`,
+  summary: (count, toCollect, paid) => `${count} commande${count > 1 ? 's' : ''}${toCollect ? ` · ${toCollect} à percevoir` : ''}${paid ? ` · ${paid} payés par carte` : ''}`,
   recapNote: (amount) => `Commandes Mon séjour : ${amount} (dans le complément d’arrivée)`,
 });
 
@@ -134,7 +134,7 @@ function buildArrivalOrdersController({
     const complement = stays().arrivalComplementAmount(reservationId);
     return {
       orders: views,
-      summaryLabel: WORDS.summary(views.length, toCollect > 0 ? labels.priceLabel(toCollect) : ''),
+      summaryLabel: WORDS.summary(views.length, toCollect > 0 ? labels.priceLabel(toCollect) : '', prepaid > 0 ? labels.priceLabel(prepaid) : ''),
       toCollect,
       toCollectLabel: labels.priceLabel(toCollect),
       paid: prepaid,

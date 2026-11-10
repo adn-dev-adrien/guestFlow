@@ -41,6 +41,9 @@ withStay('rule 71: the payload words its own summary and its recap note — « 2
   await place(call, [{ kind: 'option', id: WINE, quantity: 1 }]);
   const data = api.ordersAtArrival(stayId);
   assert.equal(data.summaryLabel, `2 commandes · ${euros(21)} à percevoir`);
+  await place(call, [{ kind: 'option', id: CIDER, quantity: 1 }], 'card');
+  db.prepare("UPDATE guest_orders SET payment = 'card', status = 'paid', collectAt = 'arrival' WHERE id = (SELECT MAX(id) FROM guest_orders)").run();
+  assert.equal(api.ordersAtArrival(stayId).summaryLabel, `3 commandes · ${euros(21)} à percevoir · ${euros(6)} payés par carte`);
   assert.equal(data.recapNote, `Commandes Mon séjour : ${euros(21)} (dans le complément d’arrivée)`);
 });
 
