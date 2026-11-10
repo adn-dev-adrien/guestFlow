@@ -46,7 +46,7 @@ test('rule 9 reading — a line written already French passes as it is', () => {
   assert.equal(changes[0].toText, '12,50 € — CB / Chèque le 01/02/2030 — solde');
 });
 
-test('payment-schedule rules 55, 61 — the cancel entry reads its figures as amounts', () => {
+test('specs/payment-schedule-and-cancellation.md rules 55, 61 — the cancel entry reads its figures as amounts', () => {
   const { changes } = buildHistoryRows([
     { field: 'retainedDeposit', label: 'Acompte conservé', from: null, to: 142.16 },
     { field: 'writtenOffBalance', label: 'Solde abandonné', from: null, to: 249.79 },
