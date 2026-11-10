@@ -688,6 +688,24 @@ acompte is kept as an indemnity, and the books say so correctly.
     `tests/cancellation-preview.unit.test.js` (preview = cancel for a plan paid or not, a transfer acompte, a refund
     before, a caisse-interne acompte, a split acompte, withheld commissions, nothing collected; the refusals; the
     dashboard row), `client/src/components/__tests__/ReservationCancelDialog.server-figures.test.jsx`.
+61. **The cancellation notice states the sum the cancellation kept** _(added 2026-11-10, audits R44-DB-M1, R44-M-L1,
+    R44-RES-L1)_. `cancellationFiguresOf` also answers `keptFromGuest`: what the guest loses, the indemnity booked
+    (`indemnityAmount`: the acompte or the échéances kept net of the earlier book refunds, plus a withheld solde
+    commission, rule 55) plus an acompte collected in the caisse interne (off the books, D8, yet handed over), net of
+    the caisse-interne refunds made before, a solde paid in the caisse interne absorbing them first. The cancel stores it
+    on its history entry (« Somme conservée ») and answers it. Every guest e-mail reads `{{retainedDepositAmount}}` and
+    `hasRetainedDeposit` from it through `utils/cancellationKeptForEmail` — never a formula of its own: a cancelled
+    stay reads its stored figure (a cancellation stored before this rule: its « Acompte conservé »), a live direct stay
+    what cancelling it now would keep (`cancellationPreview`, for a reminder that states it), anything else 0. The
+    token names stay. Nothing kept → the sentence is left out, the notice still says the dates are back on sale. The
+    seeded `cancellation_notice` names « la somme de {{retainedDepositAmount}} déjà versée reste acquise » (« the amount
+    of … already paid is retained »), since the sum may be échéances or a commission; the one-shot
+    `cancellation_notice_kept_sum_v1` rewrites that exact seeded sentence in a stored template, French and English, and
+    leaves a reworded body as it is. *Why:* the notice computed `depositPaid ? depositAmount : 0`: after a 100 € book
+    refund it told the guest 242,16 € were kept while the cancel kept 142,16 €; on a plan it said nothing of the 125 €
+    kept. Tests: `tests/cancellation-notice-kept-sum.unit.test.js` (an acompte, a refund before, a plan paid or not, a
+    caisse-interne acompte whole or partly given back, a split acompte, commissions, nothing collected, English, the
+    confirm's own send, a legacy entry, the template migration).
 
 
 ---
@@ -738,6 +756,8 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | `deposit_reminder` re-anchored + rewritten; `balance_reminder` and `cancellation_notice` added; the two reminders flipped to `sendMode: 'manual'` and `PAYMENT_STABLE_KEYS` exported (rule 44) |
 | `utils/` | `migrateDepositReminderAnchor.js` | C | One-shot force-sync of the already-seeded `deposit_reminder` row to its new anchor — without it the reminder would silently stop firing |
 | `utils/` | `emailContextBuilder.js` | T | `cancelOnDate`, `retainedDepositAmount`, `daysLate` tokens |
+| `utils/` | `cancellationKeptForEmail.js` | C | Rule 61 — `cancellationKeptForEmail(database, reservation)`: the stored `keptFromGuest` of a cancelled stay, the preview's of a live direct stay; handed to `emailContextBuilder` (`cancellationKept`) by `reservationEmailGraph`, `reservationEmailSender`, `emailAutoSendRunner` and `emailsController` |
+| `utils/`, `controllers/`, `database.js` | `cancelReservation.js`, `reservationCancellationController.js`, `migrateCancellationNoticeKeptSum.js` | T / C | Rule 61 — `keptFromGuest` in `cancellationFiguresOf` (`cashDepositKeptOf`), the cancel entry and answer; the one-shot `cancellation_notice_kept_sum_v1` |
 | `utils/` | `depositRequestOnBooking.js` | **D** | **Deleted** (rule 36) — no reservation triggers its own acompte request any more |
 | `utils/` | `migratePaymentTemplatesToManual.js` | C | One-shot force-sync of the seeded `deposit_reminder` / `balance_reminder` rows to `sendMode = 'manual'` (rule 45) |
 | `middleware/` | `enforceRoleAccess.js` | — | Nothing to do: the reception allowlist is deny-by-default, so the new endpoints are already refused |
@@ -776,7 +796,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 | GET | `/api/dashboard/payment-deadlines` | — | `{ rows: [{ reservationId, reservationNumber, state, severity, clientName, propertyName, startDate, endDate, depositDue, balanceDue, dueDate, daysLate, cancelOn, canCancel, canRemind, remindType, requestSent }] }` | Admin only (403 for reception). Snoozed rows excluded. `state` gains `deposit_to_request` / `balance_to_request`; `requestSent` tells the client whether to label the action « Envoyer la demande » or « Relancer ». |
 | POST | `/api/dashboard/payment-deadlines/:id/snooze` | `{ days?: 7 }` | `{ ok: true, snoozedUntil }` | Idempotent. |
 | POST | `/api/dashboard/payment-deadlines/:id/remind` | `{ type: 'deposit' \| 'balance' }` | `{ sent: true, url, recipientEmail }` | Unchanged — it now serves **both** the first request and the reminders, and is the only way a money email leaves. Relays `paymentRequestService` errors verbatim (400 `EMAIL_NOT_SENT`, 502…). |
-| POST | `/api/reservations/:id/cancel` | `{ reason?: string, notifyClient?: boolean }` | `{ ok, cancellationReason, retainedDepositAmount, writtenOffBalance, refundId, compensationId, emailSent }` | 409 `ALREADY_CANCELLED`; 403 `PLATFORM_RESERVATION`; 404 unknown. |
+| POST | `/api/reservations/:id/cancel` | `{ reason?: string, notifyClient?: boolean }` | `{ ok, cancellationReason, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance, refundId, compensationId, emailSent }` | 409 `ALREADY_CANCELLED`; 403 `PLATFORM_RESERVATION`; 404 unknown. `keptFromGuest`: rule 61. |
 | GET | `/api/reservations/:id/cancel-preview` | — | `{ cancellationReason, retainedDepositAmount, writtenOffBalance }` | Rule 60 — the cancel's own figures, nothing written; the cancel's refusals (409 / 403 / 404). |
 | GET | `/api/accounting/cancellation-compensations` | — | unchanged + `origin` on each row | Additive. |
 
@@ -866,6 +886,9 @@ One line per reservation:
   is kept. While the figures load the amounts are placeholders and the confirm is off; a refusal replaces them.
   The fiche's success message reads « {montant} conservés à titre d'indemnité (hors TVA). » or « Rien n'est
   conservé en indemnité. ».
+  *Since 2026-11-10 (audit R44-C-L1):* the « Motif » and the « Prévenir le client par email » choice are reset only
+  when the dialog opens (or opens on another stay): a failed confirm keeps both, so a retry never mails a guest the
+  operator chose not to notify.
 - **Comptabilité → Indemnités d'annulation:** the section subtitle now covers both origins, and a
   retained-acompte row carries an « Acompte conservé » badge plus a « voir le séjour » link.
 - **Reservation page:** when cancelled, `PageActionBar` shows a red chip « Annulée le 19/08/2026 »
@@ -886,10 +909,17 @@ One line per reservation:
 **Sticky action bar:** unchanged on the Dashboard (`PageActionBar title="Tableau de bord"`).
 `ReservationPage` gains one `actionsAfter` entry — icon `EventBusyIcon`, tooltip
 « Annuler le séjour », color `error`, hidden for reception and for non-direct platforms.
+*Since 2026-11-10 (audit R44-C-L2):* while the fiche holds unsaved changes, « Annuler le séjour » and « Supprimer » are
+held like « Transformer en devis » (#918): tooltip « Enregistrer d'abord les modifications. », `aria-disabled`, still
+focusable, nothing opened or sent; in the phone's « Plus d'actions » menu the reason prints beneath the item. Saving or
+undoing the change gives them back. *Why:* a cancel on a dirty fiche replaced it and lost the typed edits, or the
+leave guard then offered « Enregistrer et quitter » on a stay already cancelled (409) or deleted.
 
 ## 7. Test plan
 
 ### Server unit tests — **55 new, suite at 9347 green (2026-11-02)**
+- [x] `tests/cancellation-notice-kept-sum.unit.test.js` (14, 2026-11-10, rule 61) — the notice states `keptFromGuest`,
+      equal to the preview, the cancel answer and the stored entry, for every way the money stands; the template migration.
 - [x] `tests/devis-single-payment-by-validity.unit.test.js` (27, 2026-11-09, D23) — rules 5 amendment and 56: a
       devis 30 to 61 days out never owes its acompte after its solde, one payment due on `validUntil` inside the
       window, on the devis, its PDF, its link quote, its conversion and the converted stay's later saves; rule 47 for
@@ -991,6 +1021,11 @@ One line per reservation:
 - [x] Rule 60 (2026-11-10): `ReservationCancelDialog.server-figures.test.jsx` (3) — the server's figures rendered,
       placeholders and no confirm while loading, a refusal shown with the confirm off; `ReservationCancelDialog.test.jsx`
       and the three `PaymentDeadlinesAlert` cancel tests read the preview.
+- [x] 2026-11-10 (audits R44-C-L1, R44-C-L2): `ReservationCancelDialog.failed-confirm.test.jsx` (2) — a rejected
+      confirm keeps the reason and the unticked « Prévenir le client », the retry sends the same choice; reopening starts
+      over. `pages/__tests__/ReservationPage.cancel-delete-dirty.test.jsx` (4) — a dirty fiche holds « Annuler le séjour »
+      and « Supprimer » with the reason, focusable and inert; undoing the change gives them back; the phone menu prints
+      the reason.
 
 ### Manual UI verification
 - [x] Dashboard: the card renders the two states with their actions, and disappears when nothing is

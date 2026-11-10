@@ -200,6 +200,10 @@ const HISTORY_FIELD_FORMATS = {
   touristTaxInComplement: 'boolean',
   complementAmountOverride: 'money',
   endOfStayComplementAmountOverride: 'money',
+  // The cancel entry's figures (payment-schedule-and-cancellation rules 55, 61), stored as numbers.
+  retainedDeposit: 'money',
+  writtenOffBalance: 'money',
+  keptFromGuest: 'money',
 };
 
 // Fields the pricing engine recomputes on its own: they move on almost every edit and would bury the
@@ -314,7 +318,27 @@ function diffSignatureChange(change, context = {}) {
   return rows;
 }
 
+// specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) — the « paiement unique »
+// lines stored before it wrote « 281.98 € — CB / Chèque le 2026-09-01 — balance, endOfStayComplement »: read back
+// the French way, the stored row untouched.
+const STORED_ARRIVAL_BUCKETS = {
+  deposit: 'acompte', balance: 'solde', complement: "complément d'arrivée", endOfStayComplement: 'complément de fin de séjour',
+};
+function frenchArrivalPaymentText(value) {
+  if (value === null || value === undefined || value === '') return null;
+  return String(value)
+    .replace(/(\d+)\.(\d+) €/g, (_, units, cents) => `${units},${cents.padEnd(2, '0')} €`)
+    .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, y, m, d) => `${d}/${m}/${y}`)
+    .replace(/\b(deposit|balance|complement|endOfStayComplement)\b/g, (key) => STORED_ARRIVAL_BUCKETS[key]);
+}
+
 function expandHistoryChange(change, context) {
+  if ((change.field === 'arrivalPayment' || change.field === 'arrivalPaymentAdjustment') && change.fromText === undefined && change.toText === undefined) {
+    return [{
+      field: change.field, group: null, label: change.label, kind: 'changed',
+      fromText: frenchArrivalPaymentText(change.from), toText: frenchArrivalPaymentText(change.to),
+    }];
+  }
   // The SAS commits and the iCal lock line already ship rendered French text — never re-format them.
   if (change.fromText !== undefined || change.toText !== undefined) {
     return [{

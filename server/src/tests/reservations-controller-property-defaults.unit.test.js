@@ -68,6 +68,8 @@ function buildController(defaults, captures, carriedOptionIds = []) {
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
     '../models/establishmentClosuresModel': noopUtil,
     '../models/reservationsModel': new Proxy({}, { get: (_, k) => {
+      // The stay exists: an unknown id is refused 404 first (reservations-backend-mvc rule 26, audit R44-C-L3).
+      if (k === 'getRow') return (id) => ({ id: Number(id), kind: 'reservation' });
       if (k === 'getPropertyIdOf') return () => null;
       if (k === 'getPropertyCapacity') return () => ({ adults: 99, children: 99, babies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
       if (k === 'getPropertyBeds') return () => ({ singleBeds: 99, doubleBeds: 99, babyBeds: 99 });

@@ -926,7 +926,7 @@ function validateRefundPayload(payload, context) {
   if (!cancelled && round2(Number(alreadyRefundedTotal || 0) + totalTtc) > stayCap) {
     return invalid(
       'REFUND_EXCEEDS_STAY',
-      `Le total remboursé dépasserait le montant du séjour (${stayCap.toFixed(2)} €)`,
+      `Le total remboursé dépasserait le montant du séjour (${stayCap.toFixed(2).replace('.', ',')} €).`,
       409,
     );
   }

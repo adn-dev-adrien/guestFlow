@@ -263,34 +263,54 @@ function cancellationRefusalOf(row) {
   return null;
 }
 
+// specs/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the acompte collected in
+// the caisse interne that the cancellation keeps: off the books (D8), so no avoir names it, yet the guest handed it over.
+// The caisse-interne refunds made before give part of it back, a solde paid in the caisse interne absorbing them first
+// (the order rule 55 reads for the books).
+function cashDepositKeptOf(row, refunds) {
+  if (!Number(row.depositPaid) || !Number(row.depositPaidCash || 0)) return 0;
+  const deposit = Math.max(0, round2(row.depositAmount));
+  const cashGivenBack = round2((refunds || []).filter((refund) => isOffBooks(refund.method))
+    .reduce((total, refund) => total + Number(refund.totalTtc || 0), 0));
+  const soldeCash = Number(row.balancePaid) && Number(row.balancePaidCash || 0) ? Math.max(0, round2(row.balanceAmount)) : 0;
+  return Math.max(0, round2(deposit - Math.max(0, round2(cashGivenBack - soldeCash))));
+}
+
 // specs/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the figures a cancellation of `row` books, read
 // once: `cancelReservation` writes them and `cancellationPreview` shows them, so the confirm dialog can never announce
 // another sum than the one stored.
 function cancellationFiguresOf(deps, row, { today = null, vatRate = 0, reason = '' } = {}) {
-  const requalification = requalificationOf(deps, row, givenBackByBucket(deps.refundsModel.listByReservation(Number(row.id))), {
+  const refunds = deps.refundsModel.listByReservation(Number(row.id));
+  const requalification = requalificationOf(deps, row, givenBackByBucket(refunds), {
     today, vatRate, reason,
   });
+  const indemnityAmount = requalification ? round2(requalification.requalifiedTtc) : 0;
   return {
     cancellationReason: resolveCancellationReason(row),
     requalification,
     retainedDepositAmount: requalification ? requalification.retainedTtc : 0,
     // Verification R43 N2 — the indemnity actually booked (avoir, compensation): the money kept plus a withheld solde
     // commission. The dialog and the toast state this one.
-    indemnityAmount: requalification ? round2(requalification.requalifiedTtc) : 0,
+    indemnityAmount,
+    // Rule 61 — what the guest loses: the indemnity booked plus the caisse-interne acompte kept. The cancellation notice
+    // states this one, never a formula of its own.
+    keptFromGuest: round2(indemnityAmount + cashDepositKeptOf(row, refunds)),
     writtenOffBalance: round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount)),
   };
 }
 
 /**
  * Rule 60 — what cancelling the stay now would keep and write off, or the refusal the cancel would answer. Reads only.
- * @returns {{ ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance } | { error, status, message }}
+ * @returns {{ ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance } | { error, status, message }}
  */
 function cancellationPreview(deps, reservationId, { today = null, vatRate = 0 } = {}) {
   const row = deps.reservationsModel.getForCancellation(Number(reservationId));
   const refusal = cancellationRefusalOf(row);
   if (refusal) return refusal;
-  const { cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance } = cancellationFiguresOf(deps, row, { today, vatRate });
-  return { ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance };
+  const {
+    cancellationReason, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance,
+  } = cancellationFiguresOf(deps, row, { today, vatRate });
+  return { ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance };
 }
 
 /**
@@ -307,7 +327,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
 
   const trimmedReason = String(reason || '').trim();
   const {
-    cancellationReason, requalification, retainedDepositAmount, indemnityAmount, writtenOffBalance,
+    cancellationReason, requalification, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance,
   } = cancellationFiguresOf(deps, row, { today, vatRate, reason: trimmedReason });
 
   let refundId = null;
@@ -319,6 +339,8 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
       { field: 'cancellationReason', label: 'Motif', from: null, to: trimmedReason || cancellationReason },
       { field: 'retainedDeposit', label: 'Acompte conservé', from: null, to: retainedDepositAmount },
       { field: 'writtenOffBalance', label: 'Solde abandonné', from: null, to: writtenOffBalance },
+      // Rule 61 — the sum the cancellation notice states, stored so a later send reads the cancellation's own figure.
+      { field: 'keptFromGuest', label: 'Somme conservée', from: null, to: keptFromGuest },
     ]);
     reservationsModel.markCancelled(id, { reason: trimmedReason || cancellationReason, cancelledBy });
     if (requalification) {
@@ -338,6 +360,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     cancellationReason,
     retainedDepositAmount,
     indemnityAmount,
+    keptFromGuest,
     writtenOffBalance,
     refundId,
     compensationId,

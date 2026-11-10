@@ -87,7 +87,9 @@ function loadReservationGraph(database, reservationId) {
   const arrivalComplementDetail = loadArrivalComplementDetail(database, id);
   const stayFacts = loadStayFacts(database, reservation);
   const termsVersion = loadTermsVersion(database, id);
-  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail, stayFacts, termsVersion };
+  // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, the cancellation's own figure.
+  const cancellationKept = require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation);
+  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail, stayFacts, termsVersion, cancellationKept };
 }
 
 module.exports = { loadReservationGraph, loadArrivalComplementDetail, loadTermsVersion };

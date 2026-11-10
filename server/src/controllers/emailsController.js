@@ -226,6 +226,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       stayFacts:   graph.stayFacts,
       termsVersion: graph.termsVersion,
+      cancellationKept: graph.cancellationKept,
       sequence:    sequenceContextFor({
         stableKey: template.stableKey, reservation: graph.reservation, client: graph.client,
         settings, preferences, sendDate: (sequencePlanFor(template, graph) || {}).sendDate,
@@ -544,6 +545,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       arrivalComplementDetail: graph.arrivalComplementDetail,
       bedLinenProvidedByDefault: graph.bedLinenProvidedByDefault,
       termsVersion: graph.termsVersion,
+      cancellationKept: graph.cancellationKept,
       settings:    readSettings(),
       lang:        normaliseLang(graph.client?.emailLanguage || graph.reservation.emailLanguage),
       pluginContext: pluginEmailContext(reservationId),
@@ -606,6 +608,7 @@ function buildController({ database, templatesModel, logModel, settingsModel, em
       customOptions: graph.customOptions,
       arrivalComplementDetail: graph.arrivalComplementDetail,
       termsVersion: graph.termsVersion,
+      cancellationKept: graph.cancellationKept,
       settings:    readSettings(),
       pluginContext: pluginEmailContext(reservationId),
     });

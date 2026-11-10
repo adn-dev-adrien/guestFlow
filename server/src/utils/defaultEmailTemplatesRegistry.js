@@ -263,8 +263,9 @@ const BALANCE_REMINDER_BODY_EN = [
 ].join('\n');
 
 // specs/payment-schedule-and-cancellation.md §3.7 rule 40 — sent the moment the operator confirms the
-// cancellation. The retained-acompte block only renders when something was actually kept: cancelling
-// a reservation whose acompte never arrived keeps nothing (rule 27).
+// cancellation. The retained block only renders when something was actually kept: cancelling a reservation whose
+// acompte never arrived keeps nothing (rule 27). Rule 61 — it names « la somme », the cancellation's own figure: an
+// acompte, the échéances of a plan, a commission withheld.
 const CANCELLATION_NOTICE_BODY = [
   'Bonjour {{clientFirstName}},',
   '',
@@ -276,7 +277,7 @@ const CANCELLATION_NOTICE_BODY = [
   '- Arrivée  : le {{startDate}}',
   '- Départ   : le {{endDate}}',
   '',
-  '{{#if hasRetainedDeposit}}Conformément à nos conditions, l\'acompte de {{retainedDepositAmount}} déjà versé reste acquis à titre d\'indemnité. Aucune autre somme ne vous sera réclamée.',
+  '{{#if hasRetainedDeposit}}Conformément à nos conditions, la somme de {{retainedDepositAmount}} déjà versée reste acquise à titre d\'indemnité. Aucune autre somme ne vous sera réclamée.',
   '',
   '{{/if}}Vos dates sont désormais remises à la vente.',
   '',
@@ -321,7 +322,7 @@ const CANCELLATION_NOTICE_BODY_EN = [
   '- Arrival  : {{startDate}}',
   '- Departure: {{endDate}}',
   '',
-  '{{#if hasRetainedDeposit}}In accordance with our terms, the deposit of {{retainedDepositAmount}} already paid is retained as compensation. No further amount will be claimed.',
+  '{{#if hasRetainedDeposit}}In accordance with our terms, the amount of {{retainedDepositAmount}} already paid is retained as compensation. No further amount will be claimed.',
   '',
   '{{/if}}Your dates are now back on sale.',
   '',
