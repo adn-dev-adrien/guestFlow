@@ -79,21 +79,30 @@ function createController(model, {
   }
 
   // specs/reservations-backend-mvc.md rule 26 (audit R40-RES-L1) — as on a stay, a devis naming a client that does not
-  // exist is refused before the INSERT (it was a foreign-key 500).
+  // exist is refused (400 CLIENT_REQUIRED) where its foreign key fails, nothing written (it was a 500).
   const CLIENT_REQUIRED = { error: 'Un client est requis pour enregistrer le devis.', code: 'CLIENT_REQUIRED' };
-  function unknownClientId(body) {
+  function unknownClient(err, body) {
+    if (!err || err.code !== 'SQLITE_CONSTRAINT_FOREIGNKEY') return false;
     const id = positiveId(body && body.clientId);
     return Boolean(id) && !require('../database').prepare('SELECT 1 FROM clients WHERE id = ?').get(id);
+  }
+  // The write runs in its transaction: a foreign-key failure on the client rolls it back whole.
+  function guardedWrite(res, body, write) {
+    try {
+      return respond(res, write());
+    } catch (err) {
+      if (unknownClient(err, body)) return res.status(400).json(CLIENT_REQUIRED);
+      throw err;
+    }
   }
 
   // A client typed on the devis is written with it (specs/clients.md rule 13).
   function create(req, res) {
     const shape = stayShapeRefusal(req.body || {});
     if (shape) return res.status(400).json(shape);
-    if (unknownClientId(req.body)) return res.status(400).json(CLIENT_REQUIRED);
     const error = validateStayFinance(req.body);
     if (error) return res.status(400).json(financeErrorBody(error));
-    if (!req.body || req.body.clientId || !req.body.newClient) return respond(res, model.create(req.body));
+    if (!req.body || req.body.clientId || !req.body.newClient) return guardedWrite(res, req.body, () => model.create(req.body));
     const result = saveWithDraftClient({
       db: require('../database'),
       clientsModel: require('../models/clientsModel'),
@@ -113,7 +122,6 @@ function createController(model, {
   function update(req, res) {
     const shape = stayShapeRefusal(req.body || {}, model.findById(req.params.id));
     if (shape) return res.status(400).json(shape);
-    if (unknownClientId(req.body)) return res.status(400).json(CLIENT_REQUIRED);
     const error = validateStayFinance(req.body) && validateStayFinance(req.body, model.findById(req.params.id));
     if (error) return res.status(400).json(financeErrorBody(error));
     const loaded = req.body && req.body.loadedUpdatedAt;
@@ -123,7 +131,7 @@ function createController(model, {
         return res.status(409).json({ error: 'Fiche modifiée entre-temps.', code: 'STALE_FICHE' });
       }
     }
-    return respond(res, model.update(req.params.id, req.body));
+    return guardedWrite(res, req.body, () => model.update(req.params.id, req.body));
   }
 
   async function remove(req, res) {

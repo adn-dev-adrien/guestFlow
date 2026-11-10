@@ -361,7 +361,8 @@ patch. No new edge behavior is introduced.
    deadline may use them. Test: `tests/devis-id-on-stay-routes.unit.test.js`.
 
 26. **Added 2026-11-10 (audit R40-RES-L1) — an id that names nothing is refused before the INSERT.** Rule 20 turned a
-   stay saved with an unknown client into 400 `CLIENT_REQUIRED`; the devis create and update now answer the same
+   stay saved with an unknown client into 400 `CLIENT_REQUIRED`; the devis create and update now answer the same where the
+   foreign key fails, the write rolled back
    (« Un client est requis pour enregistrer le devis. »). `POST /reservations/calculate-price` on a logement that does
    not exist answers 404 « Logement non trouvé », as `suggest-beds` does, before the default timed options are linked to
    it; `PUT /calendar-notes/:propertyId/:date` answers the same on an unknown or textual logement. Nothing is written.
