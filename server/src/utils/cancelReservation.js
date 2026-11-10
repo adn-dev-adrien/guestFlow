@@ -249,16 +249,8 @@ function cancellationNettedRefundIds(deps, reservationId, refunds, vatRate = 0) 
   return netted;
 }
 
-/**
- * @param {object} deps { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel? }
- * @param {number} reservationId
- * @param {object} input { reason?, cancelledBy?, today, vatRate }
- */
-function cancelReservation(deps, reservationId, { reason = '', cancelledBy = null, today, vatRate = 0 } = {}) {
-  const { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel } = deps;
-  const id = Number(reservationId);
-  const row = reservationsModel.getForCancellation(id);
-
+// What a cancellation cannot go through: an unknown stay, one already cancelled, a platform booking.
+function cancellationRefusalOf(row) {
   if (!row) return { error: 'NOT_FOUND', status: 404, message: 'Réservation non trouvée' };
   if (String(row.kind) === 'cancelled') {
     return { error: 'ALREADY_CANCELLED', status: 409, message: 'Cette réservation est déjà annulée.' };
@@ -268,14 +260,55 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
   if (!isDirectChannel(row.platform)) {
     return { error: 'PLATFORM_RESERVATION', status: 403, message: "Une réservation plateforme s'annule depuis l'alerte iCal, pas ici." };
   }
+  return null;
+}
 
-  const cancellationReason = resolveCancellationReason(row);
-  const trimmedReason = String(reason || '').trim();
-  const requalification = requalificationOf(deps, row, givenBackByBucket(refundsModel.listByReservation(id)), {
-    today, vatRate, reason: trimmedReason,
+// specs/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the figures a cancellation of `row` books, read
+// once: `cancelReservation` writes them and `cancellationPreview` shows them, so the confirm dialog can never announce
+// another sum than the one stored.
+function cancellationFiguresOf(deps, row, { today = null, vatRate = 0, reason = '' } = {}) {
+  const requalification = requalificationOf(deps, row, givenBackByBucket(deps.refundsModel.listByReservation(Number(row.id))), {
+    today, vatRate, reason,
   });
-  const retainedDepositAmount = requalification ? requalification.retainedTtc : 0;
-  const writtenOffBalance = round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount));
+  return {
+    cancellationReason: resolveCancellationReason(row),
+    requalification,
+    retainedDepositAmount: requalification ? requalification.retainedTtc : 0,
+    // Verification R43 N2 — the indemnity actually booked (avoir, compensation): the money kept plus a withheld solde
+    // commission. The dialog and the toast state this one.
+    indemnityAmount: requalification ? round2(requalification.requalifiedTtc) : 0,
+    writtenOffBalance: round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount)),
+  };
+}
+
+/**
+ * Rule 60 — what cancelling the stay now would keep and write off, or the refusal the cancel would answer. Reads only.
+ * @returns {{ ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance } | { error, status, message }}
+ */
+function cancellationPreview(deps, reservationId, { today = null, vatRate = 0 } = {}) {
+  const row = deps.reservationsModel.getForCancellation(Number(reservationId));
+  const refusal = cancellationRefusalOf(row);
+  if (refusal) return refusal;
+  const { cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance } = cancellationFiguresOf(deps, row, { today, vatRate });
+  return { ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance };
+}
+
+/**
+ * @param {object} deps { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel? }
+ * @param {number} reservationId
+ * @param {object} input { reason?, cancelledBy?, today, vatRate }
+ */
+function cancelReservation(deps, reservationId, { reason = '', cancelledBy = null, today, vatRate = 0 } = {}) {
+  const { database, reservationsModel, refundsModel, compensationsModel, paymentLinksModel } = deps;
+  const id = Number(reservationId);
+  const row = reservationsModel.getForCancellation(id);
+  const refusal = cancellationRefusalOf(row);
+  if (refusal) return refusal;
+
+  const trimmedReason = String(reason || '').trim();
+  const {
+    cancellationReason, requalification, retainedDepositAmount, indemnityAmount, writtenOffBalance,
+  } = cancellationFiguresOf(deps, row, { today, vatRate, reason: trimmedReason });
 
   let refundId = null;
   let compensationId = null;
@@ -304,6 +337,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     ok: true,
     cancellationReason,
     retainedDepositAmount,
+    indemnityAmount,
     writtenOffBalance,
     refundId,
     compensationId,
@@ -312,4 +346,4 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
   };
 }
 
-module.exports = { cancelReservation, resolveCancellationReason, bookedStayBuckets, cancellationNettedRefundIds };
+module.exports = { cancelReservation, cancellationPreview, resolveCancellationReason, bookedStayBuckets, cancellationNettedRefundIds };

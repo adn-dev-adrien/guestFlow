@@ -43,9 +43,20 @@ function buildController({
   },
   // specs/direct-installments.md rule 22 — the unpaid installments three days past their due date.
   lateInstallments = (today) => require('./installmentsController').lateInstallments(today),
+  // specs/payment-schedule-and-cancellation.md rule 60 — what cancelling now would keep, from the cancel's own figures.
+  cancellationPreviewFor = (id) => require('./reservationCancellationController').previewFor(id),
   today: injectedToday = null,
 } = {}) {
   const resolveToday = () => injectedToday || getTodayIsoDate();
+  // Rule 60 — a row offering the cancellation says what it would keep: the cancel's own figure, or no offer when the
+  // cancel would refuse.
+  const withCancellationPreview = (row) => {
+    if (!row.canCancel) return { ...row, retainedDepositAmount: 0 };
+    const preview = cancellationPreviewFor(row.reservationId);
+    return preview && preview.ok
+      ? { ...row, retainedDepositAmount: preview.retainedDepositAmount }
+      : { ...row, canCancel: false, retainedDepositAmount: 0 };
+  };
   return {
     /**
      * GET /api/dashboard/ical-date-drift
@@ -227,7 +238,7 @@ function buildController({
         return { ...row, payoutDueDays: payoutDaysByPlatform.get(key) };
       });
       const canRequest = hasPaymentProvider();
-      const rows = buildPaymentDeadlineRows(candidates, today, lateInstallments(today)).map((row) => {
+      const rows = buildPaymentDeadlineRows(candidates, today, lateInstallments(today)).map(withCancellationPreview).map((row) => {
         if (canRequest || !row.remindType) return row;
         // Rule 25: no payment link to mint, so « Envoyer la demande » opens the request email as a draft.
         const templateId = requestTemplateId(row.remindType, Boolean(row.requestSent));

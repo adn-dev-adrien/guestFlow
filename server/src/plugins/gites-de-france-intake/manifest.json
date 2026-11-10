@@ -1,7 +1,7 @@
 {
   "id": "gites-de-france-intake",
   "name": "Saisie Gîtes de France",
-  "version": "1.4.11",
+  "version": "1.4.12",
   "description": "Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.",
   "icon": "mail",
   "surfaces": [
@@ -103,6 +103,10 @@
     ],
     "1.4.11": [
       "Réglages : un numéro de gîte rattaché à un logement inconnu est refusé.",
+      "Compatible avec GuestFlow 4 (SDK 2.21)."
+    ],
+    "1.4.12": [
+      "Réglages : un logement écrit avec des zéros en tête (« 01 ») est refusé.",
       "Compatible avec GuestFlow 4 (SDK 2.21)."
     ]
   }

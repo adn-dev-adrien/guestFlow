@@ -141,7 +141,7 @@ size already filled in — with no channel manager in between.
     real logements only. *Why:* a phantom key let Envoi pass with no logement, and the logement created later under that
     id was born enabled with a code nobody chose, then sent to Google by the daily re-send. Tests:
     `google-vacation-rentals/tests/settings-unknown-logement.unit.test.js`,
-    `server/src/tests/plugin-settings-unknown-logement.unit.test.js`. google-vacation-rentals 1.0.5.
+    `server/src/tests/plugin-settings-unknown-logement.unit.test.js`. google-vacation-rentals 1.0.5. *Reading of 2026-11-10 (audit R43-DB-L1):* the key is the logement's id as the page writes it — a key with leading zeros (« 01 », « 002 ») is refused « Logement inconnu. », nothing stored, where it used to pass as logement 1 through its number while the readers that look a key up as written saw no logement at all; a stored key is exempt exactly as stored. Test: `server/src/tests/plugin-settings-canonical-logement-key.unit.test.js`. Envoi never counts such an entry (`google-vacation-rentals/tests/settings-canonical-key.unit.test.js`); google-vacation-rentals 1.0.6.
 
 **Edge cases**
 - A property with no pricing rule on a date → no price sent for itineraries touching it, the date is

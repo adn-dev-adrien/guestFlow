@@ -13,7 +13,7 @@ const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { formatPlatformName, registerDirectChannelSql, isChoreFreeChannel } = require('../utils/platformNameFormat');
 const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
-const { formatTimeShort } = require('../utils/dateFr');
+const { formatTimeShort, formatDateNumeric } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
 const { peakCotsHeld, peakResourceHeld, cotsRefusal, resourceRefusal } = require('../utils/stockPeak');
 const { CUSTOM_OPTION_SIGNATURE_BASE, getOptionsSignature, getResourcesSignature, buildHistoryRows } = require('../utils/reservationAudit');
@@ -1583,7 +1583,7 @@ function createReservationsModel(database) {
       const coveringClosure = establishmentClosuresModel.findCoveringClosure(propertyId, newEffStart, newEffEnd);
       if (coveringClosure) {
         return {
-          error: `Fermeture en place sur cette période : « ${coveringClosure.label} » du ${coveringClosure.startDate} au ${coveringClosure.endDate}.`,
+          error: `Fermeture en place sur cette période : « ${coveringClosure.label} » du ${formatDateNumeric(coveringClosure.startDate)} au ${formatDateNumeric(coveringClosure.endDate)}.`,
           code: 'CLOSURE_COVERS_DATE',
         };
       }

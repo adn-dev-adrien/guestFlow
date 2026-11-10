@@ -833,6 +833,8 @@ const api = {
   snoozePaymentDeadline: (id, days) => request(`/dashboard/payment-deadlines/${id}/snooze`, { method: 'POST', body: { days } }),
   remindPaymentDeadline: (id, type) => request(`/dashboard/payment-deadlines/${id}/remind`, { method: 'POST', body: { type } }),
   cancelReservation: (id, payload) => request(`/reservations/${id}/cancel`, { method: 'POST', body: payload }),
+  // What the cancel would keep and write off, from its own figures (specs/payment-schedule-and-cancellation.md rule 60).
+  getCancellationPreview: (id) => request(`/reservations/${id}/cancel-preview`),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),

@@ -878,6 +878,13 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     cancelled stay that owes nothing closes on « Rien à percevoir » (muted), never « Tout est perçu », which read the
     write-off as a payment. Test:
     `tests/cancelled-plan-remaining.unit.test.js`.
+74. **A cancelled stay never takes a caution it was not given** (audit R43-RES-L1, 2026-11-10). On a cancelled stay
+    whose caution was neither received nor returned, the caution block is one row `caution` « Sans objet », muted, with
+    no amount and no action — the row a stay without caution shows. A caution received (or returned) keeps its two rows
+    and rule 59's « Restituer ». *Why:* the cancelled fiche read « Caution reçue 500,00 € · À recevoir à l'arrivée » and
+    « Caution restituée · Après réception » right above « Rien à percevoir »: a cancelled stay has no arrival, so that
+    caution will never be taken, and the row read as money still due. Test:
+    `tests/cancelled-stay-caution-never-received.unit.test.js`.
 
 ## 4. Architecture
 

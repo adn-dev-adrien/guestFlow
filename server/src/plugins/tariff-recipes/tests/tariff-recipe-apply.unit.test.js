@@ -194,6 +194,9 @@ test('a winter reservation makes its closure skipped with a warning, seasons sti
   const out = model.apply(1, 'aventura-test');
   assert.equal(out.applied, true);
   assert.ok(out.warnings.some((w) => w.includes('#10')));
+  // Audit R43 « noted »: the warning names its days as the screens do, never ISO.
+  const warning = out.warnings.find((w) => w.includes('#10'));
+  assert.match(warning, /^Fermeture \d{2}\/\d{2}\/\d{4} → \d{2}\/\d{2}\/\d{4} non créée/);
   assert.equal(out.closures.skipped.length, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM establishment_closures WHERE propertyId = 1').get().n, 1);
   db.close();

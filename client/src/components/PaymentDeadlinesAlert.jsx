@@ -117,8 +117,8 @@ export default function PaymentDeadlinesAlert({ attention }) {
       const result = await api.cancelReservation(cancelRow.reservationId, { reason, notifyClient });
       // specs/plugins-phase-3a-online-payment.md rule 9 — a link the provider still accepts outranks the
       // success: one toast at a time, so the warning carries the cancellation, and the deposit kept.
-      const done = result?.retainedDepositAmount > 0
-        ? `Séjour annulé — acompte de ${formatCurrency(result.retainedDepositAmount)} conservé en indemnité.`
+      const done = result?.indemnityAmount > 0
+        ? `Séjour annulé — ${formatCurrency(result.indemnityAmount)} conservés en indemnité.`
         : 'Séjour annulé — les dates sont remises à la vente.';
       // specs/email-language-fr-en.md rule 12 — a notice asked for and not sent is a warning too.
       const warnings = [result?.paymentLinksWarning, result?.emailWarning].filter(Boolean);

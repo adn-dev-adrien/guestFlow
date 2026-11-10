@@ -17,6 +17,7 @@ const {
 } = require('../utils/pricing');
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { rangesWindowMessage } = require('../utils/stayDates');
+const { formatDateNumeric } = require('../utils/dateFr');
 const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFormat');
 const { positiveId } = require('../utils/bodyText');
 const { normalizePlatformKey } = require('../utils/icalParser');
@@ -867,7 +868,7 @@ function createPropertiesModel(database) {
       const conflictingRule = findPricingRuleOverlap(propertyId, normalizedDateRanges);
       if (conflictingRule) {
         return {
-          error: `Chevauchement avec la saison "${conflictingRule.label}" (${conflictingRule.startDate} au ${conflictingRule.endDate}).`,
+          error: `Chevauchement avec la saison "${conflictingRule.label}" (${formatDateNumeric(conflictingRule.startDate)} au ${formatDateNumeric(conflictingRule.endDate)}).`,
           status: 400,
           conflictingRule,
         };
@@ -917,7 +918,7 @@ function createPropertiesModel(database) {
       const conflictingRule = findPricingRuleOverlap(propertyId, normalizedDateRanges, ruleId);
       if (conflictingRule) {
         return {
-          error: `Chevauchement avec la saison "${conflictingRule.label}" (${conflictingRule.startDate} au ${conflictingRule.endDate}).`,
+          error: `Chevauchement avec la saison "${conflictingRule.label}" (${formatDateNumeric(conflictingRule.startDate)} au ${formatDateNumeric(conflictingRule.endDate)}).`,
           status: 400,
           conflictingRule,
         };
@@ -1026,7 +1027,7 @@ function createPropertiesModel(database) {
           const conflict = findPricingRuleOverlap(targetPropertyId, sourceRule.normalizedDateRanges);
           if (conflict) {
             return {
-              error: `Impossible d'appliquer: chevauchement avec la saison "${conflict.label}" du logement cible (${conflict.startDate} au ${conflict.endDate}).`,
+              error: `Impossible d'appliquer: chevauchement avec la saison "${conflict.label}" du logement cible (${formatDateNumeric(conflict.startDate)} au ${formatDateNumeric(conflict.endDate)}).`,
               status: 409,
               code: 'PRICING_OVERLAP',
               conflictingRule: conflict,

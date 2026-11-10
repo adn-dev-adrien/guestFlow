@@ -51,6 +51,8 @@ router.delete('/:id/refunds/:refundId', refundsController.remove);
 // Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
 // nothing in GuestFlow cancels a stay on its own.
 router.post('/:id/cancel', stayId, noWriteOnDuplicate, cancellationController.cancel);
+// What the cancel would keep and write off, from the same figures (specs/payment-schedule-and-cancellation.md rule 60).
+router.get('/:id/cancel-preview', stayId, noWriteOnDuplicate, cancellationController.preview);
 // « Rétablir » a duplicate set aside (specs/calendar-property-parity.md rule 22). Admin-only through the role guard.
 router.post('/:id/restore', stayId, controller.restoreSuperseded);
 // Échéancier d'une réservation directe (specs/direct-installments.md §4.3).

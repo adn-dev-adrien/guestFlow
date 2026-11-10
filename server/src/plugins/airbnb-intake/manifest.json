@@ -1,7 +1,7 @@
 {
   "id": "airbnb-intake",
   "name": "Saisie Airbnb",
-  "version": "1.1.9",
+  "version": "1.1.10",
   "description": "Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».",
   "icon": "mail",
   "surfaces": [
@@ -72,6 +72,10 @@
     ],
     "1.1.9": [
       "Réglages : une annonce rattachée à un logement inconnu est refusée.",
+      "Compatible avec GuestFlow 4 (SDK 2.21)."
+    ],
+    "1.1.10": [
+      "Réglages : un logement écrit avec des zéros en tête (« 01 ») est refusé.",
       "Compatible avec GuestFlow 4 (SDK 2.21)."
     ]
   }

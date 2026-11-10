@@ -124,7 +124,6 @@ function buildPlatformPayoutRow(row, today) {
     cancelOn: null,
     // The séjour already happened: there is nothing left to cancel (rule 17)…
     canCancel: false,
-    retainedDepositAmount: 0,
     // …and nobody to chase by email. GuestFlow must never ask an OTA guest for money they already
     // paid the platform (rule 16); chasing the platform happens in the platform's back-office.
     canRemind: false,
@@ -257,10 +256,8 @@ function buildPaymentDeadlineRow(row = {}, today) {
     cancelOn: cancelOn || null,
     // Cancelling is only ever proposed BEFORE the arrival: suggesting it for a guest already at the
     // door would be absurd (rule 13). `cancel_due` already implies `today < startDate`.
+    // What cancelling now would keep is the cancellation's own figure, added by the dashboard controller (rule 60).
     canCancel: state === 'cancel_due',
-    // What would be kept if the stay were cancelled now — the acompte already collected (rule 27:
-    // an unpaid acompte keeps nothing).
-    retainedDepositAmount: Number(row.depositPaid) ? depositAmount : 0,
     canRemind: Boolean(row.email),
     // Follows the state, not merely « is the solde unpaid ». It used to read `balanceUnpaid ? …`,
     // which mislabelled every « Acompte en retard » row whose solde was simply not due yet: the button
@@ -313,7 +310,6 @@ function buildInstallmentDeadlineRows(rows = [], today) {
       daysLate: Math.max(0, daysBetween(dueDate, today) || 0),
       cancelOn: null,
       canCancel: false,
-      retainedDepositAmount: 0,
       canRemind: false,
       remindType: null,
       requestSent: false,

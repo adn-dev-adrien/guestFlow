@@ -17,6 +17,7 @@ vi.mock('../../api', () => ({
     snoozePaymentDeadline: vi.fn(),
     remindPaymentDeadline: vi.fn(),
     cancelReservation: vi.fn(),
+    getCancellationPreview: vi.fn(),
   },
 }));
 
@@ -56,10 +57,12 @@ beforeEach(() => vi.clearAllMocks());
 test('rule 12 — a notice not sent is named after the cancellation', async () => {
   const warning = 'Mail d’annulation non envoyé : version anglaise manquante.';
   api.getPaymentDeadlines.mockResolvedValue({ rows: [ROW] });
-  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 0, emailSent: false, emailWarning: warning, paymentLinksWarning: null });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 274, indemnityAmount: 274, writtenOffBalance: 640 });
+  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 0, indemnityAmount: 0, emailSent: false, emailWarning: warning, paymentLinksWarning: null });
   renderCard();
   await userEvent.click(await screen.findByRole('button', { name: 'Annuler le séjour' }));
   const dialog = await screen.findByRole('dialog');
+  await within(dialog).findByText('274,00 €');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler le séjour' }));
   await waitFor(() => expect(screen.getByText('Séjour annulé — les dates sont remises à la vente. Mail d’annulation non envoyé : version anglaise manquante.')).toBeInTheDocument());
 });
