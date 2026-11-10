@@ -215,6 +215,11 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     already-sent mail with the local day of the ledger's `sentAt` (a UTC `datetime('now')`), through
     `vatRegime.bookingDayOf` (`specs/finance-dashboard-redesign.md` rule 50). *Why:* a mail sent between
     00:00 and 01:00 / 02:00 in Paris read as sent the day before.
+37. **The J-7 may carry the « Mon séjour » paragraph** (2026-11-10, `specs/guest-app.md` rule 70). The core seed of
+    the J-7 is unchanged and neutral; the guest-app plugin's operator script inserts its paragraph into the *stored*
+    `arrival_reminder_7d` (FR `body`, EN `bodyEn`), under the plugin's `hasStayApp` / `hasStayAppShop`, just before
+    « Une question » / « Any question ». The send mode, the subject and the eligibility (§3.2; not sent to a
+    stay booked within the week) do not move. Plugin inactive → the paragraph renders nothing.
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not

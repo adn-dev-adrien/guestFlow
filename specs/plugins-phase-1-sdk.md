@@ -593,6 +593,17 @@ Optional: a plugin that declares nothing reads « Actif ».
     'ORDER_PERSONS_EXCEEDED', key, left } }` — for a per-person option whose persons (the stay's line, the pending lines
     and the order's) exceed the ceiling, and for a breakfast asking more persons than its line already serves (that
     line keeps its persons). Tests: `mid-stay-order-persons.unit.test.js`, `guest-app-order-persons`.
+    Reading of 2026-11-10 (`specs/guest-app.md` rules 66-67, « Mon séjour » from J-7; SDK 2.26.0, unreleased): an order
+    taken **before the arrival is marked** (`isArrivalNotMarked`) is written as ordinary lines and measured on the
+    **arrival complement** — `byKey` per line key is what the line's billed total gains — instead of the end-of-stay
+    remainder, which does not exist yet. Both calls refuse, nothing written: 409 `ORDER_OFF_ARRIVAL_COMPLEMENT` when the
+    order would move another bucket (acompte, solde, an installment, the end-of-stay complement) or Σ `byKey` differs
+    from the complement's growth; 409 `ORDER_STAY_PRICE_MOVED` when the stored stay replayed without the order leaves
+    its stored final price or tourist tax; 409 `ORDER_PAID_BEFORE_ARRIVAL` for a `paid` commit. Their answer carries
+    `collectAt: 'arrival' | 'departure'`. New `orderCollection(reservationId)` → `arrival` (not marked, the engine's
+    `preArrivalSettled`, now on its result) | `departure` (marked, end-of-stay complement open) | `closed` (end-of-stay
+    complement collected) | `unavailable` (pre-arrival money still due). The marked path is unchanged. Tests:
+    `mid-stay-order-before-arrival.unit.test.js`, `guest-app-pre-arrival-orders`.
 48. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.26.0 — unreleased, recorded with the
     other guest-app entry points.)* **`ctx.webApp({ key, path?, host?, handler })` — a web app the plugin serves
     itself.** `path` is one segment of the plugin's own (`/studio`), answered on every host; `host()` is read on each
