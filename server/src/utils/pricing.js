@@ -969,6 +969,7 @@ function mergeLineWithLockedSnapshot({
       billedUnits: resolvedTargetUnits,
       totalPrice: mergedTotal,
       unitPrice: resolvedTargetUnits > 0 ? roundMoney(mergedTotal / resolvedTargetUnits) : normalizedCurrentUnitPrice,
+      exactTotal: true,
     };
     debugResourceLine('merge.locked_snapshot.increase_units', {
       deltaUnits,
@@ -1448,6 +1449,8 @@ function calculateReservationQuote({
   // automatic. A value wins over EVERY branch below, frozen bucket included: the whole point is to
   // correct an amount that was announced — and therefore collected — wrong.
   complementAmountOverride,
+  // specs/guest-app.md rule 96 — an option line raised on a locked line keeps the merged total, not units × its rounded unit price.
+  exactMergedTotals = false,
   // Per-item routing to Complément (spec force-item-to-complement.md). When 1, the tax bypasses
   // the auto deposit/balance split and lands 100 % in the complément bucket. `selectedOptions[i]
   // .inComplement` / `selectedResources[i].inComplement` / `customOptions[i].inComplement` drive
@@ -2063,7 +2066,7 @@ function calculateReservationQuote({
           ...(typedUnits.servedPersons !== undefined ? { servedPersons: typedUnits.servedPersons } : {}),
           ...(typedUnits.servedNights !== undefined ? { servedNights: typedUnits.servedNights } : {}),
         } : {}),
-        ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
+        ...applyOfferedToLine(exactMergedTotals && merged.exactTotal && free.freeUnits === 0 ? merged.totalPrice : free.realTotal, offeredOptionIdSet.has(optionId)),
         ...pickContribsAndForce(selected, locked),
       };
     })

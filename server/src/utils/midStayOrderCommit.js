@@ -95,7 +95,7 @@ function storedBody(reservationId) {
   // Rules frozen at the sale (minimum and maximum nights, changeover days, capacity) are never re-judged by an order: the stay
   // was sold under the rules of its day, and the order touches none of them (specs/guest-app.md rule 66).
   return {
-    ...toUpdateBody(current, autoEnabledIds(database())), forceMinNights: true, forceMaxNights: true, forceChangeover: true, forceCapacity: true,
+    ...toUpdateBody(current, autoEnabledIds(database())), forceMinNights: true, forceMaxNights: true, forceChangeover: true, forceCapacity: true, exactMergedTotals: true,
   };
 }
 
@@ -269,7 +269,8 @@ const endOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) ===
  * is not marked and an order can only grow the arrival complement — the pre-arrival money is settled, or the stay is a
  * platform's, whose extras the engine always routes there (the measure of rule 66 still guards the buckets) — `departure`
  * once the arrival is marked and the end-of-stay complement is open, `closed` once it is collected, `unavailable` when
- * an acompte, a solde or an installment is still due (an order would grow it) or the stay is not a live reservation.
+ * an acompte, a solde or an installment is still due (an order would grow it), the arrival complement carries an operator's adjustment
+ * (rule 94) or the stay is not a live reservation.
  */
 function orderCollection(reservationId) {
   const id = Number(reservationId);
@@ -277,6 +278,10 @@ function orderCollection(reservationId) {
   if (!row || String(row.kind || 'reservation') !== 'reservation') return 'unavailable';
   if (endOfStayCollected(row)) return 'closed';
   if (!reservations().isArrivalNotMarked(id)) return 'departure';
+  // An operator's adjustment of the arrival complement (complementAmountOverride) pins that bucket whatever the lines say, so an
+  // order could never grow it: the shop, the J-7 / J-2 flags and the commit all read « unavailable » (rule 94).
+  const override = row.complementAmountOverride;
+  if (override !== null && override !== undefined && override !== '' && Number.isFinite(Number(override))) return 'unavailable';
   let quote = null;
   try {
     quote = quoteStoredReservation(database(), row);
@@ -367,6 +372,17 @@ function priceOrder(reservationId, lines, { pending = [] } = {}) {
   return { status: 200, ...deltaOf(remainderByKey(base.row), remainderByKey(next.row)), collectAt: 'departure' };
 }
 
+/** What each line key of an order sells, in units — the quantity a card order's arrival note records (rule 97). */
+function unitsByKey(lines) {
+  const units = {};
+  (lines || []).forEach((line) => {
+    if (line.kind === 'option') units[`opt:${Number(line.id)}`] = Number(line.quantity);
+    else if (line.kind === 'resource') units[`res:${Number(line.id)}`] = Array.isArray(line.sessions) && line.sessions.length ? sessionsHours(line.sessions) : Number(line.quantity);
+    else if (line.kind === 'breakfast') units[`opt:${Number(line.id)}`] = (line.mornings || []).length * (Number(line.persons) || 0);
+  });
+  return units;
+}
+
 /**
  * Rule 35 — the card's money collects the order's sale at once: one settled note, its amounts taken from the
  * remainder the order just added, up to what was paid. What the order added beyond the payment stays on the
@@ -374,13 +390,13 @@ function priceOrder(reservationId, lines, { pending = [] } = {}) {
  */
 function settlePaid(id, byKey, {
   source, ref, amountCents, paidDate, reference,
-}, { beforeArrival = false } = {}) {
+}, { beforeArrival = false, units = {} } = {}) {
   let left = round2(Number(amountCents || 0) / 100);
   const items = [];
   Object.entries(byKey).forEach(([key, amount]) => {
     const take = round2(Math.min(amount, left));
     if (take <= 0) return;
-    items.push({ key, amount: take });
+    items.push({ key, amount: take, ...(take === amount && units[key] >= 2 ? { quantity: units[key] } : {}) });
     left = round2(left - take);
   });
   if (!items.length) return { settledCents: 0, excessCents: Math.round(left * 100) };
@@ -451,7 +467,7 @@ function commitOrder(reservationId, {
       }
       // Rule 85 — the card money is recorded first, so the save that writes the order's lines already reads the arrival
       // complement net of it (stored net, never raised back by a later save).
-      const arrivalMoney = beforeArrival && paid ? settlePaid(id, measured.byKey, { source, ref, ...paid }, { beforeArrival }) : null;
+      const arrivalMoney = beforeArrival && paid ? settlePaid(id, measured.byKey, { source, ref, ...paid }, { beforeArrival, units: unitsByKey(lines) }) : null;
       const settledHere = arrivalMoney ? arrivalMoney.settledCents / 100 : 0;
       const orderGrowth = measured ? { finalPrice: measured.growth.finalPrice, complementAmount: round2(measured.growth.complementAmount - settledHere) } : null;
       const written = save(id, mergeOrderLines(body, lines, rows), { beforeArrival, orderGrowth });

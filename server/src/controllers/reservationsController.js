@@ -2234,6 +2234,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = f
     // specs/adjustable-complement-amounts.md §3.2 rule 13 — applied last by the engine, over every
     // other branch, so it corrects even a frozen complement.
     complementAmountOverride: req.body.complementAmountOverride,
+    // specs/guest-app.md rule 96 — raised by an order's measure and write only (`midStayOrderCommit.storedBody`).
+    exactMergedTotals: req.body.exactMergedTotals === true,
     balanceAmount: effectiveBalancePaid ? storedPaymentForQuote.balanceAmount : req.body.balanceAmount,
     complementAmount: frozenComplementAmount,
     offeredOptionIds: updateOfferedOptionIds,
@@ -2557,7 +2559,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = f
   };
   const writePricedLines = () => {
     // specs/direct-installments.md rules 7, 8, 13 — the plan follows the new total.
-    installments.syncAfterSave(id, quote);
+    // specs/guest-app.md rule 95 — an order's write never moves the plan: the order goes to the arrival complement, and the shop
+    // is open only once every installment is paid.
+    if (!orderPinned) installments.syncAfterSave(id, quote);
 
     // Nights are never rewritten on a locked fiche, but its extras are while the window is open.
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);

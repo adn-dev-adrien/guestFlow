@@ -3007,7 +3007,7 @@ function createReservationsModel(database) {
      * specs/guest-app.md rule 85 — an order paid by card BEFORE the arrival: its money is recorded as a settled note of
      * the arrival moment (`moment: 'arrival'`). No end-of-stay line is touched (the order's lines are ordinary lines of
      * the fiche): the engine reads the arrival complement net of these notes, and the books take the note on its
-     * `paidDate`. `items` are `[{ key, amount, label? }]`; the label falls back to the fiche line of the key.
+     * `paidDate`. `items` are `[{ key, amount, quantity?, label? }]`; the label falls back to the fiche line of the key.
      */
     settleOrderNoteBeforeArrival(reservationId, {
       items = [], paidDate, source, ref, reference,
@@ -3028,7 +3028,10 @@ function createReservationsModel(database) {
           const amount = round2(item && item.amount);
           if (!key || amount <= 0) throw midStayError('NOTE_AMOUNT_INVALID', 'Montant de note invalide.');
           const label = String(item.label || labelOf(key) || 'Commande').trim();
-          const { source: ignored, ...line } = buildMidStayLine({ label, unitPrice: amount, amount, key });
+          // The units the order sold, when they split the amount to the cent: the note then reads « 2 × 6,50 », not « 1 × 13 ».
+          const units = Number(item.quantity);
+          const unit = units >= 2 && Number.isInteger(units) ? round2(amount / units) : amount;
+          const { source: ignored, ...line } = buildMidStayLine({ label, unitPrice: round2(unit * units) === amount ? unit : amount, amount, key });
           lines.push(line);
         }
         if (!lines.length) throw midStayError('NOTE_EMPTY', 'La note est vide.');

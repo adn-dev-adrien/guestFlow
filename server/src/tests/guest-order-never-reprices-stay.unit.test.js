@@ -29,6 +29,7 @@ const MONEY = [
   'totalPrice', 'touristTaxRate', 'touristTaxTotal', 'discountPercent', 'finalPrice', 'depositAmount', 'depositDueDate', 'balanceAmount',
   'balanceDueDate', 'complementAmount', 'endOfStayComplementAmount', 'platformCommissionAmount', 'acompteCommissionAmount',
   'platformGrossAmount', 'platformPayoutAmount', 'platformTouristTaxAmount', 'clientGrossAmount', 'touristTaxInComplement',
+  'installmentsTarget', 'installmentsPaidAmount', 'installmentsUnpaidAmount', 'installmentsLastPaidDate',
 ];
 
 let sequence = 0;
