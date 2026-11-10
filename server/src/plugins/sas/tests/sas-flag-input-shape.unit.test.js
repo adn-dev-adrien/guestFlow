@@ -145,3 +145,15 @@ test('rule 72: 1 and 0 read as true and false, as on the PATCH; an absent tick s
   assert.equal(kept.statusCode, 200, JSON.stringify(kept.body));
   assert.equal(row(out).cautionReturned, 0);
 });
+
+// Verification R39 V1: the 1 / 0 normalisation matters where the SAS compares a tick strictly (`!== true`). A unifiable
+// arrival (unpaid solde + a linen complement) sent « Régler séparément » as 1 must not book the solde it said is unpaid.
+test('rule 72: arrivalPaymentSplit 1 on a unifiable arrival settles the complement alone, the solde stays unpaid', () => {
+  const id = arrivalStay();
+  const res = call('commitArrival', id, {
+    linenItems: [{ itemId: PILLOW, qty: 1 }], arrivalPaymentMode: 'card', arrivalPaymentSplit: 1, stayPaid: 0, complementSettled: 1,
+  });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(row(id).balancePaid, 0, '« séjour non réglé » holds');
+  assert.equal(row(id).complementPaid, 1);
+});
