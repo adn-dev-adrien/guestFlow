@@ -71,3 +71,50 @@ test('rule 59: the erase names the booklet pages and the photos, and deletes the
     fs.rmSync(uploads, { recursive: true, force: true });
   }
 });
+
+// Audit R36b N5 — the photos were deleted inside the core's erase transaction, before the tables were dropped: a
+// rolled-back erase answered « rien n'a été effacé » with the photos gone. They now go once the erase has committed.
+function withUploads(fn) {
+  return async () => {
+    const uploads = fs.mkdtempSync(path.join(os.tmpdir(), 'guest-uploads-'));
+    const previous = process.env.GUESTFLOW_UPLOADS_DIR;
+    process.env.GUESTFLOW_UPLOADS_DIR = uploads;
+    try {
+      fs.mkdirSync(path.join(uploads, 'guest-app'), { recursive: true });
+      fs.writeFileSync(path.join(uploads, 'guest-app', 'a.webp'), 'webp');
+      await fn(uploads);
+    } finally {
+      if (previous === undefined) delete process.env.GUESTFLOW_UPLOADS_DIR;
+      else process.env.GUESTFLOW_UPLOADS_DIR = previous;
+      fs.rmSync(uploads, { recursive: true, force: true });
+    }
+  };
+}
+
+/** The core's erase (`pluginsController.purge`): the plugin's clean-up, then its tables, in one transaction. */
+function coreErase(db, data, { fail = false } = {}) {
+  db.transaction(() => {
+    data.purge(db);
+    data.tables.forEach((table) => db.exec(`DROP TABLE IF EXISTS "${table}"`));
+    if (fail) throw new Error('settings step failed');
+  })();
+}
+
+const settled = () => new Promise((resolve) => { setImmediate(resolve); });
+
+test('rule 59 (R36b N5): a rolled-back erase keeps the photos', withUploads(async (uploads) => {
+  const { data } = registered();
+  const db = freshDb();
+  assert.throws(() => coreErase(db, data, { fail: true }), /settings step failed/);
+  await settled();
+  assert.equal(fs.existsSync(path.join(uploads, 'guest-app', 'a.webp')), true, 'nothing was erased, the photos included');
+  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'guest_media'").get(), 'the tables are back');
+}));
+
+test('rule 59 (R36b N5): a committed erase deletes the photos', withUploads(async (uploads) => {
+  const { data } = registered();
+  const db = freshDb();
+  coreErase(db, data);
+  await settled();
+  assert.equal(fs.existsSync(path.join(uploads, 'guest-app')), false, 'the photos are gone');
+}));

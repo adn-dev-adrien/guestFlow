@@ -87,3 +87,47 @@ withApi('D28, rule 54: « Régénérer le lien » ends the lookup sessions of th
   assert.equal(read.status, 200);
   assert.equal(countLookups(db), 1, 'reading the link ends nothing');
 });
+
+// Audit R36b N1 — the shape was `\d{4}-?MM-?\d{3,}`: any 10-digit Booking number whose digits 5-6 read 01-12 matched
+// it (3 of 10 on the production copy), and the guest got « Nous n'avons pas trouvé ce séjour ». The shape is now the
+// core's exact one.
+withApi('D28 (R36b N1): genuine 10-digit platform numbers open their stay, digits 5-6 between 01 and 12 included', async ({ call, db }) => {
+  const numbers = ['4089123456', '5310061234', '2026110012', '4512345678', '2099071234'];
+  numbers.forEach((reservationNumber) => addStay(db, { reservationNumber, platform: 'Booking.com' }));
+  for (const reservationNumber of numbers) {
+    // eslint-disable-next-line no-await-in-loop
+    const opened = await call('POST', LOOKUP, { lastName: NAME, reservationNumber }, { cookie: null });
+    assert.equal(opened.status, 200, `${reservationNumber}: ${JSON.stringify(opened.body)}`);
+  }
+  assert.equal(countLookups(db), numbers.length);
+});
+
+test('D28 (R36b N1): the refused shape is the one the core generates — every month, both forms, nothing wider', () => {
+  const { lookupAllowed } = require('../currentStay');
+  const { generateReservationNumber, dehyphenateReservationNumbers } = require('../../../utils/reservationNumber');
+  const db = freshDb();
+  const year = new Date().getFullYear();
+  const far = `${year + 3}-01-01`;
+  const farNext = `${year + 3}-01-02`;
+  const onPlatform = (reservationNumber) => lookupAllowed({ platform: 'Booking.com', reservationNumber });
+  for (const y of [year, year + 1]) {
+    for (let month = 0; month < 12; month += 1) {
+      const now = new Date(y, month, 15, 12);
+      const first = generateReservationNumber(db, { now });
+      assert.equal(onPlatform(first), false, first);
+      db.prepare("INSERT INTO reservations (propertyId, clientId, startDate, endDate, kind, reservationNumber) VALUES (1, 1, ?, ?, 'cancelled', ?)")
+        .run(far, farNext, `${first.slice(0, 6)}998`);
+      const last = generateReservationNumber(db, { now });
+      assert.equal(last, `${first.slice(0, 6)}999`);
+      assert.equal(onPlatform(last), false, last);
+      const legacy = `${first.slice(0, 4)}-${first.slice(4, 6)}-${first.slice(6)}`;
+      assert.equal(onPlatform(legacy), false, legacy);
+    }
+  }
+  const legacyId = db.prepare("INSERT INTO reservations (propertyId, clientId, startDate, endDate, kind, reservationNumber) VALUES (1, 1, ?, ?, 'reservation', ?)")
+    .run(far, farNext, `${year}-03-777`).lastInsertRowid;
+  assert.equal(dehyphenateReservationNumbers(db), 1, 'the legacy form is the one the core reformats');
+  assert.equal(onPlatform(db.prepare('SELECT reservationNumber FROM reservations WHERE id = ?').get(legacyId).reservationNumber), false);
+  ['4089123456', '5310061234', '2026110012', '19990700', `${year}13001`, `${year}00001`, `${year}0700`, `1999-07-001`, `${year}-7-001`]
+    .forEach((n) => assert.equal(onPlatform(n), true, n));
+});

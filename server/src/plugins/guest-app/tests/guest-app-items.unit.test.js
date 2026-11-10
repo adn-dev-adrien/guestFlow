@@ -81,6 +81,16 @@ withApi('rule 23: a non-sellable price type cannot be switched on — 400 NOT_SE
   assert.equal(off.status, 200, 'switching off, or editing the other fields, stays allowed');
 });
 
+withApi('rule 23 (R36b N2): a per-person resource cannot be switched on — 400 NOT_SELLABLE with the reason', async ({ db, call }) => {
+  addResource(db, { id: 21, name: 'Vélo', priceType: 'per_person', price: 10 });
+  const res = await call('PUT', '/api/guest-app/items/resource/21', { sold: true });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.code, 'NOT_SELLABLE');
+  assert.equal(res.body.error, 'Une ressource au prix par personne ne se vend pas dans l’application.');
+  assert.equal((await call('GET', '/api/guest-app/items/resource/21')).body.sellable.ok, false);
+  assert.deepEqual(stored(db), []);
+});
+
 withApi('rule 27bis: the seeded breakfast can be switched on despite its per-person-night price', async ({ call }) => {
   const res = await call('PUT', '/api/guest-app/items/option/8', { sold: true });
   assert.equal(res.status, 200);

@@ -74,9 +74,10 @@ function resolveLookup(stay, now) {
   return null;
 }
 
-// The shape of a number the core generates (`utils/reservationNumber.js`): year, month, a per-month counter, the
-// older `AAAA-MM-###` form included.
-const CORE_NUMBER = /^\d{4}-?(0[1-9]|1[0-2])-?\d{3,}$/;
+// The exact shape of a number the core generates (`utils/reservationNumber.js`): `20YY`, the month, a 3-digit
+// per-month counter, or the older `AAAA-MM-###` form. Nothing wider: a 10-digit platform number whose digits 5-6 read
+// as a month is the platform's own (audit R36b N1); the suite pins this shape to the core's generator.
+const CORE_NUMBER = /^20\d{2}(?:(0[1-9]|1[0-2])\d{3}|-(0[1-9]|1[0-2])-\d{3})$/;
 
 /**
  * D28, rules 6 and 54 — the lookup never opens a stay whose number the core made, sequential and guessable: an

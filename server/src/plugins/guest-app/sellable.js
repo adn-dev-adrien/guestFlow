@@ -15,7 +15,7 @@ const HOURLY = 'per_hour';
 // Rule 23 — a price the app can sell by quantity. `free` is always included (rule 25's 0 €).
 const SELLABLE_TYPES = Object.freeze({
   option: Object.freeze(['per_stay', 'per_person', 'free']),
-  resource: Object.freeze(['per_stay', 'per_person', HOURLY, 'free']),
+  resource: Object.freeze(['per_stay', HOURLY, 'free']),
 });
 
 const AUTO_TIMED = Object.freeze(['early_check_in', 'late_check_out']);
@@ -29,6 +29,8 @@ const TYPE_REFUSALS = Object.freeze({
   per_participant_progressive: 'Un prix dégressif par participant ne se vend pas dans l’application.',
 });
 const OTHER_TYPE_REFUSAL = 'Ce type de prix ne se vend pas dans l’application.';
+// Audit R36b N2 — the engine bills a per-person resource quantity × party: « 1 » ordered for 4 people is 4 persons.
+const RESOURCE_PER_PERSON_REFUSAL = 'Une ressource au prix par personne ne se vend pas dans l’application.';
 const INSURANCE_REFUSAL = 'L’assurance annulation ne se vend pas dans l’application.';
 const AUTO_TIMED_REFUSAL = 'Une option horaire automatique (arrivée anticipée, départ tardif) ne se vend pas dans l’application.';
 const INTERNAL_REFUSAL = 'Une option interne n’est jamais montrée aux clients.';
@@ -48,6 +50,7 @@ function sellabilityOf(kind, row) {
     // Rule 23 — any other option of the planning is billed by its moments, which an order line does not carry.
     if (Number(row.showsPlanningCard || 0) === 1) return refused(CARD_REFUSAL);
   }
+  if (kind === 'resource' && row.priceType === 'per_person') return refused(RESOURCE_PER_PERSON_REFUSAL);
   if (SELLABLE_TYPES[kind].includes(row.priceType)) return SELLABLE;
   return refused(TYPE_REFUSALS[row.priceType] || OTHER_TYPE_REFUSAL);
 }

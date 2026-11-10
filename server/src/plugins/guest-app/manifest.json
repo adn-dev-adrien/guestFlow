@@ -27,7 +27,8 @@
       "L’adresse de l’application ne peut plus être celle de GuestFlow : refusée à l’enregistrement, ignorée si elle était déjà enregistrée, pour que GuestFlow reste joignable.",
       "Les refus de l’application clients suivent la langue du client ; le changement de langue relit aussitôt les commandes et le livret.",
       "Au plus six paiements par carte par séjour et par heure ; heures de livraison justes les nuits de changement d’heure ; QR du wifi correct avec une barre oblique inverse dans le mot de passe.",
-      "La réception ne lit plus la liste des commandes et leurs montants ; « Effacer aussi ses données » nomme les pages du livret et les photos, et supprime les fichiers des photos ; textes de GuestFlow et du Studio impersonnels.",
+      "La réception ne lit plus la liste des commandes et leurs montants ; « Effacer aussi ses données » nomme les pages du livret et les photos, et supprime les fichiers des photos une fois l’effacement réussi ; textes de GuestFlow et du Studio impersonnels.",
+      "Une ressource au prix par personne ne se vend plus dans l’application : elle était facturée pour toutes les personnes du séjour à chaque unité.",
       "Demande le SDK 2.26 de GuestFlow."
     ]
   }

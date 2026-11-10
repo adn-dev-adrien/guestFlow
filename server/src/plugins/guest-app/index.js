@@ -299,7 +299,21 @@ function register(ctx) {
       return lines;
     },
     // Rule 59 — the photos sit under the uploads, served by `/uploads`: erased with the tables, they are served no more.
-    purge: () => mediaFiles.eraseAll(coreUploadsDir()),
+    // The core calls this inside its erase transaction, before the tables go: the files are deleted once that
+    // transaction is over, and only if it dropped the tables — a rolled-back erase keeps the photos (audit R36b N5).
+    purge: (db) => {
+      const uploadsDir = coreUploadsDir();
+      if (!db || !db.inTransaction) return mediaFiles.eraseAll(uploadsDir);
+      queueMicrotask(() => {
+        try {
+          if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'guest_media'").get()) return;
+          mediaFiles.eraseAll(uploadsDir);
+        } catch (err) {
+          console.error('[plugin:guest-app] photo erasure failed:', err && err.message ? err.message : err);
+        }
+      });
+      return undefined;
+    },
   });
 }
 
