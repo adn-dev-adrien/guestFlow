@@ -109,7 +109,8 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
    mid-stay note's « reste à percevoir », the refund's stay cap). *Why:* the fiche read « 281.98 € — CB / Chèque le
    2026-09-01 — balance, endOfStayComplement » beside rows reading « 281,98 € » and « 30/08/2026 ». Test:
    `tests/history-texts-french.unit.test.js`, `arrival-payment-history-line`, `arrival-payment-dissolution-is-traced`,
-   sas `sas-history-folds-the-single-payment`.
+   sas `sas-history-folds-the-single-payment`, `mid-stay-note-refusal-french-amount` (both note refusals, verification
+   R44 L4).
 
 ### 3.3 Undoing it
 

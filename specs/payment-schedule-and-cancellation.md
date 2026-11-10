@@ -706,6 +706,28 @@ acompte is kept as an indemnity, and the books say so correctly.
     kept. Tests: `tests/cancellation-notice-kept-sum.unit.test.js` (an acompte, a refund before, a plan paid or not, a
     caisse-interne acompte whole or partly given back, a split acompte, commissions, nothing collected, English, the
     confirm's own send, a legacy entry, the template migration).
+    *Reading of 2026-11-10 (verification R44 L1):* the caisse-interne refunds made before the cancel are taken from every
+    other caisse money first — a solde paid in the caisse, the caisse share of a mixed solde (mixed-method-payments rule
+    57), a complement or an end-of-stay complement paid there, a caisse note — and the acompte only gives back what
+    they leave over: the caisse acompte kept is `min(acompte, max(0, cashCollected − caisse refunds))`, read by
+    `reservationSettlement.cashCollected`, the caisse interne's one reading, on the row `getForCancellation` reads whole.
+    Only a solde paid wholly in the caisse absorbed them before: a 180 € caisse acompte, a solde paid 100 € in the caisse
+    and the rest by card, then a 50 € caisse refund, told the guest 130 € were kept. The two template tokens read
+    « Somme conservée » and « Si somme conservée » in the operator's editor (their names stay), since the sum may be
+    échéances, a commission or a caisse acompte. The preview, the manual send (`loadReservationGraph`) and the daily
+    auto pass (`emailAutoSendRunner`) read the same figure as the sender. Tests:
+    `tests/cancellation-kept-caisse-absorption.unit.test.js` (a solde wholly in the caisse, a mixed solde's caisse share,
+    a caisse complement, refunds beyond the other caisse money, none), `tests/cancellation-kept-email-wiring.unit.test.js`
+    (the preview, the auto pass, the token labels).
+62. **A notice sent after a later refund states what is still kept** _(added 2026-11-10, verification R44 L2)_. A
+    cancelled stay's sum kept (rule 61) is the figure its cancel entry stored less what the refunds made since the
+    cancel (`refunds.madeAfterCancellation`: after the avoir, else `afterCancellation = 1`) took from it, never below
+    0: a book refund the lines it drew from the indemnity (D3), a caisse-interne refund the part of the caisse acompte
+    the other caisse money no longer covers (rule 61's order; an entry stored before rule 61 holds no caisse acompte, so
+    none is taken from it). A refund of money the cancel did not keep (a paid solde)
+    takes nothing from it. *Why:* a cancel without notice, then a 40 € goodwill refund from the indemnity, then
+    « Envoyer un email »: the notice read « la somme de 180 € déjà versée reste acquise » while 140 € were. Test:
+    `tests/cancellation-notice-after-later-refund.unit.test.js`.
 
 
 ---
@@ -756,8 +778,8 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | `deposit_reminder` re-anchored + rewritten; `balance_reminder` and `cancellation_notice` added; the two reminders flipped to `sendMode: 'manual'` and `PAYMENT_STABLE_KEYS` exported (rule 44) |
 | `utils/` | `migrateDepositReminderAnchor.js` | C | One-shot force-sync of the already-seeded `deposit_reminder` row to its new anchor — without it the reminder would silently stop firing |
 | `utils/` | `emailContextBuilder.js` | T | `cancelOnDate`, `retainedDepositAmount`, `daysLate` tokens |
-| `utils/` | `cancellationKeptForEmail.js` | C | Rule 61 — `cancellationKeptForEmail(database, reservation)`: the stored `keptFromGuest` of a cancelled stay, the preview's of a live direct stay; handed to `emailContextBuilder` (`cancellationKept`) by `reservationEmailGraph`, `reservationEmailSender`, `emailAutoSendRunner` and `emailsController` |
-| `utils/`, `controllers/`, `database.js` | `cancelReservation.js`, `reservationCancellationController.js`, `migrateCancellationNoticeKeptSum.js` | T / C | Rule 61 — `keptFromGuest` in `cancellationFiguresOf` (`cashDepositKeptOf`), the cancel entry and answer; the one-shot `cancellation_notice_kept_sum_v1` |
+| `utils/` | `cancellationKeptForEmail.js` | C | Rule 61 — `cancellationKeptForEmail(database, reservation)`: the stored `keptFromGuest` of a cancelled stay less what the refunds made since the cancel took from it (rule 62), the preview's of a live direct stay; handed to `emailContextBuilder` (`cancellationKept`) by `reservationEmailGraph`, `reservationEmailSender`, `emailAutoSendRunner` and `emailsController` |
+| `utils/`, `controllers/`, `database.js` | `cancelReservation.js`, `reservationCancellationController.js`, `migrateCancellationNoticeKeptSum.js` | T / C | Rule 61 — `keptFromGuest` in `cancellationFiguresOf` (`cashDepositKeptOf`: the caisse acompte kept after every other caisse money absorbed the caisse refunds, `reservationSettlement.cashCollected`), the cancel entry and answer; the one-shot `cancellation_notice_kept_sum_v1` |
 | `utils/` | `depositRequestOnBooking.js` | **D** | **Deleted** (rule 36) — no reservation triggers its own acompte request any more |
 | `utils/` | `migratePaymentTemplatesToManual.js` | C | One-shot force-sync of the seeded `deposit_reminder` / `balance_reminder` rows to `sendMode = 'manual'` (rule 45) |
 | `middleware/` | `enforceRoleAccess.js` | — | Nothing to do: the reception allowlist is deny-by-default, so the new endpoints are already refused |
@@ -797,7 +819,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 | POST | `/api/dashboard/payment-deadlines/:id/snooze` | `{ days?: 7 }` | `{ ok: true, snoozedUntil }` | Idempotent. |
 | POST | `/api/dashboard/payment-deadlines/:id/remind` | `{ type: 'deposit' \| 'balance' }` | `{ sent: true, url, recipientEmail }` | Unchanged — it now serves **both** the first request and the reminders, and is the only way a money email leaves. Relays `paymentRequestService` errors verbatim (400 `EMAIL_NOT_SENT`, 502…). |
 | POST | `/api/reservations/:id/cancel` | `{ reason?: string, notifyClient?: boolean }` | `{ ok, cancellationReason, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance, refundId, compensationId, emailSent }` | 409 `ALREADY_CANCELLED`; 403 `PLATFORM_RESERVATION`; 404 unknown. `keptFromGuest`: rule 61. |
-| GET | `/api/reservations/:id/cancel-preview` | — | `{ cancellationReason, retainedDepositAmount, writtenOffBalance }` | Rule 60 — the cancel's own figures, nothing written; the cancel's refusals (409 / 403 / 404). |
+| GET | `/api/reservations/:id/cancel-preview` | — | `{ cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance }` | Rule 60 — the cancel's own figures, nothing written; the cancel's refusals (409 / 403 / 404). |
 | GET | `/api/accounting/cancellation-compensations` | — | unchanged + `origin` on each row | Additive. |
 
 ---
@@ -920,6 +942,12 @@ leave guard then offered « Enregistrer et quitter » on a stay already cancelle
 ### Server unit tests — **55 new, suite at 9347 green (2026-11-02)**
 - [x] `tests/cancellation-notice-kept-sum.unit.test.js` (14, 2026-11-10, rule 61) — the notice states `keptFromGuest`,
       equal to the preview, the cancel answer and the stored entry, for every way the money stands; the template migration.
+- [x] `tests/cancellation-kept-caisse-absorption.unit.test.js` (5, 2026-11-10, rule 61 reading R44 L1) — every other
+      caisse money absorbs the caisse refunds before the caisse acompte.
+- [x] `tests/cancellation-kept-email-wiring.unit.test.js` (3, 2026-11-10, rule 61, R44 L3/L5) — the preview and the auto
+      pass state the same figure; the token labels.
+- [x] `tests/cancellation-notice-after-later-refund.unit.test.js` (6, 2026-11-10, rule 62) — the refunds made since the
+      cancel come off the sum the notice states, never below 0.
 - [x] `tests/devis-single-payment-by-validity.unit.test.js` (27, 2026-11-09, D23) — rules 5 amendment and 56: a
       devis 30 to 61 days out never owes its acompte after its solde, one payment due on `validUntil` inside the
       window, on the devis, its PDF, its link quote, its conversion and the converted stay's later saves; rule 47 for

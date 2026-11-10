@@ -31,6 +31,7 @@ const { isOffBooks, isRetainedDeposit, COMMISSION_KEY } = require('./refunds');
 const { storedMoneyBuckets } = require('./storedMoneySplit');
 const { taxRidesTheComplement } = require('./touristTaxFreeze');
 const { bucketSharesOf } = require('./paymentTenders');
+const { cashCollected } = require('./reservationSettlement');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -265,15 +266,15 @@ function cancellationRefusalOf(row) {
 
 // specs/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the acompte collected in
 // the caisse interne that the cancellation keeps: off the books (D8), so no avoir names it, yet the guest handed it over.
-// The caisse-interne refunds made before give part of it back, a solde paid in the caisse interne absorbing them first
-// (the order rule 55 reads for the books).
+// Reading of 2026-11-10 (verification R44 L1): the caisse-interne refunds of `refunds` are taken from every other caisse
+// money first (a solde, the caisse share of a mixed solde, a complement, a note), read by `cashCollected`, the caisse
+// interne's one reading; the acompte only gives back what they leave over.
 function cashDepositKeptOf(row, refunds) {
   if (!Number(row.depositPaid) || !Number(row.depositPaidCash || 0)) return 0;
   const deposit = Math.max(0, round2(row.depositAmount));
   const cashGivenBack = round2((refunds || []).filter((refund) => isOffBooks(refund.method))
     .reduce((total, refund) => total + Number(refund.totalTtc || 0), 0));
-  const soldeCash = Number(row.balancePaid) && Number(row.balancePaidCash || 0) ? Math.max(0, round2(row.balanceAmount)) : 0;
-  return Math.max(0, round2(deposit - Math.max(0, round2(cashGivenBack - soldeCash))));
+  return Math.min(deposit, Math.max(0, round2(cashCollected(row) - cashGivenBack)));
 }
 
 // specs/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the figures a cancellation of `row` books, read
@@ -369,4 +370,6 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
   };
 }
 
-module.exports = { cancelReservation, cancellationPreview, resolveCancellationReason, bookedStayBuckets, cancellationNettedRefundIds };
+module.exports = {
+  cancelReservation, cancellationPreview, resolveCancellationReason, bookedStayBuckets, cancellationNettedRefundIds, cashDepositKeptOf,
+};
