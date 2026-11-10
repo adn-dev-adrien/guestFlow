@@ -34,8 +34,9 @@ export default {
       title: 'Commandes Mon séjour',
       Icon: RoomServiceOutlinedIcon,
       isShown: (data) => Boolean(data && data.ordersAtArrival && data.ordersAtArrival.orders.length),
-      recapNotes: (value, data) => (data && data.ordersAtArrival && data.ordersAtArrival.toCollect > 0
-        ? [`Commandes Mon séjour : ${data.ordersAtArrival.toCollectLabel} (dans le complément d’arrivée)`] : []),
+      // The recap recalls the line the server words (rule 71); a step with no value yet recalls nothing, so it is seeded.
+      initialValue: () => ({}),
+      recapNotes: (value, data) => (data && data.ordersAtArrival && data.ordersAtArrival.recapNote ? [data.ordersAtArrival.recapNote] : []),
       Component: lazy(() => import('./SasArrivalOrdersStep')),
     }],
     // Rule 9bis (c) — the stay's link on the fiche.

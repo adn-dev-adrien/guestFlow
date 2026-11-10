@@ -369,6 +369,14 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // key) are handed to it as `gateStep`, its fallback.
   const portalContributions = useSlot('sas.portal');
   const [pluginStepData, setPluginStepData] = useState({});
+  // A plugin step that changed what the server holds (an order amended at the SAS) asks for the SAS data again: the payload is
+  // replaced in place, the wizard keeps its page, and the recap's last answer is forgotten so its figures are read afresh.
+  const [dataRevision, setDataRevision] = useState(0);
+  const refreshSasData = useCallback(async () => {
+    const fresh = await api.getReservationSas(reservationId, mode);
+    setData(fresh);
+    setDataRevision((n) => n + 1);
+  }, [reservationId, mode]);
   const pluginStepFor = (key) => pluginSteps.find((c) => c.key === key) || null;
   // specs/plugins-phase-3c-hourly-resources.md rule 6 — a step without `load` reads what its plugin
   // put in the SAS payload (`pluginData[pluginId]`). A step that collects keeps a value: `initialValue`
@@ -696,6 +704,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     if (i > 0) setStepKey(activeKeys[i - 1]);
   }, [activeKeys, stepKey]);
 
+  // A plugin page whose data just emptied (its last order removed from the page itself) is no longer an active page: hand over to
+  // the recap rather than leave « Suivant » reading an index of -1.
+  useEffect(() => {
+    if (!stepKey || activeKeys.length === 0 || activeKeys.includes(stepKey) || !pluginSteps.some((c) => c.key === stepKey)) return;
+    setStepKey(activeKeys.includes('recap') ? 'recap' : activeKeys[activeKeys.length - 1]);
+  }, [activeKeys, stepKey, pluginSteps]);
+
   // ---- totals ----
   // specs/sas-offer-complement-lines.md §3.1 — every billable line carries `offerKey` (its identity in
   // the `offered` set) and `real` (the price it would be billed at). `amount` is what the total counts:
@@ -787,7 +802,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     reservationId,
     draft,
     enabled: previewShown && Boolean(draft) && !sasLock,
-    resetKey: `${open ? 1 : 0}:${reservationId}:${mode}`,
+    resetKey: `${open ? 1 : 0}:${reservationId}:${mode}:${dataRevision}`,
   });
   const recap = preview.recap;
   // specs/mixed-method-payments.md rule 45 — reception never splits; the departure lines only count where the recap has
@@ -1786,6 +1801,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               value={pluginStepValues[stepKey]}
               onChange={setPluginStepValue(stepKey)}
               reservationId={r.id}
+              onRefresh={refreshSasData}
             />
           </Contribution>
         );

@@ -598,10 +598,11 @@ Optional: a plugin that declares nothing reads « Actif ».
     **arrival complement** — `byKey` per line key is what the line's billed total gains — instead of the end-of-stay
     remainder, which does not exist yet. Both calls refuse, nothing written: 409 `ORDER_OFF_ARRIVAL_COMPLEMENT` when the
     order would move another bucket (acompte, solde, an installment, the end-of-stay complement) or Σ `byKey` differs
-    from the complement's growth; 409 `ORDER_STAY_PRICE_MOVED` when the stored stay replayed without the order leaves
-    its stored final price or tourist tax; 409 `ORDER_PAID_BEFORE_ARRIVAL` for a `paid` commit. Their answer carries
-    `collectAt: 'arrival' | 'departure'`. New `orderCollection(reservationId)` → `arrival` (not marked, the engine's
-    `preArrivalSettled`, now on its result) | `departure` (marked, end-of-stay complement open) | `closed` (end-of-stay
+    from the complement's growth; 409 `ORDER_STAY_PRICE_MOVED` when the order would move the tourist tax (amended 2026-11-10, owner decision: the
+    replay of the stored price is dropped, only the order's own growth is measured); ~~409 `ORDER_PAID_BEFORE_ARRIVAL` for a `paid`
+    commit~~ (retired: a `paid` commit before the arrival is settled as an arrival-moment note, `guest-app.md` rule 85). Their answer carries
+    `collectAt: 'arrival' | 'departure'`. New `orderCollection(reservationId)` → `arrival` (not marked, and the engine's
+    `preArrivalSettled` — now on its result — or a platform stay, whose extras always ride the arrival complement) | `departure` (marked, end-of-stay complement open) | `closed` (end-of-stay
     complement collected) | `unavailable` (pre-arrival money still due). The marked path is unchanged. Tests:
     `mid-stay-order-before-arrival.unit.test.js`, `guest-app-pre-arrival-orders`.
 48. *(Added 2026-11-09, specs/guest-app.md rules 47 and 52, plan step 50, SDK 2.26.0 — unreleased, recorded with the
