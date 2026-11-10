@@ -376,6 +376,8 @@ add the phone and e-mail from Airbnb. When the mail cannot be applied, the fiche
     `testConnection` now listen before connecting and log `mail intake: <code> <message>`, the real cause, through the
     caller's `log` (optional on `testConnection`). The call under way still rejects as before, so a pass never hangs.
     Shared by every plugin reading a mailbox through `sdk.mailbox`. Test: `tests/mail-reader-socket-error.unit.test.js`.
+37. **A listing is tied to a logement that exists** (audit R42-EXT-L2 class, 2026-11-10). A key of `listings` that
+    names no logement of the core is refused « Logement inconnu. », nothing stored. A key already stored stays accepted, so the line of a logement deleted since never blocks a save. *Why:* the map read any digits as a logement; a phantom key bypassed the read pass's « nothing tied yet » skip and tied a logement created later (ids are AUTOINCREMENT, never reused, but given in order) to a listing nobody chose. Same class as google-vacation-rentals-feed rule 20. Test: `server/src/tests/plugin-settings-unknown-logement.unit.test.js`. airbnb-intake 1.1.9.
 
 ---
 

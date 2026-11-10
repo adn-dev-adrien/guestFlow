@@ -321,6 +321,8 @@ choice in one click.
     `ctx.core.reservations.updateBody`, on the first write (`applied` or `needs_rent`), the auto-apply and « Appliquer »;
     the rent chosen later (`paymentPatch`) sends money fields only and was never affected. Gîtes de France 1.4.8 asks
     for `sdk ^2.21.0`. Test: `gites-de-france-intake/tests/card-lines-real-core.unit.test.js` (real core, both paths).
+36. **A gîte number is tied to a logement that exists** (audit R42-EXT-L2 class, 2026-11-10). A key of `giteNumbers`
+    that names no logement of the core is refused « Logement inconnu. », nothing stored. A key already stored stays accepted, so the line of a logement deleted since never blocks a save. *Why:* the map read any digits as a logement; a phantom key bypassed the read pass's « nothing tied yet » skip and tied a logement created later (ids are AUTOINCREMENT, never reused, but given in order) to a listing nobody chose. Same class as google-vacation-rentals-feed rule 20. Test: `server/src/tests/plugin-settings-unknown-logement.unit.test.js`. gites-de-france-intake 1.4.11.
 
 ---
 

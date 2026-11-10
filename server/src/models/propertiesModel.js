@@ -27,6 +27,7 @@ const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 const { publicDocument, removeDocumentFile, downloadUrl, PRIVATE_PREFIX } = require('../utils/propertyDocumentFiles');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
+const { documentFieldsRefusal, EMAIL_HOOK_MAX_LENGTH } = require('../utils/propertyValidation');
 const propertyArticle = require('../utils/propertyArticle');
 const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
@@ -69,7 +70,6 @@ const EMAIL_FACT_FIELDS = [
 // The form field that answers each pending fact (rule 28).
 const FACT_OF_FIELD = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
 
-const EMAIL_HOOK_MAX_LENGTH = 300;
 
 // A field a form really sent: present and not empty (a FormData carries an empty input as '').
 const sent = (body, key) => Object.prototype.hasOwnProperty.call(body, key) && body[key] != null && String(body[key]).trim() !== '';
@@ -1074,6 +1074,9 @@ function createPropertiesModel(database) {
       const target = body.target || {};
       const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
+      // specs/reservations-backend-mvc.md rule 26 (audit R42-C-L1) — a logement that does not exist is refused first,
+      // never a foreign-key 500 on the new season's INSERT.
+      if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(pid)) return { error: 'Logement non trouvé', status: 404 };
       if (!ISO.test(startDate) || !ISO.test(endDate)) return { error: 'Dates invalides.', status: 400 };
       const datesError = rangesWindowMessage([{ startDate, endDate }]);
       if (datesError) return { error: datesError, status: 400 };
@@ -1138,16 +1141,29 @@ function createPropertiesModel(database) {
 
     addDocument(propertyId, file, body = {}) {
       if (!file) return { error: 'Fichier requis', status: 400 };
+      const dropUpload = () => { if (file.path) { try { require('fs').unlinkSync(file.path); } catch { /* already gone */ } } };
       // specs/reservations-backend-mvc.md rule 26 (audit R41-DB-L1) — the upload is already on disk: on a logement that
       // does not exist it is removed and refused, never a foreign-key 500 leaving an orphan private file.
       if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) {
-        if (file.path) { try { require('fs').unlinkSync(file.path); } catch { /* already gone */ } }
+        dropUpload();
         return { error: 'Logement non trouvé', status: 404 };
       }
-      const result = database.prepare(`
-        INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
-      `).run(propertyId, body.type || 'other', sentenceCase(body.name || file.originalname), `${PRIVATE_PREFIX}${file.filename}`);
-      return { data: { id: result.lastInsertRowid, filePath: downloadUrl(propertyId, result.lastInsertRowid) } };
+      // specs/settings-input-guards.md rule 63 (audit R42-DB-L1 / R42-INJ-L2) — the two text fields are judged before the
+      // row is written, the upload removed on a refusal: a repeated or bracketed field was a 500 or a stored « A,b ».
+      const fieldRefusal = documentFieldsRefusal(body);
+      if (fieldRefusal) {
+        dropUpload();
+        return fieldRefusal;
+      }
+      try {
+        const result = database.prepare(`
+          INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
+        `).run(propertyId, body.type || 'other', sentenceCase(body.name || file.originalname), `${PRIVATE_PREFIX}${file.filename}`);
+        return { data: { id: result.lastInsertRowid, filePath: downloadUrl(propertyId, result.lastInsertRowid) } };
+      } catch (err) {
+        dropUpload();
+        throw err;
+      }
     },
 
     deleteDocument(propertyId, docId) {

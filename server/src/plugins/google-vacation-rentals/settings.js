@@ -53,9 +53,13 @@ function parsePropertiesSetting(raw) {
   return out;
 }
 
-function validateProperties(raw) {
+// Rule 20 (audit R42-EXT-L2) — `allowedIds` (Set of ids as text: the core's logements, plus the keys already stored, so a
+// deleted logement's entry never blocks a save): any other key is refused. It used to be stored, so Envoi passed with no
+// logement and a logement created later was born enabled under a code nobody chose.
+function validateProperties(raw, allowedIds = null) {
   const parsed = parsePropertiesSetting(raw);
   if (!parsed) return 'Réglage des logements illisible.';
+  if (allowedIds && Object.keys(parsed).some((id) => !allowedIds.has(String(Number(id))))) return 'Logement inconnu.';
   const codes = new Set();
   for (const entry of Object.values(parsed)) {
     if (entry.hotelCode && !HOTEL_CODE_RE.test(entry.hotelCode)) return 'Code Google : lettres minuscules, chiffres et tirets, 3 à 40 caractères.';
@@ -68,10 +72,13 @@ function validateProperties(raw) {
   return null;
 }
 
-const anyEnabled = (parsed) => Object.values(parsed || {}).some((entry) => entry.enabled);
+const anyEnabled = (parsed, knownIds = null) => Object.entries(parsed || {})
+  .some(([id, entry]) => entry.enabled && (!knownIds || knownIds.has(String(Number(id)))));
 
-// store: ctx.settings ({ get, set, raw }).
-function declared(store) {
+// store: ctx.settings ({ get, set, raw }); listProperties: () → [{ id }] of the core (rule 20). Envoi counts only the
+// enabled entries of real logements.
+function declared(store, { listProperties = null } = {}) {
+  const knownIds = () => (listProperties ? new Set(listProperties().map((p) => String(p.id))) : null);
   // A key sent with the write wins over the stored one: « Envoi » and the partner id arrive together.
   const current = (key, body) => (body && Object.prototype.hasOwnProperty.call(body, key) ? body[key] : store.get(key));
   const integer = (key) => (value) => {
@@ -97,7 +104,7 @@ function declared(store) {
         if (!MODES.includes(String(value))) return 'Mode inconnu.';
         if (value !== 'envoi') return null;
         if (!String(current('partnerId', body) || '').trim()) return 'Envoi impossible : identifiant partenaire manquant.';
-        if (!anyEnabled(parsePropertiesSetting(current('properties', body)))) return 'Envoi impossible : aucun logement activé.';
+        if (!anyEnabled(parsePropertiesSetting(current('properties', body)), knownIds())) return 'Envoi impossible : aucun logement activé.';
         return null;
       },
     },
@@ -108,9 +115,11 @@ function declared(store) {
       key: 'properties',
       default: DEFAULTS.properties,
       validate: (value, body) => {
-        const message = validateProperties(value);
+        const known = knownIds();
+        const stored = Object.keys(parsePropertiesSetting(store.get('properties')) || {});
+        const message = validateProperties(value, known && new Set([...known, ...stored.map((id) => String(Number(id)))]));
         if (message) return message;
-        if (current('mode', body) === 'envoi' && !anyEnabled(parsePropertiesSetting(value))) return 'Au moins un logement en mode Envoi.';
+        if (current('mode', body) === 'envoi' && !anyEnabled(parsePropertiesSetting(value), known)) return 'Au moins un logement en mode Envoi.';
         return null;
       },
     },

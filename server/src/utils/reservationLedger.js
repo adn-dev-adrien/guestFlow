@@ -851,6 +851,7 @@ function buildLedger({
   // ── Reste à percevoir (rule 5) ────────────────────────────────────────────
   const remaining = remainingToPay({
     ...r,
+    kind,
     depositDisabled: depositDisabled ? 1 : 0,
     depositAmount,
     balanceAmount,

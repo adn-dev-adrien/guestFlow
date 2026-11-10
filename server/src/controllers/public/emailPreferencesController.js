@@ -34,9 +34,10 @@ const COPY = {
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-// The product's neutral palette (client/src/theme.js).
+// The product's neutral palette (client/src/theme.js). Guest-email-sequence rule 37 (audit R42-PUB-L1) — the page
+// declares the language it speaks, so a screen reader or a translation offer reads the English copy as English.
 function page(copy, inner) {
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(copy.title)}</title>
+  return `<!doctype html><html lang="${copy.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(copy.title)}</title>
 <style>body{margin:0;background:#F8F5EF;color:#27251F;font:17px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}main{max-width:520px;margin:0 auto;padding:40px 20px}h1{font:600 24px/1.25 Georgia,serif;color:#2F5D46;margin:0 0 16px}button{width:100%;min-height:48px;border:0;border-radius:8px;background:#2F5D46;color:#fff;font:600 16px/1.2 inherit;cursor:pointer;margin-top:12px}</style>
 </head><body><main><h1>${escapeHtml(copy.title)}</h1>${inner}</main></body></html>`;
 }
@@ -46,7 +47,7 @@ function buildController({ preferences, database }) {
     let name = '';
     try { name = String((database.prepare('SELECT companyName FROM app_settings LIMIT 1').get() || {}).companyName || '').trim(); } catch { name = ''; }
     const base = COPY[lang];
-    return { ...base, title: base.title.replace('{name}', name || 'GuestFlow') };
+    return { ...base, lang, title: base.title.replace('{name}', name || 'GuestFlow') };
   }
 
   function languageOf(clientId) {

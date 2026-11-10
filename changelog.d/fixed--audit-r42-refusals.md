@@ -1,0 +1,9 @@
+- **Audit round 42: an id that names nothing, or a field nobody judged, is refused before anything is written.**
+  - Painting a period into a new season on a logement deleted from another tab answers 404 « Logement non trouvé », no longer 500 (`specs/reservations-backend-mvc.md` rule 26 reading).
+  - A property document's type is one of the page's three and its name one text of at most 200 characters; a repeated, bracketed or oversized field answers 400 and the uploaded file is removed, no longer 500 with an orphan private file (`specs/settings-input-guards.md` rule 63).
+  - On a property create or update, the e-mail hooks, Wi-Fi and acompte switches and the cleaning / towels / bed-linen answers are judged with the rest of the form: no more « [object Object] » in a guest e-mail, no logement half-saved or created by a refused request (rule 64).
+  - Bank reconciliation « Écarter » and « Hors réservation » refuse a stay or a credit that does not exist, 404, nothing stored (online-payment 1.7.5, SDK 2.26; `specs/qonto-bank-reconciliation.md` rule 51).
+  - The Google Vacation Rentals, Airbnb, Gîtes de France and Booking settings refuse a logement that does not exist in their id-keyed maps; a deleted logement's stored line still saves (google-vacation-rentals 1.0.5, SDK 2.11; airbnb-intake 1.1.9 and gites-de-france-intake 1.4.11, SDK 2.21; booking-intake 1.3.14, SDK 2.15).
+  - Booking « Ignorer » answers a pending proposal only: an intake already applied keeps its status and banner, 409 (booking-intake 1.3.14, SDK 2.15; `specs/booking-extranet-intake.md` rule 39).
+  - A cancelled stay with an installment plan no longer shows « Reste à percevoir » for the installments its cancellation wrote off (`specs/reservation-payment-ledger.md` rule 73).
+  - The e-mail preferences page declares `lang="en"` when it speaks English (`specs/guest-email-sequence.md` rule 37).

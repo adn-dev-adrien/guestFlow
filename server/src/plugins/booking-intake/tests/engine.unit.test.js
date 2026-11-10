@@ -100,7 +100,10 @@ test('specs/booking-extranet-intake.md rule 1: not live until activated, and the
 });
 
 test('specs/booking-extranet-intake.md rule 12: the settings refuse a hotel map that is not what the plugin reads', () => {
-  const { record } = boot(freshDb());
+  const db = freshDb();
+  // Rule 38 (audit R42-EXT-L2 class) — the map names a logement.
+  db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte')").run();
+  const { record } = boot(db);
   const check = (key, value) => record.settings.find((s) => s.key === key).validate(value);
   assert.equal(check('hotelIds', '{"1":"14407976"}'), null);
   assert.match(check('hotelIds', '{"1":"abc"}'), /chiffres/);
