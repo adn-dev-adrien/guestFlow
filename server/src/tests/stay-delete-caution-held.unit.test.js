@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 52, reading of 2026-11-10 (audit R36-DB-L1) — a caution received and not
+// specs/payment-schedule-and-cancellation.md rule 58 (audit R36-DB-L1, 2026-11-10) — a caution received and not
 // returned is the only record of what a guest is owed back: the stay, its client and its logement are refused deletion
 // while it is held, and an approved iCal cancellation keeps the stay as cancelled. A returned caution frees them.
 const test = require('node:test');

@@ -131,7 +131,7 @@ test('rules 3, 19: a path from the repository root reads the plugin folder, unle
   assert.deepEqual(pluginsNamedBy("const F = ['server/src/plugins/fx-sas/x.js'];\nF.filter((f) => fs.existsSync(path.join(ROOT, f))).map((f) => read(f));", ids), []);
   assert.deepEqual(pluginsNamedBy("const c = pluginsOf([\n  'server/src/plugins/fx-linen/routes.js',\n]);", ids), []);
   assert.deepEqual(pluginsNamedBy("// server/src/plugins/fx-linen/x.js is not read here", ids), []);
-  // R36-S1 — from inside a plugin's tests a sibling plugin is `../../<id>/`; a file of the plugin's own folder is not one.
+  // specs/plugin-removal-resilience.md rule 21 (R36-S1) — from inside a plugin's tests a sibling plugin is `../../<id>/`; a file of the plugin's own folder is not one.
   assert.deepEqual(pluginsNamedBy("require('../../fx-sas/invoiceIssuer');", ids, { insidePlugin: true }), ['fx-sas']);
   assert.deepEqual(pluginsNamedBy("require('../fx-sas');", ids, { insidePlugin: true }), []);
   assert.deepEqual(pluginsNamedBy("require('../../fx-sas/invoiceIssuer');", ids), []);

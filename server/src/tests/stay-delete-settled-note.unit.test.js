@@ -1,4 +1,4 @@
-// specs/payment-schedule-and-cancellation.md rule 52, reading of 2026-11-10 (audit R36-DB-M2) — a settled mid-stay note is
+// specs/payment-schedule-and-cancellation.md rule 58 (reading of rule 52, 2026-11-10, audit R36-DB-M2) — a settled mid-stay note is
 // money: a stay whose only money is such a note (a platform stay whose payout is ticked later) is refused deletion, its
 // client and logement alike, an approved iCal cancellation keeps it as cancelled, and it holds its nights like any paid stay.
 const test = require('node:test');

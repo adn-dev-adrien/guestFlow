@@ -1,4 +1,5 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 25, 29-31 — the one-screen arrival of a guest with no stay.
+// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

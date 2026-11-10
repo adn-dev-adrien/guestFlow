@@ -10,6 +10,7 @@
  * Rule 18 (review of PR #932): a forced deletion that fails after the operator moved on is still
  * reported, as a toast; a late orphan preview no longer reopens a cleanup popup the operator closed.
  */
+// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
 
 import React from 'react';
 import { vi } from 'vitest';

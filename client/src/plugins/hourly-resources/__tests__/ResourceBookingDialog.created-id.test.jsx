@@ -1,6 +1,7 @@
 // specs/resource-booking-pricing-and-invoicing.md rule 44 (R35b N3) — a booking created by the dialog whose payment was
 // refused is that booking from then on: moving its slot before the next click previews it as itself (`bookingId`) and its
 // own slot never counts as taken.
+// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

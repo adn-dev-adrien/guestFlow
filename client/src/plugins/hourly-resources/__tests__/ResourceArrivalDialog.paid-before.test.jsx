@@ -1,6 +1,7 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 28, 44 (R35-C-L1, R35-C-L2, R35-C-L4) — the arrival of a guest who
 // paid at booking time is still recorded (no payment sent); an invoice cancelled in Qonto is offered again; a refused
 // attachment is said on screen.
+// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

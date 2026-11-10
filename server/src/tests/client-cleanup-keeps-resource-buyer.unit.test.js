@@ -1,4 +1,4 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 34, reading of 2026-11-10 (audits R36-DB-M1 = R36-RES-L1) — every
+// specs/resource-booking-pricing-and-invoicing.md rule 49 (reading of rule 34, audits R36-DB-M1 = R36-RES-L1, 2026-11-10) — every
 // client cleanup shares the orphan popup's condition: a client a resource booking names (plugin `hourly-resources`, paid
 // or not, on any logement or none) is kept by the logement delete and by the two iCal cleanups, and his booking keeps him.
 const test = require('node:test');

@@ -2,6 +2,7 @@
 // money actions in its dialog: the payment is taken back behind a confirmation, a delete is confirmed and a paid booking
 // is not deletable, an invoice cancelled in Qonto can be made again, an invoiced booking's invoice buttons work and its
 // fields are read-only.
+// specs/server-test-isolation.md rule 16 (audit R36-S3) — each test carries its own 15 s timeout on a loaded runner.
 import React from 'react';
 import { vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
