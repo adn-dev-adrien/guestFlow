@@ -367,7 +367,10 @@ patch. No new edge behavior is introduced.
    not exist answers 404 « Logement non trouvé », as `suggest-beds` does, before the default timed options are linked to
    it; `PUT /calendar-notes/:propertyId/:date` answers the same on an unknown or textual logement. Nothing is written.
    *Why:* each reached a foreign-key INSERT and answered 500 « Erreur interne du serveur » where a stay showed a clear
-   refusal. Test: `tests/unknown-id-refused.unit.test.js`.
+   refusal. *Reading of 2026-11-10 (audit R41-DB-L1, L2):* `PUT /properties/:id` on a logement that does not exist answers
+   404 « Logement non trouvé », never a 200 « ok » on an UPDATE that touched nothing (with a photo written to /uploads
+   for nobody); `POST /properties/:id/documents` answers the same and removes the file the upload had already written.
+   Test: `tests/unknown-id-refused.unit.test.js`.
 
 ---
 

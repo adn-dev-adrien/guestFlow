@@ -1138,6 +1138,12 @@ function createPropertiesModel(database) {
 
     addDocument(propertyId, file, body = {}) {
       if (!file) return { error: 'Fichier requis', status: 400 };
+      // specs/reservations-backend-mvc.md rule 26 (audit R41-DB-L1) — the upload is already on disk: on a logement that
+      // does not exist it is removed and refused, never a foreign-key 500 leaving an orphan private file.
+      if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) {
+        if (file.path) { try { require('fs').unlinkSync(file.path); } catch { /* already gone */ } }
+        return { error: 'Logement non trouvé', status: 404 };
+      }
       const result = database.prepare(`
         INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
       `).run(propertyId, body.type || 'other', sentenceCase(body.name || file.originalname), `${PRIVATE_PREFIX}${file.filename}`);
