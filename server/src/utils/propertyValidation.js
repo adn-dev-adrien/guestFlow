@@ -291,7 +291,19 @@ function documentFieldsRefusal(body = {}) {
   return null;
 }
 
+// Rule 63 (verification R42 L1, L2) — the stored name: the one sent, trimmed; empty or blank, the file's own name, its
+// base shortened so the whole stays within the 200 characters a sent name may have (the extension kept).
+function documentDisplayName(sent, originalname) {
+  const given = typeof sent === 'string' ? sent.trim() : '';
+  if (given) return given;
+  const own = String(originalname || '');
+  if (own.length <= DOCUMENT_NAME_MAX_LENGTH) return own;
+  const dot = own.lastIndexOf('.');
+  const ext = dot > 0 && own.length - dot <= 16 ? own.slice(dot) : '';
+  return own.slice(0, DOCUMENT_NAME_MAX_LENGTH - ext.length) + ext;
+}
+
 module.exports = {
-  validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal, documentFieldsRefusal,
+  validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal, documentFieldsRefusal, documentDisplayName,
   EMAIL_HOOK_MAX_LENGTH,
 };

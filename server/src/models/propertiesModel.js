@@ -27,7 +27,7 @@ const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
 const { publicDocument, removeDocumentFile, downloadUrl, PRIVATE_PREFIX } = require('../utils/propertyDocumentFiles');
 const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
-const { documentFieldsRefusal, EMAIL_HOOK_MAX_LENGTH } = require('../utils/propertyValidation');
+const { documentFieldsRefusal, documentDisplayName, EMAIL_HOOK_MAX_LENGTH } = require('../utils/propertyValidation');
 const propertyArticle = require('../utils/propertyArticle');
 const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
@@ -1158,7 +1158,7 @@ function createPropertiesModel(database) {
       try {
         const result = database.prepare(`
           INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
-        `).run(propertyId, body.type || 'other', sentenceCase(body.name || file.originalname), `${PRIVATE_PREFIX}${file.filename}`);
+        `).run(propertyId, body.type || 'other', sentenceCase(documentDisplayName(body.name, file.originalname)), `${PRIVATE_PREFIX}${file.filename}`);
         return { data: { id: result.lastInsertRowid, filePath: downloadUrl(propertyId, result.lastInsertRowid) } };
       } catch (err) {
         dropUpload();

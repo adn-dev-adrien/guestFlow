@@ -27,6 +27,9 @@ test('rule 73 — a cancelled plan stay owes nothing: the fiche closes without �
   assert.equal(ledger.remaining, 0);
   assert.notEqual(ledger.closing.label, 'Reste à percevoir');
   assert.equal(ledger.closing.amount, null);
+  // Verification R42 L4: nothing was collected, so not « Tout est perçu » either — the rows' own words.
+  assert.deepEqual(ledger.closing, { label: 'Rien à percevoir', amount: null, tone: 'muted' });
+  assert.equal(ledger.remainingLabel, 'Rien à percevoir');
   assert.equal(computePaymentStatus(row, TODAY).remainingDue, 0);
 });
 

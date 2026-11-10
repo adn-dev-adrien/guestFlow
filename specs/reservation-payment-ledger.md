@@ -874,7 +874,9 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     `remainingToPay` » too. A live plan still counts its unpaid installments; a cancelled stay without a plan keeps its
     rows' reading (its unpaid solde stays « À percevoir », as written above). *Why:* the cancelled plan fiche closed on
     « Reste à percevoir 3 089,60 € » under rows that all said nothing was owed (acompte « Sans objet », solde « Rien à
-    percevoir »); the finance views already left the cancelled stay out. Test:
+    percevoir »); the finance views already left the cancelled stay out. *Reading of 2026-11-10 (verification R42 L4):* a
+    cancelled stay that owes nothing closes on « Rien à percevoir » (muted), never « Tout est perçu », which read the
+    write-off as a payment. Test:
     `tests/cancelled-plan-remaining.unit.test.js`.
 
 ## 4. Architecture
