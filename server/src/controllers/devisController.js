@@ -6,7 +6,7 @@
  * tests. (The factory is NOT named `create` — that's a request handler here.)
  */
 
-const { scalarQuery } = require('../utils/bodyText');
+const { positiveId, scalarQuery } = require('../utils/bodyText');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
 const { validateStayFinance, financeErrorBody } = require('../utils/financeValidation');
 const settingsModel = require('../models/settingsModel');
@@ -78,10 +78,19 @@ function createController(model, {
     return res.json(h);
   }
 
+  // specs/reservations-backend-mvc.md rule 26 (audit R40-RES-L1) — as on a stay, a devis naming a client that does not
+  // exist is refused before the INSERT (it was a foreign-key 500).
+  const CLIENT_REQUIRED = { error: 'Un client est requis pour enregistrer le devis.', code: 'CLIENT_REQUIRED' };
+  function unknownClientId(body) {
+    const id = positiveId(body && body.clientId);
+    return Boolean(id) && !require('../database').prepare('SELECT 1 FROM clients WHERE id = ?').get(id);
+  }
+
   // A client typed on the devis is written with it (specs/clients.md rule 13).
   function create(req, res) {
     const shape = stayShapeRefusal(req.body || {});
     if (shape) return res.status(400).json(shape);
+    if (unknownClientId(req.body)) return res.status(400).json(CLIENT_REQUIRED);
     const error = validateStayFinance(req.body);
     if (error) return res.status(400).json(financeErrorBody(error));
     if (!req.body || req.body.clientId || !req.body.newClient) return respond(res, model.create(req.body));
@@ -104,6 +113,7 @@ function createController(model, {
   function update(req, res) {
     const shape = stayShapeRefusal(req.body || {}, model.findById(req.params.id));
     if (shape) return res.status(400).json(shape);
+    if (unknownClientId(req.body)) return res.status(400).json(CLIENT_REQUIRED);
     const error = validateStayFinance(req.body) && validateStayFinance(req.body, model.findById(req.params.id));
     if (error) return res.status(400).json(financeErrorBody(error));
     const loaded = req.body && req.body.loadedUpdatedAt;

@@ -360,6 +360,14 @@ patch. No new edge behavior is introduced.
    frozen party, which its PDF then printed. The dashboard's snooze and reminder are left alone: a devis acompte
    deadline may use them. Test: `tests/devis-id-on-stay-routes.unit.test.js`.
 
+26. **Added 2026-11-10 (audit R40-RES-L1) — an id that names nothing is refused before the INSERT.** Rule 20 turned a
+   stay saved with an unknown client into 400 `CLIENT_REQUIRED`; the devis create and update now answer the same
+   (« Un client est requis pour enregistrer le devis. »). `POST /reservations/calculate-price` on a logement that does
+   not exist answers 404 « Logement non trouvé », as `suggest-beds` does, before the default timed options are linked to
+   it; `PUT /calendar-notes/:propertyId/:date` answers the same on an unknown or textual logement. Nothing is written.
+   *Why:* each reached a foreign-key INSERT and answered 500 « Erreur interne du serveur » where a stay showed a clear
+   refusal. Test: `tests/unknown-id-refused.unit.test.js`.
+
 ---
 
 ## 4. Architecture

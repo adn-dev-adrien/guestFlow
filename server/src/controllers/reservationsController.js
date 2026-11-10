@@ -1315,6 +1315,11 @@ async function calculatePrice(req, res) {
   if (itemsRefusal) return res.status(400).json(stayDatesRefusalBody(itemsRefusal));
 
   const propertyId = Number(req.body.propertyId);
+  // specs/reservations-backend-mvc.md rule 26 (audit R40-RES-L1) — a logement that names nothing is refused as on
+  // suggest-beds, before the default timed options are linked to it (that INSERT was a foreign-key 500).
+  if (Number.isFinite(propertyId) && propertyId > 0 && !db.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) {
+    return res.status(404).json({ error: 'Logement non trouvé' });
+  }
   if (typeof db.ensureDefaultTimedOptionsForProperty === 'function' && Number.isFinite(propertyId) && propertyId > 0) {
     db.ensureDefaultTimedOptionsForProperty(propertyId);
   }
