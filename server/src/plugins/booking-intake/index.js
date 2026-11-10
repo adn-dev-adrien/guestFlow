@@ -39,8 +39,9 @@ function register(ctx) {
     try { map = JSON.parse(raw || '{}'); } catch { return null; }
     let stored = {};
     try { stored = JSON.parse(ctx.settings.get('hotelIds') || '{}') || {}; } catch { /* unreadable: nothing exempt */ }
-    const allowed = new Set([...ctx.db.prepare('SELECT id FROM properties').all().map((r) => String(r.id)), ...Object.keys(stored)].map((k) => String(Number(k))));
-    return Object.keys(map || {}).some((k) => !allowed.has(String(Number(k)))) ? 'Logement inconnu.' : null;
+    const allowed = new Set([...ctx.db.prepare('SELECT id FROM properties').all().map((r) => String(r.id)), ...Object.keys(stored)]);
+    // Audit R43-DB-L1 — the key as written, never its number: « 01 » is not logement 1 to every reader.
+    return Object.keys(map || {}).some((k) => !allowed.has(k)) ? 'Logement inconnu.' : null;
   };
   ctx.settings.declare([
     { key: 'hotelIds', default: '{}', validate: (v) => validateHotelIds(v) || unknownLogementKey(v) },

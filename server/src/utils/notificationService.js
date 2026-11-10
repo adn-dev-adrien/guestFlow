@@ -202,7 +202,7 @@ function buildNotificationService({
       `Plateforme : ${platform || '—'}`,
       `Logement : ${oneLine(resa.propertyName)}`,
       `Client : ${guest || '—'}`,
-      `Séjour : du ${resa.startDate} au ${resa.endDate}${nights ? ` (${nightsLabel(nights)})` : ''}`,
+      `Séjour : du ${frDate(resa.startDate)} au ${frDate(resa.endDate)}${nights ? ` (${nightsLabel(nights)})` : ''}`,
     ];
     const link = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
     if (link) lines.push('', `Ouvrir la réservation : ${link}`);
@@ -435,7 +435,7 @@ function buildNotificationService({
       '',
       `Logement : ${oneLine(resa.propertyName)}`,
       `Client : ${guest || '—'}`,
-      `Séjour : du ${resa.startDate} au ${resa.endDate}`,
+      `Séjour : du ${frDate(resa.startDate)} au ${frDate(resa.endDate)}`,
     ];
     if (copy.heldBy) lines.push(`Réservation qui tient ces dates : ${copy.heldBy.label}`);
     const link = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);
@@ -583,7 +583,7 @@ function buildNotificationService({
       `Réservation : ${ref}`,
       `Montant : ${amount}`,
       `Logement : ${resa.propertyName || ''}`,
-      `Séjour : du ${resa.startDate} au ${resa.endDate}`,
+      `Séjour : du ${frDate(resa.startDate)} au ${frDate(resa.endDate)}`,
       ...(datesTaken && takenBy ? [`Dates prises par : ${oneLine(takenBy)}`] : []),
     ];
     const url = joinUrl(publicUrl, `/reservations/${Number(resa.id)}`);

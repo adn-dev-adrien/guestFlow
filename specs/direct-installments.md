@@ -267,6 +267,10 @@ its due date, after the operator validates it.
       2 × 319,44 € HT on the encaissements but 638,87 € HT on a single avoir line, so 70600010 kept 0,01 € and
       44571100 −0,01 € (up to k − 1 cents per bucket for k paid installments). An avoir is immutable once
       booked: the cent would have stayed forever.
+    - *Reading of 2026-11-10 (audit R43-C-M1):* the cancel dialog announces these figures before the cancel, from
+      the cancellation's own computation (`GET /reservations/:id/cancel-preview`, payment-schedule-and-cancellation
+      rule 60): the paid installments as « Conservé en indemnité », the unpaid ones as « Solde abandonné ». *Why:* it
+      read 0,00 € for both on a plan with a paid échéance, because it looked at the acompte and solde only.
 
 **Edge cases:**
 

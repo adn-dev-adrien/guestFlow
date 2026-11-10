@@ -25,7 +25,7 @@ const emailLogModel = require('../models/emailLogModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
 const { createEmailService } = require('../utils/emailService');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
-const { cancelReservation } = require('../utils/cancelReservation');
+const { cancelReservation, cancellationPreview } = require('../utils/cancelReservation');
 const { deactivateAbandonedLinks } = require('../utils/paymentLinkDeactivation');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { ENGLISH_VERSION_MISSING } = require('../utils/emailTemplateLanguage');
@@ -40,20 +40,36 @@ function cancellationNoticeWarning(reason) {
   return `Mail d’annulation non envoyé : ${NOTICE_NOT_SENT[reason] || 'envoi impossible'}.`;
 }
 
+const cancellationDeps = () => ({ database: db, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel });
+
+// specs/payment-schedule-and-cancellation.md rule 60 — what cancelling stay `id` now would keep and write off, from the
+// very figures `cancel` writes; the refusal the cancel would answer otherwise.
+function previewFor(id) {
+  return cancellationPreview(cancellationDeps(), id, { today: getTodayIsoDate(), vatRate: vatRegimeModel.rateForRow(db, { id }) });
+}
+
+// GET /api/reservations/:id/cancel-preview
+function preview(req, res) {
+  const result = previewFor(Number(req.params.id));
+  if (result.error) return res.status(result.status).json({ error: result.message, code: result.error });
+  return res.json({
+    cancellationReason: result.cancellationReason,
+    retainedDepositAmount: result.retainedDepositAmount,
+    indemnityAmount: result.indemnityAmount,
+    writtenOffBalance: result.writtenOffBalance,
+  });
+}
+
 // POST /api/reservations/:id/cancel — { reason?, notifyClient? }
 async function cancel(req, res) {
   const id = Number(req.params.id);
   if (!isOptionalText(req.body && req.body.reason)) return res.status(400).json({ error: 'Valeur invalide.', code: 'INVALID_FIELD', field: 'reason' });
-  const result = cancelReservation(
-    { database: db, reservationsModel, refundsModel, compensationsModel, paymentLinksModel, installmentsModel },
-    id,
-    {
-      reason: (req.body && req.body.reason) || '',
-      cancelledBy: req.user ? req.user.id : null,
-      today: getTodayIsoDate(),
-      vatRate: vatRegimeModel.rateForRow(db, { id }),
-    },
-  );
+  const result = cancelReservation(cancellationDeps(), id, {
+    reason: (req.body && req.body.reason) || '',
+    cancelledBy: req.user ? req.user.id : null,
+    today: getTodayIsoDate(),
+    vatRate: vatRegimeModel.rateForRow(db, { id }),
+  });
   if (result.error) return res.status(result.status).json({ error: result.message, code: result.error });
 
   // specs/plugins-phase-3a-online-payment.md rules 7, 9 — the stay is cancelled whatever the provider
@@ -87,6 +103,7 @@ async function cancel(req, res) {
     ok: true,
     cancellationReason: result.cancellationReason,
     retainedDepositAmount: result.retainedDepositAmount,
+    indemnityAmount: result.indemnityAmount,
     writtenOffBalance: result.writtenOffBalance,
     refundId: result.refundId,
     compensationId: result.compensationId,
@@ -102,4 +119,4 @@ async function cancel(req, res) {
   emitPluginEvent('reservation.cancelled', { reservationId: Number(id) });
 }
 
-module.exports = { cancel };
+module.exports = { cancel, preview, previewFor };

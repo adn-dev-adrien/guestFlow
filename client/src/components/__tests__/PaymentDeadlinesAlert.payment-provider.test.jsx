@@ -17,6 +17,7 @@ vi.mock('../../api', () => ({
     snoozePaymentDeadline: vi.fn(),
     remindPaymentDeadline: vi.fn(),
     cancelReservation: vi.fn(),
+    getCancellationPreview: vi.fn(),
   },
 }));
 
@@ -63,11 +64,13 @@ test('rule 5 — without a payment provider the row keeps « Reporter » and los
 test('rule 9 — a link the provider still accepts is named after the cancellation', async () => {
   const warning = 'Lien de paiement encore actif chez Qonto : à désactiver depuis Qonto.';
   api.getPaymentDeadlines.mockResolvedValue({ rows: [ROW] });
-  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 120, paymentLinksNotDeactivated: 1, paymentLinksWarning: warning });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 274, indemnityAmount: 274, writtenOffBalance: 640 });
+  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 120, indemnityAmount: 120, paymentLinksNotDeactivated: 1, paymentLinksWarning: warning });
   renderCard();
   await userEvent.click(await screen.findByRole('button', { name: 'Annuler le séjour' }));
   const dialog = await screen.findByRole('dialog');
+  await within(dialog).findByText('274,00 €');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler le séjour' }));
   // The deposit kept is still said, with the warning.
-  await waitFor(() => expect(screen.getByText(/^Séjour annulé — acompte de 120,00\s€ conservé en indemnité\. Lien de paiement encore actif chez Qonto/)).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText(/^Séjour annulé — 120,00\s€ conservés en indemnité\. Lien de paiement encore actif chez Qonto/)).toBeInTheDocument());
 });
