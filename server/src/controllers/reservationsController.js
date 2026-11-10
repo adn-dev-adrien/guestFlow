@@ -12,7 +12,7 @@ const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
 const { positiveId, scalarQuery } = require('../utils/bodyText');
 const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
-const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing } = require('../utils/storedReservationQuote');
+const { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinOrderGrowth } = require('../utils/storedReservationQuote');
 const {
   midStayQuoteInputs, scheduleQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays, frozenTouristTaxInputs,
 } = require('../utils/reservationQuoteContext');
@@ -1953,12 +1953,16 @@ async function retireStaleLinks(reservationId) {
 // transaction that is rolled back and returns the row it would have stored (`row`) and the stay's extra lines
 // (`lines`), without the `reservation.updated` event. `beforeArrival` (specs/guest-app.md rule 66) saves the stay
 // as the day before its arrival whatever the calendar says: a plugin's order taken while the arrival is not marked
-// lands as an ordinary line, never as a mid-stay sale. Returns `{ status, body }`.
+// lands as an ordinary line, never as a mid-stay sale. `orderGrowth` (`{ finalPrice, complementAmount }`, specs/guest-app.md
+// rule 66) writes the stay with every money figure it already stores, plus exactly that growth: the engine prices the order's
+// lines, never the stay again. Returns `{ status, body }`.
 const DRY_RUN = Symbol('dry-run');
-function performUpdate(reservationId, body, { unlockPast = false, dryRun = false, beforeArrival = false } = {}) {
+function performUpdate(reservationId, body, {
+  unlockPast = false, dryRun = false, beforeArrival = false, orderGrowth = null,
+} = {}) {
   const res = createResultRecorder();
   if (!dryRun) {
-    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { beforeArrival });
+    applyUpdate({ body, params: { id: reservationId } }, res, Boolean(unlockPast), { beforeArrival, orderGrowth });
     const result = res.result();
     // specs/payment-link-lifecycle.md rule 32 — every save path (fiche, SAS, plugins, platform intakes): a stay
     // that holds its nights after the save takes them from the unpaid requests it now covers. Never on a dry run.
@@ -1971,7 +1975,7 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   let preview = null;
   try {
     db.transaction(() => {
-      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, beforeArrival });
+      applyUpdate({ body: structuredClone(body), params: { id: reservationId } }, res, Boolean(unlockPast), { silent: true, beforeArrival, orderGrowth });
       preview = { ...res.result(), row: model.getRow(Number(reservationId)), lines: model.readExtraLines(Number(reservationId)) };
       throw DRY_RUN;
     })();
@@ -2048,7 +2052,7 @@ function enterMidStayExtrasWindow(id, body, today) {
   return { baseline, beforeLines };
 }
 
-function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = false } = {}) {
+function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = false, orderGrowth = null } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   const financeError = validateStayFinance(req.body, storedBefore);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
@@ -2296,6 +2300,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = f
     && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
+  const orderPinned = Boolean(orderGrowth) && Boolean(existingReservation);
+  if (orderPinned) quote = pinOrderGrowth(quote, storedPaymentForQuote, orderGrowth);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
   const renamedLines = customTextChangesOf(id, reservationCustomOptions);
   const customTextChanges = keepPricing ? renamedLines : [];
@@ -2536,7 +2542,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = f
     // the very baseline this stores (`resolveArrivalExtrasBaseline` synthesizes it).
     if (midStayWindow) model.captureArrivalExtrasBaseline(id);
     else model.captureArrivalExtrasBaselineIfDue(id);
-    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing });
+    model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing, keepStay: orderPinned });
     if (!keepPricing) writePricedLines();
     else if (customTextChanges.length > 0) model.renameCustomOptions(id, customTextChanges);
     const changes = computeAuditChanges(beforeAuditSnapshot, afterAuditSnapshot);

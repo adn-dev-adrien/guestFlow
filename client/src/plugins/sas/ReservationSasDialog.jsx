@@ -61,6 +61,7 @@ import stepNumbering from './sasStepNumbering';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const EXTRA_GUESTS_OFFER_KEY = 'extraGuests:0';
+const REFRESH_FAILED = 'Données du sas non rechargées : les montants affichés peuvent être périmés.';
 // French display for stepper values: integers as-is, halves with a comma (« 1,5 »).
 function formatStepperValue(value) {
   return Number.isInteger(value) ? String(value) : String(value).replace('.', ',');
@@ -373,8 +374,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   // replaced in place, the wizard keeps its page, and the recap's last answer is forgotten so its figures are read afresh.
   const [dataRevision, setDataRevision] = useState(0);
   const refreshSasData = useCallback(async () => {
-    const fresh = await api.getReservationSas(reservationId, mode);
-    setData(fresh);
+    try {
+      setData(await api.getReservationSas(reservationId, mode));
+      setError('');
+    } catch {
+      setError(REFRESH_FAILED);
+    }
     setDataRevision((n) => n + 1);
   }, [reservationId, mode]);
   const pluginStepFor = (key) => pluginSteps.find((c) => c.key === key) || null;

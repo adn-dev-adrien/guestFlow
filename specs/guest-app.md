@@ -683,8 +683,8 @@ is pushed every order.
       shadow), so it refused almost every order. The measure counts only the order's own growth — the difference of two
       saves of the same stay, with and without the order, **both priced fresh** (`refreshTouristTax`: a stored price or tax the engine no longer
       reproduces — shadow replay: stored tax 0 €, engine 19,20 € — would otherwise read as the order's growth and refuse it) — and one judge
-      decides whether a shop is offered at all (rule 90). **Known consequence, owner-accepted:** the order's own write re-prices the stay with the
-      engine, so a platform stay whose stored price had drifted takes the engine's figures with its order;
+      decides whether a shop is offered at all (rule 90). **Amended 2026-11-10 (third pass, rule 93):** the measure only judges; the
+      order's **write** no longer re-prices the stay either — it adds the order's own amount and nothing else;
     - ~~409 `ORDER_PAID_BEFORE_ARRIVAL` for a `paid` commit: no card money before the arrival (rule 67).~~
       **Amended 2026-11-10 (Adrien, Q13):** a `paid` commit before the arrival is accepted and settled by rule 85;
       `ORDER_PAID_BEFORE_ARRIVAL` is retired.
@@ -998,6 +998,26 @@ arrival.** Everything below is judged by the server; the apps render what it off
     row's id; an offered charge still counts as billed for the SAS's recompute. *Test:* `guest-order-charges-stable-key`,
     `hourly-order-supplement`.
 
+93. **An order never re-prices the stay — its write adds the order's own amount and nothing else (third pass, 2026-11-10).**
+    The two measuring saves of rule 66 are priced fresh, but the **write** of an order (`commitOrder`, `amendOrder`, card or note,
+    before the arrival) is pinned: `performUpdate(…, { orderGrowth: { finalPrice, complementAmount } })` stores every money figure
+    the stay already carries (`PRICING_COLUMNS` of `storedReservationQuote`: price, tourist tax and its rate, acompte, solde and
+    their deadlines, the platform commission figures) and adds the growth the measure found to `finalPrice` and to the arrival
+    complement (net of the card money settled in the same commit, rule 85); the tourist-tax snapshot and the extra-guest complement
+    are not rewritten. A Booking stay that carries no tourist tax, or one sold before a tariff change, keeps its tax, its solde and
+    its payout as they were: only the arrival complement (and the price that contains it) moves, by the order's amount. The
+    owner never accepted « the order re-prices the stay »; the sentence that said so is deleted from rule 66. *Test:*
+    `guest-order-never-reprices-stay` (before/after snapshots of every column of the stay; kills N2).
+    **Rules frozen at the sale are not re-judged by an order:** the save an order triggers carries `forceMinNights`,
+    `forceMaxNights`, `forceChangeover` and `forceCapacity` — a stay sold under older rules (3 nights in a season whose minimum is now
+    4) orders like any other, the shop's judge (rule 90) and the commit agree, and the J-7 e-mail flags never promise what the commit
+    refuses. Session conflicts, stock, the bath's slot and the persons ceiling remain the order's own refusals. *Test:*
+    `guest-order-never-reprices-stay` (minimum nights), `guest-app-email-flags`.
+    **The SAS step after a failed reload:** `refreshSasData` says « Données du sas non rechargées » and keeps the step usable (the
+    recap still re-reads its figures); the amend's answer carries the order's true `editable` flag. *Test:*
+    `ReservationSasDialog.arrival-orders`, `guest-app-amend-arrival-collected` (an arrival complement collected leaves no editable stay),
+    `guest-app-first-bath-slot-heat` (the home card's first free slot counts the heat-up from now).
+
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
   from their stay link or the fallback lookup.
@@ -1288,6 +1308,8 @@ studio is the same at `/studio` on any other host, for an admin session: none �
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `utils/` | `midStayOrderCommit.js` | T | `orderCollection(reservationId)` (rule 67); `priceOrder` / `commitOrder` measure an order before the arrival on the arrival complement (per-key line totals), refuse `ORDER_OFF_ARRIVAL_COMPLEMENT`, `ORDER_STAY_PRICE_MOVED`, ~~`ORDER_PAID_BEFORE_ARRIVAL`~~ (retired, rule 85) (rule 66), answer `collectAt` |
+| `utils/` | `storedReservationQuote.js` | T | *Third pass (rule 93).* `pinOrderGrowth(quote, stored, growth)`: the stored money figures plus the order's growth |
+| `controllers/` | `reservationsController.js` | T | *Third pass.* `performUpdate(…, { orderGrowth })` pins the order's write to the stored figures (rule 93) |
 | `utils/` | `pricing.js` | T | Return `preArrivalSettled` on the engine's result (additive field, read by `orderCollection`); no arithmetic changes |
 | `models/` | `reservationsModel.js` | — | Read only: `isArrivalNotMarked` (exists) |
 | `tests/` | `mid-stay-order-before-arrival.unit.test.js` | C | Rule 66-67 core cases (§7) |
@@ -1883,6 +1905,17 @@ as sent, 390 px single column), `SasArrivalOrdersStep.amend.test.jsx` (stepper a
 server's refusal shown, a paid order without any control), `GuestOrdersPage.stay-state.test.jsx`,
 `PlanningOrderCard.stay-state.test.jsx`.
 
+**Added by the third pass (2026-11-10, audit of the branch: rules 66, 90, 93)** — one file per subject:
+
+- core `guest-order-never-reprices-stay.unit.test.js` (new, 5) — a Booking stay with no tourist tax, a stay sold at a price the engine
+  no longer reproduces (direct, with a tax of its own), an amendment, a stay sold under a minimum of nights since raised: every
+  column of the stay is equal before and after except the arrival complement and the price by the order's amount; `tagCharges` never
+  tags a SAS-origin line (kills N2, N11);
+- plugin `guest-app-amend-arrival-collected.unit.test.js` (new, 2) — an arrival complement collected leaves no editable stay, the
+  amend answer's `editable` is the true flag (kills N10); `guest-app-first-bath-slot-heat.unit.test.js` (new, 1) — the home card's
+  first free slot counts the heat-up from now (kills N13);
+- client `ReservationSasDialog.arrival-orders.test.jsx` (amended, +1) — a failed reload after an amendment says so and the step stays usable.
+
 **Added by the second pass (2026-11-10, audit of the branch: rules 66, 68, 71, 83, 85, 87, 89-92)** — one file per subject:
 
 - core `server/src/tests/mid-stay-order-before-arrival.unit.test.js` (amended) — a stored price the engine does not reproduce
@@ -2207,7 +2240,7 @@ Adrien's verdicts: phone app, studio, Réglages › Intégrations card, Commande
 | F-G — Guest app, studio, GuestFlow screens | Done (2026-11-09). The studio (`feature/guest-app-studio`): every screen of rules 47-50, the phone preview, 27 tests, plus `GET /api/guest-app/items?propertyId=`. The GuestFlow screens (`feature/guest-app-admin`): « Application clients » in the option / resource editors with the stock, « Stock : épuisé », « Commandes clients » (admin), the planning card, « Lien Mon séjour », « Ouvrir le Studio »; generic client points (SDK rule 49). Both apps moved into the plugin's folder and shipped in its package (SDK rule 48). Earlier: unblocked: every review-board verdict given (2026-11-08). Server side done 2026-11-09 (`feature/guest-app-server`): stock (rules 37bis-37quater), delivered or picked up (41bis-41ter), the studio's lodgings and settings read live with « Synchroniser » (48, `displayName` removed), the gate tile and `/gate` (12-14), `isNight`, the manifest (52), and the serving of both builds through `ctx.webApp` (plan step 50); guest-app suites 274 / 274. The screens come next. Guest app (slice F) built 2026-11-09 on `feature/guest-app-pwa`: every screen of §6.6 on the boards v5, offline booklet, install, FR / EN, night; 41 client tests; first load 151 kB gzip; walked at 390 / 900 / 1280 px, day and night, EN, against the plugin's routers; axe 0 serious on every screen in both registers. The studio (slice G) is next |
 | H — Hardening and rollout | Audit round 36 (2026-11-10, `fix/audit-r36-guestapp`, guest-app 1.0.1): rules 54-59, readings of rules 6, 18, 19, 41, 45; D28 applied. Round 36b: rules 23, 54, 59 amended (exact core number shape, per-person resources refused, photos erased after the commit), the free-unit exemption pinned. Rollout not started |
 | I — Booklet content | Ready (2026-11-09): the two PDF booklets (La Granja 20 pages, L'Estiva 14) rewritten as one bilingual booklet of 17 pages (15 shared, lodging-only pages and blocks restricted), validated by Adrien on the review board `specs/guest-app-livret-planches.html` (every recommended decision, A2 « accueil en personne »; loop lengths, the Google review and Instagram links left for later). Source `specs/guest-app-livret/livret.mjs`; `node specs/guest-app-livret/import.mjs --base <GuestFlow> --email <admin> [--dry-run]` writes it through the studio API once guest-app is installed (refuses a booklet the operator already edited; deletes the starter pages; publishes both lodgings). The same script first adds the « Mon séjour » paragraph to the J-2 e-mail, in French and English, under `{{#if hasStayApp}}` before « Un imprévu… » (Adrien, 2026-11-09: J-2 only, not J-7); it skips a template that already has `{{stayAppUrl}}` and stops when it finds no anchor. Tried on a local GuestFlow: 16 + 15 pages published, nothing untranslated, rendered in the guest app; the J-2 preview carries each stay's own link. Run in production by the operator, never by Claude |
-| J — « Mon séjour » from J-7 (2026-11-10) | Implemented on `feature/guest-app-from-j7`; second pass (2026-11-10) fixed the 15 items of the branch audit (rules 90-92, readings of 66, 68, 71, 83, 85, 86, 87, 89); first written as: Spec (Draft): rules 65-76, readings of rules 2, 9bis, 11bis, 27, 33, 34, 37ter, 38, 41, 44, 45; summary `specs/guest-app-j7-resume.html`. Amended the same day by Adrien's second to fifth messages: rules 77-89 added, 66, 67, 69, 70, 71, 72, 76 amended, Q13-Q31 resolved, `hourly-resource-quantity-and-sas-scheduling.md` rules 36-38. Implemented (2026-11-10): core `midStayOrderCommit` (arrival measure, card note, hours first, charges, `amendOrder`), pricing net of arrival notes, `hourly-resources` 1.6.0 (`heatFrom`, day-rate free minutes, `orderSupplement`), `guest-app` 1.1.0 (J-7 sessions, shop, bath, cancellation, SAS data and `amend`, e-mail flags), guest app (payment choice, pickers), GuestFlow SAS step « Commandes Mon séjour ». Readings: `changed` in the SAS payload is true when an order of the stay was amended at the SAS; the flag of rule 88 clearing on refunds is not implemented (the operator reads the ledger); `hasStayAppShopOnly` added to the J-7 paragraph (the renderer does not nest) |
+| J — « Mon séjour » from J-7 (2026-11-10) | Implemented on `feature/guest-app-from-j7`; second pass (2026-11-10) fixed the 15 items of the branch audit (rules 90-92, readings of 66, 68, 71, 83, 85, 86, 87, 89); first written as: Spec (Draft): rules 65-76, readings of rules 2, 9bis, 11bis, 27, 33, 34, 37ter, 38, 41, 44, 45; summary `specs/guest-app-j7-resume.html`. Amended the same day by Adrien's second to fifth messages: rules 77-89 added, 66, 67, 69, 70, 71, 72, 76 amended, Q13-Q31 resolved, `hourly-resource-quantity-and-sas-scheduling.md` rules 36-38. Implemented (2026-11-10): core `midStayOrderCommit` (arrival measure, card note, hours first, charges, `amendOrder`), pricing net of arrival notes, `hourly-resources` 1.6.0 (`heatFrom`, day-rate free minutes, `orderSupplement`), `guest-app` 1.1.0 (J-7 sessions, shop, bath, cancellation, SAS data and `amend`, e-mail flags), guest app (payment choice, pickers), GuestFlow SAS step « Commandes Mon séjour ». Readings: `changed` in the SAS payload is true when an order of the stay was amended at the SAS; the flag of rule 88 clearing on refunds is not implemented (the operator reads the ledger); `hasStayAppShopOnly` added to the J-7 paragraph (the renderer does not nest); third pass (2026-11-10): an order's write never re-prices the stay and re-judges no rule frozen at the sale (rule 93), the sas plugin 1.9.3 reloads its data with an error path, four test gaps closed. |
 
 The whole spec ships in ONE pull request (the user's decision of 2026-11-05): the spec-coverage gate refuses
 code citing a spec that is still Approved, and only a spec moved to Implemented with every rule cited passes it.

@@ -92,3 +92,16 @@ test('rule 87 (items 3, 5): the last order removed — no stale page, the dialog
   await screen.findByText(/Récapitulatif —/);
   expect(screen.queryByText(/Commandes Mon séjour :/)).toBeNull();
 });
+
+test('rule 87 (item 4 of the third pass): a failed reload after an amendment says so and keeps the step usable', async () => {
+  const lowered = { ...ORDERS, orders: [{ ...order, totalLabel: '6 €', lines: [{ ...line, quantity: 1, amountLabel: '6 €', unitLabel: '1 × 6 €' }] }], summaryLabel: '1 commande · 6 € à percevoir', toCollect: 6, toCollectLabel: '6 €' };
+  api.getReservationSas.mockResolvedValueOnce(payload(ORDERS)).mockRejectedValue(new Error('réseau'));
+  guestAppApi.amendOrder.mockResolvedValue({ ordersAtArrival: lowered });
+  renderDialog({ mode: 'arrival' });
+  await openOrdersPage();
+  fireEvent.click(screen.getByRole('button', { name: 'Moins de Cidre fermier' }));
+  expect(await screen.findByText(/Données du sas non rechargées/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: /1 commande · 6 € à percevoir/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Plus de Cidre fermier' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Suivant' })).toBeTruthy();
+});

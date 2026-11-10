@@ -325,7 +325,11 @@ function buildArrivalOrdersController({
       return fail(res, (result && result.status) || 409, body.code || 'ORDER_NOT_EDITABLE', body.error || WORDS.notEditable);
     }
     alertStock(stock().reconcile(order.reservationId, parisDate(now())));
-    return res.json({ order: orderView(written, { editable: false, sold, stocks }), ordersAtArrival: dataFor(order.reservationId) });
+    const after = shop.soldFor({ stay, lodging: { propertyId: stay.propertyId } });
+    return res.json({
+      order: orderView(written, { editable: editableStay(order.reservationId), sold: after.sold, stocks: stock().states(now()) }),
+      ordersAtArrival: dataFor(order.reservationId),
+    });
   }
 
   return { dataFor, amend };

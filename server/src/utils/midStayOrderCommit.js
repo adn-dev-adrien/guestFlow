@@ -49,6 +49,10 @@
  * is recorded as a settled note of the arrival moment, which the engine subtracts from the arrival complement, so
  * nothing is collected twice. From the arrival on, the path is the end-of-stay one above, `collectAt` `'departure'`.
  *
+ * The write never re-prices the stay (rule 93): the save that lands the order carries `orderGrowth` — the growth the measure found, on the
+ * price and on the arrival complement — so every other money figure of the stay stays as stored; `forceMinNights`, `forceMaxNights`,
+ * `forceChangeover` and `forceCapacity` leave the rules frozen at the sale unjudged.
+ *
  * Charges (rule 83): `{ kind: 'charge', key, label, amount }` is a line the plugin priced itself (the bath's evening
  * supplement) written as a custom line of the fiche tagged `orderChargeKey = key`. Hours already on the stay (rule 82): a
  * resource line's sold hours rise only by the hours its sessions place beyond the hours not yet placed.
@@ -88,7 +92,11 @@ function autoEnabledIds(db) {
 function storedBody(reservationId) {
   const current = reservations().getByIdWithDetails(Number(reservationId));
   if (!current || current.kind !== 'reservation') return null;
-  return toUpdateBody(current, autoEnabledIds(database()));
+  // Rules frozen at the sale (minimum and maximum nights, changeover days, capacity) are never re-judged by an order: the stay
+  // was sold under the rules of its day, and the order touches none of them (specs/guest-app.md rule 66).
+  return {
+    ...toUpdateBody(current, autoEnabledIds(database())), forceMinNights: true, forceMaxNights: true, forceChangeover: true, forceCapacity: true,
+  };
 }
 
 function optionRows(db, lines) {
@@ -299,6 +307,14 @@ const sameMoney = (a, b) => Math.abs(round2(Number(a) || 0) - round2(Number(b) |
  */
 const freshPricing = (body) => ({ ...structuredClone(body), refreshTouristTax: true });
 
+/** What the write adds to the stay's stored figures (`performUpdate`'s `orderGrowth`), measured between the two fresh saves. */
+function growthOf(base, next) {
+  return {
+    finalPrice: round2(Number(next.row.finalPrice || 0) - Number(base.row.finalPrice || 0)),
+    complementAmount: round2(Number(next.row.complementAmount || 0) - Number(base.row.complementAmount || 0)),
+  };
+}
+
 /**
  * Rule 66 — the order measured on the arrival complement: both saves played as the day before the arrival, nothing
  * written. The order may grow the arrival complement and nothing else.
@@ -326,7 +342,7 @@ function measureBeforeArrival(id, body, merged) {
   const total = round2(Object.values(byKey).reduce((sum, n) => sum + n, 0));
   const growth = round2(Number(next.row.complementAmount || 0) - Number(base.row.complementAmount || 0));
   if (Math.abs(total - growth) >= 0.01) return OFF_ARRIVAL_COMPLEMENT();
-  return { status: 200, byKey, total, collectAt: 'arrival' };
+  return { status: 200, byKey, total, collectAt: 'arrival', growth: growthOf(base, next) };
 }
 
 /** Rule 24 — the order priced by the fiche's own engine, after the pending orders, nothing written. */
@@ -436,7 +452,9 @@ function commitOrder(reservationId, {
       // Rule 85 — the card money is recorded first, so the save that writes the order's lines already reads the arrival
       // complement net of it (stored net, never raised back by a later save).
       const arrivalMoney = beforeArrival && paid ? settlePaid(id, measured.byKey, { source, ref, ...paid }, { beforeArrival }) : null;
-      const written = save(id, mergeOrderLines(body, lines, rows), { beforeArrival });
+      const settledHere = arrivalMoney ? arrivalMoney.settledCents / 100 : 0;
+      const orderGrowth = measured ? { finalPrice: measured.growth.finalPrice, complementAmount: round2(measured.growth.complementAmount - settledHere) } : null;
+      const written = save(id, mergeOrderLines(body, lines, rows), { beforeArrival, orderGrowth });
       if (written.status !== 200) {
         outcome = refusal(written);
         throw ROLLBACK;
@@ -584,7 +602,7 @@ function amendOrder(reservationId, {
         outcome = measured;
         throw ROLLBACK;
       }
-      const written = controller().performUpdate(id, stripChargeKeys(merged), { beforeArrival: true });
+      const written = controller().performUpdate(id, stripChargeKeys(merged), { beforeArrival: true, orderGrowth: measured.growth });
       if (written.status !== 200) {
         outcome = refusal(written);
         throw ROLLBACK;
@@ -642,9 +660,9 @@ function measureAmend(id, body, merged) {
     if (change !== 0) byKey[key] = change;
   });
   const total = round2(Object.values(byKey).reduce((sum, n) => sum + n, 0));
-  return { status: 200, byKey, total };
+  return { status: 200, byKey, total, growth: growthOf(base, next) };
 }
 
 module.exports = {
-  priceOrder, commitOrder, amendOrder, mergeOrderLines, orderCollection,
+  priceOrder, commitOrder, amendOrder, mergeOrderLines, orderCollection, __test: { tagCharges },
 };

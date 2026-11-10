@@ -105,4 +105,19 @@ function pinStoredPricing(quote, stored) {
   return pinned;
 }
 
-module.exports = { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing };
+/**
+ * The quote of a stay a plugin's order lands on (specs/guest-app.md rule 66): every figure the stay stores stands, the order's
+ * own growth is added to the price and to the arrival complement, and nothing else moves — the engine of today is never
+ * allowed to re-price what was sold (a tax a platform stay never carried, a tariff changed since).
+ */
+function pinOrderGrowth(quote, stored, growth) {
+  const pinned = pinStoredPricing(quote, stored);
+  const cents = (n) => Math.round((Number(n) || 0) * 100);
+  pinned.finalPrice = (cents(stored.finalPrice) + cents(growth.finalPrice)) / 100;
+  pinned.complementAmount = (cents(stored.complementAmount) + cents(growth.complementAmount)) / 100;
+  return pinned;
+}
+
+module.exports = {
+  quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing, pinOrderGrowth,
+};

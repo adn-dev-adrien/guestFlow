@@ -1,0 +1,2 @@
+- « Mon séjour » from J-7, third pass: an order never re-prices the stay. Its write adds the order's own amount to the arrival complement and leaves the price, the tourist tax, the solde, the acompte and the platform figures as they were stored (a Booking stay with no tourist tax, a stay sold before a tariff change); a stay sold under rules since changed (minimum nights) can still order, and the shop and the commit agree.
+- The arrival SAS reloads its data after an order edit with an error path: a failed reload says so and the step stays usable (sas plugin 1.9.3).
