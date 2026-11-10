@@ -283,7 +283,7 @@ will store or bill, answered live while the operator draws a range or places a b
     { "band": "day", "from": "18:00", "to": "19:00", "minutes": 60, "rate": 30.00, "amount": 30.00 },
     { "band": "evening", "from": "19:00", "to": "20:00", "minutes": 60, "rate": 40.00, "amount": 40.00 }
   ],
-  "freeValue": 30.00              // the offered hour, at its own band's rate
+  "freeValue": 30.00              // the offered hour, at the day rate since 2026-11-10 (hourly-resource-quantity-and-sas-scheduling.md rule 37; was: at its own band's rate)
 }
 ```
 

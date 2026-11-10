@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <title>Mon séjour dès le J-7 — résumé de spec</title>
 <style>
 :root{
@@ -130,6 +131,74 @@ footer{margin-top:3rem;color:var(--mute);font-size:.85rem;border-top:1px solid v
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:.01ms!important;animation:none!important}
 }
+
+/* Ajouts du 10/11 */
+.chips{display:flex;gap:.4rem;overflow-x:auto;padding:.1rem 0 .5rem;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.dchip{flex:0 0 auto;min-width:4.4rem;min-height:52px;border:1px solid #d9d1c1;border-radius:12px;background:#fff;font:inherit;font-size:.82rem;line-height:1.2;cursor:pointer;color:var(--encre);padding:.3rem .5rem;transition:background .2s var(--ease),border-color .2s var(--ease)}
+.dchip b{display:block;font-size:.95rem}
+.dchip[aria-pressed="true"]{background:#eef4ef;border-color:var(--sapin);color:var(--sapin-fonce)}
+.dchip:disabled{background:#efebe3;color:#a39d90;border-style:dashed;cursor:default}
+.tgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem;margin:.2rem 0 .6rem}
+.slots{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tbtn{min-height:44px;border:1px solid #d9d1c1;border-radius:10px;background:#fff;font:inherit;font-size:.86rem;cursor:pointer;color:var(--encre);padding:.35rem .4rem;line-height:1.25;font-variant-numeric:tabular-nums;transition:background .2s var(--ease),border-color .2s var(--ease),transform .1s ease-out}
+.tbtn:active{transform:scale(.97)}
+.tbtn small{display:block;color:#6E6A5E;font-size:.74rem}
+.tbtn[aria-pressed="true"]{background:#2E3B2A;border-color:#2E3B2A;color:#fff}
+.tbtn[aria-pressed="true"] small{color:#d6dccf}
+.tbtn .dot{display:inline-block;width:.45rem;height:.45rem;border-radius:50%;background:var(--miel);margin-right:.3rem;vertical-align:.08rem}
+.tbtn.withheld{background:repeating-linear-gradient(135deg,#f1ede5 0 6px,#ebe6dc 6px 12px);color:#958f82;border-style:dashed;cursor:default}
+.tbtn.withheld small{color:#958f82}
+.lbl{font-size:.82rem;color:#5c574d;margin:.6rem 0 .3rem}
+.note{font-size:.82rem;background:#eef4ef;color:var(--sapin-fonce);border-radius:10px;padding:.5rem .7rem;margin:.2rem 0 .6rem}
+/* choix de paiement : un groupe, deux lignes du même composant */
+.pay{display:grid;gap:.4rem;margin:.6rem 0}
+.payrow{display:flex;align-items:center;gap:.7rem;min-height:56px;padding:.5rem .8rem;border:1px solid #d9d1c1;border-radius:12px;background:#fff;cursor:pointer;transition:background .2s var(--ease),border-color .2s var(--ease)}
+.payrow input{appearance:none;width:1.15rem;height:1.15rem;border:1.5px solid #a9a293;border-radius:50%;margin:0;flex:0 0 auto;display:grid;place-items:center}
+.payrow input:checked{border-color:var(--sapin)}
+.payrow input:checked::after{content:"";width:.6rem;height:.6rem;border-radius:50%;background:var(--sapin)}
+.payrow:has(input:checked){border-color:var(--sapin);background:#eef4ef}
+.payrow .pt{font-weight:600;font-size:.94rem}
+.payrow .ps{font-size:.78rem;color:#6E6A5E}
+.payrow svg{margin-left:auto;flex:0 0 auto;color:#6E6A5E}
+.quote{font-size:.86rem;margin:.4rem 0}
+.quote .row{padding:.3rem 0}
+/* sas : liste repliable */
+.fold{border:1px solid var(--trait);border-radius:12px;overflow:hidden;background:#fff}
+.fold>button.sum{display:flex;width:100%;align-items:center;gap:.8rem;justify-content:space-between;min-height:56px;padding:.6rem 1rem;border:0;background:#fff;font:inherit;text-align:left;cursor:pointer;color:var(--encre)}
+.fold>button.sum .chev{transition:transform .3s var(--ease);flex:0 0 auto;color:var(--mute)}
+.fold>button.sum[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.fold .sumt{font-weight:600}
+.fold .sums{display:block;font-size:.84rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.foldbody{display:grid;grid-template-rows:0fr;transition:grid-template-rows .32s var(--ease)}
+.foldbody.open{grid-template-rows:1fr}
+.foldbody>div{overflow:hidden}
+.ord{border-top:1px solid var(--trait);padding:.8rem 1rem}
+.ordh{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3rem .6rem;justify-content:space-between;margin-bottom:.35rem}
+.ordh b{font-weight:600}
+.ordh .when{font-size:.84rem;color:var(--mute);white-space:nowrap}
+.ln{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.15rem 1rem;padding:.4rem 0;border-top:1px dashed #ebe5da;font-variant-numeric:tabular-nums;align-items:center}
+.ln:first-of-type{border-top:0}
+.ln .lt{font-size:.92rem}
+.ln .lu{font-size:.8rem;color:var(--mute)}
+.ln .la{text-align:right;font-size:.92rem}
+.ln .ed{grid-column:1/-1;display:flex;align-items:center;gap:.5rem}
+.mini{display:inline-flex;align-items:center;border:1px solid var(--trait);border-radius:999px}
+.mini button{width:44px;height:44px;border:0;background:transparent;font-size:1.1rem;cursor:pointer;color:var(--encre);border-radius:999px}
+.mini button:disabled{color:#c4bdb0;cursor:default}
+.mini span{min-width:1.6rem;text-align:center;font-variant-numeric:tabular-nums}
+.linkbtn{min-height:44px;border:0;background:transparent;color:var(--err);font:inherit;font-size:.86rem;cursor:pointer;padding:0 .4rem}
+.ordt{display:flex;justify-content:space-between;font-weight:600;padding-top:.45rem;border-top:1px solid var(--trait);margin-top:.2rem;font-variant-numeric:tabular-nums}
+.tots{padding:.7rem 1rem;border-top:1px solid var(--trait);background:var(--papier)}
+.tots .row{border-top:0;padding:.2rem 0}
+.chip.paid{background:#e3ede6;color:var(--sapin-fonce)}
+.chip.off{background:#ece8e0;color:var(--mute)}
+.chip.err{background:var(--err-bg);color:var(--err)}
+.dlg{position:fixed;inset:0;background:rgba(39,37,31,.38);display:none;align-items:center;justify-content:center;padding:1rem;z-index:5}
+.dlg.open{display:flex}
+.dlg .box{background:#fff;border-radius:14px;max-width:24rem;width:100%;padding:1.2rem;box-shadow:0 20px 50px -20px rgba(0,0,0,.4)}
+.dlg h5{font-family:var(--serif);font-size:1.15rem;margin:0 0 .4rem}
+@media (max-width:480px){.tgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -137,102 +206,147 @@ footer{margin-top:3rem;color:var(--mute);font-size:.85rem;border-top:1px solid v
 
 <header class="top">
   <h1>« Mon séjour » dès le mail de J-7</h1>
-  <p class="lead">Le lien de l’application part avec le J-7, la boutique s’ouvre sept jours avant l’arrivée, et ce qui est commandé avant l’arrivée se règle au sas d’arrivée, avec le reste.</p>
-  <div class="meta"><span class="pill">Brouillon à valider</span><span>10 novembre 2026</span><span>Spec : <code>specs/guest-app.md</code>, règles 65 à 76</span><span>Branche <code>feature/guest-app-from-j7</code></span></div>
+  <p class="lead">Le lien part avec le J-7. Dès sept jours avant l’arrivée, les clients commandent et programment leur bain nordique, uniquement sur des horaires où ils sont là et où c’est ouvert. Ils paient par carte, ou à l’arrivée. Au sas d’arrivée, ces commandes apparaissent en détail et peuvent encore changer tant qu’elles ne sont pas payées.</p>
+  <div class="meta"><span class="pill">Brouillon à valider</span><span>10 novembre 2026, amendé après tes cinq messages</span><span>Spec : <code>specs/guest-app.md</code>, règles 65 à 89</span><span>Bain : <code>hourly-resource-quantity-and-sas-scheduling.md</code>, règles 36 à 38</span><span>Branche <code>feature/guest-app-from-j7</code></span></div>
 </header>
 
 <h2>Le constat</h2>
 <ul class="find">
-  <li><b>Le lien existe déjà, le J-7 ne le porte pas.</b>Le plugin déclare <code>{{stayAppUrl}}</code> et <code>hasStayApp</code> pour le J-7 et le J-2, mais seul le J-2 reçoit son paragraphe (script du livret, décision du 9 novembre « J-2 seulement »).</li>
-  <li><b>Avant l’arrivée, la boutique ne fait que montrer.</b>De J-7 à l’ouverture du séjour, l’application lit le catalogue sans rien vendre : ni panier, ni « Mes commandes ».</li>
-  <li><b>Trouvaille : le jour même, avant le sas, toute commande payante est refusée.</b><span class="hl">Entre l’ouverture de la fenêtre (arrivée − 3 h) et le sas d’arrivée, le calcul mesure la commande sur le complément de fin de séjour, qui n’existe pas encore</span> : il lit 0 € et répond « ne se commande pas, contactez l’équipe ». Le même calcul, sept jours avant, refuserait tout. C’est ce qu’on corrige en premier, test rouge à l’appui.</li>
+  <li><b>Le J-7 ne porte pas le lien.</b>Seul le J-2 reçoit son paragraphe (script du livret).</li>
+  <li><b>Avant l’arrivée, la boutique ne fait que montrer.</b>Et le jour même, avant le sas, toute commande payante est refusée : <span class="hl">le calcul mesure la commande sur le complément de fin de séjour, qui n’existe pas encore</span>. Corrigé en premier, test rouge à l’appui.</li>
+  <li><b>L’heure offerte n’est pas lue pareil partout.</b>Le sas fait payer le supplément soirée d’une heure offerte posée le soir ; la fiche, elle, l’offre en entier quand la ligne n’est pas encore vendue.</li>
+  <li><b>La chauffe est comptée depuis l’arrivée, pas depuis maintenant.</b>Réservé une semaine avant, le bain du soir d’arrivée serait refusé alors qu’on a tout le temps de le chauffer.</li>
+  <li><b>Des heures de bain déjà réservées seraient facturées une seconde fois</b> si le client les plaçait depuis l’application : la commande augmente toujours les heures vendues.</li>
 </ul>
 
 <h2>Ce qu’on propose</h2>
 <div class="cols">
   <div>
     <h3>Le mail de J-7</h3>
-    <p>Un paragraphe chaleureux, FR et EN, qui dit à quoi sert l’application et donne le lien. Il ne s’affiche que si le lien mène vraiment quelque part. Le mode d’envoi du modèle ne bouge pas : il reste manuel.</p>
-    <h3>La boutique dès J-7</h3>
-    <p>Mêmes articles, mêmes prix, même moteur que pendant le séjour, bain compris. Seuls des horaires du séjour sont proposés, et le serveur refuse tout autre horaire.</p>
+    <p>Deux phrases au plus, sans le nom de l’app ni un mot sur le paiement : commander pour l’arrivée, et programmer le bain nordique seulement si le séjour en a un (réservé ou offert). Puis le lien. Le modèle reste en envoi manuel.</p>
+    <h3>Des horaires où le client est là, et où c’est ouvert</h3>
+    <p>Pour la boutique : jours du séjour, heures de présence, heures d’ouverture du service et délai de préparation, tout combiné par le serveur. Pour le bain : la même présence, les horaires du bain, ses autres réservations, et la chauffe comptée depuis maintenant.</p>
   </div>
   <div>
-    <h3>Le règlement au sas d’arrivée</h3>
-    <p>Avant l’arrivée, une commande s’ajoute au complément d’arrivée : « Régler à l’arrivée », pas de carte. Le sas affiche une étape « Commandes Mon séjour » qui les nomme ; le paiement unique du récapitulatif les encaisse. Pas de second paiement, aucune double facturation.</p>
-    <h3>Un séjour pas encore réglé</h3>
-    <p>Acompte, solde ou échéance encore dus : la boutique reste en lecture, « Pour ce séjour, les commandes ouvrent à votre arrivée. »</p>
+    <h3>L’heure offerte, le soir</h3>
+    <p>Elle couvre le tarif de jour ; le soir, le client paie le supplément soirée, comme au sas aujourd’hui. Les heures déjà réservées se programment sans être refacturées.</p>
+    <h3>La carte dès J-7</h3>
+    <p>« Payer par carte » en premier, présélectionné, dans le même composant que « Régler à l’arrivée ». Payée, la commande n’est jamais réencaissée au sas ; séjour annulé, elle est à rembourser.</p>
+    <h3>Le sas d’arrivée</h3>
+    <p>La ligne « Commandes Mon séjour » se déplie : articles, quantités, prix. Une commande non payée se modifie ; une commande payée reste en lecture.</p>
   </div>
 </div>
 
-<!-- Démo 1 : le mail -->
+<!-- Démo 1 -->
 <h2>À manipuler : le paragraphe du J-7</h2>
 <section class="demo" aria-labelledby="d1">
   <div class="demo-head">
-    <div><h3 id="d1">E-mail J-7, rendu pour un séjour</h3><p class="hint">Coupez une condition : le paragraphe disparaît en entier, jamais un lien mort.</p></div>
+    <div><h3 id="d1">E-mail J-7, rendu pour un séjour</h3><p class="hint">Change le bain du séjour : la seconde moitié de la phrase apparaît ou disparaît. Coupe une condition : rien ne s’affiche, jamais un lien mort.</p></div>
     <div class="seg" role="group" aria-label="Langue du mail">
       <button type="button" aria-pressed="true" data-lang="fr">Français</button>
       <button type="button" aria-pressed="false" data-lang="en">English</button>
     </div>
   </div>
-  <div class="switches" style="margin-bottom:1rem">
+  <div class="switches" style="margin-bottom:.6rem">
     <label class="sw"><input type="checkbox" id="c-plugin" checked> Plugin actif</label>
     <label class="sw"><input type="checkbox" id="c-lodging" checked> Logement dans l’app</label>
-    <label class="sw"><input type="checkbox" id="c-email" checked> Adresse e-mail du client</label>
-    <label class="sw"><input type="checkbox" id="c-shop" checked> Boutique ouverte au logement</label>
-    <label class="sw"><input type="checkbox" id="c-paid" checked> Séjour réglé avant l’arrivée</label>
+    <label class="sw"><input type="checkbox" id="c-email" checked> Adresse e-mail</label>
+    <label class="sw"><input type="checkbox" id="c-shop" checked> Boutique ouverte au séjour</label>
+  </div>
+  <div class="seg" role="group" aria-label="Bain nordique du séjour" style="margin-bottom:1rem">
+    <button type="button" aria-pressed="false" data-bath="booked">Bain réservé</button>
+    <button type="button" aria-pressed="true" data-bath="free">1 h offerte</button>
+    <button type="button" aria-pressed="false" data-bath="none">Aucun bain</button>
   </div>
   <div class="mail">
-    <div class="bar"><strong id="m-subject">Plus qu’une semaine avant votre séjour à L’Estiva</strong></div>
+    <div class="bar"><strong id="m-subject"></strong></div>
     <div class="body" id="m-body"></div>
   </div>
 </section>
 
-<!-- Démo 2 : app -->
-<h2>À manipuler : commander à J-5</h2>
+<!-- Démo 2 -->
+<h2>À manipuler : commander à J-3</h2>
 <section class="demo" aria-labelledby="d2">
   <div class="demo-head">
-    <div><h3 id="d2">Mon séjour, mardi 10 novembre — arrivée vendredi 13 à 15 h, départ dimanche 15 avant 10 h</h3>
-    <p class="hint">Tapez une heure avant l’arrivée, après le départ ou hors du service (8 h – 12 h, 16 h – 20 h) : la commande est refusée.</p></div>
+    <div><h3 id="d2">Mardi 10 novembre — L’Estiva, arrivée ven. 13 à 15 h, départ lun. 16 avant 10 h</h3>
+    <p class="hint">Service : 8 h – 12 h et 16 h – 20 h, fermé le dimanche 15 (exception), préparation 30 min. Seuls les jours du séjour s’affichent, et seules les heures où tout tient à la fois.</p></div>
   </div>
   <div class="duo">
     <div class="phone" aria-label="Maquette de l’application">
       <div class="status"><span>9:41</span><span>Mon séjour</span></div>
-      <h4>Boutique</h4>
-      <div class="banner" id="a-banner">À partir de votre arrivée, le ven. 13 nov.</div>
+      <h4>Panier</h4>
       <div class="item"><div><div class="t">Cidre fermier</div><div class="p">6,00 € la bouteille</div></div>
         <div class="step"><button type="button" data-q="cider" data-d="-1" aria-label="Retirer un cidre">−</button><span id="q-cider">2</span><button type="button" data-q="cider" data-d="1" aria-label="Ajouter un cidre">+</button></div></div>
       <div class="item"><div><div class="t">Planche apéritive</div><div class="p">18,00 €</div></div>
-        <div class="step"><button type="button" data-q="board" data-d="-1" aria-label="Retirer une planche">−</button><span id="q-board">0</span><button type="button" data-q="board" data-d="1" aria-label="Ajouter une planche">+</button></div></div>
-      <div class="field">
-        <label for="a-day">Quand souhaitez-vous la recevoir ?</label>
-        <select id="a-day">
-          <option value="2026-11-12">jeu. 12 nov. (avant votre arrivée)</option>
-          <option value="2026-11-13" selected>ven. 13 nov.</option>
-          <option value="2026-11-14">sam. 14 nov.</option>
-          <option value="2026-11-15">dim. 15 nov.</option>
-        </select>
-        <input id="a-time" type="time" step="1800" value="18:00" aria-describedby="a-msg">
+        <div class="step"><button type="button" data-q="board" data-d="-1" aria-label="Retirer une planche">−</button><span id="q-board">1</span><button type="button" data-q="board" data-d="1" aria-label="Ajouter une planche">+</button></div></div>
+      <p class="lbl" id="dl-label">Quand souhaitez-vous la recevoir ?</p>
+      <div class="chips" id="dl-days" role="group" aria-labelledby="dl-label"></div>
+      <div class="tgrid" id="dl-times" role="group" aria-label="Heures proposées"></div>
+      <div class="total"><span>Total</span><span id="a-total"></span></div>
+      <div class="pay" role="radiogroup" aria-label="Paiement">
+        <label class="payrow"><input type="radio" name="pay" value="card" checked><span><span class="pt">Payer par carte</span><br><span class="ps">Paiement sécurisé, rien à régler sur place</span></span>
+          <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden="true"><rect x=".75" y=".75" width="24.5" height="16.5" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M1 6h24" stroke="currentColor" stroke-width="2"/></svg></label>
+        <label class="payrow"><input type="radio" name="pay" value="note"><span><span class="pt">Régler à l’arrivée</span><br><span class="ps">Avec le reste, au sas d’arrivée</span></span></label>
       </div>
+      <button type="button" class="btn primary" id="a-order"></button>
       <div id="a-msg" class="msg" role="status" aria-live="polite"></div>
-      <div class="total"><span>Total</span><span id="a-total">12,00 €</span></div>
-      <button type="button" class="btn primary" id="a-order">Régler à l’arrivée</button>
-      <p class="small">Le paiement par carte ouvre à votre arrivée.</p>
     </div>
     <div class="side">
       <h4>Mes commandes</h4>
       <ul class="orders" id="a-orders"><li class="empty">Aucune commande pour l’instant.</li></ul>
-      <p class="cap">L’heure proposée ne sort jamais du séjour : le jour de l’arrivée pas avant l’heure d’arrivée, le jour du départ strictement avant l’heure de départ. « Dès que possible » n’est proposé qu’une fois le séjour commencé.</p>
+      <h4 style="margin-top:1.4rem">Essai : une heure envoyée à la main</h4>
+      <p class="cap" style="margin-top:0">Ce que fait une requête forgée qui contourne l’écran. Le serveur juge, rien n’est écrit.</p>
+      <div class="field" style="grid-template-columns:1fr 1fr;gap:.4rem">
+        <select id="f-day" aria-label="Jour envoyé"><option value="2026-11-12">jeu. 12 nov.</option><option value="2026-11-13" selected>ven. 13 nov.</option><option value="2026-11-14">sam. 14 nov.</option><option value="2026-11-16">lun. 16 nov.</option></select>
+        <input id="f-time" type="time" value="13:00" aria-label="Heure envoyée">
+      </div>
+      <button type="button" class="btn" style="background:#efe9de;color:var(--encre)" id="f-send">Envoyer</button>
+      <div id="f-msg" class="msg" role="status" aria-live="polite"></div>
     </div>
   </div>
 </section>
 
-<!-- Démo 3 : sas -->
-<h2>À manipuler : le sas d’arrivée</h2>
+<!-- Démo 3 -->
+<h2>À manipuler : programmer son bain nordique</h2>
 <section class="demo" aria-labelledby="d3">
   <div class="demo-head">
-    <div><h3 id="d3">Vendredi 13 novembre, 15 h 20 — sas d’arrivée de L’Estiva</h3>
-    <p class="hint">Les commandes passées ci-dessus apparaissent ici. Encaissez : la puce passe à « Réglée » dans Mes commandes.</p></div>
-    <div class="switches"><label class="sw"><input type="checkbox" id="s-reception"> Vue réception</label></div>
+    <div><h3 id="d3">Bain nordique — ouvert 10 h – 23 h, fermé le samedi 14 (entretien)</h3>
+    <p class="hint">Jour 30 €/h, soir dès 19 h 40 €/h · 1 h offerte au séjour · chauffe 4 h, reste chaud 8 h, remise en état 30 min. Un autre séjour l’a le vendredi 19 h – 20 h, un extérieur le dimanche 14 h – 15 h.</p></div>
+  </div>
+  <div class="switches" style="margin-bottom:.6rem">
+    <div class="seg" role="group" aria-label="Moment de la commande">
+      <button type="button" aria-pressed="true" data-now="j3">Mar. 10 nov., 10 h (J-3)</button>
+      <button type="button" aria-pressed="false" data-now="j0">Ven. 13 nov., 17 h (jour J)</button>
+    </div>
+    <label class="sw"><input type="checkbox" id="b-included"> 2 h déjà réservées</label>
+    <label class="sw"><input type="checkbox" id="b-why"> Vue d’arbitrage : créneaux retenus</label>
+  </div>
+  <div class="duo">
+    <div class="phone" aria-label="Maquette du choix de créneau">
+      <div class="status"><span>9:41</span><span>Mon séjour</span></div>
+      <h4>Bain nordique</h4>
+      <div class="note" id="b-allow"></div>
+      <div class="chips" id="b-days" role="group" aria-label="Jour"></div>
+      <div id="b-bar" aria-hidden="true" style="margin:.1rem 0 .2rem"></div>
+      <p class="cap" id="b-open" style="margin:.1rem 0 .5rem;font-size:.78rem"></p>
+      <div class="tgrid slots" id="b-slots" role="group" aria-label="Créneaux"></div>
+      <div class="quote" id="b-quote"></div>
+    </div>
+    <div class="side">
+      <h4>Ce que le serveur a combiné</h4>
+      <ul class="no" id="b-explain" style="padding-left:1.1rem;margin:0"></ul>
+      <p class="cap">Le client ne voit que les créneaux réservables. La vue d’arbitrage, absente de l’app, montre en hachuré ceux qui sont retenus et pourquoi.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Démo 4 -->
+<h2>À manipuler : le sas d’arrivée</h2>
+<section class="demo" aria-labelledby="d4">
+  <div class="demo-head">
+    <div><h3 id="d4">Vendredi 13 novembre, 15 h 20 — sas d’arrivée de L’Estiva</h3>
+    <p class="hint">Les commandes passées dans la démo « commander à J-3 » arrivent ici, à côté d’une commande d’exemple. Modifie une commande non payée : le total à percevoir suit.</p></div>
+    <div class="switches"><label class="sw"><input type="checkbox" id="s-reception"> Vue réception</label><label class="sw"><input type="checkbox" id="s-cancel"> Séjour annulé</label></div>
   </div>
   <div class="sas">
     <div class="bar"><b>Arrivée · L’Estiva</b><span id="s-who">Administrateur</span></div>
@@ -243,195 +357,391 @@ footer{margin-top:3rem;color:var(--mute);font-size:.85rem;border-top:1px solid v
 
 <h2>Ce qu’on ne fait pas</h2>
 <ul class="no">
-  <li>Pas de carte avant l’arrivée : il faudrait payer une partie du complément d’arrivée, ce que le registre ne sait pas faire.</li>
+  <li>Pas de remboursement automatique chez le prestataire de paiement : une commande payée d’un séjour annulé est signalée « à rembourser », l’opérateur rembourse avec le remboursement existant.</li>
+  <li>Pas d’annulation de commande par le client depuis l’app : « Contactez-nous » ; l’équipe modifie au sas.</li>
+  <li>Pas de déplacement d’une séance de bain depuis l’étape « Commandes Mon séjour » : on la retire ici, on la déplace dans « Planifier les ressources ».</li>
   <li>Pas de commande avant l’arrivée sur un séjour dont l’acompte, le solde ou une échéance reste dû.</li>
-  <li>Pas de second encaissement au sas : l’étape informe, le récapitulatif encaisse.</li>
-  <li>Pas de déplacement automatique de l’heure d’une commande quand le séjour change de dates : elle est signalée à l’équipe.</li>
-  <li>Pas de changement du modèle J-7 livré par défaut (il reste neutre) ni de son mode d’envoi.</li>
-  <li>Le panier n’est pas conservé au passage pré-arrivée → séjour (à l’arrivée − 3 h).</li>
+  <li>Pas de second encaissement au sas : l’étape informe et se modifie, le récapitulatif encaisse en un paiement.</li>
+  <li>Pas de changement de la chauffe pour le sas : seule l’app la compte depuis maintenant.</li>
+  <li>Pas de changement du mode d’envoi du J-7 : il reste manuel.</li>
 </ul>
 
 <h2>Le risque</h2>
 <div class="risk">
-  <p><b>Toucher au calcul qui écrit la commande sur la fiche.</b> La mesure avant l’arrivée lit le complément d’arrivée ; deux gardes refusent tout ce qui en sortirait : la commande ne doit faire bouger aucun autre poste, et rejouer le séjour sans elle doit retomber sur son prix stocké. Le chemin d’après l’arrivée reste identique, réponse octet pour octet, et un test le prouve.</p>
-  <p style="margin-bottom:0"><b>Un lien qui fuit expose sept jours de plus.</b> Accepté comme pendant le séjour : « Régénérer le lien » ferme tout, et la recherche par nom n’ouvre toujours qu’un numéro de plateforme (D28 inchangée).</p>
+  <p><b>La carte avant l’arrivée touche à l’argent.</b> Le paiement est noté au registre comme une note réglée « à l’arrivée », et le complément d’arrivée est lu net de cette note partout : sas, paiement unique, registre, mails J-2 et J-1, comptabilité. Un oubli à un seul endroit, et la commande serait encaissée deux fois. Un test par lecteur, et les sommes s’annulent à zéro après annulation et remboursement complet.</p>
+  <p><b>L’heure offerte au tarif de jour change un prix existant.</b> Une ligne de bain non vendue dont la première séance tombe le soir coûtera le supplément (25 / 35 € : 35 → 45 €). Les séjours déjà vendus ne bougent pas : leur prix est figé. Deux tests existants changent exprès, nommés dans la PR.</p>
+  <p style="margin-bottom:0"><b>Modifier une commande au sas écrit sur la fiche avant le récapitulatif.</b> Chaque geste est une écriture complète (fiche, stock, historique), puis le sas relit ses données. Rien n’est encaissé avant « Valider l’arrivée ».</p>
 </div>
 
-<h2>Arbitrages en attente</h2>
-<p class="hint">Chaque question a sa valeur par défaut ; le code la suit tant qu’elle n’est pas tranchée autrement.</p>
+<h2>Arbitrages</h2>
+<p class="hint">Tu as validé toutes les recommandations le 10 novembre ; la carte dès J-7 remplace le « non » d’origine.</p>
 <div>
-  <div class="q"><b>Carte bancaire avant l’arrivée ?</b><br><span class="def">Défaut : non</span> — tout se règle au sas d’arrivée, comme demandé.</div>
-  <div class="q"><b>Séjour dont le solde ou une échéance reste dû ?</b><br><span class="def">Défaut : commandes à l’arrivée</span> — sinon la commande gonflerait un lien de paiement ou un échéancier.</div>
-  <div class="q"><b>Le J-2 aussi ?</b><br><span class="def">Défaut : J-7 en plus du J-2 actuel</span> — remplace « J-2 seulement » du 9 novembre ; un séjour réservé dans la semaine n’a pas de J-7 et garde le lien du J-2.</div>
-  <div class="q"><b>Qui pose le paragraphe dans le J-7 enregistré ?</b><br><span class="def">Défaut : le script du livret</span> — lancé par toi comme pour le J-2 ; sinon un copier-coller dans Paramètres › E-mails.</div>
-  <div class="q"><b>Stock d’une commande prise une semaine avant ?</b><br><span class="def">Défaut : réservé jusqu’au jour d’arrivée</span> — pour ne pas vendre deux fois le même cidre.</div>
-  <div class="q"><b>Étape du sas : information ou encaissement à part ?</b><br><span class="def">Défaut : information</span> — le paiement unique du récapitulatif encaisse.</div>
-  <div class="q"><b>Bain nordique réservable avant l’arrivée ?</b><br><span class="def">Défaut : oui</span> — créneaux strictement dans le séjour.</div>
-  <div class="q"><b>Séjour déplacé avec des commandes ?</b><br><span class="def">Défaut : signalé, jamais déplacé</span> — « Hors des dates du séjour : à replanifier ».</div>
+  <div class="q"><b>Carte bancaire avant l’arrivée ?</b><br><span class="def">Tranché : oui, dès J-7</span> — ton cinquième message.</div>
+  <div class="q"><b>Heure offerte à cheval sur 19 h ?</b><br><span class="def">Validé : tarif de jour</span> — la partie du soir ne paie que son supplément.</div>
+  <div class="q"><b>Combien de séances par séjour ?</b><br><span class="def">Validé : pas de plafond</span> — la disponibilité et les limites de commande ; l’heure offerte une seule fois.</div>
+  <div class="q"><b>Le supplément soirée, payé comment ?</b><br><span class="def">Validé : avec sa commande</span> — carte ou à l’arrivée, jamais une seconde fois par le sas.</div>
+  <div class="q"><b>Qui modifie au sas ?</b><br><span class="def">Validé : administrateur et réception</span> — la réception le jour de l’arrivée seulement, comme pour son sas.</div>
+  <div class="q"><b>Commande payée d’un séjour annulé ?</b><br><span class="def">Validé : à rembourser en entier</span> — par l’opérateur, avec le remboursement existant.</div>
+  <div class="q"><b>Heures de bain déjà réservées ?</b><br><span class="def">Validé : programmées d’abord, sans être refacturées</span>.</div>
+  <div class="q"><b>Commande vidée au sas ?</b><br><span class="def">Validé : annulée</span>, gardée avec son historique.</div>
+  <div class="q"><b>Les huit questions du premier jet</b> (séjour pas réglé, J-2, script, stock, étape du sas, bain avant l’arrivée, séjour déplacé)<br><span class="def">Validé : les valeurs par défaut</span>.</div>
 </div>
 
 <footer>Les montants, horaires et refus de cette page sont simulés dans la page pour décider ; en production, c’est le serveur qui les calcule. Aucune donnée réelle.</footer>
 </div>
 
+<div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlg-t">
+  <div class="box"><h5 id="dlg-t">Retirer la commande ?</h5><p class="cap" id="dlg-p" style="margin:0 0 1rem"></p>
+  <div class="navbtns"><button type="button" id="dlg-no">Annuler</button><button type="button" class="go" id="dlg-yes" style="background:var(--err);border-color:var(--err)">Retirer</button></div></div>
+</div>
+
 <script>
 (function(){
   var $ = function(id){ return document.getElementById(id); };
-  var eur = function(n){ return n.toFixed(2).replace('.', ',') + ' €'; };
+  var eur = function(n){ return (Math.round(n*100)/100).toFixed(2).replace('.', ',') + ' €'; };
+  var hm = function(m){ m = ((m % 1440) + 1440) % 1440; var h = Math.floor(m/60), mm = m % 60; return h + ' h' + (mm ? ' ' + String(mm).padStart(2,'0') : ''); };
+  var esc = function(t){ return String(t).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
 
-  /* --- Démo 1 --- */
-  var lang = 'fr';
+  /* ---------- Démo 1 : le mail ---------- */
+  var lang = 'fr', bath = 'free';
   var LINK = 'https://sejour.example.fr/s/k3Q9…';
   var T = {
-    fr: { subject: 'Plus qu’une semaine avant votre séjour à L’Estiva',
-      hello: 'Bonjour Camille,',
+    fr: { subject: 'Plus qu’une semaine avant votre séjour à L’Estiva', hello: 'Bonjour Camille,',
       intro: 'Plus qu’une semaine, et vous serez à L’Estiva. Voici quelques mots pour vous aider à préparer votre séjour.',
       bags: 'Dans vos bagages : de bonnes chaussures, une lampe frontale.',
-      a: 'Votre séjour a sa petite application, « Mon séjour » : le livret d’accueil et les infos pratiques, toujours sous la main.',
-      shop: ' Vous pouvez déjà y commander ce que vous aimeriez trouver à votre arrivée ; vous le réglerez sur place.',
-      open: ' Elle s’ouvre ici, sans rien installer : ',
-      q: 'Une question ? Répondez simplement à ce mail.',
-      bye: 'À la semaine prochaine,', absent: 'Paragraphe « Mon séjour » absent : ' },
-    en: { subject: 'One week to go before your stay at L’Estiva',
-      hello: 'Hello Camille,',
+      order: 'Vous pouvez déjà commander ce que vous aimeriez trouver à votre arrivée', bath: ', et programmer votre séance de bain nordique', colon: ' : ',
+      q: 'Une question ? Répondez simplement à ce mail.', bye: 'À la semaine prochaine,', team: 'L’équipe', absent: 'Paragraphe absent du mail : ' },
+    en: { subject: 'One week to go before your stay at L’Estiva', hello: 'Hello Camille,',
       intro: 'One more week, and you will be at L’Estiva. Here are a few words to help you get ready.',
       bags: 'In your bags: good shoes, a head torch.',
-      a: 'Your stay has its own little app, “Mon séjour”: the welcome booklet and the practical details, always at hand.',
-      shop: ' You can already order there anything you would like to find on arrival; you will settle it on site.',
-      open: ' It opens here, nothing to install: ',
-      q: 'Any question? Simply reply to this email.',
-      bye: 'See you next week,', absent: '“Mon séjour” paragraph left out: ' }
+      order: 'You can already order anything you would like to find on arrival', bath: ', and book your nordic bath session', colon: ': ',
+      q: 'Any question? Simply reply to this email.', bye: 'See you next week,', team: 'The team', absent: 'Paragraph left out of the email: ' }
   };
   function renderMail(){
     var t = T[lang], c = function(id){ return $(id).checked; };
-    var why = !c('c-plugin') ? 'plugin inactif' : !c('c-lodging') ? 'logement hors application' : !c('c-email') ? 'pas d’adresse e-mail' : '';
-    var hasApp = !why;
-    var hasShop = hasApp && c('c-shop') && c('c-paid');
+    var why = !c('c-plugin') ? 'plugin inactif' : !c('c-lodging') ? 'logement hors application' : !c('c-email') ? 'pas d’adresse e-mail' : !c('c-shop') ? 'rien à commander pour ce séjour' : '';
     var html = '<p>' + t.hello + '</p><p>' + t.intro + '</p><p class="faded">' + t.bags + '</p>';
-    if (hasApp) {
-      html += '<p class="app-para fade-in on">' + t.a + (hasShop ? t.shop : '') + t.open + '<a href="#" onclick="return false">' + LINK + '</a></p>';
+    if (!why) {
+      html += '<p class="app-para fade-in on">' + t.order + (bath !== 'none' ? t.bath : '') + t.colon + '<a href="#" onclick="return false">' + LINK + '</a></p>';
     } else {
-      html += '<div class="absent">' + t.absent + why + '. Rien ne s’affiche dans le mail du client.</div>';
+      html += '<div class="absent">' + t.absent + why + '. Le client ne voit rien.</div>';
     }
-    html += '<p>' + t.q + '</p><p>' + t.bye + '<br>L’équipe</p>';
+    html += '<p>' + t.q + '</p><p>' + t.bye + '<br>' + t.team + '</p>';
     $('m-body').innerHTML = html;
     $('m-subject').textContent = t.subject;
   }
   document.querySelectorAll('[data-lang]').forEach(function(b){
-    b.addEventListener('click', function(){
-      lang = b.dataset.lang;
-      document.querySelectorAll('[data-lang]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
-      renderMail();
-    });
+    b.addEventListener('click', function(){ lang = b.dataset.lang; document.querySelectorAll('[data-lang]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); }); renderMail(); });
   });
-  ['c-plugin','c-lodging','c-email','c-shop','c-paid'].forEach(function(id){ $(id).addEventListener('change', renderMail); });
+  document.querySelectorAll('[data-bath]').forEach(function(b){
+    b.addEventListener('click', function(){ bath = b.dataset.bath; document.querySelectorAll('[data-bath]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); }); renderMail(); });
+  });
+  ['c-plugin','c-lodging','c-email','c-shop'].forEach(function(id){ $(id).addEventListener('change', renderMail); });
   renderMail();
 
-  /* --- Démo 2 --- */
+  /* ---------- Commandes partagées (démos 2 et 4) ---------- */
+  var orders = [
+    { id: 11, when: 'ven. 13 nov., 18 h', paid: true, status: 'open', amended: false,
+      lines: [{ key: 'board', label: 'Planche apéritive', qty: 1, unit: 18, max: 3 }] },
+    { id: 12, when: 'ven. 13 nov., 17 h 30', paid: false, status: 'open', amended: false,
+      lines: [{ key: 'cider', label: 'Cidre fermier', qty: 4, unit: 6, max: 10 },
+              { key: 'bath', label: 'Bain nordique · ven. 13 nov. 20 h 30 – 21 h 30', session: true, unitLabel: 'offerte · + 10,00 € soirée', amount: 10 }] }
+  ];
+  var nextId = 13, collected = false, cancelled = false, history = '';
+  var lineAmount = function(l){ return l.session ? l.amount : l.qty * l.unit; };
+  var orderTotal = function(o){ return o.lines.reduce(function(s, l){ return s + lineAmount(l); }, 0); };
+  var live = function(o){ return o.status === 'open'; };
+
+  /* ---------- Démo 2 : commander ---------- */
   var PRICES = { cider: 6, board: 18 }, LABEL = { cider: 'Cidre fermier', board: 'Planche apéritive' };
-  var qty = { cider: 2, board: 0 };
-  var orders = [];
-  var DAYS = { '2026-11-12': 'jeu. 12 nov.', '2026-11-13': 'ven. 13 nov.', '2026-11-14': 'sam. 14 nov.', '2026-11-15': 'dim. 15 nov.' };
-  var ARR = '2026-11-13', DEP = '2026-11-15', CHECKIN = 15*60, CHECKOUT = 10*60;
+  var qty = { cider: 2, board: 1 };
+  var DAYS = [
+    { date: '2026-11-13', wd: 'ven.', d: '13 nov.', from: 15*60, to: 1440 },
+    { date: '2026-11-14', wd: 'sam.', d: '14 nov.', from: 0, to: 1440 },
+    { date: '2026-11-15', wd: 'dim.', d: '15 nov.', from: 0, to: 1440, serviceClosed: true },
+    { date: '2026-11-16', wd: 'lun.', d: '16 nov.', from: 0, to: 10*60 }
+  ];
   var RANGES = [[8*60, 12*60], [16*60, 20*60]], LEAD = 30;
-  function minutes(v){ var p = (v || '').split(':'); return p.length === 2 ? (+p[0])*60 + (+p[1]) : NaN; }
-  function hm(m){ var h = Math.floor(m/60), mm = m % 60; return h + ' h' + (mm ? ' ' + String(mm).padStart(2,'0') : ''); }
-  function judge(){
-    var day = $('a-day').value, m = minutes($('a-time').value);
-    if (isNaN(m)) return 'Choisir une heure.';
-    if (day < ARR || (day === ARR && m < CHECKIN)) return 'Avant votre arrivée (ven. 13 nov., ' + hm(CHECKIN) + ') : choisir un horaire de votre séjour.';
-    if (day > DEP || (day === DEP && m >= CHECKOUT)) return 'Après votre départ (dim. 15 nov., ' + hm(CHECKOUT) + ') : choisir un horaire de votre séjour.';
-    if (m % 30) return 'Les heures vont de demi-heure en demi-heure.';
-    var inService = RANGES.some(function(r){ return m - LEAD >= r[0] && m <= r[1]; });
-    if (!inService) return 'Hors des horaires du service : entre 8 h 30 et 12 h, ou entre 16 h 30 et 20 h.';
-    return '';
+  function timesOf(day){
+    if (day.serviceClosed) return [];
+    var out = [];
+    for (var t = 0; t < 1440; t += 30) {
+      if (t < day.from || t >= day.to) continue;
+      if (RANGES.some(function(r){ return t - LEAD >= r[0] && t <= r[1]; })) out.push(t);
+    }
+    return out;
   }
-  function total(){ return qty.cider * PRICES.cider + qty.board * PRICES.board; }
-  function renderApp(msg, ok){
+  var dlDay = DAYS[0].date, dlTime = timesOf(DAYS[0])[0];
+  function dayOf(date){ return DAYS.filter(function(d){ return d.date === date; })[0]; }
+  function renderDelivery(){
+    $('dl-days').innerHTML = DAYS.map(function(d){
+      var n = timesOf(d).length;
+      return '<button type="button" class="dchip" data-day="' + d.date + '" aria-pressed="' + (d.date === dlDay) + '"' + (n ? '' : ' disabled') + '>' + d.wd + '<b>' + d.d + '</b>' + (n ? '' : 'Service fermé') + '</button>';
+    }).join('');
+    $('dl-times').innerHTML = timesOf(dayOf(dlDay)).map(function(t){
+      return '<button type="button" class="tbtn" data-time="' + t + '" aria-pressed="' + (t === dlTime) + '">' + hm(t) + '</button>';
+    }).join('');
+    $('dl-days').querySelectorAll('[data-day]').forEach(function(b){ b.onclick = function(){ dlDay = b.dataset.day; dlTime = timesOf(dayOf(dlDay))[0]; renderDelivery(); }; });
+    $('dl-times').querySelectorAll('[data-time]').forEach(function(b){ b.onclick = function(){ dlTime = +b.dataset.time; renderDelivery(); }; });
+  }
+  var cartTotal = function(){ return qty.cider * PRICES.cider + qty.board * PRICES.board; };
+  var payMode = function(){ return document.querySelector('input[name="pay"]:checked').value; };
+  function renderCart(msg, ok){
     $('q-cider').textContent = qty.cider; $('q-board').textContent = qty.board;
-    $('a-total').textContent = eur(total());
-    var err = judge();
+    $('a-total').textContent = eur(cartTotal());
+    var btn = $('a-order');
+    btn.disabled = cartTotal() === 0;
+    btn.textContent = payMode() === 'card' ? 'Payer ' + eur(cartTotal()) : 'Commander, à régler à l’arrivée';
     var box = $('a-msg');
-    if (msg) { box.className = 'msg ' + (ok ? 'ok' : 'err'); box.textContent = msg; }
-    else if (err) { box.className = 'msg err'; box.textContent = err; }
-    else { box.className = 'msg'; box.textContent = ''; }
-    $('a-time').setAttribute('aria-invalid', err ? 'true' : 'false');
-    $('a-order').disabled = total() === 0;
-    renderOrders(); renderSas();
+    box.className = msg ? 'msg ' + (ok ? 'ok' : 'err') : 'msg'; box.textContent = msg || '';
   }
-  function chip(){ return complementPaid ? '<span class="chip done">Réglée</span>' : '<span class="chip wait">À régler à l’arrivée</span>'; }
+  function guestChip(o){
+    if (o.status === 'cancelled') return '<span class="chip off">Annulée</span>';
+    if (o.paid) return '<span class="chip paid">Payée</span>';
+    return collected ? '<span class="chip done">Réglée</span>' : '<span class="chip wait">À régler à l’arrivée</span>';
+  }
   function renderOrders(){
     var ul = $('a-orders');
     if (!orders.length) { ul.innerHTML = '<li class="empty">Aucune commande pour l’instant.</li>'; return; }
     ul.innerHTML = orders.map(function(o){
-      return '<li><span>' + o.lines.join(', ') + '<br><span class="empty">Livrée à L’Estiva ' + o.when + ' · ' + eur(o.total) + '</span></span>' + chip() + '</li>';
+      var what = o.lines.map(function(l){ return l.session ? 'Bain nordique 20 h 30' : l.qty + ' × ' + l.label; }).join(', ') || 'Aucun article';
+      return '<li><span>' + esc(what) + '<br><span class="empty">Livrée à L’Estiva ' + o.when + ' · ' + eur(orderTotal(o)) + (o.amended ? ' · Modifiée à votre arrivée' : '') + '</span></span>' + guestChip(o) + '</li>';
     }).join('');
   }
   document.querySelectorAll('[data-q]').forEach(function(b){
-    b.addEventListener('click', function(){
-      var k = b.dataset.q; qty[k] = Math.max(0, Math.min(10, qty[k] + (+b.dataset.d))); renderApp();
-    });
+    b.addEventListener('click', function(){ var k = b.dataset.q; qty[k] = Math.max(0, Math.min(10, qty[k] + (+b.dataset.d))); renderCart(); });
   });
-  $('a-day').addEventListener('change', function(){ renderApp(); });
-  $('a-time').addEventListener('input', function(){ renderApp(); });
+  document.querySelectorAll('input[name="pay"]').forEach(function(r){ r.addEventListener('change', function(){ renderCart(); }); });
   $('a-order').addEventListener('click', function(){
-    var err = judge();
-    if (err) { renderApp('Commande refusée. ' + err, false); $('a-time').focus(); return; }
-    if (complementPaid) { renderApp('Le complément d’arrivée est déjà encaissé dans cette maquette : rechargez la page pour recommencer.', false); return; }
+    if (cancelled) { renderCart('Ce séjour est annulé dans la maquette : décoche « Séjour annulé ».', false); return; }
+    if (collected) { renderCart('Le complément d’arrivée est déjà encaissé dans cette maquette : recharge la page pour recommencer.', false); return; }
+    var d = dayOf(dlDay), card = payMode() === 'card';
     var lines = [];
-    Object.keys(qty).forEach(function(k){ if (qty[k]) lines.push(qty[k] + ' × ' + LABEL[k]); });
-    var m = minutes($('a-time').value);
-    orders.push({ lines: lines, total: total(), when: DAYS[$('a-day').value] + ' vers ' + hm(m) });
-    renderApp('Commande prise : à régler à l’arrivée.', true);
+    Object.keys(qty).forEach(function(k){ if (qty[k]) lines.push({ key: k, label: LABEL[k], qty: qty[k], unit: PRICES[k], max: 10 }); });
+    orders.push({ id: nextId++, when: d.wd + ' ' + d.d + ', ' + hm(dlTime), paid: card, status: 'open', amended: false, lines: lines });
+    document.querySelector('input[name="pay"][value="card"]').checked = true;
+    renderCart(card ? 'Paiement accepté : commande payée.' : 'Commande prise : à régler à l’arrivée.', true);
+    sasStep = 'orders'; foldOpen = true; renderOrders(); renderSas();
+  });
+  $('f-send').addEventListener('click', function(){
+    var date = $('f-day').value, p = $('f-time').value.split(':'), t = (+p[0])*60 + (+p[1]);
+    var d = dayOf(date), why = '';
+    if (!d) why = date < '2026-11-13' ? 'avant votre arrivée' : 'après votre départ';
+    else if (t < d.from) why = 'avant votre arrivée (15 h)';
+    else if (t >= d.to) why = 'après votre départ (10 h)';
+    else if (d.serviceClosed) why = 'service fermé ce jour-là';
+    else if (t % 30) why = 'pas sur une demi-heure';
+    else if (timesOf(d).indexOf(t) < 0) why = 'service fermé à cette heure, préparation comprise';
+    var box = $('f-msg');
+    if (why) { box.className = 'msg err'; box.textContent = '409 DELIVERY_TIME_UNAVAILABLE · « Cet horaire n’est pas proposé. » (' + why + '). Rien n’est écrit.'; }
+    else { box.className = 'msg ok'; box.textContent = 'Heure proposée : acceptée.'; }
   });
 
-  /* --- Démo 3 --- */
-  var STAY_COMPLEMENT = 9.40; /* taxe de séjour à percevoir à l'arrivée, simulée */
-  var stepKey = 'orders', mode = 'defer', complementPaid = false;
-  function ordersTotal(){ return orders.reduce(function(s,o){ return s + o.total; }, 0); }
-  function steps(){ return orders.length ? ['Caution','Linge','Mon séjour','Commandes Mon séjour','Récapitulatif'] : ['Caution','Linge','Mon séjour','Récapitulatif']; }
+  /* ---------- Démo 3 : le bain ---------- */
+  var OPEN = 600, CLOSE = 1380, SLOT = 60, TURN = 30, HEAT = 240, RET = 480, EVE = 19*60, DAYRATE = 30, EVERATE = 40;
+  var BDAYS = [
+    { i: 0, wd: 'ven.', d: '13 nov.' }, { i: 1, wd: 'sam.', d: '14 nov.', closed: true }, { i: 2, wd: 'dim.', d: '15 nov.' }, { i: 3, wd: 'lun.', d: '16 nov.' }
+  ];
+  var OCC = [{ s: 0*1440 + 19*60, e: 0*1440 + 20*60 }, { s: 2*1440 + 14*60, e: 2*1440 + 15*60 }];
+  var CHECKIN = 15*60, CHECKOUT = 3*1440 + 10*60;
+  var nowMode = 'j3', bDay = 0, picks = [];
+  var nowAbs = function(){ return nowMode === 'j3' ? -3*1440 + 10*60 : 17*60; };
+  var canIgnite = function(abs){ var m = ((abs % 1440) + 1440) % 1440; return RANGES.some(function(r){ return m >= r[0] && m <= r[1]; }); };
+  function classify(start, end, ranges){
+    var day = BDAYS[Math.floor(start / 1440)];
+    if (day.closed) return 'closed';
+    if (end > CHECKOUT) return 'after';
+    var notBefore = Math.max(nowAbs(), CHECKIN);
+    if (start < notBefore) return start < CHECKIN ? 'before' : 'past';
+    var n = ranges.filter(function(r){ return r.s < end + TURN && r.e + TURN > start; }).length;
+    if (n >= 1) return 'taken';
+    var last = null; ranges.forEach(function(r){ if (r.e <= start && (last === null || r.e > last)) last = r.e; });
+    var warm = last !== null && start - last <= RET;
+    if (!warm && start < nowAbs() + HEAT) return 'heating';
+    if (!warm && !canIgnite(start - HEAT)) return 'staff';
+    return warm ? 'warm' : 'free';
+  }
+  function slotsOf(di){
+    var base = di * 1440, ranges = OCC.concat(picks.map(function(p){ return { s: p, e: p + SLOT }; }));
+    var starts = [];
+    for (var o = OPEN; o + SLOT <= CLOSE; o += SLOT) starts.push({ s: base + o, off: false });
+    ranges.forEach(function(r){ var s = r.e + TURN, o = s - base; if (o >= OPEN && o + SLOT <= CLOSE && (o - OPEN) % SLOT) starts.push({ s: s, off: true }); });
+    starts.sort(function(a, b){ return a.s - b.s; });
+    return starts.map(function(x){
+      var own = picks.indexOf(x.s) >= 0;
+      var others = ranges.filter(function(r){ return r.s !== x.s || !own; });
+      var st = own ? 'picked' : classify(x.s, x.s + SLOT, others);
+      return { s: x.s, e: x.s + SLOT, off: x.off, state: st, evening: (x.s % 1440) + SLOT > EVE };
+    }).filter(function(x){ return !x.off || x.state === 'free' || x.state === 'warm' || x.state === 'picked'; });
+  }
+  var REASON = { taken: 'Déjà réservé', heating: 'Pas chaud à temps', staff: 'Personne pour l’allumer', past: 'Passé', before: 'Avant votre arrivée', after: 'Après votre départ', closed: 'Fermé' };
+  var bookable = function(st){ return st === 'free' || st === 'warm' || st === 'picked'; };
+  function allowance(){ return $('b-included').checked ? { incl: 120, free: 0 } : { incl: 0, free: 60 }; }
+  function slotLabel(sl){
+    var a = allowance(), sup = sl.evening ? ' · + ' + eur(EVERATE - DAYRATE) + ' soirée' : '';
+    if (a.incl >= SLOT) return 'Compris dans votre séjour' + sup;
+    if (a.free >= SLOT) return 'Offert' + sup;
+    return sl.evening ? eur(EVERATE) + ' · tarif soirée' : eur(DAYRATE);
+  }
+  function renderBath(){
+    var a = allowance();
+    $('b-allow').textContent = a.incl ? '2 h comprises dans votre séjour, à programmer.' : '1 h offerte avec votre séjour.';
+    var why = $('b-why').checked;
+    $('b-days').innerHTML = BDAYS.map(function(d){
+      var n = slotsOf(d.i).filter(function(s){ return bookable(s.state); }).length;
+      var reason = d.closed ? 'Fermé' : (n ? '' : 'Aucun créneau');
+      return '<button type="button" class="dchip" data-bday="' + d.i + '" aria-pressed="' + (d.i === bDay) + '"' + (n ? '' : ' disabled') + '>' + d.wd + '<b>' + d.d + '</b>' + reason + '</button>';
+    }).join('');
+    var day = BDAYS[bDay];
+    var segs = [], from = bDay === 0 ? CHECKIN : 0, to = bDay === 3 ? 600 : 1440;
+    for (var m = 0; m < 1440; m += 30) {
+      var open = !day.closed && m >= OPEN && m < CLOSE, here = m >= from && m < to;
+      segs.push('<span style="flex:1;height:8px;background:' + (open && here ? '#9fc2ac' : open ? '#d7e3da' : '#e2ddd3') + '"></span>');
+    }
+    $('b-bar').innerHTML = '<div style="display:flex;border-radius:4px;overflow:hidden;gap:1px">' + segs.join('') + '</div><div style="display:flex;justify-content:space-between;font-size:.7rem;color:#8a8478;margin-top:2px"><span>0 h</span><span>6 h</span><span>12 h</span><span>18 h</span><span>24 h</span></div>';
+    $('b-open').textContent = day.closed ? 'Fermé ce jour-là (entretien).' : 'Ouvert de 10 h à 23 h' + (bDay === 0 ? ' · à vous dès 15 h' : bDay === 3 ? ' · départ avant 10 h' : '') + '.';
+    var list = slotsOf(bDay).filter(function(s){ return why ? s.state !== 'closed' || day.closed : bookable(s.state); });
+    $('b-slots').innerHTML = list.length ? list.map(function(s){
+      var ok = bookable(s.state);
+      return '<button type="button" class="tbtn' + (ok ? '' : ' withheld') + '" ' + (ok ? 'data-slot="' + s.s + '"' : 'disabled') + ' aria-pressed="' + (s.state === 'picked') + '">'
+        + (ok && s.evening ? '<span class="dot"></span>' : '') + hm(s.s) + ' – ' + hm(s.e)
+        + '<small>' + (ok ? slotLabel(s) : REASON[s.state]) + '</small></button>';
+    }).join('') : '<p class="cap" style="grid-column:1/-1">Aucun créneau ce jour-là.</p>';
+    $('b-slots').querySelectorAll('[data-slot]').forEach(function(b){ b.onclick = function(){
+      var s = +b.dataset.slot, i = picks.indexOf(s); if (i >= 0) picks.splice(i, 1); else picks.push(s); renderBath(); }; });
+    var sorted = picks.slice().sort(function(x, y){ return x - y; }), incl = a.incl, free = a.free, total = 0;
+    var rows = sorted.map(function(s){
+      var eveMin = Math.max(0, s + SLOT - Math.max(s, Math.floor(s/1440)*1440 + EVE));
+      var sup = (EVERATE - DAYRATE) * eveMin / 60, what, amt;
+      if (incl >= SLOT) { incl -= SLOT; what = 'comprise'; amt = sup; }
+      else if (free >= SLOT) { free -= SLOT; what = 'offerte'; amt = sup; }
+      else { what = eveMin ? 'tarif soirée' : 'tarif jour'; amt = DAYRATE + sup; }
+      total += amt;
+      var d = BDAYS[Math.floor(s/1440)];
+      return '<div class="row"><span>' + d.wd + ' ' + d.d + ' ' + hm(s) + ' – ' + hm(s + SLOT) + '<br><span class="cap" style="margin:0">' + what + (amt && what !== 'tarif jour' && what !== 'tarif soirée' ? ' · + ' + eur(sup) + ' soirée' : '') + '</span></span><span>' + eur(amt) + '</span></div>';
+    });
+    $('b-quote').innerHTML = picks.length ? rows.join('') + '<div class="total"><span>Total de la séance</span><span>' + eur(total) + '</span></div><button type="button" class="btn primary">' + (total ? 'Ajouter au panier' : 'Réserver') + '</button>' : '<p class="small">Touchez un créneau pour le choisir.</p>';
+    $('b-days').querySelectorAll('[data-bday]').forEach(function(b){ b.onclick = function(){ bDay = +b.dataset.bday; renderBath(); }; });
+    var j3 = nowMode === 'j3';
+    $('b-explain').innerHTML = [
+      'Jours : ceux du séjour seulement ; samedi fermé, lundi sans créneau avant le départ de 10 h.',
+      'Présence : vendredi dès 15 h ; un créneau ne finit jamais après 10 h lundi.',
+      j3 ? 'Chauffe comptée depuis maintenant (mardi 10 h) : le soir de l’arrivée est atteignable.' : 'Chauffe comptée depuis maintenant (17 h) : 17 h ne sera pas chaud à temps, il n’est pas proposé ; 20 h 30 l’est, le bain sortant chaud du séjour d’avant.',
+      'Autre séjour vendredi 19 h – 20 h, extérieur dimanche 14 h – 15 h : les créneaux qui les touchent, remise en état de 30 min comprise, ne sont pas proposés ; 20 h 30 et 15 h 30 enchaînent sur le bain encore chaud.',
+      j3 ? 'Vendredi 17 h, dimanche 10 h et 11 h : à froid, il faudrait allumer à 13 h, 6 h ou 7 h, hors des heures du service.' : 'Les créneaux déjà passés ne sont plus proposés.',
+      'Soir dès 19 h : l’heure offerte couvre le tarif de jour, le supplément de 10 € reste dû.'
+    ].map(function(t){ return '<li>' + t + '</li>'; }).join('');
+  }
+  document.querySelectorAll('[data-now]').forEach(function(b){
+    b.addEventListener('click', function(){ nowMode = b.dataset.now; picks = []; document.querySelectorAll('[data-now]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); }); renderBath(); });
+  });
+  $('b-included').addEventListener('change', renderBath);
+  $('b-why').addEventListener('change', renderBath);
+
+  /* ---------- Démo 4 : le sas ---------- */
+  var STAY_COMPLEMENT = 9.40, sasStep = 'orders', mode = 'defer', foldOpen = true, pendingRemove = null;
+  var editable = function(o){ return live(o) && !o.paid && !collected && !cancelled; };
+  var toCollect = function(){ return orders.filter(function(o){ return live(o) && !o.paid; }).reduce(function(s, o){ return s + orderTotal(o); }, 0); };
+  var paidTotal = function(){ return orders.filter(function(o){ return live(o) && o.paid; }).reduce(function(s, o){ return s + orderTotal(o); }, 0); };
+  function sasChip(o){
+    if (o.status === 'cancelled') return '<span class="chip off">Annulée</span>';
+    if (o.paid) return '<span class="chip paid">Payée par carte</span>';
+    return collected ? '<span class="chip done">Réglée</span>' : '<span class="chip wait">À percevoir</span>';
+  }
+  function orderHtml(o){
+    var ed = editable(o);
+    var html = '<div class="ord"><div class="ordh"><span><b>Commande n° ' + o.id + '</b> <span class="when">' + o.when + '</span></span>' + sasChip(o) + '</div>';
+    o.lines.forEach(function(l, i){
+      html += '<div class="ln"><span><span class="lt">' + esc(l.label) + '</span><br><span class="lu">' + (l.session ? l.unitLabel : l.qty + ' × ' + eur(l.unit)) + '</span></span><span class="la">' + eur(lineAmount(l)) + '</span>';
+      if (ed) {
+        html += '<div class="ed">' + (l.session ? '' : '<span class="mini"><button type="button" data-o="' + o.id + '" data-l="' + i + '" data-d="-1" aria-label="Une de moins"' + (l.qty <= 1 ? ' disabled' : '') + '>−</button><span>' + l.qty + '</span><button type="button" data-o="' + o.id + '" data-l="' + i + '" data-d="1" aria-label="Une de plus"' + (l.qty >= l.max ? ' disabled' : '') + '>+</button></span>')
+          + '<button type="button" class="linkbtn" data-o="' + o.id + '" data-rm="' + i + '">Retirer</button></div>';
+      }
+      html += '</div>';
+    });
+    if (!o.lines.length) html += '<p class="cap">Plus aucun article : commande annulée à l’arrivée.</p>';
+    html += '<div class="ordt"><span>Total de la commande</span><span>' + eur(orderTotal(o)) + '</span></div>';
+    if (ed) html += '<div style="text-align:right"><button type="button" class="linkbtn" data-rmo="' + o.id + '">Retirer la commande</button></div>';
+    return html + '</div>';
+  }
   function renderSas(){
     var reception = $('s-reception').checked;
     $('s-who').textContent = reception ? 'Réception' : 'Administrateur';
-    if (!orders.length && stepKey === 'orders') stepKey = 'recap';
-    var cur = stepKey === 'orders' ? 'Commandes Mon séjour' : 'Récapitulatif';
-    $('s-stepper').innerHTML = steps().map(function(s){ return '<span class="' + (s === cur ? 'cur' : '') + '">' + s + '</span>'; }).join('');
     var pane = $('s-pane'), html = '';
-    if (stepKey === 'orders') {
-      html += '<h4 style="margin:0 0 .4rem;font-family:var(--serif)">Commandes Mon séjour</h4>';
-      orders.forEach(function(o, i){
-        html += '<div class="row"><span>Commande ' + (i + 1) + ' — ' + o.lines.join(', ') + '<br><span class="cap">Livraison ' + o.when + '</span></span><span>' + eur(o.total) + '</span></div>';
+    if (cancelled) {
+      $('s-stepper').innerHTML = '';
+      html += '<h4 style="margin:0 0 .4rem;font-family:var(--serif)">Séjour annulé : pas de sas</h4><p class="cap" style="margin-top:0">Ce que montre « Commandes clients », filtre « Toutes » :</p>';
+      orders.forEach(function(o){
+        html += '<div class="row"><span>Commande n° ' + o.id + ' · ' + eur(orderTotal(o)) + '<br><span class="cap" style="margin:0">Séjour annulé · jamais préparée · stock rendu</span></span>' + (o.paid ? '<span class="chip err">Payée · à rembourser</span>' : '<span class="chip off">Annulée</span>') + '</div>';
       });
-      html += '<div class="row"><b>Total des commandes</b><b>' + eur(ordersTotal()) + '</b></div>';
-      html += '<p class="cap">Comprises dans le complément d’arrivée. Rien à encaisser ici : le récapitulatif encaisse tout en un paiement.</p>';
+      html += '<p class="cap">Une commande payée se rembourse depuis le séjour annulé, avec le remboursement existant ; rien n’est remboursé automatiquement.</p>';
+      pane.innerHTML = html; return;
+    }
+    var pre = orders.length > 0;
+    var steps = pre ? ['Caution','Linge','Mon séjour','Commandes Mon séjour','Récapitulatif'] : ['Caution','Linge','Mon séjour','Récapitulatif'];
+    if (!pre) sasStep = 'recap';
+    var cur = sasStep === 'orders' ? 'Commandes Mon séjour' : 'Récapitulatif';
+    $('s-stepper').innerHTML = steps.map(function(s){ return '<span class="' + (s === cur ? 'cur' : '') + '">' + s + '</span>'; }).join('');
+    if (sasStep === 'orders') {
+      var n = orders.filter(live).length;
+      html += '<div class="fold"><button type="button" class="sum" id="s-fold" aria-expanded="' + foldOpen + '" aria-controls="s-foldbody"><span><span class="sumt">Commandes Mon séjour</span><span class="sums">' + n + ' commande' + (n > 1 ? 's' : '') + ' · ' + eur(toCollect()) + (collected ? ' perçus' : ' à percevoir') + (paidTotal() ? ' · ' + eur(paidTotal()) + ' payés par carte' : '') + '</span></span>'
+        + '<svg class="chev" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+        + '<div class="foldbody' + (foldOpen ? ' open' : '') + '" id="s-foldbody"><div>' + orders.map(orderHtml).join('')
+        + '<div class="tots"><div class="row"><b>Total à percevoir</b><b>' + eur(toCollect()) + '</b></div>' + (paidTotal() ? '<div class="row"><span>Déjà payé par carte</span><span>' + eur(paidTotal()) + '</span></div>' : '') + '</div></div></div></div>';
+      html += '<p class="cap">Les commandes à percevoir sont comprises dans le complément d’arrivée : le récapitulatif les encaisse en un paiement. Une commande payée par carte n’est jamais réencaissée.' + (reception ? ' La réception voit ces lignes et leurs montants, rien d’autre de l’argent du séjour.' : '') + '</p>';
+      if (history) html += '<p class="msg ok">' + esc(history) + '</p>';
       html += '<div class="navbtns"><button type="button" class="go" id="s-next">Continuer</button></div>';
     } else {
-      var comp = STAY_COMPLEMENT + ordersTotal();
+      var comp = STAY_COMPLEMENT + toCollect();
       html += '<h4 style="margin:0 0 .4rem;font-family:var(--serif)">Récapitulatif</h4>';
       html += '<div class="row"><span>Taxe de séjour</span><span>' + eur(STAY_COMPLEMENT) + '</span></div>';
-      if (orders.length) html += '<div class="row"><span>Commandes Mon séjour <span class="cap">(dans le complément d’arrivée)</span></span><span>' + eur(ordersTotal()) + '</span></div>';
+      if (pre) html += '<div class="row"><span>Commandes Mon séjour <span class="cap">(dans le complément d’arrivée)</span></span><span>' + eur(toCollect()) + '</span></div>';
       html += '<div class="row"><b>Complément d’arrivée</b><b>' + eur(comp) + '</b></div>';
-      if (complementPaid) {
-        html += '<p class="msg ok">Encaissé : ' + eur(comp) + ', un seul paiement. Les commandes passent à « Réglée ».</p>';
-      } else {
-        html += '<div class="paybtns" role="group" aria-label="Mode de règlement">'
-          + ['card:Carte','cash:Espèces','defer:Plus tard'].map(function(x){ var p = x.split(':'); return '<button type="button" data-mode="' + p[0] + '" aria-pressed="' + (mode === p[0]) + '">' + p[1] + '</button>'; }).join('')
-          + '</div>';
-        html += '<p class="cap">' + (mode === 'defer' ? '« Plus tard » laisse le complément ouvert ; il pourra être perçu au départ.' : 'Un seul paiement de ' + eur(comp) + '.') + (reception ? ' La réception voit ce complément et ses lignes, rien d’autre de l’argent du séjour.' : '') + '</p>';
-        html += '<div class="navbtns">' + (orders.length ? '<button type="button" id="s-back">Retour</button>' : '') + '<button type="button" class="go" id="s-commit">Valider l’arrivée</button></div>';
+      if (paidTotal()) html += '<p class="cap">Déjà payé par carte : ' + eur(paidTotal()) + ', hors de ce montant.</p>';
+      if (collected) html += '<p class="msg ok">Encaissé : ' + eur(comp) + ', un seul paiement. Les commandes passent à « Réglée ».</p>';
+      else {
+        html += '<div class="paybtns" role="group" aria-label="Mode de règlement">' + ['card:Carte','cash:Espèces','defer:Plus tard'].map(function(x){ var p = x.split(':'); return '<button type="button" data-mode="' + p[0] + '" aria-pressed="' + (mode === p[0]) + '">' + p[1] + '</button>'; }).join('') + '</div>';
+        html += '<p class="cap">' + (mode === 'defer' ? '« Plus tard » laisse le complément ouvert ; il pourra être perçu au départ.' : 'Un seul paiement de ' + eur(comp) + '.') + '</p>';
+        html += '<div class="navbtns">' + (pre ? '<button type="button" id="s-back">Retour</button>' : '') + '<button type="button" class="go" id="s-commit">Valider l’arrivée</button></div>';
       }
-      if (!orders.length) html += '<p class="cap">Aucune commande Mon séjour : pas d’étape dédiée, le sas est celui d’aujourd’hui.</p>';
     }
     pane.innerHTML = html;
-    var n = $('s-next'); if (n) n.onclick = function(){ stepKey = 'recap'; renderSas(); };
-    var b = $('s-back'); if (b) b.onclick = function(){ stepKey = 'orders'; renderSas(); };
-    pane.querySelectorAll('[data-mode]').forEach(function(x){ x.onclick = function(){ mode = (mode === x.dataset.mode) ? 'defer' : x.dataset.mode; renderSas(); }; });
-    var c = $('s-commit'); if (c) c.onclick = function(){ if (mode !== 'defer') { complementPaid = true; } renderSas(); renderOrders(); };
+    var f = $('s-fold'); if (f) f.onclick = function(){ foldOpen = !foldOpen; f.setAttribute('aria-expanded', String(foldOpen)); $('s-foldbody').classList.toggle('open', foldOpen); };
+    var nx = $('s-next'); if (nx) nx.onclick = function(){ sasStep = 'recap'; renderSas(); };
+    var bk = $('s-back'); if (bk) bk.onclick = function(){ sasStep = 'orders'; renderSas(); };
+    pane.querySelectorAll('[data-mode]').forEach(function(x){ x.onclick = function(){ mode = mode === x.dataset.mode ? 'defer' : x.dataset.mode; renderSas(); }; });
+    var cm = $('s-commit'); if (cm) cm.onclick = function(){ if (mode !== 'defer') collected = true; renderSas(); renderOrders(); };
+    var find = function(id){ return orders.filter(function(o){ return o.id === +id; })[0]; };
+    pane.querySelectorAll('[data-d]').forEach(function(b){ b.onclick = function(){
+      var o = find(b.dataset.o), l = o.lines[+b.dataset.l], from = l.qty;
+      l.qty = Math.max(1, Math.min(l.max, l.qty + (+b.dataset.d))); o.amended = true;
+      history = 'Commande client n° ' + o.id + ' modifiée à l’arrivée : ' + l.label + ' ' + from + ' → ' + l.qty + ' (' + ($('s-reception').checked ? 'réception' : 'administrateur') + ').';
+      renderSas(); renderOrders(); }; });
+    pane.querySelectorAll('[data-rm]').forEach(function(b){ b.onclick = function(){
+      var o = find(b.dataset.o), l = o.lines.splice(+b.dataset.rm, 1)[0]; o.amended = true;
+      if (!o.lines.length) o.status = 'cancelled';
+      history = 'Commande client n° ' + o.id + ' modifiée à l’arrivée : ' + l.label + ' retiré' + (o.status === 'cancelled' ? ', commande annulée.' : '.');
+      renderSas(); renderOrders(); }; });
+    pane.querySelectorAll('[data-rmo]').forEach(function(b){ b.onclick = function(){
+      pendingRemove = find(b.dataset.rmo);
+      $('dlg-p').textContent = 'Commande n° ' + pendingRemove.id + ' · ' + eur(orderTotal(pendingRemove)) + '. Ses articles retournent au stock ; le client la voit annulée.';
+      $('dlg').classList.add('open'); $('dlg-yes').focus(); }; });
   }
+  function closeDlg(){ $('dlg').classList.remove('open'); pendingRemove = null; }
+  $('dlg-no').onclick = closeDlg;
+  $('dlg').addEventListener('keydown', function(e){ if (e.key === 'Escape') closeDlg(); });
+  $('dlg-yes').onclick = function(){
+    if (pendingRemove) { pendingRemove.status = 'cancelled'; pendingRemove.amended = true; history = 'Commande client n° ' + pendingRemove.id + ' retirée à l’arrivée.'; }
+    closeDlg(); renderSas(); renderOrders();
+  };
   $('s-reception').addEventListener('change', renderSas);
-  renderApp();
-  if (orders.length) stepKey = 'orders';
-  /* a new order brings the SAS back to its orders step */
-  $('a-order').addEventListener('click', function(){ if (orders.length && !complementPaid) { stepKey = 'orders'; renderSas(); } });
+  $('s-cancel').addEventListener('change', function(){
+    cancelled = $('s-cancel').checked;
+    orders.forEach(function(o){ if (cancelled) { o._was = o.status; o.status = 'cancelled'; } else if (o._was) { o.status = o._was; } });
+    renderSas(); renderOrders();
+  });
+
+  renderDelivery(); renderCart(); renderOrders(); renderBath(); renderSas();
 })();
 </script>
 </body>
