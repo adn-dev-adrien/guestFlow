@@ -1,8 +1,8 @@
 // specs/payment-schedule-and-cancellation.md rule 59 (audit R37-RES-L1) — a caution received and still held when the
 // stay is cancelled is given back on the cancelled fiche: PATCH /payment takes `cautionReturned` (and its date) alone
 // on a cancelled stay, judged as on a live one (rule 12: never before the receipt); the ledger offers « Restituer »;
-// once returned, the stay's client and logement are deletable again. Any other write on the cancelled stay is still
-// 409 RESERVATION_CANCELLED, nothing written.
+// once returned, the caution no longer holds the stay's client and logement (rule 53's history refusal answers
+// instead). Any other write on the cancelled stay is still 409 RESERVATION_CANCELLED, nothing written.
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -44,7 +44,7 @@ test('rule 59: the caution held on a cancelled stay is marked returned, dated to
   assert.deepEqual(caution(id), { received: 1, returned: 1, returnedOn: TODAY });
 });
 
-test('rule 59: once returned, the client and the logement are no longer held by it', () => {
+test('rule 59: once returned, the client and the logement are no longer held by it — the cancelled history answers', () => {
   const id = cancelledWithCaution();
   const { clientId, propertyId } = f.rowOf(id);
   assert.equal(clientsModel.create(f.db).deletionBlocker(clientId), CAUTION_MESSAGES.client);

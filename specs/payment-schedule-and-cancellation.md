@@ -665,9 +665,10 @@ acompte is kept as an indemnity, and the books say so correctly.
     (never before the receipt, today when absent). Any other key, a return taken back, or a caution never received
     stays 409 `RESERVATION_CANCELLED`, nothing written. The ledger offers « Restituer » on the cancelled fiche, drawn
     outside its disabled fieldset beside « + Nouveau remboursement » (confirmed, dated today). Once returned, the
-    stay's client and logement are deletable again. *Why:* a caution received, then the stay cancelled (the delete
-    refusal itself suggests it): the return could never be recorded, and the client and the logement stayed
-    undeletable for good.
+    caution no longer holds the client and the logement: their delete answers rule 53's history refusal (« Ce client
+    a une réservation annulée. »), which is true and keeps the cancelled stay, instead of asking for a return no
+    screen allowed. *Why:* a caution received, then the stay cancelled (the delete refusal itself suggests it): the
+    return could never be recorded, and the client and logement deletes asked « la rendre d'abord ».
 
 
 ---
