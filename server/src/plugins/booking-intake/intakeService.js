@@ -192,7 +192,15 @@ function createIntakeService(deps) {
     return { status: 'applied' };
   }
 
-  const ignoreProposal = (intakeId) => intakes.setStatus(intakeId, 'ignored');
+  // Rule 39 (audit R42 plugins) — « Ignorer » answers a proposal only, as « Appliquer » does: an intake already applied
+  // (a stale second tab) keeps its status and its banner; an id that names nothing is refused.
+  function ignoreProposal(intakeId) {
+    const intake = intakes.get(intakeId);
+    if (!intake) return { status: 404, error: 'NOT_FOUND' };
+    if (intake.status !== 'proposed') return { status: 409, error: 'Proposition déjà traitée.' };
+    intakes.setStatus(intake.id, 'ignored');
+    return { status: 200 };
+  }
   const hide = (intakeId) => intakes.dismiss(intakeId);
 
   // What the fiche's banner renders (rules 17–18), ready to display.

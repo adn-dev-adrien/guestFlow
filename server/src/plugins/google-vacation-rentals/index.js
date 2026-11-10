@@ -22,9 +22,9 @@ const id = 'google-vacation-rentals';
 
 function register(ctx) {
   ctx.migrations(MIGRATIONS);
-  ctx.settings.declare(declared(ctx.settings));
 
   const listProperties = () => ctx.db.prepare('SELECT id, name FROM properties ORDER BY id').all();
+  ctx.settings.declare(declared(ctx.settings, { listProperties }));
   const settings = createSettings({ store: ctx.settings, listProperties });
 
   // Built on first use: register() only declares (specs/plugins-phase-1-sdk.md §3.B).

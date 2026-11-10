@@ -370,7 +370,11 @@ patch. No new edge behavior is introduced.
    refusal. *Reading of 2026-11-10 (audit R41-DB-L1, L2):* `PUT /properties/:id` on a logement that does not exist answers
    404 « Logement non trouvé », never a 200 « ok » on an UPDATE that touched nothing (with a photo written to /uploads
    for nobody); `POST /properties/:id/documents` answers the same and removes the file the upload had already written.
-   Test: `tests/unknown-id-refused.unit.test.js`.
+   Test: `tests/unknown-id-refused.unit.test.js`. *Reading of 2026-11-10 (audit R42-C-L1):* `POST
+   /properties/:id/pricing/assign-dates` checks the logement first, whatever the target: on one that does not exist (a
+   tab left open on its seasons after its deletion) it answers 404 « Logement non trouvé », where « Une nouvelle saison »
+   reached the new season's foreign-key INSERT and answered 500. The dialog shows the message. Nothing is written. Test:
+   `tests/property-assign-dates-unknown-logement.unit.test.js`.
 
 ---
 

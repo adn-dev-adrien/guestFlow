@@ -2,7 +2,7 @@
 // ledger key: anything else is 400 INVALID_FIELD_TYPE, no permanent garbage row.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { db, build, reset, addReservation } = require('./reconciliationFixture');
+const { db, build, reset, addReservation, credit } = require('./reconciliationFixture');
 
 test.beforeEach(() => { reset(); });
 const rows = () => db.prepare('SELECT * FROM bank_reconciliation_discards').all();
@@ -28,7 +28,9 @@ test('rule 68 — wrong types are refused and nothing is stored', () => {
 
 test('rule 68 — the fiche\'s own discard still lands, digits of an id included', () => {
   const id = addReservation({});
-  const { controller } = build();
+  const { controller, transactions } = build();
+  // Qonto-bank-reconciliation rule 51 (audit R42-EXT-L1) — the fiche discards credits it read.
+  transactions.upsertMany([credit('t1', 1000), credit('t2', 2000)], { bankAccountId: 'acc-1' });
   assert.equal(controller.discard({ transactionId: 't1', reservationId: id, ledgerKey: 'solde' }).status, 201);
   assert.equal(controller.discard({ transactionId: 't2', reservationId: String(id), ledgerKey: 'solde' }).status, 201);
   assert.equal(rows().length, 2);

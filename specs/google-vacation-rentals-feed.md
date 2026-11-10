@@ -135,6 +135,13 @@ size already filled in — with no channel manager in between.
     dates and that party size prefilled (WordPress plugin change, rule 19).
 19. The WordPress booking block reads `checkin`, `checkout` (DD/MM/YYYY) and `guests` from the URL
     when present; invalid or past values are ignored silently and the block opens empty, as today.
+20. **Added 2026-11-10 (audit R42-EXT-L2) — the `properties` setting names logements.** A key that names no logement of
+    the core is refused « Logement inconnu. », nothing stored; a key already stored stays accepted, so the line of a
+    logement deleted since never blocks a save. Rule 16's « at least one enabled property » counts the enabled entries of
+    real logements only. *Why:* a phantom key let Envoi pass with no logement, and the logement created later under that
+    id was born enabled with a code nobody chose, then sent to Google by the daily re-send. Tests:
+    `google-vacation-rentals/tests/settings-unknown-logement.unit.test.js`,
+    `server/src/tests/plugin-settings-unknown-logement.unit.test.js`. google-vacation-rentals 1.0.5.
 
 **Edge cases**
 - A property with no pricing rule on a date → no price sent for itineraries touching it, the date is

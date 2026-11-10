@@ -57,6 +57,8 @@ const wrongShape = () => ({ status: 400, body: { error: 'Requête invalide.', co
 const pairsRead = (pairs) => !Array.isArray(pairs) || pairs.every((p) => p && typeof p === 'object' && !Array.isArray(p)
   && optionalScalar(p.transactionId) && optionalScalar(p.reservationId) && optionalScalar(p.ledgerKey) && optionalScalar(p.amountCents));
 const listRead = (list) => !Array.isArray(list) || list.every(isScalar);
+const unknownReservation = () => ({ status: 404, body: { error: 'Réservation introuvable.', code: 'UNKNOWN_RESERVATION' } });
+const unknownTransaction = () => ({ status: 404, body: { error: 'Virement introuvable.', code: 'UNKNOWN_TRANSACTION' } });
 
 function createReconciliationController({ db, settings, transactions, model, writer, read, connected, qontoConfigured, withQonto, core }) {
   let lastAttemptAt = 0;
@@ -594,6 +596,10 @@ function createReconciliationController({ db, settings, transactions, model, wri
       // A garbage row here is inert but permanent.
       const id = typeof reservationId === 'string' && /^[1-9]\d*$/.test(reservationId) ? Number(reservationId) : reservationId;
       if (!isName(transactionId) || !isName(ledgerKey) || !Number.isSafeInteger(id) || id <= 0) return wrongShape();
+      // Rule 68 reading (audit R42-EXT-L1) — a stay or a credit that names nothing is refused, nothing stored: a pair kept
+      // for a stay id not yet given hid that stay's proposal once it was created.
+      if (!db.prepare('SELECT 1 FROM reservations WHERE id = ?').get(id)) return unknownReservation();
+      if (!transactions.get(transactionId)) return unknownTransaction();
       const txIdsOf = (p) => (p.parts ? p.parts.map((x) => x.transactionId) : [p.transactionId]);
       const shown = Object.values(compute().byTransaction).map((slot) => slot.proposal)
         .find((p) => p && txIdsOf(p).includes(String(transactionId))
@@ -607,6 +613,7 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     setOutside({ transactionId, outside, user }) {
       if (!connected()) return notConnected();
+      if (outside && !transactions.get(transactionId)) return unknownTransaction();
       if (outside) model.markOutside(transactionId, user && user.id ? user.id : null);
       else model.unmarkOutside(transactionId);
       return { status: 200, body: { ok: true } };

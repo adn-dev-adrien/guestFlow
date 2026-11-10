@@ -289,6 +289,14 @@ attempts since 2026-10-16 were all refused « Sous-total introuvable »).
     nothing stored. *Why:* reservation ids are AUTOINCREMENT, so a dismissal stored on an id not yet given hid the iCal
     Booking stay that later received it from « À compléter », its « Paiement plateforme » block never filled. Test:
     `public-route.unit.test.js` (rule 37: the route and the model).
+38. **Added 2026-11-10 (audit R42-EXT-L2 class) — `hotelIds` names logements.** A key of the setting that names no
+    logement of the core is refused « Logement inconnu. », nothing stored. A key already stored stays accepted, so the line of a logement deleted since never blocks a save. *Why:* the map read any digits as a logement; a phantom key bypassed the read pass's « nothing tied yet » skip and tied a logement created later (ids are AUTOINCREMENT, never reused, but given in order) to a listing nobody chose. Same class as google-vacation-rentals-feed rule 20. Test: `server/src/tests/plugin-settings-unknown-logement.unit.test.js`, plus `engine.unit.test.js`. booking-intake 1.3.14.
+39. **Added 2026-11-10 (audit R42, plugins slice) — « Ignorer » answers a proposal only.** `POST
+    /api/booking-intake/:id/ignore` sets `ignored` only on a `proposed` intake, as « Appliquer » requires; an intake
+    already `applied` or `ignored` answers 409 « Proposition déjà traitée. », an id that names nothing 404 `NOT_FOUND`;
+    nothing changes. *Why:* « Ignorer » clicked in a stale second tab after « Appliquer » in the first turned the applied
+    intake into « ignoré » and removed the fiche's « Rempli depuis l'extranet » banner. The banner shows the message.
+    Test: `booking-intake/tests/ignore-applied.unit.test.js`. booking-intake 1.3.14.
 
 ---
 
