@@ -867,6 +867,17 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     The neighbouring payment writes already read their inputs strictly (single arrival payment: a `mode` text;
     installments and refunds: method, tenders, date; `/arrival`: `invoice === true`). Tests:
     `plugins/sas/tests/sas-flag-input-shape.unit.test.js`.
+73. **A cancelled plan owes nothing more** (audit R42-M-L1, 2026-11-10). `reservationSettlement.remainingToPay` leaves
+    the unpaid installments out on a cancelled stay (`kind = 'cancelled'`): the cancellation wrote them off (« Solde
+    abandonné », payment-schedule-and-cancellation) and the cancelled fiche draws no plan row. The ledger closing and
+    `computePaymentStatus.remainingDue` read it, so rule 5's one « reste dû » still holds and « remaining equals
+    `remainingToPay` » too. A live plan still counts its unpaid installments; a cancelled stay without a plan keeps its
+    rows' reading (its unpaid solde stays « À percevoir », as written above). *Why:* the cancelled plan fiche closed on
+    « Reste à percevoir 3 089,60 € » under rows that all said nothing was owed (acompte « Sans objet », solde « Rien à
+    percevoir »); the finance views already left the cancelled stay out. *Reading of 2026-11-10 (verification R42 L4):* a
+    cancelled stay that owes nothing closes on « Rien à percevoir » (muted), never « Tout est perçu », which read the
+    write-off as a payment. Test:
+    `tests/cancelled-plan-remaining.unit.test.js`.
 
 ## 4. Architecture
 

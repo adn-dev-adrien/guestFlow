@@ -851,6 +851,7 @@ function buildLedger({
   // ── Reste à percevoir (rule 5) ────────────────────────────────────────────
   const remaining = remainingToPay({
     ...r,
+    kind,
     depositDisabled: depositDisabled ? 1 : 0,
     depositAmount,
     balanceAmount,
@@ -862,11 +863,15 @@ function buildLedger({
   return {
     rows,
     remaining,
-    remainingLabel: remaining === 0 ? 'Tout est perçu' : `Reste à percevoir ${formatEuros(remaining)}`,
+    // Rule 73 (verification R42 L4) — a cancelled stay that owes nothing closes on its rows' own words: nothing was
+    // necessarily collected, so « Tout est perçu » would read the write-off as a payment.
+    remainingLabel: remaining === 0 ? (cancelled ? 'Rien à percevoir' : 'Tout est perçu') : `Reste à percevoir ${formatEuros(remaining)}`,
     closing: remaining === 0
-      ? (unpriced && !(quote && Number(quote.finalPrice) > 0)
-        ? { label: 'Prix à renseigner', amount: null, tone: 'muted' }
-        : { label: 'Tout est perçu', amount: null, tone: 'done' })
+      ? (cancelled
+        ? { label: 'Rien à percevoir', amount: null, tone: 'muted' }
+        : unpriced && !(quote && Number(quote.finalPrice) > 0)
+          ? { label: 'Prix à renseigner', amount: null, tone: 'muted' }
+          : { label: 'Tout est perçu', amount: null, tone: 'done' })
       : { label: 'Reste à percevoir', amount: remaining, tone: 'due' },
     settled: remaining === 0,
   };

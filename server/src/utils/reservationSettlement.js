@@ -115,7 +115,10 @@ function remainingToPay(r) {
   const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm - platformPenalty(r) : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
-  return round2(deposit + balance + complement + endOfStay + round2(r.installmentsUnpaidAmount) + splitAdjustment(r).due);
+  // Reservation-payment-ledger rule 73 (audit R42-M-L1) — a cancellation writes the unpaid installments off (« Solde
+  // abandonné ») and a cancelled fiche draws no plan row: nothing of the plan is still to collect.
+  const installments = r.kind === 'cancelled' ? 0 : round2(r.installmentsUnpaidAmount);
+  return round2(deposit + balance + complement + endOfStay + installments + splitAdjustment(r).due);
 }
 
 /**

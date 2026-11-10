@@ -215,6 +215,11 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     already-sent mail with the local day of the ledger's `sentAt` (a UTC `datetime('now')`), through
     `vatRegime.bookingDayOf` (`specs/finance-dashboard-redesign.md` rule 50). *Why:* a mail sent between
     00:00 and 01:00 / 02:00 in Paris read as sent the day before.
+37. **The unsubscribe page declares the language it speaks** (audit R42-PUB-L1, 2026-11-10). The page of rule 9, its
+    confirmation and its « déjà fait » state carry `<html lang="en">` around the English copy, `lang="fr"` around the
+    French one; the neutral unknown-token page stays `fr`. *Why:* it always declared `fr`, so a screen reader or a
+    browser's translation offer read the English text as French, while the guest e-mails and the guest app declare
+    their language. Test: `tests/email-preferences-lang.unit.test.js`.
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not

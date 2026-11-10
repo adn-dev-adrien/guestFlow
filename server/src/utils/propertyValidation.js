@@ -64,6 +64,14 @@ function validatePoolSeason(body, errors, existing) {
 // else stops here, before a validator reads it or the model stores it. A time is HH:MM or empty, a stored one exempt.
 const TEXT_KEYS = ['name', 'nameArticle', 'photo', 'touristTaxMode', 'extraGuestPriceUnit', 'poolSeasonMode', 'poolSeasonStart', 'poolSeasonEnd'];
 const TIME_KEYS = ['defaultCheckIn', 'defaultCheckOut'];
+// Settings-input-guards rule 64 (audit R42-INJ-L1) — the e-mail facts are judged here too, before the first write: the
+// hook as the e-mail hooks route judges it, a switch or a yes/no answer as one of its values (`options`: the options
+// decide). They were judged by nobody and stored « [object Object] », or threw after the logement was already saved.
+const EMAIL_HOOK_KEYS = ['emailHook', 'emailHookEn'];
+const EMAIL_HOOK_MAX_LENGTH = 300;
+const SWITCH_VALUES = [true, false, 1, 0, '1', '0', 'true', 'false'];
+const SWITCH_KEYS = ['hasWifi', 'depositEnabled'];
+const ANSWER_KEYS = ['cleaningIncluded', 'towelsProvided', 'bedLinenProvided'];
 // utils/pricing.js computes these three: any other mode silently quotes no tax (settings-input-guards rule 56).
 const TOURIST_TAX_MODES = ['per_day_per_person', 'percentage_accommodation', 'percentage_and_fixed'];
 const NUMBER_KEYS = [
@@ -83,6 +91,19 @@ function shapeErrors(body, existing) {
   }
   for (const key of TIME_KEYS) {
     if (sent(key) && !(existing && body[key] === existing[key]) && !isClockTime(body[key])) errors[key] = 'Heure invalide.';
+  }
+  for (const key of EMAIL_HOOK_KEYS) {
+    if (!sent(key)) continue;
+    if (typeof body[key] !== 'string') errors[key] = 'Valeur invalide.';
+    else if (body[key].length > EMAIL_HOOK_MAX_LENGTH && !(existing && body[key] === existing[key])) {
+      errors[key] = `Une accroche ne dépasse pas ${EMAIL_HOOK_MAX_LENGTH} caractères.`;
+    }
+  }
+  for (const key of SWITCH_KEYS) {
+    if (sent(key) && !SWITCH_VALUES.includes(body[key])) errors[key] = 'Valeur invalide.';
+  }
+  for (const key of ANSWER_KEYS) {
+    if (sent(key) && !SWITCH_VALUES.includes(body[key]) && body[key] !== 'options') errors[key] = 'Valeur invalide.';
   }
   // Settings-input-guards rule 56.
   if (sent('touristTaxMode') && !errors.touristTaxMode && !TOURIST_TAX_MODES.includes(body.touristTaxMode)
@@ -254,4 +275,35 @@ function progressivePreviewRefusal(body = {}) {
   return tierRefusal({ progressiveTiers: body.progressiveTiers });
 }
 
-module.exports = { validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal };
+// Settings-input-guards rule 63 (audit R42-DB-L1 / R42-INJ-L2) — a document's type is one the page offers, a name sent one
+// text of at most 200 characters (rule 60's bound on the stored file name); none sent, the file's own name (rule 60).
+const DOCUMENT_TYPES = ['contract', 'rules', 'other'];
+const DOCUMENT_NAME_MAX_LENGTH = 200;
+function documentFieldsRefusal(body = {}) {
+  const refused = (field) => ({ error: 'Valeur invalide.', field, status: 400 });
+  const type = body.type;
+  if (type !== undefined && type !== null && type !== '' && !DOCUMENT_TYPES.includes(type)) return refused('type');
+  const name = body.name;
+  if (name !== undefined && name !== null && typeof name !== 'string') return refused('name');
+  if (typeof name === 'string' && name.length > DOCUMENT_NAME_MAX_LENGTH) {
+    return { error: `Un nom de ${DOCUMENT_NAME_MAX_LENGTH} caractères au plus.`, field: 'name', status: 400 };
+  }
+  return null;
+}
+
+// Rule 63 (verification R42 L1, L2) — the stored name: the one sent, trimmed; empty or blank, the file's own name, its
+// base shortened so the whole stays within the 200 characters a sent name may have (the extension kept).
+function documentDisplayName(sent, originalname) {
+  const given = typeof sent === 'string' ? sent.trim() : '';
+  if (given) return given;
+  const own = String(originalname || '');
+  if (own.length <= DOCUMENT_NAME_MAX_LENGTH) return own;
+  const dot = own.lastIndexOf('.');
+  const ext = dot > 0 && own.length - dot <= 16 ? own.slice(dot) : '';
+  return own.slice(0, DOCUMENT_NAME_MAX_LENGTH - ext.length) + ext;
+}
+
+module.exports = {
+  validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal, documentFieldsRefusal, documentDisplayName,
+  EMAIL_HOOK_MAX_LENGTH,
+};

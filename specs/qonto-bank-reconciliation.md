@@ -357,6 +357,13 @@ a short list of the gaps to fix on the fiches.
     failure), kept on purpose; the state is rare (a copy whose secrets were purged), costs nothing, and a true first
     install, with no authorisation, records nothing. Test: `reconciliation-job-unconfigured.unit.test.js` (the job),
     `qonto-failure-record.unit.test.js` (rule 12).
+51. **« Écarter » and « Hors réservation » name a stay and a credit that exist (audit R42-EXT-L1, 2026-11-10).** `POST
+    /discards` answers 404 `UNKNOWN_RESERVATION` when the stay id names no reservation and 404 `UNKNOWN_TRANSACTION` when
+    the credit was never read; `POST /transactions/:id/outside` answers the latter for a credit never read. Nothing is
+    stored; the shape refusal (hosting-h2 rule 68) still comes first, and « Défaire » / the unmark are unchanged. *Why:*
+    a pair stored for a stay id not yet given (ids are AUTOINCREMENT) hid that stay's proposal once it was created, and
+    an « outside » row on an unknown id was permanent junk. The page and the fiche discard only what they show.
+    online-payment 1.7.5. Test: `reconciliation-discard-unknown-ids.unit.test.js`.
 
 **Edge cases:**
 - Reservation cancelled after a payment was reconciled → leaves the scope; its reconciliations stay

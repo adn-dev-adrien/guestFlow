@@ -67,7 +67,10 @@ function adminRouter({ service, pending, dismissFiche, intakeLog, userscript, cr
     const result = service().applyProposal(Number(req.params.id));
     res.status(result.status === 'error' ? 400 : 200).json(result);
   });
-  router.post('/:id/ignore', (req, res) => { service().ignoreProposal(Number(req.params.id)); res.json({ ok: true }); });
+  router.post('/:id/ignore', (req, res) => {
+    const result = service().ignoreProposal(Number(req.params.id));
+    return result.status === 200 ? res.json({ ok: true }) : res.status(result.status).json({ error: result.error });
+  });
   router.post('/:id/hide', (req, res) => { service().hide(Number(req.params.id)); res.json({ ok: true }); });
   return router;
 }

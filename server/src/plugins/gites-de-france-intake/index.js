@@ -34,12 +34,23 @@ function register(ctx) {
     { name: 'intakes_parser_version_v3', up: addParserVersionColumn },
   ]);
 
+  // specs/gites-de-france-mail-intake.md rule 36 (audit R42-EXT-L2 class) — a key names a logement of the core, or one already stored (a deleted
+  // logement's line never blocks a save). A phantom key bypassed the « nothing tied yet » skip and tied a logement
+  // created later to a listing nobody chose.
+  const unknownLogementKey = (raw) => {
+    let map;
+    try { map = JSON.parse(raw || '{}'); } catch { return null; }
+    let stored = {};
+    try { stored = JSON.parse(ctx.settings.get('giteNumbers') || '{}') || {}; } catch { /* unreadable: nothing exempt */ }
+    const allowed = new Set([...ctx.db.prepare('SELECT id FROM properties').all().map((r) => String(r.id)), ...Object.keys(stored)].map((k) => String(Number(k))));
+    return Object.keys(map || {}).some((k) => !allowed.has(String(Number(k)))) ? 'Logement inconnu.' : null;
+  };
   ctx.settings.declare([
     { key: 'senderAddress', supportLocked: true, default: 'resa@gdf07.com' },
     { key: 'imapHost', supportLocked: true, default: '', validate: (v) => (!v || sdk.mailbox.resolveImapHost(ctx.core.settings.mailbox().host, v) === String(v).trim().toLowerCase() ? null : 'Un serveur du même domaine que le serveur d’envoi.') },
     { key: 'imapPort', supportLocked: true, default: '993' },
     { key: 'pollEveryHours', default: '3', validate: validateHours },
-    { key: 'giteNumbers', default: '{}', validate: validateGiteNumbers },
+    { key: 'giteNumbers', default: '{}', validate: (v) => validateGiteNumbers(v) || unknownLogementKey(v) },
     { key: 'autoApply', default: '1' },
     { key: 'senderDomains', supportLocked: true, default: '' },
     { key: 'trustedAuthservId', supportLocked: true, default: '' },

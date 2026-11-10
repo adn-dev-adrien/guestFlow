@@ -1,7 +1,7 @@
 {
   "id": "booking-intake",
   "name": "Saisie Booking",
-  "version": "1.3.13",
+  "version": "1.3.14",
   "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
   "icon": "bookmark",
   "surfaces": [
@@ -85,6 +85,11 @@
     ],
     "1.3.13": [
       "« Ignorer » refuse un numéro de fiche qui ne désigne aucun séjour.",
+      "Compatible avec GuestFlow 4 (SDK 2.15)."
+    ],
+    "1.3.14": [
+      "Réglages : un établissement rattaché à un logement inconnu est refusé.",
+      "« Ignorer » refuse une proposition déjà appliquée ou ignorée.",
       "Compatible avec GuestFlow 4 (SDK 2.15)."
     ]
   }
