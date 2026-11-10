@@ -87,7 +87,7 @@ withStay('rule 87: a lower quantity — re-priced by the core, the order\'s snap
   const res = await amend(call, orderId, { lines: [{ key: `opt:${CIDER}`, quantity: 1 }] });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   assert.equal(res.body.ordersAtArrival.orders[0].totalLabel, euros(6));
-  assert.equal(res.body.ordersAtArrival.changed, true);
+  assert.equal(res.body.ordersAtArrival.changed, false, 'an amendment from the step rewrites the snapshots: nothing is « lowered since »');
   const row = orderRow(orderId);
   assert.deepEqual([row.total, JSON.parse(row.linesJson)[0].quantity, JSON.parse(row.linesJson)[0].total, row.status], [6, 1, 6, 'confirmed']);
   assert.equal(JSON.parse(row.amendmentsJson).length, 1);

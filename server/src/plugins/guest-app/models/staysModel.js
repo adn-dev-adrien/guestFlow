@@ -33,6 +33,12 @@ function createStaysModel(db) {
       return Number(row.complementDeferredToCheckout) === 1 ? 'deferred' : 'open';
     },
 
+    /** Rule 71 — what the arrival complement now asks (net of the orders paid by card), to tell a lowered fiche from the orders' snapshots. */
+    arrivalComplementAmount(id) {
+      const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
+      return row ? Math.round((Number(row.complementAmount) || 0) * 100) / 100 : 0;
+    },
+
     /** Rule 6 — every live reservation carrying the number: two stays may share one, the name tells them apart. */
     byReservationNumber(number) {
       return db.prepare(`

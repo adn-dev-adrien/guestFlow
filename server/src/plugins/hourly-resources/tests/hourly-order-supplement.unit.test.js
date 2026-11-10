@@ -48,3 +48,14 @@ test('rule 38: the arrival recompute subtracts the evening charges the guest-app
   db.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, orderChargeKey) VALUES (500, 'autre', 9, 'guest-order:9:evening:2')").run();
   assert.deepEqual(model.storedSupplements(reservation), [], 'another resource\'s charge is not subtracted here');
 });
+
+test('rule 38 (audit item 13): an evening charge the operator offered still covers its evening — the SAS never bills it again', () => {
+  const db = seed();
+  db.prepare("INSERT INTO reservations (id, propertyId, startDate, endDate, checkInTime, checkOutTime) VALUES (501, 1, '2099-07-13', '2099-07-15', '16:00', '10:00')").run();
+  db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, priceType, offered, unitPrice, billedUnits, totalPrice, sessions)
+              VALUES (501, 1, 1, 'per_hour', 1, 25, 0, 0, ?)`).run(JSON.stringify([evening('20:00', '21:00')]));
+  db.exec('ALTER TABLE reservation_custom_options ADD COLUMN orderChargeKey TEXT');
+  db.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, offered, orderChargeKey) VALUES (501, 'Bain nordique — supplément soirée', 10, 1, 'guest-order:7:evening:1')").run();
+  const model = schedulingModel.create(db);
+  assert.deepEqual(model.storedSupplements({ id: 501, propertyId: 1, startDate: '2099-07-13', endDate: '2099-07-15' }), [], 'offered at the recap: the evening is covered, not billed a second time');
+});

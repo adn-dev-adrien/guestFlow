@@ -152,13 +152,14 @@ function createBookingLinesModel(database) {
       if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
       const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
       const qty = CUSTOM_OPTION_COLUMNS.has('quantity') ? 'quantity' : '1 AS quantity';
-      // specs/guest-app.md rule 83 — a charge an order of a plugin wrote travels the same way, by its label.
+      // specs/guest-app.md rule 83 — a charge an order of a plugin wrote travels with it too, by the row's id (never its label).
       const charge = CUSTOM_OPTION_COLUMNS.has('orderChargeKey') ? 'orderChargeKey' : 'NULL AS orderChargeKey';
       const chargeClause = CUSTOM_OPTION_COLUMNS.has('orderChargeKey') ? ' OR orderChargeKey IS NOT NULL' : '';
-      return database.prepare(`SELECT description, ${key}, ${qty}, ${charge}, COALESCE(sasArrivalOrigin, 0) AS sasArrivalOrigin
+      return database.prepare(`SELECT id, description, ${key}, ${qty}, ${charge}, COALESCE(sasArrivalOrigin, 0) AS sasArrivalOrigin
                                  FROM reservation_custom_options WHERE reservationId = ? AND (COALESCE(sasArrivalOrigin, 0) = 1${chargeClause})
                                 ORDER BY sortOrder, id`)
         .all(bookingId).map((r) => ({
+          id: Number(r.id),
           description: String(r.description || '').trim(),
           sasLineKey: r.sasLineKey || null,
           quantity: Number(r.quantity) || 1,
@@ -169,13 +170,32 @@ function createBookingLinesModel(database) {
 
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = []) {
       const pendingSasLabels = [...sasOriginLabels];
+      // Rule 83 — a row's marker follows the row's own id first: two lines may share a label (the SAS's evening supplement and an
+      // order's charge, two orders' charges), and a renamed or reordered line must neither lose its key nor take another's.
+      // Only a SAS marker without a key falls back on the label, as before; an order charge is never matched by words.
+      const taken = new Set();
+      const byId = new Map();
+      for (const line of optionLines || []) {
+        if (!line.isCustom || line.customOptionId == null) continue;
+        const entry = pendingSasLabels.find((l) => l.id != null && Number(l.id) === Number(line.customOptionId) && !taken.has(l));
+        if (entry) {
+          taken.add(entry);
+          byId.set(line, entry);
+        }
+      }
       let sortOrder = 0;
       for (const line of optionLines || []) {
         if (!line.isCustom) continue;
         const forced = line.inComplement ? 1 : 0;
         const description = String(line.title || line.description || '').trim();
-        const sasIndex = pendingSasLabels.findIndex((l) => l.description === description);
-        const sasLine = sasIndex >= 0 ? pendingSasLabels.splice(sasIndex, 1)[0] : null;
+        let sasLine = byId.get(line) || null;
+        if (!sasLine) {
+          const sasIndex = pendingSasLabels.findIndex((l) => !taken.has(l) && !l.orderChargeKey && l.description === description);
+          if (sasIndex >= 0) {
+            sasLine = pendingSasLabels[sasIndex];
+            taken.add(sasLine);
+          }
+        }
         insertCustomOption({
           reservationId: bookingId,
           description,

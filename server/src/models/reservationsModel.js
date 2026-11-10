@@ -3069,7 +3069,7 @@ function createReservationsModel(database) {
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
         // specs/guest-app.md rule 85 — the money of an order paid by card before the arrival is the provider's: the
         // refund path gives it back, a note of the register does not un-collect it.
-        if (note.moment === 'arrival') throw midStayError('NOTE_NOT_FOUND', 'Note de paiement en ligne : à rembourser, non annulable.');
+        if (note.moment === 'arrival') throw midStayError('NOTE_ONLINE_PAYMENT', 'Note de paiement en ligne : à rembourser, non annulable.');
 
         const detail = parseDetailLines(row.endOfStayComplementDetail);
         const sasLines = detail.filter((l) => l.source !== MID_STAY_SOURCE);
@@ -3118,7 +3118,7 @@ function createReservationsModel(database) {
      * « annuler la note » already makes. The prestations themselves are never un-sold (rule 26): to
      * really write the money off, the operator offers the line in the departure SAS.
      *
-     * @throws {Error} `code` = NOTE_NOT_FOUND | NOTE_AMOUNT_INVALID | END_OF_STAY_SETTLED
+     * @throws {Error} `code` = NOTE_NOT_FOUND | NOTE_AMOUNT_INVALID | END_OF_STAY_SETTLED | NOTE_ONLINE_PAYMENT
      */
     adjustMidStayNote(reservationId, { id, total, paidDate, cash } = {}) {
       if (!HAS_MID_STAY_NOTES) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
@@ -3133,6 +3133,8 @@ function createReservationsModel(database) {
         const notes = parseNotes(row.midStaySettledNotes);
         const note = notes.find((n) => Number(n.id) === Number(id));
         if (!note) throw midStayError('NOTE_NOT_FOUND', 'Note introuvable.');
+        // specs/guest-app.md rule 85 — the same money, the same refusal as « annuler » : total, mode and date are the provider's.
+        if (note.moment === 'arrival') throw midStayError('NOTE_ONLINE_PAYMENT', 'Note de paiement en ligne : à rembourser, non modifiable.');
 
         if (paidDate !== undefined) note.paidDate = paidDate || note.paidDate;
         if (cash !== undefined) note.paidCash = cash ? 1 : 0;

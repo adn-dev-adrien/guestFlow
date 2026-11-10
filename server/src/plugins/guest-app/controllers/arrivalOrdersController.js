@@ -5,10 +5,11 @@
  * (`midStayOrderCommit.amendOrder`); this file judges what only the plugin knows: the article's bounds, the stock, the
  * order's own snapshot and journal.
  *
- *   dataFor(reservationId)                      → `pluginData['guest-app'].ordersAtArrival` of the SAS, or null (no step)
+ *   dataFor(reservationId)                      → `pluginData['guest-app'].ordersAtArrival` of the SAS, or null (no step: no order, or the
+ *                                               arrival complement is collected)
  *   POST /api/guest-app/orders/:id/amend        `{ lines?, removeSessions?, removeMornings?, removeOrder? }`
  *                                               → 200 `{ order, ordersAtArrival }`; 409 ORDER_PAID_READ_ONLY / ORDER_NOT_EDITABLE /
- *                                               OUT_OF_STOCK / ORDER_PERSONS_EXCEEDED / the core's two; 403 outside the reception's day
+ *                                               OUT_OF_STOCK / ITEM_MAX_QUANTITY / ORDER_PERSONS_EXCEEDED / the core's two; 403 outside the reception's day
  */
 
 const sdk = require('../../sdk');
@@ -30,11 +31,19 @@ const WORDS = Object.freeze({
   invalid: 'Modification invalide.',
   outsideScope: 'Modification impossible hors du jour d’arrivée.',
   outOfStock: (left) => `Plus que ${left} en stock.`,
+  maxQuantity: (max, title) => `${max} au plus pour « ${title} ».`,
+  cancelledNothing: 'Rien à percevoir',
+  chargeSuffix: (amount) => `+ ${amount} soirée`,
+  offered: 'offerte',
+  summary: (count, toCollect) => `${count} commande${count > 1 ? 's' : ''}${toCollect ? ` · ${toCollect} à percevoir` : ''}`,
+  recapNote: (amount) => `Commandes Mon séjour : ${amount} (dans le complément d’arrivée)`,
 });
 
 const fail = (res, status, code, error, extra = {}) => res.status(status).json({ error, code, ...extra });
 
-const lineKeyOf = (line) => `${line.kind === 'resource' ? 'res' : 'opt'}:${Number(line.id)}`;
+// One namespace per kind: a charge keyed by its resource's id never meets an option of the same id (audit item 10).
+const KEY_PREFIX = Object.freeze({ resource: 'res', breakfast: 'brk', charge: 'chg' });
+const lineKeyOf = (line) => `${KEY_PREFIX[line.kind] || 'opt'}:${Number(line.id)}`;
 const isObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
 function buildArrivalOrdersController({
@@ -47,23 +56,42 @@ function buildArrivalOrdersController({
   const editableStay = (reservationId) => commit.orderCollection(reservationId) === 'arrival'
     && stays().arrivalComplementState(reservationId) !== 'collected';
 
-  /** The most of an article an unpaid order can hold: the article's own bound, and what the stock still has beside it. */
-  function maxQuantityOf(line, sold, stocks) {
+  /** The article's own per-order bound (rules 37, 37quater): `maxQuantity` of what the shop sells, else what the order holds. */
+  function boundOf(line, sold) {
     const found = sold.find((s) => s.kind === line.kind && Number(s.row.id) === Number(line.id));
-    const bound = found ? Number(found.item.maxQuantity) : Number(line.quantity);
-    const state = stocks.get(`${line.kind}:${Number(line.id)}`);
-    return state ? Math.min(bound, Number(line.quantity) + Math.max(0, Number(state.left) || 0)) : bound;
+    return found ? Number(found.item.maxQuantity) : Number(line.quantity);
   }
 
-  function lineView(line, { editable, sold, stocks }) {
+  /** What the stock still allows beside the units the order already holds; Infinity for an article that is not tracked. */
+  function stockCapOf(line, stocks) {
+    const state = stocks.get(`${line.kind}:${Number(line.id)}`);
+    return state ? Number(line.quantity) + Math.max(0, Number(state.left) || 0) : Infinity;
+  }
+
+  const maxQuantityOf = (line, sold, stocks) => Math.min(boundOf(line, sold), stockCapOf(line, stocks));
+
+  const chargeOf = (order, line) => (line.kind === 'resource'
+    ? order.lines.find((l) => l.kind === 'charge' && Number(l.id) === Number(line.id)) : null);
+
+  /**
+   * One row per article. The evening supplement of a bath line is not a row of its own: it is said inside the bath's row
+   * (« Bain nordique · ven. 13 nov., 20 h – 21 h · offerte · + 10 € soirée »), its price added to the row's (rule 71).
+   */
+  function lineView(order, line, { editable, sold, stocks }) {
     const key = lineKeyOf(line);
     const quantity = line.kind === 'option' ? Number(line.quantity) : 1;
+    const charge = chargeOf(order, line);
+    const total = round2(Number(line.total) + (charge ? Number(charge.total) : 0));
+    const free = line.kind === 'resource' && Number(line.total) === 0;
+    const detail = line.kind === 'resource'
+      ? [labels.unitLabel(line), free ? WORDS.offered : null, charge ? WORDS.chargeSuffix(labels.priceLabel(charge.total)) : null].filter(Boolean).join(' · ')
+      : labels.unitLabel(line);
     return {
       key,
       label: line.kind === 'charge' ? labels.lineLabel(line) : line.title,
       quantity,
-      unitLabel: labels.unitLabel(line),
-      amountLabel: labels.priceLabel(line.total),
+      unitLabel: detail,
+      amountLabel: labels.priceLabel(total),
       editable: editable && line.kind === 'option',
       removable: editable && line.kind !== 'charge',
       maxQuantity: editable && line.kind === 'option' ? maxQuantityOf(line, sold, stocks) : quantity,
@@ -80,14 +108,21 @@ function buildArrivalOrdersController({
       paid,
       editable: editable && unpaid(order),
       totalLabel: labels.priceLabel(order.total),
-      lines: order.lines.map((line) => lineView(line, { editable: editable && unpaid(order), sold, stocks })),
+      lines: order.lines
+        .filter((line) => line.kind !== 'charge' || !order.lines.some((l) => l.kind === 'resource' && Number(l.id) === Number(line.id)))
+        .map((line) => lineView(order, line, { editable: editable && unpaid(order), sold, stocks })),
     };
   }
 
-  /** Rule 71 — the step's payload, or null when the stay holds no order taken before its arrival. */
+  /**
+   * Rule 71 — the step's payload, or null when there is nothing to show: the stay holds no order taken before its arrival,
+   * or its arrival complement is already collected (the SAS never names what was collected). `changed`: the fiche's lines
+   * were lowered since the orders (Σ of the unpaid snapshots above what the arrival complement now asks).
+   */
   function dataFor(reservationId) {
     const list = orders().atArrivalFor(reservationId);
     if (!list.length) return null;
+    if (stays().arrivalComplementState(reservationId) === 'collected') return null;
     const stay = stays().byId(reservationId);
     if (!stay) return null;
     const editable = editableStay(reservationId);
@@ -96,13 +131,16 @@ function buildArrivalOrdersController({
     const views = list.map((order) => orderView(order, { editable, sold, stocks }));
     const toCollect = round2(list.filter(unpaid).reduce((sum, o) => sum + Number(o.total), 0));
     const prepaid = round2(list.filter((o) => o.payment === 'card').reduce((sum, o) => sum + Number(o.total), 0));
+    const complement = stays().arrivalComplementAmount(reservationId);
     return {
       orders: views,
+      summaryLabel: WORDS.summary(views.length, toCollect > 0 ? labels.priceLabel(toCollect) : ''),
       toCollect,
       toCollectLabel: labels.priceLabel(toCollect),
       paid: prepaid,
       paidLabel: prepaid > 0 ? labels.priceLabel(prepaid) : null,
-      changed: list.some((o) => o.amendmentsJson && o.amendmentsJson !== '[]'),
+      recapNote: toCollect > 0 ? WORDS.recapNote(labels.priceLabel(toCollect)) : null,
+      changed: toCollect - complement >= 0.01,
     };
   }
 
@@ -148,10 +186,9 @@ function buildArrivalOrdersController({
       }
       if (line.kind === 'option') {
         const quantity = asked.has(key) ? asked.get(key) : Number(line.quantity);
-        if (quantity > maxQuantityOf(line, sold, stocks)) {
-          const left = Math.max(0, maxQuantityOf(line, sold, stocks) - Number(line.quantity));
-          return { stock: { key, left } };
-        }
+        // The article's own bound and the stock are two limits, said apart (audit item 11).
+        if (quantity > boundOf(line, sold)) return { bound: { key, max: boundOf(line, sold), title: line.title } };
+        if (quantity > stockCapOf(line, stocks)) return { stock: { key, left: Math.max(0, stockCapOf(line, stocks) - Number(line.quantity)) } };
         if (quantity !== Number(line.quantity)) {
           changes.push(`${line.title} ${line.quantity} → ${quantity}`);
           const unit = Number(line.quantity) > 0 ? round2(Number(line.total) / Number(line.quantity)) : 0;
@@ -251,6 +288,7 @@ function buildArrivalOrdersController({
     const { sold } = shop.soldFor({ stay, lodging: { propertyId: stay.propertyId } });
     const stocks = stock().states(now());
     const changed = changedLines(order, req.body, { sold, stocks });
+    if (changed.bound) return fail(res, 409, 'ITEM_MAX_QUANTITY', WORDS.maxQuantity(changed.bound.max, changed.bound.title), { itemKey: changed.bound.key, max: changed.bound.max });
     if (changed.stock) {
       return fail(res, 409, 'OUT_OF_STOCK', WORDS.outOfStock(changed.stock.left), { itemKey: changed.stock.key, left: changed.stock.left });
     }

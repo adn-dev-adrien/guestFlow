@@ -3235,5 +3235,5 @@ module.exports = {
 };
 
 // Test surface: the guard of a payment mark, exercised without an HTTP round-trip.
-module.exports.__test = { paymentMarkRefusal, staleFicheRefusal, complementLeftOf, paymentPatchChanges };
+module.exports.__test = { applyMidStayNoteActions, paymentMarkRefusal, staleFicheRefusal, complementLeftOf, paymentPatchChanges };
 module.exports.storedOverpayment = storedOverpayment;

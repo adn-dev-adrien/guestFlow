@@ -39,12 +39,13 @@
  * Before the arrival (rule 47 reading of 2026-11-10; specs/guest-app.md rules 66-67) — while the arrival is not marked
  * (`isArrivalNotMarked`) the end-of-stay complement does not exist yet, so the order's lines are written as ordinary
  * lines of the fiche, saved as the day before the arrival (`performUpdate`'s `beforeArrival`). When the stay's pre-arrival
- * money is settled (`preArrivalSettled` of the engine) the engine routes what they cost to the ARRIVAL complement, where
+ * money is settled (`preArrivalSettled` of the engine), or on a platform's stay (whose extras it always routes there), the
+ * engine routes what they cost to the ARRIVAL complement, where
  * the arrival SAS collects it, and `collectAt` reads `'arrival'`; `byKey` is what each line's billed total gains. The
  * commit refuses, nothing written: 409 `ORDER_OFF_ARRIVAL_COMPLEMENT` when the order would move another bucket (acompte,
  * solde, an installment, the end-of-stay complement) or when Σ `byKey` differs from the arrival complement's growth;
- * 409 `ORDER_STAY_PRICE_MOVED` when the stored stay replayed without the order does not land on its stored price and
- * tourist tax (an order never re-prices the stay). A `paid` commit before the arrival is accepted (rule 85): its money
+ * 409 `ORDER_STAY_PRICE_MOVED` when the order would move the tourist tax (the order's own growth is all it may move:
+ * the stored stay is never replayed against its stored price, which platform stays rarely match to the cent). A `paid` commit before the arrival is accepted (rule 85): its money
  * is recorded as a settled note of the arrival moment, which the engine subtracts from the arrival complement, so
  * nothing is collected twice. From the arrival on, the path is the end-of-stay one above, `collectAt` `'departure'`.
  *
@@ -256,8 +257,9 @@ const STAY_PRICE_MOVED = () => refuse409('Cette commande ne peut pas être prise
 const endOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1;
 
 /**
- * Where a plugin's order is collected for this stay right now (specs/guest-app.md rule 67): `arrival` while the arrival
- * is not marked and the pre-arrival money is settled (the engine routes a rise to the arrival complement), `departure`
+ * Where a plugin's order is collected for this stay right now (specs/guest-app.md rules 67-68): `arrival` while the arrival
+ * is not marked and an order can only grow the arrival complement — the pre-arrival money is settled, or the stay is a
+ * platform's, whose extras the engine always routes there (the measure of rule 66 still guards the buckets) — `departure`
  * once the arrival is marked and the end-of-stay complement is open, `closed` once it is collected, `unavailable` when
  * an acompte, a solde or an installment is still due (an order would grow it) or the stay is not a live reservation.
  */
@@ -273,7 +275,9 @@ function orderCollection(reservationId) {
   } catch {
     return 'unavailable';
   }
-  return quote && !quote.error && quote.preArrivalSettled ? 'arrival' : 'unavailable';
+  // A platform stay forces every extra into the arrival complement whatever its payment state (force-extras-complement-on-platform
+  // §3), so an order can only grow that bucket there; a direct stay needs its pre-arrival money settled (rule 68).
+  return quote && !quote.error && (quote.preArrivalSettled || quote.platformSale) ? 'arrival' : 'unavailable';
 }
 
 const totalsByKey = (lines) => {
@@ -294,18 +298,12 @@ const sameMoney = (a, b) => Math.abs(round2(Number(a) || 0) - round2(Number(b) |
 function measureBeforeArrival(id, body, merged) {
   const save = controller().performUpdate;
   const options = { dryRun: true, beforeArrival: true };
-  const storedRow = reservations().getRow(id);
-  let replay = null;
-  try {
-    replay = quoteStoredReservation(database(), storedRow);
-  } catch {
-    return STAY_PRICE_MOVED();
-  }
-  if (!replay || replay.error || !sameMoney(replay.finalPrice, storedRow.finalPrice) || !sameMoney(replay.touristTaxTotal, storedRow.touristTaxTotal)) return STAY_PRICE_MOVED();
   const base = save(id, structuredClone(body), options);
   if (base.status !== 200) return refusal(base);
   const next = save(id, merged, options);
   if (next.status !== 200) return refusal(next);
+  // An order never re-prices the stay (rule 66): its own growth is all it may move, never the tourist tax.
+  if (!sameMoney(next.row.touristTaxTotal, base.row.touristTaxTotal)) return STAY_PRICE_MOVED();
   // A plan carries the acompte and the solde (direct-installments rule 4): its rows, not those two columns, are its buckets.
   const buckets = readInstallmentSummary(database(), id) ? ['endOfStayComplementAmount'] : ['depositAmount', 'balanceAmount', 'endOfStayComplementAmount'];
   const moved = buckets.some((column) => !sameMoney(next.row[column], base.row[column]));
@@ -458,7 +456,7 @@ function tagCharges(id, lines) {
   const hasColumn = db.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'orderChargeKey');
   if (!hasColumn) return;
   (lines || []).filter((l) => l.kind === 'charge' && round2(l.amount) > 0).forEach((line) => {
-    const row = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ? AND description = ? AND orderChargeKey IS NULL ORDER BY id DESC LIMIT 1')
+    const row = db.prepare('SELECT id FROM reservation_custom_options WHERE reservationId = ? AND description = ? AND orderChargeKey IS NULL AND COALESCE(sasArrivalOrigin, 0) = 0 ORDER BY id DESC LIMIT 1')
       .get(id, String(line.label));
     if (row) db.prepare('UPDATE reservation_custom_options SET orderChargeKey = ? WHERE id = ?').run(String(line.key), row.id);
   });
@@ -618,20 +616,14 @@ function stripChargeKeys(body) {
 
 /** Rule 66, applied to an amendment: both saves played as the day before the arrival, only the arrival complement may move. */
 function measureAmend(id, body, merged) {
-  const storedRow = reservations().getRow(id);
-  let replay = null;
-  try {
-    replay = quoteStoredReservation(database(), storedRow);
-  } catch {
-    return STAY_PRICE_MOVED();
-  }
-  if (!replay || replay.error || !sameMoney(replay.finalPrice, storedRow.finalPrice) || !sameMoney(replay.touristTaxTotal, storedRow.touristTaxTotal)) return STAY_PRICE_MOVED();
   const options = { dryRun: true, beforeArrival: true };
   const save = controller().performUpdate;
   const base = save(id, structuredClone(body), options);
   if (base.status !== 200) return refusal(base);
   const next = save(id, stripChargeKeys(structuredClone(merged)), options);
   if (next.status !== 200) return refusal(next);
+  // An order never re-prices the stay (rule 66): its own growth is all it may move, never the tourist tax.
+  if (!sameMoney(next.row.touristTaxTotal, base.row.touristTaxTotal)) return STAY_PRICE_MOVED();
   const buckets = readInstallmentSummary(database(), id) ? ['endOfStayComplementAmount'] : ['depositAmount', 'balanceAmount', 'endOfStayComplementAmount'];
   if (buckets.some((column) => !sameMoney(next.row[column], base.row[column]))) return OFF_ARRIVAL_COMPLEMENT();
   const before = totalsByKey(base.lines);

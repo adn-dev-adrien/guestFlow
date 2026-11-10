@@ -92,11 +92,11 @@ test('rule 85: the arrival marked, a later order is a departure order and the ar
   assert.equal(notes[0].moment, undefined, 'after the arrival: the in-stay note of rule 35');
 });
 
-test('rule 85: a card commit whose stay price moved meanwhile is refused ORDER_STAY_PRICE_MOVED, no note written', () => {
+test('rule 85 (owner 2026-11-10): a card commit on a stored price the engine does not reproduce is accepted — only the order\'s own growth is measured', () => {
   const id = seedStay();
   db.prepare('UPDATE reservations SET finalPrice = 999 WHERE id = ?').run(id);
   const result = commitOrder(id, { ...named(6), lines: [{ kind: 'option', id: 102, quantity: 1 }], paid: paid(600, 'pay_6') });
-  assert.deepEqual([result.status, result.body.code], [409, 'ORDER_STAY_PRICE_MOVED']);
-  assert.equal(row(id).midStaySettledNotes, null);
-  assert.equal(priceOrder(id, [{ kind: 'option', id: 102, quantity: 1 }]).body.code, 'ORDER_STAY_PRICE_MOVED');
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.deepEqual([result.collectAt, result.settledCents], ['arrival', 600]);
+  assert.equal(JSON.parse(row(id).midStaySettledNotes).length, 1);
 });

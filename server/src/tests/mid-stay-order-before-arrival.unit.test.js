@@ -119,14 +119,27 @@ test('rule 68 (D2): a plan with an installment still due is unavailable; a plan 
   assert.deepEqual([result.status, result.collectAt], [200, 'arrival'], JSON.stringify(result.body));
 });
 
-test('rule 66: a stored stay that the engine no longer prices at its stored price refuses ORDER_STAY_PRICE_MOVED, nothing written', () => {
+test('rule 66 (owner 2026-11-10): a stored price the engine no longer reproduces does not refuse the order — only its own growth is measured', () => {
   const id = seedStay({ start: 5 });
   db.prepare('UPDATE reservations SET finalPrice = 999 WHERE id = ?').run(id);
-  const before = money(id);
+  assert.equal(orderCollection(id), 'arrival');
+  const priced = priceOrder(id, [{ kind: 'option', id: 102, quantity: 1 }]);
+  assert.deepEqual([priced.status, priced.byKey], [200, { 'opt:102': 6 }]);
   const result = commitOrder(id, { ...named(8), lines: [{ kind: 'option', id: 102, quantity: 1 }] });
-  assert.deepEqual([result.status, result.body.code], [409, 'ORDER_STAY_PRICE_MOVED']);
-  assert.deepEqual(money(id), before);
-  assert.equal(priceOrder(id, [{ kind: 'option', id: 102, quantity: 1 }]).body.code, 'ORDER_STAY_PRICE_MOVED');
+  assert.deepEqual([result.status, result.byKey, result.collectAt], [200, { 'opt:102': 6 }, 'arrival'], JSON.stringify(result.body));
+});
+
+test('rule 68 (owner 2026-11-10): a platform stay with nothing paid orders before the arrival, on the arrival complement', () => {
+  const id = seedStay({ start: 5, balancePaid: 0 });
+  db.prepare("UPDATE reservations SET platform = 'booking', depositAmount = 0 WHERE id = ?").run(id);
+  assert.equal(orderCollection(id), 'arrival');
+  const before = money(id);
+  const result = commitOrder(id, { ...named(13), lines: [{ kind: 'option', id: 102, quantity: 2 }] });
+  assert.deepEqual([result.status, result.byKey, result.collectAt], [200, { 'opt:102': 12 }, 'arrival'], JSON.stringify(result.body));
+  const after = money(id);
+  assert.equal(after.complementAmount - before.complementAmount, 12);
+  assert.equal(after.balanceAmount, before.balanceAmount);
+  assert.equal(orderCollection(seedStay({ start: 5, balancePaid: 0 })), 'unavailable', 'a direct stay with its solde due still orders on site');
 });
 
 test('rule 66: the arrival marked — the end-of-stay path, collectAt departure, the arrival money untouched', () => {

@@ -96,14 +96,15 @@ function createModel(database) {
   /**
    * Rule 38 — what the evening charges of the guest app's orders already bill for this resource on the fiche
    * (`orderChargeKey = 'guest-order:<id>:evening:<resourceId>'`): the arrival commit's recompute does not bill it again.
+   * A charge the operator offered still covers its evening (its amount is kept, only its billing is waived), so it counts too.
    */
   function orderChargedFor(reservationId, resourceId) {
     if (!hasColumn('reservation_custom_options', 'orderChargeKey')) return 0;
     try {
-      const rows = database.prepare(`SELECT amount, offered FROM reservation_custom_options
+      const rows = database.prepare(`SELECT amount FROM reservation_custom_options
                                       WHERE reservationId = ? AND orderChargeKey LIKE ?`)
         .all(Number(reservationId), `guest-order:%:evening:${Number(resourceId)}`);
-      return round2(rows.reduce((sum, r) => sum + (Number(r.offered) === 1 ? 0 : Number(r.amount) || 0), 0));
+      return round2(rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0));
     } catch { return 0; }
   }
 

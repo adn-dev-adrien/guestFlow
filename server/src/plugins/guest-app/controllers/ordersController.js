@@ -51,7 +51,7 @@ const KINDS = Object.freeze(['option', 'breakfast', 'resource']);
 const PAYMENTS = Object.freeze(['card', 'note', 'none']);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 // Rules 30, 80 — a session the picker would not offer: `taken` is `SLOT_TAKEN`, every other reason `SLOT_UNAVAILABLE`.
-const SLOT_REASONS = new Set(['taken', 'past', 'heating', 'staff', 'closed', 'duration']);
+const SLOT_REASONS = new Set(['taken', 'past', 'outside', 'heating', 'staff', 'closed', 'duration']);
 // Rule 83 — the evening supplement of an app session, written on the fiche as a charge tagged with its order.
 const chargeKey = (orderId, resourceId) => `guest-order:${orderId}:evening:${Number(resourceId)}`;
 
@@ -183,8 +183,11 @@ function buildOrdersController({
           resourceId: Number(asked.id), propertyId: lodging.propertyId, stay, sessions: asked.sessions, now: at, heatFrom: at, canIgnite,
         });
         if (!verdict) return { ...base, asked, item, unavailable: true, unavailableReason: T.unavailable };
+        // Audit item 12 — a start before the check-in is not « passé »: it lies outside the stay (a crafted request, the day before).
+        const checkIn = `${stay.startDate}T${stay.checkInTime || '15:00'}`;
+        const reasonOf = (r) => (r.reason === 'past' && `${r.date}T${r.start}` < checkIn ? 'outside' : r.reason);
         const sessions = verdict.results.map((r) => ({
-          date: r.date, start: r.start, end: r.end, ...(r.ok ? {} : { unavailable: true, reason: r.reason, reasonLabel: T.slot[r.reason] || T.unavailable }),
+          date: r.date, start: r.start, end: r.end, ...(r.ok ? {} : { unavailable: true, reason: reasonOf(r), reasonLabel: T.slot[reasonOf(r)] || T.unavailable }),
         }));
         const kept = sessions.filter((s) => !s.unavailable).map(({ date, start, end }) => ({ date, start, end }));
         const hours = sessionsHours(kept);

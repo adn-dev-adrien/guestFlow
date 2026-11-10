@@ -25,7 +25,12 @@ const PAYMENT_LABELS = Object.freeze({ card: 'Carte', note: 'Sur la note', none:
 const ARRIVAL_PAYMENT_LABEL = 'À régler à l’arrivée';
 const STAY_CANCELLED_LABEL = 'Séjour annulé';
 const OUTSIDE_STAY_LABEL = 'Hors des dates du séjour : à replanifier';
-const paymentLabelOf = (order) => (order.collectAt === 'arrival' && order.payment === 'note' ? ARRIVAL_PAYMENT_LABEL : (PAYMENT_LABELS[order.payment] || order.payment));
+// Audit item 12 — an order that will never be collected (cancelled, its stay gone) owes nothing: it never reads « À régler à l'arrivée ».
+const NOTHING_TO_COLLECT_LABEL = 'Rien à percevoir';
+const paymentLabelOf = (order, { gone = false } = {}) => {
+  if (order.payment === 'note' && (order.status === 'cancelled' || (gone && ['confirmed', 'paid'].includes(order.status)))) return NOTHING_TO_COLLECT_LABEL;
+  return order.collectAt === 'arrival' && order.payment === 'note' ? ARRIVAL_PAYMENT_LABEL : (PAYMENT_LABELS[order.payment] || order.payment);
+};
 const STAFF_STATUS = Object.freeze({
   awaiting_payment: 'En attente de paiement', confirmed: 'À préparer', paid: 'À préparer', delivered: 'Livrée',
   expired: 'Expirée', abandoned: 'Abandonnée', paid_conflict: 'Payée · à rembourser', cancelled: 'Annulée',
@@ -80,7 +85,7 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
       fulfilmentLabel: FULFILMENT_LABELS[isPickup(order) ? 'pickup' : 'delivery'],
       ...(isPickup(order) && order.pickupPlace ? { pickupPlace: order.pickupPlace } : {}),
       payment: order.payment,
-      paymentLabel: paymentLabelOf(order),
+      paymentLabel: paymentLabelOf(order, { gone }),
       collectAt: order.collectAt === 'arrival' ? 'arrival' : 'departure',
       status: order.status,
       statusLabel: statusLabelOf(order, { gone, standing }),
@@ -141,7 +146,7 @@ function buildOrdersAdminController({ orders, stays, lodgings, now }) {
         lodging: lodgingName(stay.propertyId),
         guest: [stay.clientFirstName, stay.clientLastName].filter(Boolean).join(' '),
         lines: prepared.map((l) => labels.lineLabel(l)),
-        paymentLabel: paymentLabelOf(order),
+        paymentLabel: paymentLabelOf(order, { gone: isGone(stays().byId(order.reservationId)) }),
         ...(order.status !== 'delivered' && outsideStay(order, stay) ? { outsideStay: true, outsideStayLabel: OUTSIDE_STAY_LABEL } : {}),
         delivered: order.status === 'delivered',
         fulfilment: isPickup(order) ? 'pickup' : 'delivery',

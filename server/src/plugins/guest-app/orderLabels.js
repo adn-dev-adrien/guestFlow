@@ -102,6 +102,7 @@ const TEXT = Object.freeze({
     slot: {
       taken: 'Ce créneau vient d’être pris',
       past: 'Ce créneau est passé',
+      outside: 'Ce créneau est hors de votre séjour',
       heating: 'Le bain n’aura pas le temps de chauffer',
       staff: 'Personne n’est là pour allumer le bain',
       closed: 'Fermé ce jour-là',
@@ -150,6 +151,7 @@ const TEXT = Object.freeze({
     slot: {
       taken: 'This slot has just been taken',
       past: 'This slot has passed',
+      outside: 'This slot is outside your stay',
       heating: 'The bath would not have time to heat up',
       staff: 'Nobody is there to light the bath',
       closed: 'Closed that day',
