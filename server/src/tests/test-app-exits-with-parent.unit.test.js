@@ -42,7 +42,7 @@ async function orphanOf(code) {
   return pid;
 }
 
-test('rule 18: the fuzz harness app exits when its test file is killed', { timeout: 90000 }, async () => {
+test('rule 18: the fuzz harness app exits when its test file is killed', { timeout: 50000 }, async () => {
   const harness = JSON.stringify(path.join(__dirname, 'inputShapeApp.js'));
   const pid = await orphanOf(`require(${harness}).startApp().then((app) => { console.log('child ' + app.pid); setInterval(() => {}, 1000); });`);
   try {
@@ -52,7 +52,7 @@ test('rule 18: the fuzz harness app exits when its test file is killed', { timeo
   }
 });
 
-test('rule 18: a spawned src/index.js preloading exitWithParent exits when its test file is killed', { timeout: 90000 }, async () => {
+test('rule 18: a spawned src/index.js preloading exitWithParent exits when its test file is killed', { timeout: 50000 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-exit-parent-'));
   const preload = JSON.stringify(path.join(__dirname, 'setup', 'exitWithParent.js'));
   const env = JSON.stringify({
