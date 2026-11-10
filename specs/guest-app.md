@@ -681,7 +681,10 @@ is pushed every order.
       land on its stored `finalPrice` and `touristTaxTotal`~~. The replay is dropped: platform stays rarely reproduce
       their stored price to the cent (905 € replayed for 901,82 € stored on three of five upcoming Booking stays of the
       shadow), so it refused almost every order. The measure counts only the order's own growth — the difference of two
-      saves of the same stay, with and without the order — and one judge decides whether a shop is offered at all (rule 90);
+      saves of the same stay, with and without the order, **both priced fresh** (`refreshTouristTax`: a stored price or tax the engine no longer
+      reproduces — shadow replay: stored tax 0 €, engine 19,20 € — would otherwise read as the order's growth and refuse it) — and one judge
+      decides whether a shop is offered at all (rule 90). **Known consequence, owner-accepted:** the order's own write re-prices the stay with the
+      engine, so a platform stay whose stored price had drifted takes the engine's figures with its order;
     - ~~409 `ORDER_PAID_BEFORE_ARRIVAL` for a `paid` commit: no card money before the arrival (rule 67).~~
       **Amended 2026-11-10 (Adrien, Q13):** a `paid` commit before the arrival is accepted and settled by rule 85;
       `ORDER_PAID_BEFORE_ARRIVAL` is retired.
