@@ -11,7 +11,9 @@
 import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
-import { api, onSessionExpired, setLanguage } from '../services/api';
+import {
+  api, onPluginInactive, onSessionExpired, setLanguage,
+} from '../services/api';
 import { device } from '../services/device';
 
 // Exported for the studio's phone preview, which renders these screens from the editor's state (rule 49).
@@ -88,6 +90,12 @@ export function SessionProvider({ children }) {
       return reopening.current;
     });
     return () => onSessionExpired(null);
+  }, []);
+
+  // Rule 63 — the plugin switched off while the app is open: whichever request learns it, the app is unavailable.
+  useEffect(() => {
+    onPluginInactive((err) => setState({ status: 'inactive', me: null, lodging: null, error: err }));
+    return () => onPluginInactive(null);
   }, []);
 
   useEffect(() => {

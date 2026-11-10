@@ -147,7 +147,7 @@ Rules are numbered once and never renumbered (new rules go at the end).
       from the client record; for an « extérieur », typed in the dialog or the arrival SAS. GuestFlow
       sends what it has;
     - a Qonto client is created once per GuestFlow client (the id an earlier invoice of that client stored on its
-      booking is reused) or once per external booking;
+      booking is reused, for the same name and address only, rule 50) or once per external booking;
     - Qonto takes each line **excluding VAT** and adds the VAT itself: every line goes back to its HT, and the largest
       moves by a cent until the totals Qonto computes, line by line, add up to the TTC charged (Q3);
     - one invoice item per breakdown money line, the negative lines as one discount item (or a
@@ -332,6 +332,14 @@ Rules are numbered once and never renumbered (new rules go at the end).
     resource booking names, paid or not, on any logement or none, is kept, and his booking keeps him. *Why:* a logement
     deleted with an unpaid stay of a client who had paid and invoiced a 50 € session: the client was deleted, the
     session's buyer became « VENTE HORS SÉJOUR » and a later invoice went to « Client » with no address.
+50. **A Qonto client is reused only for the identity it was created with** (R37-EXT-1, reading of rules 39 and 41). Each
+    invoiced booking stores, beside its Qonto client, a digest of the name and billing address that client was created
+    with (`qontoClientIdentity`, migration `resource_bookings_v4`). An invoice reuses the booking's own Qonto client (a
+    re-issue) or, for a registered client, the one an earlier invoice of his made, only when the identity it would
+    send is that same one; otherwise it creates a Qonto client with what the record (or the booking's typed address)
+    now holds, under rule 39's key. A booking invoiced before the migration (no digest) is never reused: the next
+    invoice creates one. *Why:* a client invoiced once with no address, his address then filled on his record: every
+    later invoice went to the first Qonto client, with no address, and only an edit in Qonto by hand fixed it.
 
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
@@ -423,6 +431,8 @@ never written: Qonto gets `FR`), `qontoClientId TEXT`, `qontoInvoiceId TEXT`, `i
 NOT NULL DEFAULT 0`, `attachmentLastError TEXT`. No billing name column: the name is `clientName` or the client record.
 Migration `resource_bookings_v3` (2026-11-09): `paidVatRate REAL` (rule 35, NULL = not subject), `invoiceMarkPending
 INTEGER NOT NULL DEFAULT 0` (rule 38).
+Migration `resource_bookings_v4` (2026-11-10): `qontoClientIdentity TEXT` (rule 50, NULL on rows invoiced before: their
+Qonto client is not reused).
 `clients` is not touched: the Qonto client of a registered guest is read back from his earlier invoiced booking.
 
 **Data impact:** existing rows keep their price (`offeredMinutes = 0`). `paid = 1` rows get

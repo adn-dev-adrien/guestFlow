@@ -5,7 +5,7 @@
 //   node specs/guest-app-livret/import.mjs --base https://guestflow.example.com --email admin@example.com [--dry-run]
 //
 // The password (and the second-factor code when the account asks for one) are typed at the prompt, or read from
-// GUESTFLOW_PASSWORD. Node 20 or later, nothing to install.
+// GUESTFLOW_PASSWORD; the password is never echoed (prompt.mjs). Node 20 or later, nothing to install.
 //
 // What it does, per lodging (La Granja, L'Estiva, found by name; --granja / --estiva give their ids instead):
 //   1. refuses to run when a lodging's booklet holds a page the operator has already edited (never overwrites work);
@@ -18,11 +18,11 @@
 // --dry-run checks the login, the lodgings and the booklets, and prints the plan without writing anything.
 
 import { readFile } from 'node:fs/promises';
-import { createInterface } from 'node:readline/promises';
-import { stdin, stdout, argv, env, exit } from 'node:process';
+import { argv, env, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { LODGINGS, MEDIA, PAGES } from './livret.mjs';
+import { ask, askSecret } from './prompt.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(argv.slice(2).reduce((out, arg, i, all) => {
@@ -52,13 +52,8 @@ async function call(method, route, body, { form = false } = {}) {
   return json;
 }
 
-async function ask(question) {
-  const rl = createInterface({ input: stdin, output: stdout });
-  try { return (await rl.question(question)).trim(); } finally { rl.close(); }
-}
-
 async function login() {
-  const password = env.GUESTFLOW_PASSWORD || await ask('Mot de passe : ');
+  const password = env.GUESTFLOW_PASSWORD || await askSecret('Mot de passe : ');
   const first = await call('POST', '/api/auth/login', { email: args.email, password });
   if (first && first.step === 'second-factor') {
     const code = await ask(`${first.message || 'Code de vérification'} : `);

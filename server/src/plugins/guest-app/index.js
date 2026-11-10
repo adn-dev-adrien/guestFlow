@@ -137,7 +137,7 @@ function buildGuestApi({
     stayLinks, stays, lodgings, sessions, guestHost, now,
   });
   const orderBook = buildOrdersController({
-    db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now, stock, alertStock, fulfilment,
+    db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now, stock, alertStock, fulfilment, translator,
   });
   const resolver = buildBookletResolver({
     booklet, media, soldKeysOf: shop.soldKeysOf, shownKeys: controller.shownKeys,

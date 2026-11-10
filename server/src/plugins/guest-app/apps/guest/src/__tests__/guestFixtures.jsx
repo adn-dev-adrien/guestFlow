@@ -67,7 +67,7 @@ export function stubApi(routes) {
     let answer = routes[key];
     if (typeof answer === 'function') answer = answer(body, calls);
     if (answer === OFFLINE) return Promise.reject(new TypeError('Failed to fetch'));
-    if (answer && answer.status && answer.error) return json(answer.status, { error: answer.error });
+    if (answer && answer.status && answer.error) return json(answer.status, { error: answer.error, ...(answer.plugin ? { plugin: answer.plugin } : {}) });
     return json(200, { data: answer });
   });
   vi.stubGlobal('fetch', fetchStub);

@@ -57,6 +57,8 @@ function ficheVersionOf(path, res) {
 const NETWORK_MESSAGE = 'Connexion au serveur impossible.';
 const BAD_ANSWER_MESSAGE = 'Le serveur ne répond pas correctement.';
 const SESSION_MESSAGE = 'Session expirée.';
+// The loader's bare code for every route of a plugin switched off (rule 53).
+const PLUGIN_INACTIVE_MESSAGE = 'Module inactif.';
 
 function badAnswerError() {
   return Object.assign(new Error(BAD_ANSWER_MESSAGE), { code: 'BAD_ANSWER' });
@@ -87,7 +89,7 @@ async function send(path, options = {}) {
     // A code alone says nothing to an operator when it means the session is gone; `message`, when the
     // server sends one, still wins through the assign below.
     const sessionLost = res.status === 401 && !path.startsWith('/auth/');
-    const said = err.error || err.message;
+    const said = err.error === 'PLUGIN_INACTIVE' && !err.message ? PLUGIN_INACTIVE_MESSAGE : (err.error || err.message);
     const apiError = sessionLost ? new Error(SESSION_MESSAGE) : (said ? new Error(said) : badAnswerError());
     Object.assign(apiError, err, { status: res.status });
     // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth. A wrong current

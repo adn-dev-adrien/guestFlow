@@ -418,6 +418,11 @@ guessing; and the quote the guest receives looks like the house that sends it.
     entry is replaced before the pending exit runs, so Back after leaving opens the saved devis. *Why:* that prefilled entry still carried the draft and
     its client: Back showed them with Enregistrer lit and one tap wrote a second devis and a second client. Test:
     `ReservationPage.create-devis-carries`.
+53. **A plugin switched off reads « Module inactif. »** (audit R37-C-L1, its class, 2026-11-10). The plugin loader
+    answers every route of a plugin switched off with the bare code `{ error: 'PLUGIN_INACTIVE', plugin }`; `api.js`
+    turns it into « Module inactif. » (code and plugin kept on the error for the callers that branch on them), so a
+    page left open while its plugin is switched off in another tab never shows the code. A message the server sends
+    still wins (rule 44).
 
 ---
 

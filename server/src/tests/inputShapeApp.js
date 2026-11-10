@@ -95,6 +95,7 @@ async function startApp() {
   return {
     ...seed,
     base,
+    pid: child.pid,
     dbPath: path.join(dir, 'g.db'),
     call,
     login,

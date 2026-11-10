@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -122,6 +122,10 @@
     "1.5.1": [
       "Une séance ne se rattache plus à un séjour par l’API : une demande qui en nomme un est refusée, et une séance déjà rattachée ne prend pas de paiement.",
       "La pièce jointe d’une facture rejoint le lot CB même quand Qonto refuse « marquer payée » ; ce marquage est retenté 7 jours puis laissé « à payer ».",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.5.2": [
+      "Un client Qonto n’est réutilisé que pour le nom et l’adresse avec lesquels il a été créé : une adresse ajoutée ou corrigée sur la fiche client passe sur la facture suivante.",
       "Demande le SDK 2.26 de GuestFlow."
     ]
   }

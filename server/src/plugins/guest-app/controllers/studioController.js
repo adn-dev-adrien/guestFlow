@@ -8,6 +8,7 @@
 const multer = require('multer');
 const { validateBlockData, validateText, mediaIdsOf, SLUG } = require('../bookletBlocks');
 const { searchPages } = require('../booklet');
+const { textOf } = require('../refusals');
 const { ACCEPTED_TYPES, MAX_UPLOAD_BYTES, MediaError, storeImage } = require('../media');
 const { mediaView } = require('../models/mediaModel');
 
@@ -138,14 +139,15 @@ function buildStudioController({
     return res.json(await resolver.resolve({ lodging, mode: 'stay', lang: langOf(req), draft: true }));
   }
 
-  // GET /studio/lodgings/:propertyId/search?q=&lang= — rule 20, on the draft.
+  // GET /studio/lodgings/:propertyId/search?q=&lang= — rule 20, on the draft. Rule 62: a refusal key of the guest's
+  // table reaches the operator as its French words.
   async function search(req, res) {
     const lodging = lodgingOf(req, res);
     if (!lodging) return null;
     if (typeof req.query.q !== 'string') return res.status(400).json({ error: 'Recherche vide.' });
     const { pages } = await resolver.resolve({ lodging, mode: 'stay', lang: langOf(req), draft: true });
     const found = searchPages(pages, req.query.q);
-    return found.error ? res.status(400).json({ error: found.error }) : res.json(found);
+    return found.error ? res.status(400).json({ error: textOf(found.error, 'fr', found.params) }) : res.json(found);
   }
 
   // POST /studio/lodgings/:propertyId/publish — rule 48: this lodging, and its shared pages everywhere.

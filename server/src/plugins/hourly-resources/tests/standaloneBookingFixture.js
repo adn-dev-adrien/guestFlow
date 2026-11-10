@@ -4,7 +4,7 @@
 // plugin's setting, passed in.
 
 const Database = require('better-sqlite3');
-const { bookingsV2, bookingsV3 } = require('../migrations');
+const { bookingsV2, bookingsV3, bookingsV4 } = require('../migrations');
 const bookingsModel = require('../bookingsModel');
 const { FAR_YEAR } = require('../../../tests/farYearFixture');
 
@@ -40,6 +40,7 @@ function seed({ resource = {}, vatRate = 20, now } = {}) {
   db.exec(DDL);
   bookingsV2(db);
   bookingsV3(db, () => vatRate);
+  bookingsV4(db);
   const r = {
     name: 'Bain fictif', quantity: 1, price: 25, priceType: 'per_hour', turnoverMinutes: 0,
     minimumUsageMinutes: 60, slotDuration: 30, isComplex: 1, openTime: '10:00', closeTime: '22:00',
