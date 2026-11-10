@@ -111,6 +111,12 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
    `tests/history-texts-french.unit.test.js`, `arrival-payment-history-line`, `arrival-payment-dissolution-is-traced`,
    sas `sas-history-folds-the-single-payment`, `mid-stay-note-refusal-french-amount` (both note refusals, verification
    R44 L4).
+   *Reading of 2026-11-10 (audit R45-PL-L1):* « a line stored before » includes the sas's folded line stored before
+   sas 1.9.3 (and by the core SAS of v3.21.0), kept as rendered text (`fromText` « — », `toText` « 144.95 € — CB /
+   Chèque le 2026-09-01 — solde, complément »): `reservationAudit` reads every `arrivalPayment` /
+   `arrivalPaymentAdjustment` text through the same French reading, the bare « complément » named « complément
+   d'arrivée ». It is idempotent: a line already French reads the same. Test:
+   `tests/history-legacy-sas-single-payment.unit.test.js`.
 
 ### 3.3 Undoing it
 

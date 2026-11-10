@@ -117,9 +117,15 @@ export default function PaymentDeadlinesAlert({ attention }) {
       const result = await api.cancelReservation(cancelRow.reservationId, { reason, notifyClient });
       // specs/plugins-phase-3a-online-payment.md rule 9 — a link the provider still accepts outranks the
       // success: one toast at a time, so the warning carries the cancellation, and the deposit kept.
-      const done = result?.indemnityAmount > 0
-        ? `Séjour annulé — ${formatCurrency(result.indemnityAmount)} conservés en indemnité.`
-        : 'Séjour annulé — les dates sont remises à la vente.';
+      const done = [
+        result?.indemnityAmount > 0
+          ? `Séjour annulé — ${formatCurrency(result.indemnityAmount)} conservés en indemnité.`
+          : 'Séjour annulé — les dates sont remises à la vente.',
+        // Rule 60 reading (audit R45-C-L1) — the sum the notice states, when it is not the indemnity alone.
+        result?.keptFromGuest > 0 && Math.round(result.keptFromGuest * 100) !== Math.round((result.indemnityAmount || 0) * 100)
+          ? `Somme conservée : ${formatCurrency(result.keptFromGuest)}.`
+          : null,
+      ].filter(Boolean).join(' ');
       // specs/email-language-fr-en.md rule 12 — a notice asked for and not sent is a warning too.
       const warnings = [result?.paymentLinksWarning, result?.emailWarning].filter(Boolean);
       if (warnings.length) showError([done, ...warnings].join(' '));
@@ -165,6 +171,9 @@ export default function PaymentDeadlinesAlert({ attention }) {
                   {row.depositDue > 0 ? <>Acompte <strong>{formatCurrency(row.depositDue)}</strong></> : null}
                   {row.canCancel && row.retainedDepositAmount > 0
                     ? <> · acompte conservé si annulation : <strong>{formatCurrency(row.retainedDepositAmount)}</strong></>
+                    : null}
+                  {row.canCancel && row.keptFromGuest > 0 && Math.round(row.keptFromGuest * 100) !== Math.round((row.retainedDepositAmount || 0) * 100)
+                    ? <> · somme conservée si annulation (indiquée au client) : <strong>{formatCurrency(row.keptFromGuest)}</strong></>
                     : null}
                 </Typography>
               ) : null}

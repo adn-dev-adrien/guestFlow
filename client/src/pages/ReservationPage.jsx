@@ -2981,6 +2981,10 @@ export default function ReservationPage() {
           result?.indemnityAmount > 0
             ? `Les dates sont remises à la vente. ${formatCurrency(result.indemnityAmount)} conservés à titre d'indemnité (hors TVA).`
             : 'Les dates sont remises à la vente. Rien n\'est conservé en indemnité.',
+          // Rule 60 reading (audit R45-C-L1) — the sum the notice states, when it is not the indemnity alone.
+          result?.keptFromGuest > 0 && Math.round(result.keptFromGuest * 100) !== Math.round((result.indemnityAmount || 0) * 100)
+            ? `Somme conservée : ${formatCurrency(result.keptFromGuest)}.`
+            : null,
           // specs/plugins-phase-3a-online-payment.md rule 9 — worded by the server.
           result?.paymentLinksWarning,
           // specs/email-language-fr-en.md rule 12 — the notice asked for and not sent, worded by the server.

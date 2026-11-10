@@ -46,6 +46,7 @@ async function previewEqualsCancel(id, { soldeCommission = 0 } = {}) {
     cancellationReason: done.body.cancellationReason,
     retainedDepositAmount: done.body.retainedDepositAmount,
     indemnityAmount: done.body.indemnityAmount,
+    keptFromGuest: done.body.keptFromGuest,
     writtenOffBalance: done.body.writtenOffBalance,
   });
   const entry = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND eventType = 'cancel' ORDER BY id DESC").get(id);

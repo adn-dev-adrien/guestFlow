@@ -51,11 +51,11 @@ function buildController({
   // Rule 60 — a row offering the cancellation says what it would keep: the cancel's own figure, or no offer when the
   // cancel would refuse.
   const withCancellationPreview = (row) => {
-    if (!row.canCancel) return { ...row, retainedDepositAmount: 0 };
+    if (!row.canCancel) return { ...row, retainedDepositAmount: 0, keptFromGuest: 0 };
     const preview = cancellationPreviewFor(row.reservationId);
     return preview && preview.ok
-      ? { ...row, retainedDepositAmount: preview.retainedDepositAmount }
-      : { ...row, canCancel: false, retainedDepositAmount: 0 };
+      ? { ...row, retainedDepositAmount: preview.retainedDepositAmount, keptFromGuest: Number(preview.keptFromGuest) || 0 }
+      : { ...row, canCancel: false, retainedDepositAmount: 0, keptFromGuest: 0 };
   };
   return {
     /**

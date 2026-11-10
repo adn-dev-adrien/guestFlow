@@ -5,8 +5,10 @@
  * Recaps what is being cancelled and, above all, what happens to the money: what was collected is kept
  * as an indemnity, what is still owed is written off. Both figures are the cancellation's own, asked
  * from GET /reservations/:id/cancel-preview when the dialog opens (rule 60) — nothing is computed
- * here. While they load the confirm waits; a refusal is shown and the confirm stays off. The reason and the
- * « Prévenir le client » choice are reset when the dialog opens, never by a re-render while it is open.
+ * here. When the sum the cancellation notice states (`keptFromGuest`) is not the indemnity, it is shown too, so
+ * the operator sees what the guest will read before confirming. While they load the confirm waits; a refusal is
+ * shown and the confirm stays off. The reason and the « Prévenir le client » choice are reset when the dialog
+ * opens, never by a re-render while it is open.
  *
  * Composed from the shared FormDialog (fullScreen on mobile for free).
  */
@@ -52,6 +54,10 @@ export default function ReservationCancelDialog({ open, row, busy, onClose, onCo
   const ready = preview.status === 'ready';
   const retained = ready ? Number(preview.figures.indemnityAmount || 0) : 0;
   const writtenOff = ready ? Number(preview.figures.writtenOffBalance || 0) : 0;
+  // Rule 60 reading (audit R45-C-L1) — the sum the notice states (rule 61), named when it is not the indemnity alone:
+  // an acompte kept in the caisse interne is off the books (D8) yet the guest is told it is kept.
+  const keptFromGuest = ready && preview.figures.keptFromGuest != null ? Number(preview.figures.keptFromGuest) : null;
+  const showKept = keptFromGuest !== null && Math.round(keptFromGuest * 100) !== Math.round(retained * 100);
   const amount = (value) => (ready
     ? <strong>{formatCurrency(value)}</strong>
     : <Skeleton variant="text" width={72} sx={{ display: 'inline-block', verticalAlign: 'middle' }} />);
@@ -90,6 +96,11 @@ export default function ReservationCancelDialog({ open, row, busy, onClose, onCo
               <Typography variant="body2">
                 Solde abandonné : {amount(writtenOff)}
               </Typography>
+              {showKept && (
+                <Typography variant="body2">
+                  Somme conservée (indiquée au client) : {amount(keptFromGuest)}
+                </Typography>
+              )}
             </Box>
 
             <Alert severity="warning" variant="outlined">

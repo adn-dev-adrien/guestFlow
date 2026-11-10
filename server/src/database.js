@@ -3030,6 +3030,20 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- CANCELLATION NOTICE OPENS NEUTRAL (specs/payment-schedule-and-cancellation.md rule 63) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'cancellation_notice_neutral_opening_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runCancellationNoticeNeutralOpeningMigration } = require('./utils/migrateCancellationNoticeNeutralOpening');
+    const updated = db.transaction(() => {
+      const count = runCancellationNoticeNeutralOpeningMigration(db);
+      db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+      return count;
+    })();
+    console.log(`[migration:${migrationName}] ${updated} cancellation notice field(s) now open without a reason`);
+  }
+}
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

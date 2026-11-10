@@ -265,11 +265,12 @@ const BALANCE_REMINDER_BODY_EN = [
 // specs/payment-schedule-and-cancellation.md §3.7 rule 40 — sent the moment the operator confirms the
 // cancellation. The retained block only renders when something was actually kept: cancelling a reservation whose
 // acompte never arrived keeps nothing (rule 27). Rule 61 — it names « la somme », the cancellation's own figure: an
-// acompte, the échéances of a plan, a commission withheld.
+// acompte, the échéances of a plan, a commission withheld. Rule 63 — it gives no reason: the same notice follows a
+// cancellation for non-payment and one the guest asked for.
 const CANCELLATION_NOTICE_BODY = [
   'Bonjour {{clientFirstName}},',
   '',
-  'Faute de règlement du solde, nous avons le regret de vous informer que votre séjour {{propertyWithArticle}} est annulé.',
+  'Nous avons le regret de vous informer que votre séjour {{propertyWithArticle}} est annulé.',
   '',
   'Séjour annulé :',
   '{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}',
@@ -314,7 +315,7 @@ const DATES_UNAVAILABLE_NOTICE_BODY_EN = [
 const CANCELLATION_NOTICE_BODY_EN = [
   'Hello {{clientFirstName}},',
   '',
-  'As the balance was not paid, we are sorry to inform you that your stay at {{propertyWithArticle}} has been cancelled.',
+  'We are sorry to inform you that your stay at {{propertyWithArticle}} has been cancelled.',
   '',
   'Cancelled stay:',
   '{{#if hasReservationNumber}}- Reservation no.: {{reservationNumber}}',
