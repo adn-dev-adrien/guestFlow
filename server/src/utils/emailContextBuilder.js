@@ -99,6 +99,7 @@ function buildCgvUrl(settings, termsVersion) {
  *   options: object[],             // joined reservation_options rows (with options.title + autoOptionType)
  *   resources: object[],           // joined reservation_resources rows (with resources.name)
  *   settings: object,              // app_settings row
+ *   cancellationKept?: number,     // the sum a cancellation keeps, from utils/cancellationKeptForEmail (rule 61)
  * }} input
  * @returns {{ vars: object, flags: object }}
  */
@@ -107,7 +108,7 @@ function hourlyResourcesLive() {
   try { return require('../plugins/sdk/registry').isLive('hourly-resources'); } catch { return false; }
 }
 
-function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, pluginContext = null, installment = null }) {
+function buildContext({ reservation, client, property, options = [], resources = [], customOptions = [], settings = {}, bedLinenProvidedByDefault = false, lang = 'fr', arrivalComplementDetail = null, stayFacts = null, sequence = null, termsVersion = null, pluginContext = null, installment = null, cancellationKept = 0 }) {
   // The guest email sequence reads the RAW option lines (it applies the visibility filter itself).
   // specs/airbnb-no-checkout-chores.md rule 6 — a free « Frais de ménage » line is a cleaning
   // the guest paid for, exactly as the SAS reads it (isCleaningSoldForReservation).
@@ -335,14 +336,14 @@ function buildContext({ reservation, client, property, options = [], resources =
   // until a dedicated cautionMethod column lands. Also suppressed once the caution has been
   // RECEIVED (`cautionReceived = 1`): if the operator already has the caution in hand, no arrival
   // email should ask the guest to bring it (2026-06-22 fix — was reminding on a received caution).
-  // specs/payment-schedule-and-cancellation.md §3.3 + §3.7 — the day an unpaid solde costs the stay,
-  // and the acompte that would then be kept as an indemnity. Both are derived from the property's own
-  // delay, here, so the dunning emails never do arithmetic of their own.
+  // specs/payment-schedule-and-cancellation.md §3.3 + §3.7 — the day an unpaid solde costs the stay, derived from the
+  // property's own delay. The sum kept is the cancellation's own figure (rule 61, utils/cancellationKeptForEmail),
+  // handed in by the sender: the e-mail never works it out.
   const cancelOnDate = resolveCancelOn({
     balanceDueDate: r.balanceDueDate,
     cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
   });
-  const retainedDepositAmount = Number(r.depositPaid || 0) === 1 ? Number(r.depositAmount || 0) : 0;
+  const retainedDepositAmount = Math.max(0, Math.round((Number(cancellationKept) || 0) * 100) / 100);
 
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
   // specs/caution-live-from-property.md §3 — caution is live from the property's current
@@ -479,8 +480,8 @@ function buildContext({ reservation, client, property, options = [], resources =
       // while the phone is empty, never printed with a hole.
       hasCompanyPhone: safeStr(settings.companyPhone).trim().length > 0,
       hasCgvUrl: Boolean(buildCgvUrl(settings, termsVersion)),
-      // An acompte actually collected — the cancellation notice only mentions a retained sum when
-      // there is one (rule 27: an unpaid acompte keeps nothing).
+      // A sum the cancellation keeps (rule 61) — the notice only mentions one when there is one (rule 27: an unpaid
+      // acompte keeps nothing).
       hasRetainedDeposit: retainedDepositAmount > 0,
       hasBedLinenOption,
       hasCleaningOption,

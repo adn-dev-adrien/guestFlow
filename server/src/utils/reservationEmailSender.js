@@ -62,6 +62,8 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   const context = buildContext({
     reservation, client, property, options, resources, customOptions,
     bedLinenProvidedByDefault, settings, lang, termsVersion, installment,
+    // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
+    cancellationKept: require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation),
     // The local copy of the gate-access result — nothing to reach, nothing to wait for.
     pluginContext: pluginEmailContext(reservation.id),
   });

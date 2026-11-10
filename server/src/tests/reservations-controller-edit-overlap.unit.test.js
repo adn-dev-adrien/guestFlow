@@ -51,6 +51,8 @@ function buildController({ stored, availabilityError = null, capacity, captures 
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
     '../models/establishmentClosuresModel': new Proxy({}, { get: () => () => null }),
     '../models/reservationsModel': new Proxy({}, { get: (_, k) => {
+      // The stay exists: an unknown id is refused 404 first (reservations-backend-mvc rule 26, audit R44-C-L3).
+      if (k === 'getRow') return (id) => ({ id: Number(id), kind: 'reservation' });
       if (k === 'getPropertyCapacity') return () => cap;
       if (k === 'getPropertyBeds') return () => ({ singleBeds: cap.singleBeds, doubleBeds: cap.doubleBeds, babyBeds: cap.babyBeds });
       if (k === 'getBabyBedAvailability') return () => ({ availableBabyBeds: cap.babyBeds });

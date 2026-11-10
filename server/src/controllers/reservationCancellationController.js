@@ -104,6 +104,8 @@ async function cancel(req, res) {
     cancellationReason: result.cancellationReason,
     retainedDepositAmount: result.retainedDepositAmount,
     indemnityAmount: result.indemnityAmount,
+    // Rule 61 — the sum the notice states as kept (the indemnity plus a caisse-interne acompte kept).
+    keptFromGuest: result.keptFromGuest,
     writtenOffBalance: result.writtenOffBalance,
     refundId: result.refundId,
     compensationId: result.compensationId,

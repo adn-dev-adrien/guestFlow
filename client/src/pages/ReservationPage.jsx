@@ -141,8 +141,9 @@ function parseCustomPrice(value) {
   return Number(value);
 }
 
-// specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values.
-const CONVERT_TO_DEVIS_DIRTY_REASON = "Enregistrer d'abord les modifications.";
+// specs/payment-link-lifecycle.md rule 46 (audit R12-C1) — the devis is built from the stored stay, not the typed values;
+// payment-schedule-and-cancellation §6 (audit R44-C-L2) — « Annuler le séjour » and « Supprimer » wait for the save too.
+const SAVE_FIRST_REASON = "Enregistrer d'abord les modifications.";
 // The clean baseline of a prefilled devis: no form snapshot equals it (rule 51).
 const PREFILLED_DEVIS_BASELINE = 'prefilled-devis';
 // Thrown by a page load once a newer load of the page has started: it stops there, silently.
@@ -3504,7 +3505,7 @@ export default function ReservationPage() {
   // operator changes the fiche, never the live one on a locked fiche.
   const showLiveMoney = !storedLedger || (isDirty && !isReservationLocked);
   // The stay's own lock first: saving the draft would not lift it.
-  const convertToDevisBlockedReason = convertToDevisLockedReason || (isDirty ? CONVERT_TO_DEVIS_DIRTY_REASON : null);
+  const convertToDevisBlockedReason = convertToDevisLockedReason || (isDirty ? SAVE_FIRST_REASON : null);
   const headline = showLiveMoney ? pricingQuote?.headline : (storedHeadline || pricingQuote?.headline);
   // Rules 44-45 — while the stored ledger shows and today's quote differs from the stored money, the
   // pricing summary (desktop panel and phone sheet) is the stored one, whole: never live lines next to
@@ -3741,14 +3742,20 @@ export default function ReservationPage() {
     }
   };
 
+  const heldWhileDirty = (action) => (isDirty
+    ? { ...action, tooltip: SAVE_FIRST_REASON, ariaLabel: `${action.label} : ${SAVE_FIRST_REASON}`, ariaDisabled: true }
+    : { ...action, tooltip: action.label });
+
   const actionBarAfter = [
     // specs/payment-schedule-and-cancellation.md §3.5 rule 21 — cancelling from the fiche, for the
     // phone call that never turns into a payment. Direct channels only: a platform booking is
     // cancelled through the iCal alert flow (specs/cancellation-compensation.md).
+    // Audit R44-C-L2 — held while the fiche has unsaved changes, as « Transformer en devis » (#918): the stay would leave
+    // and the typed edits with it, or the leave guard would offer a save the server can only refuse.
     ...(!isDevisMode && reservationId && !isPlatformReservation && !isClosedFiche
-      ? [{ icon: <EventBusyIcon />, tooltip: 'Annuler le séjour', onClick: () => setCancelDialogOpen(true), color: 'error', disabled: isReservationLocked }] : []),
+      ? [heldWhileDirty({ icon: <EventBusyIcon />, label: 'Annuler le séjour', onClick: () => setCancelDialogOpen(true), color: 'error', disabled: isReservationLocked })] : []),
     ...(!isDevisMode && reservationId
-      ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked }] : []),
+      ? [heldWhileDirty({ icon: <DeleteIcon />, label: 'Supprimer', onClick: handleDeleteReservation, color: 'error', disabled: isReservationLocked })] : []),
     ...(isDevisMode && editingDevisId
       ? [{ icon: <DeleteIcon />, tooltip: 'Supprimer le devis', onClick: handleDeleteDevis, color: 'error' }] : []),
   ];

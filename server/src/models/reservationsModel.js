@@ -174,12 +174,7 @@ function readExtraLinesFromDetailed(r) {
 // ce qui l'avait effacé. C'est ce silence qui a rendu les bugs de 2026-08-31 (l'enregistrement de la
 // fiche, puis le SAS départ) impossibles à diagnostiquer depuis l'interface — il a fallu lire la base
 // de production. La trace ne corrige aucun comportement : elle rend le comportement visible.
-const ARRIVAL_BUCKET_LABELS = {
-  deposit: 'acompte',
-  balance: 'solde',
-  complement: "complément d'arrivée",
-  endOfStayComplement: 'complément de fin de séjour',
-};
+const { ARRIVAL_BUCKET_LABELS, historyMoney } = require('../utils/arrivalPaymentHistoryText');
 
 function traceGroupDissolved(database, reservationId, group, bucket) {
   if (!group) return;
@@ -192,8 +187,8 @@ function traceGroupDissolved(database, reservationId, group, bucket) {
       .run(reservationId, 'update', JSON.stringify([{
         field: 'arrivalPayment',
         label: "Paiement unique à l'arrivée",
-        from: `${group.total} € le ${group.at} (${covered})`,
-        to: `dissous — ${cause}`,
+        fromText: `${historyMoney(group.total)} le ${formatDateNumeric(group.at)} (${covered})`,
+        toText: `dissous — ${cause}`,
       }]));
   } catch {
     // Pas de table d'historique (schémas de test minimaux) : la dissolution tient quand même.
@@ -2961,7 +2956,7 @@ function createReservationsModel(database) {
           if (!key || asked <= 0) throw midStayError('NOTE_AMOUNT_INVALID', 'Montant de note invalide.');
           // 0.005 tolerance: the client's amount comes from the engine, rounded to the cent.
           if (asked > round2(remaining + 0.005)) {
-            throw midStayError('NOTE_AMOUNT_INVALID', `Montant supérieur au reste à percevoir (${remaining} €).`);
+            throw midStayError('NOTE_AMOUNT_INVALID', `Montant supérieur au reste à percevoir (${historyMoney(remaining)}).`);
           }
           let left = Math.min(asked, remaining);
           const taken = { label: lines[0].label, unitPrice: Number(lines[0].unitPrice || 0), amount: 0 };
@@ -3121,7 +3116,7 @@ function createReservationsModel(database) {
 
         const available = round2(noteKeys.reduce((sum, key) => sum + Number((midByKey.get(key) || {}).amount || 0), 0));
         if (nextTotal > round2(available + 0.005)) {
-          throw midStayError('NOTE_AMOUNT_INVALID', `Montant supérieur au reste à percevoir sur ces prestations (${available} €).`);
+          throw midStayError('NOTE_AMOUNT_INVALID', `Montant supérieur au reste à percevoir sur ces prestations (${historyMoney(available)}).`);
         }
 
         // Re-consume the new total over the note's own keys, in their original order.

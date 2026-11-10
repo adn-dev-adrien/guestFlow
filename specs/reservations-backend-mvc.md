@@ -374,7 +374,11 @@ patch. No new edge behavior is introduced.
    /properties/:id/pricing/assign-dates` checks the logement first, whatever the target: on one that does not exist (a
    tab left open on its seasons after its deletion) it answers 404 « Logement non trouvé », where « Une nouvelle saison »
    reached the new season's foreign-key INSERT and answered 500. The dialog shows the message. Nothing is written. Test:
-   `tests/property-assign-dates-unknown-logement.unit.test.js`.
+   `tests/property-assign-dates-unknown-logement.unit.test.js`. *Reading of 2026-11-10 (audit R44-C-L3):* `PUT
+   /reservations/:id` on a stay that does not exist (deleted in another tab, or « Supprimer » then « Enregistrer et
+   quitter ») answers 404 « Réservation non trouvée » first, whatever the body, where the save reached the line inserts
+   and answered 500 « Enregistrement impossible. » on their foreign key. Nothing is written. Test:
+   `tests/reservation-update-unknown-id.unit.test.js`.
 27. **Added 2026-11-10 (audit R43-RES-L2) — a refusal writes its days in French.** The stay refused on a closure
    (409 `CLOSURE_COVERS_DATE`, create and update) answers « Fermeture en place sur cette période : « {label} » du
    04/10/2027 au 08/10/2027. », and the season overlap refusals of a logement's pricing (add, update, « Appliquer à un

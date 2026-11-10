@@ -74,9 +74,20 @@ test('rule 43 — les jetons d’annulation sont fournis par le contexte, calcul
   const { vars } = buildContext({
     reservation: { depositAmount: 300, depositPaid: 1, balanceDueDate: '2026-07-01' },
     client: null, property: null, options: [], settings: {},
+    // Rule 61 — the sum kept is the cancellation's own figure, handed in by the sender.
+    cancellationKept: 220,
   });
   assert.ok('cancelOnDate' in vars);
-  assert.equal(vars.retainedDepositAmount, '300 €');
+  assert.equal(vars.retainedDepositAmount, '220 €');
+});
+
+test('rule 61 — the context never works the sum kept out of the acompte on its own', () => {
+  const { vars, flags } = buildContext({
+    reservation: { depositAmount: 300, depositPaid: 1 },
+    client: null, property: null, options: [], settings: {},
+  });
+  assert.equal(vars.retainedDepositAmount, '0 €');
+  assert.equal(flags.hasRetainedDeposit, false);
 });
 
 test('rule 43 — un acompte non encaissé n’est pas annoncé comme conservé', () => {

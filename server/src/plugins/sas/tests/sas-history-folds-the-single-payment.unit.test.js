@@ -34,7 +34,8 @@ test('les lignes par échéance sont repliées en une seule, qui dit le montant,
   const out = fold(1, paidLines());
   assert.equal(out.length, 1);
   assert.equal(out[0].label, "Encaissé à l'arrivée — paiement unique");
-  assert.equal(out[0].toText, '530 € — CB / Chèque le 2026-08-30 — solde, complément');
+  // Audit R44-RES-L2 — the day and the bucket names as the fiche writes them.
+  assert.equal(out[0].toText, "530 € — CB / Chèque le 30/08/2026 — solde, complément d'arrivée");
 });
 
 test('le reste du check-in garde ses propres lignes', () => {

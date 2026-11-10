@@ -133,4 +133,10 @@ function computeSasChanges(before, after) {
   return changes;
 }
 
-module.exports = { SAS_FIELD_LABELS, buildSasSnapshot, computeSasChanges };
+// « 2026-09-01 » → « 01/09/2026 », the way the fiche writes a day (audit R44-RES-L2).
+const dayFr = (iso) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(iso || '');
+};
+
+module.exports = { SAS_FIELD_LABELS, buildSasSnapshot, computeSasChanges, money, dayFr };

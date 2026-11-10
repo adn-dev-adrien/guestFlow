@@ -99,6 +99,18 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
    are untouched by construction. That is the whole point of the control.
 9. **History**: the fiche's « Historique des modifications » records « Paiement unique encaissé à
    l'arrivée » with the amount, the means and the buckets covered.
+   *Reading of 2026-11-10 (audit R44-RES-L2):* written for the operator, the French way: « 281,98 € — CB / Chèque le
+   01/09/2026 — solde, complément de fin de séjour » (`utils/arrivalPaymentHistoryText`: the history's money format,
+   DD/MM/YYYY, the buckets « acompte », « solde », « complément d'arrivée », « complément de fin de séjour »), with no
+   « vide → » before it. The same holds for its undo (« 281,98 € (solde, …) → annulé »), the group's dissolution trace,
+   the adjusted total (« 300 € → 281,50 € (réduction 18,50 €) ») and the sas's folded line (sas 1.9.3). A line stored
+   before is read back the same way, the stored row untouched; the cancel entry's « Acompte conservé », « Solde
+   abandonné » and « Somme conservée » read as amounts. Two refusals that printed a dot decimal now write a comma (the
+   mid-stay note's « reste à percevoir », the refund's stay cap). *Why:* the fiche read « 281.98 € — CB / Chèque le
+   2026-09-01 — balance, endOfStayComplement » beside rows reading « 281,98 € » and « 30/08/2026 ». Test:
+   `tests/history-texts-french.unit.test.js`, `arrival-payment-history-line`, `arrival-payment-dissolution-is-traced`,
+   sas `sas-history-folds-the-single-payment`, `mid-stay-note-refusal-french-amount` (both note refusals, verification
+   R44 L4).
 
 ### 3.3 Undoing it
 
