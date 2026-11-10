@@ -1316,6 +1316,9 @@ async function calculatePrice(req, res) {
 
   const propertyId = Number(req.body.propertyId);
   if (typeof db.ensureDefaultTimedOptionsForProperty === 'function' && Number.isFinite(propertyId) && propertyId > 0) {
+    // specs/reservations-backend-mvc.md rule 26 (audit R40-RES-L1) — the default timed options are linked to a real
+    // logement only: one that names nothing is refused as on suggest-beds (that INSERT was a foreign-key 500).
+    if (!db.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) return res.status(404).json({ error: 'Logement non trouvé' });
     db.ensureDefaultTimedOptionsForProperty(propertyId);
   }
 

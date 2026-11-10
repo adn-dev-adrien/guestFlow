@@ -1,0 +1,1 @@
+- A devis naming a client that no longer exists is refused (« Un client est requis pour enregistrer le devis. ») instead of failing with an internal error. A price calculation or a calendar note on a logement that no longer exists answers « Logement non trouvé ».
