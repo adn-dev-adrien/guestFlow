@@ -45,6 +45,7 @@ async function previewEqualsCancel(id, { soldeCommission = 0 } = {}) {
   assert.deepEqual(shown.body, {
     cancellationReason: done.body.cancellationReason,
     retainedDepositAmount: done.body.retainedDepositAmount,
+    indemnityAmount: done.body.indemnityAmount,
     writtenOffBalance: done.body.writtenOffBalance,
   });
   const entry = db.prepare("SELECT changedFields FROM reservation_history WHERE reservationId = ? AND eventType = 'cancel' ORDER BY id DESC").get(id);
@@ -53,7 +54,8 @@ async function previewEqualsCancel(id, { soldeCommission = 0 } = {}) {
   assert.equal(stored('retainedDeposit'), shown.body.retainedDepositAmount, 'the history holds the figure shown');
   assert.equal(stored('writtenOffBalance'), shown.body.writtenOffBalance);
   const indemnity = db.prepare('SELECT receivedAmount FROM cancellation_compensations WHERE reservationId = ?').get(id);
-  assert.equal(cents(indemnity ? indemnity.receivedAmount : 0), cents(shown.body.retainedDepositAmount) + cents(soldeCommission), 'the indemnity holds the figure shown');
+  assert.equal(cents(indemnity ? indemnity.receivedAmount : 0), cents(shown.body.indemnityAmount), 'the indemnity booked is the figure shown');
+  assert.equal(cents(shown.body.indemnityAmount), cents(shown.body.retainedDepositAmount) + cents(soldeCommission), 'money kept plus the withheld solde commission');
   return shown.body;
 }
 
@@ -183,4 +185,13 @@ test('rule 60 — the dashboard row offering the cancellation says what the canc
   const refused = rowsOf({ error: 'PLATFORM_RESERVATION', status: 403 });
   assert.equal(refused[0].canCancel, false, 'no offer the cancel would refuse');
   assert.equal(refused[0].retainedDepositAmount, 0);
+});
+
+test('rule 60 (verification R43 N2) — a paid solde with a withheld commission and nothing kept: the indemnity shown is the commission', async () => {
+  const stay = fiche(NO_ACOMPTE, 'direct');
+  assert.equal(mark(stay.id, S).statusCode, 200);
+  db.prepare('UPDATE reservations SET platformCommissionAmount = 19.2 WHERE id = ?').run(stay.id);
+  const shown = await previewEqualsCancel(stay.id, { soldeCommission: 19.2 });
+  assert.equal(shown.retainedDepositAmount, 0);
+  assert.equal(shown.indemnityAmount, 19.2);
 });

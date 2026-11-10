@@ -2977,8 +2977,8 @@ export default function ReservationPage() {
       await alert({
         title: 'Séjour annulé',
         message: [
-          result?.retainedDepositAmount > 0
-            ? `Les dates sont remises à la vente. ${formatCurrency(result.retainedDepositAmount)} conservés à titre d'indemnité (hors TVA).`
+          result?.indemnityAmount > 0
+            ? `Les dates sont remises à la vente. ${formatCurrency(result.indemnityAmount)} conservés à titre d'indemnité (hors TVA).`
             : 'Les dates sont remises à la vente. Rien n\'est conservé en indemnité.',
           // specs/plugins-phase-3a-online-payment.md rule 9 — worded by the server.
           result?.paymentLinksWarning,

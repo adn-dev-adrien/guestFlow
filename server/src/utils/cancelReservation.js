@@ -274,20 +274,23 @@ function cancellationFiguresOf(deps, row, { today = null, vatRate = 0, reason = 
     cancellationReason: resolveCancellationReason(row),
     requalification,
     retainedDepositAmount: requalification ? requalification.retainedTtc : 0,
+    // Verification R43 N2 — the indemnity actually booked (avoir, compensation): the money kept plus a withheld solde
+    // commission. The dialog and the toast state this one.
+    indemnityAmount: requalification ? round2(requalification.requalifiedTtc) : 0,
     writtenOffBalance: round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount)),
   };
 }
 
 /**
  * Rule 60 — what cancelling the stay now would keep and write off, or the refusal the cancel would answer. Reads only.
- * @returns {{ ok: true, cancellationReason, retainedDepositAmount, writtenOffBalance } | { error, status, message }}
+ * @returns {{ ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance } | { error, status, message }}
  */
 function cancellationPreview(deps, reservationId, { today = null, vatRate = 0 } = {}) {
   const row = deps.reservationsModel.getForCancellation(Number(reservationId));
   const refusal = cancellationRefusalOf(row);
   if (refusal) return refusal;
-  const { cancellationReason, retainedDepositAmount, writtenOffBalance } = cancellationFiguresOf(deps, row, { today, vatRate });
-  return { ok: true, cancellationReason, retainedDepositAmount, writtenOffBalance };
+  const { cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance } = cancellationFiguresOf(deps, row, { today, vatRate });
+  return { ok: true, cancellationReason, retainedDepositAmount, indemnityAmount, writtenOffBalance };
 }
 
 /**
@@ -304,7 +307,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
 
   const trimmedReason = String(reason || '').trim();
   const {
-    cancellationReason, requalification, retainedDepositAmount, writtenOffBalance,
+    cancellationReason, requalification, retainedDepositAmount, indemnityAmount, writtenOffBalance,
   } = cancellationFiguresOf(deps, row, { today, vatRate, reason: trimmedReason });
 
   let refundId = null;
@@ -334,6 +337,7 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     ok: true,
     cancellationReason,
     retainedDepositAmount,
+    indemnityAmount,
     writtenOffBalance,
     refundId,
     compensationId,

@@ -19,6 +19,8 @@
 const { buildHorizonPlan, materializeClosures } = require('./seasonPlan');
 const { resolvePlatformCleaningFees, diffPlatformCleaningFees } = require('./platformCleaningFee');
 const sdk = require('../sdk');
+// An operator warning writes a day as the screens do (audit R43 « noted »): `2027-10-04` → `04/10/2027`.
+const frDay = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || ''); };
 
 const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 
@@ -253,13 +255,13 @@ function createTariffRecipeModel(database, recipeStore) {
       const reservationConflict = closuresModel.findReservationOverlap(Number(propertyId), closure.startDate, closure.endDate);
       if (reservationConflict) {
         closuresDiff.skipped.push(closure);
-        warnings.push(`Fermeture ${closure.startDate} → ${closure.endDate} non créée : réservation #${reservationConflict.id} à cheval.`);
+        warnings.push(`Fermeture ${frDay(closure.startDate)} → ${frDay(closure.endDate)} non créée : réservation #${reservationConflict.id} à cheval.`);
         continue;
       }
       const closureConflict = closuresModel.findClosureOverlap(Number(propertyId), closure.startDate, closure.endDate);
       if (closureConflict) {
         closuresDiff.skipped.push(closure);
-        warnings.push(`Fermeture ${closure.startDate} → ${closure.endDate} non créée : chevauche une fermeture existante.`);
+        warnings.push(`Fermeture ${frDay(closure.startDate)} → ${frDay(closure.endDate)} non créée : chevauche une fermeture existante.`);
         continue;
       }
       closuresDiff.added.push(closure);
@@ -324,7 +326,7 @@ function createTariffRecipeModel(database, recipeStore) {
             blockedByLabel: obstacle.label,
             blockedByRange: blockingRange ? { startDate: blockingRange.startDate, endDate: blockingRange.endDate } : null,
           });
-          warnings.push(`La plage ${desired.startDate} → ${desired.endDate} (${season.label}) chevauche la saison manuelle « ${obstacle.label} ».`);
+          warnings.push(`La plage ${frDay(desired.startDate)} → ${frDay(desired.endDate)} (${season.label}) chevauche la saison manuelle « ${obstacle.label} ».`);
           blocking = true;
         }
       }

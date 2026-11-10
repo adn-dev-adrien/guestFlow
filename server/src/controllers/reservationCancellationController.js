@@ -55,6 +55,7 @@ function preview(req, res) {
   return res.json({
     cancellationReason: result.cancellationReason,
     retainedDepositAmount: result.retainedDepositAmount,
+    indemnityAmount: result.indemnityAmount,
     writtenOffBalance: result.writtenOffBalance,
   });
 }
@@ -102,6 +103,7 @@ async function cancel(req, res) {
     ok: true,
     cancellationReason: result.cancellationReason,
     retainedDepositAmount: result.retainedDepositAmount,
+    indemnityAmount: result.indemnityAmount,
     writtenOffBalance: result.writtenOffBalance,
     refundId: result.refundId,
     compensationId: result.compensationId,

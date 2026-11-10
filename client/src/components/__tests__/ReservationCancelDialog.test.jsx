@@ -18,7 +18,7 @@ vi.mock('../../api', () => ({ default: { getCancellationPreview: vi.fn() } }));
 // The two figures are the cancellation's own (rule 60): the server answers them.
 beforeEach(() => {
   api.getCancellationPreview.mockReset();
-  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 274, writtenOffBalance: 640 });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 274, indemnityAmount: 274, writtenOffBalance: 640 });
 });
 
 const ROW = {
@@ -50,7 +50,7 @@ test('rule 22 — le récapitulatif nomme le client, le séjour et le sort des d
 });
 
 test('rule 22 — rien de conservé : le dialogue le dit plutôt que d’annoncer une indemnité', async () => {
-  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_deposit', retainedDepositAmount: 0, writtenOffBalance: 914 });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_deposit', retainedDepositAmount: 0, indemnityAmount: 0, writtenOffBalance: 914 });
   renderDialog();
   expect(await screen.findByText(/Rien n’est requalifié en indemnité/)).toBeInTheDocument();
 });

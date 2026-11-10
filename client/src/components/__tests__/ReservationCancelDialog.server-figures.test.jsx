@@ -16,8 +16,8 @@ const ROW = {
   clientName: 'Camille Test',
   clientEmail: '',
   propertyName: 'Gîte Test',
-  startDate: '2026-09-18',
-  endDate: '2026-09-25',
+  startDate: '2026-09-18', // date-literal-ok: displayed only, never compared with today
+  endDate: '2026-09-25', // date-literal-ok: displayed only, never compared with today
 };
 
 const renderDialog = () => render(<ReservationCancelDialog open row={ROW} onClose={vi.fn()} onConfirm={vi.fn()} />);
@@ -26,7 +26,7 @@ const confirmButton = () => screen.getByRole('button', { name: 'Annuler le séjo
 beforeEach(() => api.getCancellationPreview.mockReset());
 
 test('rule 60 — a plan with a paid échéance: the dialog shows the server\'s 125,00 € kept and 249,79 € written off', async () => {
-  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 125, writtenOffBalance: 249.79 });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 125, indemnityAmount: 125, writtenOffBalance: 249.79 });
   renderDialog();
   expect(api.getCancellationPreview).toHaveBeenCalledWith(22327);
   expect(await screen.findByText('125,00 €')).toBeInTheDocument();
@@ -41,7 +41,7 @@ test('rule 60 — while the figures load, no amount is shown and the confirm wai
   renderDialog();
   expect(confirmButton()).toBeDisabled();
   expect(screen.queryByText(/0,00 €/)).not.toBeInTheDocument();
-  answer({ cancellationReason: 'manual', retainedDepositAmount: 0, writtenOffBalance: 0 });
+  answer({ cancellationReason: 'manual', retainedDepositAmount: 0, indemnityAmount: 0, writtenOffBalance: 0 });
   await waitFor(() => expect(confirmButton()).toBeEnabled());
   expect(screen.getAllByText('0,00 €')).toHaveLength(2);
 });

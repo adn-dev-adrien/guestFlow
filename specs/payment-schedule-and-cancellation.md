@@ -681,6 +681,9 @@ acompte is kept as an indemnity, and the books say so correctly.
     `balancePaid ? 0 : balanceAmount`): on a plan with one paid échéance it read 0,00 € kept, 0,00 € written off and
     « Aucun acompte n'a été encaissé », while the cancel kept 125 € as an indemnity and wrote 249,79 € off; it also
     ignored a book refund before the cancellation (rule 55), an acompte in the caisse interne (D8), withheld commissions.
+    *Reading of 2026-11-10 (verification R43 N2):* the indemnity the dialog and both toasts state is `indemnityAmount`, the
+    requalified total actually booked (money kept plus a withheld solde commission, rule 55), never `retainedDepositAmount`
+    alone, which stays the « Acompte conservé » of the history.
     A cancellation cannot be undone: the operator decided on a false figure. Tests:
     `tests/cancellation-preview.unit.test.js` (preview = cancel for a plan paid or not, a transfer acompte, a refund
     before, a caisse-interne acompte, a split acompte, withheld commissions, nothing collected; the refusals; the

@@ -40,7 +40,7 @@ export default function ReservationCancelDialog({ open, row, busy, onClose, onCo
   if (!row) return null;
 
   const ready = preview.status === 'ready';
-  const retained = ready ? Number(preview.figures.retainedDepositAmount || 0) : 0;
+  const retained = ready ? Number(preview.figures.indemnityAmount || 0) : 0;
   const writtenOff = ready ? Number(preview.figures.writtenOffBalance || 0) : 0;
   const amount = (value) => (ready
     ? <strong>{formatCurrency(value)}</strong>

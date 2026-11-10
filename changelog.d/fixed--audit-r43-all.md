@@ -3,3 +3,5 @@
   - A cancelled stay whose caution was never received reads « Caution · Sans objet », no longer « À recevoir à l'arrivée » (`specs/reservation-payment-ledger.md` rule 74).
   - The closure refusal of a stay and the season overlap refusals write their days as 04/10/2027, no longer 2027-10-04 (`specs/reservations-backend-mvc.md` rule 27).
   - The logement maps of the Booking (booking-intake 1.3.15, SDK 2.15), Gîtes de France (gites-de-france-intake 1.4.12, SDK 2.21), Airbnb (airbnb-intake 1.1.10, SDK 2.21) and Google Vacation Rentals (google-vacation-rentals 1.0.6, SDK 2.11) settings refuse a logement written with leading zeros (« 01 ») « Logement inconnu. ».
+  - The indemnity stated before and after a cancellation includes a commission withheld on a paid solde, as booked.
+  - Operator e-mails (new reservation, dates taken, payment) and the tariff recipe warnings (tariff-recipes 1.4.5, SDK 2.5) write days as 04/10/2027.
