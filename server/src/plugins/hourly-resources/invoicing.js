@@ -120,14 +120,9 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
         const status = await issuer.invoiceStatus(row.qontoInvoiceId);
         if (status === 'canceled' || status === 'cancelled') { bookings().markInvoiceCancelled(row.id); continue; }
         // Rule 38 — the « marquer payée » Qonto did not take at issue, tried again until it is paid there.
-        if (Number(row.invoiceMarkPending) === 1) {
-          if (status === 'paid') bookings().settleInvoiceMark(row.id, { markedPaid: true });
-          else if (typeof issuer.markPaid === 'function') {
-            // eslint-disable-next-line no-await-in-loop
-            const marked = await issuer.markPaid({ invoiceId: row.qontoInvoiceId, paidAt: row.payment ? row.payment.paidAt : null });
-            bookings().settleInvoiceMark(row.id, { markedPaid: Boolean(marked && marked.done) });
-          }
-        }
+        // eslint-disable-next-line no-await-in-loop
+        if (Number(row.invoiceMarkPending) === 1) await retryMark(issuer, row, status);
+        // Rule 47 (R36-EXT-1) — the attachment never waits on the mark: a mark Qonto keeps refusing stops nothing else.
         // eslint-disable-next-line no-await-in-loop
         if (row.payment && row.payment.hasCard && row.invoice.attachment.state === 'pending') await attach(row.id);
       } catch (err) {
@@ -135,6 +130,21 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
       }
     }
     return { checked: rows.length };
+  }
+
+  // Rule 47 — the mark is retried for ATTACH_WINDOW_DAYS after the issue, then left « à payer » in Qonto, as a 404/405/501.
+  async function retryMark(issuer, row, status) {
+    if (status === 'paid') { bookings().settleInvoiceMark(row.id, { markedPaid: true }); return; }
+    if (typeof issuer.markPaid !== 'function') return;
+    try {
+      const marked = await issuer.markPaid({ invoiceId: row.qontoInvoiceId, paidAt: row.payment ? row.payment.paidAt : null });
+      bookings().settleInvoiceMark(row.id, { markedPaid: Boolean(marked && marked.done) });
+    } catch (err) {
+      const issued = Date.parse(`${String(row.invoiceIssuedAt || '').replace(' ', 'T')}Z`);
+      const late = Number.isFinite(issued) && now().getTime() - issued > ATTACH_WINDOW_DAYS * dayMs;
+      if (late) bookings().settleInvoiceMark(row.id, { markedPaid: false });
+      logger.warn(`[hourly-resources] invoice mark of booking ${row.id}${late ? ' given up' : ''}:`, err && err.message);
+    }
   }
 
   return { issue, attach, watch, requestOf };

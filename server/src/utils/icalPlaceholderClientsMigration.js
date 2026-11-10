@@ -16,6 +16,7 @@
  */
 
 const { parseGuestName, resolveIcalClientIdentity } = require('./icalParser');
+const { noResourceBookingSql } = require('./deletionGuard');
 
 const CONTACT_COLUMNS = ['email', 'phone', 'notes', 'address', 'street', 'streetNumber', 'postalCode', 'city'];
 
@@ -81,7 +82,7 @@ function splitSharedIcalPlaceholderClients(db) {
 
 /**
  * Rule 14 — a placeholder the stay no longer uses (an intake moved the stay onto the guest's own client)
- * is deleted: named « Ical … », no coordinates, no reservation or quote. Runs at every sync.
+ * is deleted: named « Ical … », no coordinates, no reservation or quote, no resource booking (rule 34). Runs at every sync.
  *
  * @param {import('better-sqlite3').Database} db
  * @returns {number} deleted clients
@@ -94,8 +95,23 @@ function removeOrphanIcalPlaceholders(db) {
     DELETE FROM clients
     WHERE firstName = 'Ical'
       ${empty.length ? `AND ${empty.join(' AND ')}` : ''}
-      AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = clients.id)
+      AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.clientId = clients.id)${noResourceBookingSql(db, 'clients')}
   `).run().changes;
 }
 
-module.exports = { splitSharedIcalPlaceholderClients, removeOrphanIcalPlaceholders };
+/**
+ * The clients an iCal import created (notes `iCal {…}`) once no reservation or quote names them, at every sync. A client
+ * a resource booking names is kept (specs/resource-booking-pricing-and-invoicing.md rule 34, R36-RES-L1).
+ *
+ * @param {import('better-sqlite3').Database} db
+ * @returns {number} deleted clients
+ */
+function removeOrphanIcalImportClients(db) {
+  return db.prepare(`
+    DELETE FROM clients
+    WHERE NOT EXISTS (SELECT 1 FROM reservations WHERE reservations.clientId = clients.id)
+      AND notes LIKE 'iCal {%'${noResourceBookingSql(db, 'clients')}
+  `).run().changes;
+}
+
+module.exports = { splitSharedIcalPlaceholderClients, removeOrphanIcalPlaceholders, removeOrphanIcalImportClients };

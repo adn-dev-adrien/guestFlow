@@ -50,6 +50,9 @@ const ttcOf = (htCents, rate) => Math.round(htCents * (1 + Number(rate || 0) / 1
 const NUDGE = [0, -1, 1, -2, 2, -3, 3];
 const ROUNDING_TITLE = 'Arrondi de TVA';
 
+// Rule 48 (R36-EXT-2) — a line keeps its sign: a price never becomes a 0 € or a negative HT line, a discount never 0 €.
+const keepsSign = (amountCents, ht) => (amountCents > 0 ? ht >= 1 : (amountCents < 0 ? ht <= -1 : ht === 0));
+
 function solveLines(lines, expectedTotalCents) {
   const bases = lines.map((l) => Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)));
   let best = null;
@@ -61,6 +64,7 @@ function solveLines(lines, expectedTotalCents) {
     }
     for (const d of NUDGE) {
       const ht = bases[i] + d;
+      if (!keepsSign(lines[i].amountCents, ht)) continue;
       const ttc = ttcOf(ht, lines[i].vatRate);
       chosen.push(ht);
       walk(i + 1, chosen, total + ttc, cost + Math.abs(ttc - lines[i].amountCents) * 10 + Math.abs(d));
@@ -71,14 +75,15 @@ function solveLines(lines, expectedTotalCents) {
   return best ? lines.map((l, i) => ({ ...l, amountCents: best.chosen[i] })) : null;
 }
 
-function toExcludingVat(lines, expectedTotalCents) {
+// `noNegative` (the folded fallback, sent after Qonto refused a negative line): the rounding line is positive too.
+function toExcludingVat(lines, expectedTotalCents, { noNegative = false } = {}) {
   if (expectedTotalCents == null || lines.length === 0) {
     return lines.map((l) => ({ ...l, amountCents: Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)) }));
   }
   const solved = solveLines(lines, expectedTotalCents);
   if (solved) return solved;
   const rate = lines[0].vatRate;
-  for (const cent of [1, -1, 2, -2]) {
+  for (const cent of noNegative ? [1, 2] : [1, -1, 2, -2]) {
     const withRounding = solveLines([...lines, { title: ROUNDING_TITLE, amountCents: ttcOf(cent, rate), vatRate: rate }], expectedTotalCents);
     if (withRounding) return withRounding;
   }
@@ -94,10 +99,11 @@ function wireItems(items, discount, expectedTotalCents = null) {
 }
 
 // Q3 — when Qonto refuses a negative line, the discount is folded into the lines, largest first, and named in their
-// description: the total is the same, the reader still sees what was offered.
+// description: the total is the same, the reader still sees what was offered. Rule 48 — a line the discount covers
+// whole is left out (never a 0 € line), the cents land on the positive lines only; none left = `null` (refused).
 function foldedItems(items, discount, expectedTotalCents = null) {
   let left = Math.abs(discount.amountCents);
-  return toExcludingVat([...items]
+  const folded = [...items]
     .sort((a, b) => b.amountCents - a.amountCents)
     .map((it) => {
       const cut = Math.min(left, it.amountCents);
@@ -105,7 +111,10 @@ function foldedItems(items, discount, expectedTotalCents = null) {
       return cut > 0
         ? { ...it, amountCents: it.amountCents - cut, description: `${discount.title} : −${(cut / 100).toFixed(2).replace('.', ',')} €` }
         : it;
-    }), expectedTotalCents);
+    })
+    .filter((it) => it.amountCents > 0);
+  if (folded.length === 0) return null;
+  return toExcludingVat(folded, expectedTotalCents, { noNegative: true });
 }
 
 /**

@@ -1,6 +1,8 @@
 // specs/resource-booking-pricing-and-invoicing.md rules 28, 44 (R35-C-L1, R35-C-L2, R35-C-L4) — the arrival of a guest who
 // paid at booking time is still recorded (no payment sent); an invoice cancelled in Qonto is offered again; a refused
 // attachment is said on screen.
+// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — these dialog walks run under the client
+// suite's one 30 s budget (vitest.config.js), no per-test timeout.
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';

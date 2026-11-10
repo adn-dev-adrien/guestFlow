@@ -1,50 +1,16 @@
 // specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05 (audit R23-A2, R23-A3, section 4 of the audit) — the whole
 // route set from a valid baseline, one field wrong at a time, through the real application: no 5xx, no `[unhandled]` line, no
-// wrong type stored as text. Each baseline must reach its fields: a row refused on its own would prove nothing.
+// wrong type stored as text. Each baseline must reach its fields: a row refused on its own would prove nothing. This file
+// holds the stays, their money and their logements; input-shape-per-field-others the rest (R36-S4, the per-file cap).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { startApp } = require('./inputShapeApp');
-const { baselines, fuzzRow, junkScanner, dayAt } = require('./inputShapeBaselines');
+const { dayAt } = require('./inputShapeBaselines');
+const { perFieldSuite, isStayRow } = require('./inputShapePerField');
 
-const T = JSON.parse('{"toString":1}');
-const VALUES = [['T', T], ['obj', { a: 1 }], ['true', true], ['huge', 1e308], ['null', null]];
-const PLUGINS = ['hourly-resources', 'school-holidays', 'tariff-recipes', 'accounting-export', 'neat', 'online-payment', 'sas', 'linen', 'website-booking'];
-
-let app;
-let admin;
-let active;
-let rows;
-let scanner;
-
-test.before(async () => {
-  app = await startApp();
-  admin = await app.login('admin@shape.test');
-  active = await app.activatePlugins(admin, PLUGINS);
-  ({ rows } = await baselines(app, admin, active));
-  rows = rows.filter(([, , , options = {}]) => !options.plugin || active.has(options.plugin));
-  scanner = junkScanner(app.dbPath);
-});
-test.after(async () => {
-  if (scanner) scanner.close();
-  if (app) await app.stop();
-});
-
-test('rule 68 — every baseline is accepted or stops only at the state it names', { timeout: 300000 }, async () => {
-  const failures = [];
-  const dead = [];
-  let requests = 0;
-  for (const row of rows) {
-    const result = await fuzzRow(app, admin, scanner, row, VALUES);
-    requests += result.requests;
-    failures.push(...result.failures);
-    if (!result.reached) dead.push(`${row[0]} ${typeof row[1] === 'string' ? row[1] : row[3].name} → ${result.baseline} ${result.answer}`);
-  }
-  assert.ok(requests > 1000, `${requests} requests`);
-  assert.deepEqual(dead, []);
-  assert.deepEqual([...new Set(failures)], []);
-});
+const suite = perFieldSuite({ part: isStayRow, minRequests: 2000 });
 
 test('rule 68 — what the fuzz found behind the baselines: each its own refusal', async () => {
+  const { app, admin } = suite;
   const { reservation, property } = app.ids;
   const notes = await app.call(admin, 'PUT', `/api/calendar-notes/${property}/${dayAt(5)}`, { note: { a: 1 } });
   assert.equal(notes.status, 400);

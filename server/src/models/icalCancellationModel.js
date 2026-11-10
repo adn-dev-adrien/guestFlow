@@ -34,7 +34,7 @@
  */
 
 const { totalSejour } = require('./financeModel').helpers;
-const { carriesMoney, withConvertedDevis } = require('../utils/deletionGuard');
+const { carriesMoney, cautionBlocker, withConvertedDevis } = require('../utils/deletionGuard');
 
 function buildModel(database) {
   // Bound to the SAME database so a test factory gets a matching pair. Its statements are
@@ -242,7 +242,8 @@ function buildModel(database) {
     // THE delete guard (specs/payment-schedule-and-cancellation.md rule 52): a stay that carries money
     // (a refund, a penalty, a paid link, a compensation…) is never hard-deleted by a platform's
     // disappearance: it is cancelled and kept, its mappings go, the alert closes as approved.
-    const keptAsCancelled = carriesMoney(database, [cancellation.reservationId]);
+    const keptAsCancelled = carriesMoney(database, [cancellation.reservationId])
+      || Boolean(cautionBlocker(database, [cancellation.reservationId]));
     // Snapshot BEFORE delete — same reason as the history row below.
     const snapshot = compensation ? selectReservationSnapshot().get(cancellation.reservationId) : null;
     // History BEFORE delete so the reservationId FK is still resolvable.

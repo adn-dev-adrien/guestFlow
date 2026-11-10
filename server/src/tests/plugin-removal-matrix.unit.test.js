@@ -110,14 +110,16 @@ function testFiles(dir, out = []) {
 // file drops what the tree does not ship (a `.filter` on `fs.existsSync`), or the literal is only an input of the
 // release's path classifier (`pluginsOf([…])`).
 const READS_WHAT_SHIPS = /\.filter\(\((\w+)\) => fs\.existsSync\(path\.join\(ROOT, \1\)\)\)/;
-function pluginsNamedBy(source, ids) {
+// `insidePlugin`: the file lives in a plugin's own `tests/`, where a sibling plugin is `../../<id>/` (R36-S1).
+function pluginsNamedBy(source, ids, { insidePlugin = false } = {}) {
   const code = source.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join('\n')
     .replace(/optionalPlugin\(\(\) => require\([^)]*\)\)/g, '')
     .replace(/pluginsOf\(\[[^\]]*\]\)/g, '');
   const prefix = READS_WHAT_SHIPS.test(code) ? '(?:src/)?' : '(?:(?:server/)?src/)?';
   return ids.filter((id) => {
     const folder = id.replace(/-/g, '\\-');
-    return new RegExp(`['"\`](?:\\.{1,2}/)*${prefix}plugins/${folder}(?:/|['"\`])|__dirname[^\\n]*['"]plugins['"],\\s*['"]${folder}['"]`).test(code);
+    return new RegExp(`['"\`](?:\\.{1,2}/)*${prefix}plugins/${folder}(?:/|['"\`])|__dirname[^\\n]*['"]plugins['"],\\s*['"]${folder}['"]`).test(code)
+      || (insidePlugin && new RegExp(`['"\`](?:\\.\\./){2,}${folder}(?:/|['"\`])`).test(code));
   });
 }
 
@@ -129,6 +131,10 @@ test('rules 3, 19: a path from the repository root reads the plugin folder, unle
   assert.deepEqual(pluginsNamedBy("const F = ['server/src/plugins/fx-sas/x.js'];\nF.filter((f) => fs.existsSync(path.join(ROOT, f))).map((f) => read(f));", ids), []);
   assert.deepEqual(pluginsNamedBy("const c = pluginsOf([\n  'server/src/plugins/fx-linen/routes.js',\n]);", ids), []);
   assert.deepEqual(pluginsNamedBy("// server/src/plugins/fx-linen/x.js is not read here", ids), []);
+  // specs/plugin-removal-resilience.md rule 21 (R36-S1) — from inside a plugin's tests a sibling plugin is `../../<id>/`; a file of the plugin's own folder is not one.
+  assert.deepEqual(pluginsNamedBy("require('../../fx-sas/invoiceIssuer');", ids, { insidePlugin: true }), ['fx-sas']);
+  assert.deepEqual(pluginsNamedBy("require('../fx-sas');", ids, { insidePlugin: true }), []);
+  assert.deepEqual(pluginsNamedBy("require('../../fx-sas/invoiceIssuer');", ids), []);
 });
 
 const GUARD = /(?:requirePlugins|missingPlugins|skipWithout)\(\[([^\]]*)\]/g;
@@ -140,7 +146,7 @@ test('rules 3, 4: a test or fixture that reads a plugin folder loads it with opt
   const scan = (dir, ownerOf) => testFiles(dir).forEach((file) => {
     const source = fs.readFileSync(file, 'utf8');
     const guarded = guardedIn(source);
-    pluginsNamedBy(source, ids).filter((id) => id !== ownerOf(file) && !guarded.includes(id)).forEach((id) => {
+    pluginsNamedBy(source, ids, { insidePlugin: ownerOf(file) !== null }).filter((id) => id !== ownerOf(file) && !guarded.includes(id)).forEach((id) => {
       violations.push(`${path.relative(ROOT, file)} → ${id}`);
     });
   });

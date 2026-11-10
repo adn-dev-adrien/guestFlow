@@ -59,7 +59,7 @@ const { buildModel: createOptionsModel } = require('./optionsModel');
 // reconstruction, like « Ménage »). specs/sas-bath-linen-upsell.md §3.1 rule 4.
 const BATH_LINEN_LABEL = 'Linge de toilette';
 const establishmentClosuresModel = require('./establishmentClosuresModel');
-const { carriesMoney, withConvertedDevis, MONEY_MESSAGE } = require('../utils/deletionGuard');
+const { carriesMoney, cautionBlocker, withConvertedDevis, MONEY_MESSAGE } = require('../utils/deletionGuard');
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
 
@@ -1303,7 +1303,7 @@ function createReservationsModel(database) {
     },
 
     deletionBlocker(reservationId) {
-      return carriesMoney(database, [reservationId]) ? MONEY_MESSAGE : null;
+      return carriesMoney(database, [reservationId]) ? MONEY_MESSAGE : cautionBlocker(database, [reservationId]);
     },
 
     getBasic(reservationId) {
@@ -2145,6 +2145,8 @@ function createReservationsModel(database) {
         if (!row) return { gone: true };
         if (row.kind !== 'reservation') return { kind: row.kind };
         if (carriesMoney(database, [reservationId])) return { blocker: MONEY_MESSAGE };
+        const caution = cautionBlocker(database, [reservationId]);
+        if (caution) return { blocker: caution };
         database.prepare('DELETE FROM reservations WHERE id = ?').run(Number(reservationId));
         return { ok: true };
       })();

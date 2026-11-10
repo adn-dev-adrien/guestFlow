@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -117,6 +117,11 @@
     "1.5.0": [
       "L’application clients propose les créneaux libres d’une ressource à l’heure, lus dans ce planning : séances des autres séjours, réservations extérieures, remise en état, chauffe et maintien en température.",
       "Un créneau d’une commande client en attente de paiement est bloqué dans le planning, le sas et les réservations extérieures.",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.5.1": [
+      "Une séance ne se rattache plus à un séjour par l’API : une demande qui en nomme un est refusée, et une séance déjà rattachée ne prend pas de paiement.",
+      "La pièce jointe d’une facture rejoint le lot CB même quand Qonto refuse « marquer payée » ; ce marquage est retenté 7 jours puis laissé « à payer ».",
       "Demande le SDK 2.26 de GuestFlow."
     ]
   }

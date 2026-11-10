@@ -646,6 +646,18 @@ acompte is kept as an indemnity, and the books say so correctly.
     **Decision D27 (Adrien, 2026-11-09): option (a).** The promise is kept, rows stored before this rule included
     (production reservation 22306 stays due 23/10, see specs/deposit-blocks-the-dates.md rule 22). Once the stay
     is cancelled its devis no longer holds a deadline and can be deleted (deposit-blocks-the-dates rule 23).
+58. **A settled mid-stay note and a held caution keep the stay** _(added 2026-11-10, audits R36-DB-M2 and
+    R36-DB-L1)_. Rule 52's « carries money » also reads a stay whose `midStaySettledNotes` holds a note (a platform
+    stay often has no paid flag until its payout is ticked: the note is then its only money, a sale of the journal).
+    Such a stay is refused deletion with rule 49's message, its client and its logement with theirs, and an approved
+    iCal cancellation keeps it as cancelled; `utils/stayMoney` reads it too, so it holds its nights (payment-link
+    lifecycle rule 37) and a duplicate holding one is never set aside silently. A caution received and not returned
+    (`cautionReceived = 1`, `cautionReturned = 0`) is the only record of what the guest is owed back: the stay delete
+    answers « Une caution est détenue sur ce séjour : la rendre ou annuler le séjour plutôt que le supprimer. », the
+    client and logement deletes « Une caution est détenue sur une réservation de ce client / de ce logement : la rendre
+    d'abord. », and an approved iCal cancellation keeps the stay as cancelled. A returned caution refuses nothing.
+    *Why:* a Gîtes de France stay with no paid flag, a 13 € note settled, then « Supprimer » → 200, and the note's
+    sale left the month's journal; a Booking stay holding a 500 € caution was deleted with it.
 
 
 ---
@@ -848,6 +860,11 @@ One line per reservation:
 - [x] `tests/devis-converted-promise.unit.test.js` (6, 2026-11-09, audits R34-RES-L1, L2) — rule 57: the stay of
       a no-acompte devis keeps its single payment across saves, the devis carrying the promise is not deletable
       while its stay exists (specs/deposit-blocks-the-dates.md rules 21, 22).
+- [x] `tests/stay-delete-settled-note.unit.test.js` (5, 2026-11-10, audit R36-DB-M2) — rule 58: a stay whose only
+      money is a settled note is refused deletion, its client and logement too, an approved iCal cancellation keeps it
+      cancelled, `stayMoney` reads it as money and nights held; no note, `[]` or blanks delete as before.
+- [x] `tests/stay-delete-caution-held.unit.test.js` (4, 2026-11-10, audit R36-DB-L1) — rule 58: a held caution refuses
+      the stay, client and logement deletes, keeps the iCal-approved stay as cancelled; a returned one refuses nothing.
 - [x] `tests/refund-before-cancellation.unit.test.js` (16 of 22, 2026-11-02) — rule 55: acompte 274 €, 100 €
       given back, then cancelled → 174 € kept (avoir, card, register); every 706 / 4457 / 4671 account, 75880000
       and the client account at 0 once the rest goes back; a paid solde absorbs the refund (274 € kept); a plan

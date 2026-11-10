@@ -20,7 +20,7 @@ const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
 const {
-  resolveDepositDueDate, resolveBalanceDueDate, owesSinglePaymentByValidity, devisPromisesOnePayment, devisPromiseDueDate,
+  resolveDepositDueDate, resolveBalanceDueDate, owesSinglePaymentByValidity, devisPromisesOnePayment, devisPromiseHeld, devisPromiseDueDate,
 } = require('../utils/paymentSchedule');
 const { buildHistoryRows } = require('../utils/reservationAudit');
 const { buildHistoryNameContext } = require('./historyNamesModel');
@@ -1279,8 +1279,15 @@ function createModel(database) {
     return tx();
   }
 
+  // The engine's own condition (rule 26 reading R36b L1): the delay of the logement the converted stay is on now.
+  function holdsPromise(devisRow, stayPropertyId) {
+    const property = database.prepare('SELECT balanceDaysBefore FROM properties WHERE id = ?').get(stayPropertyId) || {};
+    return devisPromiseHeld({ devisPromise: devisRow, balanceDaysBefore: property.balanceDaysBefore });
+  }
+
   function removeRefusal(id) {
-    const existing = database.prepare("SELECT id, convertedReservationId FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    const existing = database.prepare(`SELECT id, convertedReservationId, platform, startDate, validUntil, depositAmount
+      FROM reservations WHERE id = ? AND kind = 'devis'`).get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     // The CGV acceptance of a converted request lives on this row and is the stay's proof
     // (specs/terms-acceptance-record.md rule 29): deleting the devis would cascade it away.
@@ -1292,9 +1299,12 @@ function createModel(database) {
     }
     // specs/deposit-blocks-the-dates.md rule 21 (R34-RES-L1) — the stay reads the devis's promise on this row
     // (its single payment and deadline): deleting it would silently re-price the stay's schedule. A cancelled stay
-    // is never re-priced nor brought back, so it holds no deadline any more (rule 23).
-    if (existing.convertedReservationId
-      && database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind NOT IN ('devis', 'cancelled')").get(existing.convertedReservationId)) {
+    // is never re-priced nor brought back, so it holds no deadline any more (rule 23). Only a devis that made the promise
+    // holds one (rule 26, R36-RES-L2): a direct devis owing one payment (rules 22, 24), the same condition as the engine.
+    const stay = existing.convertedReservationId
+      ? database.prepare("SELECT propertyId FROM reservations WHERE id = ? AND kind NOT IN ('devis', 'cancelled')").get(existing.convertedReservationId)
+      : null;
+    if (stay && holdsPromise(existing, stay.propertyId)) {
       return { error: "Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409, code: 'DEVIS_HOLDS_PROMISE' };
     }
     return null;

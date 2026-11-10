@@ -1,4 +1,4 @@
-// The authenticated write routes from a VALID baseline, for input-shape-per-field.unit.test.js
+// The authenticated write routes from a VALID baseline, for input-shape-per-field(-others).unit.test.js
 // (specs/hosting-h2-account-security.md rule 68). A wrong value sent in every field stops at the first required-field
 // refusal; only a body the route accepts reaches the field the fuzz changes. Each row is
 // [method, url, body, { plugin, ok }]: the body or the url may be a function of a counter when a success uses up what it
@@ -102,7 +102,7 @@ async function baselines(app, admin, active) {
     ['POST', '/api/resources', { name: 'Velo', quantity: 1, price: 5, priceType: 'per_stay', propertyIds: [s.property], propertyPricing: {}, note: 'Note', emailBookedText: '', emailBookedTextEn: '', openTime: '08:00', closeTime: '22:00', openDays: '[0,1,2]', hourlyEveningStart: null }],
     ['PUT', url.resource, resource],
     ['POST', '/api/resource-bookings', (n) => ({ resourceId: s.resource, date: bookingDays(n), startTime: '10:00', endTime: '11:00', propertyId: String(s.property), notes: 'Note', paid: false, clientId: s.client, clientName: null, clientPhone: null, displayedTotal: 30 }), hourly],
-    ['POST', '/api/resource-bookings', (n) => ({ resourceId: s.resource, date: bookingDays(n), startTime: '12:00', endTime: '13:00', propertyId: null, notes: 'Note', paid: true, clientId: null, clientName: 'Marie', clientPhone: '0600000000', reservationId: s.direct }), hourly],
+    ['POST', '/api/resource-bookings', (n) => ({ resourceId: s.resource, date: bookingDays(n), startTime: '12:00', endTime: '13:00', propertyId: null, notes: 'Note', paid: true, clientId: null, clientName: 'Marie', clientPhone: '0600000000' }), hourly],
     ['POST', '/api/resource-bookings/preview', { resourceId: s.resource, bookingId: s.booking, date: dayAt(80), startTime: '10:00', endTime: '11:00', propertyId: String(s.property) }, hourly],
     ['PUT', `/api/resource-bookings/${s.booking}`, { date: dayAt(80), startTime: '10:00', endTime: '11:00', propertyId: String(s.property), notes: 'Note', paid: false, clientId: s.client, clientName: null, clientPhone: null, displayedTotal: 30, reservationId: null }, hourly],
     // specs/resource-booking-pricing-and-invoicing.md §4.3 — no Qonto here: the invoice stops at « not connected ».

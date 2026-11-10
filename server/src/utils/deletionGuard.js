@@ -15,6 +15,13 @@ const PROPERTY_MONEY_MESSAGE = 'Un paiement est enregistré sur une réservation
 // specs/resource-booking-pricing-and-invoicing.md rule 34 — a resource booking sold outside a stay (plugin
 // `hourly-resources`) whose payment is recorded is a sale of the journal; once invoiced, Qonto states it. A delete of
 // what it points at would drop it (resource: cascade) or blank its buyer (client, property: SET NULL).
+// R36-DB-L1 — a caution received and not returned is the only record of what the guest is owed back.
+const CAUTION_MESSAGES = {
+  reservation: 'Une caution est détenue sur ce séjour : la rendre ou annuler le séjour plutôt que le supprimer.',
+  client: 'Une caution est détenue sur une réservation de ce client : la rendre d’abord.',
+  property: 'Une caution est détenue sur une réservation de ce logement : la rendre d’abord.',
+};
+
 const BOOKING_MONEY_MESSAGES = {
   clientId: 'Une séance payée ou facturée est enregistrée pour ce client : retirer d’abord son paiement.',
   propertyId: 'Une séance payée ou facturée est enregistrée sur ce logement : retirer d’abord son paiement.',
@@ -55,7 +62,32 @@ function carriesMoney(database, ids) {
     || exists(`SELECT 1 FROM reservation_installments WHERE reservationId IN (${marks}) AND paid = 1`)
     || exists(`SELECT 1 FROM reservation_refunds WHERE reservationId IN (${marks})`)
     || exists(`SELECT 1 FROM reservation_platform_penalties WHERE reservationId IN (${marks})`)
-    || exists(`SELECT 1 FROM cancellation_compensations WHERE reservationId IN (${marks})`);
+    || exists(`SELECT 1 FROM cancellation_compensations WHERE reservationId IN (${marks})`)
+    // R36-DB-M2 — a settled mid-stay note is money of the journal even when no paid flag is ticked (a platform stay
+    // whose payout comes later): the note's sale would leave an exported month.
+    || exists(`SELECT 1 FROM reservations WHERE id IN (${marks})
+                  AND midStaySettledNotes IS NOT NULL AND trim(midStaySettledNotes) NOT IN ('', '[]')`);
+}
+
+/** R36-DB-L1 — the refusal when one of the rows `ids` holds a caution not returned yet, or null. */
+function cautionBlocker(database, ids, owner = 'reservation') {
+  const all = withConvertedDevis(database, ids);
+  if (all.length === 0) return null;
+  try {
+    const held = database.prepare(`SELECT 1 FROM reservations WHERE id IN (${placeholders(all)})
+      AND COALESCE(cautionReceived, 0) = 1 AND COALESCE(cautionReturned, 0) = 0 LIMIT 1`).get(...all);
+    return held ? CAUTION_MESSAGES[owner] : null;
+  } catch { return null; }
+}
+
+/**
+ * R36-DB-M1 — the SQL condition « no resource booking names this client » on the clients row `alias`, empty when
+ * the plugin table is absent. Every client cleanup (orphan popup, property delete, iCal sync) shares it: a client
+ * booked on a resource, paid or not, is no orphan (specs/resource-booking-pricing-and-invoicing.md rule 34).
+ */
+function noResourceBookingSql(database, alias) {
+  const table = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get();
+  return table ? ` AND NOT EXISTS (SELECT 1 FROM resource_bookings b WHERE b.clientId = ${alias}.id)` : '';
 }
 
 /**
@@ -104,4 +136,5 @@ function idsOfOwner(database, column, ownerId) {
 module.exports = {
   MONEY_MESSAGE, CLIENT_MONEY_MESSAGE, PROPERTY_MONEY_MESSAGE, HISTORY_MESSAGES, isHistoryMessage,
   BOOKING_MONEY_MESSAGES, withConvertedDevis, carriesMoney, historyBlocker, idsOfOwner, bookingMoneyBlocker,
+  CAUTION_MESSAGES, cautionBlocker, noResourceBookingSql,
 };

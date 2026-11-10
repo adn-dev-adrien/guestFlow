@@ -10,6 +10,8 @@
  * Rule 18 (review of PR #932): a forced deletion that fails after the operator moved on is still
  * reported, as a toast; a late orphan preview no longer reopens a cleanup popup the operator closed.
  */
+// specs/server-test-isolation.md rules 16, 17 (audit R36-S3, verification R36b) — these dialog walks run under the client
+// suite's one 30 s budget (vitest.config.js), no per-test timeout.
 
 import React from 'react';
 import { vi } from 'vitest';

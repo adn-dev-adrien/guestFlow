@@ -3,6 +3,11 @@
 // `@testing-library/jest-dom` DOM matchers (`toBeInTheDocument`, `toBeDisabled`, …) —
 // the same auto-load CRA's `react-scripts test` used to do under the hood.
 import '@testing-library/jest-dom';
+import { configure } from '@testing-library/react';
+
+// specs/server-test-isolation.md rule 17 — `findBy*` / `waitFor` wait up to 5 s (1 s by default), well inside the 30 s
+// test budget of vitest.config.js: a loaded runner answers late, never wrongly. An explicit `{ timeout }` still wins.
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom 30.1 hands a focus event the Document as its `relatedTarget` when nothing was focused
 // before; browsers hand `null`. MUI's FocusTrap keeps that value to give focus back on close and

@@ -32,6 +32,7 @@ const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
 const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
 const {
   carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, bookingMoneyBlocker, PROPERTY_MONEY_MESSAGE,
+  cautionBlocker, noResourceBookingSql,
 } = require('../utils/deletionGuard');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
@@ -712,7 +713,7 @@ function createPropertiesModel(database) {
     deletionBlocker(id) {
       const ids = idsOfOwner(database, 'propertyId', id);
       if (carriesMoney(database, ids)) return PROPERTY_MONEY_MESSAGE;
-      return bookingMoneyBlocker(database, 'propertyId', id) || historyBlocker(database, ids, 'property');
+      return cautionBlocker(database, ids, 'property') || bookingMoneyBlocker(database, 'propertyId', id) || historyBlocker(database, ids, 'property');
     },
 
     // The delete the controller runs after its provider awaits: judged again, in the same transaction.
@@ -748,7 +749,7 @@ function createPropertiesModel(database) {
           database.prepare(`
             DELETE FROM clients
             WHERE id IN (${placeholders})
-              AND NOT EXISTS (SELECT 1 FROM reservations WHERE clientId = clients.id)
+              AND NOT EXISTS (SELECT 1 FROM reservations WHERE clientId = clients.id)${noResourceBookingSql(database, 'clients')}
           `).run(...affectedClientIds);
         }
       })();
