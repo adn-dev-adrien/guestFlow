@@ -728,6 +728,10 @@ acompte is kept as an indemnity, and the books say so correctly.
     takes nothing from it. *Why:* a cancel without notice, then a 40 € goodwill refund from the indemnity, then
     « Envoyer un email »: the notice read « la somme de 180 € déjà versée reste acquise » while 140 € were. Test:
     `tests/cancellation-notice-after-later-refund.unit.test.js`.
+    *Reading of 2026-11-10 (verification R44b N1):* a caisse-interne refund made before the cancel that the sum kept read
+    cannot be deleted from the cancelled fiche (409 `REFUND_NETTED_BY_CANCELLATION`, « Remboursement déduit de la somme
+    conservée. »): deleting it would raise a sum the notice already stated. Test:
+    `tests/cancellation-kept-caisse-refund-delete.unit.test.js`.
 
 
 ---
