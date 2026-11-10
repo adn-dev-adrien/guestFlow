@@ -49,11 +49,14 @@ function createHourlyContributor() {
         const extra = { sessions: priced.validSessions, scheduledHours: placed, detail: detailOf(placed, quantity) };
         // Sold: the engine bills the sold hours through the lock; the sessions only say when.
         if (sold) return { quantity, extra };
+        // The evening supplement of the offered minutes is not the line's: a saved line replays its free minutes at 0, so the
+        // supplement is billed on its own (the arrival SAS, or the app's order charge — hourly rules 30, 38).
+        const totalPrice = Math.max(0, round2(priced.totalPrice - priced.freeSupplement));
         return {
           quantity,
-          unitPrice: priced.unitPrice,
+          unitPrice: priced.billedHours > 0 ? round2(totalPrice / priced.billedHours) : 0,
           billedUnits: priced.billedHours,
-          totalPrice: priced.totalPrice,
+          totalPrice,
           extra,
         };
       }

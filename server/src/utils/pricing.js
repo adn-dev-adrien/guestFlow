@@ -3303,9 +3303,6 @@ function calculateReservationQuote({
     complementSplit,
     ...(prepaidByOrders.total > 0 ? { arrivalPrepaidByOrders: prepaidByOrders.total } : {}),
     preArrivalAmount,
-    // specs/guest-app.md rule 66 — the pre-arrival money is settled (acompte and solde paid, or every installment
-    // of a plan): a rise of the stay now goes to the arrival complement. Read by `midStayOrderCommit.orderCollection`.
-    preArrivalSettled,
     // specs/tourist-tax-on-solde.md — accommodation-only pre-arrival (no tax); the contribs capture uses
     // it so the acompte's tourist-tax contribution is 0 (the whole tax is credited on the solde entry).
     accommodationPreArrival,
@@ -3362,6 +3359,10 @@ function calculateReservationQuote({
   // specs/ui-review-2026-10-19-operations.md rule 10 — the figure the fiche's total bar leads with.
   quote.headline = quoteHeadline(quote, { isPlatform: channel.platformSale });
   quote.summaryCascade = summaryCascade(quote);
+  // specs/guest-app.md rule 66 — the pre-arrival money is settled (acompte and solde paid, or every installment of a plan): a
+  // rise of the stay now goes to the arrival complement. Read by `midStayOrderCommit.orderCollection`; not enumerable, so no
+  // payload of the quote carries it.
+  Object.defineProperty(quote, 'preArrivalSettled', { value: preArrivalSettled, enumerable: false });
   return quote;
 }
 

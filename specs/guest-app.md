@@ -856,6 +856,9 @@ arrival.** Everything below is judged by the server; the apps render what it off
     SAS already applies (`hourly-resource-quantity-and-sas-scheduling.md` rules 22, 30); `hourlyPricing.priceSessions`
     is aligned on it (that spec's rule 37), so the fiche, the SAS and the app say the same. R36b N4 (« inside the free
     minutes the order is confirmed at 0 € ») holds for the day rate; an offered evening hour is a priced order.
+    **Implementation note (2026-11-10):** a saved line replays its free minutes at 0 €, so the fiche's hourly line leaves the
+    evening supplement of the offered minutes out of its own total (`priceSessions.freeSupplement`, kept by the line contributor);
+    the supplement is billed on its own — the app's order charge (rule 83) or the arrival SAS (hourly rules 30, 38). The order's total is the same.
 82. **Hours already on the stay are placed first, at no charge.** When the reservation already holds the bath (a sold
     line: hours bought at booking or offered) whose hours are not all on a slot yet (`quantity` − placed hours), the
     bath sheet says « 2 h comprises dans votre séjour, à programmer » / « 2 h included in your stay, to schedule » and the

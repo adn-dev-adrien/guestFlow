@@ -38,3 +38,11 @@ test('rule 37: no free minutes — unchanged', () => {
   const out = priceSessions(at('20:00', '21:00'), CFG, 0);
   assert.deepEqual([out.freeValue, out.totalPrice], [0, 35]);
 });
+
+test('rule 37: the fiche\'s line leaves the evening supplement of the offered hour to its own charge — a saved line replays its free minutes at 0', () => {
+  const { createHourlyContributor } = require('../pricing');
+  const resource = { showsPlanningCard: 1, price: 25, hourlyEveningRate: 35, hourlyEveningStart: '19:00', slotDuration: 60, freeMinutes: 60 };
+  const line = createHourlyContributor().priceLine({ resource, selected: { sessions: at('20:00', '21:00') }, sold: false });
+  assert.deepEqual([line.totalPrice, priceSessions(at('20:00', '21:00'), CFG, 60).freeSupplement], [0, 10]);
+  assert.equal(createHourlyContributor().priceLine({ resource, selected: { sessions: at('20:00', '22:00') }, sold: false }).totalPrice, 35, 'the second hour at the evening rate; the free hour\'s supplement is the charge');
+});
