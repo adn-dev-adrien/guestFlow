@@ -56,6 +56,8 @@ function preview(req, res) {
     cancellationReason: result.cancellationReason,
     retainedDepositAmount: result.retainedDepositAmount,
     indemnityAmount: result.indemnityAmount,
+    // Rule 60 reading (audit R45-C-L1) — the sum the notice states as kept (rule 61), shown before the operator confirms.
+    keptFromGuest: result.keptFromGuest,
     writtenOffBalance: result.writtenOffBalance,
   });
 }

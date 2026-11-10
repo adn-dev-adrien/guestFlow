@@ -204,7 +204,17 @@ const HISTORY_FIELD_FORMATS = {
   retainedDeposit: 'money',
   writtenOffBalance: 'money',
   keptFromGuest: 'money',
+  cancellationReason: 'cancellationReason',
 };
+
+// specs/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1, R45-DB-L1) — a cancel
+// confirmed with an empty « Motif » stores the derived key; it reads French, the stored row untouched. Only the whole
+// value is matched, so a reason the operator typed reads as typed.
+const CANCELLATION_REASON_LABELS = Object.freeze({
+  unpaid_deposit: 'Acompte impayé',
+  unpaid_balance: 'Solde impayé',
+  manual: 'Annulation manuelle',
+});
 
 // Fields the pricing engine recomputes on its own: they move on almost every edit and would bury the
 // change the user actually made, so the UI renders them in a separate « Recalculs » block.
@@ -250,6 +260,7 @@ function formatHistoryFieldValue(field, value, context = {}) {
     case 'date': return formatHistoryDateFr(value);
     case 'property': return propertyDisplayName(value, context.propertyNames);
     case 'client': return clientDisplayName(value, context.clientNames);
+    case 'cancellationReason': return CANCELLATION_REASON_LABELS[String(value)] || String(value);
     default: return String(value);
   }
 }
@@ -329,14 +340,22 @@ function frenchArrivalPaymentText(value) {
   return String(value)
     .replace(/(\d+)\.(\d+) €/g, (_, units, cents) => `${units},${cents.padEnd(2, '0')} €`)
     .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, y, m, d) => `${d}/${m}/${y}`)
-    .replace(/\b(deposit|balance|complement|endOfStayComplement)\b/g, (key) => STORED_ARRIVAL_BUCKETS[key]);
+    .replace(/\b(deposit|balance|complement|endOfStayComplement)\b/g, (key) => STORED_ARRIVAL_BUCKETS[key])
+    // Audit R45-PL-L1 — the SAS line stored before sas 1.9.3 named the arrival complement « complément » alone.
+    .replace(/complément(?! d['’]arrivée| de fin de séjour)/g, "complément d'arrivée");
 }
 
+const ARRIVAL_PAYMENT_FIELDS = new Set(['arrivalPayment', 'arrivalPaymentAdjustment']);
+
 function expandHistoryChange(change, context) {
-  if ((change.field === 'arrivalPayment' || change.field === 'arrivalPaymentAdjustment') && change.fromText === undefined && change.toText === undefined) {
+  if (ARRIVAL_PAYMENT_FIELDS.has(change.field)) {
+    // Rule 9 reading — the core rows (from/to) and the SAS rows (fromText/toText, audit R45-PL-L1) stored before read
+    // French; a text already French reads the same.
+    const rendered = change.fromText !== undefined || change.toText !== undefined;
     return [{
       field: change.field, group: null, label: change.label, kind: 'changed',
-      fromText: frenchArrivalPaymentText(change.from), toText: frenchArrivalPaymentText(change.to),
+      fromText: frenchArrivalPaymentText(rendered ? change.fromText : change.from),
+      toText: frenchArrivalPaymentText(rendered ? change.toText : change.to),
     }];
   }
   // The SAS commits and the iCal lock line already ship rendered French text — never re-format them.
