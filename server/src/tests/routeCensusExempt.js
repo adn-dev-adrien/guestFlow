@@ -101,7 +101,7 @@ const EXEMPT = {
     'POST /public/booking-intake/page',
     'POST /public/v1/gate/results',
   ],
-  'Judged by its own suite: sas-quantity-bounds, push-subscribe-validation, plugin-settings-input-shape.': [
+  'Judged by its own suite: sas-quantity-bounds and sas-flag-input-shape, push-subscribe-validation, plugin-settings-input-shape.': [
     'POST /api/push/subscribe',
     'POST /api/reservations/:id/sas/arrival',
     'POST /api/reservations/:id/sas/arrival/preview',

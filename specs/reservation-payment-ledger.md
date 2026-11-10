@@ -843,6 +843,31 @@ tariff would fire on every platform stay (the brut is grossed up by the commissi
     prod copy) is not re-judged. The cancelled fiche's due return reads « À rendre », no longer « À rendre au départ »
     (audit R38-C-L1, cancellation rule 59). Tests: `sas-caution-guards.unit.test.js`.
 
+### 3.13 Audit R39 (2026-11-10) — the SAS obeys rules 38 and 66
+
+71. **The arrival SAS never receives a caution already received** (audit R39-DB-L1 / R39-M-L1). Rule 38 refuses a
+    second receipt on the PATCH (409 `ALREADY_PAID` « La caution est déjà reçue. »), but the arrival SAS's « Caution
+    perçue » re-froze `cautionAmount` from the property's current default on every commit: a stale SAS tab (opened
+    before « Caution reçue » on the fiche, the property's caution changed meanwhile) or a crafted request moved the
+    collected amount (500 € received, 700 € shown to return). The receipt now writes only on the flip from not received
+    to received (caution-live-from-property rule 2): on a caution already received it is a no-op, amount, dates and
+    return untouched, and the commit goes on. No new refusal: the dialog shows the step only while the caution is not
+    received, so a re-opened SAS never sends it. Tests: `plugins/sas/tests/sas-caution-receipt-frozen.unit.test.js`.
+72. **A SAS tick is the PATCH's tick** (audit R39-M-L2). Rule 66 reads a payment flag as `true`, `false`, `1` or `0`;
+    the two SAS read theirs with `Boolean()`, so `stayPaid: "false"` booked the solde and `cautionReturned: "false"`
+    returned the caution. Every tick of the arrival SAS (`cautionReceived`, `stayPaid`, `stayPaidCash`,
+    `complementSettled`, `complementPaidCash`, `arrivalPaymentSplit`, `cleaningAdded`, `bathLinenAdded`,
+    `cleaningOffered`, `bathLinenOffered`, `extinguisherSealOkAtArrival`, the `offered` of `linenItems` /
+    `keptLines`) and of the departure SAS (`cautionReturned`, `complementsSettled`, `complementsPaidCash`,
+    `cleaningCharged`, `cleaningOffered`, `extinguisherSealOkAtDeparture`, the `offered` of `missingItems` /
+    `storedLines` / `extinguisherCharges`) is absent or one of those four, else 400 `INVALID_PAYMENT_FLAG`
+    « Valeur invalide. » with its `field` (`<list>.offered` for a line), on the preview and the commit, before anything
+    is planned or written; `1` / `0` read as `true` / `false`. A reception session is held to it after its silent drop of
+    the stay settlement (collect-stay-payment-at-check-in rule 25): a `stayPaid` it sends is still dropped, not judged.
+    The neighbouring payment writes already read their inputs strictly (single arrival payment: a `mode` text;
+    installments and refunds: method, tenders, date; `/arrival`: `invoice === true`). Tests:
+    `plugins/sas/tests/sas-flag-input-shape.unit.test.js`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** The rows, their states, the editable ranges, the refusals, the
@@ -1058,7 +1083,8 @@ summary page (normal direct · normal platform · misconfigured platform, panel 
 
 ## 7. Test plan
 
-### Server unit tests (89)
+### Server unit tests (99)
+- [x] **Audit R39 (2026-11-10)** `plugins/sas/tests/sas-caution-receipt-frozen.unit.test.js` (3) — rule 71: a caution received at 500 € keeps 500 € (and its dates, its return) when a stale arrival SAS answers « perçue » after the property's caution moved; the flip still freezes the property's caution of that moment, dated today. `plugins/sas/tests/sas-flag-input-shape.unit.test.js` (7) — rule 72: the auditor's two repros; every arrival and departure tick of another shape (`"false"`, `"true"`, `"0"`, `"1"`, `''`, `null`, 2, −1, `{}`, `[]`, `[true]`) refused with its field, preview and commit, nothing written; the lines' `offered`; reception held to it, its dropped `stayPaid` still dropped; `1` / `0` as `true` / `false`, an absent tick untouched. All but one red before the change.
 - [x] **Review of PR #939 (2026-11-03)** `tests/caution-return-before-undated-receipt.unit.test.js` (3) — rule 12, reading of 2026-11-03: received and returned in one PATCH without a receipt date, a return before today refused with nothing written (absent, `''` and `null` receipt dates); both stamped today when the return is today or undated; a dated or stored receipt still judged on its own date.
 - [x] **Audit R20-M1 (2026-11-03)** `tests/payment-mark-input-shape.unit.test.js` (10) — rule 66: a suffixed paid date stored as the judged day on the six marks; a non-string date refused with nothing written; a « caisse interne » complement's date judged; a date sent back as stored keeps the stored value; a date beside an unticked complement never re-dates it; a note re-dated with an array refused and kept in the journal; no return date without the return; string / null / out-of-range flags refused on the eight flags and the notes' `cash`; `1` / `0` behave as `true` / `false`.
 - [x] `tests/installment-headline-after-price-drop.unit.test.js` (3, spec review 2026-10-27) — rule 48: live and stored headlines agree on the stay after a drop, money above the stay stays counted, a plan without drop unchanged

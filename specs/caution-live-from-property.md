@@ -79,6 +79,9 @@ again, even if the property's default changes afterwards.
 - Property caution = 0 and not received → no caution step in the SAS, no caution line in emails. Correct.
 - Caution received at 500, property later raised to 700 → SAS/fiche/departure keep **500** (the collected
   amount, frozen on receipt). This is the point of rule 2.
+- Same, and a stale arrival SAS (opened before the receipt) answers « Caution perçue » after the raise → still
+  **500**: the SAS freezes only on the flip to received, a caution already received is left untouched (reading of
+  2026-11-10, audit R39-DB-L1; reservation-payment-ledger rule 71).
 - Property raised from 500 → 700 **before** receipt → SAS shows 700 live; collecting it freezes 700.
 - iCal reservation with no property match → unchanged (still 0).
 - Reservations whose caution was marked received **before this feature shipped**: their stored
