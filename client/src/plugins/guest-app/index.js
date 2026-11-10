@@ -28,6 +28,16 @@ export default {
       leadsStep: { title: 'Mon séjour' },
       Component: lazy(() => import('./SasStayAppStep')),
     }],
+    // Rule 71 — « Commandes Mon séjour »: the orders the stay took in the app before its arrival, just before the recap.
+    'sas.arrival.steps': [{
+      key: 'stay-app-orders',
+      title: 'Commandes Mon séjour',
+      Icon: RoomServiceOutlinedIcon,
+      isShown: (data) => Boolean(data && data.ordersAtArrival && data.ordersAtArrival.orders.length),
+      recapNotes: (value, data) => (data && data.ordersAtArrival && data.ordersAtArrival.toCollect > 0
+        ? [`Commandes Mon séjour : ${data.ordersAtArrival.toCollectLabel} (dans le complément d’arrivée)`] : []),
+      Component: lazy(() => import('./SasArrivalOrdersStep')),
+    }],
     // Rule 9bis (c) — the stay's link on the fiche.
     'reservation.cards': [{ key: 'stay-link', order: 15, Component: lazy(() => import('./StayLinkCard')) }],
     // Rules 22, 37bis — the « Application clients » section of the option and resource editors, stock included.

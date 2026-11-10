@@ -859,8 +859,10 @@
     "uploadsDir"
   ],
   "midStayOrderCommit": [
+    "amendOrder",
     "commitOrder",
     "mergeOrderLines",
+    "orderCollection",
     "priceOrder"
   ],
   "securityConfig": [

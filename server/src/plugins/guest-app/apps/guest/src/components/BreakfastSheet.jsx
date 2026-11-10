@@ -23,7 +23,7 @@ const PARIS = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', year:
 /** The delivery picker's instants, read back as (Paris date, HH:MM) pairs: which hour each morning allows. */
 function hoursByMorning(delivery) {
   const map = new Map();
-  (delivery && delivery.days ? delivery.days : []).forEach((day) => day.slots.forEach((slot) => {
+  (delivery && delivery.days ? delivery.days : []).forEach((day) => day.times.forEach((slot) => {
     const parts = Object.fromEntries(PARIS.formatToParts(new Date(slot.at)).map((p) => [p.type, p.value]));
     const date = `${parts.year}-${parts.month}-${parts.day}`;
     if (!map.has(date)) map.set(date, new Set());

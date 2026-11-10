@@ -49,7 +49,7 @@ export default function HomePage() {
   const gateTile = (me.tiles || []).find((tile) => tile.key === 'gate');
   const gateInMe = Boolean(gateTile && gateTile.state);
   const gate = useGate(has('gate') && !gateInMe, lang);
-  const orders = useLoad(() => (me.mode === 'stay' && has('orders') ? api.orders() : Promise.resolve(null)), [me.mode, lang]);
+  const orders = useLoad(() => (stay && has('orders') ? api.orders() : Promise.resolve(null)), [me.mode, lang]);
   const booklet = useLoad(() => (has('booklet') ? api.booklet() : Promise.resolve(null)), [lang]);
 
   const gateInfo = gateInMe ? gateTile : gate.data;

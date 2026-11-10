@@ -83,6 +83,9 @@ async function startApi(db, {
   });
   const app = express();
   app.use(express.json());
+  // The operator's session, when a suite plays a role: `staff.user = { roles: ['reception'] }` before the call.
+  const staff = { user: null };
+  app.use((req, res, next) => { if (staff.user) req.user = staff.user; next(); });
   app.use('/public/v1/guest', api.publicRouter);
   app.use('/api/guest-app', api.adminRouter);
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
@@ -100,7 +103,7 @@ async function startApi(db, {
     return { status: res.status, body: await res.json(), setCookie, headers: res.headers };
   }
 
-  return { app, api, base, call, clock, commit, cookies, close: () => new Promise((resolve) => { server.close(resolve); }) };
+  return { app, api, base, call, clock, commit, cookies, staff, close: () => new Promise((resolve) => { server.close(resolve); }) };
 }
 
 /** A lodging in the app, its code read straight from the table. */

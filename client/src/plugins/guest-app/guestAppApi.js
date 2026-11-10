@@ -29,6 +29,8 @@ const guestAppApi = {
   },
   // Rules 41bis, 43, 45 — « Commandes clients », « Marquer livrée / retirée », the planning cards.
   getOrders: (status = 'todo') => call(`/orders?status=${encodeURIComponent(status)}`),
+  // Rule 87 — an unpaid order of the arrival SAS changed: `{ lines, removeSessions, removeMornings, removeOrder }`.
+  amendOrder: (id, body) => call(`/orders/${id}/amend`, { method: 'POST', body }),
   markDelivered: (id) => call(`/orders/${id}/delivered`, { method: 'POST' }),
   getOrderCards: (from, to) => call(`/planning/order-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
 };

@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -127,6 +127,12 @@
     "1.5.2": [
       "Un client Qonto n’est réutilisé que pour le nom et l’adresse avec lesquels il a été créé : une adresse ajoutée ou corrigée sur la fiche client passe sur la facture suivante.",
       "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.6.0": [
+      "La chauffe du bain peut être comptée depuis un autre moment que l’arrivée : l’application clients la compte depuis maintenant, un bain réservé une semaine à l’avance est chaud à l’arrivée.",
+      "Les minutes offertes valent le tarif de jour : une heure offerte placée en soirée coûte le supplément soirée, comme le sas d’arrivée le facturait déjà (la fiche, le sas et l’application disent la même chose).",
+      "Le supplément soirée d’une commande de l’application est facturé avec cette commande ; le sas d’arrivée ne le facture pas une seconde fois.",
+      "Compatible avec GuestFlow 4 (SDK 2.26)."
     ]
   }
 }

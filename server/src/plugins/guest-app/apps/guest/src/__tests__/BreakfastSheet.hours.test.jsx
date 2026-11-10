@@ -32,7 +32,7 @@ function renderSheet(lang = 'fr') {
 describe('BreakfastSheet — the hour (rules 27bis, 41)', () => {
   it('a default hour the delivery times no longer offer gives way to the one offered, stated, and the mornings stay open', async () => {
     stubApi({
-      'POST /shop/delivery-slots': { needed: true, days: [{ slots: [{ at: at('2099-07-07', '09:30') }] }, { slots: [{ at: at('2099-07-08', '09:30') }] }] },
+      'POST /shop/delivery-slots': { needed: true, days: [{ available: true, times: [{ at: at('2099-07-07', '09:30') }] }, { available: true, times: [{ at: at('2099-07-08', '09:30') }] }] },
       'POST /orders/quote': QUOTE,
     });
     renderSheet();
@@ -44,7 +44,7 @@ describe('BreakfastSheet — the hour (rules 27bis, 41)', () => {
 
   it('a morning where the hour is not a delivery time says so, in English too', async () => {
     stubApi({
-      'POST /shop/delivery-slots': { needed: true, days: [{ slots: [{ at: at('2099-07-07', '08:00') }] }, { slots: [{ at: at('2099-07-08', '09:00') }] }] },
+      'POST /shop/delivery-slots': { needed: true, days: [{ available: true, times: [{ at: at('2099-07-07', '08:00') }] }, { available: true, times: [{ at: at('2099-07-08', '09:00') }] }] },
       'POST /orders/quote': QUOTE,
     });
     renderSheet('en');

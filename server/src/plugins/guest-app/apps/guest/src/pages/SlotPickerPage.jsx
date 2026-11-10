@@ -72,10 +72,11 @@ export default function SlotPickerPage() {
         <div className="pad">
           <p className="eb">{resource.category}</p>
           {resource.item.shortDescription ? <p style={{ margin: 0, color: 'var(--ink-soft)' }}>{resource.item.shortDescription}</p> : <p style={{ margin: 0, color: 'var(--ink-soft)' }}>{t('bath.intro')}</p>}
+          {slots.data.includedLabel ? <div><StatusChip tone="ok">{slots.data.includedLabel}</StatusChip></div> : null}
           {slots.data.freeLabel ? <div><StatusChip tone={slots.data.freeMinutesLeft > 0 ? 'ok' : 'mut'}>{slots.data.freeLabel}</StatusChip></div> : null}
           {unavailable.map((s) => <p key={`${s.date}${s.start}`} className="hint bad" role="alert">{s.label} · {s.reasonLabel}</p>)}
           {days.length
-            ? <SlotGrid days={days} day={day || days[0].date} onDay={setDay} selected={selected} onToggle={toggle} />
+            ? <SlotGrid days={days} day={day || (days.find((d) => d.available) || days[0]).date} onDay={setDay} selected={selected} onToggle={toggle} />
             : <EmptyState icon="bath" title={t('bath.none')} />}
         </div>
       </div>

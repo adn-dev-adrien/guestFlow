@@ -146,7 +146,7 @@ function buildGuestApi({
   /**
    * Rules 70, 89 — `{ shop, bath }` for the reminder e-mails of a stay: the stay's lodging shows the shop with an article sold
    * and takes orders now (`orderCollection` arrival or departure); the bath when it sells an hourly resource and the stay holds
-   * hours of it, or has free minutes of it left.
+   * hours of it not yet placed, or has free minutes of it left.
    */
   function emailFacts(reservationId) {
     const stay = stays().byId(reservationId);
@@ -156,8 +156,8 @@ function buildGuestApi({
     const { sold, extras } = shop.soldFor({ stay, lodging: { propertyId: stay.propertyId } });
     if (!sold.length) return { shop: false, bath: false };
     const baths = sold.filter((s) => s.kind === 'resource' && s.hourly);
-    const holds = (s) => (extras.resourceLines || []).some((l) => Number(l.resourceId) === Number(s.row.id) && Number(l.quantity) > 0);
-    const bath = baths.some((s) => holds(s) || (s.freeMinutes && s.freeMinutes.left > 0));
+    // Hours the stay holds and has not placed on a slot (rule 82), or free minutes left: something to schedule.
+    const bath = baths.some((s) => shop.includedHoursLeft(extras, s.row.id) > 0 || (s.freeMinutes && s.freeMinutes.left > 0));
     return { shop: true, bath };
   }
 

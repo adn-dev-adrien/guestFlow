@@ -36,6 +36,7 @@ const PLUGIN_ROUTES = {
     'DELETE /api/guest-app/studio/pages/:id',
     'DELETE /api/guest-app/studio/pages/:id/placements/:propertyId',
     'POST /api/guest-app/lodgings/:propertyId/regenerate-qr',
+    'POST /api/guest-app/orders/:id/amend',
     'POST /api/guest-app/orders/:id/delivered',
     'POST /api/guest-app/reservations/:id/stay-link/regenerate',
     'POST /api/guest-app/studio/lodgings/:propertyId/pages',

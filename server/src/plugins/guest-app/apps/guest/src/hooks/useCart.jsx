@@ -84,7 +84,7 @@ export function CartProvider({ children }) {
     if (stayKey && loadedKey.current === stayKey) device.set(stayKey, lines.length ? { lines, meta } : null);
   }, [stayKey, lines, meta]);
 
-  const canQuote = Boolean(me && me.mode === 'stay');
+  const canQuote = Boolean(me && ['stay', 'preArrival'].includes(me.mode));
 
   // Rules 41-42 — the delivery times follow the cart's staff-prepared lines; the first one is preselected.
   const kindsKey = lines.map(lineKey).join(',');
@@ -95,7 +95,7 @@ export function CartProvider({ children }) {
       .then((d) => {
         if (!live) return;
         setDelivery(d);
-        const all = (d.days || []).flatMap((day) => day.slots.map((s) => s.at));
+        const all = (d.days || []).flatMap((day) => day.times.map((s) => s.at));
         setDeliverAt((cur) => (cur && all.includes(cur) ? cur : ((d.asap && d.asap.at) || all[0] || null)));
       })
       .catch(() => { if (live) setDelivery(null); });

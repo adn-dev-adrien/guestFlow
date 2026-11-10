@@ -1,0 +1,1 @@
+- The free minutes of a nordic bath line (« 1 h offerte ») are valued at the day rate wherever they fall (hourly-resource-quantity-and-sas-scheduling.md rule 37): an offered hour placed in the evening now owes the evening supplement on a line not yet sold (35 € → 45 € for the 25 / 35 € example), as the arrival SAS already billed it. Stays already sold keep their price.

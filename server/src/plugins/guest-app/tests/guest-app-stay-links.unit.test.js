@@ -136,7 +136,9 @@ test('rule 9bis (b): the reminder e-mails carry the stay link, created on first 
 test('rule 9bis (b): `{{stayAppUrl}}` is the plugin\'s own variable, falling back to the gate link while the app gives none', () => {
   const stayUrl = `https://${HOST}/s/abc`;
   const gateUrl = 'https://gate.example.test/k';
-  const flags = (hasStayApp, shop = false, bath = false) => ({ hasStayApp, hasStayAppShop: shop, hasStayAppBath: bath });
+  const flags = (hasStayApp, shop = false, bath = false) => ({
+    hasStayApp, hasStayAppShop: shop, hasStayAppBath: shop && bath, hasStayAppShopOnly: shop && !bath,
+  });
   assert.deepEqual(stayAppEmailContext({ stayUrl, gateUrl }), { tokens: { stayAppUrl: stayUrl }, flags: flags(true) });
   assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl }), { tokens: { stayAppUrl: gateUrl }, flags: flags(false) }, 'lodging off or no address');
   assert.deepEqual(stayAppEmailContext({ stayUrl: '', gateUrl: null }), { tokens: { stayAppUrl: '' }, flags: flags(false) }, 'no gate key either');

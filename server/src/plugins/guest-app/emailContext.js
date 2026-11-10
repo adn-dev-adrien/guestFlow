@@ -6,8 +6,8 @@
  *
  * Rules 70, 89 — two more flags, for the J-7 and J-2 paragraph that tells the guests what they can already do: `hasStayAppShop`
  * (the stay link is the app's own, the lodging shows the shop with an article sold, and orders are taken for the stay) and
- * `hasStayAppBath` (on top of it, the stay holds the nordic bath or has free minutes of it left). The server computes both: a
- * template never promises a bath the stay does not have.
+ * `hasStayAppBath` (on top of it, the stay holds the nordic bath or has free minutes of it left); `hasStayAppShopOnly` is the shop
+ * without the bath, so a paragraph of two flat blocks (the renderer does not nest) never promises a bath the stay does not have.
  */
 
 const SCOPE = Object.freeze(['j7', 'j2']);
@@ -16,6 +16,8 @@ const FLAGS = Object.freeze([
   { name: 'hasStayApp', label: 'Si lien Mon séjour', in: SCOPE },
   { name: 'hasStayAppShop', label: 'Si boutique Mon séjour', in: SCOPE },
   { name: 'hasStayAppBath', label: 'Si bain nordique à programmer', in: SCOPE },
+  // The renderer's conditionals do not nest: the J-7 paragraph is two flat blocks, with the bath and without it.
+  { name: 'hasStayAppShopOnly', label: 'Si boutique Mon séjour sans bain', in: SCOPE },
 ]);
 
 function stayAppEmailContext({
@@ -25,7 +27,9 @@ function stayAppEmailContext({
   const hasShop = Boolean(own) && Boolean(shop);
   return {
     tokens: { stayAppUrl: own || (gateUrl ? String(gateUrl) : '') },
-    flags: { hasStayApp: Boolean(own), hasStayAppShop: hasShop, hasStayAppBath: hasShop && Boolean(bath) },
+    flags: {
+      hasStayApp: Boolean(own), hasStayAppShop: hasShop, hasStayAppBath: hasShop && Boolean(bath), hasStayAppShopOnly: hasShop && !bath,
+    },
   };
 }
 

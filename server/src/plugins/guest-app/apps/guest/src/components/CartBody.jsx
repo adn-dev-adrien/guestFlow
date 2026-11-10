@@ -61,7 +61,8 @@ export default function CartBody({ shop, inPanel = false }) {
   useEffect(() => {
     if (payment === 'card' && !canCard) setPayment(null);
     if (payment === 'note' && !canNote) setPayment(null);
-    if (!payment) setPayment(canNote ? 'note' : canCard ? 'card' : null);
+    // Rule 86 — the card is preselected on every cart; the note when it is the only way.
+    if (!payment) setPayment(canCard ? 'card' : canNote ? 'note' : null);
   }, [payment, canCard, canNote]);
 
   if (!cart.lines.length) {
@@ -78,15 +79,15 @@ export default function CartBody({ shop, inPanel = false }) {
   const zero = Boolean(quote) && quote.total === 0;
   const fresh = Boolean(quote) && !cart.quoting;
   const needsTime = Boolean(cart.delivery && cart.delivery.needed);
-  const why = me.mode !== 'stay' ? t('cart.preArrival')
-    : blocked ? t('cart.blocked')
+  const why = blocked ? t('cart.blocked')
       : !online ? t('net.needed')
         : needsTime && !cart.deliverAt ? t('cart.noDelivery')
           : (shop && shop.open === false && shop.closedReason) || '';
   const pay = zero ? 'none' : payment;
   const disabled = Boolean(why) || !fresh || Boolean(cart.quoteError) || busy || (!zero && !pay);
   const total = quote ? quote.totalLabel : '…';
-  const cta = zero ? t('cart.ctaFree') : pay === 'card' ? t('cart.ctaCard', { total }) : t('cart.ctaNote', { total });
+  const noteLabel = (shop && shop.noteLabel) || t('cart.note');
+  const cta = zero ? t('cart.ctaFree') : pay === 'card' ? t('cart.ctaCard', { total }) : t('cart.ctaNote', { total, label: noteLabel });
 
   const submit = async () => {
     setBusy(true);
@@ -168,13 +169,18 @@ export default function CartBody({ shop, inPanel = false }) {
           );
         })}
       </div>
+      {quote && quote.lines ? quote.lines.filter((l) => l.kind === 'charge').map((l) => (
+        <div className="cline" key={`charge-${l.id}`}>
+          <div className="ct"><b>{l.label}</b><span className="fig" style={{ fontSize: 13 }}>{l.totalLabel}</span></div>
+        </div>
+      )) : null}
       <div className={`total${cart.quoting ? ' quoting' : ''}`} aria-live="polite" aria-busy={cart.quoting}>
         <span>{t('cart.total')}</span><b>{total}</b>
       </div>
       {cart.quoteError && cart.quoteError.code !== 'NETWORK' ? <Banner tone="bad" role="alert">{cart.quoteError.message || t('err.generic')}</Banner> : null}
       {zero && !blocked ? <Banner tone="ok">{t('cart.free')}</Banner> : null}
       {needsTime ? <DeliveryTimeChips delivery={cart.delivery} value={cart.deliverAt} onChange={cart.setDeliverAt} /> : null}
-      {!zero && me.mode === 'stay' ? <PaymentChoice canNote={canNote} canCard={canCard} value={payment} onChange={setPayment} /> : null}
+      {!zero ? <PaymentChoice canNote={canNote} canCard={canCard} noteLabel={noteLabel} value={payment} onChange={setPayment} /> : null}
       {why ? <p className="hint bad">{why}</p> : null}
       <button type="button" className="btn block" disabled={disabled} onClick={submit} aria-busy={busy || cart.quoting}>{cta}</button>
       {editing ? (

@@ -3301,7 +3301,7 @@ function calculateReservationQuote({
     arrivalPaymentReduction: resolvedArrivalReduction,
     arrivalPaymentTip: resolvedArrivalTip,
     complementSplit,
-    arrivalPrepaidByOrders: prepaidByOrders.total,
+    ...(prepaidByOrders.total > 0 ? { arrivalPrepaidByOrders: prepaidByOrders.total } : {}),
     preArrivalAmount,
     // specs/guest-app.md rule 66 — the pre-arrival money is settled (acompte and solde paid, or every installment
     // of a plan): a rise of the stay now goes to the arrival complement. Read by `midStayOrderCommit.orderCollection`.

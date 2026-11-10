@@ -322,7 +322,8 @@ function buildOrdersController({
   const freeCovers = (line) => {
     const { freeUnits, freeMinutes } = line.item;
     if (freeUnits) return Number(line.quantity) <= Number(freeUnits.left || 0);
-    if (freeMinutes) return sessionsHours(line.kept || []) * 60 <= Number(freeMinutes.left || 0);
+    // Rule 82 — the hours the stay already holds are placed first: they explain a bath order that adds nothing to the fiche.
+    if (line.kind === 'resource' && line.kept) return sessionsHours(line.kept) * 60 <= Number((freeMinutes && freeMinutes.left) || 0) + Number(line.heldHours || 0) * 60;
     return false;
   };
   const billable = (line) => Boolean(line.item) && !line.item.included && Number(line.item.row.price || 0) > 0 && !freeCovers(line);
