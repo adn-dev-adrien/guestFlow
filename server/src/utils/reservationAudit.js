@@ -260,7 +260,7 @@ function formatHistoryFieldValue(field, value, context = {}) {
     case 'date': return formatHistoryDateFr(value);
     case 'property': return propertyDisplayName(value, context.propertyNames);
     case 'client': return clientDisplayName(value, context.clientNames);
-    case 'cancellationReason': return CANCELLATION_REASON_LABELS[String(value)] || String(value);
+    case 'cancellationReason': return Object.hasOwn(CANCELLATION_REASON_LABELS, String(value)) ? CANCELLATION_REASON_LABELS[String(value)] : String(value);
     default: return String(value);
   }
 }

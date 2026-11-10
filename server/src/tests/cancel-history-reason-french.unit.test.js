@@ -23,6 +23,7 @@ test('rule 23 reading — a reason the operator typed reads as typed, even one h
   const read = (text) => motifOf([{ field: 'cancellationReason', label: 'Motif', from: null, to: text }]).toText;
   assert.equal(read('Le client a appelé'), 'Le client a appelé');
   assert.equal(read('manual check by phone'), 'manual check by phone');
+  for (const text of ['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty']) assert.equal(read(text), text, text);
 });
 
 test('rule 23 reading — a cancel with an empty Motif: the history reads the French label, the stored row keeps the key', async () => {
