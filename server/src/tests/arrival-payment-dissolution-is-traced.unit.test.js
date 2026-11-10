@@ -46,15 +46,16 @@ test('dissoudre le paiement unique écrit ce qui disparaît, et à cause de quoi
   assert.equal(line.label, "Paiement unique à l'arrivée");
   // Le montant, la date et TOUT ce que la collecte couvrait : sans ça, l'opérateur ne peut pas
   // reconstituer ce qu'il avait encaissé.
-  assert.equal(line.from, "281.98 € le 2026-08-30 (solde, complément de fin de séjour)");
-  assert.equal(line.to, "dissous — « solde » n'est plus encaissé");
+  // single-payment-from-the-fiche rule 9 reading of 2026-11-10 (audit R44-RES-L2) — French amount and day.
+  assert.equal(line.fromText, "281,98 € le 30/08/2026 (solde, complément de fin de séjour)");
+  assert.equal(line.toText, "dissous — « solde » n'est plus encaissé");
   assert.equal(db.prepare('SELECT arrivalPaymentGroup AS g FROM reservations WHERE id = 1').get().g, null);
 });
 
 test('la cause nomme la bonne échéance', () => {
   const db = makeDb();
   createReservationsModel(db).releaseArrivalPaymentGroup(1, 'endOfStayComplement');
-  assert.equal(lines(db)[0].to, "dissous — « complément de fin de séjour » n'est plus encaissé");
+  assert.equal(lines(db)[0].toText, "dissous — « complément de fin de séjour » n'est plus encaissé");
 });
 
 test('une échéance que le groupe ne nomme pas ne dissout rien et n’écrit rien', () => {

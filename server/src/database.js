@@ -3019,6 +3019,20 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- CANCELLATION NOTICE NAMES « LA SOMME » KEPT (specs/payment-schedule-and-cancellation.md rule 61) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'cancellation_notice_kept_sum_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runCancellationNoticeKeptSumMigration } = require('./utils/migrateCancellationNoticeKeptSum');
+    const updated = db.transaction(() => {
+      const count = runCancellationNoticeKeptSumMigration(db);
+      db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+      return count;
+    })();
+    console.log(`[migration:${migrationName}] ${updated} cancellation notice field(s) now name the sum kept`);
+  }
+}
+
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);

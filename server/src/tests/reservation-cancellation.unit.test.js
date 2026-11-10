@@ -139,7 +139,9 @@ test('the cancellation is written to the reservation history', () => {
   const entry = db.prepare("SELECT eventType, changedFields FROM reservation_history WHERE reservationId = 10 AND eventType = 'cancel'").get();
   assert.ok(entry, 'an audit entry exists');
   const fields = JSON.parse(entry.changedFields);
-  assert.deepEqual(fields.map((f) => f.field), ['kind', 'cancellationReason', 'retainedDeposit', 'writtenOffBalance']);
+  // Rule 61 — the sum the notice states, stored beside them.
+  assert.deepEqual(fields.map((f) => f.field), ['kind', 'cancellationReason', 'retainedDeposit', 'writtenOffBalance', 'keptFromGuest']);
+  assert.equal(fields.find((f) => f.field === 'keptFromGuest').to, 274);
   assert.equal(fields.find((f) => f.field === 'retainedDeposit').to, 274);
   assert.equal(fields.find((f) => f.field === 'writtenOffBalance').to, 640);
   db.close();

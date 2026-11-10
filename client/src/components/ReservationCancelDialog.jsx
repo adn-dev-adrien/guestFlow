@@ -5,11 +5,12 @@
  * Recaps what is being cancelled and, above all, what happens to the money: what was collected is kept
  * as an indemnity, what is still owed is written off. Both figures are the cancellation's own, asked
  * from GET /reservations/:id/cancel-preview when the dialog opens (rule 60) — nothing is computed
- * here. While they load the confirm waits; a refusal is shown and the confirm stays off.
+ * here. While they load the confirm waits; a refusal is shown and the confirm stays off. The reason and the
+ * « Prévenir le client » choice are reset when the dialog opens, never by a re-render while it is open.
  *
  * Composed from the shared FormDialog (fullScreen on mobile for free).
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Box, Checkbox, FormControlLabel, Skeleton, Stack, TextField, Typography } from '@mui/material';
 import api from '../api';
 import FormDialog from './FormDialog';
@@ -21,11 +22,20 @@ export default function ReservationCancelDialog({ open, row, busy, onClose, onCo
   const [preview, setPreview] = useState({ status: 'loading', figures: null, error: '' });
   const reservationId = row ? row.reservationId : null;
 
+  const clientEmail = row ? row.clientEmail : '';
+  // Audit R44-C-L1 — the form starts over only when the dialog opens (or opens on another stay): a parent re-render
+  // during a failed confirm must keep the reason typed and the « Prévenir le client » choice, never re-tick it.
+  const openedFor = useRef(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      openedFor.current = null;
+      return;
+    }
+    if (openedFor.current && openedFor.current.id === reservationId) return;
+    openedFor.current = { id: reservationId };
     setReason('');
-    setNotifyClient(Boolean(row && row.clientEmail));
-  }, [open, row]);
+    setNotifyClient(Boolean(clientEmail));
+  }, [open, reservationId, clientEmail]);
 
   useEffect(() => {
     if (!open || !reservationId) return undefined;

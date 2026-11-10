@@ -10,7 +10,7 @@
 const sdk = require('../sdk');
 const { sasData: pluginSasData } = require('../sdk/eventBus');
 const registry = require('../sdk/registry');
-const { buildSasSnapshot, computeSasChanges } = require('./sasAudit');
+const { buildSasSnapshot, computeSasChanges, money: historyMoney, dayFr } = require('./sasAudit');
 const { extinguisherCheckOn } = require('./settings');
 const { nothingToCollect } = require('./nothingToCollect');
 const { shapeArrivalRecap } = require('./arrivalRecap');
@@ -92,7 +92,7 @@ function normaliseOfferedRefs(refs) {
 // gestes ; il n'y en a eu qu'un, et c'est ce qu'il faut pouvoir relire des mois plus tard.
 const GROUPED_PAID_FIELDS = new Set(['depositPaid', 'balancePaid', 'complementPaid', 'endOfStayComplementPaid']);
 const GROUPED_BUCKET_LABELS = {
-  deposit: 'acompte', balance: 'solde', complement: 'complément',
+  deposit: 'acompte', balance: 'solde', complement: "complément d'arrivée",
   endOfStayComplement: 'complément de fin de séjour',
 };
 
@@ -110,7 +110,7 @@ function foldGroupedPayment(reservationId, changes) {
       field: 'arrivalPayment',
       label: "Encaissé à l'arrivée — paiement unique",
       fromText: '—',
-      toText: `${group.total} € — ${group.cash === 1 ? 'caisse interne' : 'CB / Chèque'} le ${group.at} — ${covered}`,
+      toText: `${historyMoney(group.total)} — ${group.cash === 1 ? 'caisse interne' : 'CB / Chèque'} le ${dayFr(group.at)} — ${covered}`,
     },
   ];
 }

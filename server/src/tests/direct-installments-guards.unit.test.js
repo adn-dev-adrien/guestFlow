@@ -83,6 +83,8 @@ test('rule 17 — a save by anyone (plugin, SAS) retires the links of the amount
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-06-04' },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },
     '../models/reservationsModel': new Proxy({}, { get: (_, k) => {
+      // The stay exists: an unknown id is refused 404 first (reservations-backend-mvc rule 26, audit R44-C-L3).
+      if (k === 'getRow') return (id) => ({ id: Number(id), kind: 'reservation' });
       if (k === 'getPropertyCapacity') return () => ({ maxGuests: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
       if (k === 'getBabyBedAvailability') return () => ({ availableBabyBeds: 99 });
       if (k === 'validateAvailability') return () => availabilityError;

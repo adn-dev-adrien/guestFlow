@@ -30,6 +30,7 @@ const { withdrawForStay, datesTakenMarker } = require('../utils/datesTaken');
 const { getNightBlocksFromTimes, buildOccupiedDatesFromReservations, addIsoDays } = require('../utils/occupancy');
 const { computeNextIcalSyncLocked, getTodayIsoDate } = require('../utils/reservationHelpers');
 const { buildAuditSnapshotFromPayload, computeAuditChanges } = require('../utils/reservationAudit');
+const { arrivalPaymentText, coveredText, historyMoney } = require('../utils/arrivalPaymentHistoryText');
 const { suggestBedDistribution } = require('../utils/bedDistribution');
 const { computePlatformCommission } = require('../utils/platformCommission');
 const { unclaimedRise, unlockedPriceRefusal } = require('../utils/savePriceGuards');
@@ -977,13 +978,13 @@ function settleArrivalPaymentCore(req, res) {
     const detailed = model.getByIdWithDetails(id);
     if (resolved.total !== before) {
       const gesture = resolved.reduction > 0
-        ? ` (réduction ${resolved.reduction} €)`
-        : (resolved.tip > 0 ? ` (pourboire ${resolved.tip} €)` : '');
+        ? ` (réduction ${historyMoney(resolved.reduction)})`
+        : (resolved.tip > 0 ? ` (pourboire ${historyMoney(resolved.tip)})` : '');
       model.addHistoryEntry(id, 'update', [{
         field: 'arrivalPaymentAdjustment',
         label: "Total encaissé à l'arrivée",
-        from: `${before} €`,
-        to: `${resolved.total} €${gesture}`,
+        fromText: historyMoney(before),
+        toText: `${historyMoney(resolved.total)}${gesture}`,
       }]);
     }
     return res.json({ arrivalPayment: buildArrivalPaymentView(detailed), reservation: model.getRow(id) });
@@ -1022,14 +1023,14 @@ function settleArrivalPaymentCore(req, res) {
   const detailed = model.getByIdWithDetails(id);
   // specs/arrival-departure-sas.md §3.7 — money decisions are always traceable.
   if (result.buckets.length > 0) {
-    const covered = result.buckets.join(', ');
+    // specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) — French amount, day, buckets.
     model.addHistoryEntry(id, 'update', mode === 'undo'
-      ? [{ field: 'arrivalPayment', label: 'Paiement unique à l\'arrivée', from: `${result.total} € (${covered})`, to: 'annulé' }]
+      ? [{ field: 'arrivalPayment', label: 'Paiement unique à l\'arrivée', fromText: `${historyMoney(result.total)} (${coveredText(result.buckets)})`, toText: 'annulé' }]
       : [{
         field: 'arrivalPayment',
         label: 'Paiement unique encaissé à l\'arrivée',
-        from: '',
-        to: `${result.total} € — ${mode === 'cash' ? 'caisse interne' : 'CB / Chèque'} le ${date} — ${covered}`,
+        fromText: null,
+        toText: arrivalPaymentText({ total: result.total, cash: mode === 'cash', date, buckets: result.buckets }),
       }]);
   }
   return res.json({ arrivalPayment: buildArrivalPaymentView(detailed || after), reservation: after });
@@ -1884,7 +1885,10 @@ async function update(req, res) {
     const id = Number(req.params.id);
     // specs/reservations-backend-mvc.md rule 20 — before anything reads the request. The internal writers
     // (`performUpdate`) build their own bodies and do not pass here.
-    const shapeRefusal = stayShapeRefusal(req.body || {}, model.getRow(id));
+    const stored = model.getRow(id);
+    // Rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused first, whatever the body says.
+    if (!stored) return res.status(404).json({ error: 'Réservation non trouvée' });
+    const shapeRefusal = stayShapeRefusal(req.body || {}, stored);
     if (shapeRefusal) return res.status(400).json(shapeRefusal);
     const stale409 = staleFicheRefusal(id, req.body);
     if (stale409) return res.status(stale409.status).json(stale409.body);
@@ -2054,6 +2058,9 @@ function enterMidStayExtrasWindow(id, body, today) {
 
 function applyUpdate(req, res, pastUnlocked, { silent = false, beforeArrival = false, orderGrowth = null } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
+  // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
+  // pricing or write: the insert used to reach the lines and fail on their foreign key (500).
+  if (!storedBefore) return res.status(404).json({ error: 'Réservation non trouvée' });
   const financeError = validateStayFinance(req.body, storedBefore);
   if (financeError) return res.status(400).json(financeErrorBody(financeError));
 

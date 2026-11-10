@@ -179,6 +179,8 @@ async function performAutoEmailPass(deps) {
       const context = buildContext({
         reservation, client, property, options, resources, customOptions,
         bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail, termsVersion,
+        // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
+        cancellationKept: require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation),
         pluginContext: pluginEmailContext(reservation.id),
       });
       const side = pickTemplateSide(template, lang);

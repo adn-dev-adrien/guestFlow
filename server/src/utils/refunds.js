@@ -153,6 +153,7 @@ const DELETION_REFUSALS = {
   retained: { code: 'REFUND_RETAINED_AVOIR', error: 'L’indemnité d’annulation ne se supprime pas.' },
   netted: { code: 'REFUND_NETTED_BY_CANCELLATION', error: 'Remboursement déduit de l’acompte conservé.' },
   before: { code: 'REFUND_BEFORE_CANCELLATION', error: 'Remboursement antérieur à l’annulation.' },
+  keptSum: { code: 'REFUND_NETTED_BY_CANCELLATION', error: 'Remboursement déduit de la somme conservée.' },
 };
 
 /**
@@ -164,12 +165,23 @@ const DELETION_REFUSALS = {
  * Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — with an avoir and its `nettedIds`, a book refund
  * before it that the avoir never read (the paid solde absorbed it whole) is deleted: its money goes back to the solde.
  */
+function caisseKeptMoves(refund, refunds, row) {
+  const { cashDepositKeptOf } = require('./cancelReservation');
+  const before = (refunds || []).filter((r) => !madeAfterCancellation(r, refunds, row.cancelledAt));
+  const without = before.filter((r) => r !== refund && !(r.id != null && refund.id != null && Number(r.id) === Number(refund.id)));
+  return cashDepositKeptOf(row, without) !== cashDepositKeptOf(row, before);
+}
+
 function refundDeletionRefusal(refund, refunds, reservation, nettedIds = null) {
   if (!refund) return null;
   if (isRetainedDeposit(refund.method)) return DELETION_REFUSALS.retained;
   const row = reservation || {};
   if (String(row.kind) !== 'cancelled') return null;
   if (nettedByCancellation(refund, refunds, nettedIds)) return DELETION_REFUSALS.netted;
+  // Payment-schedule rule 62 reading (verification R44b N1) — since rule 61 the sum kept reads the caisse acompte net of
+  // the caisse refunds made before the cancel: deleting one of those would raise a sum the notice already stated.
+  if (isOffBooks(refund.method) && !madeAfterCancellation(refund, refunds, row.cancelledAt)
+    && caisseKeptMoves(refund, refunds, row)) return DELETION_REFUSALS.keptSum;
   if (isOffBooks(refund.method) || madeAfterCancellation(refund, refunds, row.cancelledAt)) return null;
   if (nettedIds && (refunds || []).some(isRequalification)) return null;
   return cancellationHadBookMoney(row) ? DELETION_REFUSALS.before : null;
@@ -926,7 +938,7 @@ function validateRefundPayload(payload, context) {
   if (!cancelled && round2(Number(alreadyRefundedTotal || 0) + totalTtc) > stayCap) {
     return invalid(
       'REFUND_EXCEEDS_STAY',
-      `Le total remboursé dépasserait le montant du séjour (${stayCap.toFixed(2)} €)`,
+      `Le total remboursé dépasserait le montant du séjour (${stayCap.toFixed(2).replace('.', ',')} €).`,
       409,
     );
   }
