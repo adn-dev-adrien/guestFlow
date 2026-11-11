@@ -88,3 +88,15 @@ test('rule 4: shape() reads the context and returns a new object', () => {
   assert.equal(typeof shape, 'function');
   assert.equal(shape.length, 1);
 });
+
+test('rule 4: the halted quote of a stay with no night, or reversed dates, is the one short literal COMPOSE shapes', () => {
+  const zero = calculateReservationQuote({ db, propertyId: 9001, startDate: START, endDate: START, adults: 2 });
+  const reversed = calculateReservationQuote({ db, propertyId: 9001, startDate: END, endDate: START, adults: 2 });
+  assert.deepEqual(reversed, zero);
+  assert.equal(Object.keys(zero).length, 44);
+  assert.deepEqual(
+    [zero.nights, zero.finalPrice, zero.requiredMinNights, zero.touristTaxRate, zero.defaultCheckIn, zero.defaultCheckOut, zero.vatPercentageOptions],
+    [0, 0, 1, 0, '15:00', '10:00', zero.vatPercentageAccommodation],
+  );
+  assert.ok(zero.vatRegime && zero.property.id === 9001);
+});

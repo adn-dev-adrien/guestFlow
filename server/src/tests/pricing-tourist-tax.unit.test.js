@@ -84,3 +84,23 @@ test('rule 3 — a percentage tax gap of less than a cent per night and adult is
   const noise = resolveAddedGuestsTouristTax({ ...taxInputs, adults: 2, occupants: 2, paidAdults: 2, paidOccupants: 2 });
   assert.equal(noise.added, 0);
 });
+
+test('rule 3 — the included-services deduction sums unit price × units, rounded once', () => {
+  assert.equal(touristTax.sumIncludedServicesDeduction([{ unitPrice: 12.5, units: 2 }, null, { unitPrice: 8, units: 3 }]), 49);
+  assert.equal(touristTax.sumIncludedServicesDeduction([{ unitPrice: 6.5, units: 3 * 2 }]), 39, 'persons × nights are the caller\'s units');
+  assert.equal(touristTax.sumIncludedServicesDeduction(undefined), 0);
+});
+
+test('rule 3 — the tax base is the tariff less the deduction, floored at zero; a platform brut derives it from the brut', () => {
+  const none = { platformGrossPin: null, preArrivalOptionsResources: 0, withheldTouristTaxInBrut: 0, extraGuestInBrutSurcharge: 40 };
+  assert.deepEqual(
+    touristTax.resolveTaxBase({ ...none, taxBaseBeforeDeduction: 300, touristTaxIncludedInRateDeduction: 49 }),
+    { taxAccommodationPaid: 300, taxBaseAccommodation: 251, touristTaxBrutInconsistent: false },
+  );
+  assert.equal(touristTax.resolveTaxBase({ ...none, taxBaseBeforeDeduction: 30, touristTaxIncludedInRateDeduction: 49 }).taxBaseAccommodation, 0);
+  const brut = {
+    platformGrossPin: 500, preArrivalOptionsResources: 60, withheldTouristTaxInBrut: 10, extraGuestInBrutSurcharge: 40, taxBaseBeforeDeduction: 300, touristTaxIncludedInRateDeduction: 20,
+  };
+  assert.deepEqual(touristTax.resolveTaxBase(brut), { taxAccommodationPaid: 430, taxBaseAccommodation: 370, touristTaxBrutInconsistent: false });
+  assert.equal(touristTax.resolveTaxBase({ ...brut, platformGrossPin: 100 }).touristTaxBrutInconsistent, true);
+});

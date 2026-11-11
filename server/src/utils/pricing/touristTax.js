@@ -5,6 +5,9 @@
  * percentage of the accommodation, a fixed amount), the party, the nights and the accommodation base, and phrases its
  * own caption; `resolveAddedGuestsTouristTax({...})` is the tax of the guests added after what a platform billed.
  * The French money / percentage formatters it phrases with are exported for the captions of the same quote.
+ * `resolveTaxBase({...})` derives the base the tax is computed on (the accommodation paid, less the services the rate
+ * already covers and the extra-guest surcharge of a platform brut); `sumIncludedServicesDeduction(lines)` is the value of
+ * those services, from lines whose `units` the caller resolved.
  *
  * Pure: no DB, no clock, no settings; knows nothing of extras or payments. Whether a platform collects or remits the
  * tax is decided here from the platform's stored mode (`platformCollectsTouristTax`, `touristTaxRemittedByOwner`); the
@@ -189,7 +192,64 @@ function touristTaxRemittedByOwner(platformKey, row) {
   return Number(row.r) === 0;
 }
 
+// specs/tourist-tax-included-services-deduction.md rule 3 — the reference value of the services the
+// night rate already covers, which leaves the tourist-tax base. `referencePersons` is the guests the
+// RATE includes (`basePriceIncludedGuests`), never the real party: that is what makes the deduction a
+// per-stay FORFAIT, so the declared base no longer shrinks as the group grows.
+//
+// Named rather than inlined because it is the rule, not a detail: the « Suivi taxe de séjour » page
+// declares the very same figure by replaying this whole engine (rule 14), so this formula has exactly
+// one home. Lines are `{ unitPrice, units }` — the caller owns the filtering and the units each line bills
+// for the reference persons and the nights.
+function sumIncludedServicesDeduction(lines) {
+  return roundMoney((lines || []).reduce((sum, line) => {
+    if (!line) return sum;
+    return sum + (Number(line.unitPrice || 0) * line.units);
+  }, 0));
+}
+
+// The base the tax is computed on, from the accommodation paid and what the rate already covers (specs/tourist-tax-matches-the-office-calculation.md).
+function resolveTaxBase({
+  platformGrossPin, preArrivalOptionsResources, withheldTouristTaxInBrut, taxBaseBeforeDeduction,
+  touristTaxIncludedInRateDeduction, extraGuestInBrutSurcharge,
+}) {
+  // specs/tourist-tax-matches-the-office-calculation.md rules 1-7 — the office asks for the
+  // accommodation the guest paid, « hors options et ménage ». Where that figure lives depends on who
+  // took the money:
+  //   - a platform booking with a brut → the brut IS what the guest paid, so the accommodation is
+  //     what remains once the extras billed THROUGH the platform are taken out (rule 2). A line
+  //     routed to « Complément » is collected by us at arrival and was never inside the brut, so
+  //     subtracting it would deduct it twice;
+  //   - anything else → the tariff, which is what the guest paid us directly (rule 3).
+  // Then, on both branches alike: the services sold inside the night rate come out (rule 5, the
+  // office's « hors ménage »), and so does the extra-guest surcharge (rule 4, operator decision of
+  // 2026-09-01 — it is inside the brut, hence subtracted rather than merely not added).
+  // This repeals rule 2 of tourist-tax-base-accommodation-only.md: the brut derives the base again.
+  // specs/platform-tourist-tax-out-of-the-commission.md rule 6bis — a tax-inclusive brut must not
+  // inflate the base the tax itself is computed on. Invisible on a per_day_per_person property (the
+  // base doesn't drive the amount) but a tax on the tax on a percentage_accommodation one.
+  const taxAccommodationPaid = platformGrossPin != null
+    ? roundMoney(Math.max(0, platformGrossPin - preArrivalOptionsResources - withheldTouristTaxInBrut))
+    : taxBaseBeforeDeduction;
+  const taxBaseAccommodation = roundMoney(Math.max(
+    0,
+    taxAccommodationPaid
+      - touristTaxIncludedInRateDeduction
+      - (platformGrossPin != null ? extraGuestInBrutSurcharge : 0),
+  ));
+  // Rule 16 — a brut that does not even cover the extras billed alongside it is an inconsistent
+  // entry, not a zero-euro stay. Floored above, surfaced on the fiche rather than swallowed.
+  // platform-tourist-tax-out-of-the-commission.md rule 16 — a withheld tax is part of what the brut
+  // is supposed to contain, so it counts in the threshold: a brut that covers the extras but not the
+  // tax it claims to include is just as inconsistent.
+  const touristTaxBrutInconsistent = platformGrossPin != null
+    && platformGrossPin < roundMoney(preArrivalOptionsResources + extraGuestInBrutSurcharge + withheldTouristTaxInBrut);
+  return { taxAccommodationPaid, taxBaseAccommodation, touristTaxBrutInconsistent };
+}
+
 module.exports = {
+  sumIncludedServicesDeduction,
+  resolveTaxBase,
   computeTouristTaxBreakdown,
   platformCollectsTouristTax,
   touristTaxRemittedByOwner,

@@ -12,14 +12,14 @@ const { checkChangeover } = require('../../changeover');
 
 const step = {
   id: 'nights',
-  requires: ['endDate', 'lockedNightlyBreakdown', 'property', 'rules', 'settings', 'startDate', 'vatRate', 'vatRegime'],
+  requires: ['endDate', 'lockedNightlyBreakdown', 'rules', 'startDate'],
   provides: [
     'baseAccommodationPrice', 'changeover', 'freshUnpricedNights', 'maxNightsBreached', 'maxNightsRules',
     'mergedNightly', 'minNightsBreached', 'minNightsRules', 'nightlyBreakdown', 'nights', 'requiredMaxNights',
     'requiredMinNights', 'totalPrice',
   ],
   apply(ctx) {
-    const { endDate, lockedNightlyBreakdown, property, rules, settings, startDate, vatRate, vatRegime } = ctx;
+    const { endDate, lockedNightlyBreakdown, rules, startDate } = ctx;
 
     const calculatedBase = calculateBaseStayPrice(rules, startDate, endDate);
     const {
@@ -34,53 +34,8 @@ const step = {
       unpricedNights: freshUnpricedNights,
     } = calculatedBase;
     if (nights <= 0) {
-      const halt = {
-        property,
-        nights: 0,
-        nightlyBreakdown: [],
-        requiredMinNights: 1,
-        minNightsRules: [],
-        minNightsBreached: false,
-        requiredMaxNights: null,
-        maxNightsRules: [],
-        maxNightsBreached: false,
-        unpricedNights: [],
-        persons: 0,
-        totalPrice: 0,
-        optionsTotal: 0,
-        resourcesTotal: 0,
-        subtotal: 0,
-        discountAmount: 0,
-        finalPrice: 0,
-        engineFinalPrice: 0,
-        priceOverridden: false,
-        depositAmount: 0,
-        balanceAmount: 0,
-        complementAmount: 0,
-        complementAmountAuto: 0,
-        depositDueDate: null,
-        balanceDueDate: null,
-        touristTaxRate: Number(settings.touristTax.perPersonNight || 0),
-        touristTaxTotal: 0,
-        totalStayPrice: 0,
-        defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',
-        defaultCheckOut: settings.stayClock.defaultCheckOut || '10:00',
-        optionLines: [],
-        resourceLines: [],
-        vatPercentageAccommodation: vatRate,
-        vatPercentageOptions: vatRate,
-        vatPercentageResources: vatRate,
-        vatRegime,
-        accommodationNetPrice: 0,
-        accommodationVatAmount: 0,
-        optionsNetPrice: 0,
-        optionsVatAmount: 0,
-        resourcesNetPrice: 0,
-        resourcesVatAmount: 0,
-        totalNetPrice: 0,
-        totalVatAmount: 0,
-      };
-      return { ...ctx, halt };
+      // The finished quote of a stay with no night is COMPOSE's (`haltedQuote`): the run stops here.
+      return { ...ctx, halt: true };
     }
 
     const mergedNightly = mergeNightlyBreakdownWithLocked(lockedNightlyBreakdown, freshNightlyBreakdown);

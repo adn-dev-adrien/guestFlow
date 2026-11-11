@@ -41,7 +41,7 @@
   },
   {
     "file": "utils/pricing/steps/touristTax.js",
-    "text": "const units = Number(line.quantity || 0) * getTypeMultiplier(line.priceType, referencePersons, nights);",
+    "text": "units: Number(line.quantity || 0) * getTypeMultiplier(line.priceType, taxReferencePersons, nights),",
     "removedBy": "PR B"
   },
   {

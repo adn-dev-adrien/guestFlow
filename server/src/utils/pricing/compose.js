@@ -269,9 +269,60 @@ function shape(ctx) {
   return quote;
 }
 
+// The finished quote of a stay with no night (specs/pricing-components.md §3 rule 4): the nights step halts the run, the
+// short quote is shaped here from what the loader and the settings gave.
+function haltedQuote({ property, settings, vatRate, vatRegime }) {
+  return {
+    property,
+    nights: 0,
+    nightlyBreakdown: [],
+    requiredMinNights: 1,
+    minNightsRules: [],
+    minNightsBreached: false,
+    requiredMaxNights: null,
+    maxNightsRules: [],
+    maxNightsBreached: false,
+    unpricedNights: [],
+    persons: 0,
+    totalPrice: 0,
+    optionsTotal: 0,
+    resourcesTotal: 0,
+    subtotal: 0,
+    discountAmount: 0,
+    finalPrice: 0,
+    engineFinalPrice: 0,
+    priceOverridden: false,
+    depositAmount: 0,
+    balanceAmount: 0,
+    complementAmount: 0,
+    complementAmountAuto: 0,
+    depositDueDate: null,
+    balanceDueDate: null,
+    touristTaxRate: Number(settings.touristTax.perPersonNight || 0),
+    touristTaxTotal: 0,
+    totalStayPrice: 0,
+    defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',
+    defaultCheckOut: settings.stayClock.defaultCheckOut || '10:00',
+    optionLines: [],
+    resourceLines: [],
+    vatPercentageAccommodation: vatRate,
+    vatPercentageOptions: vatRate,
+    vatPercentageResources: vatRate,
+    vatRegime,
+    accommodationNetPrice: 0,
+    accommodationVatAmount: 0,
+    optionsNetPrice: 0,
+    optionsVatAmount: 0,
+    resourcesNetPrice: 0,
+    resourcesVatAmount: 0,
+    totalNetPrice: 0,
+    totalVatAmount: 0,
+  };
+}
+
 function compose(input) {
   const ctx = stayQuote({ input });
-  if (ctx.halt) return ctx.halt;
+  if (ctx.halt) return haltedQuote(ctx);
   return shape(ctx);
 }
 
