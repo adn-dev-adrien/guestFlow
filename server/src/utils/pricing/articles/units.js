@@ -1,18 +1,9 @@
 /**
- * Billed units of an article line (specs/pricing-components.md §3 rules 10, 47) — the unit arithmetic the families share,
- * moved unchanged from the engine. `resolveNonCardUnits` reads the typed counts (« 3 personnes », « 2 nuits ») of a
- * non-card line; the per-person and per-night families call it with their own price type.
+ * What the per-person families share (specs/pricing-components.md §3 rules 10, 47): how many people a line serves. The
+ * per-type arithmetic (multiplier, typed counts) belongs to each family; the head dispatches by family id only.
  *
  * Internal to `articles/`: the rest of the code reaches these through the head (`articles/index.js`).
  */
-const { roundMoney } = require('../money');
-
-function getTypeMultiplier(priceType, persons, nights) {
-  if (priceType === 'per_person') return persons;
-  if (priceType === 'per_night') return nights;
-  if (priceType === 'per_person_per_night') return persons * nights;
-  return 1;
-}
 
 /**
  * How many people a per-person card option serves, and what to store for it
@@ -43,44 +34,12 @@ function resolveServedPersons({ cardPersons, persons, maxGuests } = {}) {
 }
 
 /**
- * Billed units of a non-card option (specs/non-card-option-served-persons.md rules 2-5 and 19). What
- * the operator typed is a count of people or of nights and stays that count: it is never derived from
- * the party or the stay again. NULL follows them. `quantity` remains the base of the other dimensions
- * (normally 1); a line that drifted before this rule keeps it and reads as what it bills (rule 18).
- *
- * @param {{priceType: string, quantity: number, persons: number, nights: number,
- *          cardPersons?: number|null, cardNights?: number|null, maxGuests?: number}} params
- * @returns {{billedUnits: number, cardPersons: number|null, cardNights: number|null,
- *            servedPersons?: number, servedNights?: number}}
+ * The covers a non-card per-person line serves: the operator's typed count (floored) or the party, capped like a card
+ * (specs/non-card-option-served-persons.md rules 2-5).
  */
-function resolveNonCardUnits({
-  priceType, quantity, persons, nights, cardPersons, cardNights, maxGuests,
-}) {
-  if (priceType === 'per_person' || priceType === 'per_person_per_night') {
-    const wanted = Number(cardPersons) > 0 ? Math.floor(Number(cardPersons)) : null;
-    const covers = resolveServedPersons({ cardPersons: wanted, persons, maxGuests });
-    return {
-      billedUnits: roundMoney(quantity * covers.served * (priceType === 'per_person' ? 1 : nights)),
-      cardPersons: covers.stored,
-      cardNights: null,
-      servedPersons: roundMoney(quantity * covers.served),
-    };
-  }
-  if (priceType === 'per_night') {
-    const wanted = Number(cardNights) > 0 ? Math.floor(Number(cardNights)) : null;
-    const counted = wanted != null ? wanted : nights;
-    return {
-      billedUnits: roundMoney(quantity * counted),
-      cardPersons: null,
-      cardNights: counted === nights ? null : counted,
-      servedNights: roundMoney(quantity * counted),
-    };
-  }
-  return {
-    billedUnits: roundMoney(quantity * getTypeMultiplier(priceType, persons, nights)),
-    cardPersons: null,
-    cardNights: null,
-  };
+function resolveCoveredPersons({ cardPersons, persons, maxGuests }) {
+  const wanted = Number(cardPersons) > 0 ? Math.floor(Number(cardPersons)) : null;
+  return resolveServedPersons({ cardPersons: wanted, persons, maxGuests });
 }
 
-module.exports = { getTypeMultiplier, resolveServedPersons, resolveNonCardUnits };
+module.exports = { resolveServedPersons, resolveCoveredPersons };

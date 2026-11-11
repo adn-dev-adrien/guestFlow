@@ -31,11 +31,14 @@ function deepFreeze(value) {
   return value;
 }
 
+// The family namesake of a price type; an unknown price type reads as `fixed`.
+const familyIdOfPriceType = (priceType) => FAMILY_OF_PRICE_TYPE[priceType] || 'fixed';
+
 function familyOf(row, kind) {
   const priceType = row.priceType || 'per_stay';
   const isInsurance = Number(row.isCancellationInsurance || 0) === 1;
   if (kind === 'option' && row.showsPlanningCard && priceType !== 'percent_of_stay' && !isInsurance) return 'perUnit';
-  return FAMILY_OF_PRICE_TYPE[priceType] || 'fixed';
+  return familyIdOfPriceType(priceType);
 }
 
 function makeArticle(row, { kind = 'option' } = {}) {
@@ -58,4 +61,4 @@ function makeArticle(row, { kind = 'option' } = {}) {
   return deepFreeze({ ref: `${kind}:${config.id}`, family: familyOf(row, kind), config });
 }
 
-module.exports = { makeArticle, FAMILY_OF_PRICE_TYPE };
+module.exports = { makeArticle, familyIdOfPriceType, FAMILY_OF_PRICE_TYPE };

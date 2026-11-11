@@ -9,7 +9,6 @@
  * Pure: no DB, no clock, no settings.
  */
 const { roundMoney } = require('../../money');
-const { getTypeMultiplier } = require('../units');
 const kit = require('../familyKit');
 
 /**
@@ -34,11 +33,14 @@ const configSchema = kit.configSchemaFor(PRICE_TYPES).map((entry) => (entry.key 
   ? { ...entry, validate: (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100 ? null : 'Un pourcentage de 0 à 100 est attendu.') }
   : entry));
 
+// A percentage of the stay is bought once.
+const multiplier = () => 1;
+
 const validate = (config, request, ctx) => kit.refusalsOf(request, ctx);
 
 function price(config, request, ctx) {
   const unitPrice = computePercentOfStayAmount(config.price, ctx.cancellationInsuranceBase);
-  const billedUnits = roundMoney(request.quantity * getTypeMultiplier(config.priceType, ctx.persons, ctx.nights));
+  const billedUnits = roundMoney(request.quantity * multiplier());
   return kit.priced(config, request, { quantity: request.quantity, unitPrice, billedUnits });
 }
 
@@ -48,7 +50,7 @@ function describe(config, line) {
 }
 
 const family = {
-  id: 'percentOfStay', priceTypes: PRICE_TYPES, configSchema, validate, price, describe,
+  id: 'percentOfStay', priceTypes: PRICE_TYPES, multiplier, configSchema, validate, price, describe,
 };
 
 module.exports = { family, PRICE_TYPES, computePercentOfStayAmount };

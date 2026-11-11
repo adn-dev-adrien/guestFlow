@@ -24,11 +24,11 @@
 const { roundMoney } = require('../money');
 const { normalizeBilledUnits, consumeAllowance, releaseAllowance } = require('../allowances');
 const registry = require('./registry');
-const { makeArticle } = require('./makeArticle');
+const { makeArticle, familyIdOfPriceType } = require('./makeArticle');
 const {
   soldBilledUnits, mergeLineWithLockedSnapshot, reconstructLockedRealTotal, lockedUnitPriceOr, lockedLineGrossOfFreeUnits, applyOfferedToLine,
 } = require('./lineSnapshot');
-const { getTypeMultiplier, resolveServedPersons, resolveNonCardUnits } = require('./units');
+const { resolveServedPersons } = require('./units');
 const kit = require('./familyKit');
 const fixed = require('./families/fixed');
 const perUnit = require('./families/perUnit');
@@ -39,6 +39,17 @@ const percentOfStay = require('./families/percentOfStay');
 const perParticipantProgressive = require('./families/perParticipantProgressive');
 
 const CORE_FAMILIES = [fixed, perUnit, perNight, perPerson, perPersonPerNight, percentOfStay, perParticipantProgressive];
+const CORE_BY_ID = Object.freeze(Object.fromEntries(CORE_FAMILIES.map((module_) => [module_.family.id, module_.family])));
+// The core family a price type is served by (the mapping `makeArticle` uses); an unknown or plugin-owned type reads as `fixed`.
+const familyOfPriceType = (priceType) => CORE_BY_ID[familyIdOfPriceType(priceType)] || CORE_BY_ID.fixed;
+const getTypeMultiplier = (priceType, persons, nights) => {
+  const family = familyOfPriceType(priceType);
+  return family.multiplier ? family.multiplier(persons, nights) : 1;
+};
+const resolveNonCardUnits = ({ priceType, ...units }) => {
+  const family = familyOfPriceType(priceType);
+  return (family.resolveUnits || CORE_BY_ID.fixed.resolveUnits)(units);
+};
 const registerCoreFamilies = () => CORE_FAMILIES.forEach((module_) => registry.register(module_.family.id, module_.family));
 registerCoreFamilies();
 
@@ -67,7 +78,7 @@ function priceMerged(family, article, request, stay, allowance) {
   const { config } = article;
   const isResource = config.kind === 'resource';
   const { locked } = request;
-  const isPercentOfStay = config.priceType === 'percent_of_stay';
+  const isPercentOfStay = article.family === 'percentOfStay';
   const isStayWideYesNo = isPercentOfStay || config.isCancellationInsurance;
   const effectiveQuantity = isStayWideYesNo ? 1 : request.quantity;
   // Neat-derived guest price (rule 13): a stay-wide amount, so it bypasses the type multiplier.

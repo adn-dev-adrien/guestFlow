@@ -95,3 +95,19 @@ test('rule 57 — through the head, every core family gives the same line shape'
     assert.equal(line.taggedAmounts[0].amountCents, Math.round(line.offeredFigures.totalPrice * 100), id);
   }
 });
+
+test('rule 47 and 65 — a family prices with its own formula whatever config.priceType says', () => {
+  const stay = { ...STAY, persons: 4, nights: 3 };
+  const units = (id) => {
+    const config = { ...article(optionRow({ priceType: 'per_night' }), 'option').config };
+    return registry.get(id).price(config, { ref: 'option:1', quantity: 1, untyped: true }, stay).billedUnits;
+  };
+  assert.deepEqual(['fixed', 'perNight', 'perPersonPerNight'].map(units), [1, 3, 12]);
+});
+
+test('rule 47 — the head dispatches a price type to the family namesake and an unknown type to fixed', () => {
+  assert.equal(articles.getTypeMultiplier('per_person_per_night', 4, 3), 12);
+  assert.equal(articles.getTypeMultiplier('per_night', 4, 3), 3);
+  assert.equal(articles.getTypeMultiplier('per_person', 4, 3), 4);
+  for (const type of ['per_stay', 'free', 'percent_of_stay', 'per_hour', 'toString', undefined]) assert.equal(articles.getTypeMultiplier(type, 4, 3), 1, String(type));
+});

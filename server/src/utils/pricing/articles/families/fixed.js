@@ -9,18 +9,26 @@
  * Pure: no DB, no clock, no settings.
  */
 const { roundMoney } = require('../../money');
-const { getTypeMultiplier, resolveNonCardUnits } = require('../units');
 const kit = require('../familyKit');
 
 const PRICE_TYPES = ["per_stay", "free"];
 const configSchema = kit.configSchemaFor(PRICE_TYPES);
 
+// One unit whatever the stay.
+const multiplier = () => 1;
+
+// A fixed line has no typed count: the quantity is the units.
+const resolveUnits = ({ quantity }) => ({
+  billedUnits: roundMoney(quantity * multiplier()),
+  cardPersons: null,
+  cardNights: null,
+});
+
 const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, {});
 
 // `request.untyped` — the line has no typed count (a resource, an insurance): units follow the stay.
 function price(config, request, ctx) {
-  const typed = request.untyped ? null : resolveNonCardUnits({
-    priceType: config.priceType,
+  const typed = request.untyped ? null : resolveUnits({
     quantity: request.quantity,
     persons: ctx.persons,
     nights: ctx.nights,
@@ -28,14 +36,14 @@ function price(config, request, ctx) {
     cardNights: request.cardNights,
     maxGuests: ctx.maxGuests,
   });
-  const billedUnits = typed ? typed.billedUnits : roundMoney(request.quantity * getTypeMultiplier(config.priceType, ctx.persons, ctx.nights));
+  const billedUnits = typed ? typed.billedUnits : roundMoney(request.quantity * multiplier(ctx.persons, ctx.nights));
   return kit.priced(config, request, {
     quantity: request.quantity, unitPrice: Number(config.price || 0), billedUnits, typed,
   });
 }
 
 const family = {
-  id: 'fixed', priceTypes: PRICE_TYPES, configSchema, validate, price, describe: kit.describeLine,
+  id: 'fixed', priceTypes: PRICE_TYPES, multiplier, resolveUnits, configSchema, validate, price, describe: kit.describeLine,
 };
 
 module.exports = { family, PRICE_TYPES };
