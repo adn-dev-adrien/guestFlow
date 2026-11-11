@@ -1,1 +1,0 @@
-- **Platform payment helpers** (spec `pricing-components.md` rule 70; no caller yet): `acompteNet`, `grossOf`, `payoutWithPenalty` and `withheldOnCancellation` read a missing, empty or non-numeric stored amount as 0, like the copies they will replace, instead of returning NaN.

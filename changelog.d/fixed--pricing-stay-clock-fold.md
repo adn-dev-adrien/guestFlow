@@ -1,1 +1,0 @@
-- **Stay clock on the October clock change** (spec `pricing-components.md` rule 44; no caller yet): a check-in or check-out is the first instant showing that time, so the repeated hour no longer takes a stay back from « after » to « during »; a stored time `9:00` or `09:00:00` reads as 09:00 and an unreadable one falls back to the property default.

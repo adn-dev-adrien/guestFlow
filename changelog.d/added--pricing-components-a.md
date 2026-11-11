@@ -1,0 +1,2 @@
+- **Pricing built from components, no price moves** (spec `pricing-components.md`, part 1 of 3): the price of a stay is now computed by small units (nights, extra guests, tourist tax, articles and their price families, VAT, totals, schedule, settlement, refunds, platform payment, stay clock) chained in a pipeline. A price gate over every production stay and a full replay prove that no figure, export line or payment link changes.
+- A plugin can now declare an article family (`ctx.articleFamily`, SDK 2.27.0); hourly-resources does.

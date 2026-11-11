@@ -1,0 +1,1 @@
+- A non-numeric extra-line quantity is refused instead of crashing the quote; a stored check-in time written `9:00` or `09:00:00` is read as 09:00, and the repeated hour of the October clock change no longer takes a stay back from « after » to « during ».

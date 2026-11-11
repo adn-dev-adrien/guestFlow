@@ -1,1 +1,0 @@
-- **Price non-regression gate** (spec `pricing-components.md` rules 68, 71, 73): tests and scripts that prove no stay changes price through the pricing refonte; no change in the app.
