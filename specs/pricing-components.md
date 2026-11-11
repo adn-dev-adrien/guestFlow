@@ -168,8 +168,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    | 3 Totaux | **TOTALS** | `totals.js` | `aggregateTotals(ctx) → {finalPrice, discountAmount, totalStayPrice, vatByRate[], breakdown[]}` — pure aggregation of what the other steps and VAT returned; no formula (rule 51) |
    | — | **ACCOUNTING OUTPUT** | `accounting/accountingOutput.js` + exporters | `journalEntries({from, to}, readModels) → JournalEntry[]` (neutral); exporters `csvJournal`, `salesJson`, `synthesis`, (FEC later) are adapters `export(entries, accountPlan) → file` (rules 63-64) |
    | 4 Encaissement (consulted by all) | **STAY CLOCK** | `stayClock.js` | `phaseOf({arrivalDate, departureDate, checkInTime, checkOutTime}, now) → {phase: 'before'\|'during'\|'after', started, defaultCollectAt: 'arrival'\|'departure', arrivalDayReached, departureDayReached}` — rules 20, 44-46; resolver `phaseForReservation(id, now)` in `models/stayClockModel.js` |
-   | 4 Encaissement | **SCHEDULE** | `schedule.js` | `planSchedule({totals, policy, planLines, installments[], overrides, receipts, today}) → {deposit, balance, installments[], dueDates}` |
-   | 4 Encaissement | **SETTLEMENT** | `settlement.js` | `planSettlement({lines[], stayLevel, overrides, receipts, refunds, started}) → {arrival, departure, paid, refundsOwed, lineStatus{}}` |
+   | 4 Encaissement | **SCHEDULE** | `schedule.js` | `planSchedule({totals, policy, planLines, overrides, receipts, paymentLedger}) → {resolvedDepositAmount, resolvedBalanceAmount, depositDueDate, balanceDueDate, resolvedComplementAmount, endOfStayComplementTotal, …}` (PR A: the engine's own names; the two money-received reads go through the `paymentLedger` port; PR B: `installments[]`, `today`) |
+   | 4 Encaissement | **SETTLEMENT** | `settlement.js` | `readInComplement({finalOptionLines, resourceLines, extraGuestComplementSurcharge, midStayForced})` and `planSettlement({lines, stayLevel, receipts}) → {complementDetailLines, complementSplit}` in PR A, with `resolveMidStaySplit`, `splitComplementBuckets` and `isComplementDeferred` moved in; PR B: `{lines[], stayLevel, overrides, receipts, refunds, started} → {arrival, departure, paid, refundsOwed, lineStatus{}}` |
    | — | **PIPELINE** | `pipeline.js`, `pipelines.js` | `buildPipeline(steps, {initial}) → run(ctx)`; each step `{ id, requires[], provides[], apply(ctx) → ctx }`; use cases `stayQuote`, `ficheSale`, `sasSale`, `shopSale`, `externalSale` (rules 52-54) |
    | — | **COMPOSE** | `compose.js` | the `stayQuote` pipeline + `shape()` to the 132-key quote (rule 4) |
    | — | **PORTS** | `models/ports/*.js`, plugin adapters | `StayRepository`, `CatalogueProvider`, `PaymentLedger`, `SlotAvailabilityProvider`, `SettingsProvider`, `PaymentGateway`, `EventPublisher` (rule 48) |
@@ -311,8 +311,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     plans (`installmentPlan`, `installmentSync`), due dates (`paymentSchedule`), platform single payment, tax
     routing (`touristTaxInComplement`), extra-guest complement, overrides (`depositAmountOverride`,
     `complementAmountOverride`, end-of-stay override as an « Ajustement » line), arrival reduction / tip,
-    mixed methods (`payment_settlements`, `payment_tenders`). They move unchanged.
-    > **Pending** — PR A, pass 5
+    mixed methods (`payment_settlements`, `payment_tenders`). They move unchanged. _(Delivered by PR A pass 5:
+    `utils/pricing/schedule.js` `planSchedule` holds the acompte, solde, plan, due dates and the arrival / end-of-stay
+    complement amounts, `utils/pricing/settlement.js` the `inComplement` reading, the mid-stay split with its collected
+    notes and `splitComplementBuckets`; the platform commission clamp stays a step of the engine after SCHEDULE.)_
 23. **Lowering a paid line produces money owed back.** Offering, removing, discounting or reducing a line
     below its `settledCents` is refused by default; with the operator's confirmation it writes a refund owed
     (`reservation_refunds` / `flagBasketRefund` merged to the full amount) (D7).
@@ -743,7 +745,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     Each guard has an allow-list file that must stay empty at the end of PR C; entries are allowed while a copy
     waits for its PR. A generic copy-paste detector (e.g. `jscpd`) is not added: it would be a new dependency
     and the targeted guards cover the formulas that matter (Q14).
-    > **Pending** — PR A, pass 6: the money, dates, hourly, families and exporters guards. The VAT and platform-payment guards ship in PR A with their allow-lists (`no-duplicate-formulas`).
+    > **Pending** — PR A, pass 6: the money, dates, hourly, families and exporters guards. The VAT, platform-payment and refunds guards ship in PR A with their allow-lists (`no-duplicate-formulas`).
 67. **Read models are the only inputs of outputs.** `saleDetail`, `AccountingOutput`, the finance pages, the
     tourist-tax report and the payment-link baskets read stored lines, stored VAT output and settlements; a
     replay of the pricing pipeline is allowed only where today's code replays the engine (finance projections
@@ -934,7 +936,17 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       netting, refund obligations, one take-back guard, explicit finance scopes, stored nettings) and the
       DB simplification of the map's §4, each in the expected-diff list, after the owner's decisions Q16.
     - Rule 66 gains a guard: no refund cap / trop-perçu / requalification arithmetic outside `refunds/`.
-    > **Pending** — PR B
+    - **Delivered by PR A (pass 5):** `register.js`, `collected.js`, `refundable.js`, `judge.js` (with the take-back
+      refusal, the projected split injected by the caller), `overpayment.js` and `cancellation.js` hold every pure
+      refund function of `refunds.js`, `overpayment.js`, `cancellationRequalification.js`, `cancelReservation` and
+      `cancellationKeptForEmail`, verbatim, each keeping its own `round2` and its own tie rule (none is replaced by
+      `money.allocateCents`); the old paths re-export; `refundedTouristTax` and `refundsTotal` are removed; the
+      import graph forbids a pricing unit to import `refunds/`; the refunds guard of rule 66 ships with its
+      allow-list (`fixtures/no-duplicate-formulas/refunds.json`, 43 copies, each with the PR that removes it).
+    > **Pending** — PR B: behaviour and data model (everything listed under « PR B » above), `owed.js` (nothing pure
+    > of it exists in the files PR A moves: the link poller and the guest-app basket write as they compute, PR C),
+    > SETTLEMENT's `refundsOwed`, the price gate's refund figures, and the `paymentSettlementService.refundRefusal`
+    > merge into the take-back refusal.
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)
 
