@@ -1,7 +1,10 @@
 const priceLineContributors = require('./priceLineContributors');
-const vatRegimeModel = require('../models/vatRegimeModel');
+const pricingInputModel = require('../models/pricingInputModel');
+const { resolveGlobalPlatformTaxRow } = pricingInputModel;
 const { roundMoney, sumMoney, toCents, fromCents } = require('./pricing/money');
-const { computeTouristTaxBreakdown, resolveAddedGuestsTouristTax } = require('./pricing/touristTax');
+const {
+  computeTouristTaxBreakdown, resolveAddedGuestsTouristTax, platformCollectsTouristTax, touristTaxRemittedByOwner,
+} = require('./pricing/touristTax');
 const {
   parseJsonArray,
   addDaysToIsoDate,
@@ -61,9 +64,8 @@ const { portionCap, clampPortions } = require('./mealPortions');
 const { computeExtraGuestSurcharge, splitExtraGuestCount, extraGuestNightSeason } = require('./pricing/extraGuests');
 const { getApplicableOptions, getApplicableResources } = require('../models/ports/catalogueProvider');
 const { planSchedule } = require('./pricing/schedule');
-const { create: createPaymentLedger } = require('../models/ports/paymentLedger');
 const {
-  findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
+  buildBabyBedSupplementLine, isBabyBedOption,
 } = require('./babyBedSupplement');
 
 // Option-driven planning cards (specs/option-planning-card.md §3.4). Parse the per-reservation
@@ -205,64 +207,31 @@ function debugResourceLine(stage, payload) {
   }
 }
 
-// GLOBAL per-platform tourist-tax mode resolver (specs/per-platform-tourist-tax-three-way.md). The
-// mode lives on the `platforms` table (one row per platform, shared across all properties), like the
-// calendar colour. Returns the `{ collectsTouristTax, touristTaxRemittedByPlatform }` row or null.
-//
-// A reservation's `platform` string is written two ways: manual reservations store the concatenated
-// label (= `platforms.name`), iCal imports store the hyphenated `source.platformKey`. So we resolve
-// in two steps: (1) direct match on `platforms.name`; (2) bridge through `ical_sources` (key OR label)
-// to recover the canonical `platformLabel`, then match `platforms.name`. The `propertyId` argument is
-// kept for call-site compatibility but ignored — the mode is global.
-function resolveGlobalPlatformTaxRow(db, platform) {
-  if (!platform || platform === 'direct') return null;
-  const needle = String(platform).toLowerCase();
-  try {
-    let row = db.prepare(
-      'SELECT collectsTouristTax AS c, touristTaxRemittedByPlatform AS r FROM platforms WHERE lower(name) = ? LIMIT 1'
-    ).get(needle);
-    if (row) return row;
-    // Bridge: an iCal-imported reservation stores the hyphenated key; map it to the canonical label
-    // via any ical_sources row, then read the global mode for that label.
-    row = db.prepare(`
-      SELECT pl.collectsTouristTax AS c, pl.touristTaxRemittedByPlatform AS r
-      FROM ical_sources s JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
-      WHERE lower(s.platformKey) = ? OR lower(s.platformLabel) = ? LIMIT 1
-    `).get(needle, needle);
-    return row || null;
-  } catch (_) {
-    // `platforms`/`ical_sources` table or the tax columns may be absent in minimal test DBs.
-    return null;
-  }
-}
-
-// "Does the platform charge the tourist tax to the guest?" (i.e. it's not billed by us on the quote).
-//   - direct        → false (owner charges it).
-//   - non-direct    → the platform's GLOBAL `collectsTouristTax`; missing platform row → default true
-//                     (legacy "non-direct = platform collects" safe fallback).
 function isPlatformCollectingTouristTax(db, propertyId, platformKey) {
-  if (!platformKey || platformKey === 'direct') return false;
-  const row = resolveGlobalPlatformTaxRow(db, platformKey);
-  if (!row) return true; // legacy default: non-direct platforms are assumed to collect.
-  return Number(row.c) !== 0;
+  return platformCollectsTouristTax(platformKey, resolveGlobalPlatformTaxRow(db, platformKey));
 }
 
-// "Do WE remit the tourist tax to the commune?" — drives the « Taxe de séjour » page + the 46710000
-// accounting line. Orthogonal to who charges the guest.
-//   - direct        → true (we collect + remit).
-//   - non-direct    → we remit iff the platform's GLOBAL `touristTaxRemittedByPlatform = 0` (the
-//                     platform reverses it to us, OR we collect at arrival). Missing platform row →
-//                     false (legacy "platform handles everything", hidden from the page).
 function isTouristTaxRemittedByOwner(db, propertyId, platformKey) {
-  if (!platformKey || platformKey === 'direct') return true;
-  const row = resolveGlobalPlatformTaxRow(db, platformKey);
-  if (!row) return false; // legacy default: ad-hoc non-direct platforms are assumed to remit themselves.
-  return Number(row.r) === 0;
+  return touristTaxRemittedByOwner(platformKey, resolveGlobalPlatformTaxRow(db, platformKey));
 }
 
-function calculateReservationQuote({
-  db,
-  propertyId,
+function calculateReservationQuote(input) {
+  const stay = pricingInputModel.load(input);
+  if (stay.error) return stay;
+  return priceStay(stay);
+}
+
+function priceStay({
+  property,
+  vatRegime,
+  vatRate,
+  rules,
+  optionsById,
+  resourcesById,
+  defaultOfferedOptionIds,
+  platformTaxRow,
+  billableBabyBeds,
+  paymentLedger,
   startDate,
   endDate,
   checkInTime,
@@ -443,23 +412,6 @@ function calculateReservationQuote({
   // snapshot of a sold line still wins over it. Null/absent → the catalogue tariff as before.
   cancellationInsurancePriceOverride = null,
 }) {
-  const property = db.prepare('SELECT * FROM properties WHERE id = ?').get(propertyId);
-  if (!property) {
-    return { error: 'Logement non trouvé', status: 404 };
-  }
-
-  // Single global VAT rate (specs/single-vat-rate.md §4.1). The three quote keys
-  // (vatPercentageAccommodation / Options / Resources) below keep their names but all carry
-  // the same value, so downstream readers (devisPdf, accountingModel, PricingSummary)
-  // continue working without a wider rename.
-  // One VAT rate per sale, the one of the regime it was sold under (specs/vat-optional-mode.md rule 8):
-  // a stored stay keeps its period, a new stay or a devis is priced under the regime in force today.
-  const vatRegime = vatRegimeModel.forRow(db, {
-    id: bookingId, kind: quoteKind, createdAt: bookingDate, startDate, newSale: !(Number(bookingId) > 0),
-  });
-  const vatRate = vatRegime.rate;
-
-  const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
   const calculatedBase = calculateBaseStayPrice(rules, startDate, endDate);
   const {
     nights,
@@ -528,24 +480,9 @@ function calculateReservationQuote({
   // specs/plugins-phase-p-productisation.md rule 45 — the one reading of the channel every money
   // decision below shares.
   const channel = saleChannel(platform);
-  const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
-  const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   const optionUnitOverrides = lockedOptionUnits || {};
   const resourceUnitOverrides = lockedResourceUnits || {};
   const offeredOptionIdSet = new Set((Array.isArray(offeredOptionIds) ? offeredOptionIds : []).map((id) => Number(id)));
-  // specs/per-property-default-options.md — options that are a property DEFAULT configured « offered »
-  // (`property_option_defaults.offered = 1`) are INCLUDED in the night rate, not a one-off geste
-  // commercial. When such a line is offered we tag it `includedInRate` so the summary renders « Comprise »
-  // (at 0 €) instead of « Offert ». Guarded for minimal test DBs without the table.
-  const defaultOfferedOptionIds = (() => {
-    try {
-      return new Set(
-        db.prepare('SELECT optionId FROM property_option_defaults WHERE propertyId = ? AND offered = 1')
-          .all(propertyId)
-          .map((r) => Number(r.optionId)),
-      );
-    } catch { return new Set(); }
-  })();
   const lockedOptionsById = new Map(
     (Array.isArray(lockedOptionLines) ? lockedOptionLines : [])
       .map((line) => [Number(line.optionId), line])
@@ -799,12 +736,6 @@ function calculateReservationQuote({
     .filter(Boolean);
 
   const selectedOptionIds = new Set(optionLines.map((line) => Number(line.optionId)));
-  // specs/baby-bed-supplement.md §3.3 — resolved ONCE, from the database: a booking already stored
-  // with cots and no supplement line was sold before the supplement existed and bills 0 cot forever.
-  const babyBedOption = findBabyBedOption(Array.from(optionsById.values()));
-  const billableBabyBeds = resolveBillableBabyBeds({
-    database: db, bookingId, option: babyBedOption, babyBeds,
-  });
   const autoOptionLines = Array.from(optionsById.values())
     .filter((option) => Number(option.autoEnabled || 0) === 1)
     .map((option) => (
@@ -1061,8 +992,8 @@ function calculateReservationQuote({
   //   owner             (0,0) → CHARGED at arrival in the COMPLÉMENT.
   //   direct                  → charged in the balance (unchanged).
   const normalizedPlatform = String(platform || 'direct').toLowerCase();
-  const collectsFromGuest = isPlatformCollectingTouristTax(db, propertyId, normalizedPlatform);
-  const isTouristTaxRemittedByOwnerFlag = isTouristTaxRemittedByOwner(db, propertyId, normalizedPlatform);
+  const collectsFromGuest = platformCollectsTouristTax(normalizedPlatform, platformTaxRow);
+  const isTouristTaxRemittedByOwnerFlag = touristTaxRemittedByOwner(normalizedPlatform, platformTaxRow);
   // OFFERED (struck-through, zeroed) ONLY when the platform both collects it AND remits it itself
   // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered.
   const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
@@ -1352,7 +1283,7 @@ function calculateReservationQuote({
       depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount, complementAmount, existingDepositDueDate,
       paidSoldeCaptured, endOfStayComplementSettled,
     },
-    paymentLedger: createPaymentLedger(db),
+    paymentLedger,
   });
 
   const { solde: platformCommissionAmount, acompte: acompteCommissionAmount, total: totalPlatformCommission } = clampCommissions({

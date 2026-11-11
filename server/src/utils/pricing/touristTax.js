@@ -7,8 +7,8 @@
  * The French money / percentage formatters it phrases with are exported for the captions of the same quote.
  *
  * Pure: no DB, no clock, no settings; knows nothing of extras or payments. Whether a platform collects or remits the
- * tax is read from the platform table by `isPlatformCollectingTouristTax` / `isTouristTaxRemittedByOwner`, which stay
- * in pricing.js until the loader owns that read.
+ * tax is decided here from the platform's stored mode (`platformCollectsTouristTax`, `touristTaxRemittedByOwner`); the
+ * platform row itself is read by the loader (`models/pricingInputModel.js`).
  */
 const { roundMoney } = require('./money');
 
@@ -166,8 +166,33 @@ const settingsSchema = [
   },
 ];
 
+// "Does the platform charge the tourist tax to the guest?" (i.e. it's not billed by us on the quote).
+//   - direct        → false (owner charges it).
+//   - non-direct    → the platform's GLOBAL `collectsTouristTax`; missing platform row → default true
+//                     (legacy "non-direct = platform collects" safe fallback).
+// `row` is `{ c, r }` of the platform's stored mode, read by the loader.
+function platformCollectsTouristTax(platformKey, row) {
+  if (!platformKey || platformKey === 'direct') return false;
+  if (!row) return true; // legacy default: non-direct platforms are assumed to collect.
+  return Number(row.c) !== 0;
+}
+
+// "Do WE remit the tourist tax to the commune?" — drives the « Taxe de séjour » page + the 46710000
+// accounting line. Orthogonal to who charges the guest.
+//   - direct        → true (we collect + remit).
+//   - non-direct    → we remit iff the platform's GLOBAL `touristTaxRemittedByPlatform = 0` (the
+//                     platform reverses it to us, OR we collect at arrival). Missing platform row →
+//                     false (legacy "platform handles everything", hidden from the page).
+function touristTaxRemittedByOwner(platformKey, row) {
+  if (!platformKey || platformKey === 'direct') return true;
+  if (!row) return false; // legacy default: ad-hoc non-direct platforms are assumed to remit themselves.
+  return Number(row.r) === 0;
+}
+
 module.exports = {
   computeTouristTaxBreakdown,
+  platformCollectsTouristTax,
+  touristTaxRemittedByOwner,
   NBSP,
   frenchNumber,
   frenchEuros,
