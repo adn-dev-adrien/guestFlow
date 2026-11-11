@@ -107,3 +107,32 @@ test('rule 68: the keys come out sorted and the result does not depend on the or
   assert.deepEqual(Object.keys(a), [...Object.keys(a)].sort());
   assert.deepEqual(a, b);
 });
+
+test('rule 72: the refund figures are cents, a custom line is numbered never named, a stay without a register carries none', () => {
+  const refunds = {
+    register: {
+      collectedTtc: 274.5,
+      refundTotals: { book: 10, withCash: 12.5 },
+      refundableLines: [
+        { key: 'accommodation', bucket: 'accommodation', refundableTtc: 100.1, indemnityTtc: 20, cashTtc: 0 },
+        { key: 'custom:some private label', bucket: 'options', refundableTtc: 30, billedTtc: 30 },
+      ],
+      refunds: [{ id: 4, method: 'transfer', refundDate: 'd1', totalTtc: 10, afterCancellation: 1, lines: [{ lineKey: 'custom:some private label', bucket: 'options', amountTtc: 10, vatRate: 10 }] }],
+    },
+    stored: { overpaymentTtc: 5.25, overpaymentMethod: 'internal', overpaymentLines: [{ bucket: 'options', label: 'x', amountTtc: 5.25, collectedTtc: 30, dueTtc: 24.75 }] },
+    live: null,
+    journal: [{ refundId: 4, date: 'd1', lines: [{ compte: '70600000', debit: 9.09, credit: 0 }, { compte: 'CSOMENAME', debit: 0, credit: 9.09 }] }],
+  };
+  const figures = figuresOf({ row: row(), quote: { error: 'x' }, refunds });
+  assert.equal(figures['refund.collected'], 27450);
+  assert.equal(figures['refund.line.accommodation.refundableTtc'], 10010);
+  assert.equal(figures['refund.line.custom#1.refundableTtc'], 3000);
+  assert.equal(figures['refund.made.4.line.0.key'], 'custom#1');
+  assert.equal(figures['overpayment.stored.ttc'], 525);
+  assert.equal(figures['overpayment.stored.line.0.dueTtc'], 2475);
+  assert.equal(figures['overpayment.live.ttc'], null);
+  assert.equal(figures['refund.journal.4.0.debit'], 909);
+  assert.equal(figures['refund.journal.4.1.account'], 'client');
+  assert.ok(!Object.keys(figures).concat(Object.values(figures).filter((v) => typeof v === 'string')).some((k) => /private/.test(k)));
+  assert.ok(!Object.keys(figuresOf({ row: row(), quote: { error: 'x' }, refunds: null })).some((k) => k.startsWith('refund.')));
+});

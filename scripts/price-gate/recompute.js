@@ -78,6 +78,56 @@ function ficheOf(id) {
   return { remainingDue, paymentComplete, collectedTtc, refundTotals };
 }
 
+/**
+ * What the refund side of the application says about a stay (rule 72, PR A bullet): the register (refundable lines,
+ * collected TTC, refunds made), the trop-perçu stored on the fiche and the live one read on the stored stay's quote,
+ * and the accounting-export entries of its refunds. Through the original module paths only (`controllers/`,
+ * `utils/overpayment`, the accounting-export plugin), so the capture on the baseline code and the run on a branch
+ * read the same entry points.
+ */
+function refundInputsOf(db, id, row, quote) {
+  const out = { register: null, stored: null, live: null, journal: [] };
+  const res = fakeRes();
+  app('controllers/refundsController.js').list({ params: { id } }, res);
+  if (res.statusCode === 200 && res.body) out.register = res.body;
+  if (row.kind === 'reservation') {
+    out.stored = app('controllers/reservationsController.js').storedOverpayment(id);
+    if (quote && !quote.error) {
+      const model = app('models/reservationsModel.js');
+      const { overpaymentOf, overpaymentLinesOf } = app('utils/overpayment.js');
+      const { readSplitReceived } = app('utils/splitReceived.js');
+      const received = readSplitReceived(db, id);
+      const overpaymentTtc = overpaymentOf({
+        row,
+        captured: model.capturedScheduleContribs(id),
+        refundedTtc: app('models/refundsModel.js').totalsByReservation(id).withCash,
+        depositAmount: quote.depositAmount,
+        balanceAmount: quote.balanceAmount,
+        engineOverTtc: quote.overCollectedTtc,
+        received,
+      });
+      out.live = {
+        overpaymentTtc,
+        overpaymentLines: overpaymentLinesOf({ row, capturedByPoste: model.capturedScheduleContribsByPoste(id), quote, overpaymentTtc, received }),
+      };
+    }
+  }
+  if (out.register && out.register.refunds.length) {
+    const accounting = app('plugins/accounting-export/accountingModel.js');
+    const { entryToStructured } = app('plugins/accounting-export/accountingExport.js');
+    const entries = accounting.create(db);
+    const months = [...new Set(out.register.refunds.map((r) => String(r.refundDate).slice(0, 7)))].sort();
+    for (const month of months) {
+      const [year, mm] = month.split('-').map(Number);
+      for (const entry of entries.refundsByMonth({ month: mm, year })) {
+        if (Number(entry.reservationId) !== Number(id)) continue;
+        out.journal.push({ refundId: entry.refundId == null ? null : entry.refundId, date: entry.paidDate || entry.refundDate || null, lines: entryToStructured(entry).lines });
+      }
+    }
+  }
+  return out;
+}
+
 /** The figures of one stored stay through the current code path. */
 function figuresOfStay(db, id) {
   const { quoteStoredReservation } = app('utils/storedReservationQuote.js');
@@ -85,9 +135,11 @@ function figuresOfStay(db, id) {
   const installments = app('models/installmentsModel.js');
   const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
   try {
+    const quote = quoteStoredReservation(db, row);
     return figuresOf({
       row,
-      quote: quoteStoredReservation(db, row),
+      quote,
+      refunds: row.kind === 'devis' ? null : refundInputsOf(db, id, row, quote),
       fiche: row.kind === 'devis' ? null : ficheOf(id),
       cancellation: row.kind === 'devis' ? null : previewFor(id),
       installments: installments.listFor(id),

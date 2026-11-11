@@ -12,6 +12,9 @@
  *   fiche         { remainingDue, paymentComplete, collectedTtc, refundTotals } from the fiche payload
  *   cancellation  `previewFor(id)` of the cancellation controller: the figures, or `{ error }` when refused
  *   installments  `installmentsModel.listFor(id)`
+ *   refunds       { register, stored, live, journal } — the refund side (rule 72): the refund register of the stay
+ *                 (refundable lines, collected TTC, refunds made), the trop-perçu stored on the fiche and the live
+ *                 one with their lines, and the accounting-export entries of its refunds
  *
  * This file never reads the code it guards: it only reshapes numbers. Money is converted once, with the
  * same `Math.round(x * 100)` for every figure, so a figure differs only when the amount does.
@@ -161,8 +164,73 @@ function putPlatform(out, row, quote) {
   out['platform.stored.commission.solde'] = cents(row.platformCommissionAmount);
 }
 
-function figuresOf({ row, quote, fiche = null, cancellation = null, installments = [] }) {
+const REFUND_LINE_FIELDS = ['refundableTtc', 'indemnityTtc', 'cashTtc', 'collectedTtc', 'billedTtc', 'unitPrice', 'maxTtc', 'vatRate'];
+
+function putOverpayment(out, name, overpayment) {
+  if (!overpayment) { out[`${name}.ttc`] = null; return; }
+  out[`${name}.ttc`] = cents(overpayment.overpaymentTtc);
+  out[`${name}.method`] = text(overpayment.overpaymentMethod);
+  (overpayment.overpaymentLines || []).forEach((line, i) => {
+    const key = `${name}.line.${i}`;
+    out[`${key}.bucket`] = text(line.bucket);
+    for (const field of ['amountTtc', 'collectedTtc', 'dueTtc']) if (line[field] != null) out[`${key}.${field}`] = cents(line[field]);
+  });
+}
+
+// A custom line is keyed by its label (`custom:<text>`): a figure name never carries it, the line is numbered in the
+// order the stay meets it (the register first, then the refunds made), whatever the text.
+function lineNamer() {
+  const seen = new Map();
+  return (key) => {
+    if (key == null || !String(key).startsWith('custom:')) return key;
+    if (!seen.has(key)) seen.set(key, `custom#${seen.size + 1}`);
+    return seen.get(key);
+  };
+}
+
+function putRefunds(out, refunds) {
+  if (!refunds) return;
+  const named = lineNamer();
+  const { register, stored, live, journal } = refunds;
+  if (register) {
+    out['refund.collected'] = cents(register.collectedTtc);
+    out['refund.totals.book'] = cents(register.refundTotals && register.refundTotals.book);
+    out['refund.totals.withCash'] = cents(register.refundTotals && register.refundTotals.withCash);
+    for (const line of register.refundableLines || []) {
+      for (const field of REFUND_LINE_FIELDS) if (line[field] != null) out[`refund.line.${named(line.key)}.${field}`] = cents(line[field]);
+      out[`refund.line.${named(line.key)}.bucket`] = text(line.bucket);
+    }
+    for (const r of register.refunds || []) {
+      const key = `refund.made.${r.id}`;
+      out[`${key}.method`] = text(r.method);
+      out[`${key}.date`] = text(r.refundDate);
+      out[`${key}.total`] = cents(r.totalTtc);
+      out[`${key}.afterCancellation`] = flag(r.afterCancellation);
+      (r.lines || []).forEach((l, i) => {
+        out[`${key}.line.${i}.key`] = text(named(l.lineKey));
+        out[`${key}.line.${i}.bucket`] = text(l.bucket);
+        out[`${key}.line.${i}.amount`] = cents(l.amountTtc);
+        out[`${key}.line.${i}.vatRate`] = cents(l.vatRate);
+      });
+    }
+  }
+  putOverpayment(out, 'overpayment.stored', stored);
+  putOverpayment(out, 'overpayment.live', live);
+  for (const entry of journal || []) {
+    const key = `refund.journal.${entry.refundId}`;
+    out[`${key}.date`] = text(entry.date);
+    (entry.lines || []).forEach((l, i) => {
+      // The client's auxiliary account is built from the guest's name: it is named « client », never copied.
+      out[`${key}.${i}.account`] = /^\d/.test(String(l.compte)) ? text(l.compte) : 'client';
+      out[`${key}.${i}.debit`] = cents(l.debit);
+      out[`${key}.${i}.credit`] = cents(l.credit);
+    });
+  }
+}
+
+function figuresOf({ row, quote, fiche = null, cancellation = null, installments = [], refunds = null }) {
   const out = { kind: text(row.kind), platform: text(row.platform), startDate: text(row.startDate), endDate: text(row.endDate) };
+  putRefunds(out, refunds);
   if (!quote || quote.error) {
     out['quote.error'] = text(quote && quote.error) || 'no quote';
     return out;
