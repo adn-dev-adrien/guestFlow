@@ -1,0 +1,22 @@
+[
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "const raw = round2(gross - newPayout - tax - acompteCommission);",
+    "removedBy": "PR B"
+  },
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "const statementPayout = payoutRecorded ? newPayout : round2(gross - (commission || 0) - acompteCommission - tax);",
+    "removedBy": "PR B"
+  },
+  {
+    "file": "plugins/airbnb-intake/paymentBlock.js",
+    "text": "if (gross - payout - kept !== toCents(booking.hostFee)) {",
+    "removedBy": "PR B"
+  },
+  {
+    "file": "utils/reservationLedger.js",
+    "text": "detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(depositAmount - acompteCommission)}`;",
+    "removedBy": "PR C"
+  }
+]
