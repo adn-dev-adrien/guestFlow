@@ -129,7 +129,7 @@
       "Demande le SDK 2.26 de GuestFlow."
     ],
     "1.5.3": [
-      "Le tarif à l’heure est aussi proposé au calcul des prix comme une famille d’article « hourly » ; aucun prix ne change.",
+      "Le tarif à l’heure est calculé par la famille d’article « hourly » du calcul des prix ; aucun prix ne change.",
       "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; aucun montant ne change.",
       "Demande le SDK 2.27 de GuestFlow."
     ]
