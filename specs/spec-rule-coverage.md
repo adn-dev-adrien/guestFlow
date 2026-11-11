@@ -160,7 +160,8 @@ no test?** » — and prevent a **new** rule from being delivered without its te
 19. **The PR that delivers a spec cannot leave its own work pending** (added 2026-11-11, pricing refonte PR A review). A
     spec whose Status reads `In progress — PR <X>` fails the gate — the full report and `--changed` alike — when one of its
     rules carries a line `> **Pending** — PR <X> …`: PR <X> cannot leave PR <X> work pending. The rule is delivered and
-    its line removed, or it is sent to the next PR (`Pending — PR <Y>`). Pending lines naming a later PR are untouched.
+    its line removed, or it is sent to the next PR (`Pending — PR <Y>`). Pending lines naming a later PR are untouched. Every `Pending` line of a rule is examined, not only
+    the last one: a rule may carry one line per PR.
     Test: `tests/spec-rule-coverage-pending-own-pr.unit.test.js`.
 
 **Edge cases:**

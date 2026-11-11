@@ -49,6 +49,14 @@ test('rule 19 — « In progress — PR A » with a Pending line naming PR A fai
   assert.deepEqual(specsPendingOnTheirOwnPr([['README.md', spec('In progress — PR A', 'PR A')]]), []);
 });
 
+test('rule 19 — every Pending line of a rule is examined, whatever its position', async () => {
+  const { specsPendingOnTheirOwnPr } = await load();
+  const two = (first, second) => spec('In progress — PR A', first).replace(`   > **Pending** — ${first}`, `   > **Pending** — ${first}\n   > **Pending** — ${second}`);
+  assert.deepEqual(specsPendingOnTheirOwnPr([['a.md', two('PR A', 'PR B')]]), [{ spec: 'a', pr: 'A', rules: ['2'] }], 'own PR first');
+  assert.deepEqual(specsPendingOnTheirOwnPr([['a.md', two('PR B', 'PR A')]]), [{ spec: 'a', pr: 'A', rules: ['2'] }], 'own PR last');
+  assert.deepEqual(specsPendingOnTheirOwnPr([['a.md', two('PR B', 'PR C')]]), []);
+});
+
 test('rule 19 — the real tree carries no spec pending on its own PR', async () => {
   const fs = require('node:fs');
   const dir = path.join(__dirname, '..', '..', '..', 'specs');

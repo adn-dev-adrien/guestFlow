@@ -40,7 +40,7 @@ const PENDING_LINE = /^\s*>?\s*\*\*Pending\*\*\s*[—-]?\s*(.*)$/i;
  * Les règles de la section « Functional rules » d'une spec, et elles seules : les listes numérotées
  * de l'architecture, du plan de test ou des questions ouvertes ne sont pas des règles (règle 2).
  *
- * @returns {Array<{id: string, exempt: boolean, reason: string, pending: boolean, pendingReason: string}>}
+ * @returns {Array<{id: string, exempt: boolean, reason: string, pending: boolean, pendingReason: string, pendingReasons: string[]}>}
  */
 export function parseSpecRules(markdown) {
   const rules = [];
@@ -48,7 +48,7 @@ export function parseSpecRules(markdown) {
   for (const line of functionalRuleLines(markdown)) {
     const m = line.match(RULE_LINE);
     if (m) {
-      current = { id: m[1].toLowerCase(), exempt: false, reason: '', pending: false, pendingReason: '' };
+      current = { id: m[1].toLowerCase(), exempt: false, reason: '', pending: false, pendingReason: '', pendingReasons: [] };
       rules.push(current);
       continue;
     }
@@ -56,7 +56,7 @@ export function parseSpecRules(markdown) {
     const ex = line.match(EXEMPT_LINE);
     if (ex) { current.exempt = true; current.reason = ex[1].trim(); }
     const pe = line.match(PENDING_LINE);
-    if (pe) { current.pending = true; current.pendingReason = pe[1].trim(); }
+    if (pe) { current.pending = true; current.pendingReason = pe[1].trim(); current.pendingReasons.push(pe[1].trim()); }
   }
   // Un numéro répété ne compte qu'une fois ici ; la barrière le refuse (règle 17).
   const seen = new Set();
@@ -327,7 +327,7 @@ export function specsPendingOnTheirOwnPr(entries) {
     const own = statusOf(markdown).match(/^\s*in progress\s*[—–-]+\s*PR\s+([A-Z0-9]+)\b/i);
     if (!own) continue;
     const pr = own[1].toUpperCase();
-    const hits = parseSpecRules(markdown).filter((r) => r.pending && new RegExp(`^PR\\s+${pr}\\b`, 'i').test(r.pendingReason)).map((r) => r.id);
+    const hits = parseSpecRules(markdown).filter((r) => r.pending && r.pendingReasons.some((reason) => new RegExp(`^PR\\s+${pr}\\b`, 'i').test(reason))).map((r) => r.id);
     if (hits.length) out.push({ spec: f.replace(/\.md$/, ''), pr, rules: hits });
   }
   return out;
