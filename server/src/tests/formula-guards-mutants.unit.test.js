@@ -44,8 +44,8 @@ test('vat — the home may hold the formula, any other file may not', () => {
 
 test('a second identical copy in an already listed file fails (multiset), the copy removed leaves a stale entry', () => {
   const line = 'const ht = round2(ttc / (1 + rate / 100));';
-  const listed = [entry('plugins/accounting-export/accountingModel.js', line)];
-  const file = 'plugins/accounting-export/accountingModel.js';
+  const file = plugin('accounting-export', 'accountingModel.js');
+  const listed = [entry(file, line)];
   assert.deepEqual(verdict('vat', { [file]: `${line}\n` }, listed), { unlisted: [], stale: [] });
   const doubled = verdict('vat', { [file]: `${line}\nfoo();\n${line}\n` }, listed);
   assert.equal(doubled.unlisted.length, 1);

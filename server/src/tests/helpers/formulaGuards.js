@@ -36,8 +36,8 @@ const GUARDS = [
     ],
     // The departmental surcharge of the tourist tax is a percentage on top of the municipal tax, not a VAT.
     skip: (file, text) => /departmentPercentage/.test(text),
-    removedBy: (file) => (file.startsWith('plugins/online-payment/') ? 'PR C' : 'PR B'),
-    reason: (file) => (file.startsWith('plugins/online-payment/')
+    removedBy: (file) => (file.startsWith(`${plugin('online-payment')}/`) ? 'PR C' : 'PR B'),
+    reason: (file) => (file.startsWith(`${plugin('online-payment')}/`)
       ? 'the Qonto invoice line keeps its own TTC to HT cut until PR C switches it (lead decision: no Qonto change in PR A)'
       : 'a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)'),
   },
