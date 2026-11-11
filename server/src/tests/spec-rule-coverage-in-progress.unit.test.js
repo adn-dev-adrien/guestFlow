@@ -40,7 +40,7 @@ test('rule 18 — In progress is delivered for code: a citation of the spec is n
   const { exempt, delivered } = specTransitions([{ name: 'x', before: spec('Approved'), now: spec('In progress — PR A of 3') }]);
   assert.equal(exempt.has('x'), false);
   assert.equal(delivered.has('x'), true, 'moving from Approved to In progress delivers the spec');
-  const diff = '+++ b/server/src/a.js\n+// specs/x.md rule 1\n';
+  const diff = '+++ b/server/src/a.js\n+// see specs/x.md\n';
   assert.deepEqual(exemptCitations(diff, exempt), []);
 });
 

@@ -7,7 +7,7 @@ const extraGuests = require('../utils/pricing/extraGuests');
 const pricing = require('../utils/pricing');
 
 const { computeExtraGuestSurcharge, splitExtraGuestCount } = extraGuests;
-const season = { label: 'Haute', pricePerNight: 100, dateRanges: [{ startDate: '2027-07-01', endDate: '2027-07-31' }] };
+const season = { label: 'Haute', pricePerNight: 100, dateRanges: [{ startDate: '2027-07-01', endDate: '2027-07-31' }] }; // date-literal-ok: pure date arithmetic, nothing compares with today
 const nightsOf = (prices) => prices.map((price, i) => ({ date: `2027-07-0${i + 1}`, price }));
 
 test('rule 6 — pricing.js re-exports the very functions of EXTRA GUESTS', () => {
@@ -55,7 +55,7 @@ test('rule 1 — a tier table prices the night by its rank in the stay and does 
 test('rule 1 — a sold night replays the season it was sold under, not the live one', () => {
   const quote = computeExtraGuestSurcharge({
     unit: 'per_night', extraGuestCount: 1, propertyUnitPrice: 10, rules: [season],
-    nightlyBreakdown: nightsOf([100]), lockedNights: { '2027-07-01': { base: 200, unit: 30 } }, lockedDates: new Set(['2027-07-01']), lockedTiers: [],
+    nightlyBreakdown: nightsOf([100]), lockedNights: { '2027-07-01': { base: 200, unit: 30 } }, lockedDates: new Set(['2027-07-01']), lockedTiers: [], // date-literal-ok: pure date arithmetic, nothing compares with today
   });
   assert.equal(quote.total, 15);
 });

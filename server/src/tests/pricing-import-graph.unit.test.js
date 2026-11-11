@@ -1,6 +1,8 @@
-// specs/pricing-components.md §3 rule 2 — one direction of dependency, enforced statically: a unit under
+// specs/pricing-components.md §3 rules 2 and 43 — one direction of dependency, enforced statically: a unit under
 // `utils/pricing/` imports no unit downstream of it, no `models/`, no `database`, and reads no clock without an
 // argument (`Date.now()`, `new Date()`); NIGHTS, EXTRA GUESTS and TOURIST TAX know nothing of extras or payments.
+//
+// Rule 43 — every unit has its own test file, `pricing-<unit>.unit.test.js`, checked below.
 //
 // ALLOWED_VIOLATIONS lists the not-yet-moved parts that still break the rule, as `file -> what`. It MUST be empty at the
 // end of PR A: it is empty today, and a unit that needs an entry here is a unit that is not ready to be moved.
@@ -89,4 +91,12 @@ test('rule 2 — the detector catches an upstream import, a model import and a b
   assert.ok(found.some((f) => f.includes('Date.now')));
   assert.ok(found.some((f) => f.includes('new Date()')));
   assert.ok(found.some((f) => f.includes('ticketModel')));
+});
+
+test('rule 43 — every unit file has its own test file, pricing-<unit>.unit.test.js', () => {
+  const kebab = (name) => name.replace(/([A-Z])/g, '-$1').toLowerCase();
+  const missing = unitFiles().map(unitName)
+    .filter((name) => !name.includes('/'))
+    .filter((name) => !fs.existsSync(path.join(__dirname, `pricing-${kebab(name)}.unit.test.js`)));
+  assert.deepEqual(missing, []);
 });
