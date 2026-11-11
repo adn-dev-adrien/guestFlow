@@ -173,7 +173,7 @@ test('rule 67 — each row says what the operator needs to find the link by hand
   assert.deepEqual(
     { kind: orphan.kindLabel, amount: orphan.amountLabel, reference: orphan.reference, stay: orphan.stayLabel, url: orphan.stayUrl, reason: orphan.reasonLabel, since: orphan.sinceLabel, provider: orphan.providerLabel },
     // date-literal-ok: fixture dates nothing compares with today
-    { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Séjour n° 922299', url: null, reason: 'Séjour supprimé', since: 'lien retiré le 30/10/2026', provider: 'Qonto' },
+    { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Fiche n° 922299', url: null, reason: 'Fiche supprimée', since: 'lien retiré le 30/10/2026', provider: 'Qonto' },
   );
   assert.equal(late.id, lapsed.id);
   assert.deepEqual({ kind: late.kindLabel, reason: late.reasonLabel, since: late.sinceLabel, url: late.stayUrl }, { kind: 'Acompte', reason: 'Validité dépassée', since: 'fin de validité le 01/11/2026', url: `/reservations/${ctx.stay}` });
@@ -212,6 +212,25 @@ test('rule 67 — a withdrawn link with no reason is « Séjour annulé » only 
 });
 
 // date-literal-ok: stay nights nothing compares with today
+test('rule 67 — a withdrawn link with no reason on a devis reads the stay it became: set aside → « Doublon écarté », cancelled → « Séjour annulé »', () => {
+  const ctx = seed();
+  const withdrawnOn = (kind, n) => {
+    const became = addStay(ctx.db, { kind, startDate: `2027-0${n}-10`, endDate: `2027-0${n}-12` });
+    const devis = addStay(ctx.db, { kind: 'devis', startDate: `2027-0${n}-10`, endDate: `2027-0${n}-12` });
+    ctx.db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(became, devis);
+    const link = addLink(ctx.links, ctx.db, devis, { providerLinkId: `pl_devis_${n}` });
+    ctx.links.cancelIfOpen(link.id, { reason: null });
+    ctx.links.cancel(link.id, { remotePending: true });
+    return link.id;
+  };
+  const onSetAside = withdrawnOn('superseded', 1);
+  const onCancelled = withdrawnOn('cancelled', 2);
+  const rows = owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links;
+  assert.equal(rows.find((l) => l.id === onSetAside).reasonLabel, 'Doublon écarté');
+  assert.equal(rows.find((l) => l.id === onCancelled).reasonLabel, 'Séjour annulé');
+});
+
+// date-literal-ok: stay nights nothing compares with today
 test('rule 67 — every row source says what its id really names and links where it opens: live stay, cancelled and set-aside stay, deleted stay, devis, converted devis', () => {
   const ctx = seed();
   ctx.db.exec('ALTER TABLE reservations ADD COLUMN reservationNumber TEXT');
@@ -239,7 +258,7 @@ test('rule 67 — every row source says what its id really names and links where
   assert.deepEqual(of('cancelled'), { label: 'Séjour 202610002', url: `/reservations/${cancelled}` });
   assert.deepEqual(of('setAside'), { label: 'Séjour 202610003', url: `/reservations/${setAside}` });
   assert.deepEqual(of('plainLive'), { label: `Séjour n° ${plainLive}`, url: `/reservations/${plainLive}` });
-  assert.deepEqual(of('deleted'), { label: 'Séjour n° 987654', url: null }, 'a deleted row keeps its id, without a link');
+  assert.deepEqual(of('deleted'), { label: 'Fiche n° 987654', url: null }, 'a deleted row keeps its id, without a link');
   assert.deepEqual(of('devisFree'), { label: 'Devis 2026-10-001', url: `/reservations/new?mode=devis&devisId=${devisFree}` });
   assert.deepEqual(of('devisConverted'), { label: 'Devis 2026-08-001 · séjour 202610004', url: `/reservations/${becameStay}` }, 'a converted devis opens the stay it became, never its own row id');
   assert.deepEqual(of('devisOrphaned'), { label: 'Devis 2026-09-001', url: null }, 'a converted devis whose stay is gone has nothing to open');

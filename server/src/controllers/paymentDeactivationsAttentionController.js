@@ -11,7 +11,7 @@ const { formatEuros } = require('../utils/reservationLedger');
 // The words of each row, shaped here: the card only draws them (fat backend). Short, impersonal.
 const KIND_LABELS = { deposit: 'Acompte', balance: 'Solde', full: 'Paiement total', installment: 'Échéance', complement: 'Complément' };
 const REASON_LABELS = {
-  orphan: 'Séjour supprimé',
+  orphan: 'Fiche supprimée',
   'stay-cancelled': 'Séjour annulé',
   superseded: 'Doublon écarté',
   'dates-taken': 'Dates prises',
@@ -34,7 +34,7 @@ const frDate = (value) => {
 // for a devis (that id answers 404 on /reservations/:id).
 function subjectOf(link) {
   const id = Number(link.reservationId);
-  if (link.stayMissing) return { label: `Séjour n° ${id}`, url: null };
+  if (link.stayMissing) return { label: `Fiche n° ${id}`, url: null };
   if (link.stayKind !== 'devis') {
     return { label: `Séjour ${link.reservationNumber || `n° ${id}`}`, url: `/reservations/${id}` };
   }

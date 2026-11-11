@@ -1226,12 +1226,13 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     per link: `kindLabel` (Acompte, Solde, Paiement total, Échéance, Complément), `amountLabel`, `reference` (the provider's
     link id, what the operator searches for at Qonto), `stayLabel` / `stayUrl` — what `reservationId` really names and where it opens
     (the client's own convention, `DevisPage.editPathOf`): a live, cancelled or set-aside stay → « Séjour {n°} » (« Séjour n° {id} »
-    before it has a number) → `/reservations/{id}`; a stay whose row is gone → « Séjour n° {id} », no link; a devis not converted →
+    before it has a number) → `/reservations/{id}`; a row that is gone (stay or devis: nothing left tells which) → « Fiche n° {id} », no link; a devis not converted →
     « Devis {n° de devis} » → `/reservations/new?mode=devis&devisId={id}`; a converted devis → « Devis {n° de devis} · séjour {n°} »
     → the stay it became, `/reservations/{id of the stay}` (a devis row id never answers on `/reservations/:id`: it is a 404);
     a converted devis whose stay is gone → « Devis {n° de devis} », no link. The model supplies `stayKind`, `devisNumber`,
-    `convertedStayId` and `convertedNumber`; the controller words them. Test: `payment-deactivations-owed.unit.test.js` (one row per
-    source), `reasonLabel` (Séjour supprimé, Séjour annulé, Doublon écarté, Dates prises, Retiré à
+    `convertedStayId` and `convertedNumber`; the controller words them. The fallback reason of a withdrawn link without one reads
+    the stay a devis became (a devis converted into a set-aside stay → « Doublon écarté »), as the open-link reason already does. Test: `payment-deactivations-owed.unit.test.js` (one row per
+    source), `reasonLabel` (Fiche supprimée, Séjour annulé, Doublon écarté, Dates prises, Retiré à
     la main, Perçu autrement, Montant modifié, Validité dépassée, Séjour commencé, Remboursé) and `sinceLabel` (« lien retiré
     le jj/mm/aaaa », or « fin de validité le jj/mm/aaaa » for a lapsed link or an open one past its validity: never the date the
     stay went away). `PaymentDeactivationsAlert` draws
