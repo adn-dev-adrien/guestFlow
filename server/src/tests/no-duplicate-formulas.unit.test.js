@@ -3,93 +3,63 @@
 // every refund cap, trop-perçu and requalification figure lives in `utils/pricing/refunds/` (rule 72).
 //
 // Each guard scans the application sources (tests excluded, comments stripped) for its patterns outside its home and
-// compares the hits with its allow-list, `fixtures/no-duplicate-formulas/<guard>.json`: `[{ file, text, removedBy }]`, one
-// entry per copy still waiting for the PR that removes it. A hit that is not listed fails; a listed copy that is gone fails
-// too (the entry is removed with it). THE LISTS MUST BE EMPTY AT THE END OF PR C.
-// The money, date, hourly, family and exporter guards of rule 66 are declared in `helpers/formulaGuards.js` (patterns, home,
-// scope, and the probe line each must catch); their lists name the PR that empties them.
+// compares the hits with its allow-list, `fixtures/no-duplicate-formulas/<guard>.json`: `[{ file, text, count?, removedBy,
+// reason }]`, one entry per distinct line still waiting for the PR that removes it (`count` when the same line repeats in
+// the file). The comparison is a multiset: a second copy of a listed line fails. A hit that is not listed fails; a listed copy
+// that is gone fails too (the entry is removed with it). THE LISTS MUST BE EMPTY AT THE END OF PR C.
+// Every guard is declared in `helpers/formulaGuards.js` (patterns as shapes, home, scope, a probe per pattern); the scan and
+// the judgement are `helpers/formulaScan.js`, proved below on synthetic sources (planted copies), not on the real tree.
+// The lists are regenerated from the final tree with `node server/src/tests/helpers/regenerateFormulaAllowLists.js --write`.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
 const { GUARDS } = require('./helpers/formulaGuards');
+const { hitsOfFiles, judge, keyOf } = require('./helpers/formulaScan');
 
 const SRC = path.join(__dirname, '..');
 const LISTS = path.join(__dirname, 'fixtures', 'no-duplicate-formulas');
 
-function sources(dir = SRC, out = []) {
+function sources(dir = SRC, out = {}) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       if (entry.name !== 'tests' && entry.name !== 'node_modules' && entry.name !== '__tests__') sources(full, out);
-    } else if (entry.name.endsWith('.js')) out.push(full);
+    } else if (entry.name.endsWith('.js')) out[path.relative(SRC, full).split(path.sep).join('/')] = fs.readFileSync(full, 'utf8');
   }
   return out;
 }
 
-const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' ')).replace(/\/\/.*$/gm, '');
+const tree = sources();
 
-function hitsOf(patterns, isHome, scope = () => true) {
-  const hits = [];
-  for (const file of sources()) {
-    const relative = path.relative(SRC, file).split(path.sep).join('/');
-    if (isHome(relative) || !scope(relative)) continue;
-    stripComments(fs.readFileSync(file, 'utf8')).split('\n').forEach((line) => {
-      if (patterns.some((pattern) => pattern.test(line))) hits.push({ file: relative, text: line.trim() });
-    });
-  }
-  return hits;
-}
-
-const keyOf = ({ file, text }) => `${file} :: ${text}`;
-
-function guard(name, patterns, isHome, scope) {
-  const allowed = JSON.parse(fs.readFileSync(path.join(LISTS, `${name}.json`), 'utf8'));
-  test(`rule 66 — ${name}: every entry of the allow-list names the copy and the PR that removes it`, () => {
+for (const guard of GUARDS) {
+  const allowed = JSON.parse(fs.readFileSync(path.join(LISTS, `${guard.name}.json`), 'utf8'));
+  test(`rule 66 — ${guard.name}: every entry of the allow-list names the copy, the PR that removes it and why it waits`, () => {
     assert.ok(Array.isArray(allowed));
     for (const entry of allowed) {
-      assert.deepEqual(Object.keys(entry).sort(), ['file', 'removedBy', 'text'], keyOf(entry));
+      assert.ok(['file', 'removedBy', 'text', 'reason'].every((key) => key in entry), keyOf(entry));
+      assert.ok(Object.keys(entry).every((key) => ['file', 'text', 'count', 'removedBy', 'reason'].includes(key)), keyOf(entry));
       assert.match(entry.removedBy, /^PR (B|C)\b/, keyOf(entry));
+      assert.ok(entry.reason.length > 10, keyOf(entry));
+      if ('count' in entry) assert.ok(Number.isInteger(entry.count) && entry.count > 1, keyOf(entry));
     }
   });
-  test(`rule 66 — ${name}: no copy of the formula outside its home but the listed ones`, () => {
-    const hits = hitsOf(patterns, isHome, scope).map(keyOf);
-    const listed = new Set(allowed.map(keyOf));
-    assert.deepEqual(hits.filter((hit) => !listed.has(hit)), [], 'a copy of the formula: call its home, do not write it again');
-    assert.deepEqual([...listed].filter((entry) => !hits.includes(entry)), [], 'a listed copy is gone: remove its entry');
+  test(`rule 66 — ${guard.name}: no copy of the formula outside its home but the listed ones, none listed that is gone`, () => {
+    const { unlisted, stale } = judge(hitsOfFiles(tree, guard), allowed);
+    assert.deepEqual(unlisted, [], 'a copy of the formula: call its home, do not write it again');
+    assert.deepEqual(stale, [], 'a listed copy is gone: regenerate the lists');
   });
 }
 
-guard('vat', [
-  /\/\s*\(\s*100\s*\+/, // ttc * (rate / (100 + rate))
-  /\*\s*\(?\s*\w*[rR]ate\w*\s*\/\s*\(?\s*100/, // x * rate / 100 written as a VAT share
-  /\/\s*\(\s*1\s*\+\s*[\w.]*[rR]ate[\w.]*\s*\/\s*100\s*\)/, // ttc / (1 + vatRate / 100)
-], (file) => file.startsWith('utils/pricing/vat/'));
-
-guard('platform-payment', [
-  /\bgross\s*-\s*\w*[pP]ayout/, // gross - payout
-  /\bdepositAmount\s*-\s*acompteCommission/, // the acompte net of its commission
-  /-\s*\w*[tT]ax\s*-\s*acompteCommission/, // gross - payout - tax - acompteCommission
-  /-\s*acompteCommission\s*-\s*\w*[tT]ax/, // gross - commission - acompteCommission - tax
-], (file) => file === 'utils/pricing/platformPayment.js');
-
-guard('refunds', [
-  /REFUND_EXCEEDS_\w+/, // a refund cap refusal
-  /\b(excessCents|duplicateCents)\s*[:=]/, // money a link brought beyond the stay, or twice
-  /\b(indemnityLeftTtc|saleLeftTtc|cashLeftTtc)\s*[:=]/, // the budget of a cancelled stay
-  /\b(overCollectedTtc|scheduleOverCollectedTtc|complementCollectedExcess)\s*[:=]/, // the trop-perçu the engine finds
-  /\bSUM\([^)]*(totalTtc|amountTtc)/, // a sum of the refund register in SQL
-  /\b(keptFromGuest|writtenOffBalance):\s*round2\(/, // the figures a cancellation books
-  /\brefundOwed\s*:\s*true|\brefundCents\s*:\s*excess/, // a refund owed flag written by a payment
-], (file) => file.startsWith('utils/pricing/refunds/'));
-
-for (const { name, patterns, isHome, scope } of GUARDS) guard(name, patterns, isHome, scope);
-
-test('rule 66 — each declared guard catches its probe line and spares a clean one', () => {
-  for (const { name, patterns, probe } of GUARDS) {
-    assert.ok(patterns.some((pattern) => pattern.test(probe)), `${name} misses its probe`);
-    assert.ok(!patterns.some((pattern) => pattern.test('const total = amount + other;')), `${name} flags a clean line`);
+test('rule 66 — each pattern of each guard catches its probe line, and no guard flags a clean line', () => {
+  for (const { name, rules, patterns } of GUARDS) {
+    for (const { re, probe } of rules) {
+      for (const line of [].concat(probe)) assert.ok(re.test(line), `${name}: ${re} misses « ${line} »`);
+    }
+    for (const clean of ['const total = amount + other;', 'const cents = 100;', 'const n = items.length * 2;', 'return a - b;']) {
+      assert.ok(!patterns.some((pattern) => pattern.test(clean)), `${name} flags a clean line: ${clean}`);
+    }
   }
 });
 

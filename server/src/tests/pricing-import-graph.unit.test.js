@@ -1,8 +1,12 @@
 // specs/pricing-components.md §3 rules 2 and 43 — one direction of dependency, enforced statically: a unit under
-// `utils/pricing/` imports no unit downstream of it, no `models/`, no `database`, and reads no clock without an
-// argument (`Date.now()`, `new Date()`); NIGHTS, EXTRA GUESTS and TOURIST TAX know nothing of extras or payments.
+// `utils/pricing/` (sub-folders included) imports no unit downstream of it, no `models/`, no `database`, reaches none of
+// them through a module outside `utils/pricing/` either, reads no clock without an argument (`Date.now()`, `new Date()`,
+// `todayIso()`) and no `process.env`; NIGHTS, EXTRA GUESTS and TOURIST TAX know nothing of extras or payments, and EXTRAS
+// read the nights only. The judgement is `helpers/pricingImportGraph.js` (ranks, patterns), proved on synthetic trees by
+// `pricing-import-graph-mutants.unit.test.js`.
 //
-// Rule 43 — every unit has its own test file, `pricing-<unit>.unit.test.js`, checked below.
+// Rule 43 — every unit file has its own test, `pricing-<unit>.unit.test.js` / `articles-family-<family>.unit.test.js`, or
+// is listed in INTERNAL with the test that covers it.
 //
 // ALLOWED_VIOLATIONS lists the not-yet-moved parts that still break the rule, as `file -> what`. It MUST be empty at the
 // end of PR A: it is empty today, and a unit that needs an entry here is a unit that is not ready to be moved.
@@ -10,56 +14,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { keyOf, violationsOf, RANK } = require('./helpers/pricingImportGraph');
 
 const ROOT = path.join(__dirname, '..', 'utils', 'pricing');
 const ALLOWED_VIOLATIONS = [];
 
-// Rank = distance from the input: a unit may import only units of a strictly lower rank (and `money`, rank 0).
-// Payments sit at the far end; EXTRAS (articles/) sit between the stay units and the totals.
-const RANK = {
-  money: 0,
-  timedOptions: 3,
-  storedLines: 0,
-  nights: 1,
-  extraGuests: 2,
-  touristTax: 2,
-  stayClock: 1,
-  allowances: 3,
-  platformPrice: 4,
-  discounts: 4,
-  totals: 6,
-  settlement: 5,
-  schedule: 7,
-  platformPayment: 90,
-  // The orchestration sits above every unit: a step imports the units it calls, the use cases import the steps.
-  pipeline: 100,
-  'steps/loadStay': 100,
-  'steps/clock': 100,
-  'steps/nights': 100,
-  'steps/extraGuests': 100,
-  'steps/discountLevers': 100,
-  'steps/extras': 100,
-  'steps/midStay': 100,
-  'steps/platformGross': 100,
-  'steps/touristTax': 100,
-  'steps/platformPrice': 100,
-  'steps/discounts': 100,
-  'steps/vat': 100,
-  'steps/totals': 100,
-  'steps/inComplement': 100,
-  'steps/schedule': 100,
-  'steps/platformPayment': 100,
-  'steps/settlement': 100,
-  'steps/netTotals': 100,
-  pipelines: 200,
-  compose: 300,
-  // Reached only through the steps, which sit above them.
-  articles: 40,
-  vat: 40,
-};
-const STAY_UNITS = ['nights', 'extraGuests', 'touristTax'];
-const FORBIDDEN_FOR_STAY_UNITS = [/^articles(\/|$)/, /^allowances$/, /^platformPayment$/, /^settlement$/, /^schedule$/, /^totals$/];
-
+const readFile = (file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return undefined; } };
 const unitFiles = () => {
   const out = [];
   const walk = (dir) => {
@@ -72,43 +32,17 @@ const unitFiles = () => {
   walk(ROOT);
   return out;
 };
-
 const unitName = (file) => path.relative(ROOT, file).replace(/\.js$/, '');
-const importsOf = (source) => [...source.matchAll(/require\(\s*(['"])(.+?)\1\s*\)/g)].map((m) => m[2]);
-const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-const violationsOf = (file) => {
-  const source = stripComments(fs.readFileSync(file, 'utf8'));
-  const name = unitName(file);
-  const found = [];
-  for (const spec of importsOf(source)) {
-    if (!spec.startsWith('.')) continue;
-    const target = path.relative(ROOT, path.resolve(path.dirname(file), spec)).replace(/\.js$/, '');
-    if (/(^|\/)models(\/|$)/.test(target) || /(^|\/)database$/.test(target)) found.push(`imports ${spec}`);
-    else if (!target.startsWith('..')) {
-      if (target.startsWith('refunds/') && !name.startsWith('refunds/')) found.push(`imports ${spec}: no pricing unit imports REFUNDS (rule 72)`);
-      if (name.startsWith('refunds/') && !target.startsWith('refunds/') && !['money', 'platformPayment', 'storedLines'].includes(target) && !target.startsWith('vat')) {
-        found.push(`imports ${spec}: REFUNDS may import money, vat, platformPayment and the stored-line parsers only (rule 72)`);
-      }
-      if (!(target in RANK) && !(name in RANK)) continue;
-      if (!(target in RANK)) found.push(`imports ${spec}, a unit without a declared rank`);
-      else if (name in RANK && RANK[target] >= RANK[name]) found.push(`imports ${spec}, a unit that is not upstream of it`);
-      if (STAY_UNITS.includes(name) && FORBIDDEN_FOR_STAY_UNITS.some((pattern) => pattern.test(target))) found.push(`imports ${spec}: a stay unit knows nothing of extras or payments`);
-    }
-  }
-  if (/\bDate\.now\s*\(/.test(source)) found.push('reads the clock with Date.now()');
-  if (/new Date\(\s*\)/.test(source)) found.push('reads the clock with new Date()');
-  return found;
-};
 
-test('rule 2 — every unit file declares its place in the dependency order', () => {
-  const unranked = unitFiles().map(unitName).filter((name) => !(name in RANK) && !name.startsWith('articles/') && !name.startsWith('vat/') && !name.startsWith('refunds/'));
-  assert.deepEqual(unranked, [], 'declare the rank of a new unit in this test before adding it');
+test('rule 2 — every unit file declares its place in the dependency order (its own rank or its folder\'s)', () => {
+  const unranked = unitFiles().map(unitName).filter((name) => !keyOf(name));
+  assert.deepEqual(unranked, [], 'declare the rank of a new unit in helpers/pricingImportGraph.js before adding it');
 });
 
-test('rule 2 — no unit imports a downstream unit, models/ or database, nor reads the clock without an argument', () => {
+test('rule 2 — no unit imports a downstream unit, models/ or database, nor reads the clock or the environment', () => {
   const problems = [];
   for (const file of unitFiles()) {
-    for (const what of violationsOf(file)) {
+    for (const what of violationsOf({ file, source: fs.readFileSync(file, 'utf8'), root: ROOT, readFile })) {
       const key = `${unitName(file)} -> ${what}`;
       if (!ALLOWED_VIOLATIONS.includes(key)) problems.push(key);
     }
@@ -120,21 +54,48 @@ test('rule 2 — the allow-list is empty (PR A closes with every unit clean)', (
   assert.deepEqual(ALLOWED_VIOLATIONS, []);
 });
 
-test('rule 2 — the detector catches an upstream import, a model import and a bare clock read', () => {
-  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'import-graph-'));
-  const probe = path.join(dir, 'probe.js');
-  fs.writeFileSync(probe, "const a = require('../x/models/ticketModel');\nconst now = Date.now();\nconst t = new Date();\n");
-  const found = violationsOf(probe);
-  fs.rmSync(dir, { recursive: true, force: true });
-  assert.ok(found.some((f) => f.includes('Date.now')));
-  assert.ok(found.some((f) => f.includes('new Date()')));
-  assert.ok(found.some((f) => f.includes('ticketModel')));
+test('rule 2 — nothing under utils/pricing reads process.env, steps included', () => {
+  const offenders = unitFiles().filter((file) => /\bprocess\.env\b/.test(fs.readFileSync(file, 'utf8'))).map(unitName);
+  assert.deepEqual(offenders, []);
 });
 
-test('rule 43 — every unit file has its own test file, pricing-<unit>.unit.test.js', () => {
-  const kebab = (name) => name.replace(/([A-Z])/g, '-$1').toLowerCase();
+test('rule 2 — the rank table has no unit without a file (a removed unit leaves no stale rank)', () => {
+  const names = new Set(unitFiles().map(unitName));
+  const stale = Object.keys(RANK).filter((key) => !names.has(key) && !['articles', 'vat', 'refunds'].includes(key));
+  assert.deepEqual(stale, []);
+});
+
+// A unit that is not the subject of a test of its own, with the test that covers it.
+const INTERNAL = {
+  'articles/index': 'articles-head-contract',
+  'articles/registry': 'articles-head-contract',
+  'articles/lineSnapshot': 'articles-head-contract',
+  'articles/makeArticle': 'article-family-contract',
+  'articles/units': 'article-family-contract',
+  'articles/familyKit': 'article-family-contract',
+  'articles/pluginFamily': 'articles-head-plugin-family',
+  'vat/index': 'vat-component',
+  'vat/settingsSchema': 'vat-component',
+};
+const kebab = (name) => name.replace(/([A-Z])/g, '-$1').toLowerCase();
+const testFor = (name) => {
+  if (name in INTERNAL) return INTERNAL[name];
+  if (name.startsWith('articles/families/')) return `articles-family-${kebab(path.basename(name))}`;
+  if (name.startsWith('refunds/')) return `pricing-refunds-${kebab(path.basename(name))}`;
+  return `pricing-${kebab(name)}`;
+};
+
+test('rule 43 — every unit file (sub-folders included, steps excepted) has its own test file or a listed covering test', () => {
   const missing = unitFiles().map(unitName)
-    .filter((name) => !name.includes('/'))
-    .filter((name) => !fs.existsSync(path.join(__dirname, `pricing-${kebab(name)}.unit.test.js`)));
+    .filter((name) => !name.startsWith('steps/'))
+    .filter((name) => !fs.existsSync(path.join(__dirname, `${testFor(name)}.unit.test.js`)));
   assert.deepEqual(missing, []);
+});
+
+test('rule 43 — an INTERNAL entry names a unit that exists and a test that mentions it', () => {
+  for (const [name, covering] of Object.entries(INTERNAL)) {
+    assert.ok(fs.existsSync(path.join(ROOT, `${name}.js`)), `${name} is gone: remove its INTERNAL entry`);
+    const source = fs.readFileSync(path.join(__dirname, `${covering}.unit.test.js`), 'utf8');
+    assert.ok(source.includes(path.basename(name)) || source.includes(name.split('/')[0]), `${covering} does not mention ${name}`);
+  }
 });

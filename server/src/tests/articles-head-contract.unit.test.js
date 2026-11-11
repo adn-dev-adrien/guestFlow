@@ -7,29 +7,39 @@ const path = require('node:path');
 const articles = require('../utils/pricing/articles');
 const registry = require('../utils/pricing/articles/registry');
 const { createFreeUnitsLedger } = require('../utils/pricing/allowances');
+const { offendersOf } = require('./helpers/articlesHeadOnly');
 const { STAY, optionRow, resourceRow, article } = require('./articlesFixtures');
 
 const quote = (request, extra = {}) => articles.quote({ requests: [request], stayContext: STAY, ...extra });
 const one = (request, extra) => quote(request, extra).lines[0];
 
-test('rule 47 — the head is the only module of articles/ the rest of the code requires', () => {
+test('rule 47 — the head is the only module of articles/ the rest of the code requires (every require resolved to a path)', () => {
   const root = path.join(__dirname, '..');
-  const offenders = [];
+  const files = {};
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (!['tests', 'node_modules', 'articles'].includes(entry.name)) walk(full);
-      } else if (entry.name.endsWith('.js') && !full.includes(`${path.sep}utils${path.sep}pricing${path.sep}articles${path.sep}`)) {
-        const source = fs.readFileSync(full, 'utf8');
-        for (const match of source.matchAll(/require\(\s*['"]([^'"]*articles[^'"]*)['"]\s*\)/g)) {
-          if (!/(^|\/)pricing\/articles$/.test(match[1]) && !/(^|\/)pricing\/articles\/index$/.test(match[1])) offenders.push(`${path.relative(root, full)} requires ${match[1]}`);
-        }
-      }
+        if (!['tests', '__tests__', 'node_modules'].includes(entry.name)) walk(full);
+      } else if (entry.name.endsWith('.js')) files[full] = fs.readFileSync(full, 'utf8');
     }
   };
   walk(root);
-  assert.deepEqual(offenders.filter((line) => /pricing\/articles/.test(line)), []);
+  assert.deepEqual(offendersOf(files, path.join(root, 'utils', 'pricing', 'articles')).map((line) => line.replace(`${root}${path.sep}`, '')), []);
+});
+
+test('rule 47 — a require into articles/ other than the head is caught however it is written (relative from utils/pricing, from a plugin)', () => {
+  const dir = path.resolve('/virtual/utils/pricing/articles');
+  const files = {
+    [path.resolve('/virtual/utils/pricing/steps/extras.js')]: "const fixed = require('../articles/families/fixed');\n",
+    [path.resolve('/virtual/utils/pricing/compose.js')]: "const registry = require('./articles/registry');\n",
+    [path.resolve('/virtual/plugins/x/index.js')]: "const kit = require('../../utils/pricing/articles/familyKit.js');\n",
+    [path.resolve('/virtual/utils/pricing/steps/ok.js')]: "const head = require('../articles');\nconst head2 = require('../articles/index');\nconst m = require('../money');\n",
+    [path.resolve('/virtual/utils/pricing/articles/index.js')]: "const r = require('./registry');\n",
+  };
+  const found = offendersOf(files, dir);
+  assert.equal(found.length, 3, found.join('|'));
+  assert.ok(found.some((line) => line.includes('families/fixed')) && found.some((line) => line.includes('./articles/registry')) && found.some((line) => line.includes('familyKit')));
 });
 
 test('rule 47 — the head exposes quote, commit, release, describe, the factory and the family registration', () => {

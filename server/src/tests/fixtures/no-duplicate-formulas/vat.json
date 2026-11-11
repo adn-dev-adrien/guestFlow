@@ -2,36 +2,73 @@
   {
     "file": "plugins/accounting-export/accountingExport.js",
     "text": "const ht = split ? round2(ttc / (1 + rate / 100)) : round2((bucket.ht || 0) * fraction);",
-    "removedBy": "PR B"
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
   },
   {
     "file": "plugins/accounting-export/accountingExport.js",
     "text": "const ht = rate > 0 ? round2(ttc / (1 + rate / 100)) : ttc;",
-    "removedBy": "PR B"
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
   },
   {
     "file": "plugins/accounting-export/accountingModel.js",
     "text": "const ht = rate > 0 ? round2(ttc / (1 + rate / 100)) : ttc;",
-    "removedBy": "PR B"
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
   },
   {
     "file": "plugins/accounting-export/accountingModel.js",
     "text": "const htOf = (amount) => round2(amount / (1 + rate / 100));",
-    "removedBy": "PR B"
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
   },
   {
     "file": "plugins/accounting-export/accountingModel.js",
     "text": "const ht = round2(ttc / (1 + rate / 100));",
-    "removedBy": "PR B"
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
   },
   {
     "file": "plugins/accounting-export/accountingModel.js",
     "text": "const ht = round2(reduction / (1 + rate / 100));",
-    "removedBy": "PR B"
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
   },
   {
     "file": "plugins/accounting-export/accountingModel.js",
     "text": "? round2(commissionTtcEntry / (1 + vatRateCommission / 100))",
-    "removedBy": "PR B"
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
+  },
+  {
+    "file": "plugins/online-payment/invoiceIssuer.js",
+    "text": "const bases = lines.map((l) => Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)));",
+    "removedBy": "PR C",
+    "reason": "the Qonto invoice line keeps its own TTC to HT cut until PR C switches it (lead decision: no Qonto change in PR A)"
+  },
+  {
+    "file": "plugins/online-payment/invoiceIssuer.js",
+    "text": "return lines.map((l) => ({ ...l, amountCents: Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)) }));",
+    "removedBy": "PR C",
+    "reason": "the Qonto invoice line keeps its own TTC to HT cut until PR C switches it (lead decision: no Qonto change in PR A)"
+  },
+  {
+    "file": "utils/devisPdf.js",
+    "text": "? roundMoney(originalTtc / (1 + (rate / 100)))",
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
+  },
+  {
+    "file": "utils/devisPdf.js",
+    "text": "return rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));",
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
+  },
+  {
+    "file": "utils/pricing/touristTax.js",
+    "text": "const vatDivisor = 1 + (vatRate / 100);",
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
   }
 ]
