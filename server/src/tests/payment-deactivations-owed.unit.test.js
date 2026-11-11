@@ -142,15 +142,21 @@ test('rule 67 — the converted devis branch: an open link of a devis whose stay
   assert.ok(!ids.includes(ofLive.id));
 });
 
+// date-literal-ok: fixed instants around midnight Paris on a fixture arrival day
 test('rule 67 — a pre-arrival link lapses at 00:00 Paris on the arrival day: listed from then although its validity is still ahead', () => {
   const ctx = seed();
+  // date-literal-ok: fixed instants around midnight Paris on a fixture arrival day
   const arrivalDay = '2026-11-05';
+  // date-literal-ok: fixed instants around midnight Paris on a fixture arrival day
   const stay = addStay(ctx.db, { startDate: arrivalDay, endDate: '2026-11-08' });
   const created = new Date(NOW.getTime() - 20 * 60 * 60 * 1000);
   const link = addLink(ctx.links, ctx.db, stay, { createdAt: created, expiresAt: new Date(NOW.getTime() + 16 * 60 * 60 * 1000) });
   const complement = addLink(ctx.links, ctx.db, stay, { type: 'complement', createdAt: created, expiresAt: new Date(NOW.getTime() + 16 * 60 * 60 * 1000) });
   const day = (iso) => ctx.links.listOwedDeactivations({ now: new Date(iso) }).map((l) => l.id);
+  // date-literal-ok: fixed instants around midnight Paris on a fixture arrival day
   assert.deepEqual(day('2026-11-04T21:00:00Z'), [], 'the day before the arrival (Paris): nothing yet');
+  // date-literal-ok: fixed instants around midnight Paris on a fixture arrival day
   assert.deepEqual(day('2026-11-04T23:30:00Z'), [link.id], 'past midnight in Paris: the pre-arrival link, not the complement');
+  // date-literal-ok: fixed instants around midnight Paris on a fixture arrival day
   assert.ok(!day('2026-11-04T23:30:00Z').includes(complement.id));
 });
