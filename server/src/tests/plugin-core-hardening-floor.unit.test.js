@@ -54,6 +54,8 @@ const HARDENINGS = [
   { feature: 'payments split over several methods', sdk: '2.24.0', pattern: /coreModule\(\s*['"`]payment(Tenders|SettlementsModel|SettlementService)['"`]/ },
   // specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21 — the invoice issuer and the sales outside a stay.
   { feature: 'invoice issuer and sales outside a stay', sdk: '2.25.0', pattern: /coreModule\(\s*['"`](invoiceIssuers|standaloneSales)['"`]|ctx\.(invoiceIssuer|standaloneSales)\(/ },
+  // specs/plugins-phase-1-sdk.md rule 50 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head.
+  { feature: 'article families', sdk: '2.27.0', pattern: /\bctx\.articleFamily\(/ },
 ];
 
 function sourceFiles(dir) {
@@ -88,6 +90,14 @@ test('rule 54: the discovery sees double quotes, a destructured readMailsFrom an
   assert.ok(features("sdk.coreModule(\n  `qonto`,\n)").includes('Qonto request timeout'));
   assert.ok(features('const { readMailsFrom } = sdk.mailbox;\nawait readMailsFrom({});').includes('mailbox reader caps and parser version'));
   assert.deepEqual(features('sdk.coreModule("dateFr")'), []);
+});
+
+test('rule 50: ctx.articleFamily forces the 2.27.0 floor, so a plugin declaring ^2.26.0 and calling it is refused', () => {
+  const [hit] = hardeningsIn("ctx.articleFamily('hourly', family);");
+  assert.equal(hit.feature, 'article families');
+  const [major, minor] = hit.sdk.split('.').map(Number);
+  assert.equal(satisfies(`${major}.${minor - 1}.0`, '^2.26.0'), true, 'a ^2.26.0 manifest would load on the SDK before it');
+  assert.equal(satisfies(SDK_VERSION, `>=${hit.sdk}`), true);
 });
 
 test('rule 54: the discovery finds the plugins audit r3 and r4 named', () => {
