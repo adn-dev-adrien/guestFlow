@@ -19,6 +19,12 @@ const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { compose, shape } = require('../utils/pricing/compose');
 const pricingInputModel = require('../models/pricingInputModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+const START = addDaysToIsoDate(todayIso(), 120);
+const END = addDaysToIsoDate(START, 3);
+
 
 let recomputed = null;
 let expected = null;
@@ -58,9 +64,9 @@ test('rule 4: the quote carries the keys the callers read (the same key set on e
 });
 
 test('rule 4: calculateReservationQuote is the loader, COMPOSE and nothing else', () => {
-  db.prepare("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Compose')").run();
-  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 100)").run();
-  const input = { db, propertyId: 1, startDate: '2027-03-01', endDate: '2027-03-04', adults: 2 };
+  db.prepare("INSERT INTO properties (id, name) VALUES (9001, 'Compose')").run();
+  db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight) VALUES (9001, 'Standard', 100)").run();
+  const input = { db, propertyId: 9001, startDate: START, endDate: END, adults: 2 };
   const direct = compose(pricingInputModel.load(input));
   assert.deepEqual(calculateReservationQuote(input), direct);
   assert.ok(direct.nights === 3 && direct.totalPrice === 300);
@@ -71,11 +77,11 @@ test('rule 4: calculateReservationQuote is the loader, COMPOSE and nothing else'
 });
 
 test('rule 4: a stay with no night, an unknown lodging and a halted run answer as before', () => {
-  const none = calculateReservationQuote({ db, propertyId: 1, startDate: '2027-03-01', endDate: '2027-03-01', adults: 2 });
+  const none = calculateReservationQuote({ db, propertyId: 9001, startDate: START, endDate: START, adults: 2 });
   assert.equal(none.nights, 0);
   assert.equal(none.finalPrice, 0);
   assert.deepEqual(Object.keys(none).includes('headline'), false, 'the halted quote is the short one');
-  assert.deepEqual(calculateReservationQuote({ db, propertyId: 987654, startDate: '2027-03-01', endDate: '2027-03-04' }), { error: 'Logement non trouvé', status: 404 });
+  assert.deepEqual(calculateReservationQuote({ db, propertyId: 987654, startDate: START, endDate: END }), { error: 'Logement non trouvé', status: 404 });
 });
 
 test('rule 4: shape() reads the context and returns a new object', () => {

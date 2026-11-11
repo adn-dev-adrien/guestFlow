@@ -11,8 +11,14 @@ const db = require('../database');
 const { load, resolveGlobalPlatformTaxRow } = require('../models/pricingInputModel');
 const { platformCollectsTouristTax, touristTaxRemittedByOwner } = require('../utils/pricing/touristTax');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-const base = (over = {}) => ({ db, propertyId: 1, startDate: '2027-03-01', endDate: '2027-03-04', adults: 2, ...over });
+const START = addDaysToIsoDate(todayIso(), 120);
+const END = addDaysToIsoDate(START, 3);
+
+
+const base = (over = {}) => ({ db, propertyId: 1, startDate: START, endDate: END, adults: 2, ...over });
 
 test('rule 11: an unknown lodging is the engine refusal, before anything else is read', () => {
   assert.deepEqual(load(base({ propertyId: 987654 })), { error: 'Logement non trouvé', status: 404 });

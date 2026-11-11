@@ -6,6 +6,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { stayQuote } = require('../utils/pricing/pipelines');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+const START = addDaysToIsoDate(todayIso(), 120);
+const END = addDaysToIsoDate(START, 3);
+
 
 const STEPS_DIR = path.join(__dirname, '..', 'utils', 'pricing', 'steps');
 const stepFiles = fs.readdirSync(STEPS_DIR).filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, ''));
@@ -40,7 +46,7 @@ test('rule 52: the QuoteContext typedef names every key a step provides', () => 
 test('rule 52: a step never mutates the context it receives and returns a new one', () => {
   const nights = require('../utils/pricing/steps/nights');
   const ctx = Object.freeze({
-    startDate: '2027-03-01', endDate: '2027-03-04', lockedNightlyBreakdown: null, property: { id: 1 }, vatRate: 10, vatRegime: { rate: 10 },
+    startDate: START, endDate: END, lockedNightlyBreakdown: null, property: { id: 1 }, vatRate: 10, vatRegime: { rate: 10 },
     rules: [{ id: 1, pricePerNight: 100, pricingMode: 'fixed', dateRanges: '[]', progressiveTiers: '[]', startDate: null, endDate: null, minNights: 1 }],
   });
   const next = nights.apply(ctx);
