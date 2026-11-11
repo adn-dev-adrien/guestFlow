@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved — 2026-11-11 (owner), rules 1-71, §4.0, Q1-Q15 resolved; implementation targeted at 4.1.0 |
+| **Status** | Approved — 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved; implementation targeted at 4.1.0 |
 | **Branch** | `feature/pricing-components` _(user-managed; to be cut from `inte/plugins`)_ |
 | **Created** | 2026-11-11 |
 | **Revised** | 2026-11-11 — owner decisions: discounts on nights and extras, "started" = arrival date and check-in time passed, tourist tax as its own component, finer cut, 3 PRs; the stay clock as its own component consulted by all (rules 44-46); one pricer per article kind, fulfilment and data-access ports, settings provider, VAT per line by customer context, chainable pipeline steps, external sale (rules 47-60, §4.0); Articles head → generic families → instances, VAT as a standalone component fed by tagged amounts, `AccountingOutput` with format adapters, the no-duplication rule (rules 61-67); price non-regression gate and delivery pipeline with the stabilisation loop (rules 68-69); platform payment and platform intakes from the code check (rules 70-71) |
@@ -856,11 +856,70 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       SDK 2.27.0, iCal default-option pricing through the Articles head); C (intake date checks through STAY
       CLOCK, optional plugin migration to `fromPlatform`).
 
-### 3.O Delivery cadence of PR A (owner, 2026-11-11)
+### 3.O Refunds (owner, 2026-11-11)
+
+72. **REFUNDS — the only component that computes a refund.** _(Owner, 2026-11-11: « c'est uniquement ce
+    composant qui fera le calcul de remboursement ».)_ Refund arithmetic is spread today over about 38 files
+    (`utils/refunds.js`, `overpayment.js`, `cancellationRequalification.js`, `cancelReservation`,
+    `cancellationKeptForEmail`, `refundUntickGuard`, `paymentSettlementService.refundRefusal`, the finance SQL,
+    the accounting export, the guest-app basket, the link poller); the map is in `docs/rapports/2026-11-11-refunds-map.md`.
+    - **Home:** `utils/pricing/refunds/` in owner component 4 (Encaissement), beside SETTLEMENT and PLATFORM
+      PAYMENT. Pure, `today` injected, money through `money.js`, VAT through the VAT component (refund lines are
+      `TaggedAmount`s with `source.kind = 'refund'`), withheld commissions through PLATFORM PAYMENT. Loader
+      `models/refundInputModel.js` builds one `RefundContext` per stay through the `PaymentLedger` port. No pricing
+      unit imports REFUNDS (rule 2); SETTLEMENT re-exports its `refundsOwed`.
+    - **Units, one test file each:** `register.js` (`classify`, `totals({scope})`, `order`), `collected.js`
+      (`collectedByLine`), `refundable.js` (`budget`, `refundable`), `judge.js` (`judge`, `deletionRefusal`,
+      `takeBackRefusal`), `overpayment.js` (`overpayment`, `introducedBy`), `owed.js` (`owedOnLinkPayment`,
+      `owedOnBasket`, `owedOnLineLowered`), `cancellation.js` (`requalify`, `keptAfterLaterRefunds`); the journal
+      entries of a refund are an `AccountingOutput` adapter (PR B, rule 63). `owedOnLineLowered` (rule 23) and the
+      per-line trop-perçu of `overpayment` are one formula.
+    - **PR A (0 diff):** every pure refund function moves verbatim; old paths re-export; each moved file keeps
+      its own `round2` and its own tie rule (`capInOrder`, `spreadCents`, `absorb` are three different
+      allocations, kept as named strategies) until the replay proves a merge (rule 38, PR C); the dead exports
+      `splitHtVat`, `refundedTouristTax`, `refundsTotal` are removed; the price gate (rule 68) gains per stay the
+      refundable lines, the collected TTC, the stored and live trop-perçu, the cancellation figures and the
+      refund journal rows, plus synthetic stays from the refund test fixtures (the snapshot holds one refund).
+    - **PR B:** behaviour and data-model changes (collected-by-line from `settledCents`, one trop-perçu
+      netting, refund obligations, one take-back guard, explicit finance scopes, stored nettings) and the
+      DB simplification of the map's §4, each in the expected-diff list, after the owner's decisions Q16.
+    - Rule 66 gains a guard: no refund cap / trop-perçu / requalification arithmetic outside `refunds/`.
+
+### 3.P Delivery cadence of PR A (owner, 2026-11-11)
 
 73. **Replay cadence in PR A** (owner, 2026-11-11): each commit runs the price gate (rule 68), the golden test and the move proof (`scripts/price-gate/move-proof.mjs`); the full prod replay of rule 34 and the full suites run at three checkpoints (after money/platform payment/nights/extra guests/tourist tax; after articles/VAT/discounts/totals; after schedule/settlement/stayQuote/intake adapter/refunds). A failing checkpoint is bisected over its commits. This amends rule 35's "every commit" for the full replay only.
     - **The move proof.** `move-proof.mjs [base]` reads `git diff base..HEAD` (default `HEAD~1`): every line a server or client source file loses must reappear, byte for byte but for its indentation, among the added lines of the diff (same file or another); blank lines, imports and export lists are the only glue. It prints the unmatched lines and exits 1. A move that renames or rewrites a line therefore fails; tests, fixtures and docs are not read. Pure logic in `scripts/price-gate/moveProof.js`, covered by `price-gate-move-proof.unit.test.js`.
     - **One shared recompute.** `scripts/price-gate/recompute.js` loads the fixture into a freshly migrated database, recomputes every stay and replays the intakes; the capture (`buildFixture.mjs`) and the tests call the same functions, so both sides run the same steps. The capture day is stored in the fixture (`meta.capturedAt`), never written in a test file.
+
+### 3.Q Sale documents and payment allocations (owner, 2026-11-11)
+
+74. **Sale documents, frozen lines, payment allocations — the client links them all.** _(Owner, 2026-11-11: « ce
+    remboursement doit se baser sur une liste d'articles associés avec des prix adossés à un client ; c'est
+    exactement la même chose pour une réservation de logement ; tout est mémorisé au moment de l'achat et on peut
+    rattacher un paiement à plusieurs articles » — pattern used where it is judicious.)_
+    - **Sale document** = a reservation or a standalone sale (rule 53), each belonging to one client. The client
+      is linked at document level, not per line (a platform stay's payer is the platform; client merges and
+      anonymisation touch one column).
+    - **Lines with prices frozen at purchase.** Every amount is a line of its document, stored with its total at
+      the moment of sale: the accommodation is a line « Hébergement » (nights, extra guests; the tourist tax its
+      own line) re-priced only by an operator stay edit (dates, party, property), which is journaled as an
+      amendment; extras are the lines of rules 12-13. No reader re-prices a stored line.
+    - **The article list is stored in the database, self-contained.** Each line row keeps the snapshot of what
+      was sold: `articleRef`, `family`, `label`, `quantity`, `unitPrice`, `totalCents`, `discountCents`,
+      `vatClass`, `vatRate`, `components` (e.g. base / evening / free), `allowanceUsed`, `soldAt`, `source`.
+      A later catalogue or tariff change never alters a stored line; display, refunds, accounting and the SAS
+      read the row, never the live catalogue.
+    - **Payment allocations.** A table `payment_allocations (paymentRef, documentRef, lineRef, amountCents,
+      kind: 'payment'|'refund', at)` links each payment to the lines it covers, many to many (a line paid in
+      several instalments, a payment covering several lines). A line's `settledCents` (rule 21) is Σ of its
+      allocations; a refund (rule 72) is a negative allocation on named lines and names the payment it gives
+      back. Trop-perçu = Σ allocations − line totals, computed once by REFUNDS.
+    - **Standalone sales** (amends rule 53, owner 2026-11-11): an anonymous sale goes to one shared client
+      « Passage »; when a name or e-mail is typed, the sale attaches to the matching client fiche or creates one.
+    - **PR:** none in A (0 diff). PR B: the accommodation and tax lines, `payment_allocations`, backfill from
+      stored contribs / splits / receipts (amounts untouched, rule 36; legacy rows without per-line truth get one
+      stay-level allocation through `legacyBucketSplit`), REFUNDS and SETTLEMENT reading allocations. PR C: the
+      standalone sale on the « Passage » client.
 
 ## 4. Architecture
 
@@ -1118,6 +1177,11 @@ check-in time, a discount target, line moment changes and the tourist tax as its
   withheld tax − acompte commission`. Recommended: keep both as two named bases of PLATFORM PAYMENT
   (`statement` and `rentOnly`), selected per platform by a setting, so each formula exists once and GdF
   stays byte-identical; the intake replay of rule 71 proves it.
+
+- **Q16. Refunds: data model and behaviour of PR B.** — **Open.** The decisions O-1 to O-11 and the conflicts
+  C-1 to C-5 of `docs/rapports/2026-11-11-refunds-map.md` §4-§5 (refund obligations vs `reservation_refunds`,
+  refund lines keyed by line id, a `card` means, frozen vs re-rated refund VAT, trop-perçu origin, cancellation
+  columns), now read against rule 74's allocations. Put to the owner in one HTML summary before PR B.
 
 ## 10. Migration plan — three PRs
 
