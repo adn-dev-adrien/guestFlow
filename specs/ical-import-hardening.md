@@ -154,11 +154,12 @@ nothing, and the platforms tab says in one short line what the last sync did.
     *Reading of 2026-11-02 (audit R19-L1):* the 366-night cap is now `utils/stayDates.MAX_STAY_NIGHTS`, the
     constant the internal stay guard enforces too (`specs/reservations-backend-mvc.md` rule 11).
     *Reading of 2026-11-11 (shadow trial of 4.0.0):* the horizon is a **future** bound only, and that is intended: no
-    spec asks for a past one. A feed seen for the first time is read whole, so its past stays are imported as past stays
-    (a stay that ended ten months earlier was created on 2026-10-26 by an Abritel feed added after the Lodgify
-    decommission): the operator's finance pages and the accounting export need the history a platform keeps, and the
-    date window of `reservations-backend-mvc.md` rule 13 deliberately does not hold platform-provided dates. The
-    anti-overbooking columns and algorithm are untouched; a past catch-up that lands on an existing stay is the
+    spec asks for a past one. Platform-provided dates follow their own rules and are not held to the date window of
+    `reservations-backend-mvc.md` rule 13 (decision D6). A feed seen for the first time is read whole, so its past
+    stays are imported as past stays (a stay that ended ten months earlier was created on 2026-10-26 by an Abritel feed
+    added after the Lodgify decommission). An iCal event carries no amount: such a stay is created at 0 € and gains a
+    price only when the operator enters one, after which, if unpaid, it counts in « En retard » (22329 is the example).
+    The anti-overbooking columns and algorithm are untouched; a past catch-up that lands on an existing stay is the
     overlap alert's business (`bookingConflictAt`), not a reason to drop the event. No code change.
 
 18. **A redirect response is drained before the next hop** _(added 2026-10-29, audit R2)_. `safeFeedFetch`

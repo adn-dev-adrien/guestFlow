@@ -1,2 +1,2 @@
-- A stay places at most 6 card orders per hour (`GUEST_CARD_ORDER_RATELIMIT_MAX` / `_WINDOW_MS`). `TRUST_PROXY_HOPS` without `GUESTFLOW_PROXY_SECRET` logs a `[security]` warning at boot. The hourly-resources planning no longer sends prices, phones or notes to the reception role.
+- A stay places at most 6 card orders per hour (`GUEST_CARD_ORDER_RATELIMIT_MAX`). `TRUST_PROXY_HOPS` without `GUESTFLOW_PROXY_SECRET` logs a `[security]` warning at boot.
 - **Rollback**: an instance with property documents needs `data/private-documents/*` moved back to `data/uploads/` (the boot move is not undone by a rollback).

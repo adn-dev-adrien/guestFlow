@@ -1212,7 +1212,7 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `paymentLinksModel.listOwedDeactivations()` — every `cancelled` or `expired` link with a provider id and the marker,
     **whichever path withdrew it** (orphan, dates taken, amount changed, settled, superseded, lapsed, operator), and every
     still-`open` link with a provider id whose stay is missing, cancelled or set aside (its own row or the stay its devis
-    became) or whose known validity is over — read directly, so it holds with the provider disconnected, where the
+    became) or whose known validity is over, or whose pre-arrival link lapses at 00:00 Paris on the arrival day (rule 9, read through `lapsesAtArrival`) — read directly, so it holds with the provider disconnected, where the
     lifecycle pass that would set the marker does not run — with
     `stayMissing`, `providerLabel` and `retrying` (the live provider is that link's provider). Title « Liens de paiement
     encore actifs », count = the links; detail « Désactivation en cours chez Qonto » when every one is being retried
@@ -1220,7 +1220,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the card (`PaymentDeactivationsAlert`) offers « Ouvrir les paiements en ligne » (`/parametres/paiements`), a route of
     the `online-payment` plugin: with the plugin off it leads to « Plugin inactif », accepted because uninstalling or
     deactivating the plugin is already refused while links are owed (plugins-phase-3a-online-payment.md rule 8, the
-    pending-deactivation guard of `pluginsModel`), so the state needs the plugin forced off outside the app. A link leaves
+    pending-deactivation guard of `pluginsModel`), so the state needs the plugin forced off outside the app.
+    **Known gap, accepted:** an `open` link withdrawn only because another stay holds its nights (rule 10, `withdrawLinksOverlapping`)
+    is detected by the lifecycle pass alone, which runs while the provider is connected; with the provider disconnected the
+    operator sees it in « À traiter » at most about 36 hours late (when its validity ends). Test:
+    `payment-deactivations-owed.unit.test.js` (the converted-devis branch, the arrival-day lapse). A link leaves
     the list when the provider has deactivated it (marker cleared) or found it paid (booked as before). Tests:
     `payment-deactivations-owed.unit.test.js` (mocked provider only), `dashboard-attention-routes.unit.test.js`.
 

@@ -122,3 +122,35 @@ test('rule 67 — disconnected, before any lifecycle pass: an open link of a mis
   assert.equal(owed.retrying, 0);
   assert.equal(CORE_SUMMARIES['payment-deactivations'](owed).severity, 'urgent');
 });
+
+test('rule 67 — the converted devis branch: an open link of a devis whose stay was cancelled or set aside is listed, a live one is not', () => {
+  const ctx = seed();
+  const mk = (kind, startDate, endDate) => {
+    const devis = addStay(ctx.db, { kind: 'devis', startDate, endDate });
+    const stay = addStay(ctx.db, { kind, startDate, endDate });
+    ctx.db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(stay, devis);
+    return addLink(ctx.links, ctx.db, devis);
+  };
+  // date-literal-ok: stay nights nothing compares with today
+  const ofCancelled = mk('cancelled', '2027-10-01', '2027-10-03');
+  // date-literal-ok: stay nights nothing compares with today
+  const ofSetAside = mk('superseded', '2027-11-01', '2027-11-03');
+  // date-literal-ok: stay nights nothing compares with today
+  const ofLive = mk('reservation', '2027-12-01', '2027-12-03');
+  const ids = ctx.links.listOwedDeactivations({ now: NOW }).map((l) => l.id);
+  assert.deepEqual(ids, [ofCancelled.id, ofSetAside.id]);
+  assert.ok(!ids.includes(ofLive.id));
+});
+
+test('rule 67 — a pre-arrival link lapses at 00:00 Paris on the arrival day: listed from then although its validity is still ahead', () => {
+  const ctx = seed();
+  const arrivalDay = '2026-11-05';
+  const stay = addStay(ctx.db, { startDate: arrivalDay, endDate: '2026-11-08' });
+  const created = new Date(NOW.getTime() - 20 * 60 * 60 * 1000);
+  const link = addLink(ctx.links, ctx.db, stay, { createdAt: created, expiresAt: new Date(NOW.getTime() + 16 * 60 * 60 * 1000) });
+  const complement = addLink(ctx.links, ctx.db, stay, { type: 'complement', createdAt: created, expiresAt: new Date(NOW.getTime() + 16 * 60 * 60 * 1000) });
+  const day = (iso) => ctx.links.listOwedDeactivations({ now: new Date(iso) }).map((l) => l.id);
+  assert.deepEqual(day('2026-11-04T21:00:00Z'), [], 'the day before the arrival (Paris): nothing yet');
+  assert.deepEqual(day('2026-11-04T23:30:00Z'), [link.id], 'past midnight in Paris: the pre-arrival link, not the complement');
+  assert.ok(!day('2026-11-04T23:30:00Z').includes(complement.id));
+});

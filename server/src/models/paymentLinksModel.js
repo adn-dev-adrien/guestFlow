@@ -449,7 +449,7 @@ function buildModel(database) {
   // specs/payment-link-lifecycle.md rule 67 — every link still payable at the provider that should not be, whether or
   // not the provider is connected (the lifecycle pass that sets the marker only runs while it is): a link carrying the
   // deactivation marker, and an `open` link whose stay is gone, cancelled or set aside (its own row or the stay its devis
-  // became) or whose known validity is over. It needs a provider id to be deactivated. `stayMissing` tells the orphans.
+  // became), whose known validity is over, or whose pre-arrival link lapses at 00:00 Paris on the arrival day (rule 9). It needs a provider id to be deactivated. `stayMissing` tells the orphans.
   function listOwedDeactivations({ now = new Date() } = {}) {
     const nowMs = now.getTime();
     return database.prepare(`
@@ -464,7 +464,8 @@ function buildModel(database) {
     `).all().filter((row) => {
       if (row.status !== 'open') return Boolean(row.remoteCancelPendingAt);
       const expiryMs = knownExpiryMs(row.expiresAt);
-      return Boolean(row.stayMissing) || Boolean(row.stayEnded) || (expiryMs != null && expiryMs <= nowMs);
+      return Boolean(row.stayMissing) || Boolean(row.stayEnded) || (expiryMs != null && expiryMs <= nowMs)
+        || require('../utils/paymentLinkLifecycle').lapsesAtArrival(database, row, now);
     }).map(({ expiresAt, stayEnded, ...row }) => ({ ...row, stayMissing: Boolean(row.stayMissing) })); // eslint-disable-line no-unused-vars
   }
 
