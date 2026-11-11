@@ -7,12 +7,7 @@
  */
 
 const { roundMoney } = require('../money');
-const {
-  computeTouristTaxBreakdown,
-  resolveAddedGuestsTouristTax,
-  platformCollectsTouristTax,
-  touristTaxRemittedByOwner,
-} = require('../touristTax');
+const { computeTouristTaxBreakdown, resolveAddedGuestsTouristTax } = require('../touristTax');
 const { allocateDiscount } = require('../discounts');
 const articles = require('../articles');
 const { getTypeMultiplier } = articles;
@@ -40,8 +35,8 @@ const step = {
     'extraGuestInBrutSurcharge', 'finalOptionLines', 'freezeTouristTax', 'frozenTouristTaxBaseHt',
     'frozenTouristTaxOccupants', 'frozenTouristTaxRate', 'frozenTouristTaxTotal', 'includedGuests', 'nights',
     'normalizedDiscountPercent', 'persons', 'platform', 'platformGrossPin', 'platformPaidAdults',
-    'platformPaidOccupants', 'platformTaxRow', 'platformTouristTaxAmountInput', 'preArrivalOptionsResources',
-    'property', 'resolvedPlatformPaidGuests', 'storedTouristTaxAddedGuests', 'storedTouristTaxAddedGuestsAdults',
+    'platformPaidOccupants', 'platformTouristTaxAmountInput', 'preArrivalOptionsResources',
+    'resolvedPlatformPaidGuests', 'settings', 'storedTouristTaxAddedGuests', 'storedTouristTaxAddedGuestsAdults',
     'teens', 'touristTaxInComplement', 'vatRate',
   ],
   provides: [
@@ -57,10 +52,11 @@ const step = {
       extraGuestInBrutSurcharge, finalOptionLines, freezeTouristTax, frozenTouristTaxBaseHt,
       frozenTouristTaxOccupants, frozenTouristTaxRate, frozenTouristTaxTotal, includedGuests, nights,
       normalizedDiscountPercent, persons, platform, platformGrossPin, platformPaidAdults,
-      platformPaidOccupants, platformTaxRow, platformTouristTaxAmountInput, preArrivalOptionsResources,
-      property, resolvedPlatformPaidGuests, storedTouristTaxAddedGuests,
+      platformPaidOccupants, platformTouristTaxAmountInput, preArrivalOptionsResources,
+      resolvedPlatformPaidGuests, settings, storedTouristTaxAddedGuests,
       storedTouristTaxAddedGuestsAdults, teens, touristTaxInComplement, vatRate,
     } = ctx;
+    const taxSettings = settings.touristTax;
 
     // specs/tourist-tax-included-services-deduction.md rules 1-3 — the tax base is the DRY NIGHT: the
     // accommodation charged (the manual « Prix hébergement ajusté » when there is one, otherwise the
@@ -91,9 +87,7 @@ const step = {
     //   platform_reversed (1,0) → CHARGED in the BALANCE; the platform reverses it to us at settlement.
     //   owner             (0,0) → CHARGED at arrival in the COMPLÉMENT.
     //   direct                  → charged in the balance (unchanged).
-    const normalizedPlatform = String(platform || 'direct').toLowerCase();
-    const collectsFromGuest = platformCollectsTouristTax(normalizedPlatform, platformTaxRow);
-    const isTouristTaxRemittedByOwnerFlag = touristTaxRemittedByOwner(normalizedPlatform, platformTaxRow);
+    const { chargedByPlatform: collectsFromGuest, remittedByOwner: isTouristTaxRemittedByOwnerFlag } = settings.touristTax.collector;
     // OFFERED (struck-through, zeroed) ONLY when the platform both collects it AND remits it itself
     // (case 2). When the platform collects but reverses it to us (case 1), it is NOT offered.
     const isTouristTaxOfferedByPlatform = collectsFromGuest && !isTouristTaxRemittedByOwnerFlag;
@@ -145,11 +139,11 @@ const step = {
       && platformGrossPin < roundMoney(preArrivalOptionsResources + extraGuestInBrutSurcharge + withheldTouristTaxInBrut);
 
     const touristTaxBreakdown = computeTouristTaxBreakdown({
-      touristTaxMode: property.touristTaxMode,
-      touristTaxPerDayPerPerson: property.touristTaxPerDayPerPerson,
-      touristTaxPercentage: property.touristTaxPercentage,
-      touristTaxDepartmentPercentage: property.touristTaxDepartmentPercentage,
-      touristTaxFixedAmount: property.touristTaxFixedAmount,
+      touristTaxMode: taxSettings.mode,
+      touristTaxPerDayPerPerson: taxSettings.perPersonNight,
+      touristTaxPercentage: taxSettings.percentage,
+      touristTaxDepartmentPercentage: taxSettings.departmentPercentage,
+      touristTaxFixedAmount: taxSettings.fixedAmount,
       nights,
       adults: Number(adults || 0),
       // specs/tourist-tax-matches-the-office-calculation.md rule 8 — babies are NOT occupants for the
@@ -199,11 +193,11 @@ const step = {
       && platformPaidAdults != null && Number.isFinite(Number(platformPaidAdults))) {
       const storedAdded = roundMoney(Math.max(0, Number(storedTouristTaxAddedGuests || 0)));
       const { paidTotal, added } = resolveAddedGuestsTouristTax({
-        touristTaxMode: property.touristTaxMode,
-        touristTaxPerDayPerPerson: property.touristTaxPerDayPerPerson,
-        touristTaxPercentage: property.touristTaxPercentage,
-        touristTaxDepartmentPercentage: property.touristTaxDepartmentPercentage,
-        touristTaxFixedAmount: property.touristTaxFixedAmount,
+        touristTaxMode: taxSettings.mode,
+        touristTaxPerDayPerPerson: taxSettings.perPersonNight,
+        touristTaxPercentage: taxSettings.percentage,
+        touristTaxDepartmentPercentage: taxSettings.departmentPercentage,
+        touristTaxFixedAmount: taxSettings.fixedAmount,
         nights,
         adults: Number(adults || 0),
         // The live party, even on a frozen stay: only the amount already reversed is pinned (rule 7bis).

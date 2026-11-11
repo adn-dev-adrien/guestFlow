@@ -9,7 +9,7 @@
  *
  * - `totals`: finalPrice, totalStayPrice, touristTaxTotal, touristTaxAddedGuestsAmount, touristTaxInComplement,
  *   isTouristTaxCollectedOnArrival, forcedItemsTotal, complementForcedItemsTotal, platformGrossPin;
- * - `policy`: the property row (depositPercent, depositEnabled, depositDueDays, balanceDaysBefore), the sale channel,
+ * - `policy`: the schedule settings (depositPercent, depositEnabled, depositDueDays, balanceDaysBefore), the sale channel,
  *   the platform, the quote kind, the dates and the devis promise;
  * - `planLines`: what the mid-stay split and the departure SAS carry;
  * - `overrides`: depositAmountOverride, complementAmountOverride;
@@ -34,7 +34,7 @@ function planSchedule({
     isTouristTaxCollectedOnArrival, forcedItemsTotal, complementForcedItemsTotal, platformGrossPin,
   },
   policy: {
-    property, channel, platform, platformTakesDeposit, platformPayoutDueDays, quoteKind, devisPromise, validUntil,
+    settings, channel, platform, platformTakesDeposit, platformPayoutDueDays, quoteKind, devisPromise, validUntil,
     bookingDate, startDate, endDate, bookingId, depositDisabled,
   },
   planLines: {
@@ -62,7 +62,7 @@ function planSchedule({
   // preArrivalAmount (tax included), unchanged.
   const accommodationPreArrival = roundMoney(Math.max(0, finalPrice - forcedItemsTotal - midStayUnforced));
 
-  const autoDepositAmount = roundMoney(accommodationPreArrival * (Number(property.depositPercent || 0) / 100));
+  const autoDepositAmount = roundMoney(accommodationPreArrival * (Number(settings.depositPercent || 0) / 100));
   const autoBalanceAmount = roundMoney(preArrivalAmount - autoDepositAmount);
   let resolvedDepositAmount = autoDepositAmount;
   let resolvedBalanceAmount = autoBalanceAmount;
@@ -75,9 +75,9 @@ function planSchedule({
   // accounting entry, and collapsing it into the solde afterwards would desynchronise the export.
   // Hence its position below the `depositPaid` branches, unlike `depositDisabled` which outranks
   // them on purpose ("the platform took it, it never hit my bank").
-  const propertyDepositOff = property.depositEnabled !== undefined
-    && property.depositEnabled !== null
-    && Number(property.depositEnabled) !== 1;
+  const propertyDepositOff = settings.depositEnabled !== undefined
+    && settings.depositEnabled !== null
+    && Number(settings.depositEnabled) !== 1;
 
   // Platform reservations are always paid in a single bank transfer — no deposit/balance
   // split (specs/accounting-platform-commission-and-no-deposit.md §3.3 rules 5–7). The boot
@@ -101,14 +101,14 @@ function planSchedule({
   // validity date carries no acompte: due on the validity date, it would be owed after the solde. A devis
   // collects nothing before it is converted, so this outranks every branch below, platform included.
   const devisSinglePayment = String(quoteKind) === 'devis'
-    && owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore: property.balanceDaysBefore });
+    && owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore: settings.balanceDaysBefore });
   // The reservation converted from such a devis, or from a devis stored with no acompte (rule 22, R34-RES-L2),
   // keeps its single payment and its deadline for the dates quoted; moved, the stay takes the reservation rules.
   // Last in the chain, like the last-minute switch. Only a DIRECT devis made that promise (rule 24, audit R35-RES-L1):
   // an OTA devis's stored acompte 0 is no promise, whatever channel the stay is switched to later.
   const keepsDevisPromise = String(quoteKind) !== 'devis' && !platformIsNonDirect && Boolean(devisPromise)
     && toIsoDay(devisPromise.startDate) === toIsoDay(startDate)
-    && devisPromiseHeld({ devisPromise, balanceDaysBefore: property.balanceDaysBefore });
+    && devisPromiseHeld({ devisPromise, balanceDaysBefore: settings.balanceDaysBefore });
   if (devisSinglePayment) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = roundMoney(preArrivalAmount);
@@ -140,9 +140,9 @@ function planSchedule({
         // specs/tourist-tax-on-solde.md — acompte clamped to the ACCOMMODATION (tax stays on the solde).
         dep = Number.isFinite(overrideRaw)
           ? roundMoney(Math.min(Math.max(0, overrideRaw), accommodationPreArrival))
-          : roundMoney(accommodationPreArrival * (Number(property.depositPercent || 0) / 100));
+          : roundMoney(accommodationPreArrival * (Number(settings.depositPercent || 0) / 100));
       } else {
-        dep = roundMoney(accommodationPreArrival * (Number(property.depositPercent || 0) / 100));
+        dep = roundMoney(accommodationPreArrival * (Number(settings.depositPercent || 0) / 100));
       }
       resolvedDepositAmount = dep;
       resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - dep));
@@ -190,7 +190,7 @@ function planSchedule({
       : autoDepositAmount;
     resolvedDepositAmount = clamped;
     resolvedBalanceAmount = roundMoney(Math.max(0, preArrivalAmount - clamped));
-  } else if (isLastMinuteStay({ bookingDate, startDate, balanceDaysBefore: property.balanceDaysBefore }) || keepsDevisPromise) {
+  } else if (isLastMinuteStay({ bookingDate, startDate, balanceDaysBefore: settings.balanceDaysBefore }) || keepsDevisPromise) {
     // specs/deposit-blocks-the-dates.md rules 4-6 (implementing specs/online-payments-qonto.md §3.7) —
     // the stay starts inside the solde window, so an acompte would be due at the same time as the solde
     // it is supposed to precede. The guest owes ONE payment: the whole pre-arrival total. Last in the
@@ -268,7 +268,7 @@ function planSchedule({
     startDate,
     endDate,
     bookingDate,
-    balanceDaysBefore: property.balanceDaysBefore,
+    balanceDaysBefore: settings.balanceDaysBefore,
     // Rule 3 — the payout regime is for reservations only. A devis is a promise made to a guest; even
     // one carrying a platform name owes its solde on the quote's own schedule, not on a payout that
     // does not exist yet.
@@ -288,7 +288,7 @@ function planSchedule({
     bookingDate,
     validUntil,
     existingDepositDueDate,
-    depositDueDays: property.depositDueDays,
+    depositDueDays: settings.depositDueDays,
     // specs/payment-schedule-and-cancellation.md rule 47 — never after the solde.
     notAfter: balanceDueDate,
   });

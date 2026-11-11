@@ -5,9 +5,12 @@
  * `{ error, status }` (unknown lodging) or the same input completed with what the pure pipeline needs and used to fetch
  * itself, mid-way:
  *   property, vatRegime, vatRate, rules      the lodging, the VAT regime the sale falls under, its tariff rules
+ *   settings                                 what each component is parameterised with, from the SettingsProvider
+ *                                            (`settings.<nights|extraGuests|touristTax|stayClock|schedule|vat|articles>`,
+ *                                            the tourist-tax `collector` of the platform among them): the steps read
+ *                                            these, never the property row
  *   optionsById, resourcesById               the lodging's catalogue (through the CatalogueProvider port)
  *   defaultOfferedOptionIds                  the options the lodging includes in the night rate
- *   platformTaxRow                           the platform's stored tourist-tax mode `{ c, r }` or null
  *   billableBabyBeds                         the cots the stay bills (a stay stored before the supplement bills none)
  *   paymentLedger                            the PaymentLedger port bound to the database: SCHEDULE reads the money
  *                                            received (installments, split receipts) through it, as in PR A
@@ -16,6 +19,7 @@
 const vatRegimeModel = require('./vatRegimeModel');
 const { getApplicableOptions, getApplicableResources } = require('./ports/catalogueProvider');
 const { create: createPaymentLedger } = require('./ports/paymentLedger');
+const settingsProvider = require('./ports/settingsProvider');
 const { findBabyBedOption, resolveBillableBabyBeds } = require('../utils/babyBedSupplement');
 
 // GLOBAL per-platform tourist-tax mode resolver (specs/per-platform-tourist-tax-three-way.md). The
@@ -76,7 +80,13 @@ function load(input) {
   });
   const vatRate = vatRegime.rate;
 
-  const rules = db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(propertyId);
+  const normalizedPlatform = String(platform || 'direct').toLowerCase();
+  const provider = settingsProvider.create(db);
+  const scope = { propertyId, platform: normalizedPlatform };
+  const settings = Object.fromEntries(
+    ['nights', 'extraGuests', 'touristTax', 'stayClock', 'schedule', 'vat', 'articles'].map((component) => [component, provider.for(component, scope)]),
+  );
+  const rules = settings.nights.tariff.rules;
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   // specs/per-property-default-options.md — options that are a property DEFAULT configured « offered »
@@ -92,8 +102,6 @@ function load(input) {
       );
     } catch { return new Set(); }
   })();
-  const normalizedPlatform = String(platform || 'direct').toLowerCase();
-  const platformTaxRow = resolveGlobalPlatformTaxRow(db, normalizedPlatform);
   // specs/baby-bed-supplement.md §3.3 — resolved ONCE, from the database: a booking already stored
   // with cots and no supplement line was sold before the supplement existed and bills 0 cot forever.
   const babyBedOption = findBabyBedOption(Array.from(optionsById.values()));
@@ -110,7 +118,7 @@ function load(input) {
     optionsById,
     resourcesById,
     defaultOfferedOptionIds,
-    platformTaxRow,
+    settings,
     billableBabyBeds,
     paymentLedger: createPaymentLedger(db),
   };

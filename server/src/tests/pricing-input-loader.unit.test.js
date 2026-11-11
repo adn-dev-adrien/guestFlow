@@ -44,8 +44,18 @@ test('rule 1: the platform\'s stored tourist-tax mode is read once, by its name 
   assert.equal(resolveGlobalPlatformTaxRow(db, 'direct'), null);
   db.prepare("INSERT OR REPLACE INTO platforms (name, collectsTouristTax, touristTaxRemittedByPlatform) VALUES ('LoaderPlat', 1, 0)").run();
   assert.deepEqual({ ...resolveGlobalPlatformTaxRow(db, 'loaderplat') }, { c: 1, r: 0 });
-  assert.deepEqual({ ...load(base({ platform: 'LoaderPlat' })).platformTaxRow }, { c: 1, r: 0 });
-  assert.equal(load(base({ platform: 'unknown-platform' })).platformTaxRow, null);
+  assert.deepEqual(load(base({ platform: 'LoaderPlat' })).settings.touristTax.collector, { chargedByPlatform: true, remittedByOwner: true });
+  assert.deepEqual(load(base({ platform: 'unknown-platform' })).settings.touristTax.collector, { chargedByPlatform: true, remittedByOwner: false });
+  assert.deepEqual(load(base()).settings.touristTax.collector, { chargedByPlatform: false, remittedByOwner: true });
+  assert.equal('platformTaxRow' in load(base()), false, 'the step reads the collector from the settings, not the row');
+});
+
+test('rule 50: the loaded input carries the settings of every component, resolved once through the provider', () => {
+  const { settings, rules } = load(base());
+  assert.deepEqual(Object.keys(settings).sort(), ['articles', 'extraGuests', 'nights', 'schedule', 'stayClock', 'touristTax', 'vat']);
+  assert.equal(settings.nights.tariff.rules, rules, 'the tariff rules are the provider\'s');
+  assert.deepEqual(Object.keys(settings.schedule).sort(), ['balanceDaysBefore', 'cancelAfterBalanceDueDays', 'depositDueDays', 'depositEnabled', 'depositPercent']);
+  assert.equal(settings.vat['vat.rate.options.hosted'], null);
 });
 
 test('rule 3: the unit decides from the stored mode; the legacy defaults of a missing row are kept', () => {

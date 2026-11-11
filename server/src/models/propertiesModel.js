@@ -15,6 +15,7 @@ const {
   normalizeProgressiveTiers,
 } = require('../utils/pricing');
 const { grossFromNet } = require('../utils/pricing/platformPrice');
+const settingsProvider = require('./ports/settingsProvider');
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { rangesWindowMessage } = require('../utils/stayDates');
 const { formatDateNumeric } = require('../utils/dateFr');
@@ -778,14 +779,15 @@ function createPropertiesModel(database) {
       const cleaningFeeByName = new Map((Array.isArray(storedCleaningFees) ? storedCleaningFees : [])
         .map((f) => [String(f.platform || '').trim().toLowerCase(), f]));
 
+      const provider = settingsProvider.create(database);
       const rows = database.prepare(`
-        SELECT id, name, COALESCE(commissionPercent, 0) AS commissionPercent
+        SELECT id, name
         FROM platforms
         ORDER BY name COLLATE NOCASE ASC
       `).all().map((p) => ({
         id: p.id,
         name: p.name,
-        commissionPercent: Number(p.commissionPercent) || 0,
+        commissionPercent: Number(provider.for('platformPrice', { platform: p.name }).commissionRate) || 0,
         isDirect: String(p.name || '').toLowerCase() === 'direct',
       }));
       // Direct row first (synthesized at 0 % when no `Direct` platform row exists yet).

@@ -36,7 +36,7 @@ function shape(ctx) {
     priceOverridden, property, rawComplement, requiredMaxNights, requiredMinNights, resolvedArrivalReduction,
     resolvedArrivalTip, resolvedBalanceAmount, resolvedComplementAmount, resolvedDepositAmount,
     resolvedPlatformPaidGuests, resolvedPlatformPaidOccupants, resolvedRefundsTotal, resourceLines,
-    resourcesNetPrice, resourcesTotal, resourcesVatAmount, rules, sejourNetTotal, soldGrantMap, subtotal,
+    resourcesNetPrice, resourcesTotal, resourcesVatAmount, rules, sejourNetTotal, settings, soldGrantMap, subtotal,
     taxAccommodationPaid, taxBaseAccommodation, taxBaseBeforeDeduction, totalNetPrice, totalPlatformCommission,
     totalPrice, totalStayPrice, totalVatAmount, touristTaxAddedGuestsAdults, touristTaxAddedGuestsAmount,
     touristTaxBreakdown, touristTaxBrutInconsistent, touristTaxIncludedInRateDeduction,
@@ -241,8 +241,8 @@ function shape(ctx) {
     // `touristTaxOriginalTotal`, which stays the engine's OWN estimate: the fiche displays the
     // withheld one and falls back to the estimate, « Reprendre le calcul » offers the estimate.
     platformTouristTaxWithheld: withheldTouristTaxEntered ? withheldTouristTaxInBrut : null,
-    defaultCheckIn: property.defaultCheckIn || '15:00',
-    defaultCheckOut: property.defaultCheckOut || '10:00',
+    defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',
+    defaultCheckOut: settings.stayClock.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,
     resourceLines,
     // VAT breakdown (all prices are TTC)

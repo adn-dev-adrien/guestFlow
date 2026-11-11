@@ -19,7 +19,7 @@ function input(patch = {}) {
       isTouristTaxCollectedOnArrival: false, forcedItemsTotal: 0, complementForcedItemsTotal: 0, platformGrossPin: null,
     },
     policy: {
-      property: { depositPercent: 30, depositEnabled: 1, depositDueDays: 7, balanceDaysBefore: 30 },
+      settings: { depositPercent: 30, depositEnabled: 1, depositDueDays: 7, balanceDaysBefore: 30 },
       channel: channelOf('direct'),
       platform: 'direct',
       platformTakesDeposit: false,
@@ -76,7 +76,7 @@ test('rule 22 — a manual acompte is clamped to the accommodation, the solde ab
 });
 
 test('rule 22 — a property with the acompte switched off, or a reservation without one, pays one amount', () => {
-  const off = planSchedule(input({ policy: { property: { depositPercent: 30, depositEnabled: 0, balanceDaysBefore: 30 } } }));
+  const off = planSchedule(input({ policy: { settings: { depositPercent: 30, depositEnabled: 0, balanceDaysBefore: 30 } } }));
   assert.equal(off.resolvedDepositAmount, 0);
   assert.equal(off.resolvedBalanceAmount, 1040);
   assert.equal(off.depositDueDate, null);

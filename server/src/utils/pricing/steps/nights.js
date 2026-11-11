@@ -12,14 +12,14 @@ const { checkChangeover } = require('../../changeover');
 
 const step = {
   id: 'nights',
-  requires: ['endDate', 'lockedNightlyBreakdown', 'property', 'rules', 'startDate', 'vatRate', 'vatRegime'],
+  requires: ['endDate', 'lockedNightlyBreakdown', 'property', 'rules', 'settings', 'startDate', 'vatRate', 'vatRegime'],
   provides: [
     'baseAccommodationPrice', 'changeover', 'freshUnpricedNights', 'maxNightsBreached', 'maxNightsRules',
     'mergedNightly', 'minNightsBreached', 'minNightsRules', 'nightlyBreakdown', 'nights', 'requiredMaxNights',
     'requiredMinNights', 'totalPrice',
   ],
   apply(ctx) {
-    const { endDate, lockedNightlyBreakdown, property, rules, startDate, vatRate, vatRegime } = ctx;
+    const { endDate, lockedNightlyBreakdown, property, rules, settings, startDate, vatRate, vatRegime } = ctx;
 
     const calculatedBase = calculateBaseStayPrice(rules, startDate, endDate);
     const {
@@ -60,11 +60,11 @@ const step = {
         complementAmountAuto: 0,
         depositDueDate: null,
         balanceDueDate: null,
-        touristTaxRate: Number(property.touristTaxPerDayPerPerson || 0),
+        touristTaxRate: Number(settings.touristTax.perPersonNight || 0),
         touristTaxTotal: 0,
         totalStayPrice: 0,
-        defaultCheckIn: property.defaultCheckIn || '15:00',
-        defaultCheckOut: property.defaultCheckOut || '10:00',
+        defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',
+        defaultCheckOut: settings.stayClock.defaultCheckOut || '10:00',
         optionLines: [],
         resourceLines: [],
         vatPercentageAccommodation: vatRate,

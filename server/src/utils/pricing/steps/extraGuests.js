@@ -14,7 +14,7 @@ const step = {
   id: 'extraGuests',
   requires: [
     'extraGuestSurchargeOffered', 'isDirectBooking', 'lockedTariff', 'mergedNightly', 'nightlyBreakdown',
-    'persons', 'platform', 'platformGrossAmountInput', 'platformPaidGuests', 'property', 'rules',
+    'persons', 'platform', 'platformGrossAmountInput', 'platformPaidGuests', 'rules', 'settings',
   ],
   provides: [
     'extraGuestCalc', 'extraGuestComplementCount', 'extraGuestComplementOriginal', 'extraGuestComplementSurcharge',
@@ -25,8 +25,9 @@ const step = {
   apply(ctx) {
     const {
       extraGuestSurchargeOffered, isDirectBooking, lockedTariff, mergedNightly, nightlyBreakdown,
-      persons, platform, platformGrossAmountInput, platformPaidGuests, property, rules,
+      persons, platform, platformGrossAmountInput, platformPaidGuests, rules, settings,
     } = ctx;
+    const guestSettings = settings.extraGuests;
 
     // specs/tariff-recipes/spec.md §3.2 rule 12bis — a reservation is priced by the tariff in force
     // WHEN IT WAS SOLD. Nights and option lines were already frozen (per date, per line); the
@@ -36,11 +37,11 @@ const step = {
     // live property, which is the correct source for a reservation being sold now.
     const includedGuests = lockedTariff?.includedGuests != null
       ? Math.max(0, Number(lockedTariff.includedGuests))
-      : Math.max(0, Number(property.basePriceIncludedGuests || 0));
+      : Math.max(0, Number(guestSettings.includedGuests || 0));
     const extraGuestUnitPrice = lockedTariff?.extraGuestPrice != null
       ? Math.max(0, Number(lockedTariff.extraGuestPrice))
-      : Math.max(0, Number(property.extraGuestPrice || 0));
-    const extraGuestPriceUnit = (lockedTariff?.extraGuestPriceUnit ?? property.extraGuestPriceUnit) === 'per_night'
+      : Math.max(0, Number(guestSettings.extraGuestPrice || 0));
+    const extraGuestPriceUnit = (lockedTariff?.extraGuestPriceUnit ?? guestSettings.extraGuestPriceUnit) === 'per_night'
       ? 'per_night' : 'per_stay';
     const isExtraGuestSurchargeOffered = Boolean(extraGuestSurchargeOffered);
     // specs/platform-extra-guest-complement.md — a non-direct reservation counts no supplement until its

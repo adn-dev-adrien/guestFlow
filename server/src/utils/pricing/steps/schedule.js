@@ -16,7 +16,7 @@ const step = {
     'endOfStaySasAmountAuto', 'finalPrice', 'forcedItemsTotal', 'isTouristTaxCollectedOnArrival', 'midStayExtras',
     'midStayRemainingTotal', 'midStaySettledNotes', 'midStaySettledTotal', 'midStayTotal', 'midStayUnforced',
     'paidSoldeCaptured', 'paymentLedger', 'platform', 'platformGrossPin', 'platformPayoutDueDays',
-    'platformTakesDeposit', 'property', 'quoteKind', 'startDate', 'totalStayPrice', 'touristTaxAddedGuestsAmount',
+    'platformTakesDeposit', 'quoteKind', 'settings', 'startDate', 'totalStayPrice', 'touristTaxAddedGuestsAmount',
     'touristTaxInComplement', 'touristTaxTotal', 'validUntil', 'clock',
   ],
   provides: [
@@ -35,7 +35,7 @@ const step = {
       endOfStaySasAmountAuto, finalPrice, forcedItemsTotal, isTouristTaxCollectedOnArrival,
       midStayExtras, midStayRemainingTotal, midStaySettledNotes, midStaySettledTotal, midStayTotal,
       midStayUnforced, paidSoldeCaptured, paymentLedger, platform, platformGrossPin,
-      platformPayoutDueDays, platformTakesDeposit, property, quoteKind, startDate, totalStayPrice,
+      platformPayoutDueDays, platformTakesDeposit, quoteKind, settings, startDate, totalStayPrice,
       touristTaxAddedGuestsAmount, touristTaxInComplement, touristTaxTotal, validUntil,
     } = ctx;
     const { bookingDate, existingDepositDueDate } = ctx.clock;
@@ -56,7 +56,7 @@ const step = {
         isTouristTaxCollectedOnArrival, forcedItemsTotal, complementForcedItemsTotal, platformGrossPin,
       },
       policy: {
-        property, channel, platform, platformTakesDeposit, platformPayoutDueDays, quoteKind, devisPromise, validUntil,
+        settings: settings.schedule, channel, platform, platformTakesDeposit, platformPayoutDueDays, quoteKind, devisPromise, validUntil,
         bookingDate, startDate, endDate, bookingId, depositDisabled,
       },
       planLines: {

@@ -165,8 +165,8 @@ const step = {
     'cancellationInsurancePriceOverride', 'channel', 'checkInTime', 'checkOutTime', 'customOptions',
     'defaultOfferedOptionIds', 'endDate', 'isDirectBooking', 'lockedOptionLines', 'lockedOptionUnits',
     'lockedResourceLines', 'lockedResourceUnits', 'lockedTariff', 'nightlyBreakdown', 'nights', 'offeredOptionIds',
-    'optionsById', 'persons', 'planningCardAsQuantity', 'property', 'resourcesById', 'rules', 'selectedOptions',
-    'selectedResources', 'startDate',
+    'optionsById', 'persons', 'planningCardAsQuantity', 'resourcesById', 'rules', 'selectedOptions',
+    'selectedResources', 'settings', 'startDate',
   ],
   provides: [
     'consumedMap', 'finalOptionLines', 'grantedFreeUnitsFor', 'optionsTotal', 'resourceLines', 'resourcesTotal',
@@ -178,8 +178,8 @@ const step = {
       cancellationInsurancePriceOverride, channel, checkInTime, checkOutTime, customOptions,
       defaultOfferedOptionIds, endDate, isDirectBooking, lockedOptionLines, lockedOptionUnits,
       lockedResourceLines, lockedResourceUnits, lockedTariff, nightlyBreakdown, nights, offeredOptionIds,
-      optionsById, persons, planningCardAsQuantity, property, resourcesById, rules, selectedOptions,
-      selectedResources, startDate,
+      optionsById, persons, planningCardAsQuantity, resourcesById, rules, selectedOptions,
+      selectedResources, settings, startDate,
     } = ctx;
 
     const optionUnitOverrides = lockedOptionUnits || {};
@@ -230,7 +230,7 @@ const step = {
     const autoInComplementSet = new Set((Array.isArray(autoOptionsInComplement) ? autoOptionsInComplement : []).map(Number));
 
     const articleStay = {
-      persons, nights, maxGuests: property.maxGuests, isDirectBooking, cancellationInsuranceBase, debug: debugResourceLine,
+      persons, nights, maxGuests: settings.articles.maxGuests, isDirectBooking, cancellationInsuranceBase, debug: debugResourceLine,
     };
     const freeUnitsLedger = { grantedFreeUnitsFor, consumedFreeUnitsFor };
     // One price through the Articles head: the families price, the head keeps the sold snapshot, the free units and « offert ».
@@ -291,7 +291,7 @@ const step = {
             portions: (sold) => (planningCardAsQuantity
               ? (perPerson
                 ? clampPortions(asked, portionCap({
-                  option, persons, nights, checkInTime, checkOutTime, property,
+                  option, persons, nights, checkInTime, checkOutTime, property: settings.stayClock,
                 }).cap)
                 : { quantity: asked, clampedFrom: null })
               : { quantity: sold != null ? sold : asked, clampedFrom: null }),
@@ -382,8 +382,8 @@ const step = {
             option,
             checkInTime,
             checkOutTime,
-            defaultCheckIn: property.defaultCheckIn || '15:00',
-            defaultCheckOut: property.defaultCheckOut || '10:00',
+            defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',
+            defaultCheckOut: settings.stayClock.defaultCheckOut || '10:00',
             nightlyBreakdown,
             lateCheckoutNextNightPrice: getLateCheckoutNextNightReferencePrice({
               rules,

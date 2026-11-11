@@ -10,7 +10,7 @@ const { vatOf } = require('../vat');
 
 const step = {
   id: 'vat',
-  requires: ['accommodationAdjustedPrice', 'extraGuestSurcharge', 'optionsTotal', 'resourcesTotal', 'vatRate', 'vatRegime'],
+  requires: ['accommodationAdjustedPrice', 'extraGuestSurcharge', 'optionsTotal', 'resourcesTotal', 'settings', 'vatRate', 'vatRegime'],
   provides: [
     'accommodationNetPrice', 'accommodationVatAmount', 'familyVat', 'optionsNetPrice', 'optionsVatAmount',
     'resourcesNetPrice', 'resourcesVatAmount', 'totalNetPrice', 'totalVatAmount', 'vatPercentageAccommodation',
@@ -18,7 +18,7 @@ const step = {
   ],
   apply(ctx) {
     const {
-      accommodationAdjustedPrice, extraGuestSurcharge, optionsTotal, resourcesTotal, vatRate, vatRegime,
+      accommodationAdjustedPrice, extraGuestSurcharge, optionsTotal, resourcesTotal, settings, vatRate, vatRegime,
     } = ctx;
 
     // VAT calculations (all prices are TTC - VAT already included). Two global rates: accommodation
@@ -35,7 +35,7 @@ const step = {
       { amountCents: toCents(accommodationVatBase), vatClass: 'accommodation', customerContext: 'hosted', source: { kind: 'accommodation' } },
       { amountCents: toCents(optionsTotal), vatClass: 'options', customerContext: 'hosted', source: { kind: 'line' } },
       { amountCents: toCents(resourcesTotal), vatClass: 'resources', customerContext: 'hosted', source: { kind: 'line' } },
-    ], { regime: vatRegime });
+    ], { regime: vatRegime, settings: settings.vat });
     const [accommodationVat, optionsVat, resourcesVat] = ['accommodation', 'options', 'resources']
       .map((vatClass) => familyVat.groups.find((group) => group.vatClass === vatClass));
     const accommodationVatAmount = fromCents(accommodationVat.vatCents);
