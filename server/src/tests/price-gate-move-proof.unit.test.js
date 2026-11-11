@@ -65,7 +65,7 @@ test('rule 73: only source files count — tests, fixtures and docs may change f
   assert.ok(isSourcePath('server/src/utils/pricing.js'));
   assert.ok(isSourcePath('client/src/pages/ReservationPage.js'));
   assert.ok(!isSourcePath('server/src/tests/price-gate.unit.test.js'));
-  assert.ok(!isSourcePath('server/src/plugins/sas/tests/x.js'));
+  assert.ok(!isSourcePath('server/src/plugins/some-plugin/tests/x.js'));
   assert.ok(!isSourcePath('client/src/__tests__/a.test.jsx'));
   assert.ok(!isSourcePath('specs/pricing-components.md'));
   assert.ok(!isSourcePath('scripts/pricing-replay.mjs'));
