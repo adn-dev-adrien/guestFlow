@@ -148,8 +148,9 @@ const ADAPTERS = {
       return undefined;
     },
     property(db, scope) {
-      const property = propertyRow(db, scope.propertyId);
-      return property ? { maxGuests: property.maxGuests } : undefined;
+      const id = Number(scope.propertyId);
+      const row = id > 0 ? rowOrUndefined(db, 'SELECT maxGuests FROM properties WHERE id = ?', id) : undefined;
+      return row ? { maxGuests: row.maxGuests } : undefined;
     },
     global(db, scope) {
       const ref = scope.articleRef;
