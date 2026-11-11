@@ -81,3 +81,21 @@ test('rule 70 — withheldOnCancellation counts only the commissions of buckets 
   assert.deepEqual(withheldOnCancellation({ depositPaid: 1, depositPaidCash: 1, balancePaid: 0, acompteCommissionAmount: 12.5, platformCommissionAmount: 40 }), { acompte: 0, solde: 0 });
   assert.deepEqual(withheldOnCancellation({ depositPaid: 0, balancePaid: 1, platformCommissionAmount: -3 }), { acompte: 0, solde: 0 });
 });
+
+test('rule 70 — withheldOnCancellation reads a commission column that is undefined, NULL, empty or text as 0, like cancelReservation', () => {
+  for (const commission of [undefined, null, '', 'abc']) {
+    assert.deepEqual(
+      withheldOnCancellation({ depositPaid: 1, balancePaid: 1, acompteCommissionAmount: commission, platformCommissionAmount: commission }),
+      { acompte: 0, solde: 0 },
+      `commission ${JSON.stringify(commission)}`,
+    );
+  }
+});
+
+test('rule 70 — acompteNet, grossOf and payoutWithPenalty are NaN-safe like the penalties controller\'s copies', () => {
+  for (const commission of [undefined, null, '', 'abc']) {
+    assert.equal(acompteNet({ depositAmount: 200, acompteCommissionAmount: commission }), commission === 'abc' ? 0 : 200, `commission ${JSON.stringify(commission)}`);
+  }
+  assert.equal(grossOf({ platformGrossAmount: '', depositAmount: 'abc', balanceAmount: 100 }), 0);
+  assert.equal(payoutWithPenalty({ payout: 'abc', penalty: 20 }), 0);
+});

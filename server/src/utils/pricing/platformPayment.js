@@ -25,6 +25,9 @@ const { roundMoney } = require('./money');
  */
 
 const round2 = (n) => Math.round(n * 100) / 100;
+// The four helpers below stand for copies that read a stored row, where a column can be NULL, '' or text: a figure that is not a
+// number counts as 0 (`round2` above is the commission formula's own, kept as it was).
+const roundSafe = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const asNumber = (v) => (v === '' || v == null ? 0 : Number(v));
 
 function computePlatformCommission({ gross, payout, touristTax = 0, acompteCommission = 0 }) {
@@ -104,18 +107,18 @@ const present = (v) => v !== '' && v != null && Number.isFinite(Number(v));
 
 /** What the acompte the platform already paid out is worth net of its commission (rule 46 of the reconciliation). */
 const acompteNet = (row) => (Number(row.depositDisabled || 0) === 1 || !(Number(row.depositAmount || 0) > 0)
-  ? 0 : Math.max(0, round2(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0))));
+  ? 0 : Math.max(0, roundSafe(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0))));
 
-const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
+const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
 
 /** The payout the platform made, penalty it kept included. */
-const payoutWithPenalty = ({ payout, penalty }) => round2(Number(payout || 0) + Math.max(0, Number(penalty || 0)));
+const payoutWithPenalty = ({ payout, penalty }) => roundSafe(Number(payout || 0) + Math.max(0, Number(penalty || 0)));
 
 /** The commissions the payment provider withheld on the acompte and the solde paid to the books. */
 function withheldOnCancellation(row) {
   const book = (paid, cash) => Number(row[paid]) === 1 && !Number(row[cash] || 0);
-  const depositTtc = book('depositPaid', 'depositPaidCash') ? Math.max(0, round2(row.acompteCommissionAmount)) : 0;
-  const soldeTtc = book('balancePaid', 'balancePaidCash') ? Math.max(0, round2(row.platformCommissionAmount)) : 0;
+  const depositTtc = book('depositPaid', 'depositPaidCash') ? Math.max(0, roundSafe(row.acompteCommissionAmount)) : 0;
+  const soldeTtc = book('balancePaid', 'balancePaidCash') ? Math.max(0, roundSafe(row.platformCommissionAmount)) : 0;
   return { acompte: depositTtc, solde: soldeTtc };
 }
 
