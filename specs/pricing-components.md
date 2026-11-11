@@ -855,7 +855,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       entries only);
     - platform payment: the payout, acompte-net, gross-fallback, rent-less-net-rent, payout-with-penalty and commission-total
       forms of rule 70 outside `platformPayment.js`;
-    - settings: no unit reads a property row (`pricing-settings-wiring`, rule 50).
+    - settings: no unit reads a property row (`pricing-settings-wiring`, rule 50): neither `property.x` nor a destructuring of
+      the row (`const { x } = property`, `= ctx.property`); only `compose.js` carries the row, for the quote's `property` key;
     Each guard has an allow-list file that must stay empty at the end of PR C; entries are allowed while a copy
     waits for its PR. A generic copy-paste detector (e.g. `jscpd`) is not added: it would be a new dependency
     and the targeted guards cover the formulas that matter (Q14).
