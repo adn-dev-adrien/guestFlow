@@ -1,8 +1,9 @@
 /**
  * money — the shared money helpers of the pricing units (specs/pricing-components.md §3 rule 38).
  *
- * Contract: `sumMoney(values)` adds amounts left to right and rounds once, `roundMoney(value)` rounds to the cent (half away from zero on the float product, as the engine always
- * has), `toCents(euros)` / `fromCents(cents)` convert, `allocateCents(total, weights)` splits an integer number of
+ * Contract: `sumMoney(values)` adds amounts left to right and rounds once, `roundMoney(value)` rounds to the cent
+ * (`Math.round` on the float product: half toward +∞, so `roundMoney(-0.125)` is `-0.12`, as the engine always has),
+ * `toCents(euros)` / `fromCents(cents)` convert, `allocateCents(total, weights)` splits an integer number of
  * cents in proportion to weights so that the shares sum to `total` exactly.
  *
  * Not a component: it carries no business rule. Pure — no DB, no clock, no settings.
@@ -26,15 +27,19 @@ const fromCents = (cents) => Number(cents || 0) / 100;
  * left over go one by one to the largest remainders. Ties go to the earliest item: the caller passes the items in
  * the order that must win a tie (accommodation first, then lines by `soldAt`, then id).
  *
- * @param {number} totalCents integer, ≥ 0
- * @param {number[]} weights non-negative amounts (any unit)
+ * A total or weights below zero (a group holding a discount) share in proportion to the signed weights: the same rule
+ * on the signed amounts, all 0 when the weights cancel out.
+ *
+ * @param {number} totalCents integer
+ * @param {number[]} weights amounts (any unit); a zero weight never gets a cent
  * @returns {number[]} integer shares, same length as `weights`, summing to `totalCents` (all 0 when no weight)
  */
 function allocateCents(totalCents, weights) {
   const total = Math.round(Number(totalCents || 0));
-  const w = (weights || []).map((x) => Math.max(0, Number(x) || 0));
+  const signed = total < 0 || (weights || []).some((x) => (Number(x) || 0) < 0);
+  const w = (weights || []).map((x) => (signed ? Number(x) || 0 : Math.max(0, Number(x) || 0)));
   const sum = w.reduce((a, b) => a + b, 0);
-  if (!(total > 0) || !(sum > 0)) return w.map(() => 0);
+  if (signed ? sum === 0 : (!(total > 0) || !(sum > 0))) return w.map(() => 0);
   const exact = w.map((x) => (total * x) / sum);
   const shares = exact.map((x) => Math.floor(x));
   let left = total - shares.reduce((a, b) => a + b, 0);

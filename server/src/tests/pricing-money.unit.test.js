@@ -46,3 +46,15 @@ test('rule 38 — allocateCents: a tie goes to the earliest item, a zero weight 
   assert.deepEqual(money.allocateCents(0, [3, 4]), [0, 0]);
   assert.deepEqual(money.allocateCents(7, []), []);
 });
+
+test('rule 38 and 40 — allocateCents: a group holding a discount shares in proportion to the signed amounts', () => {
+  assert.deepEqual(money.allocateCents(-7, [3, -1]), [-10, 3]);
+  assert.deepEqual(money.allocateCents(5, [4, -1]).reduce((a, b) => a + b, 0), 5);
+  assert.deepEqual(money.allocateCents(5, [2, -2]), [0, 0], 'weights that cancel out share nothing');
+  assert.deepEqual(money.allocateCents(-3, [1, 1, 1]), [-1, -1, -1]);
+});
+
+test('rule 38 — roundMoney rounds half toward +infinity on the float product', () => {
+  assert.equal(money.roundMoney(-0.125), -0.12);
+  assert.equal(money.roundMoney(0.125), 0.13);
+});

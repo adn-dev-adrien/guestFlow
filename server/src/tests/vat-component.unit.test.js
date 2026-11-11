@@ -160,3 +160,13 @@ test('rule 50 — settingsSchema declares a rate per (vatClass, customerContext)
   assert.notEqual(by[rateKey('options', 'hosted')].validate(120), null);
   assert.equal(settingsSchema.length, 4 * 2);
 });
+
+test('rule 51 — the VAT step prints the rate each group was taxed at, not the regime rate', () => {
+  const step = require('../utils/pricing/steps/vat');
+  const ctx = {
+    accommodationAdjustedPrice: 100, extraGuestSurcharge: 0, optionsTotal: 50, resourcesTotal: 20, vatRegime: SUBJECT,
+    settings: { vat: { [rateKey('options', 'hosted')]: 5.5 } },
+  };
+  const out = step.apply(ctx);
+  assert.deepEqual([out.vatPercentageAccommodation, out.vatPercentageOptions, out.vatPercentageResources], [10, 5.5, 10]);
+});

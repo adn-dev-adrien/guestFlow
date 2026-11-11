@@ -10,7 +10,7 @@ const { vatOf } = require('../vat');
 
 const step = {
   id: 'vat',
-  requires: ['accommodationAdjustedPrice', 'extraGuestSurcharge', 'optionsTotal', 'resourcesTotal', 'settings', 'vatRate', 'vatRegime'],
+  requires: ['accommodationAdjustedPrice', 'extraGuestSurcharge', 'optionsTotal', 'resourcesTotal', 'settings', 'vatRegime'],
   provides: [
     'accommodationNetPrice', 'accommodationVatAmount', 'familyVat', 'optionsNetPrice', 'optionsVatAmount',
     'resourcesNetPrice', 'resourcesVatAmount', 'totalNetPrice', 'totalVatAmount', 'vatPercentageAccommodation',
@@ -18,15 +18,11 @@ const step = {
   ],
   apply(ctx) {
     const {
-      accommodationAdjustedPrice, extraGuestSurcharge, optionsTotal, resourcesTotal, settings, vatRate, vatRegime,
+      accommodationAdjustedPrice, extraGuestSurcharge, optionsTotal, resourcesTotal, settings, vatRegime,
     } = ctx;
 
     // VAT calculations (all prices are TTC - VAT already included). Two global rates: accommodation
     // has its own; options, custom options and resources all use the standard rate.
-    const vatPercentageAccommodation = vatRate;
-    const vatPercentageOptions = vatRate;
-    const vatPercentageResources = vatRate;
-    
     // For TTC prices: VAT amount = TTC × (vatRate / (100 + vatRate))
     // specs/single-vat-rate.md rule 13 — the extra-guest supplement is a supplement on the nights: it is
     // part of the accommodation's VAT base, as in the stored summary and the accounting export.
@@ -38,6 +34,10 @@ const step = {
     ], { regime: vatRegime, settings: settings.vat });
     const [accommodationVat, optionsVat, resourcesVat] = ['accommodation', 'options', 'resources']
       .map((vatClass) => familyVat.groups.find((group) => group.vatClass === vatClass));
+    // The rate each group was taxed at (specs/single-vat-rate.md): the quote prints what the VAT component applied.
+    const vatPercentageAccommodation = accommodationVat.rate;
+    const vatPercentageOptions = optionsVat.rate;
+    const vatPercentageResources = resourcesVat.rate;
     const accommodationVatAmount = fromCents(accommodationVat.vatCents);
     const accommodationNetPrice = fromCents(accommodationVat.netCents);
 

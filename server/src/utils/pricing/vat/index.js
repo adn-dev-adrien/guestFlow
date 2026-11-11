@@ -85,22 +85,6 @@ function htFromTtc(ttcCents, R) {
   return Math.floor((ttcCents * 10000) / (10000 + R));
 }
 
-// The group's VAT shared over its amounts in proportion, largest remainder first. A group of positive amounts is
-// `money.allocateCents`; a group holding a discount (a negative amount) shares in proportion to the signed amounts.
-function shareCents(totalCents, amountsCents) {
-  if (totalCents >= 0 && amountsCents.every((cents) => cents >= 0)) return allocateCents(totalCents, amountsCents);
-  const sum = amountsCents.reduce((a, b) => a + b, 0);
-  if (sum === 0) return amountsCents.map(() => 0);
-  const exact = amountsCents.map((cents) => (totalCents * cents) / sum);
-  const shares = exact.map((x) => Math.floor(x));
-  let left = totalCents - shares.reduce((a, b) => a + b, 0);
-  const order = exact
-    .map((x, index) => ({ index, remainder: Math.round((x - Math.floor(x)) * 1e9) }))
-    .sort((a, b) => b.remainder - a.remainder || a.index - b.index);
-  for (let i = 0; left > 0 && i < order.length; i += 1, left -= 1) shares[order[i].index] += 1;
-  return shares;
-}
-
 function vatOf(taggedAmounts, { regime = null, settings = null } = {}) {
   const list = (taggedAmounts || []).map((tagged) => ({
     ...tagged,
@@ -122,7 +106,7 @@ function vatOf(taggedAmounts, { regime = null, settings = null } = {}) {
     const ttcCents = group.indexes.reduce((sum, index) => sum + Math.round(Number(list[index].amountCents || 0)), 0);
     const { vat } = splitTtc(fromCents(ttcCents), group.rate);
     const vatCents = toCents(vat);
-    const shares = shareCents(vatCents, group.indexes.map((index) => Math.round(Number(list[index].amountCents || 0))));
+    const shares = allocateCents(vatCents, group.indexes.map((index) => Math.round(Number(list[index].amountCents || 0))));
     group.indexes.forEach((index, position) => {
       list[index].vatCents = shares[position];
       list[index].netCents = Math.round(Number(list[index].amountCents || 0)) - shares[position];
