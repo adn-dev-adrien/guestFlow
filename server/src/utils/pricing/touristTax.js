@@ -13,7 +13,9 @@
  * tax is decided here from the platform's stored mode (`platformCollectsTouristTax`, `touristTaxRemittedByOwner`); the
  * platform row itself is read by the loader (`models/pricingInputModel.js`).
  */
-const { roundMoney } = require('./money');
+const {
+  roundMoney, NBSP, frenchNumber, frenchEuros, frenchPercent,
+} = require('./money');
 
 function computeTouristTaxBreakdown({
   touristTaxMode,
@@ -122,19 +124,6 @@ function computeTouristTaxBreakdown({
     touristTaxTotal,
   };
 }
-
-// French money / percentage for the server-phrased captions (« 1 234,56 € », « 5,00 % »).
-const NBSP = '\u00a0';
-
-function frenchNumber(value) {
-  const n = roundMoney(Number(value || 0));
-  const [int, dec] = Math.abs(n).toFixed(2).split('.');
-  return `${n < 0 ? '−' : ''}${int.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)},${dec}`;
-}
-
-const frenchEuros = (value) => `${frenchNumber(value)}${NBSP}€`;
-
-const frenchPercent = (value) => `${frenchNumber(value)}${NBSP}%`;
 
 // specs/platform-added-guests-tourist-tax.md rules 2, 4 — the tax of the current party against the tax
 // of the party the platform billed, both from the engine on the same base: the platform's own figure

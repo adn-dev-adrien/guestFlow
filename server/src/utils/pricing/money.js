@@ -3,7 +3,7 @@
  *
  * Contract: `sumMoney(values)` adds amounts left to right and rounds once, `roundMoney(value)` rounds to the cent
  * (`Math.round` on the float product: half toward +∞, so `roundMoney(-0.125)` is `-0.12`, as the engine always has),
- * `toCents(euros)` / `fromCents(cents)` convert, `allocateCents(total, weights)` splits an integer number of
+ * `toCents(euros)` / `fromCents(cents)` convert, `frenchEuros` / `frenchPercent` print « 1 234,56 € » / « 5,00 % » with non-breaking spaces, `allocateCents(total, weights)` splits an integer number of
  * cents in proportion to weights so that the shares sum to `total` exactly.
  *
  * Not a component: it carries no business rule. Pure — no DB, no clock, no settings.
@@ -50,4 +50,19 @@ function allocateCents(totalCents, weights) {
   return shares;
 }
 
-module.exports = { roundMoney, sumMoney, toCents, fromCents, allocateCents };
+// French money / percentage for the server-phrased captions (« 1 234,56 € », « 5,00 % »).
+const NBSP = '\u00a0';
+
+function frenchNumber(value) {
+  const n = roundMoney(Number(value || 0));
+  const [int, dec] = Math.abs(n).toFixed(2).split('.');
+  return `${n < 0 ? '−' : ''}${int.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)},${dec}`;
+}
+
+const frenchEuros = (value) => `${frenchNumber(value)}${NBSP}€`;
+
+const frenchPercent = (value) => `${frenchNumber(value)}${NBSP}%`;
+
+module.exports = {
+  roundMoney, sumMoney, toCents, fromCents, allocateCents, NBSP, frenchNumber, frenchEuros, frenchPercent,
+};

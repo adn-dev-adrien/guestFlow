@@ -58,3 +58,12 @@ test('rule 38 — roundMoney rounds half toward +infinity on the float product',
   assert.equal(money.roundMoney(-0.125), -0.12);
   assert.equal(money.roundMoney(0.125), 0.13);
 });
+
+test('rule 38 — the French formatters print grouped, non-breaking amounts and agree with the ledger\'s formatEuros', () => {
+  const NBSP = ' ';
+  assert.equal(money.frenchEuros(1234.5), `1${NBSP}234,50${NBSP}€`);
+  assert.equal(money.frenchEuros(-0.125), `−0,12${NBSP}€`);
+  assert.equal(money.frenchPercent(5), `5,00${NBSP}%`);
+  const { formatEuros } = require('../utils/reservationLedger');
+  for (const value of [0, -1, 0.005, 1234.5, -1234.567, 1e6 + 0.5, Number.NaN, undefined, '12.3']) assert.equal(money.frenchEuros(value), formatEuros(value), String(value));
+});

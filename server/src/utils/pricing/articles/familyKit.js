@@ -4,8 +4,7 @@
  *
  * Internal to `articles/`.
  */
-const { roundMoney, toCents } = require('../money');
-const { frenchEuros } = require('../touristTax');
+const { roundMoney, toCents, frenchEuros } = require('../money');
 
 const nonNegative = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
 

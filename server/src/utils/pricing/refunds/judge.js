@@ -4,13 +4,14 @@
  * `validateRefundPayload` (caps per line, per stay, on the cancelled budget; `today` injected), `splitOnIndemnity` (a
  * cancelled stay's refund taken caisse, then sale, then indemnity), `refundDeletionRefusal`, and `untickRefusal` (taking a
  * mark back must not leave book refunds above what stays collected, rule 52; the projected split is injected by the
- * caller). Moved from `utils/refunds.js` and `utils/refundUntickGuard.js`. Pure but for the two lazy reads of a label
- * formatter. Keeps its own `round2`.
+ * caller). Moved from `utils/refunds.js` and `utils/refundUntickGuard.js`. Phrases amounts with `money.frenchEuros`.
+ * Keeps its own `round2`.
  */
 
 const { comptaCollected } = require('../../reservationSettlement');
 const { cashDepositKeptOf } = require('./cancellation');
 const { parseNotes } = require('../storedLines');
+const { frenchEuros: euros } = require('../money');
 const { dateWindowMessage, isRealIsoDay } = require('../../stayDates');
 const { INDEMNITY_BUCKET, OFF_BOOKS_METHOD, REFUND_BUCKETS, SELECTABLE_REFUND_METHODS, isOffBooks, isRequalification, isRetainedDeposit, madeAfterCancellation, nettedByCancellation } = require('./register');
 
@@ -247,9 +248,6 @@ function validateRefundPayload(payload, context) {
   };
 }
 
-// Lazy: reservationLedger requires this module.
-const euros = (n) => require('../../reservationLedger').formatEuros(n);
-
 /**
  * Rule 48 — on a cancelled stay, each line is given back first from the collected money no cancellation
  * requalified (it keeps its bucket and VAT: the sale is reversed), then from the indemnity (bucket `indemnity`,
@@ -310,8 +308,6 @@ function splitOnIndemnity(lines, byKey, budget, offBooks = false) {
   return { lines: out };
 }
 
-const formatEuros = (n) => require('../../reservationLedger').formatEuros(n);
-
 const frenchDay = (iso) => {
   const [year, month, day] = String(iso || '').slice(0, 10).split('-');
   return `${day}/${month}/${year}`;
@@ -342,7 +338,7 @@ function untickRefusal(row, changes, refunds, projectedSplit) {
     named.push(refund);
     shortfall = round2(shortfall - Number(refund.totalTtc || 0));
   }
-  const list = named.map((refund) => `du ${frenchDay(refund.refundDate)} (${formatEuros(refund.totalTtc)})`).join(', ');
+  const list = named.map((refund) => `du ${frenchDay(refund.refundDate)} (${euros(refund.totalTtc)})`).join(', ');
   return {
     status: 409,
     body: {
