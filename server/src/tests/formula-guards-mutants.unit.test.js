@@ -26,6 +26,22 @@ test('vat — the seven real shapes of the review are all caught (parentheses, n
   for (const line of lines) assert.equal(verdict('vat', { 'utils/devis.js': `${line}\n` }).unlisted.length, 1, line);
 });
 
+test('vat — the shapes that slipped through the first guards are caught (trailing zero, nested divisor, 10/11)', () => {
+  const lines = ['const ht = ttc / 1.10;', 'const ht = ttc / 1.20;', 'const ht = ttc / ((100 + rate) / 100);', 'const vat = ttc * 10 / 11;', 'const vat = round2((ttc * 20) / 120);'];
+  for (const line of lines) assert.equal(verdict('vat', { 'utils/devis.js': `${line}\n` }).unlisted.length, 1, line);
+  assert.deepEqual(verdict('vat', { 'controllers/page.js': '<style>p{line-height:1.20;margin:1.10em}</style>\nconst r = items * 10 / 110;\n' }).unlisted, []);
+});
+
+test('money — a number rounded back with toFixed(2) or 1e2 is caught, a toFixed(2) string for display is not', () => {
+  for (const line of ['return Number(x.toFixed(2));', 'const v = parseFloat((a * b).toFixed(2));', 'const v = +total.toFixed(2);', 'return Math.round(x * 1e2) / 1e2;']) {
+    assert.equal(verdict('money', { 'utils/x.js': `${line}\n` }).unlisted.length, 1, line);
+    assert.deepEqual(verdict('money', { 'utils/pricing/money.js': `${line}\n` }).unlisted, [], `${line} (home)`);
+  }
+  for (const line of ['return `${Number(amount || 0).toFixed(2).replace(".", ",")} €`;', 'const money = (cents) => (Number(cents) / 100).toFixed(2);', 'const a = x + 1e2;']) {
+    assert.deepEqual(verdict('money', { 'utils/x.js': `${line}\n` }).unlisted, [], line);
+  }
+});
+
 test('vat — a CSS line-height and the sRGB luminance divisor are not VAT', () => {
   assert.deepEqual(verdict('vat', { 'controllers/page.js': '<style>h1{font:24px/1.2 Georgia}</style>\n' }).unlisted, []);
   assert.deepEqual(verdict('vat', { 'utils/colorContrast.js': 'return ((c + 0.055) / 1.055) ** 2.4;\n' }).unlisted, []);
@@ -95,7 +111,7 @@ test('dates — arrivalDate and start_date are compared like startDate, in eithe
 });
 
 test('families — persons × nights is caught whichever side it is written on', () => {
-  for (const line of ['const u = persons * nights;', 'const u = nights * persons;']) assert.equal(verdict('families', { 'models/x.js': `${line}\n` }).unlisted.length, 1, line);
+  for (const line of ['const u = persons * nights;', 'const u = nights * persons;', 'const u = adults * nights;', 'const u = nbNights * extraGuests;', 'const u = nightsCount * adultsCount;']) assert.equal(verdict('families', { 'models/x.js': `${line}\n` }).unlisted.length, 1, line);
   assert.deepEqual(verdict('families', { 'utils/pricing/articles/units.js': 'const u = nights * persons;\n' }).unlisted, []);
 });
 

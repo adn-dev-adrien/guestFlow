@@ -24,14 +24,15 @@ const GUARDS = [
     name: 'vat',
     isHome: (file) => file.startsWith('utils/pricing/vat/') || file === 'utils/colorContrast.js', // the sRGB luminance divides by 1.055, not a VAT rate
     rules: [
-      { re: /\/\s*\(\s*100\s*\+/, probe: 'const share = ttc * (rate / (100 + rate));' },
+      { re: /\/\s*(\(\s*)+100\s*\+/, probe: ['const share = ttc * (rate / (100 + rate));', 'const ht = ttc / ((100 + rate) / 100);'] },
+      { re: /\*\s*10\s*\)?\s*\/\s*11\b|\*\s*20\s*\)?\s*\/\s*120\b/, probe: ['const vat = ttc * 10 / 11;', 'const vat = round2((ttc * 20) / 120);'] },
       { re: /\*\s*\(?\s*\w*[rR]ate\w*\s*\/\s*\(?\s*100/, probe: 'const vat = amount * vatRate / 100;' },
       { re: /\/\s*\(\s*1\s*\+\s*[\w.]*[rR]ate[\w.]*\s*\/\s*100\s*\)/, probe: 'const net = ttc / (1 + vatRate / 100);' },
       { re: /\/\s*\(\s*1\s*\+[^;]*\/\s*100/, probe: 'const net = ttc / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100));' },
       { re: /\b1\s*\+\s*\(?[^;]*[pP]ercent[^;]*\/\s*100/, probe: 'const factor = 1 + (vatPercent / 100);' },
       { re: /\b1\s*\+\s*\(?\s*[\w.]*[rR]ate[\w.]*\s*\/\s*100/, probe: 'const factor = 1 + (taxRate / 100);' },
       { re: /[rR]ate[\w.]*\s*\/\s*\(\s*[\w.]*[rR]ate[\w.]*\s*\+\s*100\s*\)/, probe: 'const part = vatRate / (vatRate + 100);' },
-      { re: /(?<!\d(px|em|rem)\s*)\/\s*1\.(055|021|1|2)\b(?!\d)/, probe: 'const ht = ttc / 1.2;' },
+      { re: /(?<!\d(px|em|rem)\s*)\/\s*1\.(055|021|10?|20?)\b(?!\d)/, probe: ['const ht = ttc / 1.2;', 'const ht = ttc / 1.20;', 'const ht = ttc / 1.10;'] },
       { re: /(\w+)\s*-\s*\1\s*\/\s*\(\s*1\s*\+/, probe: 'const vat = amount - amount / (1 + t);' },
     ],
     // The departmental surcharge of the tourist tax is a percentage on top of the municipal tax, not a VAT.
@@ -86,7 +87,9 @@ const GUARDS = [
         probe: 'const round2 = (n) => Math.round(n * 100) / 100;',
       },
       { re: /\b(function|const)\s+roundHalfAway\b/, probe: 'const roundHalfAway = (n) => n;' },
-      { re: /Math\.round\([^;]*\*\s*100\)\s*\/\s*100/, probe: 'return Math.round((a + b) * 100) / 100;' },
+      { re: /Math\.round\([^;]*\*\s*(100|1e2)\)\s*\/\s*(100|1e2)/, probe: ['return Math.round((a + b) * 100) / 100;', 'return Math.round(x * 1e2) / 1e2;'] },
+      // Only the rounding back to a number is a formula; `x.toFixed(2)` left as a string is display formatting and stays out.
+      { re: /\b(Number|parseFloat)\(\s*[^;]*\.toFixed\(\s*2\s*\)\s*\)|(^|[=(,:?]\s*)\+\s*[\w.()]+\.toFixed\(\s*2\s*\)/, probe: ['return Number(x.toFixed(2));', 'const v = parseFloat((a * b).toFixed(2));', 'const v = +total.toFixed(2);'] },
     ],
     removedBy: () => 'PR C',
     reason: () => 'a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule',
@@ -118,6 +121,7 @@ const GUARDS = [
     rules: [
       { re: /\bgetTypeMultiplier\b/, probe: 'const multiplier = getTypeMultiplier(priceType, persons, nights);' },
       { re: /\b(persons|guests|nbPersons)\s*\*\s*(nights|nbNights)\b|\b(nights|nbNights)\s*\*\s*(persons|guests|nbPersons)\b/, probe: ['const units = nights * persons;', 'const units = persons * nights;'] },
+      { re: /\b\w*([aA]dults?|[gG]uests?|[pP]ersons?)\w*\s*\*\s*\w*[nN]ights?\w*\b|\b\w*[nN]ights?\w*\s*\*\s*\w*([aA]dults?|[gG]uests?|[pP]ersons?)\w*\b/, probe: ['const units = adults * nights;', 'const units = nbNights * extraGuests;'] },
     ],
   },
   {

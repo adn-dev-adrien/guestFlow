@@ -1,5 +1,17 @@
 [
   {
+    "file": "models/financeModel.js",
+    "text": "adultNights: addedAdults * declaredNights,",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "models/financeModel.js",
+    "text": "taxRate: noGuestAdded ? null : round2(addedTax / (addedAdults * nightsCount)),",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
     "file": "models/reservationsModel.js",
     "text": "const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');",
     "removedBy": "PR B",
@@ -30,6 +42,12 @@
     "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
   },
   {
+    "file": "utils/devisPdf.js",
+    "text": ": roundMoney(liveTaxTotal / (taxablePersons * taxNights));",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
     "file": "utils/pricing/steps/touristTax.js",
     "text": "const { getTypeMultiplier } = articles;",
     "removedBy": "PR B",
@@ -38,6 +56,13 @@
   {
     "file": "utils/pricing/steps/touristTax.js",
     "text": "units: Number(line.quantity || 0) * getTypeMultiplier(line.priceType, taxReferencePersons, nights),",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/pricing/touristTax.js",
+    "text": "touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);",
+    "count": 2,
     "removedBy": "PR B",
     "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
   },
@@ -68,6 +93,25 @@
   {
     "file": "utils/sasUpsellOptionMigration.js",
     "text": "if (priceType === 'per_person_per_night') return persons * nights;",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/touristTaxFreeze.js",
+    "text": "const unitAmount = total / (nightsCount * adultsCount);",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/touristTaxReport.js",
+    "text": "exemptPersonNights: exemptPersons * nightsCount,",
+    "count": 2,
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/touristTaxReport.js",
+    "text": "taxedPersonNights: taxedPersons * nightsCount,",
     "removedBy": "PR B",
     "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
   },

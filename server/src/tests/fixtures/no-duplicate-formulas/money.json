@@ -24,6 +24,12 @@
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
   {
+    "file": "controllers/public/publicPaymentController.js",
+    "text": "totalStayPrice: Number((finalPrice + Number(reservationRow.touristTaxTotal || 0)).toFixed(2)),",
+    "removedBy": "PR C",
+    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
+  },
+  {
     "file": "controllers/refundsController.js",
     "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
     "removedBy": "PR C",

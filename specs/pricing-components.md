@@ -207,7 +207,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 4. **The engine becomes a composition.** `calculateReservationQuote(input)` survives as a thin wrapper over
    COMPOSE. Its output stays byte-identical (rules 33-36) for as long as callers read it. _(Delivered by PR A:
    `calculateReservationQuote` is `pricingInputModel.load` then `compose` (`utils/pricing/compose.js`: `stayQuote` plus
-   `shape()`, the quote literal moved verbatim). The quote has 137 keys, a stay with no night included (the halting step returns `halt: true` and COMPOSE shapes that quote too).
+   `shape()`, the quote literal moved verbatim). A stay with no night included gets a 44-key quote (the halting step returns `halt: true` and COMPOSE shapes that quote too).
    `shape()` still derives a few presentation fields the engine derived
    inline: the rounded accommodation, the in-brut guest count, the original tourist tax, the `tariffSnapshot`, the tax base of
    a platform pin, the headline and summary cascade. Proof: `pricing-compose` compares the whole quote, key for key, of every
@@ -841,13 +841,16 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 66. **Guards against re-introduction** (`server/src/tests/no-duplicate-formulas.unit.test.js`, static, part of
     the server suite):
     - VAT: no `/(100 + `, `* rate /`, `/ (1 + … / 100)`, `1 + rate / 100`, `rate / (rate + 100)`, `/ 1.055`-style divisor or
-      `x − x / (1 + t)` expression outside `utils/pricing/vat/`;
+      `x − x / (1 + t)` expression, no `/ (( 100 + rate) / 100)` nesting, no `* 10 / 11` or `* 20 / 120` cut and no `/ 1.10`
+      or `/ 1.20` divisor (a trailing zero is the same rate) outside `utils/pricing/vat/`;
     - money: no function definition of `round2`, `roundMoney`, `roundCents`, `toCents`, `fromCents`, `cents`, `euros`,
-      `roundHalfAway`, and no inline `Math.round(… * 100) / 100`, outside `money.js`;
+      `roundHalfAway`, and no inline `Math.round(… * 100) / 100` (or `1e2`), no number rounded back with `Number(…toFixed(2))`, `parseFloat(…toFixed(2))` or
+      `+….toFixed(2)`, outside `money.js` (a `toFixed(2)` string shown to a reader is display formatting and is not a hit);
     - dates: the rule-45 single-source test (no phase or collection decision by date comparison outside
       `stayClock*`);
     - hourly: `priceRange(` / band arithmetic only inside the `hourly` family;
-    - families: `getTypeMultiplier` and per-type arithmetic only inside `articles/families/`;
+    - families: `getTypeMultiplier` and per-type arithmetic (`persons × nights`, and `adults`/`guests` × `nights` under any
+      prefix or suffix) only inside `articles/families/`;
     - exporters: no import of `vat/`, `articles/`, the pipeline or the `utils/pricing` barrel from an exporter (they read
       entries only);
     - platform payment: the payout, acompte-net, gross-fallback, rent-less-net-rent, payout-with-penalty and commission-total
@@ -861,8 +864,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     against `fixtures/no-duplicate-formulas/*.json`. The comparison is a multiset: a second identical line in a listed file
     fails, and a listed copy that is gone fails. Each entry names the file, the exact line, its count, the PR that removes
     it and why it waits; the lists are regenerated from the tree by `tests/helpers/regenerateFormulaAllowLists.js`.
-    Today: vat 13 lines (B 11, C 2), platform-payment 13 (B 7, C 6), refunds 43 (B 17, C 26), money 171 (C), dates 31 (B 15,
-    C 16; `stay-clock-single-source` holds the list to rule 45's table), hourly 3 (B) and families 14 (B) wait for the Articles
+    Today: vat 13 lines (B 11, C 2), platform-payment 13 (B 7, C 6), refunds 43 (B 17, C 26), money 172 (C), dates 31 (B 15,
+    C 16; `stay-clock-single-source` holds the list to rule 45's table), hourly 3 (B) and families 23 (B) wait for the Articles
     head to serve every seller, exporters 0. Each guard is proved on synthetic sources with planted copies
     (`formula-guards-mutants`), and the import graph, the head-only rule and the property-read guard likewise.)_
 67. **Read models are the only inputs of outputs.** `saleDetail`, `AccountingOutput`, the finance pages, the
