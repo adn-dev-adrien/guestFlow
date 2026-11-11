@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 1 and 11 — the loader (`models/pricingInputModel.js`) is the one place the quote of a
+// specs/pricing-components.md §3 rules 1, 11 and 42 — the loader (`models/pricingInputModel.js`) is the one place the quote of a
 // stay reads the database; the tourist-tax decision of the platform's stored mode is the unit's (`touristTax.js`).
 process.env.DB_PATH = ':memory:';
 
@@ -65,4 +65,13 @@ test('rule 1: the pricing units and the engine file hold no query of their own',
     const code = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     assert.ok(!/\.prepare\(/.test(code), `${path.relative(root, file)} runs a query`);
   }
+});
+
+test('rule 11: the catalogue the loader hands over carries the lodging\'s own price — the override wins over the option\'s base price', () => {
+  db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (4401, 'Loader option', 'per_stay', 20)").run();
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, 4401)').run();
+  assert.equal(load(base()).optionsById.get(4401).price, 20, 'no override: the base price');
+  db.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (1, 4401, 35)').run();
+  assert.equal(load(base()).optionsById.get(4401).price, 35, 'the override of the lodging');
+  assert.equal(load(base({ propertyId: 1 })).optionsById.get(4401).title, 'Loader option');
 });

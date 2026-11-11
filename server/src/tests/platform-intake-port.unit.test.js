@@ -71,9 +71,9 @@ test('rule 71: an own-channel stay is not read as a platform sale (no collectAt)
 });
 
 test('rule 71: a started stay is refused by the day, as the intakes always did', () => {
-  assert.equal(isIntakeOnStartedStay('2026-11-11', '2026-11-11'), true);
-  assert.equal(isIntakeOnStartedStay('2026-11-10', '2026-11-11'), true);
-  assert.equal(isIntakeOnStartedStay('2026-11-12', '2026-11-11'), false);
+  assert.equal(isIntakeOnStartedStay('2026-11-11', '2026-11-11'), true); // date-literal-ok: a pure comparison of two given days, nothing compares with today
+  assert.equal(isIntakeOnStartedStay('2026-11-10', '2026-11-11'), true); // date-literal-ok: a pure comparison of two given days
+  assert.equal(isIntakeOnStartedStay('2026-11-12', '2026-11-11'), false); // date-literal-ok: a pure comparison of two given days
 });
 
 test('rule 71: through the SDK an unknown stay is 404 and a started stay is 409 PAST_RESERVATION — nothing written', () => {

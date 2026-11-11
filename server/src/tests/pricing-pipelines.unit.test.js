@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 43 and 52 — `utils/pricing/pipelines.js`: the `stayQuote` use case is built from the
+// specs/pricing-components.md §3 rules 43, 52 and 60 — `utils/pricing/pipelines.js`: the `stayQuote` use case is built from the
 // steps (the build is the check, at module load), its steps follow the order of the rule, and the QuoteContext typedef lists
 // every key a step provides.
 const test = require('node:test');

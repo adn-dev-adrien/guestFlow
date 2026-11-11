@@ -189,8 +189,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    sold extra lines. The tourist-tax report and `financeCalcs.computeTouristTaxAmount` call this unit
    instead of replaying the engine.
 4. **The engine becomes a composition.** `calculateReservationQuote(input)` survives as a thin wrapper over
-   COMPOSE. Its output stays byte-identical (rules 33-36) for as long as callers read it.
-   > **Pending** — PR A, pass 5
+   COMPOSE. Its output stays byte-identical (rules 33-36) for as long as callers read it. _(Delivered by PR A:
+   `calculateReservationQuote` is `pricingInputModel.load` then `compose` (`utils/pricing/compose.js`: `stayQuote` plus
+   `shape()`, the quote literal moved verbatim). `shape()` still derives a few presentation fields the engine derived
+   inline: the rounded accommodation, the in-brut guest count, the original tourist tax, the `tariffSnapshot`, the tax base of
+   a platform pin, the headline and summary cascade. Proof: `pricing-compose` compares the whole quote, key for key, of every
+   price-gate stay with a fingerprint captured on the baseline code.)_
 5. **Plugin extras go through one extension point.** _(amended 2026-11-11: the extension point is the
    article-family registry of rule 47.)_ `ctx.articleFamily(id, family)` (SDK wrapper of
    `articleFamilies.register`, rule 47) replaces `ctx.priceLineContributor` (kept as an alias, wrapped into a family,
@@ -229,7 +233,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 11. **Catalogue resolution is an input.** The property-merged catalogue (`getApplicableOptions/Resources`,
     `property_option_prices`, `property_resource_prices`, « Facturables » linen prices) is loaded by the
     loader and passed in. The per-property override lookup exists once.
-    > **Pending** — PR A, pass 5: the loader hands the merged catalogue to COMPOSE. PR A proves the per-property override lookup exists once, in the CatalogueProvider (`data-access-ports`).
+    _(Delivered by PR A: `models/pricingInputModel.js` reads the merged catalogue through the CatalogueProvider and hands it to
+    COMPOSE; the per-property override lookup exists once, in the CatalogueProvider — `data-access-ports`,
+    `pricing-input-loader`.)_
 12. **A line stores its total.** A priced line carries `quantity`, `unitPrice` (for display) and `total`; the
     stored `total` is authoritative. A sold line is never re-billed as quantity × rounded unit price (D4).
     > **Pending** — PR B
@@ -392,7 +398,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     link baskets of every open bucket and installment, the cancellation preview, the arrival-payment detail,
     the collected splits, the tourist-tax unit's figure; per month: the accounting CSV, the tourist-tax report,
     finance views. Names never printed; the copy is purged of secrets (`copy-prod-db-to-dev`).
-    > **Pending** — PR A, pass 5
+    _(Delivered by PR A: `scripts/pricing-replay.mjs` hashes 1222 artefacts of the snapshot copy; the baseline is captured by
+    the code of `fa6f5dc8` and the branch compares at 0 difference.)_
 35. **Zero diff is the bar.** A refactor commit with one differing hash does not ship. A behaviour commit
     (rest of PR B, PR C) ships with its **expected diff list** (each differing key, the reason, the rule)
     approved by the owner; any unlisted diff blocks. The replay runs on every commit of PR A, not only on the
@@ -443,7 +450,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - **Mixed-method tenders** (`paymentTenders`, `paymentSettlementService`) — already isolated with their own
       tests; SETTLEMENT reads their aggregates as input.
     - **Accounting export** — a reader of stored money, out of scope (§8).
-    > **Pending** — PR A, pass 6
+    _(Delivered by PR A: the catalogue resolution is the loader's — `pricing-input-loader` proves the lodging's own price wins;
+    `quoteHeadline` and `summaryCascade` are called by `compose.shape`; the changeover check is a call of the `nights` step.)_
 43. **Each unit has its own test file**, `server/src/tests/pricing-<unit>.unit.test.js`, which imports that
     unit alone, with fixtures built from plain objects (no DB). COMPOSE has a test that the composition equals
     the pre-refactor engine on the golden fixture.
@@ -539,7 +547,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 
     Pure units take values, never ports; ports are called by the composer (pipeline `load*` steps) and the
     sale services only.
-    > **Pending** — PR A, pass 5 (`PaymentLedger.receipts`, with SCHEDULE and SETTLEMENT) and PR B (`StayRepository.stay` / `storedStayPrice`, `SlotAvailabilityProvider`, `PaymentGateway`, `EventPublisher`). PR A proves `StayRepository`, `CatalogueProvider`, `PaymentLedger` (installments, split received, refunds) and `SettingsProvider` over today's reads (`data-access-ports`, `settings-provider`).
+    > **Pending** — PR B (`PaymentLedger.receipts`, the single read of SCHEDULE and SETTLEMENT; PR A's SCHEDULE reads `installments` and `splitReceived` through the port, `StayRepository.stay` / `storedStayPrice`, `SlotAvailabilityProvider`, `PaymentGateway`, `EventPublisher`). PR A proves `StayRepository`, `CatalogueProvider`, `PaymentLedger` (installments, split received, refunds) and `SettingsProvider` over today's reads (`data-access-ports`, `settings-provider`).
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -572,7 +580,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 
     No component reads a property row. In PR A the adapters read exactly today's columns, so every quote is
     byte-identical; a settings UI is out of scope (§8).
-    > **Pending** — PR A, pass 5: the SCHEDULE keys and the article scope of the families (`property_option_prices`) read through the provider, and the provider adapters of the PLATFORM PRICE and VAT keys (both components export their `settingsSchema`; the VAT component reads the regime it is handed). PR A proves NIGHTS, EXTRA GUESTS, TOURIST TAX and STAY CLOCK (`settings-provider`).
+    > **Pending** — PR A, open after pass 3b: the engine receiving its values through the provider (SCHEDULE's five keys and the
+    > article scope of the families, `property_option_prices`, are still handed over by the loader as the property row and the
+    > CatalogueProvider's catalogue), and the provider adapters of the PLATFORM PRICE (`commissionRate` from
+    > `platforms.commissionPercent`) and VAT (`regime`, `rate.*.hosted` = the regime rate) keys, whose schemas exist. The VAT
+    > rates are declared at `article` scope and the provider ignores a layer wider than a key's scope, so the global layer
+    > cannot supply them: the scope of those keys is to be settled first. PR A proves NIGHTS, EXTRA GUESTS, TOURIST TAX, STAY
+    > CLOCK and the SCHEDULE adapter (`settings-provider`).
 51. **VAT per line, by customer context; TOTALS only aggregates.** _(amended 2026-11-11, second round: VAT
     is the standalone component of rules 61-62; « family » below reads « vatClass ».)_ The VAT step gives every line (the
     accommodation and extra guests being lines of family `accommodation`) a rate from
@@ -602,7 +616,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `compose.js` is `stayQuote` plus `shape()`; PR A proves it at 0 diff. The typed context is a JSDoc
     `@typedef QuoteContext` listing every key (`stay`, `phase`, `nights`, `extraGuests`, `lines`, `platform`,
     `discount`, `touristTax`, `vat`, `totals`, `schedule`, `settlement`, `customerContext`, `settings`).
-    > **Pending** — PR A, pass 5
+    _(Delivered by PR A: `utils/pricing/pipeline.js` and `pipelines.js` build `stayQuote` from `utils/pricing/steps/`, one
+    step per unit; the context is flat and its typedef lists the keys of every step. The steps follow the engine's own
+    dependencies: `discountLevers` (the percent_of_stay base) precedes `extras`, `midStay` and `platformGross` precede
+    `touristTax`, `platformPrice` follows it, `discounts` precedes `vat`, `inComplement` precedes `schedule` and
+    `platformPayment` follows it (rule 70). The `clock` step carries the booking day, the stored acompte deadline and the
+    arrival baseline the caller injects; the resolver's phase is not fed in PR A. Proof: `pricing-pipeline`,
+    `pricing-pipelines`, `pipeline-composition`.)_
 53. **The external sale.** A sale with no reservation (drinks to a walk-in, a bath hour sold at the door):
     `externalSale` pipeline, `customerContext = 'external'`, no nights, no tax, no schedule, no clock. It is
     paid on the spot (tender) or by a Qonto link. It is recorded in a core `standalone_sales` record (§5, Q13)
@@ -633,7 +653,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     adapter (overlap refused, heat-up honoured, release frees the slot, confirm inside a rolled-back
     transaction leaves nothing); `pipeline-composition` builds every use case and proves a missing input fails
     at build time.
-    > **Pending** — PR A, pass 5 (`pipeline-composition`) and PR B (`article-fulfilment-contract`). PR A proves `article-family-contract` on the seven core families and `hourly`.
+    > **Pending** — PR B (`article-fulfilment-contract`). PR A proves `article-family-contract` on the seven core families and `hourly`, and `pipeline-composition`.
 58. **Q11 resolved:** a new discount typed on the fiche targets « Nuits » by default.
     > **Pending** — PR B
 59. **Q12 resolved:** a stay discount never covers sales added later; a later sale gets its own line discount
@@ -646,7 +666,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     _(amended 2026-11-11, second round:)_ the Articles head, family registry, instance factory and the VAT
     component with its five former copies switched to it: PR A. `AccountingOutput` and its exporters: PR B,
     commit 2. Static duplication guards: introduced in A with allow-lists, strict at the end of C.
-    > **Pending** — PR A, pass 5: the pipeline and `stayQuote`. PR A proves the registry, the core kinds, the ports, the settings provider over today's columns, and the VAT component with its readers switched (`vat-component`).
+    _(Delivered by PR A: the registry, the core kinds, the ports, the settings provider over today's columns, the VAT
+    component with its readers switched (`vat-component`), the pipeline and `stayQuote`.)_
 
 
 ### 3.L Second amendment round (owner, 2026-11-11) — VAT component, accounting output, no duplication
@@ -732,7 +753,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | Platform commission and payout | `utils/platformCommission.computePlatformCommission`, inline copy in `controllers/platformPenaltiesController.js` (`gross − payout − tax − acompteCommission`), `acompteNetOf` there and `platformAcompteNet` in `reconciliation/expectedReceipts.js`, `grossOf` there and in `reconciliation/ficheWriter.js`, engine `clampCommission` / `platformNetReceivedAmount`, `reservationSettlement.platformCommission` | PLATFORM PAYMENT (rule 70) | A (engine, `computePlatformCommission`), B (penalties, cancellation, settlement), C (reconciliation helpers) |
     | Largest-remainder allocation | `cancelReservation` (l. 155-162), DISCOUNTS (rule 40), VAT (rule 62) | `money.allocateCents` | A |
     | Deferral of a complement | `isComplementDeferred`, `complementBuckets`, column read | SETTLEMENT | B |
-    > **Pending** — PR A, pass 6: the remaining accounting-export net-first copies leave with the accounting output (PR B, commit 2: `no-duplicate-formulas` allow-list `vat`). PR A removed the VAT copies listed above and the platform gross pin copy.
+    > **Pending** — PR B: the remaining accounting-export net-first copies leave with the accounting output (commit 2: `no-duplicate-formulas` allow-list `vat`). PR A removed the VAT copies listed above and the platform gross pin copy.
 66. **Guards against re-introduction** (`server/src/tests/no-duplicate-formulas.unit.test.js`, static, part of
     the server suite):
     - VAT: no `/(100 + ` / `* rate /` VAT expression outside `utils/pricing/vat/`;
@@ -745,7 +766,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     Each guard has an allow-list file that must stay empty at the end of PR C; entries are allowed while a copy
     waits for its PR. A generic copy-paste detector (e.g. `jscpd`) is not added: it would be a new dependency
     and the targeted guards cover the formulas that matter (Q14).
-    > **Pending** — PR A, pass 6: the money, dates, hourly, families and exporters guards. The VAT, platform-payment and refunds guards ship in PR A with their allow-lists (`no-duplicate-formulas`).
+    _(Delivered by PR A: the vat, platform-payment, refunds, money, dates, hourly, families and exporters guards, declared in
+    `tests/helpers/formulaGuards.js` and judged in `no-duplicate-formulas` against `fixtures/no-duplicate-formulas/*.json`,
+    each entry naming the PR that removes it: money waits for the replay-proven merge of the `round2` copies (PR C), dates are
+    the call sites of rule 45 (B and C; `stay-clock-single-source` holds the list to that table), hourly and families wait
+    for the Articles head to serve every seller (PR B), exporters is empty.)_
 67. **Read models are the only inputs of outputs.** `saleDetail`, `AccountingOutput`, the finance pages, the
     tourist-tax report and the payment-link baskets read stored lines, stored VAT output and settlements; a
     replay of the pricing pipeline is allowed only where today's code replays the engine (finance projections
@@ -945,8 +970,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       allow-list (`fixtures/no-duplicate-formulas/refunds.json`, 43 copies, each with the PR that removes it).
     > **Pending** — PR B: behaviour and data model (everything listed under « PR B » above), `owed.js` (nothing pure
     > of it exists in the files PR A moves: the link poller and the guest-app basket write as they compute, PR C),
-    > SETTLEMENT's `refundsOwed`, the price gate's refund figures, and the `paymentSettlementService.refundRefusal`
-    > merge into the take-back refusal.
+    > SETTLEMENT's `refundsOwed`, and the `paymentSettlementService.refundRefusal` merge into the take-back refusal.
+    > _(The price gate's refund figures and the synthetic refund stays were delivered by PR A: `price-gate-synthetic`.)_
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)
 
@@ -1141,28 +1166,28 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 ## 7. Test plan
 
 ### Server unit tests (one file per unit, rule 43)
-- [ ] `pricing-nights`, `pricing-extra-guests`, `pricing-tourist-tax` — rules 3, 7-9; the static import-graph test of rule 2
+- [x] `pricing-nights`, `pricing-extra-guests`, `pricing-tourist-tax` — rules 3, 7-9; the static import-graph test of rule 2
 - [ ] `pricing-extras`, `pricing-allowances`, hourly `hourly-tariff` — rules 10-14, 24, 26, 41 (free hour stays with its line; evening supplement identical from shop, SAS, fiche)
 - [ ] `pricing-platform-price` — rule 17 (a post-booking sale on a platform stay leaves accommodation, tax and payout unchanged; `grossFromNet` parity)
 - [ ] `pricing-discounts` — rules 16, 39, 40 (`nights` equals today's formula on every golden quote; Σ shares = D; largest remainder and ties; no negative line; paid lines excluded)
 - [ ] `pricing-vat` (folded into `vat-component`) — the VAT readers give the same split on the same input; per-line allocation sums to the group VAT; `hosted` vs `external` rate per family; one row per rate in the breakdown; a single-rate stay equals today's figures
-- [ ] `articles-family-<family>` ×7 (+ `hourly-family` in the plugin) — one file per family sub-component: formula, `validate`, `describe`, tagged amounts, no VAT (rule 47)
-- [ ] `articles-head-contract` — the head is the only export of `articles/`; dispatch, refusals, allowance coordination, offered, locked snapshots, fulfilment calls; a request for an unregistered family is refused; instances are frozen config (rule 47)
-- [ ] `vat-component` — rules 61-62: resolver by (vatClass, customerContext) and regime/franchise; one rounding per group; largest-remainder allocation sums to the group; per-rate output; byte-identical to the five former copies on the golden inputs
+- [x] `articles-family-<family>` ×7 (+ `hourly-family` in the plugin) — one file per family sub-component: formula, `validate`, `describe`, tagged amounts, no VAT (rule 47)
+- [x] `articles-head-contract` — the head is the only export of `articles/`; dispatch, refusals, allowance coordination, offered, locked snapshots, fulfilment calls; a request for an unregistered family is refused; instances are frozen config (rule 47)
+- [x] `vat-component` — rules 61-62: resolver by (vatClass, customerContext) and regime/franchise; one rounding per group; largest-remainder allocation sums to the group; per-rate output; byte-identical to the five former copies on the golden inputs
 - [ ] `accounting-output-replay` — rule 63: neutral entries from the read models; each exporter reproduces today's CSV, JSON and synthesis byte for byte on every golden month; no exporter imports `vat/` or `articles/`
-- [ ] `no-duplicate-formulas` — rule 66 static guards with their allow-lists, including the platform-payment guard of rule 70
-- [ ] `pricing-platform-payment` — rule 70: every formula of the table, both commission bases, clamps, net received, acompte net, penalty, cancellation withheld commissions
-- [ ] `platform-intake-port`, `platform-intake-replay` — rule 71: SDK contract unchanged, adapter, `fromPlatform`, replay of the stored intakes at 0 diff; booking-intake, airbnb-intake and gites-de-france-intake suites green unchanged
-- [ ] `article-family-contract` — every registered family, core and `hourly`, through the same cases (rule 57)
+- [x] `no-duplicate-formulas` — rule 66 static guards with their allow-lists, including the platform-payment guard of rule 70
+- [x] `pricing-platform-payment` — rule 70: every formula of the table, both commission bases, clamps, net received, acompte net, penalty, cancellation withheld commissions
+- [x] `platform-intake-port`, `platform-intake-replay` — rule 71 (PR A: SDK contract unchanged, adapter, replay of the stored intakes at 0 diff; `fromPlatform` is PR B); booking-intake, airbnb-intake and gites-de-france-intake suites green unchanged
+- [x] `article-family-contract` — every registered family, core and `hourly`, through the same cases (rule 57)
 - [ ] `article-fulfilment-contract` — run against the bath adapter: hold, overlap refused, heat-up honoured, confirm in the sale transaction, rollback leaves no booking, release frees the slot (rule 57)
-- [ ] `pipeline-composition` — every use case builds; a missing `requires` throws at build; `externalSale` never calls nights, tax, clock or schedule; `stayQuote` output equals the pre-refactor engine (rule 52)
+- [x] `pipeline-composition` — every use case builds; a missing `requires` throws at build; `externalSale` never calls nights, tax, clock or schedule; `stayQuote` output equals the pre-refactor engine (rule 52)
 - [ ] `settings-provider` — resolution article → property → global → default; each component's schema validates; PR A adapter returns today's column values (rule 50)
 - [ ] `standalone-sale` — rule 53: priced by the same families, external VAT, recorded, journal row through `standaloneSales`
 - [ ] `extra-sale-events` — rule 55: events published after commit only; an observer failure never undoes a sale
-- [ ] `pricing-totals`, `pricing-compose` — rule 4: composition deep-equal to the pre-refactor engine on the fixture; TOTALS computes nothing (only sums provided keys)
-- [ ] `pricing-stay-clock` — rules 20, 44: the exact check-in minute (14:59 → `before`, 15:00 → `during`), the exact check-out minute (`during` → `after`), J-1 23:59, the two DST days (last Sunday of March and of October, a check-in at 02:30 that does not exist / exists twice), missing `checkInTime` → property `defaultCheckIn` → `15:00`, malformed time refused, `now` injected (no `Date.now()` in the file), arrival mark set before check-in time does not start the stay
-- [ ] `stay-clock-model` — `phaseForReservation` reads the reservation then the property; the only resolver
-- [ ] `stay-clock-single-source` — static test of rule 45: no date comparison deciding a phase or a collection moment outside `stayClock*`
+- [x] `pricing-totals`, `pricing-compose` — rule 4: composition deep-equal to the pre-refactor engine on the fixture; TOTALS computes nothing (only sums provided keys)
+- [x] `pricing-stay-clock` — rules 20, 44: the exact check-in minute (14:59 → `before`, 15:00 → `during`), the exact check-out minute (`during` → `after`), J-1 23:59, the two DST days (last Sunday of March and of October, a check-in at 02:30 that does not exist / exists twice), missing `checkInTime` → property `defaultCheckIn` → `15:00`, malformed time refused, `now` injected (no `Date.now()` in the file), arrival mark set before check-in time does not start the stay
+- [x] `stay-clock-model` — `phaseForReservation` reads the reservation then the property; the only resolver
+- [x] `stay-clock-single-source` — static test of rule 45: no date comparison deciding a phase or a collection moment outside `stayClock*`
 - [ ] rule 46: a line keeps `collectAtDefault`; an operator change journals both values; time passing never rewrites a stored moment
 - [ ] `pricing-schedule`, `pricing-settlement` — rules 18-23, 37 (table of rule 19, netting once, moment change journaled, paid frozen)
 - [ ] `extra-sale-fiche`, `extra-sale-shop`, `extra-sale-sas` — rules 27-30 per seller; quote = commit; platform card link separate (rule 29)
