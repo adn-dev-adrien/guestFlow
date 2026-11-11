@@ -856,6 +856,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       SDK 2.27.0, iCal default-option pricing through the Articles head); C (intake date checks through STAY
       CLOCK, optional plugin migration to `fromPlatform`).
 
+### 3.O Delivery cadence of PR A (owner, 2026-11-11)
+
+73. **Replay cadence in PR A** (owner, 2026-11-11): each commit runs the price gate (rule 68), the golden test and the move proof (`scripts/price-gate/move-proof.mjs`); the full prod replay of rule 34 and the full suites run at three checkpoints (after money/platform payment/nights/extra guests/tourist tax; after articles/VAT/discounts/totals; after schedule/settlement/stayQuote/intake adapter/refunds). A failing checkpoint is bisected over its commits. This amends rule 35's "every commit" for the full replay only.
+    - **The move proof.** `move-proof.mjs [base]` reads `git diff base..HEAD` (default `HEAD~1`): every line a server or client source file loses must reappear, byte for byte but for its indentation, among the added lines of the diff (same file or another); blank lines, imports and export lists are the only glue. It prints the unmatched lines and exits 1. A move that renames or rewrites a line therefore fails; tests, fixtures and docs are not read. Pure logic in `scripts/price-gate/moveProof.js`, covered by `price-gate-move-proof.unit.test.js`.
+    - **One shared recompute.** `scripts/price-gate/recompute.js` loads the fixture into a freshly migrated database, recomputes every stay and replays the intakes; the capture (`buildFixture.mjs`) and the tests call the same functions, so both sides run the same steps. The capture day is stored in the fixture (`meta.capturedAt`), never written in a test file.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** Every amount, status, discount share and grouping in this spec is computed
@@ -916,7 +922,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `plugins/sas/` | `controller.js`, `arrivalRecap.js`, `departureRecap.js` | T (PR B) | recap = `saleDetail` + SETTLEMENT |
 | `database.js` | `database.js` | T | idempotent migration of §5 |
 | `scripts/` | `pricing-replay.mjs` | C | rule 34 |
-| `scripts/price-gate/` | `anonymise.js`, `figuresOf.js`, `buildFixture.mjs` | C (PR A) | rule 68 fixture builder |
+| `scripts/price-gate/` | `anonymise.js`, `figuresOf.js`, `recompute.js`, `buildFixture.mjs`, `moveProof.js`, `move-proof.mjs` | C (PR A) | rule 68 fixture builder and shared recompute; rule 73 move proof |
 | `tests/` | `price-gate.unit.test.js`, `helpers/priceGateCompare.js`, `fixtures/price-gate/{inputs,expected,allowlist}.json` | C (PR A) | rule 68 gate, cent-exact, owner-reviewed allowlist |
 | `tests/` | `pricing-<unit>.unit.test.js` (one per unit and per family), `articles-head-contract`, `article-family-contract`, `vat-component`, `accounting-output-replay`, `no-duplicate-formulas`, `article-fulfilment-contract`, `pipeline-composition`, `settings-provider`, `stay-clock-model`, `stay-clock-single-source`, `extra-sale-<seller>.unit.test.js` ×3, `standalone-sale.unit.test.js`, `sale-detail.unit.test.js` | C | rules 43, 57 |
 
@@ -1043,11 +1049,12 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 
 ### Proof
-- [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare` unit tests green
+- [ ] Price gate (rule 68): `price-gate.unit.test.js` green on every commit of A, B and C, with the allowlist reviewed by the owner; `price-gate-anonymity`, `price-gate-anonymise`, `price-gate-figures`, `price-gate-compare`, `price-gate-move-proof` unit tests green
 - [ ] Review per rule 69: one integral review with the PROVEN / NOT PROVEN checklist, one grouped fix, one verification pass
 - [ ] Stabilisation per rule 69 after PR C: rounds of integral audit → grouped fix → verification until a round with zero findings; findings table per round separating old defects from regressions
 - [ ] the replay hashes every accounting export file (CSV per month, sales JSON, synthesis) besides the quotes (rule 64)
-- [ ] `scripts/pricing-replay.mjs` before/after on a fresh prod copy at every commit of PR A (0 diff), at PR B's first commit (0 diff), at PR B and PR C heads (listed diffs only)
+- [ ] `scripts/price-gate/move-proof.mjs` at every commit of PR A (rule 73): exit 0, no unmatched removed line
+- [ ] `scripts/pricing-replay.mjs` before/after on a fresh prod copy at the three checkpoints of PR A (0 diff; rule 73 amends rule 35), at PR B's first commit (0 diff), at PR B and PR C heads (listed diffs only)
 
 ### Manual UI verification
 - [ ] Simulator scenarios replayed on the dev server: direct stay before check-in time (shop card / note), platform stay after check-in (note → departure), SAS arrival opened after check-in time with a departure sale, fiche manual addition, moment change journaled, discount on « Tout », SAS offer of a paid line refused
