@@ -1,6 +1,6 @@
 const priceLineContributors = require('./priceLineContributors');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { roundMoney } = require('./pricing/money');
+const { roundMoney, toCents, fromCents } = require('./pricing/money');
 const { computeTouristTaxBreakdown, resolveAddedGuestsTouristTax } = require('./pricing/touristTax');
 const {
   parseJsonArray,
@@ -21,6 +21,7 @@ const {
 } = require('./pricing/nights');
 const { clampCommissions, netReceived } = require('./pricing/platformPayment');
 const { resolvePlatformPrice, grossFromNet } = require('./pricing/platformPrice');
+const { vatOf } = require('./pricing/vat');
 const { allocateDiscount, normalizeDiscountPercent, normalizeCustomPrice } = require('./pricing/discounts');
 const articles = require('./pricing/articles');
 const { createFreeUnitsLedger, applyFreeUnitsToLine, applyPerHourFreeMinutes } = require('./pricing/allowances');
@@ -1282,17 +1283,24 @@ function calculateReservationQuote({
   // specs/single-vat-rate.md rule 13 — the extra-guest supplement is a supplement on the nights: it is
   // part of the accommodation's VAT base, as in the stored summary and the accounting export.
   const accommodationVatBase = roundMoney(accommodationAdjustedPrice + extraGuestSurcharge);
-  const accommodationVatAmount = roundMoney(accommodationVatBase * (vatPercentageAccommodation / (100 + vatPercentageAccommodation)));
-  const accommodationNetPrice = roundMoney(accommodationVatBase - accommodationVatAmount);
-  
-  const optionsVatAmount = roundMoney(optionsTotal * (vatPercentageOptions / (100 + vatPercentageOptions)));
-  const optionsNetPrice = roundMoney(optionsTotal - optionsVatAmount);
-  
-  const resourcesVatAmount = roundMoney(resourcesTotal * (vatPercentageResources / (100 + vatPercentageResources)));
-  const resourcesNetPrice = roundMoney(resourcesTotal - resourcesVatAmount);
-  
-  const totalVatAmount = roundMoney(accommodationVatAmount + optionsVatAmount + resourcesVatAmount);
-  const totalNetPrice = roundMoney(accommodationNetPrice + optionsNetPrice + resourcesNetPrice);
+  const familyVat = vatOf([
+    { amountCents: toCents(accommodationVatBase), vatClass: 'accommodation', customerContext: 'hosted', source: { kind: 'accommodation' } },
+    { amountCents: toCents(optionsTotal), vatClass: 'options', customerContext: 'hosted', source: { kind: 'line' } },
+    { amountCents: toCents(resourcesTotal), vatClass: 'resources', customerContext: 'hosted', source: { kind: 'line' } },
+  ], { regime: vatRegime });
+  const [accommodationVat, optionsVat, resourcesVat] = ['accommodation', 'options', 'resources']
+    .map((vatClass) => familyVat.groups.find((group) => group.vatClass === vatClass));
+  const accommodationVatAmount = fromCents(accommodationVat.vatCents);
+  const accommodationNetPrice = fromCents(accommodationVat.netCents);
+
+  const optionsVatAmount = fromCents(optionsVat.vatCents);
+  const optionsNetPrice = fromCents(optionsVat.netCents);
+
+  const resourcesVatAmount = fromCents(resourcesVat.vatCents);
+  const resourcesNetPrice = fromCents(resourcesVat.netCents);
+
+  const totalVatAmount = fromCents(familyVat.totals.vatCents);
+  const totalNetPrice = fromCents(familyVat.totals.netCents);
 
   // The two due dates are resolved AFTER the amounts (further down), because whether an échéance
   // exists at all depends on them — see the `resolveDepositDueDate` / `resolveBalanceDueDate` call

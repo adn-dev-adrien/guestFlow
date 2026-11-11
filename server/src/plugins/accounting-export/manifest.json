@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.25.0",
+  "sdk": "^2.27.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -149,6 +149,10 @@
       "Séjour payé en plusieurs moyens puis remboursé en entier : chaque compte revient à 0, sans centime d'écart ni rabais laissé sur 709.",
       "Séjour payé en un seul moyen puis remboursé en entier : chaque compte revient aussi à 0, à partir du mois qui suit l'installation.",
       "Toujours pour GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.2.3": [
+      "La TVA d’un compartiment est calculée par le composant TVA du cœur ; aucune écriture ne change.",
+      "Demande le SDK 2.27 de GuestFlow."
     ]
   }
 }

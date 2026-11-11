@@ -9,7 +9,6 @@ const {
   validateRefundPayload,
   refundedByKey,
   refundsTotal,
-  splitHtVat,
 } = require('../utils/refunds');
 
 // A stay at 480 € = 380 € accommodation + 72 € breakfasts (6 × 12) + 28 € vélos, plus 13,20 € of tax.
@@ -85,12 +84,6 @@ test('refundedByKey aggregates every means, refundsTotal separates book money fr
   assert.deepEqual(refundedByKey(refunds), { 'opt:7': 34 });
   assert.equal(refundsTotal(refunds), 29);                    // virement + espèces
   assert.equal(refundsTotal(refunds, { withCash: true }), 39); // + caisse interne
-});
-
-test('splitHtVat extracts the VAT from a TTC amount; a 0-rate line stays entirely HT', () => {
-  assert.deepEqual(splitHtVat(24, 10), { ht: 21.82, vat: 2.18 });
-  assert.deepEqual(splitHtVat(13.2, 0), { ht: 13.2, vat: 0 });
-  assert.deepEqual(splitHtVat(0, 10), { ht: 0, vat: 0 });
 });
 
 // ── validateRefundPayload ────────────────────────────────────────────────────

@@ -12,24 +12,7 @@
  * line, whose amount the guest checks against the stay. All arithmetic is in INTEGER cents — floating point breaks half-up rounding
  * (e.g. 23295 × 1.1 = 25624.499999996 in FP → would round to 256.24 instead of 256.25).
  */
-
-// Rate as integer hundredths-of-a-percent so 10 % → 1000, 8.5 % → 850, 20 % → 2000. Keeps everything
-// in integers: a line total = htCents × (10000 + R) / 10000.
-function rateToBasis(vatRatePercent) {
-  return Math.round(Number(vatRatePercent || 0) * 100);
-}
-
-// Qonto's per-line total (cents) for an HT amount at rate R (basis). Half-up, integer-exact.
-function lineTotalCents(htCents, R) {
-  if (R <= 0) return htCents;
-  return Math.floor((htCents * (10000 + R) + 5000) / 10000);
-}
-
-// HT (cents) whose Qonto line total is ≤ the TTC target (floor → non-negative residual).
-function htFromTtc(ttcCents, R) {
-  if (R <= 0) return ttcCents;
-  return Math.floor((ttcCents * 10000) / (10000 + R));
-}
+const { rateToBasis, lineTotalCents, htFromTtc } = require('./pricing/vat');
 
 /**
  * Build the wire items for a payment link.

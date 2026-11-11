@@ -9,6 +9,7 @@ const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
+const { htOfPortion } = require('../utils/pricing/vat');
 
 // The column of the platform penalties (specs/reconciliation-assisted-matching.md rule 27). Named in an
 // explicit column list, so a hand-built reservations table of a unit suite without it still reads 0.
@@ -186,14 +187,9 @@ function getFiscalYearEndMonth(database) {
 // (finalPrice ÷ (1+vat)) ÷ (finalPrice + touristTax). We apply that fraction to whatever TTC portion we're
 // summing (total de séjour, encaissé, …) so the HT stays consistent with the TTC figure shown above it.
 function htAmount(r, ttcPortion, vatRate) {
-  const portion = Number(ttcPortion || 0);
-  if (portion <= 0) return 0;
-  const finalPrice = Math.max(0, Number(r.finalPrice || 0));
-  const tax = Math.max(0, Number(r.touristTaxTotal || 0));
-  const fullTtc = finalPrice + tax;
-  if (fullTtc <= 0) return 0;
-  const ratio = (finalPrice / (1 + vatRate / 100)) / fullTtc;
-  return round2(portion * ratio);
+  return htOfPortion({
+    portion: ttcPortion, finalPrice: r.finalPrice, touristTaxTotal: r.touristTaxTotal, vatRate,
+  });
 }
 
 const TAX_FACTS_CHUNK = 500;

@@ -762,16 +762,6 @@ function refundedTouristTax(refunds) {
   return { amount, nights: Math.max(0, Math.round(nights)) };
 }
 
-/** Split a TTC amount into HT + VAT at the line's frozen rate. A 0-rate line is entirely HT. */
-function splitHtVat(amountTtc, vatRate) {
-  const ttc = round2(amountTtc);
-  const rate = Number(vatRate || 0);
-  if (!ttc) return { ht: 0, vat: 0 };
-  if (rate <= 0) return { ht: ttc, vat: 0 };
-  const vat = round2(ttc * (rate / (100 + rate)));
-  return { ht: round2(ttc - vat), vat };
-}
-
 /**
  * specs/reservation-refunds.md rule 53 (verification R35b, finding 5) — the latest day a payment of the stay reached the
  * books: a paid acompte, solde, arrival or end-of-stay complement off the caisse interne, a paid installment, a note
@@ -1042,7 +1032,6 @@ module.exports = {
   refundedTouristTax,
   refundsTotal,
   buildRefundableLines,
-  splitHtVat,
   validateRefundPayload,
   round2,
 };

@@ -8,7 +8,10 @@
  * minutes right after them, each priced on the band it falls in — the same slot walk as `priceSessions`.
  */
 
+const sdk = require('../sdk');
 const { priceSessions, priceRange, toMinutes } = require('./hourlyPricing');
+
+const { netFirst } = sdk.coreModule('vat');
 
 const OFFER_STEP_MINUTES = 15;
 
@@ -39,8 +42,8 @@ function offeredRefusal(offeredMinutes, { durationMinutes, freeMinutesApplied, p
 function vatOf(total, vat) {
   if (!vat || vat.rate === null || vat.rate === undefined) return null;
   const rate = Number(vat.rate);
-  const net = round2(total / (1 + rate / 100));
-  return { rate, amount: round2(total - net), net };
+  const { amount, net } = netFirst(total, rate);
+  return { rate, amount, net };
 }
 
 /**
