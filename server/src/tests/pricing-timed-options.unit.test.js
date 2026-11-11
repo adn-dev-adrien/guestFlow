@@ -79,9 +79,9 @@ test('computeAutoTimedOptionContext late check-out proportional uses next-night 
 
 test('getLateCheckoutNextNightReferencePrice reads the night after departure from the matching rule', () => {
   const rules = [{ pricingMode: 'fixed', pricePerNight: 120, dateRanges: [], startDate: null, endDate: null }];
-  assert.equal(getLateCheckoutNextNightReferencePrice({ rules, endDate: '2027-07-10', stayNights: 2 }), 120);
+  assert.equal(getLateCheckoutNextNightReferencePrice({ rules, endDate: '2027-07-10', stayNights: 2 }), 120); // date-literal-ok: a pure function input, nothing compares it with today
   const progressive = [{ pricingMode: 'progressive', pricePerNight: 100, progressiveTiers: [{ nightNumber: 3, price: 80 }], dateRanges: [], startDate: null, endDate: null }];
-  assert.equal(getLateCheckoutNextNightReferencePrice({ rules: progressive, endDate: '2027-07-10', stayNights: 2 }), 40);
+  assert.equal(getLateCheckoutNextNightReferencePrice({ rules: progressive, endDate: '2027-07-10', stayNights: 2 }), 40); // date-literal-ok: a pure function input, nothing compares it with today
 });
 
 test('computeAutoTimedOptionContext returns null when the option is off or the time is the default one', () => {
