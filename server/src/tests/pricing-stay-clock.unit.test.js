@@ -137,3 +137,59 @@ test('rule 44 — the unit file reads no clock: no Date.now(), no new Date() wit
   assert.doesNotMatch(source, /new Date\(\s*\)/);
   assert.doesNotMatch(source, /require\(/);
 });
+
+test('rule 44 — DST, last Sunday of October: after a 02:30 check-out the repeated hour does not take the stay back to « during »', () => {
+  const stay = { arrivalDate: '2026-10-24', departureDate: '2026-10-25', checkInTime: '15:00', checkOutTime: '02:30' }; // date-literal-ok: pure function input
+  assert.equal(phase(stay, '2026-10-25T00:29:00Z'), 'during'); // date-literal-ok: pure function input
+  assert.equal(phase(stay, '2026-10-25T00:30:00Z'), 'after'); // date-literal-ok: pure function input
+  for (const instant of ['2026-10-25T01:00:00Z', '2026-10-25T01:15:00Z', '2026-10-25T01:29:00Z', '2026-10-25T01:30:00Z']) { // date-literal-ok: pure function input
+    assert.equal(phase(stay, instant), 'after', instant);
+  }
+});
+
+test('rule 44 — DST, last Sunday of October: the same for a check-in, once reached it stays reached', () => {
+  const stay = { arrivalDate: '2026-10-25', departureDate: '2026-10-27', checkInTime: '02:30', checkOutTime: '10:00' }; // date-literal-ok: pure function input
+  assert.equal(phase(stay, '2026-10-25T00:29:00Z'), 'before'); // date-literal-ok: pure function input
+  for (const instant of ['2026-10-25T00:30:00Z', '2026-10-25T01:00:00Z', '2026-10-25T01:29:00Z']) { // date-literal-ok: pure function input
+    assert.equal(phase(stay, instant), 'during', instant);
+  }
+});
+
+test('rule 44 — DST, last Sunday of March: a 02:30 check-out that never shows is reached at 03:00', () => {
+  const stay = { arrivalDate: '2027-03-27', departureDate: '2027-03-28', checkInTime: '15:00', checkOutTime: '02:30' }; // date-literal-ok: pure function input
+  assert.equal(phase(stay, '2027-03-28T00:59:00Z'), 'during'); // date-literal-ok: pure function input
+  assert.equal(phase(stay, '2027-03-28T01:00:00Z'), 'after'); // date-literal-ok: pure function input
+});
+
+test('rule 44 — an oracle over random stays and instants, the two DST days included, agrees with the instant reading', () => {
+  const parisFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const stampOf = (ms) => { const p = Object.fromEntries(parisFormat.formatToParts(new Date(ms)).map((x) => [x.type, x.value])); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
+  const firstOf = (day, time) => {
+    const [y, m, d] = day.split('-').map(Number);
+    const [h, mi] = time.split(':').map(Number);
+    const found = [2, 1].map((offset) => Date.UTC(y, m - 1, d, h - offset, mi)).filter((ms) => stampOf(ms) === `${day}T${time}`);
+    return found.length ? Math.min(...found) : null;
+  };
+  let seed = 7;
+  const random = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; }; // xorshift: reproducible
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayOf = (ms) => new Date(ms).toISOString().slice(0, 10);
+  // Stays that straddle the two clock changes of 2026-2027, so the fold and the gap are drawn often.
+  const anchors = [Date.UTC(2026, 2, 28), Date.UTC(2026, 9, 24), Date.UTC(2027, 2, 27), Date.UTC(2027, 9, 30)]; // date-literal-ok: pure function input
+  let compared = 0;
+  for (let i = 0; i < 4000; i += 1) {
+    const base = anchors[i % anchors.length] + Math.floor(random() * 3) * 86400000;
+    const arrival = dayOf(base);
+    const departure = dayOf(base + (1 + Math.floor(random() * 3)) * 86400000);
+    const checkIn = `${pad(Math.floor(random() * 24))}:${pad(Math.floor(random() * 4) * 15)}`;
+    const checkOut = `${pad(Math.floor(random() * 24))}:${pad(Math.floor(random() * 4) * 15)}`;
+    const now = base + Math.floor(random() * 5 * 24 * 60) * 60000;
+    const from = firstOf(arrival, checkIn);
+    const until = firstOf(departure, checkOut);
+    if (from === null || until === null) continue;
+    compared += 1;
+    const expected = now < from ? 'before' : (now < until ? 'during' : 'after');
+    assert.equal(phaseOf({ arrivalDate: arrival, departureDate: departure, checkInTime: checkIn, checkOutTime: checkOut }, now).phase, expected, `${arrival} ${checkIn} -> ${departure} ${checkOut} at ${new Date(now).toISOString()}`);
+  }
+  assert.ok(compared > 3000);
+});
