@@ -21,6 +21,13 @@ test('rule 35: hops with the proxy secret are quiet, hops without it warn', () =
   assert.match(open.warning, /GUESTFLOW_PROXY_SECRET/);
 });
 
+test('rule 35: the warning tells the operator what to set and what the proxy must send (shadow trial of 4.0.0)', () => {
+  const { warning } = proxyTrust({ TRUST_PROXY_HOPS: '1' });
+  assert.match(warning, /set GUESTFLOW_PROXY_SECRET in the server environment/);
+  assert.match(warning, /openssl rand -hex 32/);
+  assert.match(warning, /X-GuestFlow-Proxy header/);
+});
+
 async function ipSeenBy(env, headers) {
   const app = express();
   app.set('trust proxy', proxyTrust(env).hops);

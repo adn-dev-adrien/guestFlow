@@ -1,1 +1,0 @@
-- The back button ignores a `?from=` value that is not an in-app path (URL, `//…`, `javascript:`) and goes to the default page instead of failing.

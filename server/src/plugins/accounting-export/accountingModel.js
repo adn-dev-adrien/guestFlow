@@ -40,6 +40,7 @@ const { buildModel: buildCompensationsModel } = sdk.coreModule('cancellationComp
 const { buildModel: buildPenaltiesModel } = sdk.coreModule('platformPenaltiesModel');
 const { parseComplementAllocation } = sdk.coreModule('complementAllocation');
 const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
+const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 const { settlementFigures, targetFigures, currentCentsOf } = sdk.coreModule('paymentTenders');
 const { buildModel: buildSettlementsModel } = sdk.coreModule('paymentSettlementsModel');
 
@@ -1321,7 +1322,9 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
 
   return {
     ...common,
-    clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
+    // The gross the guest paid, like the three paths above: a stay never loses it to a NULL column. Only an own-channel
+    // stay (`direct`, or a platform counted as a direct sale) that never held one keeps none to show.
+    clientGrossAmount: row.clientGrossAmount == null && isDirectChannel(row.platform) ? null : round2(effectiveGross),
     fraction,
     buckets,
   };

@@ -259,6 +259,17 @@ name is always readable or truncated cleanly with the full name on hover.
     case — a candidate carrying money, a longer one, two hidden stays on the same nights — is left as it is and
     both stays are stamped `bookingConflictAt`, which the existing conflict alert shows, with a `reservation_history`
     entry; the boot log lists the ids. The migration runs after the baseline replay.
+    **Reading of 2026-11-11 (shadow trial of 4.0.0 on a 3.21.0 copy) — the rule is right, the data conflicts.** The
+    migration flagged 4 stays (14, 22201, 22279, 22329) and let 8 hidden past stays reappear (22224, 22226, 22227, 22229,
+    22242, 22269, 22271, 22272 — real, paid, edited stays that overlap nothing; no `superseded` row existed to resurrect).
+    22279 is the 0 € Lodgify copy of the direct stay 14, one night longer (13→17 against 13→16): this rule keeps a longer
+    copy visible and flagged. 22201 (Lodgify, paid, 31 Dec → 2 Jan) was one of the nine of the 2026-10-22 measurement
+    that overlapped nothing; 22329 (Abritel, 31 Dec → 3 Jan, 725,40 € unpaid, 117,40 € commission) was created by the
+    Abritel feed on 2026-10-26, after that measurement, and now sits on it. It is **not** asserted to be a duplicate: it
+    has a different client, one more night, and was priced by the operator the same day. It is a flagged pair the
+    operator decides on (the migration does not touch it, the creation belongs to the iCal import, see
+    `ical-import-hardening.md` rule 21), and the « En retard » tile counting its 608 € payout stays until they do.
+    No code change.
 27. **An old built-in colour is not a custom colour.** A per-source colour equal to a built-in default — the current
     one or the one before rule 6 — is never read as an operator's choice: the boot backfill of `platforms.color`
     and the colour listing ignore it, so the new palette reaches an install whose sources were created under the old

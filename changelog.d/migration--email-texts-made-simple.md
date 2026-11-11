@@ -1,1 +1,0 @@
-- `property_arrival_facts` and `stay_text_flags` tables, and `properties.nameArticleConfirmed` (existing properties marked confirmed). No backfill; Solio's emails render unchanged.

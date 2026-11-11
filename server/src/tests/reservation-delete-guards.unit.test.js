@@ -167,7 +167,7 @@ test('rule 50 — a link deactivated before a later failure stays cancelled, the
   assert.deepEqual(statuses, { ql_a: 'open', ql_b: 'cancelled' });
 });
 
-test('rule 51 — open links pointing at a missing reservation are listed for the boot log', () => {
+test('rule 51 — open links pointing at a missing reservation are listed for the boot log and the home', () => {
   const { db, id } = seed();
   const links = paymentLinksModel.buildModel(db);
   links.create({ reservationId: id, type: 'deposit', amountCents: 100, providerLinkId: 'ql_ok', url: 'u', status: 'open' });
@@ -175,7 +175,7 @@ test('rule 51 — open links pointing at a missing reservation are listed for th
   links.create({ reservationId: 424243, type: 'deposit', amountCents: 100, providerLinkId: 'ql_old', url: 'u', status: 'cancelled' });
   const pending = links.create({ reservationId: 424244, type: 'deposit', amountCents: 100, providerLinkId: 'ql_pend', url: 'u', status: 'open' });
   links.cancel(pending.id, { remotePending: true });
-  assert.deepEqual(links.listOrphanOpen().map((l) => l.reservationId), [424242, 424244]);
+  assert.deepEqual(links.listOwedDeactivations().map((l) => l.reservationId), [424242, 424244]);
 });
 
 // ---- rule 49 / 50 — money and links of a devis converted into the stay (they keep the devis id) ----

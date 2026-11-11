@@ -376,6 +376,13 @@ signed-off releases over HTTPS, when the operator asks for it.
     window while a rollback is live leaves its link `paid` and, after the roll-forward, the order is expired by
     `expireDue` with no settled note. Rare (a rollback during an order's window); the operator finds the payment in Qonto
     and settles the note by hand. Documentation only.
+    **Reading of 2026-11-11 (shadow trial of 4.0.0) — fixed, not accepted:** the dormant `support@guestflow.invalid` admin
+    seeded by 4.0.0 (`isSupportAccount = 1`, inactive, hosting-h2-account-security.md rule 21) was listed and reactivable in
+    v3.21.0 after a code rollback, which knows no such flag. The row is now inert in the database itself: the trigger
+    `users_support_account_inert` refuses (`SUPPORT_ACCOUNT_LOCKED`) any `UPDATE` of a flagged row that changes
+    `isActive`, `passwordHash` or the flag, whichever release issues it, so v3.21.0's « Réactiver » and password
+    reset fail instead of opening an admin account. Triggers live in the database file, so they hold after a rollback.
+    Test: `support-account-inert-in-database.unit.test.js`.
 40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
     Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
     `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
@@ -590,6 +597,26 @@ signed-off releases over HTTPS, when the operator asks for it.
     released (the skill's pre-flight with `--core-version X.Y.Z`, then the release PR's CI and the `verify`
     job on the root version) and fails otherwise; the health check alone would not see it, plugins refused at
     boot do not fail `/api/health`. Test: `plugins-bundled-admit-release.unit.test.js`.
+55. **The update log records every staging step with its result** (added 2026-11-11, shadow trial of 4.0.0). The
+    log `logs/update-<version>-<ts>.log` opened by `startUpdate` used to hold the header and the swap, nothing of what
+    happened between: an operator reading it could not tell that the archive had been downloaded, its SHA-256 and
+    signature checked, extracted and installed. `stageRelease` now takes `log(line)` and writes one line per step as
+    it completes — `téléchargement : OK, <archive>, <n> octets`, `signature : OK, SHA256SUMS signé par la clé configurée`
+    (or `non vérifiée, aucune clé de signature configurée`), `SHA-256 : OK, <hash>`, `extraction : OK, structure de la
+    version <v> vérifiée`, `dépendances (npm ci) : OK`, `mise en place : OK, releases/<v>` — and, on a failure,
+    `<step> : ÉCHEC` before the controller's own `ÉCHEC (<code>)` and message. The controller adds
+    `sauvegarde de la base : OK, <file>` and `bascule : lancement de l’assistant de mise à jour`. A log that cannot
+    be written never stops an update. Test: `self-update-log-steps.unit.test.js`.
+56. **A release body never exceeds what GitHub accepts** (added 2026-11-11, shadow trial of 4.0.0: the folded 4.0.0
+    section was 408,000 characters, GitHub refuses a release body above 125,000). The body is the `CHANGELOG.md`
+    section as `release.yml`'s awk extracts it. `node scripts/build-changelog.mjs --check-digest X.Y.Z` — which the
+    `verify` job runs — now also fails when that body exceeds 125,000 characters, measuring it with a function that
+    reproduces the awk line for line (`releaseBodyOf`); the preview and `--release` print a warning when the
+    pending changelog or the folded section is over the limit. The way out is the one taken for 4.0.0: condense the
+    fragments into one bullet group per domain and keep the full detail in a committed archive,
+    `docs/changelog/<version>-detail.md`, which the section's last line points to (a `changelog.d/detail--<slug>.md`
+    fragment: its text closes the folded section, after every category, with no heading). Every `Migration` item stays
+    explicit in the condensed section. Test: `release-body-size-guard.unit.test.js`.
 
 ---
 

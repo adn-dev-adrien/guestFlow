@@ -1,1 +1,0 @@
-- Closures dialog: a slow « conflicts » answer that came back after the dialog was closed and reopened, or after its dates were made invalid, no longer paints the old closure's red line over the dialog.

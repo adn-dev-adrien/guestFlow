@@ -1,1 +1,0 @@
-- Console: a customer whose address holds another customer's database no longer offers « Télécharger la licence » (`hosting-h1-fleet-runtime.md` rule 48).

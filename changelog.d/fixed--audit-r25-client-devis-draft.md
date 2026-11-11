@@ -1,1 +1,0 @@
-- Reservations: « Créer un devis » on a stay not saved yet keeps the client typed with « + Créer un nouveau client », and the devis it opens counts as unsaved work: « Enregistrer le devis » is enabled, and Back, « Annuler » or a reload ask before the draft is dropped.

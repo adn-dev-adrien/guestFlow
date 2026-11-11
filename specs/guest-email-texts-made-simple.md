@@ -179,6 +179,10 @@ email shown beside the text. The whole wording can also go out and come back as 
     > **2026-10-23 (review of inte/plugins):** the preview always shows the latest draft. A request
     > made for an older draft that answers after a newer one began — its rendering or its refusal
     > (rule 41) — is dropped, never shown.
+    > **2026-11-11 (shadow trial of 4.0.0, E2E flake under load):** the rolled-back transaction of the preview is `IMMEDIATE`: it
+    > takes the write lock up front and waits for the busy timeout when another connection writes, instead of failing at once
+    > with `SQLITE_BUSY` (a deferred read-then-write transaction cannot upgrade after a concurrent commit) and answering 500.
+    > Test: `email-draft-preview-concurrent-writer.unit.test.js`.
 14. Language FR/EN is a toggle on the preview. An empty EN text falls back to the FR text, and the
     preview says so (« Texte anglais manquant : le français sera envoyé »).
 15. « M'envoyer un test » sends the previewed email to the company address. The subject is prefixed

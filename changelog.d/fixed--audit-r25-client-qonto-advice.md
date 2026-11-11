@@ -1,2 +1,0 @@
-- Online payment: the « Adresse publique manquante » advice and the Qonto and Google public-address messages point to Paramètres → Système (URL publique) instead of a menu that does not exist, and « Test » now re-runs the webhook check whenever Qonto answered, the link provider still pending included, so the advice can be cleared.
-- Bank reconciliation: without Qonto credentials the 8-hour read waits instead of recording a « Dernier échec » that repeats the badge (online-payment 1.5.6).

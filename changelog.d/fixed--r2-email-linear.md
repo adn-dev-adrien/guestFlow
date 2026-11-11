@@ -1,1 +1,0 @@
-- Email checks are linear and length-bounded everywhere (public booking request, clients, users, settings, contact paste), closing a request that could freeze the server for 35 s.

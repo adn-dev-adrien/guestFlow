@@ -1,1 +1,0 @@
-- The client sheet badges cancelled and set-aside stays (« Annulée », « Écartée »), and a client delete the server will refuse shows its short reason in the dialog instead of the confirmation.

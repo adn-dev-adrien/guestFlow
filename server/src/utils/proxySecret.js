@@ -48,7 +48,10 @@ function proxyTrust(env = process.env) {
   const hops = raw != null && raw !== '' ? Number(raw) : false;
   const trusted = typeof hops === 'number' && Number.isFinite(hops) && hops > 0;
   const warning = trusted && !env.GUESTFLOW_PROXY_SECRET
-    ? 'TRUST_PROXY_HOPS is set without GUESTFLOW_PROXY_SECRET: X-Forwarded-For can be spoofed by anyone who reaches this port without the proxy.'
+    ? 'TRUST_PROXY_HOPS is set without GUESTFLOW_PROXY_SECRET: X-Forwarded-For can be spoofed by anyone who reaches this port without the proxy. '
+      + 'To fix it, set GUESTFLOW_PROXY_SECRET in the server environment to a long random value (for example the output of `openssl rand -hex 32`) '
+      + 'and make the reverse proxy send the same value in the X-GuestFlow-Proxy header on every request it forwards, then restart. '
+      + 'Behind a proxy that is the only way in, leaving it unset is a deliberate choice and this warning can stay.'
     : null;
   return { hops: trusted ? hops : false, warning };
 }

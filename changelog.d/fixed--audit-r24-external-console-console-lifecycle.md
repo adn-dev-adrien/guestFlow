@@ -1,3 +1,0 @@
-- Console: « Réessayer » on a failed « Export complet » now cancels the open invoices and their Qonto links, as the main « Déprovisionner » does (`control-plane-plans-and-access.md` rule 51).
-- Console: a rename is recorded before the address changes, so a restart while it waits leaves « Réessayer » instead of a new address with nothing pending (`hosting-h1-fleet-runtime.md` rule 52).
-- Console: no licence download for a customer held off its address, on the page or the route (rule 53); no « Reprendre » on a closed customer's failed creation step (rule 54); the probe measures the old address during an unfinished rename, so no false « ne répond plus » (rule 55).

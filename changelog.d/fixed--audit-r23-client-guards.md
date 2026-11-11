@@ -1,4 +1,0 @@
-- **Every way out of a dirty page asks first** (`ui-review-2026-10-19-operations.md` rules 40-42): the browser or phone « Retour » on a fiche or a logement, a reload of a fiche, the top-bar search, the « Retour » arrow of settings pages, the CGV draft, and « Se déconnecter ».
-- **Technical errors read in French** (rule 44): failed connection, an answer that is not JSON, an expired session, and the code-only refusals such as `SMTP_NOT_CONFIGURED`. The account dialog prints a sentence under its field (`admin-account-management.md` rule 20).
-- **A note on a started stay with no arrival marked says where the sale goes** (`mid-stay-notes.md` rule 23), from a server flag; rule 5bis corrected.
-- An unknown logement reads « Logement introuvable. » with the way back; the tax page's tile reads « Réservations (mois) »; on the Plugins page an older list no longer overwrites a newer state (rules 43, 45, 39).

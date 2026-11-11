@@ -1,0 +1,1 @@
+- **Duplicates set aside**: a stay that the old « platform disabled » filter hid, sitting on a visible stay of the same logement with no money in, is set aside as a duplicate (`superseded`); it leaves the calendars and an admin can « Rétablir » it (`POST /api/reservations/:id/restore`); every logement calendar now shows the same stays as « Tous ».

@@ -1,1 +1,0 @@
-- New `vat_periods` table (history of the VAT regime) and `reservations.vatPeriodId` column, created at startup: period 1 takes over the current VAT rate (`app_settings.vatRate`, kept as a mirror), every existing reservation is attached to it, and a trigger attaches each new reservation. Nothing priced or collected is modified; the operation is idempotent.

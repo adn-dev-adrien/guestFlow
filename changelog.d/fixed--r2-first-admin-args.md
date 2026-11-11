@@ -1,1 +1,0 @@
-- The first-administrator script refuses a value that looks like a flag instead of reading it as the flag.

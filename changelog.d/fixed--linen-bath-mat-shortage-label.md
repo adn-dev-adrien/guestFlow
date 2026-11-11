@@ -1,1 +1,0 @@
-- **Linen shortage alert**: a bath-mat shortage read « bathMat » instead of « Tapis de bain ».

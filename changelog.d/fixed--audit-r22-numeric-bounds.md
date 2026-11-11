@@ -1,3 +1,0 @@
-- One reading of a number at every write boundary (audit R22): a party that is negative or fractional, a repeated option or resource line, money past the usable range and a wrong JSON type are refused, never clamped, and the price preview now refuses what the save refuses. Stored values sent back unchanged are not re-judged.
-- Catalogue numbers no longer store Infinity or negatives that reached a stay's money: seasons (price, net targets, minimum of nights), properties, options, resources, the SAS billable prices and breakfast counts. `POST /properties/:id/pricing/progressive-preview` holds `maxNights` to a stay's length: one request could stop the server.
-- SAS: a sent number of people served is a whole number from 1 to 999; `-5`, `0` and `0.5` billed the whole party.

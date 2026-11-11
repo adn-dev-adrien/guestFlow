@@ -1,0 +1,2 @@
+- **Home and planning without a date picker**: the planning is a timeline of days that scrolls into the past and the future, the home reads its day lists in one call and folds empty ones.
+- **Faster pages**: pages load on demand, built files are cached for a year, identical reads are merged, and the planning, upcoming reservations and fiche payloads are lighter.
