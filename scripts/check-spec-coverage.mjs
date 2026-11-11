@@ -199,14 +199,16 @@ export function buildCoverage(specRules, citations) {
   for (const [name, rules] of specRules) {
     if (rules.length === 0) continue;
     const byRule = cited.get(name) || new Map();
-    const isPending = (r) => r.pending && !r.exempt && !byRule.has(r.id);
+    // Règle 18 — un Pending l'emporte sur une citation : la règle est annoncée en attente, jamais comptée prouvée.
+    const isPending = (r) => r.pending && !r.exempt;
     const missing = rules.filter((r) => !r.exempt && !r.pending && !byRule.has(r.id)).map((r) => r.id);
     specs.push({
       name,
       total: rules.length,
       exempt: rules.filter((r) => r.exempt).length,
       pending: rules.filter(isPending).length,
-      covered: rules.filter((r) => r.exempt || byRule.has(r.id)).length,
+      covered: rules.filter((r) => r.exempt || (byRule.has(r.id) && !r.pending)).length,
+      pendingCited: rules.filter((r) => isPending(r) && byRule.has(r.id)).map((r) => r.id),
       missing,
       files: byRule,
     });
@@ -309,6 +311,26 @@ export function specsWithStalePending(entries) {
     .filter(([, markdown]) => !isInProgress(markdown) && !isUndelivered(markdown))
     .map(([f, markdown]) => ({ spec: f.replace(/\.md$/, ''), rules: parseSpecRules(markdown).filter((r) => r.pending).map((r) => r.id) }))
     .filter((s) => s.rules.length > 0);
+}
+
+/**
+ * Règle 19 — une spec « In progress — PR X » est celle que la PR X livre : une de ses lignes
+ * `> **Pending** — PR X` dit que la PR qui la livre laisse son propre travail en attente.
+ *
+ * @param {Array<[string, string]>} entries  `[fileName, markdown]`
+ * @returns {Array<{spec: string, pr: string, rules: string[]}>}
+ */
+export function specsPendingOnTheirOwnPr(entries) {
+  const out = [];
+  for (const [f, markdown] of entries) {
+    if (!f.endsWith('.md') || /^(TEMPLATE|README|ROADMAP)/.test(f) || isSuperseded(markdown) || !isInProgress(markdown)) continue;
+    const own = statusOf(markdown).match(/^\s*in progress\s*[—–-]+\s*PR\s+([A-Z0-9]+)\b/i);
+    if (!own) continue;
+    const pr = own[1].toUpperCase();
+    const hits = parseSpecRules(markdown).filter((r) => r.pending && new RegExp(`^PR\\s+${pr}\\b`, 'i').test(r.pendingReason)).map((r) => r.id);
+    if (hits.length) out.push({ spec: f.replace(/\.md$/, ''), pr, rules: hits });
+  }
+  return out;
 }
 
 /** `[[fileName, markdown]]` → Map nom → règles, sans les specs remplacées (règle 13). */
@@ -518,10 +540,12 @@ function report({ specName }) {
       if (real.has(rule)) console.log(`  règle ${rule.padEnd(6)} ← ${files.join(', ')}`);
     }
     if (one.missing.length) console.log(`  MANQUANTES : ${one.missing.join(', ')}`);
+    if (one.pendingCited.length) console.log(`  EN ATTENTE bien que citées (non prouvées) : ${one.pendingCited.join(', ')}`);
     const stale = [...one.files.keys()].filter((r) => !real.has(r));
     if (stale.length) console.log(`  citations orphelines (numéro absent de la spec) : ${stale.sort().join(', ')}`);
     return 0;
   }
+  const ownPr = specsPendingOnTheirOwnPr(fs.readdirSync(path.join(ROOT, 'specs')).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(ROOT, 'specs', f), 'utf8') : '']));
   let total = 0; let covered = 0; let exempt = 0; let pending = 0;
   for (const s of specs) { total += s.total; covered += s.covered; exempt += s.exempt; pending += s.pending; }
   console.log('');
@@ -529,13 +553,17 @@ function report({ specName }) {
     console.log(`${('specs/' + s.name + '.md').padEnd(62)} ${String(s.covered).padStart(3)}/${String(s.total).padEnd(3)}  manquantes : ${s.missing.join(', ')}`);
   }
   const pct = total ? Math.round((covered / total) * 100) : 0;
+  for (const s of specs.filter((x) => x.pendingCited.length)) {
+    console.log(`⚠ specs/${s.name}.md : règle(s) citée(s) par un test mais encore « Pending » (${s.pendingCited.join(', ')}) : annoncées en attente, non prouvées.`);
+  }
   console.log(`\nTotal : ${total} règles, ${covered} couvertes (${pct} %), ${exempt} déclarées sans test${pending ? `, ${pending} en attente (Pending)` : ''}.`);
   if (orphans.length) {
     console.log(`\nCitations orphelines (spec ou règle inexistante) : ${orphans.length}`);
     for (const o of orphans.slice(0, 15)) console.log(`  ${o.file} → specs/${o.spec}.md règle ${o.rule} (${o.why})`);
     if (orphans.length > 15) console.log(`  … et ${orphans.length - 15} autres`);
   }
-  return 0;
+  for (const d of ownPr) console.error(`✗ specs/${d.spec}.md : règle(s) « Pending — PR ${d.pr} » (${d.rules.join(', ')}) alors que la spec est « In progress — PR ${d.pr} ».`);
+  return ownPr.length ? 1 : 0;
 }
 
 function gate(base) {
@@ -550,6 +578,12 @@ function gate(base) {
   if (stale.length) {
     for (const d of stale) console.error(`✗ specs/${d.spec}.md : règle(s) encore « Pending » (${d.rules.join(', ')}) alors que la spec n'est plus « In progress ».`);
     console.error('\n  « Pending » ne vaut que tant que la spec est « In progress » : citez la règle par un test, ou déclarez-la « Sans test ».');
+    return 1;
+  }
+  const ownPr = specsPendingOnTheirOwnPr(fs.readdirSync(dir).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(dir, f), 'utf8') : '']));
+  if (ownPr.length) {
+    for (const d of ownPr) console.error(`✗ specs/${d.spec}.md : règle(s) « Pending — PR ${d.pr} » (${d.rules.join(', ')}) alors que la spec est « In progress — PR ${d.pr} » : PR ${d.pr} ne peut pas laisser du travail de PR ${d.pr} en attente.`);
+    console.error('\n  Livrez la règle et retirez sa ligne Pending, ou renvoyez-la à la PR suivante.');
     return 1;
   }
   const { addedRules, modifiedRules, exempt, codeCitations } = changedRules(base);
