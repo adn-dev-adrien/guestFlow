@@ -437,8 +437,8 @@ function planSchedule({
 const percent = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100 ? null : 'Un pourcentage entre 0 et 100 est attendu.');
 const days = (value) => (Number.isInteger(Number(value)) && Number(value) >= 0 ? null : 'Un nombre de jours entier est attendu.');
 const settingsSchema = [
-  { key: 'depositPercent', type: 'number', default: 30, scope: 'property', validate: percent },
-  { key: 'depositEnabled', type: 'number', default: 0, scope: 'property', validate: (value) => ([0, 1].includes(Number(value)) ? null : 'Choix invalide.') },
+  { key: 'depositPercent', type: 'number', default: 0, scope: 'property', validate: percent },
+  { key: 'depositEnabled', type: 'number', default: 1, scope: 'property', validate: (value) => ([0, 1].includes(Number(value)) ? null : 'Choix invalide.') },
   { key: 'depositDueDays', type: 'number', default: 7, scope: 'property', validate: days },
   { key: 'balanceDaysBefore', type: 'number', default: 30, scope: 'property', validate: days },
   { key: 'cancelAfterBalanceDueDays', type: 'number', default: 7, scope: 'property', validate: days },

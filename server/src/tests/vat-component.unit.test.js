@@ -151,13 +151,12 @@ test('rule 65 — the Qonto basket helpers keep their integer-cent arithmetic', 
   }
 });
 
-test('rule 50 — settingsSchema declares the regime and a rate per (vatClass, customerContext), null following the regime', () => {
+test('rule 50 — settingsSchema declares a rate per (vatClass, customerContext), null following the regime; the regime is not a setting', () => {
   const by = Object.fromEntries(settingsSchema.map((entry) => [entry.key, entry]));
-  assert.equal(by.regime.default, 'subject');
-  assert.notEqual(by.regime.validate('exempt'), null);
+  assert.equal(by.regime, undefined);
   assert.equal(by[rateKey('options', 'hosted')].default, null);
   assert.equal(by[rateKey('options', 'hosted')].validate(null), null);
   assert.equal(by[rateKey('options', 'hosted')].validate(5.5), null);
   assert.notEqual(by[rateKey('options', 'hosted')].validate(120), null);
-  assert.equal(settingsSchema.length, 1 + 4 * 2);
+  assert.equal(settingsSchema.length, 4 * 2);
 });

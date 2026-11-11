@@ -7,7 +7,7 @@
  * tax the platform withheld or reverses, floored at 0 and rounded to the cent; `null` without a gross. `platformLines`
  * is a total or a list of line totals; `withheldTax` is a total or the list `[reversed, withheld]`. `commission` and
  * `payout` are always `null`: the engine never computes a commission from a rate (rule 70), it is a stored figure read
- * by PLATFORM PAYMENT, whatever the `mode` setting says.
+ * by PLATFORM PAYMENT.
  * `grossFromNet(net, commissionPercent, opts)` is the display-only gross-up the platform grid prints.
  *
  * Pure: no DB, no clock, no settings.
@@ -58,9 +58,8 @@ function resolvePlatformPrice({
 
 // specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('platformPrice', scope).
 const settingsSchema = [
-  { key: 'mode', type: 'string', default: 'gross', scope: 'property', validate: (value) => (['gross', 'commission'].includes(value) ? null : 'Choix invalide.') },
   {
-    key: 'commissionRate', type: 'number', default: 0, scope: 'property',
+    key: 'commissionRate', type: 'number', default: 0, scope: 'global',
     validate: (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) < 100 ? null : 'Un pourcentage inférieur à 100 est attendu.'),
   },
 ];

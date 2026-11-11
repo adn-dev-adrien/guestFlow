@@ -5,23 +5,50 @@
  * Contract: `create(db).for(componentId, scope)` → `{ [key]: value }`, each key resolved article → property → global →
  * default. `scope` is `{ propertyId?, articleRef?, platform? }`. A component declares its keys in its exported
  * `settingsSchema` (`[{ key, type, default, scope, validate }]`, the shape plugins use for `SETTINGS`; `validate(value)`
- * returns a French message to refuse, or null). A key declared at scope S may be supplied by the layer S or a narrower
- * one. A layer that has no value for a key says nothing (`undefined`), so the next one answers.
+ * returns a French message to refuse, or null). A key's `scope` is the NARROWEST layer allowed to set it: a key declared
+ * at property scope is answered by the property layer, else by the global one; an article layer is ignored for it.
+ * A layer that has no row or column for a key says nothing (`undefined`), so the next one answers; a row whose column is
+ * NULL says `null`, and `null` is a value that wins. The default applies only when every layer said `undefined`, and it
+ * is what the engine does with an absent column: the steps read the values as they read the property row before.
  *
  * PR A adapters read exactly today's columns, so every quote stays byte-identical: no component reads a property row,
  * this module does. `create(db, { extra })` adds components (`{ [id]: { settingsSchema, read: { [layer]: (db, scope) =>
  * partial { key: value } | undefined } } }`): the article families register theirs that way.
+ *
+ * `articles` — `scope.articleRef` is `{ kind: 'option' | 'resource', id }`. Article layer: the lodging's override row
+ * (`property_option_prices` price / freeUnits; `property_resource_prices` price / freeMinutes, a NULL column being no
+ * override); global layer: the catalogue row (`options.price`, `resources.price`); property layer: `maxGuests`.
  */
 const { settingsSchema: nightsSchema, parseJsonArray } = require('../../utils/pricing/nights');
 const { settingsSchema: extraGuestsSchema } = require('../../utils/pricing/extraGuests');
 const { settingsSchema: touristTaxSchema } = require('../../utils/pricing/touristTax');
 const { settingsSchema: stayClockSchema } = require('../../utils/pricing/stayClock');
 const { settingsSchema: scheduleSchema } = require('../../utils/pricing/schedule');
+const { settingsSchema: platformPriceSchema } = require('../../utils/pricing/platformPrice');
+const { settingsSchema: vatSchema } = require('../../utils/pricing/vat');
+const { platformCollectsTouristTax, touristTaxRemittedByOwner } = require('../../utils/pricing/touristTax');
 
 const LAYERS = ['article', 'property', 'global'];
 const WIDTH = { global: 0, property: 1, article: 2 };
 
-const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+const nonNegative = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
+
+// The settings of the article families' component: the price and free units an article is sold at, and the lodging's
+// capacity. Defaults are what the catalogue does with an absent row (free units 0, no capacity ceiling).
+const articlesSchema = [
+  { key: 'price', type: 'number', default: 0, scope: 'article', validate: nonNegative },
+  { key: 'freeUnits', type: 'number', default: 0, scope: 'article', validate: nonNegative },
+  { key: 'freeMinutes', type: 'number', default: 0, scope: 'article', validate: nonNegative },
+  {
+    key: 'maxGuests', type: 'number', default: null, scope: 'property',
+    validate: (value) => (value === null || nonNegative(value) === null ? null : 'Un nombre positif ou nul est attendu.'),
+  },
+];
+
+// A schema without the table or the column is a schema without the setting: the layer says nothing.
+function rowOrUndefined(db, sql, ...params) {
+  try { return db.prepare(sql).get(...params); } catch { return undefined; }
+}
 
 function propertyRow(db, propertyId) {
   const id = Number(propertyId);
@@ -33,7 +60,7 @@ const ADAPTERS = {
   nights: {
     property(db, scope) {
       const id = Number(scope.propertyId);
-      if (!(id > 0) || !hasTable(db, 'pricing_rules')) return undefined;
+      if (!(id > 0)) return undefined;
       return { tariff: { rules: db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(id) } };
     },
   },
@@ -61,10 +88,11 @@ const ADAPTERS = {
         fixedAmount: property.touristTaxFixedAmount,
       };
       if (scope.platform) {
-        const pricing = require('../../utils/pricing');
+        const { resolveGlobalPlatformTaxRow } = require('../pricingInputModel');
+        const row = resolveGlobalPlatformTaxRow(db, scope.platform);
         values.collector = {
-          chargedByPlatform: pricing.isPlatformCollectingTouristTax(db, scope.propertyId, scope.platform),
-          remittedByOwner: pricing.isTouristTaxRemittedByOwner(db, scope.propertyId, scope.platform),
+          chargedByPlatform: platformCollectsTouristTax(scope.platform, row),
+          remittedByOwner: touristTaxRemittedByOwner(scope.platform, row),
         };
       }
       return values;
@@ -90,10 +118,58 @@ const ADAPTERS = {
       };
     },
   },
+  // No layer supplies a rate in PR A: the regime's rate answers (`rate.resources.external` arrives with PR B).
+  vat: {},
+  platformPrice: {
+    global(db, scope) {
+      if (!scope.platform) return undefined;
+      const row = rowOrUndefined(db, 'SELECT commissionPercent FROM platforms WHERE name = ?', String(scope.platform));
+      return row ? { commissionRate: row.commissionPercent } : undefined;
+    },
+  },
+  articles: {
+    article(db, scope) {
+      const ref = scope.articleRef;
+      const propertyId = Number(scope.propertyId);
+      if (!ref || !(propertyId > 0)) return undefined;
+      if (ref.kind === 'option') {
+        const row = rowOrUndefined(db, 'SELECT price, freeUnits FROM property_option_prices WHERE optionId = ? AND propertyId = ?', ref.id, propertyId)
+          || rowOrUndefined(db, 'SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?', ref.id, propertyId);
+        return row ? { price: row.price, freeUnits: row.freeUnits } : undefined;
+      }
+      if (ref.kind === 'resource') {
+        const row = rowOrUndefined(db, 'SELECT price, freeMinutes FROM property_resource_prices WHERE resourceId = ? AND propertyId = ?', ref.id, propertyId);
+        if (!row) return undefined;
+        const values = {};
+        if (row.price != null) values.price = row.price;
+        if (row.freeMinutes != null) values.freeMinutes = row.freeMinutes;
+        return values;
+      }
+      return undefined;
+    },
+    property(db, scope) {
+      const property = propertyRow(db, scope.propertyId);
+      return property ? { maxGuests: property.maxGuests } : undefined;
+    },
+    global(db, scope) {
+      const ref = scope.articleRef;
+      const table = ref && ref.kind === 'option' ? 'options' : ref && ref.kind === 'resource' ? 'resources' : null;
+      if (!table) return undefined;
+      const row = rowOrUndefined(db, `SELECT price FROM ${table} WHERE id = ?`, ref.id);
+      return row ? { price: row.price } : undefined;
+    },
+  },
 };
 
 const SCHEMAS = {
-  nights: nightsSchema, extraGuests: extraGuestsSchema, touristTax: touristTaxSchema, stayClock: stayClockSchema, schedule: scheduleSchema,
+  nights: nightsSchema,
+  extraGuests: extraGuestsSchema,
+  touristTax: touristTaxSchema,
+  stayClock: stayClockSchema,
+  schedule: scheduleSchema,
+  vat: vatSchema,
+  platformPrice: platformPriceSchema,
+  articles: articlesSchema,
 };
 
 function create(db, { extra = {} } = {}) {
@@ -118,9 +194,9 @@ function create(db, { extra = {} } = {}) {
     for (const entry of schema) {
       out[entry.key] = entry.default;
       for (const layer of ['global', 'property', 'article']) {
-        if (WIDTH[layer] < WIDTH[entry.scope]) continue;
+        if (WIDTH[layer] > WIDTH[entry.scope]) continue;
         const value = layers[layer] ? layers[layer][entry.key] : undefined;
-        if (value !== undefined && value !== null) out[entry.key] = value;
+        if (value !== undefined) out[entry.key] = value;
       }
     }
     return out;

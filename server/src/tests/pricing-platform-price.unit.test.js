@@ -51,11 +51,10 @@ test('rule 17 — grossFromNet is the one function the catalogue grid and the en
   assert.equal(grossFromNet(80, -5), 80);
 });
 
-test('rule 50 — settingsSchema: gross / commission mode and a rate below 100', () => {
+test('rule 50 — settingsSchema: a global commission rate below 100, no mode (it returns with its reader in PR B)', () => {
   const by = Object.fromEntries(settingsSchema.map((entry) => [entry.key, entry]));
-  assert.equal(by.mode.default, 'gross');
-  assert.equal(by.mode.validate('commission'), null);
-  assert.notEqual(by.mode.validate('net'), null);
+  assert.equal(by.mode, undefined);
+  assert.equal(by.commissionRate.scope, 'global');
   assert.equal(by.commissionRate.validate(15), null);
   assert.notEqual(by.commissionRate.validate(100), null);
   assert.notEqual(by.commissionRate.validate(-1), null);

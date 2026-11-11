@@ -164,7 +164,7 @@ test('rule 50 — settingsSchema: the percentage, the switch and the day counts 
   assert.notEqual(by.depositDueDays.validate(-1), null);
 });
 
-test('rule 50 — SettingsProvider.for("schedule") reads today\'s property columns, falling back to the defaults', () => {
+test('rule 50 — SettingsProvider.for("schedule") reads today\'s property columns, a NULL column stays NULL, an absent one takes the engine\'s default', () => {
   const Database = require('better-sqlite3');
   const settingsProvider = require('../models/ports/settingsProvider');
   const db = new Database(':memory:');
@@ -172,8 +172,10 @@ test('rule 50 — SettingsProvider.for("schedule") reads today\'s property colum
   db.prepare('INSERT INTO properties (id, depositPercent, depositEnabled, depositDueDays, balanceDaysBefore, cancelAfterBalanceDueDays) VALUES (1, 25, 1, 5, 21, NULL)').run();
   const settings = settingsProvider.create(db).for('schedule', { propertyId: 1 });
   assert.deepEqual(settings, {
-    depositPercent: 25, depositEnabled: 1, depositDueDays: 5, balanceDaysBefore: 21, cancelAfterBalanceDueDays: 7,
+    depositPercent: 25, depositEnabled: 1, depositDueDays: 5, balanceDaysBefore: 21, cancelAfterBalanceDueDays: null,
   });
-  assert.equal(settingsProvider.create(db).for('schedule', { propertyId: 99 }).depositPercent, 30);
+  assert.deepEqual(settingsProvider.create(db).for('schedule', { propertyId: 99 }), {
+    depositPercent: 0, depositEnabled: 1, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
+  });
   db.close();
 });
