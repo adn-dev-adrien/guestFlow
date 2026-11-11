@@ -1,6 +1,7 @@
 const priceLineContributors = require('./priceLineContributors');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { roundMoney } = require('./pricing/money');
+const { clampCommissions, netReceived } = require('./pricing/platformPayment');
 
 // What an option line's `quantity` counts, when the summary has to say it
 // (specs/review-2026-10-18-reservations.md rule 5; review F13:
@@ -2834,39 +2835,16 @@ function calculateReservationQuote({
     resolvedBalanceAmount = 0;
   }
 
-  // specs/platform-commission-line.md — the platform commission is operator-entered (€, TTC) and only
-  // applies to a non-direct platform; direct bookings have no commission (always 0). Negative input is
-  // clamped to 0. The net the operator receives = total séjour − commission (null when no commission,
-  // so the summary shows the single « Total du séjour TTC » line).
-  // specs/platform-per-echeance-commission.md — per-échéance platform commissions, operator-entered (€).
-  // Both ≥ 0, non-direct only. The acompte/solde AMOUNTS are gross (what the guest pays); the commissions
-  // are tracked separately and booked on the platform account per échéance. Net perçu = total − Σ.
-  // Rule 3 + edge case — each commission is clamped to ITS échéance (net cash ≥ 0): a 100 € commission
-  // typed on a 0 € acompte used to flow into finance as a −100 € net (spec review 2026-10-27). Clamped
-  // here, after the split, because the échéance amounts are only known now. An installment plan holds
-  // the whole pre-arrival amount, so it is the solde's cap there.
-  const clampCommission = (input, echeanceAmount) => {
-    const n = input === '' || input == null ? 0 : Number(input);
-    if (!channel.namedChannel || !Number.isFinite(n) || n <= 0) return 0;
-    return roundMoney(Math.min(n, Math.max(0, Number(echeanceAmount) || 0)));
-  };
-  const platformCommissionAmount = clampCommission( // solde
-    platformCommissionAmountInput,
-    installmentPlan ? preArrivalAmount : resolvedBalanceAmount,
-  );
-  const acompteCommissionAmount = clampCommission(acompteCommissionAmountInput, resolvedDepositAmount); // acompte
-  const totalPlatformCommission = roundMoney(platformCommissionAmount + acompteCommissionAmount);
-  // Net perçu = what the platform actually settles to us = the PRE-ARRIVAL amount (acompte + solde) minus
-  // its commission. It must NOT be based on `totalStayPrice`: the complement (the on-arrival tourist tax
-  // for owner-collect platforms — `touristTaxCollectedOnArrival` — plus any on-site extras) is collected
-  // by US at check-in, never by the platform. Using `totalStayPrice` over-counted the platform's payout by
-  // exactly the complement, so the « Paiement plateforme » reconciliation always showed an écart equal to
-  // the tourist tax (specs/platform-payment-entry.md). `preArrivalAmount` already routes the tax to the
-  // right bucket, so for tax-collecting platforms (tax in the balance, complement = 0) the value is
-  // unchanged (= totalStayPrice − commission).
-  const platformNetReceivedAmount = totalPlatformCommission > 0
-    ? roundMoney(preArrivalAmount - totalPlatformCommission)
-    : null;
+  const { solde: platformCommissionAmount, acompte: acompteCommissionAmount, total: totalPlatformCommission } = clampCommissions({
+    channel,
+    solde: platformCommissionAmountInput,
+    acompte: acompteCommissionAmountInput,
+    installmentPlan,
+    preArrivalAmount,
+    balanceAmount: resolvedBalanceAmount,
+    depositAmount: resolvedDepositAmount,
+  });
+  const platformNetReceivedAmount = netReceived({ preArrivalAmount, totalPlatformCommission });
 
   // specs/payment-schedule-and-cancellation.md §3.1-§3.2 — the acompte is due `depositDueDays` after
   // the BOOKING and never moves again (`existingDepositDueDate` wins on every recompute); the solde
