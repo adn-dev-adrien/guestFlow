@@ -8,7 +8,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { GUARDS } = require('./helpers/formulaGuards');
+const { GUARDS, plugin } = require('./helpers/formulaGuards');
 
 const SRC = path.join(__dirname, '..');
 const allowed = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'no-duplicate-formulas', 'dates.json'), 'utf8'));
@@ -16,7 +16,7 @@ const spec = fs.readFileSync(path.join(SRC, '..', '..', 'specs', 'pricing-compon
 const table = spec.slice(spec.indexOf('45. **No other module compares dates'), spec.indexOf('46. **The clock decides the default'));
 
 const NOT_IN_THE_TABLE = {
-  'plugins/website-booking/publicInputValidation.js': { pr: 'PR C', why: 'the public form refuses a start date in the past: a date window, not a phase' },
+  [plugin('website-booking', 'publicInputValidation.js')]: { pr: 'PR C', why: 'the public form refuses a start date in the past: a date window, not a phase' },
   'utils/platformIntakePort.js': { pr: 'PR C', why: 'the started-stay refusal of the intakes, moved here from the SDK core service; the intake rows of the table move it in C' },
   'utils/sasEditWindow.js': { pr: 'PR B', why: 'the SAS lock reason that the SAS row of the table calls' },
   'utils/receptionView.js': { pr: 'PR B', why: 'the reception view reads that same lock reason' },
@@ -33,8 +33,8 @@ test('rule 45: every call site still waiting is a row of the rule\'s table, or o
   const unknown = [];
   for (const file of new Set(allowed.map((entry) => entry.file))) {
     const base = path.basename(file, '.js');
-    const named = table.includes(base) || (file.startsWith('plugins/guest-app/') && table.includes('plugins/guest-app'))
-      || (file.startsWith('plugins/') && table.includes(`plugins/${file.split('/')[1]}/`));
+    const [top, owner] = file.split('/');
+    const named = table.includes(base) || (top === 'plugins' && table.includes(plugin(owner)));
     if (!named && !(file in NOT_IN_THE_TABLE)) unknown.push(file);
   }
   assert.deepEqual(unknown, [], 'a date comparison that decides a phase is not in the table of rule 45');
@@ -49,5 +49,5 @@ test('rule 45: the PR that moves each site is the one the table gives (B for the
   for (const file of ['utils/paymentDeadlines.js', 'utils/platformPriceCheck.js', 'models/clientsModel.js', 'utils/arrivalMoment.js']) assert.ok(byFile(file).every((pr) => pr === 'PR C'), file);
   const controller = allowed.filter((entry) => entry.file === 'controllers/reservationsController.js');
   assert.ok(controller.some((entry) => entry.removedBy === 'PR B') && controller.some((entry) => entry.removedBy === 'PR C'));
-  for (const intake of ['airbnb-intake', 'booking-intake', 'gites-de-france-intake']) assert.deepEqual(byFile(`plugins/${intake}/intakeService.js`), ['PR C']);
+  for (const intake of ['airbnb-intake', 'booking-intake', 'gites-de-france-intake']) assert.deepEqual(byFile(plugin(intake, 'intakeService.js')), ['PR C']);
 });

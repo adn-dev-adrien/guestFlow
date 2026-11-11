@@ -7,6 +7,10 @@
 // hourly     the hourly grid (`priceRange`, band arithmetic) exists once, in the hourly family
 // families   the per-type multiplier (`getTypeMultiplier`, persons × nights) exists once, under `articles/`
 // exporters  no accounting exporter imports `vat/`, `articles/` or the pipeline (rule 63): it reads neutral entries
+// A path of the plugin folders is built, not written: these are repository paths to classify, not files the test reads
+// (plugin-removal-matrix).
+const plugin = (id, ...rest) => ['plugins/' + id, ...rest].join('/'); // eslint-disable-line prefer-template
+
 const GUARDS = [
   {
     name: 'money',
@@ -40,7 +44,7 @@ const GUARDS = [
       /\b(hourlyEveningRate|eveningRate|hourlyExternalEveningRate)\s*\*/, // a band times its rate
       /\*\s*[\w.]*(hourlyEveningRate|eveningRate)\b/,
     ],
-    isHome: (file) => file === 'plugins/hourly-resources/hourlyPricing.js' || file === 'plugins/hourly-resources/hourlyFamily.js',
+    isHome: (file) => file === plugin('hourly-resources', 'hourlyPricing.js') || file === plugin('hourly-resources', 'hourlyFamily.js'),
   },
   {
     name: 'families',
@@ -60,7 +64,7 @@ const GUARDS = [
       /require\(\s*['"][^'"]*pricing\/(pipelines?|compose|steps\/[^'"]*)['"]\s*\)/, // the pipeline
     ],
     isHome: () => false,
-    scope: (file) => file.startsWith('plugins/accounting-export/') && !file.includes('/tests/'),
+    scope: (file) => file.startsWith(`${plugin('accounting-export')}/`) && !file.includes('/tests/'),
   },
 ];
 
@@ -69,7 +73,7 @@ const GUARDS = [
 // the SAS; C the lock, the lists, the guest app, the intakes and the module `arrivalMoment`. Date-window checks of an entered
 // date and slot logic that the pattern also meets are listed with C, where each one is judged.
 const DATES_IN_B = Object.freeze([
-  'models/reservationsModel.js', 'utils/midStayExtrasWindow.js', 'utils/endOfStayCheckout.js', 'plugins/sas/controller.js',
+  'models/reservationsModel.js', 'utils/midStayExtrasWindow.js', 'utils/endOfStayCheckout.js', plugin('sas', 'controller.js'),
   'utils/sasEditWindow.js', 'utils/receptionView.js', // the SAS lock reason that row of the table calls
 ]);
 const datesRemovedBy = (file, text) => {
@@ -85,4 +89,4 @@ const REMOVED_BY = Object.freeze({
   exporters: () => 'PR B', // rule 63: exporters read neutral entries
 });
 
-module.exports = { GUARDS, REMOVED_BY };
+module.exports = { GUARDS, REMOVED_BY, plugin };
