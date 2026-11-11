@@ -1,5 +1,6 @@
 const priceLineContributors = require('./priceLineContributors');
 const vatRegimeModel = require('../models/vatRegimeModel');
+const { roundMoney } = require('./pricing/money');
 
 // What an option line's `quantity` counts, when the summary has to say it
 // (specs/review-2026-10-18-reservations.md rule 5; review F13:
@@ -42,10 +43,6 @@ const { readSplitReceived, unreceivedOf } = require('./splitReceived');
 const {
   findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
 } = require('./babyBedSupplement');
-
-function roundMoney(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
 
 // Gross-up a net price by a platform commission % so that, after the platform takes its commission,
 // the owner nets `net`: gross = (net + fixedCost) / (1 − c/100). c is clamped to [0, 99.99]; a value
