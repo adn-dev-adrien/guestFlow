@@ -3,13 +3,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  anonymise, ALLOW_LIST, INTAKE_TABLES, PLUGIN_SETTINGS_KEPT, makeLabeler, scrubJson, scrubIntakeParsed,
+  anonymise, ALLOW_LIST, INTAKE_TABLES, PLUGIN_SETTINGS_KEPT, JSON_COLUMNS, makeLabeler, scrubJson, scrubIntakeParsed,
 } = require('../../../scripts/price-gate/anonymise');
 
 test('rule 68: the allow-list names no client, history, e-mail table nor a free-text or secret column', () => {
   for (const table of Object.keys(ALLOW_LIST)) {
     assert.ok(!/^(clients|reservation_history|email_|guest_email_sends|users|sessions)/.test(table), table);
-    for (const column of ALLOW_LIST[table]) {
+    for (const column of ALLOW_LIST[table].filter((c) => !(JSON_COLUMNS[table] || []).includes(c))) { // a JSON column has its text replaced (`scrubJson`)
       assert.ok(!/(^|[a-z])(notes?|comment|message|reason|secret|token|password|passwordHash|iban|bic|apiKey|url|email|phone|firstName|lastName)$/i.test(column),
         `${table}.${column} looks like free text, a secret or an identity`);
     }
@@ -110,4 +110,29 @@ test('rule 68: the labeler and the scrubbers are stable and total', () => {
   assert.equal(scrubJson('', labeler), '');
   assert.equal(scrubIntakeParsed(null, 1), null);
   assert.equal(scrubIntakeParsed('nope', 1), null);
+});
+
+test('rule 68: the mid-stay notes settled on a stay are copied with their labels replaced, as JSON', () => {
+  const notes = JSON.stringify([{ id: 1, paidDate: 'd1', paidCash: 1, total: 39.25, lines: [{ label: 'Private label', qty: 1, unitPrice: 26.35, amount: 26.35, key: 'opt:9' }, { label: 'Another label', key: 'custom:private label', amount: 12.9 }] }]);
+  const copied = anonymise({ reservations: [{ id: 7, midStaySettledNotes: notes, notes: 'free text' }] });
+  assert.ok(ALLOW_LIST.reservations.includes('midStaySettledNotes'));
+  const kept = JSON.parse(copied.reservations[0].midStaySettledNotes);
+  assert.deepEqual(kept[0].lines.map((l) => l.label), ['Line 1', 'Line 2']);
+  assert.equal(kept[0].lines[1].key, 'custom:line 1', 'the custom key follows the same placeholder as the label of that text');
+  assert.deepEqual([kept[0].paidCash, kept[0].total, kept[0].lines[0].amount, kept[0].lines[0].key], [1, 39.25, 26.35, 'opt:9']);
+  assert.ok(!JSON.stringify(copied).includes('rivate'));
+  assert.ok(!('notes' in copied.reservations[0]));
+});
+
+test('rule 68: a resource booking copies its price columns and its payment tenders, never the guest it was made for', () => {
+  const copied = anonymise({
+    resource_bookings: [{
+      id: 3, resourceId: 301, reservationId: null, propertyId: 5, date: 'd1', startTime: '17:00', endTime: '20:00', totalPrice: 78.75, paid: 1, offeredMinutes: 30,
+      paidAt: 'd2', paymentRecordedAt: 't', paidVatRate: 20, paymentTenders: '[{"method":"card","amountCents":5000,"internal":false}]',
+      clientId: 9, clientName: 'A Name', clientPhone: '0612345678', notes: 'free text', billingStreet: 'a street', billingCity: 'a city', invoiceNumber: 'F-1',
+    }],
+  });
+  assert.deepEqual(Object.keys(copied.resource_bookings[0]), ALLOW_LIST.resource_bookings);
+  assert.equal(copied.resource_bookings[0].paymentTenders, '[{"method":"card","amountCents":5000,"internal":false}]');
+  for (const column of ['clientId', 'clientName', 'clientPhone', 'notes', 'billingStreet', 'billingCity', 'invoiceNumber']) assert.ok(!(column in copied.resource_bookings[0]), column);
 });

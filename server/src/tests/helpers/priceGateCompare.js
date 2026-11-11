@@ -1,9 +1,10 @@
 /**
- * Cent-exact comparison of two price-gate figure sets (specs/pricing-components.md §3 rule 68).
+ * Exact comparison of two price-gate figure sets (specs/pricing-components.md §3 rule 68).
  *
  * `compareFigures(expected, actual, allowlist)` takes `{ [reservationId]: figures }` twice (see
  * `scripts/price-gate/figuresOf.js`) and returns EVERY difference as `{ reservationId, field, expected, actual }`:
- * no tolerance, no wildcard, no rounding slack. A stay or a figure present on one side only is a difference.
+ * no tolerance, no wildcard, no rounding slack — two values are the same figure when `Object.is` says so (12.345 is
+ * not 12.35, 0.1 + 0.2 is not 0.3, -0 is not 0). A stay or a figure present on one side only is a difference.
  *
  * The only exception is the versioned allowlist (`fixtures/price-gate/allowlist.json`): an entry
  * `{ reservationId, field, old, corrected, reason, rule, defect, approvedBy, approvedAt }` removes ONE

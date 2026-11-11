@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 68 — `helpers/priceGateCompare.js`: cent-exact, every difference returned, the
+// specs/pricing-components.md §3 rule 68 — `helpers/priceGateCompare.js`: exact (`Object.is`), every difference returned, the
 // allowlist absorbs exactly one field of one stay with exactly its old and corrected values.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -74,4 +74,9 @@ test('rule 68: an incomplete allowlist entry is refused before any comparison', 
   assert.ok(allowlistProblems([entry({ old: 5, corrected: 5 })]).some((p) => p.includes('equal')));
   assert.ok(allowlistProblems('nope').length > 0);
   assert.throws(() => compareFigures({}, {}, [entry({ approvedBy: ' ' })]), /allowlist is invalid/);
+});
+
+test('rule 68: no rounding slack — 12.345 and 12.35, 0.3 and 0.1 + 0.2, 0 and -0 are different figures, NaN is NaN', () => {
+  const { differences } = compareFigures({ 1: { a: 12.345, b: 0.3, c: 0, d: Number.NaN, e: 1.005 } }, { 1: { a: 12.35, b: 0.1 + 0.2, c: -0, d: Number.NaN, e: 1.005 } });
+  assert.deepEqual(differences.map((d) => d.field), ['a', 'b', 'c']);
 });

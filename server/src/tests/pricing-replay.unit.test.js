@@ -1,6 +1,7 @@
 // specs/pricing-components.md §3 rule 34 — the prod replay hashes every money reader: `scripts/pricing-replay.mjs` extends the VAT
 // golden replay with the live quote, the no-op save, the SAS plans, the cancellation preview, the arrival-payment detail, the
-// collected splits, the tourist-tax figure and the price gate's figures per stay, and the month readers (accounting CSV,
+// collected splits, the tourist-tax figure and the price gate's figures per stay, every standalone resource booking and the
+// accounting synthesis of every year, and the month readers (accounting CSV,
 // tourist-tax report, finance views) it inherits. Run on a COPY of the snapshot at the checkpoints; here its artefact list is held.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,7 +11,7 @@ const path = require('node:path');
 const script = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'scripts', 'pricing-replay.mjs'), 'utf8');
 
 test('rule 34: the replay names every artefact family of the rule', () => {
-  for (const artefact of ['live-quote/', 'noop-save/', 'sas/', 'cancel-preview/', 'fiche-money/', 'splits/', 'tourist-tax-figure/', 'figures/']) {
+  for (const artefact of ['live-quote/', 'noop-save/', 'sas/', 'cancel-preview/', 'fiche-money/', 'splits/', 'tourist-tax-figure/', 'figures/', 'resource-booking/', 'synthesis/']) {
     assert.ok(script.includes(`${artefact}`), artefact);
   }
 });

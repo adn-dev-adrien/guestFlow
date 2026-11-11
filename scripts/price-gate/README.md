@@ -7,16 +7,24 @@ to the cent, with the figures captured on the baseline code.
 | File | Role |
 | --- | --- |
 | `buildFixture.mjs` | The capture: production copy + synthetic stays, writes the three fixture files |
-| `buildSynthetic.js` | The synthetic refund stays, played through the real controllers on an in-memory database |
-| `recompute.js` | What the gate runs on a database (shared by the capture and the tests) |
-| `figuresOf.js` | The flat figure set of one stay (quote, schedule, paid, cancellation, platform, refunds) |
+| `buildSynthetic.js` | The synthetic stays (refund cases and every other money path the snapshot has no example of), played through the real controllers on an in-memory database |
+| `buildResourceBookings.js`, `buildQuoteHashes.js`, `replaySyntheticIntakes.js` | Children of the capture: the resource-booking figures, the whole-quote fingerprints and the crafted intakes' replay, each on a database loaded from the anonymised rows |
+| `recompute.js` | What the gate runs on a database (shared by the capture and the tests): the stays at their four instants, the resource bookings, the intake replays |
+| `figuresOf.js` | The flat figure set of one stay (quote, schedule, paid, cancellation, platform, refunds), exact |
 | `anonymise.js` | The allow-list copy of the rows a price needs |
 | `move-proof.mjs`, `moveProof.js` | The move proof of PR A (every moved line found verbatim) |
 
 ## Figures per stay
 
-Quote, nights, lines, totals, tourist tax, VAT, schedule, installments, paid flags, cancellation preview, platform payment
-and, since rule 72: the refundable lines (`refund.line.*`), the collected TTC (`refund.collected`), the refunds made
+Every number is written exactly as the code returned it (`12.345` is not `12.35`; NaN and Infinity are written as their names, -0 as 0).
+Every stay is read at four instants derived from its own row by `recompute.js` — the capture day (`@capture`), the minute before
+and the minute of its arrival at 15:00 Paris (`@arrival-1459`, `@arrival-1500`) and the noon after its departure (`@after`) — so a
+date-dependent figure (overdue flags, the operational collection, due dates) is judged, and a figure's name ends with its instant.
+
+Quote, nights, lines, totals, tourist tax, VAT, schedule, installments, paid flags, the overdue flags (`status.*`) and the operational
+collection (`collection.*`), cancellation preview, the commissions a cancellation reverses (`cancel.withheld.*`, read from the
+requalification the application builds in a rolled-back cancellation, never recomputed by the harness), platform payment (the stored
+columns are named `input.platform.*`) and, since rule 72: the refundable lines (`refund.line.*`), the collected TTC (`refund.collected`), the refunds made
 (`refund.made.*`), the stored and the live trop-perçu with their lines (`overpayment.stored.*`, `overpayment.live.*`) and the
 accounting-export entries of the stay's refunds (`refund.journal.*`). A custom line is numbered (`custom#1`), never named; the
 client's auxiliary account is written `client`.
@@ -32,7 +40,7 @@ git worktree add --detach "$SCRATCH/gate-base" price-gate-baseline     # for the
 (cd "$SCRATCH/gate-base" && npm ci && cd server && npm ci)
 # the CURRENT gate scripts and tests run on the baseline code (untracked there)
 cp -R scripts/price-gate "$SCRATCH/gate-base/scripts/"
-cp server/src/tests/price-gate*.test.js "$SCRATCH/gate-base/server/src/tests/"
+cp server/src/tests/price-gate*.test.js server/src/tests/platform-intake-replay.unit.test.js "$SCRATCH/gate-base/server/src/tests/"
 mkdir -p "$SCRATCH/gate-base/server/src/tests/fixtures/price-gate" "$SCRATCH/gate-base/server/src/tests/helpers"
 cp server/src/tests/helpers/priceGateCompare.js "$SCRATCH/gate-base/server/src/tests/helpers/"
 cp server/src/tests/fixtures/price-gate/allowlist.json "$SCRATCH/gate-base/server/src/tests/fixtures/price-gate/"
@@ -47,4 +55,11 @@ baseline code. Then run the gate on the branch: `cd server && node --test src/te
 the branch is a regression of the branch, never a reason to recapture. The three JSON files are committed once, on the tag.
 
 The synthetic section (`synthetic` in `inputs.json` and `expected.json`) is built by `buildSynthetic.js` in a child process
-(`DB_PATH=:memory:`), from the shared fixture `server/src/tests/moneyLedgerFixture.js`; it prints ids only.
+(`DB_PATH=:memory:`), from the shared fixture `server/src/tests/moneyLedgerFixture.js`; it prints ids only. One named case per money
+path: the refund cases, `discount-7.77pct`, `progressive-option-fresh` / `-sold`, `percent-of-stay-insurance`,
+`per-night-insurance-priced`, `typed-counts-options`, `mid-stay-notes-settled-cash` / `-book`, `arrival-reduction-and-tip`,
+`platform-penalty`, `complement-paid-split`, `installments-live`, `own-channel-commissions-live`, the stay carrying an hourly booking,
+and four platform stays (`intake-booking-*`, `intake-airbnb-*`) on which the crafted intakes of `intakes.json` (`synthetic`) are
+replayed. The standalone resource bookings (`resource_bookings`, hourly-resources) are figures of their own (`resourceBookings`):
+the stored price, the breakdown the plugin computes and the sale row the journal reads. A new money path with no example in the
+snapshot gets its case here, and the fixture is then captured again on the tag.

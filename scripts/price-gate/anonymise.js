@@ -71,13 +71,15 @@ const ALLOW_LIST = Object.freeze({
     'touristTaxAddedGuestsDeclaredAt', 'complementCollectedTax', 'complementPaidSplit', 'removedLineContribs', 'supersededAt',
     'supersededByReservationId', 'installmentsPaidAmount', 'installmentsUnpaidAmount', 'installmentsTarget', 'installmentsLastPaidDate',
     'splitOffBooksAmount', 'splitWaivedAmount', 'splitWaivedCashAmount', 'splitShortfallDue', 'platformPenaltyAmount', 'platformPaidOccupants',
-    'touristTaxAddedGuestsAdults', 'touristTaxDeclaredWithAddedAmount', 'vatPeriodId'],
+    'touristTaxAddedGuestsAdults', 'touristTaxDeclaredWithAddedAmount', 'vatPeriodId', 'midStaySettledNotes'],
   reservation_options: ['reservationId', 'optionId', 'quantity', 'unitPrice', 'billedUnits', 'priceType', 'totalPrice', 'offered', 'inComplement',
     'acompteContribTtc', 'soldeContribTtc', 'cardOccurrences', 'sasArrivalOrigin', 'cardPersons', 'cardNights'],
   reservation_custom_options: ['id', 'reservationId', 'description', 'amount', 'offered', 'sortOrder', 'createdAt', 'updatedAt', 'inComplement',
     'acompteContribTtc', 'soldeContribTtc', 'sasArrivalOrigin', 'sasLineKey', 'quantity'],
   reservation_resources: ['reservationId', 'resourceId', 'quantity', 'unitPrice', 'billedUnits', 'priceType', 'totalPrice', 'offered', 'inComplement',
     'acompteContribTtc', 'soldeContribTtc', 'sessions'],
+  resource_bookings: ['id', 'resourceId', 'reservationId', 'propertyId', 'date', 'startTime', 'endTime', 'totalPrice', 'paid', 'offeredMinutes', 'paidAt',
+    'paymentRecordedAt', 'paidVatRate', 'paymentTenders'],
   reservation_nights: ['reservationId', 'date', 'seasonLabel', 'pricingMode', 'price'],
   reservation_installments: ['id', 'reservationId', 'number', 'dueDate', 'amountCents', 'paid', 'paidDate', 'paidMethod', 'requestedAt', 'dateEdited',
     'amountEdited', 'addedCents', 'createdAt', 'paidSplit'],
@@ -111,8 +113,9 @@ const ROW_FILTERS = Object.freeze({
 
 const JSON_COLUMNS = Object.freeze({
   reservations: ['endOfStayComplementDetail', 'arrivalExtrasBaseline', 'tariffSnapshot', 'complementAllocation',
-    'complementPaidSplit', 'removedLineContribs', 'arrivalPaymentGroup'],
+    'complementPaidSplit', 'removedLineContribs', 'arrivalPaymentGroup', 'midStaySettledNotes'],
   reservation_resources: ['sessions'],
+  resource_bookings: ['paymentTenders'],
   reservation_installments: ['paidSplit'],
   payment_settlements: ['parts'],
 });

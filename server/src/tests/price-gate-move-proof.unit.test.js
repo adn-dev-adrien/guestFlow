@@ -80,6 +80,33 @@ test('rule 73: a deleted file is read from its old path, and a pure addition pro
   const deleted = ['diff --git a/server/src/utils/old.js b/server/src/utils/old.js', '--- a/server/src/utils/old.js', '+++ /dev/null', '@@ -1,2 +0,0 @@', '-const a = 1;', '-const b = 2;'].join('\n');
   assert.deepEqual(moveProof(deleted).unmatched.map((u) => `${u.file}:${u.line}`), ['server/src/utils/old.js:1', 'server/src/utils/old.js:2']);
   const grown = diff({ path: 'server/src/utils/money.js', hunks: [{ at: 0, added: FN }] });
-  assert.deepEqual(moveProof(grown), { removed: 0, matched: 0, glue: 0, unmatched: [] });
+  assert.deepEqual(moveProof(grown), { removed: 0, matched: 0, glue: 0, unmatched: [], addedUnmatched: FN.map((text) => ({ file: 'server/src/utils/money.js', text })) });
   assert.deepEqual(parseDiff(''), { removed: [], added: [] });
+});
+
+test('rule 73: a removed `key: call(args),` with no added twin is reported, only `key: name,` is glue', () => {
+  const text = diff({ path: 'server/src/utils/pricing.js', hunks: [{ at: 30, removed: ['    total: roundMoney(x),', '    total: x,', "    label: 'x',"] }] });
+  const result = moveProof(text);
+  assert.deepEqual(result.unmatched.map((u) => u.text.trim()), ['total: roundMoney(x),', "label: 'x',"]);
+  assert.equal(result.glue, 1);
+});
+
+test('rule 73: a removed line is matched by an added line of its own file before one of another file', () => {
+  const text = diff(
+    { path: 'server/src/utils/pricing.js', hunks: [{ at: 10, removed: ['  total += 1;'], added: ['  total += 1;'] }] },
+    { path: 'server/src/utils/money.js', hunks: [{ at: 0, added: ['total += 1;'] }] },
+  );
+  const result = moveProof(text);
+  assert.deepEqual(result.unmatched, []);
+  assert.deepEqual(result.addedUnmatched, [{ file: 'server/src/utils/money.js', text: 'total += 1;' }], 'the twin in the other file is the one left over');
+});
+
+test('rule 73: an added non-glue line with no removed twin is listed, and listing it does not make the proof fail', () => {
+  const text = diff(
+    { path: 'server/src/utils/pricing.js', hunks: [{ at: 10, removed: FN }] },
+    { path: 'server/src/utils/money.js', hunks: [{ at: 0, added: [...FN, 'if (x) return null;', "const { a } = require('./a');", ''] }] },
+  );
+  const result = moveProof(text);
+  assert.deepEqual(result.unmatched, []);
+  assert.deepEqual(result.addedUnmatched, [{ file: 'server/src/utils/money.js', text: 'if (x) return null;' }]);
 });

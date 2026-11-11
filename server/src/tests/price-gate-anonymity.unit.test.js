@@ -30,6 +30,14 @@ function strings(value, out = []) {
 }
 
 const read = (name) => JSON.parse(fs.readFileSync(path.join(DIR, name), 'utf8'));
+// A figure of `expected.json` is named « path.of.the.figure@<instant> » (rule 68): the instant suffix is the only `@` a name may carry.
+const INSTANT_SUFFIX = /@(capture|arrival-1459|arrival-1500|after)$/;
+const looksPersonal = (s) => s.replace(INSTANT_SUFFIX, '').includes('@') || PHONE_LIKE.test(s);
+
+test('rule 68: only the instant suffix of a figure name may carry an @', () => {
+  assert.ok(!looksPersonal('total.final@capture') && !looksPersonal('night.2026-11-12@arrival-1459'));
+  assert.ok(looksPersonal('guest@capture.fr') && looksPersonal('a@b.c@capture') && looksPersonal('x@after.com'));
+});
 
 test('rule 68: the detector sees an @ and a phone-like sequence, and lets dates, amounts and booking numbers through', () => {
   for (const bad of ['a@b.c', '+33 6 12 34 56 78', '0612345678x 06 12 34 56 78', '06.12.34.56.78', '0033612345678', '06-12-34-56-78']) {
@@ -42,7 +50,7 @@ test('rule 68: the detector sees an @ and a phone-like sequence, and lets dates,
 
 test('rule 68: no string of the fixture contains an @ or a phone-like sequence', { skip: SKIP }, () => {
   for (const name of FILES) {
-    const hits = strings(read(name)).filter((s) => s.includes('@') || PHONE_LIKE.test(s));
+    const hits = strings(read(name)).filter(looksPersonal);
     assert.deepEqual(hits.map((s) => `${name}: ${s.slice(0, 12)}…`), []);
   }
 });
@@ -89,4 +97,24 @@ test('rule 68: no custom line keeps its text and no reservation keeps a note', {
       assert.ok(!(column in row), column);
     }
   }
+});
+
+test('rule 68: the crafted intakes and the resource bookings carry a placeholder guest and nothing but allow-listed columns', { skip: SKIP }, () => {
+  const { synthetic } = read('intakes.json');
+  assert.ok(synthetic.tables.booking_intakes.length >= 2 && synthetic.tables.airbnb_intakes.length >= 2, 'crafted Booking and Airbnb intakes');
+  for (const row of synthetic.tables.booking_intakes) assert.equal(JSON.parse(row.parsed).booking.guest.firstName, 'Guest');
+  for (const row of synthetic.tables.airbnb_intakes) {
+    const parsed = JSON.parse(row.parsed);
+    assert.equal(parsed.firstName, 'Guest');
+    assert.equal(parsed.message, '');
+    assert.match(row.messageId, /^message-\d+$/);
+  }
+  for (const name of ['inputs.json']) {
+    const file = read(name);
+    for (const rows of [file.tables.resource_bookings, file.synthetic.tables.resource_bookings]) {
+      for (const row of rows) assert.deepEqual(Object.keys(row).filter((c) => !ALLOW_LIST.resource_bookings.includes(c)), []);
+    }
+  }
+  const expectedStrings = new Set(strings(read('expected.json')));
+  assert.ok(![...expectedStrings].some((s) => s.replace(INSTANT_SUFFIX, '').includes('@') || /\bclient(Name|Phone)\b/.test(s)));
 });

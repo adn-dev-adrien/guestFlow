@@ -12,7 +12,9 @@
 //   fiche-money/<id>       arrival-payment detail, collected amount, operational collection, ledger, installment plan
 //   splits/<id>            the collected splits: complement split, per-line data, stored-money buckets
 //   tourist-tax-figure/<id> the tourist-tax figures of the live quote
-//   figures/<id>           the price gate's figure set (rule 68)
+//   figures/<id>           the price gate's figure set (rule 68), each figure at the capture instant
+//   resource-booking/<id>  every standalone resource booking: the stored row, the price breakdown and the sale row the journal reads
+//   synthesis/<year>       the accounting synthesis of the year (`/api/accounting/synthesis`, accounting-export live)
 //
 //   node scripts/pricing-replay.mjs <copy.db> --out before.json
 //   node scripts/pricing-replay.mjs <copy.db> --compare before.json
@@ -50,7 +52,7 @@ const server = (relative) => require(path.join(root, 'server/src', relative));
 const db = server('database.js');
 const { capture, canonical, sha } = server('tests/vatRegimeGoldenCapture.js');
 const { optionalPlugin } = server('plugins/sdk/testing.js');
-const { figuresOfStay, fakeRes } = require(path.join(root, 'scripts/price-gate/recompute.js'));
+const { figuresOfStay, fakeRes, recomputeResourceBookings } = require(path.join(root, 'scripts/price-gate/recompute.js'));
 
 const captured = await capture(db, { years: [2025, 2026, 2027] });
 
@@ -132,6 +134,26 @@ for (const { id, kind } of rows) {
         return { status: res.statusCode, body: res.body };
       });
     }
+  }
+}
+
+await put('resource-bookings/all', async () => recomputeResourceBookings(db));
+const present = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get();
+for (const { id } of present ? db.prepare('SELECT id FROM resource_bookings ORDER BY id').all() : []) {
+  await put(`resource-booking/${id}`, () => ({ row: db.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(id), figures: recomputeResourceBookings(db)[id] }));
+}
+
+// The synthesis of every year that holds money: the stays' start years and the years the replay already reads.
+const synthesisPlugin = optionalPlugin(() => ({ model: server('plugins/accounting-export/synthesisModel.js'), controller: server('plugins/accounting-export/synthesisController.js') }));
+if (synthesisPlugin.model) {
+  const controller = synthesisPlugin.controller.create(() => synthesisPlugin.model.create(db));
+  const years = new Set([2025, 2026, 2027, ...db.prepare("SELECT DISTINCT substr(startDate, 1, 4) AS y FROM reservations WHERE startDate IS NOT NULL").all().map((r) => Number(r.y))]);
+  for (const year of [...years].filter(Number.isInteger).sort()) {
+    await put(`synthesis/${year}`, () => {
+      const res = fakeRes();
+      controller.synthesis({ query: { period: 'custom', from: `${year}-01-01`, to: `${year}-12-31` }, user: ADMIN }, res);
+      return { status: res.statusCode, body: res.body };
+    });
   }
 }
 console.log = silent;

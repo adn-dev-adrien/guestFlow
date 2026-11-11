@@ -12,7 +12,7 @@
  * before it starts, whatever the day the fixture was captured).
  */
 const path = require('node:path');
-const { figuresOf } = require('./figuresOf');
+const { figuresOf, figuresOfResourceBooking, figuresOfPropertyGrid } = require('./figuresOf');
 
 const serverSrc = path.resolve(__dirname, '..', '..', 'server', 'src');
 const app = (relative) => require(path.join(serverSrc, relative));
@@ -74,8 +74,49 @@ function ficheOf(id) {
   const res = fakeRes();
   app('controllers/reservationsController.js').getById({ params: { id }, user: { id: 1, roles: ['admin'], role: 'admin' } }, res);
   if (res.statusCode !== 200 || !res.body) return null;
-  const { remainingDue, paymentComplete, collectedTtc, refundTotals } = res.body;
-  return { remainingDue, paymentComplete, collectedTtc, refundTotals };
+  const { remainingDue, paymentComplete, collectedTtc, refundTotals, operationalCollection } = res.body;
+  return { remainingDue, paymentComplete, collectedTtc, refundTotals, operationalCollection };
+}
+
+/**
+ * The commissions a platform withheld, as the code itself reports them (rule 70): the `commission` lines of the
+ * requalification a cancellation of the stay builds today, read from the refund the real `cancelReservation` writes —
+ * inside a transaction that is rolled back. `null` when the cancellation is refused (platform stay, already cancelled…).
+ * Only entry points the baseline exports: `cancelReservation` and the refund model.
+ */
+function withheldOf(db, id) {
+  const { cancelReservation } = app('utils/cancelReservation.js');
+  const { COMMISSION_KEY } = app('utils/refunds.js');
+  const refundsModel = app('models/refundsModel.js');
+  const deps = {
+    database: db,
+    reservationsModel: app('models/reservationsModel.js'),
+    refundsModel,
+    compensationsModel: app('models/cancellationCompensationsModel.js'),
+    paymentLinksModel: app('models/paymentLinksModel.js'),
+    installmentsModel: app('models/installmentsModel.js'),
+  };
+  let withheld = null;
+  try {
+    db.transaction(() => {
+      const done = cancelReservation(deps, id, { today: app('utils/reservationHelpers.js').getTodayIsoDate(), vatRate: app('models/vatRegimeModel.js').rateForRow(db, { id }) });
+      if (done.error) throw ROLLBACK;
+      const buckets = {};
+      let total = 0;
+      for (const refund of refundsModel.listByReservation(id)) {
+        if (refund.id !== done.refundId) continue;
+        for (const line of refund.lines.filter((l) => l.lineKey === COMMISSION_KEY)) {
+          buckets[line.bucket] = (buckets[line.bucket] || 0) + Number(line.amountTtc);
+          total += Number(line.amountTtc);
+        }
+      }
+      withheld = { total, buckets };
+      throw ROLLBACK;
+    })();
+  } catch (err) {
+    if (err !== ROLLBACK) throw err;
+  }
+  return withheld;
 }
 
 /**
@@ -128,6 +169,19 @@ function refundInputsOf(db, id, row, quote) {
   return out;
 }
 
+/** The collected splits the accounting reads (complement split, per-line data, stored-money buckets of the acompte and the solde). */
+function splitsOf(db, id, row) {
+  const { computeComplementPaidSplit } = app('utils/complementPaidSplit.js');
+  const { buildPerLineData, storedMoneyBuckets } = app('utils/storedMoneySplit.js');
+  const vatRate = app('models/vatRegimeModel.js').rateForRow(db, { id });
+  return {
+    complementSplit: computeComplementPaidSplit(db, id),
+    perLine: buildPerLineData(db, row),
+    deposit: storedMoneyBuckets(db, row, { kind: 'deposit', revenueTtc: Number(row.depositAmount || 0), vatRate }),
+    balance: storedMoneyBuckets(db, row, { kind: 'balance', revenueTtc: Number(row.balanceAmount || 0), vatRate }),
+  };
+}
+
 /** The figures of one stored stay through the current code path. */
 function figuresOfStay(db, id) {
   const { quoteStoredReservation } = app('utils/storedReservationQuote.js');
@@ -142,6 +196,9 @@ function figuresOfStay(db, id) {
       refunds: row.kind === 'devis' ? null : refundInputsOf(db, id, row, quote),
       fiche: row.kind === 'devis' ? null : ficheOf(id),
       cancellation: row.kind === 'devis' ? null : previewFor(id),
+      withheld: row.kind === 'reservation' ? withheldOf(db, id) : null,
+      splits: row.kind === 'devis' ? null : splitsOf(db, id, row),
+      paymentStatus: row.kind === 'devis' ? null : app('utils/paymentStatus.js').computePaymentStatus(row, app('utils/localDate.js').todayIso()),
       installments: installments.listFor(id),
     });
   } catch (err) {
@@ -173,10 +230,92 @@ function quoteHashesOf(db) {
   return out;
 }
 
-/** { [reservationId]: figures } for every reservation and devis of the database. */
-function recomputeStays(db) {
+/** { [propertyId]: figures } — the platform price grid (commission grossing-up) of every property. */
+function recomputePropertyGrids(db) {
+  const model = app('models/propertiesModel.js');
   const out = {};
-  for (const { id } of db.prepare('SELECT id FROM reservations ORDER BY id').all()) out[id] = figuresOfStay(db, id);
+  for (const { id } of db.prepare('SELECT id FROM properties ORDER BY id').all()) out[id] = figuresOfPropertyGrid(model.platformPrices(id));
+  return out;
+}
+
+const PARIS = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+/** The instant `HH:MM` of the Paris day `date` (the offset follows the daylight-saving time of that day). */
+function parisInstant(date, time) {
+  for (const offset of ['+01:00', '+02:00']) {
+    const instant = new Date(`${date}T${time}:00${offset}`);
+    const parts = Object.fromEntries(PARIS.formatToParts(instant).map((p) => [p.type, p.value]));
+    if (`${parts.year}-${parts.month}-${parts.day}` === date && `${parts.hour}:${parts.minute}` === time) return instant.toISOString();
+  }
+  throw new Error(`no Paris instant for ${date} ${time}`);
+}
+
+/**
+ * The instants a stay is read at (rule 68): the capture day, and three moments of its own life — the minute before
+ * and the minute of the arrival at 15:00, and the noon after its departure. Derived from the stored row, here, so the
+ * capture and the gate read the same moments and no test file writes a date.
+ */
+function instantsOf(row, capturedAt) {
+  const instants = [['capture', new Date(capturedAt).toISOString()]];
+  if (row.startDate) {
+    instants.push(['arrival-1459', parisInstant(row.startDate, '14:59')], ['arrival-1500', parisInstant(row.startDate, '15:00')]);
+  }
+  if (row.endDate) instants.push(['after', parisInstant(addDays(row.endDate, 1), '12:00')]);
+  return instants;
+}
+
+/**
+ * { [reservationId]: figures } for every reservation and devis of the database, each read at the four instants of
+ * `instantsOf`; a figure's name ends with `@capture`, `@arrival-1459`, `@arrival-1500` or `@after`. `pinClock(instant)`
+ * moves the clock and returns the function that puts it back on `capturedAt`; `figuresOf(db, id)` is the stay's figures (a test passes its own).
+ */
+function recomputeStays(db, { capturedAt, pinClock, figuresOf = figuresOfStay }) {
+  const out = {};
+  for (const row of db.prepare('SELECT id, startDate, endDate FROM reservations ORDER BY id').all()) {
+    out[row.id] = {};
+    for (const [name, instant] of instantsOf(row, capturedAt)) {
+      const unpin = pinClock(instant);
+      try {
+        for (const [figure, value] of Object.entries(figuresOf(db, row.id))) out[row.id][`${figure}@${name}`] = value;
+      } finally {
+        unpin();
+      }
+    }
+  }
+  return out;
+}
+
+/** { [bookingId]: figures } for every standalone resource booking (hourly-resources), at the capture instant. */
+function recomputeResourceBookings(db) {
+  const out = {};
+  const present = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get();
+  if (!present) return out;
+  const model = app('plugins/hourly-resources/bookingsModel.js').create(db, { standaloneVatRate: () => 20 });
+  const sales = new Map();
+  // A production copy opened without the plugin's runtime may still hold the table of an older version, with no payment columns.
+  const columns = new Set(tableColumns(db, 'resource_bookings'));
+  const days = ['paidAt', 'paymentRecordedAt', 'paymentTenders'].every((c) => columns.has(c))
+    ? db.prepare('SELECT MIN(paidAt) AS first, MAX(paidAt) AS last FROM resource_bookings WHERE paidAt IS NOT NULL').get()
+    : null;
+  if (days && days.first) {
+    for (const sale of model.standaloneSales({ from: days.first, to: days.last })) {
+      const { key, date, totalCents, booksCents, cardCents, vatRate } = sale;
+      sales.set(Number(String(key).split(':')[1]), { key, date, totalCents, booksCents, cardCents, vatRate });
+    }
+  }
+  for (const row of db.prepare('SELECT * FROM resource_bookings ORDER BY id').all()) {
+    let breakdown = null;
+    try {
+      const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(row.resourceId);
+      breakdown = resource ? model.breakdownOf({
+        resource, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, reservationId: row.reservationId,
+        offeredMinutes: row.offeredMinutes, date: row.date,
+      }) : null;
+    } catch (err) {
+      breakdown = { threw: err.message };
+    }
+    out[row.id] = figuresOfResourceBooking({ row, breakdown, sale: sales.get(row.id) || null });
+  }
   return out;
 }
 
@@ -362,4 +501,4 @@ function replayGdfFixtures(db, pinClock) {
   return results;
 }
 
-module.exports = { replayGdfFixtures, loadInputs, recomputeStays, quoteHashesOf, figuresOfStay, replayIntakes, storedShape, ROW_COLUMNS, fakeRes };
+module.exports = { replayGdfFixtures, loadInputs, recomputeStays, recomputeResourceBookings, recomputePropertyGrids, instantsOf, parisInstant, quoteHashesOf, figuresOfStay, replayIntakes, storedShape, ROW_COLUMNS, fakeRes };

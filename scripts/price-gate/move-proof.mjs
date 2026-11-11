@@ -4,8 +4,9 @@
 //   node scripts/price-gate/move-proof.mjs [base]        base defaults to HEAD~1; the diff is base..HEAD
 //
 // Every line a source file loses (pricing.js and any other server/client source file) must reappear byte for byte,
-// but for its indentation, among the lines the diff adds. Blank lines, imports and export lists are allowed glue.
-// Prints the unmatched removed lines (file:line) and exits 1 when there are any.
+// but for its indentation, among the lines the diff adds (the same file first, then any other). Blank lines, imports and
+// export lists are allowed glue. Prints the unmatched removed lines (file:line) and exits 1 when there are any, then, for
+// information only (the exit code does not change), the added non-glue lines no removed line accounts for.
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
@@ -18,4 +19,6 @@ const result = moveProof(diff);
 
 console.log(`move proof ${base}..HEAD: ${result.removed} removed source line(s), ${result.matched} moved verbatim, ${result.glue} glue, ${result.unmatched.length} unmatched`);
 for (const { file, line, text } of result.unmatched) console.log(`  UNMATCHED ${file}:${line}  ${text.trim().slice(0, 140)}`);
+console.log(`ADDED non-glue source lines with no removed twin: ${result.addedUnmatched.length}`);
+for (const { file, text } of result.addedUnmatched) console.log(`  ADDED ${file}  ${text.trim().slice(0, 140)}`);
 process.exit(result.unmatched.length ? 1 : 0);
