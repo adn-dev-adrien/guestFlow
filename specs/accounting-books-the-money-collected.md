@@ -192,7 +192,7 @@ options and resources appear once, at their real amount, only when they were rea
     site (`finalPrice − complementAmount`, the tourist tax a complement carries, `touristTaxInComplement = 1`, not being part
     of that price: 22211 = 171,14). Every path of `buildEntry` returns it through `platformBrut(row)`: the books keep reading
     `effectiveGross`, so no debit or credit moves (on a scrubbed 3.21.0 copy, 2025-01 to 2027-12, the sales CSV keeps every
-    debit and credit; its « Prix payé client » column changes on 41 lines and its « Commission » column on 8, 44 lines in all). « Commission » of the CSV and of the journal
+    debit and credit; only two columns change: « Prix payé client » now follows the recorded platform gross, and « Commission » reads empty instead of 0 where no commission was recorded). « Commission » of the CSV and of the journal
     card is the entry's own commission line and nothing else: the former fallback `gross − price` is removed, it invented a
     commission from the platform gross (the complement entry of stay 9: 0 became 16,19). **Resolved 2026-11-11 (Adrien): deferred to the pricing refonte (4.1.0).** 4.0.0 keeps choosing whether to show the platform
     columns (« Plateforme », « Prix payé client », « Commission ») of the CSV and the journal card by the internal `direct`
@@ -200,8 +200,8 @@ options and resources appear once, at their real amount, only when they were rea
     shows its real commission. Reading the platform mode (`isDirectChannel`) instead would hide those columns on Lodgify (its
     rows carry a real commission, and the byte-for-byte golden `vat-regime-golden` shows them). The refonte's accounting output
     (the `csvJournal` adapter, specs/pricing-components.md) replaces this rule: the columns are shown as soon as an entry
-    carries a commission or a recorded platform gross, whatever the channel. On the copy the other change of the sales
-    CSV in 4.0.0 is « Commission » reading empty instead of 0 on 8 lines that had no commission line (the golden's `lodgify` row
+    carries a commission or a recorded platform gross, whatever the channel. The other change of the sales
+    CSV in 4.0.0 is « Commission » reading empty instead of 0 where no commission was recorded (the golden's `lodgify` row
     follows). Where 3.21.0 showed a stored figure it comes back (5 = 748, 6 = 793,65, 22209 = 315,
     11 = 1 983,92, 22275 = 720,82, which the previous reading showed as 865,82 with its on-site complements); where 3.21.0
     showed the computed price, the recorded gross replaces it (#13 943,20 instead of 907,20).

@@ -17,7 +17,7 @@ import PaymentDeactivationsAlert from '../PaymentDeactivationsAlert';
 
 const attention = { key: 'payment-deactivations', severity: 'urgent', count: 2, title: 'Liens de paiement encore actifs', detail: 'À désactiver depuis Qonto, ou en rétablissant la connexion' };
 const LINKS = [
-  { id: 13, kindLabel: 'Paiement total', amountLabel: '762,80 €', reference: 'pl_ref_13', providerLabel: 'Qonto', stayLabel: 'Séjour n° 22299', stayUrl: null, reasonLabel: 'Séjour supprimé', sinceLabel: 'lien retiré le 30/10/2026' },
+  { id: 13, kindLabel: 'Paiement total', amountLabel: '762,80 €', reference: 'pl_ref_13', providerLabel: 'Qonto', stayLabel: 'Fiche n° 22299', stayUrl: null, reasonLabel: 'Fiche supprimée', sinceLabel: 'lien retiré le 30/10/2026' },
   { id: 14, kindLabel: 'Acompte', amountLabel: '214,94 €', reference: 'pl_ref_14', providerLabel: 'Qonto', stayLabel: 'Séjour 202604014', stayUrl: '/reservations/14', reasonLabel: 'Validité dépassée', sinceLabel: 'fin de validité le 01/11/2026' },
 ];
 
@@ -30,7 +30,7 @@ test('lists each link with what is needed to find it at the provider, and links 
   renderCard();
   expect(await screen.findByText('Paiement total · 762,80 €')).toBeInTheDocument();
   expect(screen.getByText('Référence Qonto : pl_ref_13')).toBeInTheDocument();
-  expect(screen.getByText(/Séjour n° 22299 · Séjour supprimé · lien retiré le 30\/10\/2026/)).toBeInTheDocument();
+  expect(screen.getByText(/Fiche n° 22299 · Fiche supprimée · lien retiré le 30\/10\/2026/)).toBeInTheDocument();
   expect(screen.getByText('Acompte · 214,94 €')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Séjour 202604014' })).toHaveAttribute('href', '/reservations/14');
   expect(screen.getByText(/Validité dépassée · fin de validité le 01\/11\/2026/)).toBeInTheDocument();
@@ -50,4 +50,15 @@ test('a list that cannot be read leaves the summary alone, no error', async () =
   await waitFor(() => expect(api.getPaymentDeactivations).toHaveBeenCalled());
   expect(screen.getByText(/À désactiver depuis Qonto/)).toBeInTheDocument();
   expect(screen.queryByText(/Référence/)).toBeNull();
+});
+
+test('a converted devis shows both numbers and opens the stay it became; a devis with a deleted stay has no link', async () => {
+  api.getPaymentDeactivations.mockResolvedValue({ links: [
+    { ...LINKS[1], id: 21, stayLabel: 'Devis 2026-08-001 · séjour 202610001', stayUrl: '/reservations/22310' },
+    { ...LINKS[1], id: 22, stayLabel: 'Devis 2026-09-001', stayUrl: null, reference: 'pl_ref_22' },
+  ] });
+  renderCard();
+  expect(await screen.findByRole('link', { name: 'Devis 2026-08-001 · séjour 202610001' })).toHaveAttribute('href', '/reservations/22310');
+  expect(screen.getByText(/Devis 2026-09-001/)).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Devis 2026-09-001' })).toBeNull();
 });

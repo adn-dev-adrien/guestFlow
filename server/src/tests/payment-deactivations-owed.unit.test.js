@@ -173,7 +173,7 @@ test('rule 67 — each row says what the operator needs to find the link by hand
   assert.deepEqual(
     { kind: orphan.kindLabel, amount: orphan.amountLabel, reference: orphan.reference, stay: orphan.stayLabel, url: orphan.stayUrl, reason: orphan.reasonLabel, since: orphan.sinceLabel, provider: orphan.providerLabel },
     // date-literal-ok: fixture dates nothing compares with today
-    { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Séjour n° 922299', url: null, reason: 'Séjour supprimé', since: 'lien retiré le 30/10/2026', provider: 'Qonto' },
+    { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Fiche n° 922299', url: null, reason: 'Fiche supprimée', since: 'lien retiré le 30/10/2026', provider: 'Qonto' },
   );
   assert.equal(late.id, lapsed.id);
   assert.deepEqual({ kind: late.kindLabel, reason: late.reasonLabel, since: late.sinceLabel, url: late.stayUrl }, { kind: 'Acompte', reason: 'Validité dépassée', since: 'fin de validité le 01/11/2026', url: `/reservations/${ctx.stay}` });
@@ -209,4 +209,61 @@ test('rule 67 — a withdrawn link with no reason is « Séjour annulé » only 
   const rows = owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links;
   assert.equal(rows.find((l) => l.id === onLive.id).reasonLabel, 'Retiré');
   assert.equal(rows.find((l) => l.id === onCancelled.id).reasonLabel, 'Séjour annulé');
+});
+
+// date-literal-ok: stay nights nothing compares with today
+test('rule 67 — a withdrawn link with no reason on a devis reads the stay it became: set aside → « Doublon écarté », cancelled → « Séjour annulé »', () => {
+  const ctx = seed();
+  const withdrawnOn = (kind, n) => {
+    const became = addStay(ctx.db, { kind, startDate: `2027-0${n}-10`, endDate: `2027-0${n}-12` });
+    const devis = addStay(ctx.db, { kind: 'devis', startDate: `2027-0${n}-10`, endDate: `2027-0${n}-12` });
+    ctx.db.prepare('UPDATE reservations SET convertedReservationId = ? WHERE id = ?').run(became, devis);
+    const link = addLink(ctx.links, ctx.db, devis, { providerLinkId: `pl_devis_${n}` });
+    ctx.links.cancelIfOpen(link.id, { reason: null });
+    ctx.links.cancel(link.id, { remotePending: true });
+    return link.id;
+  };
+  const onSetAside = withdrawnOn('superseded', 1);
+  const onCancelled = withdrawnOn('cancelled', 2);
+  const rows = owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links;
+  assert.equal(rows.find((l) => l.id === onSetAside).reasonLabel, 'Doublon écarté');
+  assert.equal(rows.find((l) => l.id === onCancelled).reasonLabel, 'Séjour annulé');
+});
+
+// date-literal-ok: stay nights nothing compares with today
+test('rule 67 — every row source says what its id really names and links where it opens: live stay, cancelled and set-aside stay, deleted stay, devis, converted devis', () => {
+  const ctx = seed();
+  ctx.db.exec('ALTER TABLE reservations ADD COLUMN reservationNumber TEXT');
+  const nights = (n) => ({ startDate: `2027-0${n}-10`, endDate: `2027-0${n}-12` });
+  const stay = (kind, n, number) => { const id = addStay(ctx.db, { kind, ...nights(n) }); ctx.db.prepare('UPDATE reservations SET reservationNumber = ? WHERE id = ?').run(number, id); return id; };
+  const owed = (reservationId, extra = {}) => ctx.owe(reservationId, 'dates-taken', { providerLinkId: `pl_${reservationId}_${Object.keys(extra).length}`, ...extra });
+
+  const live = stay('reservation', 1, '202610001');
+  const cancelled = stay('cancelled', 2, '202610002');
+  const setAside = stay('superseded', 3, '202610003');
+  const plainLive = addStay(ctx.db, nights(4));                                   // no number yet
+  const devisFree = addStay(ctx.db, { kind: 'devis', ...nights(5) });
+  ctx.db.prepare("UPDATE reservations SET devisNumber = '2026-10-001' WHERE id = ?").run(devisFree);
+  const becameStay = stay('reservation', 6, '202610004');
+  const devisConverted = addStay(ctx.db, { kind: 'devis', ...nights(6) });
+  ctx.db.prepare("UPDATE reservations SET devisNumber = '2026-08-001', convertedReservationId = ? WHERE id = ?").run(becameStay, devisConverted);
+  const devisOrphaned = addStay(ctx.db, { kind: 'devis', ...nights(7) });
+  ctx.db.prepare("UPDATE reservations SET devisNumber = '2026-09-001', convertedReservationId = 987001 WHERE id = ?").run(devisOrphaned);
+
+  const ids = Object.fromEntries(Object.entries({ live, cancelled, setAside, plainLive, devisFree, devisConverted, devisOrphaned, deleted: 987654 }).map(([k, v]) => [k, owed(v)]));
+  const rows = Object.fromEntries(owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links.map((l) => [l.id, l]));
+  const of = (key) => ({ label: rows[ids[key]].stayLabel, url: rows[ids[key]].stayUrl });
+
+  assert.deepEqual(of('live'), { label: 'Séjour 202610001', url: `/reservations/${live}` });
+  assert.deepEqual(of('cancelled'), { label: 'Séjour 202610002', url: `/reservations/${cancelled}` });
+  assert.deepEqual(of('setAside'), { label: 'Séjour 202610003', url: `/reservations/${setAside}` });
+  assert.deepEqual(of('plainLive'), { label: `Séjour n° ${plainLive}`, url: `/reservations/${plainLive}` });
+  assert.deepEqual(of('deleted'), { label: 'Fiche n° 987654', url: null }, 'a deleted row keeps its id, without a link');
+  assert.deepEqual(of('devisFree'), { label: 'Devis 2026-10-001', url: `/reservations/new?mode=devis&devisId=${devisFree}` });
+  assert.deepEqual(of('devisConverted'), { label: 'Devis 2026-08-001 · séjour 202610004', url: `/reservations/${becameStay}` }, 'a converted devis opens the stay it became, never its own row id');
+  assert.deepEqual(of('devisOrphaned'), { label: 'Devis 2026-09-001', url: null }, 'a converted devis whose stay is gone has nothing to open');
+  for (const link of Object.values(rows)) {
+    assert.ok(!/^Séjour n° \d+$/.test(link.stayLabel) || link.stayUrl === null || /^\/reservations\/\d+$/.test(link.stayUrl));
+    if (/^Devis /.test(link.stayLabel)) assert.ok(!link.stayUrl || link.stayUrl !== `/reservations/${link.reservationId}`, 'never the devis row id on /reservations/:id');
+  }
 });
