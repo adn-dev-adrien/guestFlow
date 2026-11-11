@@ -257,22 +257,6 @@ function buildProgressivePreview(baseNightPrice, progressiveTiers, maxNights = 3
   };
 }
 
-function getNightBasePriceForDate(rules, dateStr) {
-  let nightlyBase = 100;
-  for (const rule of rules || []) {
-    const ranges = parseRuleDateRanges(rule);
-    if (!ranges.length) {
-      nightlyBase = Number(rule.pricePerNight || 0);
-      break;
-    }
-    if (ranges.some((range) => dateStr >= range.startDate && dateStr <= range.endDate)) {
-      nightlyBase = Number(rule.pricePerNight || 0);
-      break;
-    }
-  }
-  return roundMoney(nightlyBase);
-}
-
 function getRuleNightBaseForDate(rules, dateStr) {
   let matchedRule = null;
   let nightlyBase = 100;
@@ -508,7 +492,6 @@ module.exports = {
   buildDefaultProgressiveTiers,
   normalizeProgressiveTiers,
   buildProgressivePreview,
-  getNightBasePriceForDate,
   getRuleNightBaseForDate,
   mergeNightlyBreakdownWithLocked,
   getProgressiveExtraNightPrice,
