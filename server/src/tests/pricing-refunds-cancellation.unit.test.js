@@ -54,7 +54,7 @@ test('rule 72 — keptSignature compares the money kept, not how the solde commi
   assert.notEqual(spreadOne, keptSignature(100, [sale, { lineKey: 'commission', bucket: 'options', label: 'C2', amountTtc: 9, vatRate: 0 }]));
 });
 
-test('rule 62 — a later refund takes from the kept sum its indemnity lines and the caisse acompte the other caisse money no longer covers', () => {
+test('specs/payment-schedule-and-cancellation.md rule 62 — a later refund takes from the kept sum its indemnity lines and the caisse acompte the other caisse money no longer covers', () => {
   // date-literal-ok: stamps compared with each other only, the refunds carry the flag
   const row = { cancelledAt: '2020-01-01 10:00:00', depositPaid: 1, depositPaidCash: 1, depositAmount: 100 };
   const refunds = [

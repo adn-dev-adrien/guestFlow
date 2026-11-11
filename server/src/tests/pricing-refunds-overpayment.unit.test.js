@@ -23,7 +23,7 @@ test('rule 72 — the schedule collected: a paid bucket at its captured contribs
   assert.equal(collectedOnSchedule({ ...ROW, balancePaid: 0 }, {}), 100);
 });
 
-test('rule 38 — a platform stay has no trop-perçu to give back; a direct one is what was collected beyond what is due', () => {
+test('specs/reservation-refunds.md rule 38 — a platform stay has no trop-perçu to give back; a direct one is what was collected beyond what is due', () => {
   const platform = { ...ROW, platform: 'Booking.com' };
   assert.equal(engineExcessOf({ row: platform, captured: { balance: 999 } }), 0);
   assert.equal(overpaymentOf({ row: platform, captured: { balance: 999 } }), 0);
@@ -31,13 +31,13 @@ test('rule 38 — a platform stay has no trop-perçu to give back; a direct one 
   assert.equal(engineExcessOf({ row: ROW, engineOverTtc: 12 }), 12);
 });
 
-test('rule 44 — the live trop-perçu is net of every refund given back, whatever the means', () => {
+test('specs/reservation-refunds.md rule 44 — the live trop-perçu is net of every refund given back, whatever the means', () => {
   assert.equal(overpaymentOf({ row: ROW, captured: { deposit: 100, balance: 250 } }), 50);
   assert.equal(overpaymentOf({ row: ROW, captured: { deposit: 100, balance: 250 }, refundedTtc: 20 }), 30);
   assert.equal(overpaymentOf({ row: ROW, captured: { deposit: 100, balance: 250 }, refundedTtc: 80 }), 0);
 });
 
-test('rule 44 — the stored trop-perçu: collected beyond the stored total, net of the free refund lines only', () => {
+test('specs/reservation-refunds.md rule 44 — the stored trop-perçu: collected beyond the stored total, net of the free refund lines only', () => {
   const stored = { ...ROW, finalPrice: 280, touristTaxTotal: 10 };
   assert.equal(storedOverpaymentOf({ row: stored, captured: { deposit: 100, balance: 250 } }), 60);
   assert.equal(storedOverpaymentOf({ row: stored, captured: { deposit: 100, balance: 250 }, freeRefundedTtc: 5 }), 55);

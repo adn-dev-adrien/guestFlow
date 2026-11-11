@@ -1,6 +1,6 @@
 // specs/pricing-components.md §3 rule 72 — REFUNDS / judge: the write judge of the register (`validateRefundPayload`, today
 // injected), the refusal to delete a refund the cancellation read, the book-money test of a cancellation, and the refusal
-// to take a mark back below the refunds already given (rule 52), the projected split being injected by the caller.
+// to take a mark back below the refunds already given (specs/reservation-refunds.md rule 52), the projected split being injected by the caller.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const judge = require('../utils/pricing/refunds/judge');
@@ -69,7 +69,7 @@ test('rule 72 — a cancellation had book money to keep when an acompte, install
   assert.equal(cancellationHadBookMoney({ balancePaid: 1, platformCommissionAmount: 12 }), true);
 });
 
-test('rule 52 — untickRefusal names the refunds a take-back would leave above what stays collected; the split is injected', () => {
+test('specs/reservation-refunds.md rule 52 — untickRefusal names the refunds a take-back would leave above what stays collected; the split is injected', () => {
   const row = { platform: 'direct', depositPaid: 1, depositAmount: 100, balancePaid: 1, balanceAmount: 200 };
   const refunds = [{ id: 5, method: 'transfer', totalTtc: 150, refundDate: PAST }];
   let projected = null;
@@ -84,7 +84,7 @@ test('rule 52 — untickRefusal names the refunds a take-back would leave above 
   assert.match(refusal.body.error, /^Remboursement du 14\/08\/2026 \(150,00\s€\) à supprimer d’abord\.$/);
 });
 
-test('rule 52 — nothing refunded on the books, or a gesture that keeps enough collected, is not refused', () => {
+test('specs/reservation-refunds.md rule 52 — nothing refunded on the books, or a gesture that keeps enough collected, is not refused', () => {
   const row = { platform: 'direct', depositPaid: 1, depositAmount: 100, balancePaid: 1, balanceAmount: 200 };
   const split = () => ({ splitOffBooksAmount: 0, splitWaivedAmount: 0, splitShortfallDue: 0 });
   assert.equal(untickRefusal(row, { balancePaid: 0 }, [], split), null);
