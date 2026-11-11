@@ -50,6 +50,7 @@ const RANK = {
   'steps/settlement': 100,
   'steps/netTotals': 100,
   pipelines: 200,
+  compose: 300,
   // Reached only through the steps, which sit above them.
   articles: 40,
   vat: 40,

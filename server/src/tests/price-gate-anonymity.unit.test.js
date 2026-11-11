@@ -8,7 +8,7 @@ const path = require('node:path');
 const { ALLOW_LIST, INTAKE_TABLES } = require('../../../scripts/price-gate/anonymise');
 
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');
-const FILES = ['inputs.json', 'expected.json', 'intakes.json'];
+const FILES = ['inputs.json', 'expected.json', 'quotes.json', 'intakes.json'];
 const captured = FILES.every((name) => fs.existsSync(path.join(DIR, name)));
 const SKIP = captured ? false : 'price-gate fixture absent (captured on the price-gate-baseline tag)';
 
@@ -49,8 +49,8 @@ test('rule 68: no string of the fixture contains an @ or a phone-like sequence',
 
 test('rule 68: the fixture copies no table and no column outside the allow-list', { skip: SKIP }, () => {
   for (const name of ['inputs.json', 'intakes.json']) {
-    const { tables } = read(name);
-    for (const [table, rows] of Object.entries(tables)) {
+    const file = read(name);
+    for (const [table, rows] of [...Object.entries(file.tables), ...Object.entries((file.synthetic && file.synthetic.tables) || {})]) {
       assert.ok(Object.hasOwn(ALLOW_LIST, table), `${name}: table ${table} is not on the list`);
       for (const row of rows) {
         const outside = Object.keys(row).filter((column) => !ALLOW_LIST[table].includes(column));

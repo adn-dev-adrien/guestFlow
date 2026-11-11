@@ -149,6 +149,30 @@ function figuresOfStay(db, id) {
   }
 }
 
+const crypto = require('node:crypto');
+
+const canonical = (value) => JSON.stringify(value, (key, inner) => (
+  inner && typeof inner === 'object' && !Array.isArray(inner)
+    ? Object.fromEntries(Object.keys(inner).sort().map((k) => [k, inner[k]]))
+    : inner
+));
+
+/**
+ * { [reservationId]: { keys, hash } } — the whole quote of every stay (all its keys, not the figure subset), as a sorted key
+ * list and the SHA-256 of its canonical JSON. Rule 4: COMPOSE must give the quote the engine gave before the refactor, key
+ * for key; the hash is captured on the baseline code, so the quote itself (lines, descriptions) never enters the fixture.
+ */
+function quoteHashesOf(db) {
+  const { quoteStoredReservation } = app('utils/storedReservationQuote.js');
+  const out = {};
+  for (const row of db.prepare('SELECT * FROM reservations ORDER BY id').all()) {
+    let quote;
+    try { quote = quoteStoredReservation(db, row); } catch (err) { quote = { threw: err.message }; }
+    out[row.id] = { keys: Object.keys(quote || {}).sort(), hash: crypto.createHash('sha256').update(canonical(quote)).digest('hex') };
+  }
+  return out;
+}
+
 /** { [reservationId]: figures } for every reservation and devis of the database. */
 function recomputeStays(db) {
   const out = {};
@@ -338,4 +362,4 @@ function replayGdfFixtures(db, pinClock) {
   return results;
 }
 
-module.exports = { replayGdfFixtures, loadInputs, recomputeStays, figuresOfStay, replayIntakes, storedShape, ROW_COLUMNS, fakeRes };
+module.exports = { replayGdfFixtures, loadInputs, recomputeStays, quoteHashesOf, figuresOfStay, replayIntakes, storedShape, ROW_COLUMNS, fakeRes };
