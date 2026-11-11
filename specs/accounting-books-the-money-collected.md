@@ -195,11 +195,11 @@ options and resources appear once, at their real amount, only when they were rea
     debit and credit; only its « Prix payé client » column changes, on 41 lines). « Commission » of the CSV and of the journal
     card is the entry's own commission line and nothing else: the former fallback `gross − price` is removed, it invented a
     commission from the platform gross (the complement entry of stay 9: 0 became 16,19). The platform columns (« Plateforme »,
-    « Prix payé client », « Commission ») of the CSV and the card are shown for a channel that is not in direct mode (read
-    through `isDirectChannel`, never the name), and for a channel in direct mode only when the entry carries a platform commission
-    line (its fee is real: Lodgify's rows keep it). On the copy this is the only other change of the sales CSV: « Commission »
-    reads empty instead of 0 on 8 lines that had no commission line, and « Plateforme » empties on 1 own-channel line with
-    nothing to show. Where 3.21.0 showed a stored figure it comes back (5 = 748, 6 = 793,65, 22209 = 315,
+    « Prix payé client », « Commission ») of the CSV and the card are still shown by the platform's NAME (`direct` hides them), not
+    by its mode: reading the mode would hide them on every platform counted as a direct sale (Lodgify), whose rows carry a real
+    commission and whose byte-for-byte golden (`vat-regime-golden`) shows them — a decision for Adrien, not a silent change.
+    On the copy the only other change of the sales CSV is « Commission » reading empty instead of 0 on 8 lines that had no
+    commission line (the golden's `lodgify` row follows). Where 3.21.0 showed a stored figure it comes back (5 = 748, 6 = 793,65, 22209 = 315,
     11 = 1 983,92, 22275 = 720,82, which the previous reading showed as 865,82 with its on-site complements); where 3.21.0
     showed the computed price, the recorded gross replaces it (#13 943,20 instead of 907,20).
     accounting-export 1.2.4. Test: `accounting-platform-gross-fallback.unit.test.js`.

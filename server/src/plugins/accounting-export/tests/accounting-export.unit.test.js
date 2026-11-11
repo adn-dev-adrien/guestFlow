@@ -321,22 +321,6 @@ test('« Commission » is the entry\'s own commission line and nothing else: a g
   assert.equal(entryToStructured(noCommission).platform.commission, null);
 });
 
-test('the platform columns follow the platform mode, not its name: an own channel shows none, a marketplace shows them', () => {
-  const { setDirectChannels } = require('../../../utils/platformNameFormat');
-  try {
-    setDirectChannels(['Lodgify']);
-    assert.equal(entryToRows(makeEntry({ platform: 'Lodgify', clientGrossAmount: 300 }))[0][COL.platform], '');
-    assert.equal(entryToStructured(makeEntry({ platform: 'Lodgify', clientGrossAmount: 300 })).platform.platform, null);
-    // An own channel that carries a platform commission line keeps showing it (its fee is real, 3.21.0 showed it).
-    const withFee = makeEntry({ platform: 'Lodgify', clientGrossAmount: 300, commission: { ttc: 6, ht: 5, vat: 1, account: '622600', hasVat: 1, label: 'Commission' } });
-    assert.equal(entryToRows(withFee)[0][COL.platform], 'Lodgify');
-    assert.equal(entryToRows(withFee)[0][COL.commission], 6);
-    assert.equal(entryToRows(makeEntry({ platform: 'airbnb', clientGrossAmount: 300 }))[0][COL.platform], 'airbnb');
-  } finally {
-    setDirectChannels([]);
-  }
-});
-
 test('buildStructuredEntries: mirrors buildRows entry-for-entry', () => {
   const a = makeEntry();
   const b = makeEntry({ paidDate: '2026-08-20', reservationId: 99, encaissementTtc: 80, fraction: 0.4 });

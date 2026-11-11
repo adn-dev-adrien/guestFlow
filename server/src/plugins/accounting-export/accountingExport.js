@@ -67,8 +67,6 @@ const {
   planMapper,
 } = require('./accountPlan');
 const { TTC_SPLIT_FALLBACK } = require('./settings');
-const sdk = require('../sdk');
-const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
 // after `Mois` is intentional (it's in the example header byte-for-byte) — DO NOT trim it.
@@ -259,7 +257,7 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   }
 
   // Platform info columns appear ONLY on the debit (anchor) row to avoid repeating.
-  const platformInfo = (entry.platform && (!isDirectChannel(entry.platform) || commission))
+  const platformInfo = (entry.platform && entry.platform !== 'direct')
     ? {
         plateforme: entry.platform,
         prixPayéClient: entry.clientGrossAmount == null ? '' : Number(entry.clientGrossAmount),
@@ -600,7 +598,7 @@ function entryToStructured(entry, plan) {
   const isDiscount = entry.direction === 'discount';
   const isTip = entry.direction === 'tip';
   const isPenalty = entry.direction === 'penalty';
-  const platformInfo = (entry.platform && (!isDirectChannel(entry.platform) || entry.commission) && !isRefund && !isCompensation
+  const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
     && !isDiscount && !isTip && !isPenalty)
     ? {
         platform: entry.platform,
