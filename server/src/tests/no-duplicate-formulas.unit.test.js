@@ -1,5 +1,6 @@
-// specs/pricing-components.md §3 rules 65 and 66 — static guards against a formula coming back: the VAT split lives in
-// `utils/pricing/vat/` (rules 61-62) and what a platform pays out lives in `utils/pricing/platformPayment.js` (rule 70).
+// specs/pricing-components.md §3 rules 65, 66 and 72 — static guards against a formula coming back: the VAT split lives in
+// `utils/pricing/vat/` (rules 61-62), what a platform pays out lives in `utils/pricing/platformPayment.js` (rule 70) and
+// every refund cap, trop-perçu and requalification figure lives in `utils/pricing/refunds/` (rule 72).
 //
 // Each guard scans the application sources (tests excluded, comments stripped) for its patterns outside its home and
 // compares the hits with its allow-list, `fixtures/no-duplicate-formulas/<guard>.json`: `[{ file, text, removedBy }]`, one
@@ -69,3 +70,13 @@ guard('platform-payment', [
   /-\s*\w*[tT]ax\s*-\s*acompteCommission/, // gross - payout - tax - acompteCommission
   /-\s*acompteCommission\s*-\s*\w*[tT]ax/, // gross - commission - acompteCommission - tax
 ], (file) => file === 'utils/pricing/platformPayment.js');
+
+guard('refunds', [
+  /REFUND_EXCEEDS_\w+/, // a refund cap refusal
+  /\b(excessCents|duplicateCents)\s*[:=]/, // money a link brought beyond the stay, or twice
+  /\b(indemnityLeftTtc|saleLeftTtc|cashLeftTtc)\s*[:=]/, // the budget of a cancelled stay
+  /\b(overCollectedTtc|scheduleOverCollectedTtc|complementCollectedExcess)\s*[:=]/, // the trop-perçu the engine finds
+  /\bSUM\([^)]*(totalTtc|amountTtc)/, // a sum of the refund register in SQL
+  /\b(keptFromGuest|writtenOffBalance):\s*round2\(/, // the figures a cancellation books
+  /\brefundOwed\s*:\s*true|\brefundCents\s*:\s*excess/, // a refund owed flag written by a payment
+], (file) => file.startsWith('utils/pricing/refunds/'));
