@@ -35,8 +35,7 @@ test('rule 68: the detector sees an @ and a phone-like sequence, and lets dates,
   for (const bad of ['a@b.c', '+33 6 12 34 56 78', '0612345678x 06 12 34 56 78', '06.12.34.56.78', '0033612345678', '06-12-34-56-78']) {
     assert.ok(bad.includes('@') || PHONE_LIKE.test(bad), bad);
   }
-  // date-literal-ok: strings the detector must let through, compared with nothing
-  for (const fine of ['2026-11-11T12:00:00+01:00', '0001-01-01T00:00:00Z', '6669322709', '2026-10-24 08:25:31', 'HMN2HQHJAQ', '710.02', '11773-2026', '1398287456607254737']) {
+  for (const fine of ['2026-11-11T12:00:00+01:00', '0001-01-01T00:00:00Z', '6669322709', '2026-10-24 08:25:31', 'HMN2HQHJAQ', '710.02', '11773-2026', '1398287456607254737']) { // date-literal-ok: strings the detector must let through, compared with nothing
     assert.ok(!fine.includes('@') && !PHONE_LIKE.test(fine), fine);
   }
 });
