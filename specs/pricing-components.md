@@ -249,7 +249,6 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     TOTALS, rule 51.)_ PLATFORM PRICE, DISCOUNTS, TOURIST TAX and VAT are pipeline steps that run before it;
     TOTALS only aggregates their outputs into `finalPrice`, `discountAmount`, `totalStayPrice`, the VAT per rate
     and the breakdown the fiche, the devis PDF and the SAS render. TOTALS holds no formula of its own.
-    > **Pending** — PR A, pass 4
 16. **Discounts apply to nights and extras.** _(amended 2026-11-11, owner overrides the earlier default.)_
     A discount is `{ percent | amount | customPrice, target }` with `target ∈ nights | extras | all`:
     - `nights` — today's behaviour, bit for bit: `accommodationAdjusted = roundMoney(accommodationBase × (1 −
@@ -261,14 +260,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       operator uses rule 23 instead).
     - On a platform stay the gross pin supersedes the stay discount (today's rule): DISCOUNTS applies only to
       lines outside the platform price.
-    > **Pending** — PR B
+    > **Pending** — PR B: the targets `extras` and `all`, a fixed `amount` and the allocation of rule 40. PR A ships DISCOUNTS with the target `nights` only, the euro formula of every stay today (`pricing-discounts`); the other targets throw `NOT_IN_PR_A`.
 17. **"Inside the platform price" is a declared line fact, not a routing guess.** A line is either part of
     the platform gross (`collectAt = 'platform'`, set by the intake or the operator at booking time) or not.
     PLATFORM PRICE back-solves the accommodation as `brut − extra guests in brut − Σ platform lines −
     withheld/reversed tax` — exactly today's formula, with "`inComplement = 0`" replaced by "`collectAt =
     'platform'`". **A sale made after the booking is never a platform line**, so it can never shrink the
     accommodation (D1, D3). `grossFromNet` (catalogue) and `platformPriceCheck` call the same unit.
-    > **Pending** — PR A, pass 4
+    > **Pending** — PR B: the `collectAt = 'platform'` declaration replacing `inComplement = 0`, and `platformPriceCheck` calling the unit (its extras sum is not rounded like the pin's). PR A ships PLATFORM PRICE with today's flag (`pricing-platform-price`): the engine's gross pin and `grossFromNet` are one unit.
 
 ### 3.E STAY CLOCK, SCHEDULE, SETTLEMENT
 
@@ -571,7 +570,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 
     No component reads a property row. In PR A the adapters read exactly today's columns, so every quote is
     byte-identical; a settings UI is out of scope (§8).
-    > **Pending** — PR A, passes 4-5: the PLATFORM PRICE, VAT and SCHEDULE keys, and the article scope of the families (`property_option_prices`) read through the provider. PR A proves NIGHTS, EXTRA GUESTS, TOURIST TAX and STAY CLOCK (`settings-provider`).
+    > **Pending** — PR A, pass 5: the SCHEDULE keys and the article scope of the families (`property_option_prices`) read through the provider, and the provider adapters of the PLATFORM PRICE and VAT keys (both components export their `settingsSchema`; the VAT component reads the regime it is handed). PR A proves NIGHTS, EXTRA GUESTS, TOURIST TAX and STAY CLOCK (`settings-provider`).
 51. **VAT per line, by customer context; TOTALS only aggregates.** _(amended 2026-11-11, second round: VAT
     is the standalone component of rules 61-62; « family » below reads « vatClass ».)_ The VAT step gives every line (the
     accommodation and extra guests being lines of family `accommodation`) a rate from
@@ -585,7 +584,6 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       row, so the devis PDF does not change.
     - Franchise mode (`vat-optional-mode.md`) is a regime whose rates are 0; nothing else changes.
     - Settings keys: `vat.rate.<family>.hosted`, `vat.rate.<family>.external`, overridable per article.
-    > **Pending** — PR A, pass 4
 52. **Freely chainable steps (pipeline).** A use case is a list of steps over one quote context. A step is a
     plain object `{ id, requires: [keys], provides: [keys], apply(ctx) → ctx }`; `apply` returns a new context
     (never mutates). `buildPipeline(steps, { initial })` checks, **when the pipeline is built (module load,
@@ -646,7 +644,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     _(amended 2026-11-11, second round:)_ the Articles head, family registry, instance factory and the VAT
     component with its five former copies switched to it: PR A. `AccountingOutput` and its exporters: PR B,
     commit 2. Static duplication guards: introduced in A with allow-lists, strict at the end of C.
-    > **Pending** — PR A, passes 4-5: VAT per (family, rate) group with line allocation, pipeline and `stayQuote`. PR A proves the registry, the core kinds, the ports and the settings provider over today's columns.
+    > **Pending** — PR A, pass 5: the pipeline and `stayQuote`. PR A proves the registry, the core kinds, the ports, the settings provider over today's columns, and the VAT component with its readers switched (`vat-component`).
 
 
 ### 3.L Second amendment round (owner, 2026-11-11) — VAT component, accounting output, no duplication
@@ -667,7 +665,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       (`drinks`, `wellness`…) by setting an article's `vatClass`.
     - TOTALS aggregates `vat.vatOf` output; the payment-link items, the refund lines, the accounting output and
       the finance pages read the same output instead of re-splitting a TTC amount.
-    > **Pending** — PR A, pass 4
+    > **Pending** — PR B: the producers other than the engine's three families emit tagged amounts (DISCOUNTS lines, the external sale), and the refund lines, the accounting output and the finance pages read the `vatOf` output. PR A ships the component (`vat-component`): the engine tags the accommodation, options and resources amounts, and the engine, the stored summary and split, the accounting buckets, the finance HT, the payment-link basket helpers and the hourly bookings call it, each with the rounding strategy it had.
 62. **VAT is computed per (vatClass, rate, customerContext) group per document, never per article.**
     _(decision 2026-11-11.)_ For one document (a stay quote, a sale, an export bucket), the amounts of a group
     are summed, the VAT is rounded **once** on the group (`round(ttc × rate / (100 + rate))`, half up, in
@@ -681,7 +679,6 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - Consequence: there is **no switch** to per-article rounding and therefore no expected diff for it in PR B.
       A document whose articles get new classes splits into more groups naturally; with today's settings
       (three classes, one rate) nothing moves.
-    > **Pending** — PR A, pass 4
 63. **`AccountingOutput` — one generic journal, format adapters.** `accountingOutput.journalEntries({ from,
     to }, readModels)` reads **only** the read models — sale lines with their VAT output (rule 61), stay-level
     amounts (`storedStayPrice`), settlements, receipts, tenders, refunds and refund lines, compensations,
@@ -733,7 +730,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | Platform commission and payout | `utils/platformCommission.computePlatformCommission`, inline copy in `controllers/platformPenaltiesController.js` (`gross − payout − tax − acompteCommission`), `acompteNetOf` there and `platformAcompteNet` in `reconciliation/expectedReceipts.js`, `grossOf` there and in `reconciliation/ficheWriter.js`, engine `clampCommission` / `platformNetReceivedAmount`, `reservationSettlement.platformCommission` | PLATFORM PAYMENT (rule 70) | A (engine, `computePlatformCommission`), B (penalties, cancellation, settlement), C (reconciliation helpers) |
     | Largest-remainder allocation | `cancelReservation` (l. 155-162), DISCOUNTS (rule 40), VAT (rule 62) | `money.allocateCents` | A |
     | Deferral of a complement | `isComplementDeferred`, `complementBuckets`, column read | SETTLEMENT | B |
-    > **Pending** — PR A, pass 6
+    > **Pending** — PR A, pass 6: the remaining accounting-export net-first copies leave with the accounting output (PR B, commit 2: `no-duplicate-formulas` allow-list `vat`). PR A removed the VAT copies listed above and the platform gross pin copy.
 66. **Guards against re-introduction** (`server/src/tests/no-duplicate-formulas.unit.test.js`, static, part of
     the server suite):
     - VAT: no `/(100 + ` / `* rate /` VAT expression outside `utils/pricing/vat/`;
@@ -746,7 +743,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     Each guard has an allow-list file that must stay empty at the end of PR C; entries are allowed while a copy
     waits for its PR. A generic copy-paste detector (e.g. `jscpd`) is not added: it would be a new dependency
     and the targeted guards cover the formulas that matter (Q14).
-    > **Pending** — PR A, pass 6
+    > **Pending** — PR A, pass 6: the money, dates, hourly, families and exporters guards. The VAT and platform-payment guards ship in PR A with their allow-lists (`no-duplicate-formulas`).
 67. **Read models are the only inputs of outputs.** `saleDetail`, `AccountingOutput`, the finance pages, the
     tourist-tax report and the payment-link baskets read stored lines, stored VAT output and settlements; a
     replay of the pricing pipeline is allowed only where today's code replays the engine (finance projections
@@ -1136,7 +1133,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [ ] `pricing-extras`, `pricing-allowances`, hourly `hourly-tariff` — rules 10-14, 24, 26, 41 (free hour stays with its line; evening supplement identical from shop, SAS, fiche)
 - [ ] `pricing-platform-price` — rule 17 (a post-booking sale on a platform stay leaves accommodation, tax and payout unchanged; `grossFromNet` parity)
 - [ ] `pricing-discounts` — rules 16, 39, 40 (`nights` equals today's formula on every golden quote; Σ shares = D; largest remainder and ties; no negative line; paid lines excluded)
-- [ ] `pricing-vat` — the four VAT readers give the same split on the same input; per-line allocation sums to the group VAT; `hosted` vs `external` rate per family; one row per rate in the breakdown; a single-rate stay equals today's figures
+- [ ] `pricing-vat` (folded into `vat-component`) — the VAT readers give the same split on the same input; per-line allocation sums to the group VAT; `hosted` vs `external` rate per family; one row per rate in the breakdown; a single-rate stay equals today's figures
 - [ ] `articles-family-<family>` ×7 (+ `hourly-family` in the plugin) — one file per family sub-component: formula, `validate`, `describe`, tagged amounts, no VAT (rule 47)
 - [ ] `articles-head-contract` — the head is the only export of `articles/`; dispatch, refusals, allowance coordination, offered, locked snapshots, fulfilment calls; a request for an unregistered family is refused; instances are frozen config (rule 47)
 - [ ] `vat-component` — rules 61-62: resolver by (vatClass, customerContext) and regime/franchise; one rounding per group; largest-remainder allocation sums to the group; per-rate output; byte-identical to the five former copies on the golden inputs
