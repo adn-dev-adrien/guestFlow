@@ -1,0 +1,5 @@
+/* The phone preview reads the guest app's own fonts as bundled assets, so it works under `/studio/` too. */
+@font-face{font-family:'Marcellus';src:url('@guest-public/fonts/marcellus-400.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Karla';src:url('@guest-public/fonts/karla-variable.woff2') format('woff2');font-weight:200 800;font-style:normal;font-display:swap}
+.app .tabbar .tab{cursor:default}
+.app .pv-empty{padding:48px 24px;text-align:center;color:var(--ink-soft);font:15px/1.5 var(--body)}

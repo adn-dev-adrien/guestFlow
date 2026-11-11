@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cycle de vie des liens</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-dark:#244A38;--primary-soft:#E3ECE6;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;--line-strong:#CFC7B7;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;--neutral-bg:#EEEAE2;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:1040px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.4rem/1.2 var(--serif);margin:56px 0 12px}
+h3.sub{font:600 1.08rem/1.3 var(--serif);margin:30px 0 8px}
+p{margin:0 0 12px;max-width:70ch}
+code{font-size:.86em;background:#EFEBE2;padding:1px 5px;border-radius:5px}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0 0 12px;padding-left:1.1em;max-width:72ch}
+ul.plain li{margin:6px 0}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.panel h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+.panel ul{margin:0;padding-left:1.1em}
+.panel li{margin:5px 0;font-size:.93rem}
+.panel.ok{border-top:3px solid var(--success)}
+.panel.miss{border-top:3px solid var(--warning)}
+.panel.hole{border-top:3px solid var(--error)}
+.tbl{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:.92rem}
+.tbl th,.tbl td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{font-weight:600;color:var(--muted);font-size:.8rem;background:#FBF9F5}
+.tbl tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto;border-radius:12px}
+.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.viewbar{position:sticky;top:0;z-index:20;background:rgba(248,245,239,.86);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border-bottom:1px solid var(--line)}
+@media (prefers-reduced-transparency:reduce){.viewbar{background:var(--paper);backdrop-filter:none;-webkit-backdrop-filter:none}}
+.viewbar .in{max-width:1040px;margin:0 auto;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.viewbar .t{font:600 .95rem var(--serif);flex:1;min-width:140px}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;font:500 .86rem var(--sans);color:#57534A;padding:7px 11px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+
+.knobs{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 14px;display:grid;gap:12px}
+.knob{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.88rem}
+.knob .k{font-weight:600;min-width:12rem}
+.knob input[type=range]{flex:1;min-width:200px;accent-color:var(--primary);height:36px}
+.knob .v{font:600 .88rem var(--sans);min-width:9rem;font-variant-numeric:tabular-nums}
+.reset{border:1px solid var(--line-strong);background:var(--card);border-radius:10px;min-height:36px;padding:0 12px;font:500 .84rem var(--sans);cursor:pointer;color:var(--ink)}
+.try{font-size:.88rem;color:var(--muted);margin:0 0 10px}
+
+.stage{margin:0 auto;max-width:1040px;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+body.phone .stage{max-width:390px}
+@media (prefers-reduced-motion:reduce){.stage{transition:none}}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+.actionbar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:12px;min-height:56px;flex-wrap:wrap}
+.actionbar .t{font:600 1.05rem var(--serif);flex:1;min-width:0}
+.chip{display:inline-flex;align-items:center;font:600 .74rem var(--sans);padding:2px 9px;border-radius:99px;background:var(--neutral-bg);color:var(--muted)}
+.chip.warn{background:var(--warning-bg);color:var(--warning)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 14px}
+.card h4{font:600 .95rem var(--serif);margin:8px 0 4px}
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:start}
+.row:last-child{border-bottom:0}
+.row .nm{font-weight:600;font-size:.95rem}
+.row .amt{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.row .st{font-size:.8rem;font-weight:600}
+.row .st.due{color:var(--warning)}
+.row .st.paid{color:var(--success)}
+.row .st.muted{color:var(--muted)}
+.detail{grid-column:1 / -1;display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;font-size:.84rem;color:var(--muted)}
+.detail .lab{transition:color .2s ease}
+.detail .lab.changed{color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.detail .lab{transition:none}}
+.tbtn{min-height:44px;border:0;background:transparent;color:var(--primary);font:600 .86rem var(--sans);padding:0 8px;border-radius:8px;cursor:pointer}
+.tbtn:active{transform:scale(.97)}
+.tbtn:hover{background:var(--primary-soft)}
+.btn{min-height:44px;border-radius:10px;padding:0 14px;font:600 .88rem var(--sans);cursor:pointer;border:1px solid var(--primary);background:var(--card);color:var(--primary);transition:transform .1s ease}
+.btn:active{transform:scale(.97)}
+.btn.fill{background:var(--primary);color:#fff}
+.btn.ghost{border-color:var(--line-strong);color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.sim{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+body.phone .sim .btn{flex:1 1 100%}
+
+.track{position:relative;height:30px;margin:12px 0 2px;border-radius:8px;background:#ECE7DC;overflow:hidden}
+.track .valid{position:absolute;inset:0 auto 0 0;background:var(--success-bg)}
+.track .grace{position:absolute;top:0;bottom:0;background:var(--warning-bg)}
+.track .now{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);transition:left .12s linear}
+@media (prefers-reduced-motion:reduce){.track .now{transition:none}}
+.track span{position:absolute;top:6px;font:600 .72rem var(--sans);color:var(--muted)}
+.legend{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted)}
+.note{font-size:.8rem;color:var(--muted);margin:8px 0 0}
+
+.toast{margin-top:12px;border-radius:10px;padding:10px 12px;font-size:.88rem;display:none}
+.toast.show{display:block;animation:in .2s cubic-bezier(.2,.8,.2,1)}
+.toast.ok{background:var(--success-bg);color:var(--success)}
+.toast.err{background:var(--error-bg);color:var(--error);font-weight:600}
+.toast.info{background:var(--info-bg);color:var(--info)}
+@keyframes in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.toast.show{animation:none}}
+
+.qonto{margin-top:12px;border:1px dashed var(--line-strong);border-radius:12px;padding:12px;background:#FBF9F5;font-size:.88rem;display:none}
+.qonto.show{display:block}
+.qonto b{display:block;margin-bottom:2px}
+
+.mail{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink)}
+
+.q{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.q h3{font:600 1rem/1.3 var(--sans);margin:0 0 6px}
+.q .rec{font-size:.9rem;margin:0 0 4px}
+.q .rec::before{content:"Recommandé · ";font-weight:700;color:var(--success)}
+.q .alt{font-size:.88rem;color:var(--muted);margin:0}
+.q .alt::before{content:"Autre option · ";font-weight:600}
+footer{margin-top:56px;color:var(--muted);font-size:.84rem}
+.dlg2{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:560px;margin:0 auto;box-shadow:0 18px 44px -24px rgba(39,37,31,.45);display:flex;flex-direction:column}
+body.phone .dlg2{max-width:100%;border-radius:12px;min-height:60vh}
+.dlg2 h4{font:600 1.1rem var(--serif);margin:0 0 12px}
+.fld{display:grid;gap:4px;margin:0 0 12px;font-size:.84rem;color:var(--muted)}
+.fld select,.fld input{font:16px var(--sans);min-height:44px;border:1px solid var(--line-strong);border-radius:10px;padding:0 10px;background:var(--card);color:var(--ink);width:100%}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+body.phone .two{grid-template-columns:1fr}
+.warnline{border-radius:10px;padding:10px 12px;font-size:.88rem;margin:0 0 10px;display:none}
+.warnline.show{display:block;animation:in .2s cubic-bezier(.2,.8,.2,1)}
+@media (prefers-reduced-motion:reduce){.warnline.show{animation:none}}
+.warnline.red{background:var(--error-bg);color:var(--error)}
+.warnline.amber{background:var(--warning-bg);color:var(--warning)}
+.warnline b{display:block;margin-bottom:6px}
+.clist{list-style:none;margin:0;padding:0}
+.clist li{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;background:rgba(255,255,255,.65);border-radius:8px;padding:6px 8px;margin:4px 0;color:var(--ink)}
+.clist .d{font-size:.8rem;color:var(--muted)}
+.acts2{display:flex;gap:8px;justify-content:flex-end;margin-top:auto;padding-top:8px}
+body.phone .acts2 .btn{flex:1}
+.mini{margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#FBF9F5;display:none}
+.mini.show{display:block}
+.push{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:14px;padding:10px 12px;max-width:420px;font-size:.88rem}
+.push .ic{width:28px;height:28px;border-radius:7px;background:var(--primary);color:#fff;display:grid;place-items:center;font:700 .8rem var(--sans);flex:none}
+.dash{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warning);border-radius:12px;padding:12px 14px;max-width:560px}
+.dash h4{margin:0 0 6px;font:600 .95rem var(--sans)}
+.dash .r{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:.86rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="viewbar"><div class="in">
+  <span class="t">Liens de paiement · cycle de vie</span>
+  <div class="seg" role="group" aria-label="Largeur de l’aperçu">
+    <button type="button" data-w="desk" aria-pressed="true">Ordinateur</button>
+    <button type="button" data-w="phone" aria-pressed="false">Téléphone</button>
+  </div>
+</div></div>
+
+<main>
+  <h1>Un lien de paiement ne reste payable que tant qu’il sert</h1>
+  <p class="lede">Spec <code>specs/payment-link-lifecycle.md</code> · brouillon du 30/10/2026 · à valider. Décisions d’Adrien du 30/10 intégrées (Q1 à Q16) ; seule une vérification en sandbox Qonto reste ouverte.</p>
+
+  <h2>Le constat</h2>
+  <div class="cols">
+    <div class="panel hole">
+      <h3>Des liens orphelins encore payables</h3>
+      <ul>
+        <li>3 liens ouverts sur des séjours supprimés dans la copie prod du 22/10 : <b>#13</b> 762,80 €, <b>#14</b> 214,94 €, <b>#16</b> 672,80 €, soit 1 650,54 €.</li>
+        <li>Un paiement sur l’un d’eux est enregistré sans alerte : le notifieur abandonne faute de fiche.</li>
+      </ul>
+    </div>
+    <div class="panel miss">
+      <h3>Aucun lien n’expire</h3>
+      <ul>
+        <li>Qonto ne connaît pas d’expiration : un lien envoyé en mai reste payable en décembre, au montant de mai.</li>
+        <li>Chaque lien ouvert est interrogé une fois par jour, sans fin.</li>
+      </ul>
+    </div>
+    <div class="panel miss">
+      <h3>Des liens qui survivent à leur objet</h3>
+      <ul>
+        <li>Un devis dont les dates sont prises garde un lien payable : le paiement crée un surbooking.</li>
+        <li>Un séjour commencé, ou un doublon écarté, garde ses liens ouverts.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">Déjà en place et conservé : la désactivation chez Qonto à l’annulation, à la suppression (refusée si la désactivation échoue), au remplacement d’un lien et au changement de montant, avec la reprise automatique quand Qonto ne répond pas.</p>
+
+  <h2>Ce qui est proposé</h2>
+  <div class="scroll">
+  <table class="tbl">
+    <thead><tr><th>Déclencheur</th><th>Ce qui arrive au lien</th><th>Un paiement arrivé juste avant</th></tr></thead>
+    <tbody>
+      <tr><td><b>36 h</b> après sa création</td><td>Expiré, puis désactivé chez Qonto dans les 15 min</td><td>Enregistré comme un paiement normal</td></tr>
+      <tr><td>Jour d’arrivée atteint (00:00)</td><td>Expiré · séjour commencé</td><td>Enregistré comme un paiement normal</td></tr>
+      <tr><td>Dates d’un devis <b>ou d’une réservation non payée</b> prises par une autre réservation</td><td>Retiré · dates prises ; aucun nouveau lien possible</td><td>Enregistré sur la fiche, qui passe en conflit de dates ; alerte « déplacer le séjour ou rembourser »</td></tr>
+      <tr><td>Séjour supprimé, annulé, doublon écarté</td><td>Retiré (déjà le cas pour l’annulation et la suppression)</td><td>Alerte, rien d’enregistré, à rembourser</td></tr>
+      <tr><td>Lien orphelin payé</td><td>Paiement conservé, aucune fiche touchée</td><td>Alerte e-mail + notification : n° de lien, montant, sans lien vers une fiche</td></tr>
+      <tr><td>1er démarrage de la nouvelle version</td><td>Les orphelins ouverts sont retirés une seule fois, puis désactivés au premier passage ; une ligne de journal par lien</td><td>Lu avant la désactivation : alerte si déjà payé</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul class="plain">
+    <li><b>« Dates prises » partout où une réservation peut apparaître</b> : import iCal (un devis direct, puis une réservation Booking sur les mêmes nuits), création ou changement de dates à la main (fiche, SAS, saisies plateformes qui passent par la fiche), devis converti (payé, « Convertir », accepté — le premier de deux devis payé retire le lien de l’autre), « Rétablir » un doublon. Le moteur du site crée un devis, qui ne bloque rien tant qu’il n’est pas payé.</li>
+    <li><b>« Non payé »</b> : aucun argent enregistré sur la fiche ni sur son devis (aucun acompte, solde, complément, échéance ou lien payé). Une réservation dont l’acompte est payé garde son lien de solde.</li>
+    <li><b>Un acompte payé réserve les dates</b> : plus aucune réservation ne peut y être prise, solde payé ou non ; seule l’annulation du séjour les libère. C’est déjà vrai partout où GuestFlow décide (moteur du site, paiement en ligne, conversion d’un devis, création à la main, « Rétablir »). Une réservation plateforme qui arrive par iCal sur ces dates reste enregistrée et déclenche une alerte de surbooking qui le dit.</li>
+    <li><b>Premier payé, premier servi</b> : deux devis non payés sur les mêmes nuits gardent leurs liens ; le premier payé retire celui de l’autre.</li>
+    <li><b>Fermetures</b> : refusées sur une réservation ; sur une demande de paiement en cours, un avertissement donne un lien vers chaque devis ou fiche, et la demande se retire à la main (nouveau bouton « Retirer le lien ») avant d’enregistrer. Sur un devis sans lien : même ligne d’avertissement avec « Ouvrir », mais l’enregistrement reste permis, rien n’est à retirer.</li>
+    <li><b>Un devis ne s’enregistre pas sur des dates réservées</b> (acompte payé ou séjour plateforme) : création ou changement de dates refusé, « Dates déjà réservées : devis non enregistré. », avec la liste des séjours qui bloquent.</li>
+    <li><b>Dates prises, client prévenu tout de suite</b> : dès que le lien d’un séjour est retiré parce que ses dates sont prises (chevauchement, premier payé, réservation plateforme par iCal), le client reçoit un e-mail « dates plus disponibles », les opérateurs une notification, et le tableau de bord une alerte, une seule fois par séjour. La relance d’acompte refusée passe par le même déclencheur et n’envoie jamais un second e-mail. Rien n’est envoyé pour une expiration à 36 h, un séjour commencé ou un « Retirer le lien ». Le devis reste tel quel, marqué « Dates prises » : l’opérateur propose d’autres dates ou l’archive. <b>Seule exception</b>, accordée par Adrien le 30/10, à la règle « aucun e-mail client sans validation » : elle ne passe ni par la file « à valider » ni par la règle d’envoi automatique, et reste tracée dans l’historique des e-mails de la fiche.</li>
+
+    <li><b>Liens déjà ouverts à la mise à jour</b> : 36 h de grâce à partir de l’installation.</li>
+    <li><b>La relance d’acompte</b> crée un lien neuf à l’envoi si les dates sont encore libres ; sinon elle est refusée.</li>
+    <li><b>Les e-mails de demande</b> disent jusqu’à quand le lien est valable : nouvelle variable <code>{{paymentLinkValidUntil}}</code>.</li>
+    <li><b>Envoyer une demande</b> réutilise le lien en cours seulement s’il lui reste au moins 24 h ; sinon un lien neuf part. Un e-mail laisse donc toujours 24 h au client.</li>
+    <li><b>La course de 35 h 59</b> : GuestFlow désactive d’abord, lit le paiement ensuite, puis jette un dernier coup d’œil une heure plus tard. Le webhook reste le chemin principal.</li>
+    <li><b>Si Qonto refuse la désactivation</b> : le lien reste dans la file de reprise ; la fiche affiche « désactivation en attente » ; après 24 h, une alerte unique demande de le désactiver depuis Qonto.</li>
+    <li><b>Quotas Qonto</b> : 3 appels par lien, une seule fois, au lieu d’un appel par jour pour toujours.</li>
+    <li><b>Page de paiement du site</b> : « Payer » refait un lien neuf après 36 h. La page de retour reçoit un nouveau statut <code>expired</code> et affiche « Ce lien de paiement a expiré. » Une ancienne version du plugin attend puis affiche son message habituel : dégradé, sans casse.</li>
+  </ul>
+
+  <h2>À manipuler : la ligne de la fiche dans le temps</h2>
+  <p class="try">Déplacer le curseur du temps, envoyer ou renvoyer la demande, faire payer le client. Le scénario « Devis + réservation iCal » montre le retrait du lien, le refus d’en créer un autre, et le paiement parti au même moment. Les dates et heures affichées sont rédigées par le serveur ; la frise colorée n’existe que dans cette maquette.</p>
+
+  <div class="knobs">
+    <div class="knob">
+      <span class="k">Scénario</span>
+      <div class="seg" role="group" aria-label="Scénario">
+        <button type="button" data-sc="stay" aria-pressed="true">Séjour · acompte</button>
+        <button type="button" data-sc="devis" aria-pressed="false">Devis + réservation iCal</button>
+      </div>
+      <button type="button" class="reset" id="reset">Recommencer</button>
+    </div>
+    <div class="knob" id="timeKnob">
+      <label class="k" for="clock">Temps depuis la création du lien</label>
+      <input type="range" id="clock" min="0" max="44" step="0.25" value="2">
+      <span class="v" id="clockV"></span>
+    </div>
+  </div>
+
+  <div class="stage"><div class="frame">
+    <div class="actionbar">
+      <span class="t" id="abTitle">Réservation 22341 · L’Estiva</span>
+      <span class="chip" id="abChip">Confirmée</span>
+      <button type="button" class="btn fill" id="askPay" hidden>Demander le paiement</button>
+    </div>
+    <div class="card">
+      <h4>Paiements</h4>
+      <div class="row">
+        <span class="nm" id="rowName">Acompte</span>
+        <span class="amt">252,00 €</span>
+        <span class="st due" id="rowState">À percevoir avant le 06/11</span>
+        <span></span>
+        <div class="detail"><span class="lab" id="linkLab"></span><button type="button" class="tbtn" id="resend" hidden>Renvoyer la demande</button></div>
+      </div>
+      <div class="row">
+        <span class="nm">Solde</span>
+        <span class="amt">588,00 €</span>
+        <span class="st muted" id="row2State">À percevoir avant le 14/11</span>
+      </div>
+    </div>
+
+    <div id="timeline">
+      <div class="track" aria-hidden="true">
+        <div class="valid" id="tValid"></div>
+        <div class="grace" id="tGrace"></div>
+        <div class="now" id="tNow"></div>
+      </div>
+      <div class="legend"><span id="lgStart"></span><span>36 h · expiration</span><span>+15 min · désactivé chez Qonto</span></div>
+    </div>
+
+    <div class="sim">
+      <button type="button" class="btn" id="send">Envoyer la demande</button>
+      <button type="button" class="btn ghost" id="pay">Le client clique sur le lien et paie</button>
+      <button type="button" class="btn ghost" id="conflict" hidden>Une réservation Booking arrive par iCal sur ces dates</button>
+      <button type="button" class="btn ghost" id="inflight" hidden>Le client avait payé au même instant</button>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="qonto" id="qonto"></div>
+    <div class="mail" id="mailEx" hidden style="margin-top:12px"></div>
+  </div></div>
+
+  <h3 class="sub">L’alerte d’un orphelin payé</h3>
+  <div class="mail">Objet : Paiement reçu sur un lien sans séjour — 762,80 €
+
+Un paiement en ligne est arrivé sur un lien dont le séjour n’existe plus.
+
+Lien : #13 (paiement du séjour)
+Montant : 762,80 €
+Lien créé le : 12/09/2026
+Payé le : 31/10/2026
+Référence Qonto du lien : 7f3c…a91e
+Référence du paiement : pay_…
+Ancien séjour : n° 22299 (supprimé)
+
+Action requise : retrouver le client et rembourser ce paiement depuis votre espace du prestataire de paiement.</div>
+  <p class="note">Aucun lien vers une fiche : il n’y en a plus. Les dates et références de cet exemple sont fictives.</p>
+
+  <h2>À manipuler : une fermeture sur une demande en cours</h2>
+  <p class="try">Choisir un logement et des dates. Sur la réservation 22341 (acompte payé), la fermeture est refusée. Sur le devis D-2026-118 (lien ouvert), un avertissement donne le lien ; « Ouvrir », puis « Retirer le lien », et la fermeture s’enregistre. Sur le devis D-2026-121 (14/11 → 16/11, sans lien), l’avertissement s’affiche mais l’enregistrement passe.</p>
+  <div class="stage"><div class="frame">
+    <div class="actionbar"><span class="t">Fermetures de l’établissement</span></div>
+    <div class="dlg2" role="group" aria-labelledby="clT">
+      <h4 id="clT">Nouvelle fermeture</h4>
+      <label class="fld">Logement
+        <select id="clProp">
+          <option value="all">Tout l’établissement</option>
+          <option value="estiva">L’Estiva</option>
+          <option value="granja" selected>La Granja</option>
+        </select>
+      </label>
+      <div class="two">
+        <label class="fld">Du<input type="date" id="clStart" value="2026-11-07"></label>
+        <label class="fld">Au<input type="date" id="clEnd" value="2026-11-10"></label>
+      </div>
+      <div class="warnline red" id="clRed" role="alert"></div>
+      <div class="warnline amber" id="clAmber" role="status"></div>
+      <div class="toast" id="clToast" role="status"></div>
+      <div class="acts2">
+        <button type="button" class="btn ghost" id="clCancel">Annuler</button>
+        <button type="button" class="btn fill" id="clSave">Enregistrer</button>
+      </div>
+    </div>
+    <div class="mini" id="clMini" aria-live="polite"></div>
+  </div></div>
+  <p class="note">L’avertissement s’affiche dès que le logement et les deux dates sont choisis ; c’est le serveur qui répond, et il refuse aussi l’enregistrement (codes <code>RESERVATION_OVERLAP</code> et <code>OPEN_PAYMENT_REQUEST</code>).</p>
+
+  <h2>Dates prises : ce que reçoivent le client, les opérateurs et le tableau de bord</h2>
+  <p class="try">Exemple : un autre devis, payé le premier, prend les nuits du devis D-2026-118. Son lien est retiré, et ces trois messages partent aussitôt, une seule fois. Sa relance d’acompte, plus tard, est refusée sans nouvel e-mail ; le devis reste visible, marqué « Dates prises ».</p>
+  <div class="knobs"><div class="knob"><span class="k">Langue du client</span>
+    <div class="seg" role="group" aria-label="Langue du client">
+      <button type="button" data-lang="fr" aria-pressed="true">Français</button>
+      <button type="button" data-lang="en" aria-pressed="false">Anglais</button>
+    </div></div></div>
+  <div class="grid2">
+    <div class="mail" id="noticeMail"></div>
+    <div>
+      <div class="push" aria-label="Notification"><span class="ic">G</span><div><b>Dates prises — Paul Martin</b><br>La Granja, 08/11 → 12/11 : dates prises par le devis D-2026-117, client prévenu.</div></div>
+      <div class="dash" style="margin-top:14px">
+        <h4>Dates prises</h4>
+        <div class="r"><span><b>Paul Martin</b> · La Granja · 08/11 → 12/11</span><span class="chip">client prévenu</span></div>
+        <div class="d note" style="margin:4px 0 8px">Prises par le devis D-2026-117, payé le 03/11.</div>
+        <div class="r"><button type="button" class="tbtn">Ouvrir</button><button type="button" class="tbtn">Vu</button></div>
+      </div>
+      <p class="note">Dans l’historique des e-mails de la fiche : « Envoyé automatiquement (dates prises) ». Modèle désactivé, adresse absente, version anglaise manquante ou SMTP absent : rien ne part, et la notification comme l’alerte disent « client non prévenu » avec la raison.</p>
+    </div>
+  </div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var stays = [
+    { kind: 'reservation', prop: 'estiva', start: '2026-11-02', end: '2026-11-05', label: 'Réservation 22341 · Marie Dupont', detail: 'L’Estiva · 02/11 → 05/11 · acompte payé' },
+  ];
+  var requests = [
+    { prop: 'granja', start: '2026-11-08', end: '2026-11-12', label: 'Devis D-2026-118 · Paul Martin', detail: '840,00 € · lien valable jusqu’au 01/11 à 06:00', open: true },
+  ];
+  var plainDevis = [
+    { prop: 'granja', start: '2026-11-14', end: '2026-11-16', label: 'Devis D-2026-121 · Julie Leroy', detail: 'La Granja · 14/11 → 16/11 · aucun lien envoyé' },
+  ];
+  function overlaps(x, prop, a, b){ return (prop === 'all' || x.prop === prop) && x.start < b && a < x.end; }
+  function li(x, which, i){ return '<li><span><b>' + x.label + '</b><br><span class="d">' + x.detail + '</span></span><button type="button" class="tbtn" data-open="' + which + ':' + i + '">Ouvrir</button></li>'; }
+  function check(){
+    var prop = $('clProp').value, a = $('clStart').value, b = $('clEnd').value;
+    if (!a || !b || b <= a) return { invalid: true, res: [], req: [], dv: [] };
+    return {
+      res: stays.map(function(x, i){ return overlaps(x, prop, a, b) ? li(x, 's', i) : ''; }).filter(Boolean),
+      req: requests.map(function(x, i){ return x.open && overlaps(x, prop, a, b) ? li(x, 'r', i) : ''; }).filter(Boolean),
+      dv: plainDevis.map(function(x, i){ return overlaps(x, prop, a, b) ? li(x, 'd', i) : ''; }).filter(Boolean),
+    };
+  }
+  function show(c){
+    var red = $('clRed'), amb = $('clAmber');
+    red.className = 'warnline red' + (c.res.length || c.invalid ? ' show' : '');
+    red.innerHTML = c.invalid ? '<b>Dates invalides : la fin suit le début.</b>' : (c.res.length ? '<b>Réservation sur ces dates : fermeture impossible.</b><ul class="clist">' + c.res.join('') + '</ul>' : '');
+    amb.className = 'warnline amber' + (!c.invalid && (c.req.length || c.dv.length) ? ' show' : '');
+    amb.innerHTML = (c.req.length ? '<b>Demande de paiement en cours sur ces dates.</b><ul class="clist">' + c.req.join('') + '</ul>' : '')
+      + (c.dv.length ? '<b' + (c.req.length ? ' style="margin-top:8px"' : '') + '>Devis en cours sur ces dates.</b><ul class="clist">' + c.dv.join('') + '</ul>' : '');
+  }
+  function toast(type, t){ var el = $('clToast'); el.className = 'toast show ' + type; el.textContent = t; }
+  function live(){ $('clToast').className = 'toast'; show(check()); }
+  ['clProp', 'clStart', 'clEnd'].forEach(function(id){ $(id).addEventListener('input', live); $(id).addEventListener('change', live); });
+  $('clSave').addEventListener('click', function(){
+    var c = check(); show(c);
+    if (c.invalid) return toast('err', 'Dates invalides : la fin suit le début.');
+    if (c.res.length) return toast('err', 'Réservation sur ces dates : fermeture impossible.');
+    if (c.req.length) return toast('err', 'Demande de paiement en cours sur ces dates : la retirer avant d’enregistrer la fermeture.');
+    toast('ok', 'Fermeture enregistrée.');
+  });
+  $('clCancel').addEventListener('click', function(){ $('clToast').className = 'toast'; $('clMini').className = 'mini'; });
+  document.addEventListener('click', function(e){
+    var t = e.target.closest('[data-open]'); if (!t) return;
+    var parts = t.dataset.open.split(':'), mini = $('clMini');
+    mini.className = 'mini show';
+    if (parts[0] === 'd') {
+      var dv = plainDevis[Number(parts[1])];
+      mini.innerHTML = '<b>' + dv.label + '</b><div class="note">' + dv.detail + '. Rien à retirer : la fermeture peut être enregistrée.</div>';
+      return;
+    }
+    if (parts[0] === 's') {
+      var st = stays[Number(parts[1])];
+      mini.innerHTML = '<b>' + st.label + '</b><div class="note">' + st.detail + '. Les dates restent réservées tant que le séjour n’est pas annulé.</div>';
+      return;
+    }
+    var r = requests[Number(parts[1])];
+    mini.innerHTML = '<b>' + r.label + ' · La Granja · 08/11 → 12/11</b>'
+      + '<div class="row" style="border:0"><span class="nm">Paiement du séjour</span><span class="amt">840,00 €</span>'
+      + '<div class="detail"><span id="mLab">Lien envoyé le 30/10 · 840,00 € · valable jusqu’au 01/11 à 06:00</span>'
+      + '<button type="button" class="tbtn" id="mWithdraw">Retirer le lien</button></div></div>'
+      + '<div id="mConfirm" hidden><p style="margin:6px 0">Retirer ce lien ? Il ne pourra plus être payé.</p>'
+      + '<div class="acts2" style="justify-content:flex-start"><button type="button" class="btn fill" id="mYes">Retirer</button><button type="button" class="btn ghost" id="mNo">Annuler</button></div></div>';
+    $('mWithdraw').addEventListener('click', function(){ $('mConfirm').hidden = false; });
+    $('mNo').addEventListener('click', function(){ $('mConfirm').hidden = true; });
+    $('mYes').addEventListener('click', function(){
+      r.open = false;
+      $('mConfirm').hidden = true; $('mWithdraw').hidden = true;
+      $('mLab').textContent = 'Lien retiré le 31/10';
+      live();
+    });
+  });
+  var MAIL = {
+    fr: 'Objet : Vos dates à La Granja ne sont plus disponibles\n\nBonjour Paul,\n\nLes dates que nous vous avions proposées à La Granja, du dimanche 8 novembre au jeudi 12 novembre, viennent d’être réservées et ne sont plus disponibles. Le lien de paiement que vous avez reçu ne fonctionne plus, et rien ne vous a été prélevé.\n\nNous sommes désolés de ne pas avoir pu les garder pour vous. Si d’autres dates vous conviennent, répondez simplement à ce message.\n\nÀ bientôt,\nAdrien — Domaine Solio',
+    en: 'Subject: Your dates at La Granja are no longer available\n\nHello Paul,\n\nThe dates we offered you at La Granja, from Sunday 8 November to Thursday 12 November, have just been booked and are no longer available. The payment link you received no longer works, and nothing has been charged.\n\nWe are sorry we could not hold them for you. If other dates suit you, simply reply to this message.\n\nSee you soon,\nAdrien — Domaine Solio'
+  };
+  function lang(l){ $('noticeMail').textContent = MAIL[l]; }
+  document.querySelectorAll('[data-lang]').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('[data-lang]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      lang(b.dataset.lang);
+    });
+  });
+  lang('fr'); live();
+})();
+</script>
+
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="plain">
+    <li>Pas de renvoi automatique d’un lien expiré : aucun e-mail client ne part sans validation.</li>
+    <li>Pas de durée réglable par logement ou par type : une seule constante, 36 h.</li>
+    <li>Pas de suppression des liens orphelins ni de clé étrangère ; les 5 orphelins déjà payés restent tels quels.</li>
+    <li>Pas de changement de la page Qonto d’un lien inactif : elle n’est pas à nous.</li>
+    <li>Le constat N1 (alerte manquante après un changement de prix du séjour) : correctif séparé.</li>
+  </ul>
+
+  <h2>Les risques</h2>
+  <ul class="plain">
+    <li><b>Des liens déjà envoyés s’arrêtent.</b> Tous les liens ouverts au moment de la mise à jour expirent 36 h après l’installation. Une demande encore attendue est à renvoyer.</li>
+    <li><b>Un client qui paie tard tombe sur une page Qonto « lien inactif »</b>, sans explication de notre part. Atténué : l’e-mail annonce la fin de validité.</li>
+    <li><b>Un séjour non payé perd son lien dès qu’un séjour payé ou plateforme le chevauche</b>, même si c’est l’autre qui sera annulé ensuite : il faudra renvoyer la demande une fois le conflit réglé.</li>
+    <li><b>Un e-mail part sans validation</b> : l’exception est limitée à un seul modèle, testée, et chaque envoi est tracé. Un modèle désactivé, une adresse absente ou une version anglaise manquante bloquent l’envoi, et l’alerte dit « client non prévenu ».</li>
+
+    <li><b>Un paiement en cours pendant la désactivation</b> (3-D Secure) : comportement Qonto inconnu, à vérifier en sandbox. Le webhook, le dernier coup d’œil et le rapprochement bancaire le rattrapent.</li>
+  </ul>
+
+  <h2>Décidé le 30/10</h2>
+  <div class="scroll">
+  <table class="tbl">
+    <thead><tr><th>Question</th><th>Décision d’Adrien</th></tr></thead>
+    <tbody>
+      <tr><td>Q1 · Point de départ des 36 h</td><td>La création. À l’envoi, le lien en cours n’est réutilisé que s’il reste au moins 24 h ; sinon un lien neuf part.</td></tr>
+      <tr><td>Q2 · Liens ouverts à la mise à jour</td><td>36 h de grâce à partir de l’installation.</td></tr>
+      <tr><td>Q3 · « Séjour passé »</td><td>00:00 (Paris) le jour d’arrivée ; un lien créé ce jour-là garde ses 36 h.</td></tr>
+      <tr><td>Q4 · Dates prises</td><td>Toute réservation ou tout devis non payé perd ses liens dès qu’une autre réservation chevauche ses dates.</td></tr>
+      <tr><td>Q5 · Lien « dates prises » payé quand même</td><td>Enregistré sur la fiche, qui passe en conflit de dates ; une alerte demande de déplacer ou de rembourser.</td></tr>
+      <tr><td>Q6 · Relance d’acompte</td><td>Elle crée un lien neuf à l’envoi, si les dates sont encore libres.</td></tr>
+      <tr><td>Q7 · Fin de validité dans l’e-mail</td><td>Oui : variable <code>{{paymentLinkValidUntil}}</code> dans les modèles de demande de paiement.</td></tr>
+      <tr><td>Q9 · Seul l’acompte est payé</td><td>Pas « non payé » : le lien de solde reste. Un acompte payé réserve les dates ; seule l’annulation les libère ; une arrivée iCal dessus est un surbooking signalé.</td></tr>
+      <tr><td>Q10 · Fermetures</td><td>Refusée sur une réservation ; sur une demande de paiement en cours, avertissement avec lien, et retrait à la main avant d’enregistrer.</td></tr>
+      <tr><td>Q11 · Deux non payés sur les mêmes nuits</td><td>Le premier payé gagne ; il retire le lien de l’autre.</td></tr>
+      <tr><td>Q12 · Relance d’acompte sur des dates prises</td><td>Refusée ; e-mail automatique au client (exception explicite), notification aux opérateurs, alerte au tableau de bord.</td></tr>
+      <tr><td>Q13 · Devis sur des dates réservées</td><td>Refusé, à la création comme au changement de dates.</td></tr>
+      <tr><td>Q14 · Quand prévenir le client</td><td>Dès que le lien est retiré pour dates prises ; une seule fois par séjour ; pas pour une expiration, un séjour commencé ou un retrait à la main.</td></tr>
+      <tr><td>Q15 · Le devis après l’e-mail</td><td>Gardé tel quel, marqué « Dates prises » ; l’opérateur décide.</td></tr>
+      <tr><td>Q16 · Fermeture sur un devis sans lien</td><td>Même ligne d’avertissement avec « Ouvrir » ; l’enregistrement reste permis.</td></tr>
+
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Encore ouvert</h2>
+  <div class="q"><h3>Q8 · À vérifier en sandbox Qonto (pas une décision)</h3>
+    <p class="rec">La page vue sur un lien désactivé, et le sort d’un paiement 3-D Secure en cours.</p>
+    <p class="alt">Les règles tiennent dans les deux cas.</p></div>
+
+  <footer>Référence versionnée : <code>specs/payment-link-lifecycle.md</code>. Ce résumé est autonome : aucune police, aucun script, aucune image distante.</footer>
+</main>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var VALID = 36, GRACE = 0.25, START = Date.UTC(2026, 9, 30, 17, 0); // 30/10 18:00 Paris (UTC+1)
+  var st;
+  function init(){
+    st = { sc: currentSc(), born: 0, n: 1, paid: null, withdrawn: false, msg: null, mtype: '', qonto: null, mail: null };
+    $('clock').value = 2; render();
+  }
+  function currentSc(){ var b = document.querySelector('[data-sc][aria-pressed=true]'); return b ? b.dataset.sc : 'stay'; }
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function fmt(h){ var d = new Date(START + h * 3600000 + 3600000); return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' à ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+  function day(h){ return fmt(h).slice(0, 5); }
+  var DAYS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'], MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  function longDate(h){ var d = new Date(START + h * 3600000 + 3600000); return DAYS[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' à ' + pad(d.getUTCHours()) + ' h ' + pad(d.getUTCMinutes()); }
+  function mailFor(){ var devis = st.sc === 'devis'; st.mail = (devis ? 'Payer le séjour en ligne : ' : 'Payer l’acompte en ligne : ') + '[lien de paiement n° ' + st.n + ']\nCe lien est valable jusqu’au ' + longDate(st.born + VALID) + '.'; }
+  function euros(){ return st.sc === 'devis' ? '840,00 €' : '252,00 €'; }
+  function now(){ return Number($('clock').value); }
+  function age(){ return now() - st.born; }
+  function state(){
+    if (st.paid) return 'paid';
+    if (st.withdrawn) return 'withdrawn';
+    var a = age();
+    if (a < VALID) return 'open';
+    if (a < VALID + GRACE) return 'lapsed-pending';
+    return 'lapsed';
+  }
+  function say(type, text){ st.mtype = type; st.msg = text; }
+  function render(){
+    var s = state(), a = age(), devis = st.sc === 'devis';
+    $('clockV').textContent = fmt(now()).replace(' à ', ' · ') + '  (' + (Math.round(a * 4) / 4).toString().replace('.', ',') + ' h)';
+    $('abTitle').textContent = devis ? 'Devis D-2026-118 · La Granja' : 'Réservation 22341 · L’Estiva';
+    $('abChip').textContent = devis ? (st.paid && st.paid.conflict ? 'Conflit de dates' : st.withdrawn ? 'Dates prises' : 'Devis envoyé') : 'Confirmée';
+    $('abChip').className = 'chip' + (devis && st.withdrawn ? ' warn' : '');
+    $('inflight').hidden = !(devis && st.withdrawn && !st.paid);
+    $('mailEx').hidden = !st.mail; $('mailEx').textContent = st.mail ? 'Extrait de l’e-mail envoyé\n\n' + st.mail : '';
+    $('askPay').hidden = !devis;
+    $('send').hidden = devis;
+    $('conflict').hidden = !devis || st.withdrawn || !!st.paid;
+    $('rowName').textContent = devis ? 'Paiement du séjour' : 'Acompte';
+    document.querySelector('.row .amt').textContent = euros();
+    var lab = '', resend = false, rs = $('rowState');
+    rs.className = 'st due';
+    rs.textContent = devis ? 'À percevoir pour confirmer' : 'À percevoir avant le 06/11';
+    if (s === 'paid') {
+      lab = 'Payé par lien le ' + day(st.paid.at) + (st.paid.late ? ' · reçu pendant l’expiration' : '') + (st.paid.conflict ? ' · dates en conflit' : '');
+      rs.className = 'st paid'; rs.textContent = 'Perçu';
+    } else if (s === 'withdrawn') {
+      lab = 'Lien retiré · dates prises';
+    } else if (s === 'open') {
+      lab = 'Lien envoyé le ' + day(st.born) + ' · ' + euros() + ' · valable jusqu’au ' + fmt(st.born + VALID);
+    } else if (s === 'lapsed-pending') {
+      lab = 'Lien expiré le ' + fmt(st.born + VALID) + ' · désactivation en cours chez Qonto'; resend = !devis;
+    } else {
+      lab = 'Lien expiré le ' + fmt(st.born + VALID); resend = !devis;
+    }
+    var el = $('linkLab');
+    if (el.textContent !== lab) { el.classList.add('changed'); setTimeout(function(){ el.classList.remove('changed'); }, 600); }
+    el.textContent = lab;
+    $('resend').hidden = !resend;
+    $('row2State').textContent = devis ? '' : 'À percevoir avant le 14/11';
+    // timeline (maquette only)
+    var max = Number($('clock').max), b = st.born;
+    $('tValid').style.left = (b / max * 100) + '%';
+    $('tValid').style.width = (Math.min(VALID, max - b) / max * 100) + '%';
+    $('tGrace').style.left = ((b + VALID) / max * 100) + '%';
+    $('tGrace').style.width = 'max(6px, ' + (GRACE / max * 100) + '%)';
+    $('tNow').style.left = (now() / max * 100) + '%';
+    $('timeline').style.display = (s === 'paid' || s === 'withdrawn') ? 'none' : '';
+    $('lgStart').textContent = 'Lien n° ' + st.n + ' créé le ' + fmt(b);
+    $('pay').disabled = s === 'paid';
+    var t = $('toast');
+    t.className = 'toast' + (st.msg ? ' show ' + st.mtype : ''); t.textContent = st.msg || '';
+    var q = $('qonto');
+    q.className = 'qonto' + (st.qonto ? ' show' : ''); q.innerHTML = st.qonto || '';
+  }
+  function newLink(){ st.born = now(); st.n += 1; st.paid = null; st.qonto = null; mailFor(); }
+  $('clock').addEventListener('input', function(){
+    if (now() < st.born) $('clock').value = st.born;
+    st.msg = null; st.qonto = null; render();
+  });
+  $('send').addEventListener('click', function(){
+    var s = state(), left = st.born + VALID - now();
+    if (s === 'open' && left >= 24) { mailFor(); } if (s === 'open' && left >= 24) say('info', 'Demande envoyée avec le même lien : valable jusqu’au ' + fmt(st.born + VALID) + '.');
+    else if (s === 'open') { newLink(); say('ok', 'Demande envoyée avec un nouveau lien (il restait moins de 24 h à l’ancien, désactivé chez Qonto).'); }
+    else if (s === 'paid') say('err', 'Cette échéance est déjà perçue : aucun lien à créer.');
+    else { newLink(); say('ok', 'Demande envoyée — lien de paiement de 252,00 € envoyé au client.'); }
+    st.qonto = null; render();
+  });
+  $('resend').addEventListener('click', function(){ newLink(); say('ok', 'Demande envoyée — lien de paiement de 252,00 € envoyé au client.'); render(); });
+  $('askPay').addEventListener('click', function(){
+    if (st.withdrawn) say('err', 'Dates déjà prises par une autre réservation : aucun lien créé.');
+    else if (st.paid) say('err', 'Ce devis est déjà payé.');
+    else if (state() === 'open') { mailFor(); say('info', 'Demande envoyée avec le même lien : valable jusqu’au ' + fmt(st.born + VALID) + '.'); }
+    else { newLink(); say('ok', 'Demande de paiement envoyée — lien de 840,00 €.'); }
+    st.qonto = null; render();
+  });
+  $('conflict').addEventListener('click', function(){
+    st.withdrawn = true; st.qonto = null;
+    st.mail = null;
+    say('info', 'Réservation Booking importée sur ces nuits : le lien du devis est retiré et désactivé chez Qonto.');
+    render();
+  });
+  $('inflight').addEventListener('click', function(){
+    st.paid = { at: now(), late: false, conflict: true }; st.qonto = null; st.mail = null;
+    say('err', 'Paiement reçu sur des dates déjà prises : enregistré sur la fiche, en conflit de dates. Alerte envoyée : déplacer le séjour ou rembourser.');
+    render();
+  });
+  $('pay').addEventListener('click', function(){
+    var s = state();
+    st.msg = null;
+    if (s === 'open') { st.paid = { at: now(), late: false }; say('ok', st.sc === 'devis' ? 'Paiement reçu : devis converti, dates bloquées, confirmation à valider.' : 'Paiement reçu par le webhook : acompte perçu, confirmation à valider.'); }
+    else if (s === 'lapsed-pending') { st.paid = { at: now(), late: true }; say('ok', 'Payé avant que la désactivation n’atteigne Qonto : enregistré comme un paiement normal.'); }
+    else { st.qonto = '<b>Page Qonto</b>Ce lien de paiement n’est plus actif. — paiement impossible, aucun débit.'; }
+    render();
+  });
+  document.querySelectorAll('[data-sc]').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('[data-sc]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      init();
+    });
+  });
+  document.querySelectorAll('[data-w]').forEach(function(b){
+    b.addEventListener('click', function(){
+      document.querySelectorAll('[data-w]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      document.body.classList.toggle('phone', b.dataset.w === 'phone');
+    });
+  });
+  $('reset').addEventListener('click', init);
+  init();
+})();
+</script>
+</body>
+</html>

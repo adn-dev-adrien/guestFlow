@@ -1,0 +1,99 @@
+// specs/inte-performance.md rules 14–15 — opening an existing reservation reads the property's `stay`
+// view (no pricing seasons), no catalogue, and not the whole client list (the search box is hidden).
+import React from 'react';
+import { render, waitFor } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router';
+import { vi } from 'vitest';
+
+const { mockAuth } = vi.hoisted(() => ({ mockAuth: { user: { id: 1, roles: ['admin'], enabledPlugins: [] }, loading: false, logout: () => {} } }));
+vi.mock('../../hooks/useAuth', () => ({ __esModule: true, AuthProvider: ({ children }) => children, useAuth: () => mockAuth }));
+vi.mock('../../api', () => {
+  const answers = {
+    getReservation: { id: 5, propertyId: 1, clientId: 9, startDate: '2027-03-01', endDate: '2027-03-04', adults: 2, children: 0, teens: 0, babies: 0, platform: 'direct', kind: 'reservation', options: [], resources: [] },
+    getProperty: { id: 1, name: 'Le Gîte', options: [], optionGroups: { ungrouped: [] }, resources: [] },
+    getClient: { id: 9, firstName: 'Camille', lastName: 'Martin' },
+    getProperties: [{ id: 1, name: 'Le Gîte' }],
+    getToday: { today: '2026-10-28' },
+  };
+  const api = new Proxy({}, {
+    get: (target, name) => {
+      if (!target[name]) target[name] = vi.fn(() => Promise.resolve(name in answers ? answers[name] : []));
+      return target[name];
+    },
+  });
+  return { __esModule: true, default: api };
+});
+vi.mock('../../components/DialogProvider', () => {
+  const dialogs = { confirm: vi.fn(), alert: vi.fn() };
+  const toast = { showSuccess: vi.fn(), showError: vi.fn() };
+  return { __esModule: true, useAppDialogs: () => dialogs, useToast: () => toast };
+});
+
+import api from '../../api';
+import ReservationPage from '../ReservationPage';
+
+test('rules 14–15: an existing stay reads the stay view of its property, no catalogue, no client list', async () => {
+  render(
+    <MemoryRouter initialEntries={['/reservations/5']}>
+      <Routes><Route path="/reservations/:reservationId" element={<ReservationPage />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getProperty).toHaveBeenCalled());
+  await waitFor(() => expect(api.getClient).toHaveBeenCalledWith(9));
+  expect(api.getProperty).toHaveBeenCalledWith(1, 'stay');
+  expect(api.getOptions).not.toHaveBeenCalled();
+  expect(api.getClients).not.toHaveBeenCalled();
+});
+
+test('rules 20, 23: the stays of the property are read as occupancy, the availability once for the same dates', async () => {
+  vi.clearAllMocks();
+  render(
+    <MemoryRouter initialEntries={['/reservations/5']}>
+      <Routes><Route path="/reservations/:reservationId" element={<ReservationPage />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getResourcesAvailability).toHaveBeenCalled());
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  expect(api.getReservations).toHaveBeenCalledWith({ propertyId: 1, view: 'occupancy' });
+  expect(api.getResourcesAvailability).toHaveBeenCalledTimes(1);
+});
+
+test('rule 15: when the client cannot be read, the search is what the page shows and its list is read', async () => {
+  vi.clearAllMocks();
+  api.getClient.mockRejectedValueOnce(new Error('boom'));
+  render(
+    <MemoryRouter initialEntries={['/reservations/5']}>
+      <Routes><Route path="/reservations/:reservationId" element={<ReservationPage />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getClient).toHaveBeenCalledWith(9));
+  await waitFor(() => expect(api.getClients).toHaveBeenCalled());
+});
+
+function CreateDevisButton() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate('/reservations/new?mode=devis', {
+      state: { prefillDevis: { propertyId: 1, offeredOptionIds: [], form: { startDate: '2027-03-01', endDate: '2027-03-04', adults: 2, selectedOptions: [], customOptions: [], selectedResources: [] } } },
+    })}
+    >
+      prefill-devis
+    </button>
+  );
+}
+
+test('rule 23: « Créer un devis » from a blank fiche with the same dates reads the availability again', async () => {
+  const { fireEvent, screen } = await import('@testing-library/react');
+  vi.clearAllMocks();
+  render(
+    <MemoryRouter initialEntries={['/reservations/new?propertyId=1&startDate=2027-03-01&endDate=2027-03-04']}>
+      <CreateDevisButton />
+      <Routes><Route path="/reservations/new" element={<ReservationPage />} /></Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(api.getResourcesAvailability).toHaveBeenCalledTimes(1));
+  await new Promise((resolve) => { setTimeout(resolve, 300); });
+  expect(api.getResourcesAvailability).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'prefill-devis' }));
+  await waitFor(() => expect(api.getResourcesAvailability).toHaveBeenCalledTimes(2));
+});

@@ -182,7 +182,7 @@ Make every monthly CSV match the écriture model the accountant validated:
 
 ### 3.2 Data model — `clientGrossAmount` on direct bookings
 
-4. `reservations.clientGrossAmount` is now **populated for every reservation**
+24. (Test: `client-gross-on-every-stay.unit.test.js`.) `reservations.clientGrossAmount` is now **populated for every reservation**
    (not only platform). For a direct booking, `clientGrossAmount = finalPrice`
    at save time. Migrated for existing data on boot: `UPDATE reservations SET
    clientGrossAmount = finalPrice WHERE clientGrossAmount IS NULL AND (platform
@@ -324,6 +324,9 @@ Make every monthly CSV match the écriture model the accountant validated:
     aux commissions plateforme qui sont marquées 'TVA déductible' dans le Plan
     comptable plateformes."* No new endpoint — the existing `PUT /api/settings`
     accepts the new field.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 32-34): « Compte par défaut » and
+    « Indemnités d'annulation » now sit inside the « Comptes » card, group « Commissions et produits
+    divers »; their own cards are gone, storage and endpoint unchanged.
 18. **`Direct` row is always present + always disabled**:
     - Auto-inserted into `platforms` at boot if absent (rule 2).
     - Every input on the Direct row is rendered disabled with a muted
@@ -363,7 +366,7 @@ Make every monthly CSV match the écriture model the accountant validated:
 
 ### 3.8 Reservation form UI
 
-21. **FinanceSection** — when `platform !== 'direct'`:
+25. **FinanceSection** — when `platform !== 'direct'`:
     - The whole **Acompte block** is hidden (title, amount input, "Marquer
       payé" toggle, "Payé le" date). A subtle caption replaces the block:
       *"Pas d'acompte (réservation plateforme — virement unique)"*.
@@ -408,6 +411,12 @@ Make every monthly CSV match the écriture model the accountant validated:
   iCal sync sets `platform` from the source's name; the sync now also sets
   `depositAmount = 0` (already de facto since iCal sync doesn't set deposit
   fields). No code change in the iCal worker.
+
+**Review fixes (2026-10-18, mega review #5)**
+
+23. **A platform is shown by its display label, never its key** (2026-10-18, mega review #5): the Plan
+    comptable table reads « Direct », not « direct » (`formatPlatformLabel`, also in its switches'
+    accessible names).
 
 ---
 

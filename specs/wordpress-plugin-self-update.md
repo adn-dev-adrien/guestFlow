@@ -14,7 +14,7 @@
 
 The `guestflow-booking` WordPress plugin lives in this repository
 ([integrations/wordpress/guestflow-booking](../integrations/wordpress/guestflow-booking)) and runs
-inside the `wp_app` Docker container on the production host. It is currently deployed by the last
+inside the `<container>` Docker container on the production host. It is currently deployed by the last
 step of [.github/workflows/deploy.yml](../.github/workflows/deploy.yml), which `tar`-streams the
 plugin directory into the container through `docker exec` — from a job running on the self-hosted
 runner.
@@ -48,12 +48,26 @@ host.
 5. The plugin polls that manifest through WordPress's own update machinery
    (`pre_set_site_transient_update_plugins`), caching the answer in a transient for 12 h, and
    presents the details through `plugins_api` so the "Voir les détails" modal shows the changelog.
-6. The download URL served by the manifest is always the GitHub release asset over HTTPS, on the
-   `github.com` / `objects.githubusercontent.com` hosts. The plugin refuses any other host.
+6. The download URL served by the manifest is always the GitHub release asset over HTTPS:
+   `https://github.com/adn-dev-adrien/guestFlow/releases/download/vX.Y.Z/guestflow-booking-A.B.C.zip`
+   (the asset's `browser_download_url`). The plugin refuses any other host, any other repository and
+   any other path (amended 2026-10-23, plugin 1.16.1: a bare host check accepted any GitHub
+   repository, and the `*.githubusercontent.com` storage hosts name no repository at all).
 7. When GuestFlow is unreachable or the manifest is malformed, the plugin reports no update and
    logs nothing user-visible — a broken API must never break the site's admin.
 8. The manifest endpoint is public (it advertises nothing more than a published version number and
    a public download link), rate-limited like the other public endpoints, and cached.
+9. **The archive's name carries the manifest's version, newer than the installed one** (2026-10-27
+   audit, plugin 1.17.1). A manifest whose `download_url` file name (`guestflow-booking-A.B.C.zip`)
+   does not carry its `version` is treated as no manifest; and the download itself
+   (`upgrader_pre_download`) refuses an archive whose version is not above `GF_BOOKING_VERSION`.
+10. **The installed archive is the published one** (2026-10-27 audit, plugin 1.17.1). For a GuestFlow
+    Booking package, the plugin downloads the archive itself in `upgrader_pre_download`, reads the
+    `SHA256SUMS` asset of the same release (the file the release workflow publishes beside every
+    archive, `sha256sum` format), and hands WordPress the file only when its SHA-256 equals the listed
+    one (`hash_equals`). No listed checksum, an unreachable `SHA256SUMS` or a mismatch → a `WP_Error`
+    with a French message, the temporary file deleted, nothing installed. Other plugins' packages pass
+    through untouched.
 
 **Edge cases**
 
@@ -80,7 +94,7 @@ host.
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `includes/class-gf-updater.php` | C | Hooks `pre_set_site_transient_update_plugins`, `plugins_api`, `upgrader_process_complete`; transient cache; host validation |
+| `includes/class-gf-updater.php` | C | Hooks `pre_set_site_transient_update_plugins`, `plugins_api`, `upgrader_process_complete`, `upgrader_pre_download`; transient cache; host validation; version-in-name and SHA-256 checks (rules 9-10) |
 | `guestflow-booking.php` | T | Requires and boots the updater |
 | `readme.txt` | T | Keeps the `Stable tag` in sync with the version |
 
@@ -114,12 +128,19 @@ responsive — it is WordPress's own admin.
       is published, refusal of any asset hosted off-GitHub or served over plain HTTP, and the
       changelog HTML escaping what it renders.
 
+- [x] `tests/wordpress-plugin-update-integrity.unit.test.js` (2026-10-27, rules 9-10) — no PHP
+      harness, so the updater's source is read: version in the file name, refusal of a version not
+      newer, `SHA256SUMS` of the same release, `hash_equals`, deletion on mismatch, other packages
+      untouched; the two patterns run on sample lines. **(4 tests)** `php -l` not run (no PHP here).
+
 ### Manual verification
 
 - [ ] Publish a release with a bumped plugin version → the WordPress admin shows the update within
       12 h (or immediately after clearing the transient) and installs it successfully.
 - [ ] The site keeps working after the update (blocks render, availability + quote calls succeed).
 - [ ] GuestFlow stopped → the WordPress plugins page still loads normally, no update offered.
+- [ ] Rules 9-10: updating to the next release installs; an archive altered by hand on a test release
+      (or a `SHA256SUMS` without its line) is refused with « Mise à jour refusée : … ».
 
 ## 8. Out of scope
 
@@ -127,8 +148,8 @@ responsive — it is WordPress's own admin.
   operator; we do not force it).
 - Publishing the plugin on wordpress.org.
 - Updating any other WordPress component (theme, mu-plugins under
-  [integrations/wordpress/solio-site](../integrations/wordpress/solio-site) — those stay a documented
-  manual deployment).
+  a deployment's mu-plugins — those stay a documented manual deployment, kept outside this repository
+  since 2026-10-19, phase P rule 30).
 
 ## 9. Open questions
 

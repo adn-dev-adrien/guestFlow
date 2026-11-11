@@ -206,6 +206,7 @@ export default function MiniPlanningStrip({
           <IconButton
             size="small"
             onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, -1))}
+            aria-label="Jour précédent"
             disabled={isLocked}
             sx={{
               width: 26,
@@ -316,6 +317,7 @@ export default function MiniPlanningStrip({
           <IconButton
             size="small"
             onClick={() => setMiniCalendarStart(addDays(miniCalendarStart, 1))}
+            aria-label="Jour suivant"
             disabled={isLocked}
             sx={{
               width: 26,
@@ -332,7 +334,7 @@ export default function MiniPlanningStrip({
         </Box>
 
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          Cliquez une date d'arrivée puis une date de départ.
+          Date d'arrivée puis date de départ à cliquer.
         </Typography>
       </CardContent>
     </Card>

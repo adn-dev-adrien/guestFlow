@@ -2,7 +2,7 @@
  * Bounded date-range validation for the reception-reachable planning queries.
  *
  * DATA-1 (2026-10-08 infrastructure audit): several admin/reception endpoints accepted an
- * arbitrary `from`/`to` span and iterated it. `GET /planning/laundry` in particular walks every
+ * arbitrary `from`/`to` span and iterated it. `GET /planning/laundry/days` in particular walks every
  * date of the window and runs ~10 prepared queries per date, so `?from=0001-01-01&to=9999-12-31`
  * (~521 000 dates) is a single-threaded CPU/SQL denial of service reachable by the low-privilege
  * reception role.
@@ -13,12 +13,13 @@
  * stack trace.
  */
 
-const MAX_PLANNING_RANGE_DAYS = 750;
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const { isRealIsoDay } = require('./stayDates');
 
-function isIsoDate(value) {
-  return typeof value === 'string' && ISO_DATE_RE.test(value);
-}
+const MAX_PLANNING_RANGE_DAYS = 750;
+
+// A real calendar day, not just the shape: `9999-99-99` would parse to NaN, slip under the cap and walk the
+// ledger until it failed (reception-reachable).
+const isIsoDate = isRealIsoDay;
 
 // Whole days between two YYYY-MM-DD strings, computed in UTC so DST never shifts the count.
 function daysBetween(from, to) {
@@ -32,9 +33,9 @@ function daysBetween(from, to) {
  * `{ status, error }` to send as-is. `from`/`to` must already be resolved (no undefined `to`).
  */
 function checkPlanningRange(from, to, maxDays = MAX_PLANNING_RANGE_DAYS) {
-  if (!isIsoDate(from) || !isIsoDate(to)) return { status: 400, error: 'INVALID_DATE_RANGE' };
-  if (from > to) return { status: 400, error: 'INVALID_DATE_RANGE' };
-  if (daysBetween(from, to) > maxDays) return { status: 400, error: 'DATE_RANGE_TOO_WIDE' };
+  if (!isIsoDate(from) || !isIsoDate(to)) return { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' };
+  if (from > to) return { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' };
+  if (daysBetween(from, to) > maxDays) return { status: 400, error: 'DATE_RANGE_TOO_WIDE', message: 'Période trop longue.' };
   return null;
 }
 

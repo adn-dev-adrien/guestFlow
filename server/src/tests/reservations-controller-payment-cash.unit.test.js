@@ -32,7 +32,11 @@ function buildController({ captures, prev = {} }) {
   const dbMock = { transaction: (fn) => (...a) => fn(...a), prepare: () => ({ get: () => ({}), run: () => ({ changes: 0 }), all: () => [] }) };
   const reservationsModelMock = new Proxy({}, { get: (_, k) => {
     if (k === 'getBasic') return () => ({ id: 1 });                 // exists → no 404
-    if (k === 'getRow') return () => ({ complementPaid: 0, complementPaidCash: 0, complementPaidDate: null,
+    // Departed the day before the mocked today: specs/reservation-payment-ledger.md rule 68 (D20) collects the end of
+    // stay only after the check-out.
+    // date-literal-ok: compared with the mocked getTodayIsoDate only, never with the real clock.
+    if (k === 'getRow') return () => ({ endDate: '2026-06-14', complementAmount: 50, endOfStayComplementAmount: 50,
+      complementPaid: 0, complementPaidCash: 0, complementPaidDate: null,
       endOfStayComplementPaid: 0, endOfStayComplementPaidCash: 0, endOfStayComplementPaidDate: null, ...prev });
     if (k === 'updatePaymentField') return (sql, ...args) => { captures.calls.push({ sql, args }); };
     return () => null;
@@ -105,13 +109,16 @@ test('updatePayment — toggling caisse interne OFF on a paid complement keeps i
 // single « payé » / « caisse interne » action must settle BOTH buckets server-side (the client sends
 // only the arrival fields). Guards against the card marking half the money collected.
 
-const DEFERRED = { complementDeferredToCheckout: 1, endOfStayComplementAmount: 40 };
+// A complement carries money: specs/reservation-payment-ledger.md rule 32 refuses to mark a 0 € bucket.
+const DEFERRED = { complementDeferredToCheckout: 1, endOfStayComplementAmount: 40, complementAmount: 24 };
 
 test('updatePayment — deferred: marking the complement paid also settles the end-of-stay bucket (same date)', () => {
   const captures = { calls: [] };
   const controller = buildController({ captures, prev: DEFERRED });
+  // The collection date is in the past of the mocked today (2026-06-15): specs/reservation-payment-ledger.md
+  // rule 9 refuses a future one.
   const res = fakeRes();
-  controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true, complementPaidDate: '2026-08-03' } }, res);
+  controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true, complementPaidDate: '2026-06-03' } }, res);
 
   assert.equal(res.statusCode, 200);
   const arrival = captures.calls.find((c) => /SET complementPaid/.test(c.sql));
@@ -119,7 +126,7 @@ test('updatePayment — deferred: marking the complement paid also settles the e
   assert.ok(arrival, 'the arrival complement was marked');
   assert.ok(endOfStay, 'the end-of-stay complement was marked too');
   assert.equal(endOfStay.args[0], 1, 'paid = 1');
-  assert.equal(endOfStay.args[1], '2026-08-03', 'same collection date as the arrival part');
+  assert.equal(endOfStay.args[1], '2026-06-03', 'same collection date as the arrival part');
 });
 
 test('updatePayment — deferred: « caisse interne » flags both buckets; un-marking clears both', () => {
@@ -132,7 +139,11 @@ test('updatePayment — deferred: « caisse interne » flags both buckets; un-ma
   assert.equal(endOfStay.args[2], 1, 'cash = 1');
 
   captures = { calls: [] };
-  controller = buildController({ captures, prev: { ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03' } });
+  // The state the merged mark writes: both buckets settled together, same date, same caisse flag (rule 22, V1 reading).
+  controller = buildController({ captures, prev: {
+    // date-literal-ok: the controller's today is mocked to 2026-06-15; the un-mark compares no date with today
+    ...DEFERRED, complementPaid: 1, complementPaidDate: '2026-08-03', endOfStayComplementPaid: 1, endOfStayComplementPaidDate: '2026-08-03',
+  } });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaid: false } }, fakeRes());
   endOfStay = captures.calls.find((c) => /SET endOfStayComplementPaid/.test(c.sql));
   assert.ok(endOfStay, 'un-marking the merged card reverts both buckets');
@@ -142,7 +153,7 @@ test('updatePayment — deferred: « caisse interne » flags both buckets; un-ma
 
 test('updatePayment — deferred with NO end-of-stay amount: only the arrival bucket is touched', () => {
   const captures = { calls: [] };
-  const controller = buildController({ captures, prev: { complementDeferredToCheckout: 1, endOfStayComplementAmount: 0 } });
+  const controller = buildController({ captures, prev: { complementDeferredToCheckout: 1, endOfStayComplementAmount: 0, complementAmount: 24 } });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true } }, fakeRes());
 
   assert.ok(captures.calls.find((c) => /SET complementPaid/.test(c.sql)), 'arrival marked');
@@ -152,7 +163,7 @@ test('updatePayment — deferred with NO end-of-stay amount: only the arrival bu
 
 test('updatePayment — NOT deferred: the two complements stay independent (no cross-marking)', () => {
   const captures = { calls: [] };
-  const controller = buildController({ captures, prev: { complementDeferredToCheckout: 0, endOfStayComplementAmount: 40 } });
+  const controller = buildController({ captures, prev: { complementDeferredToCheckout: 0, endOfStayComplementAmount: 40, complementAmount: 24 } });
   controller.updatePayment({ params: { id: '1' }, body: { complementPaid: true } }, fakeRes());
 
   assert.ok(captures.calls.find((c) => /SET complementPaid/.test(c.sql)), 'arrival marked');

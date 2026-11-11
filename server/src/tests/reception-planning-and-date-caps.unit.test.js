@@ -8,12 +8,19 @@
  */
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { checkPlanningRange, isIsoDate, daysBetween, MAX_PLANNING_RANGE_DAYS } = require('../utils/planningDateRange');
 const { toReceptionPlanningEvent, PLANNING_EVENT_KEEP } = require('../utils/receptionView');
-const { buildController: buildResourceBookings } = require('../controllers/resourceBookingsController');
-const { buildController: buildPlanning } = require('../controllers/planningController');
+const { createController } = optionalPlugin(() => require('../plugins/hourly-resources/controller'));
+const { buildController: buildPlanning } = optionalPlugin(() => require('../plugins/linen/planningController'));
+
+// The planning events are the `hourly-resources` plugin's, the laundry summary the `linen` plugin's
+// (specs/plugins-phase-3c-hourly-resources.md rule 10, specs/plugins-phase-2-hosts.md rule 4).
+const buildResourceBookings = (model) => createController({ bookings: () => model });
 
 function res() {
   return { statusCode: 200, body: undefined, status(c) { this.statusCode = c; return this; }, json(p) { this.body = p; return this; } };
@@ -43,7 +50,7 @@ test('toReceptionPlanningEvent keeps only the whitelist, drops finance + PII', (
   assert.equal(view.resourceName, 'Spa');
 });
 
-test('planning-events: reception gets the projection, admin gets the full payload', () => {
+test('planning-events: reception gets the projection, admin gets the full payload', { skip: skipWithout(['hourly-resources']) }, () => {
   const model = { listPlanningEvents: () => [fullEvent()] };
   const c = buildResourceBookings(model);
 
@@ -58,7 +65,7 @@ test('planning-events: reception gets the projection, admin gets the full payloa
   assert.equal(rAdmin.body[0].clientPhone, '+33600000000');
 });
 
-test('planning-events: reception-only when roles also include a non-admin role', () => {
+test('planning-events: reception-only when roles also include a non-admin role', { skip: skipWithout(['hourly-resources']) }, () => {
   const model = { listPlanningEvents: () => [fullEvent()] };
   const c = buildResourceBookings(model);
   const r = res();
@@ -70,19 +77,24 @@ test('planning-events: reception-only when roles also include a non-admin role',
 
 test('checkPlanningRange: ok, inverted, bad ISO, and the width ceiling', () => {
   assert.equal(checkPlanningRange('2026-01-01', '2026-02-01'), null);
-  assert.deepEqual(checkPlanningRange('2026-02-01', '2026-01-01'), { status: 400, error: 'INVALID_DATE_RANGE' });
-  assert.deepEqual(checkPlanningRange('nope', '2026-01-01'), { status: 400, error: 'INVALID_DATE_RANGE' });
+  assert.deepEqual(checkPlanningRange(addDaysToIsoDate(todayIso(), 1), todayIso()), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
+  assert.deepEqual(checkPlanningRange('nope', todayIso()), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
   // exactly at the ceiling is allowed; one day over is rejected.
   const base = '2026-01-01';
   const atCeiling = new Date(Date.parse(base + 'T00:00:00Z') + MAX_PLANNING_RANGE_DAYS * 86400000).toISOString().slice(0, 10);
   assert.equal(daysBetween(base, atCeiling), MAX_PLANNING_RANGE_DAYS);
   assert.equal(checkPlanningRange(base, atCeiling), null);
   const overCeiling = new Date(Date.parse(base + 'T00:00:00Z') + (MAX_PLANNING_RANGE_DAYS + 1) * 86400000).toISOString().slice(0, 10);
-  assert.deepEqual(checkPlanningRange(base, overCeiling), { status: 400, error: 'DATE_RANGE_TOO_WIDE' });
-  assert.equal(isIsoDate('2026-13-99'), true); // shape-only check, as documented
+  assert.deepEqual(checkPlanningRange(base, overCeiling), { status: 400, error: 'DATE_RANGE_TOO_WIDE', message: 'Période trop longue.' });
+  // A real calendar day (specs/linen-laundry-days.md rule 13): `9999-99-99` used to pass the shape check, parse
+  // to NaN and slip under the cap.
+  for (const bad of ['2026-13-99', '9999-99-99', '2026-02-30', '2026-00-10']) assert.equal(isIsoDate(bad), false, bad);
+  assert.equal(isIsoDate('2026-02-28'), true);
+  assert.deepEqual(checkPlanningRange(todayIso(), '9999-99-99'), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
+  assert.deepEqual(checkPlanningRange('0000-00-00', todayIso()), { status: 400, error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
 });
 
-test('planning-events rejects a pathological span before hitting the DB', () => {
+test('planning-events rejects a pathological span before hitting the DB', { skip: skipWithout(['hourly-resources']) }, () => {
   let called = false;
   const model = { listPlanningEvents: () => { called = true; return []; } };
   const c = buildResourceBookings(model);
@@ -93,16 +105,16 @@ test('planning-events rejects a pathological span before hitting the DB', () => 
   assert.equal(called, false, 'the model must not be queried for an out-of-bounds range');
 });
 
-test('laundrySummary rejects a pathological span before the ledger walks it', () => {
+test('laundryDays rejects a pathological span before the ledger walks it', { skip: skipWithout(['linen']) }, () => {
   let touched = false;
   const trap = new Proxy({}, { get() { touched = true; return () => { throw new Error('ledger should not run'); }; } });
   const c = buildPlanning({
     settingsModel: { read: () => ({ laundryWeekday: 2 }) },
-    laundryModel: trap, linenInventoryModel: trap, laundryTripSkipsModel: trap,
+    laundryModel: trap, linenInventoryModel: trap, laundryScheduleModel: trap, laundryTripSkipsModel: trap,
     laundryManualAdditionsModel: trap, laundryExtraTripsModel: trap,
   });
   const r = res();
-  c.laundrySummary({ query: { from: '0001-01-01', to: '9999-12-31' } }, r);
+  c.laundryDays({ query: { from: '0001-01-01', to: '9999-12-31' } }, r);
   assert.equal(r.statusCode, 400);
   assert.equal(r.body.error, 'DATE_RANGE_TOO_WIDE');
   assert.equal(touched, false);

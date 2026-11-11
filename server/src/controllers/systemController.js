@@ -32,6 +32,14 @@ const KEEP_RELEASES = 3;
 
 let lastManualCheckAt = 0;
 
+// specs/hosting-h1-fleet-runtime.md rule 9 — on a hosted instance the operator updates from the
+// console; the instance shows its version and nothing to press.
+const MANAGED_LABEL = 'Mises à jour gérées par l’hébergeur';
+const isManaged = (env = process.env) => env.GUESTFLOW_MANAGED === '1';
+// specs/self-update-and-releases.md rule 51 — the E2E servers read no release feed. Honoured under
+// NODE_ENV=test only: a production instance that inherits the flag by mistake keeps checking.
+const outboundDisabled = (env = process.env) => env.GUESTFLOW_DISABLE_OUTBOUND === '1' && env.NODE_ENV === 'test';
+
 function healthUrl(env = process.env) {
   const protocol = shouldEnforceHttps(env) ? 'https' : 'http';
   return `${protocol}://127.0.0.1:${env.PORT || 4000}/api/version`;
@@ -65,10 +73,28 @@ function buildVersionSpan(state, current, latest) {
 }
 
 /** The `GET /api/system/version` payload, built from local state only (no network call). */
-function buildVersionInfo(model = updateStateModel) {
+function buildVersionInfo(model = updateStateModel, env = process.env) {
   const current = getAppVersion();
+  if (isManaged(env)) {
+    return {
+      current,
+      managed: true,
+      managedLabel: MANAGED_LABEL,
+      latest: null,
+      updateAvailable: false,
+      publishedAt: null,
+      versions: [],
+      versionsTruncated: false,
+      lastCheckAt: null,
+      dismissedVersion: null,
+      selfUpdateSupported: false,
+      selfUpdateReason: null,
+      updateInProgress: false,
+      history: [],
+    };
+  }
   const state = model.readState();
-  const support = selfUpdateSupported();
+  const support = selfUpdateSupported(env);
   const latest = state.latestVersion;
   const versions = buildVersionSpan(state, current, latest);
   return {
@@ -82,6 +108,8 @@ function buildVersionInfo(model = updateStateModel) {
     versionsTruncated: Boolean(state.releasesTruncated) && versions.length === state.releases.length,
     lastCheckAt: state.lastCheckAt,
     dismissedVersion: state.dismissedVersion,
+    managed: false,
+    managedLabel: null,
     selfUpdateSupported: support.supported,
     selfUpdateReason: support.reason,
     updateInProgress: model.isLocked(),
@@ -157,7 +185,8 @@ function finishInProcess(model, phase, errorCode, message) {
  * next release was published badly would take the update away from an operator who could still
  * install the one they were already being offered.
  */
-async function runVersionCheck({ model = updateStateModel, fetchImpl = fetch } = {}) {
+async function runVersionCheck({ model = updateStateModel, fetchImpl = fetch, env = process.env } = {}) {
+  if (isManaged(env) || outboundDisabled(env)) return null;
   const feed = await fetchReleaseFeed({ fetchImpl });
   const previous = model.readState().latestVersion;
   if (!feed || !feed.release) {
@@ -208,14 +237,19 @@ function getVersion(req, res) {
   res.json(buildVersionInfo());
 }
 
+function refuseManaged(res) {
+  return res.status(403).json({ error: 'MANAGED_BY_HOST', message: `${MANAGED_LABEL}.` });
+}
+
 async function checkNow(req, res) {
+  if (isManaged()) return refuseManaged(res);
   const now = Date.now();
   const elapsed = now - lastManualCheckAt;
   if (elapsed < CHECK_THROTTLE_MS) {
     const retryAfter = Math.ceil((CHECK_THROTTLE_MS - elapsed) / 1000);
     return res.status(429).set('Retry-After', String(retryAfter)).json({
       error: 'TOO_MANY_REQUESTS',
-      message: `Patientez ${retryAfter} s avant de relancer une vérification.`,
+      message: `Nouvelle vérification possible dans ${retryAfter} s.`,
     });
   }
   lastManualCheckAt = now;
@@ -228,6 +262,7 @@ function getUpdateStatus(req, res) {
 }
 
 function dismissUpdate(req, res) {
+  if (isManaged()) return refuseManaged(res);
   const version = req.body?.version;
   if (!isValidVersion(version)) {
     return res.status(400).json({ error: 'INVALID_VERSION', message: 'Version invalide.' });
@@ -237,6 +272,7 @@ function dismissUpdate(req, res) {
 }
 
 async function startUpdate(req, res) {
+  if (isManaged()) return refuseManaged(res);
   const model = updateStateModel;
   const current = getAppVersion();
   const targetVersion = req.body?.targetVersion;
@@ -275,7 +311,7 @@ async function startUpdate(req, res) {
     return res.status(507).json({
       error: 'INSUFFICIENT_MEMORY',
       message: `Mémoire insuffisante (${Math.round(memory / 1e6)} Mo disponibles, `
-        + `${Math.round(REQUIRED_FREE_MEMORY_BYTES / 1e6)} Mo requis). Ajoutez du swap ou de la RAM.`,
+        + `${Math.round(REQUIRED_FREE_MEMORY_BYTES / 1e6)} Mo requis). Swap ou RAM à ajouter.`,
     });
   }
 
@@ -314,11 +350,13 @@ async function runUpdate({ model, paths, current, targetVersion, startedAt, logF
       release,
       paths,
       onPhase: (phase) => model.writeStatus({ phase }),
+      log: (line) => appendUpdateLog(logFile, line),
     });
 
     model.writeStatus({ phase: 'backup' });
-    await createPreUpdateBackup({ backupsDir: paths.backupsDir, targetVersion });
+    const backupFile = await createPreUpdateBackup({ backupsDir: paths.backupsDir, targetVersion });
     rotateBackups(paths.backupsDir);
+    appendUpdateLog(logFile, `sauvegarde de la base : OK, ${path.basename(String(backupFile || ''))}`);
 
     const args = buildHelperArgs({
       paths,
@@ -331,6 +369,7 @@ async function runUpdate({ model, paths, current, targetVersion, startedAt, logF
       startedAt,
     });
     model.writeStatus({ phase: 'swapping' });
+    appendUpdateLog(logFile, 'bascule : lancement de l’assistant de mise à jour');
     spawnHelper(args);
     // From here the helper owns the status file. We keep the lock: the restart is imminent, and a
     // second trigger in that window must be refused.
@@ -355,6 +394,10 @@ const STAGING_MESSAGES = {
     ARCHIVE_TOO_LARGE: "L'archive dépasse la taille maximale autorisée.",
     CHECKSUM_MISSING: "L'empreinte SHA-256 de l'archive est absente de la release.",
     CHECKSUM_MISMATCH: "L'archive téléchargée ne correspond pas à son empreinte SHA-256 : mise à jour refusée.",
+    LOCKFILE_UNTRUSTED: "Le fichier de verrouillage des dépendances de la release pointe hors du registre npm : mise à jour refusée.",
+    SIGNATURE_MISSING: "La release n'est pas signée alors qu'une clé de signature est configurée : mise à jour refusée.",
+    SIGNATURE_INVALID: "La signature de la release ne correspond pas à la clé configurée : mise à jour refusée.",
+    SIGNATURE_KEY_INVALID: "La clé publique de signature des releases est illisible : mise à jour refusée.",
     ARCHIVE_LINK_MEMBER: "L'archive contient un lien symbolique : mise à jour refusée.",
     ARCHIVE_ABSOLUTE_MEMBER: "L'archive contient un chemin absolu : mise à jour refusée.",
     ARCHIVE_TRAVERSAL_MEMBER: "L'archive contient un chemin remontant (« .. ») : mise à jour refusée.",
@@ -390,7 +433,7 @@ module.exports = {
   initOnBoot,
   // Exposed for tests.
   __test: {
-    buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage, isKnownStagingCode,
+    buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage, isKnownStagingCode, MANAGED_LABEL,
     CHECK_THROTTLE_MS, REQUIRED_FREE_BYTES, REQUIRED_FREE_MEMORY_BYTES,
   },
 };

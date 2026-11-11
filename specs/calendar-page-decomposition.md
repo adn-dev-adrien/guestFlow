@@ -85,6 +85,14 @@ maintainable and each visual concern lives in one place.
 9. **Responsive parity**: the existing `xs`/`sm` breakpoints (full-width toolbar controls, calendar min
    width + horizontal scroll, viewport-height scroll area) are preserved exactly in the extracted
    components.
+10. **Labels that fit and read right** (fixed at the 2026-10-27 spec review, F13). In the per-logement
+    grid: the platform under a name is `formatPlatformLabel(platform)` (« Direct », never the stored
+    « direct ») on mid-stay, arrival, departure and devis labels; the month badge and the side label
+    use the French abbreviations (`MONTH_SHORT_NAMES`: « Oct. », « Nov. », « Juin » / « Juil. ») instead of
+    a cut of the full name (« Nove. », « Octo. », and « Jui » for both June and July); the grid columns
+    are `minmax(0, 1fr)` so a long client name is cut with an ellipsis inside its day instead of
+    widening its column (« Jean-Baptiste De La Fontaine-Montgolfier » stretched the Sunday of 1 Nov
+    over two columns).
 
 **Edge cases (all preserved):**
 - Drag selection clamps at the first occupied day / existing arrival, forward **and** backward → same
@@ -189,6 +197,9 @@ canonical Save/Cancel model doesn't fit. The page keeps `PageHeader` + the toolb
       rollover), `getDaysInMonth`, `timeToHour`/`hourToPercent` (clamp 0–100, 8h–21h window),
       `compactName` (truncation), `resHasMidDays` (boundary: 1-night, exact month edges),
       `getBlockedNightInfo` (early-arrival → pct band).
+- [x] `components/__tests__/CalendarDayCell.platform-label.test.jsx` (2, rule 10, 2026-10-27) — a mid-stay
+      label reads « Direct »; `MONTH_SHORT_NAMES` gives « Oct. », « Nov. », distinct June / July.
+      Browser 1280 px: 1 Nov keeps its column, badge « Nov. 2026 ».
 
 ### Manual UI verification (browser)
 - [x] **Overview mode** (no property): `SyncedPropertyMiniCalendars` renders.

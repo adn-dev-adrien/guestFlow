@@ -2,10 +2,13 @@
  * DialogProvider — app-wide imperative dialogs + toasts (specs/ds-components.md §3.2).
  *
  *   const { confirm, alert, openForm } = useAppDialogs();
- *     confirm(options)  → Promise<boolean>   ConfirmDialog (options: title, message, confirmLabel,
- *                                            cancelLabel, confirmColor)
- *     alert(options)    → Promise<void>      information dialog (options OBJECT: title, message,
+ *     confirm(options)  → Promise<boolean>   ConfirmDialog (options: title, message, details, confirmLabel,
+ *                                            cancelLabel, confirmColor; with `secondaryLabel` a third
+ *                                            button resolves the string 'secondary')
+ *     alert(options)    → Promise<void>      information dialog (options OBJECT: title, message, details,
  *                                            buttonLabel — never a bare string)
+ *   `details` (optional ReactNode) is drawn under the message: the records a refusal names (ConflictList).
+ *   `details` and a form's `content` can close their dialog as « Annuler » would (`useDialogDismiss`).
  *     openForm(options) → Promise<boolean>   FormDialog (title, content, onSubmit, submitLabel…)
  *
  *   const { showSuccess, showError } = useToast();
@@ -17,12 +20,13 @@
  */
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import {
-  Dialog, DialogActions, DialogContent, DialogTitle, Button, Typography,
+  Box, Dialog, DialogActions, DialogContent, DialogTitle, Button, Typography,
   Snackbar, Alert, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ConfirmDialog from './ConfirmDialog';
 import FormDialog from './FormDialog';
+import { DialogDismissContext } from './dialogDismissContext';
 
 const DialogContext = createContext(null);
 
@@ -97,6 +101,11 @@ export default function DialogProvider({ children }) {
     setConfirmState(null);
   };
 
+  const secondaryConfirm = () => {
+    if (confirmState?.resolve) confirmState.resolve('secondary');
+    setConfirmState(null);
+  };
+
   const closeAlert = () => {
     if (alertState?.resolve) alertState.resolve();
     setAlertState(null);
@@ -133,15 +142,19 @@ export default function DialogProvider({ children }) {
         onConfirm={acceptConfirm}
         title={confirmState?.title || 'Confirmer'}
         message={confirmState?.message || ''}
+        details={confirmState?.details ? <DialogDismissContext.Provider value={closeConfirm}>{confirmState.details}</DialogDismissContext.Provider> : null}
         confirmLabel={confirmState?.confirmLabel || 'Confirmer'}
         cancelLabel={confirmState?.cancelLabel || 'Annuler'}
         confirmColor={confirmState?.confirmColor || 'error'}
+        secondaryLabel={confirmState?.secondaryLabel || null}
+        onSecondary={secondaryConfirm}
       />
 
       <Dialog open={!!alertState} onClose={closeAlert} maxWidth="sm" fullWidth fullScreen={fullScreen}>
         <DialogTitle>{alertState?.title || 'Information'}</DialogTitle>
         <DialogContent>
           <Typography>{alertState?.message || ''}</Typography>
+          {alertState?.details && <Box sx={{ mt: 2 }}><DialogDismissContext.Provider value={closeAlert}>{alertState.details}</DialogDismissContext.Provider></Box>}
         </DialogContent>
         <DialogActions>
           <Button variant="contained" onClick={closeAlert}>{alertState?.buttonLabel || 'Compris'}</Button>
@@ -159,7 +172,7 @@ export default function DialogProvider({ children }) {
         maxWidth={formState?.maxWidth || 'sm'}
         fullWidth={formState?.fullWidth !== false}
       >
-        {formState?.content}
+        <DialogDismissContext.Provider value={closeForm}>{formState?.content}</DialogDismissContext.Provider>
       </FormDialog>
 
       <Snackbar

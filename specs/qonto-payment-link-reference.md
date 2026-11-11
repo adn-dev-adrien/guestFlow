@@ -67,6 +67,13 @@ réservation correspond un encaissement.
 - Réservation d'une nuit → description « … · 1 nuit · … ».
 - Taxe collectée à l'arrivée (pas de ligne taxe) → l'article séjour enrichi est la seule ligne.
 
+**Review fixes (2026-10-18, mega review #5)**
+
+10. **Every link names its stay** (2026-10-18, mega review #5). A reservation without a devis number
+    is referenced by its reservation number, and the single 0 % fallback line (no VAT basket) is
+    titled like the stay line (« Séjour <Bien> — <Réf> — <Nom> »). *Why:* a reservation's link was
+    one « Solde séjour » line with no description, unidentifiable in Qonto.
+
 ---
 
 ## 4. Architecture

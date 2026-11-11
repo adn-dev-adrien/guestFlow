@@ -13,6 +13,9 @@ const { labels, FR, EN } = require('../utils/devisPdfLabels');
 const { resolvePaymentBlock } = __test;
 const NEW_KEYS = ['depositSecuresDates', 'fullPaymentLabel', 'fullPaymentSecuresDates'];
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('a direct quote with an acompte: the mention is printed, the block keeps its two rows', () => {
   const b = resolvePaymentBlock({ platform: 'direct', depositAmount: 129, balanceAmount: 307 });
   assert.equal(b.securesDates, true);

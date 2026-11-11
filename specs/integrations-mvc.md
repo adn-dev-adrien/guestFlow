@@ -63,6 +63,16 @@ normalization, Google not-configured `400`, Google event upsert (insert when `40
 
 ## 4. Architecture
 
+> **Partly moved to plugin `google-calendar` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file
+> map (audit 2026-10-27).** The iCal, options and calendar-notes rows below still hold
+> (`models/icalModel.js`, `controllers/icalController.js`, `routes/ical.js`, `models/optionsModel.js`,
+> `controllers/optionsController.js`, `routes/options.js`, `models/calendarNotesModel.js`,
+> `controllers/calendarNotesController.js`, `routes/calendarNotes.js`). The Google Calendar rows do not:
+> `utils/googleCalendarEvents.js` → `plugins/google-calendar/events.js`, `models/googleCalendarModel.js` →
+> `plugins/google-calendar/model.js`, `controllers/googleCalendarController.js` →
+> `plugins/google-calendar/controller.js`, `routes/googleCalendar.js` → mounted by
+> `plugins/google-calendar/index.js`, `utils/googleCalendarClient.js` → `plugins/google-calendar/client.js`.
+
 > **Fat backend, thin frontend.** Pure server refactor; no client touch. Event builders + iCal formatting
 > are pure utils; DB access + shaping in models.
 

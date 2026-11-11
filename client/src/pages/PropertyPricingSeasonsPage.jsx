@@ -28,12 +28,14 @@ import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
 import ErrorAlert from '../components/ErrorAlert';
 import PlatformPriceCard from '../components/PlatformPriceCard';
-import TariffRecipeCard from '../components/property/TariffRecipeCard';
+import Slot from '../plugins/sdk/Slot';
 import { useToast } from '../components/DialogProvider';
 import api from '../api';
+import { usePlugin } from '../hooks/usePlugins';
+import { TARIFF_RECIPES } from '../constants/plugins';
+import useDayMarkers from '../hooks/useDayMarkers';
 import { displayDate, formatCurrency } from '../utils/formatters';
-import { withFrom } from '../utils/navigation';
-import { getSchoolHolidayInfo } from '../frenchHolidays';
+import { withFrom, getFromParam } from '../utils/navigation';
 
 const DEFAULT_COLORS = ['#1976d2', '#2e7d32', '#f57c00', '#6a1b9a', '#00838f', '#d81b60', '#5d4037'];
 
@@ -106,7 +108,7 @@ const WEEKDAYS_FR = [
 
 // The season's identity — colour dot, label, and whether a recipe owns it. Shared by the desktop
 // table and the mobile card list so the two can never drift apart.
-function SeasonIdentity({ season }) {
+function SeasonIdentity({ season, recipesOn }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
       <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: (t) => season.color || t.palette.primary.main }} />
@@ -115,8 +117,8 @@ function SeasonIdentity({ season }) {
       <Chip
         size="small"
         variant="outlined"
-        color={season.seasonKey ? 'info' : 'default'}
-        label={season.seasonKey ? `recette · ${season.seasonKey}` : 'Manuelle'}
+        color={recipesOn && season.seasonKey ? 'info' : 'default'}
+        label={recipesOn && season.seasonKey ? `recette · ${season.seasonKey}` : 'Manuelle'}
         sx={{ height: 20, '& .MuiChip-label': { px: 0.75, fontSize: '0.7rem' } }}
       />
     </Box>
@@ -207,13 +209,19 @@ function sanitizeDecimalInput(raw) {
 
 export default function PropertyPricingSeasonsPage() {
   const { id } = useParams();
+  // A link from a fiche (« Voir la grille ») brings the operator back to it.
+  const backTarget = getFromParam(window.location.search) || `/properties/${id}`;
+  // The day dots (school-holiday zones) and the recipe card come from plugin modules
+  // (specs/plugins-phase-1-sdk.md rule 13); the season badge only names a recipe while the plugin is
+  // active — a core display of core data.
+  const { markersFor, captions: markerCaptions } = useDayMarkers();
+  const recipesOn = usePlugin(TARIFF_RECIPES);
   const navigate = useNavigate();
 
   const [property, setProperty] = useState(null);
   // Bumped after a season is saved/deleted so the « Prix plateformes » grid re-fetches its net prices.
   const [platformRefresh, setPlatformRefresh] = useState(0);
   const [allProperties, setAllProperties] = useState([]);
-  const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [publicHolidays, setPublicHolidays] = useState(() => new Set());
   const [displayStartYear, setDisplayStartYear] = useState(new Date().getFullYear());
   const displayYears = 1; // one year per screen; the arrows move it
@@ -277,11 +285,10 @@ export default function PropertyPricingSeasonsPage() {
 
   const loadData = useCallback(async () => {
     setLoadError(false);
-    let p; let holidays; let props;
+    let p; let props;
     try {
-      [p, holidays, props] = await Promise.all([
+      [p, props] = await Promise.all([
         api.getProperty(id),
-        api.getSchoolHolidays(),
         api.getProperties(),
       ]);
     } catch (e) {
@@ -301,7 +308,6 @@ export default function PropertyPricingSeasonsPage() {
         progressiveTiers: parseTiers(r.progressiveTiers),
       })),
     });
-    setSchoolHolidays(holidays?.periods || []);
     setAllProperties(props || []);
   }, [id]);
 
@@ -313,6 +319,16 @@ export default function PropertyPricingSeasonsPage() {
   // button row and a 980 px table are both unusable on a phone.
   const theme = useTheme();
   const isCompact = useMediaQuery(theme.breakpoints.down('md'));
+  // On a phone the year shows ONE month, browsed with its own arrows: twelve stacked grids pushed the
+  // recipe card and the price grid ~4000 px down (2026-10-27 audit).
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
+  const [phoneMonth, setPhoneMonth] = useState(new Date().getMonth());
+  const stepPhoneMonth = (delta) => {
+    const next = phoneMonth + delta;
+    if (next < 0) { setDisplayStartYear((y) => y - 1); setPhoneMonth(11); }
+    else if (next > 11) { setDisplayStartYear((y) => y + 1); setPhoneMonth(0); }
+    else setPhoneMonth(next);
+  };
 
   const seasons = property?.pricingRules || [];
   // Computed once per render: today in ISO, and the per-season upcoming ranges the table shows.
@@ -777,20 +793,23 @@ export default function PropertyPricingSeasonsPage() {
   }, [seasonDialogOpen, seasonForm.pricingMode, seasonForm.pricePerNight, seasonForm.progressiveTiers, refreshProgressivePreview]);
 
   if (loadError) {
-    return <Box><PageActionBar title="Gestion tarifaire" backTo={`/properties/${id}`} /><ErrorAlert message="Impossible de charger la tarification du logement." onRetry={loadData} /></Box>;
+    return <Box><PageActionBar title="Gestion tarifaire" backTo={backTarget} /><ErrorAlert message="Impossible de charger la tarification du logement." onRetry={loadData} /></Box>;
   }
   if (!property) {
-    return <Box><PageActionBar title="Gestion tarifaire" backTo={`/properties/${id}`} /><LoadingState label="Chargement de la tarification…" /></Box>;
+    return <Box><PageActionBar title="Gestion tarifaire" backTo={backTarget} /><LoadingState label="Chargement de la tarification…" /></Box>;
   }
 
   return (
     <Box>
       <PageActionBar
-        // On a phone the property name costs the whole title (« Gesti… ») — the sidebar and the
-        // recipe card both name the property anyway.
-        title={isCompact ? 'Gestion tarifaire' : `Gestion tarifaire - ${property.name}`}
-        titleOnXs
-        backTo={`/properties/${id}`}
+        // The property name is a caption beside the title, never glued to it: « Gestion tarifaire -
+        // La Granja — gîte… » was cut at 1280 and mixed two dashes (2026-10-27 audit). On a phone the
+        // sidebar and the recipe card name the property anyway.
+        title="Gestion tarifaire"
+        subtitle={isCompact ? undefined : (
+          <Typography variant="body2" color="text.secondary">{property.name}</Typography>
+        )}
+        backTo={backTarget}
         // Compact: ICON actions, which PageActionBar collapses into its « … » overflow menu past two
         // items. As custom `node` buttons they stayed inline by design and stacked into a staircase
         // that squeezed the title out.
@@ -854,8 +873,33 @@ export default function PropertyPricingSeasonsPage() {
                     <ChevronRightIcon fontSize="inherit" />
                   </IconButton>
                 </Box>
+                {isPhone && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <IconButton
+                      onClick={() => stepPhoneMonth(-1)}
+                      disabled={phoneMonth === 0 && displayStartYear <= minYear - 1}
+                      aria-label="Mois précédent"
+                      sx={{ width: 44, height: 44 }}
+                    >
+                      <ChevronLeftIcon />
+                    </IconButton>
+                    <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
+                      {new Date(year, phoneMonth, 1).toLocaleDateString('fr-FR', { month: 'long' })}
+                    </Typography>
+                    <IconButton
+                      onClick={() => stepPhoneMonth(1)}
+                      disabled={phoneMonth === 11 && displayStartYear >= maxYear + 2}
+                      aria-label="Mois suivant"
+                      sx={{ width: 44, height: 44 }}
+                    >
+                      <ChevronRightIcon />
+                    </IconButton>
+                  </Box>
+                )}
                 <Grid container spacing={1.5}>
-                  {Array.from({ length: 12 }, (_, month) => {
+                  {Array.from({ length: 12 }, (_, month) => month)
+                    .filter((month) => !isPhone || month === phoneMonth)
+                    .map((month) => {
                     const first = new Date(year, month, 1);
                     const last = new Date(year, month + 1, 0);
                     const startGrid = getMondayStart(first);
@@ -867,7 +911,7 @@ export default function PropertyPricingSeasonsPage() {
                       const inMonth = d.getMonth() === month;
                       const season = getSeasonForDate(dateStr);
                       const isPublicHoliday = publicHolidays.has(dateStr);
-                      const schoolInfo = getSchoolHolidayInfo(dateStr, schoolHolidays);
+                      const hasMarker = markersFor(dateStr).length > 0;
                       const coveringRange = season ? (season.dateRanges || []).find((r) => dateStr >= r.startDate && dateStr <= r.endDate) : null;
                       const seasonDefaultMin = season ? Number(season.minNights || 1) : 1;
                       const dayMin = coveringRange ? Number(coveringRange.minNights ?? seasonDefaultMin) : seasonDefaultMin;
@@ -880,7 +924,7 @@ export default function PropertyPricingSeasonsPage() {
                       const isDepartureDay = departureDay != null && departureDay !== '' && Number(departureDay) === weekday;
                       const closure = findClosureForDate(property.closureRanges, dateStr);
                       const eventLabel = coveringRange?.eventLabel || null;
-                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, schoolInfo, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure, eventLabel });
+                      cells.push({ dateStr, day: d.getDate(), inMonth, season, isPublicHoliday, hasMarker, dayMin, seasonDefaultMin, isArrivalDay, isDepartureDay, closure, eventLabel });
                     }
 
                     return (
@@ -967,7 +1011,7 @@ export default function PropertyPricingSeasonsPage() {
                                 {c.inMonth && c.isPublicHoliday && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'error.main', position: 'absolute', bottom: 1, left: 1 }} />
                                 )}
-                                {c.inMonth && c.schoolInfo && (
+                                {c.inMonth && c.hasMarker && (
                                   <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'info.main', position: 'absolute', bottom: 1, right: 1 }} />
                                 )}
                               </Box>
@@ -989,10 +1033,12 @@ export default function PropertyPricingSeasonsPage() {
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main' }} />
                     <Typography variant="caption" color="text.secondary">jour férié</Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'info.main' }} />
-                    <Typography variant="caption" color="text.secondary">vacances scolaires</Typography>
-                  </Box>
+                  {markerCaptions.map((caption) => (
+                    <Box key={caption} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'info.main' }} />
+                      <Typography variant="caption" color="text.secondary">{caption}</Typography>
+                    </Box>
+                  ))}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.dark' }}>3</Typography>
                     <Typography variant="caption" color="text.secondary">minimum de nuits</Typography>
@@ -1016,8 +1062,10 @@ export default function PropertyPricingSeasonsPage() {
         ))}
       </Grid>
 
-      {/* Tariff recipe (specs/tariff-recipes/spec.md §3.2): pick + preview + apply. */}
-      <TariffRecipeCard
+      {/* Plugin cards of the property tariff — the recipe: pick + preview + apply
+          (specs/tariff-recipes/spec.md §3.2). */}
+      <Slot
+        name="property.tariff"
         propertyId={id}
         activeRecipeId={property.tariffRecipeId || ''}
         appliedVersion={property.tariffRecipeVersion || ''}
@@ -1039,7 +1087,7 @@ export default function PropertyPricingSeasonsPage() {
               {seasons.map((s) => (
                 <Card key={s.id} variant="outlined">
                   <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <SeasonIdentity season={s} />
+                    <SeasonIdentity season={s} recipesOn={recipesOn} />
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 1 }}>
                       <SeasonRanges season={s} ranges={upcomingRanges(s)} />
                     </Box>
@@ -1061,42 +1109,46 @@ export default function PropertyPricingSeasonsPage() {
                   </CardContent>
                 </Card>
               ))}
-              {seasons.length === 0 && <EmptyState message="Aucune saison. Créez votre première saison." py={4} />}
+              {seasons.length === 0 && <EmptyState message="Aucune saison." py={4} />}
             </Box>
           ) : (
-          <TableCard minWidth={980}>
+          // 860, not 980: at 1280 next to the drawer the 980 floor overflowed by 36 px and cut
+          // « Supprimer » (2026-10-27 audit). The actions stack in their own narrow column.
+          <TableCard minWidth={860}>
               <TableHead>
                 <TableRow>
                   <TableCell>Saison</TableCell>
                   <TableCell>Dates</TableCell>
                   <TableCell>Type</TableCell>
-                  <TableCell>Tarif base 1 nuit</TableCell>
-                  <TableCell>Min – max nuits</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>Tarif base 1 nuit</TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>Min – max nuits</TableCell>
                   <TableCell></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {seasons.map((s) => (
                   <TableRow key={s.id}>
-                    <TableCell><SeasonIdentity season={s} /></TableCell>
+                    <TableCell><SeasonIdentity season={s} recipesOn={recipesOn} /></TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
                         <SeasonRanges season={s} ranges={upcomingRanges(s)} />
                       </Box>
                     </TableCell>
                     <TableCell>{s.pricingMode === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
-                    <TableCell>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
-                    <TableCell>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
-                    <TableCell>
-                      <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
-                      <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(Number(s.pricePerNight || 0))}</TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{s.minNights}{s.maxNights ? ` – ${s.maxNights}` : ''}</TableCell>
+                    <TableCell sx={{ width: 1 }}>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <Button size="small" startIcon={<EditIcon fontSize="small" />} onClick={() => openEditSeason(s)}>Modifier</Button>
+                        <Button size="small" color="error" startIcon={<DeleteIcon fontSize="small" />} onClick={() => setDeleteTarget(s)}>Supprimer</Button>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
                 {seasons.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} sx={{ p: 0, border: 0 }}>
-                      <EmptyState message="Aucune saison. Créez votre première saison." py={4} />
+                      <EmptyState message="Aucune saison." py={4} />
                     </TableCell>
                   </TableRow>
                 )}
@@ -1335,7 +1387,7 @@ export default function PropertyPricingSeasonsPage() {
                         );
                       })}
                       {progressivePreview.rows.length <= 1 && (
-                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>Aucun palier. Utilisez le bouton de pré-remplissage.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={4} align="center" sx={{ py: 3, color: 'text.secondary' }}>Aucun palier. Pré-remplissage disponible.</TableCell></TableRow>
                       )}
                     </TableBody>
                   </Table>
@@ -1477,12 +1529,12 @@ export default function PropertyPricingSeasonsPage() {
         title={
           confirmDialogAction === 'prefill'
             ? 'Pré-remplir le modèle dégressif'
-            : 'Vous avez des modifications non enregistrées'
+            : 'Modifications non enregistrées'
         }
         message={
           confirmDialogAction === 'prefill'
-            ? 'Êtes-vous sûr ? Cela remplacera tous les tarifs actuels par le modèle de pricing dégressif standard et vous perdrez vos modifications.'
-            : 'Vous avez des modifications dans cette saison qui ne seront pas enregistrées. Êtes-vous sûr de vouloir continuer ?'
+            ? 'Tous les tarifs actuels seront remplacés par le modèle dégressif standard, et les modifications en cours perdues.'
+            : 'Des modifications de cette saison ne sont pas enregistrées. Continuer sans les enregistrer ?'
         }
         confirmLabel={confirmDialogAction === 'prefill' ? 'Pré-remplir' : 'Abandonner les modifications'}
         confirmColor={confirmDialogAction === 'prefill' ? 'warning' : 'error'}

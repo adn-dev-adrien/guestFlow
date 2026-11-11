@@ -1,4 +1,4 @@
-// specs/booking-extranet-intake.md rule 26 — the read-only report of the reservations whose client was
+// specs/booking-extranet-intake.md rule 28 — the read-only report of the reservations whose client was
 // overwritten through a client shared with other stays.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -38,7 +38,7 @@ function fixtureDb(file = ':memory:') {
   return db;
 }
 
-test('specs/booking-extranet-intake.md rule 26: a client shared by iCal stays and carrying a guest’s e-mail is reported with its stays', () => {
+test('specs/booking-extranet-intake.md rule 28: a client shared by iCal stays and carrying a guest’s e-mail is reported with its stays', () => {
   const { suspects } = findOverwrittenClients(fixtureDb());
   assert.deepEqual(suspects.map((s) => s.client.id), [140]);
   assert.deepEqual(suspects[0].reservations.map((r) => r.id), [22307, 22308, 22309]);
@@ -46,13 +46,13 @@ test('specs/booking-extranet-intake.md rule 26: a client shared by iCal stays an
   assert.equal(suspects[0].reservations[0].intake.guest.email, 'david.4@guest.booking.com');
 });
 
-test('specs/booking-extranet-intake.md rule 26: an untouched shared placeholder and a repeat direct guest are not suspects', () => {
+test('specs/booking-extranet-intake.md rule 28: an untouched shared placeholder and a repeat direct guest are not suspects', () => {
   const ids = findOverwrittenClients(fixtureDb()).suspects.map((s) => s.client.id);
   assert.equal(ids.includes(141), false);
   assert.equal(ids.includes(300), false);
 });
 
-test('specs/booking-extranet-intake.md rule 26: the report names what to keep and what to check, in French', () => {
+test('specs/booking-extranet-intake.md rule 28: the report names what to keep and what to check, in French', () => {
   const text = formatReport(findOverwrittenClients(fixtureDb()));
   assert.match(text, /Client 140 — Emma Leroy — emma\.5@guest\.booking\.com/);
   assert.match(text, /fiche 22308 \(n° 5555555555\).*à garder/);
@@ -61,14 +61,14 @@ test('specs/booking-extranet-intake.md rule 26: the report names what to keep an
   assert.equal(formatReport({ suspects: [] }), 'Aucun client partagé portant les coordonnées d’un voyageur : rien à réparer.');
 });
 
-test('specs/booking-extranet-intake.md rule 26: a database without the intake table is still diagnosed', () => {
+test('specs/booking-extranet-intake.md rule 28: a database without the intake table is still diagnosed', () => {
   const db = fixtureDb();
   db.exec('DROP TABLE booking_intakes');
   const { suspects } = findOverwrittenClients(db);
   assert.equal(suspects[0].owner, null);
 });
 
-test('specs/booking-extranet-intake.md rule 26: the script opens the file read-only and leaves it byte-identical', () => {
+test('specs/booking-extranet-intake.md rule 28: the script opens the file read-only and leaves it byte-identical', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gf-diag-'));
   const file = path.join(dir, 'copy.db');
   fixtureDb(file).close();

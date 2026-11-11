@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 
 // specs/import-price-default-options.md — an iCal/Lodgify import must materialise a PAID default
 // option (property_option_defaults.offered = 0) at its REAL amount, not 0 (which used to force the
@@ -96,6 +97,7 @@ function buildDb() {
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Logement', '15:00', '10:00', 500)").run();
   db.prepare('INSERT INTO app_settings (id, vatRate) VALUES (1, 10)').run();
+  db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'http://feed.test/ical', 'airbnb', 'Airbnb')").run();
   db.prepare('INSERT INTO pricing_rules (id, propertyId, pricePerNight, minNights) VALUES (1, 1, 100, 1)').run();
   // Paid default « obligatoire mais payante »: Ménage, per_stay, base 40, per-property override 60, offered = 0.
   db.prepare("INSERT INTO options (id, title, priceType, price) VALUES (10, 'Ménage', 'per_stay', 40)").run();
@@ -120,7 +122,7 @@ const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey
 
 test('import prices a paid default at its per-property amount; a free default stays 0; the reservation stays unpriced', async () => {
   const db = buildDb();
-  const model = propertyIcalModel.buildModel(db);
+  const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   stubFetch([{ uid: 'E1', start: '20260710', end: '20260712', summary: 'Jean Dupont' }]); // 2 nights
   const result = await model.syncSource(source);
   assert.equal(result.createdCount, 1);
@@ -147,7 +149,7 @@ test('import prices a per_night paid default across the stay length', async () =
   const db = buildDb();
   db.prepare("UPDATE options SET priceType = 'per_night', price = 20 WHERE id = 10").run();
   db.prepare('UPDATE property_option_prices SET price = 20 WHERE optionId = 10').run();
-  const model = propertyIcalModel.buildModel(db);
+  const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   stubFetch([{ uid: 'E2', start: '20260801', end: '20260804', summary: 'Marie Durand' }]); // 3 nights
   await model.syncSource(source);
 
@@ -160,7 +162,7 @@ test('re-sync with changed dates reprices a pristine per_night default to the ne
   const db = buildDb();
   db.prepare("UPDATE options SET priceType = 'per_night', price = 20 WHERE id = 10").run();
   db.prepare('UPDATE property_option_prices SET price = 20 WHERE optionId = 10').run();
-  const model = propertyIcalModel.buildModel(db);
+  const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
 
   stubFetch([{ uid: 'E3', start: '20260801', end: '20260804', summary: 'Léa Martin' }]); // 3 nights
   await model.syncSource(source);
@@ -180,7 +182,7 @@ test('re-sync does NOT reprice a LOCKED reservation (operator work is protected)
   const db = buildDb();
   db.prepare("UPDATE options SET priceType = 'per_night', price = 20 WHERE id = 10").run();
   db.prepare('UPDATE property_option_prices SET price = 20 WHERE optionId = 10').run();
-  const model = propertyIcalModel.buildModel(db);
+  const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
 
   stubFetch([{ uid: 'E4', start: '20260801', end: '20260804', summary: 'Paul Roux' }]); // 3 nights
   await model.syncSource(source);

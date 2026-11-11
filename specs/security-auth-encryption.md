@@ -54,9 +54,20 @@ supports multiple users later, but ships with a single admin account for now.
    refreshed, so `enforceRoleAccess` sees them). `GET /api/auth/me` applies the same active check.
    **Anti-fixation (AUTH-2):** the session id is regenerated on login, so a session id planted
    before authentication cannot be reused after it.
+   > **2026-10-18 (merge into `inte/plugins`, H2):** the session id is also regenerated after the
+   > second step, the password reset and the support sign-in link (`specs/hosting-h2-account-security.md`).
+   > The support account is never active — it cannot log in with a password — so an open support
+   > session (`supportAccessId` in the session) is not rejected for `isActive = 0`; whether that
+   > access still holds is decided by `supportAudit`.
    **Revocation (AUTH-1/AUTH-6):** account-lifecycle events delete the stored session rows via
    `models/sessionsModel.js` — deactivation, admin password reset and a role change revoke *all* of
    the target's sessions; a voluntary password change revokes every session *except* the caller's.
+   > **2026-10-18 (code review):** a session waiting for its second step belongs to its user too
+   > (`sess.pendingTwoFactor.userId`): revoking a user's sessions ends it, so a code typed after a
+   > deactivation or a password reset opens nothing. The second step itself re-reads the user and
+   > refuses an inactive one (`401 NO_PENDING_LOGIN`, also for « Renvoyer le code »). If the session
+   > store cannot regenerate the id at login, the login fails closed: the error goes to Express (500),
+   > nothing is written in the session, and the user simply logs in again.
 4. **Passwords** are hashed with `scrypt` (Node built-in) + a per-password random salt; never stored or
    logged in clear. Verification is constant-time.
 5. **Default admin + forced first-login password change.** `users` table with a `role` column

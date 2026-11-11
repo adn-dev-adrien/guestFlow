@@ -1,0 +1,109 @@
+/**
+ * The console's API client. Errors carry the server's French `message` (and `errors` per field for
+ * a form); a 401 outside the login fires `console:signed-out` so the app goes back to the login.
+ */
+
+async function request(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    if (res.status === 401 && !url.startsWith('/api/auth/')) window.dispatchEvent(new Event('console:signed-out'));
+    const err = new Error(data.message || `Erreur ${res.status}`);
+    err.status = res.status;
+    err.code = data.error;
+    err.errors = data.errors || {};
+    throw err;
+  }
+  return data;
+}
+
+const api = {
+  me: () => request('GET', '/api/auth/me'),
+  login: (email, password) => request('POST', '/api/auth/login', { email, password }),
+  verify: (code) => request('POST', '/api/auth/verify', { code }),
+  resend: () => request('POST', '/api/auth/resend', {}),
+  logout: () => request('POST', '/api/auth/logout', {}),
+  mfaStart: (method, password) => request('POST', '/api/auth/mfa/start', { method, password }),
+  mfaConfirm: (code) => request('POST', '/api/auth/mfa/confirm', { code }),
+
+  alerts: () => request('GET', '/api/alerts'),
+  fleet: () => request('GET', '/api/customers'),
+  previewCustomer: (form) => request('POST', '/api/customers/preview', form),
+  createCustomer: (form) => request('POST', '/api/customers', form),
+  customer: (id) => request('GET', `/api/customers/${id}`),
+  stepAction: (id, step, action) => request('POST', `/api/customers/${id}/steps/${step}`, { action }),
+  recordPayment: (id, body) => request('POST', `/api/customers/${id}/payment`, body),
+  extend: (id, body) => request('POST', `/api/customers/${id}/extend`, body),
+  forceActive: (id, body) => request('POST', `/api/customers/${id}/force-active`, body),
+  changePlan: (id, body) => request('POST', `/api/customers/${id}/plan`, body),
+  deprovision: (id, confirmSlug) => request('POST', `/api/customers/${id}/deprovision`, { confirmSlug }),
+  reactivate: (id) => request('POST', `/api/customers/${id}/reactivate`, {}),
+  cancelErase: (id) => request('POST', `/api/customers/${id}/cancel-erase`, {}),
+  eraseNow: (id, confirmSlug) => request('POST', `/api/customers/${id}/erase`, { confirmSlug }),
+  licenceUrl: (id) => `/api/customers/${id}/licence`,
+  // specs/hosting-h1-fleet-runtime.md rules 24, 29.
+  resendInvitation: (id) => request('POST', `/api/customers/${id}/invitation`, {}),
+  resetAccess: (id) => request('POST', `/api/customers/${id}/reset-access`, {}),
+  restartProcess: (id) => request('POST', `/api/customers/${id}/restart-process`, {}),
+  // specs/hosting-h2-account-security.md rules 12-14 — support access with consent.
+  // specs/plugin-operator-provisioning.md rules 10–14, 22 — the customer's modules.
+  customerModules: (id) => request('GET', `/api/customers/${id}/modules`),
+  toggleModule: (id, pluginId, on, flags = {}) => request('POST', `/api/customers/${id}/modules/${pluginId}`, { on, ...flags }),
+  eraseModule: (id, pluginId, action, confirmSlug) => request('POST', `/api/customers/${id}/modules/${pluginId}/erase`, { action, confirmSlug }),
+  retryModules: (id) => request('POST', `/api/customers/${id}/modules/retry`, {}),
+  supportState: (id) => request('GET', `/api/customers/${id}/support`),
+  supportRequest: (id, reason) => request('POST', `/api/customers/${id}/support/request`, { reason }),
+  supportLink: (id) => request('POST', `/api/customers/${id}/support/link`, {}),
+  renamePreview: (id, slug) => request('POST', `/api/customers/${id}/rename/preview`, { slug }),
+  rename: (id, slug, checked) => request('POST', `/api/customers/${id}/rename`, { slug, checked }),
+  setBilling: (id, body) => request('POST', `/api/customers/${id}/billing`, body),
+  remindPreview: (id) => request('POST', `/api/customers/${id}/remind`, { preview: true }),
+  remind: (id) => request('POST', `/api/customers/${id}/remind`, {}),
+  checkPayment: (id) => request('POST', `/api/customers/${id}/check-payment`, {}),
+  retryInvoice: (id) => request('POST', `/api/customers/${id}/invoice/retry`, {}),
+  sendEmail: (id) => request('POST', `/api/emails/${id}/send`, {}),
+  ignoreEmail: (id) => request('POST', `/api/emails/${id}/ignore`, {}),
+
+  templates: () => request('GET', '/api/templates'),
+  saveTemplate: (key, body) => request('PUT', `/api/templates/${key}`, body),
+  previewTemplate: (key, body) => request('POST', `/api/templates/${key}/preview`, body),
+
+  // specs/hosting-h1-fleet-runtime.md — the page « Versions » and the restore of a customer.
+  versions: () => request('GET', '/api/fleet/versions'),
+  checkVersions: () => request('POST', '/api/fleet/versions/check', {}),
+  installRelease: (version) => request('POST', '/api/fleet/releases/install', { version }),
+  startUpdate: (targetVersion, customerIds) => request('POST', '/api/fleet/updates', customerIds ? { targetVersion, customerIds } : { targetVersion }),
+  pushPlugin: (pluginId, version) => request('POST', '/api/fleet/plugins/push', { pluginId, version }),
+  restoreWindow: (id) => request('GET', `/api/customers/${id}/restore-window`),
+  restore: (id, at) => request('POST', `/api/customers/${id}/restore`, { at }),
+
+  catalogue: () => request('GET', '/api/catalogue'),
+  toggleCell: (lowest, pluginId, planCode) => request('POST', '/api/catalogue/toggle', { lowest, pluginId, planCode }),
+  catalogueImpact: (draft) => request('POST', '/api/catalogue/impact', draft),
+  saveCatalogue: (body) => request('PUT', '/api/catalogue', body),
+
+  // specs/plugins-phase-4-registry.md rule 8 — the plugin registry.
+  registry: () => request('GET', '/api/registry'),
+  withdrawPackage: (id, version) => request('POST', `/api/registry/packages/${encodeURIComponent(id)}/${encodeURIComponent(version)}/withdraw`, {}),
+  async uploadPackage(file) {
+    const res = await fetch('/api/registry/packages', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+      body: file,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) window.dispatchEvent(new Event('console:signed-out'));
+      throw Object.assign(new Error(data.message || `Erreur ${res.status}`), { status: res.status, code: data.error });
+    }
+    return data;
+  },
+};
+
+export default api;

@@ -1,0 +1,91 @@
+// specs/plugins-phase-0-foundation.md rules 13, 16-17, 21 — a page of a plugin that is not active
+// (available or installed-inactive: only the active ids reach the client) is not visible, whatever the
+// role; the settings submenu drops the entries and the dividers left empty.
+import { canSeeRoute, canSeeAnyRoute, ROUTE_ROLES } from '../roles';
+import { PLUGIN_IDS, ROUTE_PLUGINS, isRouteEnabled, isPluginEnabled } from '../plugins';
+import { visibleSettingsMenu, SETTINGS_MENU } from '../settingsMenu';
+import PLUGIN_MODULES from '../../plugins';
+
+// An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
+const admin = (enabledPlugins) => ({ roles: ['admin'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true });
+
+describe('plugin gate on routes', () => {
+  test('every plugin route is a registered route', () => {
+    for (const path of Object.keys(ROUTE_PLUGINS)) expect(ROUTE_ROLES[path]).toBeDefined();
+  });
+
+  test('an admin without any plugin sees no plugin page, and every core page', () => {
+    const user = admin([]);
+    for (const path of Object.keys(ROUTE_ROLES)) {
+      expect(canSeeRoute(user, path)).toBe(!ROUTE_PLUGINS[path]);
+    }
+  });
+
+  test('a plugin page comes back with its plugin', () => {
+    expect(canSeeRoute(admin(['linen']), '/parametres/stock-blanchisserie')).toBe(true);
+    expect(canSeeRoute(admin(['linen']), '/parametres/recettes')).toBe(false);
+  });
+
+  test('Intégrations stays while any of its four plugins is active', () => {
+    expect(canSeeRoute(admin([]), '/settings/integrations')).toBe(false);
+    for (const id of ['google-calendar', 'neat', 'weather-alerts', 'gate-access']) {
+      expect(canSeeRoute(admin([id]), '/settings/integrations')).toBe(true);
+    }
+  });
+
+  test('Intégrations stays while any plugin that contributes a section to it is active, guest-app included', () => {
+    const contributors = PLUGIN_MODULES.filter((mod) => (mod.contributes?.['settings.integrations'] || []).length).map((mod) => mod.id);
+    expect(contributors).toContain('guest-app');
+    for (const id of contributors) expect(canSeeRoute(admin([id]), '/settings/integrations')).toBe(true);
+    expect(canSeeRoute(admin(['linen']), '/settings/integrations')).toBe(false);
+  });
+
+  test('the accountant loses the accounting pages with the accounting export', () => {
+    const accountant = { roles: ['accountant'], enabledPlugins: [] };
+    expect(canSeeAnyRoute(accountant, ['/comptabilite', '/comptabilite/plateformes'])).toBe(false);
+    expect(canSeeRoute(accountant, '/mon-compte')).toBe(true);
+  });
+
+  test('the Plugins page is admin-only and never gated by a plugin', () => {
+    expect(canSeeRoute(admin([]), '/parametres/plugins')).toBe(true);
+    expect(canSeeRoute({ roles: ['accountant'], enabledPlugins: PLUGIN_IDS }, '/parametres/plugins')).toBe(false);
+  });
+
+  test('a user without the list sees no plugin (fail closed)', () => {
+    expect(isPluginEnabled({ roles: ['admin'] }, 'sas')).toBe(false);
+    expect(isRouteEnabled({ roles: ['admin'] }, '/resource-planning')).toBe(false);
+    expect(isRouteEnabled(null, '/calendar')).toBe(true);
+  });
+});
+
+describe('visibleSettingsMenu', () => {
+  const paths = (entries) => entries.map((e) => (e ? e.path : '—'));
+
+  test('with every entry visible it is the full menu', () => {
+    expect(visibleSettingsMenu(() => true, () => false)).toEqual(SETTINGS_MENU);
+  });
+
+  test('the closures entry names the school holidays only while their plugin is live', () => {
+    const label = (live) => visibleSettingsMenu(() => true, (id) => live.includes(id))
+      .find((e) => e && e.path === '/parametres/vacances-fermetures').label;
+    expect(label([])).toBe('Fermetures');
+    expect(label(['school-holidays'])).toBe('Vacances & fermetures');
+  });
+
+  test('without plugins: no plugin entry, no leading, trailing or doubled divider', () => {
+    const user = admin([]);
+    const menu = paths(visibleSettingsMenu((path) => canSeeRoute(user, path)));
+    for (const hidden of ['/parametres/recettes', '/parametres/stock-blanchisserie', '/parametres/paiements', '/settings/integrations']) {
+      expect(menu).not.toContain(hidden);
+    }
+    expect(menu).toContain('/parametres/plugins');
+    expect(menu[0]).not.toBe('—');
+    expect(menu[menu.length - 1]).not.toBe('—');
+    menu.forEach((p, i) => { if (p === '—') expect(menu[i + 1]).not.toBe('—'); });
+  });
+
+  test('a family emptied out loses its divider', () => {
+    const menu = paths(visibleSettingsMenu((path) => path === '/settings/etablissement' || path === '/settings/systeme'));
+    expect(menu).toEqual(['/settings/etablissement', '—', '/settings/systeme']);
+  });
+});

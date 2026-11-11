@@ -115,7 +115,7 @@ deferred: a small « à planifier » chip on the devis list; not in this spec.)
 | `includes/class-gf-blocks.php` | T | New i18n strings (`toBeScheduled`, price-basis labels). |
 
 ⚠️ **Deploy reminder:** the plugin is NOT deployed by the `release` pipeline — copy the changed files
-into the `wp_app` container (memory `wp-plugin-deploy-gap`).
+into the `<container>` container (memory `wp-plugin-deploy-gap`).
 
 ### 4.3 API contract (`/public/v1`)
 

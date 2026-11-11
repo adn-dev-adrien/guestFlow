@@ -1,0 +1,309 @@
+{
+  "version": 1,
+  "home": {
+    "name": "Domaine Solio",
+    "address": "215 Côte de Japperenard, 07290 Satillieu",
+    "lat": 45.16369,
+    "lng": 4.63184
+  },
+  "activities": [
+    {
+      "id": "chevre-blanche",
+      "name": "GAEC de la Chèvre Blanche",
+      "category": "animaux",
+      "paid": false,
+      "lat": 45.14833,
+      "lng": 4.60802,
+      "driveMinutes": 6,
+      "description": "Un troupeau de chèvres à cinq minutes du domaine. On assiste à la traite en fin d'après-midi, et on repart avec des picodons et du caillé doux de Saint-Félicien fabriqués sur place.",
+      "duration": "1 h",
+      "price": "Visite libre, fromages en vente sur place",
+      "tips": "La traite est le moment à viser : arrivez vers 17 h, c'est là que les chèvres rentrent. La vente à la ferme est ouverte de 17 h à 19 h.",
+      "warnings": "Ferme visitable de mi-mars à début novembre. Prévenez par téléphone (04 75 34 94 82) si vous venez à plusieurs familles.",
+      "toVerify": [
+        "coordonnées prises sur la montée de la Garenne — affiner sur le portail exact de la ferme",
+        "gratuité de la visite non confirmée en ligne",
+        "horaires de traite relevés sur Bienvenue à la ferme, à reconfirmer chaque saison"
+      ],
+      "updatedAt": "2026-08-25T19:30:40.055Z",
+      "photos": [
+        "/photos/chevre-blanche/1.jpg",
+        "/photos/chevre-blanche/2.jpg",
+        "/photos/chevre-blanche/3.jpg"
+      ],
+      "photoCredit": "© bienvenue-a-la-ferme.com"
+    },
+    {
+      "id": "plage-grangeon",
+      "name": "La plage de Grangeon, sur l'Ay",
+      "category": "baignade",
+      "paid": false,
+      "lat": 45.14464,
+      "lng": 4.60572,
+      "driveMinutes": 7,
+      "duration": "un après-midi",
+      "price": "Gratuit",
+      "description": "Le coin de baignade le plus proche du domaine : une plage de galets sur l'Ay, de l'eau peu profonde et de l'ombre. L'eau est suivie par l'ARS et classée de bonne qualité.",
+      "tips": "L'eau reste fraîche même en août — la fin d'après-midi, quand les galets ont chauffé, est le meilleur moment avec des enfants.",
+      "warnings": "Baignade non surveillée. Niveau et température varient beaucoup avec la pluie et l'étiage.",
+      "toVerify": [
+        "emplacement exact de l'accès et du stationnement à confirmer sur le terrain"
+      ],
+      "photos": [
+        "/photos/plage-grangeon/1.jpg"
+      ],
+      "photoCredit": "François Bassaget, CC BY-SA 4.0 — Wikimedia Commons"
+    },
+    {
+      "id": "projection-ardeche-le-film-documentaire-2026",
+      "name": "Projection - Ardèche, le film documentaire",
+      "category": "patrimoine",
+      "paid": true,
+      "lat": 45.15473,
+      "lng": 4.62477,
+      "driveMinutes": 4,
+      "description": "Ardèche, le film documentaire de Gabriel Campina et John Dauvin, propose une traversée sensible et humaine du département.",
+      "startsOn": "2026-11-13",
+      "endsOn": "2026-11-13",
+      "visibleFrom": "2026-10-30",
+      "estimated": [
+        "driveMinutes"
+      ],
+      "toVerify": [
+        "temps de trajet estimé depuis 1 km à vol d'oiseau"
+      ],
+      "source": {
+        "id": "ardeche-grand-air",
+        "ref": "8031737",
+        "producer": "Office de Tourisme Ardèche Grand Air",
+        "url": "https://www.ardechegrandair.com/agenda/8031737_projection-ardeche-le-film-documentaire/",
+        "fetchedAt": "2026-10-15T03:06:27.449Z",
+        "detailed": true,
+        "hash": "7f9b97011adefdcc"
+      },
+      "website": "https://www.ardechegrandair.com/agenda/8031737_projection-ardeche-le-film-documentaire/",
+      "price": "Tarif unique : 5,50 €",
+      "tips": "Vendredi 13 novembre 2026. Deux séances : 18h et 20h30.",
+      "photos": [
+        "/photos/projection-ardeche-le-film-documentaire-2026/1.jpg"
+      ],
+      "photoCredit": "Ilyos Média",
+      "updatedAt": "2026-10-15T03:06:27.449Z"
+    },
+    {
+      "id": "marche-de-noel-2026-92c0e0",
+      "name": "Marché de Noël",
+      "category": "gastronomie",
+      "paid": false,
+      "lat": 45.15398,
+      "lng": 4.62381,
+      "driveMinutes": 4,
+      "description": "Venez flâner parmi les nombreux exposants locaux, rencontrer le Père Noël, immortaliser votre visite au stand photo et laisser les enfants profiter d’un joli moment de maquillage.",
+      "startsOn": "2026-11-15",
+      "endsOn": "2026-11-15",
+      "visibleFrom": "2026-11-01",
+      "estimated": [
+        "driveMinutes"
+      ],
+      "toVerify": [
+        "temps de trajet estimé depuis 1 km à vol d'oiseau"
+      ],
+      "source": {
+        "id": "ardeche-grand-air",
+        "ref": "8038174",
+        "producer": "Office de Tourisme Ardèche Grand Air",
+        "url": "https://www.ardechegrandair.com/agenda/8038174_marche-de-noel/",
+        "fetchedAt": "2026-10-22T03:05:20.208Z",
+        "detailed": true,
+        "hash": "4ea47561e5d0a958"
+      },
+      "price": "Entrée libre",
+      "website": "https://www.ardechegrandair.com/agenda/8038174_marche-de-noel/",
+      "tips": "Dimanche 15 novembre 2026 de 10h à 17h.",
+      "photos": [
+        "/photos/marche-de-noel-2026-92c0e0/1.jpg"
+      ],
+      "photoCredit": "Dupe",
+      "updatedAt": "2026-10-22T03:05:20.208Z"
+    },
+    {
+      "id": "theatre-chiche-t-es-pas-cap",
+      "name": "Théâtre : Chiche, t'es pas cap !",
+      "category": "patrimoine",
+      "paid": false,
+      "lat": 45.18899,
+      "lng": 4.63929,
+      "driveMinutes": 8,
+      "description": "Distractions et loisirs à Saint-Alban-d'Ay, le samedi 7 novembre 2026. Détails et horaires sur le site de l'Office de Tourisme Ardèche Grand Air.",
+      "startsOn": "2026-11-07",
+      "endsOn": "2026-11-07",
+      "visibleFrom": "2026-10-24",
+      "estimated": [
+        "driveMinutes"
+      ],
+      "toVerify": [
+        "tarif non communiqué par la source — à confirmer auprès de l'organisateur",
+        "temps de trajet estimé depuis 3 km à vol d'oiseau"
+      ],
+      "source": {
+        "id": "ardeche-grand-air",
+        "ref": "7987130",
+        "producer": "Office de Tourisme Ardèche Grand Air",
+        "url": "https://www.ardechegrandair.com/agenda/7987130_theatre-chiche-tes-pas-cap/",
+        "fetchedAt": "2026-10-08T03:09:34.724Z",
+        "hash": "322b27a53d939fed"
+      },
+      "website": "https://www.ardechegrandair.com/agenda/7987130_theatre-chiche-tes-pas-cap/",
+      "photos": [
+        "/photos/theatre-chiche-t-es-pas-cap/1.jpg"
+      ],
+      "photoCredit": "Pixabay",
+      "updatedAt": "2026-10-08T03:09:34.724Z"
+    },
+    {
+      "id": "danse-eveil-corps-et-langage",
+      "name": "Danse - Eveil corps et langage",
+      "category": "patrimoine",
+      "paid": true,
+      "lat": 45.22271,
+      "lng": 4.64887,
+      "driveMinutes": 17,
+      "description": "Si vous voulez renforcer la complicité et la confiance avec votre enfant tout en dansant, l'atelier parents enfants vous attend.",
+      "startsOn": "2026-11-07",
+      "endsOn": "2026-11-07",
+      "visibleFrom": "2026-10-24",
+      "estimated": [
+        "driveMinutes"
+      ],
+      "toVerify": [
+        "temps de trajet estimé depuis 7 km à vol d'oiseau"
+      ],
+      "source": {
+        "id": "ardeche-grand-air",
+        "ref": "8019941",
+        "producer": "Office de Tourisme Ardèche Grand Air",
+        "url": "https://www.ardechegrandair.com/agenda/8019941_danse-eveil-corps-et-langage/",
+        "fetchedAt": "2026-10-26T04:07:34.254Z",
+        "detailed": true,
+        "hash": "2dcc48ac5fa4348b"
+      },
+      "website": "https://www.ardechegrandair.com/agenda/8019941_danse-eveil-corps-et-langage/",
+      "price": "Tarif unique : 10 €",
+      "tips": "Samedi 10 octobre 2026 de 10h30 à 11h15. Samedi 7 novembre 2026 de 10h30 à 11h15.",
+      "photos": [
+        "/photos/danse-eveil-corps-et-langage/1.jpg"
+      ],
+      "photoCredit": "pixabay",
+      "updatedAt": "2026-10-26T04:07:34.254Z"
+    },
+    {
+      "id": "theatre-j-attends-un-enfant-ma-femme-aussi",
+      "name": "Théâtre - J’attends un enfant… Ma femme aussi !",
+      "category": "patrimoine",
+      "paid": false,
+      "lat": 45.2249,
+      "lng": 4.58795,
+      "driveMinutes": 19,
+      "description": "Du premier test aux premiers cris, « J’attends un enfant… Ma femme aussi ! » est une comédie follement drôle, car tellement vraie, qui empoigne la maternité à rebrousse-poil.",
+      "startsOn": "2026-11-06",
+      "endsOn": "2026-11-07",
+      "visibleFrom": "2026-10-23",
+      "estimated": [
+        "driveMinutes"
+      ],
+      "toVerify": [
+        "tarif non communiqué par la source — à confirmer auprès de l'organisateur",
+        "temps de trajet estimé depuis 8 km à vol d'oiseau"
+      ],
+      "source": {
+        "id": "ardeche-grand-air",
+        "ref": "8010564",
+        "producer": "Office de Tourisme Ardèche Grand Air",
+        "url": "https://www.ardechegrandair.com/agenda/8010564_theatre-jattends-un-enfant-ma-femme-aussi/",
+        "fetchedAt": "2026-10-07T03:09:03.553Z",
+        "detailed": true,
+        "hash": "ab89c82d46fac5be"
+      },
+      "website": "https://www.ardechegrandair.com/agenda/8010564_theatre-jattends-un-enfant-ma-femme-aussi/",
+      "tips": "Tarifs non communiqués Du vendredi 6 au samedi 7 novembre 2026 à 20h30.",
+      "photos": [
+        "/photos/theatre-j-attends-un-enfant-ma-femme-aussi/1.jpg"
+      ],
+      "photoCredit": "Pexels",
+      "updatedAt": "2026-10-07T03:09:03.553Z"
+    },
+    {
+      "id": "stage-de-rempaillage-cannage-de-siege",
+      "name": "Stage de rempaillage-cannage de siège",
+      "category": "patrimoine",
+      "paid": true,
+      "lat": 45.2357,
+      "lng": 4.60061,
+      "driveMinutes": 20,
+      "description": "Pascale Turbet Delof, artisan de sièges depuis 15 années, vous invite à venir apprendre, pratiquer et approfondir les différentes techniques de paillage et de cannage de siège.",
+      "startsOn": "2026-11-16",
+      "endsOn": "2026-11-20",
+      "visibleFrom": "2026-11-02",
+      "estimated": [
+        "driveMinutes"
+      ],
+      "toVerify": [
+        "temps de trajet estimé depuis 8 km à vol d'oiseau"
+      ],
+      "source": {
+        "id": "ardeche-grand-air",
+        "ref": "6736344",
+        "producer": "Office de Tourisme Ardèche Grand Air",
+        "url": "https://www.ardechegrandair.com/agenda/6736344_stage-de-rempaillage-cannage-de-siege/",
+        "fetchedAt": "2026-10-17T03:01:40.376Z",
+        "detailed": true,
+        "hash": "44aa0009c175db28"
+      },
+      "website": "https://www.ardechegrandair.com/agenda/6736344_stage-de-rempaillage-cannage-de-siege/",
+      "price": "Plein tarif : 600 € (soit 120€ par jour)",
+      "tips": "Du lundi 16 au vendredi 20 novembre 2026.",
+      "photos": [
+        "/photos/stage-de-rempaillage-cannage-de-siege/1.jpg"
+      ],
+      "photoCredit": "Couleurs de pailles",
+      "updatedAt": "2026-10-17T03:01:40.376Z"
+    },
+    {
+      "id": "exposition-et-animation-autour-de-l-astronomie",
+      "name": "Exposition et animation autour de l'astronomie",
+      "category": "patrimoine",
+      "paid": false,
+      "lat": 45.25417,
+      "lng": 4.70696,
+      "driveMinutes": 27,
+      "description": "La médiathèque de Davézieux propose une exposition consacrée à l'astronomie.",
+      "startsOn": "2026-11-03",
+      "endsOn": "2026-11-28",
+      "visibleFrom": "2026-10-20",
+      "estimated": [
+        "driveMinutes"
+      ],
+      "toVerify": [
+        "temps de trajet estimé depuis 12 km à vol d'oiseau"
+      ],
+      "source": {
+        "id": "ardeche-grand-air",
+        "ref": "8049770",
+        "producer": "Office de Tourisme Ardèche Grand Air",
+        "url": "https://www.ardechegrandair.com/agenda/8049770_exposition-et-animation-autour-de-lastronomie/",
+        "fetchedAt": "2026-10-31T04:07:36.577Z",
+        "detailed": true,
+        "hash": "6249adef788ae9ef"
+      },
+      "price": "Gratuit",
+      "website": "https://www.ardechegrandair.com/agenda/8049770_exposition-et-animation-autour-de-lastronomie/",
+      "tips": "Du 03/11 au 28/11/2026 le mardi, mercredi, vendredi et samedi. Aux horaires de la Médiathèque Samedi 28 novembre 2026 : 3 ateliers à 9h10 ; 10h00 et 10h50.",
+      "photos": [
+        "/photos/exposition-et-animation-autour-de-l-astronomie/1.jpg"
+      ],
+      "photoCredit": "Magnific",
+      "updatedAt": "2026-10-31T04:07:36.577Z"
+    }
+  ],
+  "servedAt": "2026-11-05T21:27:05.718Z"
+}

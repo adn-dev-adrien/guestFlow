@@ -7,13 +7,14 @@
 // Same in-memory harness as `sas-stay-payment.unit.test.js` (the contribution capture needs the
 // pricing tables), plus the two columns this spec adds.
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = localTodayIso();
 
 function makeDb() {
   const db = new Database(':memory:');
@@ -278,7 +279,7 @@ test('the options and their planning occurrences are NOT touched — the whole p
 test('a guest who pays everything on arrival settles the END-OF-STAY complement too', () => {
   const db = makeDb();
   const model = createReservationsModel(db);
-  // Harmen's shape, reported 2026-08-31: platform booking, acompte disabled, nothing sold at
+  // Testy's shape, reported 2026-08-31: platform booking, acompte disabled, nothing sold at
   // check-in, 50 € scheduled for the door on departure — and paid on arrival all the same.
   const id = seedStay(db, {
     depositDisabled: 1, depositAmount: 0, complementAmount: 0, endOfStayComplementAmount: 50,

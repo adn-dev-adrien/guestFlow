@@ -38,6 +38,9 @@ import api from '../../api';
 import DialogProvider from '../../components/DialogProvider';
 import PropertyPricingSeasonsPage from '../PropertyPricingSeasonsPage';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 const TODAY = new Date('2026-08-12T10:00:00Z');
 
 const SEASONS = [

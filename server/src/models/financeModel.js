@@ -1,19 +1,67 @@
 // Finance model — all finance DB access + shaping. Returns ready-to-render payloads so the client
 // renders only. Payment figures come from the shared computePaymentStatus authority.
 
+const { addDays } = require('../utils/dateDays');
+const { todayIso: localTodayIso } = require('../utils/localDate');
+const { isTouristTaxDeclarable, isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
+const { isCheckoutDone } = require('../utils/endOfStayCheckout');
 const db = require('../database');
-const { calculateReservationQuote } = require('../utils/pricing');
-const { buildReservationEngineInput } = require('../utils/reservationEngineInput');
-const { isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
+const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
+
+// The column of the platform penalties (specs/reconciliation-assisted-matching.md rule 27). Named in an
+// explicit column list, so a hand-built reservations table of a unit suite without it still reads 0.
+const penaltyColumn = (database) => (database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'platformPenaltyAmount')
+  ? 'r.platformPenaltyAmount' : '0 AS platformPenaltyAmount');
 const {
-  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment,
+  isSettled, remainingToPay, midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, platformPenalty, splitAdjustment,
 } = require('../utils/reservationSettlement');
 const fiscalYearUtil = require('../utils/fiscalYear');
-const { bookingChannelOf } = require('../utils/attributionChannel');
+const { bookingChannelOf, platformDisplayName } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
+const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 const { exerciseMonths } = require('../utils/exerciseOverview');
+const installmentPlan = require('../utils/installmentPlan');
+const vatRegimeModel = require('./vatRegimeModel');
+const { bookingDayOf } = require('../utils/vatRegime');
+const { touristTaxInTotal } = require('../utils/stayTouristTaxInTotal');
+
+/**
+ * The payment flags « Tout solder » ticks on an operational row (specs/finance-dashboard-redesign.md rule 15): every bucket
+ * still due, except what specs/reservation-payment-ledger.md rule 68 (D20) keeps for the check-out — the end-of-stay
+ * complement, and an arrival complement deferred to it (ticking that one settles both).
+ */
+function settleAllFieldsOf(r, today) {
+  const due = (amount, paid) => Number(amount || 0) > 0 && !Number(paid || 0);
+  const checkedOut = isCheckoutDone(r, { today });
+  const endOfStayDue = due(r.endOfStayComplementAmount, r.endOfStayComplementPaid) && !Number(r.endOfStayComplementPaidCash || 0);
+  const fields = [];
+  if (!Number(r.depositDisabled || 0) && due(r.depositAmount, r.depositPaid)) fields.push('depositPaid');
+  if (due(r.balanceAmount, r.balancePaid)) fields.push('balancePaid');
+  if (due(r.complementAmount, r.complementPaid)
+    && (checkedOut || !(Number(r.complementDeferredToCheckout || 0) === 1 && endOfStayDue))) fields.push('complementPaid');
+  if (checkedOut && due(r.endOfStayComplementAmount, r.endOfStayComplementPaid)) fields.push('endOfStayComplementPaid');
+  return fields;
+}
+
+/**
+ * Why « Tout solder » has nothing to tick (reading of 2026-11-06, audit R26 finding 3): before the check-out, a row whose only
+ * dues are the end-of-stay complement (and an arrival complement deferred to it) answers « Après le départ. »; null otherwise.
+ */
+function settleAllReasonOf(r, today, fields) {
+  if (fields.length > 0 || isCheckoutDone(r, { today })) return null;
+  const endOfStayDue = Number(r.endOfStayComplementAmount || 0) > 0
+    && !Number(r.endOfStayComplementPaid || 0) && !Number(r.endOfStayComplementPaidCash || 0);
+  return endOfStayDue ? 'Après le départ.' : null;
+}
+
+function settleAllOf(r, today) {
+  const fields = settleAllFieldsOf(r, today);
+  const reason = settleAllReasonOf(r, today, fields);
+  return { settleAllFields: fields, ...(reason ? { settleAllReason: reason } : {}) };
+}
 
 const UPCOMING_PER_PROPERTY = 5;
 
@@ -26,8 +74,9 @@ const UPCOMING_PER_PROPERTY = 5;
 //
 // Guarded at factory level like the refund columns below: a minimal test schema without
 // `balancePaidDate` degrades to the plain departure date rather than failing every query.
-const ATTRIBUTION_DATE_SQL_FULL = `(
-  CASE
+const attributionDateSql = ({ withPlan }) => `(
+  CASE${withPlan ? `
+    WHEN TRIM(COALESCE(r.installmentsLastPaidDate, '')) <> '' THEN DATE(r.installmentsLastPaidDate)` : ''}
     WHEN r.balancePaid = 1 AND TRIM(COALESCE(r.balancePaidDate, '')) <> ''
       THEN DATE(r.balancePaidDate)
     ELSE r.endDate
@@ -53,8 +102,31 @@ const TAX_ON_ARRIVAL_SQL = `(
   )
 )`;
 
+// specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » page lists every stay WE must remit
+// to the commune: direct, "platform collects then reverses it to us" (case 1), and "we collect at arrival"
+// (case 3) — i.e. everything whose GLOBAL platform mode has touristTaxRemittedByPlatform = 0. Only "platform
+// collects + remits to the commune itself" (case 2) is excluded. Manual reservations store the concatenated
+// label (= platforms.name) → direct match; iCal imports store the hyphenated platformKey → bridge to the
+// canonical label via any ical_sources row, then read the global mode (the key→label map is platform-wide).
+// specs/tourist-tax-report-v2.md rule 6 — its negation is the set of stays a platform remits itself.
+// Rule 35 — `direct` in any case, and an empty or NULL platform (the app's « direct », migration
+// platform-empty-to-direct), are ours: never « reversée par Direct », never in neither list.
+const WE_REMIT_SQL = `(
+  lower(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) = 'direct'
+  OR EXISTS (
+    SELECT 1 FROM platforms pl
+    WHERE lower(pl.name) = lower(r.platform)
+      AND pl.touristTaxRemittedByPlatform = 0
+  )
+  OR EXISTS (
+    SELECT 1 FROM ical_sources s
+    JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
+    WHERE (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
+      AND pl.touristTaxRemittedByPlatform = 0
+  )
+)`;
 function todayIso() {
-  return new Date().toISOString().split('T')[0];
+  return localTodayIso();
 }
 
 function nightsBetween(startDate, endDate) {
@@ -76,25 +148,26 @@ function totalSejour(r) {
   // A bucket that left the turnover takes ITS OWN commission with it, otherwise a cash-collected
   // OTA solde would leave a lone negative commission behind and break the invariant.
   const deposit = r.depositPaidCash ? 0 : Number(r.depositAmount || 0) - Number(r.acompteCommissionAmount || 0);
-  const balance = r.balancePaidCash ? 0 : Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0);
+  const balance = r.balancePaidCash ? 0 : Number(r.balanceAmount || 0) - Number(r.platformCommissionAmount || 0) - platformPenalty(r);
   const complement = r.complementPaidCash ? 0 : Number(r.complementAmount || 0);
   const endOfStay = r.endOfStayComplementPaidCash ? 0 : Number(r.endOfStayComplementAmount || 0);
   // specs/arrival-payment-detail-and-adjustment.md rule 21 — a réduction accordée at the door lowers
   // what the operator earns exactly as a refund does, and a pourboire raises it. Applied here as well
   // as in `comptaCollected` so `comptaCollected + remainingToPay === totalSejour` keeps holding.
-  return round2(deposit + balance + complement + endOfStay + midStayNotesTotal(r) - refundsBook(r)
-    + arrivalPaymentAdjustment(r).net);
+  // specs/direct-installments.md rule 45 — an installment plan replaces the acompte and the solde (the
+  // engine zeroes both): the plan's collected and still-due totals are the stay's pre-arrival money.
+  const installments = round2(r.installmentsPaidAmount) + round2(r.installmentsUnpaidAmount);
+  // specs/mixed-method-payments.md rule 27 — a split payment's caisse-interne lines and geste commercial leave
+  // the turnover; its reste à percevoir stays in it (still owed, counted by `remainingToPay`).
+  const split = splitAdjustment(r);
+  return round2(deposit + balance + complement + endOfStay + installments + midStayNotesTotal(r) - refundsBook(r)
+    + arrivalPaymentAdjustment(r).net - split.offBooks - split.waived);
 }
 
 // `isSettled` (specs/finance-overview-rework.md §3.3), `remainingToPay`
 // (specs/finance-operational-remaining-to-pay.md §3) and `comptaCollected` (« encaissé ») live in
 // utils/reservationSettlement.js — the day-of-operations collection status and the refund dialog
 // share the very same bucket rules (specs/dashboard-collection-alert.md).
-
-function getVatRate(database) {
-  const row = database.prepare('SELECT vatRate FROM app_settings WHERE id = 1').get();
-  return row && row.vatRate != null ? Number(row.vatRate) : 10;
-}
 
 // Accounting closing month (specs/fiscal-year-and-nights-sold.md §3.1). A minimal test schema without
 // the column — or a fresh install — degrades to 12 = calendar year, the pre-spec behaviour.
@@ -123,14 +196,17 @@ function htAmount(r, ttcPortion, vatRate) {
   return round2(portion * ratio);
 }
 
+const TAX_FACTS_CHUNK = 500;
+
 function createFinanceModel(database) {
   const hasReservationColumn = (name) => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === name); }
     catch { return false; }
   };
-  // The window key of every money query (see ATTRIBUTION_DATE_SQL_FULL above).
+  // The window key of every money query (see attributionDateSql above).
+  // A plan fully collected attaches the stay to the day its last installment was (rule 37).
   const ATTRIBUTION_DATE_SQL = hasReservationColumn('balancePaidDate')
-    ? ATTRIBUTION_DATE_SQL_FULL
+    ? attributionDateSql({ withPlan: hasReservationColumn('installmentsLastPaidDate') })
     : 'r.endDate';
 
   // specs/collect-stay-payment-at-check-in.md §3.4 — the caisse-interne flags of the stay buckets.
@@ -149,6 +225,9 @@ function createFinanceModel(database) {
     hasReservationColumn('arrivalPaymentReduction') ? 'r.arrivalPaymentReduction' : 'NULL AS arrivalPaymentReduction',
     hasReservationColumn('arrivalPaymentTip') ? 'r.arrivalPaymentTip' : 'NULL AS arrivalPaymentTip',
   ].join(', ');
+  // specs/mixed-method-payments.md rule 27 — the split payments' aggregates, read by the settlement rules.
+  const SPLIT_COLS = ['splitOffBooksAmount', 'splitWaivedAmount', 'splitWaivedCashAmount', 'splitShortfallDue']
+    .map((c) => (hasReservationColumn(c) ? `r.${c}` : `0 AS ${c}`)).join(', ');
 
   // specs/reservation-refunds.md §3.3 — per-reservation refund totals, injected into every query that
   // feeds totalSejour/comptaCollected. Guarded like the mid-stay columns: a minimal test schema without
@@ -168,12 +247,52 @@ function createFinanceModel(database) {
   // nights. EVERY means counts here (caisse interne included): « hors comptabilité » excludes money
   // from the turnover, never from what is owed to the commune.
   const hasAddedGuestsTax = (() => {
-    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'touristTaxAddedGuestsAmount'); }
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'touristTaxDeclaredWithAddedAmount'); }
     catch { return false; }
   })();
-  // Same condition as the SQL of the added-guests rows (specs/platform-added-guests-tourist-tax.md rule 12).
-  const hasOwnAddedGuestsRow = (stored) => Boolean(stored.touristTaxDeclaredAt)
-    && String(stored.complementPaidDate || stored.endDate).slice(0, 10) >= String(stored.touristTaxDeclaredAt).slice(0, 10);
+  // Same condition as the SQL of the added-guests rows (specs/platform-added-guests-tourist-tax.md rules
+  // 12, 20, 29): declared, collected, and an addition above what the declared row held. A row ticked
+  // before the stamp existed has only the dates to go by. A stamp above the addition stays silent.
+  const hasOwnAddedGuestsRow = (stored) => {
+    if (!stored.touristTaxDeclaredAt || !Number(stored.complementPaid || 0)) return false;
+    if (stored.touristTaxDeclaredWithAddedAmount != null) {
+      return round2(Number(stored.touristTaxAddedGuestsAmount || 0)) > round2(Number(stored.touristTaxDeclaredWithAddedAmount));
+    }
+    const collectedDay = String(stored.complementPaidDate || addDays(String(stored.endDate).slice(0, 10), -1)).slice(0, 10);
+    return collectedDay >= String(stored.touristTaxDeclaredAt).slice(0, 10);
+  };
+  // Rule 29 — of a row of its own, what the declared row already told the commune: the stamp, and the adults
+  // that amount stood for at the stored per-adult figure. An addition left out whole holds neither.
+  const toldOfAddition = (stored, addedAdults, addedTax) => {
+    const told = hasOwnAddedGuestsRow(stored) ? Number(stored.touristTaxDeclaredWithAddedAmount || 0) : 0;
+    return { told, toldAdults: addedTax > 0 ? Math.round((addedAdults * told) / addedTax) : 0 };
+  };
+  const addedAdultsOf = (stored, rowAdults) => (stored.touristTaxAddedGuestsAdults != null
+    ? Number(stored.touristTaxAddedGuestsAdults)
+    : Math.max(0, Number(rowAdults || 0) - Number(stored.platformPaidAdults || 0)));
+  // specs/tourist-tax-declaration-month-stay-end.md rule 7 — read from the plan itself: paying an
+  // installment leaves balancePaid at 0. A minimal test schema without the table holds no plan.
+  const HAS_PLAN_SQL = (() => {
+    try {
+      database.prepare('SELECT 1 FROM reservation_installments LIMIT 1').get();
+      return '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))';
+    } catch { return '(0)'; }
+  })();
+  // Rule 9 of tourist-tax-declared-checkbox — the negation of WE_REMIT_SQL for one stay. A minimal test schema
+  // without the platform tables has no platform to remit anything: the stay is ours.
+  const remittedByPlatform = (id) => {
+    try {
+      return Boolean(database.prepare(`SELECT NOT ${WE_REMIT_SQL} AS theirs FROM reservations r WHERE r.id = ?`).get(id).theirs);
+    } catch { return false; }
+  };
+  // specs/tourist-tax-declared-checkbox.md rule 10 — the same « frozen at 0 € » reading as the extraction (D-HC10).
+  const frozenAtZeroStay = (stored) => {
+    if (!isTouristTaxFrozen(database, stored)) return false;
+    const quote = quoteStoredReservation(database, stored) || {};
+    return round2(Number(quote.touristTaxTotal || 0)) === 0;
+  };
+  const planOfStay = HAS_PLAN_SQL === '(0)' ? null : database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1');
+  const stayHasPlan = (id) => Boolean(planOfStay && planOfStay.get(id));
   const REFUNDED_TAX_COLS = hasRefundTables
     ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
                  JOIN reservation_refunds rf ON rf.id = rl.refundId
@@ -193,7 +312,121 @@ function createFinanceModel(database) {
     return { sql: clauses.map((c) => ` AND ${c}`).join(''), params };
   };
 
+  // The platform's payout delay, read once per channel and request (specs/platform-payout-due-date.md).
+  const payoutDueDaysOf = (() => {
+    let platforms = null;
+    const cache = new Map();
+    return (platform) => {
+      const key = String(platform || '').toLowerCase();
+      if (!cache.has(key)) {
+        try {
+          platforms = platforms || require('./platformsModel').create(database);
+          cache.set(key, platforms.getPayoutDueDays(platform));
+        } catch {
+          cache.set(key, DEFAULT_PAYOUT_DUE_DAYS);
+        }
+      }
+      return cache.get(key);
+    };
+  })();
+
+  // specs/finance-dashboard-redesign.md rule 34 — what a stay has overdue, as a row of « En retard »,
+  // or null. Each row lists its overdue elements (`overdueItems`) ready to render; `paidField` names the
+  // payment flag « Marquer payé » ticks for that element, and nothing else (rule 38).
+  function overdueOf(r, today, lateInstallments = []) {
+    if (r.settled) return null;
+    if (isDirectChannel(r.platform)) {
+      const overdueItems = [];
+      if (r.depositOverdue) overdueItems.push({ kind: 'deposit', paidField: 'depositPaid', label: 'Acompte', amount: round2(r.depositAmount), dueDate: r.depositDueDate });
+      if (r.balanceOverdue) overdueItems.push({ kind: 'balance', paidField: 'balancePaid', label: 'Solde', amount: round2(r.balanceAmount), dueDate: r.balanceDueDate });
+      // An installment « En retard » on the fiche is late here too (specs/direct-installments.md rule 14):
+      // the plan replaces the acompte and the solde, so without it such a stay was never late. It has no
+      // payment flag: « Marquer payé » records it through its own endpoint (`installmentId`).
+      for (const i of lateInstallments) {
+        overdueItems.push({ kind: `installment:${i.id}`, installmentId: i.id, paidField: null, label: `Échéance ${i.number}/${i.count}`, amount: round2(Number(i.amountCents) / 100), dueDate: i.dueDate });
+      }
+      if (overdueItems.length === 0) return null;
+      const dueDates = overdueItems.map((item) => item.dueDate).filter(Boolean).sort();
+      return {
+        ...r,
+        isOverdue: true,
+        payoutOverdue: false,
+        overdueAmount: round2(overdueItems.reduce((sum, item) => sum + item.amount, 0)),
+        oldestDueDate: dueDates[0] || null,
+        overdueItems,
+      };
+    }
+    const balance = round2(r.balanceAmount);
+    if (!(balance > 0) || r.balancePaid || !(r.endDate < today)) return null;
+    const dueDate = addDaysToIsoDate(r.endDate, normalizePayoutDueDays(payoutDueDaysOf(r.platform)));
+    if (!dueDate || dueDate >= today) return null;
+    // specs/finance-dashboard-redesign.md rule 41 — the platform owes its payout, not what the guest paid it: the solde net of the
+    // platform's commission, the solde part of what « À encaisser » counts (`remainingToPay` adds the compléments).
+    const payout = round2(Math.max(0, balance - Number(r.platformCommissionAmount || 0) - platformPenalty(r)));
+    // Rule 41 — a commission that eats the whole solde leaves nothing to wait for.
+    if (!(payout > 0)) return null;
+    return {
+      ...r,
+      isOverdue: true,
+      depositOverdue: false,
+      balanceOverdue: true,
+      payoutOverdue: true,
+      overdueAmount: payout,
+      oldestDueDate: dueDate,
+      overdueItems: [{ kind: 'payout', paidField: 'balancePaid', label: `Versement ${platformDisplayName(r.platform)}`, amount: payout, dueDate }],
+    };
+  }
+
+  // The installments the fiche and the payment deadlines call late (installmentsModel.listLate, the
+  // collection alert's own read: due + LATE_AFTER_DAYS passed, or the guest has arrived; a plan covered
+  // by what it collected owes nothing), per stay. A schema without the table has none.
+  function lateInstallmentsOf(today) {
+    const byStay = new Map();
+    let rows = [];
+    try {
+      rows = require('./installmentsModel').buildModel(database)
+        .listLate({ cutoff: addDaysToIsoDate(today, -installmentPlan.LATE_AFTER_DAYS), today });
+    } catch { rows = []; }
+    for (const row of rows) {
+      const list = byStay.get(row.reservationId) || [];
+      list.push(row);
+      byStay.set(row.reservationId, list);
+    }
+    return byStay;
+  }
+
   const model = {
+    // specs/stay-profile.md rule 22 and specs/finance-dashboard-redesign.md rule 53 — the ONE reading of
+    // the tourist tax inside each stay's « total de séjour » (utils/stayTouristTaxInTotal.js): where it
+    // sits (collected at arrival — TAX_ON_ARRIVAL_SQL, the tax page's own predicate — or through a plan)
+    // and the tax its book refunds gave back, read in one query. Returns the rows with `taxInTotal`. The
+    // stay profile's basket and the dashboard's revenue of the nights both leave the tax out through it.
+    withTouristTaxInTotal(reservations) {
+      const ids = reservations.map((r) => r.id).filter((id) => id != null);
+      const facts = new Map();
+      if (ids.length) {
+        const tableExists = (name) => database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) != null;
+        const onArrival = tableExists('platforms') && tableExists('ical_sources') && hasReservationColumn('touristTaxInComplement')
+          ? TAX_ON_ARRIVAL_SQL
+          : (hasReservationColumn('touristTaxInComplement') ? '(r.touristTaxInComplement = 1)' : '(0)');
+        const plan = tableExists('reservation_installments')
+          ? '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))'
+          : '(0)';
+        const refunded = tableExists('reservation_refund_lines') && tableExists('reservation_refunds')
+          ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId
+                        WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND rf.method <> 'internal'), 0)`
+          : '0';
+        // In chunks: SQLite caps the bound parameters of one statement (32 766), a large book must not 500.
+        for (let i = 0; i < ids.length; i += TAX_FACTS_CHUNK) {
+          const chunk = ids.slice(i, i + TAX_FACTS_CHUNK);
+          database.prepare(`SELECT r.id, ${onArrival} AS taxOnArrival, ${plan} AS hasPlan, ${refunded} AS refundedTax
+            FROM reservations r WHERE r.id IN (${chunk.map(() => '?').join(',')})`).all(...chunk)
+            .forEach((f) => facts.set(f.id, { taxOnArrival: Boolean(f.taxOnArrival), hasPlan: Boolean(f.hasPlan), refundedTax: Number(f.refundedTax || 0) }));
+        }
+      }
+      return reservations.map((r) => ({ ...r, taxInTotal: touristTaxInTotal(r, facts.get(r.id)) }));
+    },
+
     // Financial summary for a date range; each reservation carries its payment status.
     //
     // All amounts are driven by the **encaissement** schedule (depositAmount + balanceAmount +
@@ -219,7 +452,10 @@ function createFinanceModel(database) {
     // live reservations, manually cancelled ones (kept with `cancelledAt`), and those an approved iCal
     // cancellation deleted (`booking_pace_cancellations`). A cancelled stay is valued as it stood on the
     // books, before any refund of its cancellation.
-    getPaceStays({ propertyId } = {}) {
+    // `withTax` (specs/finance-dashboard-redesign.md rule 53) adds `taxInTotal` (withTouristTaxInTotal) to
+    // the stays read from the reservations, so the dashboard's revenue of the nights leaves the tourist tax
+    // out; the pace reads the stays without it, unchanged.
+    getPaceStays({ propertyId, withTax = false } = {}) {
       const scope = scopeSql({ propertyId });
       const hasCancelledAt = hasReservationColumn('cancelledAt');
       const rows = database.prepare(`
@@ -227,15 +463,17 @@ function createFinanceModel(database) {
         FROM reservations r
         WHERE r.kind ${hasCancelledAt ? "IN ('reservation', 'cancelled')" : "= 'reservation'"}${scope.sql}
       `).all(...scope.params);
+      const taxed = withTax ? new Map(model.withTouristTaxInTotal(rows).map((r) => [r.id, r.taxInTotal])) : null;
       const stays = rows.map((r) => {
-        const cancelledOn = hasCancelledAt && r.kind === 'cancelled' ? String(r.cancelledAt || '').slice(0, 10) || null : null;
+        const cancelledOn = hasCancelledAt && r.kind === 'cancelled' ? bookingDayOf(r.cancelledAt) : null;
         return {
           propertyId: r.propertyId,
           startDate: r.startDate,
           endDate: r.endDate,
           totalSejour: totalSejour(cancelledOn ? { ...r, refundsBookTtc: 0 } : r),
-          bookedOn: String(r.createdAt || '').slice(0, 10) || null,
+          bookedOn: bookingDayOf(r.createdAt),
           cancelledOn,
+          ...(taxed ? { taxInTotal: taxed.get(r.id) } : {}),
         };
       });
       const hasLedger = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'booking_pace_cancellations'").get();
@@ -248,8 +486,8 @@ function createFinanceModel(database) {
             startDate: l.startDate,
             endDate: l.endDate,
             totalSejour: Number(l.totalSejour || 0),
-            bookedOn: String(l.reservationCreatedAt || '').slice(0, 10) || null,
-            cancelledOn: String(l.cancelledAt || '').slice(0, 10) || null,
+            bookedOn: bookingDayOf(l.reservationCreatedAt),
+            cancelledOn: bookingDayOf(l.cancelledAt),
           }));
       }
       return stays;
@@ -289,7 +527,15 @@ function createFinanceModel(database) {
         ORDER BY ${ATTRIBUTION_DATE_SQL}
       `).all(start, end, ...scope.params);
 
-      const vatRate = getVatRate(database);
+      // Rule 12d — the HT figures only mean something while a stay of the view is under VAT, or the
+      // regime in force is: a view of « Sans TVA » stays alone drops them.
+      const inForceVat = vatRegimeModel.inForceBlock(database);
+      let showHt = !inForceVat || inForceVat.regime === 'subject';
+      const vatOf = (r) => {
+        const regime = vatRegimeModel.forRow(database, r);
+        if (regime.regime === 'subject') showHt = true;
+        return regime.rate;
+      };
       let revenueTotal = 0;
       let totalCollected = 0;
       let revenueTotalHt = 0;
@@ -392,7 +638,7 @@ function createFinanceModel(database) {
       let revenueTotalNights = 0;
       const enriched = reservations.map((r) => {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatRate);
+        const stayHt = htAmount(r, stay, vatOf(r));
         const settled = isSettled(r);
         const collected = comptaCollected(r);
         const nights = nightsBetween(r.startDate, r.endDate);
@@ -400,7 +646,7 @@ function createFinanceModel(database) {
         revenueTotalHt += stayHt;
         revenueTotalNights += nights;
         totalCollected += collected;
-        totalCollectedHt += htAmount(r, collected, vatRate);
+        totalCollectedHt += htAmount(r, collected, vatOf(r));
 
         accumulate(byProperty, r, stay, stayHt, nights);
         accumulateChannel(byChannel, r, stay, stayHt, nights);
@@ -431,22 +677,24 @@ function createFinanceModel(database) {
         if (isSettled(r)) continue;
         const remaining = remainingToPay(r);
         totalPending += remaining;
-        totalPendingHt += htAmount(r, remaining, vatRate);
+        totalPendingHt += htAmount(r, remaining, vatOf(r));
       }
 
       // Exercise cards — the SELECTED fiscal year, independent of the du/au period. Attributed by the
       // accounting date, so a stay settled before the closing counts in the closing exercise even when
       // the guest leaves after it (specs/fiscal-year-and-nights-sold.md §3.2).
       const yearRows = database.prepare(`
-        SELECT depositAmount, balanceAmount, complementAmount, complementPaidCash,
+        SELECT r.id,
+               depositAmount, balanceAmount, complementAmount, complementPaidCash,
                ${STAY_CASH_COLS},
                endOfStayComplementAmount, endOfStayComplementPaidCash, midStaySettledNotes,
                r.startDate, r.endDate,
                ${ATTRIBUTION_DATE_SQL} AS attributionDate,
-               finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount,
+               finalPrice, touristTaxTotal, platformCommissionAmount, acompteCommissionAmount, ${penaltyColumn(database)},
                r.propertyId, p.name AS propertyName,
                r.platform, r.requestOrigin, r.attributionChannel,
                ${ARRIVAL_ADJUSTMENT_COLS},
+               ${SPLIT_COLS},
                ${REFUND_COLS}
         FROM reservations r JOIN properties p ON r.propertyId = p.id
         WHERE r.kind = 'reservation'
@@ -463,7 +711,7 @@ function createFinanceModel(database) {
       const byMonth = new Map(exerciseMonths(exercise.from, exercise.to).map((m) => [m.month, { ...m, revenue: 0, revenueHt: 0, past: 0, upcoming: 0, nights: 0 }]));
       for (const r of yearRows) {
         const stay = totalSejour(r);
-        const stayHt = htAmount(r, stay, vatRate);
+        const stayHt = htAmount(r, stay, vatOf(r));
         const nights = nightsBetween(r.startDate, r.endDate);
         yearTotal += stay;
         yearTotalHt += stayHt;
@@ -502,6 +750,7 @@ function createFinanceModel(database) {
       return {
         revenueTotal:   round2(revenueTotal),   // Σ total-séjour over the period (by attribution date)
         revenueTotalHt: round2(revenueTotalHt), // …its element-by-element HT (tax excluded, ÷ vat)
+        showHt,                                 // false when no stay of the view is under VAT (HT = TTC)
         revenueTotalNights,                     // …and the nights sold over that same set
         totalCollected: round2(totalCollected), // accounting total (encaissé)
         totalCollectedHt: round2(totalCollectedHt),
@@ -524,6 +773,21 @@ function createFinanceModel(database) {
         fiscalYear: { ...exercise, isCurrent: Boolean(currentExercise && currentExercise.key === exercise.key) },
         fiscalYears,
       };
+    },
+
+    // specs/vat-optional-mode.md rule 37 — every stay that ever took a payment, whatever the window: a
+    // cancelled one keeps its acompte and its refund on their own dates. Same row shape as getSummary's
+    // reservations, so the payments ledger reads it as is.
+    getLedgerStays() {
+      return database.prepare(`
+        SELECT r.*, c.lastName, c.firstName, p.name AS propertyName,
+               ${ATTRIBUTION_DATE_SQL} AS attributionDate,
+               ${REFUND_COLS}
+        FROM reservations r
+        JOIN clients c ON r.clientId = c.id
+        JOIN properties p ON r.propertyId = p.id
+        WHERE r.kind IN ('reservation', 'cancelled')
+      `).all();
     },
 
     // specs/finance-dashboard-redesign.md rules 26 + 28 — what the goal fields of Settings need: the
@@ -615,16 +879,23 @@ function createFinanceModel(database) {
         remainingToPay: remainingToPay(r),
         settled: isSettled(r),
         nights: nightsBetween(r.startDate, r.endDate),
+        ...settleAllOf(r, today),
       });
 
-      // Overdue: DIRECT bookings only — platforms collect the guest's payment themselves, so a late
-      // platform reservation isn't the operator's dunning concern (specs/finance-overview-rework.md §3.6).
+      // Overdue (specs/finance-dashboard-redesign.md rule 34): an own-channel stay whose acompte or solde
+      // is past due — `isDirectChannel`, never `platform === 'direct'`, so a « Compté comme vente
+      // directe » platform is chased like a direct booking — and a platform stay whose payout is late
+      // (departure + the platform's payout delay, specs/platform-payout-due-date.md). Platforms collect
+      // the guest's payment themselves: only their own transfer can be late.
+      const lateInstallmentsByStay = lateInstallmentsOf(today);
       const overdueReservations = allRows.map(enrich)
-        .filter((r) => String(r.platform || 'direct').toLowerCase() === 'direct' && r.isOverdue && !r.settled)
+        .map((r) => overdueOf(r, today, lateInstallmentsByStay.get(r.id)))
+        .filter(Boolean)
         .sort((a, b) => (a.oldestDueDate || '').localeCompare(b.oldestDueDate || ''));
       const overdueTotalAmount = round2(
         overdueReservations.reduce((sum, r) => sum + Number(r.overdueAmount || 0), 0),
       );
+      const payoutRows = overdueReservations.filter((r) => r.payoutOverdue);
 
       // Pending = PAST stays (endDate < today) not yet settled. The amount shown is the total de séjour;
       // a caisse-interne complement counts as settled so it drops out (§3.3 / §3.6).
@@ -659,6 +930,10 @@ function createFinanceModel(database) {
           count: overdueReservations.length,
           totalAmount: overdueTotalAmount,
           totals: { overdueAmount: overdueTotalAmount },
+          payouts: {
+            count: payoutRows.length,
+            totalAmount: round2(payoutRows.reduce((sum, r) => sum + Number(r.overdueAmount || 0), 0)),
+          },
         },
         pending: {
           reservations: pending,
@@ -703,278 +978,7 @@ function createFinanceModel(database) {
         return { ok: false, status: 400, error: 'Les mois futurs ne sont pas autorisés.' };
       }
 
-      const selectRows = `
-        SELECT
-          r.id as reservationId,
-          r.propertyId,
-          p.name as propertyName,
-          c.firstName,
-          c.lastName,
-          r.startDate,
-          r.endDate,
-          r.adults,
-          r.children,
-          r.teens,
-          r.babies,
-          COALESCE(r.discountPercent, 0) as discountPercent,
-          COALESCE(r.extraGuestSurchargeOffered, 0) as extraGuestSurchargeOffered,
-          COALESCE(r.touristTaxRate, 0) as storedTaxRate,
-          COALESCE(r.touristTaxTotal, 0) as storedTaxAmount,
-          COALESCE(p.touristTaxPerDayPerPerson, 0) as propertyTaxRate,
-          COALESCE(p.touristTaxMode, 'per_day_per_person') as touristTaxMode,
-          COALESCE(p.touristTaxPercentage, 0) as touristTaxPercentage,
-          COALESCE(p.touristTaxDepartmentPercentage, 0) as touristTaxDepartmentPercentage,
-          COALESCE(p.touristTaxFixedAmount, 0) as touristTaxFixedAmount,
-          COALESCE(p.basePriceIncludedGuests, 0) as basePriceIncludedGuests,
-          COALESCE(p.extraGuestPrice, 0) as extraGuestPrice,
-          COALESCE((SELECT vatRate FROM app_settings WHERE id = 1), 10) as accommodationVatRate,
-          MAX(0,
-            CAST(
-              JULIANDAY(r.endDate) - JULIANDAY(r.startDate)
-              AS INTEGER
-            )
-          ) as nightsCount,
-          COALESCE(
-            (
-              SELECT COUNT(1)
-              FROM reservation_nights rn
-              WHERE rn.reservationId = r.id
-            ),
-            0
-          ) as nightlyBreakdownCount,
-          COALESCE(
-            (
-            SELECT ROUND(SUM(rn.price), 2)
-            FROM reservation_nights rn
-            WHERE rn.reservationId = r.id
-            ),
-            COALESCE(r.totalPrice, 0),
-            0
-          ) as accommodationRawAmount,
-          COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0) as optionsTotal,
-          COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal,
-          COALESCE(r.finalPrice, 0) as finalPrice,
-          r.touristTaxDeclaredAt as touristTaxDeclaredAt,
-          ${REFUNDED_TAX_COLS},
-          DATE(r.endDate, '-1 day') as lastNightDate
-        FROM reservations r
-        JOIN properties p ON p.id = r.propertyId
-        JOIN clients c ON c.id = r.clientId
-      `;
-      const rows = database.prepare(`
-        ${selectRows}
-        WHERE r.kind = 'reservation'
-          -- specs/tourist-tax-declaration-month-stay-end.md — the declaration follows the STAY: a stay
-          -- is declared in the month of its LAST NIGHT (DATE(endDate,'-1 day')), unless its tax-carrying
-          -- échéance is paid LATER → then the payment month (never retroactively into an already-declared
-          -- past month). Payment stays a GATE: an unpaid stay never appears, so a never-collected tax is
-          -- never remitted. Attribution date = MAX(lastNight, paidDate); a NULL paid date (legacy rows
-          -- with the paid flag set) falls back to the last night. Normally the tax rides on the SOLDE →
-          -- balancePaidDate; collected on arrival (forced to complement, or a platform mode where WE
-          -- collect at arrival) → complementPaidDate.
-          AND (
-            ( NOT ${TAX_ON_ARRIVAL_SQL} AND r.balancePaid = 1
-              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) >= ?
-              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) < ? )
-            OR
-            ( ${TAX_ON_ARRIVAL_SQL} AND r.complementPaid = 1
-              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
-              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ? )
-          )
-          AND (
-            -- specs/per-platform-tourist-tax-three-way.md — the « Taxe de séjour » page lists every
-            -- stay WE must remit to the commune: direct, the new "platform collects then reverses it
-            -- to us" (case 1), and "we collect at arrival" (case 3) — i.e. everything whose GLOBAL
-            -- platform mode has touristTaxRemittedByPlatform = 0. Only "platform collects + remits to
-            -- the commune itself" (case 2) is excluded.
-            r.platform = 'direct'
-            -- Manual reservations store the concatenated label (= platforms.name) → direct match.
-            OR EXISTS (
-              SELECT 1 FROM platforms pl
-              WHERE lower(pl.name) = lower(r.platform)
-                AND pl.touristTaxRemittedByPlatform = 0
-            )
-            -- iCal imports store the hyphenated platformKey → bridge to the canonical label via any
-            -- ical_sources row, then read the global mode. (The key→label map is platform-wide.)
-            OR EXISTS (
-              SELECT 1 FROM ical_sources s
-              JOIN platforms pl ON lower(pl.name) = lower(s.platformLabel)
-              WHERE (lower(s.platformKey) = lower(r.platform) OR lower(s.platformLabel) = lower(r.platform))
-                AND pl.touristTaxRemittedByPlatform = 0
-            )
-          )
-        ORDER BY p.name, r.startDate, c.lastName, c.firstName
-      `).all(bounds.start, bounds.endExclusive, bounds.start, bounds.endExclusive);
-
-      // specs/platform-added-guests-tourist-tax.md rule 12 — an added tax collected once the stay's row
-      // was declared is told to the commune on a row of its own, in the month it was collected.
-      const addedGuestsRows = !hasAddedGuestsTax ? [] : database.prepare(`
-        ${selectRows}
-        WHERE r.kind = 'reservation'
-          AND COALESCE(r.touristTaxAddedGuestsAmount, 0) > 0
-          AND r.complementPaid = 1
-          AND r.touristTaxDeclaredAt IS NOT NULL
-          AND COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')) >= DATE(r.touristTaxDeclaredAt)
-          AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
-          AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ?
-        ORDER BY p.name, r.startDate, c.lastName, c.firstName
-      `).all(bounds.start, bounds.endExclusive);
-
-      // specs/tourist-tax-included-services-deduction.md rule 14 — this page does NOT re-derive the
-      // tax from SQL any more: it REPLAYS THE PRICING ENGINE on each stay, from the very inputs the
-      // fiche replays (`buildReservationEngineInput`). It used to keep its own arithmetic —
-      // accommodation after discount, its own surcharge handling, its own base — and that arithmetic
-      // drifted: the same stay could be validated at 13,05 € on its fiche and declared 14,85 € here.
-      // One stay, one amount, one engine. What stays this page's own business is WHICH stays it lists
-      // (the attribution month, the payment gate, the platform mode) and the refunded-nights prorata.
-      const listedIds = [...rows, ...addedGuestsRows].map((row) => row.reservationId);
-      const storedById = new Map(
-        (listedIds.length === 0 ? [] : database
-          .prepare(`SELECT * FROM reservations WHERE id IN (${listedIds.map(() => '?').join(', ')})`)
-          .all(...listedIds))
-          .map((r) => [Number(r.id), r]),
-      );
-      // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the fiche freezes a tax the
-      // guest has paid or the operator has declared, and shows the base it was frozen with. Same rule
-      // here, decided by the same helper, or the declaration would drift away from the fiches it
-      // declares — which is exactly what the recomputed base did.
-
-      const reservations = rows
-        .map((row) => {
-          const stored = storedById.get(Number(row.reservationId));
-          if (!stored) return null;
-          const nightsCount = Number(row.nightsCount || 0);
-          const adults = Number(row.adults || 0);
-          const children = Number(row.children || 0);
-          const teens = Number(row.teens || 0);
-          const quote = calculateReservationQuote({
-            ...buildReservationEngineInput(database, stored),
-            freezeTouristTax: isTouristTaxFrozen(database, stored),
-          });
-          const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
-          // specs/platform-added-guests-tourist-tax.md rules 11-12 — the added tax counts here once
-          // collected, unless that came after this row was declared: it then has a row of its own.
-          const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
-          const addedTaxKeptOut = addedTax > 0
-            && (!Number(stored.complementPaid || 0) || hasOwnAddedGuestsRow(stored));
-          const taxedAdults = addedTaxKeptOut
-            ? Number(quote.platformPaidAdults ?? quote.touristTaxAdultsCount ?? 0)
-            : Number(quote.touristTaxAdultsCount || 0);
-
-          // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest
-          // did not spend: that night leaves the declaration, and with it its taxable person-nights and
-          // its share of the tax.
-          //
-          // What is deducted is the NIGHT, and the amount follows from it — never the refunded euros
-          // themselves. Two reasons: the page recomputes the tax from the property's current rate (it
-          // may differ by cents from what was billed), so subtracting a foreign amount would break its
-          // own `taxe = nuitées × tarif` arithmetic; and what is owed to the commune depends on nights
-          // occupied, not on what the operator kept. A goodwill refund too small to free a whole night
-          // therefore changes nothing here.
-          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
-          const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
-          const declaredAdultNights = Math.max(
-            0,
-            taxedAdults * Math.max(0, Number(quote.touristTaxNights || 0) - refundedTaxNights),
-          );
-          // The tax the fiche shows: frozen on a past stay, recomputed live otherwise.
-          const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax : 0));
-          const grossAdultNights = taxedAdults * Number(quote.touristTaxNights || 0);
-          // Pro-rated on the nights: exact for the per-night modes, the natural share for the
-          // percentage ones (where the tax isn't night-linear).
-          const declaredTaxAmount = nightsCount > 0
-            ? round2(grossTaxAmount * (declaredNights / nightsCount))
-            : grossTaxAmount;
-          // The annotation reports the declaration's own deduction, so the row always reads
-          // « net + retiré = brut » to the cent.
-          const refundedTaxAmount = round2(grossTaxAmount - declaredTaxAmount);
-
-          const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
-          return {
-            reservationId: row.reservationId,
-            propertyId: row.propertyId,
-            propertyName: row.propertyName,
-            reservationName,
-            startDate: row.startDate,
-            endDate: row.endDate,
-            lastNightDate: row.lastNightDate,
-            touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
-            adults: addedTaxKeptOut ? taxedAdults : adults,
-            children: children + teens,
-            // Net of the refunded nights — these are the figures to declare.
-            nightsCount: declaredNights,
-            adultNights: declaredAdultNights,
-            // The per-adult-per-night rate the amount above actually reflects. Derived rather than
-            // read from the quote because a FROZEN stay pins `touristTaxUnitAmount` to the stored
-            // `touristTaxRate`, which on a percentage property holds the PERCENTAGE (5), not a rate
-            // in euros. Identical to the engine's value in every live case.
-            taxRate: grossAdultNights > 0
-              ? round2(grossTaxAmount / grossAdultNights)
-              : round2(Number(quote.touristTaxUnitAmount || 0)),
-            taxAmount: declaredTaxAmount,
-            // …and what was taken out, so the row can say why (spec §6, « ligne annotée »).
-            refundedTaxNights,
-            refundedTaxAmount,
-            // In percentage mode this column IS the tax base (specs/reservation-refunds.md §6 already
-            // called it that): the accommodation the fiche divides by the nights, net of the services
-            // included in the rate, HT. Elsewhere no price enters the tax, so it stays the plain
-            // accommodation the guest was charged, HT.
-            accommodationAmount: isPercentageMode
-              ? round2(Number(quote.touristTaxBaseHt || 0))
-              : round2(Number(quote.totalPrice || 0) / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100))),
-            // What the rate covered and therefore left the BASE. Zero outside percentage mode, where
-            // there is no base for it to leave: the engine still computes it, it just plays no part.
-            includedServicesDeduction: isPercentageMode
-              ? round2(Number(quote.touristTaxIncludedInRateDeduction || 0))
-              : 0,
-            // What the commune's percentage form asks for: the cost of one night, per occupant, HT.
-            // Null outside percentage mode, where no price enters the tax at all.
-            nightPricePerOccupantHt: isPercentageMode
-              ? round2(Number(quote.touristTaxPerOccupantNightPriceHt || 0))
-              : null,
-          };
-        })
-        .filter(Boolean)
-        .concat(addedGuestsRows.map((row) => {
-          const stored = storedById.get(Number(row.reservationId));
-          const quote = calculateReservationQuote({
-            ...buildReservationEngineInput(database, stored),
-            freezeTouristTax: isTouristTaxFrozen(database, stored),
-          });
-          const nightsCount = Number(row.nightsCount || 0);
-          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
-          const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
-          const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
-          const declaredTaxAmount = nightsCount > 0 ? round2(addedTax * (declaredNights / nightsCount)) : addedTax;
-          const addedAdults = Math.max(0, Number(row.adults || 0) - Number(stored.platformPaidAdults || 0));
-          return {
-            reservationId: row.reservationId,
-            addedGuestsRow: true,
-            propertyId: row.propertyId,
-            propertyName: row.propertyName,
-            reservationName: `${row.firstName || ''} ${row.lastName || ''}`.trim(),
-            startDate: row.startDate,
-            endDate: row.endDate,
-            lastNightDate: row.lastNightDate,
-            touristTaxDeclaredAt: stored.touristTaxAddedGuestsDeclaredAt || null,
-            adults: addedAdults,
-            children: 0,
-            nightsCount: declaredNights,
-            adultNights: addedAdults * declaredNights,
-            taxRate: addedAdults > 0 && nightsCount > 0 ? round2(addedTax / (addedAdults * nightsCount)) : 0,
-            taxAmount: declaredTaxAmount,
-            refundedTaxNights,
-            refundedTaxAmount: round2(addedTax - declaredTaxAmount),
-            // The stay's base was declared with its row: this one only tells the commune the difference.
-            accommodationAmount: 0,
-            includedServicesDeduction: 0,
-            nightPricePerOccupantHt: null,
-          };
-        }))
-        // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night
-        // until nothing is left simply leaves the declaration — there is nothing to remit for it
-        // (specs/reservation-refunds.md §3.5 rule 31).
-        .filter((row) => row.nightsCount > 0);
+      const reservations = model.getTouristTaxRows({ start: bounds.start, endExclusive: bounds.endExclusive });
 
       const byPropertyMap = new Map();
       for (const row of reservations) {
@@ -1026,28 +1030,361 @@ function createFinanceModel(database) {
       };
     },
 
+    // specs/tourist-tax-report-v2.md rule 38 — D-HC10's « tax frozen at 0 € », one reading for every reader.
+    isTaxFrozenAtZero(stored) {
+      return frozenAtZeroStay(stored);
+    },
+
+    // specs/tourist-tax-report-v2.md rule 1 — the declaration rows of every stay whose attribution day (the rule of
+    // specs/tourist-tax-declaration-month-stay-end.md) lies in [start, endExclusive): the monthly extraction reads one
+    // month of it, the period report any union of months or days. One reading, so both screens show the same row.
+    getTouristTaxRows({ start, endExclusive } = {}) {
+      const selectRows = `
+        SELECT
+          r.id as reservationId,
+          r.propertyId,
+          p.name as propertyName,
+          c.firstName,
+          c.lastName,
+          r.startDate,
+          r.endDate,
+          r.adults,
+          r.children,
+          r.teens,
+          r.babies,
+          COALESCE(r.discountPercent, 0) as discountPercent,
+          COALESCE(r.extraGuestSurchargeOffered, 0) as extraGuestSurchargeOffered,
+          COALESCE(r.touristTaxRate, 0) as storedTaxRate,
+          COALESCE(r.touristTaxTotal, 0) as storedTaxAmount,
+          COALESCE(p.touristTaxPerDayPerPerson, 0) as propertyTaxRate,
+          COALESCE(p.touristTaxMode, 'per_day_per_person') as touristTaxMode,
+          COALESCE(p.touristTaxPercentage, 0) as touristTaxPercentage,
+          COALESCE(p.touristTaxDepartmentPercentage, 0) as touristTaxDepartmentPercentage,
+          COALESCE(p.touristTaxFixedAmount, 0) as touristTaxFixedAmount,
+          COALESCE(p.basePriceIncludedGuests, 0) as basePriceIncludedGuests,
+          COALESCE(p.extraGuestPrice, 0) as extraGuestPrice,
+          MAX(0,
+            CAST(
+              JULIANDAY(r.endDate) - JULIANDAY(r.startDate)
+              AS INTEGER
+            )
+          ) as nightsCount,
+          COALESCE(
+            (
+              SELECT COUNT(1)
+              FROM reservation_nights rn
+              WHERE rn.reservationId = r.id
+            ),
+            0
+          ) as nightlyBreakdownCount,
+          COALESCE(
+            (
+            SELECT ROUND(SUM(rn.price), 2)
+            FROM reservation_nights rn
+            WHERE rn.reservationId = r.id
+            ),
+            COALESCE(r.totalPrice, 0),
+            0
+          ) as accommodationRawAmount,
+          COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0) as optionsTotal,
+          COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal,
+          COALESCE(r.finalPrice, 0) as finalPrice,
+          r.touristTaxDeclaredAt as touristTaxDeclaredAt,
+          ${REFUNDED_TAX_COLS},
+          DATE(r.endDate, '-1 day') as lastNightDate,
+          -- specs/finance-data-checks.md rule 18 — the day the WHERE below attaches the row to, so one read
+          -- over many months can be split by month. Same three branches, same expressions (pinned by
+          -- finance-data-checks.single-pass: every row's day lies in the window it was read for).
+          CASE
+            WHEN ${HAS_PLAN_SQL} THEN DATE(r.endDate, '-1 day')
+            WHEN NOT ${TAX_ON_ARRIVAL_SQL} THEN MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day')))
+            ELSE MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')))
+          END as declarationDay,
+          MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) as addedGuestsDeclarationDay
+        FROM reservations r
+        JOIN properties p ON p.id = r.propertyId
+        JOIN clients c ON c.id = r.clientId
+      `;
+      const rows = database.prepare(`
+        ${selectRows}
+        WHERE r.kind = 'reservation'
+          -- specs/tourist-tax-declaration-month-stay-end.md — the declaration follows the STAY: a stay
+          -- is declared in the month of its LAST NIGHT (DATE(endDate,'-1 day')), unless its tax-carrying
+          -- échéance is paid LATER → then the payment month (never retroactively into an already-declared
+          -- past month). Payment stays a GATE: an unpaid stay never appears, so a never-collected tax is
+          -- never remitted. Attribution date = MAX(lastNight, paidDate); a NULL paid date (legacy rows
+          -- with the paid flag set) falls back to the last night. Normally the tax rides on the SOLDE →
+          -- balancePaidDate; collected on arrival (forced to complement, or a platform mode where WE
+          -- collect at arrival) → complementPaidDate.
+          -- Rules 7-8 (D14): a stay with a plan has no solde to wait for, so its stay month, whatever is paid.
+          AND (
+            ( ${HAS_PLAN_SQL}
+              AND DATE(r.endDate, '-1 day') >= ?
+              AND DATE(r.endDate, '-1 day') < ? )
+            OR
+            ( NOT ${HAS_PLAN_SQL} AND NOT ${TAX_ON_ARRIVAL_SQL} AND r.balancePaid = 1
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) >= ?
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.balancePaidDate), DATE(r.endDate, '-1 day'))) < ? )
+            OR
+            ( NOT ${HAS_PLAN_SQL} AND ${TAX_ON_ARRIVAL_SQL} AND r.complementPaid = 1
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
+              AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ? )
+          )
+          AND ${WE_REMIT_SQL}
+        ORDER BY p.name, r.startDate, c.lastName, c.firstName
+      `).all(start, endExclusive, start, endExclusive, start, endExclusive);
+
+      // specs/platform-added-guests-tourist-tax.md rule 12 — an added tax collected once the stay's row
+      // was declared is told to the commune on a row of its own, in the month it was collected.
+      const addedGuestsRows = !hasAddedGuestsTax ? [] : database.prepare(`
+        ${selectRows}
+        WHERE r.kind = 'reservation'
+          AND COALESCE(r.touristTaxAddedGuestsAmount, 0) > 0
+          AND r.complementPaid = 1
+          AND r.touristTaxDeclaredAt IS NOT NULL
+          AND CASE WHEN r.touristTaxDeclaredWithAddedAmount IS NULL
+                THEN COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day')) >= DATE(r.touristTaxDeclaredAt)
+                ELSE ROUND(r.touristTaxAddedGuestsAmount, 2) > ROUND(r.touristTaxDeclaredWithAddedAmount, 2) END
+          AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) >= ?
+          AND MAX(DATE(r.endDate, '-1 day'), COALESCE(DATE(r.complementPaidDate), DATE(r.endDate, '-1 day'))) < ?
+        ORDER BY p.name, r.startDate, c.lastName, c.firstName
+      `).all(start, endExclusive);
+
+      // specs/tourist-tax-included-services-deduction.md rule 14 — this page does NOT re-derive the
+      // tax from SQL any more: it REPLAYS THE PRICING ENGINE on each stay, from the very inputs the
+      // fiche replays (`buildReservationEngineInput`). It used to keep its own arithmetic —
+      // accommodation after discount, its own surcharge handling, its own base — and that arithmetic
+      // drifted: the same stay could be validated at 13,05 € on its fiche and declared 14,85 € here.
+      // One stay, one amount, one engine. What stays this page's own business is WHICH stays it lists
+      // (the attribution month, the payment gate, the platform mode) and the refunded-nights prorata.
+      const listedIds = [...rows, ...addedGuestsRows].map((row) => row.reservationId);
+      // specs/tourist-tax-report-v2.md rule 46 (review V2-8) — in chunks of TAX_FACTS_CHUNK: SQLite caps the bound
+      // parameters of one statement (32 766), a long window must not 500.
+      const storedById = new Map();
+      for (let i = 0; i < listedIds.length; i += TAX_FACTS_CHUNK) {
+        const chunk = listedIds.slice(i, i + TAX_FACTS_CHUNK);
+        database.prepare(`SELECT * FROM reservations WHERE id IN (${chunk.map(() => '?').join(', ')})`)
+          .all(...chunk)
+          .forEach((r) => storedById.set(Number(r.id), r));
+      }
+      // specs/tourist-tax-matches-the-office-calculation.md rules 10-12 — the fiche freezes a tax the
+      // guest has paid or the operator has declared, and shows the base it was frozen with. Same rule
+      // here, decided by the same helper, or the declaration would drift away from the fiches it
+      // declares — which is exactly what the recomputed base did.
+
+      return rows
+        .map((row) => {
+          const stored = storedById.get(Number(row.reservationId));
+          if (!stored) return null;
+          const nightsCount = Number(row.nightsCount || 0);
+          const adults = Number(row.adults || 0);
+          const children = Number(row.children || 0);
+          const teens = Number(row.teens || 0);
+          // specs/tourist-tax-declaration-month-stay-end.md rule 7 — paying an installment freezes nothing, so a plan's
+          // row reads the stored tax, the figure its tick pins: what the operator tells the commune does not move on it.
+          const quote = quoteStoredReservation(database, stored, stayHasPlan(stored.id) ? {
+            freezeTouristTax: true,
+            frozenTouristTaxTotal: stored.touristTaxTotal,
+            frozenTouristTaxRate: stored.touristTaxRate,
+            frozenTouristTaxBaseHt: stored.touristTaxFrozenBaseHt,
+            frozenTouristTaxOccupants: stored.touristTaxFrozenOccupants,
+            frozenTouristTaxAt: stored.touristTaxFrozenAt,
+          } : {});
+          const isPercentageMode = String(row.touristTaxMode || '').startsWith('percentage');
+          // specs/platform-added-guests-tourist-tax.md rules 11-12 — the added tax counts here once
+          // collected, unless that came after this row was declared: it then has a row of its own.
+          const addedTax = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
+          const addedTaxKeptOut = addedTax > 0
+            && (!Number(stored.complementPaid || 0) || hasOwnAddedGuestsRow(stored));
+          // Rule 29 — what this row already told of the addition stays on it; only the rest has left.
+          const { told, toldAdults } = toldOfAddition(stored, addedAdultsOf(stored, row.adults), addedTax);
+          const taxedAdults = addedTaxKeptOut
+            ? Number(quote.platformPaidAdults ?? quote.touristTaxAdultsCount ?? 0) + toldAdults
+            : Number(quote.touristTaxAdultsCount || 0);
+
+          // specs/reservation-refunds.md §3.5 rules 29–31 — a refunded tourist tax is a night the guest
+          // did not spend: that night leaves the declaration, and with it its taxable person-nights and
+          // its share of the tax.
+          //
+          // What is deducted is the NIGHT, and the amount follows from it — never the refunded euros
+          // themselves. Two reasons: the page recomputes the tax from the property's current rate (it
+          // may differ by cents from what was billed), so subtracting a foreign amount would break its
+          // own `taxe = nuitées × tarif` arithmetic; and what is owed to the commune depends on nights
+          // occupied, not on what the operator kept. A goodwill refund too small to free a whole night
+          // therefore changes nothing here.
+          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
+          const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
+          const declaredAdultNights = Math.max(
+            0,
+            taxedAdults * Math.max(0, Number(quote.touristTaxNights || 0) - refundedTaxNights),
+          );
+          // The tax the fiche shows: frozen on a past stay, recomputed live otherwise.
+          const grossTaxAmount = round2(Number(quote.touristTaxTotal || 0) - (addedTaxKeptOut ? addedTax - told : 0));
+          // specs/tourist-tax-declaration-month-stay-end.md rule 9 (D-HC10, 2026-11-06) — a tax frozen at 0 € is never
+          // ours to remit: the stay leaves the declaration (both pages, the synthesis, the data checks).
+          if (round2(Number(quote.touristTaxTotal || 0)) === 0 && isTouristTaxFrozen(database, stored)) return null;
+          const grossAdultNights = taxedAdults * Number(quote.touristTaxNights || 0);
+          // Pro-rated on the nights: exact for the per-night modes, the natural share for the
+          // percentage ones (where the tax isn't night-linear).
+          const declaredTaxAmount = nightsCount > 0
+            ? round2(grossTaxAmount * (declaredNights / nightsCount))
+            : grossTaxAmount;
+          // The annotation reports the declaration's own deduction, so the row always reads
+          // « net + retiré = brut » to the cent.
+          const refundedTaxAmount = round2(grossTaxAmount - declaredTaxAmount);
+
+          const reservationName = `${row.firstName || ''} ${row.lastName || ''}`.trim();
+          return {
+            reservationId: row.reservationId,
+            propertyId: row.propertyId,
+            propertyName: row.propertyName,
+            reservationName,
+            startDate: row.startDate,
+            endDate: row.endDate,
+            lastNightDate: row.lastNightDate,
+            declarationDay: row.declarationDay,
+            touristTaxDeclaredAt: row.touristTaxDeclaredAt || null,
+            declarable: isTouristTaxDeclarable(database, stored),
+            adults: addedTaxKeptOut ? taxedAdults : adults,
+            children: children + teens,
+            // Net of the refunded nights — these are the figures to declare.
+            nightsCount: declaredNights,
+            adultNights: declaredAdultNights,
+            // The per-adult-per-night rate the amount above actually reflects. Derived rather than
+            // read from the quote because a FROZEN stay pins `touristTaxUnitAmount` to the stored
+            // `touristTaxRate`, which on a percentage property holds the PERCENTAGE (5), not a rate
+            // in euros. Identical to the engine's value in every live case.
+            taxRate: grossAdultNights > 0
+              ? round2(grossTaxAmount / grossAdultNights)
+              : round2(Number(quote.touristTaxUnitAmount || 0)),
+            taxAmount: declaredTaxAmount,
+            // …and what was taken out, so the row can say why (spec §6, « ligne annotée »).
+            refundedTaxNights,
+            refundedTaxAmount,
+            // In percentage mode this column IS the tax base (specs/reservation-refunds.md §6 already
+            // called it that): the accommodation the fiche divides by the nights, net of the services
+            // included in the rate, HT. Elsewhere no price enters the tax, so it stays the plain
+            // accommodation the guest was charged, HT.
+            accommodationAmount: isPercentageMode
+              ? round2(Number(quote.touristTaxBaseHt || 0))
+              : round2(Number(quote.totalPrice || 0) / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100))),
+            // What the rate covered and therefore left the BASE. Zero outside percentage mode, where
+            // there is no base for it to leave: the engine still computes it, it just plays no part.
+            includedServicesDeduction: isPercentageMode
+              ? round2(Number(quote.touristTaxIncludedInRateDeduction || 0))
+              : 0,
+            // What the commune's percentage form asks for: the cost of one night, per occupant, HT.
+            // Null outside percentage mode, where no price enters the tax at all.
+            nightPricePerOccupantHt: isPercentageMode
+              ? round2(Number(quote.touristTaxPerOccupantNightPriceHt || 0))
+              : null,
+          };
+        })
+        .filter(Boolean)
+        .concat(addedGuestsRows.map((row) => {
+          const stored = storedById.get(Number(row.reservationId));
+          const quote = quoteStoredReservation(database, stored);
+          const nightsCount = Number(row.nightsCount || 0);
+          const refundedTaxNights = Math.min(nightsCount, Math.max(0, Math.round(Number(row.refundedTaxNights || 0))));
+          const declaredNights = Math.max(0, nightsCount - refundedTaxNights);
+          const wholeAddition = round2(Number(quote.touristTaxAddedGuestsAmount || 0));
+          // Rule 21 — who the stored amount is for, not who is on the fiche today. Nobody (a gap of rule 5):
+          // the amount alone, no person-night to tell the commune. Rule 29 — and only what the declared row left out.
+          const wholeAdults = addedAdultsOf(stored, row.adults);
+          const { told, toldAdults } = toldOfAddition(stored, wholeAdults, wholeAddition);
+          const addedTax = round2(wholeAddition - told);
+          const addedAdults = Math.max(0, wholeAdults - toldAdults);
+          const declaredTaxAmount = nightsCount > 0 ? round2(addedTax * (declaredNights / nightsCount)) : addedTax;
+          const noGuestAdded = addedAdults === 0;
+          return {
+            reservationId: row.reservationId,
+            addedGuestsRow: true,
+            ...(noGuestAdded ? { noGuestAdded: true } : {}),
+            propertyId: row.propertyId,
+            propertyName: row.propertyName,
+            reservationName: `${row.firstName || ''} ${row.lastName || ''}`.trim(),
+            startDate: row.startDate,
+            endDate: row.endDate,
+            lastNightDate: row.lastNightDate,
+            declarationDay: row.addedGuestsDeclarationDay,
+            touristTaxDeclaredAt: stored.touristTaxAddedGuestsDeclaredAt || null,
+            declarable: isTouristTaxDeclarable(database, stored),
+            adults: noGuestAdded ? null : addedAdults,
+            children: noGuestAdded ? null : 0,
+            nightsCount: declaredNights,
+            adultNights: addedAdults * declaredNights,
+            taxRate: noGuestAdded ? null : round2(addedTax / (addedAdults * nightsCount)),
+            taxAmount: declaredTaxAmount,
+            refundedTaxNights,
+            refundedTaxAmount: round2(addedTax - declaredTaxAmount),
+            // The stay's base was declared with its row: this one only tells the commune the difference.
+            accommodationAmount: 0,
+            includedServicesDeduction: 0,
+            nightPricePerOccupantHt: null,
+          };
+        }))
+        // `nightsCount` is the NET figure: a stay whose tourist tax was refunded night after night
+        // until nothing is left simply leaves the declaration — there is nothing to remit for it
+        // (specs/reservation-refunds.md §3.5 rule 31).
+        .filter((row) => row.nightsCount > 0)
+        // specs/finance-data-checks.md rule 18 — the attachment day rides along for a reader splitting a long window
+        // by month, non-enumerable: the monthly payload stays key for key (tourist-tax-report-v2 rule 1).
+        .map((row) => {
+          const { declarationDay, ...rest } = row;
+          return Object.defineProperty(rest, 'declarationDay', { value: declarationDay, enumerable: false });
+        });
+    },
+
     // specs/tourist-tax-declared-checkbox.md §3 — the operator ticks « Déclarée » on the extraction page.
     // declared=true stamps the server clock (so we know WHEN it was declared); declared=false clears it.
     // specs/platform-added-guests-tourist-tax.md rule 12 — `addedGuests` ticks the added-guests row alone.
+    // specs/tourist-tax-declared-checkbox.md rule 8 (D16) — a new tick waits for a stay paid and over; a tick
+    // sent back and an untick pass.
     setTouristTaxDeclared({ reservationId, declared, addedGuests = false } = {}) {
       const id = Number(reservationId);
       if (!Number.isInteger(id) || id <= 0) {
         return { ok: false, status: 400, error: 'Réservation invalide.' };
       }
-      const exists = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND kind = 'reservation'").get(id);
-      if (!exists) {
+      const stored = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'reservation'").get(id);
+      if (!stored) {
         return { ok: false, status: 404, error: 'Réservation introuvable.' };
+      }
+      const notDeclarable = { ok: false, status: 409, code: 'TOURIST_TAX_NOT_DECLARABLE', error: 'Déclarable une fois le séjour payé et terminé.' };
+      // specs/tourist-tax-declared-checkbox.md rule 9 — a stay whose platform remits the tax itself is not ours to tick
+      // (read from the platform's mode); taking a stored tick off stays possible.
+      // V1-2 — only a NEW tick is judged here: a tick sent back unchanged passes (rule 8), whatever the mode now.
+      const alreadyTicked = Boolean(addedGuests ? stored.touristTaxAddedGuestsDeclaredAt : stored.touristTaxDeclaredAt);
+      if (declared && !alreadyTicked && remittedByPlatform(id)) {
+        return { ok: false, status: 400, code: 'TOURIST_TAX_REMITTED_BY_PLATFORM', error: 'La plateforme reverse elle-même cette taxe.' };
+      }
+      if (declared && !alreadyTicked && !addedGuests && frozenAtZeroStay(stored)) {
+        // Rule 10 (D-HC10, review V1-6) — a stay no list shows cannot be ticked; untick stays possible.
+        return { ok: false, status: 400, code: 'TOURIST_TAX_NOTHING_TO_DECLARE', error: 'Aucune taxe à déclarer pour ce séjour.' };
       }
       if (addedGuests) {
         if (!hasAddedGuestsTax) return { ok: false, status: 400, error: 'Réservation invalide.' };
-        database.prepare(`UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = ${declared ? "datetime('now')" : 'NULL'}, updatedAt = datetime('now') WHERE id = ?`).run(id);
+        // Rule 22 — a screen left open can show a row the server no longer lists.
+        if (declared && !(Number(stored.touristTaxAddedGuestsAmount || 0) > 0 && hasOwnAddedGuestsRow(stored))) {
+          return { ok: false, status: 409, error: 'Aucun complément de taxe à déclarer.' };
+        }
+        if (declared && !stored.touristTaxAddedGuestsDeclaredAt && !isTouristTaxDeclarable(database, stored)) return notDeclarable;
+        database.prepare(`UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = ${declared ? "COALESCE(touristTaxAddedGuestsDeclaredAt, datetime('now'))" : 'NULL'}, updatedAt = datetime('now') WHERE id = ?`).run(id);
         const row = database.prepare('SELECT touristTaxAddedGuestsDeclaredAt AS at FROM reservations WHERE id = ?').get(id);
         return { ok: true, data: { declaredAt: row.at || null } };
       }
       if (declared) {
-        database.prepare("UPDATE reservations SET touristTaxDeclaredAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(id);
+        if (!stored.touristTaxDeclaredAt && !isTouristTaxDeclarable(database, stored)) return notDeclarable;
+        // Rules 20, 25 — what this tick told the commune, once: a tick repeated from a stale tab changes nothing.
+        database.prepare("UPDATE reservations SET touristTaxDeclaredAt = COALESCE(touristTaxDeclaredAt, datetime('now')), updatedAt = datetime('now') WHERE id = ?").run(id);
+        if (hasAddedGuestsTax && !stored.touristTaxDeclaredAt) {
+          const heldAddition = Number(stored.complementPaid || 0) ? round2(Number(stored.touristTaxAddedGuestsAmount || 0)) : 0;
+          database.prepare('UPDATE reservations SET touristTaxDeclaredWithAddedAmount = ? WHERE id = ?').run(heldAddition, id);
+        }
       } else {
         database.prepare("UPDATE reservations SET touristTaxDeclaredAt = NULL, updatedAt = datetime('now') WHERE id = ?").run(id);
+        if (hasAddedGuestsTax) {
+          database.prepare('UPDATE reservations SET touristTaxDeclaredWithAddedAmount = NULL, touristTaxAddedGuestsDeclaredAt = NULL WHERE id = ?').run(id);
+        }
       }
       const declaredAt = database.prepare('SELECT touristTaxDeclaredAt FROM reservations WHERE id = ?').get(id).touristTaxDeclaredAt || null;
       return { ok: true, data: { declaredAt } };
@@ -1061,6 +1398,6 @@ const defaultModel = createFinanceModel(db);
 defaultModel.buildModel = createFinanceModel;
 // Shared with the dashboard model (specs/finance-dashboard-redesign.md §4.1), which composes this one
 // and must never re-derive a stay's revenue or nights on its own.
-defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, getVatRate, htAmount, todayIso };
+defaultModel.helpers = { totalSejour, nightsBetween, getFiscalYearEndMonth, htAmount, todayIso, TAX_ON_ARRIVAL_SQL, WE_REMIT_SQL };
 
 module.exports = defaultModel;

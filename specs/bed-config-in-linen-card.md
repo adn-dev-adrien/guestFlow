@@ -156,6 +156,21 @@ the new invariant.
     state (`form.singleBeds` etc.), so this is purely a layout
     decision; enabling a second bed-linen option doesn't duplicate
     the inputs.
+11. **No bed count, no « Lits » line** (audit 2026-10-27). The display audit found « Lits : D:0 / S:0 /
+    B:0 » on the dashboard for stays created through `POST /api/reservations` with `singleBeds: 1,
+    doubleBeds: 1`: the create did not lose them, rule 7 zeroed them because those stays carry no
+    bed-linen option. The dashboard now shows the bed counts only when one is above 0 — « — » in the
+    arrivals table, no line on the phone card — as the planning card already did
+    (`components/ReservationCard.jsx`). Rule 7 is unchanged.
+12. **Fixed at the 2026-10-27 spec review — rule 7 reads the persisted lines.** The invariant checked
+    the payload before the engine dropped the options not offered on the property: a bed-linen option
+    sent by API for a logement that does not carry it was dropped, yet its bed counts were stored
+    (`bedLinenAlert: no_linen`). Create and update now zero the single/double counts on the lines the
+    engine kept (`quote.optionLines`).
+13. **An explicit 0 stays 0 (audit 2026-10-28).** The fiche loaded `singleBeds / doubleBeds / babyBeds` with
+    `|| ''`, so a stored 0 became an empty field and every save sent `null` (« Lits bébé 0 → null » in the
+    history). The form now reads them with `??`: 0 is a value, only `null` is empty. The server already keeps
+    the number it receives.
 
 **Edge cases:**
 - Operator enters `4` doubles, then turns the Switch OFF → form
@@ -392,6 +407,9 @@ Expected: existing **1006** + **5 + 4** = **1015** server tests.
 
 Expected: existing **227** + **4 + 2** = **233** Vitest cases.
 
+Audit 2026-10-27 (rule 11): `client/src/pages/__tests__/Dashboard.beds-empty.test.jsx` (2) — no « D:0 / S:0 »
+for a stay without bed counts, the counts shown when there are some.
+
 ### 7.3 E2E (Playwright)
 
 No new E2E. The existing reservation-edit smoke
@@ -420,6 +438,7 @@ manual UI check.
       full-width.
 
 ---
+- Spec review 2026-10-27 (rule 12): `server/src/tests/create-without-times-and-linen.unit.test.js` — a linen option not offered on the property leaves no bed counts; an offered one keeps them.
 
 ## 8. Out of scope
 

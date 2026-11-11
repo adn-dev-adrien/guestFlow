@@ -15,7 +15,7 @@ For a platform reservation the operator must, today, **reconstruct the stay tota
 fiche's « Total du séjour TTC » matches the amount the platform actually charged the guest — by tweaking
 the « Prix ajusté » (accommodation `customPrice`) until `accommodation + options = the platform gross`.
 Then they enter the commission. This reconciliation is the real « casse-tête » (confirmed on two real
-prod cases, Booking #6622323293 and Gîtes-de-France #1415).
+prod cases, Booking #6600000003 and Gîtes-de-France #1415).
 
 But every platform hands the operator the **same three numbers**, and only two are independent:
 

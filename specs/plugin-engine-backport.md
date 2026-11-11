@@ -2,13 +2,35 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Superseded (2026-10-18) — dissolved into the plugin engine of `inte/plugins` when `master` merged into it |
 | **Branch** | `feature/plugin-engine-backport` → **`master`** |
 | **Created** | 2026-10-15 |
 | **Author** | Adrien |
 | **Related PR** | — |
 | **Decision page** | [docs/specs/2026-10-15-plugin-engine-backport.html](../docs/specs/2026-10-15-plugin-engine-backport.html) |
 | **Ships with** | `gites-de-france-intake` (spec `gites-de-france-mail-intake.md`, built on `inte/plugins`, PR #683); `booking-intake` follows in its own PR (spec `booking-extranet-intake.md`) |
+
+> **Superseded 2026-10-18.** This spec described a stop-gap: a trimmed copy of the `inte/plugins`
+> engine on `master`. When `master` (v3.10.0) merged into `inte/plugins`, the full engine took its place
+> as rule 2 and §3 « Edge cases » foresaw. What became of each piece:
+>
+> - Trimmed files (`plugins/sdk/registry.js`, `plugins/index.js`, `constants/plugins.js` server and
+>   client, `pluginsController.js`, `routes/plugins.js`, `client/src/plugins/index.js`,
+>   `client/src/plugins/sdk/index.js`, `IntegrationsSettingsPage.jsx`, `authController.js`): the branch's
+>   version, with the two intake plugins added to its lists.
+> - The seed of rule 3 (`utils/pluginsBackportSeed.js`, ledgers `plugins_backport_seed_v1`/`_v2`) is
+>   removed. The branch's `seedBuiltinPlugins` (`specs/plugins-phase-0-foundation.md` rule 12) runs on a
+>   database that went through it: the two intake rows keep the state the operator gave them, the other
+>   plugins are installed active, every row becomes `bundled` (`specs/plugins-phase-4-registry.md` §5).
+>   A fresh database installs nothing.
+> - The « Modules » card of rule 11 (`PluginActivationCard`, `PluginsActivationSection`) is removed:
+>   the Plugins page (Paramètres › Plugins) installs, activates and deactivates every plugin.
+> - Rules 4–10 and 12 are rules of the branch's engine (`specs/plugins-phase-0-foundation.md`,
+>   `specs/plugins-phase-1-sdk.md`) and are tested there; `plugin-engine-backport.unit.test.js` is
+>   removed with the seed it tested.
+> - `booking-intake` became a packaged plugin with its manifest (`specs/booking-extranet-intake.md`
+>   §10); the SDK entries it added (`ctx.core.clients.update`, `ctx.core.reservations.platformCommission`)
+>   raised the SDK to 1.1.0.
 
 ---
 

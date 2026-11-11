@@ -1,42 +1,30 @@
 /**
  * Payments routes (specs/online-payments-qonto.md §4.3). Thin — delegates to paymentsController.
  * Mounted at /api/payments behind the standard session guard (see index.js).
+ *
+ * Only the provider-neutral routes are the core's (specs/plugins-phase-3a-online-payment.md rule 11):
+ * the Qonto settings, OAuth and webhook under /api/payments/qonto/* and /api/payments/settings are
+ * mounted by the online-payment plugin.
  */
 
 const express = require('express');
 
 const router = express.Router();
 const ctrl = require('../controllers/paymentsController');
+const db = require('../database');
+const { guardReadOnly } = require('../utils/reservationReadOnly');
 
-// Qonto OAuth connect flow.
-router.get('/qonto/authorize', ctrl.qontoAuthorize);
-router.get('/qonto/callback', ctrl.qontoCallback);
-router.get('/qonto/status', ctrl.qontoStatus);
-
-// The application credentials and the connection test, so a broken Qonto setup can be repaired from
-// the interface alone (specs/qonto-settings-in-app.md §3 rules 1, 9, 16). Session-guarded like the
-// rest of /api/payments/**.
-router.get('/qonto/credentials', ctrl.getQontoCredentials);
-router.put('/qonto/credentials', ctrl.updateQontoCredentials);
-router.post('/qonto/test', ctrl.testQontoConnection);
-
-// Qonto payment webhook — public (no session; HMAC-verified in the controller). The /api auth guard in
-// index.js exempts this exact path. specs/public-online-payment.md §3bis.
-const qontoWebhookController = require('../controllers/qontoWebhookController');
-router.post('/qonto/webhook', qontoWebhookController.handleWebhook);
-
-// Qonto payment-links provider connection.
-router.get('/qonto/bank-accounts', ctrl.qontoBankAccounts);
-router.post('/qonto/connect-provider', ctrl.qontoConnectProvider);
-router.get('/qonto/refresh-connection', ctrl.qontoRefreshConnection);
-
-// Paiements settings page: the Qonto connection state.
-router.get('/settings', ctrl.getSettings);
+// No link, no request on a cancelled stay or on a duplicate set aside (specs/calendar-property-parity.md rule 22).
+const noWriteOnClosedStay = guardReadOnly(db, { cancelled: true });
 
 // Payment links on a reservation/devis + the manual poll trigger (specs/online-payments-qonto.md §3.4 / §7).
-router.post('/reservations/:id/payment-links', ctrl.createReservationPaymentLink);
+router.post('/reservations/:id/payment-links', noWriteOnClosedStay, ctrl.createReservationPaymentLink);
 router.get('/reservations/:id/payment-links', ctrl.listReservationPaymentLinks);
-router.post('/reservations/:id/payment-emails', ctrl.sendPaymentRequestEmail);
+router.post('/reservations/:id/payment-emails', noWriteOnClosedStay, ctrl.sendPaymentRequestEmail);
 router.post('/poll', ctrl.pollPaymentsNow);
+// « Retirer le lien » by hand (specs/payment-link-lifecycle.md rule 42); the read-only stays are refused by the service.
+router.post('/links/:id/withdraw', ctrl.withdrawLink);
+// A payment received on a link withdrawn by hand, after its withdrawal: refunded or recorded on the stay (rule 56).
+router.post('/links/:id/settle', ctrl.settleLink);
 
 module.exports = router;

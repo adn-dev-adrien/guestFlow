@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/qonto-settings-in-app` |
 | **Created** | 2026-09-07 |
 | **Author** | Adrien |
@@ -64,6 +64,12 @@ when it is broken.
    step of every diagnosis.
 5. The environment (sandbox or production) is chosen in the interface. The OAuth and API hosts derive
    from it and are displayed read-only, so what GuestFlow will call is never a guess.
+   _(Reading of 2026-11-05, audit R23: a `QONTO_OAUTH_BASE` / `QONTO_API_BASE` that does not name a Qonto host, such
+   as a loopback fake or a dead port, is a deliberate override and always wins, stored environment included; the page
+   displays it. An auditor's probe relying on it reached the real API, because a stored environment outranked it. A
+   variable naming a real Qonto host (`*.qonto.com`, `*.qonto.co`) still gives way to the chosen environment, so
+   an operator switching to production never stays silently on a sandbox pin. Test:
+   `plugins/online-payment/tests/qonto-env-base-wins.unit.test.js`.)_
 6. The redirect URI to declare in the Qonto portal is displayed, ready to copy.
 7. The public site origin — the address the payer returns to after paying — is entered in the same
    place, because a payment tunnel whose return URL is missing is as broken as one whose secret is.
@@ -78,14 +84,18 @@ when it is broken.
     it: not configured, credentials rejected, authorisation to renew, provider not connected,
     Qonto unreachable, Qonto in error, never verified, everything working. Telling a rejected secret
     (`invalid_client`) from a lapsed authorisation (`invalid_grant`) is the whole diagnosis: both
-    arrive as an HTTP 401, one is a form to fill and the other a button to press.
+    arrive as an HTTP 401, one is a form to fill and the other a button to press. _(Reading of 2026-11-05, audit R24
+    verification R1: a refused scope, `insufficient_scope`, is an authorisation to renew, and a public address missing for
+    the webhook check is its own class « Adresse publique manquante »,
+    specs/settings-one-save-and-automatic-webhook.md rule 15.)_
 11. The connection badge shows the last *verified* outcome. It says « Connecté » only when a real call
     to Qonto has succeeded — never merely because a token is stored.
 12. Every failed Qonto call records its code, its message and its date, wherever it was made from —
     public payment link, scheduled poll, or a link created by hand. The record is shown in
     Réglages → Paiements.
 13. A successful call clears the recorded failure, so what the page shows is the current state and not
-    an old scar.
+    an old scar. _(Reading of 2026-11-05, audit R24 E24-2: except a failure of the webhook check, which only a
+    successful check clears, specs/settings-one-save-and-automatic-webhook.md rule 15.)_
 14. The visitor on the public site never sees the detail of a Qonto failure: the tunnel keeps
     answering its generic message, and the detail goes to the operator's interface.
 17. A failure from the Qonto Business API carries its own `errors[].code` and `errors[].detail` to
@@ -103,6 +113,35 @@ when it is broken.
     authorisation.
 16. Reading and writing these settings requires an authenticated operator, like every other
     `/api/payments/**` route.
+20. **A failed load says so (audit R3, 2026-10-29).** When `GET /api/payments/settings` fails, the page
+    shows an `ErrorAlert` (« Impossible de charger les paramètres de paiement. ») with « Réessayer »
+    instead of an endless spinner. « Réessayer » asks for the settings again, without reloading the page.
+18. **One refresh at a time per refresh token (audit R22 E22-3, 2026-11-04).** The poll, the webhook, a public
+    payment and the operator's actions can all meet an expired access token at once, and each one used to refresh
+    with the same refresh token. With a token that rotates, one caller then failed (possibly a guest's payment) and
+    `invalid_grant` was recorded; a provider that revokes on reuse (what real Qonto does is not verified) would
+    leave the connection dead until a new consent. `getValidQontoAccessToken` keeps the running refresh in a
+    module-level map keyed on the refresh token: a caller finding one waits for it and shares its answer, success or
+    failure. The entry leaves once the new pair is stored, so a later caller reads the new tokens, and a failed
+    refresh leaves nothing behind: the next call asks again. Shared with the control plane's billing. Test:
+    `plugins/online-payment/tests/qonto-refresh-single-flight.unit.test.js`.
+19. **A refresh that was overtaken stores nothing (audit R23 E23-4, 2026-11-05).** New credentials saved, or a new
+    consent, while a refresh is running: its answer belongs to the tokens they replaced, and storing it brought back a
+    connection built on the old application. After the await, `refreshAndStore` compares the stored refresh token
+    with the one it refreshed. When they differ it stores nothing and answers the stored access token, or
+    `QONTO_NOT_CONNECTED` when there is none. A refresh that fails once overtaken answers the same, and neither writes the
+    connection's health: it belongs to the new credentials or consent. Shared with the control plane's billing. Test:
+    `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js`.
+21. **The origin of a failure is named in French by the server (audit R24 E24-3, 2026-11-05).** `qontoStatusPayload`
+    adds `health.lastError.originLabel`, read from `ORIGINS` in `qontoService.js`, which now names every origin that
+    reaches `withQonto` (`reconciliation`, `webhook-register`, `lapsed-link`, `replace-link`, `amount-changed`,
+    `last-look` included). The page writes « (<label>, le <date>) », or « (le <date>) » for an origin without a label,
+    never the raw code; its own copy of the labels is gone. *Why:* the page's list lacked three origins that reach
+    `withQonto`, so a French screen read « (reconciliation, le …) ». A core older than this one sends no label, and
+    the page then shows the date alone. Tests: `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js`
+    (a source scan: every origin handed to a Qonto call has a label), client
+    `PaymentsSettingsPage.failure-origin.test.jsx`.
+
 
 **Edge cases:**
 
@@ -233,14 +272,18 @@ the environment » — an installation that never opens the new form behaves exa
 
 | State | Title | Repair action |
 |---|---|---|
-| `not_configured` | Identifiants manquants | Renseigne le Client ID et le Client secret de ton application Qonto. |
-| `credentials_rejected` | Identifiants refusés par Qonto | Recopie le Client secret depuis le portail Qonto, puis relance le test. |
-| `reauth_required` | Autorisation à renouveler | Clique « Connexion » et accepte l'accès. _(le bouton s'appelait « Reconnecter Qonto » avant 2026-09-16)_ |
-| `provider_not_connected` | Provider de liens non activé | Renseigne le formulaire « Connexion du provider de liens » ci-dessous. |
-| `unreachable` | Qonto injoignable | Vérifie la connexion réseau du serveur, puis relance le test. |
-| `api_error` | Qonto a renvoyé une erreur | Relance le test dans quelques minutes ; si ça persiste, contacte le support Qonto avec ce détail. |
-| `unverified` | À vérifier | Clique « Test ». _(« Tester la connexion » avant 2026-09-16)_ |
+| `not_configured` | Identifiants manquants | À recopier ci-dessus depuis developers.qonto.com → Business API access, puis enregistrer. |
+| `credentials_rejected` | Identifiants refusés par Qonto | Recopier le Client ID et le Client secret depuis developers.qonto.com → Business API access, enregistrer, puis relancer le test. |
+| `reauth_required` | Autorisation à renouveler | « Connexion », puis accepter l'accès chez Qonto. _(le bouton s'appelait « Reconnecter Qonto » avant 2026-09-16)_ |
+| `provider_not_connected` | Provider de liens non activé | Formulaire « Connexion du provider de liens » plus bas. |
+| `unreachable` | Qonto injoignable | Vérifier la connexion réseau du serveur, puis relancer le test. |
+| `api_error` | Qonto a renvoyé une erreur | Relancer le test dans quelques minutes ; si l'erreur persiste, transmettre ce détail au support Qonto. |
+| `unverified` | À vérifier | « Test » pour le confirmer. _(« Tester la connexion » avant 2026-09-16)_ |
 | `ok` | Connexion opérationnelle | — |
+
+> 2026-10-18 (mega review #5): the copy is impersonal (no « tu »), on the card too: « Identifiants de
+> l'application Qonto, à recopier depuis developers.qonto.com → Business API access. Effet immédiat,
+> sans redémarrage. » and « Modifications à enregistrer d'abord. ».
 
 **Responsive:** the card is a single column on `xs` (fields full width, actions stacked with
 `flexDirection: { xs: 'column', sm: 'row' }`), two columns from `md`. The page keeps its existing
@@ -257,6 +300,10 @@ card, next to the fields they act on.
 - [ ] `tests/qonto-connection-test.unit.test.js` — rules 9, 11
 - [ ] `tests/qonto-failure-record.unit.test.js` — rules 12, 13
 - [ ] `tests/qonto-credentials-clear-tokens.unit.test.js` — rule 15
+- [x] `plugins/online-payment/tests/qonto-env-base-wins.unit.test.js` — rule 5, reading of 2026-11-05 (11 tests)
+- [x] `plugins/online-payment/tests/qonto-refresh-overtaken.unit.test.js` — rule 19 (6 tests)
+- [x] `plugins/online-payment/tests/qonto-webhook-failure-stays.unit.test.js` — rule 13 reading, rule 21 (6 tests, with
+      specs/settings-one-save-and-automatic-webhook.md rule 15); client `PaymentsSettingsPage.failure-origin.test.jsx` (2)
 
 ### Client unit tests
 

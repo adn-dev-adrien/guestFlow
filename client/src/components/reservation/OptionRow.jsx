@@ -12,11 +12,12 @@ import { reconcileGrid as reconcileCardGrid } from '../../utils/cardOccurrences'
 import { isWelcomePackLine } from '../../utils/welcomePackApply';
 import { formatCurrency } from '../../utils/formatters';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
+import { useSlot } from '../../plugins/sdk/useSlot';
+import { Contribution } from '../../plugins/sdk/Slot';
 import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
 import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
-import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
+import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/optionTypedCount';
 import TypedCountField from './TypedCountField';
-import StatusBadge from '../StatusBadge';
 
 /**
  * Occurrence checklist for an option-driven planning card (specs/option-planning-card.md §3.2).
@@ -42,7 +43,7 @@ function OptionCardOccurrences({ opt }) {
   if (grid.length === 0) {
     return (
       <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-        Renseignez les dates du séjour pour configurer les occurrences.
+        Dates du séjour à renseigner pour configurer les occurrences.
       </Typography>
     );
   }
@@ -171,11 +172,15 @@ export default function OptionRow({ opt }) {
     setOptionInComplement, setAutoOptionInComplement,
     setOptionCardPersons, setOptionTypedCount, maxGuestsAllowed, pricingQuote,
     firstEnabledBedLinenOptionId, bedLinenForcedOptionIds, lockedIncludedOptionIds,
-    isDevisMode,
-    // specs/neat-cancellation-insurance-subscription.md §3.3 — the server-shaped Neat block +
-    // its two actions, rendered ONLY on the flagged insurance card.
-    neat, retryNeatSubscription, voidNeatSubscription,
+    isDevisMode, isPlatformSale,
+    // specs/plugins-phase-3b-neat.md rule 16 — what live plugins draw under a line, fed by the
+    // payload's `pluginBlocks`.
+    pluginBlocks, setPluginBlock, pluginLineContext,
   } = useReservationForm();
+  const lineContributions = useSlot('reservation.optionLine').filter((c) => c.appliesTo(opt));
+  // specs/plugins-phase-3b-neat.md rule 22 — an option the catalogue hides, shown because the stay
+  // carries it: its price stands, nothing about it can change.
+  const readOnly = Boolean(opt.readOnly);
 
   const arrivalLine = (rawArrivalLines || {})[optionLineKey(opt.id)];
   const extrasLocked = Boolean(isReservationLocked) && !extrasWindowOpen;
@@ -189,7 +194,7 @@ export default function OptionRow({ opt }) {
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). Only engine-derived auto-options keep their toggle hidden — their routing
   // is the algorithm's, not the operator's (rule 5).
-  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+  const isPlatformReservation = Boolean(isPlatformSale);
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
   // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
@@ -252,6 +257,11 @@ export default function OptionRow({ opt }) {
   const typedAlert = typedAlerts.find((alert) => alert.kind === (typedKind || 'persons')) || null;
   const perPersonPerNight = opt.priceType === 'per_person_per_night';
 
+  let switchCaption = '';
+  if (readOnly) switchCaption = opt.readOnlyReason || 'Lecture seule';
+  else if (isAutoTimedOption) switchCaption = 'Ajout automatique';
+  else if (isForcedByPropertyDefault) switchCaption = 'Inclus';
+
   return (
     <Card
       variant="outlined"
@@ -271,25 +281,6 @@ export default function OptionRow({ opt }) {
               {isWelcomePackLine(selected) && (
                 <Chip size="small" color="success" variant="outlined" label="Pack de bienvenue" />
               )}
-              {/* specs/neat-cancellation-insurance-subscription.md §3.3 rule 14 — the Neat
-                  subscription state of this stay, server-derived. */}
-              {Boolean(opt.isCancellationInsurance) && neat && (
-                neat.status === 'failed' ? (
-                  <Tooltip title={neat.lastError || ''} arrow>
-                    <span><StatusBadge status="error" label="Neat : en échec" /></span>
-                  </Tooltip>
-                ) : (
-                  <StatusBadge
-                    status={{ active: 'success', pending: 'neutral', voided: 'neutral', line_removed_active: 'warning' }[neat.status] || 'neutral'}
-                    label={{
-                      active: 'Neat : souscrite',
-                      pending: 'Neat : en attente',
-                      voided: 'Neat : résiliée',
-                      line_removed_active: 'Ligne retirée — souscription active',
-                    }[neat.status] || neat.status}
-                  />
-                )
-              )}
             </Stack>
             {arrivalLine && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
@@ -297,61 +288,50 @@ export default function OptionRow({ opt }) {
               </Typography>
             )}
             <Typography variant="body2" color="text.secondary">
-              {isBabyBedOption
+              {readOnly
+                ? `Prix figé : ${formatCurrency(selected?.totalPrice || 0)}`
+                : isBabyBedOption
                 ? `${formatCurrency(opt.price)} par lit bébé, pour le séjour`
                 : isAutoTimedOption
                   ? `${opt.autoPricingMode === 'proportional' ? 'Prix proportionnel à la nuit' : `${formatCurrency(opt.price)} fixe`} • seuil nuit complète: ${opt.autoFullNightThreshold || (opt.autoOptionType === 'early_check_in' ? '10:00' : '17:00')}`
                   : `${isPercentOfStay ? `${Number(opt.price) || 0} %` : formatCurrency(opt.price)} ${PRICE_TYPE_LABELS[opt.priceType] || ''}${factorHint ? ` • ${factorHint}` : ''}`}
             </Typography>
           </Box>
-          <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
+          {/* The switch and the word saying why it is set sit on ONE row — on a phone the switch
+              floated alone with « Ajout automatique » stacked under it (2026-10-27 audit). */}
+          <Tooltip title={readOnly ? opt.readOnlyReason || '' : ''}>
             <FormControlLabel
-              sx={{ m: 0 }}
-              control={<Switch checked={enabled} disabled={isAutoTimedOption || isForcedByPropertyDefault || Boolean(arrivalLine)} onChange={(e) => setOptionEnabled(opt.id, e.target.checked)} />}
+              labelPlacement="start"
+              sx={{ m: 0, gap: 1, alignSelf: { xs: 'stretch', sm: 'flex-start' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}
+              label={(
+                <Typography variant="caption" color="text.secondary" sx={{ textAlign: { sm: 'right' } }}>
+                  {switchCaption}
+                </Typography>
+              )}
+              control={(
+                <Switch
+                  checked={enabled}
+                  disabled={readOnly || isAutoTimedOption || isForcedByPropertyDefault || Boolean(arrivalLine)}
+                  onChange={(e) => setOptionEnabled(opt.id, e.target.checked)}
+                  slotProps={{ input: { 'aria-label': opt.title } }}
+                />
+              )}
             />
-            {isAutoTimedOption && (
-              <Typography variant="caption" color="text.secondary">Ajout automatique</Typography>
-            )}
-            {!isAutoTimedOption && isForcedByPropertyDefault && (
-              <Typography variant="caption" color="text.secondary">Inclus</Typography>
-            )}
-          </Stack>
+          </Tooltip>
         </Stack>
 
-        {/* specs/neat-cancellation-insurance-subscription.md §3.3 rules 13-16 — the premium
-            derivation (drift stays readable) + the per-state actions. Voiding is always manual. */}
-        {Boolean(opt.isCancellationInsurance) && neat && (
-          <Box sx={{ mt: 1 }}>
-            {neat.premiumAmount != null && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                {`Prime Neat ${formatCurrency(neat.premiumAmount)}`}
-                {neat.marginPercent != null ? ` • marge +${neat.marginPercent} % • arrondi €↑` : ''}
-              </Typography>
-            )}
-            {neat.status === 'line_removed_active' && (
-              <Typography variant="caption" color="warning.main" sx={{ display: 'block' }}>
-                La ligne assurance a été retirée mais la police Neat est toujours active.
-                Restaure la ligne ou résilie chez Neat.
-              </Typography>
-            )}
-            {(neat.status === 'failed' || neat.status === 'active' || neat.status === 'line_removed_active') && (
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5 }}>
-                {neat.status === 'failed' && (
-                  <Button size="small" variant="outlined" onClick={retryNeatSubscription} disabled={isReservationLocked} sx={{ minHeight: 44 }}>
-                    Réessayer maintenant
-                  </Button>
-                )}
-                {(neat.status === 'active' || neat.status === 'line_removed_active') && (
-                  <Button size="small" variant="outlined" color="error" onClick={voidNeatSubscription} disabled={isReservationLocked} sx={{ minHeight: 44 }}>
-                    Résilier chez Neat
-                  </Button>
-                )}
-              </Stack>
-            )}
-          </Box>
-        )}
+        {lineContributions.map(({ key, pluginId, Component }) => (
+          <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
+            <Component
+              option={opt}
+              block={pluginBlocks ? pluginBlocks[pluginId] ?? null : null}
+              onBlockChange={(block) => setPluginBlock(pluginId, block)}
+              {...pluginLineContext}
+            />
+          </Contribution>
+        ))}
 
-        {enabled && !isAutoTimedOption && (
+        {enabled && !isAutoTimedOption && !readOnly && (
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
             {/* Card-option (specs/option-planning-card.md §3.4): the occurrence
                 checklist below replaces the manual Qté — the selection drives the
@@ -364,7 +344,7 @@ export default function OptionRow({ opt }) {
                 value={servedPersons}
                 onCommit={(v) => setOptionCardPersons(opt.id, v)}
                 disabled={extrasLocked || Boolean(arrivalLine)}
-                helperText="Par défaut toute la tablée — baissez-la si tout le monde ne mange pas."
+                helperText="Par défaut toute la tablée."
                 alert={typedAlert}
                 onApply={() => setOptionCardPersons(opt.id, quantityPersons)}
                 sx={{ width: { xs: '100%', sm: 240 } }}
@@ -375,7 +355,7 @@ export default function OptionRow({ opt }) {
               <TypedCountField
                 label="Qté"
                 min={arrivalLine?.minTypedCount != null ? displayedFloor(arrivalLine.minTypedCount) : 1}
-                max={typedKind === 'persons' ? Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, typedValue) : undefined}
+                max={typedKind === 'persons' ? Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, typedValue) : Math.max(MAX_TYPED_NIGHTS, typedValue)}
                 value={typedValue}
                 onCommit={(v) => setOptionTypedCount(opt.id, typedKind, v)}
                 disabled={extrasLocked}

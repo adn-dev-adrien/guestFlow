@@ -210,6 +210,7 @@ test('notifyNewSiteDevis fires a « newReservation » push', async () => {
   assert.match(push.calls[0].payload.body, /Marie Durand · Le Gîte du Domaine/);
 });
 
+// specs/pwa-push-notifications.md rule 16
 test('a throwing push service never breaks the email path (isolation)', async () => {
   const db = seedDb();
   const sent = [];
@@ -218,4 +219,15 @@ test('a throwing push service never breaks the email path (isolation)', async ()
   const res = await svc.notifyNewIcalReservation(200);
   assert.equal(res.sent, true, 'email still sent despite push throwing');
   assert.equal(sent.length, 1);
+});
+
+// Audit R43 « noted » (2026-11-10) — the operator mail writes the stay's days as the screens do, never ISO.
+test('the new iCal reservation mail names the stay as DD/MM/YYYY', async () => {
+  const db = seedDb();
+  const sent = [];
+  const svc = buildNotificationService({ db, settingsModel: makeFakeSettings(), emailServiceFactory: makeFakeFactory(sent), pushService: stubPush(), logger: silentLogger });
+  await svc.notifyNewIcalReservation(200);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /Séjour : du 01\/10\/2026 au 05\/10\/2026/);
+  assert.doesNotMatch(sent[0].text, /\d{4}-\d{2}-\d{2}/);
 });

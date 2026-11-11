@@ -6,8 +6,8 @@ import { describe, test, expect } from 'vitest';
 import {
   PLATFORM_COLORS,
   DEFAULT_PLATFORM_COLOR,
+  getPlatformColor,
 } from '../constants/platforms';
-import { getReservationColor } from '../utils/calendarVisuals';
 import { buildMiniStripDayGradient } from '../components/MiniPlanningStrip';
 
 // 2026-06-05 regression net. After PR #118 normalized every platform name to
@@ -24,23 +24,23 @@ import { buildMiniStripDayGradient } from '../components/MiniPlanningStrip';
 
 // ── Pure-function coverage ─────────────────────────────────────────────────
 
-describe('getReservationColor (utils/calendarVisuals) — central calendar colour resolver', () => {
+describe('getPlatformColor — central platform colour resolver', () => {
   test('resolves UpperCamelCase platform values (the regression) — never default grey', () => {
     for (const platform of ['Airbnb', 'Booking', 'Greengo', 'Abritel', 'Abracadaroom', 'Gitedefrance', 'Pitchup']) {
-      const color = getReservationColor(platform);
+      const color = getPlatformColor(platform);
       expect(color).not.toBe(DEFAULT_PLATFORM_COLOR);
       expect(color).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
   });
 
   test('resolves lowercase / legacy platform values too (backward compatibility)', () => {
-    expect(getReservationColor('airbnb')).toBe(PLATFORM_COLORS.airbnb);
-    expect(getReservationColor('booking')).toBe(PLATFORM_COLORS.booking);
-    expect(getReservationColor('direct')).toBe(PLATFORM_COLORS.direct);
+    expect(getPlatformColor('airbnb')).toBe(PLATFORM_COLORS.airbnb);
+    expect(getPlatformColor('booking')).toBe(PLATFORM_COLORS.booking);
+    expect(getPlatformColor('direct')).toBe(PLATFORM_COLORS.direct);
   });
 
   test('unknown platform → default grey (legitimate fallback)', () => {
-    expect(getReservationColor('UnknownVendor')).toBe(DEFAULT_PLATFORM_COLOR);
+    expect(getPlatformColor('UnknownVendor')).toBe(DEFAULT_PLATFORM_COLOR);
   });
 });
 
@@ -97,7 +97,7 @@ describe('buildMiniStripDayGradient (MiniPlanningStrip inside the reservation fo
 });
 
 // ── Filesystem invariant — every calendar consumer goes through ────────────
-// ── getPlatformColor / getReservationColor, never a direct PLATFORM_COLORS[…] ──
+// ── getPlatformColor, never a direct PLATFORM_COLORS[…] ──
 
 describe('No direct PLATFORM_COLORS[…] lookup outside constants/platforms.js', () => {
   test('every source file routes the colour resolution through the helper', () => {

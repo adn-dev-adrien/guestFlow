@@ -2,11 +2,24 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Superseded — by [settings-rationalization.md](settings-rationalization.md) rule 17a (noted 2026-10-27) |
 | **Branch** | `feature/admin-unlock-past-reservations` _(user-managed)_ |
 | **Created** | 2026-06-01 |
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
+
+> **Superseded — noted 2026-10-27 (spec review).** The global switch this spec describes no longer
+> exists. [settings-rationalization.md](settings-rationalization.md) rule 17a (decided 2026-09-21)
+> replaced it with a **per-fiche unlock**: a past reservation's lock banner shows, to an admin only,
+> « Déverrouiller cette fiche » (`client/src/pages/ReservationPage.jsx`); the unlock lives in the page
+> state and ends when the page is left or reloaded; writes sent while unlocked carry `unlockPast: true`
+> (`?unlockPast=1` on a DELETE), honoured for an admin and ignored for any other role
+> (`server/src/controllers/reservationsController.js` `pastUnlockRequested`). The
+> `app_settings.allowEditPastReservations` column was dropped by the settings-rationalization migration
+> (`server/src/utils/settingsRationalizationMigration.js`) and the « Réservations passées » settings
+> card is gone. Rules 1–3, 7 and 8, §5 and the Settings part of §6 are historical; the list of what a
+> lift unlocks (rule 5) and what it never touches (rule 6) still describes the per-fiche unlock.
+> Rule numbers are kept as they were.
 
 ---
 
@@ -28,12 +41,12 @@ The admin can flip a single toggle in `Paramètres` to make every past reservati
 
 ## 3. Functional rules
 
-1. A new boolean setting `allowEditPastReservations` (default `0`) is stored in `app_settings`. When `1`, **all three** server-side locks are bypassed (PUT field allowlist + DELETE 403 + the model-level `startDate < today` guard in `validateAvailability`); when `0`, current behaviour is preserved.
+1. _(Superseded 2026-10-27 — per-fiche `unlockPast` flag, see the note above; the column is dropped.)_ A new boolean setting `allowEditPastReservations` (default `0`) is stored in `app_settings`. When `1`, **all three** server-side locks are bypassed (PUT field allowlist + DELETE 403 + the model-level `startDate < today` guard in `validateAvailability`); when `0`, current behaviour is preserved.
 2. The toggle is **admin-only** at every layer:
    - Read (`GET /api/settings`): any authenticated user receives the field (it changes the UI banner state for them too, even if they can't flip it).
    - Write (`PUT /api/settings`): `enforceRoleAccess` already restricts settings to admins; no new check needed — but `usersController.updateSelf` must keep stripping unknown fields (already true).
    - UI: the `Switch` only renders inside the admin Settings page; the page is already gated by `RequireAdmin`.
-3. The toggle has **no expiry**: once set to `1`, it stays `1` until an admin explicitly flips it back. There is no auto-relock on session end, no time limit, no countdown.
+3. _(Superseded 2026-10-27 — the per-fiche unlock ends when the page is left or reloaded.)_ The toggle has **no expiry**: once set to `1`, it stays `1` until an admin explicitly flips it back. There is no auto-relock on session end, no time limit, no countdown.
 4. The toggle has **no audit trail beyond Express access logs**: no extra row in `reservation_history` to flag a modification done while unlocked. Adrien's call — keep the implementation tight; if regret-driven audit becomes a need later, add a follow-up.
 5. When `allowEditPastReservations = 1`:
    - `PUT /api/reservations/:id` accepts the full body, runs the same validation as a future reservation (date overlap, capacity, closures…).
@@ -48,8 +61,8 @@ The admin can flip a single toggle in `Paramètres` to make every past reservati
    - The payment update endpoint `PUT /api/reservations/:id/payments` (never had the lock; payment fields are always editable).
    - iCal sync / Google Calendar sync (separate concern).
    - The CalendarPage drag-to-select past-day block (that one is a UX guard against accidental new reservations, not a lock on existing ones — left untouched).
-7. When the toggle is flipped from `1` → `0`, any open ReservationPage tab keeps its current edit-in-progress state until the user navigates away or reloads. Server requests issued AFTER the flip are gated by the new value (re-read on each request from `app_settings`). No live-push notification to other tabs (out of scope).
-8. The toggle's effect on a request is decided by the **server's** current `app_settings.allowEditPastReservations` value at request time, not by anything in the session or sent in the body. This is deliberate — the client cannot grant itself the unlock.
+7. _(Superseded 2026-10-27 — no global toggle left to flip.)_ When the toggle is flipped from `1` → `0`, any open ReservationPage tab keeps its current edit-in-progress state until the user navigates away or reloads. Server requests issued AFTER the flip are gated by the new value (re-read on each request from `app_settings`). No live-push notification to other tabs (out of scope).
+8. _(Superseded 2026-10-27 — the request now carries `unlockPast: true`; the server stays authoritative by honouring it for an admin only.)_ The toggle's effect on a request is decided by the **server's** current `app_settings.allowEditPastReservations` value at request time, not by anything in the session or sent in the body. This is deliberate — the client cannot grant itself the unlock.
 
 **Edge cases:**
 
@@ -113,6 +126,8 @@ Auth: admin-only for both Settings endpoints; admin-only for reservations endpoi
 
 ## 5. Data model
 
+> _Superseded 2026-10-27: `allowEditPastReservations` was dropped by settings-rationalization (rule 17a)._
+
 **New column:** `app_settings.allowEditPastReservations` — `INTEGER NOT NULL DEFAULT 0`.
 
 **Migration (idempotent block in `server/src/database.js`)**:
@@ -130,6 +145,9 @@ Wrapped in the existing `tryAddAppSettingsCol()` pattern that no-ops if the colu
 ## 6. UI / UX
 
 ### Settings page (`/parametres`)
+
+> _Superseded 2026-10-27: this card no longer exists; the unlock is the « Déverrouiller cette fiche »
+> action in the fiche's lock banner (settings-rationalization rule 17a)._
 
 New card titled **"Réservations passées"** between the VAT card and the Google Calendar card. Layout:
 

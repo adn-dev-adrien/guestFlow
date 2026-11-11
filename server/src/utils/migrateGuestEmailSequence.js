@@ -26,8 +26,14 @@ function runGuestEmailSequenceMigration(database) {
     const sets = ['name = @name', 'subject = @subject', 'body = @body', 'dayOffset = @dayOffset', 'sendMode = @sendMode'];
     if (hasEn) sets.push('subjectEn = @subjectEn', 'bodyEn = @bodyEn');
     if (hasAnchor) sets.push('anchor = @anchor');
+    const differs = sets.map((clause) => {
+      const col = clause.split(' = ')[0];
+      return `${col} IS NOT @${clause.split('@')[1]}`;
+    });
+    // Written only when a column actually differs: a re-run must not move `updatedAt`.
     const info = database.prepare(`
-      UPDATE email_templates SET ${sets.join(', ')}, updatedAt = datetime('now') WHERE stableKey = @stableKey
+      UPDATE email_templates SET ${sets.join(', ')}, updatedAt = datetime('now')
+       WHERE stableKey = @stableKey AND (${differs.join(' OR ')})
     `).run({
       stableKey: key,
       name: def.name,

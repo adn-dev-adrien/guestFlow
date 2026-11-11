@@ -32,6 +32,7 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set([
 
 const ARCHIVE_ASSET_RE = /^guestflow-(\d+\.\d+\.\d+)\.tar\.gz$/;
 const CHECKSUMS_ASSET_NAME = 'SHA256SUMS';
+const CHECKSUMS_SIGNATURE_ASSET_NAME = 'SHA256SUMS.sig';
 const PLUGIN_ASSET_RE = /^guestflow-booking-(\d+\.\d+\.\d+)\.zip$/;
 
 // CHANGELOG headings (Keep a Changelog + our `Migration` addition) → the French titles the UI shows.
@@ -84,23 +85,33 @@ function parseReleaseNotes(body) {
     sections.push(current);
   };
 
+  // A blank line ends a bullet: the paragraph after it is a note of its own (the `detail--` footer of a section), never
+  // the tail of the last bullet.
+  let continuing = false;
   for (const rawLine of String(body || '').split('\n')) {
     const line = rawLine.trimEnd();
+    if (!line.trim()) { continuing = false; continue; }
     const heading = line.match(/^#{2,4}\s+(.+?)\s*$/);
     if (heading) {
       const key = heading[1].trim().toLowerCase();
       openSection(SECTION_TITLES_FR[key] || stripMarkdown(heading[1]), SECTION_TITLES_FR[key] ? key : null);
+      continuing = false;
       continue;
     }
     const bullet = line.match(/^\s*[-*]\s+(.*)$/);
     if (bullet) {
       if (!current) openSection(null);
       current.items.push(stripMarkdown(bullet[1]));
+      continuing = true;
       continue;
     }
-    if (current && current.items.length && line.trim()) {
+    if (current && current.items.length && continuing) {
       // Continuation of the previous wrapped bullet.
       current.items[current.items.length - 1] += ` ${stripMarkdown(line)}`;
+    } else if (current && current.items.length) {
+      openSection(null);
+      current.items.push(stripMarkdown(line));
+      continuing = true;
     }
   }
 
@@ -165,6 +176,7 @@ function normaliseRelease(raw) {
     return Boolean(match) && match[1] === version;
   });
   const checksumsRaw = pickAsset(raw.assets, (a) => String(a?.name || '') === CHECKSUMS_ASSET_NAME);
+  const signatureRaw = pickAsset(raw.assets, (a) => String(a?.name || '') === CHECKSUMS_SIGNATURE_ASSET_NAME);
   const pluginRaw = pickAsset(raw.assets, (a) => PLUGIN_ASSET_RE.test(String(a?.name || '')));
 
   const archive = toAsset(archiveRaw);
@@ -181,6 +193,7 @@ function normaliseRelease(raw) {
     notes: parseReleaseNotes(raw.body),
     archive,
     checksums,
+    checksumsSignature: toAsset(signatureRaw),
     plugin: plugin ? { ...plugin, version: pluginVersion } : null,
   };
 }

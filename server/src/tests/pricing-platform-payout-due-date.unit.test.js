@@ -42,6 +42,9 @@ const BASE = {
 
 // specs/platform-payout-due-date.md rules 4 + 5 — le solde bascule après le départ ; l'ACOMPTE, lui,
 // n'est pas touché par cette règle et garde son propre calendrier (ici : une plateforme n'en prend pas).
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('a platform booking owes its solde after the departure, not a month before the arrival', () => {
   const db = createDb();
   const q = calculateReservationQuote({ ...BASE, db, platform: 'Airbnb' });

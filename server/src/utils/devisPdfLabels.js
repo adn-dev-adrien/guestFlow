@@ -42,9 +42,11 @@ const FR = Object.freeze({
   pricingHeading:  'DÉTAIL TARIFAIRE',
   colDesignation:  'Désignation',
   colQuantity:     'Qté',
-  colUnitPriceHt:  'Prix HT',
+  colUnitPriceHt:  'Total HT',
   colVatRate:      'TVA %',
   colTotalTtc:     'Total TTC',
+  // « Sans TVA » (specs/vat-optional-mode.md rule 12b): one amount column, no HT / TTC wording.
+  colTotal:        'Total',
 
   // ── Accommodation row ─────────────────────────────────────────────────────
   accommodation:           (nights) => `Hébergement — ${nights} nuit${nights > 1 ? 's' : ''}`,
@@ -54,18 +56,18 @@ const FR = Object.freeze({
       : `Hébergement — ${nights} nuits (${season})`
   ),
   accommodationDiscount:   (pct) => `RÉDUCTION LOGEMENT ${pct}%`,
-  // Extra-guest supplement row (specs/tariff-events-and-extra-guest-tiers §6). `detail` is the
-  // server-phrased tier rule (French) — only the FR map prints it.
-  extraGuestSupplement: (count, detail) => {
-    const base = count > 0
-      ? `Surcoût voyageurs (${count} pers. au-delà du tarif de base)`
-      : 'Surcoût voyageurs';
-    return detail ? `${base} — ${detail}` : base;
-  },
+  // Extra-guest supplement row (specs/tariff-events-and-extra-guest-tiers §6): the count only, no
+  // tier phrase (dropped 2026-11-05).
+  extraGuestSupplement: (count) => (
+    count > 0 ? `Surcoût voyageurs (${count} pers. au-delà du tarif de base)` : 'Surcoût voyageurs'
+  ),
 
   // ── Option suffixes ───────────────────────────────────────────────────────
   extraHoursSuffix: (label) => `${label} suppl.`,
   offered:          'OFFERT',
+  // specs/ui-review-2026-10-19-operations.md rule 18 — every offered line in one row.
+  offeredGroup:     'OFFERT AVEC LE SÉJOUR',
+  offeredValue:     (amount) => `valeur ${amount}`,
 
   // ── Bank block ────────────────────────────────────────────────────────────
   bankHeading:     'COORDONNÉES BANCAIRES',
@@ -76,11 +78,20 @@ const FR = Object.freeze({
   // ── Totals ────────────────────────────────────────────────────────────────
   subtotalHt:      'Sous-total HT',
   subtotalTtc:     'Sous-total TTC',
+  subtotal:        'Sous-total',
   touristTax:      'Taxe de séjour',
   touristTaxBreakdown: (persons, nights, rate) => (
     `${persons} pers. × ${nights} nuit${nights > 1 ? 's' : ''} × ${rate} / pers./nuit`
   ),
   grandTotal:      'TOTAL TTC',
+  grandTotalNoVat: 'TOTAL',
+  // specs/ui-review-2026-10-19-operations.md rule 19 — the page-1 summary block.
+  summaryTotal:    'Total du séjour TTC',
+  summaryTotalNoVat: 'Total du séjour',
+  summaryDeposit:  'Acompte',
+  summaryBalance:  'Solde',
+  summaryFull:     'Paiement intégral',
+  summaryBefore:   (date) => `avant le ${date}`,
 
   // ── Payment terms ─────────────────────────────────────────────────────────
   paymentHeading:  'MODALITÉS DE RÈGLEMENT',
@@ -133,9 +144,10 @@ const EN = Object.freeze({
   pricingHeading:  'PRICING DETAILS',
   colDesignation:  'Description',
   colQuantity:     'Qty',
-  colUnitPriceHt:  'Price excl. VAT',
+  colUnitPriceHt:  'Total excl. VAT',
   colVatRate:      'VAT %',
   colTotalTtc:     'Total incl. VAT',
+  colTotal:        'Total',
 
   // ── Accommodation row ─────────────────────────────────────────────────────
   accommodation:           (nights) => `Accommodation — ${nights} night${nights > 1 ? 's' : ''}`,
@@ -145,17 +157,17 @@ const EN = Object.freeze({
       : `Accommodation — ${nights} nights (${season})`
   ),
   accommodationDiscount:   (pct) => `ACCOMMODATION DISCOUNT ${pct}%`,
-  // The tier detail is a French server phrase — the EN map deliberately ignores it.
-  extraGuestSupplement: (count, detail) => {
-    void detail;
-    return count > 0
+  extraGuestSupplement: (count) => (
+    count > 0
       ? `Extra-guest supplement (${count} ${count > 1 ? 'guests' : 'guest'} above the base rate)`
-      : 'Extra-guest supplement';
-  },
+      : 'Extra-guest supplement'
+  ),
 
   // ── Option suffixes ───────────────────────────────────────────────────────
   extraHoursSuffix: (label) => `${label} extra`,
   offered:          'INCLUDED',
+  offeredGroup:     'INCLUDED WITH THE STAY',
+  offeredValue:     (amount) => `worth ${amount}`,
 
   // ── Bank block ────────────────────────────────────────────────────────────
   bankHeading:     'BANK DETAILS',
@@ -166,11 +178,19 @@ const EN = Object.freeze({
   // ── Totals ────────────────────────────────────────────────────────────────
   subtotalHt:      'Subtotal excl. VAT',
   subtotalTtc:     'Subtotal incl. VAT',
+  subtotal:        'Subtotal',
   touristTax:      'Tourist tax',
   touristTaxBreakdown: (persons, nights, rate) => (
     `${persons} guest${persons > 1 ? 's' : ''} × ${nights} night${nights > 1 ? 's' : ''} × ${rate} / guest / night`
   ),
   grandTotal:      'TOTAL incl. VAT',
+  grandTotalNoVat: 'TOTAL',
+  summaryTotal:    'Total for the stay incl. VAT',
+  summaryTotalNoVat: 'Total for the stay',
+  summaryDeposit:  'Deposit',
+  summaryBalance:  'Balance',
+  summaryFull:     'Full payment',
+  summaryBefore:   (date) => `due by ${date}`,
 
   // ── Payment terms ─────────────────────────────────────────────────────────
   paymentHeading:  'PAYMENT TERMS',

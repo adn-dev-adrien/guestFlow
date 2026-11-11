@@ -3,8 +3,10 @@
 // (see the iCal anti-overbooking contract). Pure parsing lives in utils/icalParser.
 
 const db = require('../database');
-const { sentenceCase } = require('../utils/textFormatters');
+const { defaultMarksStaysClosed } = require('../utils/icalClosedFeed');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
+const { validateCalendarColor } = require('../utils/colorContrast');
+const { isOptionalText, isFlag } = require('../utils/bodyText');
 const {
   normalizePlatformKey,
   normalizeIcalSummary,
@@ -13,6 +15,7 @@ const {
   resolveIcalClientIdentity,
   parseIcsEvents,
   isWellFormedIcs,
+  isCompleteIcs,
   buildEventHash,
   shouldSkipIcalReservationUpdate,
   isLockedDateDrift,
@@ -28,18 +31,22 @@ const { assignReservationNumberIfMissing } = require('../utils/reservationNumber
 const { calculateReservationQuote } = require('../utils/pricing');
 const icalCancellationModel = require('./icalCancellationModel');
 const icalExportRangesModel = require('./icalExportRangesModel');
+const { withdrawForStay } = require('../utils/datesTaken');
 const { classifyBookingEvent } = require('../utils/icalBookingEcho');
+const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 const notificationService = require('../utils/notificationService');
-const googleCalendarSync = require('../utils/googleCalendarSync');
-// Establishment closures (2026-06-06): every iCal event is checked against the
-// closure table BEFORE touching the local reservations table. Until this guard
-// landed, the iCal sync called `INSERT INTO reservations` directly — bypassing
-// `validateAvailability` (which only runs on the HTTP API path) — so a remote
-// platform could silently override an operator-declared closure with a new
-// reservation. The guard treats closure-overlapping events the same way the
-// `isUnavailableIcalEvent` filter treats "Closed Period" entries: skip the event,
-// leave the local DB alone, count it in the sync result for visibility.
+const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
+const { fetchPublic, readCapped, MAX_FEED_BYTES, FeedFetchError } = require('../utils/safeFeedFetch');
+const { removeOrphanIcalPlaceholders, removeOrphanIcalImportClients } = require('../utils/icalPlaceholderClientsMigration');
+// Establishment closures (2026-06-06, narrowed 2026-10-27 — specs/lodgify-decommission.md §3 rule 17):
+// the iCal sync inserts without `validateAvailability`, so it checks the closures itself. A new event
+// entirely inside a closure is the closure's own echo and is skipped (counted in the sync result); a
+// partial overlap or a known stay moved onto a closure is imported and flagged in conflict.
 const establishmentClosuresModel = require('./establishmentClosuresModel');
+
+// specs/ical-import-hardening.md rule 4 — a platform that accepts the connection and never answers
+// used to hold the sync for Node's 5-minute default, and every source queued behind it.
+const FETCH_TIMEOUT_MS = 20000;
 
 const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, platformColor, isActive,
   collectsTouristTax, touristTaxRemittedByPlatform, disabled,
@@ -51,6 +58,10 @@ const SOURCE_COLUMNS = `id, propertyId, name, url, platformKey, platformLabel, p
 // `collectsTouristTax` boolean (+ optional remittedByPlatform) when the 3-way value is absent, then to
 // the existing row, then to the default "platform handles everything". Normalises the invalid combo:
 // collectsTouristTax = 0 ⇒ remittedByPlatform = 0 (if we collect at arrival, we always remit).
+// Hosting-h2 rule 68 — a source's text is a string, null or absent; a tick reads as INVALID_PAYMENT_FLAG does.
+const SOURCE_TEXTS = ['url', 'name', 'platformKey', 'platformLabel', 'platformColor', 'touristTaxCollection'];
+const SOURCE_FLAGS = ['disabled', 'feedMarksStaysClosed', 'isActive', 'collectsTouristTax', 'touristTaxRemittedByPlatform'];
+
 function resolveTouristTaxColumns(body = {}, existing = null) {
   let collects;
   let remitted;
@@ -78,11 +89,16 @@ function touristTaxCollectionString(collects, remitted) {
   return Number(remitted) === 0 ? 'platform_reversed' : 'platform';
 }
 
-function createPropertyIcalModel(database) {
+function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, fetchImpl } = {}) {
   // Bind the drift + cancellation models to the SAME database instance so prod and unit
   // tests share one consistent SQLite handle (the default exports are bound to the
   // production DB; tests build a fresh property-ical model on `:memory:`, and they need
   // matching companion models).
+  const syncsInFlight = new Map();
+  // specs/ical-sync-mapping-resilience.md rule 8 — per source: when the fetch behind the last observation
+  // we consumed started, and when the last empty answer we counted finished.
+  const lastObservedStart = new Map();
+  const lastEmptyCompletedAt = new Map();
   const driftModel = icalDateDriftModel.buildModel(database);
   const cancellationModel = icalCancellationModel.buildModel(database);
   // 2026-06-06 — same DB-binding rationale for the closure model: tests build a fresh
@@ -91,8 +107,15 @@ function createPropertyIcalModel(database) {
   // bound to the prod DB; `.create(database)` returns a fresh instance bound to ours.
   const closuresModel = establishmentClosuresModel.create(database);
 
+  // specs/ical-import-hardening.md rule 1 — a stay whose summary names nobody gets a placeholder client of
+  // its own. One shared placeholder per feed (« Closed Not available » behind every Booking stay) meant
+  // that writing a guest onto one fiche wrote it onto all of them.
   function getOrCreateIcalClient(guestName, platformLabel) {
     const { firstName, lastName } = resolveIcalClientIdentity(guestName, platformLabel);
+    if (guestName?.isFallback) {
+      return Number(database.prepare("INSERT INTO clients (lastName, firstName, notes) VALUES (?, ?, '')")
+        .run(lastName, firstName).lastInsertRowid);
+    }
     const existing = database.prepare(`
       SELECT id FROM clients
       WHERE lower(firstName) = lower(?) AND lower(lastName) = lower(?)
@@ -114,6 +137,9 @@ function createPropertyIcalModel(database) {
   }
 
   function resolveSourceInput(body, existing = null) {
+    const refused = SOURCE_TEXTS.find((key) => !isOptionalText(body[key]))
+      || SOURCE_FLAGS.find((key) => body[key] !== undefined && !isFlag(body[key]));
+    if (refused) return { error: 'Valeur invalide.', code: 'INVALID_FIELD', field: refused };
     const url = String(body.url ?? existing?.url ?? '').trim();
     const platformKeyInput = String(body.platformKey ?? existing?.platformKey ?? '').trim();
     const platformLabelInput = String(body.platformLabel ?? existing?.platformLabel ?? '').trim();
@@ -122,17 +148,32 @@ function createPropertyIcalModel(database) {
     // and is propagated to `platforms.name` via the upsert hook below + `reservations.platform`
     // on every iCal-imported booking. Normalize to UpperCamelCase here so the entire chain sees
     // the canonical form (and the case-different duplicates that surfaced on the 2026-06-04
-    // prod-copy DB don't reappear).
-    const platformLabelRaw = sentenceCase(platformLabelInput || platformKeyInput || normalizedPlatformKey);
-    const platformLabel = formatPlatformName(platformLabelRaw) || platformLabelRaw;
+    // prod-copy DB don't reappear). Rule 22 — straight through `formatPlatformName`: a sentence-case
+    // pass first erased the word boundaries (`GitesDeFrance` → `Gitesdefrance`), so saving a source
+    // created a second catalogue row without the commission and tagged every import with it.
+    const platformLabelRaw = platformLabelInput || platformKeyInput || normalizedPlatformKey;
+    // 2026-10-27 spec review — the catalogue's spelling when one exists under the same slug (or the same
+    // slug plus « .com »): `BookingCom` is Booking, `gites-de-france` is GitesDeFrance, never a second
+    // platform. Built lazily and guarded: a minimal schema without `platforms` keeps the plain format.
+    const catalogueLabel = (() => {
+      try { return platformsModel.create(database).canonicalName(platformLabelRaw); } catch (_) { return null; }
+    })();
+    const platformLabel = catalogueLabel || formatPlatformName(platformLabelRaw) || platformLabelRaw;
+    // A new source is keyed by its canonical platform; an existing one keeps its stored key (its imports
+    // carry it) unless the body sends another.
+    const platformKey = !existing && platformLabel ? normalizePlatformKey(platformLabel) : normalizedPlatformKey;
 
     // specs/platforms-and-ical-rework.md §3 rule 7 — the URL iCal is now OPTIONAL: empty ⇒ no sync
     // (the operator enters that platform's bookings manually). Only validate the format when present.
     if (url && !/^https?:\/\//i.test(url)) return { error: 'URL iCal invalide (http(s) requis).' };
     if (!normalizedPlatformKey) return { error: 'La plateforme est requise.' };
 
-    const knownColor = KNOWN_PLATFORM_COLORS[normalizedPlatformKey];
+    const knownColor = KNOWN_PLATFORM_COLORS[platformKey] || KNOWN_PLATFORM_COLORS[normalizedPlatformKey];
     const chosenColor = String(body.platformColor || '').trim();
+    // Rule 17 — the platform colour check of `PUT /api/platforms/:key/color`; the stored colour sent back passes.
+    const colorRefusal = chosenColor && chosenColor !== String(existing?.platformColor ?? '').trim()
+      ? validateCalendarColor(chosenColor) : null;
+    if (colorRefusal) return { error: colorRefusal, code: 'INVALID_FIELD', field: 'platformColor' };
     const platformColor = knownColor || chosenColor || existing?.platformColor || DEFAULT_PLATFORM_COLOR;
 
     // §3 rule 10 — per (property, platform) "hidden from this property's reservation views" flag.
@@ -140,7 +181,33 @@ function createPropertyIcalModel(database) {
       ? (existing ? Number(existing.disabled) || 0 : 0)
       : (body.disabled === true || body.disabled === 1 ? 1 : 0);
 
-    return { url, normalizedPlatformKey, platformLabel, name: platformLabel, platformColor, disabled };
+    // specs/lodgify-decommission.md §3 rule 16 — the feed calls every stay « CLOSED - Not available ».
+    // Kept on an edit that does not send it; a new source starts from the platform's spelling.
+    const feedMarksStaysClosed = body.feedMarksStaysClosed === undefined
+      ? (existing && existing.feedMarksStaysClosed !== undefined && existing.feedMarksStaysClosed !== null
+        ? (Number(existing.feedMarksStaysClosed) === 1 ? 1 : 0)
+        : (defaultMarksStaysClosed(platformKey, platformLabel) ? 1 : 0))
+      : (body.feedMarksStaysClosed === true || body.feedMarksStaysClosed === 1 ? 1 : 0);
+
+    return { url, normalizedPlatformKey: platformKey, platformLabel, name: platformLabel, platformColor, disabled, feedMarksStaysClosed };
+  }
+
+  // Rule 16 — written apart from the main INSERT/UPDATE so a minimal schema without the column keeps working.
+  const hasClosedFlagColumn = (() => {
+    try {
+      return database.prepare('PRAGMA table_info(ical_sources)').all().some((c) => c.name === 'feedMarksStaysClosed');
+    } catch { return false; }
+  })();
+  function writeClosedFlag(sourceId, value) {
+    if (!hasClosedFlagColumn) return;
+    database.prepare('UPDATE ical_sources SET feedMarksStaysClosed = ? WHERE id = ?').run(value, sourceId);
+  }
+  function sourceMarksStaysClosed(source) {
+    if (hasClosedFlagColumn && source && source.id != null) {
+      const row = database.prepare('SELECT feedMarksStaysClosed FROM ical_sources WHERE id = ?').get(source.id);
+      if (row && row.feedMarksStaysClosed !== null) return Number(row.feedMarksStaysClosed) === 1;
+    }
+    return defaultMarksStaysClosed(source && source.platformKey, source && source.platformLabel, source && source.name);
   }
 
   const model = {
@@ -164,14 +231,18 @@ function createPropertyIcalModel(database) {
       const property = database.prepare('SELECT id FROM properties WHERE id = ?').get(propertyId);
       if (!property) return { error: 'Logement non trouvé', status: 404 };
       const input = resolveSourceInput(body);
-      if (input.error) return { error: input.error, status: 400 };
+      if (input.error) return { ...input, status: 400 };
       // Configure-on-demand (specs/platforms-and-ical-rework.md §3 rule 3): one row per
       // (property, platform). If this property already has a source for the platform, UPDATE it
       // instead of inserting a duplicate — so toggling tax then setting a URL both land on one row.
-      const existing = database.prepare(
-        'SELECT id FROM ical_sources WHERE propertyId = ? AND lower(platformKey) = lower(?) ORDER BY id DESC LIMIT 1'
-      ).get(propertyId, input.normalizedPlatformKey);
-      if (existing) return model.updateSource(propertyId, existing.id, body);
+      // Matched by slug on the key or the label, like `listForProperty`: `gites-de-france` and
+      // `gitesdefrance` are one platform (2026-10-27 spec review).
+      const slugOf = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const wanted = new Set([slugOf(input.normalizedPlatformKey), slugOf(input.platformLabel)]);
+      const existing = database.prepare('SELECT id, platformKey, platformLabel FROM ical_sources WHERE propertyId = ? ORDER BY id DESC')
+        .all(propertyId)
+        .find((src) => wanted.has(slugOf(src.platformKey)) || wanted.has(slugOf(src.platformLabel)));
+      if (existing) return model.updateSource(propertyId, existing.id, { ...body, platformKey: existing.platformKey, platformLabel: input.platformLabel });
       // Tourist-tax handling: derive the two stored booleans from the 3-way `touristTaxCollection`
       // (or the legacy boolean). Defaults to "platform handles everything" (collects = 1, remitted = 1).
       const tax = resolveTouristTaxColumns(body);
@@ -182,6 +253,7 @@ function createPropertyIcalModel(database) {
       `).run(propertyId, input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, body.isActive === false ? 0 : 1, tax.collectsTouristTax, tax.touristTaxRemittedByPlatform, input.disabled);
       // accounting-platform-commission-and-no-deposit.md §3.1 rule 2: surface this platform on
       // the dedicated config page right away (idempotent INSERT OR IGNORE).
+      writeClosedFlag(result.lastInsertRowid, input.feedMarksStaysClosed);
       platformsModel.upsertByName(input.platformLabel);
       return { data: database.prepare('SELECT * FROM ical_sources WHERE id = ?').get(result.lastInsertRowid) };
     },
@@ -190,7 +262,10 @@ function createPropertyIcalModel(database) {
       const existing = database.prepare('SELECT * FROM ical_sources WHERE id = ? AND propertyId = ?').get(sourceId, propertyId);
       if (!existing) return { error: 'Connexion iCal introuvable.', status: 404 };
       const input = resolveSourceInput(body, existing);
-      if (input.error) return { error: input.error, status: 400 };
+      if (input.error) return { ...input, status: 400 };
+      if (database.prepare('SELECT 1 FROM ical_sources WHERE propertyId = ? AND platformKey = ? AND id != ?').get(propertyId, input.normalizedPlatformKey, sourceId)) {
+        return { error: 'Plateforme déjà connectée sur ce logement.', code: 'SOURCE_EXISTS', field: 'platformKey', status: 409 };
+      }
       const isActive = body.isActive === undefined ? existing.isActive : (body.isActive ? 1 : 0);
       // Tourist-tax handling: derive both booleans from the 3-way value (or legacy boolean), falling
       // back to the existing row when neither is supplied (preserve on URL-only / colour-only edits).
@@ -201,6 +276,12 @@ function createPropertyIcalModel(database) {
             collectsTouristTax = ?, touristTaxRemittedByPlatform = ?, disabled = ?, updatedAt = datetime('now')
         WHERE id = ? AND propertyId = ?
       `).run(input.name, input.url, input.normalizedPlatformKey, input.platformLabel, input.platformColor, isActive, tax.collectsTouristTax, tax.touristTaxRemittedByPlatform, input.disabled, sourceId, propertyId);
+      writeClosedFlag(sourceId, input.feedMarksStaysClosed);
+      // ical-import-hardening rule 20 — an empty answer from the old URL must never confirm one from the new.
+      if (String(existing.url || '').trim() && input.url !== existing.url) {
+        database.prepare('UPDATE ical_sources SET emptyFeedStreak = 0 WHERE id = ?').run(sourceId);
+        lastEmptyCompletedAt.delete(sourceId);
+      }
       // §3.1 rule 2 — if the user renamed the platform, the previous row stays as a "ghost"
       // (see spec Q8); the new name lands on the page on next reload.
       platformsModel.upsertByName(input.platformLabel);
@@ -213,7 +294,53 @@ function createPropertyIcalModel(database) {
     },
 
     // The canonical anti-overbooking sync engine — moved verbatim. Do not change the algorithm.
-    syncSource(source) {
+    // specs/ical-import-hardening.md rules 4-5 — the feed's text, or an error the source line can show.
+    // Bounded in time, and refused unless the document is complete: a cut-off feed would read every
+    // event it lost as a cancellation.
+    async fetchFeed(source) {
+      let response;
+      try {
+        response = await fetchPublic(source.url, { signal: AbortSignal.timeout(fetchTimeoutMs), ...(fetchImpl ? { fetchImpl } : {}) });
+      } catch (error) {
+        if (error instanceof FeedFetchError) throw error;
+        if (error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+          throw new Error('Plateforme injoignable (délai dépassé).');
+        }
+        throw new Error('Plateforme injoignable.');
+      }
+      try {
+        if (!response.ok) {
+          throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
+        }
+        let icsText;
+        try {
+          icsText = await readCapped(response, MAX_FEED_BYTES);
+        } catch (error) {
+          if (error instanceof FeedFetchError) throw error;
+          throw new Error(error && error.name === 'TimeoutError' ? 'Plateforme injoignable (délai dépassé).' : 'Flux iCal interrompu.');
+        }
+        if (!isWellFormedIcs(icsText)) {
+          throw new Error('Réponse iCal invalide (contenu non ICS).');
+        }
+        if (!isCompleteIcs(icsText)) {
+          throw new Error('Flux iCal incomplet — synchronisation ignorée.');
+        }
+        return icsText;
+      } finally {
+        if (typeof response.release === 'function') await response.release();
+      }
+    },
+
+    // A fetch stamped with its start and end times, so the sync can tell how an observation orders against
+    // the other ones of the same source (rule 8).
+    observeFeed(source) {
+      const observation = { url: source.url, startedAt: performance.now(), completedAt: null };
+      observation.promise = model.fetchFeed(source).finally(() => { observation.completedAt = performance.now(); });
+      observation.promise.catch(() => {});
+      return observation;
+    },
+
+    syncSource(source, { prefetched = null } = {}) {
       return (async () => {
         const property = database.prepare('SELECT id, defaultCheckIn, defaultCheckOut, defaultCautionAmount FROM properties WHERE id = ?').get(source.propertyId);
         if (!property) {
@@ -222,24 +349,41 @@ function createPropertyIcalModel(database) {
 
         const setEmptyFeedStreak = database.prepare('UPDATE ical_sources SET emptyFeedStreak = ? WHERE id = ?');
         let icsText;
+        // A feed fetched ahead by syncMany (rule 4) arrives as an observation; otherwise fetch it now.
+        const observation = prefetched || model.observeFeed(source);
+        // Rule 8 — a feed fetched before the one we last consumed is older news, whether it answered or
+        // failed: applying it would revert that sync (dates), read its fresh stays as cancelled, or reset
+        // its empty-feed streak.
+        const staleResult = () => ({
+          scannedEvents: 0, createdCount: 0, createdReservationIds: [], updatedCount: 0, unchangedCount: 0,
+          lockedCount: 0, removedCount: 0, skippedClosureCount: 0, takenOverCount: 0,
+          conflictReservationIds: [], movedIntoConflictIds: [], skipped: 'newer sync applied',
+        });
+        const isStale = () => observation.startedAt < (lastObservedStart.get(source.id) ?? -Infinity);
+        // ical-import-hardening rule 20 — the row is read again once the feed is back: a source stopped,
+        // deleted or re-pointed while the pass was waiting must not receive what was fetched for the old state.
+        const isSuperseded = () => {
+          const row = database.prepare('SELECT isActive, url FROM ical_sources WHERE id = ?').get(source.id);
+          return !row || Number(row.isActive) === 0 || row.url !== observation.url;
+        };
         try {
-          const response = await fetch(source.url, { method: 'GET' });
-          if (!response.ok) {
-            throw new Error(`Impossible de lire le flux iCal (${response.status}).`);
-          }
-          icsText = await response.text();
-          if (!isWellFormedIcs(icsText)) {
-            throw new Error('Réponse iCal invalide (contenu non ICS).');
-          }
+          icsText = await observation.promise;
         } catch (fetchError) {
+          if (isSuperseded()) return { ...staleResult(), skipped: 'source changed' };
+          if (isStale()) return staleResult();
           // A fetch/parse failure is not an "empty feed" observation — reset the streak so two
           // empties separated by an outage never confirm each other (§3 rule 4).
           setEmptyFeedStreak.run(0, source.id);
           throw fetchError;
         }
+        if (isSuperseded()) return { ...staleResult(), skipped: 'source changed' };
+        if (isStale()) return staleResult();
+        lastObservedStart.set(source.id, observation.startedAt);
         // specs/lodgify-decommission.md §3 rule 5 — Booking.com's feed calls every taken night
-        // « CLOSED - Not available », real reservations included: keep them, the echo filter sorts them.
-        const isBookingFeed = normalizePlatformKey(source.platformKey || source.platformLabel || source.name) === 'booking';
+        // « CLOSED - Not available », real reservations included: keep them, the cover check flags the overlaps.
+        // Rule 16 — which feed does so is the source's own setting, not the slug `booking`: under
+        // `booking-com` every stay used to be dropped, then cancelled by the empty-feed sweep.
+        const isBookingFeed = sourceMarksStaysClosed(source);
         const events = parseIcsEvents(icsText, { keepUnavailable: isBookingFeed });
 
         // Empty-feed guard (specs/ical-sync-mapping-resilience.md §3 rules 3-4). A feed that
@@ -250,7 +394,10 @@ function createPropertyIcalModel(database) {
         // the in-memory source row: some callers load sources with a fixed column list).
         if (events.length === 0) {
           const prevStreak = Number(database.prepare('SELECT emptyFeedStreak FROM ical_sources WHERE id = ?').get(source.id)?.emptyFeedStreak || 0);
-          const streak = prevStreak + 1;
+          // Rule 8 — an empty answer fetched before the previous empty one completed saw the same outage.
+          const isNewObservation = observation.startedAt >= (lastEmptyCompletedAt.get(source.id) ?? -Infinity);
+          const streak = isNewObservation ? prevStreak + 1 : Math.max(prevStreak, 1);
+          lastEmptyCompletedAt.set(source.id, observation.completedAt);
           setEmptyFeedStreak.run(streak, source.id);
           const mappingCount = database.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE sourceId = ?').get(source.id).c;
           if (mappingCount > 0 && streak < 2) {
@@ -288,12 +435,13 @@ function createPropertyIcalModel(database) {
         // generic summary like "Closed Period") and (b) enforce a uniqueness gate over
         // the remaining truly-stale candidates.
         const listSameSourceMappingsBySummary = database.prepare(`
-          SELECT eventUid, reservationId, eventHash
+          SELECT eventUid, reservationId, eventHash, startDate
             FROM ical_import_events
            WHERE sourceId = ? AND summaryNormalized = ?
            ORDER BY datetime(lastSeenAt) DESC
         `);
         const listMappings = database.prepare('SELECT eventUid, reservationId FROM ical_import_events WHERE sourceId = ?');
+        const getMappingWithDates = database.prepare('SELECT eventUid, reservationId, eventHash, startDate FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
         const deleteMapping = database.prepare('DELETE FROM ical_import_events WHERE sourceId = ? AND eventUid = ?');
         const upsertMapping = database.prepare(`
           INSERT INTO ical_import_events (sourceId, eventUid, reservationId, eventHash, startDate, endDate, summaryNormalized, lastSeenAt)
@@ -310,7 +458,9 @@ function createPropertyIcalModel(database) {
         // startDate/endDate are needed so the locked date-drift detector
         // (isLockedDateDrift / icalDateDriftModel) can compare the persisted dates against the
         // ones proposed by the source feed — see specs/ical-sync-override-locked-dates.md §3.
-        const getReservationById = database.prepare('SELECT id, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?');
+        // A minimal test schema without `kind` has no stay set aside (specs/calendar-property-parity.md rule 22).
+        const hasKind = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'kind');
+        const getReservationById = database.prepare(`SELECT id, ${hasKind ? 'kind' : "'reservation' AS kind"}, sourceType, icalSyncLocked, startDate, endDate FROM reservations WHERE id = ?`);
         // Step ①bis (specs/ical-sync-mapping-resilience.md §3 rule 1) — the reservation row itself
         // stores the feed UID. If the mapping table lost its memory (2026-07-21 incident: one
         // degenerate empty fetch swept every mapping), this lookup re-claims the reservation
@@ -341,9 +491,8 @@ function createPropertyIcalModel(database) {
         const markReservationUid = database.prepare(`
           UPDATE reservations
           SET sourceIcalEventUid = ?, updatedAt = datetime('now')
-          WHERE id = ?
+          WHERE id = ? AND ifnull(sourceIcalEventUid, '') != ?
         `);
-        const deleteReservation = database.prepare('DELETE FROM reservations WHERE id = ?');
         const insertReservation = database.prepare(`
           INSERT INTO reservations (
             propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -522,22 +671,53 @@ function createPropertyIcalModel(database) {
         } catch { takeover = null; }
 
         // specs/lodgify-decommission.md §3 rules 6-8 — what GuestFlow already holds on this property,
-        // against which a Booking event is judged an echo: stays from any other origin, closures, and
-        // the ranges that left the export less than 72 h ago (Booking has not re-read the feed yet).
+        // against which a Booking event is judged a conflict: stays from any other origin, closures, and
+        // the ranges that left the export less than 72 h ago.
         let bookingCover = null;
         if (isBookingFeed) {
           const exportRanges = icalExportRangesModel.create(database);
           exportRanges.refresh(source.propertyId);
           bookingCover = [
+            // The nights each stay really takes (early check-in / late check-out), as the export publishes them.
             ...database.prepare(`
-              SELECT startDate, endDate FROM reservations
+              SELECT ${['startDate', 'endDate', ...timeColumnsOf(database)].join(', ')} FROM reservations
               WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
-            `).all(source.propertyId, source.id),
+            `).all(source.propertyId, source.id).map((r) => effectiveRange(r)),
             ...closuresModel.list({ propertyId: source.propertyId }),
             // Rule 14 — its own cancelled stay's tombstone never hides that stay re-booked.
             ...exportRanges.listActiveTombstones(source.propertyId, undefined, { excludeSourceId: source.id }),
           ];
         }
+
+        // specs/ical-import-hardening.md rule 3 — an overbooking that already happened on a platform is
+        // flagged whatever the feed: the stays GuestFlow holds from any other origin, against which a
+        // new or moved stay is checked. Outside Booking an overlap never skips the event (there is no
+        // echo to recognise), it only stamps `bookingConflictAt`. Guarded: a minimal test schema without
+        // `kind` or the conflict column simply has no check.
+        let otherStays = null;
+        let markConflict = null;
+        let clearConflict = null;
+        let isFlagged = null;
+        try {
+          const cols = database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+          if (cols.includes('bookingConflictAt') && cols.includes('kind')) {
+            otherStays = database.prepare(`
+              SELECT ${['id', 'startDate', 'endDate', ...timeColumnsOf(database)].join(', ')} FROM reservations
+              WHERE propertyId = ? AND kind = 'reservation' AND ifnull(sourceIcalSourceId, -1) != ?
+            `).all(source.propertyId, source.id).map((r) => ({ id: r.id, ...effectiveRange(r) }));
+            markConflict = database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ?');
+            clearConflict = database.prepare('UPDATE reservations SET bookingConflictAt = NULL WHERE id = ?');
+            isFlagged = database.prepare("SELECT 1 FROM reservations WHERE id = ? AND ifnull(bookingConflictAt, '') != ''");
+          }
+        } catch { otherStays = null; }
+        // specs/lodgify-decommission.md §3 rule 17 — a closure is a taken range too: a stay that lands on
+        // one, new or moved, is flagged like an overlap with another stay.
+        const propertyClosures = database.prepare(`
+          SELECT startDate, endDate FROM establishment_closures WHERE propertyId IS NULL OR propertyId = ?
+        `).all(source.propertyId);
+        const overlapsOtherStay = (stay, ownId = null) => (Boolean(otherStays)
+          && classifyBookingEvent(stay, otherStays.filter((r) => Number(r.id) !== Number(ownId))) !== 'free')
+          || classifyBookingEvent(stay, propertyClosures) !== 'free';
 
         let createdCount = 0;
         let updatedCount = 0;
@@ -546,15 +726,27 @@ function createPropertyIcalModel(database) {
         let removedCount = 0;
         let skippedClosureCount = 0;
         let takenOverCount = 0;
-        let echoSkippedCount = 0;
         const conflictReservationIds = [];
+        // Rule 3 — stays already known that a date change moved onto taken nights (notified like a new one).
+        const movedIntoConflictIds = [];
+        // Rule 6 — events whose UID the feed repeats, shown on the source line.
+        const repeatedUidCount = events.filter((event) => event.repeatedUid).length;
         // IDs of GENUINELY-new reservations created in THIS sync run — drives the per-reservation
         // email notification post-commit (specs/site-booking-notifications.md §3 rule 7). Not a
         // "created today" query, so a re-sync of already-known rows never re-notifies.
         const createdReservationIds = [];
+        // specs/payment-link-lifecycle.md rule 32 — stays known before this run whose dates the feed moved.
+        const redatedReservationIds = [];
 
         const syncTx = database.transaction((eventList) => {
           const seenUids = new Set(eventList.map((event) => event.uid));
+          // Rule 12 — a repeated UID's former mapping belongs to the event that arrives on its date: the
+          // other events under that UID must not re-claim it through the same-summary heuristic.
+          const repeatedClaims = new Map();
+          eventList.filter((event) => event.repeatedUid).forEach((event) => {
+            const base = getMappingWithDates.get(source.id, event.baseUid);
+            if (base && String(base.startDate) === event.startDate) repeatedClaims.set(event.baseUid, { ...base, claimedBy: event.uid });
+          });
 
           // Auto-resolve any pending cancellation alerts whose UID is back in the feed —
           // the platform un-cancelled the booking, so the alert is moot
@@ -564,24 +756,6 @@ function createPropertyIcalModel(database) {
           );
 
           for (const event of eventList) {
-            // 2026-06-06 — Closure guard. An operator-declared establishment closure on
-            // this property's dates MUST win over any incoming iCal event. Without this
-            // check, the sync would happily INSERT the reservation (the prepared
-            // statement above bypasses `validateAvailability`), and the operator would
-            // discover the override only by reading the planning. Same skip-style as
-            // `isUnavailableIcalEvent`: don't insert, don't touch any existing mapping,
-            // don't raise an alert — the closure was explicit, the operator already
-            // knows about it.
-            const coveringClosure = closuresModel.findCoveringClosure(
-              source.propertyId,
-              event.startDate,
-              event.endDate,
-            );
-            if (coveringClosure) {
-              skippedClosureCount += 1;
-              continue;
-            }
-
             // A stay this source used to relay, now owned by the channel's native feed (rule 2):
             // never re-import it while this (retired) source is still active.
             if (takeover && takeover.isSuperseded.get(source.id, event.uid)) {
@@ -591,8 +765,21 @@ function createPropertyIcalModel(database) {
 
             const eventHash = buildEventHash(event);
             const summaryNormalized = normalizeIcalSummary(event.summary);
+            // specs/ical-summary-fallback-cross-uid.md rule 7 — a summary that names nobody (« Reserved »,
+            // « BOOKED ») is shared by every stay of the feed: it identifies none of them.
+            const summaryNamesNobody = parseGuestName(event.summary, event.description).isFallback;
             let mapping = getMapping.get(source.id, event.uid);
             let previousUid = event.uid;
+
+            // Rule 12 — the stay mapped under the bare UID before the feed repeated it stays with the event
+            // arriving on the same date.
+            if (!mapping && event.repeatedUid) {
+              const claim = repeatedClaims.get(event.baseUid);
+              if (claim && claim.claimedBy === event.uid) {
+                mapping = { reservationId: Number(claim.reservationId), eventHash: claim.eventHash };
+                previousUid = event.baseUid;
+              }
+            }
 
             // Step ①bis — direct UID match on the reservations table (mapping memory lost).
             if (!mapping) {
@@ -638,9 +825,12 @@ function createPropertyIcalModel(database) {
             // Not on a Booking feed: every Booking event shares the summary « CLOSED - Not available »,
             // so a cancelled stay A and a new stay B arriving in the same sync would hand A's fiche to B
             // (specs/lodgify-decommission.md §3 rule 4bis — the exact-dates re-claim covers Booking).
-            if (!mapping && summaryNormalized && !isBookingFeed) {
+            // Rule 7 — nor on any nameless summary: the same hand-over happened on Airbnb's « Reserved »
+            // and Gîtes de France's « BOOKED ». The moved stay then goes through the cancellation approval
+            // and the new one is created, which loses nothing.
+            if (!mapping && summaryNormalized && !isBookingFeed && !summaryNamesNobody) {
               const sameSummaryCandidates = listSameSourceMappingsBySummary.all(source.id, summaryNormalized);
-              const staleCandidates = sameSummaryCandidates.filter((c) => !seenUids.has(c.eventUid));
+              const staleCandidates = sameSummaryCandidates.filter((c) => !seenUids.has(c.eventUid) && !repeatedClaims.has(c.eventUid));
               if (staleCandidates.length === 1) {
                 const candidate = staleCandidates[0];
                 mapping = { reservationId: Number(candidate.reservationId), eventHash: candidate.eventHash };
@@ -690,7 +880,9 @@ function createPropertyIcalModel(database) {
             // same guest name, different source + UID). Map it to the existing reservation from the other
             // source instead of creating a duplicate. previousUid stays this event's uid so the other
             // source's mapping is NOT removed — both sources then reference the one reservation.
-            if (!mapping && summaryNormalized) {
+            // specs/ical-import-hardening.md rule 15 — only on a summary that names someone: two platforms'
+            // « Reserved » on the same dates are two stays sold twice, created and flagged in conflict.
+            if (!mapping && summaryNormalized && !summaryNamesNobody) {
               const crossSource = getCrossSourceMapping.get(source.propertyId, source.id, event.startDate, event.endDate, summaryNormalized);
               if (crossSource) {
                 mapping = { reservationId: Number(crossSource.reservationId), eventHash: crossSource.eventHash };
@@ -703,16 +895,24 @@ function createPropertyIcalModel(database) {
             // booking as an import. The note is reserved for the operator's own free text.
             const notes = '';
 
-            // Booking echo filter (rules 6-8): every night already held → Booking is mirroring
-            // GuestFlow, skip; some nights held → create, but flag the conflict — never drop it.
+            // Closure guard (specs/lodgify-decommission.md §3 rule 17). A NEW event whose every night is
+            // inside an operator-declared closure is the closure coming back from the channel: skipped, no
+            // mapping, no alert. A new event only partly inside, or a known stay moved onto a closure, is a
+            // real booking: it follows the normal path and is flagged in conflict (a locked stay raises its
+            // date-drift alert instead) — before, it was dropped or frozen without a word.
+            if (!mapping && classifyBookingEvent(event, propertyClosures) === 'echo') {
+              skippedClosureCount += 1;
+              continue;
+            }
+
+            // Booking cover (rules 6, 8): a night already held — wholly or partly — is a stay Booking sold
+            // on nights GuestFlow holds. It is created and flagged in conflict, never dropped: Booking's
+            // feed carries its own reservations only (rule 14), so there is no echo to recognise.
             let bookingConflict = false;
             if (!mapping && bookingCover) {
-              const verdict = classifyBookingEvent(event, bookingCover);
-              if (verdict === 'echo') {
-                echoSkippedCount += 1;
-                continue;
-              }
-              bookingConflict = verdict === 'partial';
+              bookingConflict = classifyBookingEvent(event, bookingCover) !== 'free';
+            } else if (!mapping) {
+              bookingConflict = overlapsOtherStay(event);
             }
 
             if (!mapping) {
@@ -747,8 +947,8 @@ function createPropertyIcalModel(database) {
               assignReservationNumberIfMissing(database, reservationId);
               upsertMapping.run(source.id, event.uid, reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
               addReservationHistoryEntry(reservationId, 'create', buildIcalCreationHistoryChanges(source, event.uid));
-              if (bookingConflict) {
-                database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ?').run(new Date().toISOString(), reservationId);
+              if (bookingConflict && markConflict) {
+                markConflict.run(new Date().toISOString(), reservationId);
                 conflictReservationIds.push(reservationId);
               }
               createdCount += 1;
@@ -757,6 +957,13 @@ function createPropertyIcalModel(database) {
             }
 
             const mappedReservation = getReservationById.get(mapping.reservationId);
+            // specs/calendar-property-parity.md rule 22 — a stay set aside as a duplicate is never
+            // updated, re-imported nor resurrected: its UID is known and unchanged.
+            if (mappedReservation && mappedReservation.kind === 'superseded') {
+              upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
+              unchangedCount += 1;
+              continue;
+            }
             if (!mappedReservation) {
               const clientId = getOrCreateIcalClient(parseGuestName(event.summary, event.description), source.platformLabel || source.name);
               const result = insertReservation.run(
@@ -795,7 +1002,7 @@ function createPropertyIcalModel(database) {
               continue;
             }
 
-            markReservationUid.run(event.uid, mapping.reservationId);
+            markReservationUid.run(event.uid, mapping.reservationId, event.uid);
             if (event.summary) {
               backfillOriginalSummary.run(event.summary, mapping.reservationId);
             }
@@ -858,6 +1065,21 @@ function createPropertyIcalModel(database) {
               adults: event.adults,
             });
             upsertMapping.run(source.id, event.uid, mapping.reservationId, eventHash, event.startDate, event.endDate, summaryNormalized);
+            // Rule 3 — a date change that lands on nights another stay holds is flagged once.
+            const datesMoved = String(mappedReservation.startDate) !== event.startDate || String(mappedReservation.endDate) !== event.endDate;
+            if (datesMoved) redatedReservationIds.push(Number(mapping.reservationId));
+            if (datesMoved && markConflict) {
+              const overlaps = overlapsOtherStay(event, mapping.reservationId);
+              const flagged = Boolean(isFlagged.get(mapping.reservationId));
+              if (overlaps && !flagged) {
+                markConflict.run(new Date().toISOString(), mapping.reservationId);
+                conflictReservationIds.push(Number(mapping.reservationId));
+                movedIntoConflictIds.push(Number(mapping.reservationId));
+              } else if (!overlaps && flagged) {
+                // Rule 13 — moved off every taken night: the conflict is over, so is its badge.
+                clearConflict.run(mapping.reservationId);
+              }
+            }
             updatedCount += 1;
           }
 
@@ -872,7 +1094,7 @@ function createPropertyIcalModel(database) {
             .all(source.id)
             .filter((row) => !seenUids.has(row.eventUid));
           const countMappingsForReservation = database.prepare('SELECT COUNT(*) c FROM ical_import_events WHERE reservationId = ?');
-          const reservationForCancellation = database.prepare('SELECT endDate FROM reservations WHERE id = ?');
+          const reservationForCancellation = database.prepare('SELECT * FROM reservations WHERE id = ?');
           const todayIso = getTodayIsoDate();
           staleMappings.forEach((row) => {
             deleteMapping.run(source.id, row.eventUid);
@@ -889,7 +1111,10 @@ function createPropertyIcalModel(database) {
                 // carve-out). Only present/future stays falling out of the feed are real
                 // cancellations the operator must approve.
                 const isPastStay = reservation.endDate && String(reservation.endDate) < todayIso;
-                if (!isPastStay) {
+                // specs/ical-cancellation-approval.md rule 13 — a stay already cancelled in GuestFlow has
+                // nothing left to approve, and approving would delete the row with its credit note.
+                const alreadyCancelled = (reservation.kind || 'reservation') !== 'reservation';
+                if (!isPastStay && !alreadyCancelled) {
                   cancellationModel.recordPending({
                     reservationId: row.reservationId,
                     sourceId: source.id,
@@ -901,12 +1126,13 @@ function createPropertyIcalModel(database) {
             }
           });
 
-          // Cleanup orphan clients created by iCal imports.
-          database.prepare(`
-            DELETE FROM clients
-            WHERE NOT EXISTS (SELECT 1 FROM reservations WHERE reservations.clientId = clients.id)
-              AND notes LIKE 'iCal {%'
-          `).run();
+          // specs/payment-link-lifecycle.md rules 10, 32 — a platform stay holds its nights: the unpaid devis and
+          // reservations it now covers lose their payment links, in this transaction; their deactivation follows
+          // the commit.
+          [...createdReservationIds, ...redatedReservationIds].forEach((id) => withdrawForStay(database, id));
+
+          removeOrphanIcalImportClients(database);
+          removeOrphanIcalPlaceholders(database);
         });
 
         syncTx(events);
@@ -924,8 +1150,9 @@ function createPropertyIcalModel(database) {
           removedCount,
           skippedClosureCount,
           takenOverCount,
-          echoSkippedCount,
           conflictReservationIds,
+          movedIntoConflictIds,
+          repeatedUidCount,
           rawIcal: icsText,
           parsedEvents: events,
         };
@@ -934,19 +1161,32 @@ function createPropertyIcalModel(database) {
 
     // Sync + persist the source status row (DRYs the formerly triplicated UPDATE block:
     // the /sync route, /sync-all route, and scheduledTasks.performAutoSync all use this).
-    async syncSourceAndRecord(source) {
+    // specs/ical-sync-mapping-resilience.md rule 7 — one run per source at a time: a caller arriving while
+    // the source is syncing joins that run, so one degenerate answer is never counted as two observations.
+    syncSourceAndRecord(source, options = {}) {
+      const running = syncsInFlight.get(source.id);
+      if (running) return running;
+      const run = model.runSourceSync(source, options);
+      syncsInFlight.set(source.id, run);
+      const release = () => syncsInFlight.delete(source.id);
+      run.then(release, release);
+      return run;
+    },
+
+    async runSourceSync(source, { prefetched = null } = {}) {
       // specs/platforms-and-ical-rework.md §3 rule 7 / edge case — a platform with no URL iCal is
       // manual-entry only: never fetch, never touch its sync status. Central guard so every caller
       // (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) skips it identically.
       if (!String(source.url || '').trim()) {
         return {
           createdCount: 0, updatedCount: 0, unchangedCount: 0, lockedCount: 0,
-          removedCount: 0, skippedClosureCount: 0, takenOverCount: 0, echoSkippedCount: 0,
+          removedCount: 0, skippedClosureCount: 0, takenOverCount: 0,
           conflictReservationIds: [], createdReservationIds: [], skipped: true,
         };
       }
       try {
-        const result = await model.syncSource(source);
+        const result = await model.syncSource(source, { prefetched });
+        if (result.skipped) return result;
         // specs/platforms-and-ical-rework.md §6 — persist the per-category counts (JSON) for the
         // visual "État" cell, alongside the legacy free-text message (kept as a hover fallback).
         const syncCounts = JSON.stringify({
@@ -957,8 +1197,8 @@ function createPropertyIcalModel(database) {
           locked: result.lockedCount,
           skippedClosure: result.skippedClosureCount,
           takenOver: result.takenOverCount || 0,
-          echoSkipped: result.echoSkippedCount || 0,
           conflicts: (result.conflictReservationIds || []).length,
+          repeatedUids: result.repeatedUidCount || 0,
         });
         database.prepare(`
           UPDATE ical_sources
@@ -975,9 +1215,9 @@ function createPropertyIcalModel(database) {
           // `skippedClosureCount` (2026-06-06) — events dropped because they fell on a
           // declared establishment closure. Surfaced for operator visibility in
           // `ical_sources.lastSyncMessage`.
-          // specs/lodgify-decommission.md §3 rule 13 — takeovers, Booking echoes and conflicts only
+          // specs/lodgify-decommission.md §3 rule 13 — takeovers and conflicts only
           // appear when non-zero, like the closure count.
-          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${result.echoSkippedCount > 0 ? `, ${result.echoSkippedCount} écho(s) ignoré(s)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}, ${result.unchangedCount} inchangé(s)`,
+          `${result.createdCount} créé(s), ${result.updatedCount} mis à jour${result.takenOverCount > 0 ? `, ${result.takenOverCount} reprise(s)` : ''}, ${result.lockedCount} verrouillé(s), ${result.removedCount} annulation(s) à valider${result.skippedClosureCount > 0 ? `, ${result.skippedClosureCount} ignoré(s) (fermeture)` : ''}${(result.conflictReservationIds || []).length > 0 ? `, ${result.conflictReservationIds.length} en conflit` : ''}${result.repeatedUidCount > 0 ? `, ${result.repeatedUidCount} au même identifiant` : ''}, ${result.unchangedCount} inchangé(s)`,
           syncCounts,
           result.createdCount + result.updatedCount,
           source.id,
@@ -995,11 +1235,18 @@ function createPropertyIcalModel(database) {
             Promise.resolve(notificationService.notifyNewIcalReservation(reservationId)).catch(() => {});
           }
         }
-        // Bookings changed → debounced Google Calendar reconcile, triggered here so every
-        // caller (syncOne, syncAllForProperty, scheduledTasks.performAutoSync) gets the same
-        // low-latency push (specs/google-calendar-oauth-rework.md rule 20). Fire-and-forget.
+        for (const reservationId of result.movedIntoConflictIds || []) {
+          Promise.resolve(notificationService.notifyBookingConflict(reservationId, { origin: 'ical' })).catch(() => {});
+        }
+        // Bookings changed → announced here so every caller (syncOne, syncAllForProperty,
+        // scheduledTasks.performAutoSync) gives the plugins the same low-latency signal (Google
+        // reconciles — specs/plugins-phase-1-sdk.md rule 9). Fire-and-forget.
         if (result.createdCount + result.updatedCount + result.removedCount + (result.takenOverCount || 0) > 0) {
-          googleCalendarSync.scheduleReconcile();
+          emitPluginEvent('ical.imported', {
+            created: result.createdCount,
+            updated: result.updatedCount,
+            removed: result.removedCount,
+          });
         }
         return result;
       } catch (error) {
@@ -1022,26 +1269,43 @@ function createPropertyIcalModel(database) {
       if (!String(source.url || '').trim()) {
         return { error: 'Aucune URL iCal configurée pour cette plateforme.', status: 400 };
       }
+      // specs/ical-import-hardening.md rule 2 — an inactive source is stopped: the hourly pass and
+      // « Synchroniser tout » already skip it, and the row's button must not bring back the stays the
+      // operator deleted after stopping it (2026-10-16, Lodgify).
+      if (Number(source.isActive) === 0) {
+        return { error: 'Calendrier arrêté.', status: 409 };
+      }
       try {
-        return { data: await model.syncSourceAndRecord(source) };
+        let data = await model.syncSourceAndRecord(source);
+        // Rule 20 — a click that joined a run which skipped the source (changed, or stale) fetched nothing for itself.
+        if (typeof data.skipped === 'string') {
+          const fresh = model.getSource(propertyId, sourceId);
+          if (!fresh || Number(fresh.isActive) === 0) return { error: 'Calendrier arrêté.', status: 409 };
+          data = await model.syncSourceAndRecord(fresh);
+        }
+        return { data };
       } catch (error) {
         return { error: String(error.message || 'Erreur de synchronisation iCal'), status: 400 };
       }
     },
 
-    // The property's disabled platform labels (specs/platforms-and-ical-rework.md §3 rule 10) — the
-    // platforms whose bookings are hidden from this property's reservation views. Returns the set of
-    // platform labels + keys (lowercased) so callers can match `reservations.platform` either way.
-    disabledPlatformLabels(propertyId) {
-      const rows = database.prepare(
-        "SELECT platformLabel, platformKey FROM ical_sources WHERE propertyId = ? AND disabled = 1"
-      ).all(propertyId);
-      const set = new Set();
-      for (const r of rows) {
-        if (r.platformLabel) set.add(String(r.platformLabel).toLowerCase());
-        if (r.platformKey) set.add(String(r.platformKey).toLowerCase());
+    // specs/ical-import-hardening.md rule 4 — every feed is fetched at once, then applied one after the
+    // other in id order, as before: a slow platform costs one timeout, not one per source behind it,
+    // and the takeover / cross-source matching keeps seeing the sources in the same order.
+    async syncMany(sources) {
+      const feeds = new Map(sources.filter((s) => String(s.url || '').trim()).map((s) => {
+        return [s.id, model.observeFeed(s)];
+      }));
+      const results = [];
+      for (const source of sources) {
+        try {
+          const result = await model.syncSourceAndRecord(source, { prefetched: feeds.get(source.id) || null });
+          results.push({ sourceId: source.id, sourceName: source.name, ok: true, ...result });
+        } catch (error) {
+          results.push({ sourceId: source.id, sourceName: source.name, ok: false, error: String(error.message || 'Erreur de synchronisation iCal') });
+        }
       }
-      return [...set];
+      return results;
     },
 
     async syncAllForProperty(propertyId) {
@@ -1050,17 +1314,7 @@ function createPropertyIcalModel(database) {
         "SELECT * FROM ical_sources WHERE propertyId = ? AND isActive = 1 AND trim(COALESCE(url, '')) != '' ORDER BY id"
       ).all(propertyId);
       if (!sources.length) return { ok: true, results: [] };
-
-      const results = [];
-      for (const source of sources) {
-        try {
-          const result = await model.syncSourceAndRecord(source);
-          results.push({ sourceId: source.id, sourceName: source.name, ok: true, ...result });
-        } catch (error) {
-          results.push({ sourceId: source.id, sourceName: source.name, ok: false, error: String(error.message || 'Erreur de synchronisation iCal') });
-        }
-      }
-      return { ok: true, results };
+      return { ok: true, results: await model.syncMany(sources) };
     },
   };
 

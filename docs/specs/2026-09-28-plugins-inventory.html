@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins GuestFlow — état des lieux</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 21px/1.25 var(--serif);color:var(--sapin);margin:42px 0 10px;padding-top:6px;border-top:1px solid var(--line)}
+h3{font:600 15px/1.3 var(--sans);margin:22px 0 6px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+ul.tight,ol.tight{margin:4px 0 0;padding-left:20px} ul.tight li,ol.tight li{margin:6px 0}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) code{background:rgba(255,255,255,.07)}}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:14px 0}
+.stat b{display:block;font:600 26px/1.1 var(--serif);color:var(--sapin)}
+.stat span{font-size:13px;color:var(--muted)}
+.d{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.d.S{color:var(--ok)} .d.M{color:var(--ocre)} .d.L{color:var(--ko)} .d.XL{color:var(--ko);background:color-mix(in srgb,var(--ko) 12%,transparent)}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.studio-bar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;
+  padding:8px 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.lab-grid{display:grid;grid-template-columns:400px minmax(0,1fr);min-height:560px}
+@media (max-width:900px){.lab-grid{grid-template-columns:1fr}}
+.readout{padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);background:var(--card)}
+.readout b{color:var(--ink)}
+
+.pm{border-right:1px solid var(--line);padding:14px;background:var(--paper);min-width:0}
+@media (max-width:900px){.pm{border-right:0;border-bottom:1px solid var(--line)}}
+.pm-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px}
+.pm-head h4{margin:0;font:600 17px/1.2 var(--serif);color:var(--sapin)}
+.pills{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.pills button{appearance:none;font:inherit;font-size:13px;font-weight:600;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);
+  border-radius:999px;padding:6px 14px;min-height:40px;cursor:pointer}
+.pills button[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.search{width:100%;font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);margin-bottom:10px}
+.plist{display:flex;flex-direction:column;gap:8px;max-height:640px;overflow:auto;padding-right:2px}
+.prow{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+.prow.off{opacity:.72}
+.prow-main{display:flex;align-items:center;gap:10px}
+.tile{flex:none;width:36px;height:36px;border-radius:9px;display:grid;place-items:center;font:700 12.5px/1 var(--sans);
+  background:color-mix(in srgb,var(--lichen) 18%,var(--card));color:var(--sapin)}
+.pname{flex:1;min-width:0;cursor:pointer;background:none;border:0;padding:0;text-align:left;color:inherit;font:inherit;min-height:40px}
+.pname b{display:block;font-size:14px;line-height:1.25}
+.pname small{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:2px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ghost);display:inline-block}
+.dot.on{background:var(--ok)}
+.pbtn{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 11px;min-height:40px;cursor:pointer;
+  border:1px solid var(--fieldline);background:var(--field);color:var(--ink);white-space:nowrap}
+.pbtn.primary{background:var(--sapin);border-color:var(--sapin);color:var(--paper)}
+.pbtn.danger{border-color:var(--ko);color:var(--ko)}
+.pbtn.danger.armed{background:var(--ko);color:#fff}
+.perr{margin:8px 0 0;font-size:12.5px;color:var(--ko);font-weight:600}
+.pdetail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px}
+.pdetail p{margin:0 0 8px}
+.pdetail dl{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:0 0 10px}
+.pdetail dt{color:var(--muted)} .pdetail dd{margin:0}
+.pempty{font-size:13px;color:var(--muted);font-style:italic;padding:10px 2px}
+
+.pv{padding:14px;background:color-mix(in srgb,var(--sapin) 6%,var(--paper));min-width:0}
+.pv-tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.pv-tabs button{appearance:none;font:inherit;font-size:13px;font-weight:600;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);
+  padding:8px 10px;min-height:40px;cursor:pointer}
+.pv-tabs button[aria-pressed="true"]{color:var(--sapin);border-bottom-color:var(--sapin)}
+.pv-tabs .n{font-weight:500;font-size:11.5px;color:var(--muted);margin-left:4px}
+.app{background:#fff;border:1px solid #e3e0d7;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.07);color:#1f241d;overflow:hidden}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .app{background:#20261f;border-color:#3b453b;color:#ece7db}}
+.app-top{background:#2F5D46;color:#fff;padding:10px 14px;font-weight:700;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.app-top span{font-weight:500;font-size:12px;opacity:.85}
+.app-body{padding:10px 14px 14px}
+.grp{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#7f8678;margin:12px 0 4px;font-weight:700}
+.it{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;font-size:13.5px;border:1px solid transparent;flex-wrap:wrap}
+.it + .it{margin-top:2px}
+.it.l1{margin-left:18px;font-size:13px;color:#4a5147}
+.it.l2{margin-left:36px;font-size:12.5px;color:#5c6358}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .it.l1{color:#c9cfbf} :root:not([data-theme="light"]) .it.l2{color:#aeb4a5}}
+.it.box{border-color:#e6e2d6;background:#fbfaf6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .it.box{border-color:#39433A;background:#1a201a}}
+.it .tag{margin-left:auto;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:#eef1e8;color:#4b5a3d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .it .tag{background:#2b3528;color:#b9cba6}}
+.it.solio .tag{background:#f6e7cf;color:#8a5a14}
+.it.new{border-color:#2F5D46;border-style:dashed}
+.it.gone{color:var(--ghost);text-decoration:line-through;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(160,160,150,.08) 6px 12px)}
+.it.gone .tag{opacity:.7}
+.it.hidden{display:none}
+.pv-empty{padding:14px 8px;font-size:13.5px;color:#6b7266;font-style:italic}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .pv-empty{color:#a6ad9d}}
+.meter{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:6px;max-width:320px}
+.meter i{display:block;height:100%;background:var(--lichen);transition:width .25s}
+.flash{animation:fl .7s}
+@keyframes fl{from{background:color-mix(in srgb,var(--ko) 22%,var(--card))}to{background:var(--card)}}
+</style>
+
+<style>
+.calc{display:grid;grid-template-columns:280px minmax(0,1fr);gap:0}
+@media (max-width:760px){.calc{grid-template-columns:1fr}}
+.calc-in{padding:16px;border-right:1px solid var(--line);background:var(--paper)}
+@media (max-width:760px){.calc-in{border-right:0;border-bottom:1px solid var(--line)}}
+.calc-in label{display:block;font-size:13px;font-weight:600;margin:0 0 4px}
+.calc-in input{width:100%;font:inherit;font-size:16px;padding:9px 11px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);margin-bottom:4px}
+.calc-in input[aria-invalid="true"]{border-color:var(--ko);outline:2px solid color-mix(in srgb,var(--ko) 30%,transparent)}
+.calc-in .hint{font-size:12px;color:var(--muted);margin:0 0 14px}
+.calc-in .err{font-size:12.5px;color:var(--ko);font-weight:600;margin:0 0 14px}
+.calc-out{padding:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.kpi b{display:block;font:600 22px/1.15 var(--serif);color:var(--sapin)}
+.kpi span{font-size:12px;color:var(--muted)}
+.dec{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.rec{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ocre) 15%,transparent);color:var(--ocre)}
+</style>
+<div class="wrap">
+<h1>Des plugins pour GuestFlow — l'état des lieux</h1>
+<p class="meta">Étude du 28/09/2026 sur la base v3.3.1, révisée avec tes réponses du jour · Référence détaillée : <code>specs/plugins-inventory.md</code> · Rien n'est encore codé</p>
+
+<div class="stats">
+  <div class="card stat"><b>0</b><span>mécanisme de plugin aujourd'hui, ni côté serveur ni côté écran</span></div>
+  <div class="card stat"><b>18</b><span>fonctions candidates pour devenir des plugins (la taxe de séjour reste au cœur)</span></div>
+  <div class="card stat"><b>~125 Mo</b><span>de mémoire pour un GuestFlow au repos (mesuré) : un client par processus coûte ~0,15 € par mois</span></div>
+  <div class="card stat"><b>1 440</b><span>lignes dans une seule fonction de calcul du prix, où vivent le bain nordique, les repas et Neat</span></div>
+</div>
+
+<h2>Ce qui est décidé</h2>
+<div class="tbl"><table>
+<thead><tr><th>Sujet</th><th>État</th><th>Ce que ça veut dire</th></tr></thead>
+<tbody>
+<tr><td><b>Distribution des plugins</b></td><td><span class="dec">décidé</span></td><td>Téléchargés comme sur Sowel : un registre, un paquet par plugin avec son empreinte SHA-256, installé depuis la page Plugins.</td></tr>
+<tr><td><b>Taxe de séjour</b></td><td><span class="dec">décidé</span></td><td>Reste au cœur. Ce n'est pas un plugin.</td></tr>
+<tr><td><b>Hébergement</b></td><td><span class="dec">décidé</span></td><td>Un GuestFlow par client, derrière une petite console d'administration à toi (plus bas).</td></tr>
+<tr><td><b>Licence</b></td><td><span class="dec">décidé</span></td><td>Dépôt privé et licence propriétaire à partir de la prochaine version ; l'extension WordPress reste GPL (plus bas).</td></tr>
+<tr><td><b>Instance de Solio</b></td><td><span class="dec">décidé</span></td><td>Solio devient le client n°1 de la plateforme hébergée, migré depuis sa VM quand elle sera prête.</td></tr>
+</tbody></table></div>
+
+<h2>Le constat</h2>
+<ul class="tight">
+  <li><b>Tout est toujours allumé.</b> Un propriétaire avec un gîte, sans bain nordique, sans blanchisserie et sans petit-déjeuner verrait quand même le planning des ressources, le stock de linge, les étapes petit-déjeuner de l'accueil, les réglages Neat…</li>
+  <li><b>Aucune fonction n'est branchée par un point d'accroche.</b> Chacune est appelée en dur : 36 routes montées une par une, 11 tâches planifiées écrites à la main, un menu figé dans <code>App.jsx</code>, 10 alertes listées dans le tableau de bord, 25 étapes d'accueil dans un seul composant de 1 991 lignes.</li>
+  <li><b>Le contenu de Solio part chez tout le monde.</b> Les e-mails de la séquence parlent du « Domaine Solio » et des 13 hectares, les 14 options de restauration arrivent avec les prix de la Brasserie du Pilat, les recettes tarifaires du gîte et du Lodge sont livrées, le plan comptable est celui de ton comptable.</li>
+  <li><b>Rien ne permet d'héberger un client.</b> Une installation = un établissement sur une VM montée à la main, mise à jour depuis un dépôt public sous AGPL.</li>
+</ul>
+
+<h2>Essayer : la page Plugins et ce qu'elle retire</h2>
+<p>À gauche, la page de gestion telle qu'on la proposerait, calquée sur celle de Sowel. À droite, GuestFlow tel qu'un propriétaire le verrait. Active, désactive ou désinstalle un plugin : les éléments d'écran qui lui appartiennent disparaissent. Les compensations d'annulation ne peuvent pas vivre sans la synchro iCal : essaie de couper l'iCal pour voir le refus.</p>
+
+<div class="studio" id="studio">
+  <div class="studio-bar">
+    <span class="lab">Partir de</span>
+    <div class="seg" role="group" aria-label="Préréglage">
+      <button data-preset="solio" aria-pressed="true">Domaine Solio</button>
+      <button data-preset="simple" aria-pressed="false">Un gîte simple</button>
+      <button data-preset="none" aria-pressed="false">Aucun plugin</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="showGone"> Montrer ce qui disparaît</label>
+  </div>
+  <div class="lab-grid">
+    <div class="pm">
+      <div class="pm-head"><h4>Plugins</h4><span class="muted" style="font-size:12px">Réglages › Plugins</span></div>
+      <div class="pills" role="group" aria-label="Onglets">
+        <button data-ptab="installed" aria-pressed="true">Installés (<span id="nInst">0</span>)</button>
+        <button data-ptab="available" aria-pressed="false">Disponibles (<span id="nAvail">0</span>)</button>
+      </div>
+      <input class="search" id="search" type="search" placeholder="Rechercher un plugin" aria-label="Rechercher un plugin">
+      <div class="plist" id="plist"></div>
+    </div>
+    <div class="pv">
+      <div class="pv-tabs" role="group" aria-label="Écran" id="pvTabs"></div>
+      <div class="app">
+        <div class="app-top">GuestFlow <span id="appSub"></span></div>
+        <div class="app-body" id="appBody"></div>
+      </div>
+    </div>
+  </div>
+  <div class="readout" id="readout"></div>
+</div>
+
+<div class="note"><b>Ce que la maquette simplifie.</b> Les éléments listés sont réels (relevés dans le code, fichier par fichier dans la référence), mais l'aperçu n'en montre qu'une sélection lisible. Dans la vraie page, « Disponibles » viendrait du registre, avec la version, l'auteur et la version de GuestFlow exigée. Un plugin <i>désactivé</i> garde ses données ; faut-il les effacer à la <i>désinstallation</i> ? C'est une question ouverte.</div>
+
+<h2>Les 18 plugins proposés</h2>
+<p>La difficulté mesure l'effort pour débrancher la fonction sans rien casser chez Solio : <span class="d S">S</span> isolée, <span class="d M">M</span> quelques points d'accroche, <span class="d L">L</span> prise dans le calcul du prix, l'accueil ou les écritures comptables.</p>
+<div class="tbl"><table id="catalog">
+<thead><tr><th>Plugin</th><th>Ce qu'il ajoute à l'écran</th><th>Difficulté</th></tr></thead>
+<tbody></tbody></table></div>
+
+<h3>Ce qui reste dans le cœur</h3>
+<p>Réservations et devis, clients, logements, saisons et prix, catalogue d'options, ressources <i>par séjour</i> (le lit bébé), plateformes (nom, commission, couleur), échéancier et paiements saisis à la main, remboursements, suivi financier, <b>taxe de séjour</b>, calendrier, fermetures, utilisateurs, CGV, modèles d'e-mails envoyés à la main, traductions, jours fériés, notes du calendrier — et la page Plugins.</p>
+
+<h2>Télécharger les plugins comme sur Sowel : ce qu'il faut en plus</h2>
+<p>On reprend de Sowel le registre avec empreinte SHA-256, le paquet prêt à l'emploi sans <code>npm install</code>, la table <code>plugins</code>, la page à deux onglets et la désinstallation isolée derrière une double confirmation. Mais un plugin Sowel est une intégration à part ; un plugin GuestFlow entre dans la fiche, l'accueil, le planning et le prix. Il faut donc ajouter ce que Sowel n'a pas :</p>
+<ul class="tight">
+  <li><b>Des emplacements dans les pages du cœur.</b> La fiche, l'accueil, le tableau de bord, les réglages et le menu exposent des emplacements nommés que les plugins actifs remplissent. GuestFlow fournit aux plugins son React, MUI et ses composants : un seul React dans la page, les plugins se chargent à la demande.</li>
+  <li><b>Côté serveur :</b> routes, tables et migrations, tâches planifiées, abonnement aux événements (réservation créée, payée, annulée), lignes de prix, étapes d'accueil, cartes du planning, variables d'e-mail.</li>
+  <li><b>Des dépendances</b> entre plugins (les compensations exigent l'iCal) et une <b>plage de versions de GuestFlow</b> vérifiée à l'installation et à chaque mise à jour du cœur.</li>
+  <li><b>Un dossier de données par plugin</b> qui survit aux mises à jour, et un choix explicite à la désinstallation : garder ou effacer.</li>
+  <li><b>Seulement ton registre au départ.</b> Un plugin tourne avec un accès complet aux données du client ; ouvrir aux développeurs tiers viendra plus tard, sous contrat.</li>
+</ul>
+<p class="muted">Les plugins peuvent rester dans ce dépôt (un dossier par plugin) et être publiés dans le registre par la même chaîne de release : pas besoin d'un dépôt par plugin comme sur Sowel.</p>
+
+<h2>Héberger les clients</h2>
+<h3>Ce que fait le marché</h3>
+<p>Tous les logiciels comparables sont en ligne, facturés par logement et par mois ; aucun ne s'installe chez le client. Smoobu 35 € par logement, Beds24 15,90 € de base plus 3 € par établissement, Lodgify 18 à 77 $, Elloha à partir de 49 € avec 200 à 500 € de mise en place, Amenitiz 42 à 69 €. Un gîte en France paie 30 à 60 € par mois pour un ou deux logements.</p>
+
+<h3>Trois façons de faire</h3>
+<div class="tbl"><table>
+<thead><tr><th></th><th>Une base commune, une colonne « client »</th><th>Une base par client, un seul programme</th><th>Un programme par client <span class="dec">retenu</span></th></tr></thead>
+<tbody>
+<tr><td><b>Étanchéité</b></td><td>la plus faible : une requête qui oublie son filtre montre les données d'un autre</td><td>fichiers séparés, mais un plantage ou une requête lente touche tout le monde</td><td><b>totale</b> : mémoire, plantage, clé de chiffrement, fichier, version, plugins</td></tr>
+<tr><td><b>Travail sur le code</b></td><td>réécrire chaque requête</td><td>~75 fichiers, <code>database.js</code>, tâches planifiées, sessions, fichiers déposés, secrets, mise à jour</td><td><b>presque rien</b> : chaque installation est déjà mono-client, le script de déploiement accepte déjà un dossier, un port et une base par instance</td></tr>
+<tr><td><b>Mémoire par client</b></td><td>~0</td><td>~0,2 Mo</td><td>~125 Mo</td></tr>
+<tr><td><b>Plugins téléchargés</b></td><td>communs à tous</td><td>communs à tous</td><td><b>propres à chaque client</b> : un plugin ne tourne que chez ceux qui l'ont installé</td></tr>
+</tbody></table></div>
+
+<h3>Calculer : combien ça coûte</h3>
+<p>Hypothèses HT : un GuestFlow au repos occupe ~125 Mo ; un serveur Hetzner CX33 (8 Go, 8,49 €) accueille 55 clients avec de la marge, un CX43 (16 Go, 15,99 €) en accueille 100 ; sauvegardes en stockage objet 5 € ; e-mails Scaleway 0,25 € les 1 000 au-delà de 300 gratuits, à 150 e-mails par client et par mois.</p>
+<div class="studio calc" id="calc">
+  <div class="calc-in">
+    <label for="cN">Nombre de clients</label>
+    <input id="cN" type="number" inputmode="numeric" value="30" min="1" max="1000" step="1">
+    <p class="hint" id="cNmsg">Entre 1 et 1 000.</p>
+    <label for="cP">Abonnement mensuel HT par client (€)</label>
+    <input id="cP" type="number" inputmode="decimal" value="35" min="5" max="500" step="1">
+    <p class="hint" id="cPmsg">Entre 5 et 500 €. Smoobu : 35 €.</p>
+  </div>
+  <div class="calc-out" id="cOut"></div>
+</div>
+
+<h3>Ce qu'on retient</h3>
+<ul class="tight">
+  <li><b>Un GuestFlow par client</b>, chacun sur son sous-domaine (<code>lesgites-dupont.guestflow.fr</code>) ou son propre domaine, avec sa base, sa clé de chiffrement, ses fichiers et ses plugins.</li>
+  <li><b>Une seule copie de chaque version</b> sur le serveur, partagée par tous : un client pointe vers une version, on ne réinstalle pas les dépendances 50 fois.</li>
+  <li><b>Les mises à jour deviennent ton geste</b>, client par client, avec sauvegarde et retour arrière automatiques (le script actuel le fait déjà pour une installation). Le bouton « Installer » disparaît chez les clients.</li>
+  <li><b>Sauvegardes continues</b> (Litestream) vers un stockage européen : restaurer un client = un fichier, sans toucher aux autres.</li>
+  <li><b>Une console à toi</b>, petite application séparée : clients, abonnements et facturation, création d'une instance, registre des plugins, état du parc, mises à jour.</li>
+</ul>
+<div class="note"><b>Ce qui change dans l'application quand même.</b> Google refuse les adresses de retour génériques : la connexion Google Agenda (et Qonto) passe par <b>une adresse centrale</b> qui renvoie vers le bon client, avec un seul projet Google vérifié une fois à ton nom. Les e-mails passent par un <b>service d'envoi européen commun</b> (Scaleway, Brevo), expédiés depuis un domaine GuestFlow avec réponse vers le gîte : l'épisode DKIM avec Yahoo ne se rejouera pas chez chaque client. La clé de l'API publique et l'adresse VAPID deviennent des réglages par client.</div>
+<div class="alert"><b>RGPD.</b> En hébergeant, tu deviens sous-traitant des données des voyageurs de chaque gîte (article 28). Il faut un accord de sous-traitance annexé au contrat, la liste de tes propres sous-traitants (hébergeur, e-mails), un hébergement dans l'UE, un export complet par client et une restauration testée.</div>
+
+<h2>La licence</h2>
+<ul class="tight">
+  <li><b>Tu peux changer de licence</b> pour les versions à venir, parce que tu es le seul auteur. Ce qui a déjà été publié sous AGPL (jusqu'à la v3.3.1) le reste pour toujours : n'importe qui peut repartir de ce code.</li>
+  <li><b>Retenu :</b> étiqueter la dernière version AGPL, passer le dépôt en <b>privé</b> et publier la suite sous <b>licence propriétaire</b>. Les clients utilisent un service hébergé encadré par des CGV : tu ne leur distribues pas de code.</li>
+  <li><b>L'extension WordPress reste GPL</b> : c'est une œuvre dérivée de WordPress. Elle parle à GuestFlow par HTTP, donc elle ne contamine pas l'application. Elle part dans son propre dépôt public.</li>
+  <li><b>Étapes :</b> dépôt privé, nouveau fichier de licence, accord de contribution si quelqu'un d'autre écrit du code un jour, CGV/CGU du service (niveau de service, responsabilité plafonnée, réversibilité, résiliation), accord de sous-traitance RGPD, dépôt de la marque « GuestFlow » à l'INPI.</li>
+</ul>
+<div class="note"><b>Titularité : réglé le 28/09.</b> Les 196 commits signés <code>non.se.com</code> venaient d'une configuration git erronée sur ta machine. Tout l'historique a été réécrit pour porter le seul nom « Adrien Jouve &lt;adrien.jouve@adn-dev.fr&gt; » (sauf Dependabot), sans toucher aux dates.</div>
+
+<h2>Ce qui est à Solio mais n'est pas un plugin</h2>
+<p>Ces éléments partent chez tout nouveau client, quel que soit le découpage en plugins. Il faut les rendre neutres dans tous les cas.</p>
+<div class="tbl"><table>
+<thead><tr><th>Quoi</th><th>Où</th><th>Direction</th></tr></thead>
+<tbody>
+<tr><td>E-mails de la séquence (confirmation, J-7, J-2, J+1, novembre, janvier) : « Domaine Solio », l'adresse de Satillieu, domainesolio.com, 13 hectares, bain nordique — installés <b>activés</b></td><td><code>guestEmailSequenceTemplates.js</code></td><td>modèles neutres avec <code>{{companyName}}</code> ; le texte Solio part dans un « pack Solio »</td></tr>
+<tr><td>Page de désabonnement « Vos nouvelles du Domaine Solio »</td><td><code>emailPreferencesController.js</code></td><td>nom de l'établissement</td></tr>
+<tr><td>14 options de restauration avec les prix Solio (bières du Pilat, jus de Maclas, planches Terroir Ardèche, champagne)</td><td><code>cateringSeed.js</code></td><td>hors des données de départ</td></tr>
+<tr><td>Recettes tarifaires gîte 2027 et Aventura Lodge 2026 livrées avec l'appli</td><td><code>server/src/recipes/</code></td><td>dossier de données de Solio</td></tr>
+<tr><td>Comptes 706 / 4457 / 4671 / 6226xx, journal VT, format CSV « SOLIO »</td><td><code>constants/accounting.js</code></td><td>plan comptable en données, format d'export au choix</td></tr>
+<tr><td>Lodgify traité comme vente directe ; liste et couleurs des plateformes dans le code du client</td><td><code>platformNameFormat.js</code>, <code>constants/platforms.js</code></td><td>attribut de la plateforme</td></tr>
+<tr><td>« Piscine ouverte du/au », « Cafetière familiale », l'étape Extincteur au départ</td><td>réglages e-mails, onglet Séjour, accueil</td><td>faits de séjour et liste de contrôle configurables</td></tr>
+<tr><td>URL par défaut <code>domainesolio.com</code> (paiements), adresse VAPID <code>contact@domainesolio.com</code></td><td><code>PaymentsSettingsPage.jsx:66</code>, <code>vapid.js:20</code></td><td>vide / e-mail de l'établissement</td></tr>
+<tr><td>Le site Solio (23 mu-plugins, IP du réseau local, utilisateur SSH) dans un dépôt public</td><td><code>integrations/wordpress/solio-site/</code></td><td>sortir du dépôt produit</td></tr>
+<tr><td>Aucun premier lancement guidé : un nouveau client arrive sur une appli vide… avec les données Solio</td><td>—</td><td>assistant : établissement, premier logement, choix des plugins</td></tr>
+</tbody></table></div>
+<p class="muted">Restent français par nature, et c'est acceptable pour le marché visé : l'euro, l'interface en français, le modèle de taxe de séjour, Météo-France, les zones scolaires A/B/C. En revanche, <code>Europe/Paris</code> est écrit en dur dans 7 fichiers au lieu d'une seule source.</p>
+
+<h2>Les risques</h2>
+<div class="alert"><b>Le prix.</b> Le bain nordique, les repas et Neat vivent dans une fonction de 1 440 lignes qui fait aussi le calcul inverse du brut plateforme. Les suites de tests de parité sont le filet ; chaque extraction doit laisser les prix de Solio identiques au centime.</div>
+<div class="alert"><b>Le passé comptable.</b> La compta relit des montants figés au moment de l'encaissement. Désactiver un plugin ne doit jamais modifier une écriture passée ni cacher de l'argent déjà perçu.</div>
+<div class="alert"><b>Le contrat des plugins.</b> Un plugin téléchargé dépend du React et du MUI de GuestFlow : une mise à jour du cœur peut tous les casser. Le kit fourni aux plugins doit être versionné, et la version exigée vérifiée.</div>
+<div class="note"><b>Le volume.</b> Plugins, hébergement et produit touchent presque tout le code et ajoutent une deuxième application (la console). D'où un découpage en phases, avec un gain visible dès la première.</div>
+
+<h2>Le phasage proposé</h2>
+<div class="tbl"><table>
+<thead><tr><th>Phase</th><th>Contenu</th><th>Ce qu'on gagne</th></tr></thead>
+<tbody>
+<tr><td><b>0 — Socle</b></td><td>table des plugins, page Plugins (plugins encore intégrés), masquage du menu, des pages, des réglages et des alertes ; tout activé sur les bases existantes</td><td>le menu et le tableau de bord s'allègent déjà</td></tr>
+<tr><td><b>1 — Le kit</b></td><td>contrat serveur et emplacements dans les pages, événements, tâches et migrations déclarées ; Météo, vacances scolaires, Google Agenda, recettes tarifaires, portail Sowel sortis en paquets</td><td>le contrat de plugin existe et il est prouvé</td></tr>
+<tr><td><b>2 — Hôtes et milieu</b></td><td>le planning et l'accueil deviennent des hôtes ; linge, notifications, e-mails automatiques, site WordPress, iCal, compensations, export comptable</td><td>la fiche, l'accueil et le planning s'allègent</td></tr>
+<tr><td><b>3 — Le prix</b></td><td>séances à l'heure, petit-déjeuner et restauration, Neat, puis Qonto derrière une interface « moyen de paiement »</td><td>un gîte sans ces options voit un devis nu</td></tr>
+<tr><td><b>4 — Le registre</b></td><td>format de paquet, registre signé, installation, mise à jour et désinstallation depuis la page Plugins, versions exigées</td><td>les plugins se téléchargent, comme sur Sowel</td></tr>
+<tr><td><b>H — Hébergement</b> (en parallèle)</td><td>licence, versions partagées, création d'une instance, sous-domaines, sauvegardes continues, adresse OAuth centrale, e-mails partagés, mises à jour par toi, console, CGV et RGPD</td><td>un client payant peut être hébergé</td></tr>
+<tr><td><b>P — Produit</b> (en parallèle)</td><td>pack Solio hors du cœur, données de départ neutres, assistant de premier lancement, plan comptable en données</td><td>un nouveau client démarre de zéro</td></tr>
+</tbody></table></div>
+
+<h2>Les questions encore ouvertes</h2>
+<ol class="tight">
+  <li><b>Désinstaller</b> — garder les données à la désactivation et ne les effacer que sur demande explicite à la désinstallation ?</li>
+  <li><b>Contenu Solio</b> — un « pack Solio » appliqué à la seule base de Solio, ou de simples données saisies dans l'interface ?</li>
+</ol>
+</div>
+
+<script>
+const PLUGINS = [
+  {id:'hourly', ab:'RH', name:"Ressources à l'heure", d:'L', desc:"Bain nordique, sauna : réservation par créneaux, préchauffage, planning des ressources, prix à l'heure.", adds:"planning des ressources, séances sur la fiche, étape de créneaux à l'accueil, cartes d'allumage"},
+  {id:'planning', ab:'PL', name:'Planning opérationnel', d:'M', desc:"La journée de travail : arrivées, départs et cartes des autres plugins (linge, petit-déjeuner, bain).", adds:"menu Planning, grille des jours servis sur la fiche, option « carte dans le planning »"},
+  {id:'laundry', ab:'LI', name:'Linge & blanchisserie', d:'M', desc:"Stock de draps et serviettes, tournée de blanchisserie, lits à préparer, linge manquant au départ.", adds:"réglage Linge, alerte de stock, colonne lits à préparer, étapes linge de l'accueil, cartes de tournée"},
+  {id:'breakfast', ab:'PD', name:'Petit-déjeuner & restauration', d:'L', desc:"Commande du petit-déjeuner, préparation, ventes de repas et de boissons à l'accueil, portions.", adds:"heure souhaitée, étapes petit-déjeuner et restauration, cartes de préparation"},
+  {id:'push', ab:'NT', name:'Notifications sur le téléphone', d:'M', desc:"Arrivées, départs, nouvelles réservations, petit-déjeuner et Neat, poussés sur le téléphone.", adds:"section notifications sur le téléphone"},
+  {id:'sequence', ab:'EA', name:'E-mails automatiques', d:'M', desc:"Séquence voyageur (confirmation, J-7, J-2, J+1…) et envoi programmé ; les modèles envoyés à la main restent au cœur.", adds:"alerte e-mails en attente, onglet Simulation, contenu de la séquence"},
+  {id:'wordpress', ab:'WP', name:'Réservation sur le site (WordPress)', d:'M', desc:"API publique et extension WordPress : catalogue, devis en direct, demande de réservation, paiement.", adds:"alerte demandes du site, badge « Site internet », CGV exigées sur le site"},
+  {id:'sowel', ab:'SW', name:'Portail Sowel', d:'S', desc:"Un accès au portail par séjour, créé avant l'arrivée et fermé au départ. À construire directement en plugin.", adds:"code portail, étape portail de l'accueil"},
+  {id:'neat', ab:'NE', name:'Assurance annulation Neat', d:'L', desc:"Prime calculée en direct, souscription automatique, résiliation.", adds:"réglages Neat, badge et actions Neat sur la fiche"},
+  {id:'qonto', ab:'QO', name:'Paiement en ligne Qonto', d:'L', desc:"Liens de paiement, relevé automatique des paiements, webhook.", adds:"page Paiements en ligne, boutons de demande de paiement et de solde"},
+  {id:'gcal', ab:'GA', name:'Google Agenda', d:'S', desc:"Chaque séjour poussé dans un agenda Google.", adds:"réglages Google Agenda"},
+  {id:'ical', ab:'IC', name:'Synchro iCal des plateformes', d:'L', desc:"Import des calendriers Airbnb, Booking… toutes les 5 minutes et export des indisponibilités.", adds:"3 alertes du tableau de bord, onglet Plateformes & iCal du logement"},
+  {id:'accounting', ab:'CO', name:'Export comptable', d:'M', desc:"Écritures de ventes au format du comptable, plan de comptes des plateformes.", adds:"pages Comptabilité et Plan comptable"},
+  {id:'sas', ab:'AC', name:'Accueil guidé (arrivée / départ)', d:'L', desc:"Le parcours pas à pas à l'arrivée et au départ, avec les ventes sur place et les objets trouvés.", adds:"l'accueil, l'onglet Facturables à l'accueil, les objets trouvés"},
+  {id:'recipes', ab:'RT', name:'Recettes tarifaires', d:'S', desc:"Toute la grille d'un logement décrite dans un fichier et appliquée d'un coup.", adds:"page Recettes, alerte recettes appliquées"},
+  {id:'school', ab:'VS', name:'Vacances scolaires', d:'S', desc:"Zones A, B, C synchronisées avec l'Éducation nationale et affichées sur le calendrier.", adds:"onglet Vacances, bandes de zones sur le calendrier"},
+  {id:'weather', ab:'MF', name:'Vigilance Météo-France', d:'S', desc:"Alertes orange et rouge du département montrées à l'arrivée.", adds:"réglage de la clé, étape météo de l'accueil"},
+  {id:'compensations', ab:'CA', name:"Compensations d'annulation", d:'M', desc:"Suivi des compensations versées par les plateformes quand un voyageur annule.", adds:"alerte compensations, section de la page Comptabilité", requires:['ical']},
+];
+const BY = Object.fromEntries(PLUGINS.map(p=>[p.id,p]));
+
+/* p : plugins tous requis ; any : au moins un ; lv : indentation ; box : bloc ; solio : propre à Solio */
+const SCREENS = [
+ {id:'menu', label:'Menu', sub:'menu latéral et réglages', rows:[
+  {g:'Navigation'},
+  {t:'Tableau de bord'}, {t:'Planning', p:['planning']}, {t:'Calendrier'},
+  {t:'Ressources', lv:1, p:['hourly']}, {t:'Bandes des vacances scolaires', lv:1, p:['school']},
+  {t:'Suivi financier'}, {t:'Vue générale', lv:1}, {t:'Taxe de séjour', lv:1},
+  {t:'Comptabilité', lv:1, p:['accounting']}, {t:'Plan comptable', lv:1, p:['accounting']},
+  {t:'Devis'}, {t:'Emails'}, {t:'Modèles', lv:1}, {t:'Historique', lv:1}, {t:'onglet Simulation de la séquence', lv:2, p:['sequence']},
+  {t:'Clients'},
+  {g:'Réglages'},
+  {t:'Établissement'}, {t:'Code portail', lv:1, p:['sowel']},
+  {t:'Logements'}, {t:'Taxe de séjour du logement', lv:1}, {t:'onglet Plateformes & iCal', lv:1, p:['ical']},
+  {t:'Plateformes'}, {t:'Mode de taxe par plateforme', lv:1},
+  {t:'Conditions générales'}, {t:'Exiger les CGV sur le site', lv:1, p:['wordpress']},
+  {t:'Options & ressources'}, {t:'Ressources à créneaux, modèle de chauffe', lv:1, p:['hourly']},
+  {t:"onglet Facturables à l'accueil", lv:1, p:['sas']}, {t:'Heure et préavis du petit-déjeuner', lv:1, p:['breakfast']},
+  {t:'Recettes tarifaires', p:['recipes']},
+  {t:'Fermetures'}, {t:'onglet Vacances scolaires', lv:1, p:['school']},
+  {t:'Linge', p:['laundry']}, {t:'Paiements en ligne', p:['qonto']},
+  {t:'TVA & exercice'}, {t:'Emails & notifications'}, {t:'Contenu : piscine, Instagram, avis Google', lv:1, p:['sequence'], solio:true},
+  {t:'Notifications sur le téléphone', lv:1, p:['push']},
+  {t:'Intégrations', any:['gcal','neat','weather']}, {t:'Google Agenda', lv:1, p:['gcal']}, {t:'Neat', lv:1, p:['neat']}, {t:'Météo-France', lv:1, p:['weather']},
+  {t:'Utilisateurs'}, {t:'Système'}, {t:'Plugins', isNew:true},
+ ]},
+ {id:'dash', label:'Tableau de bord', sub:'alertes et tableaux', rows:[
+  {g:'Alertes'},
+  {t:'Mise à jour disponible', box:1}, {t:'Échéances de paiement', box:1},
+  {t:'Stock de linge insuffisant', box:1, p:['laundry']},
+  {t:'Dates modifiées sur une plateforme', box:1, p:['ical']}, {t:'Annulations détectées sur une plateforme', box:1, p:['ical']},
+  {t:"Compensations d'annulation à traiter", box:1, p:['compensations']},
+  {t:'Nouvelles réservations plateformes du jour', box:1, p:['ical']},
+  {t:'Recettes tarifaires appliquées', box:1, p:['recipes']},
+  {t:'E-mails en attente de validation', box:1, p:['sequence']},
+  {t:'Demandes reçues du site internet', box:1, p:['wordpress']},
+  {g:"Aujourd'hui"},
+  {t:'Indicateurs du mois'}, {t:'Arrivées et départs'}, {t:'colonne Lits à préparer', lv:1, p:['laundry']},
+  {t:'bouton Accueil sur chaque arrivée', lv:1, p:['sas']}, {t:'Calendrier cumulé du mois'},
+ ]},
+ {id:'fiche', label:'Fiche réservation', sub:'une réservation ouverte', rows:[
+  {g:"Barre d'actions"},
+  {t:'Envoyer un e-mail'}, {t:'Devis PDF français / anglais'},
+  {t:'Envoyer la demande de paiement', p:['qonto']}, {t:'Envoyer la demande de solde', p:['qonto']},
+  {t:'Annuler le séjour'},
+  {g:'Contenu'},
+  {t:'Séjour, dates, voyageurs, lits'}, {t:'Client : langue des e-mails'}, {t:'Badge « Site internet » et CGV acceptées', lv:1, p:['wordpress']},
+  {t:'Canal / plateforme'},
+  {t:'Options'}, {t:'Neat : souscrite, relancer, résilier', lv:1, p:['neat']},
+  {t:'Grille des jours servis, personnes servies', lv:1, p:['planning']},
+  {t:'Heure souhaitée du petit-déjeuner', lv:1, p:['breakfast']},
+  {t:'Lits doubles / simples à préparer', lv:1, p:['laundry']},
+  {t:'Séances : date, début, fin', p:['hourly']},
+  {t:'Prix, acompte, solde, caution'},
+  {t:'Taxe de séjour : lignes, gel, en complément', lv:1},
+  {t:'Taxe retenue par la plateforme', lv:1},
+  {t:'Objets trouvés', p:['sas']},
+  {t:'Historique'},
+ ]},
+ {id:'sas', label:'Accueil', sub:'parcours arrivée / départ', host:'sas', rows:[
+  {g:'Arrivée'},
+  {t:'Bienvenue', p:['sas']}, {t:'Code du portail', p:['sas','sowel']}, {t:'Caution', p:['sas']}, {t:'Paiement du séjour', p:['sas']},
+  {t:'Options réservées', p:['sas']}, {t:'Choisir les créneaux du bain', p:['sas','hourly']},
+  {t:'Petit-déjeuner : café, thé, pain', p:['sas','breakfast']}, {t:'Linge de lit', p:['sas','laundry']},
+  {t:'Ménage', p:['sas']}, {t:'Serviettes en vente', p:['sas','laundry']},
+  {t:'Petits-déjeuners en vente', p:['sas','breakfast']}, {t:'Restauration : planches, boissons', p:['sas','breakfast']},
+  {t:'Alerte météo', p:['sas','weather']}, {t:'Récapitulatif', p:['sas']},
+  {g:'Départ'},
+  {t:'Ménage', p:['sas']}, {t:'Linge manquant', p:['sas','laundry']}, {t:'Clés', p:['sas']},
+  {t:'Restitution de la caution', p:['sas']}, {t:'Extincteur', p:['sas'], solio:true}, {t:'Récapitulatif', p:['sas']},
+ ]},
+ {id:'planning', label:'Planning', sub:'la journée de travail', host:'planning', rows:[
+  {t:'Arrivées et départs du jour', p:['planning']},
+  {t:'Bouton Accueil sur chaque arrivée', lv:1, p:['planning','sas']},
+  {t:'Cartes des options', p:['planning']},
+  {t:'Cartes petit-déjeuner et préparation', p:['planning','breakfast']},
+  {t:'Séances et allumage du bain nordique', p:['planning','hourly']},
+  {t:'Réservations de ressources', p:['planning','hourly']},
+  {t:'Tournée de blanchisserie', p:['planning','laundry']},
+  {t:'Voyage de blanchisserie exceptionnel', lv:1, p:['planning','laundry']},
+ ]},
+];
+
+const PRESETS = {
+  solio: Object.fromEntries(PLUGINS.map(p=>[p.id,'on'])),
+  simple: Object.fromEntries(PLUGINS.map(p=>[p.id, ['ical','wordpress','sequence'].includes(p.id)?'on':'absent'])),
+  none: Object.fromEntries(PLUGINS.map(p=>[p.id,'absent'])),
+};
+let state = {...PRESETS.solio};
+let ptab = 'installed', screen = 'menu', open = null, armed = null, errors = {}, showGone = false, query = '';
+
+const $ = s => document.querySelector(s);
+const active = id => state[id] === 'on';
+const visible = r => (!r.p || r.p.every(active)) && (!r.any || r.any.some(active));
+const dependents = id => PLUGINS.filter(p => (p.requires||[]).includes(id) && active(p.id));
+const clearPreset = () => document.querySelectorAll('[data-preset]').forEach(b=>b.setAttribute('aria-pressed','false'));
+
+function ownedCount(id){
+  let n=0; SCREENS.forEach(s=>s.rows.forEach(r=>{ if(!r.g && ((r.p||[]).includes(id) || (r.any||[]).includes(id))) n++; })); return n;
+}
+function refuse(id, msg){ errors = {[id]: msg}; armed = null; render(); flash(id); }
+function flash(id){ const el = document.querySelector(`[data-row="${id}"]`); if(el){ el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
+
+function setState(id, next){
+  errors = {};
+  const p = BY[id];
+  if (next === 'on'){
+    const miss = (p.requires||[]).filter(r=>!active(r));
+    if (miss.length) return refuse(id, `Refusé : « ${miss.map(m=>BY[m].name).join(', ')} » doit être installé et actif d'abord.`);
+  } else {
+    const deps = dependents(id);
+    if (deps.length) return refuse(id, `Refusé : « ${deps.map(d=>d.name).join(', ')} » en a besoin. Désactive-le d'abord.`);
+  }
+  state[id] = next; clearPreset(); render();
+}
+
+function renderPlugins(){
+  const inst = PLUGINS.filter(p=>state[p.id]!=='absent'), avail = PLUGINS.filter(p=>state[p.id]==='absent');
+  $('#nInst').textContent = inst.length; $('#nAvail').textContent = avail.length;
+  const q = query.trim().toLowerCase();
+  const list = (ptab==='installed'?inst:avail).filter(p=>!q || (p.name+' '+p.desc).toLowerCase().includes(q));
+  const box = $('#plist'); box.innerHTML = '';
+  if (!list.length){ box.innerHTML = `<div class="pempty">${q?'Aucun plugin ne correspond.':ptab==='installed'?'Aucun plugin installé : GuestFlow se réduit à son cœur.':'Tous les plugins sont installés.'}</div>`; return; }
+  list.forEach(p=>{
+    const on = active(p.id), row = document.createElement('div');
+    row.className = 'prow' + (ptab==='installed' && !on ? ' off':''); row.dataset.row = p.id;
+    const status = ptab==='installed'
+      ? `<span class="dot ${on?'on':''}"></span>${on?'Actif':'Désactivé'} · <span class="d ${p.d}">${p.d}</span>`
+      : `<span class="d ${p.d}">${p.d}</span> · ${ownedCount(p.id)} éléments d'écran`;
+    const action = ptab==='installed'
+      ? `<button class="pbtn ${on?'':'primary'}" data-act="toggle">${on?'Désactiver':'Activer'}</button>`
+      : `<button class="pbtn primary" data-act="install">Installer</button>`;
+    let html = `<div class="prow-main"><span class="tile">${p.ab}</span>
+      <button class="pname" data-act="open" aria-expanded="${open===p.id}"><b>${p.name}</b><small>${status}</small></button>${action}</div>`;
+    if (errors[p.id]) html += `<p class="perr" role="alert">${errors[p.id]}</p>`;
+    if (open===p.id){
+      html += `<div class="pdetail"><p>${p.desc}</p><dl>
+        <dt>Ajoute</dt><dd>${p.adds}</dd>
+        <dt>Dépend de</dt><dd>${(p.requires||[]).map(r=>BY[r].name).join(', ')||'rien'}</dd>
+        <dt>Extraction</dt><dd><span class="d ${p.d}">${p.d}</span></dd></dl>
+        ${ptab==='installed'?`<button class="pbtn danger ${armed===p.id?'armed':''}" data-act="uninstall">${armed===p.id?'Confirmer la désinstallation':'Désinstaller'}</button>`:''}</div>`;
+    }
+    row.innerHTML = html;
+    row.addEventListener('click', e=>{
+      const b = e.target.closest('[data-act]'); if(!b) return;
+      const a = b.dataset.act;
+      if (a==='open'){ open = open===p.id?null:p.id; armed=null; errors={}; render(); }
+      if (a==='toggle'){ armed=null; setState(p.id, on?'off':'on'); }
+      if (a==='install'){ armed=null; setState(p.id,'on'); }
+      if (a==='uninstall'){
+        if (armed!==p.id){ armed=p.id; render(); return; }
+        const deps = dependents(p.id);
+        if (deps.length) return refuse(p.id, `Refusé : « ${deps.map(d=>d.name).join(', ')} » en a besoin.`);
+        armed=null; open=null; errors={}; state[p.id]='absent'; clearPreset(); render();
+      }
+    });
+    box.appendChild(row);
+  });
+}
+
+function renderPreview(){
+  const tabs = $('#pvTabs'); tabs.innerHTML = '';
+  SCREENS.forEach(s=>{
+    const items = s.rows.filter(r=>!r.g), vis = items.filter(visible).length;
+    const b = document.createElement('button');
+    b.setAttribute('aria-pressed', s.id===screen); b.innerHTML = `${s.label}<span class="n">${vis}/${items.length}</span>`;
+    b.onclick = ()=>{ screen = s.id; render(); };
+    tabs.appendChild(b);
+  });
+  const s = SCREENS.find(x=>x.id===screen);
+  $('#appSub').textContent = s.sub;
+  const body = $('#appBody'); body.innerHTML = '';
+  if (s.host && !active(s.host) && !showGone){
+    body.innerHTML = `<div class="pv-empty">${s.host==='sas'
+      ? "Sans le plugin « Accueil guidé », ce parcours n'existe pas : le bouton Accueil disparaît du planning, du tableau de bord et de la fiche."
+      : "Sans le plugin « Planning opérationnel », l'entrée Planning disparaît du menu, et avec elle les cartes que le linge, le petit-déjeuner et le bain y déposaient."}</div>`;
+    return;
+  }
+  s.rows.forEach(r=>{
+    if (r.g){ const g = document.createElement('div'); g.className='grp'; g.textContent=r.g; body.appendChild(g); return; }
+    const v = visible(r), el = document.createElement('div');
+    const owners = [...(r.p||[]), ...(r.any||[])].filter(o=>o!==s.host);
+    el.className = 'it' + (r.lv===1?' l1':r.lv===2?' l2':'') + (r.box?' box':'') + (r.solio?' solio':'') + (r.isNew?' new':'') + (v?'':(showGone?' gone':' hidden'));
+    let tag = '';
+    if (r.isNew) tag = '<span class="tag">nouveau</span>';
+    else if (r.solio) tag = '<span class="tag">propre à Solio</span>';
+    else if (owners.length) tag = `<span class="tag">${owners.map(o=>BY[o].name).join(r.any?' / ':' + ')}</span>`;
+    el.innerHTML = `<span>${r.t}</span>${tag}`;
+    body.appendChild(el);
+  });
+}
+
+function renderReadout(){
+  let tot=0, vis=0; SCREENS.forEach(s=>s.rows.forEach(r=>{ if(!r.g){ tot++; if(visible(r)) vis++; } }));
+  const on = PLUGINS.filter(p=>active(p.id)).length;
+  const pct = Math.round(vis/tot*100);
+  $('#readout').innerHTML = `<b>${on}</b> plugin${on>1?'s':''} actif${on>1?'s':''} sur 18 · <b>${vis}</b> éléments d'écran visibles sur <b>${tot}</b> relevés (${pct} %) · <b>${tot-vis}</b> masqués<div class="meter"><i style="width:${pct}%"></i></div>`;
+}
+
+function render(){
+  document.querySelectorAll('[data-ptab]').forEach(b=>b.setAttribute('aria-pressed', b.dataset.ptab===ptab));
+  renderPlugins(); renderPreview(); renderReadout();
+}
+
+document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
+  state = {...PRESETS[b.dataset.preset]}; errors={}; armed=null; open=null;
+  document.querySelectorAll('[data-preset]').forEach(x=>x.setAttribute('aria-pressed', x===b)); render();
+});
+document.querySelectorAll('[data-ptab]').forEach(b=>b.onclick=()=>{ ptab=b.dataset.ptab; open=null; armed=null; errors={}; render(); });
+$('#showGone').onchange = e=>{ showGone = e.target.checked; render(); };
+$('#search').oninput = e=>{ query = e.target.value; renderPlugins(); };
+
+const tb = document.querySelector('#catalog tbody');
+PLUGINS.forEach(p=>{
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><b>${p.name}</b>${p.requires?`<br><span class="muted" style="font-size:12px">exige ${p.requires.map(r=>BY[r].name).join(', ')}</span>`:''}</td><td>${p.adds}</td><td><span class="d ${p.d}">${p.d}</span></td>`;
+  tb.appendChild(tr);
+});
+render();
+</script>
+
+<script>
+(function(){
+  const nIn = document.getElementById('cN'), pIn = document.getElementById('cP'), out = document.getElementById('cOut');
+  const nMsg = document.getElementById('cNmsg'), pMsg = document.getElementById('cPmsg');
+  const eur = v => v.toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+  function check(input, msg, ok, hint, error){
+    input.setAttribute('aria-invalid', ok ? 'false' : 'true');
+    msg.className = ok ? 'hint' : 'err'; msg.textContent = ok ? hint : error;
+    return ok;
+  }
+  function plan(n){
+    if (n <= 55) return {servers:[{name:'CX33 (8 Go)', count:1, price:8.49}]};
+    const big = Math.ceil(n / 100);
+    return {servers:[{name:'CX43 (16 Go)', count:big, price:15.99}]};
+  }
+  function run(){
+    const nRaw = nIn.value.trim(), pRaw = pIn.value.trim();
+    const n = Number(nRaw), p = Number(pRaw.replace(',', '.'));
+    const okN = check(nIn, nMsg, nRaw !== '' && Number.isInteger(n) && n >= 1 && n <= 1000, 'Entre 1 et 1 000.', 'Refusé : un nombre entier de clients entre 1 et 1 000.');
+    const okP = check(pIn, pMsg, pRaw !== '' && Number.isFinite(p) && p >= 5 && p <= 500, 'Entre 5 et 500 €. Smoobu : 35 €.', 'Refusé : un abonnement entre 5 et 500 € par mois.');
+    if (!okN || !okP){ out.innerHTML = '<p class="muted" style="margin:0">Corrige la saisie pour voir le calcul.</p>'; return; }
+    const pl = plan(n);
+    const serverCost = pl.servers.reduce((s,x)=>s + x.count*x.price, 0);
+    const mails = n * 150, mailCost = Math.max(0, mails - 300) / 1000 * 0.25;
+    const backup = 5;
+    const total = serverCost + mailCost + backup;
+    const revenue = n * p;
+    const ram = n * 125 / 1024;
+    const perClient = total / n;
+    const srv = pl.servers.map(x=>`${x.count} × ${x.name}`).join(', ');
+    out.innerHTML = `<div class="kpis">
+      <div class="kpi"><b>${eur(total)}</b><span>coût d'hébergement par mois</span></div>
+      <div class="kpi"><b>${eur(perClient)}</b><span>par client et par mois</span></div>
+      <div class="kpi"><b>${eur(revenue)}</b><span>abonnements encaissés par mois</span></div>
+      <div class="kpi"><b>${(100 * (revenue - total) / revenue).toLocaleString('fr-FR',{maximumFractionDigits:1})} %</b><span>reste après l'hébergement</span></div>
+    </div>
+    <table><tbody>
+      <tr><td>Serveurs</td><td>${srv}</td><td>${eur(serverCost)}</td></tr>
+      <tr><td>Mémoire occupée au repos</td><td>${ram.toLocaleString('fr-FR',{maximumFractionDigits:1})} Go pour ${n} client${n>1?'s':''}</td><td>—</td></tr>
+      <tr><td>E-mails</td><td>${mails.toLocaleString('fr-FR')} par mois</td><td>${eur(mailCost)}</td></tr>
+      <tr><td>Sauvegardes</td><td>stockage objet européen</td><td>${eur(backup)}</td></tr>
+    </tbody></table>
+    <p class="muted" style="margin:10px 0 0;font-size:12.5px">Hors ton temps, le nom de domaine, la TVA et les frais de paiement des abonnements. Le poste qui compte n'est pas le serveur : c'est le support et les mises à jour.</p>`;
+  }
+  nIn.addEventListener('input', run); pIn.addEventListener('input', run);
+  run();
+})();
+</script>

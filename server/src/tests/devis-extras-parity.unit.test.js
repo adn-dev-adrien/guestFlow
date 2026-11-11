@@ -11,15 +11,20 @@
  */
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const devisModel = require('../models/devisModel');
+const { liveHourlyResources } = require('./hourlyResourcesFixture');
+
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+liveHourlyResources();
 const { calculateReservationQuote } = require('../utils/pricing');
 
 const DDL = `
   CREATE TABLE properties (
-    id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+    id INTEGER PRIMARY KEY, name TEXT NOT NULL, cleaningHours REAL DEFAULT 3,
     depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 30, balanceDaysBefore INTEGER DEFAULT 7,
     defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00', defaultCautionAmount REAL DEFAULT 500,
     touristTaxPerDayPerPerson REAL DEFAULT 0, touristTaxMode TEXT DEFAULT 'per_day_per_person',
@@ -153,7 +158,7 @@ function reservationTruth(db, overrides = {}) {
   });
 }
 
-test('a devis prices the same basket as a reservation, to the cent (rules 6-7)', () => {
+test('a devis prices the same basket as a reservation, to the cent (rules 6-7)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model, db } = freshModel();
   const created = model.create(BASKET);
   assert.equal(created.error, undefined);
@@ -173,7 +178,7 @@ test('a devis prices the same basket as a reservation, to the cent (rules 6-7)',
   assert.equal(created.data.resources[0].totalPrice, truth.resourceLines[0].totalPrice);
 });
 
-test('the scheduled mornings and the booked hours are stored, not just priced (rule 12)', () => {
+test('the scheduled mornings and the booked hours are stored, not just priced (rule 12)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model, db } = freshModel();
   const created = model.create(BASKET);
 
@@ -186,7 +191,7 @@ test('the scheduled mornings and the booked hours are stored, not just priced (r
   assert.deepEqual(JSON.parse(resource.sessions), SESSIONS);
 });
 
-test('the devis row carries breakfastTime, the offered surcharge, the tax routing and its tariff (rules 8-11)', () => {
+test('the devis row carries breakfastTime, the offered surcharge, the tax routing and its tariff (rules 8-11)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model, db } = freshModel();
   const created = model.create({
     ...BASKET,
@@ -202,7 +207,7 @@ test('the devis row carries breakfastTime, the offered surcharge, the tax routin
   assert.ok(row.tariffSnapshot, 'the tariff the quote was issued under is recorded');
 });
 
-test('an update keeps the schedule and the row-level fields (rule 12)', () => {
+test('an update keeps the schedule and the row-level fields (rule 12)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model, db } = freshModel();
   const created = model.create({ ...BASKET, breakfastTime: '08:30', extraGuestSurchargeOffered: true });
 
@@ -226,7 +231,7 @@ test('an update keeps the schedule and the row-level fields (rule 12)', () => {
   assert.equal(row.extraGuestSurchargeOffered, 1);
 });
 
-test('on a devis an unflagged extra stays OUT of the Complément, even on a platform (rule 17)', () => {
+test('on a devis an unflagged extra stays OUT of the Complément, even on a platform (rule 17)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model } = freshModel();
   const created = model.create({ ...BASKET, platform: 'Airbnb' });
 
@@ -248,7 +253,7 @@ test('an explicit « Compl. » on a devis line is persisted (rule 18)', () => {
   assert.equal(Number(cleaning.inComplement), 1);
 });
 
-test('converting carries the whole graph and the row fields into the reservation (rules 19-20)', () => {
+test('converting carries the whole graph and the row fields into the reservation (rules 19-20)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model, db } = freshModel();
   const created = model.create({
     ...BASKET,
@@ -277,7 +282,7 @@ test('converting carries the whole graph and the row fields into the reservation
   assert.deepEqual(JSON.parse(resource.sessions), SESSIONS, 'the booked hours follow the conversion');
 });
 
-test('a reservation turned into a devis keeps its schedule too', () => {
+test('a reservation turned into a devis keeps its schedule too', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model, db } = freshModel();
   const devis = model.create(BASKET);
   const reservationId = model.convertToReservation(devis.data.id).data.reservationId;
@@ -289,7 +294,7 @@ test('a reservation turned into a devis keeps its schedule too', () => {
   assert.deepEqual(back.data.resources[0].sessions, SESSIONS);
 });
 
-test('the API hands the fiche parsed arrays, like GET /reservations/:id does (§4.3)', () => {
+test('the API hands the fiche parsed arrays, like GET /reservations/:id does (§4.3)', { skip: skipWithout(['hourly-resources']) }, () => {
   const { model } = freshModel();
   const created = model.create(BASKET);
 

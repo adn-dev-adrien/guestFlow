@@ -20,11 +20,15 @@
  *   emptyColSpan: number       colSpan of the EmptyState row
  *   emptyText:    string       French empty message
  *   children:     ReactNode    <TableRow> items
+ *   body?:        ReactNode    custom content rendered in place of the table (a grouped list…); the bar,
+ *                              `topContent`, the loading and the error states are kept
  *   — Mobile-cards mode (all four together; renders ResponsiveTable instead of the plain table):
  *   items?:            array
  *   getKey?:           (item) => key
  *   renderRow?:        (item) => <TableRow>
  *   renderMobileCard?: (item) => card content (xs)
+ *   cardsBelow?:       'sm' | 'md' | 'lg'  breakpoint under which the cards replace the table (default 'sm')
+ *   cardsBelowWidth?:  number      the cards also replace the table while its container is narrower (px)
  */
 import React from 'react';
 import { Box, Button, Card, CardContent, TableBody, TableHead, TableRow, TableCell } from '@mui/material';
@@ -51,10 +55,13 @@ export default function DataPageScaffold({
   emptyColSpan,
   emptyText,
   children,
+  body: customBody,
   items,
   getKey,
   renderRow,
   renderMobileCard,
+  cardsBelow,
+  cardsBelowWidth,
 }) {
   const actionsBefore = (actionLabel && onAction) ? [{
     node: (
@@ -77,6 +84,8 @@ export default function DataPageScaffold({
     body = <LoadingState variant="skeleton" rows={4} />;
   } else if (error) {
     body = <ErrorAlert message={typeof error === 'string' ? error : undefined} onRetry={onRetry} />;
+  } else if (customBody) {
+    body = customBody;
   } else if (mobileCardsMode) {
     body = (
       <ResponsiveTable
@@ -87,6 +96,8 @@ export default function DataPageScaffold({
         renderMobileCard={renderMobileCard}
         emptyText={emptyText}
         minWidth={minWidth}
+        cardsBelow={cardsBelow}
+        cardsBelowWidth={cardsBelowWidth}
       />
     );
   } else {

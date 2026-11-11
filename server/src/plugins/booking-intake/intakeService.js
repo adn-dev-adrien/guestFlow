@@ -7,7 +7,7 @@
  * Every write goes through `core.updateReservation` / `core.updateClient` — the fiche's own save path.
  * Nothing here sends an e-mail, and the raw page never reaches this file's storage.
  *
- * The guest gets a client of their own (rule 25): the iCal import used to hand one placeholder client to
+ * The guest gets a client of their own (rule 27): the iCal import used to hand one placeholder client to
  * every stay of a feed, so writing the guest onto the fiche's client renamed every other stay too.
  */
 
@@ -113,21 +113,22 @@ function createIntakeService(deps) {
     return out;
   }
 
-  // Rule 25 — a client another reservation also uses says nothing about this fiche: its e-mail may be
+  // Rule 27 — a client another reservation also uses says nothing about this fiche: its e-mail may be
   // another guest's, written there by an earlier intake.
   const isShared = (r) => Boolean(r.clientId) && clientShared(r.clientId, r.id);
   const isUntouched = (r) => isEmpty(r.platformGrossAmount) && ((isEmpty(r.email) && isEmpty(r.phone)) || isShared(r));
 
-  // Rule 25 — the guest's own client, found by e-mail or created, never the one the fiche shares. Its
+  // Rule 27 — the guest's own client, found by e-mail or created, never the one the fiche shares. Its
   // fields are refreshed only while no other reservation uses it.
   function write(booking, reservation) {
     const { client, reservation: patch } = plan(booking, reservation);
-    const own = core.findOrCreateClient(client);
-    const result = core.updateReservation(reservation.id, { ...patch, clientId: own.id }, { label: `Rempli depuis l’extranet Booking (réservation ${booking.resId})` });
+    // The core finds or creates the client in the same transaction as the update: a refused fiche leaves
+    // no client behind.
+    const result = core.updateReservation(reservation.id, patch, { label: `Rempli depuis l’extranet Booking (réservation ${booking.resId})`, client });
     if (result.status !== 200) {
       return { ok: false, message: (result.body && result.body.error) || `Erreur ${result.status}`, code: result.body && result.body.code };
     }
-    if (!clientShared(own.id, reservation.id)) core.updateClient(own.id, client);
+    if (!clientShared(result.clientId, reservation.id)) core.updateClient(result.clientId, client);
     return { ok: true };
   }
 
@@ -149,6 +150,9 @@ function createIntakeService(deps) {
     const rows = findReservations({ propertyId, startDate: booking.arrival, endDate: booking.departure });
     if (rows.length === 0) {
       return refuse(base, `Aucune fiche du ${frDate(booking.arrival)} au ${frDate(booking.departure)} : la synchro iCal ne l’a pas encore importée`, 'NO_FICHE');
+    }
+    if (rows.length > 1) {
+      return refuse(base, `Plusieurs fiches Booking du ${frDate(booking.arrival)} au ${frDate(booking.departure)} : à saisir à la main`, 'AMBIGUOUS_FICHE');
     }
     const reservation = getReservation(rows[0].id);
     const withFiche = { ...base, reservationId: reservation.id };
@@ -188,7 +192,15 @@ function createIntakeService(deps) {
     return { status: 'applied' };
   }
 
-  const ignoreProposal = (intakeId) => intakes.setStatus(intakeId, 'ignored');
+  // Rule 39 (audit R42 plugins) — « Ignorer » answers a proposal only, as « Appliquer » does: an intake already applied
+  // (a stale second tab) keeps its status and its banner; an id that names nothing is refused.
+  function ignoreProposal(intakeId) {
+    const intake = intakes.get(intakeId);
+    if (!intake) return { status: 404, error: 'NOT_FOUND' };
+    if (intake.status !== 'proposed') return { status: 409, error: 'Proposition déjà traitée.' };
+    intakes.setStatus(intake.id, 'ignored');
+    return { status: 200 };
+  }
   const hide = (intakeId) => intakes.dismiss(intakeId);
 
   // What the fiche's banner renders (rules 17–18), ready to display.

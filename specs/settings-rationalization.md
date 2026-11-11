@@ -8,6 +8,7 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Decision page** | [settings-rationalization/avant-apres.html](settings-rationalization/avant-apres.html) — interactive before/after, the page Adrien opens to decide |
+| **Amended** | 2026-10-19 — summary page, four groups, search, sending server from the address (rules 24–28; UI/UX review 2026-10-18, proposal 20, decisions 12 and 14) — [summary and mock](../docs/specs/2026-10-19-settings-summary-shortcut-menu.html) |
 | **Supersedes (UI layout only)** | [settings-submenu-reorg.md](settings-submenu-reorg.md) §5, [ds-sweep-settings.md](ds-sweep-settings.md) §3.2 |
 
 ---
@@ -87,6 +88,8 @@ one place.
    today, with the property sub-list under « Logements ». No second navigation column, no settings
    home page. Clicking « Paramètres » opens « Établissement ». On `xs` the submenu lives in the drawer,
    as today.
+   _Amended 2026-10-19 by rules 24 and 26: « Paramètres » opens the summary page, and the submenu
+   shows the four groups, the open page's group unfolded._
 2. **Its entries are reordered into families**, separated by a thin divider (no family label). In
    order:
 
@@ -108,6 +111,7 @@ one place.
 
    13 entries (10 today): more, but each is one short page, where « Générale » used to hold 13 cards.
 3. **No settings search** (dropped 2026-09-21 with the second column it lived in).
+   _Superseded 2026-10-19 by rule 27: the summary page has a search._
 4. **Each page owns its Save.** The single 13-card save disappears; a page saves only its own fields,
    through the existing `PUT /api/settings` (partial payload, already supported).
 5. **« Clients » leaves « Paramètres»** and becomes a top-level sidebar entry.
@@ -115,7 +119,7 @@ one place.
    the sidebar, above « Se déconnecter ». « Utilisateurs » keeps only the admin table.
 7. **Roles are unchanged**: every settings page is admin-only; « Plan comptable » stays under « Suivi
    financier » for the accountant; « Mon compte » stays reachable by every role.
-8. Old URLs redirect: `/settings` → Établissement; `/parametres/tarifs` → Options & ressources, tab
+8. Old URLs redirect: `/settings` → Établissement (_since rule 24, `/settings` is the summary page_); `/parametres/tarifs` → Options & ressources, tab
    Facturables (`?tab=sas`); `/account`, `/comptes` and `/settings/password` → `/mon-compte` for every
    role (the old page mixed « my account » with the admin table; « Mon compte » is the part every role
    was looking for).
@@ -158,6 +162,8 @@ one place.
     unlock lives in the page state and is gone as soon as the page is left or reloaded. Writes sent
     while unlocked carry `unlockPast: true`; the server honours it for an admin and ignores it for any
     other role, so the lock stays authoritative server-side (`reservationsController.js:824,957,1124,1426`).
+    > **Reading of 2026-11-06 (D21, Adrien).** What the unlock opens on a started stay is bounded by rule 35: every change
+    > that leaves the final price and the tourist tax unchanged. A new past reservation (no stored price) is not judged.
 
 17b. **Removed — the « Envoyer les emails clients sans ma validation » master switch** (decided
     2026-09-21). Each email template already carries its own mode (`email_templates.sendMode`,
@@ -187,6 +193,9 @@ one place.
 17. One row per platform: colour, commission %, takes a deposit (Oui/Non — kept, Q3), tourist-tax
     collection (3-way), payout after N days. Validation reuses the existing platform validators
     (commission 0–100, payout ≥ 0).
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 28-31): the commission % and the payout
+    days are `BoundedNumberField`s — a minus is stripped as typed, a non-number restores the previous
+    value on blur / Enter, an out-of-range value is refused (400, same message).
 18. The property page's « Plateformes & iCal » table keeps only what is per property: the iCal URL,
     the sync status, add/remove a feed. The global columns become read-only chips with a link to
     « Plateformes ».
@@ -238,8 +247,140 @@ one place.
 
 23. The bugs of §1 (all but the withdrawn n°4) are fixed. Rule 23 has no UI of its own; each fix is listed in §7.
 
+### 3.F Summary, groups and search — UI/UX review 2026-10-18
+
+24. **`/settings` is the summary of Paramètres** (UI/UX review 2026-10-18, proposal 20). Clicking
+    « Paramètres » opens it. It lists every page of the submenu in its group (rule 26), one row per
+    page — icon, name, the state line of rule 25, a chevron — plus two rows the submenu does not hold:
+    « Textes des emails » (after « Emails & notifications ») and « Mon compte ». A row opens its page.
+    `/settings#<group>` scrolls to that group and marks its card for a moment. The pages of
+    `SettingsFormPage` and Plugins get a back arrow to the summary. Two columns of groups from `md`,
+    one column below.
+25. **Each row carries one line of state, computed by the server** (`GET /api/settings/summary`):
+    « 2 logements », « Version 2 en vigueur », « 37 options · 2 ressources », « 1 fermeture à venir »,
+    « TVA 10 % · exercice clos fin septembre », « Envoi par ssl0.ovh.net » / « Envoi par la
+    plateforme » / « Envoi non configuré », « 4 comptes actifs », « Version 3.10.0 », « 12 actifs · 2 à
+    configurer », « Second code activé ». What is missing has the warning tone (« IBAN à saisir »,
+    « Aucun logement », « Envoi non configuré », « Envoi incomplet », « n à configurer »). A plugin's
+    own settings page reads « À configurer » while its plugin lacks something
+    (specs/plugins-phase-0-foundation.md rule 25). A line the server cannot compute is left out; the
+    row keeps its name.
+26. **The submenu becomes a shortcut menu in four groups** (UI/UX review 2026-10-18, decision 12 —
+    « Sommaire + menu raccourci en 4 groupes », not the recommended « summary only »). The groups are
+    the four families of rule 2, now named: **Établissement** (Établissement, Logements, Plateformes,
+    Conditions générales), **Séjours** (Options & ressources, Recettes tarifaires, Fermetures or
+    Vacances & fermetures, Linge), **Paiements et emails** (Paiements en ligne, TVA & exercice, Emails
+    & notifications), **Compte et système** (Utilisateurs, Accès du support, Intégrations, Système,
+    Plugins). « Intégrations » moves from the third family to the fourth, next to Plugins, whose
+    settings it mostly holds. Under « Paramètres » the sidebar shows the four group rows; the group of
+    the open page (or of the summary's `#group`) unfolds its pages beneath it, the others stay folded:
+    at most 9 rows instead of 15. A group row opens the summary on that group; it carries
+    `aria-expanded` and, unfolded, `aria-controls` to its pages' list (`role="group"`). A plugin entry belongs
+    to the group of the entry it is placed next to (`after` / `before`), so no plugin changes; a
+    group with no visible page is left out.
+27. **The summary has a search** that understands the owner's words: each page declares keywords
+    (`SETTINGS_KEYWORDS`: Wi-Fi, IBAN, SMTP, 2FA, caution, Qonto…). Every word typed must be found in
+    the name, the state line or a keyword; accents, case and punctuation are ignored (« wifi » finds
+    « Wi-Fi »), and a word is what is typed between spaces (« j-2 » finds « J-2 », not every row with
+    a 2). A row found through a keyword says it: « Contient : Wi-Fi ». Nothing found →
+    « Aucun réglage pour « zzz » » with suggestions.
+28. **The sending server is deduced from the sending address** (UI/UX review 2026-10-18, decision
+    14). The operator types the address (or keeps the derived one, rule 12) and the password. The
+    server recognises the provider — by the address's own domain (gmail.com, orange.fr, outlook.fr…),
+    else by the domain's MX records looked up from the server (DNS only, 3 s timeout, answers kept one
+    hour, at most 500 domains — the oldest goes —, a domain over 253 characters refused) — among Gmail
+    / Google Workspace, Microsoft 365, OVHcloud (not its redirection-only `redirect.ovh.net` MX),
+    IONOS, Infomaniak, Gandi, Zoho (an address @zohomail.* → `smtp.zoho.*`; a company domain whose MX
+    is Zoho's → `smtppro.zoho.*`, the organisation server), iCloud, Yahoo, Orange, Free, SFR, La Poste,
+    and proposes its host and security (the port follows, rule 11). Outlook.com / Hotmail / Live
+    accept no password over SMTP any more: they are recognised and the card says « Outlook, Hotmail et
+    Live demandent l'authentification moderne : l'envoi par mot de passe n'est pas pris en charge. »,
+    nothing is proposed. Microsoft 365 is proposed with the hint that authenticated SMTP must be
+    allowed for the mailbox. o2switch (MX on the customer's own domain) and other cPanel hosts are not
+    recognised: their server is typed. The Envoi card says « Serveur trouvé : Gmail
+    (smtp.gmail.com). Retenu à l'enregistrement. » with the provider's own password hint. **The server
+    deduces only on the save that brings a password and does not carry `host`**, when no host is
+    stored: it then writes the host and security found. **A configured host always wins**, and a host
+    the operator empties on purpose stays empty; emptying host and password together also puts the
+    security back to its default. Not found or DNS failure → « Fournisseur non reconnu pour gite.fr :
+    saisir le serveur. » and « Réglages avancés » opens on the manual fields (server, login, security,
+    now folded there). The card asks the server only for an own server: never on a managed instance
+    sending through the platform until a password is stored or typed there
+    (specs/hosting-h1-fleet-runtime.md rules 18–19); a refused request (a read-only instance) says
+    nothing. `GUESTFLOW_SMTP_DETECT=off` turns the lookup off — the E2E suites set it, so no test
+    resolves a real domain. The disabled test button says what it waits for: « Adresse d'envoi
+    manquante. », « Mot de passe manquant. », « Serveur d'envoi manquant. », « À enregistrer
+    d'abord. ».
+29. **The settings search knows the emails by their names** (integrated review of inte/plugins,
+    2026-10-19, L1). Since specs/guest-email-texts-made-simple.md rule 44 the emails are named by what
+    they are for; « J-2 » and « J-7 » are no longer keywords. « Textes des emails » carries every
+    shipped email's name (Confirmation, Demande d'acompte, Rappel de solde, Préparation du séjour,
+    Accès et arrivée, Merci et avis…), read from `constants/emailNames.js` — a client mirror of
+    `utils/emailTimeline.js`'s names that a server test keeps identical. « accès », « préparation »,
+    « merci », « rappel de solde » find it; the row says the whole name the words were found in
+    (« Contient : Rappel de solde », not « Rappel d'acompte »).
+30. **A settings group of the sidebar follows the shell's chevron pattern** (integrated review,
+    2026-10-19, L2 — specs/shell-and-home-day-first.md rule 18). The group row is a plain link to the
+    summary on that group, without `aria-expanded`; a separate chevron button « Déplier <groupe> » /
+    « Replier <groupe> » carries `aria-expanded` and `aria-controls` and folds or unfolds the group
+    without leaving the page. Opening another page brings back « the group of the open page » (rule 26).
+31. **The search's placeholder fits a phone** (integrated review, 2026-10-19, L7). « Chercher : wifi,
+    iban, smtp… » — the former « Chercher un réglage : … » was clipped at 390 px. The field's
+    accessible name stays « Chercher un réglage ».
+
+32. **Property documents are private (2026-10-28, authz L2).** A document is stored in `private-documents`, a
+    sibling of the uploads directory (`data/private-documents` once the release links `uploads` into `data/`),
+    OUTSIDE the root the public `/uploads` route serves (`documents.filePath` = `private/<name>`). The property
+    payload carries `filePath` = `/api/properties/:id/documents/:docId/file`, an authenticated download
+    (404 under another property) named after the document; « Retirer » and the removal of the property
+    delete the file. Files uploaded before the audit are moved at boot (copy under the final name, never over an existing file,
+    then the original, then the row; a missing file is logged and its row left alone; accepted exception to
+    additive migrations, self-update-and-releases.md rule 39 — production holds no document). The download
+    name appends the extension only when the name lacks it. The folder is
+    backed up and restored with the uploads: `backup-from-pi.sh` / `restore-to-pi.sh`, the fleet's rclone sync and
+    local copy, the customer data export, and the lose-the-host restore of `deploy/hosting/README.md`; the
+    console's disk probe measures the whole instance directory. Photos, logo and favicon stay in
+    the public tree: the WordPress site, the emails and the login page link them.
+
+33. **One linear email check** (audit R2 N2, 2026-10-29). `utils/emailAddress.isValidEmailAddress` (length ≤ 254 checked first, one `indexOf`, no overlapping quantifiers) is the single shape check of the server — settings, users, emails, client payloads and the plugins through `settingsValidation.validateEmail`; the client mirrors it. A 195 KB address is refused in under 50 ms. Public booking: an address over 254 characters is `tooLong`, not `emailInvalid`. Test: `tests/audit-r2-email-linear.unit.test.js`, `website-booking/tests/guest-email-linear.unit.test.js`.
+34. **The user actions are named (audit R3, 2026-10-29).** In « Utilisateurs », the table and the cards give each icon button its own accessible name — « Modifier », « Réinitialiser le mot de passe », « Désactiver » / « Réactiver », « Supprimer l'utilisateur » — instead of leaving the name on the tooltip's wrapping `span`. The tooltips of the disabled self actions read « Mot de passe personnel : page Mot de passe. » and « Suppression de son propre compte impossible. ». Test: `pages/__tests__/UserManagementPage.accessible-names.test.jsx`.
+
+35. **The unlocked fiche keeps its final price (D21, 2026-11-06).** *Owner decision D21, verbatim:* « Lorsqu'on déverrouille
+    une fiche il faut autoriser que les modifications possibles qui ne changent pas le prix final. Cette feature est utilisée
+    pour changer les montants prévus lorsqu'on est payé par les plateformes ».
+    - **Refused:** a save of a started stay under the admin unlock (`unlockPast`) whose engine quote moves `finalPrice` or
+      `touristTaxTotal` from the stored row (a rise or a lowering: one adult more, a line added, a discount, a night more,
+      a child turned adult) → 409 `UNLOCKED_PRICE_CHANGED`, « Fiche déverrouillée : le prix final doit rester à X. » or
+      « Fiche déverrouillée : la taxe de séjour doit rester à X. » (the stored figure), nothing written, the dry run included
+      (`utils/savePriceGuards.unlockedPriceRefusal`, judged after N4's not-started refusal, before the other save guards).
+      The ledger's solde editor, which reaches a solde by moving the accommodation price, refuses the same way
+      (reservation-payment-ledger rule 18 reading).
+    - **What the unlock still allows,** as long as both figures stay put: the platform payment block (expected payout
+      `platformPayoutAmount`, commissions `platformCommissionAmount` / `acompteCommissionAmount`, the platform's tax
+      `platformTouristTaxAmount`, the brut when it lands on the same final price), the penalties (their own route, never
+      judged), the acompte / solde split typed in the ledger (total unchanged), the payment and caution statuses, the client,
+      the platform, the notes and texts, the dates, logement, guests and lines when the engine (or a pinned
+      « Prix hébergement ajusté ») lands on the same final price and tax, and the deletion of the fiche.
+    - **Exception, written 2026-11-06 (audit R26 D21 review L2; D21 kept strict):** on a platform that remits the tax
+      (`touristTaxRemittedByPlatform = 1`) with a brut entered, the final price is the brut less the withheld tax, so
+      typing « Taxe de séjour retenue » (`platformTouristTaxAmount`) or correcting the brut moves it: refused under the
+      unlock (409 `UNLOCKED_PRICE_CHANGED`, nothing written), accepted on the locked fiche, where that save is entered.
+      Test: `unlocked-fiche-keeps-final-price` « a platform remitting the tax, … ».
+    - **Not judged:** the locked fiche (its own allowlist, PAST_RESERVATION_LOCKED and mid-stay-extras rule 20), a stay not
+      started, a new past reservation, any role but admin (the flag is ignored, the lock stays).
+    - **UI:** the unlocked fiche's banner reads « Fiche déverrouillée : tout reste modifiable sauf le prix final. Le verrou
+      revient à la sortie de la fiche. » (`constants/reservationLock.UNLOCKED_FICHE_BANNER`, the same `Alert` on desktop
+      and mobile); a refused save shows the server's message as any refused save. The client computes nothing.
+    - Replaces mid-stay-extras rule 20's « the admin unlock of a started stay is not judged » (N4, D20 readings). Tests:
+      `unlocked-fiche-keeps-final-price`, `eos-paid-refuses-growth`.
+
 **Edge cases**
 - A page with unsaved changes and a click on another settings entry → the existing dirty-form guard.
+- (rule 28) The address changes to another provider after a host was saved → the saved host wins;
+  empty « Serveur d'envoi » and save, then type the password again and save: that save deduces it.
+- (rule 28) An existing instance with a password but no host → nothing is deduced until a save that
+  carries the password (another field of the group, e.g. the sender name, deduces nothing).
+- (rule 27) A plugin page whose plugin is off is neither in the submenu nor in the summary.
 - An override email emptied → falls back to the derived value, shown as the placeholder.
 - A production row whose `smtpUsername` differs from `smtpFromEmail` → the migration keeps it as an
   explicit override; equal values become « derived » (stored `''`).
@@ -258,10 +399,12 @@ one place.
 | `utils/` | `propertyValidation.js` | C | Property form validation (rule 23a) |
 | `utils/` | `settingsRationalizationMigration.js` | C | One-shot steps: identity normalisation, templates back to manual, column drops |
 | `controllers/` | `propertiesController.js` + `propertiesModel.js` | T | Validation on create / update; `GET/PUT /api/properties/email-hooks` |
-| `controllers/` | `optionsController.js` | T | `?view=catalogue` leaves out the per-property auto-options (rule 15) |
+| `controllers/` | `optionsController.js` | T | the catalogue (`GET /api/options/catalogue-view`) leaves out the per-property auto-options (rule 15); the old `?view=catalogue` on the plain list was removed (specs/inte-performance.md) |
 | `utils/` | `settingsResponse.js` | T | Return `footerTextEn`; return `smtp.derived` and `notifications.derivedRecipient` next to the stored overrides |
 | `controllers/` | `paymentsController.js` | T | Remove the timings GET/PUT |
 | `controllers/` | `reservationsController.js` | T | Replace the `allowEditPastReservations` read by the per-request `unlockPast` flag, admin only (rule 17a) |
+| `utils/` | `savePriceGuards.js` | C | Rule 35 — `unlockedPriceRefusal` (D21) and `unclaimedRise` (mid-stay-extras rule 20 reading of 2026-11-06), read by `applyUpdate` |
+| `utils/` | `ledgerAmountEdit.js` | T | Rule 35 — `priceFrozen`: the solde editor of an unlocked started fiche moves no price |
 | `utils/` | `autoSendPolicy.js`, `emailAutoSendScheduler.js`, `emailAutoSendRunner.js`, `reservationEmailSender.js`, `guestEmailSequenceRunner.js` | T | Per-template decision, no master switch (rule 17b) |
 | `controllers/` | `emailTemplatesController.js`, `emailsController.js`, `settingsController.js` | T | Sequence start date set on the first sequence template switched to `auto`; queue shape no longer depends on a switch (rule 17b) |
 | `controllers/` | `settingsController.js` | T | Drop `smtpPort`; accept the override fields; move commission/indemnity VAT out |
@@ -270,12 +413,16 @@ one place.
 | `services/` | `emailService.js`, `notificationService.js`, `emailContextBuilder.js`, `usersController.js` | T | Read the identity through `emailIdentity` |
 | `scheduledTasks.js` | | T | Constants for the school-holiday sync |
 | `routes/` | `schoolHolidays.js` | T | Remove `sync-settings` |
+| `controllers/` | `settingsSummaryController.js` | C | Rule 25 — one state line per page, from the database, the settings row and the plugin views |
+| `utils/` | `smtpPresets.js` | C | Rule 28 — providers, domain → provider, MX lookup with an injected resolver, timeout and cache, the French messages |
+| `controllers/` + `routes/` | `settingsController.js`, `routes/settings.js` | T | Rule 28 — `updateSettings` (now async) fills an empty host from the provider; `POST /smtp-detect`; `GET /summary` |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` | `SettingsPage.jsx` | D | Split into the pages below |
+| `pages/` + `constants/` | `ReservationPage.jsx`, `constants/reservationLock.js` | T | Rule 35 — the unlocked fiche's banner states the D21 rule (`UNLOCKED_FICHE_BANNER`); a new past reservation keeps its own (`UNLOCKED_NEW_FICHE_BANNER`) |
 | `pages/` | `settings/EstablishmentSettingsPage.jsx` (incl. devis), `VatFiscalSettingsPage.jsx`, `EmailSettingsPage.jsx`, `IntegrationsSettingsPage.jsx`, `SystemSettingsPage.jsx`, `PlatformsSettingsPage.jsx` | C | One page per group, each with its own `PageActionBar` and save; they compose the existing `Settings*Section` cards |
 | `pages/` | `AccountPage.jsx` | C | « Mon compte » split out of `UserManagementPage` |
 | `pages/` | `PropertyDetail.jsx` | T | Tabs kept in `?tab=`, dots per tab, one save; field → tab map (`FIELD_TAB`) |
@@ -293,6 +440,12 @@ one place.
 | `components/` | `SettingsSmtpSection.jsx`, `SettingsVatSection.jsx`, `SettingsCompanySection.jsx`, `SchoolHolidaysSyncSettingsDialog.jsx`, `SettingsReservationLockSection.jsx` | T/D | Fields removed or moved; the dialog and the lock card are deleted |
 | `constants/` | `settingsMenu.js` | C | The ordered submenu entries and their family breaks, read by the sidebar |
 | routing | `App.jsx`, `constants/roles.js` | T | Settings routes, redirects, reordered submenu with dividers, Clients + Mon compte entries; favicon read fixed |
+| `pages/` | `settings/SettingsHomePage.jsx` | C | Rules 24–27 — the summary: groups, rows with state lines, search, `#group` |
+| `constants/` | `settingsMenu.js` | T | Rules 26–27 — `SETTINGS_GROUPS`, `visibleSettingsGroups`, `settingsGroupOf`, `SETTINGS_KEYWORDS`, summary-only rows |
+| `utils/` | `settingsSearch.js` | C | Rule 27 — accent-insensitive word match, the keyword that matched |
+| `hooks/` | `useSmtpDetection.js` | C | Rule 28 — asks the server what it proposes for the address, debounced, while no host is saved |
+| `components/` | `SettingsSmtpSection.jsx`, `SettingsFormPage.jsx` | T | Rule 28 — address + password first, the found server said, manual fields under « Réglages avancés », test button reasons; back arrow to the summary (rule 24) |
+| routing | `App.jsx` | T | Rules 24, 26 — `/settings` renders the summary; the submenu renders the groups |
 
 **Component reuse declaration**
 
@@ -301,6 +454,7 @@ one place.
 | Consumed | `PageActionBar`, `StatusCard`, `StatusBadge`, `SummaryItem`, `MaskedTextField`, `HelpedTextField`, `ConfirmDialog`, `DataPageScaffold` | |
 | Created (generic) | `DerivedValueField` | For any setting that defaults to another (« = email de contact » + « Utiliser une autre adresse ») |
 | Specific | the seven `settings/*Page.jsx` | Thin compositions of existing cards |
+| Consumed (rules 24–28) | `PageActionBar`, `EmptyState`, `AdvancedDetails`, `DerivedValueField`, `MaskedTextField` | The summary rows are MUI `ListItemButton`s in a `Card`: one page uses them, so no new generic component |
 
 ### 4.3 API contract
 
@@ -313,9 +467,20 @@ one place.
 | GET/PUT | `/api/school-holidays/sync-settings` | Removed |
 | GET/PUT | `/api/settings` | `reservations.allowEditPastReservations` removed |
 | POST/PUT/DELETE | `/api/reservations(/:id)` | Accept `unlockPast: true` in the body (`?unlockPast=1` on DELETE), honoured for an admin only |
+| PUT | `/api/reservations/:id` | Rule 35 — under `unlockPast` on a started stay, 409 `{ error, code: 'UNLOCKED_PRICE_CHANGED' }` when the final price or the tourist tax would move |
 | GET/PUT | `/api/properties/email-hooks` | **New** (admin): `[{ propertyId, name, emailHook, emailHookEn }]`; PUT writes only those two columns |
 | POST/PUT | `/api/properties(/:id)` | 400 `{ error: 'PROPERTY_INVALID', errors: { field: message } }` (rule 23a) |
-| GET | `/api/options?view=catalogue` | Leaves out `early_check_in` / `late_check_out` |
+| GET | `/api/options/catalogue-view` | Leaves out `early_check_in` / `late_check_out` (replaced `/api/options?view=catalogue`) |
+| GET | `/api/settings/summary` | **New** (admin, rule 25): `{ lines: { '<page path>': { text, tone: 'neutral' \| 'warning' } } }` |
+| POST | `/api/settings/smtp-detect` | **New** (admin, rule 28): `{ address? }` → `{ address, status, found, provider: { id, name, host, secure, port, hint } \| null, message }` (`status`: found, unsupported, unknown, dns-failed, off, invalid; `message` empty when off); never writes |
+| PUT | `/api/settings` | Rule 28 — an `smtp` group that brings a password and no `host`, with no host stored, gets the deduced `smtpHost` / `smtpSecure`; `host` and `password` both `''` also reset `smtpSecure` |
+
+**Integrated review of inte/plugins (2026-10-19)** — rules 29–31:
+- Client `constants/emailNames.js` (new): mirror of the shipped emails' names of
+  `server/src/utils/emailTimeline.js`; `constants/settingsMenu.js` reads it for the keywords of
+  « Textes des emails ». `utils/settingsSearch.js` names the keyword holding every word typed.
+- Client `App.jsx`: the settings group rows are links; a `NavChevron` (now with `controls`) folds them.
+- Client `pages/settings/SettingsHomePage.jsx`: the shorter placeholder.
 
 ## 5. Data model
 
@@ -345,6 +510,16 @@ The interactive before/after is the reference:
 - **Action bar**: every page has `<PageActionBar title=… onSave onCancel />`; pages without a form
   (Intégrations, Système, Recettes) have no Save. The title is the page name, never « Générale ».
 - Copy: see the decision page for each label.
+- **Summary (rules 24–27)** — the interactive mock is
+  [2026-10-19-settings-summary-shortcut-menu.html](../docs/specs/2026-10-19-settings-summary-shortcut-menu.html).
+  Desktop: the search (max 520 px) above two columns of group cards, the sidebar shows the four
+  groups with the open one unfolded. Tablet (`md`, 900 px): same two columns. Mobile (`xs`): one
+  column, the search full width at 16 px (no zoom on focus); the groups live in the drawer, and a
+  group row closes the drawer on the summary scrolled to that group.
+- **Envoi (rule 28)** — order: Adresse d'envoi, Mot de passe de l'adresse d'envoi (helper = the
+  provider's hint), the server line (status role), Nom affiché, « Réglages avancés » (Serveur d'envoi,
+  Identifiant du serveur, Sécurité), the test button and its reason. Same on mobile, full-width
+  fields.
 
 ## 7. Test plan
 
@@ -358,10 +533,32 @@ The interactive before/after is the reference:
 - [x] Platform settings endpoint validates commission and payout (rule 17)
 - [x] Accountant can PUT the two VAT rates on plan comptable (rule 14)
 - [x] `unlockPast` lets an admin edit a past reservation, is ignored for reception, and nothing is unlocked without it (rule 17a)
+- [x] Rule 35 (D21): `unlocked-fiche-keeps-final-price.unit.test.js` (10) — platform amounts and a same-price move pass; a
+      guest, a line, a discount, a night, the tax alone refused 409 with nothing written; the locked fiche, a stay not started
+      unjudged; the solde editor refuses a different solde
 - [x] Migration with the switch OFF sets every template to `manual`; nothing is sent by the 08:00 pass afterwards; an `auto` template is sent; a read error sends nothing (rule 17b)
 - [x] Sequence start date set on the first sequence template switched to `auto`, never moved afterwards (rule 17b)
 
 Delivered: 26 tests in the feature file; server suite 4194 tests green.
+
+### Rules 24–28 (2026-10-19)
+- [x] Server `settings-summary.unit.test.js` (5): counts and states, warning tone, the three sender
+      lines, plugins to configure on Plugins / Intégrations / their page, a failing line left out
+- [x] Server `smtp-detection.unit.test.js` (17): domain without DNS, MX by preference (Microsoft 365
+      hint), lookalike refused, Outlook.com unsupported, OVH redirect excluded, Zoho personal /
+      organisation, `GUESTFLOW_SMTP_DETECT=off`, bounded cache and over-long domain, unknown / DNS
+      failure / timeout / invalid, one-hour cache without failures; the controller fills host +
+      security with a typed password, keeps a configured host, deduces nothing without a password nor
+      on another field's save, keeps an emptied host empty, resets the security when host and password
+      are emptied, `smtp-detect` never writes. `settings-controller-smtp-password` and
+      `-header-injection` await the now asynchronous save
+- [x] Client `useSmtpDetection.test.jsx` (5): found, a sentence, off and refused say nothing, no
+      request when not enabled
+- [x] Client `SettingsHomePage.test.jsx` (4), `settingsMenu.groups.test.js` (5),
+      `settingsSearch.test.js` (3), `SettingsSmtpSection.detected-server.test.jsx` (4); updated
+      `SettingsSmtpSection.plain-words` and `.platform`
+- [x] E2E `e2e/specs/settings/settings-summary.spec.js`: the summary, the search, a group of the
+      sidebar unfolding
 
 ### Client (Vitest) + E2E
 - [x] Property tabs: dirty / invalid dots, deposit fields shown only when on, recipe hides extra-guest fields
@@ -379,6 +576,10 @@ Delivered: new suites `DerivedValueField`, `PlatformsSettingsPage`, `AccountPage
 - [ ] Send an SMTP test with no override; with a login override — not run locally (no SMTP server on the dev machine); the derived / override fields were exercised in the browser
 - [x] Change a platform's settings on « Plateformes », see them as read-only chips on the property page
 
+**Integrated review of inte/plugins (2026-10-19)** — rules 29–31: server `email-names-mirror.unit.test.js` (1: the mirror equals the server
+names); client `constants/__tests__/settingsMenu.email-names.test.js` (6), `__tests__/App.settings-groups.test.jsx`
+(1), `pages/settings/__tests__/SettingsHomePage.phone-placeholder.test.jsx` (1).
+
 ## 8. Out of scope
 
 - Retiring `portalCode` (waits for guest-gate-access, which keeps it as the physical fallback).
@@ -395,6 +596,11 @@ All resolved by Adrien on 2026-09-21:
 - Q2: VAT on commissions / indemnities → **moved to Plan comptable** (rule 14).
 - Q3: « Acompte » per platform → **kept, on the Plateformes page** (rule 17).
 - Q4: Property page → **tabs** (rule 21).
+
+Resolved by Adrien on 2026-10-19 (UI/UX review arbitration):
+- Paramètres → **summary + shortcut menu in four groups** (decision 12, against the recommended
+  « summary only »): rules 24–27. The four groups are the existing families, named (rule 26).
+- SMTP from the sending address with an MX lookup from the server → **agreed** (decision 14): rule 28.
 
 ## 10. Delivery — one PR (decided 2026-09-21)
 

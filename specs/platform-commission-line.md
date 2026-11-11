@@ -7,6 +7,17 @@
 | **Created** | 2026-06-20 |
 | **Author** | Adrien |
 
+> **Updated 2026-10-27 (spec review) — rule 5, rule 6 and the « solde = net » part of the 2026-06-22
+> revision are superseded.** The engine no longer stores the net in the solde:
+> [platform-per-echeance-commission.md](platform-per-echeance-commission.md) rule 2 made the acompte and
+> the solde store the **gross**, guest-facing amounts, with the commission tracked separately per échéance
+> (`acompteCommissionAmount` + `platformCommissionAmount`) and never subtracted from them. In
+> `server/src/utils/pricing.js` the non-direct platform branch splits the gross `preArrivalAmount`
+> (`resolvedBalanceAmount = preArrivalAmount − resolvedDepositAmount`), and the auto-gap baseline is
+> `ownerStayTotal = totalStayPrice` (no commission deducted). Only the displayed **net perçu**
+> (`platformNetReceivedAmount = preArrivalAmount − totalPlatformCommission`) is net. Rules 1–4 and 7
+> (the commission field, the brut / commission / net display, live recompute) still hold.
+
 ---
 
 ## 1. Context
@@ -56,20 +67,23 @@ Both the commission and the net are **engine-authoritative** (`quote.platformCom
    0, the single « Total du séjour TTC » line is shown exactly as before.
 4. **Tax is a pass-through**, untouched by the commission: it sits in `totalStayPrice` (the brut); the
    commission is then deducted from that.
-5. **The solde IS the net perçu (2026-06-21).** On a non-direct platform reservation the engine deducts
+5. _(Superseded 2026-10-27 — the solde stores the gross; see the note at the top and
+   platform-per-echeance-commission.md rule 2.)_ **The solde IS the net perçu (2026-06-21).** On a non-direct platform reservation the engine deducts
    the commission from the **balance**: `balanceAmount = max(0, preArrivalAmount − commission)`. The
    commission is **not** a complement — the auto-gap baseline is reduced to the owner's net
    (`ownerStayTotal = totalStayPrice − commission`) so it can't re-surface there. So for a stay with no
    on-arrival complement, **solde = net perçu**; with a complement, `solde + complément = net perçu`
    (the owner's total receipts). Direct reservations are untouched.
-6. **Accounting reads the solde.** `accountingModel.encaissementsByMonth` books `row.balanceAmount` as
+6. _(Superseded 2026-10-27 — the solde is the gross, so « which is now the net » no longer holds; the
+   accounting books the commission from the entered per-échéance fields, see the 2026-06-22 revision and
+   platform-per-echeance-commission.md.)_ **Accounting reads the solde.** `accountingModel.encaissementsByMonth` books `row.balanceAmount` as
    the balance encaissement — which is now the **net** — so the compta records what the operator actually
    banked. The existing gross-based CA recognition (on `clientGrossAmount`) is **unchanged** (kept per the
    2026-06-21 questionnaire): when no gross is entered the commission journal is inert and the net solde is
    booked as-is; « Prix payé par le client » + « Total du séjour » keep their name/formula.
 7. **Live recompute.** The commission is in the quote signature, so the « net perçu » + solde update as the
    operator types.
-6. **« Prix payé par le client » stays separate/informative.** The existing `clientGrossAmount` field is
+8. **« Prix payé par le client » stays separate/informative.** The existing `clientGrossAmount` field is
    unchanged and keeps driving the **accounting** commission (`gross − finalPrice` in `accountingModel` +
    the CSV export). The new field is for the **fiche net** only — accounting is deliberately untouched
    here (§8).
@@ -131,6 +145,11 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 - [x] `PricingSummary.commission.test.js` (2) — commission > 0 → brut = total séjour / « Commission
   plateforme » / net perçu = total − commission; commission 0 → the plain single total line.
 
+> _(Note 2026-10-27: in the revision below, « the engine already stores the NET in the solde » and
+> « net perçu (= solde = total − commission) » are superseded — the solde stores the gross since
+> platform-per-echeance-commission.md rule 2. The `finalPrice / storedSum` ratio is what keeps the
+> accounting right for both shapes of stored solde.)_
+>
 > **Revision 2026-06-22 — « Prix payé par le client » retired + accounting wired to the commission field.**
 > The `clientGrossAmount` input was removed from the fiche (it was redundant now that the commission is
 > entered directly). The accounting no longer derives the commission from a gross; instead, for a platform
@@ -142,7 +161,7 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 > séjour so Σ debits = Σ credits = total séjour. **Bugfix 2026-06-22:** the ratio uses the ACTUAL stored
 > sum, NOT a fixed `finalPrice − commission` denominator — older platform reservations (or any not re-saved
 > after « solde = net ») still store the FULL total in the solde, and a fixed denominator double-grossed them
-> (prod: Estelle Z. showed CA 122,14 / net 105,66 instead of 102,50 / 86,02). With `finalPrice / storedSum`
+> (prod: Mike F. showed CA 122,14 / net 105,66 instead of 102,50 / 86,02). With `finalPrice / storedSum`
 > the CA = `finalPrice` and the net = `finalPrice − commission` whatever the stored balance's shape.
 > A **legacy fallback** keeps the old gross-based recognition for reservations that still have a stored
 > `clientGrossAmount` and no entered commission. Confirmed by questionnaire: CA = total séjour, VAT at the
@@ -152,7 +171,7 @@ platforms, **NULL** for direct bookings. No backfill needed (NULL = no commissio
 > **Accounting display (AccountingPage).** The platforms table + the journal cards now show
 > **Revenu brut / Commission / Net perçu (versement)** — the net is `encaissementNetTtc` (exposed as
 > `net` by `platformsPreview` + the structured export), so the operator can reconcile against the
-> platform's actual bank transfer. Validated on the real prod case Booking #6622323293 (Estelle Z.):
+> platform's actual bank transfer. Validated on the real prod case Booking #6600000003 (Mike F.):
 > revenu brut 102,50 € · commission 16,48 € · versement 86,02 € (was wrongly showing commission 0,01 €
 > and no versement under the old gross-based model). The sales CSV already carries the columns the
 > accountant requires (Jour/Mois/Année, comptes 70600000/70600010/70601000, TVA 44571200/44571100,

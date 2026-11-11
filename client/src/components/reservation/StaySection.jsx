@@ -20,7 +20,7 @@ export default function StaySection() {
     miniCalendarStart, setMiniCalendarStart, miniVisibleDays, reservations,
     editingReservationId, handleMiniDateClick, centerMiniCalendarOnRange, isReservationLocked,
     arrivalMin, arrivalMax, departureMin, departureMax, handleManualDateInputChange,
-    datesUnavailableForProperty, datesUnavailableMessage, minNightsState, minNightsWarning,
+    datesUnavailableForProperty, datesUnavailableMessage, stayDatesHint, minNightsState, minNightsWarning,
     liveTimeConflictState, liveTimeConflictMessage, defaultCheckInTime, defaultCheckOutTime,
   } = useReservationForm();
 
@@ -31,10 +31,13 @@ export default function StaySection() {
         <Stack spacing={2}>
           {/* Logement + Numéro de réservation share one row on md+ (specs/email-client-language-and-fiche-polish.md
               §3 rule 8); they stack on xs. Devis have no reservation number → Logement stays full-width. */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: isDevisMode ? '1fr' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Logement</InputLabel>
+          {/* minmax(0, …) + minWidth 0: a long property name ellipsises instead of widening the page
+              (specs/review-2026-10-18-reservations.md rule 7). */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: isDevisMode ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
+            <FormControl fullWidth sx={{ minWidth: 0 }}>
+              <InputLabel id="stay-property-label">Logement</InputLabel>
               <Select
+                labelId="stay-property-label"
                 value={selectedProp}
                 label="Logement"
                 onChange={(e) => handleReservationPropertyChange(e.target.value)}
@@ -44,7 +47,9 @@ export default function StaySection() {
             </FormControl>
 
             {/* Reservation number (specs/reservation-number-and-search.md): generated server-side on first
-                save, editable/overridable. Hidden for devis (they carry devisNumber instead). */}
+                save, editable/overridable. Hidden for devis (they carry devisNumber instead). Once set it
+                may be a platform's own number (an intake writes it), so the hint no longer says
+                « généré » (amended 2026-10-18). */}
             {!isDevisMode && (
               <TextField
                 label="Numéro de réservation"
@@ -52,9 +57,9 @@ export default function StaySection() {
                 onChange={(e) => updateForm({ reservationNumber: e.target.value })}
                 disabled={isReservationLocked}
                 fullWidth
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 64 } }}
                 helperText={form.reservationNumber
-                  ? 'Généré automatiquement — modifiable'
+                  ? 'Modifiable'
                   : 'Attribué automatiquement à l\'enregistrement'}
               />
             )}
@@ -93,7 +98,7 @@ export default function StaySection() {
                 type="date"
                 value={form.endDate || ''}
                 onChange={(e) => handleManualDateInputChange({ endDate: e.target.value })}
-                error={datesUnavailableForProperty || minNightsState.breached}
+                error={Boolean(stayDatesHint) || datesUnavailableForProperty || minNightsState.breached}
                 fullWidth
                 slotProps={{
                   htmlInput: { min: departureMin || undefined, max: departureMax || undefined },
@@ -105,8 +110,9 @@ export default function StaySection() {
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
             <Box>
               <FormControl fullWidth error={Boolean(liveTimeConflictState.arrivalMessage)}>
-                <InputLabel>{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
+                <InputLabel id="stay-check-in-time-label">{`Heure d'arrivée (défaut ${defaultCheckInTime})`}</InputLabel>
                 <Select
+                  labelId="stay-check-in-time-label"
                   value={form.checkInTime}
                   label={`Heure d'arrivée (défaut ${defaultCheckInTime})`}
                   onChange={(e) => updateForm({ checkInTime: e.target.value })}
@@ -117,8 +123,9 @@ export default function StaySection() {
             </Box>
             <Box>
               <FormControl fullWidth error={Boolean(liveTimeConflictState.departureMessage)}>
-                <InputLabel>{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
+                <InputLabel id="stay-check-out-time-label">{`Heure de départ (défaut ${defaultCheckOutTime})`}</InputLabel>
                 <Select
+                  labelId="stay-check-out-time-label"
                   value={form.checkOutTime}
                   label={`Heure de départ (défaut ${defaultCheckOutTime})`}
                   onChange={(e) => updateForm({ checkOutTime: e.target.value })}
@@ -129,8 +136,14 @@ export default function StaySection() {
             </Box>
           </Box>
 
-          {(liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
+          {(stayDatesHint || liveTimeConflictMessage || datesUnavailableForProperty || minNightsState.breached) && (
             <Stack spacing={0.5}>
+              {stayDatesHint && (
+                <Typography variant="body2" color="error">
+                  {stayDatesHint}
+                </Typography>
+              )}
+
               {liveTimeConflictMessage && (
                 <FormHelperText error>
                   {liveTimeConflictMessage}

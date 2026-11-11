@@ -1,3 +1,4 @@
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
@@ -34,7 +35,7 @@ function iso(daysFromToday) {
   d.setDate(d.getDate() + daysFromToday);
   return d.toISOString().split('T')[0];
 }
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = localTodayIso();
 
 function freshModel() {
   const db = new Database(':memory:');
@@ -258,7 +259,7 @@ test('getSummary: totalPending is net of the UNPAID échéance commission (platf
 
 test('getSummary: totalPending IGNORES the selected period — a finished unpaid stay before « from » still counts', () => {
   const { db, model } = freshModel();
-  // The prod Grimaud shape (2026-07-17): stay ended before the displayed month, unpaid.
+  // The prod Victor shape (2026-07-17): stay ended before the displayed month, unpaid.
   insertRes(db, { id: 1, clientId: 1, propertyId: 1, startDate: iso(-40), endDate: iso(-35), balanceAmount: 668, balancePaid: 0 });
   // Period = a window that EXCLUDES the reservation entirely.
   const summary = model.getSummary({ from: iso(-10), to: iso(10) });
@@ -275,7 +276,7 @@ test('invariant: getSummary().totalPending === getOperational().pending.totals.r
   const operational = model.getOperational();
   assert.equal(summary.totalPending, operational.pending.totals.remainingToPay);
   assert.equal(summary.totalPending, 868); // 668 + 200
-  // The operational tab lists BOTH finished unpaid stays, period-free (spec rule 8 pin).
+  // The operational tab lists BOTH finished unpaid stays, period-free (pinned by the spec).
   assert.deepEqual(operational.pending.reservations.map((r) => r.id).sort(), [1, 2]);
 });
 
@@ -387,7 +388,8 @@ test('getOperational: pending totals sum the columns; a disabled deposit is excl
   assert.equal(op.pending.totals.depositAmount, 100); // 100 + (disabled 50 excluded)
   assert.equal(op.pending.totals.balanceAmount, 350);
   assert.equal(op.pending.totals.totalSejour, 500);
-  assert.equal(op.pending.totals.remainingDue, 500);
+  // remainingDue is the unpaid buckets (audit 2026-10-27): the disabled acompte is owed by nobody.
+  assert.equal(op.pending.totals.remainingDue, 450);
 });
 
 // specs/finance-operational-remaining-to-pay.md §3 — « reste à payer » = Σ still-owed buckets only.
@@ -401,8 +403,8 @@ test('getOperational: remainingToPay sums only the UNPAID buckets, incl. both co
   });
   const r = model.getOperational().pending.reservations.find((x) => x.id === 1);
   assert.equal(r.remainingToPay, 100, 'only the two unpaid complements remain');
-  // The legacy deposit+balance-only field would wrongly say 0 here.
-  assert.equal(r.remainingDue, 0);
+  // remainingDue now reads the same unpaid buckets (audit 2026-10-27) — it used to say 0 here.
+  assert.equal(r.remainingDue, 100);
 });
 
 test('getOperational: caisse-interne complement + disabled deposit are NOT counted in remainingToPay', () => {

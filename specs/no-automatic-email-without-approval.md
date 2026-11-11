@@ -8,6 +8,15 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 | **Amended** | 2026-08-22 — `feature/email-auto-send-scheduler`: rule 2b, no timer at all while the switch is off |
+| **Superseded** | 2026-09-21 — by [settings-rationalization rule 17b](settings-rationalization.md) (noted at the 2026-10-27 spec review) |
+
+> **Superseded in part by settings-rationalization rule 17b (2026-09-21).** The master switch this spec
+> introduced — `emailAutoSendEnabled`, the Réglages card « Envoi automatique des emails », the banner
+> and the chips of the Emails page — no longer exists. Each template's own `sendMode` (`auto` |
+> `manual`, every template `manual` by default) is the only thing that lets a guest e-mail leave by
+> itself; `utils/autoSendPolicy` answers per template and fails closed. The goal stands and is met:
+> nothing leaves without an `auto` template. Rules 1, 2, 2b, 3, 4, 7, 8 and 9 and §4–§6 describe the
+> switch and are kept as history only; rules 5, 6 and 10 still hold.
 
 ---
 
@@ -47,22 +56,22 @@ in one click.
 
 ## 3. Functional rules
 
-1. A new global setting **`emailAutoSendEnabled`** governs every automatic guest email. It is
+1. _(superseded — rule 17b: no global setting, the template's `sendMode` decides)_ A new global setting **`emailAutoSendEnabled`** governs every automatic guest email. It is
    **OFF by default**, on fresh installs *and* on every existing database.
-2. When the flag is **OFF**, the 08:00 cron sends nothing: `performAutoEmailPass` returns immediately
+2. _(superseded — rule 17b: the pass returns `blocked` only while no template is `auto`)_ When the flag is **OFF**, the 08:00 cron sends nothing: `performAutoEmailPass` returns immediately
    with `{ blocked: true, sentCount: 0, skippedCount: 0, failedCount: 0, results: [] }`. No template
    is rendered, no SMTP connection is opened, no `email_log` row is written.
-2b. When the flag is **OFF**, that pass is **not scheduled at all**. No `setInterval`, no boot timer,
+2b. _(superseded — rule 17b: the scheduler follows the templates' modes)_ When the flag is **OFF**, that pass is **not scheduled at all**. No `setInterval`, no boot timer,
    no per-minute settings read, no log line — a feature nobody authorised must not tick.
    `utils/emailAutoSendScheduler` registers the timer only while the flag is ON, and
    `settingsController` re-syncs it on every write of the switch: authorising automatic sending takes
    effect immediately, without a restart, and revoking it clears the timer just as promptly. Rule 2's
    guard inside `performAutoEmailPass` stays, as defence in depth — a pass that mails guests decides
    for itself, whatever scheduled it.
-3. When the flag is **OFF**, an enabled `auto` template whose send date has come surfaces in the
+3. _(superseded — rule 17b: only `manual` templates are proposed; an `auto` one leaves by itself)_ When the flag is **OFF**, an enabled `auto` template whose send date has come surfaces in the
    pending « à valider » list (dashboard widget + Emails page) exactly like a `manual` one: same
    preview, same one-click send, same acknowledge/mark-sent actions. Nothing is lost, nothing is sent.
-4. When the flag is **OFF**, a confirmed online payment does **not** send the « Confirmation de
+4. _(superseded — rule 17b: the confirmation is queued while `reservation_confirmation` is `manual`, sent while it is `auto`)_ When the flag is **OFF**, a confirmed online payment does **not** send the « Confirmation de
    réservation » email. The pair *(confirmation template, reservation)* is added to
    `email_manual_queue` instead, so it appears in the same « à valider » list. Everything else the
    payment effect does — devis → reservation conversion, marking the échéance paid, the operator
@@ -76,14 +85,14 @@ in one click.
    button on the pending list / reservation (`emailsController.send`), the acompte/solde payment
    requests (`paymentRequestService.sendPaymentRequest`, host-triggered), the cancellation notice
    (`reservationCancellationController`), and the SMTP test email (`settingsController`).
-7. When the flag is **ON**, behaviour is byte-for-byte what it is today: the 08:00 cron sends `auto`
+7. _(superseded — rule 17b: no flag)_ When the flag is **ON**, behaviour is byte-for-byte what it is today: the 08:00 cron sends `auto`
    templates, the payment confirmation leaves on payment, and `auto` templates stay out of the
    pending list (no double proposal).
-8. The Emails page states the situation instead of lying about it: while the flag is OFF, a warning
+8. _(superseded — rule 17b: no banner, no chip; « Auto » marks a template that leaves by itself)_ The Emails page states the situation instead of lying about it: while the flag is OFF, a warning
    banner explains that automatic sending is disabled, and every enabled template in « Automatique »
    mode carries a warning chip. The mode itself stays selectable — turning the flag back on must not
    require re-editing templates.
-9. Authorising automatic sending part-way through a day takes effect **that day**. The pass runs once
+9. _(superseded — rule 17b: switching a template to `auto` re-syncs the scheduler)_ Authorising automatic sending part-way through a day takes effect **that day**. The pass runs once
    per local day, on the first tick at or after 08:00, and a server that was down at 08:00 catches up
    on any later tick. When the operator turns the switch on at 14:00, the scheduler starts *and* runs
    the day's pass straight away: waiting for tomorrow 08:00 would be wrong, because by then today's
@@ -118,6 +127,8 @@ in one click.
 ---
 
 ## 4. Architecture
+
+> _Superseded by settings-rationalization rule 17b: the switch, its column and its UI were removed on 2026-09-21._
 
 > **Fat backend, thin frontend.** The decision « may this email leave? » is a single server-side
 > predicate (`utils/autoSendPolicy`). The client only renders the flag's consequences: a switch, a
@@ -190,6 +201,8 @@ Auth: all three sit behind the existing session middleware. No new error shape.
 
 ## 5. Data model
 
+> _Superseded by settings-rationalization rule 17b: the switch, its column and its UI were removed on 2026-09-21._
+
 One new column on `app_settings`:
 
 ```sql
@@ -207,6 +220,8 @@ Added through the existing idempotent `tryAddAppSettingsCol` helper in `server/s
 - **CHANGELOG:** ships a `Migration` note stating the new column, the OFF default and its consequence.
 
 ## 6. UI / UX
+
+> _Superseded by settings-rationalization rule 17b: the switch, its column and its UI were removed on 2026-09-21._
 
 ### Réglages — new card « Envoi automatique des emails »
 

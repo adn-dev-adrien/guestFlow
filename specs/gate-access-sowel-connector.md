@@ -102,10 +102,18 @@ a key could not be made or when Sowel stopped asking.
 11. The request carries at most **500** results: `400` without `results[]`, `413` above 500. An entry
     that cannot be filed (no positive `reservationId`, an `action` other than `create`/`revoke`, no
     boolean `ok`) is skipped; the answer is `{ stored: <n> }`, the entries actually filed.
+    Since 2026-10-23 the fields are typed too, and an entry that breaks a type is skipped the same
+    way: `state` a status word (`[a-z_]`, ≤ 32), `code` a string (≤ 64, no control character), `url`
+    an **https** URL (≤ 2048) — both end up in the guest's e-mails, so nothing is coerced —, `error`
+    a string (≤ 64, « unknown » when absent), `message` a string (≤ 500). The batch is filed in **one
+    transaction**: a failure half-way files nothing and pushes nothing.
 12. **Posting the same results again changes nothing** but their reception time, and sends no second
     push: Sowel posts a result for every key of the list at every read.
 
 ### 3.3 The alerts
+
+> 2026-10-19 (`specs/shell-and-home-day-first.md` rules 3, 9): the alert is pinned unfolded above
+> the day on the home, declared with `ctx.attention({ key: 'gate-keys' })`, drawn by `AttentionCard`.
 
 13. **A failed result is a dashboard alert** — number, first name and reason — until a success
     replaces it or the stay ends.
@@ -206,6 +214,17 @@ a key could not be made or when Sowel stopped asking.
 
 ## 4. Architecture
 
+> **Moved to plugin `gate-access` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> (audit 2026-10-27).** The tables below are the map at implementation time; the core files they name
+> no longer exist. The code lives in `server/src/plugins/gate-access/`:
+> `keys.js` (the key list the house reads, and its wording) · `results.js` (the house's outcomes, admin
+> alerts) · `window.js` (validity window, rule 4) · `invitationView.js` (what the fiche shows of a key) ·
+> `keysModel.js` (storage, §5) · `requireConnector.js` (the connector's key + request signature, rules 19–22) · `signResponse.js`
+> (signed answers to the house) · `controller.js` (admin side) · `publicRoutes.js` (`/public/v1/gate`) ·
+> `emailContext.js` (the key in the guest emails, rule 23) · `attention.js` (home subject) · `index.js`
+> (registration). Client `client/src/plugins/gate-access/`: `GateAccessCard.jsx`, `GateKeysAlert.jsx`,
+> `SasGateAccessStep.jsx`, `SettingsGateAccessSection.jsx`, `index.js`.
+
 ### 4.1 Server side (`server/src/`)
 
 | Layer | File | T/C | Responsibility |
@@ -215,7 +234,7 @@ a key could not be made or when Sowel stopped asking.
 | `utils/` | `gateResults.js` | C | Files the results, pushes the admins once per error, the stale-read pass, the dashboard payload |
 | `utils/` | `gateInvitationView.js` | C (from #563, rewritten) | What the email, the SAS and the fiche show of the stored result |
 | `models/` | `gateKeysModel.js` | C | `gate_key_results`, `gate_connector_state`, the stays around now, the admins; `migratePropertyId` (rule 4b) |
-| `database.js` | — | T | Runs `migratePropertyId` at start, after the baseline replay |
+| `plugins/gate-access/index.js` | — | T | Runs `migratePropertyId` once, as the plugin migration `stay_property_v1` (the tables live in the plugin since phase 2) |
 | `middleware/` | `requireGateConnector.js` | C (from #563) | Key + signature + freshness, failing closed |
 | `middleware/` | `signGateResponse.js` | C | Signs every 2xx answer of the gate router over the exact bytes sent |
 | `controllers/` | `gateConnectorController.js` | C | `keys`, `results`, `ping`, the dashboard and settings reads, the secrets for the plugin |
@@ -306,7 +325,7 @@ Both tables are created empty by `schema.sql` and touch no existing data. **Data
 dropping both would return guestFlow to its previous state.
 
 **Migration (contract v3, 2026-10-05):** `gate_key_results.propertyId INTEGER`, nullable, added by
-`migratePropertyId` on databases that predate it and backfilled from the reservation for every row
+`migratePropertyId` (the gate-access plugin's `stay_property_v1` migration) on databases that predate it and backfilled from the reservation for every row
 whose reservation still exists. A row whose reservation was deleted before the migration stays NULL:
 its revoke goes out without `stay` (rule 4b). No data is lost or rewritten. #563's `gate_stay_feed` and
 `gate_invitations` were never on `master` and are not created.

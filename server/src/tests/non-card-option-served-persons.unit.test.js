@@ -1,5 +1,6 @@
 // specs/non-card-option-served-persons.md — the people served and the nights typed on a non-card option:
-// the SAS sale, the arrival floor, the laundry and breakfast readers, and the one-shot migration.
+// the SAS sale, the arrival floor, the breakfast reader and the one-shot migration. The linen side lives
+// with its plugin (plugins/linen/tests/non-card-served-persons.unit.test.js).
 
 process.env.DB_PATH = ':memory:';
 
@@ -9,10 +10,8 @@ const assert = require('node:assert/strict');
 const db = require('../database');
 const { priceOptionSale, buildOptionOffer } = require('../utils/sasOptionSale');
 const { arrivalLineFloors } = require('../utils/midStayExtrasWindow');
-const { computeReservationContract } = require('../utils/linenInventory');
 const { runServedPersonsOptionMigration } = require('../utils/servedPersonsOptionMigration');
 const { typedCountOf } = require('../utils/typedCounts');
-const laundryModel = require('../models/laundryModel');
 const breakfastModel = require('../models/breakfastModel');
 
 const OPTION = { id: 500, title: 'Repas', price: 17, priceType: 'per_person' };
@@ -48,8 +47,6 @@ test('rule 5 — the people served are capped at the larger of the party and the
 test('re-opening a SAS reopens on what it sold', () => {
   const offer = buildOptionOffer(OPTION, { unitPrice: 17, persons: 4, nights: 2, maxPersons: 8, sold: { cardPersons: 3, billedUnits: 3 } });
   assert.equal(offer.selectedPersons, 3);
-  assert.equal(offer.unitsPerPerson, 1);
-  assert.equal(buildOptionOffer({ ...OPTION, priceType: 'per_person_per_night' }, { persons: 4, nights: 3 }).unitsPerPerson, 3);
 });
 
 test('rule 17 — a line sold at arrival keeps its floor in people', () => {
@@ -66,25 +63,6 @@ test('rule 17 — what the field shows, read from what the line bills', () => {
   assert.equal(typedCountOf({ priceType: 'per_person_per_night', billedUnits: 6 }, stay), 2);
   assert.equal(typedCountOf({ priceType: 'per_night', billedUnits: 2 }, stay), 2);
   assert.equal(typedCountOf({ priceType: 'per_stay', billedUnits: 2 }, stay), null);
-});
-
-test('rule 6 — towels count the people served, the whole party when nobody typed', () => {
-  const towel = { towelLargePerPerson: 1, towelMediumPerPerson: 0, towelSmallPerPerson: 1 };
-  const reservation = { adults: 4, teens: 0, children: 1 };
-  const contract = (explicitServedSum) => computeReservationContract({
-    reservation,
-    bedLinenContext: {},
-    bathroomContext: { explicitOption: towel, explicitServedSum },
-    bathMatContext: { active: false },
-  });
-  assert.equal(contract(3).large, 3);
-  const followed = computeReservationContract({
-    reservation,
-    bedLinenContext: {},
-    bathroomContext: { propertyDefaultOption: towel },
-    bathMatContext: { active: false },
-  });
-  assert.equal(followed.large, 5);
 });
 
 // The 8 lines measured in production on 2026-11-03, plus the cases the rules name.
@@ -160,22 +138,16 @@ test('rule 14 — the boot runs it once, behind its flag', () => {
   assert.ok(db.prepare("SELECT 1 FROM migrations WHERE name = 'non_card_served_persons_v1'").get());
 });
 
-test('rule 6 — the laundry and the breakfast count the people served, and a line nobody typed the party', () => {
-  db.prepare("INSERT INTO options (id, title, price, priceType, countsAsBathroomLinen, towelLargePerPerson, towelMediumPerPerson, towelSmallPerPerson) VALUES (920, 'Serviettes', 8, 'per_person', 1, 1, 0, 0)").run();
+test('rule 6 — the breakfast counts the people served, and a line nobody typed the party', () => {
   db.prepare("INSERT INTO options (id, title, price, priceType, autoOptionType) VALUES (921, 'Petit-déjeuner', 8, 'per_person', 'breakfast')").run();
   const stay = (id, start, end, cardPersons) => {
     db.prepare(`INSERT INTO reservations (id, propertyId, clientId, startDate, endDate, adults, children, teens, kind)
                 VALUES (?, 900, 900, ?, ?, 5, 0, 0, 'reservation')`).run(id, start, end);
-    for (const optionId of [920, 921]) {
-      db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardPersons)
-                  VALUES (?, ?, 1, 8, ?, 'per_person', 0, ?)`).run(id, optionId, cardPersons ?? 5, cardPersons);
-    }
+    db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardPersons)
+                VALUES (?, 921, 1, 8, ?, 'per_person', 0, ?)`).run(id, cardPersons ?? 5, cardPersons);
   };
   stay(9901, '2098-06-01', '2098-06-03', 3);
-  assert.equal(laundryModel.dropOffBathroomForWindow('2098-06-01', '2098-06-05').largeTowels, 3);
   assert.equal(breakfastModel.breakfastByDate({ from: '2098-06-01', to: '2098-06-04' })['2098-06-02'].items[0].persons, 3);
-
   stay(9902, '2098-07-01', '2098-07-03', null);
-  assert.equal(laundryModel.dropOffBathroomForWindow('2098-07-01', '2098-07-05').largeTowels, 5);
   assert.equal(breakfastModel.breakfastByDate({ from: '2098-07-01', to: '2098-07-04' })['2098-07-02'].items[0].persons, 5);
 });

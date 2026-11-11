@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TVA optionnelle — résumé</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244A37; --honey:#C99038;
+  --bg:#F8F5EF; --paper:#FFFFFF; --ink:#27251F; --muted:#6E6A5E;
+  --divider:rgba(60,54,36,0.10); --divider-strong:rgba(60,54,36,0.18);
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --radius:14px; --shadow:0 3px 16px rgba(60,54,36,0.09);
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1040px;margin:0 auto;padding:32px 16px 80px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-0.01em;margin:0 0 8px}
+h2{font:600 1.35rem/1.25 var(--serif);margin:48px 0 12px}
+h3{font:600 1.05rem/1.3 var(--serif);margin:24px 0 8px}
+p{margin:0 0 12px}
+.lead{color:var(--muted);font-size:1.02rem;max-width:760px}
+.meta{color:var(--muted);font-size:.85rem;margin-bottom:24px}
+.num{font-variant-numeric:tabular-nums}
+.card{background:var(--paper);border:1px solid var(--divider);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+ul.tight{margin:0;padding-left:18px} ul.tight li{margin:4px 0}
+table.data{width:100%;border-collapse:collapse;font-size:.9rem}
+table.data th,table.data td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--divider);vertical-align:top}
+table.data th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+table.data td.r,table.data th.r{text-align:right}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:.78rem;font-weight:600;white-space:nowrap}
+.chip.ok{background:var(--success-soft);color:var(--success)}
+.chip.neutral{background:#EFEBE2;color:var(--muted)}
+.chip.warn{background:var(--warning-soft);color:var(--warning)}
+.chip.info{background:var(--info-soft);color:var(--info)}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.callout{border-left:3px solid var(--honey);background:#FBF6EC;padding:12px 16px;border-radius:0 10px 10px 0;margin:12px 0}
+.risk{border-left-color:var(--error);background:var(--error-soft)}
+
+/* ── Mockup frame ───────────────────────────────── */
+.mock-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 12px}
+.seg{display:inline-flex;background:#EFEBE2;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:600 .85rem var(--sans);color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(60,54,36,.15)}
+.stage{display:flex;justify-content:center}
+.device{width:100%;max-width:980px;background:var(--bg);border:1px solid var(--divider-strong);border-radius:18px;overflow:hidden;position:relative;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+.device.phone{max-width:390px}
+.appbar{background:var(--primary);color:#fff;height:48px;display:flex;align-items:center;padding:0 16px;font-weight:600;font-size:.92rem;gap:10px}
+.appbar .brand{font-family:var(--serif);font-size:1.05rem}
+.screen{display:flex;min-height:640px}
+.side{width:210px;background:var(--paper);border-right:1px solid var(--divider);padding:12px 8px;font-size:.86rem;flex-shrink:0}
+.side .grp{color:var(--muted);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin:12px 10px 4px}
+.side a{display:block;padding:7px 10px;border-radius:8px;color:var(--ink);text-decoration:none}
+.side a.on{background:var(--success-soft);color:var(--primary);font-weight:600}
+.device.phone .side{display:none}
+.main{flex:1;min-width:0;padding:0 0 32px}
+.pab{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;background:var(--paper);border-bottom:1px solid var(--divider);padding:8px 16px;min-height:56px}
+.pab .t{font:600 1.2rem var(--serif);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{width:44px;height:44px;border-radius:12px;border:1px solid var(--divider-strong);background:var(--paper);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:disabled{opacity:.4;cursor:default}
+.ib svg{width:20px;height:20px}
+.content{max-width:900px;margin:0 auto;padding:20px 20px 0}
+.device.phone .content{padding:12px 12px 0}
+.scard{background:var(--paper);border:1px solid var(--divider);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:20px}
+.device.phone .scard{padding:16px}
+.shead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.shead h4{font:600 1.05rem var(--serif);margin:0}
+.sub{color:var(--muted);font-size:.86rem;margin:0 0 16px}
+.field{display:flex;flex-direction:column;gap:4px;max-width:320px;margin-bottom:12px}
+.device.phone .field{max-width:none}
+.field label{font-size:.78rem;color:var(--muted);font-weight:600}
+.field input,.field select{font:15px var(--sans);padding:10px 12px;border:1px solid var(--divider-strong);border-radius:10px;background:var(--paper);color:var(--ink);min-height:44px;width:100%}
+.field input:focus,.field select:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:var(--primary)}
+.field.err input{border-color:var(--error);outline-color:var(--error)}
+.help{font-size:.78rem;color:var(--muted)}
+.field.err .help{color:var(--error)}
+.btn{font:600 .9rem var(--sans);border-radius:10px;padding:10px 16px;min-height:44px;cursor:pointer;border:1px solid transparent}
+.btn.primary{background:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-dark)}
+.btn.warnc{background:var(--warning);color:#fff}
+.btn.outline{background:var(--paper);border-color:var(--divider-strong);color:var(--primary)}
+.btn.text{background:transparent;color:var(--primary);padding:6px 8px;min-height:36px}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:active:not(:disabled){transform:scale(.98)}
+.hist{border-top:1px solid var(--divider);margin-top:8px;padding-top:12px}
+.hist h5{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}
+.hrow{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px dashed var(--divider)}
+.hrow:last-child{border-bottom:0}
+.hrow .l{flex:1;min-width:0}
+.hrow .l b{font-weight:600}
+.hrow .c{color:var(--muted);font-size:.8rem}
+.device.phone .hrow{flex-wrap:wrap}
+.toast{position:absolute;left:50%;top:60px;transform:translate(-50%,-12px);opacity:0;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:.88rem;transition:opacity .2s,transform .25s;pointer-events:none;z-index:9;max-width:90%}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* dialog */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:none;align-items:center;justify-content:center;z-index:5;padding:16px}
+.scrim.on{display:flex}
+.dlg{background:var(--paper);border-radius:var(--radius);width:100%;max-width:560px;max-height:calc(100% - 16px);display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(39,37,31,.25);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+.device.phone .scrim{padding:0}
+.device.phone .dlg{max-width:none;height:100%;max-height:none;border-radius:0}
+.dlg header{padding:18px 20px 6px;font:600 1.15rem var(--serif)}
+.dlg .body{padding:6px 20px 12px;overflow:auto}
+.dlg footer{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px 18px;border-top:1px solid var(--divider)}
+.device.phone .dlg footer{flex-direction:column-reverse}
+.device.phone .dlg footer .btn{width:100%}
+.target{display:flex;gap:10px;align-items:center;background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:.9rem;flex-wrap:wrap}
+.arrow{color:var(--muted)}
+.scope{display:flex;flex-direction:column;gap:8px;margin:6px 0 14px}
+.opt{border:1px solid var(--divider-strong);border-radius:12px;padding:12px;cursor:pointer;display:flex;gap:10px;align-items:flex-start;transition:border-color .15s,background .15s}
+.opt input[type=radio]{margin-top:3px;accent-color:var(--primary);width:18px;height:18px}
+.opt.on{border-color:var(--primary);background:#F3F7F4}
+.opt.on.corr{border-color:var(--warning);background:#FBF6EC}
+.opt .ot{font-weight:600;font-size:.92rem}
+.opt .od{font-size:.8rem;color:var(--muted)}
+.opt .dateline{margin-top:8px;display:none}
+.opt.on .dateline{display:block}
+.opt .dateline input{font:15px var(--sans);padding:8px 10px;border:1px solid var(--divider-strong);border-radius:10px;min-height:44px;max-width:200px;width:100%}
+.opt .dateline.err input{border-color:var(--error)}
+.opt .dateline .help{display:block;margin-top:4px}
+.opt .dateline.err .help{color:var(--error)}
+.prev{background:var(--bg);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.prev h6{margin:0 0 6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.prev ul{margin:0;padding-left:18px;font-size:.9rem}
+.prev li{margin:3px 0}
+.prev.loading{opacity:.55}
+.ack{display:flex;gap:10px;align-items:flex-start;font-size:.88rem;padding:10px 12px;border-radius:10px;background:var(--warning-soft);color:#5E4612;cursor:pointer}
+.ack input{width:18px;height:18px;accent-color:var(--warning);margin-top:2px}
+
+/* documents mock */
+.docs{display:grid;grid-template-columns:1fr 1.25fr;gap:16px}
+@media (max-width:760px){.docs{grid-template-columns:1fr}}
+.sum-row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:.9rem}
+.sum-row.cap{font-size:.8rem;color:var(--muted);padding:2px 0}
+.sum-row.tot{font-weight:700;border-top:1px solid var(--divider);margin-top:6px;padding-top:8px}
+.pdf{background:#fff;border:1px solid var(--divider-strong);border-radius:6px;padding:16px;font-size:.8rem;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.pdf table{width:100%;border-collapse:collapse}
+.pdf th{background:#F2EFE8;text-align:left;padding:6px;font-weight:600;font-size:.72rem}
+.pdf td{padding:6px;border-bottom:1px solid #eee}
+.pdf .r{text-align:right}
+.pdf .tots{margin-top:10px;margin-left:auto;max-width:260px}
+.pdf .tots div{display:flex;justify-content:space-between;padding:2px 0}
+.pdf .tots .g{font-weight:700;border-top:1px solid #ccc;margin-top:4px;padding-top:4px;color:var(--primary)}
+.pdf .mention{font-style:italic;color:var(--muted);text-align:right;margin-top:6px}
+.reslist{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.reslist button{text-align:left;border:1px solid var(--divider-strong);background:var(--paper);border-radius:10px;padding:8px 12px;cursor:pointer;font:14px var(--sans);min-height:44px;overflow-wrap:anywhere}
+.reslist button[aria-pressed="true"]{border-color:var(--primary);background:#F3F7F4}
+.arb{counter-reset:a}
+.arb .card{margin-bottom:14px}
+.arb h3{margin-top:0}
+.opts{display:flex;flex-direction:column;gap:8px}
+.opts div{padding:10px 12px;border:1px solid var(--divider);border-radius:10px;font-size:.9rem}
+.opts .rec{border-color:var(--primary);background:#F3F7F4}
+.opts .rec b::after{content:" (recommandé)";color:var(--primary);font-weight:600}
+footer.end{margin-top:48px;color:var(--muted);font-size:.8rem}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<p class="meta">Spec <code>specs/vat-optional-mode.md</code> · brouillon du 28/10/2026 · amende aussi single-vat-rate (règle 14), payment-links-vat (règle 11), accountant-accounting-export (règle 37)</p>
+<h1>TVA optionnelle, datée et réversible</h1>
+<p class="lead">Un client de GuestFlow sans TVA doit pouvoir travailler sans aucune TVA à l'écran, sur les devis, les liens de paiement et en compta, avec la bonne mention légale. Un changement de statut s'applique à partir d'une date, ou à toutes les réservations pour corriger une erreur. Solio ne voit aucune différence, et c'est prouvé.</p>
+
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">Aujourd'hui</h3>
+    <ul class="tight">
+      <li>Un seul taux, <code>app_settings.vatRate</code>, <b>relu en direct partout</b> : changer le taux réécrit toutes les réservations passées (choix « rétroactif » de single-vat-rate).</li>
+      <li>Onze endroits lisent ce taux : moteur de prix, résumé tarifaire enregistré, suivi financier, devis PDF, trois paniers de liens Qonto, remboursements, annulation, export comptable.</li>
+      <li>Mettre 0 % ne suffit pas : les documents affichent « TVA 0 % » et « Total HT », sans mention légale. Rien ne permet aujourd'hui de produire un devis légal pour un loueur hors TVA.</li>
+      <li>Les prix sont TTC et la TVA en est <b>extraite</b> : sans TVA, aucun prix ne bouge. <b>Une seule exception</b> : la taxe de séjour au pourcentage, calculée sur la nuit « hors taxes », augmente d'environ 10 %.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Retirer le plugin comptable ? Non</h3>
+    <p>Le plugin ne porte que le journal et le plan comptable. La TVA est dans le cœur : devis, résumé, liens de paiement, suivi financier. Les deux axes sont indépendants : un LMNP au réel a un comptable mais pas de TVA, une petite société en franchise n'a pas de TVA. Enfin, désactiver un plugin ne garde aucune date.</p>
+    <h3>Ce que « sans TVA » veut dire</h3>
+    <ul class="tight">
+      <li><b>Franchise en base</b>, CGI art. 293 B : « TVA non applicable, art. 293 B du CGI ».</li>
+      <li><b>Location meublée exonérée</b>, CGI art. 261 D 4° (taxable seulement avec 3 des 4 services : petit-déjeuner, ménage régulier, linge, accueil — LF 2024 art. 84) : « Exonération de TVA, art. 261 D 4° du CGI ».</li>
+      <li>La taxe de séjour n'est jamais soumise à TVA. La TVA sur les commissions des plateformes n'est plus récupérable.</li>
+    </ul>
+    <p class="help" style="margin-top:8px">C'est le loueur qui déclare son régime. Le texte des mentions reste à confirmer par un conseiller.</p>
+  </div>
+</div>
+
+<h3>Mesuré sur la copie de la prod (shadow, 28/10)</h3>
+<div class="card scroll-x">
+<table class="data num">
+  <thead><tr><th>Passage « Sans TVA » le 28/10/2026, portée…</th><th class="r">Réservations déplacées</th><th class="r">dont déjà encaissées</th><th class="r">Taxe de séjour qui bouge</th><th class="r">Taxes figées gardées</th></tr></thead>
+  <tbody>
+    <tr><td>Réservations prises à partir de cette date</td><td class="r">1</td><td class="r">0</td><td class="r">0</td><td class="r">0</td></tr>
+    <tr><td>Séjours qui commencent à partir de cette date</td><td class="r">9</td><td class="r">1</td><td class="r">2 (une seule taxée en direct : 9,65 € → ≈ 10,6 €)</td><td class="r">0</td></tr>
+    <tr><td>Toutes les réservations (correction)</td><td class="r">58</td><td class="r">48</td><td class="r">5</td><td class="r">40</td></tr>
+  </tbody>
+</table>
+<p class="help" style="margin:10px 0 0">58 réservations, 5 devis, 5 liens de paiement ouverts, encaissements sur 11 mois. La Granja : taxe par personne et par nuit, la TVA n'y change rien. L'Estiva : taxe au pourcentage, la TVA la change.</p>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<div class="grid2">
+  <div class="card">
+    <h3 style="margin-top:0">Un régime daté</h3>
+    <ul class="tight">
+      <li>Deux régimes : <b>Assujetti</b> (un taux, comme aujourd'hui) et <b>Sans TVA</b> (taux 0 et mention légale au choix parmi deux).</li>
+      <li>Un <b>historique de périodes</b>, sans modification possible. Chaque réservation garde la période sous laquelle elle a été vendue (<code>vatPeriodId</code>), posée par un trigger SQL : aucune des 7 façons d'insérer une réservation ne peut l'oublier.</li>
+      <li>Trois portées : réservations <b>prises</b> à partir d'une date (par défaut), séjours qui <b>commencent</b> à partir d'une date, ou <b>toutes</b> (correction). Un devis encore en cours suit toujours le régime du jour.</li>
+      <li>Un aperçu chiffré par le serveur avant de confirmer. La correction exige de cocher une case.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Sans TVA, concrètement</h3>
+    <ul class="tight">
+      <li><b>Aucun prix TTC ne change</b> : hébergement, options, acompte, solde, montant brut plateforme.</li>
+      <li>Résumé tarifaire : plus de « Total HT / TVA », une ligne de mention à la place.</li>
+      <li>Devis PDF : plus de colonnes HT ni TVA, « TOTAL » au lieu de « TOTAL TTC », mention sous les totaux (FR/EN).</li>
+      <li>Liens Qonto : mêmes lignes, toutes à 0 %, même montant au centime.</li>
+      <li>Suivi financier : HT masqué quand plus rien n'est soumis à TVA.</li>
+      <li>Export comptable : plus de 4457x, commission enregistrée TTC sans 44566, indemnités à 0 %.</li>
+      <li>Taxe de séjour figée ou déjà déclarée : jamais touchée.</li>
+    </ul>
+  </div>
+</div>
+
+<h3>Maquette 1 — Paramètres › TVA &amp; exercice et la popup de changement</h3>
+<p class="help">Tout répond : changer de régime, choisir la portée, taper une date avant le dernier changement ou trop lointaine, oublier la case de correction, taper un taux de 120. Les chiffres viennent de 14 réservations inventées (le serveur les calculera pour de vrai).</p>
+<div class="mock-controls">
+  <div class="seg" role="group" aria-label="Largeur">
+    <button type="button" data-view="desk" aria-pressed="true">Bureau</button>
+    <button type="button" data-view="phone" aria-pressed="false">Téléphone</button>
+  </div>
+  <button type="button" class="btn text" id="resetMock">Réinitialiser</button>
+</div>
+<div class="stage">
+<div class="device" id="device">
+  <div class="appbar"><span class="brand">GuestFlow</span></div>
+  <div class="screen">
+    <nav class="side" aria-label="Paramètres">
+      <div class="grp">Établissement</div>
+      <a href="#" onclick="return false">Établissement</a><a href="#" onclick="return false">Logements</a><a href="#" onclick="return false">Plateformes</a>
+      <div class="grp">Séjours</div>
+      <a href="#" onclick="return false">Options &amp; ressources</a><a href="#" onclick="return false">Fermetures</a>
+      <div class="grp">Finances &amp; messages</div>
+      <a href="#" class="on" onclick="return false">TVA &amp; exercice</a><a href="#" onclick="return false">Emails &amp; notifications</a>
+    </nav>
+    <div class="main">
+      <div class="pab">
+        <span class="t">TVA &amp; exercice</span>
+        <button class="ib save" id="saveBtn" title="Enregistrer" aria-label="Enregistrer" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg></button>
+        <button class="ib" id="cancelBtn" title="Annuler" aria-label="Annuler" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="content">
+        <section class="scard" aria-labelledby="vatTitle">
+          <div class="shead"><h4 id="vatTitle">TVA</h4><span id="badge"></span></div>
+          <p class="sub" id="vatSub"></p>
+          <div id="vatField"></div>
+          <button type="button" class="btn outline" id="openSwitch">Changer de régime…</button>
+          <div class="hist">
+            <h5>Historique</h5>
+            <div id="history"></div>
+          </div>
+        </section>
+        <section class="scard">
+          <div class="shead"><h4>Exercice comptable</h4></div>
+          <p class="sub">Les chiffres annuels du suivi financier suivent l'exercice.</p>
+          <div class="field"><label for="m">Mois de clôture</label><select id="m"><option>Décembre</option><option>Septembre</option></select><span class="help">L'exercice suit l'année civile : du 1er janvier au 31 décembre.</span></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="dlg">
+      <header id="dlgTitle"></header>
+      <div class="body">
+        <div class="target" id="target"></div>
+        <div id="targetField"></div>
+        <div class="field" style="max-width:none;margin-bottom:4px"><label>Appliquer à</label></div>
+        <div class="scope" id="scope">
+          <label class="opt" data-basis="booking">
+            <input type="radio" name="basis" value="booking">
+            <span style="flex:1"><span class="ot">Réservations prises à partir du</span><br><span class="od">Les réservations déjà prises gardent leur régime.</span>
+              <span class="dateline"><input type="date" data-date="booking"><span class="help"></span></span></span>
+          </label>
+          <label class="opt" data-basis="arrival">
+            <input type="radio" name="basis" value="arrival">
+            <span style="flex:1"><span class="ot">Séjours qui commencent à partir du</span><br><span class="od">Y compris les séjours déjà réservés.</span>
+              <span class="dateline"><input type="date" data-date="arrival"><span class="help"></span></span></span>
+          </label>
+          <label class="opt corr" data-basis="all">
+            <input type="radio" name="basis" value="all">
+            <span style="flex:1"><span class="ot">Toutes les réservations — correction</span><br><span class="od">Pour un régime mal paramétré.</span></span>
+          </label>
+        </div>
+        <div class="prev" id="prev"><h6>Ce qui change</h6><ul id="prevList"></ul></div>
+        <label class="ack" id="ack" hidden><input type="checkbox" id="ackBox"><span id="ackText"></span></label>
+      </div>
+      <footer>
+        <button type="button" class="btn outline" id="dlgCancel">Annuler</button>
+        <button type="button" class="btn primary" id="dlgOk"></button>
+      </footer>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+</div>
+
+<h3>Maquette 2 — Ce que voit le client, réservation par réservation</h3>
+<p class="help">Chaque réservation suit sa propre période. Faire un changement dans la maquette 1, puis choisir une réservation : celles prises avant gardent leur TVA, les nouvelles affichent la mention.</p>
+<div class="card">
+  <div class="mock-controls">
+    <div class="seg" role="group" aria-label="Langue du PDF">
+      <button type="button" data-lang="fr" aria-pressed="true">PDF en français</button>
+      <button type="button" data-lang="en" aria-pressed="false">PDF en anglais</button>
+    </div>
+  </div>
+  <div class="docs">
+    <div>
+      <div class="reslist" id="reslist"></div>
+      <div class="scard" style="margin:0">
+        <div class="shead"><h4>Résumé tarifaire</h4></div>
+        <div id="summary"></div>
+      </div>
+    </div>
+    <div>
+      <div class="pdf" id="pdf"></div>
+    </div>
+  </div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<div class="card">
+<ul class="tight">
+  <li>Surveiller les seuils de la franchise : GuestFlow ne suit pas le chiffre d'affaires.</li>
+  <li>Un changement de taux daté à l'intérieur du régime assujetti (10 % → 20 % à une date) : le modèle le permet, la popup ne le propose pas.</li>
+  <li>Réécrire ce qui est déjà parti : PDF envoyés par mail, liens Qonto ouverts (ils gardent leur montant).</li>
+  <li>Des factures : GuestFlow produit des devis et des liens de paiement, la mention va sur ces documents.</li>
+  <li>Exonérer une seule option alors que le séjour est soumis à TVA.</li>
+  <li>Activer ou désactiver le plugin comptable depuis la popup : ça reste dans Paramètres › Plugins.</li>
+  <li>Renommer la page : elle garde « TVA &amp; exercice », car on y gère aussi l'exercice et c'est là qu'on remet la TVA.</li>
+</ul>
+</div>
+
+<h2>Le risque</h2>
+<div class="callout risk">
+  <p><b>Le moteur de prix et la compta sont touchés à onze endroits.</b> Une erreur de lecture du taux ferait bouger la TVA de Solio, ou sa taxe de séjour à L'Estiva.</p>
+  <ul class="tight">
+    <li><b>Lot 0, avant toute ligne de code :</b> on capture des « golden » (devis, résumés, PDF, paniers Qonto, CSV comptable mois par mois, suivi financier, taxe de séjour) sur le code actuel. Chaque lot doit les reproduire <b>à l'octet près</b>.</li>
+    <li><b>Sur la copie de la prod :</b> un script calcule une empreinte de chacune des 58 réservations et des 5 devis, avant et après chaque lot. Il faut 0 différence. Il n'affiche que des numéros, aucun nom.</li>
+    <li><b>Un test interdit</b> toute lecture de <code>app_settings.vatRate</code> en dehors du nouveau modèle, pour qu'un lecteur oublié ne puisse pas passer.</li>
+    <li>Les lots 3 et 4 (affichage sans TVA, popup) sont hors d'atteinte pour Solio tant que personne ne change de régime.</li>
+    <li><b>Reste à surveiller :</b> une correction sur « toutes les réservations » modifie les écritures de mois déjà envoyés au comptable. C'est voulu (on corrige une erreur), mais l'aperçu l'annonce et il faut cocher une case pour confirmer.</li>
+  </ul>
+</div>
+<div class="card scroll-x">
+<table class="data">
+  <thead><tr><th>Lot</th><th>Contenu</th><th>Visible</th><th>Barrière</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>Golden + script copie de prod, code inchangé</td><td>rien</td><td>golden capturés</td></tr>
+    <tr><td>1</td><td>Un seul point d'accès au taux, les 11 lecteurs y passent</td><td>rien</td><td>golden identiques, 0 écart prod</td></tr>
+    <tr><td>2</td><td>Table des périodes, trigger, migration</td><td>rien</td><td>golden, migration, 0 écart prod</td></tr>
+    <tr><td>3</td><td>Rendu sans TVA partout (devis, résumé, liens, finance, compta)</td><td>rien</td><td>golden + suites sans TVA</td></tr>
+    <tr><td>4</td><td>Popup, aperçu, historique, annulation, E2E</td><td>la fonctionnalité</td><td>toutes les suites + manuel</td></tr>
+  </tbody>
+</table>
+<p class="help" style="margin:10px 0 0">Environ 20 fichiers serveur, 15 côté client, 18 fichiers de tests, ≈ 105 cas.</p>
+</div>
+
+<h2>Les arbitrages en attente</h2>
+<div class="arb">
+  <div class="card"><h3>1. Que veut dire « réservations à venir » ?</h3>
+    <div class="opts">
+      <div class="rec"><b>Proposer les deux portées datées et la correction</b> — « prises à partir du » par défaut, « séjours à partir du » pour un changement de statut qui suit la date des séjours.</div>
+      <div><b>Date de réservation seulement</b> + correction — plus simple, mais impossible de basculer les séjours déjà réservés pour l'an prochain sans tout corriger.</div>
+      <div><b>Date d'arrivée seulement</b> + correction — plus proche du fait générateur fiscal, mais touche des réservations déjà payées ou des liens déjà envoyés.</div>
+    </div></div>
+  <div class="card"><h3>2. La TVA, réglage à part ou liée au plugin comptable ?</h3>
+    <div class="opts">
+      <div class="rec"><b>Réglage du cœur, daté</b> — le plugin reste un interrupteur à part. Ses écritures suivent le régime.</div>
+      <div><b>Liée au plugin</b> — un seul geste, mais faux pour un LMNP avec comptable et sans TVA, et sans aucune date.</div>
+    </div></div>
+  <div class="card"><h3>3. Une correction peut-elle réécrire des mois déjà envoyés au comptable ?</h3>
+    <div class="opts">
+      <div class="rec"><b>Oui, annoncé et confirmé</b> — l'aperçu liste les mois, une case à cocher, une taxe de séjour figée ou déclarée ne bouge jamais.</div>
+      <div><b>Exclure les séjours déjà entièrement payés</b> — les mois envoyés restent intacts, mais l'erreur de paramétrage n'est corrigée qu'à moitié.</div>
+    </div></div>
+  <div class="card"><h3>4. La mention légale</h3>
+    <div class="opts">
+      <div class="rec"><b>Deux mentions au choix</b> (293 B, 261 D 4°) — texte juste, traduit, sans faute de frappe possible.</div>
+      <div><b>Texte libre</b> — souple, mais la mention imprimée sur les devis n'est plus vérifiée.</div>
+    </div></div>
+</div>
+
+<footer class="end">Résumé de la spec <code>specs/vat-optional-mode.md</code>. Sources : CGI art. 293 B et 261 D 4°, BOI-TVA-DECLA-40-10-20, BOI-TVA-CHAMP-10-10-50-20 (MAJ 26/03/2025), BOI-BAREME-000036, CGCT art. L2333-30. Données : copie de la prod du 28/10/2026, comptages seulement. Noms des maquettes inventés.</footer>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var TODAY = '2026-10-28';
+  var MENTIONS = {
+    art_293_b: { fr: 'TVA non applicable, art. 293 B du CGI', en: 'VAT not applicable, art. 293 B of the French General Tax Code', short: 'Franchise en base — art. 293 B' },
+    art_261_d_4: { fr: 'Exonération de TVA, art. 261 D 4° du CGI', en: 'VAT exempt, art. 261 D 4° of the French General Tax Code', short: 'Location meublée exonérée — art. 261 D 4°' }
+  };
+  // Invented reservations (no real guest): booked, start, collected, proportional tax, frozen, open link, paid month.
+  var RES = [
+    { id: 'R-101', name: 'Camille Durand', booked: '2026-03-02', start: '2026-05-10', paid: true, pct: false, frozen: true, link: false, month: '2026-03', price: 640, tax: 12.6 },
+    { id: 'R-102', name: 'Hugo Martin', booked: '2026-04-11', start: '2026-06-20', paid: true, pct: true, frozen: true, link: false, month: '2026-05', price: 525, tax: 9.65 },
+    { id: 'R-103', name: 'Léa Bernard', booked: '2026-05-03', start: '2026-07-04', paid: true, pct: false, frozen: true, link: false, month: '2026-06', price: 1180, tax: 25.2 },
+    { id: 'R-104', name: 'Marie-Hélène de La Tour-Saint-Exupéry-Montmorency', booked: '2026-06-15', start: '2026-08-01', paid: true, pct: true, frozen: true, link: false, month: '2026-07', price: 963, tax: 17.4 },
+    { id: 'R-105', name: 'Noah Petit', booked: '2026-07-01', start: '2026-08-14', paid: true, pct: false, frozen: true, link: false, month: '2026-07', price: 880, tax: 16.8 },
+    { id: 'R-106', name: 'Inès Moreau', booked: '2026-07-22', start: '2026-09-05', paid: true, pct: false, frozen: true, link: false, month: '2026-08', price: 450, tax: 8.4 },
+    { id: 'R-107', name: 'Jules Laurent', booked: '2026-08-30', start: '2026-10-02', paid: true, pct: true, frozen: false, link: false, month: '2026-09', price: 380, tax: 7.1 },
+    { id: 'R-108', name: 'Zoé Garnier', booked: '2026-09-18', start: '2026-12-19', paid: true, pct: false, frozen: false, link: true, month: '2026-10', price: 1320, tax: 0 },
+    { id: 'R-109', name: 'Arthur Faure', booked: '2026-10-05', start: '2027-04-19', paid: true, pct: true, frozen: false, link: false, month: '2026-10', price: 525, tax: 9.65 },
+    { id: 'R-110', name: 'Chloé Roux', booked: '2026-10-12', start: '2027-05-08', paid: false, pct: false, frozen: false, link: true, month: null, price: 790, tax: 14.4 },
+    { id: 'R-111', name: 'Louis Fontaine', booked: '2026-10-20', start: '2027-07-10', paid: false, pct: false, frozen: false, link: true, month: null, price: 1450, tax: 30.8 },
+    { id: 'R-112', name: 'Emma Chevalier', booked: '2026-10-28', start: '2027-08-07', paid: false, pct: true, frozen: false, link: false, month: null, price: 963, tax: 17.4 },
+    { id: 'R-113', name: 'Gabriel Lambert', booked: '2026-10-28', start: '2026-11-06', paid: false, pct: false, frozen: false, link: false, month: null, price: 360, tax: 6.3 },
+    { id: 'R-114', name: 'Alice Bonnet', booked: '2026-10-27', start: '2027-01-02', paid: false, pct: false, frozen: false, link: true, month: null, price: 610, tax: 11.2 }
+  ];
+  var MONTHS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var state, draft;
+
+  function initial(){
+    state = {
+      periods: [{ id: 1, regime: 'subject', rate: 10, mention: null, basis: 'all', from: null, created: '2026-04-09', by: 'Installation', correction: false }],
+      assign: {}, rateDraft: '10', mentionDraft: null, savedRate: 10, savedMention: null
+    };
+    RES.forEach(function(r){ state.assign[r.id] = 1; });
+    // A reservation booked today after the period exists keeps period 1 until a switch.
+    state.extra = [];
+  }
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
+  function frDate(iso){ if (!iso) return ''; var p = iso.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function euro(n){ return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'; }
+  function addDays(iso, d){ var t = new Date(iso + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); }
+  function period(id){ return state.periods.filter(function(p){ return p.id === id; })[0]; }
+  function latest(){ return state.periods[state.periods.length - 1]; }
+  function matches(p, r){ return p.basis === 'all' || (p.basis === 'booking' && r.booked >= p.from) || (p.basis === 'arrival' && r.start >= p.from); }
+  function inForce(){
+    var probe = { booked: TODAY, start: TODAY }, best = state.periods[0];
+    state.periods.forEach(function(p){ if (matches(p, probe)) best = p; });
+    return best;
+  }
+  function lastDated(){ var d = null; state.periods.forEach(function(p){ if (p.from) d = p.from; }); return d; }
+  function refCount(p){ var n = 0; RES.forEach(function(r){ if (state.assign[r.id] === p.id) n++; }); return n; }
+  function regimeLabel(p){ return p.regime === 'subject' ? 'Assujetti · ' + String(p.rate).replace('.', ',') + ' %' : 'Sans TVA'; }
+  function periodSentence(p){
+    var head = p.basis === 'all' ? (p.id === 1 ? 'Depuis l’installation' : 'Toutes les réservations') :
+      (p.basis === 'booking' ? 'Réservations prises à partir du ' : 'Séjours qui commencent à partir du ') + frDate(p.from);
+    return head;
+  }
+
+  /* ── Settings card ─────────────────────────────── */
+  function renderCard(){
+    var cur = inForce();
+    $('badge').innerHTML = cur.regime === 'subject'
+      ? '<span class="chip ok"><span class="dot"></span>' + esc(regimeLabel(cur)) + '</span>'
+      : '<span class="chip neutral"><span class="dot"></span>Sans TVA</span>';
+    $('vatSub').textContent = cur.regime === 'subject'
+      ? 'Appliqué à l’ensemble des prestations : hébergement, options, ressources.'
+      : 'Aucune TVA sur les prix, les devis et les liens de paiement.';
+    if (cur.regime === 'subject') {
+      var v = state.rateDraft, n = Number(String(v).replace(',', '.'));
+      var bad = v === '' || isNaN(n) || n < 0 || n > 100;
+      $('vatField').innerHTML = '<div class="field' + (bad ? ' err' : '') + '"><label for="rate">Taux de TVA (%)</label>' +
+        '<input id="rate" inputmode="decimal" value="' + esc(v) + '"><span class="help">' + (bad ? 'Taux entre 0 et 100' : '10 % par défaut.') + '</span></div>';
+      $('rate').addEventListener('input', function(e){ state.rateDraft = e.target.value; renderCard(); var el = $('rate'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+      setDirty(String(state.savedRate) !== String(state.rateDraft).replace(',', '.'), bad);
+    } else {
+      var m = state.mentionDraft || cur.mention;
+      $('vatField').innerHTML = '<div class="field"><label for="mention">Mention légale</label><select id="mention">' +
+        Object.keys(MENTIONS).map(function(k){ return '<option value="' + k + '"' + (k === m ? ' selected' : '') + '>' + esc(MENTIONS[k].short) + '</option>'; }).join('') +
+        '</select><span class="help">Imprimée sur les devis : « ' + esc(MENTIONS[m].fr) + ' ».</span></div>';
+      $('mention').addEventListener('change', function(e){ state.mentionDraft = e.target.value; renderCard(); });
+      setDirty(state.mentionDraft != null && state.mentionDraft !== cur.mention, false);
+    }
+    var rows = state.periods.slice().reverse().map(function(p){
+      var tags = '';
+      if (p.correction) tags += ' <span class="chip warn">Correction</span>';
+      if (p.from && p.from > TODAY) tags += ' <span class="chip info">Prévu</span>';
+      if (p === cur) tags += ' <span class="chip ok">En vigueur</span>';
+      var del = (p === latest() && p.id !== 1 && refCount(p) === 0)
+        ? '<button type="button" class="btn text" data-del="' + p.id + '">Annuler ce changement</button>' : '';
+      return '<div class="hrow"><div class="l"><b>' + esc(regimeLabel(p)) + '</b>' + tags + '<br><span>' + esc(periodSentence(p)) + '</span><br><span class="c">' + esc(p.by) + ' · ' + frDate(p.created) + ' · ' + refCount(p) + ' réservation' + (refCount(p) > 1 ? 's' : '') + '</span></div>' + del + '</div>';
+    }).join('');
+    $('history').innerHTML = rows;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-del]'), function(b){
+      b.addEventListener('click', function(){
+        state.periods.pop(); state.mentionDraft = null; renderAll(); toast('Changement annulé');
+      });
+    });
+  }
+  function setDirty(dirty, bad){ $('saveBtn').disabled = !dirty || bad; $('cancelBtn').disabled = !dirty; }
+  $('saveBtn').addEventListener('click', function(){
+    var cur = inForce();
+    if (cur.regime === 'subject') { cur.rate = Number(String(state.rateDraft).replace(',', '.')); state.savedRate = cur.rate; state.rateDraft = String(cur.rate); }
+    else { cur.mention = state.mentionDraft || cur.mention; state.mentionDraft = null; }
+    renderAll(); toast('Enregistré');
+  });
+  $('cancelBtn').addEventListener('click', function(){ state.rateDraft = String(state.savedRate); state.mentionDraft = null; renderCard(); });
+
+  /* ── Dialog ────────────────────────────────────── */
+  function openDialog(){
+    var cur = inForce();
+    draft = { regime: cur.regime === 'subject' ? 'not_subject' : 'subject', rate: '10', mention: 'art_293_b', basis: 'booking', from: { booking: TODAY, arrival: TODAY }, ack: false };
+    $('scrim').classList.add('on');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-date]'), function(i){ i.value = draft.from[i.getAttribute('data-date')]; });
+    $('ackBox').checked = false;
+    renderDialog();
+    setTimeout(function(){ var r = document.querySelector('input[name=basis][value=booking]'); if (r) r.focus(); }, 30);
+  }
+  function closeDialog(){ $('scrim').classList.remove('on'); }
+  function dateError(basis){
+    if (basis === 'all') return '';
+    var v = draft.from[basis];
+    if (!v) return 'Date requise';
+    var last = lastDated();
+    if (last && v < last) return 'Date antérieure au dernier changement (' + frDate(last) + ')';
+    if (v > addDays(TODAY, 366)) return 'Au plus un an à l’avance';
+    if (v < addDays(TODAY, -366)) return 'Au plus un an en arrière, sinon correction';
+    return '';
+  }
+  function rateError(){
+    if (draft.regime !== 'subject') return '';
+    var n = Number(String(draft.rate).replace(',', '.'));
+    if (draft.rate === '' || isNaN(n) || n < 0 || n > 100) return 'Taux entre 0 et 100';
+    return '';
+  }
+  function candidate(){
+    return { id: latest().id + 1, regime: draft.regime, rate: draft.regime === 'subject' ? Number(String(draft.rate).replace(',', '.')) : 0,
+      mention: draft.regime === 'subject' ? null : draft.mention, basis: draft.basis, from: draft.basis === 'all' ? null : draft.from[draft.basis],
+      created: TODAY, by: 'Adrien', correction: draft.basis === 'all' };
+  }
+  function preview(){
+    var p = candidate(), moved = RES.filter(function(r){ var o = period(state.assign[r.id]); return matches(p, r) && (o.regime !== p.regime || o.rate !== p.rate); });
+    var toNo = p.regime === 'not_subject';
+    var paid = moved.filter(function(r){ return r.paid; }).length;
+    var taxMoves = moved.filter(function(r){ return r.pct && !r.frozen && r.tax > 0; });
+    var delta = taxMoves.reduce(function(s, r){
+      var from = period(state.assign[r.id]).rate, to = p.rate;
+      return s + r.tax * ((1 + from / 100) / (1 + to / 100) - 1);
+    }, 0);
+    var frozen = moved.filter(function(r){ return r.frozen; }).length;
+    var links = moved.filter(function(r){ return r.link; }).length;
+    var months = {}; moved.forEach(function(r){ if (r.month) months[r.month] = 1; });
+    var ms = Object.keys(months).sort();
+    var lines = [];
+    var word = toNo ? 'passent sans TVA' : 'passent à la TVA';
+    if (moved.length === 0) lines.push(p.from && p.from > TODAY
+      ? 'Aucune réservation existante. Les réservations prises à partir du ' + frDate(p.from) + ' ' + word + '.'
+      : 'Aucune réservation existante. Les prochaines ' + word + '.');
+    else lines.push(moved.length + ' réservation' + (moved.length > 1 ? 's ' : ' ') + (moved.length > 1 ? word : word.replace('passent', 'passe')) + (paid ? ', dont ' + paid + ' déjà encaissée' + (paid > 1 ? 's' : '') : '') + '.');
+    lines.push('Prix inchangés.' + (toNo ? '' : ' Le chiffre d’affaires HT baisse d’autant.'));
+    if (taxMoves.length) lines.push('Taxe de séjour recalculée sur ' + taxMoves.length + ' séjour' + (taxMoves.length > 1 ? 's' : '') + ' (' + (delta >= 0 ? '+' : '−') + euro(Math.abs(delta)) + ').');
+    if (frozen) lines.push(frozen + ' taxe' + (frozen > 1 ? 's' : '') + ' de séjour figée' + (frozen > 1 ? 's' : '') + ' inchangée' + (frozen > 1 ? 's' : '') + '.');
+    if (links) lines.push(links + ' lien' + (links > 1 ? 's' : '') + ' de paiement ouvert' + (links > 1 ? 's gardent' : ' garde') + ' leur montant.');
+    if (ms.length) lines.push('Écritures comptables modifiées : ' + monthRange(ms) + '.');
+    lines.push(toNo ? 'Devis et résumés : mention « ' + MENTIONS[p.mention].fr + ' ».' : 'Devis et résumés : TVA ' + String(p.rate).replace('.', ',') + ' %.');
+    return { lines: lines, months: ms, moved: moved };
+  }
+  function monthRange(ms){
+    function lab(m){ var p = m.split('-'); return MONTHS[Number(p[1]) - 1] + ' ' + p[0]; }
+    var first = ms[0], last = ms[ms.length - 1];
+    if (ms.length === 1) return lab(first);
+    var head = first.slice(0, 4) === last.slice(0, 4) ? MONTHS[Number(first.split('-')[1]) - 1] : lab(first);
+    return head + ' à ' + lab(last) + ' (' + ms.length + ' mois)';
+  }
+  function renderDialog(){
+    var cur = inForce(), toNo = draft.regime === 'not_subject';
+    $('dlgTitle').textContent = toNo ? 'Passer sans TVA' : 'Passer à la TVA';
+    var targetName = toNo ? 'Sans TVA' : 'Assujetti · ' + (rateError() ? '…' : String(draft.rate).replace('.', ',') + ' %');
+    $('target').innerHTML = '<span class="chip ' + (cur.regime === 'subject' ? 'ok' : 'neutral') + '">' + esc(regimeLabel(cur)) + '</span><span class="arrow">→</span><span class="chip ' + (toNo ? 'neutral' : 'ok') + '">' + esc(targetName) + '</span>';
+    if (!$('tField')) {
+      $('targetField').innerHTML = toNo
+        ? '<div class="field" style="max-width:none" id="tField"><label for="tMention">Mention légale</label><select id="tMention">' + Object.keys(MENTIONS).map(function(k){ return '<option value="' + k + '">' + esc(MENTIONS[k].short) + '</option>'; }).join('') + '</select><span class="help" id="tHelp"></span></div>'
+        : '<div class="field" id="tField"><label for="tRate">Taux de TVA (%)</label><input id="tRate" inputmode="decimal" value="' + esc(draft.rate) + '"><span class="help" id="tHelp"></span></div>';
+      if (toNo) $('tMention').addEventListener('change', function(e){ draft.mention = e.target.value; renderDialog(); });
+      else $('tRate').addEventListener('input', function(e){ draft.rate = e.target.value; renderDialog(); });
+    }
+    var re = rateError();
+    $('tField').classList.toggle('err', Boolean(re));
+    $('tHelp').textContent = toNo ? '« ' + MENTIONS[draft.mention].fr + ' »' : (re || '10 % par défaut.');
+    Array.prototype.forEach.call(document.querySelectorAll('.opt'), function(o){
+      var b = o.getAttribute('data-basis'), on = b === draft.basis;
+      o.classList.toggle('on', on);
+      o.querySelector('input[type=radio]').checked = on;
+      var dl = o.querySelector('.dateline');
+      if (dl) {
+        var err = on ? dateError(b) : '';
+        dl.classList.toggle('err', Boolean(err));
+        dl.querySelector('.help').textContent = err || (draft.from[b] > TODAY ? 'Changement prévu, annulable tant qu’aucune réservation ne l’utilise.' : '');
+      }
+    });
+    var de = dateError(draft.basis), invalid = Boolean(de || re);
+    var pv = invalid ? null : preview();
+    $('prev').classList.toggle('loading', invalid);
+    $('prevList').innerHTML = pv ? pv.lines.map(function(l){ return '<li>' + esc(l) + '</li>'; }).join('') : '<li>Aperçu disponible une fois les champs corrigés.</li>';
+    if (pv && state.periods.length && toNo === false && cur.regime === 'not_subject') { /* no-op: symmetric copy already in lines */ }
+    var isCorr = draft.basis === 'all';
+    $('ack').hidden = !isCorr;
+    $('ackText').textContent = pv && pv.months.length ? 'Les écritures déjà transmises au comptable changent.' : 'Les documents déjà envoyés ne changent pas.';
+    var ok = $('dlgOk');
+    ok.className = 'btn ' + (isCorr ? 'warnc' : 'primary');
+    ok.textContent = isCorr ? 'Corriger toutes les réservations' : (toNo ? 'Passer sans TVA' : 'Passer à la TVA');
+    ok.disabled = invalid || (isCorr && !$('ackBox').checked);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=basis]'), function(r){
+    r.addEventListener('change', function(){ draft.basis = r.value; renderDialog(); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-date]'), function(i){
+    i.addEventListener('input', function(){ draft.from[i.getAttribute('data-date')] = i.value; renderDialog(); });
+    i.addEventListener('click', function(e){ e.stopPropagation(); });
+  });
+  $('ackBox').addEventListener('change', renderDialog);
+  $('dlgCancel').addEventListener('click', closeDialog);
+  $('scrim').addEventListener('click', function(e){ if (e.target === $('scrim')) closeDialog(); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && $('scrim').classList.contains('on')) closeDialog(); });
+  $('openSwitch').addEventListener('click', function(){ $('targetField').innerHTML = ''; openDialog(); });
+  $('dlgOk').addEventListener('click', function(){
+    if ($('dlgOk').disabled) return;
+    var p = candidate(), pv = preview();
+    state.periods.push(p);
+    pv.moved.forEach(function(r){ state.assign[r.id] = p.id; });
+    // New bookings made today follow the period in force (the trigger, rule 5).
+    state.mentionDraft = null;
+    if (p.regime === 'subject') { state.savedRate = p.rate; state.rateDraft = String(p.rate); }
+    closeDialog(); renderAll();
+    toast(p.from && p.from > TODAY ? 'Changement prévu le ' + frDate(p.from) : (p.correction ? 'Toutes les réservations corrigées' : 'Régime modifié'));
+  });
+
+  var tt;
+  function toast(msg){ var t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(function(){ t.classList.remove('on'); }, 2200); }
+
+  /* ── Documents ─────────────────────────────────── */
+  var picked = 'R-102', lang = 'fr';
+  var NEW_ID = 'R-NEW';
+  function docRows(){
+    var list = RES.filter(function(r){ return ['R-102', 'R-104', 'R-110', 'R-112'].indexOf(r.id) >= 0; }).map(function(r){ return { r: r, p: period(state.assign[r.id]) }; });
+    var probe = { booked: TODAY, start: '2027-06-12' }, best = state.periods[0];
+    state.periods.forEach(function(p){ if (matches(p, probe)) best = p; });
+    list.push({ r: { id: NEW_ID, name: 'Nouvelle réservation (prise aujourd’hui)', booked: TODAY, start: '2027-06-12', price: 742, tax: 13.2, pct: false }, p: best });
+    return list;
+  }
+  function renderDocs(){
+    var rows = docRows();
+    if (!rows.some(function(x){ return x.r.id === picked; })) picked = rows[0].r.id;
+    $('reslist').innerHTML = rows.map(function(x){
+      return '<button type="button" data-pick="' + x.r.id + '" aria-pressed="' + (x.r.id === picked) + '"><b>' + esc(x.r.name) + '</b><br><span class="help">' + (x.r.id === NEW_ID ? 'séjour du 12/06/2027' : 'prise le ' + frDate(x.r.booked) + ' · séjour du ' + frDate(x.r.start)) + ' · ' + esc(regimeLabel(x.p)) + '</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pick]'), function(b){ b.addEventListener('click', function(){ picked = b.getAttribute('data-pick'); renderDocs(); }); });
+    var cur = rows.filter(function(x){ return x.r.id === picked; })[0], r = cur.r, p = cur.p;
+    var rate = p.regime === 'subject' ? p.rate : 0;
+    var acc = Math.round(r.price * 0.82 * 100) / 100, opt = Math.round((r.price - acc) * 100) / 100;
+    var baseTax = r.tax;
+    var tax = r.pct && !r.frozen ? Math.round(baseTax * (1.1 / (1 + rate / 100)) * 100) / 100 : baseTax;
+    var ht = Math.round(r.price / (1 + rate / 100) * 100) / 100, vat = Math.round((r.price - ht) * 100) / 100;
+    var s = '<div class="sum-row"><span>Hébergement</span><span class="num">' + euro(acc) + '</span></div>' +
+      '<div class="sum-row"><span>Options</span><span class="num">' + euro(opt) + '</span></div>' +
+      '<div class="sum-row"><span>Taxe de séjour</span><span class="num">' + euro(tax) + '</span></div>' +
+      '<div class="sum-row tot"><span>Total du séjour</span><span class="num">' + euro(r.price + tax) + '</span></div>';
+    s += p.regime === 'subject'
+      ? '<div class="sum-row cap"><span>Total HT</span><span class="num">' + euro(ht) + '</span></div><div class="sum-row cap"><span>TVA ' + String(rate).replace('.', ',') + ' %</span><span class="num">' + euro(vat) + '</span></div>'
+      : '<div class="sum-row cap"><span>' + esc(MENTIONS[p.mention].fr) + '</span><span></span></div>';
+    $('summary').innerHTML = s;
+    var L = lang === 'fr'
+      ? { title: 'DEVIS', d: 'Désignation', q: 'Qté', ht: 'Prix HT', v: 'TVA', t: 'Total TTC', tt: 'Total', a: 'Hébergement', o: 'Options', sh: 'Sous-total HT', st: 'Sous-total TTC', tx: 'Taxe de séjour', g: 'TOTAL TTC', g2: 'TOTAL' }
+      : { title: 'QUOTE', d: 'Description', q: 'Qty', ht: 'Price excl. VAT', v: 'VAT', t: 'Total incl. VAT', tt: 'Total', a: 'Accommodation', o: 'Extras', sh: 'Subtotal excl. VAT', st: 'Subtotal incl. VAT', tx: 'Tourist tax', g: 'TOTAL INCL. VAT', g2: 'TOTAL' };
+    var subj = p.regime === 'subject';
+    function line(lab, q, ttc){
+      var h = Math.round(ttc / (1 + rate / 100) * 100) / 100;
+      return '<tr><td>' + lab + '</td><td>' + q + '</td>' + (subj ? '<td class="r num">' + euro(h) + '</td><td class="r">' + String(rate).replace('.', ',') + ' %</td>' : '') + '<td class="r num">' + euro(ttc) + '</td></tr>';
+    }
+    var pdf = '<div style="display:flex;justify-content:space-between;margin-bottom:10px"><b style="font-family:var(--serif);color:var(--primary);font-size:1rem">' + L.title + '</b><span class="help">' + esc(r.name) + '</span></div>' +
+      '<table><thead><tr><th>' + L.d + '</th><th>' + L.q + '</th>' + (subj ? '<th class="r">' + L.ht + '</th><th class="r">' + L.v + '</th><th class="r">' + L.t + '</th>' : '<th class="r">' + L.tt + '</th>') + '</tr></thead><tbody>' +
+      line(L.a, 5, acc) + line(L.o, 1, opt) + '</tbody></table><div class="tots num">' +
+      (subj ? '<div><span>' + L.sh + '</span><span>' + euro(ht) + '</span></div><div><span>' + L.st + '</span><span>' + euro(r.price) + '</span></div>' : '') +
+      '<div><span>' + L.tx + '</span><span>' + euro(tax) + '</span></div><div class="g"><span>' + (subj ? L.g : L.g2) + '</span><span>' + euro(r.price + tax) + '</span></div></div>' +
+      (subj ? '' : '<div class="mention">' + esc(MENTIONS[p.mention][lang]) + '</div>');
+    $('pdf').innerHTML = pdf;
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-lang]'), function(b){
+    b.addEventListener('click', function(){
+      lang = b.getAttribute('data-lang');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-lang]'), function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+      renderDocs();
+    });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function(b){
+    b.addEventListener('click', function(){
+      $('device').classList.toggle('phone', b.getAttribute('data-view') === 'phone');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+  $('resetMock').addEventListener('click', function(){ initial(); closeDialog(); renderAll(); });
+
+  function renderAll(){ renderCard(); renderDocs(); }
+  initial(); renderAll();
+})();
+</script>
+</body>
+</html>

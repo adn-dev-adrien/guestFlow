@@ -28,6 +28,7 @@ vi.mock('../../../components/DialogProvider', () => {
 });
 
 vi.mock('../../../components/SettingsPushNotificationsSection', () => ({ __esModule: true, default: () => null }));
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => false }));
 
 import api from '../../../api';
 import EmailSettingsPage from '../EmailSettingsPage';
@@ -41,7 +42,7 @@ function settingsPayload(smtp = {}) {
       ...smtp,
     },
     notifications: { enabled: true, icalReservationEnabled: true, recipientEmail: '', derivedRecipient: 'contact@solio.fr' },
-    emails: { googleReviewUrl: '', instagramUrl: '', poolSeasonStart: '06-15', poolSeasonEnd: '08-31' },
+    emails: { googleReviewUrl: '', instagramUrl: '' },
     updatedAtLabel: 'aujourd’hui',
   };
 }
@@ -58,8 +59,9 @@ function renderPage() {
 
 test('rule 12: the derived sending address, login and name are shown with their source', async () => {
   renderPage();
-  expect(await screen.findByLabelText("Adresse d'envoi")).toHaveValue('contact@solio.fr');
-  expect(screen.getByLabelText('Identifiant SMTP')).toHaveValue('contact@solio.fr');
+  // The fields render before the settings land in them (specs/server-test-isolation.md rule 11).
+  await waitFor(() => expect(screen.getByLabelText("Adresse d'envoi")).toHaveValue('contact@solio.fr'));
+  expect(screen.getByLabelText('Identifiant du serveur')).toHaveValue('contact@solio.fr');
   expect(screen.getByLabelText('Nom affiché')).toHaveValue('Domaine Solio');
   expect(screen.getByText("= l'email de contact de l'Établissement")).toBeInTheDocument();
   expect(screen.getByLabelText('Reçues sur')).toHaveValue('contact@solio.fr');

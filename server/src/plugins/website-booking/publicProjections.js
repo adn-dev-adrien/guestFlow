@@ -1,0 +1,360 @@
+const sdk = require('../sdk');
+
+const { isPerPersonCardOption, portionCap, portionWording } = sdk.coreModule('mealPortions');
+const { normalisePublicLang, errorMessage } = sdk.coreModule('publicLabels');
+const { publicGuestCap } = sdk.coreModule('capacity');
+const { resolveExtraGuestPdfRow } = sdk.coreModule('devisHelpers');
+// The option and resource projections are core (specs/guest-app.md rule 24): the guest app sells the same
+// catalogue without depending on this plugin.
+const {
+  labelsFor, isResolver, resolveTitle, optionPriceLabels, toPublicOption, hoursLabel, isOfferedPlural,
+  resourceFreeLabel, toPublicResource,
+} = sdk.coreModule('publicCatalogProjection');
+
+/**
+ * Public projections (specs/public-api.md §3 rule 5). Pure functions that map internal rows /
+ * engine output to the deliberately reduced PUBLIC shape. They are the single place that decides
+ * what leaves the building: anything not explicitly copied here is NOT exposed.
+ *
+ * Deliberately EXCLUDED everywhere: iCal source URLs/tokens, sync status, accounting buckets
+ * (acompteContribTtc/soldeContribTtc), payment state, internal notes, VAT-internal net breakdowns,
+ * platform attribution on availability, image/document URLs (Q7), tax configuration, deposit
+ * percentages.
+ */
+
+function toPublicProperty(row, lang = 'fr') {
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    // Rule 9: a property name is a proper noun and is never translated. `nameArticle` is French
+    // grammar (« à la », « à l'· »), so English gets an empty one and the consumer composes
+    // "at La Granja" instead.
+    name: row.name,
+    nameArticle: normalisePublicLang(lang) === 'en' ? '' : (row.nameArticle || null),
+    maxGuests: publicGuestCap(row),
+    maxBabies: Number(row.maxBabies || 0),
+    // Deprecated alias of maxGuests (specs/property-capacity-single-total.md §3 rule 11): the
+    // manually-deployed gf-seo-* mu-plugins read `maxAdults` as the advertised « capacité ». Drop it
+    // once they are redeployed. `maxChildren` is NOT aliased — it has no correct value under the
+    // one-total model.
+    maxAdults: publicGuestCap(row),
+    singleBeds: Number(row.singleBeds || 0),
+    doubleBeds: Number(row.doubleBeds || 0),
+    basePriceIncludedGuests: Number(row.basePriceIncludedGuests || 0),
+    defaultCheckIn: row.defaultCheckIn || null,
+    defaultCheckOut: row.defaultCheckOut || null,
+  };
+}
+
+/**
+ * Detail = list projection + extraGuestPrice + a "from €X / night" teaser (Q6) computed from the
+ * property's active pricing rules. `pricingRules` is the array attached by
+ * propertiesModel.getByIdWithDetails. NO image/document URLs (Q7).
+ */
+function toPublicPropertyDetail(row, lang = 'fr') {
+  if (!row) return null;
+  const nightly = (row.pricingRules || [])
+    .map((r) => Number(r.pricePerNight))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const fromPricePerNight = nightly.length ? Math.min(...nightly) : null;
+  return {
+    ...toPublicProperty(row, lang),
+    extraGuestPrice: Number(row.extraGuestPrice || 0),
+    fromPricePerNight,
+  };
+}
+
+// French money/percent formatting for the labels the site renders as-is. Kept here rather than in
+// the plugin so a price basis change never needs a WordPress release.
+function frNumber(value) {
+  const n = Number(value || 0);
+  const text = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+  return text.replace('.', ',');
+}
+
+/**
+ * The cancellation-insurance block the site renders in its own section
+ * (specs/cancellation-insurance.md §3.3 rules 18-19).
+ *
+ * `option` is the flagged option ALREADY resolved for the property (effective per-property price);
+ * `amount` is what it costs for the quoted stay, priced server-side — `null` when there is no stay
+ * yet (catalogue call), in which case the site falls back to `priceLabel`.
+ */
+function toPublicCancellationInsurance(option, {
+  amount = null, selected = false, dynamicPrice = false, lang = 'fr', translate = null,
+} = {}) {
+  if (!option) return null;
+  const tr = isResolver(translate) ? translate : null;
+  const priceType = String(option.priceType || 'per_stay');
+  const isPercent = priceType === 'percent_of_stay';
+  const price = Number(option.price || 0);
+  // Neat-derived pricing (specs/neat-cancellation-insurance-subscription.md rule 13): the static
+  // tariff is only a fallback, so a 0 no longer hides the block — and there is no per-unit label
+  // to print before the dates are picked, the premium being per-stay on the Neat side.
+  if (price <= 0 && !dynamicPrice) return null;
+  const labels = optionPriceLabels(priceType, false, null, lang);
+  const L = labelsFor(lang);
+  const priceLabel = dynamicPrice
+    ? L.computedForYourDates
+    : (isPercent
+      ? `${frNumber(price)} % ${L.priceUnit.percent_of_stay}`
+      : `${frNumber(price)} €${labels.priceUnitLabel ? ` ${labels.priceUnitLabel}` : ''}`);
+  const id = Number(option.id);
+  return {
+    optionId: id,
+    title: tr ? tr.optionTitle(id, option.title) : resolveTitle(lang, option.title, option.titleEn),
+    titleEn: tr ? tr.englishOptionTitle(id) : (option.titleEn || null),
+    description: tr
+      ? tr.optionDescription(id, option.description)
+      : (normalisePublicLang(lang) === 'en' ? null : (option.description || null)),
+    priceType,
+    percent: isPercent ? price : null,
+    price,
+    priceLabel,
+    amount: amount == null ? null : Number(amount),
+    selected: Boolean(selected),
+  };
+}
+
+function offeredAgreement(minutes, lang = 'fr') {
+  return labelsFor(lang).offeredAgreement(isOfferedPlural(minutes));
+}
+
+/**
+ * The same allowance seen from a priced quote line: how much of what was ordered is NOT billed.
+ * Null when the line is billed in full, and null when it is free in full — there the amount column
+ * already says « Offert » and repeating it beside the title would say the same thing twice.
+ */
+function resourceOfferedNote(quantity, billedUnits, totalPrice, lang = 'fr') {
+  const ordered = Math.max(0, Number(quantity || 0));
+  const billed = Math.max(0, Number(billedUnits == null ? quantity : billedUnits));
+  const free = roundHours(ordered - billed);
+  if (free <= 0 || Number(totalPrice || 0) <= 0) return null;
+  const minutes = Math.round(free * 60);
+  return `${hoursLabel(minutes)} ${offeredAgreement(minutes, lang)}`;
+}
+
+function roundHours(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+/**
+ * Collapse a sorted array of ISO dates into contiguous inclusive ranges:
+ *   ["2026-07-10","2026-07-11","2026-07-12"] → [{ start: "2026-07-10", end: "2026-07-12" }]
+ */
+function collapseToRanges(sortedDates) {
+  const ranges = [];
+  for (const date of sortedDates) {
+    const last = ranges[ranges.length - 1];
+    if (last) {
+      const next = new Date(`${last.end}T00:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      if (next.toISOString().slice(0, 10) === date) {
+        last.end = date;
+        continue;
+      }
+    }
+    ranges.push({ start: date, end: date });
+  }
+  return ranges;
+}
+
+// `arrivals` and `nightPrices` (specs/booking-drawer-friction.md rules 10 + 13) are computed by the
+// controller; the projection only shapes them, so an older caller still gets its original fields.
+function toPublicAvailability({ propertyId, from, to, blockedDates, nextAvailableDate = null, arrivals = [], nightPrices = [] }) {
+  const sorted = Array.from(new Set(blockedDates || [])).filter(Boolean).sort();
+  return {
+    propertyId: Number(propertyId),
+    from,
+    to,
+    blockedDates: sorted,
+    blockedRanges: collapseToRanges(sorted),
+    // The first free night on or after max(from, today), looked up to a year ahead; null when none.
+    nextAvailableDate: nextAvailableDate || null,
+    arrivals: (arrivals || []).map((a) => ({
+      date: a.date, minNights: Number(a.minNights), earliestDeparture: a.earliestDeparture,
+    })),
+    nightPrices: (nightPrices || []).map((n) => ({ date: n.date, price: Number(n.price) })),
+  };
+}
+
+// Indicative price per paying guest and per night (rule 8): the stay total INCLUDING the tourist tax,
+// over the engine's `persons` (adults + teens + children — babies are not counted) and the nights.
+function perPersonPerNight(totalStayPrice, persons, nights) {
+  const p = Number(persons || 0);
+  const n = Number(nights || 0);
+  if (!(p > 0) || !(n > 0)) return null;
+  return Math.round((Number(totalStayPrice || 0) / p / n) * 100) / 100;
+}
+
+/**
+ * Project the pricing engine output to the public quote. `available` is computed by the controller
+ * (range vs blocked dates) and injected. EXCLUDES VAT net breakdowns, accounting buckets, override
+ * flags, and resource lines.
+ */
+/**
+ * The cap on every per-person planning-card option applicable to this stay, with the French hint the
+ * drawer prints under its stepper (specs/site-meal-portions.md rules 3 + 7-8). The widget caps its
+ * « + » with it, which is what spares the visitor a 422 at submit time.
+ */
+function toPublicOptionLimits({ options, persons, nights, checkInTime, checkOutTime, property, lang = 'fr' }) {
+  if (!Array.isArray(options) || !(Number(nights) > 0) || !(Number(persons) > 0)) return [];
+  return options.filter(isPerPersonCardOption).map((option) => {
+    const limit = portionCap({ option, persons, nights, checkInTime, checkOutTime, property });
+    return {
+      optionId: Number(option.id),
+      maxQuantity: limit.cap,
+      hint: portionWording(option, lang).hint(limit),
+    };
+  });
+}
+
+// The supplement as one ready-to-print row (specs/site-extra-guest-line.md rule 1) — same helper as
+// the devis PDF, so the site and the PDF can't disagree on what the extra guests cost.
+function toPublicExtraGuests(quote) {
+  if (quote.extraGuestSurchargeOriginal == null) return null;
+  const row = resolveExtraGuestPdfRow({ quote });
+  if (!row) return null;
+  return { count: row.count, total: row.totalTtc, originalTotal: row.originalTtc, offered: row.offered };
+}
+
+/**
+ * The first stay rule the engine says this stay breaks — minimum stay, then maximum stay, then the
+ * changeover days (specs/tariff-recipes/spec.md §3.4 rules 20bis-23) — as the public refusal code and
+ * the wording key + arguments of `publicLabels.errors`. Null when the stay passes every rule. The
+ * public path has no override: what the back-office may force, a visitor may not.
+ */
+function stayRuleBreach(quote) {
+  if (!quote) return null;
+  if (quote.minNightsBreached) return { code: 'MIN_NIGHTS', key: 'minNights', args: [Number(quote.requiredMinNights || 0)] };
+  if (quote.maxNightsBreached) return { code: 'MAX_NIGHTS', key: 'maxNights', args: [Number(quote.requiredMaxNights || 0)] };
+  if (quote.changeoverBreached) {
+    return {
+      code: 'CHANGEOVER',
+      key: 'changeover',
+      args: [
+        quote.changeoverArrivalBreached ? quote.requiredArrivalWeekday : null,
+        quote.changeoverDepartureBreached ? quote.requiredDepartureWeekday : null,
+      ],
+    };
+  }
+  return null;
+}
+
+/**
+ * Whether the engine priced a night no season covers (its `unpricedNights`, a count, a flag or the
+ * nights themselves). Such a night is not for sale on the site (specs/booking-drawer-friction.md
+ * rule 10).
+ */
+function hasUnpricedNights(quote) {
+  const value = quote && quote.unpricedNights;
+  if (Array.isArray(value)) return value.length > 0;
+  return value === true || Number(value) > 0;
+}
+
+function stayRefusalText(quote, lang) {
+  const breach = stayRuleBreach(quote);
+  return breach ? errorMessage(normalisePublicLang(lang), breach.key, ...breach.args) : null;
+}
+
+function toPublicQuote(quote, {
+  available, startDate, endDate, paymentMode = 'full', cancellationInsurance = null, optionLimits = [],
+  lang = 'fr', translate = null, onlinePaymentReady = false,
+}) {
+  // Rule 21 — the quote is a surface like the catalogue, and reads the same catalogue. Until it did,
+  // it resolved its lines from `optionLines[].titleEn`, a column the catalogue migration dropped: the
+  // English tunnel priced « Linge de lit » and « Bain nordique » under English headings.
+  const tr = isResolver(translate) ? translate : null;
+  const base = {
+    propertyId: Number(quote.property?.id ?? quote.propertyId),
+    startDate,
+    endDate,
+    nights: Number(quote.nights || 0),
+    persons: Number(quote.persons || 0),
+    available: Boolean(available),
+    minNights: Number(quote.requiredMinNights || 0),
+    minNightsBreached: Boolean(quote.minNightsBreached),
+    // Maximum stay and changeover days, beside the minimum (fixed at the 2026-10-27 audit): the
+    // booking request refuses them, so the quote says so first. `stayRefusal` is the sentence the
+    // site prints, in the visitor's language — null when the stay passes every rule.
+    maxNights: quote.requiredMaxNights == null ? null : Number(quote.requiredMaxNights),
+    maxNightsBreached: Boolean(quote.maxNightsBreached),
+    changeoverBreached: Boolean(quote.changeoverBreached),
+    stayRefusal: stayRefusalText(quote, lang),
+    currency: 'EUR',
+    nightlyBreakdown: (quote.nightlyBreakdown || []).map((n) => ({ date: n.date, price: Number(n.price || 0) })),
+    accommodationTotal: Number(quote.totalPrice || 0),
+    extraGuestSurcharge: Number(quote.extraGuestSurcharge || 0),
+    extraGuests: toPublicExtraGuests(quote),
+    // Rule 6: a quote asked for in English must not contain a French line. The engine carries the
+    // English title beside the French one so this stays a pure projection.
+    options: (quote.optionLines || []).map((o) => ({
+      optionId: Number(o.optionId),
+      title: tr ? tr.optionTitle(Number(o.optionId), o.title) : resolveTitle(lang, o.title, o.titleEn),
+      quantity: Number(o.quantity || 0),
+      unitPrice: Number(o.unitPrice || 0),
+      total: Number(o.totalPrice || 0),
+      offered: Boolean(o.offered),
+    })),
+    optionsTotal: Number(quote.optionsTotal || 0),
+    // How many portions each per-person card option can still take for this stay (rule 7). Empty
+    // until the stay has dates and guests.
+    optionLimits: Array.isArray(optionLimits) ? optionLimits : [],
+    resources: (quote.resourceLines || []).map((r) => ({
+      resourceId: Number(r.resourceId),
+      name: tr ? tr.resourceName(Number(r.resourceId), r.name) : resolveTitle(lang, r.name, r.nameEn),
+      quantity: Number(r.quantity || 0),
+      // What is actually charged once the free allowance is taken off, and the sentence that says so.
+      billedQuantity: Number(r.billedUnits == null ? (r.quantity || 0) : r.billedUnits),
+      offeredNote: resourceOfferedNote(r.quantity, r.billedUnits, r.totalPrice, lang),
+      unitPrice: Number(r.unitPrice || 0),
+      total: Number(r.totalPrice || 0),
+      offered: Boolean(r.offered),
+    })),
+    resourcesTotal: Number(quote.resourcesTotal || 0),
+    touristTax: {
+      total: Number(quote.touristTaxTotal || 0),
+      label: quote.touristTaxLabel || null,
+      collectedOnArrival: Boolean(quote.touristTaxCollectedOnArrival),
+    },
+    finalPrice: Number(quote.finalPrice || 0),
+    // Grand total of the stay INCLUDING the tourist tax (finalPrice is tax-exclusive). This is the
+    // headline "Total du séjour" a public consumer should display.
+    totalStayPrice: Number(quote.totalStayPrice || 0),
+    perPersonPerNight: perPersonPerNight(quote.totalStayPrice, quote.persons, quote.nights),
+    // The SERVER-decided payment mode (specs/public-online-deposit.md). In 'full' mode the site charges
+    // the whole stay at once, so the deposit/balance blocks are OMITTED — the site must not display
+    // Acompte/Solde lines that don't reflect how the guest actually pays.
+    // `onlineReady` (specs/public-online-payment.md rule 12): a payment provider is connected now. A
+    // site set to « payer en ligne » sends a plain request while it is false, rather than creating a
+    // devis the payment then fails on.
+    payment: { mode: paymentMode === 'deposit' ? 'deposit' : 'full', onlineReady: Boolean(onlinePaymentReady) },
+    complementOnArrival: Number(quote.complementAmount || 0),
+    // Cancellation insurance (specs/cancellation-insurance.md §3.3 rule 19) — ALWAYS priced for
+    // this stay, selected or not, so the site can show the real amount beside the Oui/Non choice.
+    // Null when no insurance is configured for the property: no block, no obligation to answer.
+    cancellationInsurance,
+  };
+  if (paymentMode === 'deposit') {
+    base.deposit = { amount: Number(quote.depositAmount || 0), dueDate: quote.depositDueDate || null };
+    base.balance = { amount: Number(quote.balanceAmount || 0), dueDate: quote.balanceDueDate || null };
+  }
+  return base;
+}
+
+module.exports = {
+  toPublicProperty,
+  toPublicPropertyDetail,
+  toPublicOption,
+  toPublicOptionLimits,
+  toPublicCancellationInsurance,
+  toPublicResource,
+  resourceFreeLabel,
+  resourceOfferedNote,
+  toPublicAvailability,
+  toPublicQuote,
+  stayRuleBreach,
+  hasUnpricedNights,
+  collapseToRanges,
+  perPersonPerNight,
+};

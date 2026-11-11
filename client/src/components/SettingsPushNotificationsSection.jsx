@@ -4,7 +4,7 @@
  *
  * Self-contained (per-user data via the /push API, not the global settings form): on mount it reads the
  * device subscription state + this user's preferences. The operator enables/disables push on the current
- * device and toggles which notifications they receive (nouvelle réservation / arrivées / départs).
+ * device and toggles which notifications they receive — the list the server serves with its labels.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,34 +15,32 @@ import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
 import { pushSupported, getPushState, enablePush, disablePush } from '../push/registerPush';
 
-const PREF_LABELS = [
-  ['newReservation', 'Nouvelle réservation'],
-  ['arrivals', 'Arrivées'],
-  ['departures', 'Départs'],
-  // Breakfast serving-time push (specs/sas-breakfast-bread-and-push.md rule 6).
-  ['breakfast', 'Petit déjeuner'],
-  // Neat subscription failures (specs/neat-cancellation-insurance-subscription.md rule 11).
-  ['neat', 'Souscriptions Neat'],
-];
+// The toggles are the server's `channels` ([{ key, label }]): the core's, then those the live plugins
+// declare (specs/platform-settings-relay-and-review.md rule 8). The card names no plugin.
+const NO_PREFS = { channels: [] };
 
 export default function SettingsPushNotificationsSection() {
   const supported = pushSupported();
   const [state, setState] = useState({ enabled: false, permission: 'default' });
-  const [prefs, setPrefs] = useState({ newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true });
+  const [prefs, setPrefs] = useState(NO_PREFS);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // specs/plugins-phase-p-productisation.md rule 18 — without any address to sign with, push is off.
+  const [serverReady, setServerReady] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const [st, pr] = await Promise.all([
+      const [st, pr, key] = await Promise.all([
         getPushState(),
-        api.getPushPreferences().catch(() => ({ newReservation: true, arrivals: true, departures: true, breakfast: true, neat: true })),
+        api.getPushPreferences().catch(() => NO_PREFS),
+        api.getPushPublicKey().catch(() => ({ configured: true })),
       ]);
       setState({ enabled: st.enabled, permission: st.permission });
       setPrefs(pr);
+      setServerReady(key?.configured !== false);
     } finally {
       setLoading(false);
     }
@@ -67,8 +65,8 @@ export default function SettingsPushNotificationsSection() {
     setTesting(true); setError(''); setNotice('');
     try {
       const r = await api.sendPushTest();
-      if (r?.skipped === 'no_vapid') setError('Push non configuré côté serveur (VAPID manquant).');
-      else if (r?.skipped === 'no_subscription') setError("Aucun appareil abonné. Activez d'abord les notifications.");
+      if (r?.skipped === 'no_vapid') setError('Notifications indisponibles sur ce serveur.');
+      else if (r?.skipped === 'no_subscription') setError("Aucun appareil abonné. Notifications à activer d'abord.");
       else if ((r?.sent || 0) === 0) setError("Échec de l'envoi (voir les logs serveur).");
       else setNotice(`Notification envoyée à ${r.sent} appareil(s) du compte. Verrouillez l'écran ou passez en arrière-plan pour la voir.`);
     } catch (err) {
@@ -95,8 +93,8 @@ export default function SettingsPushNotificationsSection() {
               <Typography variant="sectionHeader">Notifications push (cet appareil)</Typography>
             </Box>
             <Typography variant="body2" color="text.secondary">
-              Recevez une notification, même quand GuestFlow est fermé, sur cet appareil. Le choix des
-              notifications est propre à votre compte.
+              Notifications sur cet appareil, même GuestFlow fermé. Le choix des notifications est
+              propre à chaque compte.
             </Typography>
           </Box>
 
@@ -105,6 +103,8 @@ export default function SettingsPushNotificationsSection() {
 
           {!supported ? (
             <Alert severity="info">Ce navigateur ne supporte pas les notifications push.</Alert>
+          ) : !loading && !serverReady ? (
+            <Alert severity="info">Envoi push indisponible : renseigner l'email de l'entreprise.</Alert>
           ) : loading ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}><CircularProgress size={18} /><Typography variant="body2" color="text.secondary">Chargement…</Typography></Box>
           ) : (
@@ -137,12 +137,12 @@ export default function SettingsPushNotificationsSection() {
                   Envoyer une notification de test
                 </Button>
                 <Typography variant="caption" color="text.secondary">
-                  Envoie une notification de test à vos appareils abonnés pour valider la configuration.
+                  Envoi d’une notification de test aux appareils abonnés.
                 </Typography>
               </Box>
 
               <Stack spacing={0.5}>
-                {PREF_LABELS.map(([key, label]) => (
+                {(prefs.channels || []).map(({ key, label }) => (
                   <FormControlLabel
                     key={key}
                     control={<Switch checked={Boolean(prefs[key])} onChange={(e) => onTogglePref(key, e.target.checked)} />}

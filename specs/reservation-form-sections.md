@@ -64,6 +64,13 @@ one long JSX block. No behavior or visual change.
 **Edge cases:** locked (past) reservation styling/disabled, devis mode differences, capacity-exceeded
 warnings, baby-bed availability, per-hour resources, custom options — all preserved verbatim.
 
+7. **The guest and option rows read whole at every width** (2026-10-27 audit). In « Voyageurs » the
+   age range is the field's helper text, not part of its label (« Enfants » + « 2 à 12 ans »): in a
+   quarter-width column at 1280 the label was cut to « Enfants (2 à 12 a… ». In an option card the
+   switch and the word explaining it (« Ajout automatique », « Inclus », a read-only reason) are one
+   `FormControlLabel` row named after the option — on a phone the switch floated alone with the word
+   stacked under it.
+
 ---
 
 ## 4. Architecture
@@ -144,6 +151,9 @@ Result: **19 tests across 5 suites, all passing** (`react-scripts test`). A shar
 - [ ] Devis mode + locked (past) reservation: disabled/locked states identical. _(not exercised)_
 - [x] `0` app console errors (only pre-login auth 401s + dev HMR websocket); clean `CI=true` build.
 - [ ] Mobile (`xs`): form stacks and renders correctly.
+
+- **2026-10-27 audit (rule 7):** `GuestsBedsSection.test.jsx` asserts the age ranges as accessible
+  descriptions; `ExtrasSection.option-switch-row.test.jsx` (1 test) pins the switch row.
 
 ## 8. Out of scope
 

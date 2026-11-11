@@ -1,20 +1,23 @@
 /**
  * SettingsEmailContentSection — « Contenu des mails » card of Paramètres → Emails & notifications.
  *
- * The settings the guest emails quote (specs/guest-email-sequence.md §6.2): the review and Instagram
- * links of the J+1 email, and the pool season the emails mention. Whether an email leaves by itself
+ * The settings the guest emails quote (specs/guest-email-sequence.md §6.2): the review link and the
+ * social links of the J+1 email (specs/settings-input-guards.md §3.7). The pool season belongs to the property that has the pool (Logement ›
+ * Séjour, specs/guest-email-texts-made-simple.md rule 34). Whether an email leaves by itself
  * is not decided here any more: each template has its own mode (specs/settings-rationalization.md
  * rule 17b).
  *
  * Props:
- *   values:   { googleReviewUrl, instagramUrl, poolSeasonStart, poolSeasonEnd }
+ *   values:   { googleReviewUrl, socialLinks, socialNetworks }
  *   onChange: (key, value) => void
  *   disabled: boolean
  *   errors:   { [column]: string } — server validation messages
  */
 import React from 'react';
-import { Card, CardContent, Stack, Typography, Box, TextField } from '@mui/material';
+import { Link as RouterLink } from 'react-router';
+import { Card, CardContent, Stack, Typography, Box, Button } from '@mui/material';
 import HelpedTextField from './HelpedTextField';
+import SocialLinksField from './SocialLinksField';
 
 export default function SettingsEmailContentSection({
   values = {},
@@ -41,33 +44,18 @@ export default function SettingsEmailContentSection({
             error={errors.googleReviewUrl}
             disabled={disabled}
           />
-          <HelpedTextField
-            label="Lien Instagram"
-            value={values.instagramUrl || ''}
-            onChange={(v) => onChange('instagramUrl', v)}
-            helperText="« Si vous êtes nostalgiques de votre séjour… » dans le mail J+1."
-            error={errors.instagramUrl}
+          <SocialLinksField
+            links={values.socialLinks || []}
+            networks={values.socialNetworks || []}
+            onChange={(next) => onChange('socialLinks', next)}
+            errors={errors}
             disabled={disabled}
           />
-          <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <TextField
-              label="Piscine ouverte du (MM-JJ)"
-              value={values.poolSeasonStart || ''}
-              onChange={(e) => onChange('poolSeasonStart', e.target.value)}
-              error={Boolean(errors.poolSeasonStart)}
-              helperText={errors.poolSeasonStart || 'ex. 06-15'}
-              disabled={disabled}
-              fullWidth
-            />
-            <TextField
-              label="au (MM-JJ)"
-              value={values.poolSeasonEnd || ''}
-              onChange={(e) => onChange('poolSeasonEnd', e.target.value)}
-              error={Boolean(errors.poolSeasonEnd)}
-              helperText={errors.poolSeasonEnd || 'ex. 08-31'}
-              disabled={disabled}
-              fullWidth
-            />
+          {/* specs/plugins-phase-p-productisation.md §6 — the sentences of the emails. */}
+          <Box>
+            <Button component={RouterLink} to="/settings/emails/textes" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+              Textes des emails
+            </Button>
           </Box>
         </Stack>
       </CardContent>

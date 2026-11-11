@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import RefundDialog from '../RefundDialog';
+import { localIsoToday } from '../../../utils/isoDay';
 import { vi } from 'vitest';
 
 // specs/reservation-refunds.md §6 — la fenêtre « Nouveau remboursement » : sélection des lignes
@@ -14,7 +15,7 @@ const LINES = [
   { key: 'touristTax', label: 'Taxe de séjour', bucket: 'touristTax', quantity: 3, unitPrice: 4.4, unitLabel: 'nuit', billedTtc: 13.2, refundedTtc: 0, refundableTtc: 13.2, vatRate: 0 },
 ];
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localIsoToday();
 
 function renderDialog(props = {}) {
   const onSubmit = props.onSubmit || vi.fn();
@@ -41,7 +42,7 @@ test('cocher une ligne pré-remplit tout le remboursable et alimente le total', 
   const user = userEvent.setup();
   renderDialog();
   await user.click(screen.getAllByRole('checkbox')[1]); // Petit-déjeuner
-  expect(screen.getByLabelText('Montant')).toHaveValue(60);
+  expect(screen.getByLabelText('Montant')).toHaveValue('60,00');
   expect(screen.getByText('− 60,00 €')).toBeInTheDocument();
 });
 
@@ -96,12 +97,22 @@ test('rien de coché → le bouton reste désactivé', () => {
   expect(screen.getByRole('button', { name: 'Enregistrer le remboursement' })).toBeDisabled();
 });
 
-test('un dépassement de l’encaissé affiche un avertissement sans bloquer', async () => {
+test('un dépassement de l’encaissé bloque le virement (règle 50, D10), avec le montant en trop', async () => {
   const user = userEvent.setup();
   renderDialog({ collectedTtc: 50 });
   await user.click(screen.getAllByRole('checkbox')[1]); // 60 € > 50 € encaissés
 
-  expect(screen.getByText('Ce remboursement dépasse le montant encaissé à ce jour.')).toBeInTheDocument();
+  expect(screen.getByRole('alert')).toHaveTextContent('Dépasse l’encaissé de 10,00 €.');
+  expect(screen.getByRole('button', { name: 'Enregistrer le remboursement' })).toBeDisabled();
+});
+
+test('en caisse interne, hors comptabilité, le dépassement reste un avertissement', async () => {
+  const user = userEvent.setup();
+  renderDialog({ collectedTtc: 50 });
+  await user.click(screen.getAllByRole('checkbox')[1]);
+  await user.click(screen.getByRole('radio', { name: /Caisse interne/ }));
+
+  expect(screen.getByRole('status')).toHaveTextContent('Dépasse l’encaissé de 10,00 €.');
   expect(screen.getByRole('button', { name: 'Enregistrer le remboursement' })).toBeEnabled();
 });
 

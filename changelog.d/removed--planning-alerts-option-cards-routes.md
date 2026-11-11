@@ -1,0 +1,1 @@
+- **`GET /api/planning/alerts` and `GET /api/planning/option-cards` removed** (spec `dashboard-planning-scroll.md` rule 10): `GET /api/planning/days` returns the same data per day, in one call.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). |
+| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). v1.16.0 (2026-10-19, UI/UX review 2026-10-18): refusal field by field (rule 28) and one accent colour (rule 29); the calendar and the sticky bar are in [wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rules 29–33. |
 | **Branch** | `feature/wordpress-plugin` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
@@ -95,6 +95,164 @@ remaining the single source of truth for prices, availability, and validation.
     installable `guestflow-booking.zip` (the deliverable uploaded to WordPress), excluding VCS/OS
     cruft. Source = shipped artifact.
 
+> **Rules 14–24 added 2026-10-18** (review of the website plugin, plugin v1.15.0). Earlier rules keep
+> their numbers.
+
+14. **Paste the URL and the key — nothing else to type.** The settings screen derives the rest:
+    - **Logement par défaut** is a select filled from `GET /public/v1/properties` (chosen by name,
+      pre-selected when GuestFlow has a single property). While GuestFlow cannot be read, the typed id
+      field stays, with a line saying the list appears once connected.
+    - **Page de réservation** and **Page des conditions générales** are page pickers. *Automatique*
+      (the default, stored as `''`) = the oldest published page whose content holds the booking block
+      (`<!-- wp:guestflow/booking`) or the `[guestflow_cgv]` shortcode; the detection is cached in a
+      transient dropped whenever a page is saved or deleted. When none exists the picker offers
+      « Créer la page » (a published « Réserver » page holding the booking block, or a « Conditions
+      générales » page holding the shortcode); a second sanitize of the same save reuses the page it
+      just created. A booking block with no property anywhere (no attribute, no `?property=`, no
+      default) renders the properties block, whose cards link back to it — except on the payment
+      return (rule 25). A page whose block fixes a lodging is never detected (rule 26).
+    - **Proxys du réseau local** (on by default, `trust_local_proxies`): a reverse proxy with a private
+      or loopback address is trusted to pass the visitor's IP in `X-Forwarded-For` without being
+      listed. **Proxys de confiance** stays, under « Réglages avancés », for a proxy with a public
+      address; the screen names the one it sees (`REMOTE_ADDR` public + `X-Forwarded-For` present).
+      Without `X-Forwarded-For` the visitor IP is the connecting address, never empty. When every
+      `X-Forwarded-For` hop is itself trusted, the visitor IP is the connecting address too — the
+      left-most hop is whatever the client wrote, so it is never relayed (plugin 1.16.1).
+    - Once configured, the connection test runs on arrival; its result is a `role="status"` region.
+15. **The booking engine is usable with a screen reader.** Every input has an `id` and a `<label for>`;
+    the contact fields carry `aria-required`. A stepper is a `role="group"` named after its line and
+    its buttons read « Ajouter : Adultes » / « Retirer : Adultes » (`stepAdd`/`stepRemove`, translated);
+    the count is `aria-live`. A calendar day is named in full in the page's language (« vendredi
+    6 novembre 2026 », plus «, indisponible » when blocked, `GF.dayLabel`) and carries `aria-pressed`
+    on the selected edges; the weekday headings are `aria-hidden`. The calendar hint, the quote
+    summary, the inline warnings, the insurance and CGV notices and the submit feedback are
+    `aria-live="polite"` regions. The honeypot is `aria-hidden`.
+16. **A failed online payment is retried on the same devis.** After `POST /booking-requests` answers
+    201 in pay-online mode, the block keeps `requestId`/`publicToken`; while the visitor resubmits the
+    very same request body, the retry calls `/booking-requests/:id/pay` only — no second devis, no
+    second reference. The error shows the request reference and says the payment can be retried. A
+    changed form (dates, guests, contact…) is a new request. _(2026-10-18: narrowed to the stay — see
+    rule 27.)_
+17. **The plugin stylesheet sets `box-sizing: border-box` on its own blocks** (`.gf-block` and its
+    descendants, pseudo-elements included) and `min-width: 0` on `.gf-field`, so a field's padding
+    never overflows its column on a stock theme. Nothing outside `.gf-block` is touched.
+18. **A website booking switched off in GuestFlow reads as such.** `{"error":"PLUGIN_INACTIVE"}` (a
+    string error) and a 404 `{"error":{"code":"NOT_FOUND"}}` from `/public/v1` make « Tester la
+    connexion » answer « Module « Réservation depuis le site » inactif dans GuestFlow. », and the
+    blocks show their « Réservation temporairement indisponible. » state (`GF.t('unavailable')`), not
+    the generic error.
+19. **Weekday headings follow the page's language** in both the booking and the calendar blocks, from
+    one `GF.weekdays()` helper (`Intl.DateTimeFormat(GF.locale, { weekday: 'short' })`, Monday first).
+    The calendar block's navigation buttons use the translated `calPrevMonth`/`calNextMonth`.
+20. **`Update URI: https://github.com/adn-dev-adrien/guestFlow`** is in the plugin header, so WordPress
+    never offers a wordpress.org plugin of the same slug as an update; the self-update filter
+    (`specs/wordpress-plugin-self-update.md`) is unchanged.
+21. **No CGV published while GuestFlow requires them → no form.** `GET /public/v1/terms` answers
+    `503 TERMS_NOT_CONFIGURED` with `details: [{ bookingClosed: <requireTermsAcceptance> }]` (field
+    added, envelope unchanged). When `bookingClosed` is `true` the booking block renders « Réservation
+    en ligne fermée pour le moment. » instead of a form the server would refuse at the end. With the
+    enforcement off, the form shows without a CGV box, as before.
+22. **Real plurals in the recap:** « 1 nuit » / « 3 nuits » (`night` / `nights` strings), never
+    « nuit(s) ».
+23. **Narrow layouts and the CGV switch.** The booking block is a size container: below 520 px of its
+    own width the e-mail field and « Effacer » take a row each, so an address is never cut in half.
+    The CGV language switch is text (« FR », « EN », with `lang`), not flag emojis.
+24. **Every plugin change bumps its version in the three places the release reads** — the header
+    `Version`, `GF_BOOKING_VERSION` and readme `Stable tag` — with a readme changelog entry, so a
+    release never publishes two different `guestflow-booking-X.Y.Z.zip`. The update manifest's
+    `tested` (`TESTED_WP`) names a current WordPress (≥ 6.8), the one the plugin was last tested on.
+
+> **Rules 25–27 added 2026-10-18** (second review of plugin v1.15.0, PR #698).
+
+25. **The way back from the payment page always shows that payment.** A booking block with no lodging
+    (rule 14) renders its container — not the properties cards — when the address carries
+    `gf_payment`, and the return address the block sends is
+    `<page>?property=<id>&gf_payment=<devis>&gf_token=<token>`, so a page shared by every lodging
+    knows both the payment and the lodging when the visitor comes back.
+26. **The automatic booking page is a generic one.** The detection of rule 14 skips a page whose
+    content holds `"propertyId":` (a booking block with its lodging fixed belongs to that lodging's
+    page): with « Automatique », a site with one booking block per lodging page has no detected
+    booking page, and its cards keep no button rather than opening another lodging's form. The
+    detection cache moved to `gf_detected_pages_v2` so an earlier lodging-page answer is not reused.
+27. **The stay alone decides a payment retry.** Rule 16's comparison covers the stay sent to
+    `/quote` — dates, times, guests, options (insurance included) and resources — not the contact
+    fields or the message: a corrected message or phone after a failed payment pays the same devis
+    (which keeps the first request's message). Any change of the stay is a new request.
+
+> **Rules 28–29 added 2026-10-19** (UI/UX review 2026-10-18, decisions 3 and 16; plugin v1.16.0).
+
+28. **Refused on the field, in French** (UI/UX review 2026-10-18, decision 3). Every requirement of
+    the form refuses the same way, on click, never by greying the button: the insurance answer, each
+    contact field and the CGV box are all marked at once where they sit, and the first one in reading
+    order is scrolled to the centre and given the focus. A contact field gets a red edge,
+    `aria-invalid`, and its reason on a line under it (`aria-describedby`): « Champ requis. »,
+    « Adresse e-mail incomplète. ». The marks are re-checked live as the visitor types, but only
+    after a first refusal — no red while the guest is still typing. The local check is UX only
+    (presence, and the browser's own `type=email` validity); the server decides: a `422` whose
+    `details[]` names `guest.firstName|lastName|email|phone` is printed under that field with the
+    server's `details[].message` (in the page language — public-api.md, booking-requests), the
+    plugin's two strings serving as the fallback for an older GuestFlow. A mapped refusal is not
+    repeated under the button. The generic line « Merci de renseigner tous les champs
+    obligatoires. » is gone. Inputs carry `autocomplete`, `inputmode` (`email`, `tel`) and
+    `enterkeyhint`, and are at least 16 px (iOS zooms into anything smaller).
+    *Review of PR #722 (2026-10-19):* each error line is named by `aria-describedby` and reached with
+    the focus — no live region per field, which read every refusal at once. Before revealing, the
+    engine dispatches a bubbling, cancelable `gf:refused` event on the refused requirement's box, with
+    `detail: { field, element }` (`field` ∈ `insurance`, `firstName`, `lastName`, `email`, `phone`,
+    `terms`, `feedback`). A host that re-homes the engine's children — the Solio drawer, whose two
+    screens can hide the refused field — shows the right screen and calls `preventDefault()`, then
+    scrolls and focuses the field itself ([site-booking-drawer.md](site-booking-drawer.md) rule 17);
+    otherwise the engine scrolls it to the centre and focuses it.
+29. **One accent drives every colour of the engine; Maison fir green by default** (UI/UX review
+    2026-10-18, decision 16). `assets/style.css` declares private tokens (`--gfb-*`) derived with
+    `color-mix()` from one accent and one neutral ink — tint 8 %, range 15 %, hover 24 %, focus ring
+    40 % — with hex fallbacks under `@supports`. The accent is the
+    site's `--gf-accent`, else the theme's `--wp--preset--color--primary`, else Maison fir `#2F5D46`
+    (it was MUI blue `#1976d2`). Notes and offers keep one semantic pair each, all at least 4.5 : 1
+    (warning `#73551A` on `#F6EDD7`, success `#356B48` on `#E6EFE7`, error `#A8433A` on white and on
+    `#F7E8E5`); the Tailwind amber/green/sky and slate surfaces, and the calendar block's always-blue
+    free days, are gone. Where the accent carries white text or is itself text (chosen days, buttons,
+    links, hints) the engine uses `--gfb-fill`: the accent itself when dark enough, else darkened to
+    reach 4.5 : 1 on white — `oklch(from accent min(l, .54) c h)` where relative colours exist (fir
+    green stays itself), the accent mixed 74 % with black otherwise (Solio ocre, 3.6 : 1 raw, reaches
+    5.8 : 1). The tokens are declared on `.gf-block` and on every direct child of the engine form,
+    which view.js marks `.gf-engine` — never site-wide, and no default is set on `--gf-accent`
+    itself: the Solio drawer moves the engine's children out of the block and re-declares
+    `--gf-accent` on its panel ([site-booking-drawer.md](site-booking-drawer.md) rule 12), so each
+    child must recompute from the accent it actually inherits.
+    *Review of PR #722 (2026-10-19):* the stylesheet never styles a class the site may own on its
+    own: `.gf-btn` is reached as `.gf-block .gf-btn` or `.gf-btn.gf-engine` (Solio's `.gf-btn`,
+    `.gf-btn-ghost`, `.gf-btn-forest` were repainted fir green), `.gf-section` likewise, the
+    out-of-flow button is `.gfb-cta` (Solio's header has a `.gf-cta`), and the tap-highlight reset
+    applies to engine buttons only. A test reads the stylesheet for each of these.
+30. **A stay the seasons refuse reads as refused, in GuestFlow's words** (2026-10-27 audit, plugin
+    1.17.1). When the quote carries `stayRefusal` (maximum stay or changeover days,
+    [public-api.md](public-api.md) rule 12), the booking block treats it like a minimum-stay breach:
+    the sentence under the calendar and in the récapitulatif, the bar's amount replaced by it, no quote
+    kept, the request button disabled — the period stays on screen. The plugin writes no sentence of
+    its own; a submit that still reaches GuestFlow is answered `409 MAX_NIGHTS` / `CHANGEOVER` with the
+    same sentence, which the block already prints. A GuestFlow without the field behaves as before.
+31. **The booking request carries a proof of work** (2026-10-27, plugin 1.18.0,
+    [public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rules 1-5 and 13).
+    The proxy relays `GET /wp-json/guestflow/v1/booking-requests/challenge` to the fixed upstream
+    path, `Cache-Control: no-store`. The block asks for a challenge once its contact form is in view
+    (IntersectionObserver) or touched — never when the form is built, so a page view costs nothing
+    (changed at the 2026-10-27 spec review, rule 29 of that spec) — and solves it in a Web Worker (`assets/pow-worker.js` + `assets/pow.js`, plain JavaScript, no library, no
+    CDN; slices on the page when no Worker starts). The button reads « Vérification… » only when the
+    guest submits before it is solved; the request waits out GuestFlow's 3-second minimum, a challenge
+    older than 14 minutes is re-fetched, a fresh one is prepared after every send, and a
+    `CHALLENGE_INVALID` other than « missing » is retried once on its own. An answer with
+    `updated: true` reads « Votre demande du <date> a été mise à jour. ». No challenge available (an
+    older GuestFlow) → the request goes without one, as before. Review of PR #805
+    ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rules 20-22): the
+    block sends the token of the quote it created (`publicToken`); an answer without a token is a
+    receipt — no payment is offered, the page reads « Votre demande du <date> a déjà été transmise :
+    votre message a été ajouté. » (`messageAdded`), « … a été mise à jour. » or « Demande reçue. Nous
+    vous recontactons rapidement. »; the message field stops at 2 000 characters. A `messageAdded`
+    answer never starts a payment, even with a token (rule 27 of the same spec); since the 2026-10-27
+    spec review any answer carrying a boolean `messageAdded` is message-only, and `messageAdded: false`
+    (the message cap was reached, rule 30) reads « Demande reçue. Nous vous recontactons rapidement. ».
+
 **Edge cases:**
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
   page shows a prominent "clé API non configurée" notice; proxy routes return `503` with a generic
@@ -103,11 +261,31 @@ remaining the single source of truth for prices, availability, and validation.
   `available:false` from the API) but the **Submit** button is disabled with an inline message; the
   server re-checks anyway and would return `409`.
 - Quote breaches minimum nights → inline message from the quote's `minNights`/`minNightsBreached`;
-  submit disabled.
+  submit disabled. Maximum stay or changeover days → the quote's `stayRefusal`, same treatment (rule 30).
 - Slow/timeout API call → proxy uses a bounded timeout (e.g. 8 s) and surfaces a retry message; reads
   fall back to the last cached value when still within a stale-OK grace window (optional, see §9).
 - Multiple blocks on one page → each block instance fetches independently; shared reads hit the same
   transient cache, so no duplicate upstream calls within the TTL.
+
+32. **Format characters are stripped from names** (audit R2 external N2, 2026-10-29). U+202A–202E, U+2066–2069, zero-width space, BOM and other `\p{Cf}` characters are removed from a public guest name, from the stored client name (`personNameCase`) from operator mail lines and from the iCal placeholder clients (`resolveIcalClientIdentity`); the joiners U+200C/U+200D stay for Persian and Indic names. Test: `website-booking/tests/guest-email-linear.unit.test.js`.
+33. **The payment return page stops on a cancelled stay** (2026-10-29, plugin 1.18.1,
+    [public-online-payment.md](public-online-payment.md) rule 16). When the status answers `cancelled`
+    (the stay the request became was cancelled), the block stops polling and reads « Cette réservation
+    est annulée. » (`paymentCancelled`, English « This booking has been cancelled. »). Against a
+    GuestFlow that never answers `cancelled` nothing changes.
+34. **The payment return page stops on an expired link** (2026-10-30, plugin 1.19.0,
+    [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 30). When the status answers `expired`
+    (the link lapsed unpaid, none open), the block stops polling and reads « Ce lien de paiement a
+    expiré. Refaire la réservation depuis la page du logement. » (`paymentExpired`, English « This
+    payment link has expired. Please book again from the accommodation's page. »). Against a GuestFlow
+    that never answers `expired` nothing changes.
+35. **A name refused for its characters reads on its field** (Adrien's decision D13, 2026-11-05, GuestFlow plugin
+    `website-booking` 1.8.10, [public-api.md](public-api.md) rule 23). The server alone judges the characters of a first or
+    last name: the block's local check stays presence only (rule 28), and a `422` naming `guest.firstName` or `guest.lastName`
+    prints the server's `details[].message` under that field, « Caractères non acceptés. », as for any other reason. The
+    WordPress plugin does not change and keeps its version. Against a GuestFlow core older than that sentence, the refusal
+    carries no `message` and the field reads the plugin's fallback « Champ requis. ». The form has no city nor address field.
+    Test: `plugins/website-booking/tests/public-name-charset.unit.test.js`.
 
 ---
 
@@ -128,14 +306,18 @@ This is a standalone PHP/JS codebase, not part of GuestFlow's Node app. Layout:
 | `uninstall.php` | C | Delete plugin options + transients on uninstall. |
 | `readme.txt` | C | WordPress-style readme (install, config, blocks). |
 | `includes/class-gf-plugin.php` | C | Singleton bootstrap: wires settings, REST proxy, blocks. |
-| `includes/class-gf-settings.php` | C | Settings page + option storage (base URL, key, TTLs, default property). |
-| `includes/class-gf-api-client.php` | C | Server-side HTTP client to `/public/v1` (`wp_remote_*`, key header, timeout, error normalization). **The only place the key is read.** |
+| `includes/class-gf-settings.php` | C | Settings page + option storage (base URL, key, TTLs, default property). Since rule 14: property select from the API, page pickers with content detection / « Créer la page », local-proxy trust, test on arrival, « module inactif » (rule 18). |
+| `includes/class-gf-api-client.php` | C | Server-side HTTP client to `/public/v1` (`wp_remote_*`, key header, timeout, error normalization). **The only place the key is read.** `visitor_ip()` trusts a private/loopback proxy when `trust_local_proxies` is on (rule 14). |
 | `includes/class-gf-rest-proxy.php` | C | Registers `/wp-json/guestflow/v1/*` routes; validates params, calls the client, caches reads, enforces nonce on write. |
 | `includes/class-gf-cache.php` | C | Transient get/set/flush keyed by path+query; TTLs from settings. |
 | `includes/class-gf-blocks.php` | C | Registers the 3 blocks via `register_block_type` (one per `block.json`); enqueues shared front assets. |
 | `blocks/calendar/` | C | `block.json`, `render.php`, `editor.js`, `view.js`, `style.css` — availability calendar (build-free, plain JS). |
 | `blocks/booking/` | C | Same set — quote→request wizard (the core block). |
 | `blocks/properties/` | C | Same set — property list. |
+| `assets/runtime.js` | C | Shared helpers; since 2026-10-18 `GF.weekdays()` (rule 19), `GF.dayLabel()` and `GF.uid()` (rule 15), string-error → « unavailable » (rule 18). |
+| `assets/style.css` | C | Shared styles; scoped `box-sizing` (rule 17), container query for narrow blocks (rule 23). Since 2026-10-19: the colour tokens (rule 29), field errors (rule 28), hover gated to fine pointers, day states, sticky bar and wide summary card (widget spec rules 29–33). |
+| `blocks/booking/view.js` | T (2026-10-19) | `refuseMissing()` / `refuseFromServer()` / `contactField()` (rule 28); calendar states, next availability, sticky bar, summary card (widget spec rules 29–33). |
+| `includes/class-gf-blocks.php` + `languages/guestflow-booking-en_GB.po/.mo` | T (2026-10-19) | 9 strings added (`legendFree`, `legendTaken`, `nextAvailable`, `nextAvailableGo`, `fieldRequired`, `emailInvalid`, `barPickDates`, `barContinue`, `taxIncluded`), `requiredFields` removed. |
 | `bin/make-zip.sh` | C | Zips the plugin folder into `guestflow-booking.zip` (no build; excludes VCS/OS cruft). |
 | `.gitignore` | C | Ignores `*.zip` + OS cruft. |
 
@@ -155,7 +337,13 @@ public-api spec + code (and this spec references it), never patched around in th
 
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
-| (all) | — | — | None in this spec. |
+| (all) | — | — | None in this spec until 2026-10-18. |
+| server | `plugins/website-booking/controllers/publicTermsController.js` | T | `TERMS_NOT_CONFIGURED` carries `details[0].bookingClosed` (rule 21). |
+| server | `plugins/website-booking/controllers/pluginUpdateController.js` | T | `TESTED_WP` kept current (rule 24). |
+| server | `plugins/website-booking/publicProjections.js` + `publicQuoteController.js` | T | `payment.onlineReady` on the quote (specs/public-online-payment.md rule 12). |
+| server + client | `siteConnectionController.js`, `SettingsWebsiteSection.jsx` | C | The URL and key the operator pastes (specs/plugins-phase-2-hosts.md rules 30–31). |
+| server | `plugins/website-booking/publicInputValidation.js`, `controllers/publicBookingRequestController.js`, `utils/publicLabels.js` | T (2026-10-19) | Each refused contact field gets `reason` + `message` in the request's language (rule 28; additive, public-api.md). Plugin manifest 1.2.0. |
+| server | `plugins/website-booking/nextAvailability.js`, `controllers/publicCatalogController.js`, `publicProjections.js` | C/T (2026-10-19) | `nextAvailableDate` on the availability payload (widget spec rule 30; additive). |
 
 ### 4.3 API contract (plugin REST proxy)
 
@@ -191,6 +379,10 @@ the key is wrong; that's an admin concern shown on the settings page).
 - `cache_ttl` (int seconds, default 600)
 - `availability_cache_ttl` (int seconds, default 300)
 - `default_property_id` (int, optional)
+- `booking_page_url`, `cgv_page_url` (string; `''` = *Automatique*, the detected page — rule 14)
+- `trusted_proxies` (string, IP list) and `trust_local_proxies` (int 0/1, default 1 — rule 14)
+
+**Transient** `gf_detected_pages` (1 day): the pages found by content, dropped on any page save/delete.
 
 **Transients:** `gf_cache_<hash(path+query)>` holding cached GET responses, TTL per §5 above. Flushed
 on settings save and on uninstall.
@@ -234,8 +426,12 @@ respects its container width.
 - Step 3 — contact + message: first/last name, email, phone, free-text message, hidden honeypot `_hp`,
   submit button. On success → confirmation panel showing the booking reference
   (`BookingRequestReceipt.reference`) and a "nous vous recontactons" message. On `409`/`422` → inline
-  error mapped to French.
-- Mobile: vertical stepper, full-width inputs, sticky summary/total at the bottom.
+  error mapped to French. Since 2026-10-19 (rule 28) a refused contact field shows its reason under
+  itself, red edge and focus on the first one; nothing about the refusal sits under the button.
+- Colours (rule 29): one accent (site → theme primary → Maison fir), tints derived from it.
+- Mobile: vertical stepper, full-width inputs, 16 px fields, phone/e-mail keyboards; below 900 px of
+  block width the total and the button sit in a translucent bar pinned to the bottom of the block
+  (widget spec rule 32), above 900 px the summary is a sticky card in a right column (rule 33).
 
 **`guestflow/properties`** — attributes: `columns` (2–4, default 3), `bookingPageUrl`.
 - Renders bookable properties (name, capacity = `maxGuests`, **never** a sum of the capacity fields —
@@ -249,6 +445,11 @@ respects its container width.
 
 - Fields: API base URL, API key (masked, "Modifier" toggle), cache TTL, availability cache TTL, default
   property. "Test connection" button + result chip (success/auth error/unreachable). French labels.
+- Since 2026-10-18 (rule 14): URL and key point to « Paramètres › Intégrations › Site internet » in
+  GuestFlow; « Logement par défaut » is a select by name; the two pages are pickers (*Automatique :
+  « Réserver »*, every published page, « Créer la page »); proxies and cache TTLs sit under a closed
+  « Réglages avancés »; the test runs on arrival and says « Module … inactif dans GuestFlow. » when the
+  module is off (rule 18).
 - This is a WP admin screen (not a GuestFlow `PageActionBar` page — that component is GuestFlow-SPA
   specific and does not apply here).
 
@@ -263,6 +464,32 @@ respects its container width.
       operator before packaging. No JS build to lint (build-free, Rule 8).
 - [ ] PHP unit (if a WP test harness is set up): `class-gf-api-client` injects the key header and never
       logs it; `class-gf-rest-proxy` rejects the write route without a valid nonce; cache honors TTL.
+- [x] Rules 25–27 (2026-10-18): `server/src/tests/wordpress-plugin-generic-booking-page.unit.test.js`
+      (3 shape tests: payment return renders the container, return address keeps `property`, a
+      fixed-lodging block is never detected) and `client/src/__tests__/wordpress-booking-view.payment-retry.test.js`
+      (+2: a corrected message keeps the devis, the return address names the lodging; the « stay
+      changed » case now changes the guests). Behaviour checked on WordPress 7.1 in Docker.
+- [x] Rules 28–29 (2026-10-19): `server/src/plugins/website-booking/tests/public-guest-field-errors.unit.test.js`
+      (5: reasons, FR/EN sentences, the 422 through the controller), `client/src/__tests__/wordpress-booking-view.field-refusal.test.js`
+      (5: all marked at once + focus, no red before a refusal then live clearing, server message under
+      its field, older server fallback, keyboards), `server/src/tests/wordpress-plugin-engine-colours.unit.test.js`
+      (5: accent chain and fir default, no colour outside the tokens, tokens on every engine element,
+      hover gated, edge above hover). Browser check at 390 / 900 / 1280 on a local harness (real
+      `style.css`, `runtime.js`, `view.js`) against a GuestFlow on a neutralised copy of the Solio
+      database: refusals in FR and EN, Solio ocre, theme primary and default fir accents, and a
+      simulated Solio drawer (children moved out of the block: tokens resolve to the panel's ocre,
+      no second bar, no summary button).
+- [x] Review of PR #722 (2026-10-19): `field-refusal` +3 (`gf:refused` with the first field, a host's
+      `preventDefault` keeps the reveal to itself, no live region per error line);
+      `wordpress-plugin-engine-colours` +5 (tokens never site-wide, no bare `.gf-btn` / `.gf-section`
+      / `.gf-cta`, default tokens ≥ 4.5 : 1, ocre darkened under white text, legacy-hover
+      specificity, phone-only bar). Browser re-check with the real Solio CSS (`gf-site-style.php`,
+      the drawer of `gf-seo-reservation.php`, the legacy `gf-booking.php`) injected into the harness,
+      Chromium and WebKit, 390 touch / 900 / 1280.
+
+- [x] Rule 30 (2026-10-27): `client/src/__tests__/wordpress-booking-view.stay-refusal.test.js` (2: the
+      real `view.js` prints `stayRefusal` and keeps the request disabled; a quote without it is drawn
+      as before); the refusal itself is `plugins/website-booking/tests/public-stay-rules.unit.test.js`.
 
 ### Manual verification
 - [ ] Install the built `.zip` on a WordPress test site; configure base URL + key; "Test connection" =

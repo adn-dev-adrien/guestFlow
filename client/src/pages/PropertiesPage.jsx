@@ -52,7 +52,6 @@ export default function PropertiesPage() {
     <Box>
       <PageActionBar
         title="Logements"
-        titleOnXs
         actionsBefore={[{
           node: (
             <Button key="create-property" variant="contained" size="small" startIcon={<AddIcon />} onClick={createProperty}>
@@ -67,7 +66,7 @@ export default function PropertiesPage() {
 
       {!loading && !listError && properties.length === 0 && (
         <EmptyState
-          message="Aucun logement. Créez votre premier logement !"
+          message="Aucun logement."
           actionLabel="Nouveau logement"
           onAction={createProperty}
         />
@@ -112,7 +111,7 @@ export default function PropertiesPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDeleteProperty}
         title="Supprimer le logement"
-        message={deleteTarget ? `Voulez-vous vraiment supprimer "${deleteTarget.name}" ?` : ''}
+        message={deleteTarget ? `Supprimer « ${deleteTarget.name} » ?` : ''}
         confirmLabel="Supprimer"
       />
     </Box>

@@ -208,6 +208,7 @@ function makeDb() {
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
     CREATE TABLE reservation_nights (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, date TEXT);
     CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId));
+    CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0, maxGuests INTEGER DEFAULT 0);
   `);
   db.prepare('INSERT INTO properties (id, defaultCautionAmount, maxGuests) VALUES (7, 500, 6)').run();
@@ -221,6 +222,7 @@ function makeDb() {
   insertOption.run(6, 'Petit déjeuner', '', 'breakfast', 8, 'per_person_per_night', 'Restauration', 1, 'once_per_day', '["09:00"]');
   insertOption.run(16, 'Le repas des trappeurs', 'Repas', null, 25, 'per_person_per_night', 'Restauration', 1, 'multiple_per_day', '["12:00","19:30"]');
   insertOption.run(27, 'Planche S', 'Apéro', null, 17, 'per_stay', 'Restauration', 0, 'once', '[]');
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (7, 6), (7, 16), (7, 27)').run();
   return db;
 }
 

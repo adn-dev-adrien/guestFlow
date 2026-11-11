@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lenteur du shadow</title>
+<style>
+:root{--sapin:#2F5D46;--miel:#C99038;--papier:#F8F5EF;--encre:#27251F;--gris:#6E6A5E;--ligne:#E4DED2;--ok:#3E7D54;--okbg:#E6EFE7;--warn:#8F6A1D;--warnbg:#F6EDD7;--err:#A8433A;--errbg:#F7E8E5;--info:#31556E;--infobg:#E4EDF3}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papier);color:var(--encre);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:920px;margin:0 auto;padding:32px 16px 64px}
+h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(1.7rem,4vw,2.3rem);line-height:1.15;letter-spacing:-.01em;margin:0 0 8px}
+h2{font-family:Georgia,serif;font-size:1.35rem;margin:40px 0 10px}
+.lede{color:var(--gris);margin:0 0 24px;max-width:62ch}
+.card{background:#fff;border:1px solid var(--ligne);border-radius:14px;padding:18px 20px;margin:12px 0}
+.verdict{border-left:4px solid var(--sapin)}
+.tag{display:inline-block;font-size:.78rem;font-weight:600;padding:2px 8px;border-radius:999px}
+.t-ok{background:var(--okbg);color:var(--ok)}.t-warn{background:var(--warnbg);color:var(--warn)}.t-err{background:var(--errbg);color:var(--err)}.t-info{background:var(--infobg);color:var(--info)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 14px}
+.seg{display:inline-flex;border:1px solid var(--ligne);border-radius:10px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:9px 12px;font:inherit;font-size:.9rem;color:var(--encre);cursor:pointer;min-height:44px}
+.seg button[aria-pressed=true]{background:var(--sapin);color:#fff}
+.seg button:focus-visible{outline:2px solid var(--miel);outline-offset:-2px}
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:150px 1fr 74px;gap:10px;align-items:center;font-size:.92rem}
+.track{background:var(--papier);border-radius:6px;height:22px;position:relative;overflow:hidden}
+.fill{height:100%;border-radius:6px;transition:width .35s cubic-bezier(.2,.8,.2,1)}
+.val{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.note{font-size:.88rem;color:var(--gris);margin-top:10px}
+.timeline{position:relative;height:66px;background:var(--papier);border-radius:10px;margin:10px 0;overflow:hidden}
+.lane{position:absolute;left:0;height:24px;border-radius:6px;font-size:.78rem;color:#fff;display:flex;align-items:center;padding:0 6px;white-space:nowrap;overflow:hidden}
+.cursor{position:absolute;top:0;bottom:0;width:2px;background:var(--encre);left:0}
+.btn{border:1px solid var(--sapin);background:var(--sapin);color:#fff;border-radius:10px;padding:9px 14px;font:inherit;font-size:.9rem;cursor:pointer;min-height:44px}
+.btn.ghost{background:#fff;color:var(--sapin)}
+table{border-collapse:collapse;width:100%;font-size:.92rem}
+td,th{padding:8px 6px;border-bottom:1px solid var(--ligne);text-align:left;vertical-align:top}
+th{color:var(--gris);font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.q{border-left:4px solid var(--miel)}
+.q h3{margin:0 0 6px;font-size:1.02rem}
+.opt{margin:6px 0;padding-left:4px}
+.opt b{color:var(--sapin)}
+ul{padding-left:20px}li{margin:4px 0}
+@media (max-width:600px){td.n{white-space:normal}table{font-size:.85rem}code{word-break:break-all}.bar{grid-template-columns:96px 1fr 62px;font-size:.84rem}.seg button{padding:9px 9px}}
+@media (prefers-reduced-motion:reduce){.fill{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<h1>Pourquoi le shadow est lent</h1>
+<p class="lede">Mesuré le 28/10 sur la même copie de base, sur ce Mac : le shadow tourne en mode développement, la prod non. Une seule page est vraiment lente dans le code : les textes des emails.</p>
+
+<div class="card verdict">
+<p style="margin:0"><span class="tag t-info">Verdict</span> &nbsp;Le serveur répond en 1 à 3 ms partout, sur inte comme sur master. La lenteur vient du <b>serveur Vite de développement</b> (481 fichiers non regroupés, React en mode dev) : ×3 à ×6 sur chaque page. Emails › Modèles et Plateformes sont aussi rapides en build inte qu'en prod. La page <b>Textes des emails</b>, nouvelle sur inte, perd 400 ms à attendre et monte les 65 champs de tous les emails.</p>
+</div>
+
+<h2>Le constat</h2>
+<div class="card">
+<div class="controls">
+<div class="seg" role="group" aria-label="Page">
+<button data-page="textes" aria-pressed="true">Textes des emails</button>
+<button data-page="plateformes" aria-pressed="false">Plateformes</button>
+<button data-page="emails" aria-pressed="false">Emails</button>
+<button data-page="dashboard" aria-pressed="false">Accueil</button>
+</div>
+<div class="seg" role="group" aria-label="Charge">
+<button data-load="1" aria-pressed="true">Mac au repos</button>
+<button data-load="4" aria-pressed="false">Mac chargé / téléphone (×4)</button>
+</div>
+</div>
+<div class="bars" id="bars" aria-live="polite"></div>
+<p class="note" id="barnote"></p>
+</div>
+
+<div class="card">
+<p style="margin:0 0 6px"><b>Ouvrir un email depuis Emails › Modèles</b> — rejouer le chargement</p>
+<div class="controls">
+<button class="btn" id="playBefore">Aujourd'hui</button>
+<button class="btn ghost" id="playAfter">Après correctif</button>
+</div>
+<div class="timeline" id="tl"><div class="cursor" id="cur"></div></div>
+<p class="note" id="tlnote">Build de production, mesuré : 598 ms aujourd'hui, 154 ms avec le correctif.</p>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<table>
+<tr><th>Lot</th><th>Quoi</th><th>Mesuré avant → attendu après</th></tr>
+<tr><td>1</td><td><b>Textes des emails</b> : premier aperçu sans délai ; seuls les champs de l'email ouvert sont montés ; le sélecteur « Email » de chaque section garde son propre email (bug trouvé au passage).</td><td class="n">670 → 201 ms<br>×4 : 1 150 → 669 ms</td></tr>
+<tr><td>2</td><td><b>Shadow sur un build de prod</b> : un script du dépôt copie la base, construit le client et les plugins, et lance un seul serveur. <code>--dev</code> garde Vite si besoin.</td><td class="n">Plateformes ×4 : 1 021 → ~255 ms<br>Accueil ×4 : 1 489 → ~353 ms</td></tr>
+<tr><td>3</td><td><b>Pages chargées à la demande</b> : chaque page devient un fichier séparé ; la barre et le menu restent affichés.</td><td class="n">JS initial 637 kB gzip → à mesurer<br>(gain surtout sur téléphone)</td></tr>
+<tr><td>4</td><td><b>Garde-fous en CI</b> : budget de taille du JS initial ; nombre de requêtes SQL des endpoints lourds identique à 20 et à 2 000 réservations.</td><td class="n">bloque la régression suivante</td></tr>
+</table>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul>
+<li>Pas de cache serveur : aucun endpoint ne dépasse 14 ms.</li>
+<li>Pas de changement d'écran, hors l'indicateur de chargement d'une page.</li>
+<li>Pas de retouche de la page Plateformes : elle n'a aucun problème de code (115 ms en build, comme master).</li>
+<li>Pas de dédoublonnage de l'appel de version (1 ms).</li>
+</ul>
+
+<h2>Le risque</h2>
+<ul>
+<li><b>Lot 1</b> : les champs d'un email replié ne sont plus dans la page. Les brouillons vivent dans l'état de la page, donc rien ne se perd ; le clic sur une phrase de l'aperçu déplie déjà sa section avant de viser le champ. Les tests existants qui visent un champ replié devront d'abord ouvrir sa section.</li>
+<li><b>Lot 3</b> : une page en cache dont le fichier a changé après une mise à jour ne se charge plus. Prévu : un rechargement automatique, une seule fois, puis « Page indisponible. » avec « Recharger ».</li>
+<li><b>Lot 2</b> : un shadow construit n'a plus le rechargement à chaud ; à relancer après chaque mise à jour de la branche.</li>
+</ul>
+
+<h2>Les arbitrages en attente</h2>
+<div class="card q"><h3>1. Le shadow par défaut</h3>
+<div class="opt"><b>Build de prod, <code>--dev</code> sur demande (recommandé)</b> : vitesse de la prod ; rebuild de ~2 s à chaque mise à jour.</div>
+<div class="opt">Garder le serveur de dev : rechargement à chaud, mais 3 à 6 fois plus lent que la prod.</div></div>
+<div class="card q"><h3>2. Pages à la demande (lot 3)</h3>
+<div class="opt"><b>Dans cette spec, en lot séparé (recommandé)</b> : premier chargement plus léger, surtout sur téléphone.</div>
+<div class="opt">Plus tard : on livre seulement les lots 1, 2 et 4.</div></div>
+<div class="card q"><h3>3. Budget de taille du JS en CI</h3>
+<div class="opt"><b>Bloquant, avec 10 % de marge (recommandé)</b> : une page lourde ajoutée par erreur casse la CI.</div>
+<div class="opt">Rapport seulement : rien ne bloque, à surveiller à l'œil.</div></div>
+</main>
+<script>
+const DATA={
+ textes:{label:'Textes des emails',1:{'inte · shadow (dev)':831,'inte · build':670,'inte · build + correctif':201},4:{'inte · shadow (dev)':2596,'inte · build':1150,'inte · build + correctif':669},note:'N’existe pas sur master (édition dans une fenêtre). Lente aussi en build : c’est le code.'},
+ plateformes:{label:'Plateformes',1:{'inte · shadow (dev)':488,'inte · build':115,'master · prod':113,'master · dev':530},4:{'inte · shadow (dev)':1021,'inte · build':255,'master · prod':235,'master · dev':811},note:'Build inte = prod master : aucune régression, seul le mode dev est lent.'},
+ emails:{label:'Emails',1:{'inte · shadow (dev)':382,'inte · build':64,'master · prod':106,'master · dev':373},4:{'inte · shadow (dev)':728,'inte · build':215,'master · prod':188,'master · dev':646},note:'Build inte aussi rapide que la prod.'},
+ dashboard:{label:'Accueil',1:{'inte · shadow (dev)':325,'inte · build':130,'master · prod':142,'master · dev':300},4:{'inte · shadow (dev)':1489,'inte · build':353,'master · prod':346,'master · dev':1162},note:'Le mode dev d’inte pèse 20 à 30 % de plus que celui de master (plus de fichiers).'}
+};
+const COLOR={'inte · shadow (dev)':'var(--err)','inte · build':'var(--miel)','inte · build + correctif':'var(--ok)','master · prod':'var(--sapin)','master · dev':'#B9A98C'};
+let page='textes',load='1';
+function render(){const d=DATA[page][load];const max=Math.max(...Object.values(DATA[page][4]));const el=document.getElementById('bars');el.innerHTML='';
+ for(const[k,v]of Object.entries(d)){const r=document.createElement('div');r.className='bar';r.innerHTML=`<span>${k}</span><div class="track"><div class="fill" style="width:0;background:${COLOR[k]}"></div></div><span class="val">${v.toLocaleString('fr-FR')} ms</span>`;el.appendChild(r);requestAnimationFrame(()=>{r.querySelector('.fill').style.width=(v/max*100)+'%'})}
+ document.getElementById('barnote').textContent=DATA[page].note+' Médiane de 3 chargements complets.'}
+document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{page=b.dataset.page;document.querySelectorAll('[data-page]').forEach(x=>x.setAttribute('aria-pressed',x===b));render()});
+document.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{load=b.dataset.load;document.querySelectorAll('[data-load]').forEach(x=>x.setAttribute('aria-pressed',x===b));render()});
+render();
+const SCALE=650;const tl=document.getElementById('tl');let raf;
+function play(segs,total,msg){cancelAnimationFrame(raf);tl.querySelectorAll('.lane').forEach(x=>x.remove());const cur=document.getElementById('cur');
+ segs.forEach(s=>{const l=document.createElement('div');l.className='lane';l.style.cssText=`top:${s.row?36:6}px;left:${s.a/SCALE*100}%;width:${(s.b-s.a)/SCALE*100}%;background:${s.c};opacity:0;transition:opacity .15s`;l.textContent=s.t;l.dataset.a=s.a;tl.appendChild(l)});
+ const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;const t0=performance.now();const slow=reduce?0:2.2;
+ const step=(now)=>{const t=reduce?total:Math.min(total,(now-t0)/slow);cur.style.left=(t/SCALE*100)+'%';tl.querySelectorAll('.lane').forEach(l=>{if(+l.dataset.a<=t)l.style.opacity=1});
+  document.getElementById('tlnote').textContent=t<total?`${Math.round(t)} ms…`:msg;if(t<total)raf=requestAnimationFrame(step)};raf=requestAnimationFrame(step)}
+document.getElementById('playBefore').onclick=()=>play([{a:0,b:150,c:'var(--info)',t:'page + 65 champs'},{a:150,b:522,c:'var(--err)',t:'attente 400 ms',row:1},{a:522,b:598,c:'var(--ok)',t:'aperçu',row:1}],598,'Aujourd’hui : aperçu à 598 ms, dont 400 ms d’attente sans rien taper.');
+document.getElementById('playAfter').onclick=()=>play([{a:0,b:110,c:'var(--info)',t:'page + 1 email'},{a:110,b:154,c:'var(--ok)',t:'aperçu',row:1}],154,'Après correctif : aperçu à 154 ms.');
+</script>
+</body>
+</html>

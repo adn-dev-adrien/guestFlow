@@ -3,6 +3,7 @@ import { Box, Card, Stack, Typography, Divider, Button, Chip, IconButton, Toolti
 import RefreshIcon from '@mui/icons-material/Refresh';
 import StatusBadge from './StatusBadge';
 import { formatCurrency, displayDate } from '../utils/formatters';
+import { touchHitArea } from '../utils/touchHitArea';
 import { COMPLEMENT_LABELS, COMPLEMENT_BREAKDOWN_LABELS } from '../constants/complements';
 
 // Discreet italic gray chip surfaced next to a line that is routed to the Complément bucket
@@ -21,7 +22,7 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
       <Divider />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, flexWrap: 'wrap' }}>
         <Box sx={{ flex: 1, minWidth: 160 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" component="div" color="text.secondary">
             {label}
             {chip && <Box component="span" sx={{ ml: 1 }}>{chip}</Box>}
           </Typography>
@@ -77,6 +78,8 @@ function ComplementChip({ active = true, onClick, readOnly = false }) {
         cursor: clickable ? 'pointer' : 'default',
         '& .MuiChip-label': { px: 0.75 },
         '&:hover': clickable ? { opacity: 1, borderColor: 'divider', bgcolor: 'action.hover' } : undefined,
+        // specs/plugins-phase-p-productisation.md rule 39 — 18 px on screen, 44 px under a finger.
+        ...(clickable ? touchHitArea : {}),
       }}
     />
   );
@@ -127,6 +130,15 @@ function getLineSplit(line, totalPrice) {
  *   onToggleCustomOptionInComplement(customKey, next)
  *   onToggleResourceInComplement(resourceId, next)
  *   onToggleTouristTaxInComplement(next)
+ *   touristTaxInComplementLocked — the server's rule 20 reason is set: the chip reads, it does not toggle
+ *   mode                           'live' (default) | 'stored' — the quote is then the server's `storedSummary`
+ *                                  (specs/reservation-payment-ledger.md rules 50-52): the same sections,
+ *                                  labels and rows, with every per-line control left out, since a value
+ *                                  shown as stored is never edited in place
+ *   topNotice                      node rendered above « Prix hébergement » (the platform price alert)
+ *   ledgerRows                     the stored ledger's rows: a paid acompte, solde or complement whose split payment left a reste
+ *                                  reads the server's state (« Perçu en partie »), not « payé »
+ *                                  (specs/mixed-method-payments.md rule 16, audit R34-C-L3)
  */
 export default function PricingSummary({
   quote,
@@ -147,6 +159,7 @@ export default function PricingSummary({
   onToggleCustomOptionInComplement,
   onToggleResourceInComplement,
   onToggleTouristTaxInComplement,
+  touristTaxInComplementLocked = false,
   // specs/mid-stay-extras-on-locked-fiche.md — inside the window the routing is the server's and a
   // line sold at arrival can be neither offered nor un-offered.
   routingLocked = false,
@@ -155,15 +168,30 @@ export default function PricingSummary({
   // refresh button next to the label to force a live recompute.
   isTouristTaxFrozen = false,
   onRefreshTouristTax,
+  mode = 'live',
+  topNotice = null,
+  ledgerRows = null,
 }) {
+  const stored = mode === 'stored';
+  // Rule 16 — a target paid with a reste still due is not settled: its badge says what the ledger says.
+  const partialLabel = (keys) => {
+    const wanted = [].concat(keys);
+    const row = (ledgerRows || []).find((r) => r && wanted.includes(r.key));
+    return row && row.split && (row.split.remainders || []).length > 0 ? row.stateLabel : null;
+  };
+  const paidBadge = (key, label) => {
+    const partial = partialLabel(key);
+    return partial ? <StatusBadge status="warning" label={partial} /> : <StatusBadge status="success" label={label} />;
+  };
   const lockChip = (chip) => {
-    if (!routingLocked) return chip;
+    if (!routingLocked && !stored) return chip;
     return chip === 'on' ? 'readonly' : (chip === 'off' ? null : chip);
   };
   const [showNightlyBreakdown, setShowNightlyBreakdown] = useState(false);
   const [showTouristTaxDetail, setShowTouristTaxDetail] = useState(false);
 
-  const nights = Number(quote?.nights || Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000)));
+  // The server's night count; 0 before dates are chosen, and then no count is shown.
+  const nights = Number(quote?.nights) > 0 ? Number(quote.nights) : 0;
   const touristTaxLabel = String(quote?.touristTaxLabel || '').trim();
   const touristTaxTotal = Number(quote?.touristTaxTotal ?? form.touristTaxTotal ?? 0);
   const touristTaxOriginalTotal = Number(quote?.touristTaxOriginalTotal ?? touristTaxTotal);
@@ -202,10 +230,6 @@ export default function PricingSummary({
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
-  // Engine-authoritative total: the server already netted out the platform-collected tax (= 0 in
-  // `touristTaxTotal`) and kept it in for owner-collected / direct cases. No client-side stripping.
-  const totalSejour = Number(quote?.totalStayPrice || (Number(form.finalPrice || 0) + touristTaxTotal));
-
   // Single global VAT rate (specs/single-vat-rate.md §4.2). The engine still ships three
   // separate `vatPercentage*` keys for backward compatibility — they all carry the same
   // value, so we read one and ignore the others.
@@ -215,6 +239,8 @@ export default function PricingSummary({
   // `totalVatAmount` are still shown.
   const totalVatAmount = Number(quote?.totalVatAmount || 0);
   const totalNetPrice = Number(quote?.totalNetPrice || 0);
+  // « Sans TVA » (specs/vat-optional-mode.md rule 12a): the server's mention replaces the VAT lines.
+  const vatMention = quote?.vatRegime?.regime === 'not_subject' ? quote.vatRegime.legalMentionText : null;
 
   // The engine resolves who collects the tax (per-platform flag on `ical_sources`, see
   // `pricing.js#isPlatformCollectingTouristTax`). The summary mirrors that decision:
@@ -241,18 +267,22 @@ export default function PricingSummary({
   // extras line is server-forced to inComplement = 1. The per-line <ComplementChip> here is
   // therefore meaningless (no toggle to expose) and is hidden. The "Offert/Offrir" button
   // stays — a geste commercial works the same on platform and direct reservations.
-  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+  // specs/plugins-phase-p-productisation.md rule 45 — the server says whether the stay is a platform
+  // SALE: a channel « Compté comme vente directe » reads as a direct one.
+  const isPlatformReservation = Boolean(quote?.platformSale);
+  const unpricedNights = Array.isArray(quote?.unpricedNights) ? quote.unpricedNights : [];
 
   return (
     <Box
       sx={{
-        position: { xs: 'static', md: 'sticky' },
-        top: { md: 148 },
+        // Beside the form from lg (the fiche's two-column breakpoint), in the page flow below it.
+        position: { xs: 'static', lg: 'sticky' },
+        top: { lg: 148 },
         // Desktop: the summary becomes its own scroll area so the wheel/trackpad scrolls inside the
         // panel rather than the page when the cursor sits over it. We leave the mobile flow alone
         // (`xs` keeps the natural page scroll).
-        maxHeight: { md: 'calc(100vh - 148px - 16px)' },
-        overflowY: { md: 'auto' },
+        maxHeight: { lg: 'calc(100vh - 148px - 16px)' },
+        overflowY: { lg: 'auto' },
         // Hint browsers/scroll-snap engines to keep the inner scroll independent of the page.
         overscrollBehavior: 'contain',
       }}
@@ -261,9 +291,11 @@ export default function PricingSummary({
         <Typography variant="sectionHeader" sx={{ mb: 2 }}>
           Résumé tarifaire
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
           {selectedProperty?.label || selectedProperty?.name || 'Logement non sélectionné'}
         </Typography>
+
+        {topNotice}
 
         <Stack spacing={1.5}>
           {/* Prix hébergement */}
@@ -287,17 +319,28 @@ export default function PricingSummary({
                     size="small"
                     variant="text"
                     onClick={() => setShowNightlyBreakdown((prev) => !prev)}
-                    sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
+                    sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12, ...touchHitArea }}
                   >
                     {showNightlyBreakdown ? 'Masquer détail' : 'Détail'}
                   </Button>
                 ) : (
                   <Box />
                 )}
-                <Typography variant="caption" color="text.secondary">({nights} nuit{nights > 1 ? 's' : ''})</Typography>
+                {nights > 0 && (
+                  <Typography variant="caption" color="text.secondary">({nights} nuit{nights > 1 ? 's' : ''})</Typography>
+                )}
               </Box>
             </Box>
           </Box>
+
+          {/* specs/tariff-recipes/spec.md §3 rule 59 — a night no season covers is priced by default:
+              the fiche says so, the operator decides. */}
+          {unpricedNights.length > 0 && (
+            <Typography variant="caption" role="alert" sx={{ display: 'block', color: 'warning.main', overflowWrap: 'anywhere' }}>
+              {unpricedNights.length > 1 ? 'Aucune saison tarifaire ne couvre les nuits du ' : 'Aucune saison tarifaire ne couvre la nuit du '}
+              {unpricedNights.map((date) => displayDate(date)).join(', ')}.
+            </Typography>
+          )}
 
           {nightlyBreakdown.length > 0 && showNightlyBreakdown && (
             <Box
@@ -417,7 +460,14 @@ export default function PricingSummary({
                 const plannedVsSold = Number.isFinite(soldUnits) && soldUnits > 0
                   ? `planifié ${Number(so.billedUnits || 0)} · vendu ${soldUnits}`
                   : '';
-                const baseLabel = `${so.title || opt?.title || '—'}${Number(so.quantity) > 1 ? ` ×${so.quantity}` : ''}`;
+                // A line whose quantity counts mornings (the server says so) reads « · 3 matins »,
+                // not « ×3 », which reads as portions (specs/pricing-summary-labels rule, F13).
+                const countsMornings = so.quantityUnit === 'morning';
+                const quantity = Number(so.displayCount ?? so.quantity);
+                const quantitySuffix = countsMornings
+                  ? ` · ${quantity} matin${quantity > 1 ? 's' : ''}`
+                  : (quantity > 1 ? ` ×${quantity}` : '');
+                const baseLabel = `${so.title || opt?.title || '—'}${quantitySuffix}`;
                 const baseKey = so.optionId || so.customKey || `custom_${index}`;
 
                 // Single callback unifies regular / auto / custom — the page knows which channel
@@ -435,7 +485,7 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine(isCustom ? 'custom' : 'option', so);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen });
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
                 const renderRowRaw = ({ label, amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -477,6 +527,11 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {stored && isOffered && (
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>
+                          {isIncludedInRate ? 'Comprise' : '✓ Offert'}
+                        </Typography>
+                      )}
                       {withOfferedToggle && (
                         <Button
                           size="small"
@@ -564,25 +619,14 @@ export default function PricingSummary({
                 const isOffered = Boolean(sr.offered);
                 const total = Number(sr.totalPrice || 0);
                 const originalTotal = Number(sr.originalTotalPrice ?? total ?? 0);
-                const isPerHour = Boolean(res?.isComplex)
-                  || (sr.priceType || res?.priceType) === 'per_hour'
-                  || Number(res?.freeMinutes || 0) > 0;
+                // specs/plugins-phase-3c-hourly-resources.md rule 4 — hours for `per_hour` only.
+                const isPerHour = (sr.priceType || res?.priceType) === 'per_hour';
                 const hasFreeFirstHour = isPerHour && Number(res?.freeMinutes || 0) >= 60;
                 const displayedOriginalTotal = isOffered ? originalTotal : total;
                 const resourceHint = hasFreeFirstHour ? '1ère heure offerte' : '';
-                // Hours sold vs hours actually placed on a slot — both counted server-side
-                // (`scheduledHours`, absent on a resource that cannot be scheduled). An hourly
-                // resource is normally sold unscheduled and planned with the guest during the arrival
-                // SAS, so « à planifier » is an ordinary state, not an alarm — but it must be visible,
-                // or the operator cannot tell a scheduled bath from one nobody booked a slot for
-                // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 5).
-                const hoursSold = Number(sr.quantity || 0);
-                const hoursPlaced = Number(sr.scheduledHours || 0);
-                const schedulingLabel = sr.scheduledHours === undefined || hoursSold <= 0 || hoursPlaced >= hoursSold
-                  ? ''
-                  : hoursPlaced <= 0
-                    ? 'à planifier'
-                    : `${hoursPlaced} h / ${hoursSold} h planifiées`;
+                // What a plugin says under the line, worded by the server (rule 23): « À planifier »,
+                // « 1 h / 3 h planifiées » for the hours of a bath not all placed yet.
+                const schedulingLabel = sr.detail || '';
                 const split = isOffered
                   ? { kind: 'simple', snapshot: displayedOriginalTotal, delta: 0 }
                   : getLineSplit(sr, total);
@@ -595,7 +639,7 @@ export default function PricingSummary({
                 };
 
                 const frozen = isFrozenLine('resource', sr);
-                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen });
+                const renderRow = (row) => renderRowRaw({ ...row, chip: lockChip(row.chip), withOfferedToggle: row.withOfferedToggle && !frozen && !stored });
                 const renderRowRaw = ({ amount, chip /* 'on'|'off'|'readonly'|null */, withOfferedToggle }) => (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
                     <Box sx={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -620,6 +664,9 @@ export default function PricingSummary({
                       )}
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {stored && isOffered && (
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>✓ Offert</Typography>
+                      )}
                       {withOfferedToggle && (
                         <Button
                           size="small"
@@ -677,7 +724,7 @@ export default function PricingSummary({
                     {/* specs/tourist-tax-matches-the-office-calculation.md rules 10-11 — a tax the
                         guest has paid, or one already declared, is frozen; this button forces a live
                         recompute (then Save persists it). */}
-                    {isTouristTaxFrozen && onRefreshTouristTax && (
+                    {!stored && isTouristTaxFrozen && onRefreshTouristTax && (
                       <Tooltip title="Recalculer la taxe de séjour (figée — déjà encaissée ou déclarée)">
                         <IconButton size="small" onClick={onRefreshTouristTax} aria-label="Recalculer la taxe de séjour" sx={{ ml: 0.25, p: 0.25 }}>
                           <RefreshIcon sx={{ fontSize: 16 }} />
@@ -693,16 +740,19 @@ export default function PricingSummary({
                           - otherwise (direct or platform-collect): the chip is clickable,
                             mirrors the Switch in FinanceSection.
                         Hidden when the tax is offered (no money to route). */}
-                    {!isTouristTaxOffered && Number(touristTaxTotal) > 0 && (
+                    {!isTouristTaxOffered && Number(touristTaxTotal) > 0 && (stored ? (
+                      (isTouristTaxCollectedOnArrival || quote?.touristTaxInComplement) && <ComplementChip active readOnly />
+                    ) : (
                       isTouristTaxCollectedOnArrival ? (
                         <ComplementChip active readOnly />
                       ) : (
                         <ComplementChip
                           active={Boolean(quote?.touristTaxInComplement)}
                           onClick={onToggleTouristTaxInComplement}
+                          readOnly={Boolean(touristTaxInComplementLocked)}
                         />
                       )
-                    )}
+                    ))}
                     {/* Case 2 — the platform collects + remits the tax to the commune. NOT « offert »
                         (it isn't free) : a short « Plateforme » tag says it's handled platform-side. */}
                     {isTouristTaxOffered && (
@@ -714,16 +764,18 @@ export default function PricingSummary({
                       />
                     )}
                   </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Button
-                      size="small"
-                      variant="text"
-                      onClick={() => setShowTouristTaxDetail((prev) => !prev)}
-                      sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12 }}
-                    >
-                      {showTouristTaxDetail ? 'Masquer détail' : 'Afficher détail'}
-                    </Button>
-                  </Box>
+                  {!stored && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setShowTouristTaxDetail((prev) => !prev)}
+                        sx={{ textTransform: 'none', p: 0, minWidth: 0, fontSize: 12, ...touchHitArea }}
+                      >
+                        {showTouristTaxDetail ? 'Masquer détail' : 'Afficher détail'}
+                      </Button>
+                    </Box>
+                  )}
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {/* Case 2 (platform collects AND remits to the commune): struck through, beside the
@@ -802,7 +854,7 @@ export default function PricingSummary({
               {/* specs/platform-added-guests-tourist-tax.md rule 14 — never offered: a debt to the commune. */}
               {touristTaxAddedGuestsAmount > 0 && (
                 <ExtraGuestRow
-                  label="Taxe de séjour · voyageurs ajoutés"
+                  label="Complément de taxe de séjour"
                   caption="Comprise dans la taxe ci-dessus"
                   amount={touristTaxAddedGuestsAmount}
                   chip={<ComplementChip active readOnly />}
@@ -815,16 +867,20 @@ export default function PricingSummary({
               per-bucket breakdown since accommodation / options / resources all share the
               same rate now. Total HT + TVA on two lines under the séjour total. */}
           <Divider />
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">Total HT</Typography>
-              <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalNetPrice)}</Typography>
+          {vatMention ? (
+            <Typography variant="caption" color="text.secondary" data-testid="vat-mention">{vatMention}</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">Total HT</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalNetPrice)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
+                <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalVatAmount)}</Typography>
+              </Box>
             </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
-              <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalVatAmount)}</Typography>
-            </Box>
-          </Box>
+          )}
 
           {/* Total du séjour — running-subtotal cascade (specs/platform-offered-tax-passthrough-and-
               cascade.md). « Total du séjour » = the gross (hébergement + toutes options/ressources +
@@ -835,39 +891,23 @@ export default function PricingSummary({
           {(() => {
             const acompteComm = Number(quote?.acompteCommissionAmount || 0);
             const soldeComm = Number(quote?.platformCommissionAmount || 0);
-            const totalComm = Number(quote?.totalPlatformCommission ?? (acompteComm + soldeComm));
+            const totalComm = Number(quote?.totalPlatformCommission || 0);
             const netReceived = quote?.platformNetReceivedAmount;
             const hasCommission = totalComm > 0;
-            // « Total du séjour » = the GROSS the client pays: finalPrice (accommodation + all
-            // options/resources) + the REAL tourist tax (original, even when offered — the guest paid it).
-            // The end-of-stay complement has two halves: what the departure SAS bills (ménage, linge
-            // manquant, extincteur — flat amounts OUTSIDE finalPrice) and the prestations sold during
-            // the stay (real option/resource lines, already inside finalPrice). Only the first half is
-            // added here, else the mid-stay part would be counted twice in the gross.
-            // specs/mid-stay-extras-to-end-of-stay-complement.md §3.4 rule 15 — the end-of-stay
-            // complement is collected on site like the arrival one: same treatment in the cascade.
-            const endOfStay = Number(quote?.endOfStayComplementTotal ?? form.endOfStayComplementAmount ?? 0);
-            // specs/mid-stay-notes.md §3.5 rule 19 — prestations already collected through a note.
-            const midStayNotes = Number(quote?.midStaySettledTotal || 0);
-            // The SAS half of the end-of-stay complement (ménage/linge/extincteur) lives OUTSIDE
-            // finalPrice; the mid-stay half (sold + collected or still due) is already inside it.
-            const endOfStaySas = Math.max(0, endOfStay - Number(quote?.midStayRemainingTotal ?? quote?.midStayExtrasTotal ?? 0));
-            // Rule 13 — with a withheld amount stated, this cascade becomes literally true: « Total du
-            // séjour » is the guest-paid total off the statement and « Versement plateforme » is the
-            // transfer, top and bottom of the same column.
-            const grossTotal = Number(quote?.finalPrice != null ? quote.finalPrice : totalSejour)
-              + touristTaxPlatformAmount + endOfStaySas;
-            // Deductions to the commission base: the tax the platform collects + remits to the commune
-            // itself (offered), and the extras collected on-site (the complément). What's left is the
-            // pre-arrival amount the platform commissions on.
-            const offeredTax = isTouristTaxOffered ? touristTaxPlatformAmount : 0;
+            // specs/ui-review-2026-10-19-operations.md rule 32 — the cascade's figures come shaped by the
+            // server (`quote.summaryCascade`): « Total du séjour » is the headline's gross, the platform's
+            // withheld tax and the on-site total are its own deductions. The panel only prints them.
+            const cascade = quote?.summaryCascade || {};
+            const grossTotal = Number(cascade.grossTotal || 0);
+            const offeredTax = Number(cascade.offeredTaxDeduction || 0);
+            const onSiteTotal = Number(cascade.onSiteTotal || 0);
             const complement = Number(quote?.complementAmount || 0);
-            const onSiteTotal = complement + endOfStay + midStayNotes;
+            const endOfStay = Number(quote?.endOfStayComplementTotal || 0);
+            const midStayNotes = Number(quote?.midStaySettledTotal || 0);
             // specs/complement-buckets-by-moment.md §3 rule 1 — the server files each amount under the
-            // moment it is collected; the panel only prints. Fallback for a quote from an older payload
-            // (or a devis preview): everything under arrival, which is what the engine returns anyway.
+            // moment it is collected; the panel only prints.
             const split = quote?.complementSplit || { arrival: complement, duringStay: midStayNotes, endOfStay };
-            const montantSoumis = Number(quote?.preArrivalAmount != null ? quote.preArrivalAmount : (grossTotal - offeredTax - onSiteTotal));
+            const montantSoumis = Number(cascade.commissionBase || 0);
             const versement = netReceived != null ? Number(netReceived) : montantSoumis;
             // specs/reservation-refunds.md §3.3 rule 17 — money given back to the guest is the last
             // deduction of the cascade: everything above still shows what was sold and collected.
@@ -878,7 +918,7 @@ export default function PricingSummary({
             // `sejourNetTotal` ; ici on ne fait qu'imprimer la ligne qui l'explique.
             const arrivalReduction = Number(quote?.arrivalPaymentReduction || 0);
             const arrivalTip = Number(quote?.arrivalPaymentTip || 0);
-            const totalPercu = Number(quote?.sejourNetTotal ?? (versement + onSiteTotal - refundsTotal));
+            const totalPercu = Number(quote?.sejourNetTotal || 0);
             // The cascade flow (deductions → versement → +complément) only makes sense for a platform
             // reservation. Direct keeps a single « Total du séjour » + a complément line if any.
             const row = (label, value, opts = {}) => (
@@ -906,9 +946,7 @@ export default function PricingSummary({
                     {arrivalReduction > 0 && row('Réduction accordée', arrivalReduction, { sign: '− ', color: 'warning.main' })}
                     {arrivalTip > 0 && row('Pourboire', arrivalTip, { sign: '+ ', color: 'success.main' })}
                     {row('Total perçu sur le séjour', totalPercu, { strong: true, color: 'primary.main' })}
-                    {form.complementPaid && split.arrival > 0 && (
-                      <StatusBadge status="success" label="Complément payé" />
-                    )}
+                    {form.complementPaid && split.arrival > 0 && paidBadge(['complement', 'checkoutComplement'], 'Complément payé')}
                   </>
                 ) : (
                   <>
@@ -924,9 +962,7 @@ export default function PricingSummary({
                           </Typography>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatCurrency(split.arrival)}</Typography>
                         </Box>
-                        {form.complementPaid && (
-                          <StatusBadge status="success" label="Complément payé" />
-                        )}
+                        {form.complementPaid && paidBadge(['complement', 'checkoutComplement'], 'Complément payé')}
                       </>
                     )}
                     {split.duringStay > 0 && (
@@ -983,9 +1019,7 @@ export default function PricingSummary({
               À payer avant : {displayDate(form.depositDueDate)}
             </Typography>
           )}
-          {!form.depositDisabled && form.depositPaid && (
-            <StatusBadge status="success" label="Acompte payé" />
-          )}
+          {!form.depositDisabled && form.depositPaid && paidBadge('deposit', 'Acompte payé')}
 
           {/* Solde — when `depositDisabled` is on, the displayed amount is the SUM of the
               two form fields so the operator sees the consolidated total immediately on
@@ -1013,9 +1047,7 @@ export default function PricingSummary({
               À payer avant : {displayDate(form.balanceDueDate)}
             </Typography>
           )}
-          {form.balancePaid && (
-            <StatusBadge status="success" label="Solde payé" />
-          )}
+          {form.balancePaid && paidBadge('balance', 'Solde payé')}
 
           {/* Caution */}
           <Divider />

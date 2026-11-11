@@ -96,8 +96,7 @@ export default function SelfProfileSection({
               Mes informations
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Mettez à jour votre prénom, votre nom, votre société et vos notes. L'email reste
-              celui utilisé pour vous connecter.
+              Prénom, nom, société et notes. L’email sert à la connexion.
             </Typography>
           </Box>
 
@@ -134,8 +133,8 @@ export default function SelfProfileSection({
             helperText={
               fieldErrors.email
                 || (showDefaultEmailWarning
-                  ? 'Vous utilisez encore l\'adresse par défaut. Remplacez-la par votre vraie adresse — c\'est avec elle que vous vous connecterez.'
-                  : 'C\'est l\'adresse utilisée pour vous connecter.')
+                  ? 'Adresse par défaut encore en place : la remplacer par une vraie adresse, qui servira à la connexion.'
+                  : 'Adresse utilisée pour la connexion.')
             }
             fullWidth
             disabled={busy}

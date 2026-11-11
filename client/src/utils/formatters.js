@@ -8,6 +8,8 @@
  *   displayDateShort       10 juil. 2026          — compact humanized (alert cards, dialogs)
  *   displayDateLong        10 juillet 2026        — prose-like contexts (SAS, notices)
  *   displayDateTime        10/07/2026 14:35       — timestamps (history, logs)
+ *   formatAmountInput      7,20 / 1234,50         — an amount shown inside an editable money field
+ *   formatPercent          15,5 % / 20 %          — a rate (commission, discount): one decimal at most
  *
  * Amounts use REGULAR spaces (grouping + before €) on purpose — not Intl's narrow no-break spaces —
  * so rendered strings stay greppable/assertable and match the app's historical output.
@@ -23,6 +25,15 @@ export function formatCurrency(n) {
   return `${rounded < 0 ? '-' : ''}${grouped},${dec} €`;
 }
 
+// An amount inside an editable field: two decimals, a comma, no grouping and no « € », so the text
+// reads as money and still parses back (specs/reservation-price-arithmetic.md rule 10).
+export function formatAmountInput(n) {
+  if (n == null || n === '') return '';
+  const num = Number(n);
+  if (!Number.isFinite(num)) return String(n);
+  return (Math.round(num * 100) / 100).toFixed(2).replace('.', ',');
+}
+
 export function formatCurrencyRounded(n) {
   if (n == null || n === '') return '—';
   const num = Number(n);
@@ -30,6 +41,23 @@ export function formatCurrencyRounded(n) {
   const rounded = Math.round(num);
   const grouped = String(Math.abs(rounded)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return `${rounded < 0 ? '-' : ''}${grouped} €`;
+}
+
+export function formatPercent(n) {
+  if (n == null || n === '') return '—';
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '—';
+  const rounded = Math.round(num * 10) / 10;
+  return `${String(rounded).replace('.', ',')} %`;
+}
+
+/** « +28 % » / « −31 % » — a whole, signed percentage (the typographic minus, a space before the %). */
+export function formatSignedPercent(n) {
+  const num = Number(n);
+  if (n == null || n === '' || !Number.isFinite(num)) return '—';
+  const whole = Math.round(num);
+  const sign = whole > 0 ? '+' : (whole < 0 ? '−' : '');
+  return `${sign}${Math.abs(whole)} %`;
 }
 
 export function displayDate(d) {
@@ -59,4 +87,9 @@ export function displayDateTime(iso) {
   const d = new Date(String(iso).replace(' ', 'T'));
   if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+/** « 3 textes », « 1 texte »: the count and the word, an « s » from two (specs/inte-performance.md rule 9). */
+export function plural(n, word) {
+  return `${n} ${word}${n > 1 ? 's' : ''}`;
 }

@@ -140,10 +140,15 @@ vite.config.ts.timestamp-*
 
 # GuestFlow
 *.db
+# The instance's licence, written by the control plane (specs/control-plane-plans-and-access.md)
+licence.jws
+# The control plane's own data: its database, secrets key and customer exports (specs/control-plane-plans-and-access.md)
+control-plane/server/data/
 *.db-shm
 *.db-wal
 *.bak
 server/uploads/
+server/private-documents/
 
 # Self-update engine state (specs/self-update-and-releases.md §5). In production these live in
 # ~/guestflow/data/; in a dev tree the data directory IS server/, so they land here.
@@ -153,6 +158,7 @@ server/update.lock
 server/runtime-state.json
 client/build/
 client/dist/
+client/.vitest/
 .env
 
 # Data bases
@@ -170,9 +176,20 @@ server/certs/*.pem
 # Playwright E2E suite (specs/e2e-playwright-smoke-suite.md §4.3)
 e2e/.auth/
 playwright-report/
+playwright-server.log
+playwright-server-bare.log
+playwright-server-prod.log
 test-results/
 .last-run.json
 
 # Playwright MCP server scratch dir (snapshots / console logs from in-session
 # Claude Code investigations — not a deliverable, regenerated every session).
 .playwright-mcp/
+# Plugin packages (specs/plugins-phase-4-registry.md): the build output, and in a dev tree — whose data
+# directory is server/ — the packages installed from a registry and the plugins' own data.
+plugins-dist/
+server/plugins/
+server/plugin-data/
+playwright-report-prod/
+playwright-report-bare/
+playwright-report-removal/

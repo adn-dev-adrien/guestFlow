@@ -63,6 +63,23 @@ rebuild its mappings from the UIDs already stored on the reservations themselves
    the event's summary, so the legacy content fallback keeps working for pre-column rows.
 6. **No behavior change** for: sources with 0 mappings (first import of an empty feed is fine),
    past-stay alert carve-out, cross-source dedup, UID-reissue heuristic (step ③bis), locked flows.
+7. **One sync per source at a time** _(added 2026-10-29, audit R4)_. Rules 3-4 trust an empty feed on
+   the second consecutive empty fetch; two overlapping syncs of one source (the 5-minute pass,
+   « Synchroniser », « Synchroniser tout ») would read one degenerate answer twice and confirm it.
+   `syncSourceAndRecord` — the single entry of `syncOne`, `syncMany` and `syncAllForProperty` — is
+   single-flight per source id: a caller arriving while that source syncs joins the running promise
+   (same result, same error) and the entry is released when it settles, so two sequential syncs still
+   count two observations. A prefetched feed passed by `syncMany` to a joining call is simply unused.
+8. **An observation is ordered by when its fetch started** _(added 2026-10-30, audit R5-1)_. `syncMany`
+   fetches every feed at t0 and applies them one after the other, so a feed can reach its turn after a
+   fresher sync of the same source (the operator's « Synchroniser »). Each fetch is therefore stamped
+   with its start and completion time (`observeFeed`). Inside the single-flight: (a) an observation
+   whose fetch started before the last one consumed for that source is dropped, whether it answered or failed (a stale failure neither resets the streak nor writes an error status) — `syncSource` returns
+   `skipped: 'newer sync applied'` and `runSourceSync` records nothing (it would otherwise read the new
+   stays as cancelled, or revert a date change for one pass); (b) an empty answer counts toward the
+   streak only if its fetch started after the previous counted empty answer completed, otherwise it is
+   the same outage seen twice and the streak is unchanged. The stamps are in memory, per model instance:
+   a restart forgets them, which only restores the pre-rule behaviour for one pass.
 
 **Edge cases:**
 - Feed legitimately empties (last booking cancelled) → one error-status sync, then normal processing
@@ -136,6 +153,21 @@ Responsive: n/a (no client change). PageActionBar: n/a.
 Existing suites adapted: the 7 pre-existing tests that emptied a feed in one sync now go through a
 `syncEmptyConfirmed` double-sync helper (first sync asserts the guarded error), and the sync test
 fixtures gained the `emptyFeedStreak` column + a persisted `ical_sources` row.
+
+### Server unit tests (`tests/ical-sync-single-flight.unit.test.js` — 5 tests)
+- [x] Rule 7 — two overlapping syncs of one empty answer: streak 1, mappings kept, no alert, next good feed intact.
+- [x] Rule 7 — the second caller gets the first caller's promise; one fetch.
+- [x] Rule 7 — the lock is released: two sequential empty answers still confirm.
+- [x] Rule 7 — `syncOne` racing `syncAllForProperty` share one run.
+- [x] Rule 7 — a failed sync releases the source.
+
+### Server unit tests (`tests/ical-sync-prefetch-staleness.unit.test.js` — 6 tests)
+- [x] Rule 8 — R5a: a feed prefetched during an outage is not a second empty observation after the operator's sync saw it.
+- [x] Rule 8 — R5b: an older prefetched feed does not raise a cancellation alert for a stay the operator's sync just created.
+- [x] Rule 8 — a stale prefetch that failed neither resets the streak nor writes an error status.
+- [x] Rule 8 — a skipped stale observation leaves the source status row untouched.
+- [x] Rule 8 — two sequential empty answers still confirm each other.
+- [x] Rule 8 — a normal `syncMany` pass applies every source.
 
 ### Manual UI verification
 - [ ] « État » cell shows the new error message after a simulated empty feed (dev: point a source at a static empty ICS).

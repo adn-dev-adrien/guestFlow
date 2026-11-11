@@ -3,9 +3,9 @@
  * rules 21-22): the seasons (recipe or manual) with the entry to « Gestion tarifaire », the
  * extra-guest price, the tourist tax, and a pointer to the stay VAT rate.
  *
- * When a tariff recipe is attached the extra-guest fields are read-only: the recipe sets them season
- * by season, and its seasons override the property values (pricing.js). The table then shows each
- * season's own extra-guest price.
+ * When the seasons carry their own extra-guest price (written by a tariff recipe), the extra-guest
+ * fields are read-only: those seasons override the property values (pricing.js), with or without the
+ * recipe plugin. The table then shows each season's own extra-guest price.
  *
  * Props:
  *   property, form, errors, updateField(field, value), onZeroFocus(event), canManage,
@@ -19,13 +19,24 @@ import {
 } from '@mui/material';
 import TableCard from '../TableCard';
 import { displayDate, formatCurrency } from '../../utils/formatters';
+import { usePlugin } from '../../hooks/usePlugins';
+import { TARIFF_RECIPES } from '../../constants/plugins';
+import useVatRegime from '../../hooks/useVatRegime';
 
 export default function PropertyTariffTab({
   property, form, errors = {}, updateField, onZeroFocus, canManage, onOpenTariffs, getSortedSeasonRanges,
 }) {
-  const recipe = property.tariffRecipeId;
+  // « Sans TVA » (specs/vat-optional-mode.md rule 12f): the prices are simply what the guest pays.
+  const { state: vatState } = useVatRegime();
+  const notSubject = Boolean(vatState && vatState.inForce && vatState.inForce.regime === 'not_subject');
+  // Without the tariff-recipes plugin the seasons read as manual ones (specs/plugins-phase-0-foundation.md rule 16).
+  const recipesOn = usePlugin(TARIFF_RECIPES);
+  const recipe = recipesOn ? property.tariffRecipeId : null;
   const seasons = [...(property.pricingRules || [])]
     .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')));
+  // Seasons that carry their own extra-guest price are priced with it, plugin or not: the column and
+  // the notice follow the data the engine applies, not the plugin.
+  const perSeason = seasons.some((r) => r.extraGuestPrice != null || (r.extraGuestTiers && r.extraGuestTiers !== '[]'));
   const number = (field, label, helperText, step = 0.01) => (
     <TextField
       label={label}
@@ -64,7 +75,7 @@ export default function PropertyTariffTab({
                 <TableCell>Type</TableCell>
                 <TableCell>Tarif base</TableCell>
                 <TableCell>Min nuits</TableCell>
-                {recipe && <TableCell>Voyageur suppl.</TableCell>}
+                {perSeason && <TableCell>Voyageur suppl.</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -88,11 +99,11 @@ export default function PropertyTariffTab({
                   <TableCell>{(r.pricingMode || 'fixed') === 'progressive' ? 'Dégressif' : 'Fixe'}</TableCell>
                   <TableCell>{formatCurrency(Number(r.pricePerNight || 0))}</TableCell>
                   <TableCell>{r.minNights}</TableCell>
-                  {recipe && <TableCell>{r.extraGuestPrice ? formatCurrency(Number(r.extraGuestPrice)) : '—'}</TableCell>}
+                  {perSeason && <TableCell>{r.extraGuestPrice ? formatCurrency(Number(r.extraGuestPrice)) : '—'}</TableCell>}
                 </TableRow>
               ))}
               {seasons.length === 0 && (
-                <TableRow><TableCell colSpan={recipe ? 6 : 5} align="center">Aucune saison tarifaire</TableCell></TableRow>
+                <TableRow><TableCell colSpan={perSeason ? 6 : 5} align="center">Aucune saison tarifaire</TableCell></TableRow>
               )}
             </TableBody>
           </TableCard>
@@ -102,9 +113,9 @@ export default function PropertyTariffTab({
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="sectionHeader" gutterBottom sx={{ display: 'block' }}>Voyageurs supplémentaires</Typography>
-          {recipe ? (
+          {perSeason ? (
             <Alert severity="info" variant="outlined">
-              Fixé par la recette, saison par saison (colonne « Voyageur suppl. » ci-dessus) : se modifie dans la gestion tarifaire.
+              Fixé saison par saison (colonne « Voyageur suppl. ») : modifiable dans la gestion tarifaire.
             </Alert>
           ) : (
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
@@ -155,9 +166,13 @@ export default function PropertyTariffTab({
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             Qui collecte la taxe sur chaque plateforme se règle dans{' '}
-            <Link component={RouterLink} to="/settings/plateformes">Plateformes</Link>. Tous les montants
-            sont TTC ; le taux de TVA des séjours se règle dans{' '}
-            <Link component={RouterLink} to="/settings/tva-exercice">TVA &amp; exercice</Link>.
+            <Link component={RouterLink} to="/settings/plateformes">Plateformes</Link>.{' '}
+            {notSubject ? 'Prix payés par le client.' : (
+              <>
+                Tous les montants sont TTC ; le taux de TVA des séjours se règle dans{' '}
+                <Link component={RouterLink} to="/settings/tva-exercice">TVA &amp; exercice</Link>.
+              </>
+            )}
           </Typography>
         </CardContent>
       </Card>

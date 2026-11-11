@@ -1,6 +1,7 @@
 /**
- * TermsSettingsPage — writing, publishing and enforcing the CGV (specs/terms-acceptance-record.md
- * §3.1, §3.4). Every verdict comes from the server overview; the page renders it.
+ * TermsSettingsPage — writing and publishing the CGV (specs/terms-acceptance-record.md §3.1). Every
+ * verdict comes from the server overview; the page renders it. The online enforcement is the
+ * website-booking plugin's (plugins/website-booking/__tests__/OnlineBookingCard.test.jsx).
  */
 import React from 'react';
 import { vi } from 'vitest';
@@ -14,10 +15,12 @@ vi.mock('../../../api', () => ({
     saveTermsDraft: vi.fn(),
     previewTerms: vi.fn(),
     publishTerms: vi.fn(),
-    updateTermsEnforcement: vi.fn(),
     getTermsVersion: vi.fn(),
   },
 }));
+
+// The page hosts the slot `terms.settings`; the website-booking plugin is off here.
+vi.mock('../../../hooks/useAuth', () => ({ __esModule: true, useAuth: () => ({ user: { roles: ['admin'], enabledPlugins: [] } }) }));
 
 vi.mock('../../../components/DialogProvider', () => {
   const stableToast = { showSuccess: vi.fn(), showError: vi.fn() };
@@ -37,10 +40,6 @@ const overview = (over = {}) => ({
   unknownVariables: [],
   variables: ['raisonSociale', 'cautions'],
   versions: [{ version: 1, publishedAt: '2026-09-01T08:00:00Z', publishedAtLabel: '01/09/2026 à 10:00:00', shortHash: 'abcdef123456', acceptanceCount: 4 }],
-  requireTermsAcceptance: true,
-  lastSeenPluginVersion: '1.8.0',
-  pluginOutdated: false,
-  minPluginVersion: '1.8.0',
   ...over,
 });
 
@@ -89,32 +88,10 @@ test('an unknown variable → publication disabled and the variable named', asyn
   expect(publishButton()).toBeDisabled();
 });
 
-test('no published version → the closed-booking alert', async () => {
-  api.getTerms.mockResolvedValue(overview({ current: null, versions: [], nextVersion: 1 }));
-  renderPage();
-  expect(await screen.findByText(/la réservation en ligne est fermée/)).toBeInTheDocument();
-});
-
 test('a quoted fact that changed → the stale warning names it', async () => {
   api.getTerms.mockResolvedValue(overview({ staleVariables: ['cautions'] }));
   renderPage();
   expect(await screen.findByText(/Un élément cité a changé depuis la version 1/)).toHaveTextContent('{{cautions}}');
-});
-
-test('an outdated plugin with the enforcement on → the blocking warning', async () => {
-  api.getTerms.mockResolvedValue(overview({ lastSeenPluginVersion: '1.7.0', pluginOutdated: true }));
-  renderPage();
-  expect(await screen.findByText(/Le site utilise le plugin 1.7.0/)).toBeInTheDocument();
-});
-
-test('turning the enforcement off asks for confirmation first', async () => {
-  api.updateTermsEnforcement.mockResolvedValue(overview({ requireTermsAcceptance: false }));
-  renderPage();
-  const toggle = await screen.findByRole('switch', { name: 'Exiger l’acceptation des CGV sur le site' });
-  fireEvent.click(toggle);
-  expect(api.updateTermsEnforcement).not.toHaveBeenCalled();
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Désactiver' })); });
-  expect(api.updateTermsEnforcement).toHaveBeenCalledWith(false);
 });
 
 test('« Voir » opens the frozen text of the version', async () => {

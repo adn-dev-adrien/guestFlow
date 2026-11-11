@@ -3,9 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { parseAirbnbMail, isBookingMail } = require('../mailParser');
-const { SUBJECT, SENT_AT, bookingMail, WITH_CLEANING, NB, NNB } = require('./fixtures');
+const { SUBJECT, subjectFor, SENT_AT, bookingMail, WITH_CLEANING, NB, NNB } = require('./fixtures');
 
-const parse = (overrides, extra = {}) => parseAirbnbMail({ subject: SUBJECT, text: bookingMail(overrides), sentAt: SENT_AT, ...extra });
+const parse = (overrides, extra = {}) => parseAirbnbMail({ subject: subjectFor(overrides && overrides.dates), text: bookingMail(overrides), sentAt: SENT_AT, ...extra });
 
 test('rule 5: the real layout gives every field', () => {
   const { ok, booking } = parse();
@@ -46,7 +46,7 @@ test('rule 6: the year comes from the mail date and the printed weekday, across 
   const b = parse({ dates: ['mer. 30 déc.', 'dim. 3 janv.'], guestColumn: [`288,65${NB}€ x 4${NB}nuits   1${NNB}154,60${NB}€`, `Taxes   81,66${NB}€`] }).booking;
   assert.equal(b.startDate, '2026-12-30');
   assert.equal(b.endDate, '2027-01-03');
-  const nextYear = parse({ dates: ['ven. 26 févr.', 'mar. 2 mars'] }, { subject: SUBJECT, sentAt: '2026-10-24T10:00:00.000Z' });
+  const nextYear = parse({ dates: ['ven. 26 févr.', 'mar. 2 mars'] }, { subject: subjectFor(['ven. 26 févr.']), sentAt: '2026-10-24T10:00:00.000Z' });
   assert.equal(nextYear.ok, true);
   assert.equal(nextYear.booking.startDate, '2027-02-26');
 });

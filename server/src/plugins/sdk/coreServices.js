@@ -17,22 +17,68 @@ const platformCommission = lazy('../../utils/platformCommission');
 const clients = lazy('../../models/clientsModel');
 const database = lazy('../../database');
 const pricing = lazy('../../utils/pricing');
+const clientValidation = lazy('../../utils/clientValidation');
+const registry = lazy('./registry');
+const basketPayments = lazy('../../utils/basketPayments');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
 // same update path (validation, pricing, history, `reservation.updated`). Only for a stay that has not
 // started: past and ongoing stays stay the operator's. `label` adds one history line naming the source.
-function updateReservation(id, patch, { label } = {}) {
+//
+// `client` (SDK 2.7.0, specs/airbnb-mail-intake.md rule 21): the guest's client, found by e-mail or created,
+// and set as the fiche's client — in ONE transaction with the update, so a fiche the core refuses leaves no
+// client behind holding a guest's personal data. The result then carries `clientId`.
+const ROLLBACK = Symbol('rollback');
+
+const autoEnabledOptionIds = () => new Set(database().prepare('SELECT id FROM options WHERE COALESCE(autoEnabled, 0) = 1').all().map((o) => o.id));
+
+// SDK 2.21.0 (specs/plugins-phase-1-sdk.md rule 38) — the body `update` spreads a patch over, for a plugin that
+// rewrites one of its lists (`options`, `customOptions`, `resources`): it starts from these lines, so a field the
+// fiche's save carries (a planning card's `cardOccurrences` and `cardPersons`) is never dropped by a copy.
+function storedUpdateBody(id) {
+  const current = reservations().getByIdWithDetails(Number(id));
+  if (!current || current.kind !== 'reservation') return null;
+  return updateBody().toUpdateBody(current, autoEnabledOptionIds());
+}
+
+function applyReservationUpdate(id, patch, label) {
   const current = reservations().getByIdWithDetails(Number(id));
   if (!current || current.kind !== 'reservation') return { status: 404, body: { error: 'Réservation introuvable' } };
   if (String(current.startDate) <= reservationHelpers().getTodayIsoDate()) {
     return { status: 409, body: { error: 'Séjour commencé ou passé', code: 'PAST_RESERVATION' } };
   }
-  const autoEnabled = new Set(database().prepare('SELECT id FROM options WHERE COALESCE(autoEnabled, 0) = 1').all().map((o) => o.id));
-  const body = { ...updateBody().toUpdateBody(current, autoEnabled), ...patch };
+  const body = { ...updateBody().toUpdateBody(current, autoEnabledOptionIds()), ...patch };
   const result = reservationsController().performUpdate(Number(id), body);
   if (result.status === 200 && label) {
     reservations().addHistoryEntry(Number(id), 'update', [{ field: 'source', label: 'Origine', from: null, to: String(label) }]);
+  }
+  return result;
+}
+
+// specs/plugins-phase-1-sdk.md rule 28 — a plugin's client goes through the same
+// validation as the client dialog: one e-mail address, a phone number of a sane shape.
+const invalidClient = (message) => Object.assign(new Error(message), { code: 'INVALID_CLIENT' });
+function assertValidClient(payload) {
+  const message = clientValidation().validateClientPayload(payload);
+  if (message) throw invalidClient(message);
+}
+
+// `reuseByEmail: false` — the mail the client comes from is not proven (specs/gites-de-france-mail-intake.md
+// rule 26): an address typed by an unverified sender never attaches a stay to a client who already holds it.
+function updateReservation(id, patch, { label, client, reuseByEmail = true } = {}) {
+  if (!client) return applyReservationUpdate(id, patch, label);
+  let result = null;
+  try {
+    database().transaction(() => {
+      const own = findOrCreateClient(client, { reuseByEmail });
+      result = { ...applyReservationUpdate(id, { ...patch, clientId: own.id }, label), clientId: own.id };
+      if (result.status !== 200) throw ROLLBACK;
+    })();
+  } catch (err) {
+    if (err && err.code === 'INVALID_CLIENT') return { status: 400, body: { error: err.message, code: 'INVALID_CLIENT' } };
+    if (err !== ROLLBACK) throw err;
+    delete result.clientId;
   }
   return result;
 }
@@ -44,8 +90,9 @@ function suggestBeds(propertyId, { adults, children, teens }) {
   });
 }
 
-function findOrCreateClient(payload) {
-  return clients().findByEmail(payload.email) || clients().insert(payload);
+function findOrCreateClient(payload, { reuseByEmail = true } = {}) {
+  assertValidClient(payload);
+  return (reuseByEmail && clients().findByEmail(payload.email)) || clients().insert(payload);
 }
 
 // specs/booking-extranet-intake.md §4.1 — a patch on a client, through the same normalisation as the
@@ -53,13 +100,38 @@ function findOrCreateClient(payload) {
 function updateClient(id, patch) {
   const current = clients().findById(Number(id));
   if (!current) return null;
+  assertValidClient(patch);
   return clients().update(Number(id), { ...current, ...patch });
+}
+
+// SDK 2.26.0 (specs/guest-app.md rules 28-31) — the scheduler a live plugin declared, or null: without it nothing
+// sells an hourly slot outside the fiche.
+function resourceScheduler() {
+  const record = registry().all().find((r) => r.resourceScheduler && registry().isLive(r.id));
+  return record ? record.resourceScheduler : null;
+}
+
+// SDK 2.26.0 (specs/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
+// source that fails holds nothing: the planning keeps working, and the commit re-checks the slot anyway.
+function resourceHolds({ resourceId, from, to }) {
+  return registry().all()
+    .filter((r) => r.resourceHolds && registry().isLive(r.id))
+    .flatMap((r) => {
+      try {
+        const held = r.resourceHolds({ resourceId: Number(resourceId), from, to });
+        return Array.isArray(held) ? held : [];
+      } catch (err) {
+        console.error(`[plugin:${r.id}] resource holds failed:`, err && err.message); // eslint-disable-line no-console
+        return [];
+      }
+    });
 }
 
 module.exports = Object.freeze({
   reservations: Object.freeze({
     getByIdWithDetails: (id) => reservations().getByIdWithDetails(id),
     update: updateReservation,
+    updateBody: storedUpdateBody,
     suggestBeds,
     platformCommission: (figures) => platformCommission().computePlatformCommission(figures),
     // specs/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges
@@ -85,5 +157,14 @@ module.exports = Object.freeze({
   }),
   text: Object.freeze({
     sentenceCase: (s) => textFormatters().sentenceCase(s),
+  }),
+  resourceScheduler,
+  resourceHolds,
+  // SDK 2.26.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
+  // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.
+  payments: Object.freeze({
+    basketLink: (reservationId, basket, options) => basketPayments().basketLink(reservationId, basket, options),
+    refreshBasketLink: (linkId) => basketPayments().refreshBasketLink(linkId),
+    withdrawBasketLink: (linkId) => basketPayments().withdrawBasketLink(linkId),
   }),
 });

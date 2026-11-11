@@ -52,7 +52,7 @@ test("today's SAS is live while past / future ones are inert for the reception r
   await expect(page.getByText(`E2E accueil Jour`).first()).toBeVisible({ timeout: 15_000 });
 
   // Today → the SAS launcher is live.
-  const todaySas = page.getByRole('button', { name: 'Check-in (SAS arrivée)' });
+  const todaySas = page.getByRole('button', { name: 'Accueil', exact: true });
   await expect(todaySas.first()).toBeEnabled();
 
   // Future → locked with its own wording, and the « Prêt » checkbox is locked too.

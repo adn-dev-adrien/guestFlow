@@ -114,6 +114,7 @@ can either pay now or send a request without paying.
 > **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (deux actions ; bloc sans le réglage inchangé).
 17. The step that is not shown is `inert`, so a keyboard or a screen reader cannot land in the
     off-screen screen.
+> **Sans test** — le tiroir de Solio vit dans le dépôt privé `adn-dev-adrien/solio-site` depuis la fusion dans `inte/plugins` ; la règle y est tenue par `tests/booking-drawer-friction.test.js`.
 
 ### Search snippets (content, not code)
 
@@ -140,6 +141,7 @@ can either pay now or send a request without paying.
 20. **The engine's sections lose the site theme's `.gf-section` padding inside the drawer.** The theme
     names its page sections `.gf-section` too (`gf-site-style.php`: 64 px on top, 22 px on the sides);
     with the travellers first, that gap opened screen 1 on an empty band.
+> **Sans test** — le tiroir de Solio vit dans le dépôt privé `adn-dev-adrien/solio-site` depuis la fusion dans `inte/plugins` ; la règle y est tenue par `tests/booking-drawer-friction.test.js`.
 
 ### Found in production (added 2026-10-25, plugin 1.14.3)
 
@@ -151,6 +153,10 @@ can either pay now or send a request without paying.
     beneath it, an invalid e-mail gets « Adresse e-mail invalide. », the first refused field scrolls
     into view and takes the focus, and typing in a field clears its mark. The shared message stays,
     for blocks where it is visible. `booking-refused` keeps its `fields` / `email` reasons.
+    *On `inte/plugins` (master sync of 2026-10-26):* the plugin there (1.16.x) already refuses on the
+    field ([wordpress-plugin.md](wordpress-plugin.md) rule 28: the reason under each field, the first
+    one revealed and focused, `gf:refused` for the drawer), which covers this rule; master's 1.14.3
+    code is not carried over, only its readme line.
 > **Sans test** — JS du navigateur (plugin ou mu-plugin) qu'aucune suite de ce dépôt n'exécute ; vérifié de bout en bout, §10 (refus des champs sur 360 × 800).
 
 **Edge cases:**
@@ -166,6 +172,16 @@ can either pay now or send a request without paying.
   provider).
 - A request does **not** block the dates (unchanged GuestFlow rule): two requests on the same weekend
   are possible, the operator answers the second with a refusal.
+
+### Stay rules beyond the minimum (fixed at the 2026-10-27 audit)
+
+22. **An arrival is offered only when a stay from it passes every stay rule.** Rule 10's windows also
+    run the property's changeover days and maximum stay (`nextAvailability.stayRulesPredicate`, the
+    predicate `nextAvailableDate` already used): an arrival on a weekday the season refuses is not
+    listed, and `earliestDeparture` is the first departure that is both long enough and on an allowed
+    weekday (a Saturday-to-Saturday season offers Saturdays only, each with the next Saturday). A stay
+    the visitor still composes outside them is refused by the quote's `stayRefusal`
+    ([public-api.md](public-api.md) rule 12; [wordpress-plugin.md](wordpress-plugin.md) rule 30).
 
 ---
 
@@ -188,6 +204,13 @@ can either pay now or send a request without paying.
 
 `getAvailability` reads blocked nights 31 days past `to`, so an arrival near the end of the window
 still gets its true earliest departure; only `[from, to)` is returned in `blockedDates`.
+
+> **On `inte/plugins` (merge of 2026-10-22):** the public API lives in the `website-booking` plugin.
+> `publicProjections.js` and `controllers/publicCatalogController.js` are under
+> `server/src/plugins/website-booking/`, `publicArrivalWindows.js` moved there with them, and the pricing
+> helpers are read through `sdk.coreModule('pricing')`. `toPublicAvailability` keeps the plugin's
+> `nextAvailableDate` beside `arrivals` and `nightPrices`. The tests moved to
+> `server/src/plugins/website-booking/tests/booking-drawer-friction.unit.test.js`.
 
 ### 4.2 WordPress plugin (`integrations/wordpress/guestflow-booking/`)
 
@@ -264,6 +287,8 @@ The mock-up is the reference: [`docs/specs/2026-10-19-booking-drawer-friction.ht
   rule); an arrival boxed in by a booking → excluded; arrival on the last free night before a
   booking; window edges.
 - `toPublicAvailability` / `toPublicQuote`: the new fields are present and the old ones unchanged.
+- Rule 22 (2026-10-27): `plugins/website-booking/tests/public-stay-rules.unit.test.js` — Saturday-only
+  arrivals, each with a Saturday `earliestDeparture`.
 
 ### Plugin
 
@@ -316,7 +341,9 @@ None open.
 - Server: `server/src/tests/booking-drawer-friction.unit.test.js`, **11 tests**. These include a
   parity test: every departure the calendar offers is accepted by the quote, and the night before it
   is refused. They are joined by `wordpress-plugin-booking-friction.unit.test.js`, **8 tests** on the
-  shape of the plugin and the drawer (rules 1, 2, 4, 6, 7, 9, 11-12, 17, 20). Full suite
+  shape of the plugin and the drawer (rules 1, 2, 4, 6, 7, 9, 11-12, 17, 20). On `inte/plugins` the two
+  drawer tests (rules 17, 20) live in the private solio-site repository, which carries the drawer:
+  6 tests here. Full suite
   **4 837 / 4 837**. The browser-only rules are marked « Sans test » and point to the verification
   below.
 - Client Vitest **1 450 / 1 450**; Playwright E2E **88 passed, 1 skipped** (unchanged).

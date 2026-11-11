@@ -13,6 +13,8 @@
 // the money they read or write stays in the core (the SAS commit, the journal's inputs, pricing), the
 // plugin only calls it. One reviewed list, one line per module, each with the plugin that needs it.
 // `coreModule(name)` refuses anything else, so a plugin cannot reach the core by a side door.
+const manifestVersions = new Map();
+
 const CORE_MODULES = Object.freeze({
   database: '../../database', // every plugin model binds to the app's database in production
   settingsModel: '../../models/settingsModel', // core settings a plugin reads (company, VAT, fiscal year)
@@ -24,6 +26,8 @@ const CORE_MODULES = Object.freeze({
   optionsModel: '../../models/optionsModel', // the catalogue the arrival SAS may still sell
   sasCommitHooks: '../../utils/sasCommitHooks', // the steps of other plugins, around the core commit (phase 3c rule 6)
   sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core
+  arrivalSasPlan: '../../utils/arrivalSasPlan', // the arithmetic of the arrival plan, shared by preview and commit
+  departureSasPlan: '../../utils/departureSasPlan', // the arithmetic of the departure plan, shared by preview and commit
   arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single arrival payment the commit recorded
   optionCategoriesMigration: '../../utils/optionCategoriesMigration', // CATERING_CATEGORY, the « Restauration » catalogue
   roles: '../../constants/roles', // isReceptionOnly — the reception role stays core (rule 13)
@@ -31,6 +35,7 @@ const CORE_MODULES = Object.freeze({
   reservationSettlement: '../../utils/reservationSettlement', // what the stay still owes at the door
   platformNameFormat: '../../utils/platformNameFormat', // direct channel vs platform for the stay step
   receptionView: '../../utils/receptionView', // the reception's money-stripped reads and commits
+  planningDateRange: '../../utils/planningDateRange', // linen, hourly-resources — the span cap of the planning reads (DATA-1)
   // website-booking — the public API prices, checks and records with the core's own models (rule 23)
   propertiesModel: '../../models/propertiesModel', // the catalogue the site lists
   resourcesModel: '../../models/resourcesModel', // resources offered and checked on a quote
@@ -41,9 +46,12 @@ const CORE_MODULES = Object.freeze({
   termsModel: '../../models/termsModel', // current CGV version, the acceptance record (rule 26)
   updateStateModel: '../../models/updateStateModel', // the WordPress plugin release the manifest serves
   pricing: '../../utils/pricing', // the quote engine
+  directQuote: '../../utils/directQuote', // the website's quote (default options merged), also priced by google-vacation-rentals (SDK 2.4.0)
   reservationHelpers: '../../utils/reservationHelpers', // today's date, as the engine reads it
   capacity: '../../utils/capacity', // guest capacity of a property
+  devisHelpers: '../../utils/devisHelpers', // the extra-guest row of a quote, read from its pricing
   blockedDates: '../../utils/blockedDates', // availability, shared with the public payment
+  changeover: '../../utils/changeover', // arrival/departure weekdays, for the site's next bookable night (SDK 1.3.0)
   mealPortions: '../../utils/mealPortions', // per-person card options and their caps
   quotePostProcessors: '../../utils/quotePostProcessors', // the insurance price a plugin sets on a quote (phase 3b rule 2)
   insuranceOffer: '../../utils/insuranceOffer', // no insurance on the site while no plugin offers it (phase 3b rule 6)
@@ -54,6 +62,7 @@ const CORE_MODULES = Object.freeze({
   publicLabels: '../../utils/publicLabels', // public wording, shared with the core meal portions
   publicDevisToken: '../../utils/publicDevisToken', // the capability token of a website devis
   publicPaymentMode: '../../utils/publicPaymentMode', // full or deposit, shared with the public payment
+  paymentProviders: '../../utils/paymentProviders', // whether the site can take a payment now (public-online-payment rule 12)
   attributionChannel: '../../utils/attributionChannel', // request origin, read by finance (rule 26)
   babyBedResource: '../../utils/babyBedResource', // the baby-bed flag of a public resource
   releaseClient: '../../utils/releaseClient', // the allowed download hosts of the plugin manifest
@@ -67,18 +76,68 @@ const CORE_MODULES = Object.freeze({
   refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
   cancellationCompensationsModel: '../../models/cancellationCompensationsModel', // compensations received by month, booked in the journal
   midStayExtras: '../../utils/midStayExtras', // the mid-stay share of a complement, kept out of its entry
+  storedMoneySplit: '../../utils/storedMoneySplit', // accounting-export — the stored-money split, shared with the cancellation (payment-schedule rule 55)
   complementAllocation: '../../utils/complementAllocation', // the stored ventilation of an adjusted complement
   csv: '../../utils/csv', // the generic CSV writer the sales export serialises with
   settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
+  vatRegimeModel: '../../models/vatRegimeModel', // the VAT rate and regime of each sale: the journal reads them per reservation (vat-optional-mode rule 8, SDK 2.8.0)
   // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money
   paymentEffectDeps: '../../utils/paymentEffectDeps', // confirmation email, conflict check, notifications
+  qonto: '../../utils/qonto', // the Qonto library, shared with the control plane (phase 3a rule 22)
+  // online-payment, bank reconciliation — what the fiche expects, and the fiche's own payment mark (rule 34)
+  reservationLedger: '../../utils/reservationLedger', // the payments ledger the expected receipts are read from (rule 10)
+  reservationPaymentMark: '../../utils/reservationPaymentMark', // « Marquer perçu » without a request, same guards
+  platformDisplay: '../../utils/platformDisplay', // the platform's display name on a reconciliation line
+  // accounting-export — the tourist tax shared over the installments of a plan (direct-installments rule 39)
+  installmentPlan: '../../utils/installmentPlan', // pure plan rules, shared with the books
+  // online-payment, bank reconciliation — each installment of a plan is a receipt of its own (direct-installments rule 38)
+  installmentsModel: '../../models/installmentsModel', // the plan's rows, read through the core model
+  // accounting-export — a platform penalty is an entry of its own, dated on the penalty (reconciliation-assisted-matching rule 28)
+  platformPenaltiesModel: '../../models/platformPenaltiesModel', // the penalty lines of a stay
   // neat — the stay it subscribes is priced by the core engine; failures reach the admins by push (phase 3b rule 7)
   reservationEngineInput: '../../utils/reservationEngineInput', // the engine input of a stored stay
   pushService: '../../utils/pushService', // « Souscriptions Neat » push
   // hourly-resources — the resources, the stays and their sessions stay core tables (phase 3c rule 16)
   dateFr: '../../utils/dateFr', // the planning cards' and the occupancy strip's French times
+  // linen, school-holidays, hourly-resources — the date window of every entered date (reservations-backend-mvc rule 13)
+  stayDates: '../../utils/stayDates',
+  // gate-access, guest-app, hourly-resources — one stay window for the gate keys, the guest sessions and the guest's
+  // hourly slots, all on the Paris wall clock (specs/guest-app.md rules 2, 28, SDK 2.26.0)
+  stayWindow: '../../utils/stayWindow',
+  // guest-app — the wifi password of a lodging, encrypted at rest like the other stored secrets (specs/guest-app.md §5)
+  encryption: '../../utils/encryption',
+  // website-booking, guest-app — one projection of an option and a resource for every surface that sells them (specs/guest-app.md rule 24)
+  publicCatalogProjection: '../../utils/publicCatalogProjection',
+  // guest-app — the shop is open exactly when the fiche takes mid-stay extras (specs/guest-app.md rule 27)
+  midStayExtrasWindow: '../../utils/midStayExtrasWindow',
+  // guest-app — Soliomap's feed, read like an iCal feed: public addresses only, bounded body (specs/guest-app.md rule 15bis)
+  safeFeedFetch: '../../utils/safeFeedFetch',
+  // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
+  instancePaths: '../../utils/instancePaths',
+  // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 47)
+  midStayOrderCommit: '../../utils/midStayOrderCommit',
+  // guest-app — its own session cookie is Secure exactly when the core's is (`HTTPS_ENABLED`, specs/guest-app.md rule 4)
+  securityConfig: '../../utils/securityConfig',
+  // guest-app — the studio re-reads its admin like every `/api` route does (specs/guest-app.md rule 47)
+  requireAuth: '../../middleware/requireAuth',
+  // accounting-export — the accounting synthesis reads the core's own finance figures, never a second
+  // derivation (specs/accounting-synthesis.md rules 7-10, SDK 2.23.0)
+  financeModel: '../../models/financeModel', // the stays' revenue of a window and the tourist-tax extraction
+  financeDashboardModel: '../../models/financeDashboardModel', // the one « comparable with last year » reading
+  financeWindow: '../../utils/financeWindow', // the custom window's refusals, shared with the Suivi financier
+  fiscalYear: '../../utils/fiscalYear', // the exercise bounds of the app's closing month
+  yearOverYear: '../../utils/yearOverYear', // one year earlier, and the change in percent
+  // accounting-export, online-payment, sas — one payment split over several methods (specs/mixed-method-payments.md,
+  // SDK 2.24.0): its rules, its settlements, and the one writer the SAS records them through
+  paymentTenders: '../../utils/paymentTenders',
+  paymentSettlementsModel: '../../models/paymentSettlementsModel',
+  paymentSettlementService: '../../utils/paymentSettlementService',
+  // hourly-resources, online-payment, accounting-export — the invoice issuer and the sales made outside any stay
+  // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
+  invoiceIssuers: '../../utils/invoiceIssuers',
+  standaloneSales: '../../utils/standaloneSales',
 });
 
 function coreModule(name) {
@@ -103,7 +162,10 @@ module.exports = Object.freeze({
   }),
   // Secrets the operator copies into another system live in server/.env.local, never in the database.
   secrets: Object.freeze({
-    getOrCreate: (name, byteLength = 32) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength),
+    getOrCreate: (name, byteLength = 32, options) => require('../../utils/localEnv').getOrCreateSecret(name, byteLength, options),
+    // A new value for a secret another system holds a copy of (specs/plugins-phase-2-hosts.md rule 31).
+    // Read it with getOrCreate(name, n, { rotatable: true }) so the file wins over a stale inherited copy.
+    rotate: (name, byteLength = 32) => require('../../utils/localEnv').rotateSecret(name, byteLength),
   }),
   pricing: Object.freeze({
     normalizeProgressiveTiers: (...args) => require('../../utils/pricing').normalizeProgressiveTiers(...args),
@@ -111,10 +173,23 @@ module.exports = Object.freeze({
   calendar: Object.freeze({
     frenchPublicHolidays: (...args) => require('../../utils/frenchHolidays').getFrenchPublicHolidays(...args),
   }),
+  // The version of the running plugin (audit r3, N-0): its manifest sits next to `server/` in a package and
+  // next to `index.js` in the source tree; `dir` is the plugin's `__dirname`.
+  manifestVersion: (dir) => {
+    if (!manifestVersions.has(dir)) {
+      const fs = require('fs');
+      const path = require('path');
+      const at = [path.join(dir, 'manifest.json'), path.join(dir, '..', 'manifest.json')].find((f) => fs.existsSync(f));
+      if (!at) throw new Error(`manifestVersion: no manifest.json in ${dir} or its parent`);
+      manifestVersions.set(dir, JSON.parse(fs.readFileSync(at, 'utf8')).version);
+    }
+    return manifestVersions.get(dir);
+  },
   // Read-only IMAP for the plugins that read booking mails (specs/airbnb-mail-intake.md rule 4).
   mailbox: Object.freeze({
     readMailsFrom: (...args) => require('./mailboxReader').readMailsFrom(...args),
     testConnection: (...args) => require('./mailboxReader').testConnection(...args),
     imapHostFor: (...args) => require('./mailboxReader').imapHostFor(...args),
+    resolveImapHost: (...args) => require('./mailboxReader').resolveImapHost(...args),
   }),
 });

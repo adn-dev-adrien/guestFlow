@@ -8,7 +8,7 @@
  * re-seeded at the next boot.
  */
 
-const { PLUGIN_IDS } = require('../constants/plugins');
+const { SEEDED_ON_EXISTING_IDS } = require('../constants/plugins');
 
 const SEED_MIGRATION = 'plugins_builtin_seed_v1';
 const SETTINGS_COPY_MIGRATION = 'plugin_settings_from_app_settings_v1';
@@ -32,10 +32,60 @@ function ensurePluginsTable(db) {
     CREATE TABLE IF NOT EXISTS plugins (
       id           TEXT PRIMARY KEY,
       enabled      INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
-      source       TEXT NOT NULL DEFAULT 'builtin',
+      source       TEXT NOT NULL DEFAULT 'bundled',
       version      TEXT,
       installed_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  ensurePackageColumns(db);
+}
+
+// specs/plugins-phase-4-registry.md §5 — what a package install records (rule 11) and what a
+// rollback needs (rule 16). Idempotent; a row from before phase 4 keeps every value it had, and its
+// `builtin` source becomes `bundled`: the copy shipped in the release archive, which is exactly
+// what it was running.
+const PACKAGE_COLUMNS = [
+  ['manifest', 'TEXT'],
+  ['pinned_sha256', 'TEXT'],
+  ['previous_version', 'TEXT'],
+  ['previous_source', 'TEXT'],
+  ['previous_sha256', 'TEXT'],
+  ['rollback_until', 'TEXT'],
+  // 1 while an install that needed a restart still owes its install and activation hooks (rule 41).
+  ['hooks_pending', 'INTEGER NOT NULL DEFAULT 0'],
+  // The id of the requirement a core update found OFF under an active plugin, which was then switched off (rule 57).
+  ['off_reason', 'TEXT'],
+  // The stamp of that switch-off, equal to `updated_at` at that moment: any later toggle, even by a core that
+  // does not know the column, moves `updated_at` and ends the notice (audit r5, database N1).
+  ['off_at', 'TEXT'],
+];
+
+function ensurePackageColumns(db) {
+  const cols = new Set(db.prepare('PRAGMA table_info(plugins)').all().map((c) => c.name));
+  PACKAGE_COLUMNS.forEach(([name, type]) => {
+    if (!cols.has(name)) db.exec(`ALTER TABLE plugins ADD COLUMN ${name} ${type}`);
+  });
+  db.prepare("UPDATE plugins SET source = 'bundled' WHERE source = 'builtin'").run();
+}
+
+// specs/plugin-operator-provisioning.md §5 — what the reconciliation did with the operator's choice.
+// Empty and never written on a space that no operator manages.
+function ensureProvisioningTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS plugin_provisioning (
+      pluginId        TEXT PRIMARY KEY,
+      desired         TEXT NOT NULL CHECK (desired IN ('active', 'inactive')),
+      outcome         TEXT NOT NULL CHECK (outcome IN ('applied', 'failed', 'blocked')),
+      code            TEXT,
+      message         TEXT,
+      licenceIssuedAt TEXT NOT NULL,
+      eraseOrder      TEXT,
+      at              TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS plugin_provisioning_meta (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
     );
   `);
 }
@@ -44,9 +94,9 @@ function seedBuiltinPlugins(db) {
   if (db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(SEED_MIGRATION)) return false;
   const existing = db.prepare('SELECT 1 FROM properties LIMIT 1').get()
     || db.prepare('SELECT 1 FROM reservations LIMIT 1').get();
-  const insert = db.prepare("INSERT OR IGNORE INTO plugins (id, enabled, source) VALUES (?, 1, 'builtin')");
+  const insert = db.prepare("INSERT OR IGNORE INTO plugins (id, enabled, source) VALUES (?, 1, 'bundled')");
   db.transaction(() => {
-    if (existing) PLUGIN_IDS.forEach((id) => insert.run(id));
+    if (existing) SEEDED_ON_EXISTING_IDS.forEach((id) => insert.run(id));
     db.prepare('INSERT INTO migrations (name) VALUES (?)').run(SEED_MIGRATION);
   })();
   return Boolean(existing);
@@ -129,6 +179,9 @@ function resyncAfterRollback(db) {
 
 module.exports = {
   ensurePluginsTable,
+  ensurePackageColumns,
+  ensureProvisioningTables,
+  PACKAGE_COLUMNS,
   seedBuiltinPlugins,
   ensurePluginSettingsTable,
   copyAppSettingsToPlugins,

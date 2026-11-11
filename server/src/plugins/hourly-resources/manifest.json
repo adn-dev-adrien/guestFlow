@@ -1,0 +1,132 @@
+{
+  "id": "hourly-resources",
+  "name": "Ressources à l’heure",
+  "version": "1.5.2",
+  "description": "Louer un équipement par créneau : bain nordique, sauna.",
+  "icon": "hot-tub",
+  "surfaces": [
+    "Calendrier › Ressources",
+    "Le sas d’arrivée d’un client sans séjour",
+    "Le sélecteur de séances de la fiche",
+    "L’allumage et les séances du planning",
+    "L’étape « créneaux » du sas",
+    "Le type de prix « à l’heure »"
+  ],
+  "requires": [],
+  "guestflow": ">=3.18.0",
+  "sdk": "^2.26.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Le planning des ressources ne transmet plus à l’accueil les prix, le téléphone ni les notes des clients.",
+      "Le planning des ressources refuse une période de plus de 750 jours."
+    ],
+    "1.0.2": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.3": [
+      "La fenêtre de réservation d’une ressource s’ouvre en plein écran sur un téléphone.",
+      "Sous 1 200 px, « Nouvelle réservation » devient un bouton « + » pour laisser la place au titre et à la semaine.",
+      "Le jour proposé par défaut est celui du calendrier local, même entre minuit et 2 h."
+    ],
+    "1.0.4": [
+      "Créneaux proposés à l’arrivée : plus de créneau de la veille entre minuit et 2 h."
+    ],
+    "1.0.5": [
+      "« Ajouter une séance » propose le premier créneau libre du séjour, à partir de l’heure d’arrivée le premier jour.",
+      "Les créneaux avant l’arrivée et après le départ sont grisés dans le sélecteur de séances."
+    ],
+    "1.0.6": [
+      "Sur téléphone, le titre de la page s’affiche dans la barre du haut."
+    ],
+    "1.0.7": [
+      "L’avertissement avant effacement annonce aussi les temps de chauffe, de maintien en température, la soirée et les tarifs extérieurs que l’effacement remet à zéro."
+    ],
+    "1.1.0": [
+      "Le supplément de soirée du récapitulatif d’arrivée vient du serveur.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.0": [
+      "Le prix d’une réservation de ressource vient du serveur.",
+      "Le supplément de soirée de l’étape « Planifier » déduit ce que la prestation vendue facture déjà.",
+      "Compatible avec le SDK 2.2 de GuestFlow."
+    ],
+    "1.2.1": [
+      "La recherche des Paramètres trouve Options & ressources par « sauna », « spa » ou « créneaux » tant que le plugin est actif.",
+      "Compatible avec le SDK 2.2 de GuestFlow."
+    ],
+    "1.3.0": [
+      "Les cartes d’Options & ressources montrent le tarif du soir, les tarifs extérieurs, la première heure offerte et les horaires.",
+      "Compatible avec le SDK 2.8 de GuestFlow."
+    ],
+    "1.3.1": [
+      "Textes du planning et du créneau à la forme impersonnelle.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.3.2": [
+      "Le planning d’une ressource n’affiche plus une semaine ou une ressource déjà quittée : un créneau pris ne peut plus apparaître libre.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.3.3": [
+      "La fenêtre de réservation n’affiche plus les créneaux pris de la date précédente quand on change de jour.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.3.4": [
+      "Une réservation de ressource se date entre il y a 5 ans et dans 5 ans, sur un jour réel ; celle déjà enregistrée garde sa date.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.3.5": [
+      "Une coche de carte planning n’accepte que oui ou non ; un champ de mauvais type reçoit le refus normal, jamais une erreur interne.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.3.6": [
+      "Les refus (réservation, période, données) se lisent en français.",
+      "Une réservation de ressource refuse une heure, un identifiant ou un texte de mauvaise forme : le bon refus, jamais une erreur interne ni une heure impossible enregistrée.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.3.7": [
+      "Une réservation de ressource dont l’heure de fin ne suit pas l’heure de début est refusée, sauf l’horaire déjà enregistré.",
+      "Compatible avec le SDK 2.20 de GuestFlow."
+    ],
+    "1.4.0": [
+      "Le prix d’une réservation de ressource se détaille ligne par ligne : jour, soir, offert par le logement, temps offert, TVA.",
+      "Du temps offert par tranches de 15 minutes, sans changer le créneau bloqué au planning.",
+      "Le paiement se fait à la réservation ou à l’arrivée, avec les moyens des fiches et la caisse interne pour les espèces.",
+      "Un sas d’arrivée d’un seul écran pour un client sans séjour : sa séance, le temps offert, le paiement et la facture.",
+      "La facture se crée dans Qonto et se joint au lot CB du jour ; l’adresse de facturation reste facultative.",
+      "Réglage « TVA des ventes hors séjour », 20 % par défaut.",
+      "Compatible avec le SDK 2.25 de GuestFlow."
+    ],
+    "1.4.1": [
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.4.2": [
+      "Une séance payée ne se supprime plus : retirer d’abord le paiement, depuis la réservation (« Retirer le paiement »), après confirmation.",
+      "La TVA d’une vente hors séjour est figée au paiement : changer le réglage ne modifie plus ni l’export comptable ni la facture d’une séance déjà encaissée.",
+      "Les notes et le client d’une séance payée s’enregistrent même après un changement de tarif ; une facture au tarif changé est refusée avant Qonto.",
+      "Une facture numérotée par Qonto est toujours gardée, même si « marquer payée » échoue ; la tâche horaire réessaie.",
+      "L’adresse d’un client enregistré part sur sa facture ; une facture annulée dans Qonto peut être refaite depuis la réservation.",
+      "L’arrivée se valide le jour de la séance, aussi pour un client qui a payé à la réservation.",
+      "L’avertissement avant effacement dit quelles ventes quittent l’export comptable.",
+      "« Valider l’arrivée » d’un client qui a payé à la réservation ne crée plus de facture Qonto sans qu’on la demande : « Créer la facture » reste le geste explicite.",
+      "Une séance créée dont le paiement a été refusé se déplace sans se gêner elle-même dans le planning.",
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.5.0": [
+      "L’application clients propose les créneaux libres d’une ressource à l’heure, lus dans ce planning : séances des autres séjours, réservations extérieures, remise en état, chauffe et maintien en température.",
+      "Un créneau d’une commande client en attente de paiement est bloqué dans le planning, le sas et les réservations extérieures.",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.5.1": [
+      "Une séance ne se rattache plus à un séjour par l’API : une demande qui en nomme un est refusée, et une séance déjà rattachée ne prend pas de paiement.",
+      "La pièce jointe d’une facture rejoint le lot CB même quand Qonto refuse « marquer payée » ; ce marquage est retenté 7 jours puis laissé « à payer ».",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.5.2": [
+      "Un client Qonto n’est réutilisé que pour le nom et l’adresse avec lesquels il a été créé : une adresse ajoutée ou corrigée sur la fiche client passe sur la facture suivante.",
+      "Demande le SDK 2.26 de GuestFlow."
+    ]
+  }
+}

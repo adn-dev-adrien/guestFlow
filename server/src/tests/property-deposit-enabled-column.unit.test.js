@@ -40,6 +40,10 @@ test('update coerces string/boolean/number forms to a 0/1 bit', async () => {
   assert.equal(readBit(db, id), 0);
   await model.update(id, { name: 'Gite', depositEnabled: 1 });
   assert.equal(readBit(db, id), 1);
-  await model.update(id, { name: 'Gite' }); // omitted → 0
+  // specs/settings-input-guards.md rule 61 (audit R25-DB-1 sweep) — omitted keeps the stored bit.
+  await model.update(id, { name: 'Gite' });
+  assert.equal(readBit(db, id), 1);
+  await model.update(id, { name: 'Gite', depositEnabled: false });
+  await model.update(id, { name: 'Gite' });
   assert.equal(readBit(db, id), 0);
 });

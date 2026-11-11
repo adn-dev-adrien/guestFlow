@@ -168,7 +168,7 @@ function authFixture({ isActive = true, mustChangePassword = false } = {}) {
     revokeAllForUser: (id) => sessionCalls.push(['all', id]),
     revokeAll: () => {},
   };
-  return { controller: authController.create(users, sessions), sessionCalls };
+  return { controller: authController.create(users, { sessions }), sessionCalls };
 }
 
 test('login regenerates the session id before storing the user', () => {

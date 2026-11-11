@@ -121,6 +121,37 @@ button says why it is greyed, and the engine's own refinements never flicker on 
     fix**; these two rules are what keeps the funnel readable until then.
 > **Sans test** — cascade CSS d'un mu-plugin WordPress ; vérifié §7 points 7 et 8 — refus mesuré à `rgb(163, 58, 42)`, dates entières à 420 px comme à 1200 px.
 
+### Review of 2026-10-18
+
+14. **The drawer wraps the engine only where it loads.** The `render_block` filter returns the booking
+    block untouched when `gf_resa_page_concernee()` is false: outside the lodging pages neither the
+    drawer's stylesheet nor its script is enqueued, and a « Réserver » or « Payer » page showed a bare
+    button over an engine no click could reach.
+> **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+> public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
+15. **The insurance notice link speaks the page's language** (`resa_notice_assurance` in `gf-i18n.php`,
+    passed as `GF_RESA_T.notice`; EN « Read the insurance policy (PDF, in French) »), and the yes/no
+    switch that replaces a stepper carries the option title as its `aria-label`.
+> **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+> public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
+16. **On a phone the e-mail field takes its own row in the drawer**, and « Effacer » too below 600 px,
+    instead of an address cut in half and a button falling into the times row.
+> **Sans test** — guarded in the deployment's own repository: the site's mu-plugins left this
+> public repository on 2026-10-19 (phase P, §3.G), and their guards moved with them.
+
+### UI/UX review 2026-10-18 — engine plugin 1.16.0 (added 2026-10-19)
+
+17. **A refusal the engine announces shows the screen that holds it.** The engine dispatches a
+    cancelable `gf:refused` event (detail `{ field, element }`, [wordpress-plugin.md](wordpress-plugin.md)
+    rule 28) before revealing a refused requirement. The drawer listens on `.gf-resa`: when the
+    element sits on the other screen — the insurance on screen 1 while the visitor pressed
+    « Réserver » on screen 2 — it calls `preventDefault()`, goes to that screen, and once the track
+    has arrived (360 ms) scrolls the screen to bring the field to its upper third and focuses it.
+    Without this the engine moved the focus to a field off-screen and nothing visible happened.
+    **Not deployed**: the repo copy of `gf-seo-reservation.php` carries it; until it is copied to the
+    site, the engine's own reveal still runs (no handler, no `preventDefault`).
+> **Sans test** — JS inline d'un mu-plugin WordPress, qu'aucune suite de ce dépôt n'exécute ; le contrat de l'événement est testé côté moteur (`wordpress-booking-view.field-refusal.test.js`), le passage d'écran vérifié dans le banc d'essai avec le tiroir.
+
 ## 4. Architecture
 
 > This lives entirely in the WordPress site, not in GuestFlow. No server layer and no client layer of
@@ -131,7 +162,7 @@ button says why it is greyed, and the engine's own refinements never flicker on 
 
 None.
 
-### 4.2 WordPress site (`integrations/wordpress/solio-site/mu-plugins/`)
+### 4.2 WordPress site (`mu-plugins/` of the site — the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30))
 
 | File | T/C | Responsibility |
 |---|---|---|
@@ -208,7 +239,7 @@ Added 2026-09-23 (rules 11-13), same method, at 420 px and 1200 px:
   same test session is specced in `specs/wp-booking-widget-redesign.md`.
 - The other `gf-seo-*` mu-plugins (facts, head, indexation, FAQ…).
 - Deploying to the WordPress host: these mu-plugins are copied by hand onto `.23`
-  (`integrations/wordpress/solio-site/` is the versioned copy, not a deployment).
+  (the versioned copy, not a deployment, lives in the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30)).
 
 ## 9. Open questions
 

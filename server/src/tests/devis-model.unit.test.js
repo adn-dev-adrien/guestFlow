@@ -8,11 +8,11 @@ const devisModel = require('../models/devisModel');
 const DDL = `
   CREATE TABLE properties (
     id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, defaultCheckIn TEXT DEFAULT '15:00', defaultCheckOut TEXT DEFAULT '10:00',
-    defaultCautionAmount REAL DEFAULT 0, depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 0, balanceDaysBefore INTEGER DEFAULT 0
+    defaultCautionAmount REAL DEFAULT 0, cleaningHours REAL DEFAULT 3, depositPercent REAL DEFAULT 30, depositDaysBefore INTEGER DEFAULT 0, balanceDaysBefore INTEGER DEFAULT 0
   );
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, firstName TEXT, lastName TEXT, phone TEXT, address TEXT, email TEXT);
   CREATE TABLE options (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, priceType TEXT, price REAL, autoOptionType TEXT, autoFullNightThreshold TEXT);
-  CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, priceType TEXT, price REAL);
+  CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, quantity INTEGER DEFAULT 1, priceType TEXT, price REAL);
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     devisNumber TEXT, devisStatus TEXT, validUntil TEXT, convertedReservationId INTEGER,

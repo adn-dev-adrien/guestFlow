@@ -204,7 +204,7 @@ export default function CancellationCompensationDialog({
                 value={expectedAmount}
                 onCommit={setExpectedAmount}
                 fullWidth
-                helperText="Modifiable jusqu'au versement. Laissez 0 si la plateforme ne l'a pas encore annoncé."
+                helperText="Modifiable jusqu'au versement. 0 si la plateforme ne l'a pas encore annoncé."
               />
               <DateField
                 label="Versement prévu le"

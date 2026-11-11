@@ -1,7 +1,8 @@
 import { vi } from 'vitest';
 /**
  * Dashboard — DS phase-5 sweep (specs/ds-sweep-planning.md §7):
- *  - KPI tiles render through the « Maison » kpiLabel/kpiValue role variants;
+ *  - (the KPI tiles left the home on 2026-10-19 — specs/shell-and-home-day-first.md rule 2, covered
+ *    by Dashboard.day-first.test.jsx);
  *  - a rejected loader surfaces the retryable ErrorAlert (the page used to swallow fetch errors
  *    with `loading` stuck on a bare LinearProgress);
  *  - the initial load shows the shared LoadingState.
@@ -18,9 +19,8 @@ import DialogProvider from '../../components/DialogProvider';
 vi.mock('../../api', () => ({
   __esModule: true,
   default: {
-    getProperties: vi.fn(),
-    getReservations: vi.fn(),
-    getReservation: vi.fn(),
+    getPlanningToday: vi.fn(),
+    getAttention: vi.fn(),
     markPayment: vi.fn(),
   },
 }));
@@ -37,17 +37,12 @@ vi.mock('react-router', async (importOriginal) => {
   return { ...actual, useNavigate: () => navigateSpy };
 });
 
-// Self-contained dashboard widgets (each self-fetches; covered by their own suites).
-vi.mock('../../components/LinenShortageAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/IcalDateDriftAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/IcalCancellationAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/NewReservationsAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/EmailPendingAlert', () => ({ __esModule: true, default: () => null }));
-vi.mock('../../components/DevisPublicRequestAlert', () => ({ __esModule: true, default: () => null }));
+// The cumulative calendar has its own suite.
 vi.mock('../../components/CumulativeMonthCalendar', () => ({ __esModule: true, default: () => <div>CUMULATIVE_CALENDAR</div> }));
 
 import api from '../../api';
 import Dashboard from '../Dashboard';
+import { localIsoToday } from '../../utils/isoDay';
 
 function renderPage() {
   return render(
@@ -59,47 +54,40 @@ function renderPage() {
   );
 }
 
+// What GET /api/planning/today answers (specs/dashboard-planning-scroll.md rule 1).
+const dayLists = ({ arrivals = [], departures = [], nextArrival = null } = {}) => ({
+  today: localIsoToday(), arrivals, departures, nextArrival,
+});
+
 beforeEach(() => {
   mockAuth.user = { roles: ['admin'] };
   navigateSpy.mockReset();
-  api.getProperties.mockReset().mockResolvedValue([{ id: 1, name: 'Gîte' }, { id: 2, name: 'Lodge' }]);
-  api.getReservations.mockReset().mockResolvedValue([]);
-  api.getReservation.mockReset().mockResolvedValue(null);
-});
-
-test('KPI tiles use the kpiLabel/kpiValue role variants (Logements count from the API)', async () => {
-  renderPage();
-  const label = await screen.findByText('Logements');
-  // kpiLabel/kpiValue map to <p> (variantMapping) — NOT headings like the legacy h4 tiles.
-  expect(label.tagName).toBe('P');
-  const value = screen.getAllByText('2')[0];
-  expect(value.tagName).toBe('P');
-  expect(screen.getByText('Réservations (30j)')).toBeInTheDocument();
-  expect(screen.getByText('Arrivées (date sélectionnée)')).toBeInTheDocument();
+  api.getPlanningToday.mockReset().mockResolvedValue(dayLists());
+  api.getAttention.mockReset().mockResolvedValue({ pinned: [], items: [], total: 0 });
 });
 
 test('a rejected loader shows the retryable ErrorAlert instead of a stuck page', async () => {
-  api.getProperties.mockRejectedValue(new Error('boom'));
+  api.getPlanningToday.mockRejectedValue(new Error('boom'));
   renderPage();
   expect(await screen.findByText('Impossible de charger le tableau de bord.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument();
-  // The KPI section is not rendered in the error state.
-  expect(screen.queryByText('Logements')).not.toBeInTheDocument();
+  // The day lists are not rendered in the error state.
+  expect(screen.queryByText('Départs du jour')).not.toBeInTheDocument();
 });
 
 test('the initial load shows the shared LoadingState (aria-busy)', async () => {
-  let resolveProps;
-  api.getProperties.mockReturnValue(new Promise((resolve) => { resolveProps = resolve; }));
+  let resolveList;
+  api.getPlanningToday.mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
   renderPage();
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-  resolveProps([]);
-  await screen.findByText('Logements');
+  resolveList(dayLists());
+  await screen.findByText('Départs du jour');
 });
 
 // specs/dashboard-collection-alert.md §3 — the « Paiements » cell must only go red on money to
 // collect at the door. A platform booking waiting for its post-stay payout used to be red daily.
 describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localIsoToday();
   const base = {
     id: 7, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
     firstName: 'Luc', lastName: 'Martin', propertyName: 'Gîte du Lac',
@@ -108,10 +96,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
   };
 
   function mountArrival(operationalCollection) {
-    api.getReservations.mockReset()
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([base]);
-    api.getReservation.mockReset().mockResolvedValue({ ...base, operationalCollection });
+    api.getPlanningToday.mockReset().mockResolvedValue(dayLists({ arrivals: [{ ...base, operationalCollection }] }));
     return renderPage();
   }
 
@@ -122,7 +107,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
       platformSettled: true,
       platform: 'Airbnb',
     });
-    const detail = await screen.findByText('Solde NON');
+    const detail = await screen.findByText('Solde dû');
     expect(detail).toBeInTheDocument();
     expect(screen.getByText('Réglé par la plateforme')).toBeInTheDocument();
     expect(screen.queryByText(/Complément à encaisser/)).not.toBeInTheDocument();
@@ -139,7 +124,15 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
       platform: 'Airbnb',
     });
     expect(await screen.findByText(/Complément à encaisser/)).toBeInTheDocument();
-    expect(screen.getByText('Solde NON · Complément NON')).toBeInTheDocument();
+    expect(screen.getByText('Solde dû · Complément dû')).toBeInTheDocument();
+  });
+
+  // specs/ds-components.md rule 25 — « Lit bébé ×1 », accent and multiplication sign included.
+  test('a baby bed reads « Lit bébé ×1 »', async () => {
+    api.getPlanningToday.mockReset().mockResolvedValue(dayLists({ arrivals: [{ ...base, babyBeds: 1 }] }));
+    renderPage();
+    expect((await screen.findAllByText(/Lit bébé ×1/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Lit bebe/)).not.toBeInTheDocument();
   });
 
   test('a fully settled reservation shows the plain green OK', async () => {
@@ -156,7 +149,7 @@ describe('« Paiements » column (specs/dashboard-collection-alert.md)', () => {
 });
 
 describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () => {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localIsoToday();
   const arrival = {
     id: 42, startDate: today, endDate: '2099-12-31', checkInTime: '16:00',
     firstName: 'Marie', lastName: 'Durand', propertyName: 'Gîte du Lac',
@@ -165,20 +158,18 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
   };
 
   beforeEach(() => {
-    mockAuth.user = { roles: ['reception'] };
-    api.getReservations.mockReset()
-      .mockResolvedValueOnce([])          // 30-day window (KPI count — unused for reception)
-      .mockResolvedValueOnce([arrival]);  // upcoming (drives arrivals/departures)
-    api.getReservation.mockReset().mockResolvedValue(arrival);
+    mockAuth.user = { roles: ['reception'], enabledPlugins: ['sas'] };
+    api.getPlanningToday.mockReset().mockResolvedValue(dayLists({ arrivals: [arrival] }));
   });
 
-  test('shows the arrivals list but drops KPI tiles, the Paiements column and the month calendar', async () => {
+  test('shows the arrivals list but drops the attention subjects, the Paiements column and the month calendar', async () => {
     renderPage();
     await screen.findByText('Marie Durand');
     // Caution column stays (door money the reception collects).
     expect(screen.getByText('Caution')).toBeInTheDocument();
-    // Finance + admin chrome are gone.
-    expect(screen.queryByText('Logements')).not.toBeInTheDocument();
+    // Finance + admin chrome are gone — no « À traiter », not even a call for it.
+    expect(screen.queryByText('À traiter')).not.toBeInTheDocument();
+    expect(api.getAttention).not.toHaveBeenCalled();
     expect(screen.queryByText('Paiements')).not.toBeInTheDocument();
     expect(screen.queryByText('CUMULATIVE_CALENDAR')).not.toBeInTheDocument();
   });
@@ -189,14 +180,23 @@ describe('reception-only home (specs/reception-role-checkin-only.md §3.3)', () 
     nameCell.closest('tr').click();
     expect(navigateSpy).toHaveBeenCalledWith('/planning?sas=arrival&reservationId=42');
   });
+
+  test('without the SAS (outside the plan, failed) a row leads nowhere, and the notice says so', async () => {
+    mockAuth.user = { roles: ['reception'], enabledPlugins: [] };
+    renderPage();
+    const nameCell = await screen.findByText('Marie Durand');
+    nameCell.closest('tr').click();
+    expect(navigateSpy).not.toHaveBeenCalledWith('/planning?sas=arrival&reservationId=42');
+    expect(screen.getByText('Arrivées et départs guidés indisponibles pour le moment.')).toBeInTheDocument();
+  });
 });
 
 test('the day lists run departures FIRST, arrivals second (issue #427)', async () => {
   // specs/reception-role-checkin-only.md §3.3 / §6.1 — the day is handled in that order (departures
   // in the morning, arrivals in the afternoon), so the first list is the one needed first.
   renderPage();
-  const departures = await screen.findByText(/^Départs — /);
-  const arrivals = await screen.findByText(/^Arrivées — /);
+  const departures = await screen.findByText('Départs du jour');
+  const arrivals = await screen.findByText('Arrivées du jour');
   // Node.compareDocumentPosition: 4 = arrivals FOLLOWS departures in the document.
   expect(departures.compareDocumentPosition(arrivals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

@@ -3,11 +3,14 @@
  * No React, no side effects. Extracted verbatim from CalendarPage so the day-cell gradient math,
  * occupancy geometry and labels live in one testable place.
  */
-import { getPlatformColor } from '../constants/platforms';
+import { alpha } from '@mui/material/styles';
 import { getBlockedNightConflictInfo } from './reservationConflicts';
 
 export const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 export const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+// The French abbreviations: cutting the full name gave « Nove. », « Octo. », and « Jui » for both June
+// and July (2026-10-27 spec review).
+export const MONTH_SHORT_NAMES = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
 
 // Time window for the proportional day fill: 8h → 21h (13h range).
 export const DAY_START = 8;
@@ -16,10 +19,6 @@ export const DAY_RANGE = DAY_END - DAY_START;
 
 export const CLEANING_COLOR = '#e53935';
 export const BLOCKED_NIGHT_COLOR = '#ff9800'; // Orange pour les nuits bloquées
-// Single source of truth for the school-zone colors (specs/design-system.md §3.9 phase 1) — this file
-// used to carry a second, CONFLICTING map, so zone colors differed between the calendar and the
-// SchoolHolidays page. Re-exported so calendar components keep their import path.
-export { ZONE_COLORS } from '../constants/schoolHolidayZoneColors';
 
 export function getDaysInMonth(year, month) {
   return new Date(year, month + 1, 0).getDate();
@@ -47,9 +46,16 @@ export function hourToPercent(hour) {
   return Math.max(0, Math.min(100, ((hour - DAY_START) / DAY_RANGE) * 100));
 }
 
-export function getReservationColor(platform) {
-  return getPlatformColor(platform);
-}
+// The closure texture: soft ink hatching (resolved from the theme — it is a CSS string, not an sx token).
+export const closureHatch = (theme) => {
+  const soft = alpha(theme.palette.text.primary, 0.05);
+  const strong = alpha(theme.palette.text.primary, 0.13);
+  return `repeating-linear-gradient(135deg, ${soft} 0 6px, ${strong} 6px 12px)`;
+};
+
+// A stay that is over: a 14 % tint of its platform colour, a 3 px stripe of it, ink text
+// (specs/calendar-property-parity.md rule 8).
+export const barTint = (color) => alpha(color, 0.14);
 
 export function getBlockedNightInfo(dateStr, reservations) {
   const blockedNightInfo = getBlockedNightConflictInfo(dateStr, reservations);
@@ -83,18 +89,6 @@ export function getBlockedNightInfo(dateStr, reservations) {
   }
 
   return null;
-}
-
-// Whether a reservation has visible mid-stay days within the given month.
-export function resHasMidDays(res, y, m, dim) {
-  const monthStartStr = formatDate(y, m, 1);
-  const monthEndStr = formatDate(y, m, dim);
-  const s = new Date(res.startDate); s.setDate(s.getDate() + 1);
-  const firstMid = formatDate(s.getFullYear(), s.getMonth(), s.getDate());
-  const e = new Date(res.endDate); e.setDate(e.getDate() - 1);
-  const lastMid = formatDate(e.getFullYear(), e.getMonth(), e.getDate());
-  if (firstMid > lastMid) return false;
-  return firstMid <= monthEndStr && lastMid >= monthStartStr;
 }
 
 export function compactName(firstName, lastName) {

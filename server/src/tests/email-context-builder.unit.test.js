@@ -2,9 +2,18 @@
 // { vars, flags } object the renderer consumes. See specs/email-automation.md §3 rule 3 + §4.4.
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const { buildContext, __test } = require('../utils/emailContextBuilder');
+const { liveHourlyResources } = require('./hourlyResourcesFixture');
+
+// Solio's bath, with the sentence productisation_v1 gives it (specs/plugins-phase-p-productisation.md rule 24).
+const { NORDIC_BATH } = require('../utils/productisationMigration');
+const BATH = { name: 'Bain nordique', emailBookedText: NORDIC_BATH.fr, emailBookedTextEn: NORDIC_BATH.en };
+
+// `per_hour` lines are priced by the `hourly-resources` plugin (specs/plugins-phase-3c-hourly-resources.md rule 11).
+liveHourlyResources();
 
 const SAMPLE_SETTINGS = { companyName: 'GuestFlow Demo', companyPhone: '+33102030405', companyEmail: 'demo@gf.test' };
 
@@ -55,8 +64,8 @@ test('vars expose the canonical client + reservation + property + financial toke
   assert.equal(vars.childrenCount, '1');
   assert.equal(vars.totalGuests, '3');
   assert.equal(vars.propertyName, 'Villa A');
-  assert.equal(vars.finalPrice, '380,00 €');
-  assert.equal(vars.cautionAmount, '500,00 €');
+  assert.equal(vars.finalPrice, '380 €');
+  assert.equal(vars.cautionAmount, '500 €');
   assert.equal(vars.companyName, 'GuestFlow Demo');
 });
 
@@ -187,10 +196,10 @@ test('complementNotice renders the arrival-SAS detail as an itemised list (« co
   }));
   assert.equal(flags.complementToCollect, true);
   assert.match(vars.complementNotice, /Un complément est à régler directement sur place à votre arrivée :/);
-  assert.match(vars.complementNotice, /- Ménage : 50,00 €/);
-  assert.match(vars.complementNotice, /- Taxe de séjour : 12,00 €/);
-  assert.match(vars.complementNotice, /- Complément d'arrivée : 8,00 €/);
-  assert.match(vars.complementNotice, /Total : 70,00 €/);
+  assert.match(vars.complementNotice, /- Ménage : 50 €/);
+  assert.match(vars.complementNotice, /- Taxe de séjour : 12 €/);
+  assert.match(vars.complementNotice, /- Complément d'arrivée : 8 €/);
+  assert.match(vars.complementNotice, /Total : 70 €/);
 });
 
 // specs/defer-arrival-complement-to-checkout.md §3.3 rule 17 — un complément reporté au départ ne
@@ -204,15 +213,15 @@ test('complementNotice — complément reporté : le J-2 / J-1 annonce le DÉPAR
     ] },
   }));
   assert.match(vars.complementNotice, /à régler directement sur place à votre départ :/);
-  assert.match(vars.complementNotice, /- Ménage : 50,00 €/);
-  assert.match(vars.complementNotice, /Total : 70,00 €/);
+  assert.match(vars.complementNotice, /- Ménage : 50 €/);
+  assert.match(vars.complementNotice, /Total : 70 €/);
 });
 
 test('complementNotice — complément reporté sans prestation identifiable : la phrase simple suit aussi', () => {
   const { vars } = buildContext(baseInput({
     reservation: { complementAmount: 40, complementPaid: 0, complementDeferredToCheckout: 1 },
   }));
-  assert.match(vars.complementNotice, /Un complément de 40,00 € est à régler directement sur place à votre départ\./);
+  assert.match(vars.complementNotice, /Un complément de 40 € est à régler directement sur place à votre départ\./);
 });
 
 test('complementNotice — en anglais, reporté → « on departure »', () => {
@@ -231,9 +240,9 @@ test('complementNotice renders « label : qté × prix = total » for a multi-qu
       { kind: 'option', label: 'Ménage', qty: 1, unitPrice: 30, amount: 30 },
     ] },
   }));
-  assert.match(vars.complementNotice, /- Petit déjeuner : 2 × 8,00 € = 16,00 €/);
-  assert.match(vars.complementNotice, /- Ménage : 30,00 €/);           // qty 1 → no « × »
-  assert.match(vars.complementNotice, /Total : 46,00 €/);
+  assert.match(vars.complementNotice, /- Petit déjeuner : 2 × 8 € = 16 €/);
+  assert.match(vars.complementNotice, /- Ménage : 30 €/);           // qty 1 → no « × »
+  assert.match(vars.complementNotice, /Total : 46 €/);
 });
 
 test('owner-collect tourist-tax-only complement: a single « Taxe de séjour » line + Total', () => {
@@ -241,8 +250,8 @@ test('owner-collect tourist-tax-only complement: a single « Taxe de séjour » 
     reservation: { complementAmount: 24, complementPaid: 0, touristTaxInComplement: 0 },
     arrivalComplementDetail: { amount: 24, paid: 0, detail: [{ kind: 'tax', label: 'Taxe de séjour', qty: 1, unitPrice: 24, amount: 24 }] },
   }));
-  assert.match(vars.complementNotice, /- Taxe de séjour : 24,00 €/);
-  assert.match(vars.complementNotice, /Total : 24,00 €/);
+  assert.match(vars.complementNotice, /- Taxe de séjour : 24 €/);
+  assert.match(vars.complementNotice, /Total : 24 €/);
 });
 
 test('without the SAS detail, complementNotice falls back to the same list format (+ remainder)', () => {
@@ -251,8 +260,8 @@ test('without the SAS detail, complementNotice falls back to the same list forma
     options: [{ title: 'Ménage', inComplement: 1, offered: 0, totalPrice: 50 }],
     // no arrivalComplementDetail
   }));
-  assert.match(vars.complementNotice, /- Ménage : 50,00 €/);
-  assert.match(vars.complementNotice, /Total : 50,00 €/);
+  assert.match(vars.complementNotice, /- Ménage : 50 €/);
+  assert.match(vars.complementNotice, /Total : 50 €/);
 });
 
 test('no complement to collect → complementNotice stays empty even if a detail is passed', () => {
@@ -299,7 +308,7 @@ test('babyBedNotice: babies but NO baby bed → asks the guest to bring one, fla
 
 test('resourcesList joins booked resource names, sorted (fr); hasResources reflects presence', () => {
   const { vars, flags } = buildContext(baseInput({
-    resources: [{ name: 'Bain nordique' }, { name: 'Lit bébé' }],
+    resources: [{ ...BATH }, { name: 'Lit bébé' }],
   }));
   assert.equal(vars.resourcesList, 'Bain nordique, Lit bébé');
   assert.equal(flags.hasResources, true);
@@ -352,7 +361,7 @@ test('lang="en": option + resource lists use the English name, falling back to F
       { title: 'Ménage', titleEn: '' }, // no English → French fallback
     ],
     resources: [
-      { name: 'Bain nordique', nameEn: 'Nordic bath' },
+      { ...BATH, nameEn: 'Nordic bath' },
       { name: 'Lit bébé', nameEn: '' }, // no English → French fallback
     ],
   });
@@ -372,7 +381,7 @@ test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices ren
     ...baseInput({
       reservation: { startDate: '2026-07-10', endDate: '2026-07-13', singleBeds: 2, doubleBeds: 1, babyBeds: 1, babies: 1, cautionAmount: 0 },
       property: { name: 'Gite', nameArticle: 'au' },
-      resources: [{ name: 'Bain nordique' }],
+      resources: [{ ...BATH }],
     }),
     lang: 'en',
   });
@@ -386,9 +395,9 @@ test('lang="en": dates, bedConfig, propertyWithArticle, and composed notices ren
   assert.equal(flags.hasNordicBath, true);
 });
 
-test('lang="en": nordic-bath scheduled slot recalled in English', () => {
+test('lang="en": nordic-bath scheduled slot recalled in English', { skip: skipWithout(['hourly-resources']) }, () => {
   const { vars } = buildContext({
-    ...baseInput({ resources: [{ name: 'Bain nordique', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
+    ...baseInput({ resources: [{ ...BATH, priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:30' }]) }] }),
     lang: 'en',
   });
   assert.match(vars.nordicBathSchedule, /on 11 July 2026 from 18:00 to 19:30/);
@@ -403,15 +412,15 @@ test('lang="en": complement list intro + localised labels (Tourist tax, Arrival 
     lang: 'en',
   });
   assert.match(vars.complementNotice, /A balance is payable directly on site on arrival:/);
-  assert.match(vars.complementNotice, /- Tourist tax: 15,00 €/);
-  assert.match(vars.complementNotice, /- Arrival balance: 40,00 €/);   // remainder localised
-  assert.match(vars.complementNotice, /Total: 55,00 €/);
+  assert.match(vars.complementNotice, /- Tourist tax: €15/);
+  assert.match(vars.complementNotice, /- Arrival balance: €40/);   // remainder localised
+  assert.match(vars.complementNotice, /Total: €55/);
 });
 
 test('default lang (fr) is unchanged — English path never leaks into French output', () => {
   const { vars } = buildContext(baseInput({
     reservation: { startDate: '2026-07-10', singleBeds: 1, doubleBeds: 1 },
-    resources: [{ name: 'Bain nordique' }],
+    resources: [{ ...BATH }],
   }));
   assert.equal(vars.startDate, '10 juillet 2026');
   assert.match(vars.bedConfig, /lit double/);
@@ -420,6 +429,7 @@ test('default lang (fr) is unchanged — English path never leaks into French ou
 
 // ── Reservation number recall (specs/reservation-number-and-search.md §4) ────────
 
+// specs/reservation-number-and-search.md rule 12 — the token and its gate.
 test('reservationNumber var + hasReservationNumber flag follow the reservation column', () => {
   const withNumber = buildContext(baseInput({ reservation: { reservationNumber: '2026-07-042' } }));
   assert.equal(withNumber.vars.reservationNumber, '2026-07-042');
@@ -435,27 +445,45 @@ test('reservationNumber var + hasReservationNumber flag follow the reservation c
 
 // ── J-2 nordic-bath reminder (specs/j1-arrival-reminder-email.md) ────────────────
 
-test('hasNordicBath matches the resource by NAME (« nordique », accent/case-insensitive)', () => {
-  const yes = buildContext(baseInput({ resources: [{ name: 'Bain Nordique' }] }));
-  assert.equal(yes.flags.hasNordicBath, true);
-  const noAccent = buildContext(baseInput({ resources: [{ name: 'bain nordique premium' }] }));
-  assert.equal(noAccent.flags.hasNordicBath, true);
-  const no = buildContext(baseInput({ resources: [{ name: 'Lit bébé' }] }));
-  assert.equal(no.flags.hasNordicBath, false);
+// specs/plugins-phase-p-productisation.md rule 11 — the resource's own sentence, never its name.
+test('hasNordicBath follows a booked resource that carries a sentence, whatever its name', () => {
+  const named = buildContext(baseInput({ resources: [{ name: 'Bain Nordique' }] }));
+  assert.equal(named.flags.hasNordicBath, false, 'the name alone says nothing');
+  const sauna = buildContext(baseInput({ resources: [{ name: 'Sauna', emailBookedText: 'Le sauna vous attend{{#if slots}} {{slots}}{{/if}}.' }] }));
+  assert.equal(sauna.flags.hasNordicBath, true);
+  assert.equal(sauna.vars.nordicBathReminder, 'Le sauna vous attend.');
+  const english = buildContext({ ...baseInput({ resources: [{ name: 'Sauna', emailBookedText: 'Le sauna vous attend.' }] }), lang: 'en' });
+  assert.equal(english.vars.nordicBathReminder, 'Le sauna vous attend.', 'no English sentence: the French one');
 });
 
 test('nordicBathReminder: gear sentence only when no slot scheduled', () => {
-  const { vars } = buildContext(baseInput({ resources: [{ name: 'Bain nordique' }] }));
+  const { vars } = buildContext(baseInput({ resources: [{ ...BATH }] }));
   assert.ok(vars.nordicBathReminder.includes('maillot de bain'), 'gear sentence present');
   assert.ok(vars.nordicBathReminder.includes('tongs'), 'tongs mentioned');
   assert.ok(!vars.nordicBathReminder.includes('Votre créneau'), 'no slot line when unscheduled');
   assert.equal(vars.nordicBathSchedule, '');
 });
 
-test('nordicBathReminder recalls the scheduled slot(s) when sessions are set', () => {
+// specs/plugins-phase-3c-hourly-resources.md rule 15 — the slots come from the stay's hourly lines,
+// and only while the plugin is live.
+test('nordicBathReminder no longer recalls a slot once hourly resources are off', () => {
+  require('./hourlyResourcesFixture').withdrawHourlyResources();
+  try {
+    const { vars } = buildContext(baseInput({
+      resources: [{ ...BATH, priceType: 'per_hour', sessions: JSON.stringify([{ date: '2026-07-11', start: '18:00', end: '19:00' }]) }],
+    }));
+    assert.match(vars.nordicBathReminder, /bain nordique/);
+    assert.doesNotMatch(vars.nordicBathReminder, /créneau/);
+  } finally {
+    liveHourlyResources();
+  }
+});
+
+test('nordicBathReminder recalls the scheduled slot(s) when sessions are set', { skip: skipWithout(['hourly-resources']) }, () => {
   const { vars } = buildContext(baseInput({
     resources: [{
-      name: 'Bain nordique',
+      ...BATH,
+      priceType: 'per_hour',
       sessions: JSON.stringify([
         { date: '2026-07-12', start: '18:00', end: '19:30' },
         { date: '2026-07-13', start: '17:00', end: '18:00' },
@@ -531,15 +559,15 @@ test('complementNotice lists in-complement options/resources/custom-options + to
       { title: 'Petit déjeuner', autoOptionType: 'breakfast', inComplement: 1, offered: 0, totalPrice: 15 },
       { title: 'Linge de lit', autoOptionType: 'bed_linen', inComplement: 0, offered: 0, totalPrice: 10 }, // not in complement → excluded
     ],
-    resources: [{ name: 'Bain nordique', inComplement: 1, offered: 0, totalPrice: 40 }],
+    resources: [{ ...BATH, inComplement: 1, offered: 0, totalPrice: 40 }],
     customOptions: [{ description: 'Panier garni', amount: 15, inComplement: 1, offered: 0 }],
   }));
   assert.match(vars.complementNotice, /Un complément est à régler directement sur place à votre arrivée :/);
-  assert.match(vars.complementNotice, /- Petit déjeuner : 15,00 €/);
-  assert.match(vars.complementNotice, /- Bain nordique : 40,00 €/);
-  assert.match(vars.complementNotice, /- Panier garni : 15,00 €/);
-  assert.match(vars.complementNotice, /- Taxe de séjour : 8,00 €/);
-  assert.match(vars.complementNotice, /Total : 78,00 €/);
+  assert.match(vars.complementNotice, /- Petit déjeuner : 15 €/);
+  assert.match(vars.complementNotice, /- Bain nordique : 40 €/);
+  assert.match(vars.complementNotice, /- Panier garni : 15 €/);
+  assert.match(vars.complementNotice, /- Taxe de séjour : 8 €/);
+  assert.match(vars.complementNotice, /Total : 78 €/);
   assert.doesNotMatch(vars.complementNotice, /Linge de lit/);
 });
 
@@ -557,7 +585,7 @@ test('complementNotice: amount only (no "comprend") when there are no identifiab
     reservation: { complementAmount: 30, complementPaid: 0 },
     options: [], resources: [], customOptions: [],
   }));
-  assert.match(vars.complementNotice, /Un complément de 30,00 €/);
+  assert.match(vars.complementNotice, /Un complément de 30 €/);
   assert.doesNotMatch(vars.complementNotice, /Il comprend/);
 });
 

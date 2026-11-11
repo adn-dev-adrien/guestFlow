@@ -1,10 +1,14 @@
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['tariff-recipes'])) return;
+
 const test = require('node:test');
+const { optionalPlugin } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
 const { normalizeProgressiveTiers } = require('../utils/pricing');
-const { validateRecipe } = require('../utils/tariffRecipe');
+const { validateRecipe } = optionalPlugin(() => require('../plugins/tariff-recipes/store'));
 
 // specs/tariff-recipes/spec.md §3.6 rules 36-37 — the degressivity of the source document's §6,
 // reproduced exactly, and the commercial promise that must hold at every stay length: a further
@@ -15,7 +19,7 @@ const { validateRecipe } = require('../utils/tariffRecipe');
 const DOCUMENT_TABLE = { 2: 24, 3: 33, 4: 38, 5: 41, 6: 43, 7: 45 };
 
 const RECIPE = validateRecipe(
-  JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'recipes', 'aventura-lodge-2026.json'), 'utf8')),
+  JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugins', 'tariff-recipes', 'recipes', 'aventura-lodge-2026.json'), 'utf8')),
 );
 
 test('the shipped recipe carries the document table (not a paraphrase of it)', () => {

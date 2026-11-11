@@ -3,7 +3,10 @@ import { render, screen, within } from '@testing-library/react';
 
 import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
+
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // specs/baby-bed-supplement.md §6 — the cot supplement is engine-derived: its read-only row shows up
 // exactly when the ENGINE billed it, reads as a price per cot for the stay, and can never be ticked

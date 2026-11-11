@@ -12,21 +12,32 @@
  */
 
 const db = require('../database');
+const vatRegimeModel = require('./vatRegimeModel');
 const { calculateReservationQuote } = require('../utils/pricing');
+const { stayDatesRefusal, entryDateMessage, stayItemDatesRefusal } = require('../utils/stayDates');
+const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { partyOf, nightsOf, typedCountAlerts, typedCountsErrorPayload } = require('../utils/typedCounts');
 const { capitalizeFirst } = require('../utils/textFormatters');
 const { roundMoney } = require('../utils/devisHelpers');
-const { resolveDepositDueDate, resolveBalanceDueDate } = require('../utils/paymentSchedule');
+const {
+  resolveDepositDueDate, resolveBalanceDueDate, owesSinglePaymentByValidity, devisPromisesOnePayment, devisPromiseHeld, devisPromiseDueDate,
+} = require('../utils/paymentSchedule');
 const { buildHistoryRows } = require('../utils/reservationAudit');
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { assignReservationNumberIfMissing } = require('../utils/reservationNumber');
 const propertyOptionDefaultsModel = require('./propertyOptionDefaultsModel');
 const bookingLinesModel = require('./bookingLinesModel');
-const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
+const {
+  isDevisExpired, isDevisExtendable, computeValidUntil, devisValidUntil, readQuoteValidityDays: readValidityDaysOf,
+} = require('../utils/devisValidity');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { originDisplay } = require('../utils/attributionChannel');
-const { stayNights, stayLabel } = require('../utils/stayRangeLabel');
+const { devisListRow } = require('../utils/devisListRow');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { todayIso } = require('../utils/localDate');
+const { bookingDayOf } = require('../utils/vatRegime');
+const { carriesMoney } = require('../utils/deletionGuard');
+const { PRE_ARRIVAL_TYPES } = require('../constants/paymentLinks');
 
 // Helpers shared between create + convertFromReservation
 // (specs/devis-pdf-and-tourist-tax-fixes.md §3).
@@ -36,16 +47,25 @@ const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { mergePropertyDefaultsIntoPayload, carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOptions');
 const { isPerPersonCardOption } = require('../utils/mealPortions');
 const settingsModel = require('./settingsModel');
-const neatSubscriptionsModel = require('./neatSubscriptionsModel');
-const { repriceQuoteWithNeatSync } = require('../utils/neatGuestPricing');
+const quotePostProcessors = require('../utils/quotePostProcessors');
+const insuranceOffer = require('../utils/insuranceOffer');
+const resourceOffer = require('../utils/resourceOffer');
+const { provenComplementAmount } = require('../utils/createdComplementRepair');
 
 /**
- * Today as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
+ * Now, in UTC, as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
  * the explicit `createdAt` binding for INSERTs that should never end up with an empty
- * value (specs/devis-pdf-and-tourist-tax-fixes.md §3.1 rule 1).
+ * value (specs/devis-pdf-and-tourist-tax-fixes.md §3.1 rule 1). A stored timestamp only: the
+ * day a devis is dated or expires is the operator's, `todayIso()` / `createdDayOf()` (rule 23).
  */
 function sqliteNow() {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
+}
+
+// The operator's calendar day a stored UTC `createdAt` fell on; a blank one is a devis created now
+// (specs/devis-pdf-and-tourist-tax-fixes.md rule 23).
+function createdDayOf(createdAt) {
+  return bookingDayOf(createdAt) || todayIso();
 }
 
 // A JSON column read back as text → the array the client expects. Anything unparseable reads empty.
@@ -102,11 +122,20 @@ function createModel(database) {
   // override it on their isolated DBs (the prod-bound `settingsModel.read()` would otherwise
   // ignore the test-DB row). Returns 30 as the documented fallback.
   function readQuoteValidityDays() {
-    try {
-      const row = database.prepare('SELECT quoteValidityDays FROM app_settings WHERE id = 1').get();
-      const days = Number(row && row.quoteValidityDays);
-      return Number.isFinite(days) && days > 0 ? days : 30;
-    } catch { return 30; }
+    return readValidityDaysOf(database);
+  }
+
+  // §3.2 rule 7 reading R32-RES-M1 — the stored row's validity read for `startDate` (its own when omitted).
+  function validUntilOf(row, { startDate, reissueExpired = false } = {}) {
+    return devisValidUntil({
+      stored: row?.validUntil || null,
+      storedStartDate: row?.startDate || null,
+      createdDay: createdDayOf(row?.createdAt),
+      startDate: startDate || row?.startDate || null,
+      today: todayIso(),
+      quoteValidityDays: readQuoteValidityDays(),
+      reissueExpired,
+    });
   }
 
   // ---- payment schedule ----
@@ -134,12 +163,20 @@ function createModel(database) {
     // A legacy row with no stored split at all (NULL — never 0, which is a legitimate « no acompte »
     // on a last-minute stay) keeps the historic derivation rather than displaying nothing.
     const hasStoredSplit = row.depositAmount != null && row.balanceAmount != null;
-    const depositAmount = hasStoredSplit
+    // D23 (specs/deposit-blocks-the-dates.md rule 19) — a devis whose solde falls on or before its validity
+    // date carries no acompte, as the engine decides: a row stored with one (before the rule, or copied
+    // from a reservation) reads as the single payment the engine, the link and the conversion use.
+    const singlePayment = owesSinglePaymentByValidity({
+      startDate: row.startDate, validUntil: row.validUntil, balanceDaysBefore: property?.balanceDaysBefore,
+    });
+    const storedDeposit = hasStoredSplit
       ? roundMoney(Number(row.depositAmount))
       : roundMoney(totalStayPrice * (depositPercent / 100));
-    const balanceAmount = hasStoredSplit
+    const storedBalance = hasStoredSplit
       ? roundMoney(Number(row.balanceAmount))
-      : roundMoney(totalStayPrice - depositAmount);
+      : roundMoney(totalStayPrice - storedDeposit);
+    const depositAmount = singlePayment ? 0 : storedDeposit;
+    const balanceAmount = singlePayment ? roundMoney(storedDeposit + storedBalance) : storedBalance;
     // specs/payment-schedule-and-cancellation.md §3.1 rule 5 — a devis promises its dates until its
     // validity date: that IS its acompte deadline. The solde keeps the stay-relative derivation,
     // clamped so it can never fall before the day the quote was issued.
@@ -157,6 +194,58 @@ function createModel(database) {
       validUntil: row.validUntil,
     });
     return { depositAmount, balanceAmount, depositDueDate, balanceDueDate, totalStayPrice };
+  }
+
+  // THE schedule a stored devis reads as: its fiche, its PDF, and the columns `restoreSinglePayments` re-writes. Judged
+  // on the validity the fiche shows and the engine prices (`validUntilOf`, a legacy NULL row's backfill included).
+  // specs/property-deposit-switch.md rule 8 — the switch feeds the schedule without widening the property payload
+  // the fiche receives. Read apart and defensively: several unit suites build their own minimal `properties` table,
+  // and a missing column means « acompte activé ».
+  function scheduleReadOf(row, property) {
+    return resolvePaymentSchedule(
+      { ...row, validUntil: validUntilOf(row) },
+      { ...property, depositEnabled: readDepositEnabled(row.propertyId) },
+    );
+  }
+
+  /**
+   * specs/deposit-blocks-the-dates.md rule 20 — the columns of an open devis always agree with its read
+   * (`scheduleReadOf`). A devis whose solde falls on or before its validity date reads as ONE payment (rule 19); a row
+   * still holding an acompte there (stored before the rule, or its logement's « Solde dû … jours avant » changed since)
+   * is re-written as that payment, and the open links billing the old split are withdrawn (`retireStaleLinks`: an open
+   * acompte link stays payable only while the columns ask for it). Outside the window the same change of delay moves
+   * the read's solde date: the columns follow it too (rule 25, audit R33b L1; same amounts, so no link is withdrawn).
+   * A legacy row with no validity date is stamped with the date it reads on (rule 25, audit R33b L2), so the
+   * conversion and the converted stay's promise read the one date the fiche shows. Run at every boot and after every
+   * save of a logement (`propertyId`). A converted devis is never touched: its stay holds what was paid. Returns the
+   * re-stored ids.
+   */
+  function restoreSinglePayments({ propertyId = null } = {}) {
+    const byProperty = propertyId != null;
+    const rows = database.prepare(`SELECT * FROM reservations WHERE kind = 'devis' AND convertedReservationId IS NULL
+      AND COALESCE(devisStatus, 'draft') != 'converted'${byProperty ? ' AND propertyId = ?' : ''}`)
+      .all(...(byProperty ? [Number(propertyId)] : []));
+    const restored = [];
+    for (const row of rows) {
+      const property = database.prepare('SELECT id, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
+      if (!property) continue;
+      const stampValidUntil = row.validUntil ? null : validUntilOf(row);
+      const read = scheduleReadOf(row, property);
+      const same = !stampValidUntil && row.depositAmount != null && row.balanceAmount != null
+        && roundMoney(Number(row.depositAmount)) === read.depositAmount && (row.depositDueDate || null) === (read.depositDueDate || null)
+        && roundMoney(Number(row.balanceAmount)) === read.balanceAmount && (row.balanceDueDate || null) === (read.balanceDueDate || null);
+      if (same) continue;
+      database.transaction(() => {
+        const before = snapshotFromDb(row.id);
+        database.prepare(`UPDATE reservations SET depositAmount = ?, depositDueDate = ?, balanceAmount = ?, balanceDueDate = ?,
+          validUntil = COALESCE(validUntil, ?), updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'`)
+          .run(read.depositAmount, read.depositDueDate || null, read.balanceAmount, read.balanceDueDate || null, stampValidUntil, row.id);
+        addHistoryEntry(row.id, 'update', computeAuditChanges(before, snapshotFromDb(row.id)));
+      })();
+      retireStaleLinks(row.id);
+      restored.push(row.id);
+    }
+    return restored;
   }
 
   // ---- enrich (full devis with lines, client, property, schedule) ----
@@ -198,27 +287,25 @@ function createModel(database) {
     const nights = database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ? ORDER BY date').all(row.id);
     const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId);
     const property = database.prepare('SELECT id, name, defaultCheckIn AS checkInTime, defaultCheckOut AS checkOutTime, defaultCautionAmount, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(row.propertyId);
-    // specs/property-deposit-switch.md rule 8 — the switch feeds the schedule without widening the
-    // property payload the fiche receives. Read apart and defensively: several unit suites build
-    // their own minimal `properties` table, and a missing column means « acompte activé ».
-    const schedule = resolvePaymentSchedule(row, { ...property, depositEnabled: readDepositEnabled(row.propertyId) });
     // Validity state, decided here so the fiche only renders it (specs/devis-extras-parity-and-price-lock.md
     // §3 rule 16). `validUntil` is resolved rather than echoed: a legacy row stored NULL, and the
-    // operator still deserves to see the date their quote would carry.
-    const today = sqliteNow().slice(0, 10);
-    const resolvedValidUntil = row.validUntil || computeValidUntil({
-      createdAtIsoDate: String(row.createdAt || sqliteNow()).slice(0, 10),
-      startDateIso: row.startDate,
-      quoteValidityDays: readQuoteValidityDays(),
-    }) || null;
+    // operator still deserves to see the date their quote would carry; a row stored above its start − 2 reads
+    // capped, its schedule with it (§3.2 rule 7 reading R32-RES-M1).
+    const today = todayIso();
+    const resolvedValidUntil = validUntilOf(row);
+    const schedule = scheduleReadOf(row, property);
     const expired = isDevisExpired(row.validUntil, today);
     return {
       ...row,
       status: row.devisStatus,
       validUntil: resolvedValidUntil,
       expired,
+      // specs/ui-review-2026-10-19-operations.md rule 20 — only an expired quote still open may be
+      // re-issued; the fiche offers « prolonger » on this flag alone.
+      extendable: isDevisExtendable(row, today),
       // While the quote holds, its prices are frozen exactly like a saved reservation's (rule 13).
       pricingLocked: !expired,
+      vatRegime: vatRegimeModel.forRow(database, row),
       ...schedule,
       options: [...options, ...customOptions],
       resources,
@@ -301,7 +388,7 @@ function createModel(database) {
   function resolveLockedPricing(body, existing) {
     if (!existing || !existing.id) return {};
     if (body.refreshPricingToCurrent) return {};
-    if (isDevisExpired(existing.validUntil, sqliteNow().slice(0, 10))) return {};
+    if (isDevisExpired(existing.validUntil, todayIso())) return {};
     // Changing the logement or the stay range invalidates the snapshot: those lines priced something
     // else. Mirrors `isExistingReservationPricingLocked` on the fiche.
     const samePlacement = Number(body.propertyId || existing.propertyId) === Number(existing.propertyId)
@@ -408,29 +495,34 @@ function createModel(database) {
       // is derived here with the same rule. Without it the engine falls back to the clamped derivation
       // and a last-minute quote comes out due on its issue day while the document says it stands until
       // its validity date (specs/deposit-blocks-the-dates.md rule 7).
-      validUntil: body.validUntil || existing?.validUntil || computeValidUntil({
-        createdAtIsoDate: String(existing?.createdAt || sqliteNow()).slice(0, 10),
-        startDateIso: body.startDate || existing?.startDate,
-        quoteValidityDays: readQuoteValidityDays(),
-      }) || null,
+      validUntil: body.validUntil || validUntilOf(existing, { startDate: body.startDate }),
       // A devis being CREATED has no `createdAt` yet, but it is being booked today — and the engine has
       // no clock. Passing null used to persist a schedule computed as if the booking day were unknown:
       // a solde deadline free to land in the past, and (specs/deposit-blocks-the-dates.md rule 5) an
       // acompte on a stay too close to collect one, contradicting the fiche's own live recompute.
       bookingDate: existing?.createdAt || getTodayIsoDate(),
     };
+    // specs/plugins-phase-3b-neat.md rule 5 — while no plugin offers the insurance, a devis keeps the
+    // line it carries exactly as quoted, even past its validity, and cannot gain one.
+    const gate = insuranceOffer.gateSelection({
+      db: database, bookingId: existing?.id, selectedOptions: engineInput.selectedOptions, lockedOptionLines: engineInput.lockedOptionLines,
+    });
+    if (gate.error) return { error: gate.error.error, status: gate.error.status, code: gate.error.code };
+    engineInput.selectedOptions = gate.selectedOptions;
+    engineInput.lockedOptionLines = gate.lockedOptionLines;
+    // « Offert » stays the stored one too (phase 3b rule 5).
+    engineInput.offeredOptionIds = insuranceOffer.freezeOffered(engineInput.offeredOptionIds, gate);
+    // The same for a resource sold by the hour while no plugin offers it (phase 3c rule 18).
+    const resources = resourceOffer.gateResources({
+      db: database, bookingId: existing?.id, selectedResources: engineInput.selectedResources, lockedResourceLines: engineInput.lockedResourceLines,
+    });
+    if (resources.error) return { error: resources.error.error, status: resources.error.status, code: resources.error.code };
+    engineInput.selectedResources = resources.selectedResources;
+    engineInput.lockedResourceLines = resources.lockedResourceLines;
     const quote = calculateReservationQuote(engineInput);
-    // Neat-derived insurance price (specs/neat-cancellation-insurance-subscription.md rule 13):
-    // sync, cache-only — the async preview paths (public /quote, fiche calculate-price) warm the
-    // cache, so the persisted devis prices the insurance exactly as the preview announced it. Cold
-    // cache / feature off → the quote stands as computed (static tariff).
-    return repriceQuoteWithNeatSync({
-      engineInput,
-      quote,
-      settingsModel,
-      cacheModel: neatSubscriptionsModel,
-      calculate: calculateReservationQuote,
-    }).quote;
+    // The insurance price a plugin sets (specs/plugins-phase-3b-neat.md rule 2): cache only — the
+    // previews (public /quote, fiche calculate-price) warm it, so the devis bills what they announced.
+    return quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
   }
 
   // ---- replay the quote of a PERSISTED devis (specs/devis-pdf-total-parity.md §3.1) ----
@@ -493,6 +585,87 @@ function createModel(database) {
     } catch { return null; }
   }
 
+  // ---- re-issue an expired quote (specs/ui-review-2026-10-19-operations.md rule 20) ----
+  // The save a « prolonger » performs: the stored quote, as it stands, re-priced at today's tariffs
+  // with a validity window opened today. Built from the stored row so a preview and the save it
+  // announces run the very same computation.
+  function extensionPayload(existing) {
+    const full = enrichDevis(existing);
+    const today = todayIso();
+    return {
+      ...engineInputFromPersistedDevis(full),
+      clientId: existing.clientId,
+      status: existing.devisStatus,
+      singleBeds: existing.singleBeds, doubleBeds: existing.doubleBeds, babyBeds: existing.babyBeds,
+      cautionAmount: existing.cautionAmount,
+      notes: existing.notes,
+      pdfLanguage: existing.pdfLanguage,
+      breakfastTime: existing.breakfastTime,
+      validUntil: computeValidUntil({
+        createdAtIsoDate: today, startDateIso: existing.startDate, quoteValidityDays: readQuoteValidityDays(),
+      }),
+    };
+  }
+
+  // The schedule lines a quote's figures read as: acompte then solde, or the single payment.
+  function scheduleLines({ depositAmount, depositDueDate, balanceAmount, balanceDueDate, platform }) {
+    const lines = [];
+    if (Number(depositAmount) > 0) lines.push({ label: 'Acompte', amount: roundMoney(depositAmount), dueDate: depositDueDate || null });
+    if (Number(balanceAmount) > 0) {
+      const single = Number(depositAmount) <= 0 && isDirectChannel(platform);
+      lines.push({ label: single ? 'Paiement intégral' : 'Solde', amount: roundMoney(balanceAmount), dueDate: balanceDueDate || null });
+    }
+    return lines;
+  }
+
+  function loadExtendable(id) {
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    // specs/reservations-backend-mvc.md rule 13 — an extension enters no date: the horizon holds none of them.
+    const datesRefusal = stayDatesRefusal(existing.startDate, existing.endDate, { stored: existing });
+    if (datesRefusal) return datesRefusal;
+    if (!isDevisExtendable(existing, todayIso())) {
+      return existing.devisStatus === 'converted'
+        ? { error: 'Devis converti en réservation : sa validité ne se prolonge pas.', status: 409, code: 'DEVIS_CONVERTED' }
+        : { error: 'Ce devis ne se prolonge pas : il est encore valable, ou déjà accepté.', status: 409, code: 'DEVIS_NOT_EXTENDABLE' };
+    }
+    return { existing };
+  }
+
+  // What « prolonger » would change, computed exactly as `extend` will, nothing written.
+  function previewExtension(id) {
+    const loaded = loadExtendable(id);
+    if (loaded.error) return loaded;
+    const { existing } = loaded;
+    const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(existing.propertyId));
+    if (!property) return { error: 'Logement introuvable', status: 404 };
+    const payload = extensionPayload(existing);
+    const quote = computeQuote(payload, existing, property);
+    if (quote.error) return { error: quote.error, status: quote.status || 400, code: quote.code };
+    const current = enrichDevis(existing);
+    return {
+      ok: true,
+      data: {
+        validUntil: payload.validUntil,
+        current: {
+          validUntil: current.validUntil,
+          totalTtc: roundMoney(Number(existing.finalPrice || 0) + Number(existing.touristTaxTotal || 0)),
+          schedule: scheduleLines({ ...current, platform: existing.platform }),
+        },
+        next: {
+          totalTtc: roundMoney(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)),
+          schedule: scheduleLines({ ...quote, platform: existing.platform }),
+        },
+      },
+    };
+  }
+
+  function extend(id) {
+    const loaded = loadExtendable(id);
+    if (loaded.error) return loaded;
+    return update(id, extensionPayload(loaded.existing));
+  }
+
   // ---- persist lines (shared by create/update) — into the reservation_* children ----
   // Same store as a reservation's, so a devis line keeps everything a reservation line keeps:
   // scheduled occurrences, hourly sessions, Complément routing (§4.1). Amounts are rounded here,
@@ -521,6 +694,40 @@ function createModel(database) {
     })));
   }
 
+  // specs/payment-link-lifecycle.md rule 46 (decided 2026-10-30, §9 Q13) — a devis is never written on nights a
+  // stay holds (an acompte paid, a platform's stay): 409 DATES_HELD with the stays that block, ConflictList-shaped.
+  function heldDatesRefusal({ propertyId, startDate, endDate, excludeIds = [] }) {
+    const { heldOverlaps, stayRefs } = require('../utils/datesTaken');
+    const holders = heldOverlaps(database, { propertyId, startDate, endDate, excludeIds });
+    if (holders.length === 0) return null;
+    return {
+      error: 'Dates déjà réservées : devis non enregistré.', status: 409, code: 'DATES_HELD',
+      stays: stayRefs(database, holders, String(startDate).slice(0, 4)),
+    };
+  }
+
+  // specs/payment-link-lifecycle.md rule 55 (audit R10-1, decided 2026-10-31) — a devis is never written on nights a
+  // closure covers: its link could be paid there and confirm the guest on closed nights. The closure to open rides
+  // the refusal, ConflictList-shaped. A minimal schema without closures has none.
+  function closedDatesRefusal({ propertyId, startDate, endDate }) {
+    if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'establishment_closures'").get()) return null;
+    const closure = require('./establishmentClosuresModel').create(database).findCoveringClosure(propertyId, startDate, endDate);
+    if (!closure) return null;
+    const { shortDate } = require('../utils/reservationLedger');
+    const year = String(startDate).slice(0, 4);
+    return {
+      error: 'Logement fermé sur ces dates : devis non enregistré.', status: 409, code: 'CLOSED_DATES',
+      closures: [{
+        id: Number(closure.id),
+        label: [closure.label, `${shortDate(closure.startDate, year)} → ${shortDate(closure.endDate, year)}`].filter(Boolean).join(' · '),
+        url: '/establishment-closures',
+      }],
+    };
+  }
+
+  // Rule 48 — a devis whose nights another stay took since stays as it is, marked « Dates prises ».
+  const withDatesTaken = (row) => (row ? { ...row, datesTaken: require('../utils/datesTaken').datesTakenMarker(database, row) } : row);
+
   // ---- public API ----
   function list({ propertyId, status, from, to, requestOrigin } = {}) {
     let sql = `
@@ -539,18 +746,26 @@ function createModel(database) {
     if (requestOrigin === 'public') { sql += " AND d.requestOrigin = 'public'"; }
     else if (requestOrigin === 'internal') { sql += " AND (d.requestOrigin IS NULL OR d.requestOrigin != 'public')"; }
     sql += ' ORDER BY d.createdAt DESC';
-    return database.prepare(sql).all(...params).map((row) => ({
-      ...row,
-      ...originDisplay(row),
-      nights: stayNights(row.startDate, row.endDate),
-      stayLabel: stayLabel(row.startDate, row.endDate),
-      totalTtc: roundMoney(Number(row.finalPrice || 0) + Number(row.touristTaxTotal || 0)),
+    // specs/ui-review-2026-10-19-operations.md rules 5, 9, 21 — total, origin and validity shaped for
+    // the list.
+    const today = todayIso();
+    const listed = database.prepare(sql).all(...params).map((row) => ({
+      ...devisListRow(row, today), vatRegimeKind: vatRegimeModel.forRow(database, row).regime,
+      datesTaken: require('../utils/datesTaken').datesTakenMarker(database, row),
     }));
+    // Rule 12 (a): the « TTC » wording stays while one quote of the list is under VAT — decided here, not in the page.
+    const showTtc = listed.length === 0 || listed.some((row) => row.vatRegimeKind === 'subject');
+    return listed.map((row) => ({ ...row, vatShowTtc: showTtc }));
   }
 
   function findById(id) {
     const row = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
-    return row ? enrichDevis(row) : null;
+    return row ? withDatesTaken(enrichDevis(row)) : null;
+  }
+
+  function storedVersion(id) {
+    const row = database.prepare("SELECT updatedAt FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+    return row ? row.updatedAt : null;
   }
 
   function getHistory(id) {
@@ -570,13 +785,18 @@ function createModel(database) {
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     const allowed = new Set(['draft', 'sent', 'accepted']);
-    const next = String(status || '').trim();
+    const next = typeof status === 'string' ? status.trim() : '';
     if (!allowed.has(next)) return { error: 'Statut invalide', status: 400 };
     if (existing.devisStatus === 'converted') return { error: 'Un devis converti ne peut plus changer de statut', status: 400 };
 
     const before = snapshotFromDb(Number(id));
     before.status = existing.devisStatus;
     database.prepare("UPDATE reservations SET devisStatus = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(next, Number(id));
+    // Re-sending is what the « modifiée après envoi » flag asks for (rule 14): a status set by the
+    // operator closes it, like a save.
+    if (hasReservationColumn('publicUpdatedAfterSendAt')) {
+      database.prepare("UPDATE reservations SET publicUpdatedAfterSendAt = NULL WHERE id = ? AND kind = 'devis'").run(Number(id));
+    }
     const after = snapshotFromDb(Number(id));
     const changes = computeAuditChanges(before, after);
     if (changes.length > 0) addHistoryEntry(Number(id), 'update', changes);
@@ -606,17 +826,15 @@ function createModel(database) {
     return { error, code, lines, status: 409 };
   }
 
-  function create(payload) {
-    if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
-      return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
-    }
-    const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
-    if (!property) return { error: 'Logement introuvable', status: 404 };
-
+  // The payload a new devis is priced from: the property's default options merged in, the insurance
+  // dropped unless asked for. Shared by `create` and `updateFromPublicRequest`, so a website request
+  // updated in place is priced exactly as its creation was (specs/public-request-abuse-and-grouping.md
+  // rule 13).
+  function withCreationDefaults(payload) {
     // Server-side enforcement of property option defaults (specs/devis-pdf-and-tourist-tax-fixes.md §3.3
     // rules 11–13). Idempotent: if the client already shipped the default optionId we leave it alone.
     const defaultsModel = propertyOptionDefaultsModel.buildModel(database);
-    const payloadWithDefaults = mergePropertyDefaultsIntoPayload(
+    const mergedDefaults = mergePropertyDefaultsIntoPayload(
       payload,
       Number(payload.propertyId),
       defaultsModel,
@@ -626,8 +844,50 @@ function createModel(database) {
         ? { quantityFor: (optionId) => defaultPortionQuantity(database, payload, optionId) }
         : {},
     );
+    // A property default never adds the insurance while it is not offered (phase 3b rule 5); a payload
+    // that asks for it keeps it, and the gate refuses it.
+    const insuranceId = insuranceOffer.insuranceOptionId(database);
+    const askedInsurance = (payload.selectedOptions || []).some((o) => Number(o.optionId) === insuranceId);
+    return askedInsurance ? mergedDefaults : {
+      ...mergedDefaults, selectedOptions: insuranceOffer.dropInsurance(database, mergedDefaults.selectedOptions),
+    };
+  }
+
+  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — the API's `validUntil` override is a real
+  // day inside the date window; the stored value is kept as it is.
+  function validUntilRefusal(value, stored) {
+    if (value === undefined || value === null || value === '') return null;
+    const error = entryDateMessage(value, { stored });
+    return error ? { error, status: 400, code: 'INVALID_STAY_DATES', field: 'validUntil' } : null;
+  }
+
+  function create(payload) {
+    if (!payload.propertyId || !payload.clientId || !payload.startDate || !payload.endDate) {
+      return { error: 'propertyId, clientId, startDate et endDate sont requis', status: 400 };
+    }
+    // specs/reservations-backend-mvc.md rule 15 — the numbers of the lines and the party, before anything reads them.
+    const inputRefusal = lineInputRefusal(payload);
+    if (inputRefusal) return { ...inputRefusal, status: 400 };
+    // specs/reservations-backend-mvc.md rule 11 — sound dates before any pricing or availability check.
+    const datesRefusal = stayDatesRefusal(payload.startDate, payload.endDate);
+    if (datesRefusal) return datesRefusal;
+    const itemsRefusal = stayItemDatesRefusal({
+      options: payload.selectedOptions, resources: payload.selectedResources, startDate: payload.startDate, endDate: payload.endDate,
+    });
+    if (itemsRefusal) return itemsRefusal;
+    const validityRefusal = validUntilRefusal(payload.validUntil);
+    if (validityRefusal) return validityRefusal;
+    const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId));
+    if (!property) return { error: 'Logement introuvable', status: 404 };
+
+    const range = { propertyId: payload.propertyId, startDate: payload.startDate, endDate: payload.endDate };
+    const refused = closedDatesRefusal(range) || heldDatesRefusal(range);
+    if (refused) return refused;
+
+    const payloadWithDefaults = withCreationDefaults(payload);
 
     const quote = computeQuote(payloadWithDefaults, null, property);
+    if (quote.code === insuranceOffer.NOT_OFFERED.code || quote.code === resourceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
     const createAlert = staleTypedCounts(payloadWithDefaults, quote, null);
     if (createAlert) return createAlert;
     const devisNumber = database.generateDevisNumber();
@@ -636,7 +896,7 @@ function createModel(database) {
     // MIN(createdAt + quoteValidityDays, startDate - 2 days). The operator's optional
     // `payload.validUntil` override wins (rare; the form doesn't expose it today).
     const createdAt = sqliteNow();
-    const createdAtDate = createdAt.slice(0, 10);
+    const createdAtDate = todayIso();
     const quoteValidityDays = readQuoteValidityDays();
     const validUntil = payload.validUntil
       || computeValidUntil({ createdAtIsoDate: createdAtDate, startDateIso: payloadWithDefaults.startDate, quoteValidityDays })
@@ -689,6 +949,9 @@ function createModel(database) {
         touristTaxInComplement: payloadWithDefaults.touristTaxInComplement ? 1 : 0,
         // The tariff this devis is quoted under — replayed for as long as it stays valid (rule 13).
         tariffSnapshot: quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : null,
+        // specs/force-item-to-complement.md rule 19 — the arrival complement the engine priced, carried
+        // to the reservation at conversion.
+        complementAmount: roundMoney(quote.complementAmount || 0),
       };
       const names = Object.keys(columns).filter(hasReservationColumn);
       const info = database
@@ -704,12 +967,48 @@ function createModel(database) {
     return { ok: true, status: 201, data: findById(devisId) };
   }
 
-  function update(id, payload) {
+  // `source` is 'operator' for the back-office save, 'public' for a website request updated in place
+  // (`updateFromPublicRequest`): the history then says so, and the « modifiée après envoi » flag is set
+  // by the guest and cleared by the operator's next save (specs/public-request-abuse-and-grouping.md
+  // rules 13-14).
+  function update(id, payload, { source = 'operator', flagAfterSend = false } = {}) {
     const numId = Number(id);
     const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    // specs/ui-review-2026-10-19-operations.md rule 20 — a converted quote is a reservation now: saving
+    // it would re-date it and, once expired, re-price it at today's tariffs. Its reservation is edited
+    // instead.
+    if (existing.devisStatus === 'converted') {
+      return { error: 'Devis converti en réservation : la réservation se modifie à sa place.', status: 409, code: 'DEVIS_CONVERTED' };
+    }
+    // specs/reservations-backend-mvc.md rule 15 — what the devis already stores is not re-judged.
+    const inputRefusal = lineInputRefusal(payload, bookingLines.getStoredTypedCounts(numId), existing);
+    if (inputRefusal) return { ...inputRefusal, status: 400 };
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(Number(payload.propertyId || existing.propertyId));
     if (!property) return { error: 'Logement introuvable', status: 404 };
+    // specs/payment-link-lifecycle.md rule 46 — only a move (dates or logement) onto held nights is refused: a devis
+    // already there keeps its other edits.
+    const next = {
+      propertyId: Number(payload.propertyId || existing.propertyId),
+      startDate: payload.startDate || existing.startDate,
+      endDate: payload.endDate || existing.endDate,
+    };
+    // specs/reservations-backend-mvc.md rule 13 — only an edited date is held to the horizon.
+    const datesRefusal = stayDatesRefusal(next.startDate, next.endDate, { stored: existing });
+    if (datesRefusal) return datesRefusal;
+    const itemsRefusal = stayItemDatesRefusal({
+      options: payload.selectedOptions, resources: payload.selectedResources, startDate: next.startDate, endDate: next.endDate,
+      stored: bookingLines.getStoredItemDates(numId),
+    });
+    if (itemsRefusal) return itemsRefusal;
+    const validityRefusal = validUntilRefusal(payload.validUntil, existing.validUntil);
+    if (validityRefusal) return validityRefusal;
+    const moved = next.propertyId !== Number(existing.propertyId) || next.startDate !== existing.startDate || next.endDate !== existing.endDate;
+    // Rule 55 (R10-1) — a move onto closed nights, whatever the source; rule 46 — onto held nights, by the operator.
+    if (moved) {
+      const refused = closedDatesRefusal(next) || (source === 'operator' ? heldDatesRefusal({ ...next, excludeIds: [numId] }) : null);
+      if (refused) return refused;
+    }
 
     // specs/tourist-tax-included-services-deduction.md rules 4-5 — a service included in the rate
     // cannot be dropped from a devis any more than from a reservation: the fiche locks its Switch ON
@@ -736,25 +1035,24 @@ function createModel(database) {
       ])),
     };
 
-    const quote = computeQuote(payloadWithIncluded, existing, property);
-    const updateAlert = staleTypedCounts(payloadWithIncluded, quote, existing);
-    if (updateAlert) return updateAlert;
-    // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
-    const beforeSnapshot = snapshotFromDb(numId);
     // §3.2 rule 7 — backfill `validUntil` when the existing row has an empty value and the payload
     // doesn't override. This silently rescues legacy devis (NULL validUntil) on the first edit
     // without needing a data migration. specs/devis-extras-parity-and-price-lock.md §3 rule 14: a
     // devis that had EXPIRED is re-priced by `computeQuote`, so saving it re-issues a validity
     // window from today — the quote the operator just refreshed is a quote they can send again.
-    const resolvedValidUntil = (() => {
-      if (payload.validUntil !== undefined && payload.validUntil !== null) return payload.validUntil;
-      const quoteValidityDays = readQuoteValidityDays();
-      const startDateIso = payload.startDate || existing.startDate;
-      const today = sqliteNow().slice(0, 10);
-      if (existing.validUntil && !isDevisExpired(existing.validUntil, today)) return existing.validUntil;
-      const createdAtIsoDate = existing.validUntil ? today : String(existing.createdAt || sqliteNow()).slice(0, 10);
-      return computeValidUntil({ createdAtIsoDate, startDateIso, quoteValidityDays }) || null;
-    })();
+    // §3.2 rule 7 reading R32-RES-M1 — the one resolver, shared with the fiche's live quote.
+    const resolvedValidUntil = payload.validUntil !== undefined && payload.validUntil !== null
+      ? payload.validUntil
+      : validUntilOf(existing, { startDate: payload.startDate, reissueExpired: true });
+    // specs/deposit-blocks-the-dates.md rule 17 — the quote's due dates hang off the validity
+    // date the save is about to write, never the expired one it replaces: a re-issued devis owes its
+    // single payment on its new validity date, on the fiche and on the PDF alike.
+    const quote = computeQuote({ ...payloadWithIncluded, validUntil: resolvedValidUntil }, existing, property);
+    const updateAlert = staleTypedCounts(payloadWithIncluded, quote, existing);
+    if (updateAlert) return updateAlert;
+    if (quote.code === insuranceOffer.NOT_OFFERED.code || quote.code === resourceOffer.NOT_OFFERED.code) return { error: quote.error, status: quote.status, code: quote.code };
+    // Capture the audit baseline BEFORE persisting (fixes the former always-empty update history).
+    const beforeSnapshot = snapshotFromDb(numId);
 
     const tx = database.transaction(() => {
       // pdfLanguage (specs/devis-english-language.md §3 rule 1): preserve existing when not in
@@ -811,6 +1109,10 @@ function createModel(database) {
         // Written once, at creation, and replayed by every later save — except when the quote had
         // expired and was just re-priced, where the fresh snapshot IS the new promise.
         tariffSnapshot: quote.tariffSnapshot ? JSON.stringify(quote.tariffSnapshot) : (existing.tariffSnapshot || null),
+        complementAmount: roundMoney(quote.complementAmount || 0),
+        publicUpdatedAfterSendAt: source === 'public'
+          ? (flagAfterSend ? sqliteNow() : (existing.publicUpdatedAfterSendAt || null))
+          : null,
       };
       const names = Object.keys(columns).filter(hasReservationColumn);
       database
@@ -819,22 +1121,219 @@ function createModel(database) {
       persistLines(numId, quote);
       const afterSnapshot = snapshotFromDb(numId);
       const changes = computeAuditChanges(beforeSnapshot, afterSnapshot);
-      if (changes.length > 0) addHistoryEntry(numId, 'update', changes);
+      if (source === 'public') addHistoryEntry(numId, 'public_update', changes);
+      else if (changes.length > 0) addHistoryEntry(numId, 'update', changes);
     });
     tx();
+    const retiredLinks = retireStaleLinks(numId);
+    return { ok: true, data: { ...findById(numId), ...(retiredLinks.length ? { retiredPaymentLinks: retiredLinks.length } : {}) } };
+  }
+
+  /**
+   * Whatever path re-priced the devis (the operator's save, a guest's request sent again), an open payment
+   * link that bills another amount than the quote now asks is abandoned at once and deactivated at its
+   * provider after the commit; the poll retries a refusal and books the link at its own amount if the guest
+   * paid it anyway (specs/public-online-payment.md rule 14, specs/reservation-payment-ledger.md rules 29-31).
+   */
+  function retireStaleLinks(devisId) {
+    const exists = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'payment_links'").get();
+    if (!exists) return [];
+    const { staleLinks } = require('../utils/ledgerLinks');
+    const row = database.prepare("SELECT depositAmount, balanceAmount FROM reservations WHERE id = ? AND kind = 'devis'").get(devisId);
+    const open = database.prepare("SELECT * FROM payment_links WHERE reservationId = ? AND status = 'open' ORDER BY id").all(devisId);
+    const hasSplit = row && row.depositAmount != null && row.balanceAmount != null;
+    const stale = hasSplit ? staleLinks(open, row) : [];
+    if (stale.length === 0) return [];
+    const at = new Date().toISOString();
+    const retire = database.prepare("UPDATE payment_links SET status = 'cancelled', remoteCancelPendingAt = ?, cancelReason = 'amount-changed' WHERE id = ? AND status = 'open'");
+    const fmt = (cents) => require('../utils/reservationLedger').formatEuros(Number(cents || 0) / 100);
+    const retired = database.transaction(() => stale
+      .filter((link) => retire.run(link.providerLinkId ? at : null, link.id).changes > 0)
+      .map((link) => {
+        addHistoryEntry(devisId, 'update', [{ field: 'paymentLinkRetired', label: 'Lien de paiement', from: fmt(link.amountCents), to: 'retiré : montant du devis modifié' }]);
+        return { ...link, status: 'cancelled', remoteCancelPendingAt: link.providerLinkId ? at : null, cancelReason: 'amount-changed' };
+      }))();
+    if (retired.length === 0) return [];
+    setImmediate(() => {
+      const paymentLinksModel = require('./paymentLinksModel').buildModel(database);
+      const paymentProviders = require('../utils/paymentProviders');
+      const notificationService = require('../utils/notificationService');
+      const { checkConflict } = require('../utils/paymentEffectDeps');
+      require('../utils/retiredDevisLinks').settleRetiredDevisLinks(retired, {
+        database, paymentLinksModel, devisModel: createModel(database), provider: paymentProviders.active(),
+        notifyPaidAfterCancel: (link, options) => notificationService.notifyPaidAfterCancel(link, options),
+        notifyConflict: (id) => notificationService.notifyBookingConflict(id),
+        checkConflict,
+      }).catch((err) => console.error('[devis] link deactivation:', err && err.message ? err.message : err));
+    });
+    return retired;
+  }
+
+  /**
+   * A website request sent again for the same stay (specs/public-request-abuse-and-grouping.md rules
+   * 12-14): the open devis takes the new party, times, options and resources, priced by the engine as
+   * a creation would be (today's tariffs, the property's defaults), keeps its number, its token and
+   * its acceptances, and appends `note` to its notes. A devis the operator already sent — status
+   * `sent`/`accepted`, or a guest e-mail logged against it — is flagged « modifiée après envoi ».
+   *
+   * `payload` carries what `create` takes from a request (party, times, options, resources,
+   * planningCardAsQuantity). The beds the operator arranged, the discount and a custom price stay.
+   */
+  function updateFromPublicRequest(id, payload, { note = '' } = {}) {
+    const numId = Number(id);
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
+    if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    const status = existing.devisStatus || 'draft';
+    const emailed = (() => {
+      try {
+        return Boolean(database.prepare("SELECT 1 FROM email_log WHERE reservationId = ? AND status = 'sent' LIMIT 1").get(numId));
+      } catch { return false; }
+    })();
+    const wasSent = status === 'sent' || status === 'accepted' || emailed;
+    const notes = [String(existing.notes || '').trim(), String(note || '').trim()].filter(Boolean).join('\n\n');
+    const prepared = withCreationDefaults({
+      ...payload,
+      propertyId: Number(existing.propertyId),
+      startDate: existing.startDate,
+      endDate: existing.endDate,
+      clientId: Number(existing.clientId),
+    });
+    return update(numId, {
+      ...prepared,
+      refreshPricingToCurrent: true,
+      status,
+      platform: existing.platform,
+      singleBeds: existing.singleBeds,
+      doubleBeds: existing.doubleBeds,
+      notes,
+    }, { source: 'public', flagAfterSend: wasSent });
+  }
+
+  /**
+   * The guest wrote again about a quote the operator already handled
+   * (specs/public-request-abuse-and-grouping.md rule 21): nothing of the quote changes but its notes,
+   * which gain `note` (nothing when empty); a quote already sent is flagged so the operator reads it.
+   */
+  function appendPublicMessage(id, note) {
+    const numId = Number(id);
+    const existing = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
+    if (!existing) return { error: 'Devis non trouvé', status: 404 };
+    const status = existing.devisStatus || 'draft';
+    const emailed = (() => {
+      try {
+        return Boolean(database.prepare("SELECT 1 FROM email_log WHERE reservationId = ? AND status = 'sent' LIMIT 1").get(numId));
+      } catch { return false; }
+    })();
+    const wasSent = status === 'sent' || status === 'accepted' || emailed;
+    const text = String(note || '').trim();
+    database.transaction(() => {
+      const before = snapshotFromDb(numId);
+      if (text) {
+        const notes = [String(existing.notes || '').trim(), text].filter(Boolean).join('\n\n');
+        database.prepare("UPDATE reservations SET notes = ?, updatedAt = datetime('now') WHERE id = ? AND kind = 'devis'").run(notes, numId);
+      }
+      if (wasSent && hasReservationColumn('publicUpdatedAfterSendAt')) {
+        database.prepare("UPDATE reservations SET publicUpdatedAfterSendAt = ? WHERE id = ? AND kind = 'devis'").run(sqliteNow(), numId);
+      }
+      addHistoryEntry(numId, 'public_message', computeAuditChanges(before, snapshotFromDb(numId)));
+    })();
     return { ok: true, data: findById(numId) };
   }
 
-  function remove(id) {
-    const existing = database.prepare("SELECT id, convertedReservationId FROM reservations WHERE id = ? AND kind = 'devis'").get(Number(id));
+  // The operator opened the devis (GET /api/devis/:id): the first time is stamped, so the purge of
+  // untouched website requests never deletes one somebody read (rule 10).
+  function markOperatorSeen(id) {
+    if (!hasReservationColumn('operatorSeenAt')) return;
+    database.prepare("UPDATE reservations SET operatorSeenAt = ? WHERE id = ? AND kind = 'devis' AND operatorSeenAt IS NULL")
+      .run(sqliteNow(), Number(id));
+  }
+
+  /**
+   * Delete a website request nobody acted on (specs/public-request-abuse-and-grouping.md rule 10),
+   * with every row that names it (its lines, history, CGV acceptance) and its number retired. Refuses —
+   * `{ deleted: false }` — the moment anything says the operator handled it: a status other than
+   * draft, a conversion, an opening, an edit, a guest e-mail or a payment link. The caller chooses
+   * which rows are old enough; this re-checks that they are untouched, in the same transaction.
+   */
+  function purgePublicRequest(id) {
+    const numId = Number(id);
+    const tx = database.transaction(() => {
+      const row = database.prepare(`
+        SELECT r.id, r.devisNumber, r.clientId FROM reservations r
+         WHERE r.id = ? AND r.kind = 'devis' AND r.requestOrigin = 'public'
+           AND COALESCE(r.devisStatus, 'draft') = 'draft'
+           AND r.convertedReservationId IS NULL
+           AND r.operatorSeenAt IS NULL
+           AND NOT EXISTS (SELECT 1 FROM reservation_history h WHERE h.reservationId = r.id
+                            AND h.eventType NOT IN ('create', 'public_update', 'public_message', 'terms_accepted'))
+           AND NOT EXISTS (SELECT 1 FROM email_log l WHERE l.reservationId = r.id)
+           AND NOT EXISTS (SELECT 1 FROM payment_links p WHERE p.reservationId = r.id)
+      `).get(numId);
+      if (!row) return { deleted: false };
+      const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN ('reservations') AND name NOT LIKE 'sqlite_%'").all()
+        .map((t) => t.name)
+        .filter((name) => database.prepare(`PRAGMA table_info("${name}")`).all().some((c) => c.name === 'reservationId'));
+      tables.forEach((name) => database.prepare(`DELETE FROM "${name}" WHERE reservationId = ?`).run(numId));
+      database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(numId);
+      return { deleted: true, clientId: row.clientId, devisNumber: row.devisNumber };
+    });
+    return tx();
+  }
+
+  // The engine's own condition (rule 26 reading R36b L1): the delay of the logement the converted stay is on now.
+  function holdsPromise(devisRow, stayPropertyId) {
+    const property = database.prepare('SELECT balanceDaysBefore FROM properties WHERE id = ?').get(stayPropertyId) || {};
+    return devisPromiseHeld({ devisPromise: devisRow, balanceDaysBefore: property.balanceDaysBefore });
+  }
+
+  function removeRefusal(id) {
+    const existing = database.prepare(`SELECT id, convertedReservationId, platform, startDate, validUntil, depositAmount
+      FROM reservations WHERE id = ? AND kind = 'devis'`).get(Number(id));
     if (!existing) return { error: 'Devis non trouvé', status: 404 };
     // The CGV acceptance of a converted request lives on this row and is the stay's proof
     // (specs/terms-acceptance-record.md rule 29): deleting the devis would cascade it away.
     if (existing.convertedReservationId && database.prepare('SELECT 1 FROM terms_acceptances WHERE reservationId = ?').get(existing.id)) {
       return { error: "Ce devis porte l'acceptation des CGV de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409 };
     }
+    if (carriesMoney(database, [existing.id])) {
+      return { error: 'Un paiement est enregistré sur ce devis : le conserver plutôt que le supprimer.', status: 409, code: 'DEVIS_CARRIES_MONEY' };
+    }
+    // specs/deposit-blocks-the-dates.md rule 21 (R34-RES-L1) — the stay reads the devis's promise on this row
+    // (its single payment and deadline): deleting it would silently re-price the stay's schedule. A cancelled stay
+    // is never re-priced nor brought back, so it holds no deadline any more (rule 23). Only a devis that made the promise
+    // holds one (rule 26, R36-RES-L2): a direct devis owing one payment (rules 22, 24), the same condition as the engine.
+    const stay = existing.convertedReservationId
+      ? database.prepare("SELECT propertyId FROM reservations WHERE id = ? AND kind NOT IN ('devis', 'cancelled')").get(existing.convertedReservationId)
+      : null;
+    if (stay && holdsPromise(existing, stay.propertyId)) {
+      return { error: "Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas être supprimé.", status: 409, code: 'DEVIS_HOLDS_PROMISE' };
+    }
+    // Rule 27 (R37-RES-L2) — a link minted on the devis keeps its id and the stay reads it as its own: deleting the
+    // devis would withdraw the link the guest is about to pay, unseen. Refused while it is open or still owes the
+    // provider a deactivation or a last read.
+    if (stay && stayLinkOnDevis(existing.id)) {
+      return { error: 'Ce devis porte le lien de paiement de la réservation qui en est issue : il ne peut pas être supprimé.', status: 409, code: 'DEVIS_HOLDS_LINK' };
+    }
+    return null;
+  }
+
+  function stayLinkOnDevis(devisId) {
+    if (!database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'payment_links'").get()) return false;
+    const links = require('./paymentLinksModel').buildModel(database);
+    return Boolean(links.liveLinkReasonForStay(devisId, [...PRE_ARRIVAL_TYPES, 'complement'], { openToo: true }));
+  }
+
+  function remove(id) {
+    const refusal = removeRefusal(id);
+    if (refusal) return refusal;
     database.prepare("DELETE FROM reservations WHERE id = ? AND kind = 'devis'").run(Number(id));
     return { ok: true, data: { success: true } };
+  }
+
+  // The links a devis may have issued must not stay payable once the row is gone.
+  async function deactivateLinksBeforeRemove(id) {
+    const paymentLinksModel = require('./paymentLinksModel').buildModel(database);
+    return require('../utils/paymentLinkDeactivation').deactivateOpenLinksBeforeDelete(Number(id), { paymentLinksModel });
   }
 
   // Copy a booking's line graph from one reservations row to another (used by both convert flows).
@@ -863,13 +1362,79 @@ function createModel(database) {
       .run(...names.map((name) => values[name]), targetId);
   }
 
-  function convertToReservation(id) {
+  function provenComplementOf(reservationId) {
+    const sum = (table, amount) => {
+      try {
+        return Number(database.prepare(`SELECT COALESCE(SUM(${amount}), 0) AS t FROM ${table}
+          WHERE reservationId = ? AND COALESCE(offered, 0) = 0 AND COALESCE(inComplement, 0) = 1`).get(reservationId).t || 0);
+      } catch { return 0; }
+    };
+    const row = database.prepare('SELECT finalPrice, touristTaxTotal, touristTaxInComplement, depositAmount, balanceAmount FROM reservations WHERE id = ?').get(reservationId);
+    return provenComplementAmount({
+      ...row,
+      optionsTotal: sum('reservation_options', 'totalPrice'),
+      customTotal: sum('reservation_custom_options', 'amount'),
+      resourcesTotal: sum('reservation_resources', 'totalPrice'),
+    }) || 0;
+  }
+
+  // The schedule a converted stay starts with. A devis owing one payment (D23, or stored with no acompte: rule 22)
+  // gives it due on its validity date, never before today. A devis stored with an acompte outside D23 keeps its stored
+  // columns as they were (rule 5 reading R33: the conversion keeps the devis's promise). An acompte link paid on
+  // columns that still hold that acompte (not re-stored yet, specs/deposit-blocks-the-dates.md rule 20) is the money
+  // those columns asked for: the stay keeps them, never a 0 € acompte under a paid link.
+  function convertedSchedule(devisRow, property, { paidLinkType = null } = {}) {
+    const stored = {
+      depositAmount: devisRow.depositAmount, depositDueDate: devisRow.depositDueDate,
+      balanceAmount: devisRow.balanceAmount, balanceDueDate: devisRow.balanceDueDate,
+    };
+    if (paidLinkType === 'deposit' && Number(devisRow.depositAmount) > 0) return stored;
+    const single = isDirectChannel(devisRow.platform) && devisPromisesOnePayment({
+      startDate: devisRow.startDate, validUntil: devisRow.validUntil, balanceDaysBefore: property.balanceDaysBefore,
+      depositAmount: devisRow.balanceAmount == null ? null : devisRow.depositAmount,
+    });
+    if (!single) return stored;
+    const read = resolvePaymentSchedule(devisRow, property);
+    return {
+      depositAmount: 0,
+      depositDueDate: null,
+      balanceAmount: read.balanceAmount,
+      balanceDueDate: read.balanceAmount > 0 ? devisPromiseDueDate({ validUntil: devisRow.validUntil, bookingDate: todayIso() }) : null,
+    };
+  }
+
+  // `options.allowConflict` is for the paid-link path only: the money is already in, so the stay is
+  // created anyway and the caller flags the clash (specs/devis-accept-to-reservation.md rules 9 and 10).
+  // `options.paidLinkType` names the link whose payment converts (convertedSchedule).
+  function convertToReservation(id, options = {}) {
     const numId = Number(id);
     const devisRow = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'devis'").get(numId);
     if (!devisRow) return { error: 'Devis non trouvé', status: 404 };
     if (devisRow.convertedReservationId) return { error: 'Ce devis a déjà été converti en réservation', status: 400 };
+    // specs/reservations-backend-mvc.md rule 13 — the stay takes the devis's dates as stored, past the horizon or not.
+    const datesRefusal = stayDatesRefusal(devisRow.startDate, devisRow.endDate, { stored: devisRow });
+    if (datesRefusal) return datesRefusal;
     const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(devisRow.propertyId);
     if (!property) return { error: 'Logement introuvable', status: 404 };
+
+    if (!options.allowConflict) {
+      const { getNightBlocksFromTimes } = require('../utils/occupancy');
+      const reservations = require('./reservationsModel').create(database);
+      const unavailable = reservations.validateAvailability(
+        devisRow.propertyId, devisRow.startDate, devisRow.endDate, devisRow.checkInTime, devisRow.checkOutTime,
+        null, getNightBlocksFromTimes(devisRow.checkInTime, devisRow.checkOutTime), { allowPastDates: true },
+      );
+      if (unavailable) return { error: unavailable.error, status: 409, code: 'DATES_UNAVAILABLE' };
+      // Rule 10 — a devis holds no stock: this is the only place left to judge it.
+      const noStock = reservations.heldStockRefusal(devisRow);
+      if (noStock) return { error: noStock, status: 409, code: 'STOCK_UNAVAILABLE' };
+    }
+
+    // D23 (specs/deposit-blocks-the-dates.md rule 19) — the stay owes what the devis asked for: its schedule as the
+    // devis reads it, the single payment of a devis whose solde fell on or before its validity date included,
+    // due on that date (never before today: an expired quote converted late). The engine keeps it on the
+    // reservation's later saves (scheduleQuoteInputs → devisPromise).
+    const schedule = convertedSchedule(devisRow, property, { paidLinkType: options.paidLinkType || null });
 
     const tx = database.transaction(() => {
       const info = database.prepare(`
@@ -885,7 +1450,7 @@ function createModel(database) {
         devisRow.adults, devisRow.children, devisRow.teens, devisRow.babies,
         devisRow.singleBeds, devisRow.doubleBeds, devisRow.babyBeds, devisRow.checkInTime, devisRow.checkOutTime, devisRow.platform,
         devisRow.totalPrice, devisRow.touristTaxRate, devisRow.touristTaxTotal, devisRow.discountPercent, devisRow.customPrice, devisRow.finalPrice,
-        devisRow.depositAmount, devisRow.depositDueDate, devisRow.balanceAmount, devisRow.balanceDueDate, devisRow.cautionAmount, devisRow.notes,
+        schedule.depositAmount, schedule.depositDueDate, schedule.balanceAmount, schedule.balanceDueDate, devisRow.cautionAmount, devisRow.notes,
       );
       const reservationId = info.lastInsertRowid;
       copyLineGraph(numId, reservationId);
@@ -909,6 +1474,14 @@ function createModel(database) {
         attribution: devisRow.attribution || null,
         attributionAt: devisRow.attributionAt || null,
       });
+      // specs/force-item-to-complement.md rule 19 — the arrival complement travels with the lines it is
+      // made of (written after the routing columns above). A devis stored before it kept that amount
+      // is given the one its own totals prove.
+      if (hasReservationColumn('complementAmount')) {
+        const stored = roundMoney(devisRow.complementAmount || 0);
+        const proven = stored > 0 ? stored : provenComplementOf(reservationId);
+        if (proven > 0) database.prepare('UPDATE reservations SET complementAmount = ? WHERE id = ?').run(proven, reservationId);
+      }
       // Newly-real reservation → give it a number (specs/reservation-number-and-search.md §3 rule 5).
       assignReservationNumberIfMissing(database, reservationId);
 
@@ -918,10 +1491,44 @@ function createModel(database) {
       for (const entry of database.prepare('SELECT id, eventType, changedFields, createdAt FROM reservation_history WHERE reservationId = ? ORDER BY createdAt ASC').all(numId)) {
         insertHistory.run(reservationId, entry.eventType, entry.changedFields, entry.createdAt);
       }
+      require('../utils/staleLinksOfStay').retireStaleLinksOfStay(database, reservationId);
+      // specs/payment-link-lifecycle.md rule 32 (Adrien's case b) — the first of two devis paid holds the nights
+      // (its paid link is money, rule 37) and withdraws the other's link; a « Convertir » without money takes nothing.
+      require('../utils/datesTaken').withdrawForStay(database, reservationId);
       return reservationId;
     });
     const reservationId = tx();
     return { ok: true, data: { success: true, reservationId } };
+  }
+
+  // specs/payment-link-lifecycle.md rules 46 and 55, readings of 2026-11-01 (audit R11-2, review of #915) — the devis
+  // copies the stay's nights, so it is judged like any devis creation. A source that holds them refuses its own copy
+  // with its own reason and is never listed: the operator is on that fiche. `locksStay` marks the refusals the stay
+  // itself causes (its nights closed, or held by itself), which the fiche shows before the action is tried.
+  function convertRefusalOf(reservation) {
+    const range = { propertyId: reservation.propertyId, startDate: reservation.startDate, endDate: reservation.endDate };
+    const closed = closedDatesRefusal(range);
+    if (closed) return { locksStay: true, refusal: { ...closed, error: 'Logement fermé sur ces dates : devis non créé.' } };
+    const { heldOverlaps, stayRefs } = require('../utils/datesTaken');
+    const holders = heldOverlaps(database, range);
+    if (holders.length === 0) return null;
+    const others = holders.filter((row) => Number(row.id) !== Number(reservation.id));
+    const own = others.length < holders.length;
+    const ownReason = isDirectChannel(reservation.platform) ? 'Séjour déjà payé : devis non créé.' : 'Séjour de plateforme : devis non créé.';
+    return {
+      locksStay: own,
+      refusal: {
+        error: own ? ownReason : 'Dates déjà réservées : devis non créé.', status: 409, code: 'DATES_HELD',
+        stays: stayRefs(database, others, String(range.startDate).slice(0, 4)),
+      },
+    };
+  }
+
+  function convertToDevisLockedReason(reservationId) {
+    const reservation = database.prepare("SELECT id, propertyId, startDate, endDate, platform FROM reservations WHERE id = ? AND kind = 'reservation'").get(Number(reservationId));
+    if (!reservation) return null;
+    const refused = convertRefusalOf(reservation);
+    return refused && refused.locksStay ? refused.refusal.error : null;
   }
 
   function convertFromReservation(reservationId) {
@@ -929,13 +1536,23 @@ function createModel(database) {
     const reservation = database.prepare("SELECT * FROM reservations WHERE id = ? AND kind = 'reservation'").get(numId);
     if (!reservation) return { error: 'Réservation introuvable', status: 404 };
 
+    const refused = convertRefusalOf(reservation);
+    if (refused) return refused.refusal;
+
     const devisNumber = database.generateDevisNumber();
 
     // §3.1 + §3.2 — populate createdAt + validUntil on the new devis row (rules 2 + 8).
     const createdAt = sqliteNow();
-    const createdAtDate = createdAt.slice(0, 10);
+    const createdAtDate = todayIso();
     const quoteValidityDays = readQuoteValidityDays();
     const validUntil = computeValidUntil({ createdAtIsoDate: createdAtDate, startDateIso: reservation.startDate, quoteValidityDays }) || null;
+    // The quote's own schedule, as findById will read it: its acompte due on its validity date, or no acompte
+    // at all when its solde falls on or before that date (D23, specs/deposit-blocks-the-dates.md rule 19).
+    const property = database.prepare('SELECT id, depositPercent, balanceDaysBefore FROM properties WHERE id = ?').get(reservation.propertyId);
+    const schedule = resolvePaymentSchedule(
+      { ...reservation, validUntil, createdAt },
+      { ...property, depositEnabled: readDepositEnabled(reservation.propertyId) },
+    );
 
     const tx = database.transaction(() => {
       const info = database.prepare(`
@@ -949,7 +1566,7 @@ function createModel(database) {
         reservation.adults, reservation.children, reservation.teens, reservation.babies,
         reservation.singleBeds, reservation.doubleBeds, reservation.babyBeds, reservation.checkInTime, reservation.checkOutTime, reservation.platform,
         reservation.totalPrice, reservation.touristTaxRate, reservation.touristTaxTotal, reservation.discountPercent, reservation.customPrice, reservation.finalPrice,
-        reservation.depositAmount, reservation.depositDueDate, reservation.balanceAmount, reservation.balanceDueDate, reservation.cautionAmount || 0, reservation.notes,
+        schedule.depositAmount, schedule.depositDueDate, schedule.balanceAmount, schedule.balanceDueDate, reservation.cautionAmount || 0, reservation.notes,
         validUntil, createdAt,
       );
       const devisId = info.lastInsertRowid;
@@ -968,16 +1585,28 @@ function createModel(database) {
   return {
     enrichDevis,
     resolvePaymentSchedule,
+    restoreSinglePayments,
     list,
+    updateFromPublicRequest,
+    __retireStaleLinks: retireStaleLinks,
+    appendPublicMessage,
+    markOperatorSeen,
+    purgePublicRequest,
     findById,
+    storedVersion,
     recomputeQuote,
     getHistory,
     updateStatus,
     create,
     update,
+    previewExtension,
+    extend,
     remove,
+    removeRefusal,
+    deactivateLinksBeforeRemove,
     convertToReservation,
     convertFromReservation,
+    convertToDevisLockedReason,
   };
 }
 

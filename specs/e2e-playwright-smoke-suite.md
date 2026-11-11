@@ -125,6 +125,38 @@ or mutable state.
     selectors. Resilient to MUI structural changes during the Vite migration.
 19. **Timeouts**: action timeout 5 s, navigation 10 s, expect 5 s. Suite-wide
     timeout 30 s per spec. CI total budget < 5 min.
+20. **Specs that rewrite global state never overlap other specs** (2026-10-28 audit). The VAT specs
+    (`vat-regime-switch`, `vat-franchise`, `vat-roundtrip`: global regime and rate) and `laundry-days` (global
+    laundry schedule) are each their own Playwright project, run after the main `chromium` project (the VAT
+    ones one after the other) so that a spec reading « TVA 10 % » or placing an extra trip on a free Thursday
+    never meets a state in flux. `vat-roundtrip` puts the rate back to 10 % when done.
+    The layout lives in `e2e/projects.js` (no dependency, so a server unit test reads it). The serial projects
+    must depend on `chromium`: a dependency is the only way Playwright orders projects, so a failure of the main
+    project skips them.
+21. **The server log is an artifact** (2026-10-29 audit R3). The `webServer` of the main project sends the
+    server's stdout/stderr to `playwright-server.log` (`GUESTFLOW_E2E_SERVER_LOG` overrides the path) instead of
+    a pipe nobody reads, and the failure upload of `e2e.yml` ships it with `playwright-report/`, so a screenshot
+    showing a blank fiche can be read against what the server said. Boot errors therefore go to that file, not
+    the console. The bare project writes `playwright-server-bare.log`, uploaded by its own job; since 2026-10-29 (audit R4) the
+    production-build project writes `playwright-server-prod.log` (`playwright.prod.config.js`), uploaded by the
+    `production-build` job beside `playwright-report-prod/`: a packages-mode failure is where the server's
+    word matters most.
+22. **A spec is repeatable** (`--repeat-each`): what it creates carries a per-repetition name
+    (`booking-intake` builds its property name from `testInfo.repeatEachIndex`), because a duplicate label breaks a
+    strict locator on the second run. Repeatable means `--repeat-each N --workers=1` only: repeats in parallel
+    workers share one database and race on its state (CI runs one worker).
+
+23. **The E2E servers reach no external service** (added 2026-10-30, audit R7 L-1). The main `webServer`
+    command (`playwright.config.js`, which the bare suite reuses), `e2e/prod/serve.js` and `e2e/removal/serve.js`
+    start the server with `GUESTFLOW_DISABLE_OUTBOUND=1`: no release check (specs/self-update-and-releases.md
+    rule 51) and no school-holidays sync (specs/school-holidays.md rule 27). Before, every run read
+    `data.education.gouv.fr` and the GitHub releases API, so the holiday table and the update state differed
+    between the specs that ran before and after the 60 s mark, and an outage or a rate limit could change a CI
+    run. `NODE_ENV=test` alone does not imply it: unit tests drive both code paths with stubbed fetches. The
+    reverse holds too: the flag is honoured only under `NODE_ENV=test`, which every E2E server sets. Test:
+    `e2e-no-outbound.unit.test.js`.
+    _(Reading of 2026-11-05, audit R23: they also pin `QONTO_API_BASE` and `QONTO_OAUTH_BASE` to a dead local port,
+    which since `qonto-settings-in-app.md` rule 5's reading of that day holds with a stored environment. Same test.)_
 
 ### 3.4 Test coverage — one or more specs per implemented `/specs/` feature
 

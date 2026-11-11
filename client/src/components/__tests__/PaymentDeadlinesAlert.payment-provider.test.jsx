@@ -1,0 +1,76 @@
+import { vi } from 'vitest';
+/**
+ * specs/plugins-phase-3a-online-payment.md rules 5, 9, 19 — the dashboard card follows the server:
+ * no « Relancer » without a payment provider (`remindType: null`), and a cancellation whose payment
+ * link could not be deactivated says so, in the server's words.
+ */
+
+import React from 'react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import DialogProvider from '../DialogProvider';
+
+vi.mock('../../api', () => ({
+  __esModule: true,
+  default: {
+    getPaymentDeadlines: vi.fn(),
+    snoozePaymentDeadline: vi.fn(),
+    remindPaymentDeadline: vi.fn(),
+    cancelReservation: vi.fn(),
+    getCancellationPreview: vi.fn(),
+  },
+}));
+
+import api from '../../api';
+import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
+
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
+
+const ROW = {
+  reservationId: 10,
+  reservationNumber: '2026-09-004',
+  state: 'cancel_due',
+  severity: 'error',
+  clientName: 'Marie Dupont',
+  clientEmail: 'marie@example.com',
+  propertyName: 'Le Lodge',
+  startDate: '2026-09-18',
+  endDate: '2026-09-25',
+  depositDue: 0,
+  balanceDue: 640,
+  totalDue: 640,
+  dueDate: '2026-08-09',
+  daysLate: 10,
+  cancelOn: '2026-08-16',
+  canCancel: true,
+  retainedDepositAmount: 274,
+  canRemind: true,
+  remindType: 'balance',
+  requestSent: true,
+};
+
+const renderCard = () => render(<DialogProvider><PaymentDeadlinesAlert attention={ATTENTION} /></DialogProvider>);
+
+beforeEach(() => vi.clearAllMocks());
+
+test('rule 5 — without a payment provider the row keeps « Reporter » and loses « Relancer »', async () => {
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [{ ...ROW, remindType: null }] });
+  renderCard();
+  expect(await screen.findByRole('button', { name: 'Reporter' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Relancer' })).not.toBeInTheDocument();
+});
+
+test('rule 9 — a link the provider still accepts is named after the cancellation', async () => {
+  const warning = 'Lien de paiement encore actif chez Qonto : à désactiver depuis Qonto.';
+  api.getPaymentDeadlines.mockResolvedValue({ rows: [ROW] });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 274, indemnityAmount: 274, writtenOffBalance: 640 });
+  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 120, indemnityAmount: 120, paymentLinksNotDeactivated: 1, paymentLinksWarning: warning });
+  renderCard();
+  await userEvent.click(await screen.findByRole('button', { name: 'Annuler le séjour' }));
+  const dialog = await screen.findByRole('dialog');
+  await within(dialog).findByText('274,00 €');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler le séjour' }));
+  // The deposit kept is still said, with the warning.
+  await waitFor(() => expect(screen.getByText(/^Séjour annulé — 120,00\s€ conservés en indemnité\. Lien de paiement encore actif chez Qonto/)).toBeInTheDocument());
+});

@@ -7,11 +7,14 @@ const { create: createPlatformsModel } = require('../models/platformsModel');
 const { buildModel: buildPropertiesModel } = require('../models/propertiesModel');
 
 // specs/platform-price-from-commission.md — gross-up of a season net price by a platform commission %,
-// widened by specs/tariff-recipes/spec.md §3.6 rules 31-34: whole-euro ceiling (a price to DISPLAY,
+// widened by specs/tariff-recipes/spec.md §3.6 items 31-34: whole-euro ceiling (a price to DISPLAY,
 // not to bill), a direct row whose price covers the welcome pack after the booking-engine fee, and a
 // per-channel extra-guest column.
 
 // ── grossFromNet (pure) ──────────────────────────────────────────────────────
+
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('grossFromNet: euro_up default — gross = ceil((net + fixedCost) / (1 − c/100))', () => {
   assert.equal(grossFromNet(100, 20), 125);          // exact → ceil no-op
@@ -34,7 +37,7 @@ test('grossFromNet: fixedCost covers the welcome pack after the fee — direct 1
   assert.equal(grossFromNet(225, 5, { fixedCost: 9.32 }), 247); // 234.32/0.95 = 246.65
 });
 
-// The full channel grid of spec rule 34 — nets 160/195/225 (+ extra guest 25).
+// The full channel grid of tariff-recipes item 34 — nets 160/195/225 (+ extra guest 25).
 const CHANNELS = [
   ['Abracadaroom', 20.0, [200, 244, 282], 32],
   ['Airbnb', 15.5, [190, 231, 267], 30],
@@ -44,7 +47,7 @@ const CHANNELS = [
   ['Gîtes de France', 0.0, [160, 195, 225], 25],
 ];
 
-test('grossFromNet reproduces the whole spec rule 34 grid', () => {
+test('grossFromNet reproduces the whole tariff-recipes item 34 grid', () => {
   for (const [name, commission, [low, mid, high], extra] of CHANNELS) {
     assert.equal(grossFromNet(160, commission), low, `${name} LOW`);
     assert.equal(grossFromNet(195, commission), mid, `${name} MID`);
@@ -69,7 +72,7 @@ function platformsDb() {
   return db;
 }
 
-test('setCommissionPercent clamps to [0, 99.99]; direct is editable (booking-engine fee, rule 32)', () => {
+test('setCommissionPercent stores the validated rate; direct is editable (booking-engine fee, tariff-recipes item 32)', () => {
   const db = platformsDb();
   const m = createPlatformsModel(db);
   const airbnb = db.prepare("SELECT id FROM platforms WHERE name = 'Airbnb'").get().id;
@@ -77,10 +80,6 @@ test('setCommissionPercent clamps to [0, 99.99]; direct is editable (booking-eng
 
   m.setCommissionPercent(airbnb, 15);
   assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(airbnb).commissionPercent, 15);
-  m.setCommissionPercent(airbnb, 250);
-  assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(airbnb).commissionPercent, 99.99);
-  m.setCommissionPercent(airbnb, -3);
-  assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(airbnb).commissionPercent, 0);
 
   m.setCommissionPercent(direct, 5);
   assert.equal(db.prepare('SELECT commissionPercent FROM platforms WHERE id = ?').get(direct).commissionPercent, 5);

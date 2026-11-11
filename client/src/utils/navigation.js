@@ -7,19 +7,63 @@ export function withFrom(path, from) {
 export function getFromParam(searchSource) {
   if (!searchSource) return '';
 
+  let raw = '';
   if (typeof searchSource.get === 'function') {
-    return searchSource.get('from') || '';
+    raw = searchSource.get('from') || '';
+  } else if (typeof searchSource === 'string') {
+    const query = searchSource.startsWith('?') ? searchSource.slice(1) : searchSource;
+    raw = new URLSearchParams(query).get('from') || '';
   }
 
-  if (typeof searchSource === 'string') {
-    const raw = searchSource.startsWith('?') ? searchSource.slice(1) : searchSource;
-    return new URLSearchParams(raw).get('from') || '';
-  }
-
-  return '';
+  return isInAppPath(raw) ? raw : '';
 }
 
-export function navigateBackWithFrom(navigate, from) {
-  if (from) navigate(from);
-  else navigate(-1);
+// Where a page opened directly goes back to: the planning (specs/ui-review-2026-10-19-operations.md
+// rule 22).
+export const DEFAULT_BACK_PATH = '/planning';
+
+/**
+ * True when the browser's previous entry is a page of this app. React Router numbers the entries it
+ * pushes (`history.state.idx`, 0 for the page the tab opened on): a page opened directly — a link
+ * in a new tab, a bookmark — has nothing of the app behind it, and `navigate(-1)` would leave it.
+ */
+export function hasInAppHistory() {
+  const state = typeof window !== 'undefined' ? window.history.state : null;
+  return Boolean(state && Number(state.idx) > 0);
+}
+
+/** Back one page inside the app, or to `fallback` when the page was opened directly. */
+export function navigateBack(navigate, fallback = DEFAULT_BACK_PATH) {
+  if (hasInAppHistory()) navigate(-1);
+  else navigate(fallback, { replace: true });
+}
+
+/**
+ * An in-app path. URL parsers drop tab, LF and CR and read `\` as `/`, so `/\t/host` or `/\\host` point to
+ * another origin: control characters and backslashes are refused, and the target must resolve to our origin.
+ */
+export function isInAppPath(target) {
+  if (typeof target !== 'string' || !target.startsWith('/') || target.startsWith('//')) return false;
+  if (/[\u0000-\u001F\\]/.test(target)) return false;
+  try {
+    return new URL(target, window.location.origin).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+export function navigateBackWithFrom(navigate, from, fallback = DEFAULT_BACK_PATH) {
+  if (isInAppPath(from)) navigate(from);
+  else navigateBack(navigate, fallback);
+}
+
+/**
+ * The `?next=` a sign-in returns to (generic: a backend page that needs a session sends the operator to
+ * `/login?next=<its path>`). Only a path of this origin: no `//host`, no scheme, no backslash or control character,
+ * never back to `/login` itself — anything else answers '' and the sign-in goes home.
+ */
+export function safeReturnPath(raw) {
+  if (!isInAppPath(raw)) return '';
+  if (raw === '/login' || raw.startsWith('/login?') || raw.startsWith('/login/')) return '';
+  return raw;
 }

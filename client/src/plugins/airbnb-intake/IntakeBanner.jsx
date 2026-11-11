@@ -2,7 +2,7 @@
  * IntakeBanner — what the Airbnb booking mail did to this fiche (specs/airbnb-mail-intake.md rule 14), at
  * the top of the reservation page (slot `reservation.banners`).
  *
- * States, all decided server-side: `applied` (dismissible; the phone and e-mail are not in the mail),
+ * States, all decided server-side (a `proposed` intake whose sender is not authenticated warns « Expéditeur non vérifié »): `applied` (dismissible; the phone and e-mail are not in the mail),
  * `proposed` (the fiche was already edited: Appliquer / Ignorer), `error`. Each links to the reservation
  * on Airbnb. Renders nothing otherwise.
  *
@@ -60,7 +60,8 @@ export default function IntakeBanner({ reservationId, onReservationChanged }) {
 
   return (
     <Banner
-      severity="info"
+      severity={intake.senderUnverified ? 'warning' : 'info'}
+      title={intake.senderUnverified ? 'Expéditeur non vérifié' : undefined}
       busy={busy}
       error={error}
       link={link}
@@ -69,7 +70,9 @@ export default function IntakeBanner({ reservationId, onReservationChanged }) {
         { key: 'ignore', label: 'Ignorer', onClick: dismiss },
       ]}
     >
-      Le {mail} ({intake.code}) concerne cette fiche, déjà modifiée à la main.
+      {intake.senderUnverified
+        ? `Le ${mail} (${intake.code}) n’est pas signé par Airbnb. Rien n’est rempli tant qu’il n’est pas appliqué.`
+        : `Le ${mail} (${intake.code}) concerne cette fiche, déjà modifiée à la main.`}
     </Banner>
   );
 }

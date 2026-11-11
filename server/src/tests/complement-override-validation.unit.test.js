@@ -91,20 +91,20 @@ function save(over) {
 test('rule 7 — un complément d’arrivée négatif est refusé, pas stocké', () => {
   const { captures, res } = save({ complementAmountOverride: -5 });
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'NEGATIVE_AMOUNT');
+  assert.equal(res.body.code, 'NEGATIVE_AMOUNT');
   assert.equal(captures.payload, undefined);
 });
 
 test('rule 7 — le complément de fin de séjour est branché sur le même validateur', () => {
   const { res } = save({ endOfStayComplementAmountOverride: -0.01 });
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'NEGATIVE_AMOUNT');
+  assert.equal(res.body.code, 'NEGATIVE_AMOUNT');
 });
 
 test('rule 7 — ce qui n’est pas un nombre est refusé, jamais coercé', () => {
   const { res } = save({ complementAmountOverride: 'quatre-vingts' });
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'NOT_A_NUMBER');
+  assert.equal(res.body.code, 'NOT_A_NUMBER');
 });
 
 // specs/adjustable-complement-amounts.md rule 3 — le champ vide vaut « calcul automatique » : c'est

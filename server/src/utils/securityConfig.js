@@ -65,7 +65,9 @@ function buildHelmetOptions({ isProduction, httpsEnabled }) {
             scriptSrc: ["'self'"],
             styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
             imgSrc: ["'self'", 'data:', 'blob:'],
-            connectSrc: ["'self'"],
+            // specs/security-hardening.md rule 12 — the city autocomplete of the client forms asks
+            // the French government's commune lookup, and nothing else leaves the page.
+            connectSrc: ["'self'", 'https://geo.api.gouv.fr'],
             fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
             objectSrc: ["'none'"],
             frameAncestors: ["'none'"],

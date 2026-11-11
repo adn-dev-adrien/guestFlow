@@ -30,6 +30,9 @@ vi.mock('react-router', () => ({
 import api from '../../api';
 import IcalCancellationAlert from '../IcalCancellationAlert';
 
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'ical-cancellation', severity: 'todo', count: 1, title: 'Annulations iCal à valider', detail: '1 réservation annulée sur la plateforme' };
+
 const ALERT = {
   id: 8,
   reservationId: 12345,
@@ -49,7 +52,7 @@ beforeEach(() => {
   api.approveIcalCancellation.mockResolvedValue({ ok: true, outcome: 'approved', compensationId: null });
 });
 
-const renderAlert = () => render(<DialogProvider><IcalCancellationAlert /></DialogProvider>);
+const renderAlert = () => render(<DialogProvider><IcalCancellationAlert attention={ATTENTION} /></DialogProvider>);
 
 test('« Supprimer » no longer deletes straight away — it asks about the indemnity first', async () => {
   const user = userEvent.setup();

@@ -11,8 +11,9 @@
  * deletion had already happened. The fix mirrors the edit-side `lastHandledClientIdRef`
  * (see `ClientsPage.save-cancel.test.jsx`).
  *
- * Also covers the « Supprimer » button added to the client sheet, and the removal of the Notes
- * column from the list.
+ * Also covers the « Supprimer » button of the client sheet — the only way to delete since the
+ * amendment of 2026-10-28 (clients.md rule 15: no trash icon in the list rows) — and the removal of
+ * the Notes column from the list.
  */
 
 import React from 'react';
@@ -53,6 +54,7 @@ vi.mock('../../components/DialogProvider', () => ({
 
 import api from '../../api';
 import ClientsPage from '../ClientsPage';
+import { directoryClient, directoryPayload, oneGroup } from './clientsDirectoryFixtures';
 
 const SAMPLE_CLIENT = {
   id: 42,
@@ -99,9 +101,17 @@ function getUrl() {
 
 const CONFIRM_TITLE = 'Confirmer la suppression du client';
 
+// The list has no trash icon any more: the confirmation is reached through the client sheet.
+async function openDeleteDialogFromSheet(user) {
+  fireEvent.click(await screen.findByRole('button', { name: /Dupont/ }));
+  await screen.findByText('Modifier le client');
+  await user.click(screen.getByRole('button', { name: 'Supprimer' }));
+  await screen.findByText(CONFIRM_TITLE);
+}
+
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn?.mockReset?.());
-  api.getClientsDirectory.mockResolvedValue({ items: [SAMPLE_CLIENT], counts: { upcoming: 1, past: 0 } });
+  api.getClientsDirectory.mockResolvedValue(directoryPayload({ groups: [oneGroup([directoryClient(SAMPLE_CLIENT)])] }));
   api.getClient.mockResolvedValue(SAMPLE_CLIENT);
   api.getClientDeleteImpact.mockResolvedValue({
     client: SAMPLE_CLIENT, reservationsCount: 0, reservations: [], devisCount: 0, devis: [],
@@ -111,14 +121,14 @@ beforeEach(() => {
   api.deleteClient.mockResolvedValue({ ok: true });
 });
 
-describe('ClientsPage — the list no longer carries the Notes column', () => {
-  test('the table headers stop at Ville + Actions, and the note is not rendered in the row', async () => {
+describe('ClientsPage — the list rows carry no note and no delete icon (clients.md rule 15)', () => {
+  test('a row shows the name and its stay, never the note, and has no « Supprimer » button', async () => {
     renderAt('/clients');
-    await screen.findByText('Dupont');
+    await screen.findByText(/Dupont/);
 
-    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent.trim());
-    expect(headers).toEqual(['Nom', 'Prénom', 'Séjour', 'Email', 'Téléphone', 'CP', 'Ville', 'Actions']);
     expect(screen.queryByText(/Client fidèle/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Supprimer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
   });
 });
 
@@ -135,14 +145,15 @@ describe('ClientsPage — deleting from the client sheet', () => {
     await waitFor(() => {
       expect(screen.queryByText('Modifier le client')).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients?deleteClientId=42');
+    // specs/server-test-isolation.md rule 11 (audit R27-S2): the router commits the URL after the dialog closes.
+    await waitFor(() => expect(getUrl()).toBe('/clients?deleteClientId=42'));
     expect(api.deleteClient).not.toHaveBeenCalled();
   });
 
   test('a new client (no id) gets no « Supprimer » button', async () => {
     const user = userEvent.setup();
     renderAt('/clients');
-    await screen.findByText('Dupont');
+    await screen.findByText(/Dupont/);
 
     await user.click(screen.getByRole('button', { name: /Nouveau client/ }));
     await screen.findByText('Nouveau client', { selector: 'h2' });
@@ -156,45 +167,38 @@ describe('ClientsPage — the confirmation dialog closes when asked (2026-09-25 
   test('« Annuler » closes the dialog AND clears ?deleteClientId — it must not re-open', async () => {
     const user = userEvent.setup();
     renderAt('/clients');
-    const row = (await screen.findByText('Dupont')).closest('tr');
-    fireEvent.click(within(row).getByRole('button', { name: 'Supprimer' }));
-    await screen.findByText(CONFIRM_TITLE);
+    await openDeleteDialogFromSheet(user);
 
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Annuler' }));
 
     await waitFor(() => {
       expect(screen.queryByText(CONFIRM_TITLE)).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients');
+    await waitFor(() => expect(getUrl()).toBe('/clients'));
     // The old race re-opened the dialog, which re-fetched the impact. Give the effect a chance
     // to misbehave, then prove it stayed closed.
     await waitFor(() => expect(screen.queryByText(CONFIRM_TITLE)).not.toBeInTheDocument());
     expect(api.deleteClient).not.toHaveBeenCalled();
   });
 
-  test('clicking the trash again on the same client re-opens the dialog', async () => {
+  test('deleting again from the sheet of the same client re-opens the dialog', async () => {
     const user = userEvent.setup();
     renderAt('/clients');
-    const row = (await screen.findByText('Dupont')).closest('tr');
-
-    fireEvent.click(within(row).getByRole('button', { name: 'Supprimer' }));
-    await screen.findByText(CONFIRM_TITLE);
+    await openDeleteDialogFromSheet(user);
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Annuler' }));
     await waitFor(() => expect(screen.queryByText(CONFIRM_TITLE)).not.toBeInTheDocument());
 
-    fireEvent.click(within(row).getByRole('button', { name: 'Supprimer' }));
-    expect(await screen.findByText(CONFIRM_TITLE)).toBeInTheDocument();
+    await openDeleteDialogFromSheet(user);
+    expect(screen.getByText(CONFIRM_TITLE)).toBeInTheDocument();
     expect(getUrl()).toBe('/clients?deleteClientId=42');
   });
 
   test('« Confirmer la suppression » deletes once and leaves no dialog behind', async () => {
     const user = userEvent.setup();
     renderAt('/clients');
-    const row = (await screen.findByText('Dupont')).closest('tr');
-    fireEvent.click(within(row).getByRole('button', { name: 'Supprimer' }));
-    await screen.findByText(CONFIRM_TITLE);
+    await openDeleteDialogFromSheet(user);
     const impactCallsBeforeDelete = api.getClientDeleteImpact.mock.calls.length;
-    api.getClientsDirectory.mockResolvedValue({ items: [], counts: { upcoming: 0, past: 0 } });
+    api.getClientsDirectory.mockResolvedValue(directoryPayload());
 
     await user.click(screen.getByRole('button', { name: 'Confirmer la suppression' }));
 
@@ -204,10 +208,59 @@ describe('ClientsPage — the confirmation dialog closes when asked (2026-09-25 
     await waitFor(() => {
       expect(screen.queryByText(CONFIRM_TITLE)).not.toBeInTheDocument();
     });
-    expect(getUrl()).toBe('/clients');
+    await waitFor(() => expect(getUrl()).toBe('/clients'));
     // The bug: the dialog re-opened on a deleted client and asked the server for its impact again,
     // which answered 404 « Client non trouvé ».
     expect(api.getClientDeleteImpact.mock.calls.length).toBe(impactCallsBeforeDelete);
     expect(api.deleteClient).toHaveBeenCalledTimes(1);
+  });
+});
+
+// specs/clients.md rule 16 — cancelled and set-aside stays are listed with a badge, and a delete the
+// server will refuse shows its refusal instead of the confirmation lists.
+describe('ClientsPage — protected history (clients.md rule 16)', () => {
+  const stay = (over) => ({
+    id: 1, clientId: 42, propertyId: 1, propertyName: 'Gîte', startDate: '2099-06-01', endDate: '2099-06-04',
+    nights: 3, platform: 'Direct', finalPrice: 300, adults: 2, children: 0, teens: 0, babies: 0, kind: 'reservation', ...over,
+  });
+
+  test('the sheet badges a cancelled and a set-aside stay, and not a live one', async () => {
+    api.getClientDeleteImpact.mockResolvedValue({
+      client: SAMPLE_CLIENT,
+      reservationsCount: 3,
+      reservations: [stay({ id: 1 }), stay({ id: 2, kind: 'cancelled' }), stay({ id: 3, kind: 'superseded' })],
+      devisCount: 0, devis: [], blocker: null,
+    });
+    renderAt('/clients?clientId=42');
+    await screen.findByText('Modifier le client');
+
+    expect(await screen.findByText('Annulée')).toBeInTheDocument();
+    expect(screen.getByText('Écartée')).toBeInTheDocument();
+    expect(screen.getAllByText('Gîte')).toHaveLength(3);
+  });
+
+  test('a delete the server refuses shows a neutral « Suppression impossible » dialog with only the refusal and « Fermer »', async () => {
+    const user = userEvent.setup();
+    api.getClientDeleteImpact.mockResolvedValue({
+      client: SAMPLE_CLIENT,
+      reservationsCount: 1,
+      reservations: [stay({ id: 2, kind: 'cancelled' })],
+      devisCount: 0, devis: [], blocker: 'Ce client a une réservation annulée.',
+    });
+    renderAt('/clients');
+    fireEvent.click(await screen.findByRole('button', { name: /Dupont/ }));
+    await screen.findByText('Modifier le client');
+    await user.click(screen.getByRole('button', { name: 'Supprimer' }));
+    await screen.findByText('Suppression impossible');
+
+    const dialog = screen.getByRole('dialog');
+    expect(await within(dialog).findByText('Ce client a une réservation annulée.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Suppression impossible')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Confirmer la suppression du client/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/supprimera aussi toutes ses réservations/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Réservations qui seront supprimées/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Confirmer la suppression' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
+    expect(api.deleteClient).not.toHaveBeenCalled();
   });
 });

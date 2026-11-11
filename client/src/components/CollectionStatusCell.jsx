@@ -27,7 +27,7 @@ import { Box, Tooltip, Typography } from '@mui/material';
 import StatusBadge from './StatusBadge';
 import { formatCurrency } from '../utils/formatters';
 
-const PART_STATE_LABEL = { ok: 'OK', pending: 'NON', deferred: 'reporté' };
+const PART_STATE_LABEL = { ok: 'OK', pending: 'dû', deferred: 'reporté' };
 
 const ALERT_LABEL = {
   arrival: (amount) => `Complément à encaisser ${formatCurrency(amount)}`,

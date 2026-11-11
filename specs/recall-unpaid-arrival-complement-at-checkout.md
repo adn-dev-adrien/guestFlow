@@ -107,10 +107,30 @@ the complement), the arrival complement silently stays unpaid and is never recal
      de séjour » au lieu de « Total à percevoir ». Sans ça, l'opérateur réclame au client une somme
      déjà payée.
 
-   **Constaté en production** sur la réservation 22281 (Harmen Van Dijk), et **rejoué à l'identique en
+   **Constaté en production** sur la réservation 22281 (Whiskey Lima), et **rejoué à l'identique en
    dev** le 2026-08-31 avant correction : même ligne d'historique « Complément de fin de séjour
    encaissé : oui → non », groupe promettant 281,98 € dont une moitié redevenue due, et deux écritures
    en comptabilité au lieu d'une carte.
+
+10. **Le SAS départ ne re-tamponne pas non plus ce qu'il n'a pas encaissé** (audit R25-A1, 2026-11-06,
+   même classe que la règle 9bis). « Compléments encaissés » sur un complément de fin de séjour déjà
+   payé ailleurs (fiche, paiement unique de l'arrivée) ne réécrit ni sa date ni sa caisse interne :
+   seul celui que ce SAS a encaissé (`endOfStayComplementPaidAtDeparture = 1`) se re-tamponne. Le garde
+   des remboursements (reservation-refunds règle 52) ne compte donc plus un passage en caisse interne
+   sur un complément qui n'est pas le sien. Test : `sas-prepaid-complement.unit.test.js`.
+
+11. **Un complément de fin de séjour encaissé ailleurs ne prend plus de frais** (audit R26 H1, 2026-11-06, même classe
+   que les règles 9bis et 10). Quand il est encaissé (CB ou caisse interne) sans que ce SAS l'ait encaissé
+   (`endOfStayComplementPaidAtDeparture = 0` : coche de la fiche, « Encaisser en une fois », paiement unique de l'arrivée,
+   hausse D9 réglée avant l'arrivée), l'aperçu et la validation du SAS départ dont le total de fin de séjour dépasse le
+   montant stocké répondent **409 `END_OF_STAY_ALREADY_COLLECTED`** « Complément de fin de séjour déjà encaissé : le
+   décocher sur la fiche avant d’ajouter des frais. », rien n'est écrit. Le récap affiche cette raison, sans
+   « Réessayer », et « Valider et terminer » reste fermé. Une baisse (ligne offerte), un total inchangé et un complément
+   que ce SAS a encaissé lui-même passent comme avant. *Pourquoi :* le ménage ou un drap manquant s'ajoutaient au montant
+   déjà payé, le récap disait « Déjà encaissé — rien à percevoir », et la compta comptait ces frais comme encaissés à la
+   date du virement : 80 € de ménage, 3 € par drap jamais demandés. La fiche et les notes en séjour refusaient déjà la même
+   hausse. Tests : `sas-collected-end-of-stay-growth.unit.test.js`, client
+   `ReservationSasDialog.collected-end-of-stay.test.jsx`.
 
 **Edge cases**
 - Arrival complement already paid (normal flow) → no recall, departure SAS unchanged.
@@ -152,6 +172,10 @@ complement instead of leaving it unpaid.
 - [x] Reversible: re-commit with `complementsSettled: false` clears the end-of-stay marker + date.
 - [x] Client (`ReservationSasDialog.test.js`): departure recap recalls an unsettled arrival complement (detail + combined total) and sends `complementsSettled`; a paid one is NOT recalled; arrival payload carries `complementSettled`.
 - [x] Full server (1793) + client (586) suites green.
+- [x] Rule 11 (2026-11-06): `sas-collected-end-of-stay-growth.unit.test.js` (11 cases: preview and commit refused on a
+  sheet added to an end of stay paid on the fiche or in the caisse interne, nothing written; unchanged, lowered and
+  SAS-settled pass; the arrival-sale branch of sas-breakfast-and-catering-upsell rule 17), client
+  `ReservationSasDialog.collected-end-of-stay.test.jsx` (2).
 
 ### Règle 9bis — vérification de bout en bout (2026-08-31)
 

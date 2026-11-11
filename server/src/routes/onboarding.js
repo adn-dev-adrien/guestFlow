@@ -1,0 +1,23 @@
+// specs/plugins-phase-p-productisation.md §3.D — the start assistant. Admin-only through the role guard.
+const router = require('express').Router();
+const { buildController } = require('../controllers/onboardingController');
+
+const controller = buildController({
+  database: require('../database'),
+  settingsModel: require('../models/settingsModel'),
+  propertiesModel: require('../models/propertiesModel'),
+  usersModel: require('../models/usersModel'),
+  plugins: require('../controllers/pluginsController'),
+  ensureVapid: (settings) => require('../utils/vapid').ensureVapid(settings),
+  pluginStep: () => !require('../utils/pluginGovernance').isOperatorManaged(),
+});
+
+router.get('/', controller.get);
+router.get('/default-capacity', controller.defaultCapacity);
+router.put('/company', controller.saveCompany);
+router.put('/property', controller.saveProperty);
+router.put('/plugins', controller.savePlugins);
+router.put('/emails', controller.saveEmails);
+router.post('/done', controller.done);
+
+module.exports = router;

@@ -1,0 +1,520 @@
+/**
+ * Qonto Business API client (specs/online-payments-qonto.md §4.1) — OAuth2 + payment links.
+ *
+ * Pure-ish HTTP wrapper: a factory takes config (client id/secret/staging token, base URLs, an
+ * injectable `fetch`) so it is fully unit-testable without network access. Holds NO state and NO
+ * tokens — the caller passes the access token in; token storage lives in encrypted settings.
+ *
+ * Auth: OAuth2 authorization-code flow. Authorize → user consents → callback receives `code` →
+ * `exchangeCode` → {access,refresh} → `refresh` when the access token expires (needs `offline_access`).
+ * Endpoints + URLs from docs.qonto.com (2026-06). Sandbox calls also send `X-Qonto-Staging-Token`.
+ *
+ * Amounts: Qonto uses `{ value, currency }` with `value` a decimal string ("90.00"). We keep cents
+ * internally and format here. (Confirm the exact value format on first sandbox call.)
+ *
+ * Fair use (specs/payment-polling-fair-use.md rules 6–9): every request goes through `withRetry` — a
+ * `429`/`5xx` is retried with exponential back-off honouring `Retry-After`; a `429` that survives the
+ * budget is rethrown with `code: 'RATE_LIMITED'`. `config.retry` overrides the env-resolved options
+ * (tests inject `sleep`).
+ */
+
+const { randomUUID } = require('crypto');
+const { withRetry, resolveRetryOptions } = require('./httpRetry');
+
+const SANDBOX_HOSTS = { oauth: 'https://oauth-sandbox.staging.qonto.co', api: 'https://thirdparty-sandbox.staging.qonto.co' };
+const PROD_HOSTS = { oauth: 'https://oauth.qonto.com', api: 'https://thirdparty.qonto.com' };
+
+// `offline_access` is required to receive a refresh token; the rest are what payment links + the
+// provider connection need (write to create links, read to poll, organization.read for the bank
+// account). `webhook` is required to create the payment-link webhook subscription (POST
+// /v2/webhook_subscriptions) — see specs/public-online-payment.md §3bis.
+const DEFAULT_SCOPES = ['offline_access', 'organization.read', 'payment_link.read', 'payment_link.write', 'webhook'];
+// What invoicing a sale outside a stay needs on top (specs/resource-booking-pricing-and-invoicing.md rule 14, Q6): a
+// client, its invoice, and the PDF joined to the card credit. Asked by the `online-payment` consent only.
+const INVOICING_SCOPES = ['client.write', 'client_invoice.read', 'client_invoice.write', 'attachment.write'];
+
+// Maps a Qonto payment-link status to our `payment_links.status` enum.
+function mapQontoStatus(qontoStatus) {
+  switch (String(qontoStatus || '').toLowerCase()) {
+    case 'paid': return 'paid';
+    case 'expired': return 'expired';
+    case 'canceled':
+    case 'cancelled': return 'cancelled';
+    case 'open':
+    case 'processing':
+    default: return 'open';
+  }
+}
+
+// The fields of a client invoice the callers read. `invoice_url` is Qonto's public page of the
+// invoice (valid 180 days); the total comes as cents when Qonto sends them, else from the amount.
+function mapInvoice(inv) {
+  const totalCents = inv.total_amount_cents != null
+    ? Number(inv.total_amount_cents)
+    : (inv.total_amount && inv.total_amount.value != null ? Math.round(Number(inv.total_amount.value) * 100) : null);
+  return {
+    id: inv.id,
+    number: inv.number || null,
+    status: inv.status || null,
+    invoiceUrl: inv.invoice_url || null,
+    paidAt: inv.paid_at || null,
+    totalCents,
+    raw: inv,
+  };
+}
+
+function buildQontoClient(config = {}) {
+  const env = config.env || process.env;
+  const sandbox = config.sandbox !== undefined
+    ? Boolean(config.sandbox)
+    : String(env.QONTO_ENV || 'sandbox').toLowerCase() !== 'production';
+  const hosts = sandbox ? SANDBOX_HOSTS : PROD_HOSTS;
+  const oauthBase = config.oauthBase || env.QONTO_OAUTH_BASE || hosts.oauth;
+  const apiBase = config.apiBase || env.QONTO_API_BASE || hosts.api;
+  const clientId = config.clientId || env.QONTO_CLIENT_ID || '';
+  const clientSecret = config.clientSecret || env.QONTO_CLIENT_SECRET || '';
+  const stagingToken = config.stagingToken || env.QONTO_STAGING_TOKEN || '';
+  const fetchImpl = config.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== 'function') {
+    throw new Error('qontoClient: no fetch implementation (Node 18+ global fetch or inject config.fetchImpl)');
+  }
+
+  // One request (headers and body) gets this long. Qonto answers in a second or two; 20 s leaves room for a
+  // slow network while keeping 3 attempts (429/5xx only) under about a minute instead of the ~300 s a hung
+  // socket held a poll or retry run. A timeout is a network failure: not retried, the caller sees it at once.
+  const timeoutMs = Number(config.timeoutMs) > 0 ? Number(config.timeoutMs)
+    : (Number.isInteger(Number(env.QONTO_REQUEST_TIMEOUT_MS)) && Number(env.QONTO_REQUEST_TIMEOUT_MS) > 0 ? Number(env.QONTO_REQUEST_TIMEOUT_MS) : 20000);
+  const retryOptions = { ...resolveRetryOptions(env), ...(config.retry || {}) };
+  const stagingHeader = () => (sandbox && stagingToken ? { 'X-Qonto-Staging-Token': stagingToken } : {});
+
+  function apiHeaders(accessToken) {
+    return { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', ...stagingHeader() };
+  }
+
+  async function readBody(res, context) {
+    const text = typeof res.text === 'function' ? await res.text() : '';
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = { raw: text }; }
+    if (!res.ok) {
+      const err = new Error(`Qonto ${context} failed (HTTP ${res.status})`);
+      err.status = res.status;
+      err.body = body;
+      err.retryAfter = res.headers && typeof res.headers.get === 'function' ? res.headers.get('retry-after') : null;
+      // Log the real Qonto error (status + body incl. the trace_id) so failures are diagnosable in
+      // PM2 without re-running probes. The body holds Qonto error codes, not secrets.
+      // eslint-disable-next-line no-console
+      console.error(`[qonto] ${context} HTTP ${res.status}: ${JSON.stringify(body)}`);
+      throw err;
+    }
+    return body || {};
+  }
+
+  // The same `init` (headers included) is replayed on every attempt, which is what keeps an
+  // idempotency key stable across the retries of one call.
+  async function requestWithTimeout(url, init, context) {
+    const controller = new AbortController();
+    let timer;
+    const timedOut = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error(`Qonto ${context} timeout: no answer within ${Math.round(timeoutMs / 1000)} s`);
+        err.code = 'ETIMEDOUT';
+        controller.abort();
+        reject(err);
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([(async () => readBody(await fetchImpl(url, { ...init, signal: controller.signal }), context))(), timedOut]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function send(url, init, context) {
+    try {
+      return await withRetry(() => requestWithTimeout(url, init, context), {
+        onRetry: ({ attempt, delayMs, error }) => {
+          // eslint-disable-next-line no-console
+          console.warn(`[qonto] ${context} HTTP ${error.status}: retry ${attempt + 1}/${retryOptions.maxAttempts} in ${delayMs} ms`);
+        },
+        ...retryOptions,
+      });
+    } catch (err) {
+      if (err && err.status === 429) err.code = 'RATE_LIMITED';
+      throw err;
+    }
+  }
+
+  async function postForm(path, params, context) {
+    return send(`${oauthBase}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...stagingHeader() },
+      body: new URLSearchParams(params).toString(),
+    }, context);
+  }
+
+  return {
+    sandbox,
+    isConfigured() { return Boolean(clientId && clientSecret); },
+
+    // Step 1 — the URL we redirect the operator's browser to so they consent (run once at setup).
+    getAuthorizeUrl({ redirectUri, state, scopes = DEFAULT_SCOPES }) {
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope: scopes.join(' '),
+        state,
+      });
+      return `${oauthBase}/oauth2/auth?${params.toString()}`;
+    },
+
+    // Step 2 — exchange the callback `code` for tokens.
+    async exchangeCode({ code, redirectUri }) {
+      const json = await postForm('/oauth2/token', {
+        grant_type: 'authorization_code', code, client_id: clientId, client_secret: clientSecret, redirect_uri: redirectUri,
+      }, 'token exchange');
+      return { accessToken: json.access_token, refreshToken: json.refresh_token, expiresIn: Number(json.expires_in) || null, scope: json.scope || '' };
+    },
+
+    // Refresh an expired access token (keeps the refresh token if the response omits a new one).
+    async refresh({ refreshToken }) {
+      const json = await postForm('/oauth2/token', {
+        grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId, client_secret: clientSecret,
+      }, 'token refresh');
+      return { accessToken: json.access_token, refreshToken: json.refresh_token || refreshToken, expiresIn: Number(json.expires_in) || null };
+    },
+
+    // Create a payment link. Two shapes:
+    //  - single line: pass { title, amountCents, vatRate? } (one item carrying the whole amount);
+    //  - VAT basket: pass { items: [{ title, amountCents(HT), vatRate }], expectedTotalCents } built by
+    //    utils/paymentLinkItems — Qonto adds VAT on top of each HT unit_price (specs/payment-links-vat.md).
+    // `unit_price` is HT; Qonto's link `amount` = Σ round_half_up(unit_price × (1+vat_rate/100)).
+    async createPaymentLink({ accessToken, title, amountCents, items, expectedTotalCents, currency = 'EUR', vatRate = 0, paymentMethods = ['credit_card', 'apple_pay'], reusable = false, redirectUrl }) {
+      const toLine = (t, cents, rate, description) => ({
+        title: String(t || 'Paiement'), quantity: 1,
+        unit_price: { value: (Math.round(Number(cents || 0)) / 100).toFixed(2), currency },
+        // Qonto expects `vat_rate` as a STRING (e.g. "0", "20") — a number is rejected with
+        // "cannot unmarshal number ... of type string".
+        vat_rate: String(rate == null ? 0 : rate),
+        // Optional per-item free text carrying the booking reference/dates so the payment is
+        // identifiable in Qonto (specs/qonto-payment-link-reference.md). Omitted when absent.
+        ...(description != null && String(description).trim() ? { description: String(description) } : {}),
+      });
+      const wireItems = Array.isArray(items) && items.length
+        ? items.map((it) => toLine(it.title, it.amountCents, it.vatRate, it.description))
+        : [toLine(title, amountCents, vatRate)];
+      const payload = { payment_link: { reusable: Boolean(reusable), potential_payment_methods: paymentMethods, items: wireItems } };
+      // Where Qonto sends the payer back after a successful payment (the site success page). Only set
+      // when provided — the exact field is confirmed in sandbox (specs/public-online-payment.md §9).
+      if (redirectUrl) payload.payment_link.redirect_url = String(redirectUrl);
+      // One key per creation call, replayed only by that call's retries (rule 8). Qonto documents the
+      // header for transfers but not for this endpoint; an unhonoured header is ignored.
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': randomUUID() };
+      const json = await send(`${apiBase}/v2/payment_links`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create payment link');
+      const link = json.payment_link || json;
+      // Money guard (specs/payment-links-vat.md §3 rule 5): the amount Qonto computed from the HT items
+      // MUST equal what we intend to charge. On mismatch, fail loudly rather than present a wrong link.
+      if (expectedTotalCents != null && link && link.amount && link.amount.value != null) {
+        const chargedCents = Math.round(Number(link.amount.value) * 100);
+        if (chargedCents !== Math.round(Number(expectedTotalCents))) {
+          const err = new Error(`Qonto payment-link amount ${chargedCents}c ≠ expected ${Math.round(Number(expectedTotalCents))}c`);
+          err.status = 500; err.body = { code: 'AMOUNT_MISMATCH', charged: chargedCents, expected: Math.round(Number(expectedTotalCents)), items: wireItems };
+          // eslint-disable-next-line no-console
+          console.error(`[qonto] payment-link amount mismatch: ${JSON.stringify(err.body)}`);
+          throw err;
+        }
+      }
+      return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), expirationDate: link.expiration_date || null, amountValue: link.amount && link.amount.value, raw: link };
+    },
+
+    // Poll a link's current status. NOTE: the link's top-level `status` only goes open → processing
+    // when a guest pays (it does NOT flip to `paid` in sandbox) — the authoritative "paid" signal is on
+    // the payments sub-resource (see getPaymentLinkPayments). The polling pass uses the latter.
+    async getPaymentLink({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get payment link');
+      const link = json.payment_link || json;
+      return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };
+    },
+
+    // The payments made against a link (specs/online-payments-qonto.md §3.3). A payment with
+    // `status: "paid"` is the real "the guest paid" signal. Returns `{ paid, paidPayment, payments }`.
+    async getPaymentLinkPayments({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}/payments`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get payment link payments');
+      const payments = Array.isArray(json.payments) ? json.payments : [];
+      const paidPayment = payments.find((p) => String(p.status || '').toLowerCase() === 'paid') || null;
+      return { paid: Boolean(paidPayment), paidPayment, payments };
+    },
+
+    // Webhook subscriptions (specs/public-online-payment.md §3bis). Create one for the payment-link
+    // events, pointing at our public callback, with OUR secret so the signature uses QONTO_WEBHOOK_SECRET.
+    async createWebhookSubscription({ accessToken, callbackUrl, types = ['v1/payment-links'], secret, description }) {
+      const body = { callback_url: String(callbackUrl), types };
+      if (secret) body.secret = String(secret);
+      if (description) body.description = String(description);
+      const json = await send(`${apiBase}/v2/webhook_subscriptions`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(body) }, 'create webhook subscription');
+      const sub = json.webhook_subscription || json;
+      return { id: sub.id, callbackUrl: sub.callback_url, types: sub.types, hasSecret: Boolean(sub.secret), raw: sub };
+    },
+
+    async listWebhookSubscriptions({ accessToken }) {
+      const json = await send(`${apiBase}/v2/webhook_subscriptions`, { method: 'GET', headers: apiHeaders(accessToken) }, 'list webhook subscriptions');
+      const subs = json.webhook_subscriptions || json.subscriptions || [];
+      return subs.map((s) => ({ id: s.id, callbackUrl: s.callback_url, types: s.types }));
+    },
+
+    // List the organisation's bank accounts (the provider-connection form's account picker). Tolerates
+    // both the flat `{ bank_accounts: [...] }` and the org-wrapped shape.
+    async listBankAccounts({ accessToken }) {
+      const json = await send(`${apiBase}/v2/bank_accounts`, { method: 'GET', headers: apiHeaders(accessToken) }, 'list bank accounts');
+      const accounts = json.bank_accounts || (json.organization && json.organization.bank_accounts) || [];
+      return accounts.map((a) => ({ id: a.id, name: a.name || '', iban: a.iban || '', main: Boolean(a.main) }));
+    },
+
+    // One page of the account's completed credits (specs/qonto-bank-reconciliation.md rules 3, 5), newest
+    // first. `settledFrom` / `updatedFrom` are ISO instants; the answer carries `nextPage` (null on the
+    // last page). Read-only: `organization.read` is enough.
+    async listTransactions({ accessToken, bankAccountId, settledFrom, updatedFrom, page = 1, perPage = 100 }) {
+      const query = new URLSearchParams();
+      query.set('bank_account_id', bankAccountId);
+      query.append('status[]', 'completed');
+      query.set('side', 'credit');
+      query.set('sort_by', 'settled_at:desc');
+      query.set('per_page', String(perPage));
+      query.set('current_page', String(page));
+      if (settledFrom) query.set('settled_at_from', settledFrom);
+      if (updatedFrom) query.set('updated_at_from', updatedFrom);
+      const json = await send(`${apiBase}/v2/transactions?${query.toString()}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'list transactions');
+      const meta = json.meta || {};
+      return {
+        transactions: (json.transactions || []).map((t) => ({
+          id: t.transaction_id || t.id,
+          amountCents: t.amount_cents != null ? Number(t.amount_cents) : Math.round(Number(t.amount) * 100),
+          currency: t.currency || 'EUR',
+          side: t.side || 'credit',
+          status: t.status || 'completed',
+          operationType: t.operation_type || '',
+          label: t.label || '',
+          counterpartyName: t.label || '',
+          reference: t.reference || '',
+          note: t.note || '',
+          settledAt: t.settled_at || null,
+          emittedAt: t.emitted_at || null,
+          updatedAt: t.updated_at || null,
+        })),
+        nextPage: meta.next_page || null,
+      };
+    },
+
+    // One-time onboarding: connect the account to Qonto's payment-links provider. Returns the status
+    // (`enabled`/`pending`/…) + `connectionLocation` — the onboarding/KYC URL the user must visit when
+    // the connection is `pending`. After onboarding Qonto redirects to `partnerCallbackUrl`.
+    async connectProvider({ accessToken, partnerCallbackUrl, userBankAccountId, userPhoneNumber, userWebsiteUrl, businessDescription }) {
+      const payload = {
+        partner_callback_url: partnerCallbackUrl,
+        user_bank_account_id: userBankAccountId,
+        user_phone_number: userPhoneNumber,
+        user_website_url: userWebsiteUrl,
+        business_description: businessDescription,
+      };
+      const json = await send(`${apiBase}/v2/payment_links/connections`, { method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(payload) }, 'connect provider');
+      const c = json.connection || json;
+      return { status: c.status || 'not_connected', connectionLocation: c.connection_location || null, bankAccountId: c.bank_account_id || null, raw: c };
+    },
+
+    // ----- Client invoices (specs/control-plane-plans-and-access.md rule 17) -----
+    //
+    // The control plane invoices its customers from its own Qonto organisation: a Qonto client once
+    // per customer, a numbered invoice per period, and a payment link attached to that invoice.
+    // Scopes: `client.write`, `client_invoice.read`, `client_invoice.write`.
+
+    // A company client carrying what Qonto requires before it will invoice it: address, currency and
+    // locale.
+    // `idempotencyKey`: the caller's own, stable across retries of the same creation, so a call
+    // repeated after a lost answer gets the object Qonto already made (control plane rule 17).
+    async createClient({ accessToken, name, email, street, postcode, city, countryCode = 'FR', vatNumber, idempotencyKey }) {
+      const payload = {
+        kind: 'company',
+        name: String(name),
+        email: email ? String(email) : undefined,
+        currency: 'EUR',
+        locale: 'fr',
+        billing_address: { street_address: String(street), zip_code: String(postcode), city: String(city), country_code: String(countryCode) },
+        ...(vatNumber ? { vat_number: String(vatNumber) } : {}),
+      };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
+      const json = await send(`${apiBase}/v2/clients`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create client');
+      const c = json.client || json;
+      return { id: c.id, raw: c };
+    },
+
+    // An `unpaid` (finalised, numbered) invoice. `items` carry HT cents and a VAT rate in percent;
+    // Qonto takes the rate as a decimal string ("0.2" for 20 %). Same money guard as the payment
+    // links: the total Qonto computed must be the total we mean to charge.
+    async createClientInvoice({ accessToken, clientId, issueDate, dueDate, performanceStart, performanceEnd, items, iban, expectedTotalCents, currency = 'EUR', idempotencyKey }) {
+      const wireItems = items.map((it) => ({
+        title: String(it.title).slice(0, 40),
+        ...(it.description ? { description: String(it.description) } : {}),
+        quantity: '1',
+        unit_price: { value: (Math.round(Number(it.amountCents)) / 100).toFixed(2), currency },
+        vat_rate: String(Number(it.vatRate || 0) / 100),
+      }));
+      const payload = {
+        client_id: String(clientId),
+        issue_date: issueDate,
+        due_date: dueDate,
+        currency,
+        status: 'unpaid',
+        performance_start_date: performanceStart,
+        performance_end_date: performanceEnd,
+        payment_methods: { iban: String(iban) },
+        items: wireItems,
+      };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
+      const json = await send(`${apiBase}/v2/client_invoices`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create client invoice');
+      const inv = mapInvoice(json.client_invoice || json);
+      if (expectedTotalCents != null && inv.totalCents != null && inv.totalCents !== Math.round(Number(expectedTotalCents))) {
+        const err = new Error(`Qonto invoice total ${inv.totalCents}c ≠ expected ${Math.round(Number(expectedTotalCents))}c`);
+        // The invoice exists in Qonto by now: its id goes with the error so the caller can cancel it.
+        err.status = 500; err.body = { code: 'AMOUNT_MISMATCH', invoiceId: inv.id, charged: inv.totalCents, expected: Math.round(Number(expectedTotalCents)), items: wireItems };
+        // eslint-disable-next-line no-console
+        console.error(`[qonto] client-invoice total mismatch: ${JSON.stringify(err.body)}`);
+        throw err;
+      }
+      return inv;
+    },
+
+    async getClientInvoice({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get client invoice');
+      return mapInvoice(json.client_invoice || json);
+    },
+
+    async cancelClientInvoice({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}/mark_as_canceled`, { method: 'POST', headers: apiHeaders(accessToken) }, 'cancel client invoice');
+      return mapInvoice(json.client_invoice || json);
+    },
+
+    // ----- Invoices of sales outside a stay (specs/resource-booking-pricing-and-invoicing.md rules 14, 17) -----
+    // Scopes: `client.write`, `client_invoice.read`, `client_invoice.write`, `attachment.write` (INVOICING_SCOPES).
+
+    // A private person. The billing address goes only when it is whole: Qonto refuses a partial one, and whether it
+    // accepts none at all is measured, not assumed (rule 25, Q2) — the caller reads the refusal.
+    async createIndividualClient({ accessToken, firstName, lastName, email, street, postcode, city, countryCode = 'FR', idempotencyKey }) {
+      const whole = [street, postcode, city].every((v) => String(v || '').trim() !== '');
+      const payload = {
+        kind: 'individual',
+        first_name: String(firstName || '').trim() || String(lastName),
+        last_name: String(lastName),
+        currency: 'EUR',
+        locale: 'fr',
+        ...(email ? { email: String(email) } : {}),
+        ...(whole ? { billing_address: { street_address: String(street), zip_code: String(postcode), city: String(city), country_code: String(countryCode) } } : {}),
+      };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
+      const json = await send(`${apiBase}/v2/clients`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create individual client');
+      const c = json.client || json;
+      return { id: c.id, raw: c };
+    },
+
+    // Rule 14, Q4 — the API does not document this call: an answer that says it does not exist is `supported: false`,
+    // never an error, and the invoice simply stays « à payer » in Qonto.
+    async markClientInvoicePaid({ accessToken, id, paidAt }) {
+      try {
+        const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}/mark_as_paid`, {
+          method: 'POST', headers: apiHeaders(accessToken), body: JSON.stringify(paidAt ? { paid_at: paidAt } : {}),
+        }, 'mark client invoice paid');
+        return { supported: true, invoice: mapInvoice(json.client_invoice || json) };
+      } catch (err) {
+        if ([404, 405, 501].includes(Number(err && err.status))) return { supported: false };
+        throw err;
+      }
+    },
+
+    // The invoice's PDF, as Qonto renders it: the invoice names its attachment, whose signed URL is short-lived and
+    // read at once. `null` while Qonto has not rendered it yet — the caller retries later.
+    async getClientInvoicePdf({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/client_invoices/${encodeURIComponent(id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get client invoice');
+      const inv = json.client_invoice || json;
+      if (!inv.attachment_id) return null;
+      const att = await send(`${apiBase}/v2/attachments/${encodeURIComponent(inv.attachment_id)}`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get attachment');
+      const url = (att.attachment || att).url;
+      if (!url) return null;
+      // specs/resource-booking-pricing-and-invoicing.md rule 42 — the signed URL is read like every Qonto call: https
+      // only, and within the same timeout (the click that issues the invoice waits for it).
+      let parsed;
+      try { parsed = new URL(String(url)); } catch { parsed = null; }
+      if (!parsed || parsed.protocol !== 'https:') {
+        const err = new Error('Qonto attachment URL refused (https only)');
+        err.code = 'ATTACHMENT_URL_REFUSED';
+        throw err;
+      }
+      const controller = new AbortController();
+      let timer;
+      const timedOut = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const err = new Error(`Qonto attachment download timeout: no answer within ${Math.round(timeoutMs / 1000)} s`);
+          err.code = 'ETIMEDOUT';
+          controller.abort();
+          reject(err);
+        }, timeoutMs);
+      });
+      try {
+        return await Promise.race([(async () => {
+          const res = await fetchImpl(parsed.href, { signal: controller.signal });
+          if (!res.ok) {
+            const err = new Error(`Qonto attachment download failed (HTTP ${res.status})`);
+            err.status = res.status;
+            throw err;
+          }
+          const bytes = Buffer.from(await res.arrayBuffer());
+          return { bytes, fileName: `${inv.number || inv.id}.pdf` };
+        })(), timedOut]);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+
+    // One PDF joined to a bank transaction (multipart, field `file`). The idempotency key is the caller's, stable
+    // across retries, so a lost answer never uploads the same invoice twice.
+    async uploadTransactionAttachment({ accessToken, transactionId, bytes, fileName, idempotencyKey }) {
+      const form = new FormData();
+      form.append('file', new Blob([bytes], { type: 'application/pdf' }), fileName);
+      const headers = { Authorization: `Bearer ${accessToken}`, 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID(), ...stagingHeader() };
+      const json = await send(`${apiBase}/v2/transactions/${encodeURIComponent(transactionId)}/attachments`, { method: 'POST', headers, body: form }, 'upload transaction attachment');
+      const att = json.attachment || json;
+      return { id: att.id || null, raw: att };
+    },
+
+    // A payment link attached to an invoice: Qonto takes the invoice's number, debtor and amount.
+    async createInvoicePaymentLink({ accessToken, invoiceId, invoiceNumber, debitorName, amountCents, currency = 'EUR', paymentMethods = ['credit_card', 'apple_pay'], idempotencyKey }) {
+      const payload = {
+        payment_link: {
+          invoice_id: String(invoiceId),
+          invoice_number: String(invoiceNumber),
+          debitor_name: String(debitorName),
+          amount: { value: (Math.round(Number(amountCents)) / 100).toFixed(2), currency },
+          potential_payment_methods: paymentMethods,
+        },
+      };
+      const headers = { ...apiHeaders(accessToken), 'X-Qonto-Idempotency-Key': idempotencyKey || randomUUID() };
+      const json = await send(`${apiBase}/v2/payment_links`, { method: 'POST', headers, body: JSON.stringify(payload) }, 'create invoice payment link');
+      const link = json.payment_link || json;
+      return { id: link.id, url: link.url, status: link.status, mappedStatus: mapQontoStatus(link.status), raw: link };
+    },
+
+    // A link that must not be paid any more (paid another way, or its invoice cancelled).
+    async deactivatePaymentLink({ accessToken, id }) {
+      const json = await send(`${apiBase}/v2/payment_links/${encodeURIComponent(id)}/deactivate`, { method: 'PATCH', headers: apiHeaders(accessToken) }, 'deactivate payment link');
+      const link = json.payment_link || json;
+      return { id: link.id || id, status: link.status || 'canceled' };
+    },
+
+    // Re-check the provider-connection status (after the user completes onboarding — no webhook needed).
+    async getConnection({ accessToken }) {
+      const json = await send(`${apiBase}/v2/payment_links/connections`, { method: 'GET', headers: apiHeaders(accessToken) }, 'get connection');
+      const c = json.connection || json;
+      return { status: c.status || 'not_connected', bankAccountId: c.bank_account_id || null, raw: c };
+    },
+  };
+}
+
+module.exports = { buildQontoClient, mapQontoStatus, mapInvoice, DEFAULT_SCOPES, INVOICING_SCOPES, SANDBOX_HOSTS, PROD_HOSTS };

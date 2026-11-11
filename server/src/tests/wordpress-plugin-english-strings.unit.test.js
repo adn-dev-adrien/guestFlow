@@ -19,13 +19,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PLUGIN = path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'guestflow-booking');
-const MU = path.join(__dirname, '..', '..', '..', 'integrations', 'wordpress', 'solio-site', 'mu-plugins');
 
 const view = fs.readFileSync(path.join(PLUGIN, 'blocks', 'booking', 'view.js'), 'utf8');
 const blocks = fs.readFileSync(path.join(PLUGIN, 'includes', 'class-gf-blocks.php'), 'utf8');
 const settings = fs.readFileSync(path.join(PLUGIN, 'includes', 'class-gf-settings.php'), 'utf8');
 const po = fs.readFileSync(path.join(PLUGIN, 'languages', 'guestflow-booking-en_GB.po'), 'utf8');
-const siteStyle = fs.readFileSync(path.join(MU, 'gf-site-style.php'), 'utf8');
 
 /** The catalogue as { msgid: msgstr }, continuation lines folded back together. */
 function catalogue() {
@@ -66,10 +64,10 @@ function catalogue() {
 test('every aria-label in the booking view is looked up, never written in place (rule 49)', () => {
   const labels = [...view.matchAll(/'aria-label'\s*:\s*([^,}]+)/g)].map((m) => m[1].trim());
   assert.ok(labels.length > 0, 'no aria-label found at all — the file was restructured');
-  // A literal is allowed only when it carries no letter: the steppers announce « − » and « + »,
-  // symbols that read the same in both languages and belong in no catalogue. Anything with a word
-  // in it is a string a screen reader speaks, so it follows the page.
-  const literals = labels.filter((value) => !value.startsWith('GF.t(') && /[A-Za-zÀ-ÿ]/.test(value));
+  // A literal is a quoted string with a word in it: a string a screen reader speaks, so it follows
+  // the page. Computed names are fine — a day read through GF.dayLabel(), a stepper named after its
+  // line (specs/wordpress-plugin.md rule 15) — they are built from translated parts.
+  const literals = labels.filter((value) => /^['"`]/.test(value) && /[A-Za-zÀ-ÿ]/.test(value));
   assert.deepStrictEqual(
     literals,
     [],
@@ -124,13 +122,9 @@ test('the terms link follows the language of the page (rule 48)', () => {
   );
 });
 
-test("the burger's screen-reader label follows the page too (rule 49)", () => {
-  assert.ok(
-    !/aria-label="Ouvrir le menu"/.test(siteStyle),
-    'the burger announces « Ouvrir le menu » on every page, English included',
-  );
-  assert.ok(
-    /gf_t\(\s*'nav_ouvrir_menu'\s*\)/.test(siteStyle),
-    'the burger label must come from the site dictionary, which rule 36 keeps in both languages',
-  );
+// specs/wordpress-plugin.md rule 33 — the return page stops on a cancelled stay and says so, in both languages.
+test('specs/wordpress-plugin.md rule 33 — a cancelled status stops the polling and has an English string', () => {
+  assert.match(view, /d\.status === 'cancelled'[\s\S]{0,200}GF\.t\('paymentCancelled'\)[\s\S]{0,40}return;/);
+  assert.match(blocks, /'paymentCancelled'\s*=>\s*__\('Cette réservation est annulée\.'/);
+  assert.equal(catalogue()['Cette réservation est annulée.'], 'This booking has been cancelled.');
 });

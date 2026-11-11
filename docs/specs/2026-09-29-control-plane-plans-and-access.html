@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Forfaits et accès</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:18px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.sin{padding:14px}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:13px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:8px;padding:0 14px;min-height:40px;cursor:pointer}
+.btn.primary{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+input[type=text],input[type=email],input[type=number]{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:40px}
+input[type=number]{width:74px}
+.toast{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:13.5px;display:none}
+.toast.show{display:block}
+.toast.ko{background:color-mix(in srgb,var(--ko) 12%,var(--card));border:1px solid var(--ko)}
+.toast.ok{background:color-mix(in srgb,var(--ok) 12%,var(--card));border:1px solid var(--ok)}
+.toast.info{background:color-mix(in srgb,var(--info) 12%,var(--card));border:1px solid var(--info)}
+
+/* plan matrix */
+.mx td,.mx th{text-align:center}
+.mx td:first-child,.mx th:first-child{text-align:left}
+.cell{appearance:none;width:44px;height:40px;border-radius:8px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);font-size:18px;cursor:pointer}
+.cell.own{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.cell.inh{background:color-mix(in srgb,var(--lichen) 22%,var(--field));color:var(--lichen);border-style:dashed}
+.plan-h b{display:block;font:600 15px var(--serif);color:var(--sapin);text-transform:none;letter-spacing:0}
+.plan-h span{font-size:12px;color:var(--muted);text-transform:none;letter-spacing:0}
+.core-row td{color:var(--muted);font-style:italic}
+.badge{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid currentColor}
+.hw{color:var(--ocre)}
+@media (max-width:640px){
+  .mx tr{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,44px);gap:4px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+  .mx td,.mx th{border:0;padding:2px 0}
+  .plan-h{overflow:hidden}
+  .plan-h b{font-size:10px;overflow:hidden;text-overflow:ellipsis}
+  .plan-h span{display:none}
+  .cell{width:40px}
+}
+
+/* mock instance */
+.mock{background:#fff;color:#1f241d;border:1px solid #e3e0d7;border-radius:10px;overflow:hidden}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .mock{background:#20261f;color:#ece7db;border-color:#3b453b}}
+.url{font:12.5px ui-monospace,Menlo,monospace;padding:8px 12px;border-bottom:1px solid #e3e0d7;background:rgba(127,127,127,.08);overflow-wrap:anywhere}
+.pab{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #e3e0d7;font:600 16px/1.2 var(--sans)}
+.banner{padding:10px 14px;font-size:13.5px;border-bottom:1px solid #e3e0d7}
+.banner.b-due{background:#e6eef5;color:#1d3b55}
+.banner.b-grace{background:#fbeedb;color:#6b4410}
+.banner.b-ro{background:#f8e1dc;color:#6d1f14}
+.pl{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.pc{border:1px solid #e3e0d7;border-radius:10px;padding:9px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .pc{border-color:#3b453b}}
+.pc b{flex:1;min-width:140px;font-size:14px}
+.chip{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 9px;background:#eef1e8;color:#2e3b2a}
+.chip.lock{background:#f3ead9;color:#7a5413}
+.chip.off{background:#eee;color:#666}
+.pbtn{font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:36px;border:1px solid #2F5D46;background:#2F5D46;color:#fff}
+.pbtn[disabled]{background:transparent;color:#999;border-color:#ccc;cursor:not-allowed}
+
+/* lifecycle */
+.axis{position:relative;height:56px;margin:18px 6px 4px}
+.seg-st{position:absolute;top:18px;height:20px;border-radius:4px;font-size:11px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap}
+.cursor{position:absolute;top:6px;width:2px;height:44px;background:var(--ink)}
+.tick{position:absolute;top:40px;font-size:11px;color:var(--muted);transform:translateX(-50%)}
+input[type=range]{width:100%;min-height:40px;accent-color:var(--sapin)}
+.state{font:600 20px var(--serif)}
+.ok{color:var(--ok)} .ko{color:var(--ko)}
+.works td:nth-child(2){text-align:center;font-weight:700;width:70px}
+.remlog li{font-size:13.5px}
+
+/* login */
+.login{max-width:380px;margin:18px auto;padding:22px;border:1px solid #e3e0d7;border-radius:12px;text-align:center}
+.login h4{font:600 20px var(--serif);margin:0 0 4px}
+.login input{width:100%;margin:12px 0 8px}
+.login .btn{width:100%}
+.space{display:block;width:100%;text-align:left;margin-top:8px}
+.space small{display:block;font-weight:400;opacity:.7}
+.err{color:#a33a2a;font-size:13px;text-align:left;min-height:18px}
+.dir td{font-size:13px}
+.pw{display:none}
+.pw.show{display:block}
+</style>
+<body>
+<div class="wrap">
+<h1>Forfaits, abonnements et accès</h1>
+<div class="meta">Résumé de <code>specs/control-plane-plans-and-access.md</code> (Approved) · 29/09/2026 · les 7 arbitrages sont tranchés (29/09) · livraison en 3 PR</div>
+
+<h2>Le constat</h2>
+<div class="cols2">
+<div class="card"><h3>Ce qui est déjà décidé</h3>
+<ul class="tight">
+<li>Un process GuestFlow par client, derrière une console d'administration (D3).</li>
+<li>12 plugins installables. Le reste est au cœur, y compris l'iCal et l'anti-surréservation (D6).</li>
+<li>Marché français seulement (D7). Solio est le client n° 1.</li>
+</ul></div>
+<div class="card"><h3>Ce que tu demandes</h3>
+<ul class="tight">
+<li><b>Trois forfaits emboîtés</b>, comme Qonto : Basic 9 €, Smart 19 € (« tout Basic + … ») et Premium 39 €, avec des options à la carte.</li>
+<li><b>Un outil</b> pour ranger les plugins dans les forfaits, sans sortir de version.</li>
+<li><b>Un accès contrôlé</b> : un forfait impayé ou échu ne fonctionne plus normalement.</li>
+<li><b>Une page de connexion commune</b> qui redirige chaque utilisateur vers son GuestFlow, et <b>chaque GuestFlow garde sa propre adresse</b>.</li>
+</ul></div>
+</div>
+
+<h2>1. Les trois forfaits, et l'outil pour les régler</h2>
+<p>Voici la répartition retenue (ma proposition, avec le sas descendu en Essentiel à ta demande). Clique une case pour la modifier, comme tu le ferais dans la console. Les forfaits sont emboîtés, comme chez Qonto : un plugin coché en Essentiel s'ajoute d'office en Pro et Premium (case en pointillés). Si tu le retires d'un forfait supérieur alors qu'un forfait inférieur le contient encore, la console refuse.</p>
+<div class="studio">
+<div class="sbar"><span class="lab">Catalogue · console</span>
+<button class="btn" id="mxReset">Revenir à ma proposition</button>
+<button class="btn primary" id="mxSave">Enregistrer</button></div>
+<div class="sin">
+<div class="tbl"><table class="mx" id="mx"></table></div>
+<div class="toast" id="mxToast"></div>
+<p class="muted" style="font-size:13px;margin-top:10px"><span class="badge hw">matériel / contrat</span> : le client doit avoir le matériel (portail Sowel) ou un contrat (Neat, Qonto). Ces plugins sont aussi de bons candidats pour une <b>option à la carte</b> : un client Pro qui a un portail Sowel l'achète seul, sans passer en Premium.</p>
+</div></div>
+
+<div class="cols2">
+<div class="card"><h3>Pourquoi cette répartition</h3>
+<ul class="tight">
+<li><b>Essentiel</b> : le cœur complet (réservations, iCal, planning, emails, petit-déjeuner, taxe de séjour…), les trois plugins qui ne coûtent rien et servent à tout gîte, et <b>le sas</b> (ta décision du 29/09) : guider l'arrivée et le départ fait partie de ce que tout client achète.</li>
+<li><b>Pro</b> : <b>vendre en direct</b> (site et paiement en ligne) et <b>gérer l'intendance</b> (linge, comptabilité). Ce sont ces plugins qui remboursent l'abonnement.</li>
+<li><b>Premium</b> : le domaine équipé qui pilote ses prix (recettes tarifaires, bain à l'heure, assurance annulation, portail). Trois de ces quatre plugins supposent un équipement ou un partenaire.</li>
+</ul></div>
+<div class="card"><h3>Quotas et prix proposés</h3>
+<div class="tbl"><table>
+<tr><th></th><th>Logements</th><th>Comptes</th><th>Mensuel</th><th>Annuel</th></tr>
+<tr><td><b>Essentiel</b></td><td>2</td><td>2</td><td>29 €</td><td>24 €/mois</td></tr>
+<tr><td><b>Pro</b></td><td>6</td><td>5</td><td>59 €</td><td>49 €/mois</td></tr>
+<tr><td><b>Premium</b></td><td>15</td><td>illimité</td><td>99 €</td><td>83 €/mois</td></tr>
+</table></div>
+<p class="muted" style="font-size:13px">Prix HT. Le marché est à 30–60 € par mois pour 1 ou 2 logements (Smoobu 35 €, Amenitiz 42–69 €, Elloha dès 49 €). L'annuel offre deux mois, et l'essai dure 30 jours, comme chez Qonto.</p></div>
+</div>
+
+<h3>Ce que voit le client dans sa page Plugins</h3>
+<p>Le plugin compris dans le forfait s'installe. Celui du forfait au-dessus reste visible, mais verrouillé. Si le client descend de forfait, le plugin concerné est <b>désactivé</b>, sans rien effacer, et il revient tel quel s'il remonte.</p>
+<div class="studio">
+<div class="sbar"><span class="lab">Forfait du client</span>
+<div class="seg" id="custPlan"><button data-p="0">Essentiel</button><button data-p="1" aria-pressed="true">Pro</button><button data-p="2">Premium</button></div>
+<label class="lab" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="wasPremium" style="width:18px;height:18px"> Il était en Premium avant</label></div>
+<div class="sin"><div class="mock"><div class="url">https://solio.guestflow.fr/parametres/plugins</div><div class="pab">Plugins</div><div class="pl" id="custList"></div></div></div>
+</div>
+
+<h2>2. Payé et à jour : le cycle de l'abonnement</h2>
+<p>Chaque GuestFlow lit une <b>licence signée</b> que la console dépose à côté de sa base, sans ouvrir aucun port. La licence dit quel forfait, quels plugins, quels quotas, et où en est l'abonnement. Déplace le curseur pour avancer dans le temps autour de l'échéance, et modifie les durées si tu veux essayer d'autres réglages.</p>
+<div class="studio">
+<div class="sbar"><span class="lab">Réglages</span>
+<label>Grâce <input type="number" id="dGrace" value="7" min="0" max="60"> j</label>
+<label>Lecture seule jusqu'à J+<input type="number" id="dRo" value="30" min="1" max="120"></label>
+<span class="toast ko" id="lcErr" style="margin:0"></span></div>
+<div class="sin">
+<div class="axis" id="axis"></div>
+<input type="range" id="day" min="-45" max="75" value="-35" aria-label="Jour par rapport à l'échéance">
+<div class="cols2" style="margin-top:8px">
+<div>
+<div class="lab">Aujourd'hui : <span id="dayLbl"></span></div>
+<div class="state" id="stLbl"></div>
+<div class="mock" style="margin-top:10px"><div class="url">https://solio.guestflow.fr/</div><div id="lcBanner"></div><div class="pab">Tableau de bord</div><div class="pl" style="font-size:13px" id="lcNote"></div></div>
+<button class="btn primary" id="payBtn" style="margin-top:10px">Simuler le paiement du renouvellement</button>
+</div>
+<div>
+<div class="lab">Ce qui marche</div>
+<table class="works" id="works"></table>
+<div class="lab" style="margin-top:12px">Relances envoyées au client</div>
+<ul class="tight remlog" id="rem"></ul>
+</div></div>
+</div></div>
+<div class="note"><b>Pourquoi l'iCal continue en lecture seule.</b> Un client qui n'a pas payé a quand même des voyageurs qui arrivent. Couper la synchronisation des calendriers ferait vendre la même nuit deux fois, sur Airbnb et sur Booking. Le préjudice retomberait sur le voyageur et la plateforme, pas seulement sur le client.</div>
+<p>Si la console tombe en panne, les clients ne sont pas coupés. Une licence reste valable 7 jours et la console la renouvelle chaque jour. Sans licence valable, l'instance passe en <b>lecture seule</b>, jamais directement en « suspendu ».</p>
+
+<h2>3. Une page de connexion commune, une adresse par client</h2>
+<p>Tout le monde se connecte sur <code>app.guestflow.fr</code>, qui ne demande que l'email. La page renvoie ensuite l'utilisateur vers <b>son</b> GuestFlow, avec l'email déjà rempli, et c'est là qu'il tape son mot de passe. Les mots de passe ne quittent donc jamais l'instance : si la page commune était piratée, aucun client ne serait exposé. Essaie avec les adresses de l'annuaire ci-dessous.</p>
+<div class="studio">
+<div class="sbar"><span class="lab">Annuaire (fictif)</span></div>
+<div class="sin cols2">
+<div>
+<div class="tbl"><table class="dir">
+<tr><th>Email</th><th>Espace</th></tr>
+<tr><td>adrien@domainesolio.com</td><td>solio · actif</td></tr>
+<tr><td>compta@cabinet-dupont.fr</td><td>solio + gite-des-pins</td></tr>
+<tr><td>marie@gite-des-pins.fr</td><td>gite-des-pins · actif</td></tr>
+<tr><td>jean@moulin-bas.fr</td><td>moulin-bas · suspendu</td></tr>
+</table></div>
+<p class="muted" style="font-size:13px">La console ne stocke que l'empreinte (HMAC) de chaque email. Chaque instance la tient à jour quand un compte est créé, modifié ou supprimé.</p>
+</div>
+<div class="mock">
+<div class="url" id="lgUrl">https://app.guestflow.fr/</div>
+<div id="lgBody"></div>
+</div>
+</div></div>
+
+<h3>Pourquoi une adresse par client est indispensable</h3>
+<div class="tbl"><table>
+<tr><th>Ce qui dépend de l'adresse</th><th>Comment</th></tr>
+<tr><td>Qonto</td><td>callback OAuth, webhook, page de retour après paiement</td></tr>
+<tr><td>Google Agenda</td><td>callback OAuth (Google refuse les jokers : un callback central <code>auth.guestflow.fr</code> renvoie vers le bon client)</td></tr>
+<tr><td>Site WordPress</td><td>l'adresse d'API réglée dans le plugin</td></tr>
+<tr><td>Export iCal</td><td>l'URL collée chez Airbnb et Booking</td></tr>
+<tr><td>Notifications push</td><td>l'abonnement est lié à l'origine du service worker</td></tr>
+<tr><td>Portail Sowel, emails, invitations</td><td>chaque lien envoyé</td></tr>
+</table></div>
+<p>D'où la règle : <code>&lt;slug&gt;.guestflow.fr</code> est choisi à la création. <b>Le renommer est une opération de la console</b>, qui affiche d'abord la liste de ce qu'il faudra refaire (plugin WordPress, flux iCal chez les plateformes, reconnexions Google et Qonto). L'ancienne adresse redirige vers la nouvelle pendant 12 mois. Le cookie de session reste attaché à <b>une seule</b> adresse, et un test le vérifie : un cookie partagé par <code>*.guestflow.fr</code> ouvrirait la session d'un client chez un autre.</p>
+
+<h2>4. La console, en une page</h2>
+<div class="cols2">
+<div class="card"><h3>Ce qu'elle fait</h3><ul class="tight">
+<li><b>Nouveau client</b> : société, contact, adresse, forfait, mensuel ou annuel, date de début, durée (1 mois, 12 mois ou une date de fin), essai, options. L'enregistrement installe l'instance étape par étape ; une étape ratée se relance seule.</li>
+<li><b>Flotte</b> : forfait, état, échéance, jours restants, version, plugins, process et dernière sauvegarde, avec les compteurs « à renouveler sous 30 j », « en grâce ou lecture seule » et « suspendus ».</li>
+<li><b>Relances</b> : la facture et son lien de paiement partent à J-30, puis des rappels à J-7, J0 et J+7. Un bouton « Relancer maintenant » les envoie à la demande, et chaque relance s'affiche dans l'historique du client.</li>
+<li><b>Gestes commerciaux</b> : prolonger l'abonnement, marquer une facture payée à la main (virement) ou remettre un client en actif. Une raison est obligatoire et tout est journalisé.</li>
+<li><b>Déprovisionner</b> : un bouton. L'export complet est produit et son lien envoyé au client (valable 30 jours), puis le process est arrêté et le client archivé. Les données sont effacées à J+90, sauf si tu le réactives avant.</li>
+</ul></div>
+<div class="card"><h3>Ce qu'on ne fait pas ici</h3><ul class="tight">
+<li>Les domaines personnalisés (<code>resa.mongite.fr</code>) : plus tard.</li>
+<li>L'inscription et le changement de forfait par le client lui-même : c'est toi qui les fais depuis la console, pour commencer.</li>
+<li>Les mises à jour de la flotte et les sauvegardes : une spec d'hébergement séparée.</li>
+<li>Un mot de passe unique pour tous les espaces (SSO) : écarté pour garder l'isolement entre clients.</li>
+</ul>
+<h3>Risques</h3><ul class="tight">
+<li>La page commune révèle si un email a un espace. Je limite à 10 recherches par minute (voir l'arbitrage 5).</li>
+<li>Un bug de lecture de licence mettrait un client payé en lecture seule. C'est pourquoi la licence tolère 7 jours de panne de la console, avec des tests à chaque passage d'état.</li>
+</ul></div>
+</div>
+
+<h2>5. Arbitrages</h2>
+<div class="tbl"><table>
+<tr><th>#</th><th>Question</th><th>Ma recommandation</th></tr>
+<tr><td>1</td><td>Nom des trois forfaits</td><td><b>Tranché le 29/09</b> : Essentiel · Pro · Premium</td></tr>
+<tr><td>2</td><td>Répartition des 12 plugins</td><td><b>Tranché le 29/09</b> : la matrice ci-dessus, sas en Essentiel, options à la carte gardées</td></tr>
+<tr><td>3</td><td>Prix, quotas, remise annuelle, essai</td><td><b>Tranché le 29/09</b> : 29 / 59 / 99 € HT ; 2 / 6 / 15 logements ; deux mois offerts à l'année ; 30 jours d'essai</td></tr>
+<tr><td>4</td><td>Durées en cas d'impayé</td><td><b>Tranché le 29/09</b> : 7 jours de grâce, lecture seule jusqu'à J+30, puis suspendu ; l'archivage reste manuel</td></tr>
+<tr><td>5</td><td>Page commune : rediriger directement, ou envoyer un email avec les liens (à la Slack) ?</td><td><b>Tranché le 29/09</b> : redirection directe, avec une limite de fréquence</td></tr>
+<tr><td>6</td><td>Où vit le code de la console</td><td><b>Tranché le 29/09</b> : un dossier <code>control-plane/</code> dans ce dépôt</td></tr>
+<tr><td>7</td><td>Outil d'encaissement des abonnements</td><td><b>Tranché le 29/09</b> : Qonto (facture et lien de paiement, relancé ; pas de prélèvement automatique)</td></tr>
+</table></div>
+<h2>6. Livraison</h2>
+<ol class="tight">
+<li><b>C1 — Les droits dans l'instance</b> : licence, lecture seule, plugins verrouillés, quotas, bandeaux. Elle fonctionne avec une licence écrite à la main et peut donc sortir avant la console.</li>
+<li><b>C2 — La console</b> : catalogue, clients, cycle de vie, factures et relances Qonto, alertes, déprovisionnement. L'installation technique d'une instance reste une liste d'étapes cochées à la main jusqu'à la phase d'hébergement (H).</li>
+<li><b>C3 — Adresses et connexion</b> : <code>app.guestflow.fr</code>, l'annuaire, l'email pré-rempli, le retour OAuth central, les règles d'adresse.</li>
+</ol>
+</div>
+
+<script>
+const PLANS=['Essentiel','Pro','Premium'];
+const PRICES=['29 € / mois','59 € / mois','99 € / mois'];
+const PLUGINS=[
+ ['school-holidays','Vacances scolaires',0,0],['weather-alerts','Vigilance Météo-France',0,0],['google-calendar','Google Agenda',0,0],
+ ['wordpress','Réservation sur le site (WordPress)',1,0],['qonto','Paiement en ligne (Qonto)',1,1],['sas','Arrivée / départ guidés (sas)',0,0],
+ ['linen','Linge et blanchisserie',1,0],['accounting','Export comptable',1,0],
+ ['tariff-recipes','Recettes tarifaires',2,0],['hourly','Ressources à l\'heure (bain nordique)',2,1],['neat','Assurance annulation Neat',2,1],['gate','Accès portail Sowel',2,1]];
+const PROPOSAL=PLUGINS.map(p=>p[2]);
+let lowest=[...PROPOSAL], saved=[...PROPOSAL];
+const $=id=>document.getElementById(id);
+function toast(el,cls,msg){el.className='toast show '+cls;el.innerHTML=msg}
+function renderMx(){
+  let h='<thead><tr><th>Plugin</th>'+PLANS.map((p,i)=>`<th class="plan-h"><b>${p}</b><span>${PRICES[i]}</span></th>`).join('')+'</tr></thead><tbody>';
+  h+='<tr class="core-row"><td>Le cœur complet (réservations, iCal, planning, emails, taxe…)</td><td>✓</td><td>✓</td><td>✓</td></tr>';
+  PLUGINS.forEach((p,r)=>{
+    h+=`<tr><td>${p[1]} ${p[3]?'<span class="badge hw">matériel / contrat</span>':''}</td>`;
+    for(let c=0;c<3;c++){
+      const l=lowest[r]; let cls='',sym='',tip='Non inclus';
+      if(l===c){cls='own';sym='✓';tip='Ajouté à partir de ce forfait'}
+      else if(l!==null&&l<c){cls='inh';sym='✓';tip='Inclus via '+PLANS[l]}
+      h+=`<td><button class="cell ${cls}" data-r="${r}" data-c="${c}" title="${tip}" aria-label="${p[1]} — ${PLANS[c]} : ${tip}">${sym}</button></td>`;
+    }
+    h+='</tr>';
+  });
+  $('mx').innerHTML=h+'</tbody>';
+}
+$('mx').addEventListener('click',e=>{
+  const b=e.target.closest('.cell'); if(!b)return;
+  const r=+b.dataset.r,c=+b.dataset.c,l=lowest[r],t=$('mxToast'),n=PLUGINS[r][1];
+  if(l===null){lowest[r]=c;toast(t,'info',`<b>${n}</b> ajouté à ${PLANS[c]}${c<2?' et, par emboîtement, aux forfaits au-dessus':''}.`)}
+  else if(l===c){lowest[r]=c<2?c+1:null;toast(t,'info',lowest[r]===null?`<b>${n}</b> retiré de tous les forfaits : il ne sera plus vendu qu'en option à la carte.`:`<b>${n}</b> retiré de ${PLANS[c]} ; il commence désormais en ${PLANS[lowest[r]]}.`)}
+  else if(l<c){toast(t,'ko',`Refusé : <b>${n}</b> est inclus via <b>${PLANS[l]}</b>. Les forfaits sont emboîtés : retire-le d'abord de ${PLANS[l]}.`);return}
+  else{lowest[r]=c;toast(t,'info',`<b>${n}</b> descend en ${PLANS[c]}.`)}
+  renderMx();
+});
+$('mxReset').onclick=()=>{lowest=[...PROPOSAL];renderMx();toast($('mxToast'),'info','Proposition rétablie.')};
+$('mxSave').onclick=()=>{
+  const CUST=[4,3,1];const lines=[];
+  PLUGINS.forEach((p,r)=>{const a=saved[r],b=lowest[r];if(a===b)return;
+    for(let c=0;c<3;c++){const had=a!==null&&a<=c,has=b!==null&&b<=c;
+      if(!had&&has)lines.push(`${CUST[c]} client${CUST[c]>1?'s':''} ${PLANS[c]} gagne${CUST[c]>1?'nt':''} <b>${p[1]}</b> (disponible, pas installé d'office)`);
+      if(had&&!has)lines.push(`${CUST[c]} client${CUST[c]>1?'s':''} ${PLANS[c]} garde${CUST[c]>1?'nt':''} <b>${p[1]}</b> s'il est déjà installé (hors forfait, conservé) ; les nouveaux clients ne l'ont plus`);}});
+  if(!lines.length){toast($('mxToast'),'info','Aucun changement à enregistrer.');return}
+  saved=[...lowest];
+  toast($('mxToast'),'ok','<b>Catalogue v2 enregistré.</b> Impact annoncé avant confirmation (4 clients Essentiel, 3 Pro, 1 Premium, fictifs) :<ul class="tight">'+lines.map(l=>'<li>'+l+'</li>').join('')+'</ul>');
+  renderCust();
+};
+renderMx();
+
+let custPlan=1;
+function renderCust(){
+  const was=$('wasPremium').checked; let h='';
+  PLUGINS.forEach((p,r)=>{
+    const l=saved[r]; const inPlan=l!==null&&l<=custPlan;
+    if(inPlan) h+=`<div class="pc"><b>${p[1]}</b><span class="chip">Inclus</span><button class="pbtn">Installer</button></div>`;
+    else if(was&&l!==null) h+=`<div class="pc"><b>${p[1]}</b><span class="chip off">Désactivé — hors forfait</span><span style="font-size:12px;opacity:.7">données conservées</span></div>`;
+    else h+=`<div class="pc"><b>${p[1]}</b><span class="chip lock">${l===null?'Option à la carte':'Forfait '+PLANS[l]}</span><button class="pbtn" disabled title="Inclus dans le forfait ${l===null?'':PLANS[l]} — contactez-nous pour changer de forfait">Installer</button></div>`;
+  });
+  $('custList').innerHTML=h;
+}
+$('custPlan').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;custPlan=+b.dataset.p;
+  [...$('custPlan').children].forEach(x=>x.setAttribute('aria-pressed',x===b));
+  if(custPlan===2)$('wasPremium').checked=false; renderCust()});
+$('wasPremium').onchange=renderCust;
+renderCust();
+
+/* lifecycle */
+const END=new Date(2026,10,12); let paid=false;
+const fmt=d=>d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'});
+const add=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
+function stateOf(day,g,ro){
+  if(paid) return 'active';
+  if(day< -30) return 'active'; if(day<0) return 'due'; if(day<=g) return 'grace'; if(day<=ro) return 'read_only'; return 'suspended';
+}
+const ST={active:['Actif','#2F6B3A'],due:['À renouveler','#2F5876'],grace:['Période de grâce','#B87B2A'],read_only:['Lecture seule','#A33A2A'],suspended:['Suspendu','#555']};
+function renderLc(){
+  let g=+$('dGrace').value, ro=+$('dRo').value; const err=$('lcErr');
+  if(!(g>=0&&g<=60)||!(ro>g&&ro<=120)){err.className='toast show ko';err.style.display='inline-block';err.textContent=`Refusé : la lecture seule doit finir après la grâce (J+${g}) et avant J+120.`;return}
+  err.className='toast ko';err.style.display='none';
+  const min=-45,max=75,pct=d=>(d-min)/(max-min)*100;
+  const segs=[['active',min,-30],['due',-30,0],['grace',0,g+1],['read_only',g+1,ro+1],['suspended',ro+1,max]];
+  $('axis').innerHTML=segs.map(([s,a,b])=>`<div class="seg-st" style="left:${pct(a)}%;width:${pct(b)-pct(a)}%;background:${ST[s][1]}" title="${ST[s][0]}">${pct(b)-pct(a)>9?ST[s][0]:''}</div>`).join('')
+    +[-30,-7,0,7,g,ro].filter((v,i,a)=>a.indexOf(v)===i).map(d=>`<div class="tick" style="left:${pct(d)}%">J${d>=0?'+':''}${d}</div>`).join('')
+    +`<div class="cursor" style="left:${pct(+$('day').value)}%"></div>`;
+  const day=+$('day').value, today=add(END,day), s=stateOf(day,g,ro);
+  $('dayLbl').textContent=`${fmt(today)} (J${day>=0?'+':''}${day} par rapport à l'échéance du ${fmt(END)})`;
+  $('stLbl').textContent=ST[s][0]; $('stLbl').style.color=ST[s][1];
+  const B={due:['b-due',`Votre abonnement se termine le ${fmt(END)}. <u>Renouveler</u>`],grace:['b-grace',`Abonnement échu depuis le ${fmt(END)} — renouvelez avant le ${fmt(add(END,g))} pour garder l'accès complet. <u>Renouveler</u>`],read_only:['b-ro',`Lecture seule depuis le ${fmt(add(END,g+1))} : vos données restent consultables et exportables, la synchronisation des calendriers continue. <u>Renouveler</u>`]};
+  $('lcBanner').innerHTML=B[s]?`<div class="banner ${B[s][0]}">${B[s][1]}</div>`:'';
+  $('lcNote').innerHTML=s==='suspended'?'<div style="padding:30px 0;text-align:center"><b>Cet espace est suspendu.</b><br>Contactez GuestFlow pour le réactiver. Vos données sont intactes.</div>'
+    :s==='read_only'?'<div>Un employé qui modifie une réservation voit : <i>« Modification impossible : l\'abonnement de cet espace est à renouveler. »</i></div>'
+    :'<div>Tout fonctionne normalement.'+(s==='active'?'':' Seuls les administrateurs voient le bandeau.')+'</div>';
+  const W=[['Se connecter, consulter','active due grace read_only'],['Modifier réservations, clients, prix','active due grace'],['Exporter ses données','active due grace read_only'],['Synchro iCal (anti-surréservation)','active due grace read_only'],['Encaisser un paiement attendu','active due grace read_only'],['Réservations depuis le site','active due grace'],['Plugins du forfait','active due grace read_only']];
+  $('works').innerHTML=W.map(([l,ok])=>{const y=ok.split(' ').includes(s);return `<tr><td>${l}</td><td class="${y?'ok':'ko'}">${y?'✓':'✗'}</td></tr>`}).join('');
+  const R=[[-30,'Facture + lien de paiement'],[-7,'Rappel J-7'],[0,'Rappel le jour de l\'échéance'],[7,'Rappel J+7']];
+  const sent=R.filter(r=>r[0]<=day&&!paid);
+  $('rem').innerHTML=paid?'<li>Paiement reçu : l\'échéance passe au '+fmt(add(END,365))+', les relances s\'arrêtent.</li>':sent.length?sent.map(r=>`<li>${fmt(add(END,r[0]))} — ${r[1]}</li>`).join(''):'<li class="muted">Aucune pour l\'instant.</li>';
+  $('payBtn').textContent=paid?'Annuler la simulation du paiement':'Simuler le paiement du renouvellement';
+}
+['day','dGrace','dRo'].forEach(id=>$(id).addEventListener('input',renderLc));
+$('payBtn').onclick=()=>{paid=!paid;renderLc()};
+renderLc();
+
+/* login */
+const DIR={'adrien@domainesolio.com':['solio'],'compta@cabinet-dupont.fr':['solio','gite-des-pins'],'marie@gite-des-pins.fr':['gite-des-pins'],'jean@moulin-bas.fr':['moulin-bas']};
+const SP={solio:['Domaine Solio','actif'],'gite-des-pins':['Gîte des Pins','actif'],'moulin-bas':['Le Moulin Bas','suspendu']};
+let remembered=null;
+function lgHome(msg=''){
+  $('lgUrl').textContent='https://app.guestflow.fr/';
+  $('lgBody').innerHTML=`<div class="login"><h4>GuestFlow</h4><div class="muted" style="font-size:13px">Connectez-vous à votre espace</div>
+  ${remembered?`<button class="btn primary space" id="lgRem" style="margin-top:14px">Continuer vers ${SP[remembered][0]}<small>${remembered}.guestflow.fr</small></button><div class="muted" style="font-size:12px;margin-top:10px">ou avec une autre adresse</div>`:''}
+  <input type="email" id="lgEmail" placeholder="vous@exemple.fr" aria-label="Email"><div class="err" id="lgErr">${msg}</div><button class="btn primary" id="lgGo">Continuer</button></div>`;
+  $('lgGo').onclick=lookup; $('lgEmail').addEventListener('keydown',e=>{if(e.key==='Enter')lookup()});
+  if(remembered)$('lgRem').onclick=()=>go(remembered,null);
+}
+function lookup(){
+  const e=$('lgEmail').value.trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)){$('lgErr').textContent='Adresse email invalide.';return}
+  const s=DIR[e];
+  if(!s){$('lgErr').textContent="Aucun espace GuestFlow n'est associé à cette adresse. Vérifiez l'orthographe ou contactez la personne qui vous a invité.";return}
+  if(s.length===1)return go(s[0],e);
+  $('lgBody').innerHTML=`<div class="login"><h4>Vos espaces</h4><div class="muted" style="font-size:13px">${e}</div>`+s.map(x=>`<button class="btn space" data-s="${x}">${SP[x][0]}<small>${x}.guestflow.fr</small></button>`).join('')+'<button class="btn space" id="lgBack" style="text-align:center">Retour</button></div>';
+  $('lgBody').querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>go(b.dataset.s,e)); $('lgBack').onclick=()=>lgHome();
+}
+function go(slug,email){
+  remembered=slug;
+  const hint=email?`?login_hint=${encodeURIComponent(email)}`:'';
+  $('lgUrl').textContent=`https://${slug}.guestflow.fr/login${hint}`;
+  if(SP[slug][1]==='suspendu'){$('lgBody').innerHTML='<div class="login"><h4>Le Moulin Bas</h4><p><b>Cet espace est suspendu.</b></p><p class="muted" style="font-size:13px">Contactez GuestFlow pour le réactiver. Vos données sont intactes.</p><button class="btn" id="lgBack">Retour à app.guestflow.fr</button></div>';$('lgBack').onclick=()=>lgHome();return}
+  $('lgBody').innerHTML=`<div class="login"><h4>${SP[slug][0]}</h4><div class="muted" style="font-size:12px">Page de connexion de l'instance — le mot de passe est vérifié ici, jamais par app.guestflow.fr</div>
+  <input type="email" value="${email||''}" placeholder="Email" aria-label="Email"><input type="text" id="lgPw" placeholder="Mot de passe" aria-label="Mot de passe" style="margin-top:0"><button class="btn primary" id="lgIn">Se connecter</button>
+  <div class="muted" style="font-size:12px;margin-top:8px"><u>Mot de passe oublié ?</u></div><button class="btn" id="lgBack" style="margin-top:12px;width:100%">Retour à app.guestflow.fr</button></div>`;
+  $('lgPw').type='password'; $('lgPw').focus();
+  $('lgIn').onclick=()=>{$('lgUrl').textContent=`https://${slug}.guestflow.fr/`;$('lgBody').innerHTML=`<div class="pab">Tableau de bord — ${SP[slug][0]}</div><div class="pl" style="font-size:13px">Connecté. Le cookie de session appartient à <code>${slug}.guestflow.fr</code> seulement. <button class="btn" id="lgBack" style="margin-top:8px">Retour à app.guestflow.fr (la page se souvient de cet espace)</button></div>`;$('lgBack').onclick=()=>lgHome()};
+  $('lgBack').onclick=()=>lgHome();
+}
+lgHome();
+</script>
+</div>
+</body>
+</html>

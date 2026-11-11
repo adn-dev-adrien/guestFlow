@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const { parseReleaseNotes, splitSummary } = require('../utils/releaseClient');
 
-// specs/self-update-and-releases.md §6.2 rule 20c — a release carries a short operator digest, and
+// specs/self-update-and-releases.md §6.2 (20c) — a release carries a short operator digest, and
 // that block alone is what the update dialog shows. Everything else is published but folded.
 
 const WITH_DIGEST = [
@@ -110,4 +110,18 @@ test('sectionFor cuts exactly one version out of a CHANGELOG', async () => {
   assert.doesNotMatch(sectionFor(changelog, '2.3.0'), /ancienne/, 'the next version must not bleed in');
   assert.match(sectionFor(changelog, '2.2.0'), /ancienne/, 'the last section runs to the end of the file');
   assert.equal(sectionFor(changelog, '9.9.9'), null);
+});
+
+// specs/self-update-and-releases.md rule 56 — the `detail--` footer closing a condensed section is a paragraph after a
+// blank line: it must not be glued onto the last bullet above it.
+test('a paragraph after a blank line is a note of its own, not the tail of the last bullet', () => {
+  const body = [
+    '### Summary', '- Un résumé.', '',
+    '### Migration', '- Une migration', '  sur deux lignes.', '- La dernière.', '',
+    'This section condenses 4.0.0: the full detail is in `docs/changelog/4.0.0-detail.md`.',
+  ].join('\n');
+  const sections = parseReleaseNotes(body);
+  assert.deepEqual(sections.map((s) => s.title), ['En bref', 'Migration', null]);
+  assert.deepEqual(sections[1].items, ['Une migration sur deux lignes.', 'La dernière.']);
+  assert.deepEqual(sections[2].items, ['This section condenses 4.0.0: the full detail is in docs/changelog/4.0.0-detail.md.']);
 });

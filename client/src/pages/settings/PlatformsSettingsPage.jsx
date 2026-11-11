@@ -5,14 +5,18 @@
  * who collects the tourist tax, payout delay. They apply to every property, so the property page
  * only shows them read-only. The accounting columns stay on Plan comptable (rule 20).
  *
+ * The second table, « E-mails aux voyageurs », holds what the guest e-mails need to know of a platform:
+ * whether it relays the guest's address, and where its guests leave a review
+ * (specs/platform-settings-relay-and-review.md rules 1-5). An own channel has neither.
+ *
  * A value that does not apply to a channel arrives as null from the server (`direct` has no
  * deposit / tax / payout notion, an own channel no payout) and is shown as « — ».
  * Desktop: one table. Mobile: one card per platform.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import {
-  Alert, Box, Card, CardContent, Link, MenuItem, Stack, Table, TableBody, TableCell, TableHead,
+  Alert, Box, Card, CardContent, FormControlLabel, MenuItem, Stack, Switch, Table, TableContainer, TableBody, TableCell, TableHead,
   TableRow, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -22,25 +26,27 @@ import ErrorAlert from '../../components/ErrorAlert';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingState from '../../components/LoadingState';
 import PlatformColorPicker from '../../components/PlatformColorPicker';
+import BoundedNumberField from '../../components/BoundedNumberField';
 import { useToast } from '../../components/DialogProvider';
 import useDirtyFormGuard from '../../hooks/useDirtyFormGuard';
 import { formatPlatformLabel } from '../../constants/platforms';
+import Slot from '../../plugins/sdk/Slot';
+
+// How long a refused colour's message stays under its swatch once the swatch is back to the saved colour.
+const COLOR_REFUSAL_MS = 6000;
 
 const TAX_OPTIONS = [
   { value: 'platform', label: 'Plateforme → commune' },
-  { value: 'platform_reversed', label: 'Plateforme → vous' },
+  { value: 'platform_reversed', label: 'Plateforme → établissement' },
   { value: 'owner', label: "À l'arrivée" },
 ];
-const EDITABLE = ['color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays'];
+const EDITABLE = [
+  'color', 'commissionPercent', 'takesDeposit', 'touristTaxCollection', 'payoutDueDays', 'countsAsDirect', 'forbidsGuestChores',
+  'relaysGuestEmail', 'reviewWhereFr', 'reviewWhereEn',
+];
 
-// The rows as the form edits them: numbers become strings so a half-typed value stays as typed.
-function toDraft(platforms) {
-  return platforms.map((p) => ({
-    ...p,
-    commissionPercent: String(p.commissionPercent ?? ''),
-    payoutDueDays: p.payoutDueDays == null ? null : String(p.payoutDueDays),
-  }));
-}
+// The rows as the form edits them (the bounded fields hold their own half-typed text).
+const toDraft = (platforms) => platforms.map((p) => ({ ...p, commissionPercent: p.commissionPercent ?? 0 }));
 
 // Only the fields that changed, per row that changed — the server validates everything.
 function changedRows(draft, saved) {
@@ -58,18 +64,24 @@ function changedRows(draft, saved) {
 export default function PlatformsSettingsPage() {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  // Cards below 1280 px: with the side menu open the seven columns need ~915 px of content, which a
+  // 1200 px window does not leave (2026-10-27 spec review). From 1280 px the table shows every column.
+  const isMobile = useMediaQuery(theme.breakpoints.down(1280));
   const { showSuccess, showError } = useToast();
   const [saved, setSaved] = useState(null);
   const [draft, setDraft] = useState(null);
   const [errors, setErrors] = useState({});
+  const [limits, setLimits] = useState(null);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const refusalTimers = useRef(new Map());
+  useEffect(() => () => refusalTimers.current.forEach((timer) => clearTimeout(timer)), []);
 
   const load = useCallback(async () => {
     setLoadError(false);
     try {
-      const { platforms } = await api.getPlatformSettings();
+      const { platforms, limits: serverLimits } = await api.getPlatformSettings();
+      setLimits(serverLimits);
       const rows = toDraft(platforms || []);
       setSaved(rows);
       setDraft(rows);
@@ -96,6 +108,8 @@ export default function PlatformsSettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setErrors({});
+    refusalTimers.current.forEach((timer) => clearTimeout(timer));
+    refusalTimers.current.clear();
     try {
       const { platforms } = await api.savePlatformSettings(changedRows(draft, saved));
       const rows = toDraft(platforms || []);
@@ -105,6 +119,24 @@ export default function PlatformsSettingsPage() {
     } catch (err) {
       if (err && err.errors) {
         setErrors(err.errors);
+        // A refused colour goes back to the saved one (specs/calendar-property-parity.md rule 7).
+        setDraft((rows) => rows.map((row) => {
+          if (!(err.errors[String(row.id)] || {}).color) return row;
+          const previous = saved.find((p) => p.id === row.id);
+          return previous ? { ...row, color: previous.color } : row;
+        }));
+        // The message stays long enough to be read, then goes with the colour it was about — one timer per row.
+        Object.keys(err.errors).filter((id) => err.errors[id].color).forEach((id) => {
+          clearTimeout(refusalTimers.current.get(id));
+          refusalTimers.current.set(id, setTimeout(() => {
+            refusalTimers.current.delete(id);
+            setErrors((prev) => {
+              if (!prev[id] || !prev[id].color) return prev;
+              const { color: _gone, ...rest } = prev[id];
+              return { ...prev, [id]: rest };
+            });
+          }, COLOR_REFUSAL_MS));
+        });
         showError('Enregistrement refusé : corrigez les champs en rouge.');
       } else {
         showError((err && err.message) || "Impossible d'enregistrer les plateformes.");
@@ -118,18 +150,19 @@ export default function PlatformsSettingsPage() {
   const fieldError = (id, key) => (errors[String(id)] || {})[key];
 
   const colorCell = (p) => (
-    <PlatformColorPicker color={p.color} onChange={(hex) => setField(p.id, 'color', hex)} disabled={saving} />
+    <PlatformColorPicker color={p.color} onChange={(hex) => setField(p.id, 'color', hex)} disabled={saving} error={fieldError(p.id, 'color')} />
   );
   const commissionCell = (p) => (
-    <TextField
+    <BoundedNumberField
       value={p.commissionPercent}
-      onChange={(e) => setField(p.id, 'commissionPercent', e.target.value)}
+      onCommit={(next) => setField(p.id, 'commissionPercent', next)}
+      limits={limits.commissionPercent}
       size="small"
       disabled={saving}
-      error={Boolean(fieldError(p.id, 'commissionPercent'))}
-      helperText={fieldError(p.id, 'commissionPercent') || ''}
-      slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `Commission ${formatPlatformLabel(p.name)}` } }}
-      sx={{ width: { xs: '100%', md: 110 } }}
+      error={fieldError(p.id, 'commissionPercent')}
+      showUnit={false}
+      slotProps={{ htmlInput: { 'aria-label': `Commission ${formatPlatformLabel(p.name)}` } }}
+      sx={{ width: { xs: '100%', lg: 88 } }}
     />
   );
   const depositCell = (p) => (p.takesDeposit === null ? '—' : (
@@ -140,12 +173,58 @@ export default function PlatformsSettingsPage() {
       size="small"
       disabled={saving}
       slotProps={{ htmlInput: { 'aria-label': `Acompte ${formatPlatformLabel(p.name)}` } }}
-      sx={{ minWidth: 90 }}
+      sx={{ minWidth: 84 }}
     >
       <MenuItem value={0}>Non</MenuItem>
       <MenuItem value={1}>Oui</MenuItem>
     </TextField>
   ));
+  // specs/plugins-phase-p-productisation.md rule 19 — always on, and locked, for `direct`.
+  const directCell = (p) => (
+    <Switch
+      checked={Boolean(p.countsAsDirect)}
+      onChange={(e) => setField(p.id, 'countsAsDirect', e.target.checked)}
+      disabled={saving || p.isDirect}
+      slotProps={{ input: { 'aria-label': `Compté comme vente directe ${formatPlatformLabel(p.name)}` } }}
+    />
+  );
+  // specs/airbnb-no-checkout-chores.md rule 8 — a platform rule, so an own channel has none.
+  const choresCell = (p) => (p.forbidsGuestChores === null ? '—' : (
+    <Switch
+      checked={Boolean(p.forbidsGuestChores)}
+      onChange={(e) => setField(p.id, 'forbidsGuestChores', e.target.checked)}
+      disabled={saving}
+      slotProps={{ input: { 'aria-label': `Sans corvées de départ ${formatPlatformLabel(p.name)}` } }}
+    />
+  ));
+  // specs/platform-settings-relay-and-review.md rules 1-5 — what the guest e-mails need to know.
+  const relayCell = (p) => (p.relaysGuestEmail === null ? '—' : (
+    <Switch
+      checked={Boolean(p.relaysGuestEmail)}
+      onChange={(e) => setField(p.id, 'relaysGuestEmail', e.target.checked)}
+      disabled={saving}
+      slotProps={{ input: { 'aria-label': `Adresse e-mail relais ${formatPlatformLabel(p.name)}` } }}
+    />
+  ));
+  const reviewCell = (p, lang) => {
+    const key = lang === 'en' ? 'reviewWhereEn' : 'reviewWhereFr';
+    if (p[key] === null) return '—';
+    return (
+      <TextField
+        value={p[key]}
+        onChange={(e) => setField(p.id, key, e.target.value)}
+        size="small"
+        fullWidth
+        disabled={saving}
+        placeholder={lang === 'en' ? (p.reviewWhereFr || formatPlatformLabel(p.name)) : formatPlatformLabel(p.name)}
+        error={Boolean(fieldError(p.id, key))}
+        helperText={fieldError(p.id, key) || ''}
+        slotProps={{ htmlInput: { maxLength: 80, 'aria-label': `Où laisser un avis${lang === 'en' ? ' (anglais)' : ''} ${formatPlatformLabel(p.name)}` } }}
+      />
+    );
+  };
+  const contactRows = rows.filter((p) => p.relaysGuestEmail != null);
+
   const taxCell = (p) => (p.touristTaxCollection === null ? '—' : (
     <TextField
       select
@@ -160,15 +239,16 @@ export default function PlatformsSettingsPage() {
     </TextField>
   ));
   const payoutCell = (p) => (p.payoutDueDays === null ? '—' : (
-    <TextField
+    <BoundedNumberField
       value={p.payoutDueDays}
-      onChange={(e) => setField(p.id, 'payoutDueDays', e.target.value)}
+      onCommit={(next) => setField(p.id, 'payoutDueDays', next)}
+      limits={limits.payoutDueDays}
       size="small"
       disabled={saving}
-      error={Boolean(fieldError(p.id, 'payoutDueDays'))}
-      helperText={fieldError(p.id, 'payoutDueDays') || ''}
-      slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': `Virement ${formatPlatformLabel(p.name)}` } }}
-      sx={{ width: { xs: '100%', md: 90 } }}
+      error={fieldError(p.id, 'payoutDueDays')}
+      showUnit={false}
+      slotProps={{ htmlInput: { 'aria-label': `Virement ${formatPlatformLabel(p.name)}` } }}
+      sx={{ width: { xs: '100%', lg: 76 } }}
     />
   ));
 
@@ -176,7 +256,6 @@ export default function PlatformsSettingsPage() {
     <Box>
       <PageActionBar
         title="Plateformes"
-        titleOnXs
         onSave={handleSave}
         saveDisabled={!isDirty || saving || !draft}
         saveBusy={saving}
@@ -187,36 +266,88 @@ export default function PlatformsSettingsPage() {
         {loadError && <ErrorAlert message="Impossible de charger les plateformes." onRetry={load} sx={{ mb: 2 }} />}
         <Alert severity="info" sx={{ mb: 2 }}>
           Ces réglages valent pour <strong>tous</strong> les logements : chaque fiche logement ne garde
-          que ses calendriers. Les comptes comptables se règlent dans le{' '}
-          <Link component={RouterLink} to="/comptabilite/plateformes">Plan comptable</Link>.
+          que ses calendriers.
+          <Slot name="settings.platforms.links" page="platforms" />
         </Alert>
         {!draft && !loadError && <LoadingState label="Chargement des plateformes…" />}
         {draft && !isMobile && (
           <Card variant="outlined">
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Plateforme</TableCell>
-                  <TableCell>Couleur</TableCell>
-                  <TableCell>Commission (%)</TableCell>
-                  <TableCell>Acompte</TableCell>
-                  <TableCell sx={{ minWidth: 200 }}>Taxe de séjour</TableCell>
-                  <TableCell>Virement (jours)</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</TableCell>
-                    <TableCell>{colorCell(p)}</TableCell>
-                    <TableCell>{commissionCell(p)}</TableCell>
-                    <TableCell>{depositCell(p)}</TableCell>
-                    <TableCell>{taxCell(p)}</TableCell>
-                    <TableCell>{payoutCell(p)}</TableCell>
+            {/* Every column fits from 1200 px with the side menu open (2026-10-27 spec review): the colour
+                sits beside the name, headers never wrap, cells are compact. Scroll-contained all the same. */}
+            <TableContainer>
+              <Table
+                size="small"
+                sx={{
+                  '& .MuiTableCell-root': { px: 0.75 },
+                  '& .MuiTableCell-root:first-of-type': { pl: 2 },
+                  '& .MuiTableCell-root:last-of-type': { pr: 2 },
+                  '& .MuiTableCell-head': { whiteSpace: 'nowrap' },
+                }}
+              >
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Plateforme</TableCell>
+                    <TableCell>Commission %</TableCell>
+                    <TableCell>Acompte</TableCell>
+                    <TableCell sx={{ width: 220 }}>Taxe de séjour</TableCell>
+                    <TableCell>Virement (j)</TableCell>
+                    <TableCell>Vente directe</TableCell>
+                    <TableCell>Sans corvées</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {rows.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {colorCell(p)}
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>{commissionCell(p)}</TableCell>
+                      <TableCell>{depositCell(p)}</TableCell>
+                      <TableCell>{taxCell(p)}</TableCell>
+                      <TableCell>{payoutCell(p)}</TableCell>
+                      <TableCell>{directCell(p)}</TableCell>
+                      <TableCell>{choresCell(p)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Card>
+        )}
+        {draft && !isMobile && contactRows.length > 0 && (
+          <Card variant="outlined" sx={{ mt: 3 }}>
+            <CardContent sx={{ pb: 0 }}>
+              <Typography variant="sectionHeader" component="h2">E-mails aux voyageurs</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Adresse relais : aucun mail après le séjour. Avis : la fin de « quelques mots sur … » dans le
+                mail du lendemain du départ ; vide, le nom de la plateforme.
+              </Typography>
+            </CardContent>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Plateforme</TableCell>
+                    <TableCell>Adresse e-mail relais</TableCell>
+                    <TableCell sx={{ minWidth: 240 }}>Où laisser un avis</TableCell>
+                    <TableCell sx={{ minWidth: 240 }}>En anglais</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {contactRows.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell sx={{ fontWeight: 600 }}>{formatPlatformLabel(p.name)}</TableCell>
+                      <TableCell>{relayCell(p)}</TableCell>
+                      <TableCell>{reviewCell(p, 'fr')}</TableCell>
+                      <TableCell>{reviewCell(p, 'en')}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           </Card>
         )}
         {draft && isMobile && rows.map((p) => (
@@ -228,7 +359,7 @@ export default function PlatformsSettingsPage() {
                   <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{formatPlatformLabel(p.name)}</Typography>
                 </Box>
                 <Box>
-                  <Typography variant="caption" color="text.secondary">Commission (%)</Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Commission (%)</Typography>
                   {commissionCell(p)}
                 </Box>
                 {p.takesDeposit !== null && (
@@ -239,15 +370,32 @@ export default function PlatformsSettingsPage() {
                 )}
                 {p.touristTaxCollection !== null && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Taxe de séjour</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Taxe de séjour</Typography>
                     {taxCell(p)}
                   </Box>
                 )}
                 {p.payoutDueDays !== null && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Virement (jours après le départ)</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Virement (jours après le départ)</Typography>
                     {payoutCell(p)}
                   </Box>
+                )}
+                <FormControlLabel control={directCell(p)} label="Compté comme vente directe" sx={{ minHeight: 44 }} />
+                {p.forbidsGuestChores !== null && (
+                  <FormControlLabel control={choresCell(p)} label="Sans corvées de départ" sx={{ minHeight: 44 }} />
+                )}
+                {p.relaysGuestEmail != null && (
+                  <>
+                    <FormControlLabel control={relayCell(p)} label="Adresse e-mail relais" sx={{ minHeight: 44 }} />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Où laisser un avis</Typography>
+                      {reviewCell(p, 'fr')}
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Où laisser un avis, en anglais</Typography>
+                      {reviewCell(p, 'en')}
+                    </Box>
+                  </>
                 )}
               </Stack>
             </CardContent>
@@ -259,7 +407,7 @@ export default function PlatformsSettingsPage() {
         onClose={dismissGuard}
         onConfirm={confirmLeave}
         title="Modifications non enregistrées"
-        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        message="Des modifications ne sont pas enregistrées. Quitter sans enregistrer ?"
         confirmLabel="Quitter sans enregistrer"
         cancelLabel="Rester"
         confirmColor="error"

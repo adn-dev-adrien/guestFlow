@@ -59,6 +59,9 @@ function createDb() {
   return db;
 }
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('the pack is the property options with freeUnits > 0, and nothing else', () => {
   const model = propertiesModel.buildModel(createDb());
   const pack = model.listWelcomePackOptions(1);

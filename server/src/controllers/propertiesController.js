@@ -1,10 +1,19 @@
 // Properties controller — thin handlers over propertiesModel.
 
 const model = require('../models/propertiesModel');
+const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
+const { isHistoryMessage } = require('../utils/deletionGuard');
 const { buildProgressivePreview } = require('../utils/pricing');
 const { ADMIN, RECEPTION, userHasRole } = require('../constants/roles');
 const { toReceptionPropertyList } = require('../utils/receptionView');
-const { validatePropertyInput } = require('../utils/propertyValidation');
+const { validatePropertyInput, cleanPropertyText, seasonInputRefusal, progressivePreviewRefusal } = require('../utils/propertyValidation');
+const { positiveId } = require('../utils/bodyText');
+const { isWrongFieldType, WRONG_FIELD_TYPE } = require('../utils/bodyParserRefusal');
+const { isUnreadablePhoto, PHOTO_UNREADABLE } = require('../utils/propertyUploads');
+const { PROPERTY_LIMITS } = require('../utils/inputLimits');
+const { quotaRefusal } = require('../utils/planQuota');
+const propertyArticle = require('../utils/propertyArticle');
+const { emitPricingChanged, priceBearingRow, priceBearingChanged } = require('../utils/pricingChanged');
 
 // Map a model result ({ data } | { error, status, conflictingRule?, code? }) to an HTTP response.
 function respond(res, result) {
@@ -12,6 +21,7 @@ function respond(res, result) {
     const body = { error: result.error };
     if (result.conflictingRule) body.conflictingRule = result.conflictingRule;
     if (result.code) body.code = result.code;
+    if (result.field) body.field = result.field;
     return res.status(result.status || 400).json(body);
   }
   return res.json(result.data);
@@ -25,10 +35,43 @@ function list(req, res) {
   res.json(receptionOnly ? toReceptionPropertyList(properties) : properties);
 }
 
+// The groups repeat each option of `options` in full (49 kB beside 28 kB on the shadow), and their
+// `pinned` / `foldable` slices again: the stay view names the options by id, drops the two slices (the
+// fiche recomputes them from the reservation) and the client joins the ids back to `options`
+// (specs/inte-performance.md rule 21).
+function referenceOptionGroups(groups) {
+  if (!groups) return groups;
+  const ref = (option) => ({ id: option.id });
+  return {
+    ...groups,
+    ungrouped: (groups.ungrouped || []).map(ref),
+    groups: (groups.groups || []).map(({ pinned, foldable, ...group }) => ({ ...group, options: (group.options || []).map(ref) })), // eslint-disable-line no-unused-vars
+  };
+}
+
 function getOne(req, res) {
   const property = model.getByIdWithDetails(req.params.id);
   if (!property) return res.status(404).json({ error: 'Logement non trouvé' });
+  // `?view=stay` — what a reservation fiche reads: the property without its pricing seasons, which only
+  // the tariff pages render (the bulk of the payload; specs/inte-performance.md rule 14).
+  if (req.query && req.query.view === 'stay') {
+    const { pricingRules, ...stay } = property; // eslint-disable-line no-unused-vars
+    return res.json({ ...stay, optionGroups: referenceOptionGroups(stay.optionGroups) });
+  }
   return res.json(property);
+}
+
+// GET /api/properties/limits — the bounds of the property form's numbers, for a new property too
+// (specs/settings-input-guards.md rule 8).
+function limits(req, res) {
+  res.json(PROPERTY_LIMITS);
+}
+
+// GET /api/properties/article-labels?name= — the five articles as the guest emails write them
+// (« au Fournil »: the server contracts), so the property page shows what is sent
+// (specs/guest-email-texts-made-simple.md rule 30, 2026-10-18).
+function articleLabels(req, res) {
+  res.json({ labels: propertyArticle.choices(String((req.query && req.query.name) || '').slice(0, 200)) });
 }
 
 function platformColors(req, res) {
@@ -46,8 +89,10 @@ function saveEmailHooks(req, res) {
 }
 
 function progressivePreview(req, res) {
+  const refusal = progressivePreviewRefusal(req.body);
+  if (refusal) return respond(res, refusal);
   const { pricePerNight, progressiveTiers, maxNights } = req.body;
-  res.json(buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14)));
+  return res.json(buildProgressivePreview(Number(pricePerNight || 0), progressiveTiers, Number(maxNights || 14)));
 }
 
 // specs/settings-rationalization.md rule 23a — refused before anything is written, one message per field.
@@ -59,42 +104,79 @@ function refuseInvalid(res, body, existing) {
 }
 
 async function create(req, res) {
+  req.body = cleanPropertyText(req.body);
   if (refuseInvalid(res, req.body, null)) return;
+  const refusal = quotaRefusal('units', () => model.count());
+  if (refusal) return void res.status(402).json(refusal);
   try {
     res.json(await model.create(req.body, req.file));
   } catch (err) {
     // Don't echo the raw error message back — it may include file paths, library internals
     // or sharp/multer details that aren't useful to the user but help an attacker fingerprint
     // the stack. Spotted in the 2026-06-01 security audit (finding M3).
+    if (isWrongFieldType(err)) return void res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
+    if (isUnreadablePhoto(err)) return void res.status(PHOTO_UNREADABLE.status).json(PHOTO_UNREADABLE.body);
     console.error('[propertiesController.create]', err);
     res.status(500).json({ error: 'Erreur lors de la création du logement' });
   }
 }
 
 async function update(req, res) {
-  if (refuseInvalid(res, req.body, model.getByIdWithDetails(req.params.id))) return;
+  const stored = model.getByIdWithDetails(req.params.id);
+  // specs/reservations-backend-mvc.md rule 26 (audit R41-DB-L2) — a save on a logement that no longer exists is refused,
+  // never a 200 « ok » on an UPDATE that touched nothing (with a photo written to /uploads for nobody).
+  if (!stored) return void res.status(404).json({ error: 'Logement non trouvé' });
+  req.body = cleanPropertyText(req.body, stored);
+  if (refuseInvalid(res, req.body, stored)) return;
   try {
-    res.json(await model.update(req.params.id, req.body, req.file));
+    const before = priceBearingRow(req.params.id);
+    const result = await model.update(req.params.id, req.body, req.file);
+    if (priceBearingChanged(before, priceBearingRow(req.params.id))) emitPricingChanged(req.params.id, 'property');
+    res.json(result);
   } catch (err) {
+    if (isWrongFieldType(err)) return void res.status(WRONG_FIELD_TYPE.status).json(WRONG_FIELD_TYPE.body);
+    if (isUnreadablePhoto(err)) return void res.status(PHOTO_UNREADABLE.status).json(PHOTO_UNREADABLE.body);
     console.error('[propertiesController.update]', err);
     res.status(500).json({ error: 'Erreur lors de la mise à jour du logement' });
   }
 }
 
-function remove(req, res) {
-  res.json(model.remove(req.params.id));
+const propertyBlockerCode = (message) => (isHistoryMessage(message) ? 'PROPERTY_KEEPS_HISTORY' : 'PROPERTY_CARRIES_MONEY');
+
+async function remove(req, res) {
+  const blocker = model.deletionBlocker(req.params.id);
+  if (blocker) return res.status(409).json({ error: blocker, code: propertyBlockerCode(blocker) });
+  try {
+    await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(req.params.id), { paymentLinksModel: require('../models/paymentLinksModel') });
+  } catch (err) {
+    return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
+  }
+  const outcome = model.removeGuarded(req.params.id);
+  if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: propertyBlockerCode(outcome.blocker) });
+  return res.json(outcome);
+}
+
+// specs/google-vacation-rentals-feed.md rule 12 — a write that succeeded announces itself; a refusal
+// announces nothing.
+function respondAndAnnounce(res, result, propertyId, source) {
+  if (result && !result.error) emitPricingChanged(propertyId, source);
+  return respond(res, result);
 }
 
 function addPricing(req, res) {
-  respond(res, model.addPricingRule(req.params.id, req.body));
+  const refusal = seasonInputRefusal(req.body);
+  if (refusal) return respond(res, refusal);
+  return respondAndAnnounce(res, model.addPricingRule(req.params.id, req.body), req.params.id, 'pricing');
 }
 
 function updatePricing(req, res) {
-  respond(res, model.updatePricingRule(req.params.id, req.params.ruleId, req.body));
+  const refusal = seasonInputRefusal(req.body, model.pricingRuleRow(req.params.id, req.params.ruleId));
+  if (refusal) return respond(res, refusal);
+  return respondAndAnnounce(res, model.updatePricingRule(req.params.id, req.params.ruleId, req.body), req.params.id, 'pricing');
 }
 
 function deletePricing(req, res) {
-  respond(res, model.deletePricingRule(req.params.id, req.params.ruleId));
+  respondAndAnnounce(res, model.deletePricingRule(req.params.id, req.params.ruleId), req.params.id, 'pricing');
 }
 
 // « Prix plateformes » grid for the tarif page (specs/platform-price-from-commission.md).
@@ -104,17 +186,28 @@ function platformPrices(req, res) {
 }
 
 function applyPricing(req, res) {
-  respond(res, model.applyPricingTo(Number(req.params.id), req.body));
+  const target = req.body && req.body.targetPropertyId;
+  respondAndAnnounce(res, model.applyPricingTo(Number(req.params.id), req.body), target, 'pricing');
 }
 
 // Calendar season painting (specs/pricing-min-nights-per-range.md): (re)assign a selected period to a
 // season with a minimum-nights, carving/splitting the covering season(s) server-side.
 function assignPricingDateRange(req, res) {
-  respond(res, model.assignDateRangeToSeason(req.params.id, req.body));
+  const target = (req.body && req.body.target) || {};
+  const refusal = seasonInputRefusal({ ...(target.mode === 'new' ? target : {}), minNights: req.body && req.body.minNights });
+  if (refusal) return respond(res, refusal);
+  return respondAndAnnounce(res, model.assignDateRangeToSeason(req.params.id, req.body), req.params.id, 'pricing');
 }
 
 function addDocument(req, res) {
   respond(res, model.addDocument(req.params.id, req.file, req.body));
+}
+
+function downloadDocument(req, res) {
+  const doc = model.getDocument(req.params.id, req.params.docId);
+  const file = doc && require('../utils/propertyDocumentFiles').resolveDocumentFile(doc.filePath);
+  if (!file) return res.status(404).json({ error: 'Document introuvable' });
+  return res.download(file, require('../utils/propertyDocumentFiles').downloadName(doc.name, file));
 }
 
 function deleteDocument(req, res) {
@@ -122,12 +215,25 @@ function deleteDocument(req, res) {
 }
 
 function setOptions(req, res) {
-  res.json(model.setOptions(req.params.id, req.body.optionIds));
+  // specs/settings-input-guards.md, hosting-h2 rule 68 — a list of ids or nothing; left out means an empty list, as before.
+  const { optionIds } = req.body || {};
+  if (optionIds !== undefined && optionIds !== null && !(Array.isArray(optionIds) && optionIds.every((id) => positiveId(id) !== null))) {
+    return res.status(400).json({ error: 'Liste d’options invalide.' });
+  }
+  // Rule 62 (audit R25-I1) — a real property, real options: an unknown id used to reach the foreign key and answer 500.
+  // Rule 62 reading (audit R25 N2) — an option named twice used to reach the unique key and answer 500.
+  const ids = (optionIds || []).map(positiveId);
+  if (new Set(ids).size !== ids.length || !model.optionListTargetsExist(req.params.id, optionIds || [])) {
+    return res.status(400).json({ error: 'Liste d’options invalide.' });
+  }
+  const result = model.setOptions(req.params.id, optionIds);
+  emitPricingChanged(req.params.id, 'options');
+  res.json(result);
 }
 
 module.exports = {
-  list, getOne, platformColors, emailHooks, saveEmailHooks, progressivePreview,
+  list, getOne, limits, articleLabels, platformColors, emailHooks, saveEmailHooks, progressivePreview,
   create, update, remove,
   addPricing, updatePricing, deletePricing, applyPricing, assignPricingDateRange, platformPrices,
-  addDocument, deleteDocument, setOptions,
+  addDocument, deleteDocument, downloadDocument, setOptions,
 };

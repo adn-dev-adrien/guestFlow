@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dépendances des plugins</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-dark:#244A38;--primary-soft:#E3ECE6;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;--line-strong:#CFC7B7;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;--neutral-bg:#EEEAE2;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:1040px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.4rem/1.2 var(--serif);margin:56px 0 12px}
+h3.sub{font:600 1.08rem/1.3 var(--serif);margin:30px 0 8px}
+p{margin:0 0 12px;max-width:70ch}
+code{font-size:.86em;background:#EFEBE2;padding:1px 5px;border-radius:5px}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0 0 12px;padding-left:1.1em;max-width:72ch}
+ul.plain li{margin:6px 0}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:820px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.panel h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+.panel ul{margin:0;padding-left:1.1em}
+.panel li{margin:5px 0;font-size:.93rem}
+.panel.ok{border-top:3px solid var(--success)}
+.panel.miss{border-top:3px solid var(--warning)}
+.panel.hole{border-top:3px solid var(--error)}
+.tbl{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:.92rem}
+.tbl th,.tbl td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{font-weight:600;color:var(--muted);font-size:.8rem;background:#FBF9F5}
+.tbl tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto;border-radius:12px}
+.pill{display:inline-block;font:600 .74rem var(--sans);padding:2px 9px;border-radius:99px;white-space:nowrap}
+.pill.hard{background:var(--error-bg);color:var(--error)}
+.pill.decl{background:var(--success-bg);color:var(--success)}
+.pill.soft{background:var(--neutral-bg);color:var(--muted)}
+
+/* sticky toolbar */
+.viewbar{position:sticky;top:0;z-index:20;background:rgba(248,245,239,.86);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border-bottom:1px solid var(--line)}
+@media (prefers-reduced-transparency:reduce){.viewbar{background:var(--paper);backdrop-filter:none;-webkit-backdrop-filter:none}}
+.viewbar .in{max-width:1040px;margin:0 auto;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.viewbar .t{font:600 .95rem var(--serif);flex:1;min-width:140px}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 .86rem var(--sans);color:#57534A;padding:7px 11px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+
+/* decision controls */
+.knobs{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 14px;display:grid;gap:10px}
+.knob{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.88rem}
+.knob .k{font-weight:600;min-width:15rem;flex:1}
+.knob .seg button{font-size:.82rem}
+.knob label.chk{display:inline-flex;align-items:center;gap:8px;min-height:36px;cursor:pointer}
+.knob input[type=checkbox]{width:18px;height:18px;accent-color:var(--primary)}
+.reset{border:1px solid var(--line-strong);background:var(--card);border-radius:10px;min-height:36px;padding:0 12px;font:500 .84rem var(--sans);cursor:pointer;color:var(--ink)}
+.try{font-size:.88rem;color:var(--muted);margin:0 0 10px}
+
+/* stage */
+.stage{margin:0 auto;max-width:1040px;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+body.phone .stage{max-width:390px}
+@media (prefers-reduced-motion:reduce){.stage{transition:none}}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+.actionbar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:12px;min-height:56px}
+.actionbar .t{font:600 1.05rem var(--serif);flex:1}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+body.phone .grid{grid-template-columns:1fr}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+
+/* plugin card */
+.pc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;transition:box-shadow .2s ease}
+.pc.flash{box-shadow:0 0 0 2px var(--honey)}
+@media (prefers-reduced-motion:reduce){.pc{transition:none}}
+.pc .top{display:flex;gap:12px;align-items:flex-start}
+.ico{flex:none;width:40px;height:40px;border-radius:10px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font-size:1.1rem}
+.pc .body{flex:1;min-width:0}
+.pc .nm{font-weight:700;font-size:.95rem}
+.pc .ver{font-weight:400;color:var(--muted);font-size:.78rem;margin-left:6px;white-space:nowrap}
+.pc .ds{font-size:.88rem;color:var(--muted);margin:1px 0 0}
+.badge{display:inline-flex;align-items:center;gap:6px;font:600 .74rem var(--sans);padding:2px 9px;border-radius:99px;margin-top:6px}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-success{background:var(--success-bg);color:var(--success)}
+.b-warning{background:var(--warning-bg);color:var(--warning)}
+.b-error{background:var(--error-bg);color:var(--error)}
+.b-neutral{background:var(--neutral-bg);color:var(--muted)}
+.b-info{background:var(--info-bg);color:var(--info)}
+.dep{font-size:.8rem;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}
+.dep b{color:var(--ink);font-weight:600}
+.dep .badge{margin-top:0;font-size:.7rem;padding:1px 8px}
+.dep .rng{font:500 .74rem ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);background:#F1EDE4;border-radius:5px;padding:0 5px}
+.pc .acts{display:flex;gap:8px;justify-content:flex-end;align-items:center;position:relative}
+body.phone .pc .acts{justify-content:stretch}
+body.phone .pc .acts .btn{flex:1}
+.btn{min-height:44px;border-radius:10px;padding:0 16px;font:600 .9rem var(--sans);cursor:pointer;border:1px solid var(--primary);background:var(--card);color:var(--primary);transition:transform .1s ease}
+.btn:active{transform:scale(.97)}
+.btn.fill{background:var(--primary);color:#fff}
+.btn.fill:hover{background:var(--primary-dark)}
+.btn.danger{border-color:var(--error);color:var(--error)}
+.btn.danger.fill{background:var(--error);color:#fff}
+.btn.text{border-color:transparent;color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.ib{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:inline-grid;place-items:center;cursor:pointer;color:var(--ink);font-size:1.1rem;flex:none}
+.why{font-size:.78rem;color:var(--warning);text-align:right}
+body.phone .why{text-align:left}
+.err{font-size:.86rem;color:var(--error);font-weight:600}
+.menu{position:absolute;right:0;top:48px;z-index:10;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 34px -14px rgba(39,37,31,.4);min-width:260px;max-width:300px;padding:6px;transform-origin:top right;animation:menu .16s cubic-bezier(.2,.8,.2,1)}
+@keyframes menu{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.menu,.dlg{animation:none!important}}
+.mi{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:10px 12px;min-height:44px;font:500 .9rem var(--sans);color:var(--error);cursor:pointer}
+.mi:hover:not(:disabled){background:#FBF4F2}
+.mi:disabled{cursor:not-allowed;color:#B9A9A5}
+.mi small{display:block;color:var(--warning);font-size:.76rem;font-weight:500;margin-top:2px}
+.busy{font-size:.78rem;color:var(--info);font-weight:600}
+
+/* console */
+.cline{display:flex;align-items:flex-start;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.cline:last-child{border-bottom:0}
+.cline .body{flex:1;min-width:0}
+.sw{position:relative;flex:none;width:52px;height:44px;display:grid;place-items:center;cursor:pointer}
+.sw input{position:absolute;inset:0;opacity:0;cursor:pointer;margin:0}
+.sw .tr{width:38px;height:22px;border-radius:99px;background:#CFC7B7;position:relative;transition:background .2s ease}
+.sw .tr::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .22s cubic-bezier(.2,.8,.2,1)}
+.sw input:checked+.tr{background:var(--primary)}
+.sw input:checked+.tr::after{transform:translateX(16px)}
+.sw input:focus-visible+.tr{outline:2px solid var(--primary);outline-offset:2px}
+.sw input:disabled{cursor:not-allowed}
+.sw input:disabled+.tr{opacity:.45}
+@media (prefers-reduced-motion:reduce){.sw .tr,.sw .tr::after{transition:none}}
+
+/* dialog */
+.scrim{position:fixed;inset:0;background:rgba(39,37,31,.38);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+.scrim.open{display:flex}
+.dlg{background:var(--card);border-radius:16px;max-width:440px;width:100%;padding:22px;box-shadow:0 24px 60px -20px rgba(0,0,0,.45);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+body.phone .scrim{align-items:flex-end;padding:0}
+body.phone .dlg{max-width:100%;border-radius:16px 16px 0 0;min-height:52vh;display:flex;flex-direction:column}
+body.phone .dlg .acts2{margin-top:auto}
+@keyframes pop{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}
+.dlg h4{font:600 1.15rem var(--serif);margin:0 0 8px}
+.dlg p{font-size:.94rem;color:var(--muted);margin:0 0 8px}
+.dlg ul{margin:4px 0 10px;padding:0;list-style:none}
+.dlg li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin:6px 0;font-size:.92rem}
+.dlg li .op{font:600 .72rem var(--sans);color:var(--info);background:var(--info-bg);border-radius:99px;padding:1px 8px}
+.dlg li .op.off{color:var(--warning);background:var(--warning-bg)}
+.acts2{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+body.phone .acts2{flex-direction:column-reverse}
+body.phone .acts2 .btn{width:100%}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;border-radius:10px;padding:10px 16px;font-size:.9rem;transition:opacity .2s ease,transform .25s cubic-bezier(.2,.8,.2,1);z-index:50;max-width:calc(100vw - 32px);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.toast{transition:opacity .2s ease;transform:translate(-50%,0)}}
+
+.q{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0}
+.q h3{font:600 1rem/1.35 var(--sans);margin:0 0 6px}
+.q ol{margin:0;padding-left:1.2em;font-size:.92rem}
+.q li{margin:3px 0}
+.q .rec{font-weight:600;color:var(--primary)}
+.risk{border-left:3px solid var(--warning);padding:2px 0 2px 14px}
+</style>
+</head>
+<body>
+<div class="viewbar"><div class="in">
+  <div class="t">Dépendances des plugins</div>
+  <div class="seg" role="group" aria-label="Largeur">
+    <button type="button" data-w="desk" aria-pressed="true">Ordinateur</button>
+    <button type="button" data-w="phone" aria-pressed="false">Mobile</button>
+  </div>
+  <div class="seg" role="group" aria-label="Version">
+    <button type="button" data-mode="today" aria-pressed="false">Aujourd’hui</button>
+    <button type="button" data-mode="proposed" aria-pressed="true">Proposé</button>
+  </div>
+</div></div>
+
+<main>
+<h1>Dépendances des plugins</h1>
+<p class="lede">Un plugin qui a besoin d’un autre doit le dire, et l’autre doit savoir qui l’utilise. Le moteur sait déjà refuser ; il ne le montre presque jamais. Proposition : rien de plus que le champ <code>requires</code> des manifestes, un graphe calculé par le serveur, et deux lignes sur chaque carte.</p>
+<p style="font-size:.88rem;color:var(--muted)">Spec de référence : <code>specs/plugin-dependencies.md</code> — approuvée le 29/10/2026, s’appuie sur #844 (mergée).</p>
+
+<h2>Le constat</h2>
+<div class="cols">
+  <div class="panel ok"><h3>Ce qui marche déjà</h3><ul>
+    <li>Déclaration <code>requires: [{ id, range }]</code> dans chaque manifeste.</li>
+    <li>Installation « à la apt » : « Nécessite aussi … » puis « Tout installer », dans l’ordre, tout ou rien.</li>
+    <li>Refus serveur : désinstaller ou désactiver un prérequis utilisé, activer sur un prérequis éteint (#844).</li>
+    <li>Un paquet chargé sans son prérequis reste installé, non chargé.</li>
+    <li>La console refuse les mêmes interrupteurs.</li>
+  </ul></div>
+  <div class="panel miss"><h3>Ce que l’opérateur ne voit pas</h3><ul>
+    <li>Une fois installé, aucune carte ne dit « Nécessite … » ni « Utilisé par … ».</li>
+    <li>« Désactiver… » demande confirmation, <em>puis</em> refuse en rouge.</li>
+    <li>Même chose pour « Désinstaller » et pour « Activer » sur un prérequis éteint.</li>
+    <li>Dans la console : refus seulement après avoir basculé l’interrupteur.</li>
+  </ul></div>
+  <div class="panel hole"><h3>Trous</h3><ul>
+    <li>En développement, un plugin s’installe sans son prérequis.</li>
+    <li>Une dépendance circulaire passe en silence, puis bloque les deux.</li>
+    <li>Aucun contrôle CI des <code>requires</code>.</li>
+    <li>Un forfait peut autoriser Google Vacation Rentals sans Réservation depuis le site.</li>
+  </ul></div>
+</div>
+
+<h3 class="sub">Les plugins livrés, aujourd’hui</h3>
+<div class="scroll"><table class="tbl">
+  <thead><tr><th>Plugin</th><th>Dépend de</th><th>Nature</th></tr></thead>
+  <tbody>
+    <tr><td>Google Vacation Rentals</td><td>Réservation depuis le site <code>^1.7.1</code></td><td><span class="pill decl">déclarée</span> la seule des 16</td></tr>
+    <tr><td>Vigilance Météo-France</td><td>Arrivée et départ guidés</td><td><span class="pill hard">implicite, forte</span> sans le sas, ne produit rien</td></tr>
+    <tr><td>Linge, Accès au portail, Ressources à l’heure</td><td>Arrivée et départ guidés</td><td><span class="pill soft">faible</span> une étape du sas en plus</td></tr>
+    <tr><td>Neat, Paiement en ligne</td><td>Réservation depuis le site</td><td><span class="pill soft">faible</span> une option sur le site en plus</td></tr>
+    <tr><td>Google Vacation Rentals</td><td>Recettes tarifaires</td><td><span class="pill soft">faible</span> mise à jour des prix plus rapide</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Ce qu’on propose</h2>
+<ul class="plain">
+  <li><b>Une seule déclaration</b> : le <code>requires</code> du manifeste. Ni table, ni réglage, ni nouveau champ.</li>
+  <li><b>Un graphe calculé par le serveur</b> (<code>utils/pluginGraph.js</code>), lu par la page Plugins, le réconciliateur et la console.</li>
+  <li><b>Visible des deux côtés</b> : « Nécessite … » sur le plugin, « Utilisé par … » sur son prérequis, avec l’état quand il manque quelque chose.</li>
+  <li><b>Le refus avant le clic</b>, jamais après une confirmation.</li>
+  <li><b>Entraîner, avec confirmation</b> : installer ou activer emmène les prérequis ; désactiver emmène les plugins actifs qui en dépendent. Désinstaller n’emmène rien.</li>
+  <li><b>CI</b> : <code>check-plugin-versions</code> refuse un prérequis inconnu, une plage non tenue par la version livrée, un cycle.</li>
+  <li><b>Console</b> : mêmes lignes, mêmes confirmations ; un forfait incohérent est refusé.</li>
+</ul>
+
+<h2>Maquette — page Plugins</h2>
+<p class="try">Les choix retenus sont actifs par défaut ; l’autre option reste visible pour comparer. Basculer « Aujourd’hui / Proposé » en haut. À essayer : ⋯ → Désactiver sur Réservation depuis le site ; Installer la Vigilance Météo-France ; puis Activer Google Vacation Rentals.</p>
+<div class="knobs" id="knobs">
+  <div class="knob"><span class="k">Q1 · Désactiver un prérequis utilisé</span>
+    <div class="seg" role="group" aria-label="Q1"><button type="button" data-q="q1" data-v="cascade" aria-pressed="true">Entraîner · retenu</button><button type="button" data-q="q1" data-v="refuse" aria-pressed="false">Refuser</button></div></div>
+  <div class="knob"><span class="k">Q3 · Prérequis installé mais éteint</span>
+    <div class="seg" role="group" aria-label="Q3"><button type="button" data-q="q3" data-v="offer" aria-pressed="true">Proposer de l’activer · retenu</button><button type="button" data-q="q3" data-v="refuse" aria-pressed="false">Refuser</button></div></div>
+  <div class="knob"><span class="k">Q5 · Plage de versions</span>
+    <div class="seg" role="group" aria-label="Q5"><button type="button" data-q="q5" data-v="unmet" aria-pressed="true">Si non tenue · retenu</button><button type="button" data-q="q5" data-v="always" aria-pressed="false">Toujours</button></div></div>
+  <div class="knob"><span class="k">Scénario</span>
+    <label class="chk"><input type="checkbox" id="old"> Réservation depuis le site en 1.6.0</label>
+    <button type="button" class="reset" id="reset">Réinitialiser</button></div>
+</div>
+<div class="stage"><div class="frame">
+  <div class="actionbar"><span class="t">Plugins</span></div>
+  <div class="grid" id="cards"></div>
+</div></div>
+
+<h2>Maquette — console, modules d’un client</h2>
+<p class="try">Mêmes règles, même graphe. Les interrupteurs enregistrent à la bascule ; une confirmation s’ouvre seulement quand d’autres modules suivent.</p>
+<div class="stage"><div class="frame">
+  <div class="actionbar"><span class="t">Gîte des Oliviers · Modules</span></div>
+  <div class="pc" style="padding:4px 12px" id="console"></div>
+</div></div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="plain">
+  <li>Les liens faibles (« Complète … ») : ils ne refusent rien.</li>
+  <li>Les conflits entre plugins : aucun cas aujourd’hui.</li>
+  <li>Les mises à jour en cascade : chacune garde son redémarrage et son bouton.</li>
+  <li>La désinstallation en cascade : elle peut effacer des données.</li>
+  <li>Les prérequis au choix (« A ou B ») et une page de graphe : une seule arête aujourd’hui.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="risk">
+<p><b>Faible côté données</b> : aucune table, aucune migration. Le graphe se recalcule à chaque lecture (16 plugins).</p>
+<p><b>À surveiller</b> : la désactivation en cascade éteint un plugin que l’opérateur n’a pas ouvert. D’où la liste nommée dans la confirmation, le tout-ou-rien si l’un d’eux refuse (lien de paiement ouvert, compte Accueil), et aucune réactivation automatique.</p>
+<p><b>Q4 retenue</b> : un espace qui a la Vigilance sans le sas la verra « Nécessite Arrivée et départ guidés » après mise à jour, données gardées. Solio a les deux.</p>
+</div>
+
+<h2>Décisions — 29/10/2026</h2>
+<p style="color:var(--muted)">Toutes tranchées, chaque fois l’option recommandée.</p>
+<div class="q"><h3>Q1 — Désactiver un plugin utilisé par un plugin actif</h3><p class="rec" style="margin:0">✓ Les deux sont désactivés, après une confirmation qui nomme les plugins entraînés. Réversible, données gardées, réactivation un par un.</p></div>
+<div class="q"><h3>Q2 — Désinstaller un plugin utilisé par un autre plugin installé</h3><p class="rec" style="margin:0">✓ Refusé, raison affichée avant le clic. Jamais de désinstallation en cascade.</p></div>
+<div class="q"><h3>Q3 — Installer ou activer sur un prérequis installé mais éteint</h3><p class="rec" style="margin:0">✓ Proposé dans la même confirmation : « Active aussi … ».</p></div>
+<div class="q"><h3>Q4 — Vigilance Météo-France → Arrivée et départ guidés</h3><p class="rec" style="margin:0">✓ Déclaré : <code>requires sas ^1.7.0</code>, Vigilance en 1.3.0.</p></div>
+<div class="q"><h3>Q5 — Plage de versions</h3><p class="rec" style="margin:0">✓ Affichée seulement quand elle n’est pas tenue.</p></div>
+<div class="q"><h3>Q6 — Cohérence des forfaits dans la console</h3><p class="rec" style="margin:0">✓ Un forfait ou une option qui autorise un plugin sans son prérequis est refusé ; un changement de forfait retire le dépendant avec son prérequis.</p></div>
+<div class="q"><h3>Q7 — Liens faibles (« Complète … »)</h3><p class="rec" style="margin:0">✓ Non déclarés.</p></div>
+</main>
+
+<div class="scrim" id="scrim" role="presentation"><div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT">
+  <h4 id="dlgT"></h4><div id="dlgB"></div>
+  <div class="acts2"><button type="button" class="btn text" id="dlgNo">Annuler</button><button type="button" class="btn fill" id="dlgYes"></button></div>
+</div></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  var ORDER=['wb','gvr','sas','weather'];
+  var BASE={
+    wb:{name:'Réservation depuis le site',ico:'◎',version:'1.8.3',desc:'Le moteur de réservation du site WordPress.',requires:[]},
+    gvr:{name:'Google Vacation Rentals',ico:'⌕',version:'1.0.2',desc:'Envoie à Google les prix du site et les disponibilités.',requires:[{id:'wb',range:'^1.7.1',min:'1.7.1'}]},
+    sas:{name:'Arrivée et départ guidés',ico:'⇄',version:'1.7.2',desc:'Le sas pas à pas de l’accueil et du départ.',requires:[]},
+    weather:{name:'Vigilance Météo-France',ico:'☂',version:'1.2.1',desc:'Prévient le voyageur d’une alerte météo à l’arrivée.',requires:[{id:'sas',range:'^1.0.0',min:'1.0.0'}]}
+  };
+  var START={wb:'active',gvr:'active',sas:'available',weather:'available'};
+  var opt={mode:'proposed',q1:'cascade',q3:'offer',q5:'unmet',old:false};
+  var space, cons, errs={}, cerrs={}, menuOpen=null, busy={};
+  function fresh(){space=JSON.parse(JSON.stringify(START));cons={wb:true,gvr:true,sas:false,weather:false};errs={};cerrs={};menuOpen=null;busy={};}
+  fresh();
+  var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var N=function(id){return BASE[id].name;};
+  var installed=function(S,id){return S[id]!=='available';};
+  var verOf=function(id){return id==='wb'&&opt.old?'1.6.0':BASE[id].version;};
+  function list(names){return names.join(', ');}
+
+  /* ---- graph: the server's job, mimicked ---- */
+  function reqStatus(S,r){
+    if(!installed(S,r.id))return 'missing';
+    if(r.id==='wb'&&opt.old)return 'outOfRange';
+    if(S[r.id]!=='active')return 'inactive';
+    return 'ok';
+  }
+  function usedBy(S,id){return ORDER.filter(function(o){return installed(S,o)&&BASE[o].requires.some(function(r){return r.id===id;});});}
+  function activeDependants(S,id,acc){acc=acc||[];usedBy(S,id).forEach(function(d){if(S[d]==='active'&&acc.indexOf(d)<0){activeDependants(S,d,acc);acc.push(d);}});return acc;}
+  function reqClosure(S,id,acc){acc=acc||[];BASE[id].requires.forEach(function(r){if(acc.some(function(a){return a.id===r.id;}))return;reqClosure(S,r.id,acc);var st=reqStatus(S,r);if(st==='missing')acc.push({id:r.id,op:'install'});else if(st==='inactive')acc.push({id:r.id,op:'activate'});});return acc;}
+  function statusLabel(S,r){
+    var st=reqStatus(S,r);
+    if(st==='missing')return {cls:'b-neutral',t:'non installé'};
+    if(st==='inactive')return {cls:'b-warning',t:'inactif'};
+    if(st==='outOfRange')return {cls:'b-warning',t:'version '+verOf(r.id)+' — '+r.min+' ou plus récente requise'};
+    return null;
+  }
+  function incompatible(S,id){return installed(S,id)&&BASE[id].requires.some(function(r){return reqStatus(S,r)==='outOfRange';});}
+
+  /* ---- dialog ---- */
+  var scrim=document.getElementById('scrim'),dT=document.getElementById('dlgT'),dB=document.getElementById('dlgB'),dY=document.getElementById('dlgYes'),dN=document.getElementById('dlgNo');
+  var onYes=null,lastFocus=null;
+  function dialog(o){lastFocus=document.activeElement;dT.textContent=o.title;dB.innerHTML=o.body;dY.textContent=o.yes;dY.className='btn fill'+(o.danger?' danger':'');onYes=o.onYes;scrim.classList.add('open');dY.focus();}
+  function close(){scrim.classList.remove('open');onYes=null;if(lastFocus&&lastFocus.focus)lastFocus.focus();}
+  dN.onclick=close;
+  dY.onclick=function(){var f=onYes;close();if(f)f();};
+  scrim.addEventListener('click',function(e){if(e.target===scrim)close();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){if(scrim.classList.contains('open'))close();else if(menuOpen){menuOpen=null;render();}}});
+  function opList(steps){return '<ul>'+steps.map(function(s){var lab=s.op==='install'?'installe':s.op==='activate'?'active':'désactive';return '<li><span class="op'+(s.op==='off'?' off':'')+'">'+lab+'</span>'+esc(N(s.id))+(s.op==='install'?' <span style="color:var(--muted)">'+verOf(s.id)+'</span>':'')+'</li>';}).join('')+'</ul>';}
+
+  var toastEl=document.getElementById('toast'),tt;
+  function toast(m){toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(tt);tt=setTimeout(function(){toastEl.classList.remove('show');},2400);}
+
+  /* ---- sequenced effects: one card at a time, as the server would ---- */
+  function run(steps,done){
+    var i=0;
+    (function next(){
+      if(i>=steps.length){busy={};render();if(done)done();return;}
+      var s=steps[i++];busy[s.id]=s.op==='off'?'Désactivation…':s.op==='install'?'Installation…':'Activation…';render();
+      setTimeout(function(){delete busy[s.id];space[s.id]=s.op==='off'?'inactive':s.op==='uninstall'?'available':'active';render();flash(s.id);next();},reduced?60:420);
+    })();
+  }
+  function flash(id){var el=document.querySelector('[data-card="'+id+'"]');if(!el||reduced)return;el.classList.add('flash');setTimeout(function(){el.classList.remove('flash');},500);}
+
+  /* ---- actions on the space ---- */
+  function act(id,what){
+    menuOpen=null;delete errs[id];render();
+    var today=opt.mode==='today';
+    if(what==='install'){
+      var plan=reqClosure(space,id);
+      var missing=plan.filter(function(s){return s.op==='install';}),off=plan.filter(function(s){return s.op==='activate';});
+      if(off.length&&(today||opt.q3==='refuse')){errs[id]='Nécessite '+list(off.map(function(s){return N(s.id);}))+' : à activer d’abord.';render();return;}
+      if(today&&missing.length&&!off.length){
+        dialog({title:'Installer '+N(id),body:'<p>Nécessite aussi : '+esc(missing.map(function(s){return N(s.id)+' '+verOf(s.id);}).join(', '))+', installé en premier.</p>',yes:'Tout installer',onYes:function(){run(missing.concat([{id:id,op:'install'}]),function(){toast((missing.length+1)+' plugins installés.');});}});return;}
+      if(plan.length){
+        dialog({title:'Installer '+N(id),body:'<p>Pour fonctionner, '+esc(N(id))+' a besoin de :</p>'+opList(plan)+'<p>Dans cet ordre, puis '+esc(N(id))+'. Tout ou rien.</p>',yes:'Tout installer',onYes:function(){run(plan.concat([{id:id,op:'install'}]),function(){toast('Installé, avec '+plan.length+' prérequis.');});}});return;}
+      run([{id:id,op:'install'}]);return;
+    }
+    if(what==='activate'){
+      var plan2=reqClosure(space,id);
+      if(plan2.some(function(s){return s.op==='install';})){errs[id]='Nécessite '+list(plan2.filter(function(s){return s.op==='install';}).map(function(s){return N(s.id);}))+' : à installer d’abord.';render();return;}
+      if(plan2.length&&(today||opt.q3==='refuse')){errs[id]='Nécessite '+list(plan2.map(function(s){return N(s.id);}))+' : à activer d’abord.';render();return;}
+      if(plan2.length){dialog({title:'Activer '+N(id),body:'<p>Active aussi :</p>'+opList(plan2),yes:'Tout activer',onYes:function(){run(plan2.concat([{id:id,op:'activate'}]),function(){toast((plan2.length+1)+' plugins activés.');});}});return;}
+      run([{id:id,op:'activate'}]);return;
+    }
+    if(what==='deactivate'){
+      var deps=activeDependants(space,id);
+      if(deps.length&&!today&&opt.q1==='cascade'){
+        dialog({title:'Désactiver '+N(id)+' ?',body:'<p>Désactive aussi :</p>'+opList(deps.map(function(d){return {id:d,op:'off'};}))+'<p>Réglages et données gardés. À réactiver ensuite un par un.</p>',yes:'Tout désactiver',danger:true,onYes:function(){run(deps.map(function(d){return {id:d,op:'off'};}).concat([{id:id,op:'off'}]),function(){toast((deps.length+1)+' plugins désactivés.');});}});return;}
+      dialog({title:'Désactiver '+N(id)+' ?',body:'<p>Ce qu’il ajoute s’arrête. Ses réglages et ses données sont gardés : le réactiver remet tout en place.</p>',yes:'Désactiver',danger:true,onYes:function(){
+        if(deps.length){errs[id]='Nécessaire à '+list(deps.map(N))+' : à désactiver d’abord.';render();return;}
+        run([{id:id,op:'off'}]);}});return;
+    }
+    if(what==='uninstall'){
+      var users=usedBy(space,id);
+      dialog({title:'Désinstaller '+N(id)+' ?',body:'<p>Données conservées.</p>',yes:'Désinstaller',danger:true,onYes:function(){
+        if(users.length){errs[id]='Nécessaire à '+list(users.map(N))+' : à désinstaller d’abord.';render();return;}
+        run([{id:id,op:'uninstall'}]);}});return;
+    }
+  }
+
+  /* ---- render the space ---- */
+  function depLines(S,id){
+    var html='';
+    BASE[id].requires.forEach(function(r){
+      var sl=statusLabel(S,r);
+      var showRange=opt.q5==='always'||sl&&reqStatus(S,r)==='outOfRange';
+      html+='<div class="dep">Nécessite <b>'+esc(N(r.id))+'</b>'+(opt.q5==='always'?' <span class="rng">'+r.range+'</span>':'')+(sl?'<span class="badge '+sl.cls+'">'+esc(sl.t)+'</span>':'')+'</div>';
+      if(reqStatus(S,r)==='outOfRange')html+='<div class="dep"><span class="badge b-info">Mise à jour de '+esc(N(r.id))+' disponible</span></div>';
+    });
+    if(installed(S,id)){
+      var u=usedBy(S,id);
+      if(u.length)html+='<div class="dep">Utilisé par '+u.map(function(d){return '<b>'+esc(N(d))+'</b>'+(S[d]!=='active'?' (inactif)':'');}).join(', ')+'</div>';
+    }
+    return html;
+  }
+  function render(){
+    var today=opt.mode==='today';
+    var out='';
+    ORDER.forEach(function(id){
+      var st=space[id],inst=installed(space,id),inc=incompatible(space,id);
+      var badge='';
+      if(busy[id])badge='<span class="badge b-info">'+busy[id]+'</span>';
+      else if(inc)badge='<span class="badge b-error">Incompatible avec cette version</span>';
+      else if(st==='active')badge='<span class="badge b-success">Actif</span>';
+      else if(st==='inactive')badge='<span class="badge b-neutral">Inactif</span>';
+      var deps='';
+      if(today){
+        if(!inst){var miss=BASE[id].requires.filter(function(r){return reqStatus(space,r)==='missing';});if(miss.length)deps='<div class="dep">Nécessite : '+esc(list(miss.map(function(r){return N(r.id);})))+'</div>';}
+        if(inc)deps+='<div class="err" style="font-weight:500;font-size:.84rem">Nécessite '+esc(N('wb'))+'.</div>';
+      } else deps=depLines(space,id);
+      var acts='',why='';
+      var anyBusy=Object.keys(busy).length>0;
+      if(!inst){
+        var plan=reqClosure(space,id),off=plan.filter(function(s){return s.op==='activate';});
+        var blocked=!today&&off.length&&opt.q3==='refuse';
+        acts='<button type="button" class="btn fill" data-act="install" data-id="'+id+'"'+(blocked||anyBusy?' disabled':'')+'>Installer</button>';
+        if(blocked)why='Nécessite '+list(off.map(function(s){return N(s.id);}))+' : à activer d’abord.';
+      } else if(st==='inactive'){
+        var p2=reqClosure(space,id),inst2=p2.filter(function(s){return s.op==='install';});
+        var b2=!today&&(inst2.length||(p2.length&&opt.q3==='refuse'));
+        acts='<button type="button" class="btn fill" data-act="activate" data-id="'+id+'"'+(b2||anyBusy?' disabled':'')+'>Activer</button>';
+        if(!today&&inst2.length)why='Nécessite '+list(inst2.map(function(s){return N(s.id);}))+' : à installer d’abord.';
+        else if(b2)why='Nécessite '+list(p2.map(function(s){return N(s.id);}))+' : à activer d’abord.';
+        acts+=moreBtn(id);
+      } else {
+        acts=moreBtn(id);
+      }
+      out+='<div class="pc" data-card="'+id+'"><div class="top"><div class="ico" aria-hidden="true">'+BASE[id].ico+'</div><div class="body">'
+        +'<div class="nm">'+esc(N(id))+'<span class="ver">'+verOf(id)+'</span></div><div class="ds">'+esc(BASE[id].desc)+'</div>'+badge+deps+'</div></div>'
+        +'<div class="acts">'+acts+(menuOpen===id?menuHtml(id):'')+'</div>'
+        +(why?'<div class="why">'+esc(why)+'</div>':'')
+        +(errs[id]?'<div class="err" role="alert">'+esc(errs[id])+'</div>':'')+'</div>';
+    });
+    document.getElementById('cards').innerHTML=out;
+    renderConsole();
+  }
+  function moreBtn(id){return '<button type="button" class="ib" aria-label="Plus d’actions : '+esc(N(id))+'" aria-haspopup="menu" aria-expanded="'+(menuOpen===id)+'" data-menu="'+id+'"'+(Object.keys(busy).length?' disabled':'')+'>⋯</button>';}
+  function menuHtml(id){
+    var today=opt.mode==='today',h='<div class="menu" role="menu">';
+    if(space[id]==='active'){
+      var deps=activeDependants(space,id),blk=!today&&deps.length&&opt.q1==='refuse';
+      h+='<button type="button" role="menuitem" class="mi" data-act="deactivate" data-id="'+id+'"'+(blk?' disabled':'')+'>Désactiver…'
+        +(blk?'<small>Nécessaire à '+esc(list(deps.map(N)))+' : à désactiver d’abord.</small>':(!today&&deps.length?'<small style="color:var(--muted)">Désactive aussi '+esc(list(deps.map(N)))+'</small>':''))+'</button>';
+    }
+    var users=usedBy(space,id),blkU=!today&&users.length;
+    h+='<button type="button" role="menuitem" class="mi" data-act="uninstall" data-id="'+id+'"'+(blkU?' disabled':'')+'>Désinstaller…'+(blkU?'<small>Utilisé par '+esc(list(users.map(N)))+' : à désinstaller d’abord.</small>':'')+'</button>';
+    return h+'</div>';
+  }
+  document.getElementById('cards').addEventListener('click',function(e){
+    var m=e.target.closest('[data-menu]');if(m){menuOpen=menuOpen===m.dataset.menu?null:m.dataset.menu;render();var f=document.querySelector('.menu .mi:not(:disabled)');if(f)f.focus();return;}
+    var a=e.target.closest('[data-act]');if(a&&!a.disabled){act(a.dataset.id,a.dataset.act);}
+  });
+  document.addEventListener('click',function(e){if(menuOpen&&!e.target.closest('.acts')){menuOpen=null;render();}});
+
+  /* ---- console ---- */
+  var CS=function(){var S={};ORDER.forEach(function(id){S[id]=cons[id]?'active':'inactive';});return S;};
+  function cDeps(on,id){var S=CS();return on?BASE[id].requires.filter(function(r){return !cons[r.id];}).map(function(r){return r.id;}):activeDependants(S,id);}
+  function renderConsole(){
+    var today=opt.mode==='today',S=CS(),h='';
+    ORDER.forEach(function(id){
+      var lines='';
+      if(!today){
+        BASE[id].requires.forEach(function(r){lines+='<div class="dep">Nécessite <b>'+esc(N(r.id))+'</b>'+(!cons[r.id]?'<span class="badge b-warning">éteint</span>':'')+'</div>';});
+        var u=ORDER.filter(function(o){return BASE[o].requires.some(function(r){return r.id===id;});});
+        if(u.length)lines+='<div class="dep">Utilisé par '+u.map(function(d){return '<b>'+esc(N(d))+'</b>'+(!cons[d]?' (éteint)':'');}).join(', ')+'</div>';
+      }
+      var blk=!today&&cons[id]&&opt.q1==='refuse'&&cDeps(false,id).length;
+      var blkOn=!today&&!cons[id]&&opt.q3==='refuse'&&cDeps(true,id).length;
+      var why=blk?'Nécessaire à '+list(cDeps(false,id).map(N))+' : à désactiver d’abord.':blkOn?'Nécessite '+list(cDeps(true,id).map(N))+' : à activer d’abord.':'';
+      h+='<div class="cline"><div class="body"><div class="nm" style="font-weight:600">'+esc(N(id))+'</div>'
+        +'<span class="badge '+(cons[id]?'b-success':'b-neutral')+'">'+(cons[id]?'Actif':'Éteint')+'</span>'+lines
+        +(why?'<div class="why" style="text-align:left">'+esc(why)+'</div>':'')
+        +(cerrs[id]?'<div class="err" role="alert">'+esc(cerrs[id])+'</div>':'')+'</div>'
+        +'<label class="sw"><input type="checkbox" data-c="'+id+'" aria-label="'+esc(N(id))+'"'+(cons[id]?' checked':'')+(blk||blkOn?' disabled':'')+'><span class="tr"></span></label></div>';
+    });
+    document.getElementById('console').innerHTML=h;
+  }
+  document.getElementById('console').addEventListener('change',function(e){
+    var id=e.target.dataset.c;if(!id)return;var on=e.target.checked,today=opt.mode==='today';
+    e.target.checked=!on;cerrs={};
+    var others=cDeps(on,id);
+    if(on){
+      if(others.length){
+        if(today){cerrs[id]='Nécessite '+list(others.map(N))+' : à activer d’abord.';renderConsole();return;}
+        dialog({title:'Activer '+N(id)+' ?',body:'<p>Active aussi :</p>'+opList(others.map(function(o){return {id:o,op:'activate'};})),yes:'Tout activer',onYes:function(){others.concat([id]).forEach(function(o){cons[o]=true;});renderConsole();toast((others.length+1)+' modules activés.');}});return;}
+      cons[id]=true;renderConsole();return;
+    }
+    if(others.length&&!today){
+      dialog({title:'Désactiver '+N(id)+' ?',body:'<p>Désactive aussi :</p>'+opList(others.map(function(o){return {id:o,op:'off'};}))+'<p>Données gardées sur l’espace.</p>',yes:'Tout désactiver',danger:true,onYes:function(){others.concat([id]).forEach(function(o){cons[o]=false;});renderConsole();toast((others.length+1)+' modules désactivés.');}});return;}
+    dialog({title:'Désactiver '+N(id)+' ?',body:'<p>Données gardées sur l’espace.</p>',yes:'Désactiver',danger:true,onYes:function(){
+      if(others.length){cerrs[id]='Nécessaire à '+list(others.map(N))+' : à désactiver d’abord.';renderConsole();return;}
+      cons[id]=false;renderConsole();}});
+  });
+
+  /* ---- toolbar and knobs ---- */
+  document.querySelectorAll('[data-w]').forEach(function(b){b.onclick=function(){document.querySelectorAll('[data-w]').forEach(function(x){x.setAttribute('aria-pressed',x===b);});document.body.classList.toggle('phone',b.dataset.w==='phone');};});
+  document.querySelectorAll('[data-mode]').forEach(function(b){b.onclick=function(){document.querySelectorAll('[data-mode]').forEach(function(x){x.setAttribute('aria-pressed',x===b);});opt.mode=b.dataset.mode;errs={};cerrs={};menuOpen=null;document.getElementById('knobs').style.opacity=opt.mode==='today'?.45:1;render();};});
+  document.querySelectorAll('[data-q]').forEach(function(b){b.onclick=function(){document.querySelectorAll('[data-q="'+b.dataset.q+'"]').forEach(function(x){x.setAttribute('aria-pressed',x===b);});opt[b.dataset.q]=b.dataset.v;errs={};cerrs={};render();};});
+  document.getElementById('old').onchange=function(e){opt.old=e.target.checked;render();};
+  document.getElementById('reset').onclick=function(){fresh();opt.old=false;document.getElementById('old').checked=false;render();};
+  render();
+})();
+</script>
+</body>
+</html>

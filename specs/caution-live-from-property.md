@@ -68,11 +68,20 @@ again, even if the property's default changes afterwards.
    ([PropertyDetail.js:871](../client/src/pages/PropertyDetail.js#L871)) remains the single place to set it.
 8. No data migration: the column already exists; the freeze happens going forward, and not-yet-received
    reservations are computed live at read time.
+9. **Fixed at the 2026-10-27 spec review — the save never writes the amount.** The fiche shows the
+   live amount (rule 1) and sent it back on « Enregistrer », which rewrote `reservations.cautionAmount`:
+   a phantom « Caution 0 € → 500 € » on the first save of a stay created without one, and — once the
+   property's default had moved — a 400 PAST_RESERVATION_LOCKED on every started stay of that property,
+   unchanged or not. The PUT now carries the stored `cautionAmount` back like the four caution flags
+   (specs/reservation-payment-ledger.md rule 13): only the receipt freeze of rule 2 writes it.
 
 **Edge cases:**
 - Property caution = 0 and not received → no caution step in the SAS, no caution line in emails. Correct.
 - Caution received at 500, property later raised to 700 → SAS/fiche/departure keep **500** (the collected
   amount, frozen on receipt). This is the point of rule 2.
+- Same, and a stale arrival SAS (opened before the receipt) answers « Caution perçue » after the raise → still
+  **500**: the SAS freezes only on the flip to received, a caution already received is left untouched (reading of
+  2026-11-10, audit R39-DB-L1; reservation-payment-ledger rule 71).
 - Property raised from 500 → 700 **before** receipt → SAS shows 700 live; collecting it freezes 700.
 - iCal reservation with no property match → unchanged (still 0).
 - Reservations whose caution was marked received **before this feature shipped**: their stored
@@ -149,6 +158,7 @@ Mobile/desktop unaffected (no layout touched).
    the reservation's caution stays **500** everywhere (fiche, SAS départ).
 6. Property = 500, create reservation, raise property to 700 **before** receipt → SAS shows 700; collect
    it → frozen at 700.
+- Spec review 2026-10-27 (rule 9): `server/src/tests/caution-amount-not-echoed.unit.test.js` (2 tests — started stay saved after the default moved, no phantom caution row).
 
 ## 8. Out of scope
 

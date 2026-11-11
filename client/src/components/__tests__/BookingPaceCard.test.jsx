@@ -82,11 +82,12 @@ test('rules 5-7 — the tooltip gives this year, last year at date and final, an
   expect(screen.getByText("Déjà 86 % du final de l'an dernier · reste 3 nuits")).toBeInTheDocument();
 });
 
-test('rule 9 — a month without last year at date reads « inconnu » and « — », never 0', () => {
+test('rule 9 — a month without last year at date has no « à la même date » line (rule 15) and reads « — », never 0', () => {
   const { formatValue, formatShort } = paceFormatters('reservations');
   const m = month({ sameTimeLastYear: null, comparable: false, delta: null, deltaPct: null, lastYearFinal: null, reachedPct: null, remaining: null });
   render(<PaceTooltip active payload={[{ payload: m }]} formatValue={formatValue} />);
-  expect(screen.getByText('Octobre 2025 à la même date : inconnu')).toBeInTheDocument();
+  expect(screen.getByText('À date : 3 réservations')).toBeInTheDocument();
+  expect(screen.queryByText(/à la même date/)).not.toBeInTheDocument();
   expect(screen.queryByText(/au final/)).not.toBeInTheDocument();
   expect(deltaText(m, formatShort)).toBe('—');
   expect(deltaText(month({ delta: -1250 }), paceFormatters('revenue').formatShort)).toBe('▼ −1,3 k');

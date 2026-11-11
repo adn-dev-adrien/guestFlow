@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Plugins — phase 3b</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.tbl{overflow-x:auto;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.app{display:grid;grid-template-columns:200px 1fr;gap:14px}
+@media (max-width:760px){.app{grid-template-columns:1fr}}
+.nav{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:8px;font-size:13.5px}
+.nav div{padding:6px 8px;border-radius:6px}
+.nav .sub{padding-left:22px;color:var(--muted)}
+.nav .new{color:var(--ok);font-weight:600}
+.panes{display:grid;gap:12px}
+.pane{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pane h4{margin:0 0 8px;font:600 14px var(--serif);color:var(--sapin)}
+.pcard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px}
+.pcard b{flex:1;min-width:150px}
+.chip{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px}
+.chip.w{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.chip.i{background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info)}
+.mini{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:36px;border:1px solid var(--fieldline);background:transparent;color:inherit;cursor:pointer}
+.laundry{border-left:4px solid var(--info)}
+.gone{display:none}
+.srv{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow-x:auto}
+.srv .ok{color:var(--ok)} .srv .ko{color:var(--ko)} .srv .was{color:var(--ocre)}
+.steps{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.steps span{font-size:12.5px;padding:4px 9px;border-radius:999px;border:1px solid var(--fieldline)}
+.steps span.l{border-color:var(--info);color:var(--info);font-weight:600}
+.pc{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--field)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--field)}
+.bar .t{font:600 15px var(--serif);color:var(--sapin);flex:1;min-width:140px}
+.ib{appearance:none;min-width:44px;min-height:44px;border-radius:9px;border:1px solid var(--fieldline);background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.ib.s{border-color:var(--ok);color:var(--ok)} .ib.i{border-color:var(--info);color:var(--info)} .ib.p{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.tip{font-size:11.5px;color:var(--muted);display:block;text-align:center}
+.warn{border-left:4px solid var(--ocre);background:color-mix(in srgb,var(--ocre) 10%,var(--card));padding:10px 12px;border-radius:6px;margin:8px 0;font-size:13.5px}
+.err{color:var(--ko);font-size:13px;margin-top:4px}
+.field{display:flex;flex-direction:column;gap:4px;max-width:520px}
+.field input{font:inherit;min-height:44px;padding:0 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink)}
+.field input.bad{border-color:var(--ko)}
+.help{font-size:12.5px;color:var(--muted)}
+.btn{appearance:none;font:inherit;font-weight:600;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--sapin);background:var(--sapin);color:var(--paper);cursor:pointer}
+.btn.o{background:transparent;color:var(--sapin)}
+.flow{display:grid;gap:6px;margin:8px 0}
+.flow div{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:13.5px;background:var(--field)}
+.flow .y{border-color:var(--ok)} .flow .n{border-color:var(--ko);color:var(--ko)} .flow .x{opacity:.45;text-decoration:line-through}
+.badge{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 15%,var(--card));color:var(--ok)}
+.badge.ko{background:color-mix(in srgb,var(--ko) 15%,var(--card));color:var(--ko)}
+@media (max-width:600px){.bar .t{flex-basis:100%}}
+.line{border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin:8px 0;background:var(--field)}
+.line .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.line .top b{flex:1;min-width:160px}
+.amt{font:600 15px var(--serif);color:var(--sapin)}
+.sub2{font-size:12.5px;color:var(--muted);margin-top:4px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+@media (max-width:600px){.acts .mini{flex:1 1 100%;min-height:44px}}
+.calls{font:12.5px/1.6 ui-monospace,Menlo,monospace;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:44px}
+.calls .c{color:var(--info)} .calls .z{color:var(--muted)}
+.toggle{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0;font-size:13.5px}
+.toggle:last-child{border-bottom:0}
+.sw{width:36px;height:20px;border-radius:999px;background:var(--lichen);position:relative;flex:none}
+.sw::after{content:"";position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:var(--paper)}
+.dlg{max-width:520px;border:1px solid var(--line);border-radius:12px;background:var(--field);padding:16px;box-shadow:0 6px 22px rgba(0,0,0,.08)}
+.dlg h4{margin:0 0 6px;font:600 17px var(--serif);color:var(--sapin)}
+.dlg ul{margin:6px 0 10px;padding-left:20px;font-size:13.5px}
+.dlg li{margin:4px 0}
+.dlg li.w{color:var(--ocre);font-weight:600;list-style:none;margin-left:-20px;border-left:4px solid var(--ocre);padding:6px 10px;background:color-mix(in srgb,var(--ocre) 10%,var(--card));border-radius:6px}
+.dlg .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+@media (max-width:600px){.dlg .row .btn{flex:1 1 100%}}
+.btn.ko{background:var(--ko);border-color:var(--ko)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.num{display:inline-flex;align-items:center;gap:6px}
+.num input{width:64px;min-height:40px;font:inherit;padding:0 8px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink)}
+.line.ro{opacity:.6;background:repeating-linear-gradient(135deg,transparent 0 8px,color-mix(in srgb,var(--line) 35%,transparent) 8px 9px)}
+.lock{font-size:12px;color:var(--muted)}
+.pub{border:1px dashed var(--fieldline);border-radius:10px;padding:10px 12px;background:var(--field)}
+.done{color:var(--ok);font-size:13px;margin-top:6px}
+</style>
+<body>
+<div class="wrap">
+<h1>Plugins — phase 3b : l’assurance annulation Neat sort du cœur</h1>
+<div class="meta">Spec <code>specs/plugins-phase-3b-neat.md</code> · 2 octobre 2026 · deuxième des trois PR de la phase 3, empilée sur la 3a (#651)</div>
+
+<h2>Le constat</h2>
+<p>Neat agit à deux endroits : <b>le prix de la ligne d’assurance</b> (prime Neat + ta marge, arrondie à l’euro supérieur) et <b>la souscription chez Neat</b> une fois l’acompte encaissé. Tout est encore dans le cœur. La phase 0 n’a coupé que la souscription quand le plugin est éteint. La cartographie a donc trouvé trois défauts :</p>
+<div class="cols2">
+  <div class="card"><h3>1 · Le prix Neat survit au plugin éteint</h3>Si Neat est configuré puis désactivé, chaque devis continue d’être tarifé par Neat. GuestFlow <b>continue d’appeler Neat</b> à chaque aperçu de fiche et à chaque devis du site.</div>
+  <div class="card"><h3>2 · Le site l’annonce encore</h3>Même cause : le site affiche toujours « Tarif calculé pour vos dates » et garde en vente une assurance à 0 €.</div>
+  <div class="card"><h3>3 · Un réglage de notification orphelin</h3>« Souscriptions Neat » apparaît dans les notifications de chaque utilisateur, plugin installé ou non.</div>
+  <div class="card"><h3>Ce qui ne doit pas bouger</h3>Les adresses <code>/api/neat/*</code>, la réponse lue par le site WordPress, le bloc Neat de la fiche, les souscriptions déjà faites, le prix des séjours vendus.</div>
+</div>
+<p class="note"><b>Ton retour du 2 octobre (P13)</b> : sans Neat actif, l’assurance annulation n’est proposée nulle part, ni sur la fiche, ni sur le devis, ni sur le site, ni dans Options. Une ligne déjà posée sur un séjour ou un devis reste visible, figée et non modifiable.</p>
+<p class="note">En production aujourd’hui, Neat n’est pas configuré et l’assurance est à 0 € (retirée du site le 16/09). Rien de visible ne change pour Solio.</p>
+
+<h2>Ce qu’on propose</h2>
+<ul class="tight">
+  <li><b>Le cœur garde le devis et son moteur.</b> Un plugin peut l’ajuster par un <b>post-traitement</b>. C’est une petite interface fermée dont la seule sortie aujourd’hui est le prix unitaire de l’assurance. Le moteur ne change pas, et le gel des lignes vendues reste le sien.</li>
+  <li><b>Neat devient le plugin « Assurance annulation Neat »</b> : tarif, souscription, réglages, tables, carte Intégrations, puce et boutons de la ligne d’assurance.</li>
+  <li><b>Les trois « réveils »</b> de la souscription (création, modification, paiement) deviennent des abonnements aux événements que le cœur émet déjà.</li>
+  <li><b>La ligne d’assurance de la fiche devient un emplacement</b> où un plugin dessine sous la ligne. C’est Neat qui y met sa puce et ses boutons.</li>
+  <li><b>Sans Neat actif, plus d’assurance nulle part</b> (P13) : ni tuile sur la fiche et le devis, ni bloc sur le site, ni ligne dans Paramètres › Options. Une ligne déjà posée reste affichée, à son prix, sans pouvoir être retirée ni modifiée.</li>
+  <li><b>Désinstaller avec effacement liste ce qui part.</b> Les souscriptions actives sont <b>signalées</b>, puis effacées si tu confirmes (ton arbitrage P12).</li>
+</ul>
+
+<h2>1 · Plugin éteint : plus d’assurance, sauf celle déjà posée</h2>
+<p class="muted">Tes arbitrages P10 et P13. Change l’état du plugin, puis regarde les trois séjours, le site et la page Options. Séjour de 4 nuits, hébergement 640 €, prime Neat 17,50 € + marge 30 % = 23 €. « Actif, sans marge » montre le tarif de l’option dans Options.</p>
+<div class="studio">
+  <div class="sbar"><span class="lab">Plugin Neat</span>
+    <div class="seg" id="pl">
+      <button data-v="on" aria-pressed="true">Actif, configuré</button>
+      <button data-v="raw" aria-pressed="false">Actif, sans marge</button>
+      <button data-v="off" aria-pressed="false">Désactivé</button>
+      <button data-v="none" aria-pressed="false">Pas installé</button>
+    </div>
+    <span class="lab">Tarif de l’option dans Options</span>
+    <div class="seg" id="tf">
+      <button data-v="0" aria-pressed="true">0 € (Solio aujourd’hui)</button>
+      <button data-v="night" aria-pressed="false">8 € / nuit</button>
+      <button data-v="pct" aria-pressed="false">3,1 % du séjour</button>
+    </div>
+  </div>
+  <div class="sbody">
+    <div class="cols2">
+      <div class="panes">
+        <div class="pane"><h4>Réservation vendue (acompte payé)</h4><div id="sold"></div></div>
+        <div class="pane"><h4>Devis envoyé, encore valable</h4><div id="dv"></div></div>
+        <div class="pane"><h4>Nouveau devis, fait maintenant</h4><div id="nw"></div></div>
+      </div>
+      <div class="panes">
+        <div class="pane"><h4>Site public · bloc assurance</h4><div class="pub" id="pub"></div></div>
+        <div class="pane"><h4>Appels à Neat pendant cet aperçu</h4><div class="calls" id="calls"></div></div>
+        <div class="pane"><h4>Paramètres › Options</h4><div id="opts"></div></div>
+        <div class="pane"><h4>Paramètres › Intégrations</h4><div id="integ"></div></div>
+        <div class="pane"><h4>Profil › Notifications</h4><div id="push"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2 · La puce Neat sur la ligne d’assurance</h2>
+<p class="muted">Même rendu qu’aujourd’hui, mais dessiné par le plugin dans le nouvel emplacement. Choisis l’état de la souscription et essaie les boutons. Plugin éteint, la ligne ne montre que son prix.</p>
+<div class="studio">
+  <div class="sbar"><span class="lab">Souscription</span>
+    <div class="seg" id="ss">
+      <button data-v="pending" aria-pressed="true">En attente</button>
+      <button data-v="active" aria-pressed="false">Souscrite</button>
+      <button data-v="failed" aria-pressed="false">En échec</button>
+      <button data-v="line_removed_active" aria-pressed="false">Ligne retirée</button>
+      <button data-v="voided" aria-pressed="false">Résiliée</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="slotOn" checked> Plugin actif</label>
+  </div>
+  <div class="sbody"><div id="row"></div><div id="confirm"></div></div>
+</div>
+
+<h2>3 · Désinstaller en effaçant, avec des souscriptions actives</h2>
+<p class="muted">Ton arbitrage P12 : on avertit, puis on efface. Les souscriptions actives restent en vigueur chez Neat. Les lignes d’assurance des séjours restent à leur prix.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Souscriptions actives</span><span class="num"><input type="number" id="nAct" min="0" max="99" value="3"></span>
+    <span class="lab">En attente ou en échec</span><span class="num"><input type="number" id="nPend" min="0" max="99" value="1"></span>
+  </div>
+  <div class="sbody"><div class="dlg" id="dlg"></div></div>
+</div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="tight">
+  <li><b>Les nouvelles API Neat</b>, le statut de « fournisseur de données » et la prime à 3,1 % du séjour : amendement de la spec Neat quand Pierre aura envoyé la documentation.</li>
+  <li><b>Résilier chez Neat automatiquement</b> à l’effacement ou à l’annulation d’un séjour. Ça reste un geste manuel, comme aujourd’hui.</li>
+  <li><b>Le bain à l’heure</b> : PR 3c.</li>
+  <li><b>Un deuxième assureur.</b> L’interface en permet un seul, et aucun autre n’est écrit.</li>
+</ul>
+
+<h2>Le risque</h2>
+<div class="cols2">
+  <div class="card"><h3>Le prix d’un séjour vendu</h3>Le gel des lignes vendues est déjà dans le moteur et n’est pas touché. Un test dédié vérifie qu’une ligne Neat à 23 € reste à 23 € après désactivation et nouvel enregistrement.</div>
+  <div class="card"><h3>Pas de recette Neat réelle</h3>Les identifiants de test Neat ne sont toujours pas arrivés. La souscription est déplacée sans être modifiée, et couverte par ses six suites de tests, déplacées avec elle.</div>
+</div>
+
+<h2>Arbitrages en attente</h2>
+<p>Aucun : P10 et P12 sont tranchés depuis le 1er octobre. Il reste à valider la spec pour que je l’implémente.</p>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const state = { pl: 'on', tf: '0', ss: 'pending', slot: true };
+const eur = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+function seg(id, key, cb) {
+  document.querySelectorAll(`#${id} button`).forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    state[key] = b.dataset.v; cb();
+  }));
+}
+function staticPrice() {
+  if (state.tf === 'night') return { amount: 32, how: '8 € × 4 nuits' };
+  if (state.tf === 'pct') return { amount: 19.84, how: '3,1 % de 640 €' };
+  return { amount: 0, how: '0 €' };
+}
+function line(title, amount, sub, extra = '') {
+  return `<div class="line"><div class="top"><b>${title}</b><span class="amt">${eur(amount)}</span>${extra}</div>${sub ? `<div class="sub2">${sub}</div>` : ''}</div>`;
+}
+function frozen(sub) {
+  return `<div class="line ro" title="Assurance annulation : plugin Neat inactif"><div class="top"><b>Assurance annulation</b><span class="amt">23,00 €</span><span class="lock">🔒 lecture seule</span></div><div class="sub2">${sub} Plugin Neat inactif : ni retrait ni modification.</div></div>`;
+}
+function renderStudio() {
+  const on = state.pl === 'on';
+  const live = on || state.pl === 'raw';
+  const st = staticPrice();
+  $('#sold').innerHTML = live
+    ? line('Assurance annulation', 23, 'Prix Neat figé à la vente.', '<span class="badge ok">gelé</span>')
+    : frozen('Prix figé à la vente, au centime.');
+  $('#dv').innerHTML = live
+    ? line('Assurance annulation', 23, 'Le devis garde les lignes chiffrées tant qu’il est valable.', '<span class="badge ok">gelé</span>')
+    : frozen('Ligne gardée telle qu’envoyée, même après expiration du devis.');
+  if (on) {
+    $('#nw').innerHTML = line('Assurance annulation', 23, 'Prime Neat 17,50 € • marge +30 % • arrondi €↑', '<span class="badge">prix Neat</span>');
+  } else if (live && st.amount > 0) {
+    $('#nw').innerHTML = line('Assurance annulation', st.amount, `Tarif de l’option : ${st.how}.`, '<span class="badge">tarif de l’option</span>');
+  } else if (live) {
+    $('#nw').innerHTML = '<span class="muted">Pas de tuile : à 0 € dans Options, l’assurance n’est pas proposée (comme aujourd’hui).</span>';
+  } else {
+    $('#nw').innerHTML = '<span class="muted">Pas de tuile « Assurance annulation » : sans Neat actif, elle n’est proposée nulle part.</span>';
+  }
+  $('#opts').innerHTML = ['Petit-déjeuner', 'Bain nordique', live ? `<b>Assurance annulation</b> <span class="muted">· ${({ night: '8 € / nuit', pct: '3,1 % du séjour' })[state.tf] || '0 €'}</span>` : null, 'Ménage de fin de séjour']
+    .filter(Boolean).map((t) => `<div class="pcard">${t}</div>`).join('');
+  if (on) {
+    $('#pub').innerHTML = '<b>Assurance annulation</b><div class="sub2">Tarif calculé pour vos dates</div><div class="acts"><button class="mini">Oui, je m’assure</button><button class="mini">Non merci</button></div>';
+  } else if (!live) {
+    $('#pub').innerHTML = '<span class="muted">Aucun bloc : le site ne pose pas la question.</span>';
+  } else if (st.amount > 0) {
+    $('#pub').innerHTML = `<b>Assurance annulation</b><div class="sub2">${state.tf === 'pct' ? '3,1 % du séjour' : '8 € par nuit'}</div><div class="acts"><button class="mini">Oui, je m’assure</button><button class="mini">Non merci</button></div>`;
+  } else {
+    $('#pub').innerHTML = '<span class="muted">Aucun bloc : le site ne pose pas la question.</span>';
+  }
+  $('#calls').innerHTML = on
+    ? '<div class="c">POST /price  → 17,50 € (mis en cache 24 h)</div><div class="z">les enregistrements lisent le cache</div>'
+    : '<div class="z">aucun appel — aucun post-traitement déclaré</div>';
+  $('#integ').innerHTML = ['Google Agenda', live ? '<b>Assurance annulation Neat</b>' : null, 'Météo-France', 'Portail Sowel']
+    .filter(Boolean).map((t) => `<div class="pcard">${t}</div>`).join('');
+  $('#push').innerHTML = ['Nouvelles réservations', 'Arrivées', 'Départs', 'Petit-déjeuner', live ? 'Souscriptions Neat' : null]
+    .filter(Boolean).map((t) => `<div class="toggle"><span>${t}</span><span class="sw"></span></div>`).join('');
+}
+const CHIP = {
+  pending: ['', 'Neat : en attente'], active: ['ok', 'Neat : souscrite'], failed: ['ko', 'Neat : en échec'],
+  line_removed_active: ['', 'Neat : ligne retirée'], voided: ['', 'Neat : résiliée'],
+};
+function renderRow() {
+  const s = state.ss;
+  let html = '<div class="line"><div class="top"><b>Assurance annulation</b><span class="amt">23,00 €</span>';
+  if (state.slot) {
+    const [cls, label] = CHIP[s];
+    html += `<span class="badge ${cls}" title="${s === 'failed' ? 'Neat : 400 — date de naissance manquante' : ''}">${label}</span></div>`;
+    html += '<div class="sub2">Prime Neat 17,50 € • marge +30 % • arrondi €↑</div>';
+    if (s === 'line_removed_active') html += '<div class="warn">La ligne assurance a été retirée mais la police Neat est toujours active. Restaure la ligne ou résilie chez Neat.</div>';
+    const acts = [];
+    if (s === 'failed') acts.push('<button class="mini" data-a="retry">Relancer la souscription</button>');
+    if (s === 'active' || s === 'line_removed_active') acts.push('<button class="mini" data-a="void" style="border-color:var(--ko);color:var(--ko)">Résilier chez Neat</button>');
+    if (acts.length) html += `<div class="acts">${acts.join('')}</div>`;
+  } else {
+    html += '</div>';
+  }
+  html += '</div>';
+  $('#row').innerHTML = html;
+  $('#confirm').innerHTML = '';
+  document.querySelectorAll('#row [data-a]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.a === 'retry') { pick('ss', 'active'); $('#confirm').innerHTML = '<div class="done">Souscription Neat effectuée.</div>'; return; }
+    $('#confirm').innerHTML = `<div class="dlg" style="margin-top:10px"><h4>Résilier la souscription Neat ?</h4><p>Résilier la souscription Neat de Jean Dupont ? Le client ne sera plus couvert.</p><div class="row"><button class="btn o" id="cNo">Annuler</button><button class="btn ko" id="cYes">Résilier</button></div></div>`;
+    $('#cNo').onclick = () => { $('#confirm').innerHTML = ''; };
+    $('#cYes').onclick = () => { pick('ss', 'voided'); $('#confirm').innerHTML = '<div class="done">Souscription Neat résiliée.</div>'; };
+  }));
+}
+function pick(id, v) {
+  document.querySelectorAll(`#${id} button`).forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.v === v)));
+  state[id] = v; renderRow();
+}
+function renderDialog() {
+  const clamp = (el) => Math.max(0, Math.min(99, Math.floor(Number(el.value) || 0)));
+  const a = clamp($('#nAct')); const p = clamp($('#nPend'));
+  const erase = $('#er') ? $('#er').checked : false;
+  const lines = ['la connexion Neat (identifiants, contrat, mappage, marge)'];
+  if (p > 0) lines.push(`${p} souscription${p > 1 ? 's' : ''} en attente ou en échec`);
+  lines.push('le cache des primes');
+  const warn = a > 0
+    ? `<li class="w">⚠ ${a} souscription${a > 1 ? 's' : ''} active${a > 1 ? 's' : ''} chez Neat — elle${a > 1 ? 's restent' : ' reste'} en vigueur chez Neat et ne pourr${a > 1 ? 'ont' : 'a'} plus être résiliée${a > 1 ? 's' : ''} depuis GuestFlow</li>`
+    : '';
+  $('#dlg').innerHTML = `<h4>Désinstaller « Assurance annulation Neat » ?</h4>
+    <p class="help">Les lignes d’assurance des séjours restent, à leur prix.</p>
+    <label class="chk"><input type="checkbox" id="er" ${erase ? 'checked' : ''}> Effacer aussi ses données</label>
+    ${erase ? `<ul>${warn}${lines.map((l) => `<li>${l}</li>`).join('')}</ul>` : ''}
+    <div class="row"><button class="btn o">Annuler</button><button class="btn ${erase ? 'ko' : ''}" id="go">${erase ? 'Désinstaller et effacer' : 'Désinstaller'}</button></div>
+    <div id="res"></div>`;
+  $('#er').addEventListener('change', renderDialog);
+  $('#go').addEventListener('click', () => {
+    $('#res').innerHTML = `<div class="done">${erase ? `Neat désinstallé et effacé.${a > 0 ? ` ${a} contrat${a > 1 ? 's' : ''} reste${a > 1 ? 'nt' : ''} actif${a > 1 ? 's' : ''} chez Neat.` : ''}` : 'Neat désinstallé, données conservées.'}</div>`;
+  });
+}
+seg('pl', 'pl', renderStudio);
+seg('tf', 'tf', renderStudio);
+seg('ss', 'ss', renderRow);
+$('#slotOn').addEventListener('change', (e) => { state.slot = e.target.checked; renderRow(); });
+['#nAct', '#nPend'].forEach((s) => $(s).addEventListener('input', renderDialog));
+renderStudio(); renderRow(); renderDialog();
+</script>
+</body>
+</html>

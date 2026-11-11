@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import PlatformPriceCard from '../PlatformPriceCard';
 import api from '../../api';
 
-// specs/platform-price-from-commission.md + specs/tariff-recipes/spec.md §3.6 rules 31-34 —
+// specs/platform-price-from-commission.md + specs/tariff-recipes/spec.md §3.6 items 31-34 —
 // the « Prix plateformes » grid: one row per channel (Direct first), whole-euro prices per season,
 // extra-guest column. The commission % is read-only here: it is edited on Paramètres → Plateformes
 // (specs/settings-rationalization.md rule 19).
@@ -20,7 +20,7 @@ vi.mock('../../api', () => ({
 
 const GRID = {
   platforms: [
-    { id: 1, name: 'Direct', commissionPercent: 5, isDirect: true },
+    { id: 1, name: 'Direct', commissionPercent: 5, isDirect: true, directVia: ['Lodgify'] },
     { id: 2, name: 'Airbnb', commissionPercent: 15.5, isDirect: false },
     { id: 3, name: 'Booking', commissionPercent: 15, isDirect: false },
   ],
@@ -47,12 +47,13 @@ test('renders one row per channel, Direct first with its caption, whole-euro pri
   render(<PlatformPriceCard propertyId={1} />);
   // Await the RENDERED grid, not merely the fetch call: the state update lands a tick later and
   // asserting on the call alone makes the test flaky under a loaded full-suite run.
-  await screen.findByText('moteur Lodgify');
+  await screen.findByText('Lodgify');
   expect(api.getPlatformPrices).toHaveBeenCalledWith(1);
   const rows = screen.getAllByRole('row');
   // header + 3 channel rows; Direct is the first body row
   expect(rows[1]).toHaveTextContent('Direct');
-  expect(rows[1]).toHaveTextContent('moteur Lodgify');
+  // specs/plugins-phase-p-productisation.md rule 19 — the caption names the platforms counted as direct.
+  expect(rows[1]).toHaveTextContent('Lodgify');
   expect(rows[1]).toHaveTextContent('179 €');
   expect(rows[1]).toHaveTextContent('247 €');
   expect(rows[1]).toHaveTextContent('27 €');
@@ -85,7 +86,7 @@ test('platforms but no seasons → seasons hint', async () => {
 test('the commission is shown read-only, with a link to the Plateformes page', async () => {
   api.getPlatformPrices.mockResolvedValue(GRID);
   render(<PlatformPriceCard propertyId={1} />);
-  expect(await screen.findByLabelText('Commission Airbnb')).toHaveTextContent('15.5 %');
+  expect(await screen.findByLabelText('Commission Airbnb')).toHaveTextContent('15,5 %');
   expect(screen.getByLabelText('Commission Direct')).toHaveTextContent('5 %');
   expect(screen.queryByRole('spinbutton')).toBeNull();
   expect(screen.getByRole('link', { name: 'Plateformes' })).toHaveAttribute('href', '/settings/plateformes');

@@ -1,10 +1,19 @@
+const { requirePlugins } = require('../plugins/sdk/testing');
+if (!requirePlugins(['tariff-recipes'])) return;
+
 const test = require('node:test');
+const { optionalPlugin } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const {
   createTariffChangeJournalModel, normalizeOccurredAt,
 } = require('../models/tariffChangeJournalModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // specs/tariff-change-journal.md — the register of WHEN the grid changed. Nothing here prices
 // anything; what these tests protect is that a date, once recorded, is exact and durable.
@@ -30,19 +39,19 @@ function makeDb() {
       FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
     );
   `);
-  db.prepare("INSERT INTO properties (id, name, tariffRecipeId, tariffRecipeVersion, updatedAt) VALUES (1, 'Aventura lodge', 'aventura-lodge-2026', '1.1.0', '2026-08-12 16:08:41')").run();
-  db.prepare("INSERT INTO properties (id, name, tariffRecipeId, tariffRecipeVersion, updatedAt) VALUES (2, 'Gite', '', '', '2026-06-10 15:11:24')").run();
+  db.prepare(`INSERT INTO properties (id, name, tariffRecipeId, tariffRecipeVersion, updatedAt) VALUES (1, 'Aventura lodge', 'aventura-lodge-2026', '1.1.0', '${inDays(-83)} 16:08:41')`).run();
+  db.prepare(`INSERT INTO properties (id, name, tariffRecipeId, tariffRecipeVersion, updatedAt) VALUES (2, 'Gite', '', '', '${inDays(-146)} 15:11:24')`).run();
   return db;
 }
 
 // ── Rule 3 — a date that cannot be trusted is refused, never stored approximately ──────────────
 
 test('normalizeOccurredAt accepts the shapes a form can send and refuses the rest', () => {
-  assert.equal(normalizeOccurredAt('2026-08-14'), '2026-08-14 00:00:00');
-  assert.equal(normalizeOccurredAt('2026-08-14 09:30'), '2026-08-14 09:30:00');
-  assert.equal(normalizeOccurredAt('2026-08-14T09:30:15'), '2026-08-14 09:30:15');
+  assert.equal(normalizeOccurredAt(inDays(-81)), `${inDays(-81)} 00:00:00`);
+  assert.equal(normalizeOccurredAt(`${inDays(-81)} 09:30`), `${inDays(-81)} 09:30:00`);
+  assert.equal(normalizeOccurredAt(`${inDays(-81)}T09:30:15`), `${inDays(-81)} 09:30:15`);
 
-  for (const bad of ['', null, undefined, '14/08/2026', '2026-13-01', '2026-02-30', '2026-04-31', '2026-08-14 25:00', 'hier']) {
+  for (const bad of ['', null, undefined, '14/08/2026', '2026-13-01', '2026-02-30', '2026-04-31', `${inDays(-81)} 25:00`, 'hier']) {
     assert.equal(normalizeOccurredAt(bad), null, `attendu refusé : ${String(bad)}`);
   }
 });
@@ -58,18 +67,18 @@ test("une date d'effet invalide est refusée avec un message, pas enregistrée",
 
 test('les deux natures sont acceptées, toute autre est refusée', () => {
   const journal = createTariffChangeJournalModel(makeDb());
-  assert.ok(journal.insert({ propertyId: 1, kind: 'recipe', occurredAt: '2026-08-12 16:08' }).event);
-  assert.ok(journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: '2026-08-14 11:00' }).event);
-  assert.equal(journal.insert({ propertyId: 1, kind: 'promo', occurredAt: '2026-08-14' }).error, 'Nature de changement inconnue');
-  assert.equal(journal.insert({ propertyId: 99, kind: 'recipe', occurredAt: '2026-08-14' }).error, 'Logement introuvable');
+  assert.ok(journal.insert({ propertyId: 1, kind: 'recipe', occurredAt: `${inDays(-83)} 16:08` }).event);
+  assert.ok(journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: `${inDays(-81)} 11:00` }).event);
+  assert.equal(journal.insert({ propertyId: 1, kind: 'promo', occurredAt: inDays(-81) }).error, 'Nature de changement inconnue');
+  assert.equal(journal.insert({ propertyId: 99, kind: 'recipe', occurredAt: inDays(-81) }).error, 'Logement introuvable');
 });
 
 // ── Rule 4 — the date of effect and the date of entry are two different things ─────────────────
 
 test("occurredAt et createdAt sont indépendants : on date après coup", () => {
   const journal = createTariffChangeJournalModel(makeDb());
-  const { event } = journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: '2026-08-14 11:00' });
-  assert.equal(event.occurredAt, '2026-08-14 11:00:00');
+  const { event } = journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: `${inDays(-81)} 11:00` });
+  assert.equal(event.occurredAt, `${inDays(-81)} 11:00:00`);
   assert.notEqual(event.createdAt, event.occurredAt);
   assert.match(event.createdAt, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
 });
@@ -79,7 +88,7 @@ test("occurredAt et createdAt sont indépendants : on date après coup", () => {
 test('la recette et sa version sont déduites du logement, pas du formulaire', () => {
   const journal = createTariffChangeJournalModel(makeDb());
   const { event } = journal.insert({
-    propertyId: 1, kind: 'platforms', occurredAt: '2026-08-14 11:00',
+    propertyId: 1, kind: 'platforms', occurredAt: `${inDays(-81)} 11:00`,
     recipeId: undefined, recipeVersion: undefined,
   });
   assert.equal(event.recipeId, 'aventura-lodge-2026');
@@ -92,14 +101,14 @@ test('la recette et sa version sont déduites du logement, pas du formulaire', (
 test('le journal est trié par date d’effet décroissante et filtrable par logement', () => {
   const db = makeDb();
   const journal = createTariffChangeJournalModel(db);
-  journal.insert({ propertyId: 1, kind: 'recipe', occurredAt: '2026-08-12 16:08' });
-  journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: '2026-08-14 11:00' });
+  journal.insert({ propertyId: 1, kind: 'recipe', occurredAt: `${inDays(-83)} 16:08` });
+  journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: `${inDays(-81)} 11:00` });
   db.prepare("UPDATE properties SET tariffRecipeId = 'gite-2026' WHERE id = 2").run();
-  journal.insert({ propertyId: 2, kind: 'recipe', occurredAt: '2026-07-01 09:00' });
+  journal.insert({ propertyId: 2, kind: 'recipe', occurredAt: `${inDays(-125)} 09:00` });
 
   const all = journal.list();
   assert.deepEqual(all.map((e) => e.occurredAt), [
-    '2026-08-14 11:00:00', '2026-08-12 16:08:00', '2026-07-01 09:00:00',
+    `${inDays(-81)} 11:00:00`, `${inDays(-83)} 16:08:00`, `${inDays(-125)} 09:00:00`,
   ]);
   assert.deepEqual(all.map((e) => e.propertyName), ['Aventura lodge', 'Aventura lodge', 'Gite']);
   assert.deepEqual(all.map((e) => e.kindLabel), [
@@ -112,7 +121,7 @@ test('le journal est trié par date d’effet décroissante et filtrable par log
 
 test('un événement se supprime une fois, et une seule', () => {
   const journal = createTariffChangeJournalModel(makeDb());
-  const { event } = journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: '2026-08-14' });
+  const { event } = journal.insert({ propertyId: 1, kind: 'platforms', occurredAt: inDays(-81) });
   assert.equal(journal.remove(event.id), true);
   assert.equal(journal.remove(event.id), false);
   assert.equal(journal.list().length, 0);
@@ -145,7 +154,7 @@ test('le rattrapage récupère la date depuis updatedAt et la marque comme dédu
   const [event] = journal.list();
   assert.equal(event.propertyId, 1);
   assert.equal(event.kind, 'recipe');
-  assert.equal(event.occurredAt, '2026-08-12 16:08:41');
+  assert.equal(event.occurredAt, `${inDays(-83)} 16:08:41`);
   assert.equal(event.recipeVersion, '1.1.0');
   assert.equal(event.source, 'backfill');
   assert.equal(event.inferred, true, 'une date déduite doit se présenter comme telle');
@@ -171,8 +180,8 @@ test('un événement écrit par l’apply ne se présente pas comme déduit', ()
 
 // ── Rules 5 & 6 — through the REAL apply: a change is dated, a no-op is not ────────────────────
 
-const { createTariffRecipeModel } = require('../models/tariffRecipeModel');
-const { validateRecipe } = require('../utils/tariffRecipe');
+const { createTariffRecipeModel } = optionalPlugin(() => require('../plugins/tariff-recipes/model'));
+const { validateRecipe } = optionalPlugin(() => require('../plugins/tariff-recipes/store'));
 
 // Passée par le validateur comme le ferait le vrai chargement : le test protège le chemin réel,
 // pas une structure inventée à la main qui ne franchirait jamais le store.

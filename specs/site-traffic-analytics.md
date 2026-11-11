@@ -13,7 +13,7 @@
 
 ## 1. Context
 
-`domainesolio.com` has been served by our WordPress (VM 103, `192.168.0.23`) since 2026-09-15. It
+`domainesolio.com` has been served by our WordPress (VM 103, `<wp-host>`) since 2026-09-15. It
 measures nothing. Checked in production on 2026-09-28:
 
 - no tracker in the rendered pages (no `gtag`, Matomo, Plausible, Umami, Jetpack);
@@ -175,6 +175,10 @@ measured requires it.
     only, each capped at 200 characters and trimmed. `referrer` must look like a hostname and
     `landingPath` must start with `/`. **An invalid attribution is dropped silently. It never
     rejects the booking request.** A guest must never lose a booking over analytics metadata.
+    *Reading of 2026-11-05 (audit R23 public finding 6):* the five `utm*` fields and `landingPath` go through
+    `cleanFreeText` before the cap, and hold one line: a line break or a tab reads as a space, a control or bidi character
+    leaves, so `attributionLabel` holds none. `referrer` and `firstSeenAt` are judged as sent: a bad one is dropped. Test:
+    `plugins/website-booking/tests/public-free-text-cleaning.unit.test.js`.
 16. The server derives a **channel** from the validated record (pure function, unit-tested). The first
     matching rule wins:
     - (a) any `utm*` present → `campaign`, labelled by `utmCampaign` (fallback `utmSource`);

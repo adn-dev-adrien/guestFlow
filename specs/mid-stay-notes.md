@@ -89,10 +89,14 @@ becomes **the remainder** — collected at check-out exactly as today.
    rule 3). A stay that started but was never re-saved therefore has none, and the note total would
    read 0 € for a prestation just added. The **read path synthesizes** the baseline the next save
    would store (the currently stored extras) so the preview matches the post-save reality — and
-   never writes. Once captured, the stored baseline always wins.
+   never writes. Once captured, the stored baseline always wins. **Corrected 2026-11-05 (audit R23-C8):** the
+   baseline is due on the arrival act, not on the date (specs/arrival-moment-is-the-check-in.md): a check-in, an arrival
+   SAS or a collected complement. A started stay with none of them has no baseline for the preview, which synthesizes none,
+   so the note total stays 0 € for an addition. **Corrected 2026-11-05 (R23 verification F3):** the save is another
+   matter: on a locked fiche `enterMidStayExtrasWindow` stores the baseline whether or not the check-in was marked, as rule 23 says.
 6. **Closing the note** offers three choices: **CB / Chèque**, **Caisse interne** (both = settle
    now), **En fin de séjour** (= sale only, everything stays in the remainder).
-7. **Amounts are engine-authoritative.** The dialog's displayed note total comes from the live
+7. **Amounts are engine-authoritative.** *(Superseded by rule 22 on 2026-10-27: the dialog now sends keys, not amounts.)* The dialog's displayed note total comes from the live
    server quote (`midStayExtrasLines`); the settle request sends per-key **instructions**
    `{ key, amount }` that the server validates against the stored remainder (`amount ≤ remaining(k)`,
    409 otherwise) — no client-computed money is ever trusted as-is.
@@ -173,6 +177,47 @@ becomes **the remainder** — collected at check-out exactly as today.
     The register lives in its own column and is **not** re-sent by the commit — no loss risk.
 21. **« Accueil » (reception) role**: no access to note settlement/cancellation in v1 — the
     fail-closed payment-patch field filter (`toReceptionPaymentPatch`) drops the new fields.
+22. **The note's amounts and total are the server's** *(fixed at the 2026-10-27 audit; supersedes the
+    `{ key, amount }` instructions of rule 7)*. The dialog used to derive `added = live − base`, the
+    ticked share, the rounding and the total in React, and the server only checked `amount ≤
+    remaining(k)`. Now:
+    - while the operator ticks and adds, the dialog posts `{ opening, current, checkedKeys }` (the
+      remainder it opened on, the live quote's `midStayExtrasLines`, the ticked keys) to
+      `POST /api/reservations/mid-stay-note/preview` and prints the `total` it gets back;
+    - on « CB / Chèque » / « Caisse interne » it sends `settleMidStayNote: { checkedKeys, opening, cash }`
+      — no amount. The server (fiche saved first) derives each key's amount against the **stored**
+      remainder with the same rule (`utils/midStayNotePlan.js`): `added = max(0, current − opening)`,
+      `ticked = min(opening, current)` when ticked, `amount = ticked + added`, rounded to the cent once;
+      then `settleMidStayNote(id, { items })` moves them as before (rule 8). An `items` field sent by a
+      client is ignored.
+
+23. **A note on a started stay with no arrival marked stays open and says so** (D19, Adrien, 2026-11-05; audit R23-C8).
+    With no baseline (no check-in, no arrival SAS, no collected complement) the note total stays 0 € and « CB / Chèque » and
+    « Caisse interne » stay disabled. **Corrected 2026-11-05 (R23 verification F3):** closing on « En fin de séjour » on the
+    locked fiche pins the baseline and the sale lands on the end-of-stay complement (`source: midStayExtra`), due and
+    collectable at the next opening; it did not go to the ordinary balance. The caption's wording is D19's and stays. The dialog sends
+    `reservationId` with its preview, and `POST /api/reservations/mid-stay-note/preview` answers
+    `arrivalNotMarked` (`reservationsModel.isArrivalNotMarked`, read at each preview, so it follows a check-in marked
+    meanwhile). True: the caption « Arrivée non marquée : la vente rejoint le solde. » under the total. No stay named, a
+    stay not found or a failed preview: no caption. Tests: server `mid-stay-note-arrival-flag`, client
+    `MidStayNoteDialog.arrival-not-marked`.
+24. **A refused note action is shown** (audit R30-C-L2, 2026-11-08). « Reporter au départ » on a note
+    (`cancelMidStayNote`) and the settlement of « Nouvelle note » (`settleMidStayNote`) show the server's refusal as an
+    error toast and re-read the fiche. The settlement runs after the fiche's save, which does not wait for it: the fiche
+    waits for it before closing the dialog, so a refusal (for example 409 `END_OF_STAY_BEFORE_CHECKOUT` from a stale tab)
+    leaves the dialog open on what was ticked. Both used to fail as an uncaught error, the dialog closing anyway. Test:
+    client `FinanceSection.silent-refusals`.
+    After such a refusal the dialog's opening snapshot is taken again: the settlement is refused only once
+    the fiche was saved, so « Annuler » returns the form to what is stored, never to the pre-save opening
+    (audit R31-C-L1, 2026-11-08; `MidStayNoteDialog.refused-settle-cancel`).
+    *Reading R32-C-L2 (2026-11-09).* Only the settlement's PATCH decides the outcome: the re-read that follows it is best
+    effort. A re-read failing after a refusal used to leave « Nouvelle note » busy, every button disabled (« Annuler »
+    included, no way out on a phone), and a stored settlement followed by a failed re-read was reported « Encaissement
+    impossible ». The refusal is now shown and the dialog usable again; a stored settlement closes the dialog. The fiche's
+    re-read of its money (`reloadReservationFinance`) is best effort everywhere for the same reason: it follows a write
+    whose outcome is already known, so a failed one never turns a stored write into an error (a ledger mark, the arrival
+    payment, a penalty removed, a link settled) nor leaves a mark waiting. Test: client
+    `FinanceSection.settle-reread-fails` (2 cases).
 
 **Edge cases:**
 
@@ -211,10 +256,11 @@ becomes **the remainder** — collected at check-out exactly as today.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `database.js` | `database.js` | T | Idempotent migration: `midStaySettledNotes TEXT DEFAULT NULL`. |
+| `utils/` | `midStayNotePlan.js` | **C** | Rule 22 — `planMidStayNote({ opening, current, checkedKeys })` → `{ items, total }`: what a note collects per key. Pure; used by the preview and by the settlement. |
 | `utils/` | `midStayExtras.js` | T | Register helpers: `parseNotes`, `settledByKey(notes)` (Σ per key across notes), `nextNoteId`; `resolveMidStaySplit` deducts `settled(k)` in both branches (live + frozen); split-line heuristic factored for reuse by the partial settle. |
 | `utils/` | `pricing.js` | T | New input `midStaySettledNotes`; deducts `settled(k)` from the synced remainder while still extracting `midStay(k)` whole from the frozen buckets; exposes `midStaySettledTotal`; `sejourNetTotal` per rule 10. |
 | `models/` | `reservationsModel.js` | T | `settleMidStayNote(id, { items: [{ key, amount }], cash })` — transactional: validate each amount against the stored remainder, split lines when partial, append one note (today, cash, server-summed total), rewrite the detail, re-total. `cancelMidStayNote(id, noteId)` — inverse move with per-key merge, 409 when the global end-of-stay flag is set. `resolveArrivalExtrasBaseline` (rule 5bis). `writeEndOfStayDetail` — the single write point where the remainder + the register always move together. Columns guarded like `arrivalExtrasBaseline`. |
-| `controllers/` | `reservationsController.js` | T | `updatePayment`: two new action fields `settleMidStayNote` / `cancelMidStayNote`, applied FIRST and mapped to 404/409 by code; `midStayQuoteInputs` loads the register + the resolved baseline for the engine. |
+| `controllers/` | `reservationsController.js` | T | `updatePayment`: two new action fields `settleMidStayNote` / `cancelMidStayNote`, applied FIRST and mapped to 404/409 by code; the settle derives its items from `{ checkedKeys, opening }` against the stored remainder (rule 22); `previewMidStayNote` answers the dialog's total; `midStayQuoteInputs` loads the register + the resolved baseline for the engine. |
 | `models/` | `accountingModel.js` | T | Emit one `midStayComplement` entry per non-cash note whose `paidDate` falls in the month (rule 14); select the guarded column. **The month WHERE clause gains a note branch** (`midStaySettledNotes LIKE '%"paidDate":"YYYY-MM-%'`): a stay whose only collection of the month is a note has no bucket paid in it and would otherwise never be selected. `inMonth` stays the authoritative per-row filter. |
 | `utils/` | `accountingExport.js` | — | **No change**: the export is kind-agnostic (libellé = client name, rows built from the entry's buckets), so the new kind flows through as `endOfStayComplement` already does. |
 | `models/` | `financeModel.js` | T | Notes join the aggregates with the same cash conventions as the existing complements (rule 15); never pending. |
@@ -227,14 +273,14 @@ transaction) — the next quote/save reconverges by construction (`remaining = m
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/reservation/` | `MidStayNoteDialog.js` | **C** | The « Nouvelle note » dialog: checkable pending lines + catalogue picker bound to the same form state as the Options section (snapshot/rollback on cancel), live note total from the server quote, three closing actions. Feature-specific by design (wired to the reservation form contract) — not a generic component. |
+| `components/reservation/` | `MidStayNoteDialog.js` | **C** | The « Nouvelle note » dialog: checkable pending lines + catalogue picker bound to the same form state as the Options section (snapshot/rollback on cancel), note total from `POST /reservations/mid-stay-note/preview` (rule 22: it computes no amount), three closing actions. Feature-specific by design (wired to the reservation form contract) — not a generic component. |
 | `components/reservation/` | `FinanceSection.js` | T | New « Encaissements en séjour » block (rule 17): running total, « Nouvelle note » button, collapsible note history with ✕ cancel; end-of-stay block untouched (rule 18). Consomme l'état + la règle d'accès de la page — n'en tient plus de copie locale. |
 | `utils/` | `midStayNoteAccess.js` | **C** | La règle « quand peut-on ouvrir une note ? » en un seul endroit, partagée par la barre d'actions et le bloc, plus `countMidStayNotes`. Pure, 9 tests. |
 | `pages/` | `ReservationPage.js` | T | Détient l'état d'ouverture de la fenêtre (deux surfaces l'ouvrent) et calcule la règle une fois ; ajoute l'entrée « Nouvelle note » en tête de `actionsBefore`. |
 | `components/` | `PricingSummary.js` | T | Cascade per rule 19 (notes deducted + re-added on their own line; direct variant). |
 | `components/sas/` | `ReservationSasDialog.js` | T | « Déjà réglé en séjour : X € » info line in the departure recap (from the reservation row). |
 | `pages/` | `ReservationPage.js` | T | Load `midStaySettledNotes` into the form (+ `EMPTY_FORM`); host the dialog (open state, post-settle refresh). |
-| `api.js` | `api.js` | — | `markPayment` already passes arbitrary payment payloads through. |
+| `api.js` | `api.js` | T | `markPayment` already passes arbitrary payment payloads through; `previewMidStayNote(data)` (rule 22). |
 
 **Component reuse declaration:**
 
@@ -248,7 +294,8 @@ transaction) — the next quote/save reconverges by construction (`remaining = m
 
 | Method | Endpoint | Request body (additive) | Notes |
 |---|---|---|---|
-| PATCH | `/api/reservations/:id/payment` | `{ settleMidStayNote?: { items: [{ key, amount }], cash }, cancelMidStayNote?: { id } }` | Settle: 409 when a key has no remainder or `amount > remaining(k)`. Cancel: 409 when the end-of-stay flag is set. Reception role: fields dropped (rule 21). |
+| POST | `/api/reservations/mid-stay-note/preview` | `{ opening: [{ key, amount, label? }], current: [{ key, amount, label? }], checkedKeys: [key] }` → `{ items: [{ key, label, amount }], total }` | Rule 22 — the dialog's live total. |
+| PATCH | `/api/reservations/:id/payment` | `{ settleMidStayNote?: { checkedKeys: [key], opening: [{ key, amount }], cash }, cancelMidStayNote?: { id } }` | Settle (rule 22): the server derives the amounts against the stored remainder; 409 `NOTE_EMPTY` when nothing is left to collect. Cancel: 409 when the end-of-stay flag is set. Reception role: fields dropped (rule 21). |
 | GET | `/api/reservations/:id` | — | `r.*` carries the new column. |
 | POST | `/api/reservations/calculate-price` | unchanged | Response adds `midStaySettledTotal`; `endOfStayComplementTotal` is the remainder-based figure. |
 | GET | `/api/accounting/sales[.csv]` | — | New `midStayComplement` entries (one per settled note, cash excluded). |
@@ -346,11 +393,17 @@ every step. No backfill, no loss.
 - [x] `finance-model.unit.test.js` (extend, +3) — a note raises the total AND the collected figure,
       never the pending one; a caisse-interne note is off-books on both sides.
 
+- [x] `mid-stay-note-server-amounts.unit.test.js` (**new**, 8 — audit 2026-10-27, rule 22) — the plan
+      per key (nothing, ticked, delta only, new key + cent rounding, shrunk remainder, garbage), the
+      preview endpoint, and a settlement that takes its amounts from the stored remainder and ignores
+      a client `items` field.
+
 ### Client tests (`cd client && npx vitest run` → **788 verts**, +14)
 
-- [x] `MidStayNoteDialog.test.js` (**new**, 6) — pending lines checkable, total following the
-      selection, per-key instructions (never a client-computed price), a catalogue addition billed
-      for its **delta only**, cash flag, buttons inert while the note is empty, cancel rolls back.
+- [x] `MidStayNoteDialog.test.js` (**new**, 6; rewritten 2026-10-27 for rule 22) — pending lines
+      checkable, the total is the preview's, the settle sends `{ checkedKeys, opening }` and no
+      amount, the live remainder goes to the preview after a catalogue addition, cash flag, buttons
+      inert while the note is empty, cancel rolls back.
 - [x] `FinanceSection.mid-stay-notes.test.js` (**new**, 6) — block visibility (stay started / notes
       present), running total, history with date + mode + lines, cancel → confirm → PATCH + reload,
       button disabled when the end-of-stay complement is settled, **and no per-line button on the
@@ -359,6 +412,9 @@ every step. No backfill, no loss.
       « dont encaissements en séjour ».
 - [x] The 4 `FinanceSection.*` suites now render inside `DialogProvider` (the block uses the app-wide
       confirm service).
+- [x] `FinanceSection.settle-reread-fails.test.jsx` (**new**, 2 — audit R32-C-L2, rule 24 reading) — refused then a
+      failed re-read: the refusal shows and the dialog is usable again; stored then a failed re-read: the dialog closes,
+      no refusal shown; no unhandled rejection in either.
 
 ### E2E (`npm run test:e2e`)
 

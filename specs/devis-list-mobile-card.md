@@ -2,12 +2,21 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented |
+| **Status** | Implemented — superseded on 2026-10-23 by `ui-review-2026-10-19-operations.md` rules 5–9 and 21 |
 | **Branch** | `feature/devis-list-mobile-card` _(user-managed)_ |
 | **Created** | 2026-10-22 |
 | **Author** | Adrien |
 | **Related PR** | #748 |
 | **Mockup** | `docs/specs/2026-10-22-devis-list-mobile-card.html` |
+
+---
+
+> **Superseded on 2026-10-23.** This spec shipped on `master` (#748) while `inte/plugins` carried the UI review of
+> 2026-10-19, which solves the same report (the logement glued to the dates) with a different card: one
+> caption « Logement · dates », the PDF inside the « ⋯ » menu on a phone, the quote number as a link, the
+> server's `totalTtc` and a single origin badge (`ui-review-2026-10-19-operations.md` rules 5–9). The
+> synchronisation of `master` into `inte/plugins` kept that card. What this spec added and is gone:
+> `nights` / `stayLabel` on `GET /api/devis` rows, `utils/stayRangeLabel.js` and the card's own tests.
 
 ---
 

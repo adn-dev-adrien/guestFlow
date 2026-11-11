@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OTA_HotelAvailNotifRQ xmlns="http://www.opentravel.org/OTA/2003/05" EchoToken="solio-la-granja-1" TimeStamp="2027-03-01T04:00:00Z" Version="3.0">
+  <POS><Source><RequestorID ID="solio_partner"/></Source></POS>
+  <AvailStatusMessages HotelCode="solio-la-granja">
+    <AvailStatusMessage>
+      <StatusApplicationControl Start="2027-03-06" End="2027-03-08" InvTypeCode="whole" RatePlanCode="direct"/>
+      <LengthsOfStay ArrivalDateBased="true"><LengthOfStay Time="2" TimeUnit="Day" MinMaxMessageType="SetMinLOS"/></LengthsOfStay>
+      <RestrictionStatus Status="Open"/>
+      <RestrictionStatus Status="Open" Restriction="Arrival"/>
+      <RestrictionStatus Status="Open" Restriction="Departure"/>
+    </AvailStatusMessage>
+    <AvailStatusMessage>
+      <StatusApplicationControl Start="2027-03-09" End="2027-03-09" InvTypeCode="whole" RatePlanCode="direct"/>
+      <LengthsOfStay ArrivalDateBased="true"><LengthOfStay Time="4" TimeUnit="Day" MinMaxMessageType="SetMinLOS"/><LengthOfStay Time="7" TimeUnit="Day" MinMaxMessageType="SetMaxLOS"/></LengthsOfStay>
+      <RestrictionStatus Status="Open"/>
+      <RestrictionStatus Status="Close" Restriction="Arrival"/>
+      <RestrictionStatus Status="Close" Restriction="Departure"/>
+    </AvailStatusMessage>
+    <AvailStatusMessage>
+      <StatusApplicationControl Start="2027-03-10" End="2027-03-10" InvTypeCode="whole" RatePlanCode="direct"/>
+      <RestrictionStatus Status="Close"/>
+      <RestrictionStatus Status="Open" Restriction="Arrival"/>
+      <RestrictionStatus Status="Open" Restriction="Departure"/>
+    </AvailStatusMessage>
+  </AvailStatusMessages>
+</OTA_HotelAvailNotifRQ>

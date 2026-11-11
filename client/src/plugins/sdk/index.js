@@ -12,15 +12,18 @@ export { default as LoadingState } from '../../components/LoadingState';
 export { default as ErrorAlert } from '../../components/ErrorAlert';
 export { default as EmptyState } from '../../components/EmptyState';
 export { default as StatusBadge } from '../../components/StatusBadge';
+// One subject of the home's attention (specs/shell-and-home-day-first.md rules 9, 13) — SDK 1.4.0.
+export { default as AttentionCard } from '../../components/AttentionCard';
 export { default as SummaryItem } from '../../components/SummaryItem';
 export { default as MaskedTextField } from '../../components/MaskedTextField';
 export { default as SecretRevealField } from '../../components/SecretRevealField';
+export { default as SasKeypadCode } from '../../components/sas/SasKeypadCode';
 // The banner every intake plugin shows on the fiche (specs/airbnb-mail-intake.md §4.1).
 export { default as IntakeBanner } from '../../components/IntakeBanner';
 export { displayDate } from '../../utils/formatters';
 // sas — what the guided arrival/departure dialog and its « Facturables » tab render with
 // (specs/plugins-phase-2-hosts.md rule 8). The steps of other plugins reach it through the slots.
-export { default as Slot } from './Slot';
+export { default as Slot, Contribution } from './Slot';
 export { useSlot } from './useSlot';
 export { default as OccurrenceGrid } from '../../components/OccurrenceGrid';
 export { default as SlotPickerGrid } from '../../components/SlotPickerGrid';
@@ -37,10 +40,34 @@ export { withFrom } from '../../utils/navigation';
 // accounting-export
 export { default as MonthYearPicker } from '../../components/MonthYearPicker';
 export { default as PlatformChip } from '../../components/PlatformChip';
+export { default as TableCard } from '../../components/TableCard';
+export { default as PageTabs } from '../../components/PageTabs';
 export { ADMIN, userHasRole } from '../../constants/roles';
+// The report grammar (specs/report-grammar.md) — the accounting synthesis renders with it
+// (specs/accounting-synthesis.md rules 23-33) — SDK 2.23.0.
+export { default as SelectableTile } from '../../components/SelectableTile';
+export { default as NoComparisonNotice } from '../../components/NoComparisonNotice';
+export { default as Panel } from '../../components/Panel';
+// The charts load Recharts on first use, never with the shell (specs/report-grammar.md rule 20).
+export { LazyTrendChart as TrendChart, LazyAlignedDailyCumulativeCharts as AlignedDailyCumulativeCharts } from '../../components/LazyReportCharts';
+export { default as ShareTable } from '../../components/ShareTable';
+export { default as useServerToday } from '../../hooks/useServerToday';
+export { customWindowError } from '../../components/PeriodSelector';
+export { formatCurrencyRounded } from '../../utils/formatters';
 // linen (specs/plugins-phase-2-hosts.md §3.D)
 export { default as DateField } from '../../components/DateField';
 export { default as QuantityField } from '../../components/QuantityField';
 export { isReceptionOnly } from '../../constants/roles';
 // online-payment (specs/plugins-phase-3a-online-payment.md rule 17) — its pages import `./ui`.
 export { default as HelpedTextField } from '../../components/HelpedTextField';
+// The debounced, latest-wins server preview hook (specs/resource-supplements-total-server-side.md Q5) — SDK 2.1.0.
+export { default as useLatestPreview } from '../../hooks/useLatestPreview';
+// reconciliation-assisted-matching (rule 11) — the active-filter chip — SDK 2.9.0.
+export { default as FilterChip } from '../../components/FilterChip';
+// reconciliation-assisted-matching (rule 24) — the platform penalty dialog, opened from a gap — SDK 2.9.0.
+export { default as PlatformPenaltyDialog } from '../../components/reservation/PlatformPenaltyDialog';
+// sas — one payment split over several methods (specs/mixed-method-payments.md rule 32) — SDK 2.24.0.
+export { default as TenderLines } from '../../components/TenderLines';
+export { TENDER_TEXTS } from '../../constants/tenderMethods';
+// hourly-resources — the communes of a postcode (specs/resource-booking-pricing-and-invoicing.md rule 27) — SDK 2.25.0.
+export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';

@@ -1,5 +1,5 @@
 /**
- * UpdateDialog — the digest leads, the changelog waits (rule 20c), and the offer covers every
+ * UpdateDialog — the digest leads, the changelog waits (20c), and the offer covers every
  * version the update crosses, not just the target (rule 20d).
  * specs/self-update-and-releases.md §6.2.
  */
@@ -146,4 +146,15 @@ test('a window that stops short admits the versions it is not listing', () => {
   renderDialog({ ...INFO, current: '1.4.0', versions: [TARGET, SKIPPED], versionsTruncated: true });
 
   expect(screen.getByText('Les versions antérieures à 2.2.0 ne sont pas listées.')).toBeInTheDocument();
+});
+
+// rule 56 — the closing paragraph of a condensed section arrives as an untitled note of its own, beside the sections.
+test('the closing note of a condensed section renders on its own, after the sections', async () => {
+  const closing = 'Cette version est condensée : le détail est dans docs/changelog/2.3.0-detail.md.';
+  renderDialog(oneVersion({ notes: [...TARGET.notes, { key: null, title: null, items: [closing] }] }));
+
+  await userEvent.click(screen.getByRole('button', { name: /tout le changelog/i }));
+  const note = await screen.findByText(closing);
+  expect(note.closest('li')).not.toBe(screen.getByText('Une correction détaillée.').closest('li'));
+  expect(screen.getByText('Une correction détaillée.')).toBeInTheDocument();
 });

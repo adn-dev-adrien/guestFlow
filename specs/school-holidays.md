@@ -42,13 +42,17 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 3. `label` is required (trimmed, non-empty); auto-applied `sentenceCase` is preserved.
 4. Each zone is configured as a **pair**: either both `start` and `end` are present, or both are empty. A single side is rejected.
 5. When a zone pair is present, `start ≤ end`. A reversed range is rejected. A one-day holiday (`start === end`) is valid.
+   *Reading of 2026-11-02 — the date window.* Each zone date is a real calendar day inside [today − 5 years, today + 5
+   years] (« Zone A : date trop ancienne : 5 ans au plus. », « … : date invalide. »), 400 `INVALID_PERIOD`; a
+   date the edited period already stores (an imported one) is kept. The education.gouv.fr sync writes its
+   own dates and is not judged (school-holidays 1.0.5, `specs/reservations-backend-mvc.md` rule 13, second reading).
 6. At least one zone must be configured. A period with all three zones empty is rejected.
 7. Listing returns periods sorted by `COALESCE(zoneA_start, zoneB_start, zoneC_start) ASC, id ASC`.
 8. Validation errors return `400 INVALID_PERIOD` with a French error message.
 
 ### Auto-sync from data.education.gouv.fr
 
-9. **Source of truth:** the official open dataset [`fr-en-calendrier-scolaire`](https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/) on `data.education.gouv.fr`. Records filtered to `population = "Élèves"` (exclude staff, CPGE, etc.). All Zone A/B/C records are kept; other zones (e.g. Corse, DOM-TOM) are ignored — only metropolitan A/B/C are in scope.
+9. **Source of truth:** the official open dataset [`fr-en-calendrier-scolaire`](https://data.education.gouv.fr/explore/dataset/fr-en-calendrier-scolaire/) on `data.education.gouv.fr`. Records filtered to `population = "Élèves"` or `population = "-"` (exclude staff, CPGE, etc.): the dataset marks most periods `"-"` (same dates for everyone) and only splits `"Élèves"` from staff when they differ — filtering on `"Élèves"` alone kept the summer only (fixed 2026-09-28, specs/plugins-phase-1-sdk.md). All Zone A/B/C records are kept; other zones (e.g. Corse, DOM-TOM) are ignored — only metropolitan A/B/C are in scope.
 10. **What we fetch:** all records where `start_date` falls between **today** and **today + `syncHorizonMonths` months** (default 24, user-configurable per rule 16), so the local DB always covers the desired horizon.
 11. **Aggregation:** the API returns one record per (zone, period). We group records by `(annee_scolaire, description)` → one local row. For each row, the matching record(s) populate `zoneA_start/end`, `zoneB_start/end`, `zoneC_start/end`. Rows without any zone match for our 3 zones are skipped.
 12. **External identity (`externalRef`):** `${annee_scolaire}|${description_normalized}` (where `description_normalized` = trimmed + lowercased + ASCII-folded). Used as the upsert key for auto-sync. Manually-created rows have `externalRef = NULL` and are **never** touched by the sync.
@@ -88,6 +92,15 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
     - `Horizon de mise à jour (mois)` — min 1, max 60, default 24.
     - Save button validates client-side (range, integer) and submits to `PUT /api/school-holidays/sync-settings`.
     - On server `400 INVALID_SYNC_SETTINGS`, surface the message in an `Alert` inside the dialog.
+27. **No sync on an instance started without outbound access** (added 2026-10-30, audit R7 L-1). When the
+    server runs with `GUESTFLOW_DISABLE_OUTBOUND=1` **and** `NODE_ENV=test` — both set by every E2E server
+    (specs/e2e-playwright-smoke-suite.md rule 23) — the scheduled sync, the sync of a fresh install and the
+    manual trigger all return `{ ok: false, error: 'Synchronisation désactivée sur cette instance.' }` without
+    calling `data.education.gouv.fr` and without touching the sync state, so an E2E run never depends on the
+    live dataset. Unset (every real install), nothing changes. Outside `NODE_ENV=test` the flag is ignored
+    (fail-closed, PR #896 review R-2), so a production instance that inherited it by mistake keeps its
+    holidays fresh. Plugin 1.0.4. Test:
+    `school-holidays-no-outbound.unit.test.js`.
 
 **Edge cases:**
 - Empty list, no sync ever ran → empty state `Aucune période configurée. La prochaine synchronisation automatique se chargera de remplir le calendrier.` + manual sync button.
@@ -101,6 +114,15 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 
 ## 4. Architecture
 
+> **Moved to plugin `school-holidays` (phase 1, `specs/plugins-phase-1-sdk.md`) — current file map
+> (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
+> `server/src/plugins/school-holidays/`: `controller.js` · `routes.js` · `model.js` · `sync.js` (sync
+> engine) · `educationGouvClient.js` (data.education.gouv.fr client) · `validation.js` · `localDay.js` ·
+> `index.js` (mount `/api/school-holidays`, hourly job). Client `client/src/plugins/school-holidays/`:
+> `SchoolHolidaysPage.jsx`, `SchoolHolidaysTimeline.jsx`, `SchoolHolidaysSyncBanner.jsx`,
+> `SchoolHolidayFormFields.jsx`, `SchoolHolidayBand.jsx`, `SchoolYearStrip.jsx`, `holidayInfo.js`,
+> `markers.js`, `schoolYear.js`, `zoneColors.js`, `index.js`.
+
 > **Reminder — Fat backend, thin frontend.** All validation, the sync engine, and the scheduling live on the server. The page only renders bands and submits the form. The existing client helper `getSchoolHolidayInfo` (used by Calendar + Seasons) remains on the client as a pure render helper and is queued for server migration in Bloc 6.
 
 ### 4.1 Server side (`server/src/`)
@@ -113,7 +135,7 @@ A user opens `/school-holidays` and sees a Gantt-style annual timeline (one stac
 | `middleware/` | — | — | (none) |
 | `utils/` | `schoolHolidaysValidation.js` | C | Pure `validatePeriod(...)` → `null`/French error; pure `validateSyncSettings({ syncIntervalDays, syncHorizonMonths })` → `null`/French error. |
 | `utils/` | `schoolHolidaysSync.js` | C | Pure-ish sync engine. Exports `runSync({ model, fetchFn = fetch, horizonMonths })` → `{ createdCount, updatedCount, skippedLockedCount, deletedStaleCount, durationMs }`. `fetchFn` + `horizonMonths` injected → unit-testable without network. |
-| `utils/` | `educationGouvClient.js` | C | Builds the `data.education.gouv.fr` URL (next `horizonMonths` months, `population = "Élèves"`, zones A/B/C), wraps `fetch` with a 30 s timeout, parses + returns raw records. |
+| `utils/` | `educationGouvClient.js` | C | Builds the `data.education.gouv.fr` URL (next `horizonMonths` months, `population = "Élèves"` or `"-"`, zones A/B/C), wraps `fetch` with a 30 s timeout, parses + returns raw records. |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Adds `performSchoolHolidaysSync()` + a 1-hour tick that reads `syncIntervalDays` from `school_holidays_sync_state` and runs sync if `now - lastSyncAt >= interval`. Boot `setTimeout(60 s)` runs once if interval elapsed. Mirrors the iCal sync pattern. |
 | `database.js` | `database.js` | T | Idempotent `ALTER TABLE` for the 3 new columns on `school_holidays` + the new `school_holidays_sync_state` singleton table (with `syncIntervalDays`, `syncHorizonMonths` columns). |
 
@@ -177,7 +199,7 @@ ALTER TABLE school_holidays ADD COLUMN lastSyncedAt TEXT;       -- ISO-8601 of l
 CREATE INDEX IF NOT EXISTS idx_school_holidays_externalRef ON school_holidays(externalRef);
 ```
 
-Idempotent block in `server/src/database.js`. Existing rows: `externalRef = NULL`, `isLocked = 0`. They get adopted by the first auto-sync if their `(year, label)` matches an API record (the upsert overwrites the row in place). Otherwise they stay as orphan manual rows.
+Idempotent block in `server/src/database.js`. Existing rows: `externalRef = NULL`, `isLocked = 0`. They get adopted by the first auto-sync if their `(year, label)` matches an API record (the upsert overwrites the row in place). Otherwise they stay as orphan manual rows. Since 2026-09-28 (specs/plugins-phase-1-sdk.md rule 27) a manual row is also adopted when it names the same season (Toussaint, Noël, Hiver, Printemps, Pâques, Ascension, Été) and its dates overlap in one zone, and only by a period not yet imported. Dates are the Paris days of the dataset's instants: first day off, and the day before classes resume.
 
 ### New singleton table
 
@@ -199,7 +221,7 @@ INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1);
 
 Idempotent — re-runs are no-ops. The `INSERT OR IGNORE` ensures the singleton row exists; subsequent `ALTER TABLE ADD COLUMN` migrations (if we ever add fields) follow the same pattern used elsewhere in `database.js`.
 
-**Data impact:** none — additive changes. The seeded periods (Oct 2024 → Aug 2027) are preserved and adopted by the first sync.
+**Data impact:** none — additive changes. The seeded periods (Oct 2024 → Aug 2027) are preserved and adopted by the first sync. Since 2026-09-28 the table and its seed belong to the school-holidays plugin module (specs/plugins-phase-1-sdk.md): a new database has neither until the plugin is installed, and the seed is gone.
 
 **Index consideration:** the new `idx_school_holidays_externalRef` index supports the upsert lookup in the sync engine.
 

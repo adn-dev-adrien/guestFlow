@@ -106,7 +106,28 @@ The E2E suite needs ports 3000/4000. Free them without asking (`npm run stop`), 
 `npm run dev` in the background afterwards** if it was running — and say so, since the suite wipes
 the dev database on the way through.
 
-> **CHECK**: up-to-date master, no tracked change, server + client + build + E2E green.
+Then the plugin packages, exactly as the release's `package` job will judge them — so that job can
+never stop the release after the tag (specs/plugins-phase-4-registry.md rule 27). The plugins' web apps are
+built first, as that job builds them: a package without its apps' build differs from the published one, and
+one with a stale local build is judged on stale content:
+
+```bash
+for app in server/src/plugins/*/apps/*/; do
+  [ -f "$app/package.json" ] || continue
+  (cd "$app" && npm ci && npm run build)
+done
+node scripts/build-plugin-packages.mjs
+PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
+rm -rf prev-dist && mkdir prev-dist && gh release download "$PREV" -p '*.tgz' -D prev-dist
+node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist
+rm -rf prev-dist
+```
+
+A `✗` means a plugin's built package differs from the one published under the same version (its sources,
+or a dependency bump, changed it): stop, bump its version in an ordinary PR. A published package is never
+reused (release assets are mutable; audit r2 N4).
+
+> **CHECK**: up-to-date master, no tracked change, server + client + build + E2E green, plugin packages checked.
 
 ---
 
@@ -116,9 +137,19 @@ The GitHub release body IS the CHANGELOG section, and the operator reads it in t
 before clicking « Installer ». No section, no release.
 
 ```bash
+node scripts/check-plugin-versions.mjs --core-version X.Y.Z   # must pass: every changed plugin was bumped
+                                                               # in its PR, and every bundled plugin admits
+                                                               # X.Y.Z and the SDK (rule 62)
 node scripts/build-changelog.mjs                  # preview the pending fragments
 node scripts/build-changelog.mjs --release X.Y.Z   # fold them into a dated section
 ```
+
+The release PR never edits a plugin manifest (specs/plugins-phase-4-registry.md rule 28): each pull
+request that changes a plugin bumps its version and writes its French changelog lines in that
+plugin's `manifest.json`, and CI refuses it otherwise. If the check above fails, stop the release and
+fix the plugin's version in an ordinary PR first. A « would refuse these bundled plugins at boot » means
+the release would switch those plugins off on the instance that installs it (D24): fix their ranges in an
+ordinary PR, never in the release PR.
 
 Then do the two pieces of writing this step exists for.
 
@@ -175,7 +206,7 @@ If it did, bump `Version:` in the header AND `GF_BOOKING_VERSION` AND `Stable ta
 ```bash
 git checkout -b release/vX.Y.Z
 git add package.json server/package.json client/package.json CHANGELOG.md changelog.d
-# plus the plugin files if it was bumped
+# plus the WordPress plugin files if it was bumped
 git commit -m "release: vX.Y.Z"
 git push -u origin release/vX.Y.Z
 gh pr create --base master --title "release: vX.Y.Z" --body "..."
@@ -261,7 +292,7 @@ gh run watch <run-id> --interval 20 --exit-status
 gh run view <run-id> --log-failed    # if it fails
 ```
 
-Job order: `verify` → (`tests` ‖ `e2e`) → `package` → `publish`.
+Job order: `verify` → (`server-tests` ‖ `client-tests` ×3 shards ‖ `e2e`) → `package` → `publish`.
 
 Recovery when `verify` fails (missing changelog section, missing or over-long digest, version
 mismatch): fix on master through a normal PR, then re-point the tag:
@@ -273,8 +304,30 @@ git tag -f vX.Y.Z && git push --force origin vX.Y.Z
 That force-push is on a **tag**, and is the one exception to the never-force-push rule — the
 CLAUDE.md §5.2 ban on force-pushing branches still stands.
 
-> **CHECK**: the workflow is green and `gh release view vX.Y.Z` lists three assets:
-> `guestflow-X.Y.Z.tar.gz`, `SHA256SUMS`, `guestflow-booking-<v>.zip`.
+> **CHECK**: the workflow is green and `gh release view vX.Y.Z` lists the core archive
+> `guestflow-X.Y.Z.tar.gz`, `SHA256SUMS`, `guestflow-booking-<v>.zip` and one `<plugin>-<version>.tgz`
+> package per bundled plugin.
+
+---
+
+## Step 8b — Sign the release (only when a signing key exists)
+
+Rule 41 of `specs/self-update-and-releases.md`. Skip silently unless `GUESTFLOW_RELEASE_SIGNING_KEY`
+(the path of the maintainer's private key, held off GitHub) is set in the environment. When it is:
+
+```bash
+node scripts/sign-release.mjs sign "$GUESTFLOW_RELEASE_SIGNING_KEY" vX.Y.Z
+```
+
+The script downloads `SHA256SUMS` and the archive, refuses to sign unless the sums list the archive's
+real hash, prints the sums, signs them and uploads `SHA256SUMS.sig`. Compare the printed sums with the
+`package` job's log. An installer that has `GUESTFLOW_RELEASE_PUBLIC_KEY` set refuses any release without
+this asset, so on a signed setup the release is **not installable until this step has run** — say so in
+the report.
+
+> **CHECK** (key present only): `gh release view vX.Y.Z` lists `SHA256SUMS.sig` on top of the assets
+> of step 7 (archive, `SHA256SUMS`, WordPress zip, plugin `.tgz` packages), and `node scripts/sign-release.mjs`
+> printed the sums it signed.
 
 ---
 

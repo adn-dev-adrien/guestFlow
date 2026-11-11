@@ -4,39 +4,60 @@
 // and which tile is open.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Box, Card, CardContent, Grid, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Grid, MenuItem, TextField, Typography } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
 import PageActionBar from '../components/PageActionBar';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
-import PeriodSelector from '../components/PeriodSelector';
+import PeriodSelector, { customWindowError } from '../components/PeriodSelector';
 import ChoiceCardStrip from '../components/ChoiceCardStrip';
 import InsightCard from '../components/InsightCard';
 import SelectableTile from '../components/SelectableTile';
 import FinanceHero from '../components/FinanceHero';
+import VatFranchiseCard from '../components/VatFranchiseCard';
 import FinanceDetailPanel from '../components/FinanceDetailPanel';
 import MonthlyRevenueChart from '../components/MonthlyRevenueChart';
 import SmallMultiplesLineChart from '../components/SmallMultiplesLineChart';
 import BookingPaceCard from '../components/BookingPaceCard';
-import { formatCurrencyRounded } from '../utils/formatters';
+import NoComparisonNotice from '../components/NoComparisonNotice';
+import TrendChart from '../components/TrendChart';
+import { comparisonPill, rateOneDecimal, perNightAmount } from '../utils/comparisonPill';
+import { TILE_DEFINITIONS, HERO_DEFINITIONS } from '../constants/financeDefinitions';
+import FinanceDataChecksCard from '../components/FinanceDataChecksCard';
+import { seriesColor } from '../utils/chartColors';
+import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
+import { localIsoToday } from '../utils/isoDay';
+import useServerToday from '../hooks/useServerToday';
 
 const DETAIL_ID = 'finance-detail';
 const percent = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const shortDate = (iso) => (iso ? new Date(`${String(iso).slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '');
-const FORMAT = { amount: formatCurrencyRounded, percent, date: shortDate };
-const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
-const iso = (d) => d.toISOString().slice(0, 10);
+const FORMAT = { amount: formatCurrencyRounded, perNight: perNightAmount, percent, date: shortDate };
+// The browser's own calendar day, never the UTC one (rule 37).
+const iso = (d) => localIsoToday(d);
 
 // The tiles, in order, each with what its figure reads from `dashboard.tiles` (rule 13).
 const TILES = [
-  { key: 'collected', label: 'Encaissé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
+  { key: 'collected', label: 'Déjà payé', dot: 'success.main', read: (t) => [formatCurrencyRounded(t.amount), t.shareOfRevenue == null ? '' : `${percent(t.shareOfRevenue)} du chiffre d'affaires`] },
   { key: 'toCollect', label: 'À encaisser', dot: 'secondary.main', read: (t) => [formatCurrencyRounded(t.amount), `${plural(t.stays, 'séjour')} · tous exercices`] },
   { key: 'late', label: 'En retard', dot: 'error.main', read: (t) => [formatCurrencyRounded(t.amount), t.stays ? `${plural(t.stays, 'séjour')} · tous exercices` : 'rien à relancer'], alert: (t) => t.stays > 0 },
   { key: 'stays', label: 'Réservations', dot: 'info.main', read: (t) => [plural(t.count, 'séjour'), `${t.upcoming} à venir`] },
-  { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), `${t.revPar == null ? '—' : formatCurrencyRounded(t.revPar)} de RevPAR`] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
-  { key: 'channels', label: 'Canaux', dot: '#6B8F76', read: (t) => [`− ${formatCurrencyRounded(t.commission)}`, 'commissions payées'] },
+  { key: 'properties', label: 'Logements', dot: 'primary.main', read: (t) => (t.count === 1 && t.name ? [formatCurrencyRounded(t.revenue), t.name] : [plural(t.count, 'logement'), t.leader ? `en tête : ${t.leader}` : '']) },
+  { key: 'channels', label: 'Canaux', dot: 'chart.channels', read: (t) => [formatCurrencyRounded(t.commission), 'de commissions'] },
 ];
+
+// specs/finance-revpar-year-over-year.md rule 16 — the figures that carry a year-over-year pill, and how
+// last year's value is written in it.
+const TILE_PILLS = { collected: formatCurrencyRounded, stays: (n) => plural(n, 'séjour') };
+// Rule 24 — the per-night amounts to the cent under 100 €.
+const HERO_PILLS = {
+  nights: (n) => n.toLocaleString('fr-FR'), occupancy: rateOneDecimal,
+  revenuePerNight: perNightAmount, revPar: perNightAmount,
+};
+const pillsOf = (comparison, formats) => Object.fromEntries(Object.entries(formats).map(([k, f]) => [k, comparisonPill(comparison && comparison.metrics[k], f)]));
+const percentAxis = (x) => `${Math.round(x * 100)} %`;
 
 export default function FinancePage() {
   const navigate = useNavigate();
@@ -57,33 +78,64 @@ export default function FinancePage() {
     setSearchParams(out, { replace: true });
   };
   const paramsKey = searchParams.toString();
+  // Rule 51 — a link to a custom window the server refuses (a date missing or not a real day, reversed, too
+  // wide, outside the window) is not sent: the page shows the period selector with the message, so the
+  // window can be fixed in place.
+  const today = useServerToday() || localIsoToday();
+  const periodRefusal = params.period === 'custom' ? customWindowError(params.from, params.to, today) : '';
 
   const [dashboard, setDashboard] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  // Rule 57 — the refusal's code: « Exercice en cours » answers `UNKNOWN_EXERCISE` only.
+  const [loadErrorCode, setLoadErrorCode] = useState(null);
   const [tile, setTile] = useState(null);
-  const [detail, setDetail] = useState({ data: null, loading: false, error: false });
+  const [detail, setDetail] = useState({ key: null, data: null, loading: false, error: false });
   const [staysScope, setStaysScope] = useState('window');
-  const [until, setUntil] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return iso(d); });
+  // Empty until the operator picks a date: the server's default (today + 1 month) applies.
+  const [until, setUntil] = useState('');
+
+  const beginDashboard = useLatestRequest();
+  const beginDetail = useLatestRequest();
 
   const loadDashboard = useCallback(async () => {
+    const current = beginDashboard();
+    if (periodRefusal) {
+      setLoadError(null);
+      setDashboard(null);
+      return;
+    }
     try {
       setLoadError(null);
-      setDashboard(await api.getFinanceDashboard(params));
+      const answer = await api.getFinanceDashboard(params);
+      if (current()) setDashboard(answer);
     } catch (err) {
-      setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+      if (current()) {
+        setLoadError((err && err.error) || 'Impossible de charger les données financières.');
+        setLoadErrorCode((err && err.code) || null);
+      }
     }
-  }, [paramsKey]);
+  }, [paramsKey, periodRefusal]);
 
+  const detailKey = `${tile}|${paramsKey}|${until}|${staysScope}`;
   const loadDetail = useCallback(async () => {
+    const current = beginDetail();
     if (!tile) return;
-    setDetail((d) => ({ ...d, loading: true, error: false }));
+    setDetail((d) => ({ key: detailKey, data: d.key === detailKey ? d.data : null, loading: true, error: false }));
     try {
-      const data = await api.getFinanceDashboardDetail(tile, { ...params, until, scope: staysScope });
-      setDetail({ data, loading: false, error: false });
+      const data = await api.getFinanceDashboardDetail(tile, { ...params, ...(until ? { until } : {}), scope: staysScope });
+      if (current()) setDetail({ key: detailKey, data, loading: false, error: false });
     } catch {
-      setDetail({ data: null, loading: false, error: true });
+      if (current()) setDetail({ key: detailKey, data: null, loading: false, error: true });
     }
   }, [tile, paramsKey, until, staysScope]);
+
+  // specs/vat-optional-mode.md rule 35 — the franchise card, whatever the window; a failed read hides it.
+  // `undefined` until the first read has settled: the page waits for it, so the card never pops in late.
+  const [franchise, setFranchise] = useState(undefined);
+  const loadFranchise = useCallback(async () => {
+    try { setFranchise(await api.getVatFranchise()); } catch { setFranchise(null); }
+  }, []);
+  useEffect(() => { loadFranchise(); }, [loadFranchise]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
   useEffect(() => { loadDetail(); }, [loadDetail]);
@@ -91,11 +143,11 @@ export default function FinancePage() {
   const [paceRefresh, setPaceRefresh] = useState(0);
   const refreshAll = async () => {
     setPaceRefresh((n) => n + 1);
-    await Promise.all([loadDashboard(), loadDetail()]);
+    await Promise.all([loadDashboard(), loadDetail(), loadFranchise()]);
   };
 
   const openTile = (key) => {
-    setDetail({ data: null, loading: false, error: false });
+    setDetail({ key: null, data: null, loading: false, error: false });
     setTile((current) => (current === key ? null : key));
   };
 
@@ -113,21 +165,45 @@ export default function FinancePage() {
     await refreshAll();
   };
   const handleTogglePayment = (reservation, field) => markPayment(reservation.id, { [field]: !reservation[field] });
+  // The flags « Tout solder » ticks come from the server (specs/reservation-payment-ledger.md rule 68, D20).
   const handleSettleAll = async (r) => {
-    const payload = {};
-    if (!r.depositDisabled && Number(r.depositAmount || 0) > 0 && !r.depositPaid) payload.depositPaid = true;
-    if (Number(r.balanceAmount || 0) > 0 && !r.balancePaid) payload.balancePaid = true;
-    if (Number(r.complementAmount || 0) > 0 && !r.complementPaid) payload.complementPaid = true;
-    if (Number(r.endOfStayComplementAmount || 0) > 0 && !r.endOfStayComplementPaid) payload.endOfStayComplementPaid = true;
+    const payload = Object.fromEntries((r.settleAllFields || []).map((field) => [field, true]));
     if (Object.keys(payload).length === 0) return;
     await markPayment(r.id, payload);
+  };
+  // Rule 38 — « Marquer payé » on a late row ticks exactly the elements its chips list.
+  // A late installment has no payment flag: it is recorded through its own endpoint.
+  const handleSettleOverdue = async (r) => {
+    const items = r.overdueItems || [];
+    const payload = Object.fromEntries(items.filter((item) => item.paidField).map((item) => [item.paidField, true]));
+    const installmentIds = items.filter((item) => item.installmentId != null).map((item) => item.installmentId);
+    if (Object.keys(payload).length === 0 && installmentIds.length === 0) return;
+    setPaymentError(null);
+    try {
+      if (Object.keys(payload).length > 0) await api.markPayment(r.id, payload);
+      for (const installmentId of installmentIds) await api.markInstallmentPaid(r.id, installmentId, {});
+    } catch (e) {
+      setPaymentError(e.message || 'Le paiement n\'a pas pu être enregistré.');
+    }
+    await refreshAll();
   };
 
   const d = dashboard;
   const selectedProperty = d && d.propertyId ? d.properties.find((p) => p.propertyId === d.propertyId) : null;
+  const metrics = d && d.comparison ? d.comparison.metrics : null;
+  const tilePills = pillsOf(d && d.comparison, TILE_PILLS);
+  const shortOf = new Map(d ? d.revenueMonths.map((m) => [m.month, m.short || m.label]) : []);
+  const occupancyAll = d && d.occupancyAll;
+  const showByProperty = !occupancyAll || d.occupancy.length > 1;
+  const occupancyN1 = Boolean(occupancyAll) && occupancyAll.months.some((m) => m.previous != null);
   const defaultMonth = () => {
-    const now = new Date().toISOString().slice(0, 7);
+    const now = iso(new Date()).slice(0, 7);
     return d && d.months.some((m) => m.month === now) ? now : (d && d.months[0] ? d.months[0].month : now);
+  };
+  const onPeriodChange = (w) => {
+    if (w.kind === 'fy') setParams({ period: 'fy', month: '', from: '', to: '' });
+    else if (w.kind === 'month') setParams({ period: 'month', month: w.month || defaultMonth(), from: '', to: '' });
+    else setParams({ period: 'custom', month: '', from: w.from, to: w.to });
   };
   const defaultCustom = () => {
     const start = new Date(); start.setDate(1);
@@ -143,8 +219,32 @@ export default function FinancePage() {
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
-        {!d && !loadError && <LoadingState label="Chargement du suivi financier…" />}
-        {d && (
+        {/* Rule 51 — with no dashboard to show, a refused window keeps its selector: never a dead end. */}
+        {!d && (periodRefusal || loadError) && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, mb: 1.75 }}>
+            <PeriodSelector
+              kind={params.period}
+              from={periodRefusal ? params.from : params.from || defaultCustom().from}
+              to={periodRefusal ? params.to : params.to || defaultCustom().to}
+              months={[]}
+              onChange={onPeriodChange}
+              today={today}
+            />
+            {params.propertyId && (
+              <Button size="small" variant="outlined" onClick={() => setParams({ propertyId: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
+                Tous les logements
+              </Button>
+            )}
+            {/* specs/finance-dashboard-redesign.md rule 57 — an exercise the server refuses offers the current one. */}
+            {loadError && loadErrorCode === 'UNKNOWN_EXERCISE' && (
+              <Button size="small" variant="outlined" onClick={() => setParams({ fiscalYear: '', period: 'fy', month: '' })} sx={{ textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } }}>
+                Exercice en cours
+              </Button>
+            )}
+          </Box>
+        )}
+        {(!d || franchise === undefined) && !loadError && !periodRefusal && <LoadingState label="Chargement du suivi financier…" />}
+        {d && franchise !== undefined && (
           <>
             {/* Toolbar — exercise + window (rules 1-2). A filter, so it stays in the page, visible on xs. */}
             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.25, mb: 1.75 }}>
@@ -157,11 +257,8 @@ export default function FinancePage() {
                 from={params.from || defaultCustom().from}
                 to={params.to || defaultCustom().to}
                 months={d.months}
-                onChange={(w) => {
-                  if (w.kind === 'fy') setParams({ period: 'fy', month: '', from: '', to: '' });
-                  else if (w.kind === 'month') setParams({ period: 'month', month: w.month || defaultMonth(), from: '', to: '' });
-                  else setParams({ period: 'custom', month: '', from: w.from, to: w.to });
-                }}
+                onChange={onPeriodChange}
+                today={today}
               />
             </Box>
 
@@ -173,7 +270,7 @@ export default function FinancePage() {
               items={[
                 { value: null, label: 'Tous les logements', figure: formatCurrencyRounded(d.totalRevenue), caption: `${percent(d.totalOccupancy)} occupé` },
                 ...d.properties.map((p) => ({
-                  value: p.propertyId, label: p.name, color: p.color, figure: formatCurrencyRounded(p.revenue),
+                  value: p.propertyId, label: p.name, color: seriesColor(p.colorIndex), figure: formatCurrencyRounded(p.revenue),
                   caption: `${percent(p.occupancy)} occupé · ${p.revenuePerNight == null ? '—' : formatCurrencyRounded(p.revenuePerNight)}/nuit`,
                 })),
               ]}
@@ -181,21 +278,35 @@ export default function FinancePage() {
 
             <FinanceHero
               hero={d.hero}
+              showHt={d.showHt}
               windowLabel={d.window.label}
               asOf={d.window.asOf < d.window.to ? d.window.asOf : null}
               propertyName={selectedProperty ? selectedProperty.name : null}
               fiscalYearLabel={d.fiscalYear.label}
               format={FORMAT}
+              comparisons={pillsOf(d.comparison, HERO_PILLS)}
+              definitions={metrics ? HERO_DEFINITIONS : undefined}
             />
+            {/* Rule 17 — one notice says why the pills read « — vs N-1 », or on how much they compare. */}
+            <NoComparisonNotice text={d.comparison && d.comparison.notice} sx={{ mt: -0.75, mb: 2 }} />
+
+            <VatFranchiseCard data={franchise} onOpen={navigate} />
 
             {d.insights.length > 0 && (
-              <Grid container spacing={2} sx={{ mb: 2 }}>
+              // Rule 43 — as many columns as 210 px allow (4 / 2 / 1 at 1280 / 900 / 390), never a text cut.
+              <Box data-testid="finance-insights" sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 2, mb: 2 }}>
                 {d.insights.map((i) => (
-                  <Grid key={i.key} size={{ xs: 12, md: 12 / d.insights.length }}>
-                    <InsightCard tone={i.tone} title={i.title} text={i.text} />
-                  </Grid>
+                  <Box key={i.key} sx={{ minWidth: 0 }}>
+                    <InsightCard
+                      tone={i.tone}
+                      title={i.title}
+                      text={i.text}
+                      actionLabel={i.action ? i.action.label : undefined}
+                      onAction={i.action ? () => { setStaysScope(i.action.scope); setDetail({ key: null, data: null, loading: false, error: false }); setTile(i.action.tile); } : undefined}
+                    />
+                  </Box>
                 ))}
-              </Grid>
+              </Box>
             )}
 
             {/* Rule 13 — six tiles; the open one shows its table just below the row. */}
@@ -213,6 +324,8 @@ export default function FinancePage() {
                       selected={tile === t.key}
                       onClick={() => openTile(t.key)}
                       controls={DETAIL_ID}
+                      info={metrics ? TILE_DEFINITIONS[t.key] : undefined}
+                      comparison={tilePills[t.key]}
                     />
                   </Grid>
                 );
@@ -223,9 +336,9 @@ export default function FinancePage() {
               <FinanceDetailPanel
                 id={DETAIL_ID}
                 tile={tile}
-                data={detail.data}
-                loading={detail.loading}
-                error={detail.error}
+                data={detail.key === detailKey ? detail.data : null}
+                loading={detail.key === detailKey ? detail.loading : true}
+                error={detail.key === detailKey && detail.error}
                 onRetry={loadDetail}
                 windowLabel={d.window.label}
                 staysScope={staysScope}
@@ -236,15 +349,17 @@ export default function FinancePage() {
                 onOpenReservation={(id) => navigate(`/reservations/${id}`)}
                 onTogglePayment={handleTogglePayment}
                 onSettleAll={handleSettleAll}
+                onSettleOverdue={handleSettleOverdue}
                 onSelectProperty={(id) => setParams({ propertyId: id })}
               />
             ) : (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, mb: 2 }}>
-                Cliquez sur une tuile pour afficher le tableau correspondant.
+                Une tuile ouvre le tableau correspondant.
               </Typography>
             )}
 
-            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {/* Rule 26 — each card at its own height: the shorter one leaves no blank inside. */}
+            <Grid container spacing={2} sx={{ mt: 0.5, alignItems: 'flex-start' }}>
               <Grid size={{ xs: 12, lg: 6 }}>
                 <Card sx={{ height: '100%' }}>
                   <CardContent>
@@ -266,25 +381,53 @@ export default function FinancePage() {
                   <CardContent>
                     <Typography variant="sectionHeader">Taux d'occupation</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                      Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement
+                      {occupancyAll
+                        ? `Nuits vendues ÷ nuits ouvertes, par mois · ${selectedProperty ? selectedProperty.name : 'tous les logements'}`
+                        : 'Nuits vendues ÷ nuits ouvrables, par mois · une couleur par logement'}
                     </Typography>
-                    <SmallMultiplesLineChart
+                    {/* Rule 18 — the scope's occupancy, last year dashed where it compares. */}
+                    {occupancyAll && (
+                      <TrendChart
+                        /* Rule 28 — the name says « et N-1 » only when last year's series is drawn. */
+                        ariaLabel={`Taux d'occupation par mois, ${d.fiscalYear.label}${occupancyN1 ? ` et ${d.fiscalYear.previousLabel}` : ''}`}
+                        categoryHeader="Mois"
+                        /* Rule 29 — rates: the copied data reads « 14,6 » under « 2026 (%) », as the table shows. */
+                        ratio
+                        formatValue={rateOneDecimal}
+                        formatAxis={percentAxis}
+                        yDomain={[0, 1]}
+                        categories={occupancyAll.months.map((m) => ({ key: m.month, label: shortOf.get(m.month) || m.label }))}
+                        series={[
+                          { key: 'current', name: d.fiscalYear.label, values: occupancyAll.months.map((m) => m.current), area: true, ...(selectedProperty ? { color: seriesColor(selectedProperty.colorIndex) } : {}) },
+                          ...(occupancyN1
+                            ? [{ key: 'previous', name: d.fiscalYear.previousLabel, values: occupancyAll.months.map((m) => m.previous), dashed: true }]
+                            : []),
+                        ]}
+                      />
+                    )}
+                    {occupancyAll && showByProperty && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2, mb: 1 }}>Par logement</Typography>
+                    )}
+                    {showByProperty && <SmallMultiplesLineChart
                       currentLabel={d.fiscalYear.label}
                       previousLabel={d.fiscalYear.previousLabel}
                       formatValue={percent}
                       series={d.occupancy.map((o) => ({
                         key: String(o.propertyId),
                         title: o.name,
-                        color: o.color,
+                        color: seriesColor(o.colorIndex),
                         caption: o.average == null ? '—' : `moy. ${percent(o.average)}`,
                         points: o.months.map((m) => ({ key: m.month, tick: m.initial, label: m.label, current: m.current, previous: m.previous })),
                       }))}
-                    />
+                    />}
                   </CardContent>
                 </Card>
               </Grid>
               <Grid size={12}>
                 <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
+              </Grid>
+              <Grid size={12}>
+                <FinanceDataChecksCard fiscalYear={d.fiscalYear.key} propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
             </Grid>
           </>

@@ -3,7 +3,9 @@
 // (propertyIcalModel) builds on these.
 
 const crypto = require('crypto');
-const { sentenceCase } = require('./textFormatters');
+const { sentenceCase, stripFormatChars } = require('./textFormatters');
+const { resolveServerTimezone } = require('./serverTimezone');
+const { MAX_STAY_NIGHTS } = require('./stayDates');
 
 function normalizePlatformKey(value) {
   return String(value || '')
@@ -18,7 +20,18 @@ function toIsoDate(year, month, day) {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+// specs/ical-import-hardening.md rule 21 — a date is a day of the calendar: `20270231` and `20271399` are not.
+function isRealDate(iso) {
+  const date = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso;
+}
+
 function parseIcalDate(rawValue, isDateOnly) {
+  const parsed = parseIcalDateUnchecked(rawValue, isDateOnly);
+  return isRealDate(parsed) ? parsed : '';
+}
+
+function parseIcalDateUnchecked(rawValue, isDateOnly) {
   const value = String(rawValue || '').trim();
   if (!value) return '';
 
@@ -30,6 +43,9 @@ function parseIcalDate(rawValue, isDateOnly) {
     return toIsoDate(y, m, d);
   }
 
+  // specs/ical-import-hardening.md rule 7 — a UTC instant is a day in the accommodations' zone, not in
+  // UTC: 24/11 23:00Z is 25/11 at midnight in Paris. The zone is the server's (GUESTFLOW_TZ, Europe/Paris
+  // by default — utils/serverTimezone), named explicitly so the result never depends on the host clock.
   if (/^\d{8}T\d{6}Z$/.test(compact)) {
     const y = Number(compact.slice(0, 4));
     const m = Number(compact.slice(4, 6));
@@ -37,8 +53,10 @@ function parseIcalDate(rawValue, isDateOnly) {
     const hh = Number(compact.slice(9, 11));
     const mm = Number(compact.slice(11, 13));
     const ss = Number(compact.slice(13, 15));
+    if (!isRealDate(toIsoDate(y, m, d)) || hh > 23 || mm > 59 || ss > 60) return '';
     const date = new Date(Date.UTC(y, m - 1, d, hh, mm, ss));
-    return toIsoDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+    const timeZone = resolveServerTimezone(process.env.GUESTFLOW_TZ).timezone;
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
   }
 
   if (/^\d{8}T\d{6}$/.test(compact)) {
@@ -118,10 +136,16 @@ function parseAdultsFromText(summary, description) {
   return 1;
 }
 
+// specs/ical-import-hardening.md rule 8 — the words a platform puts in SUMMARY instead of a name
+// (« CLOSED - Not available » on every Booking stay, « Reserved » on Airbnb's) say nothing about the guest:
+// a summary made only of them is « no name », and the stay gets the « Ical <platform> » fallback.
+// « BOOKED » is what the Gîtes de France feed sends for every stay (rule 11).
+const NOT_A_NAME = /(?<![\p{L}\d])(airbnb|booking|booked|abritel|greengo|direct|reservation|r[eé]servation|r[eé]serv[eé]e?s?|reserved|blocked|bloqu[eé]e?|indisponible|closed|not\s+available|unavailable|ical)(?![\p{L}\d])/giu;
+
 function parseGuestName(summary, description) {
   const candidate = String(summary || '').trim() || String(description || '').split('\n')[0].trim();
   const cleaned = candidate
-    .replace(/\b(airbnb|booking|abritel|greengo|direct|reservation|r[eé]servation|blocked|bloqu[eé]|indisponible)\b/gi, ' ')
+    .replace(NOT_A_NAME, ' ')
     .replace(/[()\[\]{}:_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -132,7 +156,7 @@ function parseGuestName(summary, description) {
 }
 
 function resolveIcalClientIdentity(guestName, platformLabel) {
-  const fallbackPlatformLabel = String(platformLabel || '').trim() || 'Plateforme';
+  const fallbackPlatformLabel = stripFormatChars(platformLabel).trim() || 'Plateforme';
 
   if (guestName?.isFallback) {
     return {
@@ -142,40 +166,88 @@ function resolveIcalClientIdentity(guestName, platformLabel) {
   }
 
   return {
-    firstName: sentenceCase(guestName?.firstName || 'Ical'),
-    lastName: sentenceCase(guestName?.lastName || 'iCal'),
+    firstName: sentenceCase(stripFormatChars(guestName?.firstName).trim() || 'Ical'),
+    lastName: sentenceCase(stripFormatChars(guestName?.lastName).trim() || 'iCal'),
   };
 }
 
+const UNAVAILABLE_MARKER = /(blocked|closed[\s-]*period|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i;
+
 function isUnavailableIcalEvent(summary, description) {
-  const text = `${String(summary || '')}\n${String(description || '')}`
-    .replace(/ /g, ' ')
-    .toLowerCase();
+  const clean = (value) => String(value || '').replace(/\u00a0/g, ' ');
   // 2026-06-06 — "closed period" is the Airbnb-side label when the host has blocked a
   // date range (vs. "Not available" which is the Booking.com phrasing). Treating it as
   // an unavailability marker drops these events at parse time, before sync touches the
   // local reservations table. Pairs with the closure-overlap guard in
-  // `propertyIcalModel.syncSource` (which catches conflicts even when the summary lies).
-  return /(blocked|closed[\s-]*period|not\s*available|unavailable|indisponible|non\s*disponible|\(\s*not\s*available\s*\))/i.test(text);
+  // `propertyIcalModel.syncSource`.
+  if (UNAVAILABLE_MARKER.test(clean(summary))) return true;
+  // specs/ical-import-hardening.md rule 16 — the description only decides when the summary names
+  // nobody: « Jean Dupont » with a description saying « non disponible pour le ménage » is a stay.
+  return parseGuestName(summary, '').isFallback && UNAVAILABLE_MARKER.test(clean(description));
+}
+
+// Rule 16 — `DURATION` instead of `DTEND` (RFC 5545 §3.8.2.5): `P5D`, `P1W`, `P4DT18H`…, in minutes.
+function parseIcalDurationMinutes(rawValue) {
+  const match = String(rawValue || '').trim().toUpperCase()
+    .match(/^\+?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+  if (!match) return 0;
+  const [, w, d, h, m] = match.map((v) => Number(v || 0));
+  return ((w * 7 + d) * 24 + h) * 60 + m;
+}
+
+function endDateFromDuration(startDate, dtStartRaw, isDateOnly, durationRaw) {
+  const minutes = parseIcalDurationMinutes(durationRaw);
+  if (!startDate || minutes <= 0) return '';
+  const compact = String(dtStartRaw || '').replace(/[-:]/g, '');
+  const time = !isDateOnly && compact.match(/T(\d{2})(\d{2})/);
+  // A timed start: the departure is the day the duration ends on, counted from the arrival time.
+  const startMinutes = time ? Number(time[1]) * 60 + Number(time[2]) : 0;
+  return addIsoDays(startDate, Math.floor((startMinutes + minutes) / 1440) || 1);
 }
 
 // A 200 response whose body is not an iCalendar document (HTML error page, empty body…) must be
 // treated as a fetch failure, not as "zero events" — specs/ical-sync-mapping-resilience.md §3 rule 2.
+// specs/ical-import-hardening.md rule 5 — a feed cut short in transit still starts like a calendar: it
+// must also end like one, with every event closed. Otherwise the events it lost would read as cancelled.
 function isWellFormedIcs(icsText) {
   return /BEGIN:VCALENDAR/i.test(String(icsText || ''));
 }
 
-function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
+function isCompleteIcs(icsText) {
+  const text = String(icsText || '');
+  if (!/^END:VCALENDAR[ \t]*$/im.test(text)) return false;
+  const opened = (text.match(/^BEGIN:VEVENT[ \t]*$/gim) || []).length;
+  const closed = (text.match(/^END:VEVENT[ \t]*$/gim) || []).length;
+  return opened === closed;
+}
+
+// Rule 17 — a stay starts at most two years from now, ends at most three, and lasts at most a year:
+// `DTEND:99991231` is a corrupted or hostile feed, and it would block every later night. The length cap is
+// the internal guard's (specs/reservations-backend-mvc.md rule 11).
+const MAX_START_AHEAD_DAYS = 730;
+const MAX_END_AHEAD_DAYS = 1095;
+
+function isWithinHorizon({ startDate, endDate }, today) {
+  const dayDiff = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+  return dayDiff(today, startDate) <= MAX_START_AHEAD_DAYS && dayDiff(today, endDate) <= MAX_END_AHEAD_DAYS
+    && dayDiff(startDate, endDate) <= MAX_STAY_NIGHTS;
+}
+
+function parseIcsEvents(icsText, { keepUnavailable = false, now = new Date() } = {}) {
+  const today = now.toISOString().slice(0, 10);
   const lines = unfoldIcsLines(icsText);
   const events = [];
   let current = null;
 
-  for (const line of lines) {
-    if (line === 'BEGIN:VEVENT') {
+  for (const rawLine of lines) {
+    // Rule 16 — `BEGIN:VEVENT ` with trailing blanks is still an event (isCompleteIcs already says so).
+    const line = rawLine.replace(/[ \t]+$/, '');
+    const marker = line.toUpperCase();
+    if (marker === 'BEGIN:VEVENT') {
       current = {};
       continue;
     }
-    if (line === 'END:VEVENT') {
+    if (marker === 'END:VEVENT') {
       if (current) events.push(current);
       current = null;
       continue;
@@ -195,13 +267,16 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
     current[propName] = { value, params };
   }
 
-  return events
+  const parsed = events
     .map((event) => {
       const dtStartRaw = event.DTSTART?.value || '';
       const dtEndRaw = event.DTEND?.value || '';
       const startDate = parseIcalDate(dtStartRaw, event.DTSTART?.params?.VALUE === 'DATE');
       let endDate = parseIcalDate(dtEndRaw, event.DTEND?.params?.VALUE === 'DATE');
-      if (!endDate && startDate) endDate = addIsoDays(startDate, 1);
+      if (!endDate && event.DURATION) {
+        endDate = endDateFromDuration(startDate, dtStartRaw, event.DTSTART?.params?.VALUE === 'DATE', event.DURATION.value);
+      }
+      if (!endDate && startDate && !event.DTEND?.value) endDate = addIsoDays(startDate, 1);
       if (startDate && endDate && endDate <= startDate) endDate = addIsoDays(startDate, 1);
 
       const summary = unescapeIcalText(event.SUMMARY?.value || '');
@@ -219,12 +294,28 @@ function parseIcsEvents(icsText, { keepUnavailable = false } = {}) {
         description,
         adults,
         status,
+        recurrenceId: String(event['RECURRENCE-ID']?.value || '').trim(),
       };
     })
     // `keepUnavailable` — Booking.com labels every taken date « CLOSED - Not available », real
     // reservations included, so its feed must not lose them here (specs/lodgify-decommission.md §3 rule 5).
-    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED'
+    .filter((event) => event.startDate && event.endDate && event.status !== 'CANCELLED' && isWithinHorizon(event, today)
       && (keepUnavailable || !isUnavailableIcalEvent(event.summary, event.description)));
+  return disambiguateRepeatedUids(parsed);
+}
+
+// specs/ical-import-hardening.md rule 6 — two stays under one UID would share one mapping: the second
+// overwrites the first at every pass, so one stay never exists and the other churns. A repeated UID is
+// keyed on its RECURRENCE-ID when the feed gives one, on its arrival date otherwise; a unique UID is
+// left exactly as it was, so no existing mapping moves.
+function disambiguateRepeatedUids(events) {
+  const counts = new Map();
+  events.forEach((e) => counts.set(e.uid, (counts.get(e.uid) || 0) + 1));
+  return events.map((e) => {
+    const { recurrenceId, ...event } = e;
+    if (counts.get(e.uid) < 2) return event;
+    return { ...event, uid: `${e.uid}#${recurrenceId || e.startDate}`, baseUid: e.uid, repeatedUid: true };
+  });
 }
 
 function buildEventHash(event) {
@@ -278,6 +369,7 @@ module.exports = {
   resolveIcalClientIdentity,
   isUnavailableIcalEvent,
   isWellFormedIcs,
+  isCompleteIcs,
   parseIcsEvents,
   buildEventHash,
   shouldSkipIcalReservationUpdate,

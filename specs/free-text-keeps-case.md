@@ -61,6 +61,15 @@ capitalised.
   (« 2 Lits… »), exactly as `sentenceCase` does today; nothing else changes.
 - Multi-line note → every line kept as typed; only the first letter of the whole text changes.
 
+**Added 2026-10-18 (review of the website plugin):**
+
+5. **Person names get `personNameCase`, not `sentenceCase`** (client `firstName` / `lastName` in
+   `clientsModel.buildClientFields`, so the admin form and the website request alike). A name typed in
+   a single case gets a capital on each word and after each hyphen or apostrophe (« jean-pierre » →
+   « Jean-Pierre », « MARTIN-DUPONT » → « Martin-Dupont », « d'arc » → « D'Arc »); a name typed in
+   mixed case is kept as typed (« McDonald », « Le Goff », « de La Fontaine »). This narrows rule 3 for
+   names only; the other labels keep `sentenceCase`. Existing rows are not rewritten (rule 4).
+
 ---
 
 ## 4. Architecture

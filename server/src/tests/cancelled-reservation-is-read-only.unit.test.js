@@ -40,7 +40,7 @@ function buildController(captures, { kind = 'cancelled' } = {}) {
         depositDueDate: null, balanceDueDate: null, nights: 1, error: null,
       }),
     },
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-08-31' },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },

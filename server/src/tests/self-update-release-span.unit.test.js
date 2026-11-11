@@ -11,7 +11,8 @@ const { getAppVersion } = require('../utils/appVersion');
 const { buildVersionInfo } = require('../controllers/systemController').__test;
 
 // specs/self-update-and-releases.md rules 12b + 20d: the dialog shows every version between the one
-// installed and the one on offer, not just the target.
+// installed and the one on offer, not just the target. Rule 51 (reading of 2026-11-01): each payload is
+// built from an explicit empty environment, so the shell's GUESTFLOW_* flags never reach it.
 
 function releasePayload(version, overrides = {}) {
   const base = `https://github.com/adn-dev-adrien/guestFlow/releases/download/v${version}`;
@@ -99,7 +100,7 @@ test('buildVersionInfo lists every version between the installed one and the tar
   const feed = await feedOf([plusTwo, plusOne, older].map((version) => releasePayload(version)));
   model.recordCheck(feed);
 
-  const info = buildVersionInfo(model);
+  const info = buildVersionInfo(model, {});
   assert.equal(info.latest, plusTwo);
   assert.deepEqual(info.versions.map((entry) => entry.version), [plusTwo, plusOne]);
   assert.deepEqual(info.versions[0].summary, [`Ce que fait la ${plusTwo}`]);
@@ -109,7 +110,7 @@ test('buildVersionInfo lists every version between the installed one and the tar
   // A version published after the target is not part of what this update installs.
   model.recordCheck(await feedOf([plusThree, plusTwo, plusOne].map((v) => releasePayload(v))));
   model.writeState({ latestVersion: plusTwo });
-  assert.deepEqual(buildVersionInfo(model).versions.map((entry) => entry.version), [plusTwo, plusOne]);
+  assert.deepEqual(buildVersionInfo(model, {}).versions.map((entry) => entry.version), [plusTwo, plusOne]);
   cleanup();
 });
 
@@ -119,7 +120,7 @@ test('a window that never reaches the installed version says so', async () => {
   const feed = await feedOf([releasePayload(plusTwo), releasePayload(plusOne)]);
   model.recordCheck({ ...feed, truncated: true });
 
-  const info = buildVersionInfo(model);
+  const info = buildVersionInfo(model, {});
   assert.deepEqual(info.versions.map((entry) => entry.version), [plusTwo, plusOne]);
   assert.equal(info.versionsTruncated, true);
   cleanup();
@@ -131,7 +132,7 @@ test('a window whose oldest entries are already installed is complete, not trunc
   const feed = await feedOf([releasePayload(plusOne), releasePayload(older)]);
   model.recordCheck({ ...feed, truncated: true });
 
-  const info = buildVersionInfo(model);
+  const info = buildVersionInfo(model, {});
   assert.deepEqual(info.versions.map((entry) => entry.version), [plusOne]);
   assert.equal(info.versionsTruncated, false);
   cleanup();
@@ -146,7 +147,7 @@ test('a state file written by the previous shape reads as an empty span', () => 
     latestNotes: [{ key: 'summary', title: 'En bref', items: ['Une nouveauté'] }],
   }));
 
-  const info = buildVersionInfo(model);
+  const info = buildVersionInfo(model, {});
   assert.equal(info.latest, '9.9.9');
   assert.equal(info.updateAvailable, true);
   assert.deepEqual(info.versions, []);

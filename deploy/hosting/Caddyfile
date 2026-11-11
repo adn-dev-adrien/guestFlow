@@ -1,0 +1,26 @@
+# GuestFlow host — Caddy (specs/hosting-h1-fleet-runtime.md H-D2).
+#
+# bootstrap-host.sh copies this file to /etc/caddy/Caddyfile and replaces __DOMAIN__ and
+# __ACME_EMAIL__. The console writes one file per customer address into /etc/caddy/sites/ — a
+# reverse proxy to the instance, the « Cet espace a été fermé » page, or a 301 to a new address —
+# and runs `caddy reload`. Caddy obtains every certificate itself.
+
+{
+	email __ACME_EMAIL__
+	# __LOCAL_CERTS__
+	# The admin API on a socket only the console's group can open (rule 21), never on a TCP port an
+	# instance could reach.
+	admin unix//run/caddy/admin.sock|0660
+}
+
+# The console and the shared login page (control-plane rule 24) share one process. The secret header
+# tells it the request came through Caddy (rule 21); bootstrap-host.sh writes the same value into the
+# console's CP_PROXY_SECRET. This file is root:caddy 0640.
+console.__DOMAIN__, app.__DOMAIN__ {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:4100 {
+		header_up X-Guestflow-Proxy __PROXY_SECRET__
+	}
+}
+
+import /etc/caddy/sites/*.caddy

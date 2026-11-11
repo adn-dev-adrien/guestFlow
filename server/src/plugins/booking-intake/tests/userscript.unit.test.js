@@ -42,7 +42,7 @@ test('specs/booking-extranet-intake.md rule 3: it reads the page only once it st
   assert.match(source, /return settled\(1500, 15000\);\n  \}\)\.then\(function \(\) \{\n    var text = document\.body\.innerText;/);
 });
 
-test('specs/booking-extranet-intake.md rule 27: it opens every collapsed room accordion — the price table hides in it — before the page settles', () => {
+test('specs/booking-extranet-intake.md rule 29: it opens every collapsed room accordion — the price table hides in it — before the page settles', () => {
   assert.match(source, /querySelectorAll\('button\.bui-accordion__row-inner\[aria-expanded="false"\]'\)/);
   assert.match(source, /row\.click\(\); \}\);\n    return settled\(1500, 15000\);/);
 });

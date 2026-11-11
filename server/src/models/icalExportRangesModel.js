@@ -13,18 +13,35 @@
  * tombstones of every OTHER owner: its own cancelled stay can come back re-booked, never as an echo.
  */
 const db = require('../database');
+const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
 
 const TOMBSTONE_COVER_HOURS = 72;
 const TOMBSTONE_PURGE_DAYS = 7;
 
 function createModel(database) {
-  const listPublished = database.prepare(`
-    SELECT startDate, endDate,
-      CASE WHEN COUNT(DISTINCT ifnull(sourceIcalSourceId, -1)) = 1 THEN MAX(sourceIcalSourceId) END AS sourceIcalSourceId
+  const key = (r) => `${r.startDate}|${r.endDate}`;
+  const listStays = database.prepare(`
+    SELECT ${['startDate', 'endDate', 'sourceIcalSourceId', ...timeColumnsOf(database)].join(', ')}
     FROM reservations
     WHERE propertyId = ? AND kind = 'reservation' AND startDate IS NOT NULL AND endDate IS NOT NULL
-    GROUP BY startDate, endDate
   `);
+  // The ranges the feed publishes are the nights each stay takes (early check-in / late check-out
+  // included); a range held by stays of several origins has no single owner.
+  const listPublished = (propertyId) => {
+    const byRange = new Map();
+    listStays.all(propertyId).forEach((stay) => {
+      const range = effectiveRange(stay);
+      const k = key(range);
+      const owner = stay.sourceIcalSourceId ?? null;
+      const known = byRange.get(k);
+      if (!known) byRange.set(k, { ...range, owners: new Set([owner]) });
+      else known.owners.add(owner);
+    });
+    return [...byRange.values()].map(({ owners, ...range }) => ({
+      ...range,
+      sourceIcalSourceId: owners.size === 1 ? [...owners][0] : null,
+    }));
+  };
   const listSnapshot = database.prepare('SELECT startDate, endDate, sourceIcalSourceId FROM ical_export_ranges WHERE propertyId = ?');
   const deleteSnapshot = database.prepare('DELETE FROM ical_export_ranges WHERE propertyId = ?');
   const insertSnapshot = database.prepare('INSERT OR IGNORE INTO ical_export_ranges (propertyId, startDate, endDate, sourceIcalSourceId) VALUES (?, ?, ?, ?)');
@@ -36,12 +53,10 @@ function createModel(database) {
   `);
   const purgeTombstones = database.prepare("DELETE FROM ical_export_tombstones WHERE datetime(removedAt) <= datetime('now', ?)");
 
-  const key = (r) => `${r.startDate}|${r.endDate}`;
-
   // Diff the property's published ranges against the last snapshot: every range that disappeared
   // becomes a tombstone, then the snapshot is replaced. Returns the number of tombstones written.
   const refresh = database.transaction((propertyId) => {
-    const current = listPublished.all(propertyId);
+    const current = listPublished(propertyId);
     const currentKeys = new Set(current.map(key));
     const removed = listSnapshot.all(propertyId).filter((r) => !currentKeys.has(key(r)));
     removed.forEach((r) => insertTombstone.run(propertyId, r.startDate, r.endDate, r.sourceIcalSourceId ?? null));

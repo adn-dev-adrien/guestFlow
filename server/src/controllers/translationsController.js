@@ -7,6 +7,7 @@
  * before it is applied (rule 12).
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const translationsModel = require('../models/translationsModel');
 const { collectSources } = require('../utils/translationCollector');
@@ -32,7 +33,7 @@ function exportCsv(req, res) {
   refresh();
   const languages = translationsModel.languagesInUse();
   const csv = translationCsv.serialise(translationsModel.listEntries(), languages);
-  const day = new Date().toISOString().slice(0, 10);
+  const day = localTodayIso();
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="traductions-${day}.csv"`);
   return res.send(csv);
@@ -40,6 +41,7 @@ function exportCsv(req, res) {
 
 function importCsv(req, res) {
   const text = typeof req.body === 'string' ? req.body : String((req.body && req.body.csv) || '');
+  if (translationCsv.badlyEncoded(text)) return res.status(400).json({ error: 'BAD_ENCODING', message: translationCsv.ENCODING_MESSAGE });
   let parsed;
   try {
     parsed = translationCsv.parse(text);

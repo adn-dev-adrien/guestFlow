@@ -7,6 +7,6 @@ export default {
     'reservation.banners': [{ key: 'booking-intake', order: 20, Component: lazy(() => import('./IntakeBanner')) }],
     'dashboard.alerts.urgent': [{ key: 'booking-intake-urgent', order: 20, Component: lazy(() => import('./UrgentPendingAlert')) }],
     'dashboard.alerts': [{ key: 'booking-intake', order: 30, Component: lazy(() => import('./PendingAlert')) }],
-    'settings.integrations': [{ key: 'booking-intake', order: 50, Component: lazy(() => import('./SettingsSection')) }],
+    'settings.integrations': [{ key: 'booking-intake', order: 50, tabLabel: 'Booking', keywords: ['Booking', 'Extranet'], Component: lazy(() => import('./SettingsSection')) }],
   },
 };

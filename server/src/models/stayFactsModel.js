@@ -6,11 +6,21 @@
  * empty facts instead of throwing, so an email still renders — just without the property-specific
  * paragraphs.
  *
- * API: loadStayFacts(database, reservation) → { defaults, available, optionMeta, bathFreeMinutes, properties }
+ * API: loadStayFacts(database, reservation) → { defaults, available, optionMeta, bathFreeMinutes, properties,
+ *      texts, mentions, confirmationOrder, arrival }
  */
+
+const stayTextsModel = require('./stayTextsModel');
+const emailMentionsModel = require('./emailMentionsModel');
+const propertyArrivalFactsModel = require('./propertyArrivalFactsModel');
 
 function tryAll(fn, fallback) {
   try { return fn(); } catch { return fallback; }
+}
+
+// The core may ask whether a plugin is live, never import it (specs/plugins-phase-0-foundation.md).
+function hourlyResourcesLive() {
+  try { return require('../plugins/sdk/registry').isLive('hourly-resources'); } catch { return false; }
 }
 
 function loadStayFacts(database, reservation) {
@@ -38,29 +48,32 @@ function loadStayFacts(database, reservation) {
       `).all(propertyId, propertyId), [])
     : [];
 
-  // Included nordic-bath minutes: the bath resource is recognised by its name, as everywhere else in
-  // the emails (emailContextBuilder's nordicResource).
-  const bathFreeMinutes = propertyId
+  // Included nordic-bath minutes: those of the property's hourly resource that shows on the planning,
+  // whatever its name, and only while hourly resources are a live plugin — without it nothing is
+  // sold by the hour (specs/plugins-phase-3c-hourly-resources.md rules 15, 18).
+  const bathFreeMinutes = propertyId && hourlyResourcesLive()
     ? tryAll(() => {
       const row = database.prepare(`
         SELECT prp.freeMinutes AS minutes
           FROM property_resource_prices prp
           JOIN resources res ON res.id = prp.resourceId
-         WHERE prp.propertyId = ? AND LOWER(res.name) LIKE '%nordique%'
+         WHERE prp.propertyId = ? AND res.priceType = 'per_hour' AND res.showsPlanningCard = 1
          LIMIT 1
       `).get(propertyId);
       return row ? Number(row.minutes || 0) : 0;
     }, 0)
     : 0;
 
-  // « À partir de » price per property (rule 27): the lowest nightly price of its seasons. Recipe
-  // seasons (tagged `seasonKey`) win when present, so a leftover untagged « Standard » rule cannot
-  // undercut the real grid.
+  // « À partir de » price per property (rule 27): the lowest nightly price of its seasons. Seasons a
+  // recipe wrote (tagged `seasonKey`, ranked `seasonRank`) win when present, so a leftover untagged
+  // « Standard » rule cannot undercut the real grid. The rank survives the recipe plugin's erasure,
+  // which clears only the tag: erasing it never changes the price announced.
   const properties = tryAll(() => database.prepare(`
     SELECT p.id, p.name, p.nameArticle,
            COALESCE(
              (SELECT MIN(pr.pricePerNight) FROM pricing_rules pr
-               WHERE pr.propertyId = p.id AND pr.pricePerNight > 0 AND COALESCE(pr.seasonKey, '') != ''),
+               WHERE pr.propertyId = p.id AND pr.pricePerNight > 0
+                 AND (COALESCE(pr.seasonKey, '') != '' OR pr.seasonRank IS NOT NULL)),
              (SELECT MIN(pr.pricePerNight) FROM pricing_rules pr
                WHERE pr.propertyId = p.id AND pr.pricePerNight > 0)
            ) AS minNightlyPrice
@@ -68,7 +81,36 @@ function loadStayFacts(database, reservation) {
      ORDER BY p.id
   `).all(), []);
 
-  return { defaults, available, optionMeta, bathFreeMinutes, properties };
+  // The wording (specs/plugins-phase-p-productisation.md §3.A–3.B): the stored stay texts, global and
+  // the property's own, and the mentions with their confirmation order.
+  const texts = tryAll(() => stayTextsModel.buildModel(database).forContext(propertyId), { global: {}, property: {} });
+  const mentionsModel = tryAll(() => emailMentionsModel.buildModel(database), null);
+  const mentions = mentionsModel ? tryAll(() => mentionsModel.list(), []) : [];
+  const confirmationOrder = mentionsModel ? tryAll(() => mentionsModel.confirmationOrder(), []) : [];
+
+  // specs/guest-email-texts-made-simple.md rules 1–3 — the facts of the J-2's arrival paragraphs.
+  const arrival = propertyId
+    ? tryAll(() => propertyArrivalFactsModel.buildModel(database).forEmail(propertyId), null)
+    : null;
+
+  return { defaults, available, optionMeta, bathFreeMinutes, properties, texts, mentions, confirmationOrder, arrival };
 }
 
-module.exports = { loadStayFacts };
+/**
+ * The sentence each booked resource carries once booked (specs/plugins-phase-p-productisation.md rule
+ * 11), attached in place to the reservation's resource lines. Guarded like the facts above.
+ */
+function attachResourceSentences(database, resources = []) {
+  const byId = new Map(tryAll(
+    () => database.prepare('SELECT id, emailBookedText, emailBookedTextEn FROM resources').all(),
+    [],
+  ).map((row) => [Number(row.id), row]));
+  for (const line of resources) {
+    const row = byId.get(Number(line.resourceId));
+    line.emailBookedText = row ? row.emailBookedText || '' : '';
+    line.emailBookedTextEn = row ? row.emailBookedTextEn || '' : '';
+  }
+  return resources;
+}
+
+module.exports = { loadStayFacts, attachResourceSentences };

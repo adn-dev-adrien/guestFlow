@@ -16,8 +16,6 @@ const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8')
 function freshDeps() {
   const db = new Database(':memory:');
   db.exec(SCHEMA);
-  db.exec('ALTER TABLE app_settings ADD COLUMN requireTermsAcceptance INTEGER NOT NULL DEFAULT 1');
-  db.exec("ALTER TABLE app_settings ADD COLUMN lastSeenPluginVersion TEXT DEFAULT ''");
   db.prepare("INSERT INTO app_settings (id, companyName, companySiret) VALUES (1, 'SAS Solio', '912')").run();
   db.prepare("INSERT INTO properties (id, name, defaultCautionAmount) VALUES (1, 'La Granja', 500)").run();
   return { db, termsModel: termsModelModule.create(db), settingsModel: settingsModelModule.create(db) };
@@ -107,7 +105,6 @@ test('rule 6 — the overview lists versions newest first with their acceptance 
   const o = termsController.buildOverview(deps);
   assert.deepEqual(o.versions.map((v) => [v.version, v.acceptanceCount]), [[2, 0], [1, 1]]);
   assert.equal(o.nextVersion, 3);
-  assert.equal(o.requireTermsAcceptance, true);
 });
 
 test('rules 20-22 — fiche block recorded (Paris time), missing, not applicable; history entry written', () => {
@@ -147,15 +144,4 @@ test('rule 19 — deleting the reservation deletes its acceptance, never the ver
   deps.db.prepare('DELETE FROM reservations WHERE id = 5').run();
   assert.equal(deps.db.prepare('SELECT COUNT(*) AS n FROM terms_acceptances').get().n, 0);
   assert.ok(deps.termsModel.getByVersion(1));
-});
-
-test('rule 18 — plugin version comparison drives the outdated-plugin warning', () => {
-  assert.equal(termsController.isVersionBelow('1.7.0', '1.8.0'), true);
-  assert.equal(termsController.isVersionBelow('1.8.0', '1.8.0'), false);
-  assert.equal(termsController.isVersionBelow('1.10.0', '1.8.0'), false);
-  assert.equal(termsController.isVersionBelow('0.9.9', '1.8.0'), true);
-  const deps = freshDeps();
-  assert.equal(termsController.buildOverview(deps).pluginOutdated, false, 'never seen → no warning');
-  deps.settingsModel.upsert({ lastSeenPluginVersion: '1.7.0' });
-  assert.equal(termsController.buildOverview(deps).pluginOutdated, true);
 });

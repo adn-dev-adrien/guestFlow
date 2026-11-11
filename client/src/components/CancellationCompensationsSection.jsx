@@ -1,6 +1,6 @@
 /**
- * CancellationCompensationsSection — the « Indemnités d'annulation » card of the Comptabilité page
- * (specs/cancellation-compensation.md §6.3).
+ * CancellationCompensationsSection — the card of the « Indemnités d'annulation » page
+ * (specs/cancellation-compensation.md §6.3, specs/plugins-phase-2-hosts.md rule 21).
  *
  * Two lists in one card: the compensations BANKED in the selected month (they carry the month's
  * journal entries) and, month-independent, the ones still PENDING — they have no accounting date
@@ -9,45 +9,65 @@
  * Read-only for the accountant role (`canEdit=false`): the server refuses their writes anyway, and
  * showing dead buttons would be a lie. Amounts, totals and the « En retard » flag all arrive
  * computed from the server.
+ *
+ * Props: month (1-12), year, canEdit. The page's « Ajouter » opens the create dialog through the
+ * ref: `ref.current.openCreate()`.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
   Box, Card, CardContent, Stack, Typography, Button, TableCell, TableRow, Link,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router';
-import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import api from '../api';
 import ResponsiveTable from './ResponsiveTable';
 import StatusBadge from './StatusBadge';
 import PlatformChip from './PlatformChip';
 import LoadingState from './LoadingState';
+import ErrorAlert from './ErrorAlert';
 import CancellationCompensationDialog from './CancellationCompensationDialog';
 import { useAppDialogs, useToast } from './DialogProvider';
 import { displayDate, displayDateShort, formatCurrency } from '../utils/formatters';
+import { MONTH_LABELS } from '../constants/months';
 
-export default function CancellationCompensationsSection({ month, year, canEdit = false }) {
+const CancellationCompensationsSection = forwardRef(function CancellationCompensationsSection({ month, year, canEdit = false }, ref) {
   const { confirm } = useAppDialogs();
   const { showSuccess, showError } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState(null); // { mode, compensation }
 
+  // A slow answer for a month already left must not replace the month on screen.
+  const latestRequest = useRef(0);
+
   const refresh = useCallback(async () => {
+    latestRequest.current += 1;
+    const mine = latestRequest.current;
     setLoading(true);
     try {
-      setData(await api.getCancellationCompensations(month, year));
+      const result = await api.getCancellationCompensations(month, year);
+      if (mine !== latestRequest.current) return;
+      setData(result);
+      setLoadFailed(false);
     } catch {
+      if (mine !== latestRequest.current) return;
       setData(null);
+      setLoadFailed(true);
     } finally {
-      setLoading(false);
+      if (mine === latestRequest.current) setLoading(false);
     }
   }, [month, year]);
 
   useEffect(() => { refresh(); }, [refresh]);
+
+  useImperativeHandle(ref, () => ({
+    openCreate: () => setDialog({ mode: 'create', compensation: null }),
+  }), []);
 
   const handleSubmit = useCallback(async (payload) => {
     if (!dialog) return;
@@ -74,10 +94,15 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
     }
   }, [dialog, refresh, showSuccess, showError]);
 
+  // specs/reservation-refunds.md rule 48 — refunds reduce a kept acompte in the journal only: re-receiving it lower
+  // would count the reduction twice.
   const handleReopen = useCallback(async (compensation) => {
+    const refunded = Number(compensation.indemnityRefundedTtc || 0);
     const ok = await confirm({
       title: "Rouvrir cette indemnité ?",
-      message: "Elle quittera immédiatement le journal comptable du mois. Si le CSV de ce mois a déjà été transmis au comptable, il faudra le renvoyer.",
+      message: `Elle repasse en attente. Un mois déjà transmis au comptable est à renvoyer.${refunded > 0
+        ? ` Déjà réduite de ${formatCurrency(refunded)} par des remboursements : la ré-encaisser au même montant.`
+        : ''}`,
       confirmLabel: 'Rouvrir',
       confirmColor: 'warning',
     });
@@ -93,6 +118,28 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
       setBusy(false);
     }
   }, [confirm, refresh, showError]);
+
+  // An indemnity that will never be paid; a banked one is locked (reopen it first).
+  const handleDelete = useCallback(async (compensation) => {
+    const ok = await confirm({
+      title: 'Supprimer cette indemnité ?',
+      message: "Elle n'a jamais été versée : elle disparaît de la liste des indemnités attendues.",
+      confirmLabel: 'Supprimer',
+      confirmColor: 'error',
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await api.deleteCancellationCompensation(compensation.id);
+      showSuccess('Indemnité supprimée.');
+      await refresh();
+      window.dispatchEvent(new CustomEvent('guestflow:compensations-changed'));
+    } catch (err) {
+      showError(err.message || 'Suppression impossible.');
+    } finally {
+      setBusy(false);
+    }
+  }, [confirm, refresh, showSuccess, showError]);
 
   const received = data?.received || [];
   const pending = data?.pending || [];
@@ -121,35 +168,21 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
   return (
     <Card variant="outlined" sx={{ mb: 3 }}>
       <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          sx={{ mb: 2, gap: 1, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
-        >
-          <Box>
-            <Typography variant="sectionHeader">Indemnités d&apos;annulation</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Ce qu&apos;une plateforme verse pour un séjour annulé, ou l&apos;acompte conservé quand nous
-              annulons un séjour faute de règlement. Comptabilisée au mois du versement, modifiable tant
-              qu&apos;elle n&apos;est pas encaissée.
-            </Typography>
-          </Box>
-          {canEdit && (
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<AddIcon />}
-              onClick={() => setDialog({ mode: 'create', compensation: null })}
-            >
-              Ajouter
-            </Button>
-          )}
-        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Ce qu&apos;une plateforme verse pour un séjour annulé, ou l&apos;acompte conservé faute de
+          règlement. Comptabilisée au mois du versement, modifiable tant qu&apos;elle n&apos;est pas
+          encaissée.
+        </Typography>
 
-        {loading ? <LoadingState py={2} /> : (
+        {loading ? <LoadingState py={2} /> : loadFailed ? (
+          <ErrorAlert message="Impossible de charger les indemnités." onRetry={refresh} />
+        ) : (
           <Stack spacing={3}>
             <Box>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', mb: 1, flexWrap: 'wrap' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Encaissées ce mois</Typography>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Encaissées en {MONTH_LABELS[month - 1].toLowerCase()} {year}
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Total : <strong>{formatCurrency(data?.totals?.receivedInMonth || 0)}</strong>
                 </Typography>
@@ -230,7 +263,7 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
                     <TableCell>Plateforme</TableCell>
                     <TableCell>Séjour annulé</TableCell>
                     <TableCell align="right">Attendu</TableCell>
-                    {canEdit && <TableCell align="right" sx={{ width: 200 }} />}
+                    {canEdit && <TableCell align="right" sx={{ width: 300 }} />}
                   </TableRow>
                 )}
                 renderRow={(c) => (
@@ -250,12 +283,16 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
                     </TableCell>
                     {canEdit && (
                       <TableCell align="right">
-                        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                        {/* Stacked: three actions side by side pushed the table past the page width. */}
+                        <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                           <Button size="small" startIcon={<PaymentsIcon />} disabled={busy} onClick={() => setDialog({ mode: 'receive', compensation: c })}>
                             Encaisser
                           </Button>
                           <Button size="small" startIcon={<EditIcon />} disabled={busy} onClick={() => setDialog({ mode: 'edit', compensation: c })}>
                             Modifier
+                          </Button>
+                          <Button size="small" color="error" startIcon={<DeleteOutlineIcon />} disabled={busy} onClick={() => handleDelete(c)}>
+                            Supprimer
                           </Button>
                         </Stack>
                       </TableCell>
@@ -276,12 +313,15 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
                       {c.expectedDate ? ` · prévu le ${displayDateShort(c.expectedDate)}` : ''}
                     </Typography>
                     {canEdit && (
-                      <Stack direction="row" spacing={1} sx={{ pt: 0.5 }}>
+                      <Stack direction="row" sx={{ pt: 0.5, gap: 1, flexWrap: 'wrap' }}>
                         <Button size="small" startIcon={<PaymentsIcon />} disabled={busy} onClick={() => setDialog({ mode: 'receive', compensation: c })}>
                           Encaisser
                         </Button>
                         <Button size="small" startIcon={<EditIcon />} disabled={busy} onClick={() => setDialog({ mode: 'edit', compensation: c })}>
                           Modifier
+                        </Button>
+                        <Button size="small" color="error" startIcon={<DeleteOutlineIcon />} disabled={busy} onClick={() => handleDelete(c)}>
+                          Supprimer
                         </Button>
                       </Stack>
                     )}
@@ -303,4 +343,6 @@ export default function CancellationCompensationsSection({ month, year, canEdit 
       />
     </Card>
   );
-}
+});
+
+export default CancellationCompensationsSection;

@@ -7,7 +7,8 @@
     "start": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:slow-scheduler": "vitest run --config vitest.slow-scheduler.config.js"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",
@@ -28,7 +29,7 @@
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
     "@vitejs/plugin-react": "^6.2.1",
-    "jsdom": "^31.0.0",
+    "jsdom": "^30.1.3",
     "vite": "^8.3.6",
     "vitest": "^5.1.0"
   }

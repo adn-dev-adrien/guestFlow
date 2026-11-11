@@ -13,14 +13,14 @@ const SRC = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(SRC, file), 'utf8');
 
 test('the option dialog has no English title field (rule 19)', () => {
-  const page = read('OptionsPage.jsx');
+  const page = ['OptionsPage.jsx', 'options/OptionEditorPanel.jsx', 'options/OptionRow.jsx', 'options/optionForm.js'].map(read).join('\n');
   expect(page).not.toMatch(/titleEn/);
   expect(page).not.toMatch(/EnglishTitleField/);
   expect(page).not.toMatch(/Titre \(anglais\)/);
 });
 
 test('the resource dialog has no English name field (rule 19)', () => {
-  const page = read('ResourcesPage.jsx');
+  const page = ['ResourcesPage.jsx', 'options/ResourceEditorPanel.jsx', 'options/resourceForm.js'].map(read).join('\n');
   expect(page).not.toMatch(/nameEn/);
   expect(page).not.toMatch(/Nom \(anglais\)/);
 });

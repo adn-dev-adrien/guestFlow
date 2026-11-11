@@ -1,5 +1,6 @@
 // Registry of default email templates — discipline checks.
 // See specs/email-automation.md §3 rule 6.
+// specs/email-language-fr-en.md rule 5 — the shipped arrival reminders carry their English translation.
 //
 // The point of the registry is "one place to add a default template". These tests guard the
 // invariants that make AI-assisted additions safe:
@@ -97,7 +98,7 @@ test('arrival_reminder_7d is the sequence J-7: canonical body, 7-day offset, per
   assert.ok(def.body.includes('{{#if hasBedsParagraph}}{{bedsParagraph}}'), 'bed configuration block present');
   assert.ok(def.body.includes('{{#if hasBabyParagraph}}{{babyParagraph}}'), 'baby cot block present');
   assert.ok(def.body.includes('{{#if hasLocalProducts}}{{localProductsParagraph}}'), 'local products block present');
-  assert.ok(def.body.includes('https://map.domainesolio.com'), 'map link written in full');
+  assert.ok(!/domainesolio|Solio|nordique/i.test(def.body), 'neutral copy (plugins-phase-p rule 13)');
   assert.ok(!def.body.includes('heure d\'arrivée'), 'the arrival time is asked in the J-2, not here');
 });
 
@@ -109,7 +110,7 @@ test('arrival_reminder_1d is the sequence J-2 (stableKey kept legacy): arrival t
   assert.equal(def.anchor, 'start');
   assert.equal(def.sendMode, 'manual', 'ships manual — only its own mode lets it leave alone');
   assert.ok(!def.body.includes('demain'), 'J-2 copy must not say « demain »');
-  assert.ok(def.body.includes('https://domainesolio.com/contact/'), 'access map next to the GPS line');
+  assert.ok(!/domainesolio|Solio|Satillieu/i.test(def.body), 'neutral copy (plugins-phase-p rule 13)');
   assert.ok(def.body.includes('vers quelle heure vous pensez arriver'), 'arrival time asked');
   assert.ok(!def.body.includes('nordique'), 'the nordic bath is not repeated in the J-2');
   assert.ok(!def.body.includes('rendu au départ'), 'the caution cheque is never said to be returned');

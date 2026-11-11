@@ -6,7 +6,7 @@
 # Produces `<release-name>.tar.gz` plus its SHA-256. The archive is what the in-app updater
 # downloads, verifies and installs (specs/self-update-and-releases.md §3.A rule 7), so its layout is
 # a contract: a single top-level directory named after the archive, containing `server/`,
-# `client/build/` and the root `package.json` — nothing else, no node_modules, no database.
+# `client/build/`, `plugins-dist/` and the root `package.json` — no node_modules, no database.
 #
 # Environment variables:
 #   REBUILD_CLIENT=true   Force a fresh `cd client && npm run build` even if `client/dist`
@@ -47,13 +47,13 @@ else
   (cd client && npm run build)
 fi
 
-# Copy server (excluding dev files and node_modules)
-rsync -av --exclude='node_modules' --exclude='*.log' --exclude='guestflow.db' --exclude='uploads' server "$RELEASE_DIR/"
-
-# Copy uploads (if you want to include existing docs/photos)
-if [ -d server/uploads ]; then
-  cp -r server/uploads "$RELEASE_DIR/server/"
-fi
+# Copy server: the files Git tracks, never the working directory. A developer's checkout holds
+# `server/.env.local` (encryption key, session secret, VAPID private key), the SQLite database with its
+# -wal/-shm, `licence.jws`, TLS keys and uploaded photos — none of them tracked, none of them shippable
+# (specs/self-update-and-releases.md rule 42). `check-release-tree.mjs` below refuses the archive if one
+# slipped through anyway.
+git ls-files server | rsync -a --files-from=- --exclude='node_modules' --exclude='*.log' \
+  --exclude='/server/plugins' --exclude='/server/plugin-data' . "$RELEASE_DIR/"
 
 # Copy client build (must be built before running this script).
 # The Pi PM2 entry expects the bundle at `current/client/build` (legacy CRA name) so we
@@ -75,10 +75,19 @@ if [ ! -d client/dist ]; then
   echo "Error: client/dist does not exist. Run 'cd client && npm run build' first."
   exit 1
 fi
-rsync -av --mkpath client/dist/ "$RELEASE_DIR/client/build/"
+rsync -av --mkpath --exclude '.vite' client/dist/ "$RELEASE_DIR/client/build/"
 
 # Copy root files
 cp package.json "$RELEASE_DIR/"
+
+# The plugin packages (specs/plugins-phase-4-registry.md rule 23, P24): one `<id>-<version>.tgz` per
+# plugin, the same package unpacked under `<id>/` (what an installed `bundled` plugin runs from) and
+# their SHA256SUMS, itself covered by the release's own checksum. Built here when absent.
+if [ ! -f plugins-dist/SHA256SUMS ] || [ "$REBUILD_CLIENT" = "true" ]; then
+  echo "Building plugin packages..."
+  node scripts/build-plugin-packages.mjs --out plugins-dist
+fi
+cp -R plugins-dist "$RELEASE_DIR/plugins-dist"
 
 # Ship the root `scripts/` directory.
 #
@@ -87,6 +96,9 @@ cp package.json "$RELEASE_DIR/"
 # carries it. Without this, the very script that makes a host self-updatable has to be copied over
 # by hand (which is exactly what had to be done for the first 2.0.0 install).
 rsync -a --exclude='__pycache__' scripts "$RELEASE_DIR/"
+
+# Refuse the archive if a secret or a runtime file reached the staging tree.
+node scripts/check-release-tree.mjs "$RELEASE_DIR"
 
 # Create the archive.
 #

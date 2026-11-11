@@ -7,11 +7,12 @@
  */
 
 const db = require('../database');
+const { bookingMoneyBlocker } = require('../utils/deletionGuard');
 const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
 const { isBabyBedResource } = require('../utils/babyBedResource');
+const { peakCotsHeld, peakResourceHeld } = require('../utils/stockPeak');
 
 const DEFAULT_OPEN_DAYS = '[0,1,2,3,4,5,6]';
-const OVERLAP = 'r.startDate < ? AND r.endDate > ?';
 
 function createModel(database) {
   // Hourly scheduling + time-banded grid (specs/resource-hourly-scheduling.md). Guarded so minimal
@@ -35,6 +36,16 @@ function createModel(database) {
     } catch { return false; }
   })();
 
+  // The sentence a booked resource carries into the guest emails (specs/plugins-phase-p-productisation.md
+  // rule 11). Its own group, guarded like the two above.
+  const SENTENCE_COLUMNS = ['emailBookedText', 'emailBookedTextEn'];
+  const HAS_SENTENCE_COLUMNS = (() => {
+    try {
+      const cols = database.prepare('PRAGMA table_info(resources)').all().map((c) => c.name);
+      return SENTENCE_COLUMNS.every((c) => cols.includes(c));
+    } catch { return false; }
+  })();
+
   function getPropertyIds(resourceId) {
     return database.prepare('SELECT propertyId FROM resource_properties WHERE resourceId = ? ORDER BY propertyId')
       .all(Number(resourceId))
@@ -46,7 +57,7 @@ function createModel(database) {
       .all(Number(resourceId))
       .reduce((acc, row) => {
         acc[String(row.propertyId)] = {
-          price: Number(row.price || 0),
+          price: row.price === null || row.price === undefined ? null : Number(row.price),
           freeMinutes: Math.max(0, Number(row.freeMinutes || 0)),
         };
         return acc;
@@ -118,7 +129,7 @@ function createModel(database) {
       freeMinutes: effectiveFreeMinutes(propertyPricing, propertyId),
       propertyPricing,
       propertyPrices: Object.entries(propertyPricing).reduce((acc, [pid, cfg]) => {
-        acc[pid] = Number(cfg.price || 0);
+        if (cfg.price !== null) acc[pid] = Number(cfg.price);
         return acc;
       }, {}),
     };
@@ -140,18 +151,7 @@ function createModel(database) {
   function computeAvailability(resourceId, startDate, endDate, excludeReservationId) {
     const resource = database.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId);
     if (!resource) return null;
-    let sql = `
-      SELECT COALESCE(SUM(rr.quantity), 0) as reserved
-      FROM reservation_resources rr
-      JOIN reservations r ON r.id = rr.reservationId
-      WHERE r.kind = 'reservation' AND rr.resourceId = ? AND ${OVERLAP}
-    `;
-    const params = [resourceId, endDate, startDate];
-    if (excludeReservationId) {
-      sql += ' AND rr.reservationId != ?';
-      params.push(excludeReservationId);
-    }
-    const reserved = database.prepare(sql).get(...params)?.reserved || 0;
+    const reserved = peakResourceHeld(database, { resourceId, startDate, endDate, excludeId: excludeReservationId });
     return { resource, reserved, available: Math.max(0, Number(resource.quantity) - Number(reserved)) };
   }
 
@@ -183,12 +183,7 @@ function createModel(database) {
     const totalQuantity = resources.reduce((sum, r) => sum + Number(r.quantity || 0), 0);
     const hasGlobal = resources.some((r) => r.scopedIds.length === 0);
 
-    let sql = "SELECT COALESCE(SUM(COALESCE(babyBeds, 0)), 0) as reserved FROM reservations WHERE kind = 'reservation' AND startDate < ? AND endDate > ?";
-    const params = [endDate, startDate];
-    if (!hasGlobal && propertyId) { sql += ' AND propertyId = ?'; params.push(propertyId); }
-    if (excludeReservationId) { sql += ' AND id != ?'; params.push(Number(excludeReservationId)); }
-
-    const reserved = database.prepare(sql).get(...params)?.reserved || 0;
+    const reserved = peakCotsHeld(database, { startDate, endDate, propertyId: hasGlobal ? null : propertyId, excludeId: excludeReservationId });
     return { totalQuantity, reserved, available: Math.max(0, Number(totalQuantity) - Number(reserved)) };
   }
 
@@ -202,23 +197,27 @@ function createModel(database) {
       basePrice: Number(parsed.price || 0),
       propertyPricing,
       propertyPrices: Object.entries(propertyPricing).reduce((acc, [pid, cfg]) => {
-        acc[pid] = Number(cfg.price || 0);
+        if (cfg.price !== null) acc[pid] = Number(cfg.price);
         return acc;
       }, {}),
     };
   }
 
+  // A line without a price (null, blank) inherits the base price: stored as NULL, never as a copy of it.
   function normalizePricing(payload) {
+    const priceOf = (raw) => (raw === null || raw === undefined || raw === '' ? null : Number(raw));
     const raw = payload.propertyPricing && typeof payload.propertyPricing === 'object'
-      ? Object.entries(payload.propertyPricing).map(([pid, cfg]) => ({ propertyId: Number(pid), price: Number(cfg?.price), freeMinutes: Number(cfg?.freeMinutes || 0) }))
-      : Object.entries(payload.propertyPrices || {}).map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: Number(rawPrice), freeMinutes: 0 }));
+      ? Object.entries(payload.propertyPricing).map(([pid, cfg]) => ({ propertyId: Number(pid), price: priceOf(cfg?.price), freeMinutes: Number(cfg?.freeMinutes || 0) }))
+      : Object.entries(payload.propertyPrices || {}).map(([pid, rawPrice]) => ({ propertyId: Number(pid), price: priceOf(rawPrice), freeMinutes: 0 }));
     return raw
-      .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0 && Number.isFinite(line.price) && line.price >= 0)
+      .filter((line) => Number.isFinite(line.propertyId) && line.propertyId > 0
+        && (line.price === null || (Number.isFinite(line.price) && line.price >= 0)))
       .map((line) => ({
         propertyId: Number(line.propertyId),
-        price: Number(line.price),
+        price: line.price,
         freeMinutes: Math.max(0, Math.round(Number(line.freeMinutes || 0))),
-      }));
+      }))
+      .filter((line) => line.price !== null || line.freeMinutes > 0);
   }
 
   function normalizePropertyIds(payload) {
@@ -227,11 +226,14 @@ function createModel(database) {
       : [];
   }
 
+  // `null` leaves that pivot as stored (an update that does not send it).
   function writePivots(resourceId, propertyIds, pricing) {
-    database.prepare('DELETE FROM resource_properties WHERE resourceId = ?').run(resourceId);
-    const insApp = database.prepare('INSERT OR IGNORE INTO resource_properties (resourceId, propertyId) VALUES (?, ?)');
-    propertyIds.forEach((pid) => insApp.run(resourceId, pid));
-
+    if (propertyIds !== null) {
+      database.prepare('DELETE FROM resource_properties WHERE resourceId = ?').run(resourceId);
+      const insApp = database.prepare('INSERT OR IGNORE INTO resource_properties (resourceId, propertyId) VALUES (?, ?)');
+      propertyIds.forEach((pid) => insApp.run(resourceId, pid));
+    }
+    if (pricing === null) return;
     database.prepare('DELETE FROM property_resource_prices WHERE resourceId = ?').run(resourceId);
     const insPrice = database.prepare('INSERT INTO property_resource_prices (propertyId, resourceId, price, freeMinutes) VALUES (?, ?, ?, ?)');
     pricing.forEach((line) => insPrice.run(line.propertyId, resourceId, line.price, line.freeMinutes));
@@ -261,6 +263,8 @@ function createModel(database) {
       // Negatives would invert the slot algebra (a negative warm-up would open past slots), so clamp.
       heatUpMinutes: Math.max(0, Number(payload.heatUpMinutes) || 0),
       heatRetentionMinutes: Math.max(0, Number(payload.heatRetentionMinutes) || 0),
+      emailBookedText: String(payload.emailBookedText || '').trim(),
+      emailBookedTextEn: String(payload.emailBookedTextEn || '').trim(),
     };
   }
 
@@ -268,9 +272,11 @@ function createModel(database) {
   const optionalSet = (has, cols) => (has ? cols.map((c) => `${c}=@${c}`).join(', ') : '');
   const HOURLY_SET = optionalSet(HAS_HOURLY_COLUMNS, HOURLY_COLUMNS);
   const THERMAL_SET = optionalSet(HAS_THERMAL_COLUMNS, THERMAL_COLUMNS);
+  const SENTENCE_SET = optionalSet(HAS_SENTENCE_COLUMNS, SENTENCE_COLUMNS);
   const OPTIONAL_COLUMNS = [
     ...(HAS_HOURLY_COLUMNS ? HOURLY_COLUMNS : []),
     ...(HAS_THERMAL_COLUMNS ? THERMAL_COLUMNS : []),
+    ...(HAS_SENTENCE_COLUMNS ? SENTENCE_COLUMNS : []),
   ];
   const HOURLY_INSERT_COLS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.join(', ')}` : '';
   const HOURLY_INSERT_VALS = OPTIONAL_COLUMNS.length ? `, ${OPTIONAL_COLUMNS.map((c) => `@${c}`).join(', ')}` : '';
@@ -290,13 +296,17 @@ function createModel(database) {
     return tx();
   }
 
+  // specs/options-resources-ux.md rule 33 (audit R25-DB-1 sweep) — a key the save does not send keeps the stored value,
+  // the logements and the per-logement prices included.
   function update(id, payload) {
-    const cols = columnsFromPayload(payload);
     const resourceId = Number(id);
-    const propertyIds = normalizePropertyIds(payload);
-    const pricing = normalizePricing(payload);
+    const stored = database.prepare('SELECT * FROM resources WHERE id = ?').get(resourceId) || {};
+    const cols = Object.fromEntries(Object.entries(columnsFromPayload(payload))
+      .map(([column, value]) => [column, payload[column] === undefined && column in stored ? stored[column] : value]));
+    const propertyIds = payload.propertyIds === undefined ? null : normalizePropertyIds(payload);
+    const pricing = payload.propertyPricing === undefined && payload.propertyPrices === undefined ? null : normalizePricing(payload);
     const tx = database.transaction(() => {
-      const hourlySet = [HOURLY_SET, THERMAL_SET].filter(Boolean).map((s) => `, ${s}`).join('');
+      const hourlySet = [HOURLY_SET, THERMAL_SET, SENTENCE_SET].filter(Boolean).map((s) => `, ${s}`).join('');
       const updateSql = `UPDATE resources
            SET name=@name, quantity=@quantity, price=@price, priceType=@priceType, note=@note,
                isComplex=@isComplex, slotDuration=@slotDuration, minimumUsageMinutes=@minimumUsageMinutes,
@@ -326,19 +336,23 @@ function createModel(database) {
       WHERE r.kind = 'reservation' AND rr.resourceId = ?
       ORDER BY r.startDate DESC, r.id DESC
     `).all(Number(id));
-    const bookings = database.prepare(`
+    // The external bookings belong to the `hourly-resources` plugin: its table exists only once it
+    // was installed (specs/plugins-phase-3c-hourly-resources.md rule 16).
+    const hasBookings = Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'resource_bookings'").get());
+    const bookings = hasBookings ? database.prepare(`
       SELECT rb.id, rb.date, rb.startTime, rb.endTime, rb.propertyId, p.name AS propertyName, rb.clientName
       FROM resource_bookings rb
       LEFT JOIN properties p ON p.id = rb.propertyId
       WHERE rb.resourceId = ?
       ORDER BY rb.date DESC, rb.startTime
-    `).all(Number(id));
+    `).all(Number(id)) : [];
     return {
       resource,
       reservationsCount: reservations.length,
       reservations,
       bookingsCount: bookings.length,
       bookings,
+      saleBlocker: bookingMoneyBlocker(database, 'resourceId', id),
     };
   }
 

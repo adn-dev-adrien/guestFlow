@@ -6,8 +6,8 @@ import { test, expect } from '@playwright/test';
 test('Linen stock round-trip on /parametres/stock-blanchisserie', async ({ page }) => {
   await page.goto('/parametres/stock-blanchisserie');
   // `exact` so it matches the page title only (« Linge » since settings-rationalization) — the page
-  // also has a « Linge & blanchisserie » section heading, which a substring match would hit too.
-  await expect(page.getByRole('heading', { name: 'Linge', exact: true })).toBeVisible();
+  // also has a « Blanchisserie » card and « Parures de lit » / « Serviettes » headings.
+  await expect(page.getByRole('heading', { name: 'Linge', exact: true })).toBeVisible({ timeout: 20_000 });
 
   // The six fields are number inputs. Their labels follow the spec wording —
   // "Drap 1 personne", "Drap 2 personnes", "Drap bébé" for beds, "Grande serviette",

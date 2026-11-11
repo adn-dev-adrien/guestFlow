@@ -180,6 +180,32 @@ npm run dev:server
 npm run dev:client
 ```
 
+### Recette on a copy of the production database
+
+Trying a change on a copy of the real data must never email a guest. Start the server with a mail
+outbox: every email it would send (guest emails, account emails, notifications) is written as a JSON
+file in that folder instead, and no SMTP connection is opened. The variable is ignored when
+`NODE_ENV=production` (`specs/guest-email-texts-made-simple.md` rule 26).
+
+```bash
+sqlite3 server/guestflow.db "VACUUM INTO '/tmp/recette.db'"
+DB_PATH=/tmp/recette.db GUESTFLOW_MAIL_OUTBOX=/tmp/outbox npm run dev:server
+```
+
+#### Shadow: a copy that runs like production
+
+A shadow is such a copy running this checkout. Judge speed on a **build**, never on the Vite dev
+server (3 to 6 times slower, 481 unbundled modules per page):
+
+```bash
+node scripts/start-shadow.mjs --db /path/to/copy.db --port 4104   # builds, then one server on :4104
+node scripts/start-shadow.mjs --db /path/to/copy.db --port 4104 --dev   # hot reload, not representative
+GUESTFLOW_PERF_PASSWORD=... node e2e/perf/measure-pages.mjs http://localhost:4104 --cpu 4
+```
+
+The script copies the database (and the `.env.local` / `uploads` next to it), sends mails to an outbox
+and points Qonto and Neat at a dead address (`specs/inte-performance.md` rules 1 and 6).
+
 ### Running Unit Tests
 
 Unit tests are currently implemented on the server side using Node's built-in test runner.
@@ -267,6 +293,10 @@ Optional environment variables (sensible defaults otherwise):
 | `API_RATELIMIT_MAX` / `API_RATELIMIT_WINDOW_MS` | Global API rate limit | `300` / `900000` |
 | `PUBLIC_API_RATELIMIT_MAX` / `PUBLIC_API_RATELIMIT_WINDOW_MS` | Public API rate limit | `600` / `900000` |
 | `BOOKING_REQUEST_RATELIMIT_MAX` / `BOOKING_REQUEST_RATELIMIT_WINDOW_MS` | Public booking-request rate limit | `5` / `3600000` |
+| `GUEST_SESSION_RATELIMIT_MAX` / `GUEST_SESSION_RATELIMIT_WINDOW_MS` | Guest app: scanning a lodging's QR code, per IP | `30` / `3600000` |
+| `GUEST_LOOKUP_RATELIMIT_MAX` / `GUEST_LOOKUP_RATELIMIT_WINDOW_MS` | Guest app: name + reservation number fallback, per IP | `5` / `900000` |
+| `GUEST_ORDER_RATELIMIT_MAX` / `GUEST_ORDER_RATELIMIT_WINDOW_MS` | Guest app: orders, per guest session | `10` / `3600000` |
+| `GUEST_CARD_ORDER_RATELIMIT_MAX` / `GUEST_CARD_ORDER_RATELIMIT_WINDOW_MS` | Guest app: card orders (payment links), per stay | `6` / `3600000` |
 
 ### Public API (WordPress showcase site)
 
@@ -836,7 +866,7 @@ database.** This provides protection against database compromise.
 
 GuestFlow sends transactional email (quotes, payment requests, notifications) through the SMTP
 relay configured in **Settings**. In production the `From` address is on **your Workspace domain**
-(e.g. `domainesolio.com`) and the mail is relayed by Google. Strict receivers — **Yahoo, and Gmail
+(e.g. `example.com`) and the mail is relayed by Google. Strict receivers — **Yahoo, and Gmail
 for bulk senders** — reject mail that is **not DKIM-signed, even when SPF passes**:
 
 ```
@@ -851,9 +881,9 @@ the Admin Console **and** publish the matching DNS record.
 **Check the current state** (replace the domain):
 
 ```bash
-dig +short google._domainkey.domainesolio.com TXT   # DKIM  — empty = NOT set up (cause of the Yahoo block)
-dig +short domainesolio.com TXT | grep -i spf       # SPF   — should include _spf.google.com
-dig +short _dmarc.domainesolio.com TXT              # DMARC — empty = missing
+dig +short google._domainkey.example.com TXT   # DKIM  — empty = NOT set up (cause of the Yahoo block)
+dig +short example.com TXT | grep -i spf       # SPF   — should include _spf.google.com
+dig +short _dmarc.example.com TXT              # DMARC — empty = missing
 ```
 
 **Step 1 — Enable DKIM (this is what unblocks Yahoo):**
@@ -864,7 +894,7 @@ dig +short _dmarc.domainesolio.com TXT              # DMARC — empty = missing
 5. Return to the Admin Console → **Start authentication** (the button activates once the record is visible)
 
 **Step 2 — Publish DMARC** (required by Gmail/Yahoo sender rules; start in monitor mode):
-- Host `_dmarc`, TXT value: `v=DMARC1; p=none; rua=mailto:postmaster@domainesolio.com`
+- Host `_dmarc`, TXT value: `v=DMARC1; p=none; rua=mailto:postmaster@example.com`
 - Later tighten `p=none` → `p=quarantine` → `p=reject` once DKIM + SPF are confirmed aligned.
 
 **Publishing a TXT record at Squarespace (ex-Google Domains):**
@@ -877,7 +907,7 @@ dig +short _dmarc.domainesolio.com TXT              # DMARC — empty = missing
 **Verify after propagation** (usually minutes):
 
 ```bash
-dig +short google._domainkey.domainesolio.com TXT   # now returns the v=DKIM1 key
+dig +short google._domainkey.example.com TXT   # now returns the v=DKIM1 key
 ```
 
 Send a test to a Yahoo address — the `550 5.7.9` block disappears as soon as DKIM signs the mail.
@@ -970,12 +1000,13 @@ Writes `~/GuestFlowBackups/guestflow-YYYYMMDD-HHMMSS/` (mode `0700` — it conta
 secrets in clear) plus a `latest` symlink, and keeps the 30 most recent backups (`--keep N`).
 The database is snapshotted with `sqlite3 .backup`, so the WAL is folded in and the copy is
 consistent even while PM2 is serving; the script aborts if `PRAGMA integrity_check` is not `ok`.
-Each backup carries a `manifest.txt` (date, source, deployed commit, node/app version) and a
+Each backup carries a `manifest.txt` (date, source, the release `current` points at, node/app version) and a
 `checksums.sha256`.
 
 ### Restore onto a Pi
 
-Deploy the code **first** (push `release`, let the workflow rebuild `~/guestflow/current/`), then:
+Install the code **first** — the published release named in the backup's `manifest.txt`, by hand as
+in « Installing one manually » above — then:
 
 ```bash
 scripts/restore-to-pi.sh --host pi@<pi-host> --from ~/GuestFlowBackups/latest

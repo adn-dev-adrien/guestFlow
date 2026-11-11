@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/devis-en-translation` _(Claude-managed)_ |
 | **Created** | 2026-06-06 |
 | **Author** | Adrien |
@@ -259,15 +259,15 @@ Pied de page du devis (anglais)
 ## 7. Test plan
 
 ### Server unit tests
-- [ ] `tests/devis-pdf-labels.unit.test.js` — every key present in BOTH `fr` and `en` maps
+- [x] `tests/devis-pdf-labels.unit.test.js` — every key present in BOTH `fr` and `en` maps
       (parity); `labels('fr').X === <french>`; `labels('en').X === <english>`;
       `labels('xx')` throws.
-- [ ] `tests/devis-pdf-en.unit.test.js` — render a devis with `pdfLanguage='en'` + options
+- [x] `tests/devis-pdf-en.unit.test.js` — render a devis with `pdfLanguage='en'` + options
       that have `titleEn` set + a resource that doesn't (fallback to FR `name`). Assert:
       PDF buffer non-empty; EN labels appear in the decompressed text stream (best-effort
       grep for `QUOTE`, `Accommodation —`, `Deposit`, `Balance`, `INCLUDED`); FR fallback
       visible for the un-translated resource.
-- [ ] `tests/devis-helpers-date-en.unit.test.js` — `formatDateEN('2026-06-05')`,
+- [x] `tests/devis-helpers-date-en.unit.test.js` — `formatDateEN('2026-06-05')`,
       `'2026-12-25'`, ISO edge `'2026-01-01'`, empty string returns `''`.
 - [ ] `tests/options-resources-en-fields.unit.test.js` — POST/PUT persists `titleEn` trimmed
       + preserves operator-chosen EN casing; payload `descriptionEn` is silently ignored
@@ -278,7 +278,7 @@ Pied de page du devis (anglais)
 - [ ] `tests/seeds-en-translation.unit.test.js` — the 3 typed-default seeds (bed_linen,
       bathroom_linen, breakfast) insert + backfill `titleEn`; idempotent across multiple
       runs. A "no descriptionEn anywhere" guard makes a future regression fail loud.
-- [ ] `tests/timed-options-en-seed.unit.test.js` — `early_check_in` and `late_check_out`
+- [x] `tests/timed-options-en-seed.unit.test.js` — `early_check_in` and `late_check_out`
       seed with the right EN title (`Early check-in` / `Late check-out`) + backfill
       existing rows + operator override preserved + idempotent.
 - [ ] Full server suite remains green.
@@ -326,3 +326,12 @@ Pied de page du devis (anglais)
     pre-seeded; custom options/resources get a form field the operator fills.
 - Q: Default for fresh devis?
   - A: `'fr'`. Adrien's base market is FR; the EN toggle is opt-in for foreign customers.
+
+---
+
+## Implementation progress
+
+- **2026-10-28 — Implemented** (status was left on Approved after the merge). The bilingual PDF, the English
+  option and resource names and the language toggle are in the code; the English names later moved to the
+  translation catalogue (`translation-catalogue`), so the `titleEn` / `nameEn` column tests of §7 are
+  retired with their columns. Left unticked in §7: those retired tests and the manual PDF walkthroughs.

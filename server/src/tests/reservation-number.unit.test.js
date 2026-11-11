@@ -49,6 +49,7 @@ test('generateReservationNumber: resets the counter on a new month', () => {
   assert.equal(generateReservationNumber(db, { now: new Date(2026, 6, 1) }), '202607001');
 });
 
+// specs/reservation-number-and-search.md rule 7 — devis numbering is untouched.
 test('generateReservationNumber: independent from devisNumber', () => {
   const db = freshDb();
   // A devis (still AAAA-MM-### in its own column) must NOT influence the reservation sequence.
@@ -65,6 +66,7 @@ test('nextNumberForPrefix: handles a >9 counter (zero-padded lexical sort holds)
   assert.equal(nextNumberForPrefix(db, '202606'), '202606013');
 });
 
+// specs/reservation-number-and-search.md rule 6 — the one-shot backfill.
 test('backfillReservationNumbers: assigns sequential per-month numbers ordered by createdAt,id', () => {
   const db = freshDb();
   db.prepare("INSERT INTO reservations (kind, createdAt) VALUES ('reservation', '2026-06-10 09:00:00')").run(); // id 1
@@ -80,6 +82,7 @@ test('backfillReservationNumbers: assigns sequential per-month numbers ordered b
   assert.equal(byId(3), '202607001'); // July resets
 });
 
+// specs/reservation-number-and-search.md rules 6-7 — no number overwritten, devis left alone.
 test('backfillReservationNumbers: leaves already-numbered rows, ignores devis, is idempotent', () => {
   const db = freshDb();
   db.prepare("INSERT INTO reservations (kind, reservationNumber, createdAt) VALUES ('reservation', '202606042', '2026-06-01 00:00:00')").run();

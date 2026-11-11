@@ -1,55 +1,164 @@
-// Built-in plugin catalogue — the plugins shipped on this branch. The wider catalogue lives on the
-// plugins integration branch; this file is taken from that branch's version when it merges
-// (specs/plugin-engine-backport.md rule 2). Mirrored client-side in client/src/constants/plugins.js.
+// Built-in plugin catalogue (specs/plugins-phase-0-foundation.md §3.A). The twelve optional features
+// the owner arbitrated on 2026-09-28 (specs/plugins-inventory.md §5.3); everything else is core.
+// Mirrored client-side in client/src/constants/plugins.js (ids only).
 
+const { readSourceManifest } = require('../plugins/manifest');
+
+const HOURLY_RESOURCES = 'hourly-resources';
+const LINEN = 'linen';
+const WEBSITE_BOOKING = 'website-booking';
+const GATE_ACCESS = 'gate-access';
+const NEAT = 'neat';
+const ONLINE_PAYMENT = 'online-payment';
+const GOOGLE_CALENDAR = 'google-calendar';
+const ACCOUNTING_EXPORT = 'accounting-export';
+const SAS = 'sas';
+const TARIFF_RECIPES = 'tariff-recipes';
+const SCHOOL_HOLIDAYS = 'school-holidays';
+const WEATHER_ALERTS = 'weather-alerts';
 const GITES_DE_FRANCE_INTAKE = 'gites-de-france-intake';
 const BOOKING_INTAKE = 'booking-intake';
 const AIRBNB_INTAKE = 'airbnb-intake';
+const GOOGLE_VACATION_RENTALS = 'google-vacation-rentals';
+const GUEST_APP = 'guest-app';
 
-const PLUGIN_CATALOG = Object.freeze([
-  {
-    id: GITES_DE_FRANCE_INTAKE,
-    name: 'Saisie Gîtes de France',
-    description: 'Remplit les fiches Gîtes de France depuis le mail de réservation de la centrale.',
-    icon: 'mail',
-    surfaces: ['Paramètres › Intégrations › Saisie Gîtes de France', 'Le bandeau en haut de la fiche', 'Une alerte du tableau de bord'],
-  },
-  {
-    id: BOOKING_INTAKE,
-    name: 'Saisie Booking',
-    description: 'Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.',
-    icon: 'bookmark',
-    surfaces: ['Paramètres › Intégrations › Saisie Booking', 'Le bandeau en haut de la fiche', 'Une alerte du tableau de bord'],
-  },
-  {
-    id: AIRBNB_INTAKE,
-    name: 'Saisie Airbnb',
-    description: 'Remplit les fiches Airbnb depuis le mail « Réservation confirmée ».',
-    icon: 'mail',
-    surfaces: ['Paramètres › Intégrations › Saisie Airbnb', 'Le bandeau en haut de la fiche', 'Une alerte du tableau de bord'],
-  },
-].map((p) => Object.freeze({ ...p, surfaces: Object.freeze(p.surfaces), requires: Object.freeze([]) })));
+// specs/plugins-phase-4-registry.md rule 2 — each plugin's manifest is its single description; this
+// list only fixes the order the Plugins page shows them in. A version installed from the registry
+// carries its own manifest in the `plugins` row (rule 11); this catalogue is what the core ships.
+const CATALOG_ORDER = [
+  HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
+  GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
+  GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP,
+];
+
+// specs/plugin-removal-resilience.md rule 1 — the catalogue is the manifests that exist: a plugin whose
+// folder is gone (a distribution without it, a package left out) is skipped, never a boot failure.
+function readCatalogue(read = readSourceManifest, log = console.warn) { // eslint-disable-line no-console
+  return CATALOG_ORDER.flatMap((id) => {
+    try {
+      return [read(id)];
+    } catch {
+      log(`[plugins] ${id}: manifest introuvable, plugin ignoré`);
+      return [];
+    }
+  });
+}
+
+const PLUGIN_CATALOG = Object.freeze(readCatalogue());
 
 const PLUGIN_IDS = Object.freeze(PLUGIN_CATALOG.map((p) => p.id));
 
-// The plugins seeded « installed but inactive », batch by batch (utils/pluginsBackportSeed.js): a plugin
-// shipped later joins a new batch, so the databases that already went through the earlier ones get it too.
-const PLUGIN_SEED_BATCHES = Object.freeze([
-  Object.freeze({ ledger: 'plugins_backport_seed_v1', ids: Object.freeze([GITES_DE_FRANCE_INTAKE]) }),
-  Object.freeze({ ledger: 'plugins_backport_seed_v2', ids: Object.freeze([BOOKING_INTAKE]) }),
-  Object.freeze({ ledger: 'plugins_backport_seed_v3', ids: Object.freeze([AIRBNB_INTAKE]) }),
+// specs/plugins-phase-0-foundation.md rule 10 — what an existing database gets installed and active:
+// the twelve features that were core before phase 0, so nothing disappears. A plugin added since
+// (the three intakes) is a new opt-in and is never installed by the seed.
+const SEEDED_ON_EXISTING_IDS = Object.freeze([
+  HOURLY_RESOURCES, LINEN, WEBSITE_BOOKING, GATE_ACCESS, NEAT, ONLINE_PAYMENT,
+  GOOGLE_CALENDAR, ACCOUNTING_EXPORT, SAS, TARIFF_RECIPES, SCHOOL_HOLIDAYS, WEATHER_ALERTS,
 ]);
+
+// specs/plugins-phase-p-productisation.md rule 40 — the pages that exist only with a plugin, known
+// even when that plugin is not installed (a release ships its pages in the plugin's own bundle). A
+// path matches itself and the paths below it. Kept in step with each plugin's `contributes.routes`
+// by tests/plugin-page-owner.unit.test.js.
+const PLUGIN_PAGES = Object.freeze({
+  '/comptabilite': [ACCOUNTING_EXPORT],
+  '/resource-planning': [HOURLY_RESOURCES],
+  '/parametres/stock-blanchisserie': [LINEN],
+  '/parametres/paiements': [ONLINE_PAYMENT],
+  '/finance/rapprochement': [ONLINE_PAYMENT],
+  '/school-holidays': [SCHOOL_HOLIDAYS],
+  '/parametres/recettes': [TARIFF_RECIPES],
+  '/commandes-app': [GUEST_APP],
+  '/settings/integrations': [WEBSITE_BOOKING, GOOGLE_CALENDAR, NEAT, WEATHER_ALERTS, GATE_ACCESS, GITES_DE_FRANCE_INTAKE, BOOKING_INTAKE, AIRBNB_INTAKE, GOOGLE_VACATION_RENTALS, GUEST_APP],
+});
+
+// specs/plugins-phase-0-foundation.md rule 25 — where each plugin is set up: the page its card's
+// « Configurer » / « Réglages » opens. A plugin of Intégrations is reached by its tab
+// (`?tab=<id>`, specs/integrations-tab-per-plugin.md rule 6). `null`: nothing to set up (the card has
+// no such button).
+const INTEGRATIONS = '/settings/integrations';
+const PLUGIN_SETTINGS_PLACES = Object.freeze({
+  [HOURLY_RESOURCES]: '/parametres/options-ressources',
+  [LINEN]: '/parametres/stock-blanchisserie',
+  [WEBSITE_BOOKING]: `${INTEGRATIONS}?tab=${WEBSITE_BOOKING}`,
+  [GATE_ACCESS]: `${INTEGRATIONS}?tab=${GATE_ACCESS}`,
+  [NEAT]: `${INTEGRATIONS}?tab=${NEAT}`,
+  [ONLINE_PAYMENT]: '/parametres/paiements',
+  [GOOGLE_CALENDAR]: `${INTEGRATIONS}?tab=${GOOGLE_CALENDAR}`,
+  [ACCOUNTING_EXPORT]: '/comptabilite/plateformes',
+  // Its « Facturables au SAS » tab: without it the card had no button and looked empty beside the
+  // others (2026-10-27 audit).
+  [SAS]: '/parametres/options-ressources?tab=sas',
+  [TARIFF_RECIPES]: '/parametres/recettes',
+  [SCHOOL_HOLIDAYS]: '/parametres/vacances-fermetures',
+  [WEATHER_ALERTS]: `${INTEGRATIONS}?tab=${WEATHER_ALERTS}`,
+  [GITES_DE_FRANCE_INTAKE]: `${INTEGRATIONS}?tab=${GITES_DE_FRANCE_INTAKE}`,
+  [BOOKING_INTAKE]: `${INTEGRATIONS}?tab=${BOOKING_INTAKE}`,
+  [AIRBNB_INTAKE]: `${INTEGRATIONS}?tab=${AIRBNB_INTAKE}`,
+  [GOOGLE_VACATION_RENTALS]: `${INTEGRATIONS}?tab=${GOOGLE_VACATION_RENTALS}`,
+  [GUEST_APP]: `${INTEGRATIONS}?tab=${GUEST_APP}`,
+});
+
+// specs/plugin-removal-resilience.md rule 1 — what a page says of the plugin it depends on when this
+// release does not ship it and no row remembers it (tests/plugin-page-owner keeps it in step with the
+// manifests).
+const PLUGIN_DISPLAY_NAMES = Object.freeze({
+  'accounting-export': 'Export comptable',
+  'airbnb-intake': 'Saisie Airbnb',
+  'booking-intake': 'Saisie Booking',
+  'gate-access': 'Accès au portail (Sowel)',
+  'gites-de-france-intake': 'Saisie Gîtes de France',
+  'google-calendar': 'Google Agenda',
+  'google-vacation-rentals': 'Google Vacation Rentals',
+  'guest-app': 'Application clients',
+  'hourly-resources': 'Ressources à l’heure',
+  linen: 'Linge et blanchisserie',
+  neat: 'Assurance annulation Neat',
+  'online-payment': 'Paiement en ligne (Qonto)',
+  sas: 'Arrivée et départ guidés',
+  'school-holidays': 'Vacances scolaires',
+  'tariff-recipes': 'Recettes tarifaires',
+  'weather-alerts': 'Vigilance Météo-France',
+  'website-booking': 'Réservation depuis le site',
+});
+
+/** → the ids of the plugins a page belongs to, or [] for a core page or an unknown address. */
+function pluginsOfPage(path) {
+  const clean = String(path || '').split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+  const key = Object.keys(PLUGIN_PAGES).find((p) => clean === p || clean.startsWith(`${p}/`));
+  return key ? [...PLUGIN_PAGES[key]] : [];
+}
 
 function findPlugin(id) {
   return PLUGIN_CATALOG.find((p) => p.id === id) || null;
 }
 
+// The roles a plugin brings: without it the role cannot be given (specs/plugins-phase-0-foundation.md
+// rule 29) — the client already hides it from the picker (rule 16), the server refuses it.
+const ROLE_PLUGINS = Object.freeze({ reception: SAS, accountant: ACCOUNTING_EXPORT });
+
 module.exports = {
-  GITES_DE_FRANCE_INTAKE,
-  BOOKING_INTAKE,
-  AIRBNB_INTAKE,
+  HOURLY_RESOURCES,
+  LINEN,
+  WEBSITE_BOOKING,
+  GATE_ACCESS,
+  NEAT,
+  ONLINE_PAYMENT,
+  GOOGLE_CALENDAR,
+  ACCOUNTING_EXPORT,
+  SAS,
+  TARIFF_RECIPES,
+  SCHOOL_HOLIDAYS,
+  WEATHER_ALERTS,
+  CATALOG_ORDER,
+  readCatalogue,
   PLUGIN_CATALOG,
   PLUGIN_IDS,
-  PLUGIN_SEED_BATCHES,
+  SEEDED_ON_EXISTING_IDS,
   findPlugin,
+  PLUGIN_PAGES,
+  PLUGIN_DISPLAY_NAMES,
+  PLUGIN_SETTINGS_PLACES,
+  pluginsOfPage,
+  ROLE_PLUGINS,
 };

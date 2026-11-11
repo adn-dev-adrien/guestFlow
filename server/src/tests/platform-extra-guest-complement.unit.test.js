@@ -11,6 +11,10 @@ const { splitExtraGuestCount } = require('../utils/pricing');
 const { resolvePlatformPaidGuests } = require('../utils/platformPaidGuests');
 const { create: createReservationsModel, __test: { arrivalComplementDetailFromReservation } } = require('../models/reservationsModel');
 
+// Lodgify counts as a direct sale on Solio (specs/plugins-phase-p-productisation.md): a fresh process
+// starts with no direct channel configured.
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 // 2 nights × 300 = 600 ; 2 guests free ; 20 €/guest/night → 40 € per extra guest.
 function createPricingDb({ unit = 'per_night' } = {}) {
   const db = new Database(':memory:');

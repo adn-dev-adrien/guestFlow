@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 /**
  * UpdateProgressOverlay — the screen during a self-update.
  * specs/self-update-and-releases.md §3.F rule 37 + §6.3.
@@ -5,7 +6,7 @@
 
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../api', () => ({
@@ -56,7 +57,7 @@ function status(overrides = {}) {
 test('renders nothing when no update is running', async () => {
   api.getUpdateStatus.mockResolvedValue(status({ phase: 'idle', terminal: true, label: 'Aucune mise à jour en cours' }));
   const { container } = render(<UpdateProgressOverlay />);
-  await waitFor(() => expect(api.getUpdateStatus).toHaveBeenCalled());
+  await act(() => api.getUpdateStatus.mock.results.at(-1).value);
   expect(container.firstChild).toBeNull();
 });
 
@@ -70,7 +71,7 @@ test('a non-admin session renders nothing and never polls the admin endpoint', a
 test('an unreachable status endpoint on mount stays silent', async () => {
   api.getUpdateStatus.mockRejectedValue(new Error('Failed to fetch'));
   const { container } = render(<UpdateProgressOverlay />);
-  await waitFor(() => expect(api.getUpdateStatus).toHaveBeenCalled());
+  await act(() => api.getUpdateStatus.mock.results.at(-1).value.catch(() => {}));
   expect(container.firstChild).toBeNull();
 });
 

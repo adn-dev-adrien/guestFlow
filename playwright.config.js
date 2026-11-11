@@ -1,7 +1,9 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 const path = require('path');
-const { CLIENT_PORT, CLIENT_URL } = require('./e2e/clientUrl');
+const { CLIENT_PORT, CLIENT_URL, SERVER_PORT } = require('./e2e/clientUrl');
+const { PROJECTS } = require('./e2e/projects');
+const { OUTBOX, SUPPORT_PUBLIC_KEY } = require('./e2e/fixtures/accountSecurity');
 
 // E2E configuration for the smoke suite (specs/e2e-playwright-smoke-suite.md §3 + §4).
 // The suite covers ~24 user-visible flows and serves as the safety net for the upcoming
@@ -20,9 +22,20 @@ const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-secret-1234';
 // Fixed session secret + encryption key so cookies / encrypted-at-rest secrets stay
 // deterministic across runs. The values are TEST-ONLY — they MUST never be used in prod.
 const E2E_SESSION_SECRET = 'e2e-fixed-session-secret-not-for-prod-use-32b';
-const E2E_ENCRYPTION_KEY = 'ZTJlLWZpeGVkLWVuY3J5cHRpb24ta2V5LW5vdC1mb3I='; // base64 of 32 bytes: the server decodes it, and a plugin secret needs it
+// The server reads the key as base64 of 32 bytes (server/src/utils/encryption.js): the plain string used
+// before never decoded to 32 bytes, which went unseen until an E2E spec first stored a secret.
+const E2E_ENCRYPTION_KEY = 'ZTJlZml4ZWRlbmNyeXB0aW9ua2V5MTIzNDU2Nzg5MGE='; // base64 of 32 bytes
+
+// The server runs on Europe/Paris whatever the host says. Specs compute « today » with local Date
+// arithmetic, so the runner and its workers must share that zone — on a UTC CI runner, between
+// 00:00 and 02:00 Paris, « today » was still yesterday and the API refused the stay as past.
+process.env.TZ = 'Europe/Paris';
 
 const isCI = Boolean(process.env.CI);
+
+// The server's stdout/stderr go to a file, not a pipe nobody reads: a failed run keeps what the server said
+// (CI uploads it with the report).
+const SERVER_LOG = process.env.GUESTFLOW_E2E_SERVER_LOG || path.join(__dirname, 'playwright-server.log');
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, 'e2e', 'specs'),
@@ -53,12 +66,30 @@ module.exports = defineConfig({
     {
       // Backend — fresh ephemeral DB per run, fixed session secret + encryption key so the
       // storageState cookie remains valid for the whole suite.
-      command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test'
+      // GUESTFLOW_PLUGINS=sources: this suite runs the Vite dev client, which imports the plugin
+      // sources; the production-build suite (playwright.prod.config.js) runs the packages
+      // (specs/plugins-phase-4-registry.md rule 19). GUESTFLOW_DEV=1: the Vite proxy rewrites the host,
+      // so the same-origin check of writes (rule 31) is off here — the production-build suite keeps it on.
+      command: 'cd server && DB_PATH="' + E2E_DB_PATH + '" NODE_ENV=test GUESTFLOW_PLUGINS=sources GUESTFLOW_DEV=1'
         + ' GUESTFLOW_SESSION_SECRET="' + E2E_SESSION_SECRET + '"'
         + ' GUESTFLOW_ENCRYPTION_KEY="' + E2E_ENCRYPTION_KEY + '"'
-        + ' PORT=4000'
-        + ' node src/index.js',
-      url: 'http://127.0.0.1:4000/api/version',
+        + ` PORT=${SERVER_PORT}`
+        // specs/hosting-h2-account-security.md — the dev mail catcher, the address links point to,
+        // and the TEST-ONLY public key the support links are signed for, with the slug they name.
+        + ` GUESTFLOW_MAIL_OUTBOX="${OUTBOX}" GUESTFLOW_PUBLIC_URL="${CLIENT_URL}"`
+        + ` GUESTFLOW_LICENCE_PUBLIC_KEY="${SUPPORT_PUBLIC_KEY}" GUESTFLOW_SLUG=e2e`
+        // specs/settings-rationalization.md rule 28 — no real DNS lookup of a sending domain.
+        + ' GUESTFLOW_SMTP_DETECT=off'
+        // The whole suite talks to one server from one address within the limiter's 15 minutes: past
+        // ~140 specs a slow CI runner crossed the default 3 000 API requests and got 429s. The limiter
+        // keeps its own unit tests; here it would only make the suite's size a failure.
+        + ' API_RATELIMIT_MAX=100000'
+        // specs/e2e-playwright-smoke-suite.md rule 23 — no release check, no school-holidays sync: the
+        // suite never reads GitHub or data.education.gouv.fr, so its state does not depend on them.
+        + ' GUESTFLOW_DISABLE_OUTBOUND=1'
+        + ' QONTO_API_BASE=http://127.0.0.1:9 QONTO_OAUTH_BASE=http://127.0.0.1:9'
+        + ` node src/index.js > "${SERVER_LOG}" 2>&1`,
+      url: `http://127.0.0.1:${SERVER_PORT}/api/version`,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a
       // server from a previous run would leave the server pointing at an unlinked inode
       // while dbSeed opens a fresh empty file at the same path.
@@ -68,10 +99,10 @@ module.exports = defineConfig({
       stderr: 'pipe',
     },
     {
-      // Frontend — Vite dev server. Proxies /api/* to :4000 (client/vite.config.js).
+      // Frontend — Vite dev server. Proxies /api/* to the backend above (client/vite.config.js).
       // `BROWSER=none` keeps it from popping a Safari window on macOS. `--strictPort` makes a
       // busy port fail loudly instead of silently serving the suite from a neighbour's app.
-      command: `cd client && BROWSER=none npx vite --port ${CLIENT_PORT} --strictPort`,
+      command: `cd client && BROWSER=none GUESTFLOW_API_PORT=${SERVER_PORT} npx vite --port ${CLIENT_PORT} --strictPort`,
       url: CLIENT_URL,
       // Always start fresh — see the "DB wipe at config-eval time" comment above. Reusing a
       // server from a previous run would leave the server pointing at an unlinked inode
@@ -82,10 +113,5 @@ module.exports = defineConfig({
       stderr: 'pipe',
     },
   ],
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-  ],
+  projects: PROJECTS.map((project) => ({ ...project, use: { ...devices['Desktop Chrome'] } })),
 });

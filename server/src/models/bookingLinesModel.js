@@ -146,10 +146,14 @@ function createBookingLinesModel(database) {
     // INSERT, so `insertCustomOptions` carries the marker over by label; without it the SAS lost its
     // own lines at the first save and a re-opened SAS billed them again
     // (specs/hourly-resource-quantity-and-sas-scheduling.md §3.6 rule 33).
+    // Each entry is `{ description, sasLineKey, quantity }`: the key of a line a plugin billed rides along
+    // (specs/plugins-phase-3c-hourly-resources.md rule 7).
     sasOriginCustomLabels(bookingId) {
       if (!CUSTOM_OPTION_COLUMNS.has('sasArrivalOrigin')) return [];
-      return database.prepare('SELECT description FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
-        .all(bookingId).map((r) => String(r.description || '').trim());
+      const key = CUSTOM_OPTION_COLUMNS.has('sasLineKey') ? 'sasLineKey' : 'NULL AS sasLineKey';
+      const qty = CUSTOM_OPTION_COLUMNS.has('quantity') ? 'quantity' : '1 AS quantity';
+      return database.prepare(`SELECT description, ${key}, ${qty} FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`)
+        .all(bookingId).map((r) => ({ description: String(r.description || '').trim(), sasLineKey: r.sasLineKey || null, quantity: Number(r.quantity) || 1 }));
     },
 
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = []) {
@@ -159,8 +163,8 @@ function createBookingLinesModel(database) {
         if (!line.isCustom) continue;
         const forced = line.inComplement ? 1 : 0;
         const description = String(line.title || line.description || '').trim();
-        const sasIndex = pendingSasLabels.indexOf(description);
-        if (sasIndex >= 0) pendingSasLabels.splice(sasIndex, 1);
+        const sasIndex = pendingSasLabels.findIndex((l) => l.description === description);
+        const sasLine = sasIndex >= 0 ? pendingSasLabels.splice(sasIndex, 1)[0] : null;
         insertCustomOption({
           reservationId: bookingId,
           description,
@@ -170,7 +174,8 @@ function createBookingLinesModel(database) {
           inComplement: forced,
           acompteContribTtc: forced ? null : (line.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (line.soldeContribTtc != null ? Number(line.soldeContribTtc) : null),
-          ...(sasIndex >= 0 ? { sasArrivalOrigin: 1 } : {}),
+          // The count the SAS stored travels with its marker (specs/arrival-departure-sas.md rule 29).
+          ...(sasLine ? { sasArrivalOrigin: 1, sasLineKey: sasLine.sasLineKey, quantity: sasLine.quantity } : {}),
         });
         sortOrder += 1;
       }
@@ -262,6 +267,38 @@ function createBookingLinesModel(database) {
         model.insertResourceLine(toId, { ...r, sessions: parseJsonArray(r.sessions) }, r.unitPrice, r.quantity, r.priceType);
       }
       model.replaceNights(toId, database.prepare('SELECT * FROM reservation_nights WHERE reservationId = ?').all(fromId));
+    },
+
+    // The dates each line of a booking already stores — `{ options: { [optionId]: dates }, resources:
+    // { [resourceId]: dates } }` — which `stayDates.stayItemDatesRefusal` does not re-judge
+    // (specs/reservations-backend-mvc.md rule 13, second reading).
+    getStoredItemDates(bookingId) {
+      const datesOf = (list) => parseJsonArray(list).map((item) => String((item && item.date) || '').slice(0, 10));
+      const options = {};
+      if (HAS_CARD_OCCURRENCES) {
+        for (const row of database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?').all(bookingId)) {
+          options[Number(row.optionId)] = datesOf(row.cardOccurrences);
+        }
+      }
+      const resources = {};
+      if (HAS_RESOURCE_SESSIONS) {
+        for (const row of database.prepare('SELECT resourceId, sessions FROM reservation_resources WHERE reservationId = ?').all(bookingId)) {
+          resources[Number(row.resourceId)] = parseJsonArray(row.sessions).map((item) => String((item && item.date) || ''));
+        }
+      }
+      return { options, resources };
+    },
+
+    // specs/non-card-option-served-persons.md rule 34 — the typed counts a booking stores: sent back
+    // unchanged, they are not re-judged.
+    getStoredTypedCounts(bookingId) {
+      if (!HAS_CARD_PERSONS && !HAS_CARD_NIGHTS) return {};
+      const columns = [HAS_CARD_PERSONS ? 'cardPersons' : 'NULL AS cardPersons', HAS_CARD_NIGHTS ? 'cardNights' : 'NULL AS cardNights'];
+      const counts = {};
+      for (const row of database.prepare(`SELECT optionId, ${columns.join(', ')} FROM reservation_options WHERE reservationId = ?`).all(bookingId)) {
+        counts[Number(row.optionId)] = { cardPersons: row.cardPersons, cardNights: row.cardNights };
+      }
+      return counts;
     },
 
     // The prices a booking was sold at, in the shape the pricing engine consumes as `locked*` inputs.

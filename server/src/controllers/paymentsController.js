@@ -1,222 +1,80 @@
 /**
- * Payments controller — Qonto OAuth connect flow (specs/online-payments-qonto.md §3.1 / §4.1).
+ * Payments controller — the payment links of reservations (specs/online-payments-qonto.md §3.4 / §4.1),
+ * provider-neutral since specs/plugins-phase-3a-online-payment.md rules 4-5.
  *
- * Thin: the OAuth token logic lives in `utils/qontoClient` + `utils/qontoAuth`, the token storage in
- * `settingsModel`. These handlers only orchestrate the browser redirect dance:
- *   GET /api/payments/qonto/authorize → 302 to Qonto consent (state stored in the session)
- *   GET /api/payments/qonto/callback  → exchange the code, store tokens, 302 back to /settings
- *   GET /api/payments/qonto/status    → { connected, connectionStatus, configured, sandbox }
- *
- * The callback is reachable with the admin's session because the cookie is `sameSite=lax` (a
- * top-level GET navigation from Qonto carries it), so the standard /api auth guard applies.
+ * The core keeps the money path: what to ask for, the link record, the request email, the poll. The
+ * link itself comes from the active payment provider (utils/paymentProviders), which a plugin declares
+ * — Qonto's settings, OAuth and webhook live in plugins/online-payment. Without an active provider every
+ * handler answers 409 NO_PAYMENT_PROVIDER.
  */
 
-const crypto = require('crypto');
+const { asText } = require('../utils/bodyText');
 const database = require('../database');
 const settingsModel = require('../models/settingsModel');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
-const {
-  buildConfiguredQontoClient, withQonto, runQontoConnectionTest,
-  qontoCredentialsPayload, qontoStatusPayload, applyQontoCredentials,
-} = require('../utils/qontoService');
-const { resolveQontoConfig } = require('../utils/qontoConfig');
-const { ensureWebhookSubscription } = require('../utils/qontoWebhookRegistrar');
+const paymentProviders = require('../utils/paymentProviders');
+const { formatMomentLong } = require('../utils/dateFr');
 const { runPaymentPoll } = require('../utils/paymentPollRunner');
 const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
 const { sendReservationTemplateEmail } = require('../utils/reservationEmailSender');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const emailLogModel = require('../models/emailLogModel');
+const { englishMissing, normaliseLang } = require('../utils/emailTemplateLanguage');
 const { createEmailService } = require('../utils/emailService');
-const { validateProviderConnection } = require('../utils/paymentProviderValidation');
-const { formatCurrency } = require('../utils/devisHelpers');
-
-// The effective configuration: what the operator saved in the interface, over what the files hold
-// (specs/qonto-settings-in-app.md §3 rule 2).
-const qontoConfig = () => resolveQontoConfig({ settings: settingsModel });
-
-// The OAuth redirect_uri MUST byte-match the one registered in the Qonto app.
-const resolveRedirectUri = () => qontoConfig().redirectUri;
-
-function qontoAuthorize(req, res) {
-  const config = qontoConfig();
-  if (!config.configured) {
-    return res.status(400).json({ error: 'QONTO_NOT_CONFIGURED', message: 'Identifiants Qonto (client id/secret) manquants — renseigne-les dans Réglages → Paiements.' });
-  }
-  const client = buildConfiguredQontoClient({ config });
-  const redirectUri = config.redirectUri;
-  if (!redirectUri) {
-    return res.status(400).json({ error: 'PUBLIC_URL_MISSING', message: "L'URL publique de GuestFlow n'est pas configurée (Paramètres) et QONTO_REDIRECT_URI est absent." });
-  }
-  const state = crypto.randomBytes(16).toString('hex');
-  req.session.qontoOAuthState = state;
-  return res.redirect(client.getAuthorizeUrl({ redirectUri, state }));
-}
-
-/**
- * What happens the moment an authorisation succeeds
- * (specs/settings-one-save-and-automatic-webhook.md rules 11, 14).
- *
- * Storing a token proves nothing about the connection. The operator who had just repaired their
- * credentials on 2026-09-15 landed on the failure that *preceded* the repair — the state was stale,
- * not wrong, and « Tester la connexion » turned it green without changing a single setting. So we
- * make that call ourselves, and the page opens on what is true now.
- *
- * Neither step can undo the authorisation: a failing test still leaves the tokens in place and shows
- * its diagnosis, and `ensureWebhookSubscription` never throws.
- */
-async function completeQontoAuthorization({ settings = settingsModel, env = process.env } = {}) {
-  const verified = await runQontoConnectionTest({ settings, env }).catch(() => null);
-  const webhook = await ensureWebhookSubscription({ settings, env });
-  return { verified, webhook };
-}
-
-async function qontoCallback(req, res) {
-  const { code, state, error } = req.query;
-  // Land back on the dedicated Paiements page (it reads ?qonto=… to show a success/error alert).
-  const back = (status) => res.redirect(`/parametres/paiements?qonto=${status}`);
-
-  if (error) return back('error');
-  const expected = req.session.qontoOAuthState;
-  delete req.session.qontoOAuthState;
-  if (!code || !state || !expected || String(state) !== String(expected)) {
-    return back('invalid_state');
-  }
-  try {
-    const client = buildConfiguredQontoClient();
-    const tokens = await client.exchangeCode({ code: String(code), redirectUri: resolveRedirectUri() });
-    if (!tokens.refreshToken) return back('error');
-    const expiresAt = tokens.expiresIn ? new Date(Date.now() + tokens.expiresIn * 1000).toISOString() : null;
-    settingsModel.storeQontoTokens({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt });
-
-    await completeQontoAuthorization();
-    return back('connected');
-  } catch {
-    // The exact error is logged by the HTTP layer in qontoClient; never leak it to the URL.
-    return back('error');
-  }
-}
-
-// ----- Qonto state, credentials and connection test (specs/qonto-settings-in-app.md §3) -----
-//
-// Thin on purpose: the payload shapes, the precedence and the token-clearing decision live in
-// `utils/qontoService`, which is where they can be unit-tested without an HTTP layer.
-
-const statusPayload = () => qontoStatusPayload({ settings: settingsModel });
-
-function qontoStatus(req, res) {
-  return res.json(statusPayload());
-}
-
-function getQontoCredentials(req, res) {
-  return res.json(qontoCredentialsPayload({ settings: settingsModel }));
-}
-
-function updateQontoCredentials(req, res) {
-  return res.json(applyQontoCredentials({ settings: settingsModel, body: req.body || {} }));
-}
-
-/** Run a real call against Qonto and report what it means (rules 9-10). */
-async function testQontoConnection(req, res) {
-  const result = await runQontoConnectionTest({ settings: settingsModel });
-  return res.json({ ...result, status: statusPayload() });
-}
-
-// ----- Paiements settings page (specs/online-payments-qonto.md §3.1) -----
-
-// Everything the Paiements page renders: the Qonto connection state. The « Délais & relances »
-// timings are gone — nothing read them (specs/settings-rationalization.md rule 9).
-function getSettings(req, res) {
-  return res.json({
-    qonto: statusPayload(),
-    credentials: qontoCredentialsPayload({ settings: settingsModel }),
-  });
-}
-
-// ----- Qonto payment-links provider connection (specs/online-payments-qonto.md §3.2) -----
-
-// Map an internal error to a clean HTTP response (never leak the Qonto body to the client).
-function qontoError(res, err) {
-  if (err && err.code === 'QONTO_NOT_CONNECTED') {
-    return res.status(400).json({ error: 'QONTO_NOT_CONNECTED', message: "Connecte d'abord Qonto (OAuth) avant la connexion du provider." });
-  }
-  return res.status(502).json({ error: 'QONTO_API_ERROR', status: (err && err.status) || null, message: "Erreur de l'API Qonto — réessaie ou consulte les logs." });
-}
-
-// Resolve a valid access token (refreshing if needed) then run `fn(client, accessToken)`. Goes
-// through `withQonto` so the outcome is recorded like every other Qonto call (rules 12-13).
-async function withAccessToken(fn, origin = 'admin') {
-  return withQonto({ settings: settingsModel, origin }, (client, accessToken) => fn(client, accessToken));
-}
-
-// Where Qonto redirects the user after the provider onboarding/KYC — back on the Paiements page,
-// which re-checks the status on `?provider=callback`.
-function providerCallbackUrl() {
-  const base = settingsModel.publicUrl();
-  return base ? `${base.replace(/\/+$/, '')}/parametres/paiements?provider=callback` : '';
-}
-
-// List the org's bank accounts for the connection form's picker.
-async function qontoBankAccounts(req, res) {
-  try {
-    const bankAccounts = await withAccessToken((client, at) => client.listBankAccounts({ accessToken: at }));
-    return res.json({ bankAccounts });
-  } catch (err) { return qontoError(res, err); }
-}
-
-// Establish the provider connection. Persists the returned status; returns `connectionLocation`
-// (the onboarding URL) when the connection is still `pending`.
-async function qontoConnectProvider(req, res) {
-  const { ok, errors, value } = validateProviderConnection(req.body || {});
-  const callback = providerCallbackUrl();
-  if (!callback) errors.push("URL publique de GuestFlow non configurée (Paramètres).");
-  if (!ok || errors.length) return res.status(400).json({ error: 'VALIDATION_FAILED', messages: errors });
-  try {
-    const result = await withAccessToken((client, at) => client.connectProvider({
-      accessToken: at,
-      partnerCallbackUrl: callback,
-      userBankAccountId: value.bankAccountId,
-      userPhoneNumber: value.phone,
-      userWebsiteUrl: value.websiteUrl,
-      businessDescription: value.businessDescription,
-    }));
-    settingsModel.storeQontoConnection({ connectionId: result.bankAccountId || value.bankAccountId, status: result.status });
-    return res.json({ connectionStatus: result.status, connectionLocation: result.connectionLocation });
-  } catch (err) { return qontoError(res, err); }
-}
-
-// Re-check the provider status (after the user returns from onboarding) and persist it.
-async function qontoRefreshConnection(req, res) {
-  try {
-    const conn = await withAccessToken((client, at) => client.getConnection({ accessToken: at }));
-    settingsModel.storeQontoConnection({ status: conn.status, connectionId: conn.bankAccountId });
-    return res.json({ connectionStatus: conn.status });
-  } catch (err) { return qontoError(res, err); }
-}
+const financeModel = require('../models/financeModel');
+const vatRegimeModel = require('../models/vatRegimeModel');
+const { storedLinkComponents } = require('../utils/storedLinkComponents');
+const installmentsModel = require('../models/installmentsModel');
+const { requestContext } = require('../utils/installmentPlan');
+const { linkAmountCents } = require('../utils/ledgerLinks');
 
 // ----- Payment links on a reservation/devis (specs/online-payments-qonto.md §3.2 / §3.4) -----
 
 const paymentRequestService = require('../utils/paymentRequestService');
+const { withdrawPaymentLink } = require('../utils/paymentLinkWithdrawal');
+const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
 const { LINK_TYPES, LINK_TITLES } = paymentRequestService;
 
+// specs/email-language-fr-en.md rule 12 — the request template this guest would receive has no English
+// version: checked before the link is minted, with the language the sender would resolve.
+function requestEnglishMissing(reservationId, stableKey) {
+  const template = emailTemplatesModel.findByStableKey(stableKey);
+  if (!template || !template.enabled) return false;
+  const row = database.prepare(`
+    SELECT r.emailLanguage AS reservationLang, c.emailLanguage AS clientLang
+    FROM reservations r LEFT JOIN clients c ON c.id = r.clientId WHERE r.id = ?
+  `).get(Number(reservationId));
+  if (!row) return false;
+  return englishMissing(template, normaliseLang(row.clientLang || row.reservationLang));
+}
+
 // Wire the module-scoped deps into the injectable service (utils/paymentRequestService).
-function requestServiceDeps() {
+function requestServiceDeps(provider) {
   return {
     database,
     paymentLinksModel,
     resolveAmountCents,
     resolveItems: (id, type) => resolveVatComponents(id, type),
-    createLink: ({ title, amountCents, items, expectedTotalCents }) =>
-      withAccessToken((client, at) => client.createPaymentLink({ accessToken: at, title, amountCents, items, expectedTotalCents }), 'manual-link'),
-    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents }) => sendReservationTemplateEmail({
+    provider,
+    installmentsModel,
+    resolveInstallmentItems: (id, installment, plan) => resolveInstallmentComponents(id, installment, plan),
+    englishMissing: ({ reservationId, stableKey }) => requestEnglishMissing(reservationId, stableKey),
+    sendTemplate: ({ reservationId, stableKey, paymentLink, amountCents, expiresAt = null, installment = null }) => sendReservationTemplateEmail({
       database, templatesModel: emailTemplatesModel, logModel: emailLogModel,
       settingsModel, emailServiceFactory: createEmailService,
       reservationId, stableKey,
+      installment: installment ? requestContext(installment, installmentsModel.listFor(reservationId)) : null,
+      occurrenceKey: installment ? `installment:${installment.id}` : '',
       // specs/deposit-blocks-the-dates.md rule 11 — the email announces, to the cent, what the link
       // charges: the amount travels with the link rather than being re-derived from the row.
       extraContext: {
-        vars: { paymentLink, paymentAmount: formatCurrency(Number(amountCents || 0) / 100) },
-        flags: { hasPaymentLink: true },
+        vars: { paymentLink },
+        amounts: { paymentAmount: Number(amountCents || 0) / 100 },
+        // specs/payment-link-lifecycle.md rule 36 — the end of THIS link, written in the guest's language.
+        dates: { paymentLinkValidUntil: expiresAt },
+        // Rule 59 — the sentence's own block, shown only with a known end.
+        flags: { hasPaymentLink: true, hasPaymentLinkValidUntil: Boolean(formatMomentLong(expiresAt, 'fr')) },
       },
     }),
   };
@@ -240,32 +98,34 @@ function runDevisEngineQuote(id, model = devisModel) {
 // matches the acompte/solde/total GuestFlow shows. The stored `depositAmount`/`balanceAmount` columns
 // can be stale (pricing-rule change, public-API devis); the engine is the single source of truth.
 // Falls back to the stored row for reservations or on failure.
+// A `full` link charges the acompte plus the solde — the pre-arrival amount, tourist tax included and the
+// arrival complement excluded — because that is exactly what its payment marks paid
+// (specs/deposit-blocks-the-dates.md rule 18, decided 2026-10-27).
 function resolveAmountCents(id, type, row, quoteOf = runDevisEngineQuote) {
-  let euros = Number(row[LINK_TYPES[type]] || 0); // fallback = stored column
   const quote = quoteOf(id);
-  const field = type === 'deposit' ? 'depositAmount' : type === 'balance' ? 'balanceAmount' : 'finalPrice';
-  if (quote && quote[field] != null) euros = Number(quote[field]);
-  return Math.round(euros * 100);
+  const source = quote && (LINK_TYPES[type] || []).every((f) => quote[f] != null) ? quote : row; // fallback = stored columns
+  return linkAmountCents(type, source) || 0;
 }
 
 // VAT basket components per link type (specs/payment-links-vat.md), from the engine quote. The tourist
-// tax is VAT-exempt and (for direct stays) rides on the solde, so only `balance` carries a 0 %-VAT tax
-// line; deposit (accommodation-only) and admin full (finalPrice, tax-excl) are single taxable lines.
+// tax is VAT-exempt and (for direct stays) rides on the solde, so `balance` and `full` (acompte + solde)
+// carry a 0 %-VAT tax line; the deposit (accommodation-only) is a single taxable line. The tax is left
+// out when it is paid on arrival (collected there, or forced to the complement).
 // Returns null for reservations / engine failure → the caller keeps the safe single 0 %-VAT line.
-function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote) {
+function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote, storedOf = storedReservationComponents) {
   const quote = quoteOf(id);
-  if (!quote) return null;
+  if (!quote) return storedOf(id, type);
   const cents = (v) => Math.round(Number(v || 0) * 100);
   const vatRatePercent = quote.vatPercentageAccommodation != null ? Number(quote.vatPercentageAccommodation) : 10;
-  const taxCents = Boolean(quote.touristTaxCollectedOnArrival) ? 0 : cents(quote.touristTaxTotal);
+  const taxOnArrival = Boolean(quote.touristTaxCollectedOnArrival) || Boolean(quote.touristTaxInComplement);
+  const taxCents = taxOnArrival ? 0 : cents(quote.touristTaxTotal);
   let components = null;
   if (type === 'deposit') {
     components = [{ title: LINK_TITLES.deposit, grossCents: cents(quote.depositAmount), taxable: true }];
-  } else if (type === 'full') {
-    components = [{ title: LINK_TITLES.full, grossCents: cents(quote.finalPrice), taxable: true }];
-  } else if (type === 'balance') {
-    const balCents = cents(quote.balanceAmount);
-    components = [{ title: LINK_TITLES.balance, grossCents: balCents - taxCents, taxable: true }];
+  } else if (type === 'balance' || type === 'full') {
+    const totalCents = linkAmountCents(type, quote);
+    if (taxCents > totalCents) return null;
+    components = [{ title: LINK_TITLES[type], grossCents: totalCents - taxCents, taxable: true }];
     if (taxCents > 0) components.push({ title: 'Taxe de séjour', grossCents: taxCents, taxable: false });
   } else {
     return null; // complement etc. → single line fallback
@@ -273,78 +133,197 @@ function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote) {
   return { components, vatRatePercent };
 }
 
-// Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; anything
-// else is a Qonto/transport failure → qontoError.
-function sendError(res, err) {
+// specs/payment-links-vat.md rule 8 — a reservation's basket, from its stored columns: the VAT
+// rate of its regime, and the tourist tax on the solde unless it is collected on arrival (the Suivi taxe de séjour's
+// own predicate). Devis rows never reach here: the engine replays them.
+function storedReservationComponents(id, type, db = database) {
+  let row = null;
+  try {
+    row = db.prepare(`
+      SELECT r.*, ${financeModel.helpers.TAX_ON_ARRIVAL_SQL} AS taxOnArrival
+        FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
+  } catch { row = null; }
+  if (!row) return null;
+  return storedLinkComponents(row, type, {
+    vatRatePercent: vatRegimeModel.rateForRow(db, { id }),
+    taxOnArrival: Boolean(row.taxOnArrival),
+    titles: LINK_TITLES,
+  });
+}
+
+// specs/direct-installments.md rule 39 — the basket of ONE installment: the tourist tax (when it rides the
+// pre-arrival money) shared in proportion over the plan and exempt of VAT, the rest at the rate of the stay's regime.
+function resolveInstallmentComponents(id, installment, plan, db = database) {
+  let row = null;
+  try {
+    row = db.prepare(`
+      SELECT r.*, ${financeModel.helpers.TAX_ON_ARRIVAL_SQL} AS taxOnArrival
+        FROM reservations r WHERE r.id = ? AND r.kind = 'reservation'`).get(id);
+  } catch { row = null; }
+  if (!row) return null;
+  // specs/platform-added-guests-tourist-tax.md rule 27 — the plan holds the tax without the added guests' share.
+  const taxCents = row.taxOnArrival ? 0 : Math.round((Number(row.touristTaxTotal || 0) - Number(row.touristTaxAddedGuestsAmount || 0)) * 100);
+  const shares = require('../utils/installmentPlan').taxShares(taxCents, plan.map((p) => p.amountCents));
+  const share = shares[plan.findIndex((p) => p.id === installment.id)] || 0;
+  const taxable = Number(installment.amountCents) - share;
+  if (taxable <= 0) return null;
+  const components = [{ title: `${LINK_TITLES.installment} ${installment.number}/${plan.length}`, grossCents: taxable, taxable: true }];
+  if (share > 0) components.push({ title: 'Taxe de séjour', grossCents: share, taxable: false });
+  return { components, vatRatePercent: vatRegimeModel.rateForRow(db, { id }) };
+}
+
+const NO_PROVIDER_RESULT = { httpStatus: 409, body: paymentProviders.NO_PROVIDER };
+
+// Map a thrown error to the HTTP response: a service validation throw carries `httpStatus`; an error the
+// provider knows is answered as the provider words it (`describeError`, specs/platform-settings-relay-and-review.md
+// rule 9); anything else is a provider/transport failure, never leaked as is.
+function sendError(res, err, provider) {
   if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
-  return qontoError(res, err);
+  const known = provider && typeof provider.describeError === 'function' ? provider.describeError(err) : null;
+  if (known) return res.status(known.httpStatus).json({ error: known.error, message: known.message });
+  const label = provider ? provider.label : 'du prestataire';
+  return res.status(502).json({ error: provider ? provider.errorCode : 'PAYMENT_PROVIDER_ERROR', status: (err && err.status) || null, message: `Erreur de l'API ${label} : à réessayer, détail dans les journaux.` });
+}
+
+// Rule 5 — every handler needs a provider; without one it refuses before touching anything.
+function withProvider(handler) {
+  return (req, res) => {
+    const provider = paymentProviders.active();
+    if (!provider) return res.status(409).json(paymentProviders.NO_PROVIDER);
+    return handler(req, res, provider);
+  };
 }
 
 // POST /reservations/:id/payment-links — create/reuse a link WITHOUT emailing (used by the site flow,
 // use case 2). The host-facing "email the link" action is sendPaymentRequestEmail below.
-async function createReservationPaymentLink(req, res) {
+const createReservationPaymentLink = withProvider(async (req, res, provider) => {
   const id = Number(req.params.id);
   const type = String((req.body && req.body.type) || 'deposit');
   try {
-    return res.json(await paymentRequestService.ensurePaymentLink(requestServiceDeps(), id, type));
-  } catch (err) { return sendError(res, err); }
-}
+    return res.json(await paymentRequestService.ensurePaymentLink(requestServiceDeps(provider), id, type));
+  } catch (err) { return sendError(res, err, provider); }
+});
 
 // POST /reservations/:id/payment-emails — host action « Envoyer la demande d'acompte ». Creates/reuses
 // the link AND emails the matching `<type>_request` template to the guest with the link injected.
-async function sendPaymentRequestEmail(req, res) {
+const sendPaymentRequestEmail = withProvider(async (req, res, provider) => {
   const id = Number(req.params.id);
   // specs/deposit-blocks-the-dates.md rule 10 — an omitted type is resolved from the record by the
   // service (acompte when there is one, full payment otherwise); it is no longer assumed to be a deposit.
   const type = req.body && req.body.type ? String(req.body.type) : null;
   try {
-    const { httpStatus, body } = await paymentRequestService.sendPaymentRequest(requestServiceDeps(), id, type);
+    // specs/direct-installments.md rule 20 — « Envoyer la demande » on an installment of the fiche.
+    if (type === 'installment') {
+      const installmentId = Number(req.body.installmentId);
+      if (!Number.isInteger(installmentId)) return res.status(400).json({ error: 'INVALID_INSTALLMENT', message: 'Échéance manquante.' });
+      const sent = await paymentRequestService.sendInstallmentRequest(requestServiceDeps(provider), id, installmentId);
+      return res.status(sent.httpStatus).json(sent.body);
+    }
+    const { httpStatus, body } = await paymentRequestService.sendPaymentRequest(requestServiceDeps(provider), id, type);
     return res.status(httpStatus).json(body);
-  } catch (err) { return sendError(res, err); }
-}
+  } catch (err) { return sendError(res, err, provider); }
+});
 
 // Programmatic « send the balance request » (create/reuse the balance Qonto link + email the
 // balance_request template) — used by the daily balance cron and reusable by any ops trigger.
 // Returns the same { httpStatus, body } shape as sendPaymentRequest.
-function sendBalanceRequestFor(id) {
-  return paymentRequestService.sendPaymentRequest(requestServiceDeps(), Number(id), 'balance');
+async function sendBalanceRequestFor(id) {
+  const provider = paymentProviders.active();
+  if (!provider) return NO_PROVIDER_RESULT;
+  return paymentRequestService.sendPaymentRequest(requestServiceDeps(provider), Number(id), 'balance');
 }
 
 // Same, for the acompte — fired automatically when a direct reservation is created
 // (specs/payment-schedule-and-cancellation.md §3.7 rule 36), and reusable by the dashboard's
 // « Relancer » action.
-function sendDepositRequestFor(id) {
-  return paymentRequestService.sendPaymentRequest(requestServiceDeps(), Number(id), 'deposit');
+async function sendDepositRequestFor(id) {
+  const provider = paymentProviders.active();
+  if (!provider) return NO_PROVIDER_RESULT;
+  return paymentRequestService.sendPaymentRequest(requestServiceDeps(provider), Number(id), 'deposit');
 }
 
-// Every payment link of a reservation/devis (newest first) — the status the UI renders.
-function listReservationPaymentLinks(req, res) {
-  return res.json({ links: paymentLinksModel.listForReservation(Number(req.params.id)) });
-}
+// Every payment link of a reservation/devis (newest first) — the status the UI renders. Stored data:
+// readable with the provider disconnected, when the links waiting for deactivation matter most.
+const listReservationPaymentLinks = (req, res) => res.json({
+  links: paymentLinksModel.listForStay(Number(req.params.id)).map((link) => ({
+    ...link,
+    remoteCancelPending: Boolean(link.remoteCancelPendingAt),
+  })),
+});
 
 // Manual "poll now" trigger (specs/online-payments-qonto.md §7 manual test). Runs the same pass the
 // cron runs: detect paid links → mark paid → convert devis / flag deposit. Returns a summary.
 // A human asked, so the per-link cadence is bypassed (specs/payment-polling-fair-use.md rule 10).
-async function pollPaymentsNow(req, res) {
+const pollPaymentsNow = withProvider(async (req, res, provider) => {
   try {
-    const summary = await withQonto({ settings: settingsModel, origin: 'poll' }, (client, accessToken) => runPaymentPoll({
-      ...buildPaymentEffectDeps(),
-      qontoClient: client,
-      getAccessToken: () => accessToken,
-      force: true,
+    return res.json(await runPaymentPoll({ ...buildPaymentEffectDeps(), provider, force: true }));
+  } catch (err) { return sendError(res, err, provider); }
+});
+
+// POST /links/:id/withdraw — « Retirer le lien » (specs/payment-link-lifecycle.md rule 42). The declared provider:
+// the service asks it only while it is connected, and a deactivation it cannot do leaves the marker for the poll.
+const withdrawLink = async (req, res) => {
+  const provider = paymentProviders.declared();
+  try {
+    return res.json(await withdrawPaymentLink(Number(req.params.id), {
+      database,
+      paymentLinksModel,
+      provider,
+      bookPaid: (link, payment) => require('../utils/paymentPollRunner').processPaidLink({
+        ...buildPaymentEffectDeps(), database, paymentLinksModel, link, paidPayment: payment,
+      }),
     }));
-    return res.json(summary);
-  } catch (err) { return qontoError(res, err); }
+  } catch (err) { return sendError(res, err, provider); }
+};
+
+// POST /links/:id/settle — a payment received on a link withdrawn by hand, after its withdrawal
+// (specs/payment-link-lifecycle.md rule 56): `refunded`, or `stay` (booked as the stay's money, the late-booking path).
+const settleLink = async (req, res) => {
+  try {
+    return res.json(await settleWithdrawnPayment(Number(req.params.id), {
+      database,
+      paymentLinksModel,
+      outcome: asText(req.body && req.body.outcome),
+      bookPaid: (link, payment) => require('../utils/paymentPollRunner').bookLateWithdrawnPaid({
+        ...buildPaymentEffectDeps(), database, paymentLinksModel, link, pay: payment,
+      }),
+    }));
+  } catch (err) { return sendError(res, err, null); }
+};
+
+// A link minted for an e-mail sent from the e-mail dialog or the « à valider » queue. Throws the service's
+// `{ httpStatus, error, message }`; without a provider, a 409; a provider failure, a 502 that names it.
+async function withProviderLink(mint) {
+  const provider = paymentProviders.active();
+  if (!provider) throw { httpStatus: 409, ...paymentProviders.NO_PROVIDER };
+  try {
+    return await mint(requestServiceDeps(provider));
+  } catch (err) {
+    if (err && err.httpStatus) throw err;
+    throw { httpStatus: 502, error: provider.errorCode, message: `Erreur de l'API ${provider.label} : à réessayer, détail dans les journaux.` };
+  }
 }
 
+// The link of one installment, for its request email (specs/direct-installments.md rule 19).
+const ensureInstallmentLinkFor = (id, installmentId) => withProviderLink((deps) => paymentRequestService.ensureInstallmentLink(deps, Number(id), Number(installmentId)));
+
+// The stay's link of a type, for a request or the acompte reminder sent by hand (specs/payment-link-lifecycle.md rules 26, 35).
+const ensurePaymentLinkFor = (id, type) => withProviderLink((deps) => paymentRequestService.ensurePaymentLink(deps, Number(id), type));
+
+// specs/guest-app.md rule 35 — the link of a basket (a guest order) on a stay, at the stay's VAT rate, back to
+// `redirectUrl` once paid.
+const ensureBasketLinkFor = (id, basket, { redirectUrl = null } = {}) => withProviderLink((deps) => paymentRequestService.ensurePaymentLink({
+  ...deps,
+  vatRateFor: (stayId) => vatRegimeModel.rateForRow(database, { id: stayId }),
+  ...(redirectUrl ? { redirectUrl } : {}),
+  origin: 'basket',
+}, Number(id), 'complement', { basket }));
+
 module.exports = {
-  qontoAuthorize, qontoCallback, qontoStatus, getSettings,
-  getQontoCredentials, updateQontoCredentials, testQontoConnection,
-  qontoBankAccounts, qontoConnectProvider, qontoRefreshConnection, resolveRedirectUri,
   createReservationPaymentLink, listReservationPaymentLinks, sendPaymentRequestEmail, pollPaymentsNow,
-  sendBalanceRequestFor, sendDepositRequestFor,
+  sendBalanceRequestFor, sendDepositRequestFor, ensureInstallmentLinkFor, ensurePaymentLinkFor, ensureBasketLinkFor, withdrawLink, settleLink,
 };
 
 // The two money resolvers, with their quote source injectable (specs/payment-link-quote-parity.md §7):
 // a test drives them on an in-memory devis instead of the production database.
-module.exports.__test = { runDevisEngineQuote, resolveAmountCents, resolveVatComponents, completeQontoAuthorization };
+module.exports.__test = { sendError, requestServiceDeps, runDevisEngineQuote, resolveAmountCents, resolveVatComponents, storedReservationComponents, resolveInstallmentComponents };

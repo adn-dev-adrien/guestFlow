@@ -1,0 +1,916 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Options &amp; ressources</title>
+<style>
+:root{
+  --primary:#2F5D46;--primary-dark:#244A37;--primary-soft:#E3ECE6;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;--hair:rgba(60,54,36,.1);
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;--neutral-bg:#EFEBE2;
+  --radius:14px;--shadow:0 3px 16px rgba(60,54,36,.09);
+  --serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --ease:cubic-bezier(.32,.72,0,1);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:1240px;margin:0 auto;padding:40px 16px 96px}
+.prose{max-width:1000px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.4rem/1.2 var(--serif);margin:56px 0 12px}
+h3{font:600 1rem/1.3 var(--sans);margin:0 0 6px}
+p{margin:0 0 12px;max-width:72ch}
+code{font-size:.86em;background:var(--neutral-bg);padding:1px 5px;border-radius:5px}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0;padding-left:1.1em;max-width:72ch}ul.plain li{margin:6px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.num{font-variant-numeric:tabular-nums}
+.fact{display:flex;gap:14px;align-items:baseline}
+.fact b{font:700 1.5rem/1 var(--sans);font-variant-numeric:tabular-nums;min-width:3.2ch;color:var(--primary)}
+.muted{color:var(--muted)}
+.tag{display:inline-block;font:600 .72rem/1.6 var(--sans);padding:0 8px;border-radius:99px;background:var(--neutral-bg);color:var(--muted);vertical-align:2px}
+
+/* ---------- demo controls (chrome, not the design under test) ---------- */
+.demo{position:sticky;top:0;z-index:30;background:rgba(248,245,239,.86);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);padding:10px 0;margin:8px 0 14px;border-bottom:1px solid var(--hair)}
+.demo-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.demo label.k{font:600 .72rem var(--sans);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:4px}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px;max-width:100%;overflow-x:auto}
+.seg button{border:0;background:transparent;font:500 .88rem var(--sans);color:#57534A;padding:7px 12px;border-radius:8px;cursor:pointer;min-height:36px;white-space:nowrap}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.hint{font-size:.85rem;color:var(--muted);margin:6px 0 0}
+
+/* ---------- the stage ---------- */
+.stage{display:flex;justify-content:center}
+.device{width:100%;transition:width .35s var(--ease)}
+.device.phone{width:390px;max-width:100%}
+.app{container-type:inline-size;container-name:app;position:relative;height:760px;background:var(--paper);border:1px solid var(--line);border-radius:18px;overflow:hidden;overflow:clip;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.device.phone .app{height:780px;border-radius:30px;border:8px solid #27251F}
+.appbar{height:52px;flex:none;background:#fff;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:12px;padding:0 16px;font:600 1.05rem var(--serif);color:var(--primary)}
+.appbar .crumb{font:500 .85rem var(--sans);color:var(--muted)}
+.scroller{flex:1;overflow-y:auto;overflow-x:hidden;overflow-x:clip;overscroll-behavior:contain}
+
+/* PageActionBar */
+.pab{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--hair);padding:10px 16px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}
+.pab h2{font:600 1.2rem/1.2 var(--serif);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{display:flex;gap:2px}
+.tabs button{border:0;background:none;font:500 .9rem var(--sans);color:var(--muted);padding:10px 12px;min-height:44px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--primary);border-bottom-color:var(--primary)}
+.pab .acts{display:flex;justify-content:flex-end;gap:8px}
+.ib{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:#fff;display:inline-grid;place-items:center;cursor:pointer;color:var(--ink)}
+.ib.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib.primary:hover{background:var(--primary-dark)}
+.ib:active{transform:scale(.96)}
+.ib svg{width:22px;height:22px}
+@container app (max-width:600px){
+  .pab{grid-template-columns:1fr auto;padding:8px 12px}
+  .pab .tabs{grid-column:1/-1;grid-row:2;overflow-x:auto;justify-content:flex-start}
+}
+
+/* toolbar */
+.toolbar{padding:14px 16px 6px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.search{flex:1 1 240px;position:relative;min-width:0}
+.search input{width:100%;height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:0 36px 0 38px;font:16px var(--sans);color:var(--ink)}
+.search input:focus{outline:2px solid var(--primary);outline-offset:-1px}
+.search svg{position:absolute;left:11px;top:11px;width:20px;height:20px;color:var(--muted)}
+.search .clear{position:absolute;right:4px;top:3px;width:36px;height:36px;border:0;background:none;cursor:pointer;color:var(--muted);font-size:20px;border-radius:10px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 16px 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:99px;padding:0 12px;height:34px;font:500 .85rem var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip .n{font-variant-numeric:tabular-nums;color:var(--muted);font-size:.78rem}
+.chip[aria-pressed=true]{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.chip[aria-pressed=true] .n{color:var(--primary)}
+.chip:active{transform:scale(.97)}
+.propseg{flex:none}
+@container app (max-width:600px){.toolbar{padding:10px 12px 4px}.chips{padding:2px 12px 8px}.propseg{width:100%}.propseg .seg{width:100%}.propseg .seg button{flex:1}}
+
+/* sections (direction A) */
+.list{padding:4px 16px 40px}
+.sec{margin-top:14px}
+.sec-h{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:10px 4px;cursor:pointer;text-align:left;color:var(--ink);min-height:44px}
+.sec-h .t{font:600 1.05rem/1.2 var(--serif);min-width:0;overflow-wrap:anywhere}
+.sec-h .n{font:600 .75rem var(--sans);color:var(--muted);background:var(--neutral-bg);border-radius:99px;padding:1px 8px;font-variant-numeric:tabular-nums;flex:none}
+.sec-h .chev{margin-left:auto;color:var(--muted);transition:transform .25s var(--ease);flex:none}
+.sec.closed .chev{transform:rotate(-90deg)}
+.sec.closed .rows{display:none}
+.rows{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto 44px;gap:4px 16px;align-items:center;padding:12px 8px 12px 18px;border-top:1px solid var(--hair);cursor:pointer;position:relative;transition:background .15s}
+.row:first-child{border-top:0}
+.row:hover{background:#FBFAF6}
+.row:active{background:#F5F2EA}
+.row.flash{animation:flash 1.2s var(--ease)}
+@keyframes flash{0%{background:var(--primary-soft)}100%{background:#fff}}
+.row .name{font:600 .95rem/1.35 var(--sans);overflow-wrap:anywhere}
+.row .desc{font-size:.84rem;color:var(--muted);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;margin-top:1px}
+.traits{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.trait{font:600 .72rem/1 var(--sans);padding:5px 8px;border-radius:7px;background:var(--neutral-bg);color:#57534A;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.trait.success{background:var(--success-bg);color:var(--success)}
+.trait.info{background:var(--info-bg);color:var(--info)}
+.trait.warning{background:var(--warning-bg);color:var(--warning)}
+.trait.error{background:var(--error-bg);color:var(--error)}
+.price{text-align:right;white-space:nowrap}
+.price .v{font:700 1rem/1.2 var(--sans);font-variant-numeric:tabular-nums}
+.price .u{font-size:.76rem;color:var(--muted);display:block}
+.more{width:44px;height:44px;border:0;background:none;border-radius:10px;cursor:pointer;color:var(--muted);display:grid;place-items:center}
+.more:hover{background:var(--neutral-bg)}
+@container app (max-width:600px){
+  .price .u{white-space:normal;max-width:8.5rem;margin-left:auto}
+  .list{padding:4px 12px 40px}
+  .row{grid-template-columns:minmax(0,1fr) auto;padding:12px 6px 12px 14px;gap:2px 10px}
+  .row .more{grid-column:2;grid-row:2;justify-self:end;width:40px;height:40px}
+  .row .price{grid-column:2;grid-row:1;align-self:start}
+  .row .main{grid-column:1;grid-row:1/3}
+}
+
+/* menu */
+.menu{position:absolute;z-index:20;background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(39,37,31,.18);border:1px solid var(--line);min-width:220px;padding:6px;transform-origin:top right;animation:pop .16s var(--ease)}
+@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+.menu button{display:flex;width:100%;align-items:center;gap:10px;border:0;background:none;padding:10px 12px;border-radius:8px;font:500 .9rem var(--sans);cursor:pointer;text-align:left;color:var(--ink);min-height:44px}
+.menu button:hover{background:var(--neutral-bg)}
+.menu button.danger{color:var(--error)}
+.menu button[disabled]{color:#A9A395;cursor:not-allowed;background:none}
+.menu .why{font-size:.76rem;color:var(--muted);padding:0 12px 6px 12px}
+
+/* direction B grid */
+.gridwrap{margin:4px 16px 24px;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto;max-width:calc(100% - 32px);max-height:540px;overscroll-behavior:contain}
+table.mx{border-collapse:separate;border-spacing:0;width:100%;min-width:max-content}
+.mx th,.mx td{border-bottom:1px solid var(--hair);padding:0;text-align:left;vertical-align:middle}
+.mx thead th{position:sticky;top:0;background:#FBFAF6;z-index:2;font:600 .8rem var(--sans);color:var(--muted);padding:10px 14px;white-space:nowrap}
+.mx thead th.p{text-align:right;min-width:128px;max-width:170px;white-space:normal}
+.mx .first{position:sticky;left:0;background:#fff;z-index:1;min-width:260px;max-width:340px;padding:10px 14px;box-shadow:1px 0 0 var(--hair)}
+.mx thead .first{z-index:3;background:#FBFAF6}
+.mx tr.cat td{background:var(--paper);font:600 .95rem var(--serif);padding:12px 14px 6px;position:sticky;left:0}
+.mx tr.cat td .n{font:600 .72rem var(--sans);color:var(--muted);margin-left:6px}
+.mx .first .name{font:600 .9rem/1.3 var(--sans);overflow-wrap:anywhere;cursor:pointer}
+.mx .first .name:hover{color:var(--primary);text-decoration:underline;text-underline-offset:3px}
+.mx .first .u{font-size:.76rem;color:var(--muted)}
+.cell{display:block;width:100%;min-height:52px;padding:8px 14px;text-align:right;border:0;background:none;cursor:pointer;font:inherit;color:inherit}
+.cell:hover{background:#F6F9F6;box-shadow:inset 0 0 0 1px var(--primary-soft)}
+.cell .v{font:600 .92rem var(--sans);font-variant-numeric:tabular-nums}
+.cell .v.own::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--honey);margin-right:6px;vertical-align:2px}
+.cell .s{display:block;font:600 .68rem var(--sans);margin-top:2px}
+.cell .s.success{color:var(--success)}.cell .s.info{color:var(--info)}
+.cell.off{cursor:pointer;color:#B4AE9F}
+.cell.locked{cursor:default}
+.cell.locked:hover{background:none;box-shadow:none}
+.cellin{display:flex;flex-direction:column;align-items:flex-end;padding:6px 10px;gap:3px}
+.cellin input{width:110px;height:38px;border:1.5px solid var(--primary);border-radius:9px;text-align:right;font:600 16px var(--sans);font-variant-numeric:tabular-nums;padding:0 10px;color:var(--ink)}
+.cellin input.bad{border-color:var(--error);background:var(--error-bg)}
+.cellin .msg{font:500 .72rem var(--sans);color:var(--muted);max-width:150px;text-align:right}
+.cellin .msg.bad{color:var(--error)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;color:var(--muted);padding:0 16px 6px}
+.legend i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--honey);margin-right:6px;vertical-align:1px}
+@container app (max-width:600px){.gridwrap{margin:4px 12px 40px;max-width:calc(100% - 24px)}.mx .first{min-width:170px;max-width:200px}.legend{padding:0 12px 6px}}
+
+/* resources */
+.rcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;padding:14px 16px 40px}
+.rcard{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;cursor:pointer;display:flex;flex-direction:column;gap:8px;border:1px solid transparent;transition:border-color .15s}
+.rcard:hover{border-color:var(--primary-soft)}
+.rcard:active{transform:scale(.995)}
+.rcard .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.rcard .name{font:600 1.05rem/1.25 var(--serif);overflow-wrap:anywhere}
+.rcard .stock{font:700 1.4rem/1 var(--sans);font-variant-numeric:tabular-nums;text-align:right}
+.rcard .stock small{display:block;font:500 .72rem var(--sans);color:var(--muted);margin-top:3px}
+.rcard dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:.86rem}
+.rcard dt{color:var(--muted)}.rcard dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.rcard .plug{border-top:1px solid var(--hair);padding-top:8px;font-size:.8rem;color:var(--muted)}
+@container app (max-width:600px){.rcards{grid-template-columns:1fr;padding:12px 12px 40px}}
+
+/* empty */
+.empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:64px 24px;color:var(--muted)}
+.empty>svg{width:44px;height:44px;color:#BDB4A2}.empty .btn svg{width:18px;height:18px}
+.empty b{color:var(--ink);font:600 1.05rem var(--serif)}
+.btn{border:0;border-radius:11px;padding:0 16px;height:42px;font:600 .9rem var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.btn.primary{background:var(--primary);color:#fff}.btn.primary:hover{background:var(--primary-dark)}
+.btn.primary[disabled]{background:#B9C7BE;cursor:not-allowed}
+.btn.text{background:none;color:var(--primary)}
+.btn.text:hover{background:var(--primary-soft)}
+.btn:active{transform:scale(.97)}
+
+/* drawer */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.22);opacity:0;pointer-events:none;transition:opacity .28s var(--ease);z-index:40}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(560px,100%);background:#fff;z-index:41;display:flex;flex-direction:column;transform:translateX(102%);transition:transform .34s var(--ease);box-shadow:-12px 0 40px rgba(39,37,31,.14)}
+.drawer.on{transform:none}
+@container app (max-width:600px){
+  .drawer{width:100%;top:10px;border-radius:18px 18px 0 0;transform:translateY(102%)}
+  .drawer.on{transform:none}
+}
+.dr-h{display:flex;align-items:center;gap:10px;padding:12px 12px 8px 20px;border-bottom:1px solid var(--hair)}
+.dr-h h3{font:600 1.15rem/1.25 var(--serif);margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.dr-nav{display:flex;gap:6px;overflow-x:auto;padding:8px 20px;border-bottom:1px solid var(--hair);scrollbar-width:none}
+.dr-nav button{flex:none;border:0;background:var(--neutral-bg);color:#57534A;border-radius:99px;padding:0 12px;height:32px;font:500 .8rem var(--sans);cursor:pointer}
+.dr-nav button.err{background:var(--error-bg);color:var(--error)}
+.dr-b{flex:1;overflow-y:auto;padding:4px 20px 24px;overscroll-behavior:contain}
+.dr-f{display:flex;gap:10px;justify-content:flex-end;align-items:center;padding:12px 20px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--hair);background:#fff}
+.dr-f .state{margin-right:auto;font-size:.8rem;color:var(--muted)}
+.dr-f .state.bad{color:var(--error)}
+.fs{padding:18px 0 6px;border-bottom:1px solid var(--hair)}
+.fs:last-child{border-bottom:0}
+.fs>h4{font:600 1rem/1.2 var(--serif);margin:0 0 12px}
+.f{margin-bottom:14px}
+.f label.l{display:block;font:600 .78rem var(--sans);color:#57534A;margin-bottom:5px}
+.f input[type=text],.f input[type=time],.f textarea,.f select{width:100%;border:1px solid #D9D2C3;border-radius:10px;padding:10px 12px;font:16px var(--sans);color:var(--ink);background:#fff}
+.f textarea{min-height:70px;resize:vertical}
+.f input:focus,.f textarea:focus,.f select:focus{outline:2px solid var(--primary);outline-offset:-1px;border-color:transparent}
+.f .err{color:var(--error);font-size:.78rem;margin-top:4px;min-height:0}
+.f.bad input,.f.bad textarea{border-color:var(--error);background:var(--error-bg)}
+.f .help{color:var(--muted);font-size:.78rem;margin-top:4px}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.sugg button{border:1px dashed #C9C0AE;background:none;border-radius:99px;padding:0 10px;height:30px;font:500 .78rem var(--sans);cursor:pointer;color:var(--ink)}
+.sugg button[aria-pressed=true]{border-style:solid;border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.sw{display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer}
+.sw input{appearance:none;width:44px;height:26px;border-radius:99px;background:#D9D2C3;position:relative;cursor:pointer;flex:none;transition:background .2s}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .25s var(--ease)}
+.sw input:checked{background:var(--primary)}
+.sw input:checked::after{transform:translateX(18px)}
+.sw input:disabled{opacity:.4;cursor:not-allowed}
+.sw span{font-size:.9rem}
+.sw small{display:block;color:var(--muted);font-size:.76rem}
+table.pp{width:100%;border-collapse:collapse;font-size:.88rem}
+.pp th{font:600 .72rem var(--sans);color:var(--muted);text-align:left;padding:6px 6px;border-bottom:1px solid var(--hair);white-space:nowrap}
+.pp th.c,.pp td.c{text-align:center}
+.pp td{padding:6px 6px;border-bottom:1px solid var(--hair);vertical-align:middle}
+.pp td.n{font-weight:600;overflow-wrap:anywhere;max-width:160px}
+.pp input.pin{width:96px;height:38px;border:1px solid #D9D2C3;border-radius:9px;padding:0 8px;text-align:right;font:16px var(--sans);font-variant-numeric:tabular-nums}
+.pp input.pin.bad{border-color:var(--error);background:var(--error-bg)}
+.pp tr.out td:not(:first-child){opacity:.35}
+.pp .sw{min-height:38px;justify-content:center}
+.pp .perr{display:block;color:var(--error);font-size:.72rem;text-align:right}
+@container app (max-width:600px){
+  .pp thead{display:none}
+  .pp,.pp tbody,.pp tr,.pp td{display:block;width:100%}
+  .pp tr{border-bottom:1px solid var(--hair);padding:8px 0;display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+  .pp td{border:0;padding:0}
+  .pp td.n{max-width:none}
+  .pp td[data-l]{display:flex;align-items:center;justify-content:space-between;gap:10px;grid-column:1/-1}
+  .pp td[data-l]::before{content:attr(data-l);font-size:.82rem;color:var(--muted)}
+  .pp td.c .sw{justify-content:flex-end}
+}
+.unit{display:flex;align-items:center;gap:8px}
+.unit input{max-width:140px;text-align:right}
+.inline-note{background:var(--warning-bg);color:var(--warning);border-radius:10px;padding:8px 12px;font-size:.82rem;margin:4px 0 12px}
+.dlg{position:absolute;inset:0;z-index:60;display:none;place-items:center;background:rgba(39,37,31,.32);padding:16px}
+.dlg.on{display:grid}
+.dlg .box{background:#fff;border-radius:16px;max-width:400px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.25);animation:pop .18s var(--ease)}
+.dlg .box h4{font:600 1.1rem var(--serif);margin:0 0 8px}
+.dlg .box p{font-size:.9rem;color:var(--muted)}
+.dlg .box .a{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:14px}
+.toast{position:absolute;left:50%;bottom:18px;transform:translate(-50%,30px);opacity:0;background:var(--ink);color:#fff;border-radius:12px;padding:10px 16px;font:500 .88rem var(--sans);z-index:70;transition:transform .3s var(--ease),opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.on{transform:translate(-50%,0);opacity:1}
+.sas{padding:40px 24px;color:var(--muted);text-align:center}
+
+/* arbitrations */
+.arb{counter-reset:a}
+.arb .panel{margin-bottom:12px}
+.arb h3::before{counter-increment:a;content:counter(a) ". ";color:var(--primary)}
+.opt{display:flex;gap:10px;align-items:baseline;margin:6px 0;font-size:.93rem}
+.opt .r{font:600 .7rem var(--sans);background:var(--primary-soft);color:var(--primary);border-radius:99px;padding:2px 8px;flex:none}
+.opt .o{font:600 .7rem var(--sans);background:var(--neutral-bg);color:var(--muted);border-radius:99px;padding:2px 8px;flex:none}
+table.cmp{border-collapse:collapse;width:100%;font-size:.9rem;background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.cmp th,.cmp td{padding:10px 12px;border-bottom:1px solid var(--hair);text-align:left;vertical-align:top}
+.cmp th{background:#FBFAF6;font-weight:600}
+.tablewrap{overflow-x:auto}
+
+@media (prefers-reduced-motion:reduce){
+  .drawer,.scrim,.toast,.device,.sec-h .chev{transition:opacity .2s!important}
+  .drawer{transform:none!important;opacity:0;pointer-events:none}
+  .drawer.on{opacity:1;pointer-events:auto}
+  .row.flash,.menu,.dlg .box{animation:none}
+}
+</style>
+</head>
+<body>
+<main>
+<div class="prose">
+  <p class="muted" style="margin:0 0 6px">Spec <code>specs/options-resources-ux.md</code> · brouillon du 28/10/2026</p>
+  <h1>Options &amp; ressources</h1>
+  <p class="lede">Une page qui se lit par catégorie, montre ce qui compte d’un coup d’œil, et s’édite dans un panneau rangé par sujet. Aucune règle de prix ne change.</p>
+
+  <h2>Le constat</h2>
+  <p>Mesuré sur la copie du 22/10 (28 options, 2 ressources, 2 logements).</p>
+  <div class="grid2">
+    <div class="panel"><div class="fact"><b>1</b><div><h3>Un seul tableau de 28 lignes</h3><p class="muted" style="margin:0">Les catégories existent (Animations, Boissons, Restauration) mais ne sont qu’une colonne. Rien ne se replie, rien ne se cherche. Sur téléphone : 4 000 px de cartes.</p></div></div></div>
+    <div class="panel"><div class="fact"><b>28/28</b><div><h3>« Tous les logements » sur chaque ligne</h3><p class="muted" style="margin:0">L’information qui compte (une option réservée à un logement) est noyée dans une répétition. La description prend 35 % de la largeur sur 4 lignes.</p></div></div></div>
+    <div class="panel"><div class="fact"><b>0</b><div><h3>Ce qui distingue une option ne se voit pas</h3><p class="muted" style="margin:0">Offert par défaut (linge de lit, ménage à l’Estiva), interne (tapis de bain), carte au planning (petit-déjeuner, repas), assurance à 0 € donc non proposée : rien de tout ça n’apparaît dans la liste.</p></div></div></div>
+    <div class="panel"><div class="fact"><b>8 €</b><div><h3>Un prix de base fantôme</h3><p class="muted" style="margin:0">Petit-déjeuner : « 8,00 € (base) » en gros, alors que les deux logements facturent 10 €. Le prix réellement appliqué est en petit dessous.</p></div></div></div>
+    <div class="panel"><div class="fact"><b>3</b><div><h3>Un logement, trois endroits</h3><p class="muted" style="margin:0">Le formulaire règle « logements », « prix par logement » et « inclus par défaut » dans trois blocs séparés, en une colonne de 918 px (1 803 px pour le bain nordique, 2 257 px sur téléphone).</p></div></div></div>
+    <div class="panel"><div class="fact"><b>22</b><div><h3>Corbeilles rouges, ressources muettes</h3><p class="muted" style="margin:0">Une corbeille rouge par ligne, grisée sans explication sur les options système. Côté ressources, le bain nordique affiche « 30 € » : le tarif du soir (50 €/h après 20:00) et celui des extérieurs restent cachés.</p></div></div></div>
+  </div>
+  <p class="hint">Côté code, la liste trie, regroupe et met en forme les prix dans le navigateur (<code>PricedItemsPage.jsx</code>, <code>renderPriceCell</code>, <code>propertiesLabel</code>) : c’est le serveur qui doit livrer la liste prête à afficher.</p>
+
+  <h2>Ce qu’on propose</h2>
+  <ul class="plain">
+    <li><b>Une liste rangée par catégorie</b>, dans l’ordre de la fiche et du site : chaque section se replie, une recherche et des filtres par catégorie et par logement en haut.</li>
+    <li><b>Une ligne courte</b> : nom, une ligne de description, le prix réellement appliqué avec son unité (« 10 € / pers. / jour », « 30 – 80 € selon le logement »), et seulement les particularités : <i>Offert · Estiva</i>, <i>Interne</i>, <i>Planning 12:00 · 19:30</i>, <i>Granja seulement</i>.</li>
+    <li><b>Un panneau latéral pour modifier</b> (plein écran sur téléphone), rangé en sections : Général · Logements et prix · Planning · Visibilité. Les trois blocs « par logement » deviennent <b>un seul tableau, une ligne par logement</b>.</li>
+    <li><b>Archiver passe dans un menu « ⋯ »</b>, avec la raison quand c’est impossible (option système).</li>
+    <li><b>Ressources en cartes</b> : stock, tous les tarifs, et la ligne horaire fournie par le plugin « Ressources à l’heure ».</li>
+  </ul>
+  <p>Deux directions pour la liste, à essayer ci-dessous :</p>
+  <div class="grid2">
+    <div class="panel"><h3>A · Catalogue</h3><p class="muted" style="margin:0">Une liste par catégorie, une ligne par option. Le filtre de logement affiche les prix de ce logement. Ça tient à 2 comme à 15 logements, et sur téléphone.</p></div>
+    <div class="panel"><h3>B · Grille par logement</h3><p class="muted" style="margin:0">Une colonne par logement : on compare les prix et on les modifie directement dans la case. Très lisible à 2 ou 3 logements ; au-delà de 4, la grille défile à l’horizontale.</p></div>
+  </div>
+</div>
+
+<div class="demo" id="demo">
+  <div class="demo-row">
+    <span><label class="k">Direction</label><span class="seg" id="c-dir"><button data-v="A">A · Catalogue</button><button data-v="B">B · Grille par logement</button></span></span>
+    <span><label class="k">Écran</label><span class="seg" id="c-dev"><button data-v="desk">Bureau</button><button data-v="phone">Téléphone</button></span></span>
+    <span><label class="k">Données</label><span class="seg" id="c-data"><button data-v="real">Catalogue actuel</button><button data-v="worst">Pire cas</button><button data-v="empty">Vide</button></span></span>
+  </div>
+  <p class="hint" id="demo-hint"></p>
+</div>
+
+<div class="stage"><div class="device" id="device"><div class="app" id="app">
+  <div class="appbar">GuestFlow <span class="crumb">Paramètres › Séjours</span></div>
+  <div class="scroller" id="scroller"></div>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-modal="true" role="dialog" aria-labelledby="dr-title"></aside>
+  <div class="dlg" id="dlg"><div class="box" role="alertdialog" id="dlgbox"></div></div>
+  <div class="toast" id="toast" role="status"></div>
+</div></div></div>
+
+<div class="prose">
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="plain">
+    <li>Aucune règle métier ne bouge : prix, portée par logement, options par défaut, archivage, ordre des catégories sur la fiche et sur le site restent tels quels.</li>
+    <li>Pas de gestion des catégories (renommer, réordonner par glisser) : une catégorie reste un simple libellé tapé sur l’option.</li>
+    <li>L’onglet « Facturables au SAS » ne change pas (il est déjà rangé en sections).</li>
+    <li>Pas de modification en masse (changer 9 prix de boissons d’un coup).</li>
+    <li>La page Calendrier › Ressources (réservations à l’heure) n’est pas touchée.</li>
+  </ul>
+
+  <h2>Le risque</h2>
+  <ul class="plain">
+    <li><b>Le formulaire d’option porte 15 réglages spéciaux</b> (linge, tapis de bain, petit-déjeuner, assurance, carte planning). Le passage au panneau doit tous les reprendre : chaque réglage existant a un test qui le retrouve dans la bonne section.</li>
+    <li><b>La mise en forme passe du navigateur au serveur</b> : un nouvel aperçu de liste, l’enregistrement garde le format actuel. Le risque est un écart d’affichage, pas de prix.</li>
+    <li><b>Direction B seulement</b> : la saisie dans la case enregistre un prix sans passer par « Enregistrer ». Le serveur refuse ce qui est invalide et la case reprend l’ancien prix ; un prix négatif est aujourd’hui ignoré sans message côté serveur, il sera refusé.</li>
+    <li>Le panneau latéral est un composant nouveau : il doit garder le garde « modifications non enregistrées » et le plein écran sur téléphone.</li>
+  </ul>
+  <p class="muted">Taille : 3 lots livrables séparément. Lot 1 serveur (aperçus de liste, refus du prix négatif par logement), Lot 2 liste et panneau des options, Lot 3 ressources. Environ 14 fichiers côté client, 6 côté serveur.</p>
+
+  <h2>Les arbitrages en attente</h2>
+  <div class="arb">
+    <div class="panel"><h3>Quelle direction pour la liste des options ?</h3>
+      <div class="opt"><span class="r">Recommandé</span><span><b>A · Catalogue</b> — tient à n’importe quel nombre de logements et sur téléphone ; le filtre de logement montre les prix de chacun.</span></div>
+      <div class="opt"><span class="o">Option</span><span><b>B · Grille</b> — comparaison et saisie des prix immédiates, mais défile à l’horizontale dès 4 logements et devient une liste par logement sur téléphone.</span></div>
+      <div class="opt"><span class="o">Option</span><span><b>A, avec la grille en vue secondaire</b> — un bouton « Grille » en haut de la liste ; deux vues à tenir à jour.</span></div>
+    </div>
+    <div class="panel"><h3>Où modifier une option ?</h3>
+      <div class="opt"><span class="r">Recommandé</span><span><b>Panneau latéral</b> — la liste reste visible à gauche, plein écran sur téléphone.</span></div>
+      <div class="opt"><span class="o">Option</span><span><b>Fenêtre centrée</b> (comme aujourd’hui), mais rangée en sections — moins de changement, la liste disparaît derrière.</span></div>
+    </div>
+    <div class="panel"><h3>Les options archivées</h3>
+      <div class="opt"><span class="r">Recommandé</span><span><b>Une section repliée « Archivées » en bas, avec « Restaurer »</b> — aujourd’hui une option archivée par erreur ne revient jamais.</span></div>
+      <div class="opt"><span class="o">Option</span><span><b>Rien ne change</b> — les archivées restent invisibles, sans retour possible.</span></div>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (n) => { const v = Number(n); return (Number.isInteger(v) ? v.toLocaleString('fr-FR') : v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) + ' €'; };
+const UNIT = { per_stay: '/ séjour', per_person: '/ pers.', per_night: '/ jour', per_person_per_night: '/ pers. / jour', per_participant_progressive: 'dégressif', percent_of_stay: 'du séjour', free: '', per_hour: '/ h' };
+const TYPES = [['per_stay', 'Prix fixe'], ['per_person', 'Par personne'], ['per_night', 'Par jour'], ['per_person_per_night', 'Par personne / jour'], ['per_participant_progressive', 'Dégressif participants'], ['percent_of_stay', '% du montant du séjour'], ['free', 'Gratuit']];
+const ICON = {
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  chev: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>',
+  more: '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>',
+};
+
+/* ---------------- datasets (in the app: the server payload) ---------------- */
+const P2 = [{ id: 1, name: 'Granja' }, { id: 2, name: 'Estiva' }];
+const ALL = [1, 2];
+let nid = 100;
+function o(id, title, cat, type, price, x = {}) {
+  return { id, title, cat, type, price, desc: x.desc || '', props: x.props || ALL.slice(), prices: x.prices || {}, defaults: x.defaults || {}, system: Boolean(x.system), client: x.client !== false, card: x.card || null, tiers: x.tiers || null, offered: x.offered !== false, alwaysVisible: false, archived: false, special: x.special || null };
+}
+function realOptions() {
+  return [
+    o(32, 'Assurance annulation', '', 'percent_of_stay', 0, { desc: 'Remboursement des sommes versées en cas d’annulation pour un motif couvert.', system: true, offered: false, special: 'insurance' }),
+    o(8, 'Linge de lit', '', 'per_person', 7, { defaults: { 1: 'offered', 2: 'offered' }, system: true, special: 'bed' }),
+    o(9, 'Linge de toilette', '', 'per_person', 8, { defaults: { 2: 'offered' }, system: true }),
+    o(33, 'Lit bébé', '', 'per_stay', 5, { desc: 'Supplément facturé pour chaque lit bébé de la réservation.', system: true }),
+    o(7, 'Ménage', '', 'per_stay', 30, { desc: 'Ménage général', prices: { 1: 80 }, defaults: { 2: 'offered' }, system: true }),
+    o(17, 'Tapis de bain', '', 'per_stay', 0, { desc: 'Compte les tapis à apporter et à récupérer à la blanchisserie.', defaults: { 1: 'offered' }, client: false, system: true }),
+    o(15, 'Animation enfants + bain nordique', 'Animations', 'per_participant_progressive', 55, { desc: 'Animation enfants + bain nordique adultes, 1 h', tiers: [[1, 55], [2, 45], [3, 35]] }),
+    o(12, 'Animation animaux sauvages', 'Animations', 'per_stay', 45, { desc: 'En famille : à la recherche des indices laissés par la faune locale.' }),
+    o(14, 'Balade nocturne', 'Animations', 'per_stay', 65, { desc: 'Prix par famille. À la tombée de la nuit, une découverte différente du domaine.' }),
+    o(13, 'Chasse aux œufs', 'Animations', 'per_person', 6, { desc: 'Par enfant. Activité en autonomie, accompagnée des parents.' }),
+    o(11, 'Visite des animaux', 'Animations', 'per_participant_progressive', 30, { desc: 'Rencontre avec les habitants du domaine', tiers: [[2, 30], [3, 5]] }),
+    o(34, 'Formule soirée : bain nordique privatisé + champagne', 'Animations', 'per_stay', 50, { desc: 'Bain nordique privatisé après 20 h, champagne servi au bord du bain.' }),
+    o(19, 'Biscanna 75cl - 5°', 'Boissons', 'per_stay', 7.5, { desc: 'Blonde chanvrée bio, brasserie locale' }),
+    o(18, 'Blonde du Pilat 75cl - 4,5°', 'Boissons', 'per_stay', 6.5, { desc: 'Bière blonde bio, brasserie locale' }),
+    o(25, 'Champagne - bouteille 75cl', 'Boissons', 'per_stay', 40, { desc: 'Bouteille standard' }),
+    o(26, 'Champagne - demi-bouteille 37,5cl', 'Boissons', 'per_stay', 25, { desc: 'Demi-bouteille' }),
+    o(22, 'Jus de poire 1L', 'Boissons', 'per_stay', 6, { desc: 'Bouteille 1 L, pressoir local' }),
+    o(21, 'Jus de pomme 1L', 'Boissons', 'per_stay', 5, { desc: 'Bouteille 1 L, pressoir local' }),
+    o(24, 'Jus de pomme 25cl', 'Boissons', 'per_stay', 3, { desc: 'Petit format' }),
+    o(23, 'Jus pomme-kiwi 1L', 'Boissons', 'per_stay', 5.5, { desc: 'Bouteille 1 L, pressoir local' }),
+    o(20, 'Ambrée 75cl - 5,5°', 'Boissons', 'per_stay', 7.5, { desc: 'Ambrée bio, brasserie locale' }),
+    o(16, 'Le repas des trappeurs', 'Restauration', 'per_person_per_night', 25, { card: ['12:00', '19:30'] }),
+    o(6, 'Petit déjeuner', 'Restauration', 'per_person_per_night', 8, { desc: 'Pain frais et croissant, boisson chaude au choix, jus de fruit local, beurre et confiture.', prices: { 1: 10, 2: 10 }, card: ['09:00'], system: true, special: 'breakfast' }),
+    o(29, 'Planche L — 4 pers.', 'Restauration', 'per_stay', 52, { desc: 'Saucisson, pâté, caillette, fromages, pain, chutney, olives' }),
+    o(28, 'Planche M — 2-3 pers.', 'Restauration', 'per_stay', 32, { desc: 'Saucisson, caillette, fromage, pain, chutney' }),
+    o(27, 'Planche S — 1-2 pers.', 'Restauration', 'per_stay', 17, { desc: 'Saucisson, caillette, fromage, pain' }),
+    o(30, 'Planche XL — 6-7 pers.', 'Restauration', 'per_stay', 78, { desc: 'Deux saucissons, deux pâtés, caillette, trois fromages' }),
+    o(31, 'Planche XXL — 10-12 pers.', 'Restauration', 'per_stay', 115, { desc: 'Trois saucissons, deux pâtés, deux caillettes, cinq fromages' }),
+  ];
+}
+function realResources() {
+  return [
+    { id: 2, name: 'Bain nordique', desc: '', qty: 1, type: 'per_hour', price: 30, props: [], pp: { 1: { price: 30, free: 60 }, 2: { price: 30, free: 60 } }, hourly: { open: '11:00', close: '22:00', min: 60, turnover: 15, evening: '20:00', eveningRate: 50, extDay: 50, extEvening: 70, card: true } },
+    { id: 1, name: 'Lit bébé', desc: 'Ressource par défaut', qty: 3, type: 'per_stay', price: 0, props: [], pp: {}, hourly: null },
+  ];
+}
+const LONG_PROPS = ['Granja', 'Estiva', 'Cabane perchée des Hautes-Chaumes du Pilat', 'Roulotte', 'Gîte du Moulin', 'Yourte', 'Chalet Bois-Joli', 'Tiny house', 'La Bergerie', 'Écolodge 2', 'Suite Ō', 'Dôme'];
+function worstData() {
+  const props = LONG_PROPS.map((name, i) => ({ id: i + 1, name }));
+  const ids = props.map((p) => p.id);
+  const cats = ['', 'Activités nature et bien-être pour toute la famille, sur réservation la veille', 'Boissons', 'Restauration', 'Épicerie', 'Location de vélos électriques'];
+  const list = [];
+  list.push(o(1, 'Formule soirée : bain nordique privatisé + champagne + planche XXL pour toute la tribu, servie au bord du bain', cats[1], 'per_stay', 1249.9, { props: ids, desc: 'Une description très longue qui décrit tout le déroulé de la soirée, les horaires, les allergènes, les conditions météo, et encore un paragraphe complet pour être sûr.', prices: { 3: 1499.99, 7: 0 }, defaults: { 4: 'default', 9: 'offered' }, card: ['18:00', '19:30', '21:00', '22:30'] }));
+  list.push(o(2, 'Jo', '', 'free', 0, { props: [3], client: false }));
+  list.push(o(3, 'Option sans logement', 'Épicerie', 'per_person', 4, { props: [] }));
+  list.push(o(4, 'Bouteille 🍾 cuvée spéciale', 'Boissons', 'per_stay', 12345.67, { props: ids }));
+  list.push(o(5, 'Assurance', '', 'percent_of_stay', 3.5, { props: ids, special: 'insurance' }));
+  for (let i = 0; i < 85; i += 1) {
+    const c = cats[2 + (i % 4)];
+    list.push(o(10 + i, `${c || 'Article'} n° ${i + 1}`, c, i % 3 ? 'per_stay' : 'per_person', 2 + (i % 17) * 1.5, { props: ids.filter((id) => (id + i) % 3), desc: i % 5 ? 'Article de démonstration' : '' }));
+  }
+  const res = [
+    { id: 1, name: 'Bain nordique privatisé avec sauna, chromothérapie et serviettes chaudes', desc: '', qty: 1, type: 'per_hour', price: 30, props: [], pp: {}, hourly: { open: '06:00', close: '23:30', min: 90, turnover: 30, evening: '19:00', eveningRate: 55.5, extDay: 60, extEvening: 80, card: true } },
+    { id: 2, name: 'Vélo', desc: '', qty: 1284, type: 'per_night', price: 18, props: [3, 4], pp: {}, hourly: null },
+  ];
+  return { props, options: list, resources: res };
+}
+
+/* ---------------- state ---------------- */
+const S = { dir: 'A', dev: 'desk', data: 'real', tab: 'options', q: '', cat: '*', prop: 0, closed: new Set(), drawer: null, editCell: null, menu: null };
+let DB = null;
+function loadData() {
+  if (S.data === 'real') DB = { props: P2, options: realOptions(), resources: realResources() };
+  else if (S.data === 'worst') DB = worstData();
+  else DB = { props: P2, options: [], resources: [] };
+  S.q = ''; S.cat = '*'; S.prop = 0; S.closed = new Set(); S.editCell = null;
+}
+
+/* ---------------- "server" shaping: what GET /api/options/catalogue-view returns ---------------- */
+const propName = (id) => (DB.props.find((p) => p.id === id) || {}).name || `#${id}`;
+function namesOf(ids) {
+  if (ids.length === DB.props.length && ids.length > 1) return 'tous les logements';
+  if (ids.length <= 2) return ids.map(propName).join(', ');
+  return `${ids.length} logements`;
+}
+function effective(opt, pid) {
+  if (!opt.props.includes(pid)) return null;
+  return opt.prices[pid] != null ? Number(opt.prices[pid]) : Number(opt.price);
+}
+function priceLabel(opt, pid) {
+  if (opt.type === 'free') return { v: 'Gratuit', u: '' };
+  if (opt.type === 'per_participant_progressive') {
+    const t = opt.tiers || []; return { v: t.length ? `${fmt(t[t.length - 1][1])} – ${fmt(t[0][1])}` : fmt(opt.price), u: '/ participant, dégressif' };
+  }
+  const pc = opt.type === 'percent_of_stay';
+  const show = (n) => (pc ? `${String(n).replace('.', ',')} %` : fmt(n));
+  if (pid) { const e = effective(opt, pid); return e == null ? { v: '—', u: 'non proposée ici' } : { v: show(e), u: UNIT[opt.type] }; }
+  const vals = [...new Set(opt.props.map((p) => effective(opt, p)))].sort((a, b) => a - b);
+  if (!vals.length) return { v: show(opt.price), u: UNIT[opt.type] };
+  if (vals.length === 1) return { v: show(vals[0]), u: UNIT[opt.type] };
+  return { v: `${show(vals[0])} – ${show(vals[vals.length - 1])}`, u: `${UNIT[opt.type]} · selon logement` };
+}
+function traits(opt) {
+  const t = [];
+  if (opt.props.length === 0) t.push(['Aucun logement', 'warning']);
+  else if (opt.props.length < DB.props.length) t.push([`${namesOf(opt.props)} seulement`, '']);
+  const off = Object.keys(opt.defaults).filter((k) => opt.defaults[k] === 'offered' && opt.props.includes(+k)).map(Number);
+  const inc = Object.keys(opt.defaults).filter((k) => opt.defaults[k] === 'default' && opt.props.includes(+k)).map(Number);
+  if (off.length) t.push([`Offert · ${namesOf(off)}`, 'success']);
+  if (inc.length) t.push([`Inclus · ${namesOf(inc)}`, 'info']);
+  if (!opt.client) t.push(['Interne', '']);
+  if (opt.card) t.push([`Planning ${opt.card.length > 2 ? `${opt.card.length}× par jour` : opt.card.join(' · ')}`, 'info']);
+  if (opt.special === 'insurance' && !opt.offered) t.push(['Non proposée · tarif à 0', 'warning']);
+  return t;
+}
+function catalogueView() {
+  const q = S.q.trim().toLowerCase();
+  const live = DB.options.filter((x) => !x.archived);
+  const counts = {};
+  live.forEach((x) => { counts[x.cat] = (counts[x.cat] || 0) + 1; });
+  const filtered = live.filter((x) => (S.cat === '*' || x.cat === S.cat)
+    && (!S.prop || x.props.includes(S.prop))
+    && (!q || `${x.title} ${x.desc} ${x.cat}`.toLowerCase().includes(q)));
+  const keys = Object.keys(counts).sort((a, b) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b, 'fr')));
+  const groups = keys.map((k) => ({ key: k, label: k || 'Sans catégorie', count: counts[k], items: filtered.filter((x) => x.cat === k).sort((a, b) => (a.cat === '' ? 0 : a.title.localeCompare(b.title, 'fr'))) })).filter((g) => g.items.length);
+  return { groups, chips: keys.map((k) => ({ key: k, label: k || 'Sans catégorie', count: counts[k] })), total: live.length, shown: filtered.length, archived: DB.options.filter((x) => x.archived) };
+}
+
+/* ---------------- render ---------------- */
+const sc = () => $('#scroller');
+function render() {
+  document.querySelectorAll('#demo .seg').forEach((seg) => {
+    const key = { 'c-dir': 'dir', 'c-dev': 'dev', 'c-data': 'data' }[seg.id];
+    seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === S[key])));
+  });
+  $('#device').className = `device ${S.dev === 'phone' ? 'phone' : ''}`;
+  $('#demo-hint').textContent = S.dir === 'A'
+    ? 'Cliquer une ligne ouvre le panneau. Essayer : la recherche, un filtre de logement, replier une catégorie, « ⋯ » puis Archiver, un prix négatif dans le panneau.'
+    : 'Cliquer un prix pour le saisir dans la case (Entrée enregistre, Échap annule). Essayer « -5 », « 3,456 » ou « abc » : le refus s’affiche et l’ancien prix revient. Cliquer un nom ouvre le panneau.';
+  const html = [pab()];
+  if (S.tab === 'options') html.push(optionsView());
+  else if (S.tab === 'resources') html.push(resourcesView());
+  else html.push('<div class="sas">Onglet « Facturables au SAS » — inchangé.</div>');
+  sc().innerHTML = html.join('');
+}
+function pab() {
+  const t = { options: 'Options', resources: 'Ressources', sas: 'Facturables au SAS' };
+  const add = S.tab === 'sas' ? '' : `<button class="ib primary" data-act="new" aria-label="${S.tab === 'options' ? 'Nouvelle option' : 'Nouvelle ressource'}" title="${S.tab === 'options' ? 'Nouvelle option' : 'Nouvelle ressource'}">${ICON.plus}</button>`;
+  return `<div class="pab"><h2>Options &amp; ressources</h2><div class="tabs" role="tablist">${Object.keys(t).map((k) => `<button role="tab" aria-selected="${S.tab === k}" data-tab="${k}">${t[k]}</button>`).join('')}</div><div class="acts">${add}</div></div>`;
+}
+function toolbar(v) {
+  const propSeg = DB.props.length > 1 ? `<div class="propseg"><span class="seg" role="group" aria-label="Logement">${S.dir === 'B' && S.dev === 'phone' ? '' : `<button data-prop="0" aria-pressed="${S.prop === 0}">Tous</button>`}${DB.props.length <= 4 ? DB.props.map((p) => `<button data-prop="${p.id}" aria-pressed="${S.prop === p.id}">${esc(p.name)}</button>`).join('') : ''}</span>${DB.props.length > 4 ? `<select data-propsel aria-label="Logement" style="margin-left:6px;height:38px;border-radius:10px;border:1px solid var(--line);font:16px var(--sans);max-width:200px"><option value="0">Tous les logements</option>${DB.props.map((p) => `<option value="${p.id}" ${S.prop === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}</div>` : '';
+  const showProp = S.dir === 'A' || S.dev === 'phone';
+  return `<div class="toolbar"><label class="search">${ICON.search}<input type="search" data-q placeholder="Rechercher une option" value="${esc(S.q)}" aria-label="Rechercher une option">${S.q ? '<button class="clear" data-act="clearq" aria-label="Effacer">×</button>' : ''}</label>${showProp ? propSeg : ''}</div>
+  <div class="chips" role="group" aria-label="Catégories"><button class="chip" data-cat="*" aria-pressed="${S.cat === '*'}">Toutes <span class="n">${v.total}</span></button>${v.chips.map((c) => `<button class="chip" data-cat="${esc(c.key)}" aria-pressed="${S.cat === c.key}">${esc(c.label.length > 34 ? `${c.label.slice(0, 32)}…` : c.label)} <span class="n">${c.count}</span></button>`).join('')}</div>`;
+}
+function emptyState(kind) {
+  if (kind === 'none') return `<div class="empty">${ICON.box}<b>Aucune option</b><span>Petit-déjeuner, ménage, boissons…</span><button class="btn primary" data-act="new">${ICON.plus.replace('<svg', '<svg width="18" height="18"')}Ajouter une option</button></div>`;
+  return `<div class="empty">${ICON.search.replace('<svg', '<svg width="40" height="40"')}<b>Aucun résultat</b><span>Rien ne correspond${S.q ? ` à « ${esc(S.q)} »` : ''}${S.prop ? ` pour ${esc(propName(S.prop))}` : ''}.</span><button class="btn text" data-act="resetfilters">Effacer les filtres</button></div>`;
+}
+function optionsView() {
+  if (S.dir === 'B' && S.dev === 'phone' && !S.prop && DB.props.length) S.prop = DB.props[0].id;
+  const v = catalogueView();
+  if (v.total === 0) return emptyState('none');
+  const head = toolbar(v);
+  if (!v.shown) return head + emptyState('filter');
+  return head + (S.dir === 'A' || S.dev === 'phone' ? listA(v) : gridB(v));
+}
+function listA(v) {
+  const sections = v.groups.map((g) => {
+    const closed = S.closed.has(g.key) && !S.q;
+    return `<section class="sec ${closed ? 'closed' : ''}"><button class="sec-h" data-sec="${esc(g.key)}" aria-expanded="${!closed}"><span class="t">${esc(g.label)}</span><span class="n">${g.items.length < g.count ? `${g.items.length} / ${g.count}` : g.count}</span><span class="chev">${ICON.chev}</span></button><div class="rows">${g.items.map(rowA).join('')}</div></section>`;
+  });
+  return `<div class="list">${sections.join('')}${archivedSection(v)}</div>`;
+}
+function rowA(x) {
+  const p = priceLabel(x, S.prop);
+  const t = traits(x);
+  return `<div class="row" data-open="${x.id}" tabindex="0" role="button" aria-label="Modifier ${esc(x.title)}"><div class="main"><div class="name">${esc(x.title)}</div>${x.desc ? `<div class="desc">${esc(x.desc)}</div>` : ''}${t.length ? `<div class="traits">${t.map(([l, c]) => `<span class="trait ${c}" title="${esc(l)}">${esc(l)}</span>`).join('')}</div>` : ''}</div><div class="price"><span class="v">${esc(p.v)}</span><span class="u">${esc(p.u)}</span></div><button class="more" data-menu="${x.id}" aria-label="Plus d’actions pour ${esc(x.title)}">${ICON.more}</button></div>`;
+}
+function archivedSection(v) {
+  if (!v.archived.length) return '';
+  const closed = !S.closed.has('__arch_open');
+  return `<section class="sec ${closed ? 'closed' : ''}"><button class="sec-h" data-sec="__arch_open" data-inv="1" aria-expanded="${!closed}"><span class="t" style="color:var(--muted)">Archivées</span><span class="n">${v.archived.length}</span><span class="chev">${ICON.chev}</span></button><div class="rows">${v.archived.map((x) => `<div class="row" style="cursor:default"><div class="main"><div class="name" style="color:var(--muted)">${esc(x.title)}</div><div class="desc">Retirée des nouvelles réservations, conservée sur les réservations existantes.</div></div><div class="price"><span class="v" style="color:var(--muted)">${esc(priceLabel(x, 0).v)}</span></div><button class="btn text" data-restore="${x.id}" style="height:40px;padding:0 10px">Restaurer</button></div>`).join('')}</div></section>`;
+}
+function gridB(v) {
+  const props = DB.props;
+  const head = `<tr><th class="first">Option</th>${props.map((p) => `<th class="p" title="${esc(p.name)}">${esc(p.name)}</th>`).join('')}</tr>`;
+  const body = v.groups.map((g) => `<tr class="cat"><td colspan="${props.length + 1}">${esc(g.label)}<span class="n">${g.items.length}</span></td></tr>${g.items.map((x) => `<tr><td class="first"><div class="name" data-open="${x.id}" role="button" tabindex="0">${esc(x.title)}</div><div class="u">${esc(x.type === 'free' ? 'Gratuit' : TYPES.find((t) => t[0] === x.type)[1])}${x.client ? '' : ' · interne'}</div></td>${props.map((p) => `<td>${cellB(x, p.id)}</td>`).join('')}</tr>`).join('')}`).join('');
+  return `<div class="legend"><span><i></i>prix propre au logement</span><span>— : non proposée</span><span>Vide à la saisie : reprend le prix de base</span></div><div class="gridwrap"><table class="mx"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+function cellB(x, pid) {
+  const ed = S.editCell && S.editCell.id === x.id && S.editCell.pid === pid;
+  if (ed) {
+    const e = S.editCell;
+    return `<div class="cellin"><input data-cellin inputmode="decimal" value="${esc(e.raw)}" class="${e.err ? 'bad' : ''}" aria-label="Prix ${esc(x.title)} · ${esc(propName(pid))}" aria-invalid="${Boolean(e.err)}"><span class="msg ${e.err ? 'bad' : ''}">${esc(e.err || `Entrée pour enregistrer · base ${x.type === 'percent_of_stay' ? `${x.price} %` : fmt(x.price)}`)}</span></div>`;
+  }
+  const locked = x.type === 'free' || x.type === 'per_participant_progressive';
+  if (!x.props.includes(pid)) return `<button class="cell off" data-cell="${x.id}:${pid}" title="Non proposée ici — ouvrir pour l’activer">—</button>`;
+  const p = priceLabel(x, pid);
+  const own = x.prices[pid] != null;
+  const d = x.defaults[pid];
+  const sub = d === 'offered' ? '<span class="s success">Offert</span>' : d === 'default' ? '<span class="s info">Inclus</span>' : '';
+  if (locked) return `<span class="cell locked" title="${x.type === 'free' ? 'Gratuit' : 'Paliers dans le panneau'}"><span class="v">${esc(x.type === 'free' ? 'Gratuit' : 'Dégressif')}</span>${sub}</span>`;
+  return `<button class="cell" data-cell="${x.id}:${pid}" aria-label="Modifier le prix ${esc(x.title)} · ${esc(propName(pid))}"><span class="v ${own ? 'own' : ''}">${esc(p.v)}</span>${sub}</button>`;
+}
+function resourcesView() {
+  if (!DB.resources.length) return `<div class="empty">${ICON.box}<b>Aucune ressource</b><span>Lit bébé, bain nordique, vélos…</span><button class="btn primary" data-act="new">Ajouter une ressource</button></div>`;
+  return `<div class="rcards">${DB.resources.map((r) => {
+    const hourly = r.type === 'per_hour';
+    const free = Object.entries(r.pp).filter(([, v]) => v.free >= 60).map(([k]) => +k);
+    const rows = [['Prix', r.type === 'free' || (!r.price && !hourly) ? 'Gratuit' : `${fmt(r.price)} ${UNIT[r.type]}`]];
+    if (hourly && r.hourly) {
+      rows.push(['Soir', `${fmt(r.hourly.eveningRate)} / h après ${r.hourly.evening}`]);
+      rows.push(['Extérieurs', `${fmt(r.hourly.extDay)} / h · soir ${fmt(r.hourly.extEvening)} / h`]);
+      if (free.length) rows.push(['Offert', `1re heure · ${namesOf(free)}`]);
+    }
+    rows.push(['Logements', r.props.length ? namesOf(r.props) : 'Tous']);
+    return `<article class="rcard" data-ropen="${r.id}" tabindex="0" role="button"><div class="top"><div class="name">${esc(r.name)}</div><div class="stock">${r.qty.toLocaleString('fr-FR')}<small>${hourly ? (r.qty > 1 ? 'en service' : 'en service') : 'en stock'}</small></div></div><dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${hourly && r.hourly ? `<div class="plug">À l’heure · ${r.hourly.open}–${r.hourly.close} · ${r.hourly.min / 60 >= 1 ? `${String(r.hourly.min / 60).replace('.', ',')} h` : `${r.hourly.min} min`} minimum · remise en état ${r.hourly.turnover} min${r.hourly.card ? ' · carte au planning' : ''}</div>` : ''}</article>`;
+  }).join('')}</div>`;
+}
+
+/* ---------------- drawer (option editor) ---------------- */
+function clone(x) { return JSON.parse(JSON.stringify(x)); }
+function openOption(id) {
+  const src = id ? DB.options.find((x) => x.id === id) : o(++nid, '', S.cat !== '*' ? S.cat : '', 'per_stay', 0, { props: DB.props.map((p) => p.id) });
+  S.drawer = { kind: 'option', isNew: !id, draft: clone(src), orig: JSON.stringify(src), errors: {} };
+  S.drawer.draft.priceRaw = String(src.price).replace('.', ',');
+  S.drawer.draft.pricesRaw = Object.fromEntries(Object.entries(src.prices).map(([k, v]) => [k, String(v).replace('.', ',')]));
+  S.drawer.orig = JSON.stringify(S.drawer.draft);
+  drawDrawer(); showDrawer(true);
+}
+function openResource(id) {
+  const src = id ? DB.resources.find((r) => r.id === id) : { id: ++nid, name: '', desc: '', qty: 1, type: 'per_stay', price: 0, props: [], pp: {}, hourly: null };
+  S.drawer = { kind: 'resource', isNew: !id, draft: clone(src), errors: {} };
+  S.drawer.draft.priceRaw = String(src.price).replace('.', ',');
+  S.drawer.draft.qtyRaw = String(src.qty);
+  S.drawer.orig = JSON.stringify(S.drawer.draft);
+  drawDrawer(); showDrawer(true);
+}
+function showDrawer(on) {
+  $('#drawer').classList.toggle('on', on); $('#scrim').classList.toggle('on', on);
+  if (on) setTimeout(() => { const f = $('#drawer [data-f="title"], #drawer [data-f="name"]'); if (f && S.drawer && S.drawer.isNew) f.focus(); }, 340);
+}
+function parseMoney(raw, { percent = false, allowEmpty = false } = {}) {
+  const s = String(raw ?? '').trim().replace(/\s/g, '').replace(',', '.');
+  if (s === '') return allowEmpty ? { empty: true } : { err: 'Prix requis' };
+  if (!/^-?\d+(\.\d*)?$/.test(s)) return { err: 'Nombre attendu' };
+  const n = Number(s);
+  if (n < 0) return { err: 'Positif ou nul' };
+  if (Math.abs(Math.round(n * 100) - n * 100) > 1e-6) return { err: '2 décimales max' };
+  if (percent && n > 100) return { err: '100 % max' };
+  return { n };
+}
+function validate() {
+  const d = S.drawer.draft; const e = {};
+  if (S.drawer.kind === 'option') {
+    if (!d.title.trim()) e.title = 'Nom requis';
+    const pc = d.type === 'percent_of_stay';
+    if (d.type !== 'free' && d.type !== 'per_participant_progressive') {
+      const b = parseMoney(d.priceRaw, { percent: pc }); if (b.err) e.price = b.err;
+      Object.entries(d.pricesRaw).forEach(([k, raw]) => { if (!d.props.includes(+k)) return; const r = parseMoney(raw, { percent: pc, allowEmpty: true }); if (r.err) e[`pp${k}`] = r.err; });
+    }
+    if (d.card) d.card.forEach((t, i) => { if (!/^\d{2}:\d{2}$/.test(t)) e[`card${i}`] = 'Heure requise'; });
+  } else {
+    if (!d.name.trim()) e.name = 'Nom requis';
+    if (!/^\d+$/.test(String(d.qtyRaw).trim())) e.qty = 'Nombre entier attendu';
+    if (d.type !== 'free') { const b = parseMoney(d.priceRaw); if (b.err) e.price = b.err; }
+    if (d.hourly && d.hourly.close <= d.hourly.open) e.close = 'Après l’ouverture';
+  }
+  S.drawer.errors = e; return e;
+}
+const SECTION_OF = { title: 'gen', price: 'prix', name: 'gen', qty: 'gen', close: 'heures' };
+function drawDrawer() {
+  const D = S.drawer; const d = D.draft; const e = D.errors;
+  const errSecs = new Set(Object.keys(e).map((k) => SECTION_OF[k] || (k.startsWith('card') ? 'plan' : 'prix')));
+  const nav = (D.kind === 'option' ? [['gen', 'Général'], ['prix', 'Logements et prix'], ['plan', 'Planning'], ['vis', 'Visibilité']] : [['gen', 'Général'], ['prix', 'Prix'], ...(d.type === 'per_hour' ? [['heures', 'Horaires']] : []), ['mail', 'Mails']]);
+  const body = D.kind === 'option' ? optionForm(d, e) : resourceForm(d, e);
+  $('#drawer').innerHTML = `<div class="dr-h"><h3 id="dr-title">${esc(D.isNew ? (D.kind === 'option' ? 'Nouvelle option' : 'Nouvelle ressource') : (d.title || d.name || 'Sans nom'))}</h3><button class="ib" data-act="close" aria-label="Fermer" title="Fermer">${ICON.close}</button></div>
+  <nav class="dr-nav">${nav.map(([k, l]) => `<button data-jump="${k}" class="${errSecs.has(k) ? 'err' : ''}">${l}</button>`).join('')}</nav>
+  <div class="dr-b" id="drb">${body}</div>
+  <div class="dr-f"><span class="state" id="dstate"></span><button class="btn text" data-act="close">Annuler</button><button class="btn primary" data-act="save" id="dsave">Enregistrer</button></div>`;
+  syncFooter();
+}
+function syncFooter() {
+  const D = S.drawer; if (!D) return;
+  const e = validate();
+  const dirty = JSON.stringify(D.draft) !== D.orig;
+  const n = Object.keys(e).length;
+  const st = $('#dstate'); const b = $('#dsave');
+  if (!st) return;
+  st.className = `state ${n ? 'bad' : ''}`;
+  st.textContent = n ? `${n} champ${n > 1 ? 's' : ''} à corriger` : dirty ? 'Modifié' : '';
+  b.disabled = Boolean(n) || !dirty;
+  document.querySelectorAll('#drawer [data-errfor]').forEach((el) => { const k = el.dataset.errfor; el.textContent = e[k] || ''; const box = el.closest('.f'); if (box) box.classList.toggle('bad', Boolean(e[k])); const pin = document.querySelector(`#drawer [data-pp="${k.slice(2)}"]`); if (k.startsWith('pp') && pin) pin.classList.toggle('bad', Boolean(e[k])); });
+  document.querySelectorAll('#drawer [data-jump]').forEach((btn) => { const k = btn.dataset.jump; btn.classList.toggle('err', Object.keys(e).some((x) => (SECTION_OF[x] || (x.startsWith('card') ? 'plan' : 'prix')) === k)); });
+}
+function sw(attr, checked, label, sub = '', disabled = false) {
+  return `<label class="sw"><input type="checkbox" ${attr} ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span>${label}${sub ? `<small>${sub}</small>` : ''}</span></label>`;
+}
+function optionForm(d, e) {
+  const cats = [...new Set(DB.options.map((x) => x.cat).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  const pc = d.type === 'percent_of_stay';
+  const priced = d.type !== 'free' && d.type !== 'per_participant_progressive';
+  const allOverridden = priced && d.props.length > 0 && d.props.every((p) => String(d.pricesRaw[p] ?? '').trim() !== '');
+  const ppRows = DB.props.map((p) => {
+    const on = d.props.includes(p.id); const def = d.defaults[p.id];
+    return `<tr class="${on ? '' : 'out'}"><td class="n">${esc(p.name)}</td><td class="c" data-l="Proposée">${sw(`data-scope="${p.id}"`, on, '')}</td>${priced ? `<td data-l="Prix"><input class="pin" data-pp="${p.id}" inputmode="decimal" value="${esc(d.pricesRaw[p.id] ?? '')}" placeholder="${esc(d.priceRaw || '0')}" ${on ? '' : 'disabled'} aria-label="Prix ${esc(p.name)}"><span class="perr" data-errfor="pp${p.id}"></span></td>` : ''}<td class="c" data-l="Inclus par défaut">${sw(`data-def="${p.id}"`, Boolean(def), '', '', !on)}</td><td class="c" data-l="Offert">${sw(`data-off="${p.id}"`, def === 'offered', '', '', !on || !def)}</td></tr>`;
+  }).join('');
+  const tiers = d.type === 'per_participant_progressive' ? `<div class="f"><label class="l">Paliers (prix par participant)</label>${(d.tiers || []).map(([n, pr]) => `<div class="unit" style="margin-bottom:6px"><span class="muted" style="min-width:110px">${n}${n === 1 ? 'er' : 'e'} participant et +</span><input type="text" value="${String(pr).replace('.', ',')}" inputmode="decimal" style="max-width:110px;border:1px solid #D9D2C3;border-radius:10px;padding:8px 10px;font:16px var(--sans)"> €</div>`).join('')}<button class="btn text" type="button" style="height:36px;padding:0 8px">${ICON.plus.replace('<svg', '<svg width="16" height="16"')}Ajouter un palier</button></div>` : '';
+  const special = d.special === 'breakfast' ? `<section class="fs"><h4>Petit-déjeuner</h4><div class="f"><label class="l">Heure par défaut</label><input type="time" value="09:00" style="max-width:160px"></div><div class="f"><label class="l">Rappel avant service (min)</label><input type="text" value="30" inputmode="numeric" style="max-width:160px"></div></section>`
+    : d.special === 'bed' ? `<section class="fs"><h4>Linge</h4><div class="f"><label class="l">Draps comptés à la blanchisserie</label>${sw('', true, 'Drap double')}${sw('', true, 'Drap simple')}${sw('', true, 'Drap bébé')}</div></section>` : '';
+  return `
+  <section class="fs" id="s-gen"><h4>Général</h4>
+    <div class="f"><label class="l" for="f-title">Nom</label><input id="f-title" type="text" data-f="title" value="${esc(d.title)}" maxlength="120"><div class="err" data-errfor="title"></div></div>
+    <div class="f"><label class="l" for="f-desc">Description</label><textarea id="f-desc" data-f="desc" rows="2">${esc(d.desc)}</textarea></div>
+    <div class="f"><label class="l" for="f-cat">Catégorie</label><input id="f-cat" type="text" data-f="cat" value="${esc(d.cat)}" placeholder="Aucune"><div class="sugg">${cats.slice(0, 8).map((c) => `<button type="button" data-catpick="${esc(c)}" aria-pressed="${d.cat === c}">${esc(c.length > 28 ? `${c.slice(0, 26)}…` : c)}</button>`).join('')}</div></div>
+    ${d.cat ? sw('data-f-av', d.alwaysVisible, 'Toujours visible', 'Reste affichée quand la catégorie est repliée') : ''}
+    ${d.special === 'insurance' ? '<div class="inline-note">Proposée seulement avec un tarif supérieur à 0.</div>' : ''}
+  </section>
+  <section class="fs" id="s-prix"><h4>Logements et prix</h4>
+    <div class="f"><label class="l" for="f-type">Type de prix</label><select id="f-type" data-f="type">${TYPES.map(([k, l]) => `<option value="${k}" ${d.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    ${priced ? `<div class="f"><label class="l" for="f-price">${pc ? 'Pourcentage de base' : 'Prix de base'}</label><div class="unit"><input id="f-price" type="text" inputmode="decimal" data-f="priceRaw" value="${esc(d.priceRaw)}"><span class="muted">${pc ? '% du séjour' : `€ ${UNIT[d.type]}`}</span></div><div class="err" data-errfor="price"></div>${allOverridden ? '<div class="help">Chaque logement a son propre prix : le prix de base ne s’applique nulle part.</div>' : '<div class="help">Repris par les logements dont la case prix est vide.</div>'}</div>` : ''}
+    ${tiers}
+    <table class="pp"><thead><tr><th>Logement</th><th class="c">Proposée</th>${priced ? '<th style="text-align:right">Prix</th>' : ''}<th class="c">Inclus</th><th class="c">Offert</th></tr></thead><tbody>${ppRows}</tbody></table>
+    <p class="help" style="margin-top:8px">« Inclus » : ajoutée d’office aux nouvelles réservations. « Offert » : incluse à 0 €.</p>
+  </section>
+  <section class="fs" id="s-plan"><h4>Planning</h4>
+    ${sw('data-f-card', Boolean(d.card), 'Carte dans le planning', 'Une carte par jour du séjour')}
+    ${d.card ? `<div class="f" style="margin-top:8px"><label class="l">Créneaux</label>${d.card.map((t, i) => `<div class="unit" style="margin-bottom:6px"><input type="time" data-cardt="${i}" value="${esc(t)}" style="max-width:150px;border:1px solid #D9D2C3;border-radius:10px;padding:8px 10px;font:16px var(--sans)">${d.card.length > 1 ? `<button class="btn text" type="button" data-cardrm="${i}" style="height:36px;padding:0 8px;color:var(--error)">Retirer</button>` : ''}</div><div class="err" data-errfor="card${i}"></div>`).join('')}<button class="btn text" type="button" data-cardadd style="height:36px;padding:0 8px">${ICON.plus.replace('<svg', '<svg width="16" height="16"')}Ajouter un créneau</button></div>` : ''}
+  </section>
+  <section class="fs" id="s-vis"><h4>Visibilité</h4>
+    ${sw('data-f-client', d.client, 'Visible du client', d.client ? 'Sur la fiche, les mails, le devis et le site' : 'Interne : absente de la fiche, des mails, du devis et du site')}
+  </section>${special}`;
+}
+function resourceForm(d, e) {
+  const hourly = d.type === 'per_hour';
+  const types = [...TYPES.filter(([k]) => !['per_participant_progressive', 'percent_of_stay'].includes(k)), ['per_hour', 'Par heure']];
+  return `
+  <section class="fs" id="s-gen"><h4>Général</h4>
+    <div class="f"><label class="l" for="r-name">Nom</label><input id="r-name" type="text" data-f="name" value="${esc(d.name)}"><div class="err" data-errfor="name"></div></div>
+    <div class="f"><label class="l" for="r-desc">Description</label><textarea id="r-desc" data-f="desc" rows="2">${esc(d.desc)}</textarea></div>
+    <div class="f"><label class="l" for="r-qty">${hourly ? 'En service' : 'En stock'}</label><input id="r-qty" type="text" inputmode="numeric" data-f="qtyRaw" value="${esc(d.qtyRaw)}" style="max-width:140px"><div class="err" data-errfor="qty"></div></div>
+  </section>
+  <section class="fs" id="s-prix"><h4>Prix</h4>
+    <div class="f"><label class="l" for="r-type">Type de prix</label><select id="r-type" data-f="type">${types.map(([k, l]) => `<option value="${k}" ${d.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    ${d.type !== 'free' ? `<div class="f"><label class="l" for="r-price">Prix de base</label><div class="unit"><input id="r-price" type="text" inputmode="decimal" data-f="priceRaw" value="${esc(d.priceRaw)}"><span class="muted">€ ${UNIT[d.type]}</span></div><div class="err" data-errfor="price"></div></div>` : ''}
+    <table class="pp"><thead><tr><th>Logement</th><th style="text-align:right">Prix</th>${hourly ? '<th class="c">1re heure offerte</th>' : ''}</tr></thead><tbody>${DB.props.map((p) => `<tr><td class="n">${esc(p.name)}</td><td data-l="Prix"><input class="pin" inputmode="decimal" value="${esc(d.pp[p.id] ? String(d.pp[p.id].price).replace('.', ',') : '')}" placeholder="${esc(d.priceRaw)}"></td>${hourly ? `<td class="c" data-l="1re heure offerte">${sw('', d.pp[p.id] && d.pp[p.id].free >= 60, '')}</td>` : ''}</tr>`).join('')}</tbody></table>
+  </section>
+  ${hourly && d.hourly ? `<section class="fs" id="s-heures"><h4>Horaires <span class="tag">Ressources à l’heure</span></h4>
+    <div class="grid2" style="gap:0 12px"><div class="f"><label class="l">Ouverture</label><input type="time" data-h="open" value="${d.hourly.open}"></div><div class="f"><label class="l">Fermeture</label><input type="time" data-h="close" value="${d.hourly.close}"><div class="err" data-errfor="close"></div></div>
+    <div class="f"><label class="l">Durée minimale (min)</label><input type="text" value="${d.hourly.min}"></div><div class="f"><label class="l">Remise en état (min)</label><input type="text" value="${d.hourly.turnover}"></div>
+    <div class="f"><label class="l">Tarif du soir après</label><input type="time" value="${d.hourly.evening}"></div><div class="f"><label class="l">Tarif du soir (€ / h)</label><input type="text" value="${String(d.hourly.eveningRate).replace('.', ',')}"></div>
+    <div class="f"><label class="l">Extérieurs, jour (€ / h)</label><input type="text" value="${d.hourly.extDay}"></div><div class="f"><label class="l">Extérieurs, soir (€ / h)</label><input type="text" value="${d.hourly.extEvening}"></div></div>
+    ${sw('', d.hourly.card, 'Carte dans le planning')}
+  </section>` : ''}
+  <section class="fs" id="s-mail"><h4>Mails</h4><div class="f"><label class="l">Phrase une fois réservée</label><textarea rows="2" placeholder="Bain nordique réservé : {slots}"></textarea></div></section>`;
+}
+function tryClose() {
+  const D = S.drawer; if (!D) return;
+  if (JSON.stringify(D.draft) !== D.orig) {
+    dialog('Modifications non enregistrées', 'Les changements de ce panneau ne sont pas enregistrés.', [['Rester sur la page', 'text', () => {}], ['Quitter sans enregistrer', 'text', () => { S.drawer = null; showDrawer(false); }], ['Enregistrer et quitter', 'primary', () => save()]]);
+    return;
+  }
+  S.drawer = null; showDrawer(false);
+}
+function save() {
+  const D = S.drawer; if (Object.keys(validate()).length) { syncFooter(); return; }
+  const d = D.draft;
+  if (D.kind === 'option') {
+    const pc = d.type === 'percent_of_stay';
+    const out = clone(d);
+    out.price = d.type === 'free' ? 0 : (parseMoney(d.priceRaw, { percent: pc }).n ?? 0);
+    out.prices = {};
+    Object.entries(d.pricesRaw).forEach(([k, raw]) => { if (!d.props.includes(+k)) return; const r = parseMoney(raw, { percent: pc, allowEmpty: true }); if (r.n != null) out.prices[k] = r.n; });
+    Object.keys(out.defaults).forEach((k) => { if (!d.props.includes(+k)) delete out.defaults[k]; });
+    if (out.special === 'insurance') out.offered = out.price > 0;
+    delete out.priceRaw; delete out.pricesRaw;
+    const i = DB.options.findIndex((x) => x.id === d.id);
+    if (i >= 0) DB.options[i] = out; else DB.options.push(out);
+    toast(D.isNew ? 'Option ajoutée' : 'Option enregistrée');
+    S.drawer = null; showDrawer(false); render(); flash(out.id);
+  } else {
+    const out = clone(d); out.price = d.type === 'free' ? 0 : parseMoney(d.priceRaw).n; out.qty = Number(d.qtyRaw); delete out.priceRaw; delete out.qtyRaw;
+    if (out.type === 'per_hour' && !out.hourly) out.hourly = { open: '08:00', close: '22:00', min: 60, turnover: 0, evening: '20:00', eveningRate: 0, extDay: 0, extEvening: 0, card: false };
+    const i = DB.resources.findIndex((x) => x.id === d.id);
+    if (i >= 0) DB.resources[i] = out; else DB.resources.push(out);
+    toast(D.isNew ? 'Ressource ajoutée' : 'Ressource enregistrée');
+    S.drawer = null; showDrawer(false); render();
+  }
+}
+function flash(id) { const el = sc().querySelector(`[data-open="${id}"]`); if (el) { const row = el.closest('.row') || el.closest('tr'); if (row) { row.classList.add('flash'); row.scrollIntoView({ block: 'nearest' }); } } }
+function dialog(title, msg, actions) {
+  $('#dlgbox').innerHTML = `<h4>${esc(title)}</h4><p>${esc(msg)}</p><div class="a">${actions.map(([l, c], i) => `<button class="btn ${c}" data-dlg="${i}">${esc(l)}</button>`).join('')}</div>`;
+  $('#dlg').classList.add('on'); $('#dlg')._acts = actions;
+  setTimeout(() => { const b = $('#dlgbox [data-dlg="0"]'); if (b) b.focus(); }, 30);
+}
+let tt;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2400); }
+
+/* ---------------- row menu ---------------- */
+function openMenu(btn, id) {
+  closeMenu();
+  const x = DB.options.find((y) => y.id === id);
+  const appR = $('#app').getBoundingClientRect(); const r = btn.getBoundingClientRect();
+  const m = document.createElement('div'); m.className = 'menu'; m.setAttribute('role', 'menu');
+  m.style.top = `${r.bottom - appR.top + 4}px`; m.style.right = `${appR.right - r.right}px`;
+  m.innerHTML = `<button role="menuitem" data-mact="edit">Modifier</button>${x.system ? '<button role="menuitem" class="danger" disabled>Archiver</button><div class="why">Option système : elle reste au catalogue.</div>' : '<button role="menuitem" class="danger" data-mact="archive">Archiver</button>'}`;
+  m.addEventListener('click', (ev) => {
+    const a = ev.target.closest('[data-mact]'); if (!a) return;
+    closeMenu();
+    if (a.dataset.mact === 'edit') openOption(id);
+    else dialog(`Archiver « ${x.title.length > 60 ? `${x.title.slice(0, 58)}…` : x.title} » ?`, 'Retirée des nouvelles réservations. Les réservations existantes la gardent.', [['Annuler', 'text', () => {}], ['Archiver', 'primary', () => { x.archived = true; render(); toast('Option archivée'); }]]);
+  });
+  $('#app').appendChild(m); S.menu = m;
+  setTimeout(() => { const f = m.querySelector('button:not([disabled])'); if (f) f.focus(); }, 10);
+}
+function closeMenu() { if (S.menu) { S.menu.remove(); S.menu = null; } }
+
+/* ---------------- inline cell edit (direction B) ---------------- */
+function startCell(id, pid) {
+  const x = DB.options.find((y) => y.id === id);
+  if (!x.props.includes(pid)) { openOption(id); return; }
+  S.editCell = { id, pid, raw: x.prices[pid] != null ? String(x.prices[pid]).replace('.', ',') : '', err: '' };
+  render();
+  const inp = sc().querySelector('[data-cellin]'); if (inp) { inp.focus({ preventScroll: true }); inp.select(); }
+}
+function commitCell(keepOnError) {
+  const c = S.editCell; if (!c) return;
+  const x = DB.options.find((y) => y.id === c.id);
+  const r = parseMoney(c.raw, { percent: x.type === 'percent_of_stay', allowEmpty: true });
+  if (r.err) {
+    if (keepOnError) { c.err = `${r.err} — refusé`; render(); const inp = sc().querySelector('[data-cellin]'); if (inp) { inp.focus({ preventScroll: true }); inp.select(); } return; }
+    S.editCell = null; render(); toast(`${r.err} : prix inchangé`); return;
+  }
+  if (r.empty) delete x.prices[c.pid]; else x.prices[c.pid] = r.n;
+  S.editCell = null; render();
+  toast(r.empty ? `${propName(c.pid)} reprend le prix de base` : `${propName(c.pid)} : ${x.type === 'percent_of_stay' ? `${r.n} %` : fmt(r.n)}`);
+}
+
+/* ---------------- events ---------------- */
+document.querySelectorAll('#demo .seg').forEach((seg) => seg.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button'); if (!b) return;
+  const key = { 'c-dir': 'dir', 'c-dev': 'dev', 'c-data': 'data' }[seg.id];
+  S[key] = b.dataset.v; S.editCell = null; closeMenu();
+  if (key === 'data') { loadData(); if (S.drawer) { S.drawer = null; showDrawer(false); } }
+  render();
+}));
+const app = $('#app');
+app.addEventListener('click', (ev) => {
+  const t = ev.target;
+  if (S.menu && !t.closest('.menu')) { closeMenu(); if (t.closest('[data-menu]')) return; }
+  const dl = t.closest('[data-dlg]'); if (dl) { $('#dlg').classList.remove('on'); $('#dlg')._acts[+dl.dataset.dlg][2](); return; }
+  if (t.closest('#scrim')) { tryClose(); return; }
+  const act = t.closest('[data-act]');
+  if (act) {
+    const a = act.dataset.act;
+    if (a === 'new') { if (S.tab === 'options') openOption(null); else openResource(null); }
+    if (a === 'close') tryClose();
+    if (a === 'save') save();
+    if (a === 'clearq') { S.q = ''; render(); const i = sc().querySelector('[data-q]'); if (i) i.focus(); }
+    if (a === 'resetfilters') { S.q = ''; S.cat = '*'; S.prop = 0; render(); }
+    return;
+  }
+  const tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; S.editCell = null; render(); sc().scrollTop = 0; return; }
+  const ch = t.closest('[data-cat]'); if (ch) { S.cat = ch.dataset.cat; if (S.cat !== '*') S.closed.delete(S.cat); render(); return; }
+  const pr = t.closest('[data-prop]'); if (pr) { S.prop = +pr.dataset.prop; render(); return; }
+  const se = t.closest('[data-sec]'); if (se) { const k = se.dataset.sec; if (S.closed.has(k)) S.closed.delete(k); else S.closed.add(k); render(); return; }
+  const mn = t.closest('[data-menu]'); if (mn) { ev.stopPropagation(); openMenu(mn, +mn.dataset.menu); return; }
+  const rs = t.closest('[data-restore]'); if (rs) { const x = DB.options.find((y) => y.id === +rs.dataset.restore); x.archived = false; render(); toast('Option restaurée'); flash(x.id); return; }
+  const cell = t.closest('[data-cell]'); if (cell) { if (S.editCell) commitCell(false); const [id, pid] = cell.dataset.cell.split(':').map(Number); startCell(id, pid); return; }
+  const op = t.closest('[data-open]'); if (op && !t.closest('[data-cellin]')) { openOption(+op.dataset.open); return; }
+  const ro = t.closest('[data-ropen]'); if (ro) { openResource(+ro.dataset.ropen); return; }
+  const jump = t.closest('[data-jump]'); if (jump) { const s = $(`#s-${jump.dataset.jump}`); if (s) $('#drb').scrollTo({ top: s.offsetTop - 8, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
+  const cp = t.closest('[data-catpick]'); if (cp) { S.drawer.draft.cat = S.drawer.draft.cat === cp.dataset.catpick ? '' : cp.dataset.catpick; redrawKeepScroll(); return; }
+  if (t.closest('[data-cardadd]')) { S.drawer.draft.card.push('12:00'); redrawKeepScroll(); return; }
+  const crm = t.closest('[data-cardrm]'); if (crm) { S.drawer.draft.card.splice(+crm.dataset.cardrm, 1); redrawKeepScroll(); }
+});
+function redrawKeepScroll() { const y = $('#drb') ? $('#drb').scrollTop : 0; drawDrawer(); $('#drb').scrollTop = y; }
+app.addEventListener('keydown', (ev) => {
+  if (ev.target.matches('[data-cellin]')) {
+    if (ev.key === 'Enter') { ev.preventDefault(); commitCell(true); }
+    if (ev.key === 'Escape') { ev.preventDefault(); S.editCell = null; render(); }
+    return;
+  }
+  if (ev.key === 'Escape') { if ($('#dlg').classList.contains('on')) { $('#dlg').classList.remove('on'); return; } if (S.menu) { closeMenu(); return; } if (S.drawer) tryClose(); return; }
+  if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches('[data-open],[data-ropen]')) { ev.preventDefault(); ev.target.click(); }
+});
+app.addEventListener('focusout', (ev) => {
+  if (ev.target.matches('[data-cellin]') && S.editCell) setTimeout(() => { if (S.editCell && document.activeElement && !document.activeElement.matches('[data-cellin]')) commitCell(false); }, 0);
+});
+app.addEventListener('input', (ev) => {
+  const t = ev.target;
+  if (t.matches('[data-q]')) { S.q = t.value; const pos = t.selectionStart; render(); const i = sc().querySelector('[data-q]'); i.focus(); i.setSelectionRange(pos, pos); return; }
+  if (t.matches('[data-cellin]')) { S.editCell.raw = t.value; if (S.editCell.err) { S.editCell.err = ''; t.classList.remove('bad'); const m = t.parentElement.querySelector('.msg'); m.classList.remove('bad'); m.textContent = 'Entrée pour enregistrer'; } return; }
+  if (!S.drawer) return;
+  const d = S.drawer.draft;
+  if (t.dataset.f && t.type !== 'checkbox' && t.tagName !== 'SELECT') { d[t.dataset.f] = t.value; if (t.dataset.f === 'priceRaw') document.querySelectorAll('#drawer [data-pp]').forEach((p) => { p.placeholder = t.value || '0'; }); if (t.dataset.f === 'title' || t.dataset.f === 'name') { if (!S.drawer.isNew) $('#dr-title').textContent = t.value || 'Sans nom'; } syncFooter(); return; }
+  if (t.dataset.pp) { d.pricesRaw[t.dataset.pp] = t.value; syncFooter(); return; }
+  if (t.dataset.cardt) { d.card[+t.dataset.cardt] = t.value; syncFooter(); return; }
+  if (t.dataset.h) { d.hourly[t.dataset.h] = t.value; syncFooter(); }
+});
+app.addEventListener('change', (ev) => {
+  const t = ev.target;
+  if (t.matches('[data-propsel]')) { S.prop = +t.value; render(); return; }
+  if (!S.drawer) return;
+  const d = S.drawer.draft;
+  if (t.tagName === 'SELECT' && t.dataset.f) { d[t.dataset.f] = t.value; redrawKeepScroll(); return; }
+  if (t.dataset.f === 'cat') { redrawKeepScroll(); return; }
+  if (t.matches('[data-scope]')) { const id = +t.dataset.scope; d.props = t.checked ? [...d.props, id] : d.props.filter((x) => x !== id); if (!t.checked) delete d.defaults[id]; redrawKeepScroll(); return; }
+  if (t.matches('[data-def]')) { const id = t.dataset.def; if (t.checked) d.defaults[id] = 'default'; else delete d.defaults[id]; redrawKeepScroll(); return; }
+  if (t.matches('[data-off]')) { const id = t.dataset.off; d.defaults[id] = t.checked ? 'offered' : 'default'; redrawKeepScroll(); return; }
+  if (t.matches('[data-f-av]')) { d.alwaysVisible = t.checked; syncFooter(); return; }
+  if (t.matches('[data-f-client]')) { d.client = t.checked; redrawKeepScroll(); return; }
+  if (t.matches('[data-f-card]')) { d.card = t.checked ? ['09:00'] : null; redrawKeepScroll(); }
+});
+
+loadData(); render();
+})();
+</script>
+</body>
+</html>

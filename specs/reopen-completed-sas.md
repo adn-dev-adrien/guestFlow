@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/reopen-completed-sas` |
 | **Created** | 2026-06-15 |
 | **Author** | Adrien |
@@ -45,13 +45,16 @@ flags follow the checkbox faithfully. A SAS never reverts to "not done".
 
 1. **Entry point — clickable ✓.** When `arrivalSasDoneAt` (resp. `departureSasDoneAt`) is set,
    the planning SAS button keeps its green ✓ (`CheckCircleIcon`, `color="success"`) but is **no
-   longer `disabled`**. Tooltip becomes « Revoir / modifier le check-in » (resp. « … le
-   check-out »). Clicking reopens the wizard in the same mode. (Reverses
-   [arrival-departure-sas.md](arrival-departure-sas.md) §3.0 lock.)
-   **Restricted for the reception role
-   ([reception-sas-lock-after-commit.md](reception-sas-lock-after-commit.md), 2026-08-04):** this
-   whole re-edit is **admin-only**. For a reception-only user the ✓ stays green but **disabled**, and
-   the server refuses any commit on a committed SAS (403 `SAS_ALREADY_COMMITTED`).
+   longer `disabled`**. Tooltip becomes « Revoir l’accueil » (resp. « Revoir le départ ») — the
+   wording the planning cards carry since the SAS was renamed « Accueil » / « Départ » (corrected at
+   the 2026-10-27 spec review; first written « Revoir / modifier le check-in »). Clicking reopens
+   the wizard in the same mode. (Reverses [arrival-departure-sas.md](arrival-departure-sas.md) §3.0
+   lock.)
+   **Restricted for the reception role (2026-08-04, now
+   [reception-sas-today-only.md](reception-sas-today-only.md) — the
+   `reception-sas-lock-after-commit.md` spec once cited here never existed):** this whole re-edit is
+   **admin-only**. For a reception-only user the ✓ stays green but **disabled**, and the server
+   refuses any commit on a committed SAS (403 `{ error: 'SAS_LOCKED', reason: 'done' }`).
 
 2. **Pre-fill on reopen.** When the wizard opens on a reservation that already has the relevant
    `…SasDoneAt`, every decision is seeded from the persisted state (instead of starting blank):
@@ -168,12 +171,18 @@ No new generic component (this is a behavioral change to existing wizard + two p
 - [ ] `commitDepartureSas` caution returned: symmetric set / clear.
 - [ ] `commitDepartureSas` end-of-stay re-commit overwrites amount + detail (no accumulation).
 - [ ] `getByIdWithDetails` surfaces `sasArrivalOrigin` on custom-option lines.
+- [x] `sas-commit.unit.test.js` (+2, 2026-10-27 spec review) — rule 6: a re-ticked caution keeps its first
+  date (arrival and departure); rule 7: a re-commit refreshes both `…SasDoneAt` and never clears them.
 
 ### Client unit tests (`client/src/components/__tests__/`)
 
 - [ ] `ReservationCard`: when `arrivalSasDoneAt` set, the SAS button is **enabled** (not
   `disabled`), green ✓, tooltip « Revoir / modifier le check-in », fires `onOpenSas`.
 - [ ] `DepartureMiniRow`: symmetric (enabled, « Revoir / modifier le check-out »).
+
+- [x] `client/src/plugins/sas/__tests__/ReservationSasDialog.reopen.test.jsx` (3, 2026-10-27 spec review) —
+  rules 2-3: a re-opened departure shows the caution-return step pre-ticked, a first run does not; rule 8:
+  « Quitter » commits nothing.
 
 ### Manual UI verification (dev server)
 

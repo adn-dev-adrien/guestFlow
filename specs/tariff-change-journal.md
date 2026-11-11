@@ -48,6 +48,8 @@ changement de grille sur les réservations.
    (`source`), une note libre, et l'instant d'écriture (`createdAt`).
 4. `occurredAt` et `createdAt` sont **deux choses différentes** : on peut déclarer aujourd'hui un
    déploiement fait la semaine dernière. Les statistiques lisent `occurredAt`.
+   *Reading of 2026-11-02 — the date window.* A manual entry's `occurredAt` lies in [today − 5 years, today + 5 years],
+   the French message otherwise; an apply or a backfill writes its own dates and is not judged (`specs/reservations-backend-mvc.md` rule 13, second reading).
 5. **Un événement `recipe` est écrit automatiquement** à chaque application de recette qui modifie
    effectivement quelque chose. Une application sans effet (le diff ne change aucune saison et
    n'ajoute aucune fermeture) **n'écrit rien** : il n'y a pas eu de changement tarifaire.

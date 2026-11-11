@@ -47,7 +47,7 @@ const DUE = {
 function buildController(captures, { settled, row = DUE } = {}) {
   return withMocks({
     '../utils/pricing': { calculateReservationQuote: () => ({ error: null }) },
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-09-01' },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },
@@ -100,12 +100,14 @@ test('encaisser en une fois écrit une ligne qui dit tout ce qui a été encaiss
   assert.equal(captures.history.length, 1);
   const [line] = captures.history;
   assert.equal(line.label, "Paiement unique encaissé à l'arrivée");
-  assert.equal(line.to, '250 € — CB / Chèque le 2026-08-30 — balance, complement');
+  // Rule 9 reading of 2026-11-10 (audit R44-RES-L2) — French amount, day and bucket names.
+  assert.equal(line.fromText, null);
+  assert.equal(line.toText, "250 € — CB / Chèque le 30/08/2026 — solde, complément d'arrivée");
 });
 
 test('la caisse interne se nomme dans l’historique, elle ne se devine pas', () => {
   const { captures } = settle({ mode: 'cash', date: '2026-08-30' });
-  assert.match(captures.history[0].to, /caisse interne le 2026-08-30/);
+  assert.match(captures.history[0].toText, /caisse interne le 30\/08\/2026/);
 });
 
 // specs/single-payment-from-the-fiche.md rule 10 — l'annulation laisse sa propre trace : un
@@ -114,8 +116,8 @@ test('annuler le paiement écrit ce qui a été défait', () => {
   const { captures } = settle({ mode: 'undo' }, {
     row: { ...DUE, arrivalPaymentGroup: '{"at":"2026-08-30","cash":0,"total":250,"buckets":["balance","complement"]}' },
   });
-  assert.equal(captures.history[0].to, 'annulé');
-  assert.equal(captures.history[0].from, '250 € (balance, complement)');
+  assert.equal(captures.history[0].toText, 'annulé');
+  assert.equal(captures.history[0].fromText, "250 € (solde, complément d'arrivée)");
 });
 
 test('un encaissement qui ne porte sur rien n’écrit pas de ligne', () => {

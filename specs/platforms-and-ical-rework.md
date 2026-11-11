@@ -78,6 +78,8 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
       brings them back; iCal sync (if a URL is set) still runs but disabled-platform bookings stay hidden.
     The flag is **per (property, platform)** and persists a source row on demand (like URL/tax).
     `direct` can be disabled too (hides direct bookings from this property's views).
+    **Superseded 2026-10-28** by `calendar-property-parity.md` rule 2: a reservation view never hides a
+    stay that occupies dates. « Désactiver » keeps the greyed row and stops the import, nothing more.
 
 ### Inline editing
 
@@ -93,6 +95,26 @@ calendar everywhere), an **optional "URL iCal"** (empty → no sync, manual), a 
     refuses it for built-ins.
 14. The platform **name** is rendered as a **colour-filled chip** (its background = the platform's calendar
     colour); clicking the chip opens the palette (there is no separate grey swatch).
+15. *(Fixed at the 2026-10-27 spec review.)* **One platform, one catalogue row, one source per property,
+    however its name is sent.** `platformsModel.canonicalName` maps a typed or posted name to the catalogue
+    row or built-in name with the same slug, also when the input carries the brand's « .com »
+    (« Booking.com », `BookingCom` → `Booking`; `gites-de-france` → `GitesDeFrance`). `POST
+    /api/properties/:id/ical-sources` stores that label, keys a new source by it, and updates the property's
+    existing source of the same platform (matched by slug on its key or its label) instead of creating a
+    second one; « Ajouter une plateforme » (`setColor`) registers no duplicate either. A genuinely new name
+    keeps its own canonical form (« Vrbo tente » → `VrboTente`, key `vrbotente`).
+16. *(Fixed at the 2026-10-27 spec review.)* **A platform is on Paramètres › Plateformes the moment it
+    exists.** `GET /api/platforms/settings` first registers (`platformsModel.rescan`, in canonical spelling,
+    skipping any slug a row already covers) every platform a reservation or an iCal source names. A
+    platform first used by a reservation or an intake used to appear only after a restart or the accounting
+    « refresh ». Test (rules 15-16): `tests/platform-catalogue-canonical-names.unit.test.js`.
+17. **A colour sent on an iCal source is a platform colour** (audit R24-I5, 2026-11-05). On `POST` and
+    `PUT /api/properties/:id/ical-sources[/:sourceId]`, a non-empty `platformColor` passes the check of
+    `PUT /api/platforms/:key/color` (`validateCalendarColor`: a readable `#rrggbb`), else 400 `INVALID_FIELD`,
+    `field` `platformColor`, with that check's message, nothing written. The stored colour sent back passes;
+    empty, `null` or absent is no colour. Any text used to be stored and served to every calendar chip as CSS
+    (`red;}body{display:none}`). The screen sends no colour on a source. Test:
+    `tests/ical-source-color-guard.unit.test.js`.
 
 **Edge cases:**
 - Empty URL + tax left at default + default colour → no source row persisted (nothing to store).
@@ -144,6 +166,10 @@ any platform-colour edit. The list stays a feature-local table in `PropertyDetai
 | POST/PUT/DELETE | `/api/properties/:id/ical-sources(/:sourceId)` | URL now optional; upsert-by-platform for configure-on-demand. |
 | POST | `/api/properties/:id/ical-sources/:sourceId/sync` | Unchanged; only offered when URL set. |
 | GET | `/api/properties/platform-colors` | Now backed by `platforms.color` (+ built-in fallback). |
+
+> **Amended 2026-10-18 (`specs/ical-import-hardening.md` rules 2, 9, 10):** each `/platforms` row also
+> carries `isActive` (boolean) and `syncStatus` `{ tone, text, detail }`, the line the row prints;
+> `disabled` is a boolean. `POST …/sync` answers `409 « Calendrier arrêté. »` on an inactive source.
 
 ---
 

@@ -11,7 +11,8 @@
   function firstOfMonth(date) { return new Date(date.getFullYear(), date.getMonth(), 1); }
   function addMonths(date, n) { return new Date(date.getFullYear(), date.getMonth() + n, 1); }
 
-  var DOW = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  // In the page's language, like the month names (specs/wordpress-plugin.md rule 19).
+  var DOW = GF.weekdays();
 
   function init(container) {
     var propertyId = parseInt(container.dataset.propertyId, 10) || 0;
@@ -25,19 +26,25 @@
 
     function monthGrid(monthDate, blocked) {
       var grid = GF.el('div', { class: 'gf-cal-grid' });
-      DOW.forEach(function (d) { grid.appendChild(GF.el('div', { class: 'gf-cal-dow' }, d)); });
+      DOW.forEach(function (d) { grid.appendChild(GF.el('div', { class: 'gf-cal-dow', 'aria-hidden': 'true' }, d)); });
       var year = monthDate.getFullYear();
       var month = monthDate.getMonth();
       var firstDay = new Date(year, month, 1);
       var lead = (firstDay.getDay() + 6) % 7; // Monday-based
       for (var i = 0; i < lead; i++) grid.appendChild(GF.el('div', { class: 'gf-cal-day gf-empty-cell' }));
       var days = new Date(year, month + 1, 0).getDate();
+      var today = isoOf(new Date());
       for (var d = 1; d <= days; d++) {
         var iso = isoOf(new Date(year, month, d));
-        var isBlocked = !!blocked[iso];
+        // A past day is neither free nor taken: a muted figure, never struck through
+        // (specs/wp-booking-widget-redesign.md rule 31).
+        var isPast = iso < today;
+        var isBlocked = !isPast && !!blocked[iso];
         grid.appendChild(GF.el('div', {
-          class: 'gf-cal-day ' + (isBlocked ? 'gf-blocked' : 'gf-free'),
-          title: isBlocked ? GF.t('blocked') : GF.t('available'),
+          class: 'gf-cal-day ' + (isPast ? 'gf-past' : (isBlocked ? 'gf-blocked' : 'gf-free')),
+          title: isPast ? null : (isBlocked ? GF.t('blocked') : GF.t('available')),
+          role: 'img',
+          'aria-label': GF.dayLabel(year, month, d, isBlocked),
         }, String(d)));
       }
       // The month names follow the page's language (specs/site-english-version.md rule 24); the
@@ -49,8 +56,8 @@
     function draw(blocked) {
       container.innerHTML = '';
       var nav = GF.el('div', { class: 'gf-cal-head' },
-        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': 'Précédent', onClick: function () { base = addMonths(base, -1); load(); } }, '‹'),
-        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': 'Suivant', onClick: function () { base = addMonths(base, 1); load(); } }, '›')
+        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calPrevMonth'), onClick: function () { base = addMonths(base, -1); load(); } }, '‹'),
+        GF.el('button', { class: 'gf-cal-nav', type: 'button', 'aria-label': GF.t('calNextMonth'), onClick: function () { base = addMonths(base, 1); load(); } }, '›')
       );
       container.appendChild(nav);
       var wrap = GF.el('div', { class: 'gf-cal-wrap' });

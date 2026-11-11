@@ -269,6 +269,10 @@ all-inclusive pricing as the first such recipe.
     `changeoverBreached` with the required weekdays; the save is refused with a machine code and a
     French message; and the same force-override that exists for minimum nights lets the operator save
     anyway. Same plumbing, same UI pattern, same escape hatch — nothing new to learn.
+    *2026-10-27 audit:* the escape hatch is the back-office's alone. The website's public path
+    refuses a maximum-stay or changeover breach like a minimum-stay one (`409 MAX_NIGHTS` /
+    `CHANGEOVER`), its quote and calendar say so first, and its payment re-checks them —
+    [public-api.md](../public-api.md) rule 12. It used to refuse the minimum only.
 24. **iCal imports are never blocked by either rule.** A platform booking that violates the constraint
     is a fact to record, not a request to validate; it imports and is flagged, as today for minimum
     nights.
@@ -297,6 +301,8 @@ all-inclusive pricing as the first such recipe.
     never prevents the others from loading, and never stops the server from booting.
 28. **A read-only recipe browser** lists every recipe with its source (« Livrée » or « Locale »), its
     version, an override indicator, its content, and which properties currently use it.
+    > 2026-10-18 (mega review #5): the browser's intro no longer explains the `recipes/` directory to
+    > the operator — server mechanics, not something done from the page.
 29. **A property's recipe is chosen on its tariff page**, next to the seasons the recipe governs, and
     the choice is echoed read-only in the property's settings with a link back to the tariff page.
 
@@ -541,7 +547,143 @@ all-inclusive pricing as the first such recipe.
 - Changeover rule on a 1-night stay → arrival and departure rules both apply and can be mutually
   impossible; the preview warns when a recipe declares such a combination.
 
+### 3.11 Fixed at the 2026-10-27 audit
+
+56. **A sold option keeps its value over every save, free units included.** A line stores its total
+    net of the free units the rate includes (rule 52bis) while `billedUnits` stays gross. The replay
+    adds back, at the stored unit price, the free units the tariff snapshot says were deducted, before
+    merging the sold line, and deducts the free units once after it (`lockedLineGrossOfFreeUnits`).
+    A row stored without a snapshot predates the free units and holds a gross total: nothing is added
+    back (review of PR #803). Before: « Jus 6 € × 3, 1 offert » went 12 → 8 →
+    5,34 → 3,56 over three saves, and a breakfast at 8 € per person per night with 2 free went
+    32 → 21,32.
+57. **The sold night prices are kept only while the arrival date is unchanged** (operator decision
+    2026-10-27). A progressive tariff prices a night by its rank in the stay, so a locked night that
+    changes rank means nothing any more:
+    - same arrival, departure extended or shortened → every sold night keeps its price, a new night
+      is priced at the current tariff with its real rank;
+    - arrival moved (earlier, later, or the whole stay shifted) → the whole stay is repriced at the
+      current tariff, and that becomes the new lock on save.
+    Before, the lock was by date: arriving a day earlier on a 100 / 60 / 60 stay priced 100 + 100 +
+    60 + 60 = 320 instead of the tariff's 280.
+58. **The per-night extra-guest supplement replays the season it was sold under.** The tariff
+    snapshot (rule 12bis) carries, per night, the season's full price (the ratio's denominator) and
+    its extra-guest unit price (`extraGuestNights: { date: { base, unit } }`, per-night unit only).
+    Every night whose price comes from the lock (rule 57) uses them; a night added later, and every
+    reservation stored before the key existed, read the live season. Before: sold 20 €/night × 3 =
+    60 €, re-saved after the season moved from 100 to 125 → 48 €, to 80 → 75 €.
+59. **A night no season covers is named.** It keeps the historical 100 € fallback price (or, once
+    saved, its locked price), but the quote lists it in `unpricedNights` whether or not it is locked:
+    a stay saved on the default price keeps that price in its lock, and the fiche must keep saying no
+    season covers it. The fiche warns under « Prix hébergement » (« Aucune saison tarifaire ne couvre
+    la nuit du … ») and lets the operator decide. `pricing.hasUnpricedNights(quote)` is the core helper
+    the public quote and booking paths use to refuse such a stay (website-booking plugin, lot 4 of
+    the audit).
+### 3.12 Display fixes (2026-10-27 audit)
+
+60. **The recipe card's degressivity is a server label.** `GET /api/tariff-recipes/:id` returns
+    `labels.lengthOfStayDiscounts` (`labels.js`), « 2 nuits −0 % · … · 7 nuits −42,9 % »: French
+    decimal comma, one decimal at most. A recipe may hold an exact fraction (the gîte's 3/7 =
+    42,857 %); the card printed it raw (« −42.857142857142854 % ») and no longer formats it itself.
+61. **The recipes page lines up with every other page.** Its `PageActionBar` sits outside the padded
+    content (it was 24 px lower and narrower than elsewhere), « Journal des changements » uses the
+    `sectionHeader` role, and a shipped recipe's `label` / `description` never carries Markdown
+    backticks (the gîte's « `welcomePack.cost` » now reads « le levier du pack accueil »; the
+    recipe version is unchanged — no price moves).
+62. **The tariff snapshot follows the nights it describes** (spec review 2026-10-27). Rule 12bis wrote
+    `tariffSnapshot` at creation only, so the nights added later had no entry and a stay repriced
+    because its arrival moved (rule 57) kept the old season bases: the next notes-only save moved the
+    price (423,40 → 430,60 on a per-night supplement without tiers). Every save that rewrites the
+    nights (not a past-locked fiche) now stores the snapshot the engine priced with — sold nights keep
+    their entry, new and repriced nights carry the live season — so a save replays exactly what the
+    previous one stored. The property-level half stays the one the reservation was sold under
+    (`lockedTariff`), and a stored tier table is kept when the current party prices no tier. A legacy
+    row with no snapshot gets one at its next save. _(Refined 2026-10-27 by rules 66-67: the snapshot a
+    replay stores carries the sold tier table verbatim and the sold free-unit grants; nothing is merged
+    by the model any more.)_
+
+### 3.13 Clarified at the 2026-10-27 spec review
+
+63. **The seasons table of « Gestion tarifaire » shows only what can still be sold**, the Tarifs tab of the
+    logement shows the stored ranges. A season stored 01/01/2026 → 31/12/2026 therefore reads 29/10/2026 →
+    31/12/2026 in « Gestion tarifaire » on 27/10/2026 when 27-28/10 are closed: its past dates are hidden
+    (`upcomingRangesFrom`, ranges ending before today) and its closed days cut out (rule 25ter). Intended,
+    not a bug; the stored range is unchanged and the Tarifs tab is where the full span is read.
+
+### 3.13 Fixed at the 2026-10-27 spec review
+
+64. **The recipe's `extraGuest.unit` and `appliesAbove` are written on the property.** They were
+    validated at load and then dropped by the apply: the Lodge recipe applied to a property left at its
+    default `per_stay` billed its 15/8 tiers 0 € (4 adults, 3 high-season nights → no supplement), and
+    nothing said so. The apply now writes `extraGuestPriceUnit` (a tier table without a declared unit
+    means `per_night`) and `basePriceIncludedGuests`, on both paths like the welcome-pack cost. The
+    preview lists them as `extraGuestChanges: [{ field, label, from, to }]` (« Supplément voyageurs :
+    par séjour → par nuit », « Personnes incluses dans le prix : 0 → 2 ») and they count as a change
+    (`applied: true`, one line in the tariff journal). A field the recipe does not declare is left
+    alone. A tier table on `unit: per_stay` is refused at load — a per-stay supplement never reads tiers.
+65. **A holiday block that adds nothing leaves its nights exactly as they were** (completes rule
+    16quater). A night that keeps its season and whose period minimum already is the strongest
+    constraint keeps its period override verbatim; rewriting it without that minimum split the Gîte's
+    2026 Très haute in four ranges (07-11→13, 07-14→08-14, 08-15, 08-16→21) around the 14-juillet block
+    and the Saturday 15 August. It is now one range, `2026-07-11 → 2026-08-21, minNights 4`; a block
+    minimum stronger than the night's (Lodge, 14 juillet, 3 nights over a 1-night season) still splits.
+
+### 3.14 Fixed at the adversarial review of the 2026-10-27 spec-review fixes
+
+66. **The free units a stay was granted survive every save; « granted » and « consumed » are two maps.**
+    Rule 62 made every save store the snapshot it priced with, and the snapshot's `freeUnitsByOption`
+    was built from the units the current lines CONSUMED, while rule 12bis reads an option absent from
+    it as « granted nothing ». Removing the welcome-pack option, lowering its quantity or moving the
+    stay to a platform for one save erased the grant, and putting it back billed it (300 → 380 €). The
+    snapshot now carries:
+    - `grantedFreeUnitsByOption` — what the stay was granted, per option, `0` included (an explicit
+      « nothing »). It is what `applyFreeUnitsToLine` replays. An option already in it keeps its sold
+      grant whatever the catalogue says now, and stays in it when its line is removed, its quantity
+      lowered, or the stay saved on a platform (the grant is the stay's; the channel only decides
+      whether it applies, rule 53). An option absent from it was never on the stay: added later, it is
+      granted today's catalogue, which is then stored.
+    - `freeUnitsByOption` — what the stored lines are net of (consumed at the last save, `{}` on a
+      platform). Only the add-back of a sold line reads it (rule 56).
+    A snapshot written before this rule has the consumed map only: it stands in for the grant (an
+    option in it keeps that value, an option already on the stay but absent from it was granted
+    nothing, an option new to the stay gets the catalogue), its add-back applies on an own-channel save
+    only, and the first save writes the granted map. A past-locked fiche whose mid-stay window rewrites
+    its extras stores the snapshot too, since its lines changed (its nights come from the lock).
+67. **A replay stores the tier table it replayed, verbatim.** Since the 2026-10-27 spec review the
+    engine emitted `extraGuestTiers: tiers || []`, so a legacy `null` (stays sold before that review,
+    replayed as « no tiers ») became `[]` at the first save — and `null` is how the operator finds the
+    Lodge stays sold at ≤ 2 guests before the fix (PR #814). A quote built on a `lockedTariff` now
+    stores `lockedTariff.extraGuestTiers` as it was (`null` stays `null`, `[]` stays `[]`, a table
+    stays that table); only a fresh sale stores the season's table. This is the table the engine priced
+    with: moving the arrival reprices the nights (rule 57) and the per-night seasons (rule 58), not the
+    property-level half (rule 62), so it re-sells nothing here. `reservationsModel.refreshTariffSnapshot`
+    no longer merges anything (its « keep stored tiers » branch was dead code).
+
 ---
+
+68. **A tariff change alone never raises the fiche's stored-amounts switch** (2026-10-28,
+    [reservation-payment-ledger.md](reservation-payment-ledger.md) rule 57). The snapshot of rule 12bis is
+    replayed, so re-applying a recipe leaves `storedDrift` false; and a platform stay is compared with the
+    « Prix plateformes » grid of its channel (rules 31-34bis), never with the direct tariff, so a recipe
+    change that moves the grid moves the check only for the nights priced on today's seasons.
+69. **An option save keeps the free units its rows hold** (audit R24-DB-1, 2026-11-05). `property_option_prices.freeUnits` is
+    written by the recipe (rule 51) and never shown nor sent by the option editor, whose save replaces the per-property prices:
+    each row it writes again keeps the free units it held. A save that would drop a row holding free units (its price blanked,
+    the property no longer proposed, a price type with no per-property price) is refused 422 on `propertyPrices.<propertyId>`
+    with « Prix requis : unités offertes », nothing written. `GET /api/options/:id` carries `propertyFreeUnits`
+    (`{ [propertyId]: n }`, rows holding some), read by that check. *Why:* any « Enregistrer » on the apple juice, a description
+    fix included, set its free unit to 0: 5 € more on every new direct stay of the Lodge and its welcome pack gone, with no way
+    back in the app. Test: `option-free-units`.
+    *Reading of 2026-11-05 (audit R24 verification DB-1):* with « Gratuit » or « Dégressif participants » the editor has no
+    « Prix » column, so the refusal prints under the property's row in « Logements et prix »; otherwise under the row's
+    « Prix » field (disabled when the property is no longer proposed). Test: client
+    `OptionEditorPanel.free-units-refusal`.
+    *Reading of 2026-11-06 (audit R25 F1, corrected the same day by verification N3):* the refusal names the only way out
+    the app has: « Prix requis : unités offertes ici (0 € accepté) ». A price, 0 € included, keeps the row and its free
+    units, and the save goes through. No screen and no route writes `freeUnits` (the « Recettes tarifaires » card only
+    shows them), so taking the option off that property, or switching it to « Gratuit » or « Dégressif participants »,
+    is not possible in the app while the row holds free units; that is Adrien's call, not a fix (the first wording, « à
+    retirer par la recette tarifaire », pointed to a screen that cannot do it). Test: `option-free-units`.
 
 ## 4. Architecture
 
@@ -556,6 +698,28 @@ Full code map in [architecture.md](architecture.md). Summary:
   dialog, changeover and minimum-nights markers plus a legend on the tariff calendar, the widened
   platform grid, and the extra-guest and tax-base lines in `PricingSummary`.
 - **One new feature component** (`TariffRecipeCard`); everything else composes existing generics.
+
+**Audit 2026-10-27 (rules 56-59).** `utils/pricing.js` — `lockedLineGrossOfFreeUnits` (56),
+`mergeNightlyBreakdownWithLocked` gated on the arrival date and returning the locked dates (57),
+`extraGuestNightSeason` + `tariffSnapshot.extraGuestNights` (58), `unpricedNights` /
+`hasUnpricedNights` (59). `client/src/components/PricingSummary.jsx` renders the rule-59 warning.
+- **2026-10-27 audit:** `server/src/plugins/tariff-recipes/labels.js` (new) formats the card's
+  degressivity label; `controller.getOne` adds `labels` to its payload (rule 60).
+- **2026-10-27 spec review:** `plugins/tariff-recipes/model.js` — `diffExtraGuestConfig` /
+  `desiredExtraGuestConfig`, preview `extraGuestChanges`, apply writes them (rule 64);
+  `writeExtraGuestConfig` (the recipe-only writer, direct SQL so the plugin needs no newer core);
+  `plugins/tariff-recipes/store.js` refuses tiers on a per-stay unit; `seasonPlan.js` keeps a block
+  night's period override when the block adds nothing (rule 65);
+  `client/src/plugins/tariff-recipes/TariffRecipeCard.jsx` lists `extraGuestChanges` in the preview.
+- **Adversarial review of the 2026-10-27 fixes (rules 66-67):** `utils/pricing.js` —
+  `grantedFreeUnitsFor` / `consumedFreeUnitsFor` and the snapshot's `grantedFreeUnitsByOption` (66), the
+  replayed tier table stored verbatim (67); `models/reservationsModel.js` — `refreshTariffSnapshot`
+  stores the engine's snapshot as is; `controllers/reservationsController.js` refreshes it whenever the
+  save writes the extras (66).
+- **Audit R24-DB-1 (rule 69):** `models/optionsModel.js` — `freeUnitsFor`, `persistPropertyPrices` re-inserts each row with its
+  free units, `get` carries `propertyFreeUnits`; `utils/optionValidation.js` — the `freeUnitsNeedPrice` refusal;
+  `controllers/optionsController.js` hands `storedFreeUnits` to it; `client/src/pages/options/OptionPropertyTable.jsx` prints the 422
+  under the row's « Prix » field, or under the property's row when the price type has no « Prix » column (reading below).
 
 ## 5. Data model
 
@@ -645,6 +809,10 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 
 ### Server unit tests
 
+- 2026-10-27 spec review: `plugins/tariff-recipes/tests/tariff-recipe-extra-guest-config.unit.test.js`
+  (6, rule 64), `season-plan-block-inside-period-minimum.unit.test.js` (2, rule 65); the Gîte end-to-end
+  test now pins the 2026 Très haute as one range.
+
 - [ ] `tests/tariff-recipe-load.unit.test.js` — a valid recipe loads; an invalid one is rejected alone
       with its error; a `data/recipes/` recipe overrides a bundled one of the same `id`; a missing data
       directory is not an error (rules 26, 27).
@@ -716,6 +884,18 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 - [ ] Mobile pass: recipe browser, tariff page card and diff dialog, calendar markers and legend,
       property detail form, reservation summary.
 
+**Audit 2026-10-27:** `tests/pricing-free-units-replay.unit.test.js` (4, rule 56),
+`tests/pricing-night-lock-arrival.unit.test.js` (5, rule 57),
+`tests/extra-guest-per-night-sold-season.unit.test.js` (5, rule 58),
+`tests/pricing-unpriced-nights.unit.test.js` (3, rule 59),
+`client/src/components/__tests__/PricingSummary.unpriced-nights.test.jsx` (3, rule 59);
+`tests/tariff-frozen-on-sold-reservation.unit.test.js` now expects `extraGuestNights` in the snapshot.
+- **2026-10-27 audit (rules 60-61):** `tariff-recipe-card-labels.unit.test.js` (5 server tests),
+  `TariffRecipeCard.degressivity-label.test.jsx` (1) and `TariffRecipesPage.layout.test.jsx` (2).
+- Spec review 2026-10-27 (rule 62): `server/src/tests/tariff-snapshot-refreshed-on-save.unit.test.js` (3 tests — no-op save after extension + arrival move keeps the price, sold tariff kept, stored tiers kept).
+- Adversarial review of the 2026-10-27 fixes (rule 66): `server/src/tests/free-units-grant-survives-saves.unit.test.js` (6 tests — option removed then re-added, quantity lowered then raised, platform and back, catalogue widened after the sale vs option new to the stay, a sold « 0 » kept, legacy consumed-only snapshot converted); `tariff-frozen-on-sold-reservation` expects `grantedFreeUnitsByOption`, `tariff-snapshot-backfill` replays with the stay's stored line.
+- Adversarial review of the 2026-10-27 fixes (rule 67): `server/src/tests/extra-guest-tiers-legacy-null-kept.unit.test.js` (2 tests — legacy `null` kept over two saves, `[]` and a sold table kept).
+
 ## 8. Out of scope
 
 - **Editing recipes in the UI.** The browser is read-only; updating means dropping a file in
@@ -745,6 +925,22 @@ containers that already handle `xs`. The manual test plan includes a mobile pass
 ## 9. Open questions
 
 _None. All three are answered below._
+
+**Answered at the 2026-10-27 spec review (no code change):**
+- **The grid's Direct row ≠ the billed price on an install whose `direct` commission is 0.** The
+  Direct row grosses the net up at the `direct` platform's own commission; the engine bills the
+  recipe's `pricePerNight`, computed with the 5 % own-channel fee (rule 31). The two agree only
+  when `direct` carries that 5 % in Paramètres › Plateformes — 0 % on a fresh install, hence
+  170 / 205 / 235 against 179 / 216 / 247. Configuration, not a defect: the identity is the
+  safeguard of rule 34bis, and it is what reports a missing net (skill trap 15). The grid reads the
+  `direct` row's commission only (a counts-as-direct channel such as Lodgify is listed under it, its
+  own rate unused), so after Lodgify's decommission (2026-10-26) that row must still carry 5 % for
+  the grid to read true.
+- **Two weeks on the Gîte = 2 552,03 €, not 2 × 1 276 €.** Every night is a stored, rounded line
+  (reservation-price-arithmetic) and the 8th-and-later nights each cost a seventh of a week rounded
+  to the cent (182,29 €), so seven of them make 1 276,03 €. Pinned by control case G5 (3 607,97 €
+  for two August weeks). Removing the cents would mean cumulative rounding for every progressive
+  tariff, which moves every stored night: not worth 3 cents.
 
 **Resolved (2026-08-12) — the welcome pack, decided by the owner:**
 - **Which channels.** `direct` **and** `Lodgify` (rule 53). The code shipped gating on the string

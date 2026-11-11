@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saison Estiva et note Google</title>
+<style>
+:root{--papier:#f3efe4;--ink:#2a3224;--mute:#5a6b48;--line:#e2dccb;--ocre:#c0802a;--sapin:#1d2a1c;--card:#fff;--red:#a33a2a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papier);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:32px 16px 80px}
+h1{font:400 28px/1.2 Georgia,serif;margin:0 0 4px}
+h2{font:400 21px/1.3 Georgia,serif;margin:40px 0 10px}
+.sub{color:var(--mute);margin:0 0 22px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.ctrl{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.ctrl label{font-size:14px;color:var(--mute);display:flex;gap:8px;align-items:center}
+input[type=date],input[type=number],input[type=text]{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;min-height:44px;background:#fff;color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:14px;border:0;background:#fff;padding:0 14px;min-height:44px;cursor:pointer;color:var(--ink)}
+.seg button[aria-pressed=true]{background:var(--sapin);color:#fff}
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.presets button{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 12px;min-height:36px;cursor:pointer}
+.hero{position:relative;border-radius:12px;overflow:hidden;min-height:250px;background:linear-gradient(160deg,#4b5d3a,#22301f 70%);color:#fff;padding:40px 28px;display:flex;flex-direction:column;justify-content:center}
+.eyebrow{color:#e9b96a;font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;font-weight:700;margin:0 0 10px;transition:opacity .2s}
+.hero h3{font:400 46px/1 Georgia,serif;letter-spacing:.04em;margin:0 0 12px;text-transform:uppercase}
+.hero p{margin:0;max-width:520px;font-size:17px;opacity:.95}
+.ess{max-width:560px;margin:8px auto 0}
+.ess h4{text-align:center;font:400 22px Georgia,serif;letter-spacing:.06em;text-transform:uppercase;margin:0 0 10px}
+.row{display:grid;grid-template-columns:160px 1fr;gap:12px;padding:11px 0;border-top:1px solid var(--line);font-size:15px}
+.row:last-child{border-bottom:1px solid var(--line)}
+.row dt{font-weight:700;color:var(--mute)}.row dd{margin:0}
+.row.hl{background:linear-gradient(90deg,rgba(192,128,42,.10),transparent)}
+pre{background:#1d221f;color:#d8e2d6;border-radius:10px;padding:14px;font-size:12.5px;overflow-x:auto;margin:0}
+.k{color:#e9b96a}
+.band{background:var(--sapin);color:#fff;border-radius:12px;padding:18px;text-align:center}
+.band a{color:#e9b96a;text-decoration:underline}
+.quote{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center}
+.quote em{display:block;margin-bottom:6px}
+.quote a{color:var(--mute)}
+.err{color:var(--red);font-size:13.5px;min-height:20px;margin-top:6px}
+input[aria-invalid=true]{border-color:var(--red);box-shadow:0 0 0 1px var(--red)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.note{font-size:13.5px;color:var(--mute)}
+ul{padding-left:20px}li{margin:4px 0}
+@media (max-width:640px){.cols{grid-template-columns:1fr}.row{grid-template-columns:1fr;gap:2px}.hero h3{font-size:34px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Saison de l'Estiva et note Google</h1>
+<p class="sub">Maquette à valider avant implémentation · 28/10/2026 · spec <code>specs/site-season-and-google-rating.md</code></p>
+
+<div class="panel">
+<strong>Constat.</strong>
+<ul>
+<li>La note Google est écrite à la main dans 4 pages : « 11 avis » sur l'accueil (FR et EN), « 22 avis » sur Le Domaine (FR et EN). La fiche Google en compte <strong>25</strong> aujourd'hui (5,0).</li>
+<li>Les dates de l'Estiva sont affichées, mais sans année : en ce moment (tente fermée), rien ne dit qu'elle rouvre le 1er avril 2027. Le JSON-LD ne porte aucune saison.</li>
+</ul>
+<strong>Ce qu'on propose.</strong>
+<ul>
+<li>Une seule valeur pour la note Google, rendue par un code court dans les 4 pages.</li>
+<li>Les dates d'ouverture enregistrées une seule fois, en format date. L'affichage, la FAQ, <code>llms.txt</code> et le JSON-LD sont calculés à partir d'elles, avec l'année de la saison en cours ou de la suivante.</li>
+</ul>
+<strong>Ce qu'on ne fait pas.</strong> Pas d'<code>AggregateRating</code> en JSON-LD : Google ne montre pas d'étoiles pour les avis qu'un établissement publie sur son propre site, et les règles l'interdisent. Pas de lecture automatique de Google (il faudrait une clé API payante).
+</div>
+
+<h2>1. La saison de l'Estiva</h2>
+<div class="panel ctrl">
+<label>Date du jour simulée <input type="date" id="today" value="2026-10-28"></label>
+<div class="presets" id="presets">
+<button data-d="2026-10-28">Aujourd'hui</button><button data-d="2027-03-31">31 mars</button><button data-d="2027-04-01">1er avril</button><button data-d="2027-07-14">14 juillet</button><button data-d="2027-10-14">14 octobre</button><button data-d="2027-10-15">15 octobre</button>
+</div>
+<span class="seg" role="group" aria-label="Langue"><button data-lang="fr" aria-pressed="true">FR</button><button data-lang="en" aria-pressed="false">EN</button></span>
+<span class="seg" role="group" aria-label="Accroche"><button data-hero="fixe" aria-pressed="false">Accroche actuelle</button><button data-hero="vivante" aria-pressed="true">Accroche datée</button></span>
+</div>
+
+<div class="hero">
+<p class="eyebrow" id="eyebrow"></p>
+<h3>L'Estiva</h3>
+<p id="heroTxt">Le confort d'une chambre d'hôtel, les sensations du camping — la terrasse face au soleil couchant.</p>
+</div>
+
+<div class="panel">
+<dl class="ess">
+<h4 id="essT">L'essentiel</h4>
+<div class="row"><dt id="lArr">Arrivée / départ</dt><dd id="vArr">entre 16h00 et 19h00, départ avant 10h00</dd></div>
+<div class="row hl"><dt id="lSai">Saison</dt><dd id="vSai"></dd></div>
+<div class="row"><dt id="lWifi">Wifi</dt><dd id="vWifi">non — ici, on se connecte à la nature plutôt qu'à internet</dd></div>
+</dl>
+</div>
+
+<div class="cols">
+<div><p class="note">JSON-LD du nœud <code>Campground</code> de la page :</p><pre id="ld"></pre></div>
+<div><p class="note">FAQ « La tente est-elle ouverte en hiver ? » et <code>llms.txt</code> :</p><pre id="faq"></pre></div>
+</div>
+
+<h2>2. La note Google</h2>
+<div class="panel ctrl">
+<label>Note <input type="text" id="note" value="5,0" inputmode="decimal" style="width:90px"></label>
+<label>Nombre d'avis <input type="number" id="nb" value="25" min="1" step="1" style="width:110px"></label>
+</div>
+<div class="err" id="err" role="alert"></div>
+<div class="cols">
+<div><p class="note">Accueil (bande verte) :</p><div class="band" id="b1"></div></div>
+<div><p class="note">Le Domaine (sous la citation) :</p><div class="quote"><em>« … La tente est tout confort. » Sandra J., L'Estiva, juillet 2026</em><span id="b2"></span></div></div>
+</div>
+<p class="note">Les deux pages affichent la même phrase avec le même lien (la fiche Google du domaine, <code>cid=8290763928945273589</code>). Une valeur invalide est refusée et la dernière valeur valide reste affichée.</p>
+
+<h2>Arbitrages tranchés le 28/10/2026</h2>
+<ul>
+<li><strong>Accroche du haut de page</strong> : datée. Libellés raccourcis le même jour pour tenir à 375 px : « dès le 1er avril 2027 » / « jusqu'au 14 octobre ».</li>
+<li><strong>Mise à jour de la note</strong> : dans Réglages → Note Google, côté WordPress.</li>
+</ul>
+</main>
+<script>
+(function(){
+var S={lang:'fr',hero:'vivante',today:'2026-10-28'};
+var DEB='04-01',FIN='10-14';
+var MOIS={fr:['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'],en:['January','February','March','April','May','June','July','August','September','October','November','December']};
+function saison(iso){var y=+iso.slice(0,4),md=iso.slice(5);var ouverte=md>=DEB&&md<=FIN;var an=md>FIN?y+1:y;return {an:an,ouverte:ouverte,debut:an+'-'+DEB,fin:an+'-'+FIN};}
+function jour(iso,l){var m=+iso.slice(5,7)-1,d=+iso.slice(8,10);if(l==='fr')return (d===1?'1er':d)+' '+MOIS.fr[m];return d+' '+MOIS.en[m];}
+function render(){
+var s=saison(S.today),l=S.lang,fr=l==='fr';
+var eb;
+if(S.hero==='fixe'){eb=fr?'Tente safari · avril à mi-octobre':'Safari tent · April to mid-October';}
+else if(s.ouverte){eb=fr?'Tente safari · jusqu’au '+jour(s.fin,l):'Safari tent · until '+jour(s.fin,l);}
+else{eb=fr?'Tente safari · dès le '+jour(s.debut,l)+' '+s.an:'Safari tent · from '+jour(s.debut,l)+' '+s.an;}
+document.getElementById('eyebrow').textContent=eb;
+document.getElementById('vSai').textContent=fr?'du '+jour(s.debut,l)+' au '+jour(s.fin,l)+' '+s.an:jour(s.debut,l)+' to '+jour(s.fin,l)+' '+s.an;
+document.getElementById('essT').textContent=fr?'L’essentiel':'At a glance';
+document.getElementById('lArr').textContent=fr?'Arrivée / départ':'Arrival / departure';
+document.getElementById('vArr').textContent=fr?'entre 16h00 et 19h00, départ avant 10h00':'between 4pm and 7pm, departure before 10am';
+document.getElementById('lSai').textContent=fr?'Saison':'Season';
+document.getElementById('lWifi').textContent='Wifi';
+document.getElementById('vWifi').textContent=fr?'non — ici, on se connecte à la nature plutôt qu’à internet':'no — here you connect with nature rather than the internet';
+document.getElementById('heroTxt').textContent=fr?'Le confort d’une chambre d’hôtel, les sensations du camping — la terrasse face au soleil couchant.':'Hotel-room comfort, camping sensations — the deck facing the sunset.';
+document.getElementById('ld').innerHTML='<span class="k">"openingHoursSpecification"</span>: {\n  "@type": "OpeningHoursSpecification",\n  "dayOfWeek": ["Monday", … "Sunday"],\n  "opens": "00:00",\n  "closes": "23:59",\n  <span class="k">"validFrom": "'+s.debut+'"</span>,\n  <span class="k">"validThrough": "'+s.fin+'"</span>\n}';
+document.getElementById('faq').textContent=(fr?'FAQ : Non, elle se loue du '+jour(s.debut,l)+' au '+jour(s.fin,l)+'. Hors saison, les nuits ardéchoises sont trop fraîches sous la toile…':'FAQ: No, it is let from '+jour(s.debut,l)+' to '+jour(s.fin,l)+'. Out of season the Ardèche nights are too cold under canvas…')+'\n\nllms.txt : - L’Estiva : '+(fr?'du '+jour(s.debut,'fr')+' au '+jour(s.fin,'fr'):'')+'\n(FAQ et llms.txt sans année : ils décrivent la règle, pas la saison du moment)';
+document.querySelectorAll('[data-lang]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.lang===l);});
+document.querySelectorAll('[data-hero]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.hero===S.hero);});
+}
+var last={note:'5,0',nb:25};
+function rating(){
+var nEl=document.getElementById('note'),cEl=document.getElementById('nb'),err=document.getElementById('err');
+var nRaw=nEl.value.trim().replace(',','.'),n=Number(nRaw),c=cEl.value.trim();
+var msgs=[];nEl.removeAttribute('aria-invalid');cEl.removeAttribute('aria-invalid');
+if(!/^\d(\.\d)?$/.test(nRaw)||n<1||n>5){msgs.push('Note refusée : un nombre entre 1,0 et 5,0, une décimale au plus.');nEl.setAttribute('aria-invalid','true');}
+if(!/^\d+$/.test(c)||+c<1){msgs.push('Nombre d’avis refusé : un entier supérieur à 0.');cEl.setAttribute('aria-invalid','true');}
+err.textContent=msgs.join(' ');
+if(!msgs.length){last={note:n.toFixed(1),nb:+c};}
+var fr=S.lang==='fr',noteFr=last.note.replace('.',',');
+var txt=fr?'Note '+noteFr+' sur Google — '+last.nb+' avis':'Rated '+last.note+' on Google — '+last.nb+' review'+(last.nb>1?'s':'');
+document.getElementById('b1').innerHTML='<a href="#">'+txt+'</a>';
+document.getElementById('b2').innerHTML='<a href="#">'+txt+'</a>';
+}
+document.getElementById('today').addEventListener('input',function(e){if(e.target.value){S.today=e.target.value;render();}});
+document.getElementById('presets').addEventListener('click',function(e){var d=e.target.dataset.d;if(d){S.today=d;document.getElementById('today').value=d;render();}});
+document.querySelectorAll('[data-lang]').forEach(function(b){b.addEventListener('click',function(){S.lang=b.dataset.lang;render();rating();});});
+document.querySelectorAll('[data-hero]').forEach(function(b){b.addEventListener('click',function(){S.hero=b.dataset.hero;render();});});
+document.getElementById('note').addEventListener('input',rating);
+document.getElementById('nb').addEventListener('input',rating);
+render();rating();
+})();
+</script>
+</body>
+</html>

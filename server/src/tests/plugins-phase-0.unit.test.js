@@ -1,0 +1,447 @@
+// specs/plugins-phase-0-foundation.md — plugin catalogue, seed, states, refusals, route/job gating,
+// and the active list carried by /me and /login.
+
+const { listenLocal } = require('./listenLocal');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const express = require('express');
+const Database = require('better-sqlite3');
+
+const { PLUGIN_CATALOG, PLUGIN_IDS, SEEDED_ON_EXISTING_IDS, findPlugin } = require('../constants/plugins');
+const { listPlugins, skipWithout } = require('../plugins/sdk/testing');
+const { ensurePluginsTable, seedBuiltinPlugins, SEED_MIGRATION } = require('../utils/pluginsSchema');
+const pluginsModel = require('../models/pluginsModel');
+const { createController } = require('../controllers/pluginsController');
+const requirePlugin = require('../middleware/requirePlugin');
+const { whenPluginActive } = require('../utils/pluginScheduling');
+const authController = require('../controllers/authController');
+
+function freshDb() {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE migrations (name TEXT PRIMARY KEY, ran_at TEXT DEFAULT (datetime('now')));
+    CREATE TABLE properties (id INTEGER PRIMARY KEY);
+    CREATE TABLE reservations (id INTEGER PRIMARY KEY);
+    CREATE TABLE payment_links (id INTEGER PRIMARY KEY, status TEXT NOT NULL);
+    CREATE TABLE users (id INTEGER PRIMARY KEY, isActive INTEGER DEFAULT 1);
+    CREATE TABLE user_roles (userId INTEGER, role TEXT, PRIMARY KEY (userId, role));
+  `);
+  ensurePluginsTable(db);
+  return db;
+}
+
+function addUser(db, id, roles, isActive = 1) {
+  db.prepare('INSERT INTO users (id, isActive) VALUES (?, ?)').run(id, isActive);
+  roles.forEach((role) => db.prepare('INSERT INTO user_roles (userId, role) VALUES (?, ?)').run(id, role));
+}
+
+function fakeRes() {
+  return {
+    statusCode: 200,
+    body: undefined,
+    status(code) { this.statusCode = code; return this; },
+    json(payload) { this.body = payload; return this; },
+  };
+}
+
+function setup() {
+  const db = freshDb();
+  const model = pluginsModel.buildModel(db);
+  const ctrl = createController(model);
+  const call = (handler, id) => {
+    const res = fakeRes();
+    ctrl[handler]({ params: { id } }, res);
+    return res;
+  };
+  return { db, model, ctrl, call };
+}
+
+// ---------- catalogue (rules 1-3) ----------
+
+// Twelve arbitrated on 2026-09-28, plus « Saisie Gîtes de France » (specs/gites-de-france-mail-intake.md)
+// « Saisie Booking » (specs/booking-extranet-intake.md), « Saisie Airbnb » (specs/airbnb-mail-intake.md) and
+// « Google Vacation Rentals » (specs/google-vacation-rentals-feed.md), the first to require another plugin:
+// its landing page is the website — and « Vigilance Météo-France », which needs the SAS (specs/plugin-dependencies.md rule 20).
+const SHIPPED_REQUIREMENTS = { 'google-vacation-rentals': ['website-booking'], 'weather-alerts': ['sas'] };
+
+test('catalogue: one entry per shipped plugin, with unique ids and every field', () => {
+  assert.equal(PLUGIN_CATALOG.length, listPlugins().length);
+  assert.equal(new Set(PLUGIN_IDS).size, listPlugins().length);
+  for (const p of PLUGIN_CATALOG) {
+    assert.ok(p.id && p.name && p.description && p.icon, p.id);
+    assert.ok(Array.isArray(p.surfaces) && p.surfaces.length > 0, p.id);
+    assert.deepEqual([...p.requires].map((r) => r.id), SHIPPED_REQUIREMENTS[p.id] || [], p.id);
+  }
+  if (PLUGIN_IDS.includes('sas')) assert.equal(findPlugin('sas').name, 'Arrivée et départ guidés');
+  assert.equal(findPlugin('nope'), null);
+});
+
+// ---------- seed (rules 10-12) ----------
+
+test('seed: an existing database gets the twelve former core features installed and active, not the plugins added since', () => {
+  const db = freshDb();
+  db.prepare('INSERT INTO properties (id) VALUES (1)').run();
+  assert.equal(seedBuiltinPlugins(db), true);
+  const model = pluginsModel.buildModel(db);
+  assert.equal(SEEDED_ON_EXISTING_IDS.length, 12);
+  assert.deepEqual(model.listActiveIds().sort(), [...SEEDED_ON_EXISTING_IDS].sort());
+  // specs/gites-de-france-mail-intake.md, specs/booking-extranet-intake.md — not installed by default.
+  assert.equal(model.get('gites-de-france-intake'), null);
+  assert.equal(model.get('booking-intake'), null);
+});
+
+test('seed: a database with only a reservation counts as existing', () => {
+  const db = freshDb();
+  db.prepare('INSERT INTO reservations (id) VALUES (1)').run();
+  seedBuiltinPlugins(db);
+  assert.equal(pluginsModel.buildModel(db).listActiveIds().length, SEEDED_ON_EXISTING_IDS.length);
+});
+
+test('seed: a fresh database gets no plugin, and the ledger is recorded', () => {
+  const db = freshDb();
+  assert.equal(seedBuiltinPlugins(db), false);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM plugins').get().n, 0);
+  assert.ok(db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(SEED_MIGRATION));
+});
+
+test('seed: runs once — uninstalling everything is not undone at the next boot', () => {
+  const db = freshDb();
+  db.prepare('INSERT INTO properties (id) VALUES (1)').run();
+  seedBuiltinPlugins(db);
+  db.exec('DELETE FROM plugins');
+  assert.equal(seedBuiltinPlugins(db), false);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM plugins').get().n, 0);
+});
+
+// ---------- model (rule 3) ----------
+
+test('model: a write from another connection is seen at once', () => {
+  const { db, model } = setup();
+  assert.equal(model.isActive('neat'), false);
+  db.prepare("INSERT INTO plugins (id, enabled) VALUES ('neat', 1)").run();
+  assert.equal(model.isActive('neat'), true);
+  assert.deepEqual(model.listActiveIds(), ['neat']);
+});
+
+test('model: install, deactivate, activate, uninstall', () => {
+  const { model } = setup();
+  assert.equal(model.isActive('sas'), false);
+  model.install('sas');
+  assert.equal(model.isActive('sas'), true);
+  model.setEnabled('sas', false);
+  assert.equal(model.isActive('sas'), false);
+  assert.equal(model.get('sas').enabled, false);
+  model.setEnabled('sas', true);
+  assert.deepEqual(model.listActiveIds(), ['sas']);
+  model.uninstall('sas');
+  assert.equal(model.get('sas'), null);
+  assert.equal(model.isActive('sas'), false);
+});
+
+// ---------- controller: states and transitions (rules 3-6) ----------
+
+test('list: every catalogue plugin with its state', { skip: skipWithout(['linen', 'neat', 'sas']) }, () => {
+  const { model, ctrl } = setup();
+  model.install('linen');
+  model.install('neat');
+  model.setEnabled('neat', false);
+  const res = fakeRes();
+  ctrl.list({}, res);
+  assert.equal(res.body.length, PLUGIN_IDS.length);
+  const byId = Object.fromEntries(res.body.map((p) => [p.id, p]));
+  assert.equal(byId.linen.state, 'active');
+  assert.equal(byId.neat.state, 'inactive');
+  assert.equal(byId.sas.state, 'available');
+  assert.equal(byId.sas.blocker, null);
+  assert.ok(byId.linen.surfaces.length > 0);
+});
+
+// rule 4
+test('install makes the plugin active in one step; a second install is refused', { skip: skipWithout(['google-calendar']) }, () => {
+  const { call } = setup();
+  const res = call('install', 'google-calendar');
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.state, 'active');
+  const again = call('install', 'google-calendar');
+  assert.equal(again.statusCode, 409);
+  assert.equal(again.body.error, 'ALREADY_INSTALLED');
+});
+
+test('activate, deactivate and uninstall refuse a plugin that is not installed', { skip: skipWithout(['weather-alerts']) }, () => {
+  const { call } = setup();
+  for (const handler of ['activate', 'deactivate', 'uninstall']) {
+    const res = call(handler, 'weather-alerts');
+    assert.equal(res.statusCode, 409, handler);
+    assert.equal(res.body.error, 'NOT_INSTALLED');
+  }
+});
+
+test('an unknown id answers 404 on every action', () => {
+  const { call } = setup();
+  for (const handler of ['install', 'activate', 'deactivate', 'uninstall']) {
+    const res = call(handler, 'bitcoin-miner');
+    assert.equal(res.statusCode, 404, handler);
+    assert.equal(res.body.error, 'UNKNOWN_PLUGIN');
+  }
+});
+
+// rules 5-6 — deactivate, activate, uninstall back to « Disponibles »
+test('deactivate then activate; uninstall returns the plugin to available', { skip: skipWithout(['school-holidays']) }, () => {
+  const { call, model } = setup();
+  call('install', 'school-holidays');
+  assert.equal(call('deactivate', 'school-holidays').body.state, 'inactive');
+  assert.equal(call('activate', 'school-holidays').body.state, 'active');
+  const res = call('uninstall', 'school-holidays');
+  assert.equal(res.body.state, 'available');
+  assert.equal(model.get('school-holidays'), null);
+});
+
+// rule 6 — uninstalling in phase 0 deletes the plugin row only, never the plugin's data.
+test('uninstall keeps every other table untouched', () => {
+  const { db, call } = setup();
+  call('install', 'online-payment');
+  db.prepare("INSERT INTO payment_links (status) VALUES ('paid')").run();
+  call('uninstall', 'online-payment');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM payment_links').get().n, 1);
+});
+
+// rule 9 — only an admin reaches /api/plugins: the fail-closed role guard refuses every other role.
+test('the plugins API is admin-only', () => {
+  const enforceRoleAccess = require('../middleware/enforceRoleAccess');
+  for (const roles of [['accountant'], ['reception']]) {
+    for (const [method, p] of [['GET', '/plugins'], ['POST', '/plugins/sas/deactivate']]) {
+      const res = fakeRes();
+      let passed = false;
+      enforceRoleAccess({ user: { roles }, method, path: p }, res, () => { passed = true; });
+      assert.equal(passed, false, `${roles} ${method} ${p}`);
+      assert.equal(res.statusCode, 403);
+    }
+  }
+  let adminPassed = false;
+  enforceRoleAccess({ user: { roles: ['admin'] }, method: 'GET', path: '/plugins' }, fakeRes(), () => { adminPassed = true; });
+  assert.equal(adminPassed, true);
+});
+
+// ---------- refusals (rule 8) ----------
+
+test('online payment: an open payment link blocks deactivate and uninstall', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, call } = setup();
+  call('install', 'online-payment');
+  db.prepare("INSERT INTO payment_links (status) VALUES ('open'), ('paid')").run();
+  for (const handler of ['deactivate', 'uninstall']) {
+    const res = call(handler, 'online-payment');
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.error, 'PLUGIN_BLOCKED');
+    assert.equal(res.body.code, 'OPEN_PAYMENT_LINKS');
+    assert.equal(res.body.message, '1 lien de paiement en attente : à payer ou annuler d’abord.');
+  }
+  db.prepare("UPDATE payment_links SET status = 'paid'").run();
+  assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
+});
+
+// specs/payment-link-lifecycle.md rule 23 — a lapsed link whose deactivation is still owed is payable at the
+// provider: it blocks like a withdrawn one; once paid (markPaid clears the marker) it no longer does.
+test('online payment: a lapsed link still owed at the provider blocks deactivate and uninstall until it is paid', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, call } = setup();
+  const linksDdl = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8').match(/CREATE TABLE IF NOT EXISTS payment_links \([\s\S]*?\n {2}\);/)[0];
+  db.exec(`DROP TABLE payment_links; ${linksDdl}`);
+  call('install', 'online-payment');
+  db.prepare("INSERT INTO payment_links (id, reservationId, type, status, providerLinkId, remoteCancelPendingAt) VALUES (1, 5, 'deposit', 'expired', 'pl_1', '2026-11-03T20:00:00Z')").run();
+  for (const handler of ['deactivate', 'uninstall']) {
+    const res = call(handler, 'online-payment');
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, 'LINKS_PENDING_DEACTIVATION');
+    assert.equal(res.body.message, '1 lien retiré ou expiré encore actif chez le prestataire : désactivation en cours, réessayer plus tard.');
+  }
+  assert.equal(require('../models/paymentLinksModel').buildModel(db).markPaid(1, { providerPaymentId: 'pay_1' }).flipped, true);
+  assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
+});
+
+// specs/payment-link-lifecycle.md rule 52 (audit R8 plugins L-1) — a lapsed link deactivated unpaid still owes
+// its one last look (rule 19): the payment it may catch is never booked once the plugin is gone, so the
+// look blocks like the marker; once taken (lastLookAt cleared) nothing does.
+test('online payment: a pending last look blocks deactivate and uninstall until it is taken', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, call } = setup();
+  const linksDdl = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8').match(/CREATE TABLE IF NOT EXISTS payment_links \([\s\S]*?\n {2}\);/)[0];
+  db.exec(`DROP TABLE payment_links; ${linksDdl}`);
+  call('install', 'online-payment');
+  db.prepare("INSERT INTO payment_links (id, reservationId, type, status, providerLinkId, lastLookAt) VALUES (1, 5, 'deposit', 'expired', 'pl_1', '2026-11-03T21:00:00Z'), (2, 5, 'balance', 'expired', 'pl_2', '2026-11-03T21:05:00Z')").run();
+  for (const handler of ['deactivate', 'uninstall']) {
+    const res = call(handler, 'online-payment');
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.code, 'LINKS_LAST_LOOK_PENDING');
+    assert.equal(res.body.message, '2 liens retirés ou expirés dont le paiement reste à vérifier : réessayer plus tard.');
+  }
+  db.prepare('UPDATE payment_links SET lastLookAt = NULL WHERE id = 2').run();
+  assert.equal(call('uninstall', 'online-payment').body.message, '1 lien retiré ou expiré dont le paiement reste à vérifier : réessayer plus tard.');
+  db.prepare('UPDATE payment_links SET lastLookAt = NULL').run();
+  assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
+});
+
+// specs/payment-link-lifecycle.md rules 52, 64 (re-review of #912, n6) — a link withdrawn for taken dates owes its read
+// after the deactivation too: it blocks until taken; a link withdrawn for another reason owes none.
+test('online payment: the last look of a link withdrawn for taken dates blocks too', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, call } = setup();
+  const linksDdl = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8').match(/CREATE TABLE IF NOT EXISTS payment_links \([\s\S]*?\n {2}\);/)[0];
+  db.exec(`DROP TABLE payment_links; ${linksDdl}`);
+  call('install', 'online-payment');
+  // date-literal-ok: the guard only asks whether a last look is owed, never when
+  db.prepare("INSERT INTO payment_links (id, reservationId, type, status, cancelReason, providerLinkId, lastLookAt) VALUES (1, 5, 'deposit', 'cancelled', 'dates-taken', 'pl_1', '2026-11-03T21:00:00Z'), (2, 5, 'balance', 'cancelled', 'operator', 'pl_2', '2026-11-03T21:05:00Z')").run();
+  const res = call('uninstall', 'online-payment');
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.message, '1 lien retiré ou expiré dont le paiement reste à vérifier : réessayer plus tard.');
+  db.prepare('UPDATE payment_links SET lastLookAt = NULL WHERE id = 1').run();
+  assert.equal(call('deactivate', 'online-payment').body.state, 'inactive');
+});
+
+test('sas: an active reception-only user blocks it; admins and inactive users do not', { skip: skipWithout(['sas']) }, () => {
+  const { db, call } = setup();
+  call('install', 'sas');
+  addUser(db, 1, ['admin', 'reception']);
+  addUser(db, 2, ['reception'], 0);
+  assert.equal(call('deactivate', 'sas').body.state, 'inactive');
+  call('activate', 'sas');
+  addUser(db, 3, ['reception']);
+  addUser(db, 4, ['reception']);
+  const res = call('deactivate', 'sas');
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'RECEPTION_USERS');
+  assert.equal(res.body.message, '2 comptes Accueil actifs : changer leur rôle dans Utilisateurs d’abord.');
+});
+
+test('accounting export: an active accountant-only user blocks it', { skip: skipWithout(['accounting-export']) }, () => {
+  const { db, call } = setup();
+  call('install', 'accounting-export');
+  addUser(db, 1, ['accountant']);
+  const res = call('uninstall', 'accounting-export');
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, 'ACCOUNTANT_USERS');
+});
+
+test('list shows the blocker before the click, only on installed plugins', { skip: skipWithout(['online-payment']) }, () => {
+  const { db, model, ctrl } = setup();
+  db.prepare("INSERT INTO payment_links (status) VALUES ('open')").run();
+  let res = fakeRes();
+  ctrl.list({}, res);
+  assert.equal(res.body.find((p) => p.id === 'online-payment').blocker, null);
+  model.install('online-payment');
+  res = fakeRes();
+  ctrl.list({}, res);
+  assert.equal(res.body.find((p) => p.id === 'online-payment').blocker.code, 'OPEN_PAYMENT_LINKS');
+});
+
+// ---------- route gating (rule 15) ----------
+
+test('requirePlugin: 404 PLUGIN_INACTIVE when inactive, next() when active', () => {
+  let active = false;
+  const mw = requirePlugin('linen', { isActive: () => active });
+  const res = fakeRes();
+  let nextCalled = false;
+  mw({}, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 404);
+  assert.deepEqual(res.body, { error: 'PLUGIN_INACTIVE', plugin: 'linen' });
+  active = true;
+  mw({}, fakeRes(), () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+});
+
+test('requirePlugin over HTTP: a mounted router disappears and comes back with its plugin', async () => {
+  const { model } = setup();
+  const app = express();
+  const router = express.Router();
+  router.get('/ping', (req, res) => res.json({ ok: true }));
+  app.use('/public/v1', requirePlugin('website-booking', { isActive: model.isActive }), router);
+  const server = await listenLocal(app);
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/public/v1/ping`;
+    let res = await fetch(url);
+    assert.equal(res.status, 404);
+    assert.deepEqual(await res.json(), { error: 'PLUGIN_INACTIVE', plugin: 'website-booking' });
+    model.install('website-booking');
+    res = await fetch(url);
+    assert.equal(res.status, 200);
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+});
+
+test('the plugin mounts and routes are wired in the server', () => {
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  const index = read('index.js');
+  // specs/plugins-phase-3c-hourly-resources.md rule 10 — the external bookings come from their plugin.
+  assert.ok(!index.includes("'/api/resource-bookings'"));
+  // specs/plugins-phase-3b-neat.md rule 8 — /api/neat comes from the neat plugin.
+  assert.ok(!index.includes("'/api/neat'"));
+  // specs/plugins-phase-3a-online-payment.md rules 5, 11 — the payment links are the core's, refused
+  // without a provider; Qonto's own routes come from its plugin.
+  assert.ok(index.includes("app.use('/api/payments', require('./routes/payments'))"));
+  // specs/plugins-phase-2-hosts.md rule 23 — the whole /public/v1 tree comes from plugin modules,
+  // mounted in list order: gate-access before website-booking.
+  assert.ok(!/app\.use\('\/public\/v1', (requirePlugin|require\()/.test(index), 'no core /public/v1 tree');
+  assert.ok(index.includes('pluginLoader.mountPublic(app)'));
+  // …and a path no plugin owns answers a JSON 404, never the SPA (rule 23).
+  assert.ok(index.indexOf("app.use('/public/v1', (req, res) =>") > index.indexOf('pluginLoader.mountPublic(app)'), 'JSON 404 after the plugin mounts');
+  const modules = read('plugins/index.js');
+  const order = ['gate-access', 'website-booking'].map((id) => modules.indexOf(`require('./${id}')`));
+  if (order.every((i) => i >= 0)) assert.ok(order[0] < order[1], 'gate before website-booking');
+  assert.ok(index.includes('pluginLoader.mountApi(app)'));
+  // specs/plugins-phase-2-hosts.md rule 19 — the export's routes left for its plugin module; the
+  // compensations stay core, ungated.
+  assert.doesNotMatch(read('routes/accounting.js'), /'\/sales|'\/platforms|platform-accounts|requirePlugin/);
+  assert.match(read('routes/accounting.js'), /router\.get\('\/cancellation-compensations', compensationsController\.list\)/);
+  // The SAS routes moved into the `sas` module (specs/plugins-phase-2-hosts.md rule 8).
+  assert.doesNotMatch(read('routes/reservations.js'), /'\/:id\/sas/);
+  assert.doesNotMatch(read('routes/planning.js'), /resource-cards/);
+});
+
+// ---------- jobs and direct calls (rule 15) ----------
+
+test('whenPluginActive: the tick is skipped while inactive and resumes when active', async () => {
+  let active = false;
+  const calls = [];
+  const tick = whenPluginActive('neat', (reason) => { calls.push(reason); return 'ran'; }, { isActive: () => active });
+  assert.equal(await tick('cron'), undefined);
+  active = true;
+  assert.equal(await tick('boot'), 'ran');
+  assert.deepEqual(calls, ['boot']);
+});
+
+test('the scheduler runs no plugin pass of its own', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scheduledTasks.js'), 'utf8');
+  // Every plugin job runs through the loader (plugins-phase-1-sdk.unit.test.js): the payment poll
+  // (specs/plugins-phase-3a-online-payment.md rule 14), then Neat (specs/plugins-phase-3b-neat.md rule 9).
+  assert.ok(!src.includes('runPaymentPollPass'));
+  assert.ok(!src.includes('runNeatSubscriptionPass'));
+  assert.ok(!src.includes('whenPluginActive('));
+});
+
+// ---------- /me and /login (rule 14) ----------
+
+test('login and me carry the active plugin ids', () => {
+  const row = { id: 1, email: 'admin@guestflow.local', roles: ['admin'] };
+  const users = {
+    verifyCredentials: (email, pw) => (pw === 'ok' ? { ...row } : null),
+    findById: () => ({ ...row }),
+    touchLastLogin: () => {},
+  };
+  const ctrl = authController.create(users, { activePlugins: () => ['linen', 'sas'] });
+  const session = {};
+  const loginRes = fakeRes();
+  ctrl.login({ body: { email: row.email, password: 'ok' }, session }, loginRes);
+  assert.deepEqual(loginRes.body.enabledPlugins, ['linen', 'sas']);
+  assert.equal(session.user.enabledPlugins, undefined, 'never frozen into the session');
+  const meRes = fakeRes();
+  ctrl.me({ session: { user: row } }, meRes);
+  assert.deepEqual(meRes.body.enabledPlugins, ['linen', 'sas']);
+});
+
+// ---------- money never moves (rule 7) ----------
+
+test('the pricing engine never reads plugin states', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'utils', 'pricing.js'), 'utf8');
+  assert.doesNotMatch(src, /pluginsModel|constants\/plugins|requirePlugin/);
+});

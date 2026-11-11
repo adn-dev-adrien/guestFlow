@@ -99,13 +99,16 @@ or **[CREATE]** (genuinely new logic).
    `calculateReservationQuote(db, …)` with a sanitized parameter set and returns a **public
    projection** of its output. The public API may pass **only the engine's pricing inputs** (dates,
    guest counts, and `optionId`+`quantity`); it can never **set, adjust, discount, or offer** a
-   price, nor choose a platform, nor touch resources. Concretely, `validateStayInput` rebuilds the
+   price, nor choose a platform. Concretely, `validateStayInput` rebuilds the
    value from a strict whitelist, so the following from the body are **always dropped before the
    engine and before persistence**: `customPrice`, `discountPercent`, `platform` (forced to
    `direct`), `clientGrossAmount`, `depositAmount`, `cautionAmount`, `finalPrice`, `priceOverride`,
-   `adjustedPrice`, `offeredOptionIds`, any per-option `offered`/`free`/`unitPrice`/`price`, and
-   `selectedResources`/`resources` (resources are not a public concept at all). Each option is
-   reduced to `{ optionId, quantity }`. Locked by
+   `adjustedPrice`, `offeredOptionIds`, any per-option or per-resource
+   `offered`/`free`/`unitPrice`/`price`, and `selectedResources`. Each option is reduced to
+   `{ optionId, quantity }` and each resource to `{ resourceId, quantity }`: **resources are public**
+   (the property's applicable resources, `GET /properties/:id/resources`, priced server-side at the
+   per-property price — corrected at the 2026-10-27 spec review, this rule used to say they were not a
+   public concept). Locked by
    `tests/public-input-validation.unit.test.js` (price-immutability case).
 7. **Booking request is pending, never confirmed.** A successful `POST
    /public/v1/booking-requests` creates a **draft devis** (`kind='devis'`, `devisStatus='draft'` —
@@ -116,7 +119,11 @@ or **[CREATE]** (genuinely new logic).
    Rule 11) and is **not** a reservation.
 8. **Strict input validation at the public boundary.** Every field is validated for type, range,
    and format before any engine/DB call. `propertyId` must exist; `startDate < endDate`; dates
-   are ISO `YYYY-MM-DD`; guest counts are non-negative integers within the property capacity;
+   are ISO `YYYY-MM-DD`; the stay starts today or later (the accommodations' day, Europe/Paris),
+   lasts at most **365 nights** (`MAX_STAY_NIGHTS`) and ends at most **730 days** from today
+   (`MAX_BOOKING_HORIZON_DAYS`) — on `/quote` and `/booking-requests` alike, before the engine walks
+   the stay night by night (2026-10-23: an `endDate` of `9999-12-31` blocked the server for
+   seconds); guest counts are non-negative integers within the property capacity;
    `babyBeds` is a non-negative integer (couchage), capped server-side at the number of babies and
    persisted on the devis `babyBeds` field (NOT as a "Lit bébé" resource line — see
    specs/site-booking-notifications.md §3 rule 16); option ids must be applicable to the property;
@@ -124,14 +131,176 @@ or **[CREATE]** (genuinely new logic).
    array.
 9. **Rate limiting + anti-spam on writes.** `/public/v1/*` reads use a dedicated
    `publicApiLimiter` (default 600/15 min/IP). `POST /public/v1/booking-requests` adds a stricter
-   `bookingRequestLimiter` (default 5/hour/IP **and** 20/hour/API-key) plus a honeypot field
-   (`_hp` must be empty). No CAPTCHA: the WordPress proxy owns bot filtering; GuestFlow relies on
-   honeypot + rate limit only. Over limit → `429 TOO_MANY_REQUESTS`.
+   `bookingRequestLimiter` (default 5/hour per **visitor** IP) plus a honeypot field (`_hp` must be
+   empty). Over limit → `429 TOO_MANY_REQUESTS`. **Corrected 2026-10-27**: this rule used to also say
+   « 20/hour/API-key ». The code never had such a limit, and it must not: the whole site shares one
+   key, so it would lock every guest out together
+   ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 8 — no limit is
+   ever shared by all visitors). No third-party CAPTCHA: since 2026-10-27 the request also carries an
+   internal proof of work, a per-e-mail cap on new quotes and one quote per stay (same spec).
+   *Reading of 2026-11-05 (Adrien's decision D18, audit R23 public finding 1):* a booking request answered `422` gives
+   its hit back to `bookingRequestLimiter` (`skipFailedRequests`, `requestWasSuccessful: status !== 422`): it stored nothing
+   and a guest correcting the form is not locked out for an hour. Any other answer spends the hit, `403`, `409` and `201`
+   alike. `publicApiLimiter` still counts the refused form and the proof of work is still spent. Covered by
+   `plugins/website-booking/tests/public-refused-form-budget.unit.test.js`.
 10. **Uniform error envelope.** Every public error is `{ "error": { "code", "message", "details"? } }`
     (see §4.3). `message` is generic/non-fingerprinting; `code` is a stable machine string.
 11. **No temporary hold (this version).** A booking request does **not** block the calendar; dates
     stay available until the admin accepts/converts the pending devis. The hold design is kept in §8
     as a reference for a possible later addition (decision Q9).
+12. **Every stay rule the back-office enforces, the public path enforces, with no override**
+    (fixed at the 2026-10-27 audit; [tariff-recipes/spec.md](tariff-recipes/spec.md) §3.4 rules
+    20bis-23). `POST /booking-requests` refuses, in this order, `409 MIN_NIGHTS`, `409 MAX_NIGHTS`
+    and `409 CHANGEOVER`; the `message` names the limit (« Séjour trop long : maximum 7 nuits. »,
+    « Arrivée le samedi et départ le samedi uniquement sur cette période. » — only the breached sides,
+    in the caller's language). `POST /quote` exposes `maxNights`, `maxNightsBreached`,
+    `changeoverBreached` beside `minNights`/`minNightsBreached`, and `stayRefusal`: that same sentence,
+    or `null` when the stay passes every rule — the site prints it as it is. The `arrivals` of
+    `GET /availability` only offer an arrival whose stay some departure can satisfy (changeover days,
+    maximum stay — the same predicate as `nextAvailableDate`), with the first such departure as
+    `earliestDeparture`. `POST /booking-requests/:id/pay` re-checks the three rules on the SAVED devis before any
+    link is made (the tariff may have tightened since the request); an exception the operator grants
+    is sent as a payment link from the fiche, never through this route. A night no season prices is
+    not for sale: when the engine reports `unpricedNights`, `/quote` answers `available: false` and
+    `/booking-requests` `409 DATES_UNAVAILABLE` (the flag comes from the pricing engine; until the
+    engine carries it, the calendar alone keeps such nights out of reach — booking-drawer-friction
+    rule 10).
+13. **An anonymous request never changes a stored client** (fixed at the 2026-10-27 audit). When the
+    e-mail matches an existing client, the devis is filed under that client and none of its fields
+    moves — not the name, not the phone, not `emailLanguage` (this supersedes
+    [site-english-version.md](site-english-version.md) rule 12: anyone knowing a guest's address
+    could rewrite it). When what the visitor typed differs from the record (name or phone, compared
+    case- and format-insensitively, or an explicitly stated language), the devis notes end with
+    « Client existant reconnu par l'e-mail — identité saisie : <prénom nom>, <téléphone>, langue <xx>.
+    La fiche client n'a pas été modifiée. », after the visitor's own message. The devis still records
+    the page's language in `pdfLanguage`.
+14. **The quote and the booking request accept exactly the public catalogue** (fixed at the
+    2026-10-27 audit). An option id is accepted only if `GET /properties/:id/options` lists it:
+    applicable to the property, not an offered default, client-visible (`displayToClient`), and not
+    sold at a negative price — anything else is `422 VALIDATION_FAILED` (`optionUnavailable`). The
+    admin API refuses a negative option price outright (`POST`/`PUT /api/options`, `400`
+    « Le prix d’une option ne peut pas être négatif. »): a reduction is a price adjustment or a
+    refund ([reservation-refunds.md](reservation-refunds.md)), never an option.
+15. **The availability re-check sees a neighbour's edges** (fixed at the 2026-10-27 audit). A late
+    check-out blocks the night of its departure day and an early check-in the night before its
+    arrival; `utils/blockedDates.computeBlockedDates` reads the reservations one day wider on each
+    side and returns only the nights of the asked window, so the exact-window re-checks of `/quote`,
+    `/booking-requests`, `/pay` and the Google feed see them.
+16. **One line per option or resource** (fixed at the 2026-10-27 audit). The same `optionId` or
+    `resourceId` twice in one stay is `422 VALIDATION_FAILED` (`details` names the repeated line);
+    the quantity says how many. It used to reach the booking lines' unique index and answer a 500.
+17. **A line's quantity is bounded by the stay** (fixed at the 2026-10-27 spec review). An option or
+    resource `quantity` above `persons × (nights + 1) × 24` — one unit per guest per hour of the stay,
+    departure day included (`publicInputValidation.maxLineQuantity`) — is `422 VALIDATION_FAILED` on
+    `options[i].quantity` / `resources[i].quantity`, on `/quote` and `/booking-requests`. Above any real
+    need (hours, portions, sessions) and still bounded: `1e9` used to be priced, saved and printed
+    clipped on the PDF. Per-person card options keep their tighter portion cap
+    ([site-meal-portions.md](site-meal-portions.md)).
+18. **The cot is never a resource line** (same review). The « Lit bébé » resource (`isBabyBed`) is
+    driven by `babyBeds`, capped at the number of babies (rule 8); sent in `resources[]` it is refused
+    like a resource the property does not offer (`422 VALIDATION_FAILED`, « Ressource non disponible
+    pour ce logement. »), on both routes. It used to bypass the cap.
+19. **The quote checks the capacity** (same review). `POST /quote` refuses a party over the property's
+    public capacity exactly as the booking request does (`publicGuestCap`, babies over `maxBabies`):
+    `409 OVER_CAPACITY`. It used to answer `available: true` for a party the request would refuse.
+20. **Contact fields are capped** (audit 2026-10-28). `guest.firstName` and `guest.lastName` take at most 100
+    characters, `guest.phone` 40, `guest.email` 254; past it the request is refused `422` with a field error
+    `reason: 'tooLong'` (« Texte trop long. » / « Text too long. »). A name of 40 000 characters used to be
+    stored and flow into every e-mail, PDF and CSV. The WordPress block sets the matching `maxlength`.
+    Covered by `plugins/website-booking/tests/public-guest-field-errors.unit.test.js`.
+    *Reading of 2026-11-04 (audit R22, public finding 3):* control characters count as nothing (a space, as a line
+    break already did) and a name holds at least one letter or digit, else `reason: 'required'`: `"\u0000"`, an escape
+    sequence, a braille blank or a lone joiner created a client that reads blank in the lists. Covered by
+    `plugins/website-booking/tests/public-input-shape.unit.test.js`.
+    *Reading of 2026-11-05 (audit R23 public finding 3):* a letter that shows nothing (`Default_Ignorable_Code_Point`: the
+    Hangul fillers U+115F, U+1160, U+3164, U+FFA0) is not that letter: a name made of them alone is `reason: 'required'`.
+    Rule 23's alphabet does not change, so one beside a real letter still passes. Same suite.
+21. **The phone is a phone number** (audit 2026-10-28, F5). `guest.phone` must be 8-15 digits with an optional
+    `+` and spaces, dots, dashes or brackets as separators (the client dialog's rule), otherwise `422` with
+    `reason: 'phoneInvalid'` (« Numéro de téléphone invalide. » / « Invalid phone number. »); a phone with a line
+    break used to be stored and printed on its own line of the owner's e-mail. `guest.email` is one address (no
+    comma, semicolon, angle bracket). Covered by `plugins/website-booking/tests/public-request-line-injection.unit.test.js`.
+    *Reading of 2026-11-05 (audit R23 public finding 5):* every format character (`\p{Cf}`, joiners and U+FEFF included)
+    leaves `guest.email` before it is judged, and nothing is refused for it: an address pasted with a zero-width space lands
+    on the real address and its client, where it used to make a second client that read the same in the list and missed
+    the rules 7 and 12 of [public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md). Covered by
+    `plugins/website-booking/tests/public-email-one-address.unit.test.js`.
+22. **A value of the wrong JSON type is a refusal, never a crash nor a coercion** (audit R21, 2026-11-03; closes R14 L-1).
+    Nothing the site really sends moves: strings and numbers read as before, nothing else is narrowed.
+    - A count, an id or a line quantity (`propertyId`, `adults`, `children`, `teens`, `babies`, `babyBeds`,
+      `options[].optionId`, `options[].quantity`, `resources[].resourceId`, `resources[].quantity`) is a number or a
+      string; `checkInTime` / `checkOutTime` are strings. Anything else → `422 VALIDATION_FAILED` on that field.
+    - A `guest` that is not an object is an empty guest, and a `guest` field that is not a string reads as empty: `422`
+      with `reason: 'required'`. `true`, `1.5`, `[1]` or `{}` used to create a client named « True », « 1.5 », « 1 » or
+      « [object Object] ».
+    - A `message` that is neither a string nor absent → `422` on `message`.
+    - `termsVersion` is an integer or a string of digits; anything else is `TERMS_OUTDATED`, as an unknown version is.
+      `true` and `[1]` used to read as version 1 and write an acceptance.
+    - A `_hp` that is a non-empty string or any other truthy value is the honeypot's silent `201`, with nothing written.
+    - A language that is not a string reads as French, not stated (`langOf` never throws); a `returnPath` that is not a
+      string gives no redirect; a request without a parsed body (non-JSON content type) is refused like an empty one.
+    - A body the JSON parser refuses answers the public envelope under `/public/`: `{ error: { code, message } }`, the
+      codes of specs/express-5-upgrade.md rule 7, the message in the caller's language (`?lang=`). The parser runs for
+      the whole application, ahead of any route: this refusal still comes before the key check, and says nothing about
+      the key. `{"toString":1}` used to throw from `Number()`, `String()` or `RegExp.test()`: a `500` and a stack in the
+      log per call, reachable by any visitor through the WordPress proxy.
+    Covered by `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js`.
+    - *Reading of 2026-11-04 (audit R22):* the same on the tree's edges, with nothing newly refused beyond a 500: a body that
+      does not inflate and a badly encoded id answer the nested envelope (specs/express-5-upgrade.md rule 9), a wrong type
+      nothing refused first answers `400 INVALID_FIELD_TYPE` (specs/hosting-h2-account-security.md rule 68), and
+      `/public/booking-intake/page` with a `hotelId` or `resId` that is not a string or a number answers its `400 « Requête
+      incomplète »` (`plugins/booking-intake/tests/public-route.unit.test.js`).
+23. **What a name holds on the public form** (Adrien's decision D13, 2026-11-05). `guest.firstName` and `guest.lastName`
+    accept letters of any script with their marks (`\p{L}`, `\p{M}`), the joiners rule 20 keeps, space, hyphen, both
+    apostrophes (`'`, `’`) and dot, and nothing else: no digit. Anything else is `422 VALIDATION_FAILED` on that field,
+    `reason: 'nameInvalid'`, « Caractères non acceptés. » / « Characters not accepted. ». `O'Brien`, `N’Diaye`,
+    `de la Fontaine`, `Jean-Pierre`, `St. Tropez`, `محمد`, `李小龙` pass; `Jean123`, `<script>`, `Jean@Dupont`, `Jean_Pierre`
+    are refused. It is judged after rule 20's cleaning: a name with no letter nor digit stays `reason: 'required'`, a digit
+    alone (`3`), accepted by rule 20's reading, is now `nameInvalid`. Rule 20's length cap applies to a name that passes.
+    - **Reach.** `validateGuest` alone judges, and only the public booking request calls it: a platform intake, an iCal
+      placeholder client, the back office and a stored client are not judged, and a request matching a stored client by
+      e-mail neither refuses nor rewrites it (rule 13). The site does not pre-fill a stored name, and a name a visitor types
+      is judged without reading the database, whoever it belongs to: an exemption would tell a visitor whether an e-mail
+      holds that name.
+    - **City and address.** D13 also says a city follows the names' characters and an address adds digits, comma and slash.
+      The form sends neither (`firstName`, `lastName`, `email`, `phone`, `message`), and an unknown `guest` field is ignored
+      and never stored, so no code judges them today. A form that gains one takes this rule on arrival.
+    - **Contract.** This narrows `/public/v1/booking-requests` on these two fields only. The envelope, `field`, `issue`,
+      `reason` and `message` are the documented refusal (§4.3); `nameInvalid` is one more value of `reason`, and the site
+      prints `message` without reading it ([wordpress-plugin.md](wordpress-plugin.md) rule 35). No X version is implied: a
+      caller refused here reads the same documented refusal shape as for any other field.
+    - **What the list implies.** A space or a hyphen is read by its Unicode class, whatever the keyboard typed: a no-break
+      space, the ideographic space of a Japanese IME, an en dash and the Hebrew maqaf look like what the visitor means, and
+      a refusal would show nothing visibly wrong. The katakana middle dot `・`, the Hebrew geresh `׳` and the Catalan `·` are
+      not in the list, so they are refused; a modifier-letter apostrophe `ʼ` is a letter and passes.
+    Covered by `plugins/website-booking/tests/public-name-charset.unit.test.js`.
+24. **The visitor's own times are judged against the neighbours** (audit R24 public finding 1, 2026-11-05). Rule 15
+    sees a neighbour's edges, not the visitor's: an arrival inside the cleaning gap after a departure that day, an
+    arrival early enough to take the night before, a departure that leaves no cleaning time before an arrival that day,
+    or late enough to take the night after, used to be sold and paid, then converted with a conflict the operator had to
+    settle with the guest. Once the nights are free, `/booking-requests` and `/quote` run the back office's check
+    (`utils/blockedDates.stayTimesRefused` → `reservationsModel.validateAvailability` with the visitor's times and the
+    nights they take; a time not sent is the property's default, the one the devis stores) and refuse with
+    `409 STAY_TIMES_UNAVAILABLE`, « Horaires indisponibles à ces dates : modifier l’heure d’arrivée ou de départ. » /
+    « These times are not available on these dates: change the check-in or check-out time. ». Nothing is stored; the
+    nights stay on sale and the visitor corrects the time in its field, which re-quotes. `/quote` answers the same code
+    (as it answers `OVER_CAPACITY`), so the drawer prints the sentence through `GF.errorMessage` before the form, on every
+    plugin version: no WordPress release. Nights taken stay `DATES_UNAVAILABLE` (`available: false` on the quote). An early
+    or late time with no neighbour and no closure is sold. A devis the operator makes is not on this path. The code is one
+    more value of the documented refusal, additive: not an X. `/pay` judges the same ([public-online-payment.md](public-online-payment.md)
+    rule 17). Covered by `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js`.
+    *Reading of 2026-11-05 (audit R24 verification L1, L2, L3):* the times are judged after the nights and the capacity
+    but before the engine's stay rules (`/quote`, `/booking-requests`) and before `stayRuleRefusal` (`/pay`): a stay
+    both too short and on a refused time answers the times first, then the minimum once the time is fixed; accepted,
+    a rare chain at no cost. A Roostview quote is not judged on the times ([roostview-api-key.md](roostview-api-key.md)
+    rule 7). The nights an early arrival or a late departure takes are pinned without any cleaning-gap clash (an
+    arrival at 09:00 the day after a neighbour left at 18:00, a departure at 18:00 the day before a 09:00 arrival).
+25. **A pasted phone reads as it shows** (audit R24 public finding 2, 2026-11-05). Before rule 21 judges `guest.phone`,
+    every format character (`\p{Cf}`: bidi marks of a contact card, a zero-width space) leaves it and every space
+    separator (`\p{Zs}`: no-break, narrow no-break, ideographic) reads as a space; the cleaned number is stored. A number
+    copied from a page used to read « Numéro de téléphone invalide. » under digits that looked right. A line break, a
+    letter or a slash is still `phoneInvalid`; format characters alone are `required`. Covered by
+    `plugins/website-booking/tests/public-phone-pasted.unit.test.js`.
 
 **Edge cases:**
 
@@ -139,8 +308,8 @@ or **[CREATE]** (genuinely new logic).
 - Availability range too large (`to - from > 365 days`) or inverted → `422 VALIDATION_FAILED`.
 - Availability range omitted → default window = today … today + 12 months.
 - Quote with dates fully/partially overlapping blocked dates → quote still computes (price is date-driven), but response includes `"available": false` so the proxy can refuse the request UI-side. The booking-request endpoint **re-checks** availability server-side and rejects with `409 DATES_UNAVAILABLE` if blocked at submit time.
-- Quote breaching minimum nights → engine returns `minNightsBreached: true`; public quote surfaces `available`/`minNights` info and the booking-request endpoint rejects with `409 MIN_NIGHTS` unless within rules.
-- Booking request for a guest whose email already exists → reuse the existing client row (match on normalized email); never duplicate, never overwrite their stored name/phone silently (append request as a new pending devis).
+- Quote breaching minimum nights → engine returns `minNightsBreached: true`; public quote surfaces `available`/`minNights` info and the booking-request endpoint rejects with `409 MIN_NIGHTS` unless within rules. Maximum stay and changeover days likewise (`409 MAX_NIGHTS` / `409 CHANGEOVER`, rule 12).
+- Booking request for a guest whose email already exists → reuse the existing client row (match on normalized email); never duplicate, never overwrite any stored field (rule 13: the typed identity goes to the devis notes).
 - Honeypot filled (`_hp` non-empty) → respond `201` shaped like a success receipt **without** persisting anything (don't help spammers distinguish a block from a pass).
 - Option id sent that is not applicable to the property → `422 VALIDATION_FAILED` (`details` names the offending option), never silently dropped.
 - Unknown/extra body fields → ignored (forward-compatible), except forbidden pricing-override fields which, if present, are ignored (not an error) and logged.
@@ -171,6 +340,16 @@ or **[CREATE]** (genuinely new logic).
 | `utils/` | `utils/publicProjections.js` | C | Pure functions: `toPublicProperty`, `toPublicPropertyDetail`, `toPublicOption`, `toPublicAvailability`, `toPublicQuote`. Unit-testable. |
 | `utils/` | `utils/publicInputValidation.js` | C | Pure validators for public query/body params (dates, counts, ids, email, phone). Unit-testable. |
 | `utils/` | `pricing.js` | REUSE | **Untouched.** Called by `publicQuoteController` and indirectly by the devis create path. |
+| `plugins/website-booking/` | `nextAvailability.js` | C (2026-10-19) | Pure `findNextAvailableDate` + `stayRulesPredicate` (the engine's min/max stay and changeover days, through SDK 1.3.0 core modules `pricing` and `changeover`) — the availability payload's `nextAvailableDate` (§4.3). Test: `public-next-availability.unit.test.js`. |
+| `plugins/website-booking/` | `publicInputValidation.js`, `utils/publicLabels.js` | T (2026-11-05) | Rule 23: the characters of a public name, `reason: 'nameInvalid'` and its sentence. |
+| `plugins/website-booking/` | `publicInputValidation.js`, `controllers/publicBookingRequestController.js` | T (2026-11-03) | Rule 22: non-scalar counts and times refused, guest and message fields read as strings only, `_hp` and `termsVersion` judged by type. |
+| `controllers/public/` | `publicHttp.js` (`answerBodyRefusal`), `publicPaymentController.js`; `utils/bodyParserRefusal.js`, `utils/publicLabels.js`, `index.js` | T (2026-11-03) | Rule 22: the parser's refusal in the public envelope, language and return path read as strings only. |
+| `plugins/website-booking/` | `publicInputValidation.js` + `utils/publicLabels.js` | T (2026-10-19) | Guest errors carry `reason`; `withFieldMessages` adds `labels(lang).fieldErrors` as `message` (§4.3 booking-requests). Test: `public-guest-field-errors.unit.test.js`. |
+| `plugins/website-booking/` | `publicSelectableOptions.js` | C (2026-10-27) | The options a visitor may pick (applicable, not an offered default, client-visible, price ≥ 0): the catalogue lists them, the quote and the booking request accept only them (rule 14). |
+| `plugins/website-booking/` | `publicProjections.js`, `publicArrivalWindows.js`, controllers | T (2026-10-27) | `stayRuleBreach` + the quote's `maxNights`/`maxNightsBreached`/`changeoverBreached`/`stayRefusal`, `hasUnpricedNights`; arrival windows run `stayRulesPredicate`; the booking request refuses `MAX_NIGHTS`/`CHANGEOVER`, never edits an existing client and notes the typed identity (rules 12-13); duplicate lines refused by `validateStayInput` (rule 16). |
+| `utils/` | `blockedDates.js`, `publicLabels.js` | T (2026-10-27) | Reservations read one day wider so a neighbour's late check-out / early check-in counts (rule 15); `maxNights` + `changeover` refusals in FR/EN. |
+| `controllers/` | `optionsController.js`, `public/publicPaymentController.js` | T (2026-10-27) | Negative option price refused (rule 14); `pay` re-checks the stay rules (rule 12). |
+| `plugins/website-booking/` | `publicInputValidation.js`, `controllers/publicQuoteController.js` | T (2026-10-27 spec review) | `maxLineQuantity` bounds a line by the stay (rule 17); `checkResourceApplicability` leaves the cot out (rule 18); the quote checks the capacity on the property row the engine read (rule 19). |
 | `scheduledTasks.js` | `scheduledTasks.js` | T (only if hold enabled) | Releases expired holds (see §8). |
 | `database.js` | `database.js` | T | Idempotent migration: add `reservations.requestOrigin TEXT` (NULL); if hold enabled, add hold columns/table. |
 | `index.js` | `index.js` | T | Mount `app.use('/public/v1', require('./routes/public'))` **before** the `/api` guard block; add `trust proxy` already present. |
@@ -221,7 +400,7 @@ them. The data already flows through the existing Devis UI; a visual badge is a 
 | POST | `/public/v1/booking-requests` | public | key | `BookingRequest` | `201 { data: BookingRequestReceipt }` | Pending devis; rate-limited + anti-spam. |
 
 HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
-`409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 OVER_CAPACITY`, `422 VALIDATION_FAILED`,
+`409 DATES_UNAVAILABLE` / `409 STAY_TIMES_UNAVAILABLE` (rule 24) / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`, `422 VALIDATION_FAILED`,
 `429 TOO_MANY_REQUESTS`, `500 INTERNAL_ERROR` (generic message).
 
 ---
@@ -348,13 +527,25 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     "from": "2026-06-08",
     "to": "2027-06-08",
     "blockedDates": ["2026-07-10", "2026-07-11", "2026-07-12"],
-    "blockedRanges": [ { "start": "2026-07-10", "end": "2026-07-12" } ]
+    "blockedRanges": [ { "start": "2026-07-10", "end": "2026-07-12" } ],
+    "nextAvailableDate": "2026-06-08"
   }
 }
 ```
   - `blockedDates` = consolidated occupied nights from reservations (incl. `sourceType='ical'`
     platform blocks) **and** establishment closures — **no source, no platform name, no guest
     info**. `blockedRanges` is the same data collapsed into ranges for convenient rendering.
+  - `nextAvailableDate` *(added 2026-10-19, additive — UI/UX review 2026-10-18, decision 2)*: the
+    first **bookable arrival** on or after `max(from, today)`, looked up to 365 days past that start
+    even beyond `to`; `null` when there is none. Bookable = a free night from which some stay of free
+    nights (up to 62) passes the property's stay rules as the pricing engine reads them: per-night
+    minimum and maximum stay (`calculateBaseStayPrice`) and arrival/departure weekdays
+    (`utils/changeover.js`). An isolated free night under a 2-night minimum, or a Tuesday when
+    arrivals are on Saturdays, is not one. The site uses it to offer « Prochaine
+    disponibilité » when the two months it shows are all closed
+    ([wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rule 30). Computed by
+    `plugins/website-booking/nextAvailability.js`; the extra lookup runs only when the requested
+    window holds no free night.
 - **Errors:** `404 PROPERTY_NOT_FOUND`, `422 VALIDATION_FAILED` (bad/oversized range), `401`.
 
 ##### POST `/public/v1/quote`
@@ -383,6 +574,7 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     "persons": 3,
     "available": true,
     "minNights": 3, "minNightsBreached": false,
+    "maxNights": 14, "maxNightsBreached": false, "changeoverBreached": false, "stayRefusal": null,
     "currency": "EUR",
     "nightlyBreakdown": [ { "date": "2026-07-20", "price": 120 } ],
     "accommodationTotal": 840,
@@ -427,8 +619,9 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     `minNightsBreached`/`requiredMinNights`). `available` is added by cross-checking the
     requested range against availability (#6).
   - **Excluded:** VAT net breakdowns, accounting contribution buckets, `engineFinalPrice`/override
-    flags, resource lines unless a public resource concept is in scope (it is not — see §8).
-- **Errors:** `404 PROPERTY_NOT_FOUND`, `422 VALIDATION_FAILED`, `401`, `429`.
+    flags. Resource lines ARE included (`resources[]`, `resourcesTotal`, see the endpoint table): the
+    resources are public since the site sells supplements (corrected at the 2026-10-27 spec review).
+- **Errors:** `404 PROPERTY_NOT_FOUND`, `422 VALIDATION_FAILED`, `409 OVER_CAPACITY` (rule 19), `409 STAY_TIMES_UNAVAILABLE` (rule 24), `401`, `429`.
 
 ##### POST `/public/v1/booking-requests`
 
@@ -485,8 +678,21 @@ HTTP codes used: `200`, `201`, `401 UNAUTHENTICATED`, `404 PROPERTY_NOT_FOUND`,
     No `hold` field in this version (Q9).
   - **Excluded:** the full pricing breakdown and any client/admin internals. The proxy gets a
     confirmation receipt, not a quote dump (it can re-quote if it needs the breakdown).
-- **Errors:** `409 DATES_UNAVAILABLE` / `409 MIN_NIGHTS` / `409 OVER_CAPACITY`,
+- **Errors:** `409 DATES_UNAVAILABLE` / `409 STAY_TIMES_UNAVAILABLE` (rule 24) / `409 MIN_NIGHTS` / `409 MAX_NIGHTS` / `409 CHANGEOVER` / `409 OVER_CAPACITY`,
   `422 VALIDATION_FAILED`, `404 PROPERTY_NOT_FOUND`, `429 TOO_MANY_REQUESTS`, `401`.
+  - Refused contact fields *(2026-10-19, additive — UI/UX review 2026-10-18, decision 3)*: each
+    `details[]` entry for `guest.firstName` / `guest.lastName` / `guest.email` / `guest.phone` keeps
+    its `field` and `issue`, and gains `reason` (`required` | `nameInvalid` (rule 23) | `emailInvalid` | `phoneInvalid` (rule 21) | `tooLong` (rule 20)) and `message`, the
+    sentence the site prints under that field, in the request's language (FR « Champ requis. »,
+    « Adresse e-mail incomplète. »; EN « Required. », « Incomplete email address. »). The top-level
+    `message` reads « Coordonnées incomplètes ou invalides. » (EN « Contact details incomplete or
+    invalid. »), no longer « Coordonnées du client invalides. »
+    ([wordpress-plugin.md](wordpress-plugin.md) rule 28).
+    ```json
+    { "error": { "code": "VALIDATION_FAILED", "message": "Coordonnées incomplètes ou invalides.",
+      "details": [ { "field": "guest.email", "issue": "must be a valid email", "reason": "emailInvalid",
+                     "message": "Adresse e-mail incomplète." } ] } }
+    ```
   - `OVER_CAPACITY` fires when `adults + children + teens > maxGuests` **or** `babies > maxBabies`
     (server/src/utils/capacity.js — the same rule as the back-office, minus the force override).
     The age MIX never matters on its own: before 2026-08-14 a property with `maxChildren: 0` refused
@@ -536,6 +742,14 @@ follow-up.
       (`customPrice`/`discountPercent`/`platform`/`clientGrossAmount`/`depositAmount`/`offeredOptionIds`/
       per-option `offered`/`free`/`unitPrice`/`price`/`selectedResources`/…) is dropped before the
       engine; options collapse to `{optionId, quantity}`. **(12 tests)**
+- [x] `plugins/website-booking/tests/public-input-shape.unit.test.js` and `tests/public-input-shape-core.unit.test.js` — rule 22. **(13 + 10 tests)**
+- [x] `plugins/website-booking/tests/public-name-charset.unit.test.js` — rule 23 and [wordpress-plugin.md](wordpress-plugin.md) rule 35: accepted and refused names, the refusal's sentence, nothing written, no city nor address read, stored client, intake, back office and the validator's only caller. **(14 tests)**
+- [x] `plugins/website-booking/tests/public-refused-form-budget.unit.test.js` — rule 9's reading of 2026-11-05 (D18): refused forms give their hit back, every other answer spends it, the broad limit and the proof stand. **(6 tests)**
+- [x] `plugins/website-booking/tests/public-email-one-address.unit.test.js` — rule 21's reading of 2026-11-05 and the rules 7 and 12 of the abuse spec on a non-ASCII or hidden-character address. **(4 tests)**
+- [x] `plugins/website-booking/tests/public-free-text-cleaning.unit.test.js` — the cleaner of the message and the attribution ([public-request-abuse-and-grouping.md](public-request-abuse-and-grouping.md) rule 22, [site-traffic-analytics.md](site-traffic-analytics.md) rule 15, readings of 2026-11-05). **(8 tests)**
+- [x] `plugins/website-booking/tests/public-refusal-language.unit.test.js` — [site-english-version.md](site-english-version.md) rule 8's reading of 2026-11-05: limiters, the tree's 404, the key refusals. **(7 tests)**
+- [x] `plugins/website-booking/tests/public-stay-times-neighbours.unit.test.js` — rule 24: the four clashes on the request and the quote, the sentence in both languages, the default times, an early time with no neighbour, nights taken still `DATES_UNAVAILABLE`; the night taken by a 09:00 arrival or an 18:00 departure with no cleaning-gap clash, a Roostview quote not judged on the times (reading of 2026-11-05). **(16 tests)**
+- [x] `plugins/website-booking/tests/public-phone-pasted.unit.test.js` — rule 25: pasted separators and invisible marks accepted and stored clean, a line break, a slash or a letter still refused. **(9 tests)**
 - [x] `tests/public-catalog-readonly.unit.test.js` — `GET /public/v1/properties/:id` reads through the
       side-effect-free `getByIdPublicReadOnly` and **never** the seeding `getByIdWithDetails`, proving a
       public GET performs zero writes; 404 path also writes nothing. **(2 tests)**
@@ -570,6 +784,21 @@ follow-up.
       is stricter (3rd booking → 429) and does **not** throttle plain reads. Per-test `X-Forwarded-For`
       isolates the rate-limit buckets. **(5 tests)**
 
+- [x] 2026-10-27 audit (rules 12-16), one file per subject:
+      `plugins/website-booking/tests/public-stay-rules.unit.test.js` (6: `MAX_NIGHTS`, `CHANGEOVER`
+      FR/EN, a valid week, the quote's fields and sentence, Saturday-only arrivals with Saturday
+      departures, `/pay` refusing a devis the tightened tariff no longer allows),
+      `public-request-existing-client.unit.test.js` (2), `public-option-acceptance.unit.test.js` (5:
+      catalogue, internal / offered default / negative refused on both routes, the visible option
+      priced), `public-duplicate-lines.unit.test.js` (3), `src/tests/blocked-dates-neighbour-edges.unit.test.js`
+      (3), `src/tests/options-negative-price.unit.test.js` (2). Real modules over a temporary database.
+      The suites of this folder whose mocks still let the SDK open the real `database.js` now require
+      `tests/isolatedDb.js` first, so none of them touches the checkout's `guestflow.db`.
+- [x] 2026-10-27 spec review (rules 17-19): `plugins/website-booking/tests/public-stay-guards-review.unit.test.js`
+      (4: the bound, `1e9` refused on both routes with nothing created, the cot refused as a resource,
+      the quote over capacity → 409). Failed on the code before the fix. The progressive-participants
+      fixture gained a capacity (4 participants on a property that had none).
+
 ### Manual / integration verification (all ✅ 2026-06-08, curl against `localhost:4000`)
 - [x] Happy path (server-to-server `curl`): list → detail → options → availability → quote →
       booking request, all with the API key header. The draft devis (`requestOrigin='public'`,
@@ -597,8 +826,8 @@ follow-up.
   `/public/v1`; a future `/public/v2` is additive and won't touch v1 or the SPA.
 - Online payment / firm reservation via the public API (a request is always pending; the admin
   converts it through the existing devis→reservation flow).
-- Exposing resources/extras catalog publicly (only `options` are in scope; resources stay internal
-  unless a later spec adds them).
+- ~~Exposing resources/extras catalog publicly~~ — **in scope since**: the property's resources are
+  read, quoted and requested publicly (rule 6, endpoint table; corrected at the 2026-10-27 spec review).
 - Webhooks/notifications back to WordPress on request status change (could be a later spec).
 - **Encryption of the public API key at rest** beyond `.env.local` handling (the key is an env
   secret, not DB data).

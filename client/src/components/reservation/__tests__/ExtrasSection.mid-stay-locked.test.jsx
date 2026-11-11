@@ -2,6 +2,9 @@ import React from 'react';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import { vi } from 'vitest';
 
+// The plugin slots under each line read the active plugins (specs/plugins-phase-1-sdk.md rule 16).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
 

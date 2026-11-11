@@ -56,13 +56,14 @@ const buckets = (q) => Math.round(
   (q.depositAmount + q.balanceAmount + q.complementAmount + q.endOfStayComplementTotal) * 100,
 ) / 100;
 
-test('sans base de référence, une option vendue sur un complément encaissé ne tombe dans aucune échéance', () => {
-  // Le témoin du bug : c'est l'état que produisait la version précédente (base gated sur le calendrier).
+test('sans base de référence, l\'option vendue sur un complément encaissé part quand même au départ (règle 20, audit 2026-10-27)', () => {
+  // Le témoin du bug laissait 30 € que personne ne réclamait : le moteur les envoie désormais au
+  // complément de fin de séjour, même quand aucune base n'a été posée.
   const q = calculateReservationQuote({ ...BASE, db: pricingDb() });
   assert.equal(q.complementAmount, 24, 'le complément encaissé reste gelé');
-  assert.equal(q.endOfStayComplementTotal, 0);
+  assert.equal(q.endOfStayComplementTotal, 30);
   assert.equal(q.totalStayPrice, 254);
-  assert.equal(buckets(q), 224, '30 € vendus que personne ne réclame');
+  assert.equal(buckets(q), 254, 'chaque euro vendu est réclamé par une échéance');
 });
 
 test('avec la base figée à l\'encaissement, les 30 € partent au complément de fin de séjour', () => {

@@ -32,6 +32,12 @@ function formatDateLong(isoDate, lang = 'fr') {
   return `${dayNum} ${months[monthIdx]} ${yearNum}`;
 }
 
+// specs/finance-revpar-year-over-year.md rule 23 — `2027-01-01` → `1er janvier 2027`: a French long date for a
+// sentence, the first of the month written « 1er ». `formatDateLong` keeps its own output (emails).
+function formatDateLongFr(isoDate) {
+  return formatDateLong(isoDate, 'fr').replace(/^1 /, '1er ');
+}
+
 // `15:00:00` or `15:00` → `15:00`. Empty / malformed → empty string.
 function formatTimeShort(value) {
   if (!value) return '';
@@ -44,8 +50,54 @@ function formatTimeShort(value) {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+const FR_WEEKDAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+// `2026-10-21` → `mercredi 21 octobre` — a day of the coming weeks; its year is said only when it is
+// not `currentYear` (« lundi 4 janvier 2027 »).
+function weekdayLabel(isoDate, currentYear = null) {
+  const match = String(isoDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return '';
+  const [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const day = new Date(Date.UTC(y, m - 1, d));
+  if (Number.isNaN(day.getTime()) || m < 1 || m > 12) return '';
+  const year = currentYear != null && Number(currentYear) !== y ? ` ${y}` : '';
+  return `${FR_WEEKDAYS[day.getUTCDay()]} ${d === 1 ? '1er' : d} ${FR_MONTHS[m - 1]}${year}`;
+}
+
+const EN_WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const PARIS_PARTS = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Paris', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23',
+});
+
+// An instant (ISO, UTC) as a guest reads it in an e-mail, Paris time, without the year: « lundi 2 novembre
+// à 18 h 00 » / « Monday 2 November at 6:00 pm » (specs/payment-link-lifecycle.md rule 36). Empty for no
+// instant, an unreadable one or Qonto's zero-time sentinel (anything at or before the Unix epoch).
+function formatMomentLong(instant, lang = 'fr') {
+  const ms = instant ? Date.parse(String(instant)) : NaN;
+  if (!Number.isFinite(ms) || ms <= 0) return '';
+  const part = Object.fromEntries(PARIS_PARTS.formatToParts(new Date(ms)).map((p) => [p.type, Number(p.value)]));
+  const weekday = new Date(Date.UTC(part.year, part.month - 1, part.day)).getUTCDay();
+  const minutes = String(part.minute).padStart(2, '0');
+  if (lang === 'en') {
+    const hour12 = part.hour % 12 === 0 ? 12 : part.hour % 12;
+    return `${EN_WEEKDAYS[weekday]} ${part.day} ${EN_MONTHS[part.month - 1]} at ${hour12}:${minutes} ${part.hour < 12 ? 'am' : 'pm'}`;
+  }
+  return `${FR_WEEKDAYS[weekday]} ${part.day === 1 ? '1er' : part.day} ${FR_MONTHS[part.month - 1]} à ${part.hour} h ${minutes}`;
+}
+
+// `2027-10-04` → `04/10/2027`, the way the screens write a day (client displayDate). A value that is not a day is given
+// back as it is, so a refusal never loses what it names (audit R43-RES-L2).
+function formatDateNumeric(isoDate) {
+  const match = String(isoDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : String(isoDate || '');
+}
+
 module.exports = {
+  formatDateNumeric,
   formatDateLong,
+  formatDateLongFr,
+  formatMomentLong,
+  weekdayLabel,
   formatTimeShort,
   FR_MONTHS,
   EN_MONTHS,

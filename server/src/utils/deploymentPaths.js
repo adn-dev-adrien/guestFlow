@@ -113,11 +113,16 @@ function isFile(target) {
  * halfway through an update. `reason` is a French sentence shown in the UI when the answer is no.
  */
 function selfUpdateSupported(env = process.env, paths = resolvePaths(env)) {
+  // A hosted instance shares its release with the others: only the console updates it
+  // (specs/hosting-h1-fleet-runtime.md rule 9).
+  if (env.GUESTFLOW_MANAGED === '1') {
+    return { supported: false, reason: 'Mises à jour gérées par l’hébergeur.' };
+  }
   if (String(env.GUESTFLOW_SELF_UPDATE || '').toLowerCase() === 'off') {
     return { supported: false, reason: "La mise à jour depuis l'application est désactivée sur cette instance (GUESTFLOW_SELF_UPDATE=off)." };
   }
   if (!isSymlink(paths.currentLink)) {
-    return { supported: false, reason: "Ce déploiement n'utilise pas le lien symbolique « current » : mise à jour manuelle requise." };
+    return { supported: false, reason: 'Mise à jour automatique indisponible sur cette installation.' };
   }
   if (!isDirectory(paths.releasesDir)) {
     return { supported: false, reason: "Le dossier « releases » du déploiement est introuvable." };

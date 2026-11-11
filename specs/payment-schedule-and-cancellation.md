@@ -116,8 +116,16 @@ acompte is kept as an indemnity, and the books say so correctly.
 5. For a **devis** (`kind = 'devis'`), `depositDueDate = validUntil` — the quote already promises the
    dates until that date. On conversion to a reservation the due date is re-derived by rule 3 from
    the conversion date, unless the acompte was already paid online (then it is left as-is).
+   **Amended 2026-11-09 (D23, audit R33-DB-L1).** The conversion re-derived nothing: it copied the devis's
+   dates, and that is the right behaviour — the reservation owes what the quote promised. The conversion
+   keeps the devis's schedule (its acompte due on `validUntil`, then frozen by rule 4); a devis owing one
+   payment under rule 56 hands the reservation that single payment, due on `validUntil` (never before the
+   conversion day), and the reservation's later saves keep it while its arrival stays the one quoted.
 6. `depositDueDate` is `NULL` when there is no acompte to collect (`depositDisabled`,
    `depositAmount = 0`, or a non-direct platform).
+   **Amended 2026-10-28** (specs/settings-input-guards.md rules 9, 11-12, 15): `depositDueDays` is a
+   whole number from 0 to 30, refused (400) otherwise; 0 means « due on the booking day » (« à la
+   réservation »), with no blocking (A1 = label only).
 
 ### 3.2 Solde — due 30 days before arrival
 
@@ -128,6 +136,8 @@ acompte is kept as an indemnity, and the books say so correctly.
 9. **Late booking** (arrival less than `balanceDaysBefore` days away): the clamp of rule 7 makes the
    solde due on the booking day itself — acompte and solde are both immediately payable.
 10. `balanceDueDate` is `NULL` when `balanceAmount = 0` (nothing left to collect pre-arrival).
+   **Amended 2026-10-28** (specs/settings-input-guards.md rules 10-12): `balanceDaysBefore` is a whole
+   number from 0 to 60, refused (400) otherwise — no more silent fallback to 30 on a negative.
 
 ### 3.3 Cancellation deadline
 
@@ -141,8 +151,14 @@ acompte is kept as an indemnity, and the books say so correctly.
 13. The cancellation action is offered **only while `today < startDate`**. From the arrival day on,
     the row stays visible as an unpaid-arrival warning with no cancel button — cancelling a stay whose
     guest is at the door is not a decision the dashboard should suggest.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 10-12): `cancelAfterBalanceDueDays` is a
+    whole number from 0 to 60, refused (400) otherwise.
 
 ### 3.4 Dashboard alert
+
+> 2026-10-19 (`specs/shell-and-home-day-first.md` rules 3, 6): the card is one of the two subjects
+> pinned unfolded above the day; its title, count, « N en retard · M à demander » and severity are
+> built by `GET /api/dashboard/attention`, and it is drawn by `AttentionCard`.
 
 14. A new dashboard card, « **Échéances de paiement** », lists every direct reservation with a payment
     to ask for or a missed deadline. Each row is **entirely computed server-side** (state, amounts,
@@ -208,6 +224,11 @@ acompte is kept as an indemnity, and the books say so correctly.
     c. when the acompte was paid, the **requalification pair** of §3.6 is written;
     d. nothing else is mutated — amounts, échéances and paid flags stay exactly as they were, because
        they are now history.
+    *Reading of 2026-11-10 (audits R45-RES-L1, R45-DB-L1):* with the « Motif » left empty (it is optional), the entry
+    stores the derived key (`unpaid_deposit`, `unpaid_balance`, `manual`), as `cancellationReason` does. The history
+    reads it French — « Acompte impayé », « Solde impayé », « Annulation manuelle » — the stored row untouched; only
+    the whole value is matched, so a reason the operator typed reads as typed (`utils/reservationAudit`). Test:
+    `tests/cancel-history-reason-french.unit.test.js`.
 24. **The dates are freed by construction.** Every operational query already filters
     `kind = 'reservation'` — availability check
     ([reservationsModel.js:930](../server/src/models/reservationsModel.js#L930)), calendar, planning,
@@ -244,6 +265,12 @@ acompte is kept as an indemnity, and the books say so correctly.
 31. Net effect: the client auxiliary account nets to zero, the cash position is unchanged (no money
     moved), and the revenue is reclassified from `706xxxx` + VAT to `75880000` VAT-free — which is
     what a retained acompte legally is.
+    > **Reading of 2026-11-02 (audit R14-M1, Adrien's decision « Réduire l'indemnité »).** Giving part of the
+    > retained money back later is a reduction of the indemnity, not a refund of the séjour: on the cancelled
+    > stay the refund takes, after any collected money the cancellation did not requalify (a paid solde, still
+    > booked 706 + VAT), the rest from the indemnity — debit 75880000 at its own rate (0 %), no 706, no VAT
+    > (specs/reservation-refunds.md rule 48). Only money collected can go back; the never-collected remainder
+    > of the stay is not refundable. Revenue and VAT stay exact, the indemnity reads what was really kept.
 32. The avoir uses a **new refund method `retained`** (« Acompte conservé »), which is **book money**
     (unlike `internal`, which is off-books): it must appear in the journal. No bank movement is
     implied, and the method is never selectable in the manual refund dialog — only the cancellation
@@ -253,6 +280,9 @@ acompte is kept as an indemnity, and the books say so correctly.
     back » — the fiche's « Remboursements » line, the finance aggregates — therefore skips it. Only
     the monthly journal read sees it. (Found in the browser: without this the cancelled fiche showed
     « Remboursements − 274,00 € », the exact opposite of what happened.)
+    > **Reading of 2026-11-02 (audit R14-C1).** The fiche's payment ledger is such a reader: the `retained`
+    > avoir is the row « Acompte conservé » (« Échéances conservées » for a plan), « Requalifié en indemnité le
+    > JJ/MM », not « Remboursement · Rendu le … » (specs/reservation-refunds.md rule 46, reading of 2026-11-02).
 33. The indemnity card gets a new `origin` field: `platform` (the existing iCal flow) or
     `retained_deposit` (this flow). The Comptabilité section and the dashboard card label it
     « Acompte conservé — annulation » and link to the cancelled reservation.
@@ -357,6 +387,376 @@ acompte is kept as an indemnity, and the books say so correctly.
   column is left as harmless residue.
 - Cancelling a stay whose acompte was paid **in the current month** → the avoir + indemnity land in the
   same month as the encaissement; the three entries coexist and net to the correct result.
+47. **Fixed at the 2026-10-27 spec review — the acompte is never due after the solde.** Booked 31 to 36
+    days out, `booking + depositDueDays` (7) fell after `arrival − balanceDaysBefore` (30): booked on
+    27/10 for 28/11, the acompte was due 03/11 and the solde 29/10. A FRESH acompte deadline is now
+    capped at the solde deadline (`resolveDepositDueDate({ notAfter })`); a stored one keeps its promise
+    (rule 4). A platform solde (payout after departure) never caps anything in practice.
+
+48. **Nothing collected reads `unpaid_deposit`** (fixed at the 2026-10-27 spec review). When the acompte
+    is due and unpaid, the derived `cancellationReason` is `unpaid_deposit` even though the solde is unpaid
+    too — the first money missing names the cancellation, as rule 27 says. It read `unpaid_balance`.
+
+49. **`DELETE /api/reservations/:id` deletes a live, money-free stay only** _(added 2026-10-28, audit)_.
+    The route used to bypass every guard of the fiche: it erased a cancelled stay with its refunds, a
+    duplicate set aside, and a devis with its CGV acceptance (the FK cascade), though the fiche save
+    refuses all three (rule 25, `specs/terms-acceptance-record.md` rule 29). It now answers
+    `409 RESERVATION_NOT_DELETABLE` for any `kind` other than `reservation` (a devis is deleted from the
+    Devis page; a cancelled stay is history), and `409 RESERVATION_CARRIES_MONEY` for a stay with any
+    collected bucket (acompte, solde, complement, end-of-stay complement), a paid payment link, a paid
+    installment, a refund, a platform penalty or a cancellation compensation — read on the stay **and on
+    every devis converted into it** (website and devis payment links keep the devis id after the
+    conversion, as `vatRegimeSwitchModel` already reads them). The message points at the way out:
+    « Un paiement est enregistré sur ce séjour : l'annuler plutôt que le supprimer. » **This rule set is THE
+    delete guard** for stays, devis, clients and properties (`utils/deletionGuard`, rule 52): no other
+    path may drop a row carrying money. Cancelling the stay is the way to retire it. The archive rule (a finished stay needs the admin's per-fiche unlock) is unchanged.
+    The iCal cancellation approval, which deletes a stay on its own authority, is not this route.
+50. **A delete deactivates the row's payment links first** _(added 2026-10-28, audit)_. Neither a
+    deleted stay nor a deleted devis may leave an open link payable at the provider: before the delete
+    every open link of the row **and of the devis converted into it** is deactivated through the provider abstraction
+    (`deactivateOpenLinksBeforeDelete`) and marked `cancelled`. A link paid meanwhile answers
+    `409 LINK_ALREADY_PAID`; a provider that cannot deactivate it (down, plugin off) answers
+    `502 LINK_NOT_DEACTIVATED` and **nothing is deleted** (the links already deactivated stay cancelled).
+    With **no provider at all** (plugin off) nothing can be asked: the links are marked
+    `remoteCancelPendingAt` for the poll's retry (`specs/plugins-phase-3a-online-payment.md` rule 8) and the
+    delete goes on. **The guard is judged again after the awaits:** the poll can mark a link paid while the
+    provider is being called, so the kind and `carriesMoney` are re-run synchronously, in the same
+    transaction as the `DELETE` (`removeGuarded` on the reservations, clients and properties models); a stay
+    that became cancelled or carries money by then answers 409 and keeps its rows. `paymentLinksModel.cancel`
+    never overwrites a `paid` link, which is what the re-check relies on. When `removeGuarded` refuses
+    after links were already deactivated, the stay survives with those links cancelled: the operator
+    re-sends a link.
+    The devis route runs its own refusals (CGV proof) before touching any link.
+51. **Orphan open links are logged at boot** _(added 2026-10-28, audit)_. An open link whose reservation
+    row no longer exists (deleted before rule 50) is still payable at the provider and has nothing to
+    land on; so is a cancelled link whose remote deactivation is still owed (`remoteCancelPendingAt`) for a
+    reservation that is gone, which nobody retries while the payment plugin is off. The server logs one
+    warning at startup naming each (`link->reservation`); no data is changed, the operator deactivates them
+    by hand.
+52. **Every cascade is guarded** _(added 2026-10-28, PR review)_. The rest of the delete paths that could
+    drop a stay with its money go through the same check (`carriesMoney`, rule 49):
+    - **forced client delete** (`DELETE /api/clients/:id?force=true`, FK cascade) and **property delete**:
+      `409 CLIENT_CARRIES_MONEY` / `409 PROPERTY_CARRIES_MONEY` when any stay, cancelled stay or devis of the
+      client / property (and the devis converted into them) carries money; otherwise the open links of those
+      rows are deactivated first (rule 50) and the cascade runs;
+    - a **devis** carrying a paid link, installment or refund is kept (`409 DEVIS_CARRIES_MONEY`,
+      « Un paiement est enregistré sur ce devis : le conserver plutôt que le supprimer. »);
+    - **iCal cancellation approval**: a stay without money is deleted as before; a stay that carries money
+      (refund, penalty, compensation, paid link…) is **never hard-deleted**: it goes through
+      `reservationsModel.markCancelled` (reason « Annulation iCal approuvée »), its mappings are dropped so the
+      sync cannot resurrect it, the alert closes as `approved` and the endpoint answers outcome
+      `approved_kept` (the client reads no outcome). In both branches the open payment links of the stay and of
+      its converted devis are abandoned in the transaction (with the retry marker) and returned as
+      `cancelledLinks`; the controller deactivates them at the provider after the commit, as
+      `utils/cancelReservation` does, so a hard-deleted platform stay leaves no payable link either;
+    - the **iCal sync** never deletes a stay (it raises a cancellation alert, then the previous bullet): its
+      unused `DELETE FROM reservations` statement was removed.
+53. **A forced client or property delete never wipes protected history** _(added 2026-10-29, audit R2)_. The
+    per-row routes refuse to delete a cancelled or set-aside stay (rule 25) and a devis that carries the CGV
+    acceptance of the stay it became (`specs/terms-acceptance-record.md` rule 29). The client delete (forced
+    or not) and the property delete apply the same refusals to every row they would cascade
+    (`deletionGuard.removesProtectedHistory`, judged again inside `removeGuarded`): `409 CLIENT_KEEPS_HISTORY` /
+    `409 PROPERTY_KEEPS_HISTORY`, one short message per cause (« Ce client a une réservation annulée. »,
+    « Ce client a une réservation écartée. », « Ce client a accepté des CGV. », and the same three for a
+    property (« Ce logement a… », « …des CGV acceptées. »)). Money (rule 52) is judged first. The refusal is answered by the first, non-forced client
+    delete too, and the delete preview carries it as `blocker` (specs/clients.md rule 16). The client delete preview
+    (`GET /api/clients/:id/delete-impact`) lists and counts what would really go, cancelled and set-aside
+    stays included (each row carries its `kind`).
+54. **The schedule reads the booking day on the operator's calendar** _(added 2026-10-30, review of PR #899)_.
+    `paymentSchedule.toIsoDay` keeps a date-only value as it is and reads a datetime through
+    `vatRegime.bookingDayOf`: `createdAt` is a UTC timestamp, and its day is the local calendar day it fell
+    on (Europe/Paris by default), the day the VAT regime and « today » already read
+    (`specs/devis-pdf-and-tourist-tax-fixes.md` rule 23, `specs/finance-dashboard-redesign.md` rule 37).
+    It covers every reader of a booking date in the schedule (acompte deadline, solde clamp, last-minute
+    threshold of `specs/deposit-blocks-the-dates.md` rule 4) on the devis and the reservation paths at
+    once. *Why:* between 00:00 and 01:00 / 02:00 in Paris the first ten characters of `createdAt` are
+    still yesterday. A devis created then (local day) flipped at its first unchanged save (UTC day): a stay
+    booked 30 days out was sold as one single payment, then re-saved with a 30 % acompte and a solde due
+    before it. A reservation's fiche showed the same acompte the save had not stored.
+55. **The cancellation keeps what earlier refunds left** _(added 2026-11-02, review of PR #925, finding 3)_. A
+    book refund (virement, espèces) made **before** the cancellation already reversed its revenue + VAT, or its
+    tourist tax. `cancelReservation` hands the stay's book refunds per bucket (`givenBack`) to
+    `buildCancellationRequalification`, which keeps, bucket by bucket, only what they left: a paid solde absorbs
+    them first (`saleCollected` = the bucket billed minus the acompte's share — the order rule 48 of
+    specs/reservation-refunds.md gives back a cancelled stay's money), the rest comes off the bucket's requalified
+    lines, the largest first (one line per installment and bucket on a plan), and what a bucket cannot hold comes
+    off the other lines. The avoir, the indemnity card's `receivedAmount`, the history's « Acompte conservé » and
+    `retainedDepositAmount` all carry that net amount; nothing left → no avoir and no card, as in rule 27. A
+    netted line keeps the TTC it was booked on as `unitPrice`, `quantity` being the share kept; the export splits
+    it as VAT(booked) − the VAT the earlier refunds of that bucket reversed, so 706 and 4457 net to the cent
+    (when that line took exactly those refunds; otherwise each line splits on its own). The caisse interne is off
+    the books and changes nothing here. A cancellation without an earlier book refund writes the same lines as
+    before, and its journal does not move. *Why:* acompte 274 €, 100 € of accommodation given back, then
+    cancelled → 274 € requalified though 174 € were held; once the 174 € still offered went back, 70600000
+    +90,91, 44571100 +9,09 and 75880000 −100 stayed in the books. A plan kept 2 060 € after a 100 € refund.
+    > **Reading of 2026-11-02 (review of PR #926).** This reading supersedes the parts of the rule above it
+    > names.
+    > - **The buckets of the acompte are those the export booked it on.** When its contribs do not add up to it
+    >   (none captured, or a stray one, within 0,02 €), the avoir reverses the stored-money split the export
+    >   credited for it (`utils/storedMoneySplit`, one util read by `accountingModel.buildEntry` and by
+    >   `cancelReservation`, exposed to the plugin as `coreModule('storedMoneySplit')`, SDK 2.19.0;
+    >   `accounting-export` asks for `^2.19.0`), never one accommodation line: stay #14 (807,20 € with 80 € of
+    >   options, acompte 242,16 €) reverses 218,16 + 24,00 € and its 706 sub-accounts no longer swap 21,82 €.
+    >   Contribs a cent or two off the acompte snap their last bucket onto it.
+    > - **What the solde collected is read, not derived.** `saleCollected` is the paid solde's own contribs when
+    >   they describe it (`reservationsModel.soldeContribBuckets`), otherwise the same stored-money split for the
+    >   solde, its tourist tax first — no longer « the bucket billed minus the acompte's share », which counted
+    >   the lines paid at arrival and the complements the solde never collected.
+    > - **A paid solde is one sum.** The acompte loses only Σ given − Σ collected by the solde. Per bucket, a
+    >   refund beyond the solde's share comes off that bucket's acompte lines, and the solde money of the other
+    >   buckets that covered it is requalified in its place, on those buckets (a line grows, or a line opens with
+    >   `unitPrice` 0, the tourist tax included): each bucket of the avoir reverses what the books still hold
+    >   there. Stay #22226 (legacy, 282,44 €, acompte and solde 126,38 € paid): 50 € of accommodation given back,
+    >   then cancelled → 126,38 € kept, and giving back the sale money returns 119,56 € in all, as without the
+    >   refund.
+    > - **The export mirrors every adjusted line** (`unitPrice` ≠ `amountTtc`): per bucket and rate, the avoir's
+    >   VAT is the VAT of the lines at their `unitPrice` + the VAT the paid solde booked there − the VAT the
+    >   earlier refunds reversed − the VAT of the sale money left there, given back at its own split. A bucket
+    >   kept below its acompte share must have taken exactly its own refunds; otherwise its lines split on their
+    >   own, as before. Past avoirs carry `unitPrice` = `amountTtc` (or none): their export does not move (all 36
+    >   months of 2025-2027 byte-identical on the shadow data).
+    > - **What is kept is the money minus what the refunds took**, per origin: `retainedTtc` never exceeds what was
+    >   collected, and an installment split a cent short of its amount keeps the gap off the lines, as before.
+    > - **Inherent:** a refund larger than what a bucket can still requalify (with no solde to cover it) spills onto
+    >   the other buckets' lines, so their 706 sub-accounts stay swapped by the excess — the refund had already
+    >   over-reversed its own sub-account, and an avoir cannot carry a negative line; VAT and totals are exact. A
+    >   tourist-tax refund before the cancellation of an acompte that collected no tax is the same case: it
+    >   reversed tax that was never collected, and that spill lands on the accommodation.
+    > **Reading of 2026-11-02 (second review of PR #926).** This reading supersedes the parts of the rule and of the
+    > reading above it names.
+    > - **A refund the cancellation deducted is never deleted.** `DELETE /:id/refunds/:refundId` on a cancelled stay
+    >   refuses, 409 `REFUND_NETTED_BY_CANCELLATION` « Remboursement déduit de l'acompte conservé. », a book refund
+    >   that existed when the `retained` avoir was written (`utils/refunds.nettedByCancellation`: its id is below
+    >   the avoir's); the fiche offers no « Supprimer » on it (a cancelled fiche offers it on no refund). The caisse
+    >   interne, never deducted, and a refund made after the cancellation are not concerned. *Why:* acompte 274 €,
+    >   100 € given back, cancelled → 174 € kept; deleting the refund then offered the 100 € back as sale money and
+    >   left 70600000 −90,91 and 44571100 −9,09 as revenue on a cancelled stay.
+    > - **The avoir of an acompte mirrors its entry to the cent.** The export reads the acompte entry the way it reads
+    >   the paid solde (`bookedSplitsOf(id, 'deposit' | 'balance')`, through `bookedBucketSplit`): an avoir line that is
+    >   a bucket's acompte share (within the 0,02 € of residue the entry put on its VAT line) reverses that bucket's HT
+    >   as the entry credited it, the rest of the line being VAT; an adjusted line reads its booked VAT the same way. A
+    >   plan's money, a cash acompte and any other line split on their own, as before. A legacy acompte cancelled with
+    >   no refund now leaves 706 and 4457 at 0 (it left a cent on 41 of 300 random stays at 10 %, 93 at 20 %), and so
+    >   does one netted of earlier refunds (A 1 400,73 €, O 209,67 €, acompte 805,20 €, refunds 278,43 + 247,63 € →
+    >   279,14 € kept, 706 and 4457 at 0; it left 44571100 +0,01). The shadow data holds no avoir of a legacy acompte:
+    >   no exported month moves.
+    > - **Contribs a cent or two off the acompte snap their largest bucket onto it**, no longer the last: contribs
+    >   274,01 + 0,01 € on a 274 € acompte kept 274,01 € (the options line went to −0,01 and was dropped); they keep
+    >   273,99 + 0,01 €.
+    > - **Inherent, restated:** in the spill case above, the totals are exact but each line splits on its own, so the
+    >   VAT can stay a cent off on top of the 706 swap (a plan with 900,09 € of options given back against 702,76 €
+    >   collected: 44571100 +0,01). The avoir no longer holds the buckets the refund emptied, so it cannot carry that
+    >   cent back.
+    > - **The base text's « a cancellation without an earlier book refund writes the same lines as before »** holds
+    >   for contribs that add up to the acompte exactly. A legacy acompte now writes one line per bucket it was booked
+    >   on (first reading above), and contribs within 0,02 € snap onto the acompte.
+    > **Reading of 2026-11-02 (audit R15-L1 and review of PR #926, residual A).** This reading supersedes the parts
+    > of the rule and of the readings above it names.
+    > - **Only book money is requalified.** An acompte collected in the caisse interne (`depositPaidCash`) was never
+    >   booked (`encaissementsByMonth` skips it): it writes no avoir line, no indemnity, and `retainedDepositAmount`
+    >   leaves it out. A solde collected there absorbs no book refund (`saleCollected` is not read). That money is
+    >   given back in the caisse interne (specs/reservation-refunds.md rule 48, reading of the same day). *Why (probe
+    >   P1):* acompte 274 € in caisse interne, cancelled → 70600000 +249,09 and 44571100 +24,91 debited on a sale
+    >   never booked, 75880000 −274 for money off the books, and the register offered nothing.
+    > - **The commissions withheld are requalified.** On the acompte and the solde paid to the books, the payment
+    >   provider's commissions (`acompteCommissionAmount`, `platformCommissionAmount`: Lodgify / Stripe on a direct
+    >   stay) were booked as revenue gross and never reached the bank. The avoir names them on lines keyed
+    >   `commission` (« Commission retenue — Hébergement », …), `unitPrice` 0: the acompte's own commission comes out
+    >   of its lines (each keeping the TTC it was booked on as `unitPrice`), the solde's is added, spread over the
+    >   buckets the solde was booked on by largest remainder. So the avoir — and the indemnity card's `receivedAmount`
+    >   — is the acompte kept plus the solde's commission; `retainedDepositAmount` and the history's « Acompte
+    >   conservé » stay the acompte kept. With nothing kept, a paid solde's commission alone writes the pair, read
+    >   « Commission retenue » on the fiche. The export mirrors these lines as any adjusted line (the reading of PR
+    >   #926 above): no plugin code changed. *Why:* stay #22226 (acompte and solde 126,38 € paid, 3,41 € withheld on
+    >   each) left 622600 +6,82, 70600010 −6,20 and 44571100 −0,62 once all of it was given back: revenue and VAT on
+    >   a cancelled stay. It now leaves 622600 +6,82 and 75880000 −6,82 only; on the shadow data, the 12 direct stays
+    >   holding money, cancelled and given back whole, leave 706, 4457, 4671 and the client account at 0 (9 of them
+    >   left revenue before). An avoir written before carries no `commission` line: past exports are byte-identical
+    >   (all 36 months of 2025-2027, before and after the base code cancelled every paid stay of the shadow).
+    > - **The fiche deletes a refund made after the cancellation** (specs/reservation-refunds.md rule 6, reading of
+    >   the same day): the second reading above said a cancelled fiche offered « Supprimer » on no refund; it now
+    >   offers it on those, and still never on one the cancellation read, nor on the avoir, which the API refuses
+    >   too (`REFUND_RETAINED_AVOIR`).
+    > **Reading of 2026-11-02 (review of PR #929).** This reading amends the one above where it names it.
+    > - **The solde's commission is capped at what the books still hold of the solde (F1).** A book refund made
+    >   before the cancellation already reversed its share of the solde's 706 at gross; requalifying the solde's
+    >   commission whole then reversed 706 + 4457 no longer there and credited 7588 with money given back. Per revenue
+    >   bucket, the books hold of the solde what it was booked on there, plus what the acompte and installments were
+    >   booked on, less the earlier refunds there and the avoir's own lines once netted of them
+    >   (`netOfEarlierRefunds`), within 0 and the solde's own booking (`soldeHeldOf`). The solde's commission is
+    >   spread over that, by largest remainder, and never exceeds it; the avoir, the indemnity card's
+    >   `receivedAmount` and `requalifiedTtc` carry what was actually requalified. *Why:* 914 € stay, solde 640 €
+    >   with 19,20 € withheld, 640 € refunded before the cancellation then everything given back: 70600000 +14,01,
+    >   70600010 +3,43, 44571100 +1,76, 75880000 −46,62. Now 640 / 630 / 620,80 € refunded before requalify 0 / 10 /
+    >   19,20 € of the solde's commission, and every case ends with 706, 4457, 4671 and the client at 0, 75880000 at
+    >   −27,42 € and 622600 at +27,42 € — 7588 keeps exactly the commissions the books carry. Stay #22226, its
+    >   126,38 € solde refunded before: the avoir is the acompte (126,38 €), and the books end at 622600 +6,82 /
+    >   75880000 −6,82 €.
+    > - **The avoir row names what it kept (F3).** When the avoir adds the solde's commission to the acompte (or
+    >   installments) kept, the ledger row reads « Acompte et commission conservés » (« Échéances et commission
+    >   conservées »), its amount the avoir's; the acompte's own commission sits inside the acompte and keeps
+    >   « Acompte conservé ». The avoir's reason follows what was kept: « Annulation — commission retenue » when only
+    >   a commission was.
+    > **Reading of 2026-11-02 (audit R16-L1).** This reading narrows « a refund the cancellation deducted is never
+    > deleted » of the second review of PR #926.
+    > - **A refund is deducted only when it moved the avoir.** A book refund made before the `retained` avoir is
+    >   refused, 409 `REFUND_NETTED_BY_CANCELLATION`, only when the requalification rebuilt without it (the same stay,
+    >   the same `saleCollected`, the same commissions, the same per-bucket netting, the other earlier refunds kept)
+    >   would keep another total, other lines outside the commission or another commission total than the avoir does
+    >   (`cancelReservation.cancellationNettedRefundIds`, read by the DELETE route and by the fiche's ledger through
+    >   `utils/refunds.refundDeletionRefusal`). A refund the paid solde absorbed whole moved nothing: it is deleted,
+    >   by the API and on the fiche, and its money goes back to the solde's sale money; the avoir and the indemnity
+    >   do not move. A stay that cannot be read back keeps the refusal by id order. *Why:* 914 € stay, acompte 274 €
+    >   and solde 640 € paid, 100 € of accommodation given back, then cancelled → the avoir is the gross acompte
+    >   (274 €), yet deleting the mistyped refund was refused with « Remboursement déduit de l'acompte conservé. »,
+    >   which it was not; deleted, the register reads 914 € collected, 274 € of it indemnity, as with no refund. A
+    >   700 € refund (the acompte kept 214 €) stays refused.
+    > - **Review of PR #930, F1 (2026-11-02) — the commission counts by its total.** On a stay whose provider
+    >   withheld a solde commission, `withCommissions` spreads it over what the books still hold of the solde
+    >   (`soldeHeldOf`), so an absorbed refund moves its per-bucket split by a few cents while the money kept does not
+    >   move. The spread is not compared. *Why:* Lodgify stay, acompte 274 € and solde 640 € paid, 8,22 € and
+    >   19,20 € withheld, 100 € of accommodation given back then cancelled → the avoir is 293,20 € with or without
+    >   the refund (accommodation 194 €, options 71,78 €), only the commission split changes (20,72 / 6,70 € against
+    >   21,42 / 6,00 €); the refund was refused although, deleted and everything then given back, the books end as
+    >   with no refund (622600 +27,42 €, 75880000 −27,42 €, 706, 4457, 4671 and the client at 0). A refund that
+    >   moves the kept total, a kept bucket or the commission total stays refused.
+    > - **Verification R35b, finding 1 (2026-11-09) — a split solde absorbs only its book money.** A solde paid with
+    >   several methods absorbs the earlier refunds at its book share less its geste (mixed-method-payments rule 57,
+    >   `saleBooksOf`), never its caisse-interne money or its geste, which never reached 706. *Why:* acompte by card,
+    >   solde with 70,01 € in the caisse and a 13,33 € geste, everything on the books given back live, then cancelled →
+    >   the avoir kept 83,34 € as a 7588 indemnity. Now none (`mixed-method-payments-refund-then-cancel`).
+
+56. **A devis never owes its acompte after its solde** _(added 2026-11-09, decision D23, audits R33-M-M1 =
+    R33-DB-M1)_. Rule 5 dates a devis's acompte on `validUntil` and rule 7 its solde on `start −
+    balanceDaysBefore`, so a devis with an acompte for a stay 31 to `30 + validity` days out (31 to 44 days with
+    a 15-day validity) had its solde due first, the PDF asked for it first, and the converted reservation was
+    listed « Solde à demander » then « À annuler » before its acompte fell due. Rule 47 capped only a
+    reservation's fresh acompte. Such a devis now carries no acompte and owes ONE payment due on `validUntil`
+    (specs/deposit-blocks-the-dates.md rule 19); the conversion carries it (rule 5 amendment). Rule 47 for
+    reservations is unchanged.
+    **Amended 2026-11-09 (audit R33 N1).** The devis's stored columns always say that single payment
+    (specs/deposit-blocks-the-dates.md rule 20: re-stored at boot and after a logement save, its stale links
+    withdrawn), so a conversion copies what the devis asks. One exception: an acompte link paid on columns that
+    still held the acompte (before the re-store) converts at that stored split, the acompte paid.
+    **Accepted 2026-11-09 (verification R33b, L3).** That stay keeps its stored split as it was: its acompte, paid,
+    can read a due date after its solde's (acompte 60 € due 09/12, paid; solde due 14/11). Nothing depends on the
+    date of a paid acompte (no dashboard card, no cancellation), so it is not rewritten.
+57. **A reservation keeps the single payment its devis promised** _(added 2026-11-09, audits R34-RES-L1 and
+    R34-RES-L2)_. Rule 5's amendment held « later saves keep it » for a rule-56 devis only. A direct devis
+    stored with no acompte owes one payment on `validUntil` too (specs/deposit-blocks-the-dates.md rule 7): its
+    converted stay now keeps that deadline across its saves while the arrival is the one quoted
+    (deposit-blocks-the-dates rule 22), and the devis carrying the promise cannot be deleted while its stay
+    exists (rule 21). A devis converted with an acompte outside the window is unchanged: the reservation rules
+    apply at its saves. Rows stored before this rule keep their columns; their next save keeps the promise.
+    **Decision D27 (Adrien, 2026-11-09): option (a).** The promise is kept, rows stored before this rule included
+    (production reservation 22306 stays due 23/10, see specs/deposit-blocks-the-dates.md rule 22). Once the stay
+    is cancelled its devis no longer holds a deadline and can be deleted (deposit-blocks-the-dates rule 23).
+58. **A settled mid-stay note and a held caution keep the stay** _(added 2026-11-10, audits R36-DB-M2 and
+    R36-DB-L1)_. Rule 52's « carries money » also reads a stay whose `midStaySettledNotes` holds a note (a platform
+    stay often has no paid flag until its payout is ticked: the note is then its only money, a sale of the journal).
+    Such a stay is refused deletion with rule 49's message, its client and its logement with theirs, and an approved
+    iCal cancellation keeps it as cancelled; `utils/stayMoney` reads it too, so it holds its nights (payment-link
+    lifecycle rule 37) and a duplicate holding one is never set aside silently. A caution received and not returned
+    (`cautionReceived = 1`, `cautionReturned = 0`) is the only record of what the guest is owed back: the stay delete
+    answers « Une caution est détenue sur ce séjour : la rendre ou annuler le séjour plutôt que le supprimer. », the
+    client and logement deletes « Une caution est détenue sur une réservation de ce client / de ce logement : la rendre
+    d'abord. », and an approved iCal cancellation keeps the stay as cancelled. A returned caution refuses nothing.
+    *Why:* a Gîtes de France stay with no paid flag, a 13 € note settled, then « Supprimer » → 200, and the note's
+    sale left the month's journal; a Booking stay holding a 500 € caution was deleted with it.
+59. **A caution held on a cancelled stay is still given back** _(added 2026-11-10, audit R37-RES-L1)_. Rule 25 keeps a
+    cancelled stay read-only, yet the caution it still holds (rule 58) is owed back to the guest: `PATCH
+    /reservations/:id/payment` takes, on a cancelled stay, a body carrying `cautionReturned: true` and its
+    `cautionReturnedDate` only, while the caution is received and not returned; the date is judged as on a live stay
+    (never before the receipt, today when absent). Any other key, a return taken back, or a caution never received
+    stays 409 `RESERVATION_CANCELLED`, nothing written. The ledger offers « Restituer » on the cancelled fiche, drawn
+    outside its disabled fieldset beside « + Nouveau remboursement » (confirmed, dated today). Once returned, the
+    caution no longer holds the client and the logement: their delete answers rule 53's history refusal (« Ce client
+    a une réservation annulée. »), which is true and keeps the cancelled stay, instead of asking for a return no
+    screen allowed. *Why:* a caution received, then the stay cancelled (the delete refusal itself suggests it): the
+    return could never be recorded, and the client and logement deletes asked « la rendre d'abord ».
+60. **The cancel dialog shows what the cancellation will write** _(added 2026-11-10, audit R43-C-M1)_. `GET
+    /reservations/:id/cancel-preview` answers `{ cancellationReason, retainedDepositAmount, writtenOffBalance }`, read by
+    `utils/cancelReservation.cancellationFiguresOf` — the very function `cancelReservation` writes its history entry,
+    avoir and indemnity from — or the refusal the cancel would answer (404, 409 `ALREADY_CANCELLED`, 403
+    `PLATFORM_RESERVATION`, the duplicate set aside). It writes nothing. `ReservationCancelDialog` asks it when it opens
+    and renders it: « Conservé en indemnité » and « Solde abandonné »; while it loads the two amounts are placeholders and
+    the confirm waits; a refusal is shown in place of the figures and the confirm stays off. The dashboard's
+    `cancel_due` row says « conservé si annulation » from the same figure, and offers no cancellation the cancel would
+    refuse. *Why:* the dialog worked both figures out in React from the live quote (`depositPaid ? depositAmount : 0`,
+    `balancePaid ? 0 : balanceAmount`): on a plan with one paid échéance it read 0,00 € kept, 0,00 € written off and
+    « Aucun acompte n'a été encaissé », while the cancel kept 125 € as an indemnity and wrote 249,79 € off; it also
+    ignored a book refund before the cancellation (rule 55), an acompte in the caisse interne (D8), withheld commissions.
+    *Reading of 2026-11-10 (verification R43 N2):* the indemnity the dialog and both toasts state is `indemnityAmount`, the
+    requalified total actually booked (money kept plus a withheld solde commission, rule 55), never `retainedDepositAmount`
+    alone, which stays the « Acompte conservé » of the history.
+    A cancellation cannot be undone: the operator decided on a false figure. Tests:
+    `tests/cancellation-preview.unit.test.js` (preview = cancel for a plan paid or not, a transfer acompte, a refund
+    before, a caisse-interne acompte, a split acompte, withheld commissions, nothing collected; the refusals; the
+    dashboard row), `client/src/components/__tests__/ReservationCancelDialog.server-figures.test.jsx`.
+    *Reading of 2026-11-10 (audits R45-C-L1, R45-RES-L2):* the preview also answers `keptFromGuest`, the sum the
+    cancellation notice states (rule 61), the very figure the cancel stores. When it is not the indemnity — an acompte
+    collected in the caisse interne is off the books (D8) yet the guest is told it is kept — the dialog prints one
+    more line, « Somme conservée (indiquée au client) : … », so the operator reads, before confirming, the sum the
+    notice will state; the dashboard's `cancel_due` row carries it too (« somme conservée si annulation (indiquée au
+    client) : … », when it is not the acompte kept the row already names), and both success messages add « Somme
+    conservée : … ». Nothing is computed in the client: both figures are the server's. Tests:
+    `tests/cancellation-kept-shown-before-cancel.unit.test.js`,
+    `client/src/components/__tests__/ReservationCancelDialog.kept-from-guest.test.jsx`,
+    `client/src/components/__tests__/PaymentDeadlinesAlert.kept-from-guest.test.jsx`.
+61. **The cancellation notice states the sum the cancellation kept** _(added 2026-11-10, audits R44-DB-M1, R44-M-L1,
+    R44-RES-L1)_. `cancellationFiguresOf` also answers `keptFromGuest`: what the guest loses, the indemnity booked
+    (`indemnityAmount`: the acompte or the échéances kept net of the earlier book refunds, plus a withheld solde
+    commission, rule 55) plus an acompte collected in the caisse interne (off the books, D8, yet handed over), net of
+    the caisse-interne refunds made before, a solde paid in the caisse interne absorbing them first. The cancel stores it
+    on its history entry (« Somme conservée ») and answers it. Every guest e-mail reads `{{retainedDepositAmount}}` and
+    `hasRetainedDeposit` from it through `utils/cancellationKeptForEmail` — never a formula of its own: a cancelled
+    stay reads its stored figure (a cancellation stored before this rule: its « Acompte conservé »), a live direct stay
+    what cancelling it now would keep (`cancellationPreview`, for a reminder that states it), anything else 0. The
+    token names stay. Nothing kept → the sentence is left out, the notice still says the dates are back on sale. The
+    seeded `cancellation_notice` names « la somme de {{retainedDepositAmount}} déjà versée reste acquise » (« the amount
+    of … already paid is retained »), since the sum may be échéances or a commission; the one-shot
+    `cancellation_notice_kept_sum_v1` rewrites that exact seeded sentence in a stored template, French and English, and
+    leaves a reworded body as it is. *Why:* the notice computed `depositPaid ? depositAmount : 0`: after a 100 € book
+    refund it told the guest 242,16 € were kept while the cancel kept 142,16 €; on a plan it said nothing of the 125 €
+    kept. Tests: `tests/cancellation-notice-kept-sum.unit.test.js` (an acompte, a refund before, a plan paid or not, a
+    caisse-interne acompte whole or partly given back, a split acompte, commissions, nothing collected, English, the
+    confirm's own send, a legacy entry, the template migration).
+    *Reading of 2026-11-10 (verification R44 L1):* the caisse-interne refunds made before the cancel are taken from every
+    other caisse money first — a solde paid in the caisse, the caisse share of a mixed solde (mixed-method-payments rule
+    57), a complement or an end-of-stay complement paid there, a caisse note — and the acompte only gives back what
+    they leave over: the caisse acompte kept is `min(acompte, max(0, cashCollected − caisse refunds))`, read by
+    `reservationSettlement.cashCollected`, the caisse interne's one reading, on the row `getForCancellation` reads whole.
+    Only a solde paid wholly in the caisse absorbed them before: a 180 € caisse acompte, a solde paid 100 € in the caisse
+    and the rest by card, then a 50 € caisse refund, told the guest 130 € were kept. The two template tokens read
+    « Somme conservée » and « Si somme conservée » in the operator's editor (their names stay), since the sum may be
+    échéances, a commission or a caisse acompte. The preview, the manual send (`loadReservationGraph`) and the daily
+    auto pass (`emailAutoSendRunner`) read the same figure as the sender. Tests:
+    `tests/cancellation-kept-caisse-absorption.unit.test.js` (a solde wholly in the caisse, a mixed solde's caisse share,
+    a caisse complement, refunds beyond the other caisse money, none), `tests/cancellation-kept-email-wiring.unit.test.js`
+    (the preview, the auto pass, the token labels).
+62. **A notice sent after a later refund states what is still kept** _(added 2026-11-10, verification R44 L2)_. A
+    cancelled stay's sum kept (rule 61) is the figure its cancel entry stored less what the refunds made since the
+    cancel (`refunds.madeAfterCancellation`: after the avoir, else `afterCancellation = 1`) took from it, never below
+    0: a book refund the lines it drew from the indemnity (D3), a caisse-interne refund the part of the caisse acompte
+    the other caisse money no longer covers (rule 61's order; an entry stored before rule 61 holds no caisse acompte, so
+    none is taken from it). A refund of money the cancel did not keep (a paid solde)
+    takes nothing from it. *Why:* a cancel without notice, then a 40 € goodwill refund from the indemnity, then
+    « Envoyer un email »: the notice read « la somme de 180 € déjà versée reste acquise » while 140 € were. Test:
+    `tests/cancellation-notice-after-later-refund.unit.test.js`.
+    *Reading of 2026-11-10 (verification R44b N1):* a caisse-interne refund made before the cancel that the sum kept read
+    cannot be deleted from the cancelled fiche (409 `REFUND_NETTED_BY_CANCELLATION`, « Remboursement déduit de la somme
+    conservée. »): deleting it would raise a sum the notice already stated. Test:
+    `tests/cancellation-kept-caisse-refund-delete.unit.test.js`.
+63. **The cancellation notice gives no reason** _(added 2026-11-10, audit R45-DB-L2)_. The seeded `cancellation_notice`
+    opens « Nous avons le regret de vous informer que votre séjour {{propertyWithArticle}} est annulé. » (« We are sorry
+    to inform you that your stay at … has been cancelled. »). The one-shot `cancellation_notice_neutral_opening_v1`
+    (`utils/migrateCancellationNoticeNeutralOpening.js`) rewrites that exact seeded sentence in a stored template,
+    French and English, and leaves a reworded body, the send mode and the enabled flag as they are. *Why:* it opened
+    « Faute de règlement du solde, … » (« As the balance was not paid, … ») for every cancellation, while rule 21 makes
+    the same button the path of a phone-call cancellation and rule 22 ticks « Prévenir le client » by default: a guest
+    who had paid in full was told in writing the stay was cancelled for non-payment. Test:
+    `tests/cancellation-notice-neutral-opening.unit.test.js`.
+
 
 ---
 
@@ -371,6 +771,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 |---|---|---|---|
 | `routes/` | `dashboard.js` | T | `GET /payment-deadlines`, `POST /payment-deadlines/:id/snooze`, `POST /payment-deadlines/:id/remind` |
 | `routes/` | `reservations.js` | T | `POST /:id/cancel` |
+| `routes/` | `reservations.js` | T | Rule 60 — `GET /:id/cancel-preview` (`stayId`, `noWriteOnDuplicate`) |
 | `controllers/` | `dashboardController.js` | T | Thin handlers over `paymentDeadlines` + snooze/remind orchestration |
 | `controllers/` | `reservationsController.js` | T | `cancel` handler; **the acompte request on `create` is removed**; 409 guard on `update` / `updatePayment` for cancelled rows |
 | `controllers/` | `reservationCancellationController.js` | C | Thin HTTP layer over `cancelReservation`, plus the two post-commit side effects (Google delete, notice email) |
@@ -387,6 +788,17 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `utils/` | `paymentDeadlines.js` | T | **Pure**: reservation rows + today → ready-to-render alert rows (state, amounts, days late, actions). Gains the two `*_to_request` states, the `requestSent` inputs and the `cancel_due` guard of rule 12bis |
 | `utils/` | `cancellationRequalification.js` | C | **Pure**: paid-acompte row → the avoir lines + the compensation payload of §3.6 |
 | `utils/` | `cancelReservation.js` | C | The cancellation transaction itself, every dependency injected — history → kind flip → requalification pair → payment-link cleanup |
+| `utils/`, `controllers/` | `cancelReservation.js`, `reservationCancellationController.js`, `dashboardController.js` | T | Rule 60 — `cancellationRefusalOf` + `cancellationFiguresOf`, shared by `cancelReservation` and `cancellationPreview`; `preview` / `previewFor`; the `cancel_due` row's `retainedDepositAmount` comes from `previewFor` (`paymentDeadlines.js` no longer works it out) |
+| `utils/` | `cancellationRequalification.js`, `cancelReservation.js` | T | Rule 55 — `netOfEarlierRefunds`: the avoir keeps what the earlier book refunds left, the paid solde absorbing them as one sum; `givenBackByBucket`, `depositBucketsOf`, `saleCollectedOf`, `bookedStayBuckets` |
+| `utils/` | `storedMoneySplit.js` | C | Rule 55 reading — the stored-money split of an encaissement (`buildPerLineData`, `splitByDestination`, `storedMoneyCollected`, `storedMoneyBucketTtcs`, `storedMoneyBuckets`), shared by the export and the cancellation |
+| `models/` | `reservationsModel.js` | T | Rule 55 reading — `soldeContribBuckets(id)`: what the paid solde collected per bucket, from its contribs |
+| `plugins/sdk/` | `index.js`, `coreModules.json`, `coreModuleHistory.json`, `version.js` | T | Rule 55 reading — `coreModule('storedMoneySplit')`, SDK 2.19.0 |
+| `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js` | T | Rule 55 — an adjusted `retained` line mirrors the books (`adjustedBucketSplit`, the paid solde read through `bookedBucketSplit`); the stored-money split comes from `storedMoneySplit`. Second reading: `bookedSplitsOf(id, kind)` reads the acompte entry too, and `bookedSplit` mirrors an acompte line's HT |
+| `controllers/` | `refundsController.js` | T | Rule 55 second reading — `remove` refuses (409) a refund the cancellation deducted (`utils/refunds.nettedByCancellation`); reading of audit R16-L1: only one `cancelReservation.cancellationNettedRefundIds` names |
+| `utils/`, `controllers/` | `cancelReservation.js`, `reservationsController.js` | T | Rule 55 reading (audit R16-L1) — `cancellationNettedRefundIds`: the earlier refunds whose removal would change the avoir, the requalification rebuilt without each (`requalificationOf`, shared with the cancellation); the ledger receives them as `nettedRefundIds` |
+| `utils/` | `cancellationRequalification.js`, `cancelReservation.js` | T | Rule 55 reading (R15-L1, residual A) — a caisse-interne acompte is not requalified, a caisse-interne solde absorbs no refund; `withCommissions` / `withheldCommissionsOf`: the commissions withheld on the paid acompte and solde, lines keyed `commission` |
+| `utils/` | `reservationLedger.js` | T | Rule 55 reading — an avoir of a commission alone reads « Commission retenue », one adding the solde's commission « Acompte et commission conservés » (`retainedLabel`, review of PR #929); « Supprimer » on the refunds `refundDeletionRefusal` lets through |
+| `utils/` | `cancellationRequalification.js` | T | Rule 55 reading (review of PR #929, F1) — `soldeHeldOf`: what the books still hold of the solde per bucket; `withCommissions` spreads the solde's commission over it |
 | `utils/` | `pricing.js` | T | Delegates the two due dates to `paymentSchedule.js`; takes `bookingDate` + the stored `depositDueDate` as inputs |
 | `utils/` | `refunds.js` | T | `retained` added to `REFUND_METHODS` (book money, never off-books) and kept out of `SELECTABLE_REFUND_METHODS`, so the manual refund API refuses it |
 | `utils/` | `balanceRequestRunner.js` | **D** | **Deleted** (rule 38) — its eligibility query moves into `paymentDeadlines.js` as the `balance_to_request` state |
@@ -394,6 +806,10 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | `deposit_reminder` re-anchored + rewritten; `balance_reminder` and `cancellation_notice` added; the two reminders flipped to `sendMode: 'manual'` and `PAYMENT_STABLE_KEYS` exported (rule 44) |
 | `utils/` | `migrateDepositReminderAnchor.js` | C | One-shot force-sync of the already-seeded `deposit_reminder` row to its new anchor — without it the reminder would silently stop firing |
 | `utils/` | `emailContextBuilder.js` | T | `cancelOnDate`, `retainedDepositAmount`, `daysLate` tokens |
+| `utils/` | `cancellationKeptForEmail.js` | C | Rule 61 — `cancellationKeptForEmail(database, reservation)`: the stored `keptFromGuest` of a cancelled stay less what the refunds made since the cancel took from it (rule 62), the preview's of a live direct stay; handed to `emailContextBuilder` (`cancellationKept`) by `reservationEmailGraph`, `reservationEmailSender`, `emailAutoSendRunner` and `emailsController` |
+| `utils/`, `controllers/`, `database.js` | `cancelReservation.js`, `reservationCancellationController.js`, `migrateCancellationNoticeKeptSum.js` | T / C | Rule 61 — `keptFromGuest` in `cancellationFiguresOf` (`cashDepositKeptOf`: the caisse acompte kept after every other caisse money absorbed the caisse refunds, `reservationSettlement.cashCollected`), the cancel entry and answer; the one-shot `cancellation_notice_kept_sum_v1` |
+| `utils/`, `database.js` | `migrateCancellationNoticeNeutralOpening.js`, `defaultEmailTemplatesRegistry.js` | C / T | Rule 63 — the seeded notice opens without a reason; the one-shot rewrites that exact seeded sentence |
+| `utils/` | `reservationAudit.js` | T | Rule 23 reading (R45) — the cancel entry's derived « Motif » key reads French |
 | `utils/` | `depositRequestOnBooking.js` | **D** | **Deleted** (rule 36) — no reservation triggers its own acompte request any more |
 | `utils/` | `migratePaymentTemplatesToManual.js` | C | One-shot force-sync of the seeded `deposit_reminder` / `balance_reminder` rows to `sendMode = 'manual'` (rule 45) |
 | `middleware/` | `enforceRoleAccess.js` | — | Nothing to do: the reception allowlist is deny-by-default, so the new endpoints are already refused |
@@ -410,6 +826,7 @@ acompte is kept as an indemnity, and the books say so correctly.
 | `pages/` | `ReservationPage.jsx` | T | « Annuler le séjour » action + read-only cancelled banner |
 | `components/` | `PaymentDeadlinesAlert.jsx` | C | Dashboard card: fetches its rows, renders states, triggers the three actions |
 | `components/` | `ReservationCancelDialog.jsx` | C | Confirmation dialog of rule 22 (recap + reason + notify checkbox) |
+| `components/`, `pages/`, `api.js` | `ReservationCancelDialog.jsx`, `ReservationPage.jsx`, `api.js` | T | Rule 60 — the dialog fetches `getCancellationPreview(reservationId)` on open and renders it (placeholders while loading, the refusal instead); the fiche no longer passes figures from the quote |
 | `components/` | `CancellationCompensationsSection.jsx` | T | Shows `origin`, labels retained-deposit cards, links to the reservation |
 | `components/` | `CancellationCompensationsPendingAlert.jsx` | T | Same labelling (a retained-deposit card is born `received`, so it never appears here — guard only) |
 | `services/` | `api.js` | T | New endpoints |
@@ -428,10 +845,11 @@ acompte is kept as an indemnity, and the books say so correctly.
 
 | Method | Endpoint | Request body | Response | Notes |
 |---|---|---|---|---|
-| GET | `/api/dashboard/payment-deadlines` | — | `{ rows: [{ reservationId, reservationNumber, state, severity, clientName, propertyName, startDate, endDate, depositDue, balanceDue, dueDate, daysLate, cancelOn, canCancel, canRemind, remindType, requestSent }] }` | Admin only (403 for reception). Snoozed rows excluded. `state` gains `deposit_to_request` / `balance_to_request`; `requestSent` tells the client whether to label the action « Envoyer la demande » or « Relancer ». |
+| GET | `/api/dashboard/payment-deadlines` | — | `{ rows: [{ reservationId, reservationNumber, state, severity, clientName, propertyName, startDate, endDate, depositDue, balanceDue, dueDate, daysLate, cancelOn, canCancel, retainedDepositAmount, keptFromGuest, canRemind, remindType, requestSent }] }` | Admin only (403 for reception). Snoozed rows excluded. `retainedDepositAmount` / `keptFromGuest`: the cancel preview's (rule 60), 0 when no cancellation is offered. `state` gains `deposit_to_request` / `balance_to_request`; `requestSent` tells the client whether to label the action « Envoyer la demande » or « Relancer ». |
 | POST | `/api/dashboard/payment-deadlines/:id/snooze` | `{ days?: 7 }` | `{ ok: true, snoozedUntil }` | Idempotent. |
 | POST | `/api/dashboard/payment-deadlines/:id/remind` | `{ type: 'deposit' \| 'balance' }` | `{ sent: true, url, recipientEmail }` | Unchanged — it now serves **both** the first request and the reminders, and is the only way a money email leaves. Relays `paymentRequestService` errors verbatim (400 `EMAIL_NOT_SENT`, 502…). |
-| POST | `/api/reservations/:id/cancel` | `{ reason?: string, notifyClient?: boolean }` | `{ ok, cancellationReason, retainedDepositAmount, writtenOffBalance, refundId, compensationId, emailSent }` | 409 `ALREADY_CANCELLED`; 403 `PLATFORM_RESERVATION`; 404 unknown. |
+| POST | `/api/reservations/:id/cancel` | `{ reason?: string, notifyClient?: boolean }` | `{ ok, cancellationReason, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance, refundId, compensationId, emailSent }` | 409 `ALREADY_CANCELLED`; 403 `PLATFORM_RESERVATION`; 404 unknown. `keptFromGuest`: rule 61. |
+| GET | `/api/reservations/:id/cancel-preview` | — | `{ cancellationReason, retainedDepositAmount, indemnityAmount, keptFromGuest, writtenOffBalance }` | Rule 60 — the cancel's own figures, nothing written; the cancel's refusals (409 / 403 / 404). `keptFromGuest`: rule 60 reading of 2026-11-10 (R45-C-L1). |
 | GET | `/api/accounting/cancellation-compensations` | — | unchanged + `origin` on each row | Additive. |
 
 ---
@@ -514,6 +932,18 @@ One line per reservation:
   states plainly: « Les dates seront remises à la vente. L'acompte encaissé est requalifié en
   indemnité (hors TVA) dans la comptabilité du mois en cours. » When nothing was collected it reads
   « Aucun acompte n'a été encaissé : rien n'est conservé. » instead.
+  *Since rule 60 (2026-11-10):* the two lines read « Conservé en indemnité : … » and « Solde abandonné : … »,
+  the server's figures (`cancel-preview`); the warning reads « … Le montant conservé est requalifié en indemnité
+  (hors TVA) dans la comptabilité du mois en cours. », or « … Rien n'est requalifié en indemnité. » when nothing
+  is kept. While the figures load the amounts are placeholders and the confirm is off; a refusal replaces them.
+  The fiche's success message reads « {montant} conservés à titre d'indemnité (hors TVA). » or « Rien n'est
+  conservé en indemnité. ».
+  *Since 2026-11-10 (audits R45-C-L1, R45-RES-L2, rule 60 reading):* when the sum the notice states is not the
+  indemnity, a third line reads « Somme conservée (indiquée au client) : … », in the same body style as the two
+  others (same on phone, where the dialog is full screen); both success messages add « Somme conservée : … ».
+  *Since 2026-11-10 (audit R44-C-L1):* the « Motif » and the « Prévenir le client par email » choice are reset only
+  when the dialog opens (or opens on another stay): a failed confirm keeps both, so a retry never mails a guest the
+  operator chose not to notify.
 - **Comptabilité → Indemnités d'annulation:** the section subtitle now covers both origins, and a
   retained-acompte row carries an « Acompte conservé » badge plus a « voir le séjour » link.
 - **Reservation page:** when cancelled, `PageActionBar` shows a red chip « Annulée le 19/08/2026 »
@@ -534,10 +964,86 @@ One line per reservation:
 **Sticky action bar:** unchanged on the Dashboard (`PageActionBar title="Tableau de bord"`).
 `ReservationPage` gains one `actionsAfter` entry — icon `EventBusyIcon`, tooltip
 « Annuler le séjour », color `error`, hidden for reception and for non-direct platforms.
+*Since 2026-11-10 (audit R44-C-L2):* while the fiche holds unsaved changes, « Annuler le séjour » and « Supprimer » are
+held like « Transformer en devis » (#918): tooltip « Enregistrer d'abord les modifications. », `aria-disabled`, still
+focusable, nothing opened or sent; in the phone's « Plus d'actions » menu the reason prints beneath the item. Saving or
+undoing the change gives them back. *Why:* a cancel on a dirty fiche replaced it and lost the typed edits, or the
+leave guard then offered « Enregistrer et quitter » on a stay already cancelled (409) or deleted.
 
 ## 7. Test plan
 
-### Server unit tests — **53 new, suite at 3157 green**
+### Server unit tests — **55 new, suite at 9347 green (2026-11-02)**
+- [x] 2026-11-10 (audit R45): `tests/cancellation-kept-shown-before-cancel.unit.test.js` (3, rule 60 reading) — the
+      preview answers the sum the notice states and the cancel keeps it, net of a caisse refund; the dashboard row
+      carries it. `tests/cancel-history-reason-french.unit.test.js` (3, rule 23 reading) — the derived « Motif » keys read
+      French, a typed reason as typed, the stored row untouched. `tests/cancellation-notice-neutral-opening.unit.test.js`
+      (3, rule 63) — the seed, a fresh install, the one-shot on the exact sentence only. `cancellation-preview` compares
+      `keptFromGuest` too.
+- [x] `tests/cancellation-notice-kept-sum.unit.test.js` (14, 2026-11-10, rule 61) — the notice states `keptFromGuest`,
+      equal to the preview, the cancel answer and the stored entry, for every way the money stands; the template migration.
+- [x] `tests/cancellation-kept-caisse-absorption.unit.test.js` (5, 2026-11-10, rule 61 reading R44 L1) — every other
+      caisse money absorbs the caisse refunds before the caisse acompte.
+- [x] `tests/cancellation-kept-email-wiring.unit.test.js` (3, 2026-11-10, rule 61, R44 L3/L5) — the preview and the auto
+      pass state the same figure; the token labels.
+- [x] `tests/cancellation-notice-after-later-refund.unit.test.js` (6, 2026-11-10, rule 62) — the refunds made since the
+      cancel come off the sum the notice states, never below 0.
+- [x] `tests/devis-single-payment-by-validity.unit.test.js` (27, 2026-11-09, D23) — rules 5 amendment and 56: a
+      devis 30 to 61 days out never owes its acompte after its solde, one payment due on `validUntil` inside the
+      window, on the devis, its PDF, its link quote, its conversion and the converted stay's later saves; rule 47 for
+      a reservation unchanged (specs/deposit-blocks-the-dates.md rule 19).
+- [x] `tests/devis-single-payment-restore.unit.test.js` (6, 2026-11-09, audit R33 N1) — rule 56 amendment: the
+      stored columns re-stored as the single payment, an acompte link paid before the re-store converts at the
+      stored split (specs/deposit-blocks-the-dates.md rule 20).
+- [x] `tests/devis-converted-promise.unit.test.js` (6, 2026-11-09, audits R34-RES-L1, L2) — rule 57: the stay of
+      a no-acompte devis keeps its single payment across saves, the devis carrying the promise is not deletable
+      while its stay exists (specs/deposit-blocks-the-dates.md rules 21, 22).
+- [x] `tests/stay-delete-settled-note.unit.test.js` (5, 2026-11-10, audit R36-DB-M2) — rule 58: a stay whose only
+      money is a settled note is refused deletion, its client and logement too, an approved iCal cancellation keeps it
+      cancelled, `stayMoney` reads it as money and nights held; no note, `[]` or blanks delete as before.
+- [x] `tests/stay-delete-caution-held.unit.test.js` (4, 2026-11-10, audit R36-DB-L1) — rule 58: a held caution refuses
+      the stay, client and logement deletes, keeps the iCal-approved stay as cancelled; a returned one refuses nothing.
+- [x] `tests/refund-before-cancellation.unit.test.js` (16 of 22, 2026-11-02) — rule 55: acompte 274 €, 100 €
+      given back, then cancelled → 174 € kept (avoir, card, register); every 706 / 4457 / 4671 account, 75880000
+      and the client account at 0 once the rest goes back; a paid solde absorbs the refund (274 € kept); a plan
+      keeps 1 960 € after 100 €; awkward refunds on every bucket of a plan (100,05 + 0,07 €, 33,37 €, 6 €) net
+      to the cent; a refund of the whole acompte leaves nothing to requalify; the caisse interne changes nothing.
+      Reading of 2026-11-02 (review of PR #926): the #22226 shape keeps 126,38 € after 50 € and gives back what it
+      would without the refund; the #14 shape reverses 218,16 + 24 € and every account nets to 0; the solde
+      absorbs what it collected (256 € kept, a 12 € tax line); options refunds of 126,01 to 199,99 € with a paid
+      solde net every account to the cent at 5,5, 10 and 20 %; contribs a cent off, and an installment split a
+      cent short, keep exactly what was collected. Second review of PR #926: deleting a refund the cancellation
+      deducted is refused (409) and the fiche offers no « Supprimer », the books and the register unchanged, while a
+      later refund and the caisse interne stay deletable; contribs 274,01 + 0,01 € snap onto the largest bucket and
+      keep 274 €; 180 random legacy acomptes cancelled at 5,5, 10 and 20 % leave 706 and 4457 at 0; a legacy acompte
+      netted of two refunds (case 16) leaves them at 0.
+- [x] `tests/cancelled-stay-absorbed-refund-deletion.unit.test.js` (9, 2026-11-02, audit R16-L1 and review of PR
+      #930) — rule 55 reading: a 100 € refund the paid solde absorbed is deleted by the API and offered on the fiche,
+      the register back at 914 € (274 € indemnity) and the avoir unchanged; a 700 € refund (214 € kept) and a refund
+      with no solde paid stay refused, on the fiche too; two refunds the solde held together are deleted one after
+      the other; 400 + 400 € (114 € kept) and 300 + 300 + 100 € (214 € kept) are all refused. Review F1: on a stay
+      with a withheld solde commission (contribs, and legacy stay #22226) the absorbed refund is deleted, the avoir
+      at 293,20 € / 129,79 €, and everything given back afterwards nets every account as with no refund; a refund
+      that moves the kept total (700 €), a kept bucket (600 €) or the legacy acompte (72,76 € kept) stays refused.
+- [x] `tests/cancelled-stay-absorbed-refund-fiche.unit.test.js` (2, 2026-11-02, audit R17-L1) — rule 55 reading,
+      on the fiche itself: through `reservationsController.getById` on the real database, a 100 € refund the paid
+      solde absorbed carries `deleteRefund` and the DELETE route deletes it; a 700 € refund (214 € kept) carries no
+      action and the DELETE route refuses it (409). A failure reading the netted refunds is logged, not swallowed,
+      and turns both cases red.
+- [x] `tests/cancelled-stay-withheld-commission.unit.test.js` (8, 2026-11-02) — rule 55 reading (residual A): the
+      acompte's and the solde's commissions are named on the avoir (293,20 € = 274 € kept + 19,20 €, card the
+      same, history 274 €); everything given back leaves 706, 4457, 4671 and the client account at 0, 75880000 at
+      −27,42 € and 622600 at +27,42 €; the #22226 shape (no contribs) at −6,82 / +6,82 €; an acompte alone and a
+      solde alone; no commission → the same avoir as before; « Commission retenue » on the fiche; « Acompte et
+      commission conservés » when the solde's commission is added (9 since the review of PR #929).
+      `tests/cancelled-stay-refunded-solde-commission.unit.test.js` (6, 2026-11-02, review of PR #929) — rule 55
+      reading (F1): 640 / 630 / 620,80 / 300 € of the solde refunded before the cancellation requalify 0 / 10 /
+      19,20 / 19,20 € of its commission, and give 706, 4457, 4671 and the client 0, 75880000 −27,42 €, 622600
+      +27,42 € once everything is given back; the commission lands on the buckets still holding solde money; the
+      #22226 shape, its solde refunded before, at −6,82 / +6,82 €.
+      `tests/cancelled-stay-caisse-interne.unit.test.js` (1 of 5) — an acompte paid in caisse interne writes no
+      avoir and no indemnity, the books untouched (P1).
+- [x] `tests/payment-schedule-local-booking-day.unit.test.js` (7, 2026-10-30) — rule 54: `toIsoDay` on a date-only value, a UTC datetime and garbage; the last-minute threshold and the acompte deadline from a 00:30 timestamp; clock frozen at 31/10 00:30 Paris, a devis and a reservation (real controller, fiche preview included) keep their schedule across an unchanged save
+- [x] `tests/reservation-cancellation.unit.test.js` — rule 48: the « acompte never collected » case now expects `unpaid_deposit` (spec review 2026-10-27)
 - [x] `tests/payment-schedule.unit.test.js` (9) — deposit due = booking + N and frozen across
       recomputes; devis → `validUntil`; balance = `max(start − 30, booking)`; late booking clamps to
       the booking day; nothing-to-collect → NULL; `cancelOn = balance + 7`; an absent setting falls
@@ -565,6 +1071,9 @@ One line per reservation:
       `reservations-search` (+ a cancelled-stay case), `email-log-model`, `email-auto-send-runner`,
       `email-manual-queue`, `emails-controller`, `cancellation-compensations-model`,
       `ical-cancellation-approve-compensation`.
+- [x] Rule 60 (2026-11-10): `tests/cancellation-preview.unit.test.js` (10) — the preview equals the cancel's answer,
+      history entry and indemnity on every money shape, writes nothing, answers the cancel's refusals; the dashboard
+      `cancel_due` row takes the preview's figure. `payment-deadlines.unit.test.js`: the pure row no longer carries one.
 
 ### Client tests — **8 new, suite at 1006 green**
 - [x] `components/__tests__/PaymentDeadlinesAlert.test.jsx` (7) — renders nothing when empty; the
@@ -576,6 +1085,18 @@ One line per reservation:
 - [x] `PropertyDetail.test.jsx` — the three delay fields render with the new labels and defaults, and
       the old « Acompte (jours avant) » is gone.
 - [x] `npx vitest run` green (127 files); `npm run test:e2e` green (Playwright).
+- [x] Rule 60 (2026-11-10): `ReservationCancelDialog.server-figures.test.jsx` (3) — the server's figures rendered,
+      placeholders and no confirm while loading, a refusal shown with the confirm off; `ReservationCancelDialog.test.jsx`
+      and the three `PaymentDeadlinesAlert` cancel tests read the preview.
+- [x] 2026-11-10 (audits R45-C-L1, R45-RES-L2): `ReservationCancelDialog.kept-from-guest.test.jsx` (3) — 0,00 € in
+      indemnity and the 180,00 € the notice states, the net sum after a caisse refund, one line when they agree;
+      `PaymentDeadlinesAlert.kept-from-guest.test.jsx` (3) — the row names the sum, once when it is the acompte kept, and
+      the success message names it.
+- [x] 2026-11-10 (audits R44-C-L1, R44-C-L2): `ReservationCancelDialog.failed-confirm.test.jsx` (2) — a rejected
+      confirm keeps the reason and the unticked « Prévenir le client », the retry sends the same choice; reopening starts
+      over. `pages/__tests__/ReservationPage.cancel-delete-dirty.test.jsx` (4) — a dirty fiche holds « Annuler le séjour »
+      and « Supprimer » with the reason, focusable and inert; undoing the change gives them back; the phone menu prints
+      the reason.
 
 ### Manual UI verification
 - [x] Dashboard: the card renders the two states with their actions, and disappears when nothing is
@@ -615,6 +1136,7 @@ One line per reservation:
       no cancel button; the click posts the server's own `remindType`; the « échéance dépassée » copy;
       the title counts late rows and to-dos separately.
 - [x] `npx vitest run` green (131 files). `npm run test:e2e` — see below.
+- Spec review 2026-10-27 (rule 47): `server/src/tests/deposit-not-due-after-solde.unit.test.js` (3 tests — cap, stored date untouched, stay booked 32 days out).
 
 ## 8. Out of scope
 

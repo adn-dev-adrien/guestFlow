@@ -1,5 +1,10 @@
 # Airbnb — no checkout chores reminder
 
+> **Generic since the 2026-10-27 `inte/plugins` sync (rules 8–9).** The rules below say « Airbnb » because
+> that is the channel that asked for it; the code reads a platform setting, « Sans corvées de départ »
+> (`platforms.forbidsGuestChores`), never the name. Read « Airbnb » in rules 1–7 as « a platform with
+> that setting ticked ».
+
 | Field | Value |
 |---|---|
 | **Status** | Implemented |
@@ -49,8 +54,8 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
 
 1. The SAS read (`GET /api/reservations/:id/sas`) serves `cleaning.guestReminder`: `true` when the
    cleaning is included **and** the reservation's channel is not Airbnb; `false` otherwise.
-2. The channel test is `isAirbnbChannel(platform)` — case-insensitive, trimmed, on the recorded
-   `platform` value. It applies to **every** Airbnb reservation, whatever its booking date (arbitrated by
+2. The channel test is `isChoreFreeChannel(platform)` (was `isAirbnbChannel` until rule 8) —
+   case-insensitive, trimmed, on the recorded `platform` value. It applies to **every** Airbnb reservation, whatever its booking date (arbitrated by
    Adrien on 2026-10-26: the listings were rewritten the same day, a date cut would only keep a reminder
    the listing no longer announces).
 3. The client shows the « vaisselle faite et rangée, poubelles vidées » reminder (ménage page and recap)
@@ -73,12 +78,35 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
    drops that line server-side on an Airbnb stay whatever the client sends — Airbnb forbids fining a
    guest for a chore.
 
+### Added at the `inte/plugins` sync (2026-10-27)
+
+8. **A platform setting, not a platform name.** GuestFlow is sold to other operators
+   (`specs/plugins-phase-p-productisation.md`): no channel is recognised by its name in the code. Each
+   platform carries `forbidsGuestChores` (« Sans corvées de départ », Paramètres › Plateformes, a switch
+   per row, saved with the page). `isChoreFreeChannel(platform)` reads the set of ticked platforms,
+   cached like `isDirectChannel` and re-read at boot and after every save of that page. An own channel
+   (`direct`, or a platform « Compté comme vente directe ») shows no switch (`null` in the API) and never
+   counts, whatever it stored. A new database has no platform ticked.
+9. **Migration `chore_free_channels_v1`, once.** On the first boot after this change, every existing
+   platform row the code used to recognise as Airbnb (slugged name starting with `airbnb`, so
+   `AirbnbTente` too) is ticked; then the migration is recorded and never runs again, so a platform the
+   operator unticks stays unticked. The column itself is added on every boot when missing. The boot
+   de-duplication of platform rows (`platformSlugDedupMigration.js`) merges the switch like
+   `countsAsDirect`: ticked on any duplicate means ticked on the row it keeps.
+10. *(Fixed at the 2026-10-27 spec review.)* The « Plateformes » save judges a row's own-channel status on
+    the state **after** the save: a row ticked « Compté comme vente directe » in the same batch takes no
+    platform rule — `forbidsGuestChores`, the relay address, the review wording and the payout delay are not
+    written — and a row unticked in the same batch takes them. Before, the check read the state before the
+    save and stored a hidden « Sans corvées » flag that would wake up the day the row stopped counting as
+    direct. Test: `tests/platform-settings-post-save-own-channel.unit.test.js`.
+
 **Edge cases:**
 - Airbnb stay, cleaning not included (booking made before the fee existed) → ménage offer page as
   today; no reminder anywhere (there was none in that branch already).
 - `platform` null or empty → treated as direct (same rule as `isDirectChannel`) → reminder kept.
-- `isAirbnbChannel` slugs and matches the prefix, like the e-mail sequence: an iCal source labelled
-  « Airbnb Tente » (stored `AirbnbTente`) is Airbnb too.
+- An iCal source labelled « Airbnb Tente » is stored `AirbnbTente`, a platform row of its own: the
+  migration ticks it (rule 9), but a NEW Airbnb-named row created later is not ticked until the operator
+  switches it on — the code no longer knows the name.
 - An Airbnb stay still recorded as `Lodgify` (booked through Lodgify before 2026-10-15 and never
   relabelled, `specs/lodgify-decommission.md`) keeps the reminder: those bookings predate the policy.
 - The « ✅ Le ménage est inclus » variant of the arrival ménage page is unreachable today (the step is
@@ -92,21 +120,29 @@ The arrival SAS never asks the operator to give an Airbnb guest a checkout chore
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `utils/` | `platformNameFormat.js` | T | Adds `isAirbnbChannel(platform)` next to `isDirectChannel`. |
-| `controllers/` | `sasController.js` | T | `getSas` serves `cleaning.guestReminder` (rule 1) and `cleaning.billableAtDeparture` (rule 7). |
-| `models/` | `reservationsModel.js` | T | Departure commit drops the « Ménage de fin de séjour » line on an Airbnb stay (rule 7). |
-| `utils/` | `emailContextBuilder.js`, `stayContentContext.js` | T | A free cleaning line counts as booked; no « à votre charge » to an Airbnb guest (rule 6). |
-| `tests/` | `airbnb-no-checkout-chores.unit.test.js` | C | Rules 1, 2, 4 and the null-platform edge case. |
-
-No route, model, middleware, task or migration change.
+| `utils/` | `platformNameFormat.js` | T | `isChoreFreeChannel` / `setChoreFreeChannels` / `refreshChoreFreeChannels`, next to `isDirectChannel` (rules 2, 8). |
+| `utils/` | `platformSlugDedupMigration.js` | T | Merges `countsAsDirect` and `forbidsGuestChores` across duplicates (rule 9). |
+| `utils/` | `choreFreeChannelsMigration.js` | C | The column on every boot; the one-shot `chore_free_channels_v1` (rule 9). |
+| `database.js` | — | T | Runs the column + migration after the productisation block, then fills the cache. |
+| `models/` | `platformsModel.js` | T | `choreFreeIds`, `setForbidsGuestChores`, `refreshChoreFreeChannels`; `listSettings` serves `forbidsGuestChores`. |
+| `controllers/` | `platformsController.js` | T | `PUT /api/platforms/settings` accepts `forbidsGuestChores` (never on an own channel) and refreshes the cache. |
+| `plugins/sas/` | `controller.js` | T | `getSas` serves `cleaning.guestReminder` (rule 1) and `cleaning.billableAtDeparture` (rule 7). |
+| `models/` | `reservationsModel.js` | T | `planDepartureSas` drops the « Ménage de fin de séjour » line on a chore-free channel (rule 7). |
+| `utils/` | `emailContextBuilder.js`, `stayContentContext.js` | T | A free cleaning line counts as booked; no « à votre charge » on a chore-free channel (rule 6). |
+| `plugins/sdk/` | `coreModules.json` | T | Exposes the new names of `platformNameFormat` and `platformsModel`. |
+| `tests/` | `airbnb-no-checkout-chores.unit.test.js` | C | Rules 2, 6, 7 (commit), 8, 9. |
+| `tests/` | `platform-chore-free-setting.unit.test.js` | C | Rule 8 through the settings controller. |
+| `plugins/sas/tests/` | `sas-chore-free-channel.unit.test.js` | C | Rules 1, 4, 5, 7 (read) and the null-platform edge case. |
 
 ### 4.2 Client side (`client/src/`)
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `components/sas/` | `ReservationSasDialog.jsx` | T | Reminder gated on `data.cleaning.guestReminder` (rule 3); departure ménage page and line gated on `billableAtDeparture` (rule 7). |
-| `components/sas/__tests__/` | `ReservationSasDialog.airbnb-chores.test.jsx` | C | Airbnb recap without reminder, other channel with it. |
-| `components/sas/__tests__/` | `ReservationSasDialog.arrival.test.jsx` | T | The reopen case that expects the reminder now serves `guestReminder: true`. |
+| `plugins/sas/` | `ReservationSasDialog.jsx` | T | Reminder gated on `data.cleaning.guestReminder` (rule 3); departure ménage page gated on `billableAtDeparture` (rule 7 — the departure recap lines are priced by the server). |
+| `plugins/sas/__tests__/` | `ReservationSasDialog.airbnb-chores.test.jsx` | C | Chore-free recap without reminder, other channel with it, departure without the ménage page. |
+| `plugins/sas/__tests__/` | `ReservationSasDialog.arrival.test.jsx` | T | The reopen case that expects the reminder now serves `guestReminder: true`. |
+| `pages/settings/` | `PlatformsSettingsPage.jsx` | T | « Sans corvées » column (table) / « Sans corvées de départ » switch (cards), « — » on an own channel (rule 8). |
+| `pages/settings/__tests__/` | `PlatformsSettingsPage.chore-free.test.jsx` | C | The switch reads, saves, and is absent on `direct`. |
 
 **Component reuse declaration:** no component created or consumed beyond the existing SAS dialog.
 
@@ -115,12 +151,15 @@ No route, model, middleware, task or migration change.
 | Method | Endpoint | Response change |
 |---|---|---|
 | GET | `/api/reservations/:id/sas` | `cleaning` gains `guestReminder` and `billableAtDeparture` (booleans). Additive. |
+| GET / PUT | `/api/platforms/settings` | each row gains `forbidsGuestChores` (boolean; `null` on an own channel). Additive. |
 
 ---
 
 ## 5. Data model
 
-None.
+- `platforms.forbidsGuestChores INTEGER NOT NULL DEFAULT 0` (rule 8), added on boot when missing.
+- `migrations` row `chore_free_channels_v1` (rule 9): ticks the existing Airbnb rows once. No data lost;
+  a new database ticks nothing.
 
 ## 6. UI / UX
 
@@ -132,17 +171,29 @@ Arrival SAS, recap page, cleaning included:
 Same rule on the ménage page's « ✅ Le ménage est inclus. » variant. Text removal only: identical on
 `xs`, `md` and `lg`. No `PageActionBar` (the SAS is a dialog).
 
+Paramètres › Plateformes (rule 8): a last column « Sans corvées » with a switch per platform, « — » on
+`direct` and on the platforms counted as a direct sale. On `xs`/tablet cards, a « Sans corvées de
+départ » switch under « Compté comme vente directe », absent on an own channel. Saved with the page's
+`PageActionBar`, like every other column.
+
 ## 7. Test plan
 
 ### Server unit tests
-- [x] `airbnb-no-checkout-chores.unit.test.js` (7 tests) — e-mails (rule 6), departure flag and commit guard (rule 7), plus — Airbnb + included → `guestReminder: false`; Booking +
-  included → `true`; Airbnb + not included → `false`; null platform + included → `true`;
-  `isAirbnbChannel` case/whitespace.
+- [x] `airbnb-no-checkout-chores.unit.test.js` (6 tests; the 6th: the boot de-duplication keeps both switches) — `isChoreFreeChannel` case/whitespace
+  (rules 2, 8), nothing forbidden when nobody ticked (rule 8), migration once (rule 9), e-mails (rule 6),
+  departure commit guard (rule 7).
+- [x] `platform-chore-free-setting.unit.test.js` (4 tests) — rule 8 end to end: `listSettings` (`null` on
+  `direct`), a save ticks and the cache follows, a save on `direct` is ignored, a ticked platform later
+  counted as a direct sale is no longer chore-free and is not written.
+- [x] `plugins/sas/tests/sas-chore-free-channel.unit.test.js` (5 tests) — chore-free + included →
+  `guestReminder: false`; Booking + included → `true`; chore-free + not included → `false`; null
+  platform + included → `true`; departure `billableAtDeparture` (rule 7).
 
 ### Client unit tests
 - [x] `ReservationSasDialog.airbnb-chores.test.jsx` (3 tests) — Airbnb departure skips the ménage page (rule 7), plus — recap with `guestReminder: false` shows no
   reminder; with `true` shows it.
 - [x] Existing `ReservationSasDialog.arrival.test.jsx` stays green.
+- [x] `PlatformsSettingsPage.chore-free.test.jsx` (1 test) — rule 8.
 
 Full suites on 2026-10-26 after review: server 4 983/4 983, client 1 481/1 481.
 

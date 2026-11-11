@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flux Google Vacation Rentals</title>
+<style>
+:root{
+  --primary:#2F5D46;--honey:#C99038;
+  --paper:#F8F5EF;--card:#FFFFFF;--ink:#27251F;--muted:#6E6A5E;--line:#E4DED2;
+  --success:#3E7D54;--success-bg:#E6EFE7;--warning:#8F6A1D;--warning-bg:#F6EDD7;
+  --error:#A8433A;--error-bg:#F7E8E5;--info:#31556E;--info-bg:#E4EDF3;
+  --radius:14px;--serif:"Source Serif 4","Iowan Old Style",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--sans)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+main{max-width:980px;margin:0 auto;padding:40px 16px 80px}
+h1{font:600 clamp(1.8rem,4vw,2.5rem)/1.1 var(--serif);letter-spacing:-.015em;margin:0 0 10px}
+h2{font:600 1.35rem/1.2 var(--serif);margin:48px 0 12px}
+p{margin:0 0 12px;max-width:70ch}
+.lede{color:var(--muted);font-size:1.05rem}
+ul.plain{margin:0;padding-left:1.1em;max-width:70ch}
+ul.plain li{margin:4px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.panel h3{font:600 1rem/1.3 var(--sans);margin:0 0 8px}
+.num{font-variant-numeric:tabular-nums}
+.frame{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 10px 30px -18px rgba(39,37,31,.35)}
+.actionbar{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:12px}
+.actionbar .t{font:600 1rem var(--serif);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ib{min-width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:grid;place-items:center;cursor:pointer;color:var(--ink);font:500 .85rem var(--sans);padding:0 10px}
+.ib.info{border-color:var(--info);color:var(--info)}
+.ib.save{background:var(--primary);border-color:var(--primary);color:#fff}
+.ib:active{transform:scale(.96)}
+.ib:disabled{opacity:.45;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:1fr 1.2fr;gap:12px;align-items:start}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card h3{font:600 1.05rem var(--serif);margin:0 0 12px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.field label{font-size:.75rem;color:var(--muted)}
+.field input,.field select{height:40px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:.92rem;color:var(--ink);background:var(--card);min-width:0}
+.field input.bad{border-color:var(--error)}
+.field .msg{font-size:.76rem;color:var(--error);min-height:1em}
+.seg{display:inline-flex;background:#ECE7DC;border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 .9rem var(--sans);color:var(--muted);padding:7px 12px;border-radius:8px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(39,37,31,.12)}
+.prop{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.prop-top{display:flex;align-items:center;gap:10px}
+.prop-top b{flex:1;font-weight:600;font-size:.93rem}
+.prop .field{margin:10px 0 0}
+.sw{position:relative;width:46px;height:28px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.sw i{position:absolute;inset:0;border-radius:99px;background:#CFC8BA;transition:background .2s ease}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .25s cubic-bezier(.3,.9,.3,1)}
+.sw input:checked+i{background:var(--primary)}
+.sw input:checked+i::after{transform:translateX(18px)}
+.sw input:focus-visible+i{outline:2px solid var(--primary);outline-offset:2px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;padding:3px 10px;border-radius:99px}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-sim{background:var(--warning-bg);color:var(--warning)}
+.b-live{background:var(--success-bg);color:var(--success)}
+.b-off{background:#EEEAE2;color:var(--muted)}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:.88rem;padding:4px 0;color:var(--muted)}
+.kv b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums;text-align:right}
+.log{list-style:none;margin:10px 0 0;padding:0;font-size:.84rem}
+.log li{border-top:1px solid var(--line);padding:7px 0;display:flex;gap:10px;justify-content:space-between}
+.log li span:first-child{color:var(--muted);white-space:nowrap}
+.mis{margin-top:10px;font-size:.86rem}
+.mis.ok{color:var(--success)}
+.mis.ko{color:var(--error)}
+.sim{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:600px){.sim{grid-template-columns:1fr}}
+.out{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+@media(max-width:600px){.out{grid-template-columns:1fr}}
+.out .box{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--card)}
+.out .box small{display:block;color:var(--muted);font-size:.76rem}
+.out .box b{font:600 1.4rem var(--serif);font-variant-numeric:tabular-nums}
+.url{font:.78rem ui-monospace,Menlo,monospace;word-break:break-all;background:#F1EDE4;border-radius:8px;padding:8px 10px;margin-top:10px;color:var(--info)}
+.refused{color:var(--error);font-size:.86rem;margin-top:10px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,16px);opacity:0;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:.9rem;max-width:calc(100% - 32px);transition:opacity .2s ease,transform .3s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{background:var(--error)}
+.q{border-left:3px solid var(--honey);padding:6px 0 6px 14px;margin:10px 0}
+.q b{display:block}
+.hint{font-size:.85rem;color:var(--muted);margin-top:10px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Flux de prix vers Google Vacation Rentals</h1>
+<p class="lede">Spec <code>specs/google-vacation-rentals-feed.md</code> — plugin <code>google-vacation-rentals</code>, branche issue de <code>inte/plugins</code>. Statut : <b>validée le 26/10</b> (Q1 : 14 nuits ; Q2 : envoi dès qu'un tarif change).</p>
+
+<h2>Le constat</h2>
+<p>Depuis le départ de Lodgify (26/10), Google n'affiche plus ni prix ni bouton « Réserver » pour Solio. Ta fiche Google est un hébergement : elle n'a pas de champ « lien de réservation ». Le seul moyen de revenir, c'est d'envoyer nous-mêmes les prix et disponibilités à Google (protocole ARI), ce que la candidature du 26/10 engage.</p>
+<div class="cols">
+  <div class="panel"><h3>Ce qui existe déjà</h3><ul class="plain">
+    <li>Un seul moteur de prix, celui que le site utilise pour ses devis.</li>
+    <li>Les disponibilités : réservations, imports iCal, fermetures.</li>
+    <li>Le balisage <code>VacationRental</code> sur la page du gîte.</li></ul></div>
+  <div class="panel"><h3>Ce qui manque</h3><ul class="plain">
+    <li>Le prix d'une nuit dépend de sa place dans le séjour : il faut envoyer des <b>totaux par durée</b>, pas un prix par date.</li>
+    <li>Aucun signal quand un prix change : il faut recalculer et comparer.</li>
+    <li>Le site n'ouvre pas le formulaire avec les dates passées dans le lien.</li></ul></div>
+</div>
+
+<h2>Ce qu'on propose</h2>
+<ul class="plain">
+  <li><b>Plugin</b> : rien dans l'installation de base, un onglet « Google Vacation Rentals » dans Réglages → Intégrations.</li>
+  <li><b>Prix</b> : pour chaque date d'arrivée sur 365 jours, chaque durée (jusqu'à 14 nuits) et chaque taille de groupe où le prix change, le plugin demande le devis au moteur du site et envoie le total <b>taxe de séjour comprise</b>. Même calcul que le site, donc même prix.</li>
+  <li><b>Disponibilités</b> : 1 si la nuit est libre, 0 sinon ; nuits minimum, jours d'arrivée/départ interdits, fermetures.</li>
+  <li><b>Quand</b> : dans la minute après une réservation ou un import iCal, et <b>dès qu'un tarif est enregistré</b> (pages tarifs, options, fermetures, application d'une recette) ; un renvoi complet par nuit en filet de sécurité.</li>
+  <li><b>Mode Simulation</b> par défaut : tout est calculé, rien ne part, tant que Google ne nous a pas ouvert de compte.</li>
+  <li><b>Vérification</b> : un bouton compare des séjours tirés au hasard entre le prix envoyé et le devis du site. Zéro écart avant de passer en Envoi.</li>
+  <li><b>Site WordPress</b> : le bloc de réservation lit <code>checkin</code>, <code>checkout</code> et <code>guests</code> dans l'URL que Google construit.</li>
+</ul>
+
+<h2>Maquette — l'onglet de réglages</h2>
+<p class="hint">Interactive : passe en Envoi sans identifiant partenaire, efface un code, lance une vérification ou une simulation de séjour.</p>
+<div class="frame">
+  <div class="actionbar">
+    <span class="t">Google Vacation Rentals</span>
+    <button class="ib info" id="btnCheck" title="Vérifier les prix">Vérifier</button>
+    <button class="ib info" id="btnPush" title="Pousser maintenant">Pousser</button>
+    <button class="ib save" id="btnSave" title="Enregistrer" aria-label="Enregistrer">✓</button>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h3>Connexion</h3>
+      <div class="field"><label for="pid">Identifiant partenaire Google</label><input id="pid" placeholder="fourni par Google après acceptation"><span class="msg" id="pidMsg"></span></div>
+      <div class="field"><label>Mode</label>
+        <div class="seg" role="group" aria-label="Mode"><button id="mSim" aria-pressed="true">Simulation</button><button id="mLive" aria-pressed="false">Envoi</button></div>
+        <span class="msg" id="modeMsg"></span></div>
+      <h3 style="margin-top:8px">Logements</h3>
+      <div id="props"></div>
+    </div>
+    <div class="card">
+      <h3>État <span class="badge b-sim" id="badge">Simulation</span></h3>
+      <div class="kv"><span>Dernier passage</span><b id="last">aujourd'hui 14:00</b></div>
+      <div class="kv"><span>Séjours tarifés</span><b id="count">—</b></div>
+      <div class="kv"><span>Changements en attente</span><b id="pending">0</b></div>
+      <div class="kv"><span>Dernière erreur Google</span><b>aucune</b></div>
+      <div class="mis" id="mis"></div>
+      <ul class="log" id="log"></ul>
+    </div>
+  </div>
+</div>
+
+<h2>Maquette — ce que Google reçoit pour un séjour</h2>
+<p class="hint">Prix illustratifs (grille directe du gîte, arrondis) : le vrai calcul est celui du moteur, la maquette montre la logique — total par durée, refus si le séjour est trop court, lien d'atterrissage.</p>
+<div class="frame">
+  <div class="sim">
+    <div class="field"><label for="sArr">Arrivée</label><input id="sArr" type="date" value="2026-12-12"></div>
+    <div class="field"><label for="sN">Nuits</label><input id="sN" type="number" min="1" max="20" value="2"></div>
+    <div class="field"><label for="sG">Voyageurs</label><input id="sG" type="number" min="1" max="14" value="6"></div>
+  </div>
+  <div id="simOut"></div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="plain">
+  <li>Le flux d'annonces XML : Google lit déjà le balisage du site, recommandé pour les petites offres. On ne le construit que si Google le demande.</li>
+  <li>Google Hotels classique et la publicité Hotel Ads.</li>
+  <li>Les messages « Promotions » : la remise à la semaine est déjà dans les totaux par durée.</li>
+  <li>Le cœur ne reçoit qu'une brique générique : l'événement « tarif modifié », sans effet tant qu'aucun plugin ne l'écoute.</li>
+</ul>
+
+<h2>Risques</h2>
+<ul class="plain">
+  <li><b>Google peut refuser</b> la candidature : le plugin est développé en Simulation, sans rien envoyer.</li>
+  <li><b>Exactitude des prix</b> : un seul écart répété et Google suspend. D'où le même moteur et le bouton de vérification.</li>
+  <li><b>Un chemin d'écriture qui oublierait l'événement</b> : rattrapé par le renvoi complet de la nuit. Les tests vérifient chaque chemin.</li>
+  <li><b>Charge</b> : environ 2 × 365 × 14 × 3 devis par recalcul complet ; à mesurer sur la copie de prod.</li>
+</ul>
+
+<h2>Arbitrages en attente</h2>
+<div class="q"><b>Q1 — Durée maximale tarifée</b>Tranché le 26/10 : 14 nuits.</div>
+<div class="q"><b>Q2 — Quand recalculer les prix</b>Tranché le 26/10 : dès qu'un tarif est enregistré dans GuestFlow.</div>
+<div class="q"><b>Q3 — Format XML exact des totaux par durée et de la taxe de séjour</b>À confirmer avec le chargé de compte Google avant de figer le module XML.</div>
+<div class="q"><b>Q4 — Adresse IP de sortie de la prod</b>Google authentifie par IP : celle du serveur GuestFlow sera déclarée dans Hotel Center.</div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+const state={pid:'',mode:'sim',props:[{name:'La Granja',on:true,code:'solio-la-granja',slug:'la-granja'},{name:"L'Estiva",on:true,code:'solio-estiva',slug:'estiva'}]};
+const $=id=>document.getElementById(id);
+function toast(t,bad){const e=$('toast');e.textContent=t;e.className='toast show'+(bad?' bad':'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='toast',2400)}
+function renderProps(){const box=$('props');box.innerHTML='';state.props.forEach((p,i)=>{const d=document.createElement('div');d.className='prop';d.innerHTML=`<div class="prop-top"><b>${p.name}</b><label class="sw"><input type="checkbox" ${p.on?'checked':''} aria-label="Publier ${p.name} sur Google"><i></i></label></div><div class="field"><label>Code Google (HotelCode)</label><input value="${p.code}" ${p.on?'':'disabled'}><span class="msg"></span></div>`;const [cb,inp]=d.querySelectorAll('input');const msg=d.querySelector('.msg');cb.onchange=()=>{p.on=cb.checked;renderProps();renderStatus()};inp.oninput=()=>{p.code=inp.value.trim();const ok=/^[a-z0-9-]{3,40}$/.test(p.code);inp.classList.toggle('bad',!ok);msg.textContent=ok?'':'Lettres minuscules, chiffres et tirets, 3 à 40 caractères.'};box.appendChild(d)})}
+function renderStatus(){const n=state.props.filter(p=>p.on).length;$('count').textContent=n?(n*365*14*3).toLocaleString('fr-FR'):'—';const b=$('badge');if(!n){b.className='badge b-off';b.textContent='Aucun logement'}else if(state.mode==='live'){b.className='badge b-live';b.textContent='Envoi'}else{b.className='badge b-sim';b.textContent='Simulation'}}
+function setMode(m){if(m==='live'){if(!state.pid){$('modeMsg').textContent="Impossible : identifiant partenaire manquant.";$('pid').classList.add('bad');toast('Envoi refusé : pas d’identifiant partenaire',true);return}if(!state.props.some(p=>p.on)){$('modeMsg').textContent='Impossible : aucun logement activé.';return}if(!confirm('Passer en Envoi ? Les prix partiront réellement chez Google.'))return}$('modeMsg').textContent='';state.mode=m;$('mSim').setAttribute('aria-pressed',m==='sim');$('mLive').setAttribute('aria-pressed',m==='live');renderStatus()}
+$('mSim').onclick=()=>setMode('sim');$('mLive').onclick=()=>setMode('live');
+$('pid').oninput=e=>{state.pid=e.target.value.trim();e.target.classList.remove('bad');$('pidMsg').textContent=state.pid&&!/^[\w-]{3,}$/.test(state.pid)?'Format inattendu.':''};
+function addLog(t){const li=document.createElement('li');const h=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});li.innerHTML=`<span>${h}</span><span>${t}</span>`;$('log').prepend(li);$('last').textContent="aujourd'hui "+h}
+$('btnPush').onclick=()=>{if(!state.props.some(p=>p.on)){toast('Aucun logement activé',true);return}const c=Math.floor(Math.random()*40);$('pending').textContent=0;addLog(state.mode==='live'?`${c} changements envoyés`:`${c} changements calculés (rien envoyé)`);toast(state.mode==='live'?'Changements envoyés à Google':'Simulation : XML écrit sur le serveur')};
+let checks=0;$('btnCheck').onclick=()=>{checks++;const m=$('mis');if(checks%3===0){m.className='mis ko';m.textContent='1 écart sur 200 séjours : La Granja, arrivée 30/12, 3 nuits, 10 voyageurs — envoyé 1 236 €, site 1 299 €.';addLog('Vérification : 1 écart')}else{m.className='mis ok';m.textContent='200 séjours vérifiés : 0 écart avec le devis du site.';addLog('Vérification : 0 écart')}};
+$('btnSave').onclick=()=>toast('Réglages enregistrés');
+const nightly=(d)=>{const m=d.getMonth()+1;return (m===7||m===8)?470:(m===12&&d.getDate()>=20)?1032:(m>=5&&m<=9)?388:344};
+function sim(){const a=new Date($('sArr').value);const n=+$('sN').value;const g=+$('sG').value;const out=$('simOut');if(isNaN(a)||!n||!g){out.innerHTML='<p class="refused">Séjour incomplet.</p>';return}
+ const minN=(a.getMonth()===6||a.getMonth()===7)?4:2;
+ if(n<minN){out.innerHTML=`<p class="refused">Rien n'est envoyé pour ${n} nuit${n>1?'s':''} : minimum ${minN} nuits à cette date. Google reçoit la restriction « ${minN} nuits minimum à l'arrivée ».</p>`;return}
+ if(g>12){out.innerHTML='<p class="refused">Rien n’est envoyé au-delà de la capacité du logement.</p>';return}
+ let acc=0;for(let i=0;i<n;i++){const d=new Date(a);d.setDate(a.getDate()+i);acc+=nightly(d)*(i===0?1:0.93)}if(n>=7)acc*=0.5715;
+ const extra=Math.max(0,g-10)*29*n;const tax=Math.min(g,10)*1.2*n;const total=Math.round(acc+extra+tax);
+ const pad=x=>String(x).padStart(2,'0');const dep=new Date(a);dep.setDate(a.getDate()+n);
+ const fmt=d=>`${pad(d.getDate())}%2F${pad(d.getMonth()+1)}%2F${d.getFullYear()}`;
+ out.innerHTML=`<div class="out"><div class="box"><small>Total envoyé à Google</small><b>${total.toLocaleString('fr-FR')} €</b><small>dont taxe de séjour ${tax.toFixed(2).replace('.',',')} €${extra?` et supplément ${extra} €`:''}</small></div><div class="box"><small>Devis du site pour le même séjour</small><b>${total.toLocaleString('fr-FR')} €</b><small>même moteur : écart 0 €</small></div></div><div class="url">https://domainesolio.com/la-granja/?checkin=${fmt(a)}&amp;checkout=${fmt(dep)}&amp;guests=${g}&amp;utm_source=google&amp;utm_medium=vacation-rentals</div>`}
+['sArr','sN','sG'].forEach(id=>$(id).oninput=sim);
+renderProps();renderStatus();sim();
+</script>
+</body>
+</html>

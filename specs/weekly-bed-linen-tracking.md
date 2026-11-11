@@ -365,13 +365,14 @@ neither.
 
 ### 3.6 Edge cases
 
-- **Window straddles the planning start.** The planning shows 14 days forward;
+- **Window straddles the planning start.** The planning shows 14-day windows on both sides of today
+  (« the loaded windows of the timeline », dashboard-planning-scroll.md rule 11);
   the first laundry day in the window may have its drop-off window reach back
   before "today". The server still computes it (queries reservations with
   `endDate IN (L-7, L]` regardless of "today"). Same for pick-up which always
   references `L - 7 days`, possibly outside the planning range.
-- **Two laundry days in the window.** With `DAYS_AHEAD = 14`, the planning shows
-  up to ~2 laundry days. Both render their own card independently.
+- **Two laundry days in the window.** With 14-day windows, the planning shows
+  up to ~2 laundry days per window. Both render their own card independently.
 - **A reservation flagged as bed-linen with `singleBeds = doubleBeds = babyBeds = 0`.**
   Contributes zero. **Updated 2026-08-11** — it is now surfaced as a warning on the laundry card
   (« N séjour(s) sans quantité de linge saisie »,
@@ -383,6 +384,12 @@ neither.
   recomputed (and the planning is forward-only, so this is invisible anyway).
 - **Reservation deleted (hard-deleted via DB).** Drops out of all windows
   immediately. Same as any other reservation deletion.
+
+37. **Several laundry days and a turnaround (2026-10-28, [linen-laundry-days.md](linen-laundry-days.md)
+    rules 1-10).** `laundryWeekday` becomes a dated schedule: a set of weekdays plus a turnaround in days.
+    Rule 7 reads « any weekday of the schedule in force on that date »; rule 8's window becomes
+    `(previous trip, L]` and Pick-up(L) the batches whose `readyFrom ≤ L`. Rule 10 is now what the code
+    does: a change applies from tomorrow and past windows keep the rhythm of their date.
 
 ---
 
@@ -708,7 +715,8 @@ scope of the action-bar standard; not touched here.
 ## 8. Out of scope
 
 - **Past-window display.** The card only renders on dates inside the Planning
-  window (forward 14 days). No history view of past laundry days. (If Adrien
+  windows the timeline has loaded (dashboard-planning-scroll.md: it scrolls into the past too, each
+  window asking the contribution for its own range). No dedicated history view of past laundry days. (If Adrien
   wants one later, a dedicated `/laundry-history` page is a separate spec.)
 - **Per-property aggregation.** The card shows totals across all properties.
   Splitting per property (one card per property per laundry day) is out of

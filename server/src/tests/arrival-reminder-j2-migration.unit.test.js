@@ -62,8 +62,10 @@ test('is idempotent: a second run leaves the row identical', () => {
   db.prepare(`INSERT INTO email_templates (stableKey, name, subject, body, dayOffset, sendMode, enabled)
               VALUES ('arrival_reminder_1d', 'X', 'Y', 'Z', -1, 'manual', 1)`).run();
   runArrivalReminderJ2Migration(db);
+  // A sentinel far in the past: any rewrite of the row would move it, whatever the second the run lands in.
+  db.prepare("UPDATE email_templates SET updatedAt = '2000-01-01 00:00:00' WHERE stableKey='arrival_reminder_1d'").run();
   const after1 = db.prepare("SELECT * FROM email_templates WHERE stableKey='arrival_reminder_1d'").get();
-  runArrivalReminderJ2Migration(db);
+  assert.equal(runArrivalReminderJ2Migration(db).action, 'unchanged');
   const after2 = db.prepare("SELECT * FROM email_templates WHERE stableKey='arrival_reminder_1d'").get();
   assert.deepEqual(after1, after2);
 });

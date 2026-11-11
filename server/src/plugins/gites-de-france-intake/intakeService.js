@@ -15,10 +15,18 @@ const isGitesDeFrance = (platform) => /gites?defrance/.test(String(platform || '
   .replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, ''));
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
 const round2 = (n) => Math.round(n * 100) / 100;
+const CONTACT_KEPT = 'E-mail ou téléphone déjà renseigné sur la fiche';
 const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
+const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const MAX_MAILS_PER_PASS = 200;
+const SINCE_DAYS = 30;
+
 function createIntakeService(deps) {
-  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, now = () => new Date() } = deps;
+  const { intakes, settings, readMails, findReservations, commissionPercent, propertyOptions, getReservation, core, parserVersion = null, now = () => new Date(), log = () => {} } = deps;
+  // The accommodations' day: the process runs in their time zone (utils/localDate.js).
+  const today = deps.today || (() => localDay(now()));
 
   function propertyIdsForGite(giteNumber) {
     return Object.entries(settings.giteNumbers())
@@ -26,15 +34,22 @@ function createIntakeService(deps) {
       .map(([propertyId]) => Number(propertyId));
   }
 
-  // Rule 9 — one reservation: Gîtes de France, the gîte's property, same dates, not cancelled.
+  // Rule 9 — one reservation: Gîtes de France, the gîte's property, same dates, not cancelled. A gîte no
+  // property is tied to yet waits (`pending`, its reason kept) until the operator maps it (rule 18).
   function match(booking) {
     const propertyIds = propertyIdsForGite(booking.giteNumber);
-    if (propertyIds.length === 0) return { error: `Aucun logement n’est relié au gîte n°${booking.giteNumber}` };
+    if (propertyIds.length === 0) return { reservation: null, unmapped: `Aucun logement n’est relié au gîte n°${booking.giteNumber}` };
     const rows = findReservations({ propertyIds, startDate: booking.startDate, endDate: booking.endDate })
-      .filter((r) => r.kind === 'reservation' && isGitesDeFrance(r.platform));
+      .filter((r) => r.kind === 'reservation' && !r.cancelledAt && isGitesDeFrance(r.platform));
     if (rows.length > 1) return { error: 'Plusieurs fiches Gîtes de France sur ces dates' };
     return { reservation: rows[0] || null };
   }
+
+  // Rule 21 — the fiche's guest already has an e-mail or a phone: applying the mail would swap them.
+  const hasContact = (r) => {
+    const details = getReservation(r.id) || {};
+    return Boolean(String(details.email || '').trim() || String(details.phone || '').trim());
+  };
 
   // Rule 10 — the iCal placeholder nobody has saved yet: a manual save locks the iCal sync.
   function isUntouched(r) {
@@ -58,22 +73,14 @@ function createIntakeService(deps) {
   // The fiche as the operator fills it by hand (skill reference gites-de-france.md): guest, party,
   // booking number, the centrale's supplements paid to the platform (« Forcer en complément » off).
   function stayPatch(booking, reservation) {
-    const details = getReservation(reservation.id);
     const catalogue = propertyOptions(reservation.propertyId);
-    const autoIds = new Set(catalogue.filter((o) => Number(o.autoEnabled || 0) === 1).map((o) => Number(o.id)));
     const cleaning = catalogue.find(isCleaning);
 
-    const options = (details.options || []).filter((o) => !o.isCustom && !autoIds.has(Number(o.optionId)))
-      .map((o) => ({ optionId: o.optionId, quantity: o.quantity, inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0 }));
-    const customOptions = (details.options || []).filter((o) => o.isCustom).map((o, i) => ({
-      customKey: String(o.customOptionId || `custom_${i + 1}`),
-      customOptionId: o.customOptionId,
-      description: o.title || o.description,
-      amount: Number(o.originalTotalPrice ?? o.totalPrice ?? 0),
-      offered: Boolean(o.offered),
-      inComplement: Number(o.inComplement || 0) === 1 ? 1 : 0,
-    }));
-    let offered = (details.options || []).filter((o) => !o.isCustom && o.offered).map((o) => Number(o.optionId));
+    // Rule 35 — the lines as the fiche's own save sends them (SDK 2.21.0): a planning card keeps its moments.
+    const stored = core.updateBody(reservation.id);
+    const options = stored.options.map((o) => ({ ...o }));
+    const customOptions = stored.customOptions.map((o) => ({ ...o }));
+    let offered = stored.offeredOptionIds.map(Number);
     const asCustomLines = [];
 
     booking.supplements.forEach((s, i) => {
@@ -88,14 +95,14 @@ function createIntakeService(deps) {
       }
     });
 
-    const client = core.findOrCreateClient({
-      firstName: booking.firstName, lastName: booking.lastName, email: booking.email, phone: booking.phone, emailLanguage: 'fr',
-    });
     const beds = core.suggestBeds(reservation.propertyId, { adults: booking.adults, children: booking.children, teens: 0 });
 
     return {
+      // Created by the core in the same transaction as the update: a refused fiche leaves no client behind.
+      client: {
+        firstName: booking.firstName, lastName: booking.lastName, email: booking.email, phone: booking.phone, emailLanguage: 'fr',
+      },
       patch: {
-        clientId: client.id,
         reservationNumber: booking.dossierNumber,
         checkInTime: booking.checkInTime,
         checkOutTime: booking.checkOutTime,
@@ -124,10 +131,17 @@ function createIntakeService(deps) {
     }
     const chosen = rent != null ? Number(rent) : (candidates.length === 1 ? candidates[0] : null);
     if (chosen != null && !candidates.includes(chosen)) return { status: 'error', error: 'Loyer hors des valeurs possibles' };
+    // The core refuses a started stay (PAST_RESERVATION); asking first keeps stayPatch from creating
+    // a client record that no fiche would ever point to.
+    if (String(booking.startDate) <= today()) {
+      const error = 'Séjour commencé : fiche à saisir à la main';
+      intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });
+      return { status: 'error', error };
+    }
 
-    const { patch } = stayPatch(booking, reservation);
+    const { patch, client } = stayPatch(booking, reservation);
     const full = chosen != null ? { ...patch, ...paymentPatch(booking, chosen) } : patch;
-    const result = core.updateReservation(reservation.id, full, { label: `Mail Gîtes de France du ${frDate(intake.receivedAt)}` });
+    const result = core.updateReservation(reservation.id, full, { label: `Mail Gîtes de France du ${frDate(intake.receivedAt)}`, client, reuseByEmail: intake.senderVerified });
     if (result.status !== 200) {
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error: (result.body && result.body.error) || `Erreur ${result.status}` });
       return { status: 'error', error: result.body && result.body.error };
@@ -156,41 +170,98 @@ function createIntakeService(deps) {
     }
     const m = match(intake.parsed);
     if (m.error) { intakes.setStatus(intake.id, { status: 'error', error: m.error }); return 'error'; }
-    if (!m.reservation) return 'pending';
-    if (!settings.autoApply() || !isUntouched(m.reservation)) {
+    if (!m.reservation) {
+      const reason = m.unmapped || null;
+      if ((intake.error || null) !== reason) intakes.setStatus(intake.id, { status: 'pending', error: reason });
+      return 'pending';
+    }
+    // Rules 20–21 — a mail whose sender is not authenticated is never applied on its own, and neither is
+    // one that would replace the e-mail or phone already on the fiche.
+    if (!intake.senderVerified || !settings.autoApply() || !isUntouched(m.reservation)) {
       intakes.setStatus(intake.id, { status: 'proposed', reservationId: m.reservation.id });
+      return 'proposed';
+    }
+    if (hasContact(m.reservation)) {
+      intakes.setStatus(intake.id, { status: 'proposed', reservationId: m.reservation.id, error: CONTACT_KEPT });
       return 'proposed';
     }
     return apply(intake, m.reservation).status;
   }
 
-  async function runPass() {
+  // Rule 31 — one pass at a time: a second call (job tick + « Lire maintenant ») joins the one running.
+  let running = null;
+  function runPass() {
+    if (!running) running = readPass().finally(() => { running = null; });
+    return running;
+  }
+
+  async function readPass() {
     const mailbox = settings.mailbox();
     if (!mailbox.host || !mailbox.user || !mailbox.password) return { skipped: 'Boîte mail non configurée' };
     // Installed with every plugin on an existing base: nothing is read until a property is tied to a gîte.
     if (Object.values(settings.giteNumbers()).every((g) => !String(g || '').trim())) {
       return { skipped: 'Aucun logement relié à un numéro de gîte' };
     }
-    const mails = await readMails({ ...mailbox, sender: settings.sender() });
+    intakes.purgeIgnored(new Date(now().getTime() - (SINCE_DAYS + 1) * 24 * 3600 * 1000).toISOString());
     let read = 0;
-    for (const mail of mails) {
-      if (intakes.has(mail.messageId)) continue;
-      read += 1;
+    let unread = 0;
+    // Rule 30 — mails arrive one by one: known ones are never downloaded, the others are all remembered
+    // (an intake, or `ignored`), and a pass reads at most MAX_MAILS_PER_PASS of them, newest first.
+    const take = (mail) => {
+      const senderVerified = mail.authenticated === true;
+      // A pass counts the rows it really wrote: a mail another pass stored first is not read twice.
+      const add = (row, counts = true) => { if (intakes.insert(row) !== null && counts) read += 1; };
+      const remember = (error, counts = false) => add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'ignored', error, senderVerified, parserVersion }, counts);
+      if (mail.skipped) { remember('Mail trop volumineux'); return; }
       const parsed = parseGitesDeFranceMail(mail.text);
       if (!parsed.ok) {
         // Another kind of mail from the centrale (invoice, newsletter) is not an intake at all.
-        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) continue;
-        intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: 'error', error: parsed.error });
-        continue;
+        if (!/nouvelle réservation/i.test(`${mail.subject || ''} ${mail.text}`)) { remember('Autre type de mail', true); return; }
+        // Rule 25 — an unauthenticated mail that does not parse is remembered (`ignored`, out of every list)
+        // so the next pass does not parse it again.
+        add({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: senderVerified ? 'error' : 'ignored', error: parsed.error, senderVerified, parserVersion });
+        return;
       }
-      intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending' });
-    }
+      add({ messageId: mail.messageId, receivedAt: mail.receivedAt, dossierNumber: parsed.booking.dossierNumber, parsed: parsed.booking, status: 'pending', senderVerified });
+    };
+    // One mail that makes the intake step throw never stops the pass. A database error (SQLITE_BUSY…) is transient:
+    // nothing is stored, so the next pass reads the mail again. Any other error is remembered like a mail that does not
+    // parse (rule 26 / 25): `error` for a verified mail, which shows on the home and is read again after a parser fix,
+    // `ignored` otherwise.
+    const isolate = (fn) => (mail) => {
+      try {
+        fn(mail);
+      } catch (err) {
+        if (String(err && err.code).startsWith('SQLITE_')) {
+          log(`mail intake: ${mail.messageId} not stored (${err.code}), retried on the next pass`);
+          return;
+        }
+        const verified = mail.authenticated === true;
+        try {
+          intakes.insert({ messageId: mail.messageId, receivedAt: mail.receivedAt, status: verified ? 'error' : 'ignored', error: `Erreur de lecture : ${err.message}`, senderVerified: verified, parserVersion });
+        } catch (storeErr) {
+          log(`mail intake: ${mail.messageId} not stored (${storeErr.message})`);
+        }
+      }
+    };
+    await readMails(
+      { ...mailbox, sender: settings.sender(), ...(settings.authentication ? settings.authentication() : {}) },
+      { seen: (messageId) => intakes.has(messageId, parserVersion), onMail: isolate(take), limit: MAX_MAILS_PER_PASS, onCap: ({ notRead }) => { unread = notRead; } },
+    );
     const outcome = {};
     for (const intake of intakes.listOpen()) {
-      const status = process(intake);
+      // One intake that throws is recorded and left behind: it stays `pending` otherwise, first in
+      // listOpen, and stops every later pass before the intakes behind it.
+      let status;
+      try {
+        status = process(intake);
+      } catch (err) {
+        intakes.setStatus(intake.id, { status: 'error', error: `Erreur inattendue : ${err.message}` });
+        status = 'error';
+      }
       outcome[status] = (outcome[status] || 0) + 1;
     }
-    return { read, ...outcome };
+    return { read, ...(unread ? { unread } : {}), ...outcome };
   }
 
   // What the fiche's banner renders (rule 12) — ready to display, nothing to compute client-side.
@@ -209,6 +280,8 @@ function createIntakeService(deps) {
       receivedAt: intake.receivedAt,
       receivedLabel: `${frDate(intake.receivedAt)} à ${new Date(intake.receivedAt).toTimeString().slice(0, 5)}`,
       dossierNumber: intake.dossierNumber,
+      senderUnverified: !intake.senderVerified,
+      reason: intake.status === 'proposed' ? intake.error : null,
       netRent: booking.netRent,
       rentCandidates: rents.map((rent) => ({ rent, commission: round2(rent - booking.netRent) })),
       customLines: (booking.supplements || [])
@@ -221,9 +294,13 @@ function createIntakeService(deps) {
   function applyFromBanner(intakeId, { rent } = {}) {
     const intake = intakes.get(intakeId);
     if (!intake || !intake.parsed) return { status: 'error', error: 'Saisie introuvable' };
-    if (intake.status === 'needs_rent' || (intake.status === 'applied' && rent != null)) return chooseRent(intake, rent);
+    const written = intake.status === 'needs_rent' || intake.status === 'applied';
+    if (written && rent != null) return chooseRent(intake, rent);
+    if (intake.dismissedAt) return { status: 'error', error: 'Saisie ignorée' };
+    // Rule 12 — a second tab or a lost response: the fiche is never written twice, the banner reloads.
+    if (written) return { status: intake.status };
     const m = match(intake.parsed);
-    if (m.error || !m.reservation) return { status: 'error', error: m.error || 'Fiche introuvable' };
+    if (m.error || !m.reservation) return { status: 'error', error: m.error || m.unmapped || 'Fiche introuvable' };
     return apply(intake, m.reservation, { rent });
   }
 

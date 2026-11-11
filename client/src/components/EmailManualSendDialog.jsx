@@ -8,14 +8,18 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box,
   Typography, Stack, FormControl, InputLabel, Select, MenuItem, TextField,
-  CircularProgress, Chip, Tooltip,
+  CircularProgress, Chip, Tooltip, Alert, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import MailOutlineIcon from '@mui/icons-material/MailOutlined';
 import SendIcon from '@mui/icons-material/Send';
 import api from '../api';
 import ConfirmDialog from './ConfirmDialog';
 import LanguageBadge from './LanguageBadge';
 import { displayDateTime } from '../utils/formatters';
+import useLatestRequest from '../hooks/useLatestRequest';
+import { ENGLISH_MISSING, ENGLISH_MISSING_TAG, NO_RECIPIENT, sendErrorMessage } from '../constants/emailSendErrors';
+import { isLinkAlreadyPaid } from '../constants/paymentLinks';
 
 function offsetLabel(n) {
   const num = Number(n);
@@ -34,14 +38,41 @@ function formatTargetDate(startDateIso, dayOffset) {
   } catch { return ''; }
 }
 
-export default function EmailManualSendDialog({
-  open, reservationId, reservationStartDate, defaultTemplateId, onClose, onSent,
+/**
+ * One dialog serves many rows (pending queue, history): every opening starts from a fresh state, so
+ * nothing of the previous row — template, edits, recipient, language — can leave in the next email
+ * (specs/email-automation.md rule 21).
+ * `onMoneyChanged` (optional): a refusal booked the stay's payment (409 LINK_ALREADY_PAID,
+ * specs/payment-link-lifecycle.md rule 50): the page re-reads its money; `onSent` stays for a mail that left.
+ * A preview that carries the server's `refusal` (rule 60: platform stay, closed nights, payment to settle) shows
+ * its message and keeps « Envoyer » disabled.
+ */
+export default function EmailManualSendDialog(props) {
+  const [wasOpen, setWasOpen] = useState(Boolean(props.open));
+  const [opening, setOpening] = useState(0);
+  if (props.open !== wasOpen) {
+    setWasOpen(Boolean(props.open));
+    if (props.open) setOpening(opening + 1);
+  }
+  return <EmailManualSendForm key={opening} {...props} />;
+}
+
+function EmailManualSendForm({
+  open, reservationId, reservationStartDate, defaultTemplateId, occurrenceKey, onClose, onSent, onMoneyChanged,
 }) {
+  // Full screen on a phone, like every dialog (specs/ds-components.md rule 22).
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [templates, setTemplates] = useState([]);
   const [templateId, setTemplateId] = useState(defaultTemplateId || '');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [to, setTo] = useState('');
+  // The template the subject / body on screen were rendered for: « Envoyer » waits until it is the one
+  // picked (specs/email-automation.md rule 22).
+  const [previewedTemplateId, setPreviewedTemplateId] = useState(null);
+  const beginPreview = useLatestRequest();
+  const [previewFailed, setPreviewFailed] = useState(false);
   const [manualEmail, setManualEmail] = useState(''); // operator-typed recipient when the client has none
   const [missingVariables, setMissingVariables] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -56,6 +87,10 @@ export default function EmailManualSendDialog({
   // (specs/site-english-version.md §6).
   const [resolvedLang, setResolvedLang] = useState('fr');
   const [langOverride, setLangOverride] = useState(null);
+  // specs/email-language-fr-en.md rule 9 — the server says this template has no English version for
+  // an English-speaking guest: it is shown, never sent.
+  const [englishMissing, setEnglishMissing] = useState(false);
+  const [refusal, setRefusal] = useState(null);
 
   // Load template list once when the dialog opens.
   useEffect(() => {
@@ -63,7 +98,7 @@ export default function EmailManualSendDialog({
     setError('');
     setManualEmail('');
     setLangOverride(null);
-    api.getEmailTemplates()
+    api.getEmailTemplates('picker')
       .then((rows) => {
         const enabled = rows.filter((r) => r.enabled !== 0);
         // When resending from the history, the original template may be disabled: keep it
@@ -83,22 +118,31 @@ export default function EmailManualSendDialog({
 
   const refreshPreview = useCallback(async () => {
     if (!templateId || !reservationId) return;
+    const current = beginPreview();
     setLoading(true);
     setError('');
+    setPreviewedTemplateId(null);
+    setPreviewFailed(false);
     try {
-      const res = await api.previewEmail({ reservationId, templateId, lang: langOverride || undefined });
+      const res = await api.previewEmail({ reservationId, templateId, lang: langOverride || undefined, occurrenceKey });
+      if (!current()) return;
+      setPreviewedTemplateId(templateId);
       setSubject(res.subject || '');
       setBody(res.body || '');
       setTo(res.to || '');
       setResolvedLang(res.lang || 'fr');
+      setEnglishMissing(Boolean(res.englishMissing));
+      setRefusal(res.refusal || null);
       setMissingVariables(res.missingVariables || []);
     } catch (e) {
+      if (!current()) return;
+      setPreviewFailed(true);
       setError(e?.message || 'Impossible de générer l\'aperçu.');
-      setSubject(''); setBody(''); setTo(''); setMissingVariables([]);
+      setSubject(''); setBody(''); setTo(''); setMissingVariables([]); setEnglishMissing(false); setRefusal(null);
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
-  }, [templateId, reservationId, langOverride]);
+  }, [templateId, reservationId, langOverride, occurrenceKey, beginPreview]);
 
   useEffect(() => { if (open) refreshPreview(); }, [open, refreshPreview]);
 
@@ -111,7 +155,7 @@ export default function EmailManualSendDialog({
 
   const handleSend = async (confirmResend = false) => {
     if (!recipient) {
-      setError('Renseigne une adresse email destinataire.');
+      setError(NO_RECIPIENT);
       return;
     }
     setSending(true);
@@ -125,21 +169,17 @@ export default function EmailManualSendDialog({
         overrides: { subject, body, ...(to ? {} : { to: manualEmail.trim() }) },
         confirmResend,
         lang: langOverride || undefined,
+        occurrenceKey,
       });
       if (onSent) onSent(res);
       if (onClose) onClose();
     } catch (e) {
-      const message = e?.message || 'Échec de l\'envoi.';
-      if (message === 'ALREADY_SENT') {
-        setAlreadySentAt(e.sentAt || '');
-      } else if (message.includes('EMAIL_NOT_CONFIGURED')) {
-        setError('SMTP non configuré. Configure les paramètres SMTP dans /settings avant d\'envoyer des emails.');
-      } else if (message.includes('CLIENT_NO_EMAIL')) {
-        setError('Renseigne une adresse email destinataire.');
-      } else if (message.includes('INVALID_EMAIL')) {
-        setError('Adresse email invalide.');
+      if (e?.error === 'ALREADY_SENT' || e?.message === 'ALREADY_SENT') {
+        // The server words the time in Europe/Paris (specs/email-history-rolling-window.md rule 8).
+        setAlreadySentAt(e.sentAtLabel || (e.sentAt ? displayDateTime(e.sentAt) : ''));
       } else {
-        setError(message);
+        setError(sendErrorMessage(e));
+        if (isLinkAlreadyPaid(e) && onMoneyChanged) await onMoneyChanged();
       }
     } finally {
       setSending(false);
@@ -147,10 +187,10 @@ export default function EmailManualSendDialog({
   };
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient);
-  const sendDisabled = sending || loading || !templateId || !emailValid;
+  const sendDisabled = sending || loading || !templateId || previewedTemplateId !== templateId || !emailValid || englishMissing || Boolean(refusal);
 
   return (
-    <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={sending ? undefined : onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle>Aperçu de l'email</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
@@ -159,7 +199,7 @@ export default function EmailManualSendDialog({
               display: 'flex',
               gap: 1.5,
               p: 1.5,
-              bgcolor: 'info.lighter',
+              bgcolor: 'info.soft',
               border: '1px solid',
               borderColor: 'info.light',
               borderRadius: 1,
@@ -219,7 +259,8 @@ export default function EmailManualSendDialog({
             <Select label="Modèle" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
               {templates.map((t) => (
                 <MenuItem key={t.id} value={t.id}>
-                  {t.name} ({offsetLabel(t.dayOffset)})
+                  {t.displayName || t.name} ({t.whenLabel || offsetLabel(t.dayOffset)})
+                  {resolvedLang === 'en' && t.hasEnglish === false ? ` — ${ENGLISH_MISSING_TAG}` : ''}
                 </MenuItem>
               ))}
             </Select>
@@ -230,6 +271,8 @@ export default function EmailManualSendDialog({
               Date d'envoi prévue : {formatTargetDate(reservationStartDate, selected.dayOffset)}
             </Typography>
           ) : null}
+
+          {refusal && !loading ? <Alert severity="info">{refusal.message}</Alert> : null}
 
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -265,14 +308,17 @@ export default function EmailManualSendDialog({
             </Box>
           ) : null}
 
-          {error ? (
-            <Box sx={{ p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
-              <Typography variant="body2" color="error.main">{error}</Typography>
-            </Box>
-          ) : null}
         </Stack>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+        {/* Next to the buttons, so a failure is seen without scrolling back through the body. */}
+        {englishMissing && !error ? (
+          <Typography role="alert" variant="body2" color="warning.main" sx={{ flex: '1 1 100%', px: 1 }}>{ENGLISH_MISSING}</Typography>
+        ) : null}
+        {error ? (
+          <Typography role="alert" variant="body2" color="error.main" sx={{ flex: '1 1 100%', px: 1 }}>{error}</Typography>
+        ) : null}
+        {error && previewFailed ? <Button onClick={refreshPreview} disabled={loading}>Réessayer</Button> : null}
         <Button onClick={onClose} disabled={sending}>Annuler</Button>
         <Button
           onClick={() => handleSend(false)}
@@ -286,7 +332,7 @@ export default function EmailManualSendDialog({
       <ConfirmDialog
         open={alreadySentAt !== null}
         title="Déjà envoyé"
-        message={`Ce mail a déjà été envoyé${alreadySentAt ? ` le ${displayDateTime(alreadySentAt)}` : ''}. Le renvoyer quand même ?`}
+        message={`Ce mail a déjà été envoyé${alreadySentAt ? ` le ${alreadySentAt}` : ''}. Le renvoyer quand même ?`}
         confirmLabel="Renvoyer"
         confirmColor="primary"
         onClose={() => setAlreadySentAt(null)}

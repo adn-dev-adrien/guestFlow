@@ -22,7 +22,9 @@ import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import PhonelinkEraseIcon from '@mui/icons-material/PhonelinkErase';
 import api from '../api';
+import fieldRefusalText from '../utils/fieldRefusalText';
 import PageActionBar from '../components/PageActionBar';
 import { useToast } from '../components/DialogProvider';
 import ErrorAlert from '../components/ErrorAlert';
@@ -59,7 +61,7 @@ function fullName(user) {
 
 export default function UserManagementPage() {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('lg'));
   const { user: me } = useAuth();
   const isAdmin = userHasRole(me, ADMIN);
 
@@ -74,6 +76,8 @@ export default function UserManagementPage() {
   const [formErrors, setFormErrors] = useState({});
   const [resetDialog, setResetDialog] = useState({ open: false, user: null, reactivate: false });
   const [deleteDialog, setDeleteDialog] = useState({ open: false, user: null, hard: false });
+  // specs/hosting-h2-account-security.md rule 9 — turn another user's second step off (a lost phone).
+  const [twoFactorDialog, setTwoFactorDialog] = useState(null);
 
   const refresh = useCallback(async () => {
     if (!isAdmin) return;
@@ -133,7 +137,7 @@ export default function UserManagementPage() {
     } catch (err) {
       // Server-side field errors land under their field; everything else lands in the snackbar.
       if (err && err.field) {
-        setFormErrors({ [err.field]: err.detail || err.error });
+        setFormErrors({ [err.field]: fieldRefusalText(err) });
       } else if (err && err.error === 'EMAIL_ALREADY_EXISTS') {
         setFormErrors({ email: 'Cet email est déjà utilisé.' });
       } else {
@@ -207,6 +211,21 @@ export default function UserManagementPage() {
     }
   };
 
+  const handleDisableTwoFactor = async () => {
+    const target = twoFactorDialog;
+    setTwoFactorDialog(null);
+    setBusy(true);
+    try {
+      await api.disableUserTwoFactor(target.id);
+      showSuccess(`Validation en deux étapes de ${fullName(target)} désactivée.`);
+      await refresh();
+    } catch (err) {
+      showError(err, 'Désactivation impossible.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const subtitle = useMemo(() => (
     me && me.email ? (
       <Typography variant="caption" color="text.disabled">{me.email}</Typography>
@@ -250,7 +269,7 @@ export default function UserManagementPage() {
             {!loading && !loadError && users.length === 0 && (
               <EmptyState
                 icon={<PersonAddAlt1Icon />}
-                message="Aucun autre compte. Utilisez « Ajouter un compte » pour inviter un collaborateur ou un comptable."
+                message="Aucun autre compte."
                 actionLabel="Ajouter un compte"
                 onAction={openCreate}
                 py={4}
@@ -258,8 +277,8 @@ export default function UserManagementPage() {
             )}
 
             {!loading && users.length > 0 && (isMobile
-              ? renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy })
-              : renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy })
+              ? renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor: setTwoFactorDialog, busy })
+              : renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor: setTwoFactorDialog, busy })
             )}
           </Box>
         )}
@@ -339,11 +358,39 @@ export default function UserManagementPage() {
         confirmLabel="Supprimer"
         confirmColor="error"
       />
+
+      <ConfirmDialog
+        open={Boolean(twoFactorDialog)}
+        onClose={() => setTwoFactorDialog(null)}
+        onConfirm={handleDisableTwoFactor}
+        title="Désactiver la validation en deux étapes"
+        message={twoFactorDialog ? (
+          <>
+            Désactiver la validation en deux étapes de <strong>{fullName(twoFactorDialog)}</strong> ? Seul le mot de
+            passe sera demandé. Inscrit au journal de son compte.
+          </>
+        ) : ''}
+        confirmLabel="Désactiver"
+        confirmColor="warning"
+      />
     </Box>
   );
 }
 
-function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy }) {
+function TwoFactorOffButton({ user, isSelf, busy, onClick, small }) {
+  if (!user.twoFactorEnabled || isSelf) return null;
+  return (
+    <Tooltip title="Désactiver la validation en deux étapes">
+      <span>
+        <IconButton size="small" onClick={() => onClick(user)} disabled={busy} aria-label="Désactiver la validation en deux étapes" sx={{ minWidth: 44, minHeight: 44 }}>
+          <PhonelinkEraseIcon fontSize={small ? 'small' : undefined} />
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
+
+function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor, busy }) {
   return (
     <TableCard>
       <TableHead>
@@ -380,17 +427,19 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                   <TableCell align="right">
                     <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                       <Tooltip title="Modifier">
-                        <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy}><EditIcon fontSize="small" /></IconButton></span>
+                        <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy} aria-label="Modifier"><EditIcon fontSize="small" /></IconButton></span>
                       </Tooltip>
-                      <Tooltip title={isSelf ? 'Utilisez la page Mot de passe pour modifier le vôtre.' : 'Réinitialiser le mot de passe'}>
-                        <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf}><VpnKeyIcon fontSize="small" /></IconButton></span>
+                      <Tooltip title={isSelf ? 'Mot de passe personnel : page Mot de passe.' : 'Réinitialiser le mot de passe'}>
+                        <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf} aria-label="Réinitialiser le mot de passe"><VpnKeyIcon fontSize="small" /></IconButton></span>
                       </Tooltip>
+                      <TwoFactorOffButton user={u} isSelf={isSelf} busy={busy} onClick={openTwoFactor} small />
                       <Tooltip title={u.isActive ? 'Désactiver' : 'Réactiver'}>
                         <span>
                           <IconButton
                             size="small"
                             onClick={() => handleToggleActive(u)}
                             disabled={busy || isSelfAdmin}
+                            aria-label={u.isActive ? 'Désactiver' : 'Réactiver'}
                           >
                             {u.isActive ? <ToggleOnIcon fontSize="small" color="success" /> : <ToggleOffIcon fontSize="small" />}
                           </IconButton>
@@ -398,7 +447,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                       </Tooltip>
                       <Tooltip title={
                         isSelf
-                          ? 'Vous ne pouvez pas vous supprimer.'
+                          ? 'Suppression de son propre compte impossible.'
                           : eligibleHard
                             ? 'Désactiver / Supprimer définitivement'
                             : 'Désactiver'
@@ -409,6 +458,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
                             onClick={() => openDelete(u)}
                             disabled={busy || isSelf}
                             color="error"
+                            aria-label="Supprimer l'utilisateur"
                           >
                             <DeleteOutlineIcon fontSize="small" />
                           </IconButton>
@@ -424,7 +474,7 @@ function renderTable({ users, me, openEdit, openReset, openDelete, handleToggleA
   );
 }
 
-function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, busy }) {
+function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleToggleActive, openTwoFactor, busy }) {
   return (
     <Stack spacing={1.5}>
       {users.map((u) => {
@@ -453,21 +503,22 @@ function renderMobileCards({ users, me, openEdit, openReset, openDelete, handleT
                 <Typography variant="body2"><strong>Dernière connexion :</strong> {formatLastLogin(u.lastLoginAt)}</Typography>
                 <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
                   <Tooltip title="Modifier">
-                    <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy}><EditIcon /></IconButton></span>
+                    <span><IconButton size="small" onClick={() => openEdit(u)} disabled={busy} aria-label="Modifier"><EditIcon /></IconButton></span>
                   </Tooltip>
-                  <Tooltip title={isSelf ? 'Utilisez la page Mot de passe pour modifier le vôtre.' : 'Réinitialiser le mot de passe'}>
-                    <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf}><VpnKeyIcon /></IconButton></span>
+                  <Tooltip title={isSelf ? 'Mot de passe personnel : page Mot de passe.' : 'Réinitialiser le mot de passe'}>
+                    <span><IconButton size="small" onClick={() => openReset(u)} disabled={busy || isSelf} aria-label="Réinitialiser le mot de passe"><VpnKeyIcon /></IconButton></span>
                   </Tooltip>
+                  <TwoFactorOffButton user={u} isSelf={isSelf} busy={busy} onClick={openTwoFactor} />
                   <Tooltip title={u.isActive ? 'Désactiver' : 'Réactiver'}>
                     <span>
-                      <IconButton size="small" onClick={() => handleToggleActive(u)} disabled={busy || isSelfAdmin}>
+                      <IconButton size="small" onClick={() => handleToggleActive(u)} disabled={busy || isSelfAdmin} aria-label={u.isActive ? 'Désactiver' : 'Réactiver'}>
                         {u.isActive ? <ToggleOnIcon color="success" /> : <ToggleOffIcon />}
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <Tooltip title={isSelf ? 'Vous ne pouvez pas vous supprimer.' : 'Désactiver / supprimer'}>
+                  <Tooltip title={isSelf ? 'Suppression de son propre compte impossible.' : 'Désactiver / supprimer'}>
                     <span>
-                      <IconButton size="small" onClick={() => openDelete(u)} disabled={busy || isSelf} color="error">
+                      <IconButton size="small" onClick={() => openDelete(u)} disabled={busy || isSelf} color="error" aria-label="Supprimer l'utilisateur">
                         <DeleteOutlineIcon />
                       </IconButton>
                     </span>

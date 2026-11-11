@@ -10,6 +10,9 @@ const {
 } = require('../utils/paymentSchedule');
 
 // specs/payment-schedule-and-cancellation.md rule 3
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('acompte: booking date + depositDueDays', () => {
   assert.equal(resolveDepositDueDate({ bookingDate: '2026-03-01', depositDueDays: 7 }), '2026-03-08');
   assert.equal(resolveDepositDueDate({ bookingDate: '2026-03-01', depositDueDays: 0 }), '2026-03-01');

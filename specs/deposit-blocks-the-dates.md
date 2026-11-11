@@ -126,6 +126,8 @@ booking is settled by the platform and carries no such promise.
     already resolves the payment mode as `deposit` only when `depositAmount > 0`; a last-minute stay
     therefore falls back to `full` — one charge, no Acompte/Solde lines — with no plugin change. Covered
     by a test, not by new code.
+    **Amended 2026-10-28** (specs/settings-input-guards.md rules 15, 21): `depositDueDays = 0` reads « à la
+    réservation »; the website path is unchanged and nothing blocks the operator's paths (A1 = label only).
 
 **Edge cases:**
 - Stay starting **exactly** on the threshold (30 days out) → last-minute, full payment
@@ -138,6 +140,165 @@ booking is settled by the platform and carries no such promise.
 - Direct devis with `depositPercent = 0` → deposit already 0; it prints the « Paiement intégral » block
   and its mention, which is the correct promise.
 - Platform devis, last-minute → untouched: no switch, no mention, current block.
+
+**Review fixes (2026-10-18, mega review #5)**
+
+17. **A re-issued devis owes its single payment on its new validity date** (2026-10-18, mega review #5).
+    When a save re-issues an expired devis (`specs/devis-extras-parity-and-price-lock.md` rule 14), the
+    quote's due dates are computed from the validity date the save writes, never from the expired one
+    it replaces. *Why:* after a save the fiche said « À payer avant : 08/10/2026 » while the PDF said
+    02/11.
+
+**Fixed at the 2026-10-27 audit**
+
+18. **A full payment link charges exactly what its payment records** (decided by the operator
+    2026-10-27). A `full` link — the admin one, the public website one and the e-mail that announces
+    it (`{{paymentAmount}}`) — charges the **acompte plus the solde**, i.e. the pre-arrival amount:
+    tourist tax included (unless it is paid on arrival), lines routed to the arrival complement
+    excluded. Its VAT basket is built like the solde's: the stay part at the global rate plus a 0 %
+    « Taxe de séjour » line. Paid, it marks the acompte (when there is one) and the solde received; a
+    stale-link check and the poll compare it to that same sum. *Why:* the link charged `finalPrice` —
+    tax left out, complement lines kept in — while its payment ticked the whole solde paid: 3 nights ×
+    100 € + ménage 80 € with 6 € of tax charged 380 € and booked 386 € as received; with the ménage in
+    the Complément the guest paid 380 € for a 306 € solde and was asked for the ménage again on arrival.
+
+**Decided by Adrien 2026-11-09 (D23, audits R33-M-M1 = R33-DB-M1, R33-DB-L1, R33-M-L1)**
+
+19. **A devis whose solde would fall on or before its validity date owes ONE payment, due on that date.** The
+    last-minute switch (rule 4) seen from the quote's validity date instead of its issue day: when
+    `startDate − balanceDaysBefore <= validUntil`, a **devis** gets `depositAmount = 0` and the whole
+    pre-arrival total on the single payment, due on `validUntil` (rule 7). One condition in the engine
+    (`paymentSchedule.owesSinglePaymentByValidity`), judged on every devis computation before every other
+    branch (a devis collects nothing before its conversion; a devis carrying an OTA name loses its acompte
+    too, and its solde keeps rule 7's derivation). Every reader follows from it:
+    - the devis's create, save and live quote; a **new** devis's live quote too — the fiche sends
+      `kind: 'devis'` with no id and `calculate-price` prices it with the validity the create will write
+      (`scheduleQuoteInputs(…, { newDevis })`, answering `quote.validUntil`);
+    - the site's public quote (`utils/directQuote`), priced as the devis its request creates: a stay inside
+      the window is offered in `full` mode, as its devis and its link charge it (rule 16 still holds);
+    - the read (`findById`, the fiche, the PDF and its summary) — a devis stored with an acompte inside the
+      window (before this rule, or made by « Transformer en devis ») reads as the single payment; the link
+      amounts (`recomputeQuote`); the e-mail tokens (the stored row);
+    - « Transformer en devis » stores the devis's own schedule;
+    - the conversion copies the devis's schedule, the single payment due on `validUntil` (never before the
+      conversion day); the reservation's live quote and saves keep it while its arrival is the one quoted
+      (engine input `devisPromise`), moved elsewhere it takes the reservation rules; the dashboard deadlines
+      read those stored dates (payment-schedule-and-cancellation rules 5 amendment and 56).
+    Inclusive threshold: a solde falling exactly on `validUntil` (45 days out with a 15-day validity) is one
+    payment. A reservation created directly keeps rule 47. *Why:* devis at +35 days with a 15-day validity:
+    acompte 191,40 € due 24/11, solde 451,40 € due 14/11 on the same PDF, and once converted the card asked for
+    the solde and offered to cancel before the acompte the guest was promised fell due.
+    **Amended 2026-11-09 (audit R33 N1).** « The e-mail tokens (the stored row) » held only for a row stored
+    after this rule: the stored row now always agrees with the read (rule 20), so the e-mail tokens, the
+    stale-link guard and the paid-link checks read the same single payment as the fiche.
+
+20. **The columns of an open devis always agree with its D23 read** _(added 2026-11-09, audit R33 N1)_. An open
+    devis (not converted) that rule 19 reads as one payment but whose columns still hold an acompte — stored
+    before rule 19, or its logement's « Solde dû … jours avant » changed since — is re-written as that payment
+    (`depositAmount = 0`, no acompte date, the pre-arrival total on the solde with the read's due date, one
+    history entry), and every open link billing another amount than the columns now ask is withdrawn
+    (`retireStaleLinks`, reason `amount-changed`): an acompte link stays payable only while the columns ask for
+    that acompte (decision D1: a withdrawn link is never paid). `devisModel.restoreSinglePayments` runs at
+    every boot (idempotent, before the server answers) and after every save of a logement, for that logement's
+    devis — the logement's balance delay is the only setting that moves a stored devis into the window (its
+    acompte switch and percentage do not move a stored split; a devis's own dates, validity and « Prolonger »
+    go through its save, which already re-stores and withdraws). A devis outside the window, a converted one
+    and another logement's are not touched (amended by rule 25: outside the window the columns follow the read's
+    dates too). The window is judged on the validity the fiche shows and the engine
+    prices: a legacy row stored without a validity date reads on its backfill (rule 7), never on « no date ».
+    An acompte link paid **before** the re-store converts the devis at
+    its stored split (`convertToReservation(…, { paidLinkType: 'deposit' })`): the stay keeps the acompte the
+    guest paid (120 € paid, solde 280 €), never a 0 € acompte under a paid link and the full price asked
+    again. *Why:* a devis +35 days out with a 15-day validity, stored with acompte 120 € / solde 280 € and an
+    open acompte link: the fiche read one payment of 400 €, the link stayed payable, and paying it booked the
+    120 € on a 0 € acompte and asked 400 € as the solde.
+
+21. **A converted devis whose stay exists cannot be deleted** _(added 2026-11-09, audit R34-RES-L1)_. The
+    reservation reads the devis's promise (its single payment and its deadline, rules 19 and 22) on the devis
+    row; deleting that row returned the stay to the reservation rules at its next priced save, in silence.
+    `DELETE /api/devis/:id` on a devis whose `convertedReservationId` names a row that still exists answers
+    409 `DEVIS_HOLDS_PROMISE` « Ce devis porte l'échéance de la réservation qui en est issue : il ne peut pas
+    être supprimé. », nothing written and no link touched (judged with the CGV and money refusals, before any
+    link is deactivated). Once the stay is deleted (or cancelled, rule 23) the devis can be deleted again; an
+    unconverted devis is not judged. *Why:* devis +35 days, one payment of 772,80 € due 24/11, converted, then deleted: the stay's next
+    save asked an acompte of 229,68 € and moved its deadline to 14/11.
+
+22. **A converted devis with no acompte keeps its deadline for the dates quoted** _(added 2026-11-09, audit
+    R34-RES-L2)_. A direct devis stored with `depositAmount = 0` owes one payment due on `validUntil` (rule 7),
+    inside the rule-19 window or outside it (an « Acompte » switch off, as both production logements, or a 0 %
+    acompte). The conversion gives the stay that payment due on `validUntil` (never before the conversion day,
+    as rule 19's), and the reservation's live quote and saves keep it while its arrival is the one quoted
+    (engine input `devisPromise`, which reads the devis's stored acompte; `paymentSchedule.devisPromisesOnePayment`
+    is the one condition of the conversion and of the engine); moved elsewhere the stay takes the reservation
+    rules, moved back it keeps the promise again. A devis converted with an acompte outside the window keeps
+    the reservation rules at its saves (payment-schedule-and-cancellation rule 5 amendment). An OTA devis is not
+    judged (by the conversion and, since rule 24, by the engine too). *Why:* a devis for a stay 103 days out, one payment due 24/11, converted: the first priced save of
+    the stay moved its deadline to start − 30 (21/01/2027) without a word, while an identical stay never
+    saved still read 24/11.
+    **Decision D27 (Adrien, 2026-11-09): option (a), « Garder le 23/10 ».** The stay keeps the deadline its devis
+    promised, rows stored before this rule included. Production example: reservation 22306, converted from devis
+    22305 for a stay on 30/12/2026, 1 834,20 € unpaid, stored due 23/10. It stays due 23/10 and reads overdue
+    since then (its cancel-on date is 30/10); it does not move to 30/11 at its next save, which the code before
+    this rule would have done.
+
+23. **The converted devis of a cancelled stay can be deleted again** _(added 2026-11-09, audit R34 L-N2)_. Rule 21
+    protects a deadline the stay still reads. A cancelled stay (`kind = 'cancelled'`) is never re-priced (409
+    `RESERVATION_CANCELLED`) and never brought back, so its devis holds no deadline any more: `DELETE
+    /api/devis/:id` judges it under the older refusals only (the CGV acceptance it carries, money on the devis).
+    A stay set aside as a duplicate (`kind = 'superseded'`) can be restored to a reservation, so its devis stays
+    refused like a live stay's. *Why:* devis converted, stay cancelled, then « Supprimer… » on the devis: 409
+    « porte l'échéance de la réservation » forever, with no deadline left to protect.
+
+24. **Only a direct devis hands its promise to the stay** _(added 2026-11-09, audit R35-RES-L1)_. Rule 22's promise
+    is the one a DIRECT devis makes (`isDirectChannel` of the devis's own platform, as the conversion judges it). An
+    OTA devis always stores `depositAmount = 0` and promised the solde on rule 7's stay-relative date: its stored 0
+    is no promise. The engine input `devisPromise` now carries the devis's platform, and the converted stay keeps
+    the promise only when that platform is a direct channel, whatever channel the stay itself is switched to.
+    *Why:* devis on Booking for a stay 130 days out (solde due start − 30), converted, then the fiche's platform
+    corrected to Direct: the live quote and the save moved the solde to the devis's validity date (24/11, three
+    months early), while an identical direct stay read start − 30.
+
+25. **Every open devis agrees with its read, inside the window or not** _(added 2026-11-09, audits R33b L1 and L2)_.
+    `restoreSinglePayments` (every boot, every logement save) re-writes any open devis whose columns differ from
+    its read (`scheduleReadOf`), not only the D23 window rows of rule 20:
+    - outside the window, a change of « Solde dû … jours avant » moves the read's solde date; the columns follow
+      (same amounts, so no link is withdrawn), and the e-mail tokens and the conversion read the date the fiche and
+      the PDF print;
+    - a legacy row stored without a validity date is stamped with the date it reads on (rule 7's backfill), once:
+      the conversion and the converted stay's promise (rule 22) read that date, never the raw NULL, and a later
+      change of « Validité des devis » no longer moves the row.
+    Devis the engine stored already agree with their read: the re-store writes nothing for them. *Why:* a devis at
+    +100 days and a delay moved from 30 to 40 days: the row, the e-mail and the conversion said 18/01, the fiche and
+    the PDF 08/01. A NULL-validity devis converted re-split into an acompte on the stay's first quote, or owed its
+    payment in the past.
+
+26. **Only a devis that made a promise is kept for its stay** _(added 2026-11-10, audit R36-RES-L2)_. Rule 21 protects
+    the promise the stay reads on the devis row; since rule 24 an OTA devis hands none, and a direct devis converted
+    with an acompte outside the window hands none either (rule 22: the stay takes the reservation rules). Rule 21's
+    refusal now applies only when the devis holds a promise, the engine's own condition: a direct platform
+    (`isDirectChannel` of the devis's platform) and `paymentSchedule.devisPromisesOnePayment` (stored acompte 0, or the
+    D23 window) on the devis's dates and validity, with the « Solde dû » delay of the logement the STAY is on now, the
+    one the engine prices (amended 2026-11-10, verification R36b L1: the rule first read the devis's own logement, so a
+    stay moved to a logement with a longer delay read a single-payment promise its devis could still be deleted under).
+    The engine's `keepsDevisPromise` and the refusal call one helper, `paymentSchedule.devisPromiseHeld`, so the two
+    cannot drift. Any other converted devis is judged by the older
+    refusals only (its CGV acceptance, its money) and is deleted, its stay untouched. D27 holds: a direct devis owing
+    one payment stays refused while its stay lives (rules 21, 23 unchanged for it). *Why:* devis 22330 on Booking,
+    converted, then « Supprimer… » → 409 « Ce devis porte l'échéance de la réservation qui en est issue », although
+    the stay reads no deadline from it. *Accepted (2026-11-10, verification R36b-core N3):* the refusal does not
+    re-check the stay's dates or channel: a stay moved off the devis's start or onto an OTA keeps its devis refused
+    while it lives, so moving it back restores the promise.
+27. **A devis holding the stay's payment link is kept** _(added 2026-11-10, audit R37-RES-L2)_. A link minted on a
+    devis keeps the devis id, and the stay converted from it reads that link as its own (`withConvertedDevis`): its
+    ledger, its stale links, its cancellation. While the stay lives (kind neither devis nor cancelled), deleting a
+    converted devis that owns a link still open, or one still owing the provider a deactivation or a last read
+    (`liveLinkReasonForStay(…, { openToo: true })`), is refused 409 `DEVIS_HOLDS_LINK` « Ce devis porte le lien de
+    paiement de la réservation qui en est issue : il ne peut pas être supprimé. », after the CGV, money and promise
+    refusals, before any link is touched. A paid or withdrawn link with nothing owed holds nothing; a cancelled stay's
+    devis is judged as before. This refusal sits beside rule 26's: a devis rule 26 lets go is still kept while it holds
+    the link. *Why:* a direct devis with an acompte outside the window, its acompte link sent, converted before the
+    guest paid, then « Supprimer… »: the link was withdrawn and the stay still asked for its acompte, with no link and
+    nothing said.
 
 ---
 
@@ -153,9 +314,23 @@ booking is settled by the platform and carries no such promise.
 | `utils/` | `devisPdfLabels.js` | T | 3 new keys × FR/EN: `depositSecuresDates`, `fullPaymentLabel`, `fullPaymentSecuresDates`. |
 | `utils/` | `paymentRequestService.js` | T | `REQUEST_TEMPLATES.full = 'full_request'`; new pure `resolveRequestType(row, requested)` (rule 10). |
 | `utils/` | `defaultEmailTemplatesRegistry.js` | T | `full_request` FR/EN + its two key lists (`EVENT_TRIGGERED_STABLE_KEYS`, `PAYMENT_STABLE_KEYS`). |
-| `controllers/` | `paymentsController.js` | T | Stops assuming `deposit` when the request names no type; injects `{{paymentAmount}}` from the link into the email context. |
+| `controllers/` | `paymentsController.js` | T | Stops assuming `deposit` when the request names no type; injects `{{paymentAmount}}` from the link into the email context. Rule 18: `resolveAmountCents('full')` = acompte + solde, `resolveVatComponents('full')` splits the tax like the solde. |
+| `utils/` | `ledgerLinks.js`, `storedLinkComponents.js`, `devisQuote.js` | T | Rule 18: the `full` amount (stale-link check, reservation basket, public full payment) = stored acompte + solde. |
+| `utils/` | `paymentPollRunner.js` | T | Rule 18: a paid `full` link on a reservation records the acompte too when there is one; the amount-changed check reads acompte + solde. |
 | `utils/` | `emailContextBuilder.js` | T | New `{{paymentAmount}}` variable, overridden per-send by the sender (rule 13). |
 | `models/` | `devisModel.js` | T | `resolvePaymentSchedule` mirrors rule 7 for a stored deposit-less **direct** devis (the enriched fiche and the PDF must not disagree with the engine). |
+| `utils/` | `paymentSchedule.js` | T | Rule 19: pure `owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore })` (the D23 condition) and `devisPromiseDueDate` (the converted single payment's deadline, never before the booking day). |
+| `utils/` | `pricing.js` | T | Rule 19: the devis branch at the head of the deposit chain; the converted reservation keeps the devis's single payment (`devisPromise`) next to the last-minute switch. |
+| `utils/` | `reservationQuoteContext.js` | T | Rule 19: `scheduleQuoteInputs` prices a new devis as a devis (`newDevis`) and hands a reservation its devis's `{ startDate, validUntil }`. |
+| `utils/` | `directQuote.js` | T | Rule 19: the site's quote is the devis its request creates (`kind: 'devis'` + the validity it will store). |
+| `controllers/` | `reservationsController.js` | T | Rule 19: `calculate-price` reads `kind: 'devis'` (no id) as a new devis and answers its `validUntil`. |
+| `models/` | `devisModel.js` | T | Rule 19: `resolvePaymentSchedule` reads a window devis as one payment; `convertToReservation` and `convertFromReservation` store that schedule. |
+| `models/` | `devisModel.js` | T | Rule 20: `restoreSinglePayments({ propertyId? })` re-stores an open window devis whose columns hold an acompte and withdraws its stale links; `scheduleReadOf` is the one read it and `findById` share; a conversion by a paid acompte link keeps a stored acompte. |
+| `models/` | `propertiesModel.js` | T | Rule 20: a logement save re-stores that logement's open devis. |
+| `utils/` | `paymentPollRunner.js` | T | Rule 20: the paid-link conversion names the link type (`paidLinkType`). |
+| `index.js` | — | T | Rule 20: the re-store at every boot, before the server listens (skipped with `SKIP_MIGRATIONS=true`). |
+| `models/` | `devisModel.js` | T | Rules 21 and 23: `removeRefusal` refuses a converted devis while its stay exists (409 `DEVIS_HOLDS_PROMISE`), unless that stay is cancelled. |
+| `utils/` | `paymentSchedule.js`, `pricing.js` | T | Rule 26: `devisPromiseHeld({ devisPromise, balanceDaysBefore })` (direct devis + `devisPromisesOnePayment`) is the one condition of the engine's `keepsDevisPromise` and of `devisModel.removeRefusal`, both fed the delay of the stay's logement. |
 | `routes/` | — | — | (none — the endpoint keeps its shape) |
 | `database.js` | — | — | (none — no schema change; the email template arrives through the existing boot seed) |
 | `scheduledTasks.js` | — | — | (none) |
@@ -168,6 +343,7 @@ booking is settled by the platform and carries no such promise.
 |---|---|---|---|
 | `pages/` | `ReservationPage.jsx` | T | Action renamed « Envoyer la demande de paiement »; the confirm/success copy uses what the server reports; no `type` sent. |
 | `services/` | `api.js` | T | `sendPaymentRequestEmail(id)` stops hardcoding `type: 'deposit'`. |
+| `pages/` | `ReservationPage.jsx` | T | Rule 19: every live quote of a devis not saved yet carries `kind: 'devis'`. |
 | `components/`, `hooks/`, `utils/`, `constants/`, `styles/` | — | — | (none) |
 
 **Component reuse declaration:**
@@ -184,6 +360,8 @@ booking is settled by the platform and carries no such promise.
 |---|---|---|---|---|
 | POST | `/api/reservations/:id/payment-emails` | `{ type?: 'deposit' \| 'balance' \| 'full' }` | `{ sent, type, url, amountCents, emailLogId, recipientEmail }` | Auth required. **Omitted `type` is resolved server-side** (rule 10) and echoed back so the UI can name what it sent. An explicit type is honoured; an explicit *unknown* one is refused with `400 INVALID_TYPE` rather than quietly swapped. Unknown record → `404`. `400 ZERO_AMOUNT` is now unreachable from the devis button. |
 | GET | `/api/devis/:id/pdf` | — | PDF stream | Unchanged contract; new content per rules 1–9. |
+| POST | `/api/reservations/calculate-price` | `{ …, kind?: 'devis' }` | quote (+ `validUntil` for a devis) | Rule 19: `kind: 'devis'` with neither `devisId` nor `reservationId` prices a new devis, validity included; ignored otherwise. |
+| PUT | `/api/properties/:id` | unchanged | unchanged | Rule 20: after the save, that logement's open devis inside the window are re-stored as one payment and their stale links withdrawn. |
 
 ---
 
@@ -259,8 +437,54 @@ summary needs no change: a 0 € acompte already renders as no acompte.
 - [x] `tests/public-payment-mode.unit.test.js` (T) — rule 16: no acompte → the website asks for the
       whole stay.
 - [x] Full suite green: **3426 tests, 0 failures** (`cd server && npm test`).
+- [x] `tests/full-payment-link-pre-arrival.unit.test.js` (5) — rule 18: the audit scenario (386 €, basket
+      380 + 6), a ménage in the Complément (306 €), a reservation's stored columns, the paid link records
+      the solde (and the acompte when there is one) without an « amount changed » rebooking.
+      `devis-quote`, `payment-link-quote-parity` and `reservation-ledger-links` follow the new amount.
+      Full suite after the audit fixes: **6 422 tests, 0 failures**.
+
+- [x] `tests/devis-single-payment-by-validity.unit.test.js` (27, 2026-11-09) — rule 19: the condition at 30 to 61
+      days with validity 15, 30 and 0; for each of 30, 31, 44, 45, 59, 60, 61 days × setting 15 / 30 / 0, a new
+      devis's live quote = its create, then its live quote, save, read, link quote, PDF schedule, e-mail tokens,
+      the site's quote and payment mode, the conversion, the reservation's live quote and save, and the dashboard
+      (nothing asked before `validUntil`) agree, never an acompte after the solde; a converted single payment moved
+      takes the reservation rules; an expired one converted late is due today; a devis stored with an acompte in
+      the window reads, quotes and converts as one payment; « Transformer en devis » in the window; rule 47 for a
+      reservation unchanged.
+- [x] `tests/devis-single-payment-restore.unit.test.js` (6, 2026-11-09, audit R33 N1) — rule 20: a legacy window
+      devis with an open acompte link re-stored at boot (columns = read, link `cancelled` / `amount-changed`,
+      history, e-mail tokens on the single payment, a second boot writes nothing); an acompte link paid before the
+      re-store converts at 120 / 280 with the acompte paid; « Solde dû … jours avant » 30 → 45 re-stores and
+      withdraws, back to 30 the columns still agree; outside the window, converted and another logement's devis
+      untouched; a legacy row with no validity date read on its backfill, like its link quote; the boot runs it
+      before listening.
+- [x] `tests/devis-converted-promise.unit.test.js` (6, 2026-11-09, audits R34-RES-L1, L2) — rule 21: a converted
+      devis whose stay exists is refused (409 `DEVIS_HOLDS_PROMISE`), the stay's priced save keeps its single
+      payment, deletable once the stay is gone; rule 22: outside the window a no-acompte devis's stay keeps its
+      deadline at its conversion, live quote and priced save, takes start − 30 when moved and the promise again when
+      moved back, an expired one converted late owes from today, a devis converted with an acompte keeps the
+      reservation rules.
+- [x] `tests/devis-converted-promise-cancelled.unit.test.js` (3, 2026-11-09, audit R34 L-N2) — rule 23: the
+      converted devis of a cancelled stay is deleted and the stay is untouched; its CGV acceptance and its money
+      still refuse the delete; a duplicate set aside and a live stay keep the 409 `DEVIS_HOLDS_PROMISE`.
+- [x] `tests/devis-ota-promise-channel.unit.test.js` (2, 2026-11-09, audit R35-RES-L1) — rule 24: an OTA devis
+      converted then switched to direct reads start − 30 on its live quote and its save, as a fresh direct stay; a
+      direct devis still hands its promise.
+- [x] `tests/devis-delete-promise-holder.unit.test.js` (4, 2026-11-10, audit R36-RES-L2, verification R36b L1) — rule 26:
+      a converted OTA devis and a direct devis converted with an acompte outside the window are deleted, their stay
+      untouched; a direct devis owing one payment, in and out of the window, stays refused (D27); a direct devis with an
+      acompte whose stay is moved to a logement with a 165-day delay reads the single payment and stays refused, back on
+      its logement it is deleted. `devis-converted-promise-cancelled`'s
+      superseded / live case now uses devis owing one payment.
+- [x] `tests/devis-restore-read-dates.unit.test.js` (5, 2026-11-09, audits R33b L1, L2) — rule 25: outside the window
+      a delay change moves the columns with the read (acompte and link kept, e-mail and conversion on the new date);
+      a no-acompte devis keeps its validity deadline; devis the engine stored are never re-written; a legacy NULL
+      validity is stamped and its converted stay keeps the single payment; an expired one converts due today.
 
 ### Client tests
+- [x] `pages/__tests__/ReservationPage.new-devis-quote-kind.test.jsx` (6, 2026-11-09) — rule 19: « Nouveau
+      devis » asks every live quote with `kind: 'devis'`; a new reservation and a saved devis do not; one case per
+      call site (audit R33 N2): the change of logement, « Actualiser tarifs », the quote before the create.
 - [x] `client/src/__tests__/payment-request-no-hardcoded-type.test.js` (2) — the request carries no
       type and the answered type is relayed. Full suite: **1066 tests green** (`npx vitest run`).
 

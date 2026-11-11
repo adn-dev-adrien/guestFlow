@@ -4,7 +4,10 @@ import { vi } from 'vitest';
 
 import ExtrasSection from '../ExtrasSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
+
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // specs/hourly-resource-quantity-and-sas-scheduling.md §3.1 rule 4 — an hourly-SCHEDULED resource
 // (« Bain nordique ») is sold by the hour on the fiche and placed on real slots later, during the
@@ -54,9 +57,11 @@ test('changing the hours commits the new quantity on blur', () => {
   expect(setResourceQuantity).toHaveBeenCalledWith(2, 2);
 });
 
-test('the session editor is still offered below the hours', () => {
+// The editor is the hourly-resources plugin's, drawn through `reservation.resourceLine`
+// (specs/plugins-phase-3c-hourly-resources.md rule 21) — loaded lazily.
+test('the session editor is still offered below the hours', async () => {
   renderWith();
-  expect(screen.getByText('Séances')).toBeInTheDocument();
+  expect(await screen.findByText('Séances')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Ajouter une séance/i })).toBeInTheDocument();
 });
 

@@ -171,10 +171,17 @@ commission) stays exactly as correct as it is today.
     separate accounting; the group is a reading aid above them, not a replacement. Un-ticking one of
     them clears the group (rule 8) and the line disappears — the fiche never shows a payment that is
     no longer true.
+18. **A complement paid before check-in is not the SAS's** (audit R25-A1, 2026-11-06). Rule 9's marker
+    decides: with `complementPaid = 1` and `complementPaidAtArrival = 0` (payment link, fiche tick,
+    reconciliation), the arrival commit leaves the complement exactly as it is, whatever
+    `complementSettled` / `complementPaidCash` say, and never counts it in the refund guard
+    (reservation-refunds rule 52). The recap seeds its mode from the stored flags on the first run
+    too, so it sends what is stored rather than « Plus tard ».
+    ([defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) rule 21.)
 
 **Edge cases:**
 - Complement already paid before the SAS → no unified block; the existing « ⚠ Le complément était déjà
-  marqué payé » warning is unchanged.
+  marqué payé » warning is unchanged, and the commit leaves that complement paid (rule 18).
 - `stayDue = 0` (the ordinary prepaid stay) → no unified block, no group, nothing new. The overwhelming
   majority of check-ins are unaffected.
 - Reception-only user → never sees the stay side at all ([reception-role-checkin-only.md](reception-role-checkin-only.md)),

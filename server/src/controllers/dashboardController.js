@@ -1,106 +1,63 @@
 /**
- * Dashboard controller — aggregate endpoints feeding the Dashboard page
- * (specs/linen-inventory-shortage-tracking.md §4.1).
- *
- * Currently exposes only `linenShortage`. Other dashboard aggregates can join here later.
+ * Dashboard controller — aggregate endpoints feeding the Dashboard page. The linen shortage alert
+ * belongs to the `linen` plugin (specs/plugins-phase-2-hosts.md rule 15).
  */
 
-const linenInventoryModel = require('../models/linenInventoryModel');
 const reservationsModel = require('../models/reservationsModel');
 const icalDateDriftModel = require('../models/icalDateDriftModel');
 const icalCancellationModel = require('../models/icalCancellationModel');
-const googleCalendarSync = require('../utils/googleCalendarSync');
+const { emit: defaultEmitPluginEvent } = require('../plugins/sdk/eventBus');
 const { validateApprovalCompensation } = require('../utils/cancellationCompensations');
 const { buildPaymentDeadlineRows } = require('../utils/paymentDeadlines');
+const { decorateDeadlineRows } = require('../utils/pluginPaymentDeadlineDecorators');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const platformsModel = require('../models/platformsModel');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('../utils/platformPayout');
 const { getTodayIsoDate } = require('../utils/reservationHelpers');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
-const TYPE_LABELS = Object.freeze({
-  single: 'Drap simple',
-  double: 'Drap double',
-  baby:   'Drap bébé',
-  large:  'Serviette grande',
-  medium: 'Serviette moyenne',
-  small:  'Serviette petite',
-});
-
 function buildController({
-  linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
   reservationsModel: injectedReservationsModel = reservationsModel,
   icalDateDriftModel: injectedIcalDateDriftModel = icalDateDriftModel,
   icalCancellationModel: injectedIcalCancellationModel = icalCancellationModel,
-  googleCalendarSync: injectedGoogleCalendarSync = googleCalendarSync,
+  emitPluginEvent = defaultEmitPluginEvent,
+  // Links abandoned by an approved cancellation are deactivated at the provider after the commit; a failure
+  // leaves their retry marker (specs/plugins-phase-3a-online-payment.md rule 8).
+  deactivateLinks = (links) => require('../utils/paymentLinkDeactivation').deactivateAbandonedLinks(links, { paymentLinksModel: require('../models/paymentLinksModel') }),
+  notifyBookingConflict = (id, options) => require('../utils/notificationService').notifyBookingConflict(id, options),
   // Injected so the deadline endpoints stay testable without Qonto/SMTP: production wires the real
   // payments controller lazily (it pulls the Qonto client, which must not load with the dashboard).
   sendDepositRequest = (id) => require('./paymentsController').sendDepositRequestFor(id),
   sendBalanceRequest = (id) => require('./paymentsController').sendBalanceRequestFor(id),
+  // specs/plugins-phase-3a-online-payment.md rule 5 — a request is a payment link: without a provider
+  // the row offers no « Envoyer la demande / Relancer » and the endpoint refuses.
+  hasPaymentProvider = () => Boolean(require('../utils/paymentProviders').active()),
+  // specs/plugins-phase-3a-online-payment.md rule 25 — without a provider the request leaves as an
+  // email the operator reads first: the id of the template that reads well without a link, or null.
+  requestTemplateId = (type, requestSent) => {
+    const { draftTemplateFor } = require('../utils/paymentRequestDraft');
+    const templates = require('../database').prepare(
+      "SELECT id, stableKey, enabled, subject, body, subjectEn, bodyEn FROM email_templates WHERE stableKey IN ('deposit_request', 'balance_request', 'deposit_reminder', 'balance_reminder')",
+    ).all();
+    return draftTemplateFor(templates, type, requestSent);
+  },
+  // specs/direct-installments.md rule 22 — the unpaid installments three days past their due date.
+  lateInstallments = (today) => require('./installmentsController').lateInstallments(today),
+  // specs/payment-schedule-and-cancellation.md rule 60 — what cancelling now would keep, from the cancel's own figures.
+  cancellationPreviewFor = (id) => require('./reservationCancellationController').previewFor(id),
   today: injectedToday = null,
 } = {}) {
   const resolveToday = () => injectedToday || getTodayIsoDate();
+  // Rule 60 — a row offering the cancellation says what it would keep: the cancel's own figure, or no offer when the
+  // cancel would refuse.
+  const withCancellationPreview = (row) => {
+    if (!row.canCancel) return { ...row, retainedDepositAmount: 0, keptFromGuest: 0 };
+    const preview = cancellationPreviewFor(row.reservationId);
+    return preview && preview.ok
+      ? { ...row, retainedDepositAmount: preview.retainedDepositAmount, keptFromGuest: Number(preview.keptFromGuest) || 0 }
+      : { ...row, canCancel: false, retainedDepositAmount: 0, keptFromGuest: 0 };
+  };
   return {
-    /**
-     * GET /api/dashboard/linen-shortage
-     *
-     * Returns a grouped-by-type list of every projected shortage in the horizon. Hidden when
-     * no shortage is found.
-     *
-     * Payload shape:
-     *   {
-     *     horizon: 'YYYY-MM-DD' | null,
-     *     shortagesByType: [
-     *       {
-     *         type: 'single', label: 'Drap simple',
-     *         firstShortageDate: 'YYYY-MM-DD',
-     *         maxMissing: 3,
-     *         impactedReservations: [{ id, clientName, startDate, endDate }, ...],
-     *       },
-     *       ...
-     *     ]
-     *   }
-     */
-    linenShortage(req, res) {
-      const result = injectedLinenInventoryModel.simulate();
-      if (!result) return res.json({ horizon: null, shortagesByType: [] });
-
-      const typesWithShortage = Object.entries(result.shortagesByType)
-        .filter(([, agg]) => agg.firstDate && agg.maxMissing > 0);
-      if (typesWithShortage.length === 0) {
-        return res.json({ horizon: result.horizon, shortagesByType: [] });
-      }
-
-      // Resolve impacted reservation details (client name + dates) via the reservations model.
-      // One batched query for all impacted ids across all types — cheaper than N point reads.
-      const allImpactedIds = new Set();
-      for (const [, agg] of typesWithShortage) {
-        for (const id of agg.impactedReservationIds) allImpactedIds.add(id);
-      }
-      const rows = typeof injectedReservationsModel.findClientNamesByIds === 'function'
-        ? injectedReservationsModel.findClientNamesByIds(Array.from(allImpactedIds))
-        : [];
-      const reservationsById = new Map(rows.map((r) => [Number(r.id), r]));
-      const resolveReservation = (id) => {
-        const r = reservationsById.get(Number(id));
-        if (!r) return { id, clientName: `#${id}`, startDate: '', endDate: '' };
-        const firstName = String(r.firstName || '').trim();
-        const lastName = String(r.lastName || '').trim();
-        const clientName = `${firstName} ${lastName}`.trim() || `#${id}`;
-        return { id, clientName, startDate: r.startDate || '', endDate: r.endDate || '' };
-      };
-
-      const shortagesByType = typesWithShortage.map(([type, agg]) => ({
-        type,
-        label: TYPE_LABELS[type] || type,
-        firstShortageDate: agg.firstDate,
-        maxMissing: agg.maxMissing,
-        impactedReservations: agg.impactedReservationIds.map(resolveReservation),
-      }));
-
-      return res.json({ horizon: result.horizon, shortagesByType });
-    },
-
     /**
      * GET /api/dashboard/ical-date-drift
      *
@@ -122,11 +79,12 @@ function buildController({
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
       const result = injectedIcalDateDriftModel.approve(id);
-      if (result.error) return res.status(result.status || 400).json({ error: result.error });
+      if (result.error) return res.status(result.status || 400).json({ error: result.error, ...(result.code ? { code: result.code } : {}), ...(result.field ? { field: result.field } : {}) });
       res.json({ ok: true });
-      // Approved date override → fire-and-forget Google push, after the response so the
-      // committed approval can never be turned into a 500 by the hook (spec rule 19-20).
-      if (result.reservationId) injectedGoogleCalendarSync.schedulePush(result.reservationId);
+      // Approved date override → plugins react after the response, so the committed approval can
+      // never be turned into a 500 by them (specs/plugins-phase-1-sdk.md rule 9).
+      if (result.reservationId) emitPluginEvent('reservation.updated', { reservationId: result.reservationId });
+      if (result.conflict) Promise.resolve(notifyBookingConflict(result.reservationId, { origin: 'ical' })).catch(() => {});
       return undefined;
     },
 
@@ -178,10 +136,10 @@ function buildController({
       const result = injectedIcalCancellationModel.approve(id, parsedCompensation.value);
       if (result.error) return res.status(result.status || 400).json({ error: result.error });
       res.json({ ok: true, outcome: result.outcome, compensationId: result.compensationId ?? null });
-      // Approved cancellation → fire-and-forget Google event delete, after the response
-      // (spec rule 19-20). Also fired on 'reservation_gone': the event may still exist as
-      // an orphan.
-      if (result.reservationId) injectedGoogleCalendarSync.scheduleDelete(result.reservationId);
+      // Approved cancellation → plugins react after the response (specs/plugins-phase-1-sdk.md
+      // rule 9). Also fired on 'reservation_gone': a Google event may still exist as an orphan.
+      if (result.reservationId) emitPluginEvent('reservation.cancelled', { reservationId: result.reservationId });
+      if (result.cancelledLinks && result.cancelledLinks.length > 0) Promise.resolve(deactivateLinks(result.cancelledLinks)).catch(() => {});
       return undefined;
     },
 
@@ -235,6 +193,30 @@ function buildController({
     },
 
     /**
+     * GET /api/dashboard/dates-taken
+     *
+     * The stays whose dates another stay took, told or not (specs/payment-link-lifecycle.md rule 43): one row per
+     * stay, every word written by the server (utils/datesTakenNotice.datesTakenCard). Empty `alerts: []` → no card.
+     */
+    datesTaken(req, res) {
+      const { datesTakenCard } = require('../utils/datesTakenNotice');
+      return res.json({ alerts: datesTakenCard(require('../database'), { today: resolveToday() }) });
+    },
+
+    /**
+     * POST /api/dashboard/dates-taken/:id/acknowledge
+     *
+     * « Vu » — the row leaves the card. 404 when it was not listed (or already seen).
+     */
+    acknowledgeDatesTaken(req, res) {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'INVALID_ID' });
+      const { acknowledgeDatesTaken } = require('../utils/datesTakenNotice');
+      if (!acknowledgeDatesTaken(require('../database'), id)) return res.status(404).json({ error: 'NOT_FOUND' });
+      return res.json({ ok: true });
+    },
+
+    /**
      * GET /api/dashboard/payment-deadlines
      *
      * Every direct reservation with a missed payment deadline (specs/payment-schedule-and-cancellation.md
@@ -255,8 +237,16 @@ function buildController({
         }
         return { ...row, payoutDueDays: payoutDaysByPlatform.get(key) };
       });
-      const rows = buildPaymentDeadlineRows(candidates, today);
-      return res.json({ rows });
+      const canRequest = hasPaymentProvider();
+      const rows = buildPaymentDeadlineRows(candidates, today, lateInstallments(today)).map(withCancellationPreview).map((row) => {
+        if (canRequest || !row.remindType) return row;
+        // Rule 25: no payment link to mint, so « Envoyer la demande » opens the request email as a draft.
+        const templateId = requestTemplateId(row.remindType, Boolean(row.requestSent));
+        return templateId
+          ? { ...row, remindByEmail: true, remindTemplateId: templateId, remindNote: 'Aucun paiement en ligne : demande par email.' }
+          : { ...row, remindType: null };
+      });
+      return res.json({ rows: decorateDeadlineRows(rows) });
     },
 
     /**
@@ -288,7 +278,8 @@ function buildController({
       }
       // specs/platform-payout-due-date.md rule 20 — a platform booking is paid by the platform, never
       // by the guest. The card already hides the button; refusing here means the email cannot be sent
-      // by hand either, whatever a stale client or a direct API call asks for.
+      // by hand either, whatever a stale client or a direct API call asks for. Checked BEFORE the
+      // provider: the reason a platform stay gets no reminder does not depend on the configuration.
       const platform = injectedReservationsModel.getPlatform(id);
       if (platform !== null && !isDirectChannel(platform)) {
         return res.status(400).json({
@@ -296,25 +287,18 @@ function buildController({
           message: "Cette réservation est réglée par la plateforme : aucune relance n'est envoyée au client.",
         });
       }
+      if (!hasPaymentProvider()) return res.status(409).json(require('../utils/paymentProviders').NO_PROVIDER);
       try {
         const { httpStatus, body } = type === 'deposit'
           ? await sendDepositRequest(id)
           : await sendBalanceRequest(id);
         return res.status(httpStatus).json(body);
       } catch (err) {
+        // specs/payment-link-lifecycle.md rule 50 — a refusal of the request service (409 LINK_ALREADY_PAID booked
+        // the payment) keeps its status and code, so the card re-reads its rows; only an unknown failure is a 502.
+        if (err && err.httpStatus) return res.status(err.httpStatus).json({ error: err.error, message: err.message });
         return res.status(502).json({ error: 'REMINDER_FAILED', message: String((err && err.message) || err) });
       }
-    },
-
-    /**
-     * GET /api/dashboard/public-devis-pending
-     *
-     * Site-origin devis awaiting handling (specs/site-booking-notifications.md §3 rule 5). Feeds
-     * the DevisPublicRequestAlert; empty `alerts: []` when nothing is pending.
-     */
-    publicDevisPending(req, res) {
-      const alerts = injectedReservationsModel.listPendingPublicDevis();
-      return res.json({ alerts });
     },
   };
 }

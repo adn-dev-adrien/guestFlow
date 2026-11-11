@@ -118,9 +118,12 @@ test('a reservation sold BEFORE the upgrade keeps its price when the recipe land
   applyNewRecipe(db);
 
   const snapshot = JSON.parse(db.prepare('SELECT tariffSnapshot FROM reservations WHERE id = 1').get().tariffSnapshot);
+  // The breakfast line is on the sold stay (10 portions, all billed): an option already on the stay
+  // and absent from the snapshot's maps was granted nothing (rule 66).
   const replayed = calculateReservationQuote({
     ...BASE, db, adults: 5, startDate: '2026-09-10', endDate: '2026-09-12',
     selectedOptions: [{ optionId: 6, quantity: 1 }], lockedTariff: snapshot,
+    lockedOptionLines: [{ optionId: 6, quantity: 1, billedUnits: 10, unitPrice: 10, totalPrice: 100 }],
   });
   assert.equal(replayed.extraGuestSurcharge, 162, '3 extra × 27 € × 2 nuits — the sold tariff');
   assert.equal(replayed.optionLines.find((l) => l.optionId === 6).freeUnits, 0, 'the pack was not part of the deal');

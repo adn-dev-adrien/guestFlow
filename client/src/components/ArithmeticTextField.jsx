@@ -18,11 +18,10 @@
 import React, { useEffect, useState } from 'react';
 import { TextField } from '@mui/material';
 import { evaluateArithmetic } from '../utils/arithmetic';
+import { formatAmountInput } from '../utils/formatters';
 
-function toDisplay(value) {
-  if (value === '' || value == null) return '';
-  return String(value);
-}
+// The committed amount as money (« 7,20 », never « 7.2 ») — specs/reservation-price-arithmetic.md rule 10.
+const toDisplay = formatAmountInput;
 
 export default function ArithmeticTextField({ value, onCommit, nonNegative = true, ...rest }) {
   const [draft, setDraft] = useState(toDisplay(value));
@@ -48,7 +47,7 @@ export default function ArithmeticTextField({ value, onCommit, nonNegative = tru
     let rounded = Math.round(result * 100) / 100;
     if (nonNegative) rounded = Math.max(0, rounded);
     onCommit(rounded);
-    setDraft(String(rounded));
+    setDraft(toDisplay(rounded));
   };
 
   return (

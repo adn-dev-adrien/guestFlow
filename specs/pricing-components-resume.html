@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Composants de prix — résumé de spec</title>
+<style>
+:root{
+  --sapin:#2F5D46; --sapin-fonce:#244a37; --miel:#C99038; --papier:#F8F5EF; --blanc:#fff;
+  --encre:#27251F; --mute:#615D52; --trait:#E4DED2;
+  --ok:#3E7D54; --ok-bg:#E6EFE7; --warn:#7A5A14; --warn-bg:#F6EDD7; --err:#963A32; --err-bg:#F7E8E5;
+  --info:#2F5170; --info-bg:#E5ECF3;
+  --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ease: cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box}
+html{background:var(--papier);color:var(--encre);font:100%/1.55 var(--sans);-webkit-text-size-adjust:100%}
+body{margin:0}
+::selection{background:#d8e6dc}
+:focus-visible{outline:2px solid var(--sapin);outline-offset:2px;border-radius:4px}
+.wrap{max-width:70rem;margin:0 auto;padding:clamp(1.25rem,4vw,3rem) clamp(1rem,4vw,2rem) 4rem}
+header.top{padding-bottom:1.5rem;border-bottom:1px solid var(--trait);margin-bottom:2rem}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(2rem,5vw,3.1rem);line-height:1.05;letter-spacing:-.02em;margin:0 0 .6rem;text-wrap:balance}
+h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.4rem,3vw,1.9rem);line-height:1.15;letter-spacing:-.01em;margin:3rem 0 .9rem;text-wrap:balance}
+h3{font-size:1.02rem;margin:1.2rem 0 .4rem}
+p,li{max-width:72ch}
+.lead{font-size:1.12rem}
+.meta{color:var(--mute);font-size:.92rem;display:flex;flex-wrap:wrap;gap:.4rem 1.2rem}
+.pill{display:inline-block;padding:.1rem .6rem;border-radius:999px;font-size:.8rem;font-weight:600;background:var(--warn-bg);color:var(--warn)}
+code{font:.85em ui-monospace,SFMono-Regular,Menlo,monospace;background:#efe9de;padding:.05em .35em;border-radius:4px}
+.find{margin:0;padding:0;list-style:none}
+.find li{padding:.85rem 0;border-top:1px solid var(--trait)}
+.find li:first-child{border-top:0}
+.find b{display:block;font-family:var(--serif);font-size:1.08rem;font-weight:600;margin-bottom:.15rem}
+.card{background:var(--blanc);border:1px solid var(--trait);border-radius:14px;box-shadow:0 1px 2px rgba(39,37,31,.04),0 12px 32px -18px rgba(39,37,31,.22);padding:clamp(1rem,3vw,1.6rem);margin:1rem 0}
+.hint{color:var(--mute);font-size:.88rem;margin:.2rem 0 .6rem}
+.cols{display:grid;gap:1rem 2rem;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr))}
+
+/* Diagramme */
+.diag{display:grid;grid-template-columns:minmax(12rem,15rem) 1fr;gap:1.4rem}
+@media (max-width:820px){.diag{grid-template-columns:1fr}}
+.entries{display:flex;flex-direction:column;gap:.45rem}
+.entries .lbl,.flow .lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin-bottom:.1rem}
+.entry{min-height:44px;text-align:left;font:inherit;font-size:.92rem;padding:.5rem .8rem;border:1px solid var(--trait);border-radius:10px;background:var(--papier);cursor:pointer;color:var(--encre);transition:background .2s var(--ease),border-color .2s var(--ease)}
+.entry[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:#fff}
+.flow{display:grid;gap:.5rem}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.comp{position:relative;min-height:44px;text-align:left;font:inherit;border:1.5px solid var(--trait);border-radius:12px;background:var(--blanc);padding:.8rem .9rem;cursor:pointer;color:var(--encre);transition:opacity .25s var(--ease),border-color .2s var(--ease),box-shadow .2s var(--ease),transform .2s var(--ease)}
+.comp:hover{border-color:#c9c1b1}
+.comp:active{transform:scale(.99)}
+.comp .n{display:inline-grid;place-items:center;width:1.5rem;height:1.5rem;border-radius:50%;background:var(--sapin);color:#fff;font-size:.8rem;font-weight:700;margin-right:.45rem}
+.comp b{font-family:var(--serif);font-size:1.08rem}
+.comp small{display:block;color:var(--mute);font-size:.84rem;margin-top:.2rem}
+.comp[aria-expanded="true"]{border-color:var(--sapin);box-shadow:0 0 0 3px #d8e6dc}
+.comp.off{opacity:.35}
+.comp .tag{position:absolute;top:.55rem;right:.6rem;font-size:.72rem;font-weight:600;padding:.05rem .45rem;border-radius:999px;background:var(--ok-bg);color:var(--ok)}
+.comp.off .tag{background:#eee;color:#777}
+.arrow{text-align:center;color:#a9a191;font-size:1.1rem;line-height:1;user-select:none}
+.store{border:1.5px dashed #c9c1b1;border-radius:12px;padding:.7rem .9rem;background:#fbfaf6;font-size:.92rem}
+.store b{font-family:var(--serif)}
+.detail{margin-top:1rem;border-top:1px solid var(--trait);padding-top:1rem}
+.detail h4{font-family:var(--serif);font-size:1.25rem;margin:0 0 .5rem}
+.detail dl{display:grid;grid-template-columns:8.5rem 1fr;gap:.35rem 1rem;margin:0}
+.detail dt{color:var(--mute);font-size:.88rem}
+.detail dd{margin:0;font-size:.93rem}
+@media (max-width:600px){.detail dl{grid-template-columns:1fr}.detail dt{margin-top:.4rem}}
+.pathnote{font-size:.9rem;color:var(--mute);margin:.6rem 0 0}
+
+/* Simulateur */
+.sim{display:grid;gap:1.4rem;grid-template-columns:minmax(0,23rem) minmax(0,1fr);align-items:start}
+@media (max-width:900px){.sim{grid-template-columns:minmax(0,1fr)}}
+fieldset{border:0;margin:0 0 1rem;padding:0}
+legend{font-weight:600;font-size:.95rem;margin-bottom:.4rem;padding:0}
+.seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--trait);border-radius:12px;padding:3px;background:var(--papier);gap:2px}
+.seg button{border:0;background:transparent;font:inherit;font-size:.85rem;min-height:40px;padding:0 .75rem;border-radius:9px;color:var(--mute);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--blanc);color:var(--encre);box-shadow:0 1px 3px rgba(39,37,31,.15)}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.f{display:grid;gap:.25rem;margin:.5rem 0}
+.f label{font-size:.86rem;color:var(--mute)}
+input[type=number],select{font:inherit;font-size:16px;min-height:44px;padding:.4rem .6rem;border:1px solid var(--trait);border-radius:10px;background:#fff;color:var(--encre);width:100%}
+input[aria-invalid="true"]{border-color:var(--err);background:var(--err-bg)}
+.inline{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.chk{display:flex;align-items:center;gap:.5rem;min-height:44px;font-size:.9rem}
+.chk input{width:1.15rem;height:1.15rem;accent-color:var(--sapin)}
+.btn{font:inherit;font-weight:600;min-height:44px;padding:0 1.1rem;border-radius:10px;border:1px solid var(--sapin);background:var(--sapin);color:#fff;cursor:pointer;transition:background .2s var(--ease),transform .15s var(--ease)}
+.btn:hover{background:var(--sapin-fonce)}
+.btn:active{transform:scale(.98)}
+.btn.ghost{background:transparent;color:var(--sapin)}
+.btn.small{min-height:36px;padding:0 .7rem;font-size:.82rem;font-weight:500}
+.btn.danger{border-color:var(--err);color:var(--err);background:transparent}
+.msg{font-size:.88rem;border-radius:10px;padding:.55rem .75rem;margin:.6rem 0 0}
+.msg.err{background:var(--err-bg);color:var(--err)}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.msg.warn{background:var(--warn-bg);color:var(--warn)}
+.msg:empty{display:none}
+.lines{list-style:none;margin:.6rem 0 0;padding:0}
+.lines li{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem .6rem;padding:.55rem 0;border-top:1px solid var(--trait);font-size:.9rem}
+.lines li .grow{flex:1 1 10rem}
+.out{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}
+.box{border:1px solid var(--trait);border-radius:12px;padding:.8rem .9rem;background:#fff}
+.box h4{margin:0 0 .5rem;font-size:.95rem;display:flex;align-items:center;gap:.45rem}
+.box h4 .n{display:inline-grid;place-items:center;width:1.35rem;height:1.35rem;border-radius:50%;background:var(--sapin);color:#fff;font-size:.74rem}
+.kv{display:flex;justify-content:space-between;gap:.8rem;font-size:.88rem;padding:.12rem 0}
+.kv span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+.kv.tot{border-top:1px solid var(--trait);margin-top:.3rem;padding-top:.35rem;font-weight:600}
+.kv.sub{color:var(--mute);font-size:.82rem;padding-left:.6rem}
+.note{font-size:.8rem;color:var(--mute);margin:.4rem 0 0}
+.chip{display:inline-block;font-size:.74rem;font-weight:600;padding:.08rem .5rem;border-radius:999px;white-space:nowrap}
+.c-paid{background:var(--ok-bg);color:var(--ok)}
+.c-arr{background:var(--warn-bg);color:var(--warn)}
+.c-dep{background:var(--info-bg);color:var(--info)}
+.c-plan{background:#eee9df;color:#5b564b}
+.c-off{background:#f1ece2;color:#8a7f69}
+.c-src{background:transparent;border:1px solid var(--trait);color:var(--mute);font-weight:500}
+.c-ref{background:var(--err-bg);color:var(--err)}
+.views{margin-top:1rem}
+.view{border:1px solid var(--trait);border-radius:12px;background:#fff;padding:.9rem 1rem;margin-top:.6rem}
+.view h5{font-family:var(--serif);font-size:1.1rem;margin:0 0 .3rem}
+.view .sec{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:.8rem 0 .2rem}
+.vline{display:grid;grid-template-columns:1fr auto;gap:.2rem .8rem;padding:.4rem 0;border-top:1px solid #f0ebe1;font-size:.9rem}
+.vline .d{color:var(--mute);font-size:.8rem}
+.vline .a{font-variant-numeric:tabular-nums;text-align:right}
+.vtotal{display:flex;justify-content:space-between;font-weight:600;border-top:1px solid var(--trait);margin-top:.4rem;padding-top:.45rem}
+.empty{color:var(--mute);font-size:.88rem;padding:.4rem 0}
+.ex{font-size:.86rem;color:var(--mute);margin:.2rem 0 1rem}
+.cmp{font-size:.82rem;border-left:3px solid var(--err);background:var(--err-bg);color:#6e2b25;padding:.4rem .6rem;border-radius:0 8px 8px 0;margin-top:.5rem}
+.cmp.good{border-color:var(--ok);background:var(--ok-bg);color:#24502f}
+
+table.t{width:100%;border-collapse:collapse;font-size:.9rem}
+table.t th,table.t td{text-align:left;padding:.55rem .5rem;border-top:1px solid var(--trait);vertical-align:top}
+table.t th{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);font-weight:600;border-top:0}
+.scroll{overflow-x:auto}
+.q{padding:.8rem 0;border-top:1px solid var(--trait)}
+.q b{display:block}
+.q .def{display:inline-block;margin-top:.25rem;font-size:.86rem;background:var(--ok-bg);color:var(--ok);padding:.12rem .55rem;border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* Révision 2026-11-11 */
+.grid3{display:grid;grid-template-columns:1.2fr .8fr 1.2fr;gap:.6rem}
+@media (max-width:820px){.grid3{grid-template-columns:1fr}}
+.cbox{border:1.5px solid var(--trait);border-radius:12px;background:var(--blanc);padding:.55rem;transition:opacity .25s var(--ease),border-color .2s var(--ease),box-shadow .2s var(--ease)}
+.cbox.off{opacity:.35}
+.cbox.sel{border-color:var(--sapin);box-shadow:0 0 0 3px #d8e6dc}
+.chead{display:block;width:100%;text-align:left;font:inherit;border:0;background:transparent;padding:.35rem .4rem;min-height:44px;cursor:pointer;color:var(--encre);border-radius:8px;position:relative}
+.chead b{font-family:var(--serif);font-size:1.05rem}
+.chead small{display:block;color:var(--mute);font-size:.82rem}
+.chead .n{display:inline-grid;place-items:center;width:1.45rem;height:1.45rem;border-radius:50%;background:var(--sapin);color:#fff;font-size:.78rem;font-weight:700;margin-right:.4rem}
+.chead .tag{position:absolute;top:.4rem;right:.4rem;font-size:.7rem;font-weight:600;padding:.05rem .45rem;border-radius:999px;background:var(--ok-bg);color:var(--ok)}
+.cbox.off .chead .tag{background:#eee;color:#777}
+.units{display:flex;flex-wrap:wrap;gap:.35rem;padding:.2rem .3rem .3rem}
+.unit{font:inherit;font-size:.8rem;min-height:36px;padding:0 .65rem;border-radius:999px;border:1px solid var(--trait);background:var(--papier);cursor:pointer;color:var(--encre)}
+.unit[aria-pressed="true"]{background:var(--sapin);border-color:var(--sapin);color:#fff}
+.unit.plug{border-style:dashed}
+.journal{list-style:none;margin:.4rem 0 0;padding:0;font-size:.82rem;color:var(--mute)}
+.journal li{padding:.2rem 0;border-top:1px dashed var(--trait)}
+.clock{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+.clockline{font-size:.86rem;margin:.3rem 0 0;padding:.45rem .65rem;border-radius:10px;background:var(--papier)}
+.clockline b{font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;min-height:44px;accent-color:var(--sapin)}
+input[type=time]{font:inherit;font-size:16px;min-height:44px;padding:.3rem .5rem;border:1px solid var(--trait);border-radius:10px;width:100%}
+.out{grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))}
+.prs{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr))}
+.pr{border:1px solid var(--trait);border-radius:12px;background:#fff;padding:.9rem 1rem}
+.pr h3{margin:0 0 .3rem;font-family:var(--serif);font-size:1.15rem}
+.pr .sz{font-size:.8rem;font-weight:600;color:var(--warn);background:var(--warn-bg);border-radius:999px;padding:.05rem .5rem;display:inline-block;margin-bottom:.4rem}
+.pr ul{margin:.3rem 0 0;padding-left:1.1rem;font-size:.9rem}
+.res{display:inline-block;margin-top:.25rem;font-size:.84rem;background:var(--ok-bg);color:var(--ok);padding:.12rem .55rem;border-radius:8px}
+.clockbox{border-style:dashed;background:#fbfaf6}
+.phase{font:.82rem ui-monospace,SFMono-Regular,Menlo,monospace;background:#f3efe6;border-radius:8px;padding:.5rem .6rem;white-space:pre-wrap;word-break:break-word;margin:.2rem 0 0}
+.ph-before{color:var(--warn)}.ph-during{color:var(--info)}.ph-after{color:var(--mute)}
+.pipe{margin:.2rem 0 1rem}
+.pipe .lbl{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:.6rem 0 .3rem}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.3rem}
+.steps li{font-size:.8rem;padding:.2rem .6rem;border-radius:999px;border:1px solid var(--trait);transition:opacity .25s var(--ease),background .25s var(--ease)}
+.steps li.on{background:var(--ok-bg);color:var(--ok);border-color:#cfe0d2;font-weight:600}
+.steps li.skip{color:#9a958a;text-decoration:line-through;opacity:.75}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.box.skip{opacity:.45;background:#faf8f3}
+.patterns td:first-child{font-weight:600;white-space:nowrap}
+@media (max-width:600px){.patterns td:first-child{white-space:normal}.patterns th:nth-child(2),.patterns td:nth-child(2){display:none}}
+.tier{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;padding:.25rem .3rem;border-top:1px dashed var(--trait)}
+.tier:first-of-type{border-top:0}
+.tlbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);min-width:4.2rem}
+.unit.inst{background:#fff;border-style:dotted}
+.tags{font:.78rem ui-monospace,SFMono-Regular,Menlo,monospace;background:#f3efe6;border-radius:8px;padding:.45rem .55rem;margin:.2rem 0 .4rem;white-space:pre-wrap;word-break:break-word}
+table.jr{width:100%;border-collapse:collapse;font-size:.82rem;font-variant-numeric:tabular-nums}
+table.jr th,table.jr td{padding:.3rem .35rem;border-top:1px solid var(--trait);text-align:left}
+table.jr td.n{text-align:right;white-space:nowrap}
+table.jr th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);border-top:0}
+table.jr tr.e td{background:#f8f5ef;font-weight:600}
+.res.open{background:var(--warn-bg);color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="meta"><span class="pill">Découpage et plan en 3 PR approuvés · amendements d’architecture à valider</span><span>Référence : <code>specs/pricing-components.md</code></span></p>
+  <h1>Des composants de prix unitaires</h1>
+  <p class="lead">Les nuits, la taxe de séjour, les articles, les totaux et l’encaissement sont calculés séparément, par petits composants testables un par un. Une vente faite depuis la fiche, la boutique ou le SAS devient une ligne de la réservation, payée ou à payer, sans jamais recalculer les nuits.</p>
+  <p class="meta"><span>Décisions du 11/11 intégrées : remises sur les nuits et les articles, séjour commencé à la date et à l’heure d’arrivée, moment de paiement modifiable, lien Qonto séparé sur les plateformes, taxe de séjour à part, horloge du séjour à part. Amendements : un calculateur par type d’article, réservations en aval (bain), ports d’accès aux données, une seule interface de réglages, TVA par ligne selon le client, étapes chaînables et vente hors séjour. Deuxième série : Articles = une tête, des familles génériques et des articles qui ne sont que de la configuration ; la TVA comme composant à part ; une sortie comptable générique ; chaque formule n’existe qu’une fois ; un garde-fou des prix dans chaque PR. Toujours 3 PR.</span></p>
+</header>
+
+<h2>Le constat</h2>
+<ul class="find">
+  <li><b>Un seul calcul fait tous les métiers</b>Une seule fonction de près de 2 000 lignes (<code>calculateReservationQuote</code>) calcule dans la même passe les nuits, la taxe, les articles, les remises, la TVA, l’acompte, le solde, l’échéancier et les compléments. Elle va même lire la base de données au milieu du calcul.</li>
+  <li><b>La boutique doit rejouer tout l’enregistrement de la fiche</b>Pour vendre une bière, l’application séjour reconstruit la fiche entière et la ré-enregistre trois fois. Toutes les règles du séjour se réveillent : nuits minimum, capacité, taxe, prix plateforme recalculé (905 € au lieu des 901,82 € stockés).</li>
+  <li><b>Le moment du paiement est deviné après coup</b>On calcule, puis on vérifie où l’argent est allé, et on refuse si ce n’est pas le bon endroit. Pour savoir si la boutique peut ouvrir, on passe même une fausse commande à 1 € à chaque affichage.</li>
+  <li><b>Un même drapeau veut dire deux choses</b>« Dans le complément » désigne à la fois « payé à l’arrivée » et « non compris dans le prix plateforme ». Sur un séjour Booking, un article lu comme compris réduit l’hébergement : le prix des nuits bouge alors qu’on a vendu un article.</li>
+  <li><b>Le « payé » est rangé dans une note à part</b>Chaque écran retire lui-même ce qui est déjà payé par carte, et ils ne le font pas pareil : la fiche, le récap du SAS et la répartition comptable affichent des montants différents.</li>
+  <li><b>Les mêmes calculs existent en plusieurs exemplaires</b>Le bain est chiffré à quatre endroits, la TVA est découpée à quatre endroits, le prix brut ou net plateforme à trois, et « le séjour a-t-il commencé ? » a deux réponses.</li>
+</ul>
+
+<h2>Les composants</h2>
+<p class="hint">Les quatre composants demandés sont découpés en unités. Les articles ont chacun leur propre calculateur, la taxe de séjour et l’horloge du séjour sont à part, et l’horloge est consultée par tous les autres. Aucun composant ne lit la base de données : il passe par des ports et reçoit ses réglages par une seule interface. Un enchaînement d’étapes (pipeline) n’appelle que ce dont chaque cas a besoin. Cliquer sur une entrée pour voir ce qu’elle appelle, puis sur un composant ou une unité pour voir son contrat.</p>
+<div class="card">
+  <div class="diag">
+    <div class="entries" role="group" aria-label="Qui demande un prix">
+      <div class="lbl">Qui demande un prix (un pipeline chacun)</div>
+      <button class="entry" data-path="fiche" aria-pressed="false">Fiche : créer ou modifier le séjour</button>
+      <button class="entry" data-path="ajout" aria-pressed="false">Fiche : ajouter un produit</button>
+      <button class="entry" data-path="boutique" aria-pressed="false">Boutique « Mon séjour »</button>
+      <button class="entry" data-path="sas" aria-pressed="false">SAS arrivée et départ</button>
+      <button class="entry" data-path="ext" aria-pressed="false">Vente hors séjour</button>
+      <button class="entry" data-path="intake" aria-pressed="false">Intégration plateformes et iCal</button>
+      <button class="entry" data-path="devis" aria-pressed="false">Devis</button>
+      <button class="entry" data-path="annul" aria-pressed="false">Annulation</button>
+      <button class="entry" data-path="acc" aria-pressed="false">Export comptable</button>
+    </div>
+    <div class="flow">
+      <div class="lbl">Composants et unités</div>
+      <div class="grid3">
+        <div class="cbox" data-c="stay"><button class="chead" data-c="stay"><span class="tag"></span><span class="n">1</span><b>Séjour</b><small>Nuits et personnes en plus</small></button>
+          <div class="units"><button class="unit" data-u="nights">Nuits</button><button class="unit" data-u="guests">Personnes en plus</button></div></div>
+        <div class="cbox" data-c="tax"><button class="chead" data-c="tax"><span class="tag"></span><span class="n">T</span><b>Taxe de séjour</b><small>Composant à part</small></button>
+          <div class="units"><button class="unit" data-u="tax">Taxe de séjour</button></div></div>
+        <div class="cbox" data-c="extras"><button class="chead" data-c="extras"><span class="tag"></span><span class="n">2</span><b>Articles</b><small>Une tête, seule interface ; des familles génériques ; des articles qui ne sont que de la configuration</small></button>
+          <div class="tier"><span class="tlbl">Tête</span><button class="unit" data-u="head">Articles : chiffrer, valider, décrire</button><button class="unit" data-u="allow">Offerts</button><button class="unit plug" data-u="fulfil">→ Réservation du créneau</button></div>
+          <div class="tier"><span class="tlbl">Familles</span><button class="unit" data-u="k_fixed">Prix simple</button><button class="unit" data-u="k_unit">À l’unité</button><button class="unit" data-u="k_night">Par nuit</button><button class="unit" data-u="k_person">Par personne</button><button class="unit" data-u="k_pn">Par personne et par nuit</button><button class="unit" data-u="k_pct">% du séjour</button><button class="unit" data-u="k_prog">Paliers</button><button class="unit plug" data-u="k_hour">Horaire (plugin)</button></div>
+          <div class="tier"><span class="tlbl">Articles</span><button class="unit inst" data-u="i_biere">Bière locale</button><button class="unit inst" data-u="i_pdj">Petit-déjeuner</button><button class="unit inst" data-u="i_bain">Bain nordique</button><button class="unit inst" data-u="i_menage">Ménage</button></div></div>
+      </div>
+      <div class="arrow" aria-hidden="true">↓</div>
+      <div class="cbox" data-c="totals"><button class="chead" data-c="totals"><span class="tag"></span><span class="n">3</span><b>Totaux</b><small>Prix plateforme, remises, puis une simple addition de ce que la TVA a rendu</small></button>
+        <div class="units"><button class="unit" data-u="platform">Prix plateforme</button><button class="unit" data-u="disc">Remises</button><button class="unit" data-u="agg">Agrégation</button></div></div>
+      <div class="arrow" aria-hidden="true">↓</div>
+      <div class="cbox" data-c="coll"><button class="chead" data-c="coll"><span class="tag"></span><span class="n">4</span><b>Encaissement</b><small>Quand et comment chaque montant est payé</small></button>
+        <div class="units"><button class="unit" data-u="sched">Échéancier</button><button class="unit" data-u="settle">Règlement des lignes</button><button class="unit" data-u="ppay">Paiement plateforme</button></div></div>
+      <div class="cbox clockbox" data-c="clock"><button class="chead" data-c="clock"><span class="tag"></span><span class="n">H</span><b>Horloge du séjour</b><small>Composant à part, consulté par tous les autres : on lui donne le séjour, il répond « avant », « pendant » ou « après »</small></button>
+        <div class="units"><button class="unit" data-u="clock">phaseOf (pur)</button><button class="unit" data-u="clockres">phaseForReservation (par séjour)</button></div></div>
+      <div class="cbox clockbox" data-c="vat"><button class="chead" data-c="vat"><span class="tag"></span><span class="n">V</span><b>TVA</b><small>Composant à part, comme l’horloge : chacun lui envoie des montants étiquetés, elle seule rend taux, TVA et HT</small></button>
+        <div class="units"><button class="unit" data-u="tag">Montant étiqueté</button><button class="unit" data-u="vat">vatOf (groupes)</button></div></div>
+      <div class="cbox clockbox" data-c="acc"><button class="chead" data-c="acc"><span class="tag"></span><span class="n">C</span><b>Sortie comptable</b><small>Un journal neutre lu sur les lignes, la TVA et les encaissements ; un adaptateur par format</small></button>
+        <div class="units"><button class="unit" data-u="accout">Écritures neutres</button><button class="unit" data-u="exp">Exports : CSV, JSON, synthèse, FEC</button></div></div>
+      <div class="cbox clockbox" data-c="infra"><button class="chead" data-c="infra"><span class="tag"></span><span class="n">P</span><b>Ports, réglages, pipeline, événements</b><small>Ce qui relie les composants au reste de l’application, sans qu’ils le connaissent</small></button>
+        <div class="units"><button class="unit" data-u="pipe">Pipeline</button><button class="unit" data-u="ports">Ports (données)</button><button class="unit" data-u="settings">Réglages</button><button class="unit" data-u="events">Événements</button><button class="unit plug" data-u="intake">Port « réservation plateforme »</button></div></div>
+      <div class="arrow" aria-hidden="true">↓</div>
+      <div class="store"><b>Lignes de la réservation, ou vente hors séjour.</b> Chaque article est une ligne avec son prix, sa remise, son taux de TVA, son origine (fiche, boutique ou SAS) et son état : payée, à payer à l’arrivée, à payer au départ ou comprise dans le prix plateforme.<br><span style="color:var(--mute)">↓ La fiche, le SAS arrivée, le SAS départ et l’application séjour lisent le même détail.</span></div>
+      <p class="pathnote" id="pathnote" aria-live="polite"></p>
+    </div>
+  </div>
+  <div class="detail" id="cdetail" aria-live="polite"></div>
+</div>
+
+<h2>Les patrons de conception</h2>
+<p class="hint">Ce sont des fonctions et des objets JavaScript simples, sans hiérarchie de classes ni framework d’injection.</p>
+<div class="scroll"><table class="t patterns">
+<thead><tr><th>Patron</th><th>Où</th><th>Pourquoi</th></tr></thead>
+<tbody>
+<tr><td>Stratégie + registre</td><td>Calculateurs d’articles, réservations en aval</td><td>Un petit calculateur par type d’article. Un plugin ajoute un type sans toucher au cœur.</td></tr>
+<tr><td>Ports et adaptateurs</td><td>Séjours, catalogue, paiements, créneaux, Qonto, événements</td><td>Les composants restent purs et testables. La base, Qonto et les plugins sont derrière quelques fonctions.</td></tr>
+<tr><td>Pipeline</td><td>Un enchaînement d’étapes par cas d’usage</td><td>On n’appelle que les étapes utiles. Une donnée manquante est détectée au démarrage, jamais pendant la commande d’un client.</td></tr>
+<tr><td>Observateur, événements</td><td>E-mail, agenda, notifications après une vente</td><td>La vente ne dépend pas d’eux, et leur échec ne l’annule jamais.</td></tr>
+<tr><td>Fournisseur de réglages</td><td>Taxe, nuits, personnes en plus, plateforme, TVA, horloge, échéancier, articles</td><td>Une seule façon de régler chaque composant, avec ses propres règles de validation, au lieu de lire la fiche du logement.</td></tr>
+</tbody></table></div>
+
+<h2>Simulateur</h2>
+<p class="hint">Les chiffres sont des exemples. En direct, la nuit est à 110 € ; sur Booking, le prix brut est de 125 € la nuit. 2 personnes sont incluses, chaque adulte en plus coûte 15 € par nuit et la taxe est de 1,10 € par adulte et par nuit. Les taux de TVA d’exemple sont réglables : hébergement et repas 10 %, boissons 20 %, bain et services 10 % pour un client hébergé, 20 % pour un client extérieur.</p>
+<div class="card">
+<div class="f" style="margin-top:0"><label>Cas d’usage</label>
+  <div class="seg" data-k="uc"><button data-v="stay" aria-pressed="true">Séjour</button><button data-v="ext" aria-pressed="false">Vente hors séjour (boissons)</button></div></div>
+<div class="pipe" id="pipe" aria-live="polite"></div>
+<div class="sim">
+  <div>
+    <fieldset id="fsStay">
+      <legend>Le séjour</legend>
+      <div class="inline">
+        <div class="f"><label for="nights">Nuits</label><input id="nights" type="number" min="1" max="21" value="3" inputmode="numeric"></div>
+        <div class="f"><label for="adults">Adultes</label><input id="adults" type="number" min="1" max="6" value="2" inputmode="numeric"></div>
+      </div>
+      <div class="msg err" id="stayErr" role="alert"></div>
+      <div class="f"><label>Canal</label>
+        <div class="seg" data-k="channel"><button data-v="direct" aria-pressed="true">Direct</button><button data-v="booking" aria-pressed="false">Booking</button></div></div>
+      <div id="discWrap">
+        <div class="f"><label for="disc">Remise (%)</label><input id="disc" type="number" min="0" max="50" value="0" inputmode="numeric"></div>
+        <div class="f"><label>La remise porte sur</label>
+          <div class="seg" data-k="target"><button data-v="nights" aria-pressed="true">Nuits</button><button data-v="extras" aria-pressed="false">Articles</button><button data-v="all" aria-pressed="false">Tout</button></div></div>
+      </div>
+    </fieldset>
+
+    <fieldset id="fsClock">
+      <legend>Maintenant</legend>
+      <div class="clock">
+        <div class="f"><label for="cin">Heure d’arrivée prévue</label><input id="cin" type="time" value="15:00" step="900"></div>
+        <div class="f"><label for="day">Jour</label>
+          <select id="day"><option value="-3">J-3</option><option value="-1">J-1, veille</option><option value="0" selected>Jour d’arrivée</option><option value="1">J+1</option><option value="2">J+2</option><option value="3">J+3</option><option value="5">J+5</option></select></div>
+      </div>
+      <div class="f"><label for="hour">Heure : <b id="hourLbl">10:00</b></label><input id="hour" type="range" min="0" max="1425" step="15" value="600" aria-describedby="clockLine"></div>
+      <p class="clockline" id="clockLine" aria-live="polite"></p>
+      <label class="chk"><input type="checkbox" id="sasA"> SAS arrivée validé (ne change que l’affichage)</label>
+      <label class="chk"><input type="checkbox" id="depDone"> Complément de départ perçu</label>
+    </fieldset>
+
+    <fieldset id="fsCtx" hidden>
+      <legend>Le client</legend>
+      <div class="f"><label>Contexte client (choisit le taux de TVA)</label>
+        <div class="seg" data-k="ctx"><button data-v="external" aria-pressed="true">Extérieur, sans séjour</button><button data-v="hosted" aria-pressed="false">Hébergé sur le domaine</button></div></div>
+      <p class="note">Il n’y a pas de réservation. Les nuits, la taxe de séjour, l’horloge et l’échéancier ne sont pas appelés.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Ajouter un article</legend>
+      <div class="f"><label for="art">Article</label><select id="art"></select></div>
+      <div class="f"><label for="qty" id="qtyLbl">Quantité</label><input id="qty" type="number" min="1" value="1" inputmode="numeric"></div>
+      <label class="chk" id="eveWrap" hidden><input type="checkbox" id="eve"> Créneau du soir (+20 €)</label>
+      <div class="f" id="srcWrap"><label>Depuis</label>
+        <div class="seg" data-k="src">
+          <button data-v="resa" aria-pressed="false">Fiche, à la réservation</button>
+          <button data-v="fiche" aria-pressed="true">Fiche, ajout</button>
+          <button data-v="shop" aria-pressed="false">Boutique</button>
+          <button data-v="sas" aria-pressed="false">SAS</button>
+        </div></div>
+      <div class="f" id="payWrap"><label>Paiement</label>
+        <div class="seg" data-k="pay"><button data-v="now" aria-pressed="false" id="payNow">Carte maintenant (lien Qonto)</button><button data-v="later" aria-pressed="true" id="payLater">À payer</button></div></div>
+      <button class="btn" id="add">Ajouter</button>
+      <div class="msg" id="addMsg" role="status"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend id="linesLegend">Lignes de la réservation</legend>
+      <ul class="lines" id="lines"></ul>
+      <div class="msg warn" id="refundMsg"></div>
+      <ul class="journal" id="journal" aria-label="Historique et événements"></ul>
+    </fieldset>
+  </div>
+
+  <div>
+    <div class="out">
+      <div class="box" style="grid-column:1/-1" data-step="clock"><h4><span class="n">H</span>Horloge du séjour · <code>phaseForReservation(id, maintenant)</code></h4><div id="oH"></div></div>
+      <div class="box" data-step="stay"><h4><span class="n">1</span>Séjour</h4><div id="o1"></div></div>
+      <div class="box" data-step="tax"><h4><span class="n">T</span>Taxe de séjour</h4><div id="oT"></div></div>
+      <div class="box" data-step="extras"><h4><span class="n">2</span>Articles</h4><div id="o2"></div></div>
+      <div class="box" data-step="vat"><h4><span class="n">V</span>TVA · montants étiquetés → <code>vatOf</code></h4><div id="oV"></div></div>
+      <div class="box" data-step="totals"><h4><span class="n">3</span>Totaux</h4><div id="o3"></div></div>
+      <div class="box" data-step="coll"><h4><span class="n">4</span>Encaissement</h4><div id="o4"></div></div>
+    </div>
+    <div class="box" style="margin-top:1rem"><h4><span class="n">C</span>Export comptable · aperçu du journal</h4><div id="oJ"></div></div>
+    <div class="views">
+      <div class="seg" data-k="view" id="viewSeg"><button data-v="fiche" aria-pressed="true">Fiche de réservation</button><button data-v="sasA" aria-pressed="false">SAS arrivée</button><button data-v="sasD" aria-pressed="false">SAS départ</button></div>
+      <div class="view" id="view"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<h2>Ce que la branche « Mon séjour dès le J-7 » garde et perd</h2>
+<div class="cols">
+  <div><h3>On garde</h3><ul>
+    <li>L’application séjour : le panier, le choix du paiement, les créneaux du bain et des livraisons, les textes.</li>
+    <li>L’étape « Commandes » du SAS arrivée, qui lira le nouveau détail.</li>
+    <li>Les créneaux, la chauffe du bain, le stock et les heures de service.</li>
+    <li>Le paragraphe des e-mails J-7 et J-2.</li>
+    <li>Les règles de la spec sur l’écran, les créneaux, le stock et les e-mails.</li>
+  </ul></div>
+  <div><h3>On remplace</h3><ul>
+    <li><code>midStayOrderCommit.js</code> en entier : le juge, la mesure, la commande d’essai à 1 € et les fusions de lignes.</li>
+    <li>Les contournements dans l’enregistrement de la fiche : <code>beforeArrival</code>, <code>orderGrowth</code>, <code>exactMergedTotals</code>, <code>keepStay</code>.</li>
+    <li>La note « payé avant l’arrivée » et les trois calculs du « déjà payé par carte ».</li>
+    <li>Le supplément du soir calculé à quatre endroits.</li>
+  </ul></div>
+</div>
+<p class="ex">La branche est gelée, sans merge, puis reconstruite dans la PR C. C’est aussi là qu’on ajoute à <code>guest-app.md</code> les règles 104 à 106 : le code les cite, mais la spec s’arrête à la règle 103.</p>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul>
+  <li>On ne change aucun prix, aucun arrondi et aucune règle d’encaissement des séjours existants. Les remises déjà saisies gardent leur effet, sur les nuits.</li>
+  <li>Les calculs existants ne passent pas en centimes entiers. Seules les nouvelles remises sur les articles sont calculées en centimes, car elles n’ont pas d’historique à respecter.</li>
+  <li>L’export comptable n’est pas modifié : il lit les mêmes enregistrements.</li>
+  <li>Pas de codes promo et pas de nouveau moyen de paiement.</li>
+  <li>Pas d’écran de réglages pour les nouvelles clés : la PR A lit les colonnes actuelles, et on règle par les écrans actuels.</li>
+  <li>Les réservations de bain hors séjour gardent leur propre modèle. Elles partagent seulement les calculateurs et la réservation de créneau.</li>
+</ul>
+
+<h2>Les trois PR</h2>
+<div class="card" style="margin-top:.5rem"><b>Garde-fou des prix, obligatoire dans chaque PR.</b> Les 71 séjours et devis d’une copie anonymisée de la prod (ni nom, ni e-mail, ni téléphone : seulement les identifiants et les montants) sont figés avant la PR A, avec leurs chiffres actuels : nuits, chaque article, remises, taxe de séjour, TVA par taux, total, acompte, solde, échéancier, payé, reste dû et indemnité d’annulation. Le test recalcule chaque séjour avec les nouveaux composants et compare au centime. Le moindre écart échoue. La seule exception est une liste versionnée de séjours faux aujourd’hui : pour chacun, l’identifiant, l’ancien et le nouveau montant, et la raison. Adrien la relit avant chaque merge. Pas de joker, pas de tolérance.<br><br><b>Livraison.</b> Opus écrit la spec, Sonnet implémente, Opus relit. La relecture est intégrale et en une seule passe : tout le périmètre et les fonctions voisines, chaque décision prouvée ligne à ligne (PROUVÉ ou NON PROUVÉ, avec la preuve), et la liste complète des défauts d’un coup. Ensuite, une seule correction groupée et une seule vérification ciblée.<br><br><b>Stabilisation, une fois les 3 PR en place.</b> Elle se fait par tours, comme la boucle d’audit d’inte/plugins. À chaque tour, Opus fait un audit intégral de tous les domaines du prix : nuits, articles, remises, taxe, TVA, totaux et échéancier, paiements, annulation, vente hors séjour, J-7, sortie comptable et garde-fou des prix. Sonnet fait ensuite une seule correction groupée, puis Opus vérifie. Le paiement plateforme et les intégrations des plateformes font partie des domaines audités. On recommence tant qu’il reste un défaut, et on s’arrête au premier tour sans aucun constat. Chaque tour publie son tableau de constats, en séparant les défauts anciens des régressions dues à nos corrections. Chaque relecteur reçoit la liste numérotée des décisions et le registre des invariants, couvre tout son périmètre, continue après le premier défaut et n’a pas le droit de s’arrêter tôt. Les tours raccourcissent ainsi vite, au lieu de traîner.</div>
+<p class="hint">Il y a un commit par unité, pour pouvoir retrouver un écart commit par commit. La copie de prod est rejouée à chaque commit de la PR A.</p>
+<div class="prs">
+  <div class="pr"><h3>A — Les unités, à l’identique</h3><span class="sz">XL · 6 à 8 passes</span>
+    <ul><li>Le banc de rejeu sur la copie de prod.</li><li>Les unités sorties telles quelles : nuits, personnes en plus, taxe, horloge, articles (hôte et 7 calculateurs), offerts, prix plateforme, remises (sur les nuits seulement), TVA par ligne (client hébergé), totaux, échéancier, règlement et arrondis.</li><li>Le registre des calculateurs, les ports, l’interface de réglages (elle lit les colonnes actuelles) et le pipeline « séjour ».</li><li>Environ 26 fichiers de tests, dont un test de contrat des calculateurs et un test de composition des pipelines.</li><li>Possible découpage en A1 (ports, réglages, pipeline) et A2 (unités) si la relecture est trop lourde.</li><li>Le garde-fou des prix : la copie anonymisée figée et son test.</li><li>« Paiement plateforme » réunit commission, versement net et acompte net. Les intégrations Booking, Airbnb et Gîtes de France continuent de marcher sans changement : rejeu des réservations reçues à 0 écart.</li><li><b>Preuve : 0 écart à chaque commit, liste d’exceptions vide.</b></li></ul></div>
+  <div class="pr"><h3>B — Lignes, vente, détail</h3><span class="sz">XL · 5 à 7 passes</span>
+    <ul><li>Commit 1 : les colonnes des lignes et le reclassement de l’existant, avec <b>0 écart</b>.</li><li>L’horloge du séjour devient la seule source pour la fiche, le SAS et la vente : la date et l’heure d’arrivée.</li><li>Le service de vente pour la fiche et le SAS, le moment modifiable et les remises sur les articles.</li><li>Une seule grille horaire et le lien Qonto séparé sur les plateformes.</li><li>Le même détail dans la fiche et dans les deux SAS.</li><li>Les réservations en aval : le créneau du bain est réservé au devis puis confirmé dans la même transaction que la vente. Port des créneaux et adaptateur du bain, avec son test de contrat.</li><li>Les événements de vente, avec l’agenda comme observateur. La TVA « client extérieur » dans les réglages.</li><li>Commit 2 : la sortie comptable (écritures neutres et un export par format), avec chaque fichier exporté identique à l’octet près.</li><li>Le port « réservation plateforme » (SDK 2.27.0, ajout seulement). « Paiement plateforme » est branché sur les pénalités, l’encaissement et l’annulation.</li><li>La suppression des doublons du SAS et de la TVA.</li><li><b>Preuve : seuls les écarts listés ci-dessous.</b></li></ul></div>
+  <div class="pr"><h3>C — « Mon séjour dès le J-7 »</h3><span class="sz">L · 3 à 4 passes</span>
+    <ul><li>La boutique passe par le pipeline « vente boutique » : les holds de carte deviennent des réservations de créneau, avec l’e-mail en observateur.</li><li>La vente hors séjour : pipeline, enregistrement (question 13) et fenêtre « Vente hors séjour ».</li><li>Suppression de <code>midStayOrderCommit</code> et des 12 contournements.</li><li>Les règles 104 à 106 ajoutées à <code>guest-app.md</code>.</li><li>Les derniers endroits qui comparent des dates passent par l’horloge, sans changement de résultat, et un test interdit d’en ajouter.</li><li>Suppression des anciens drapeaux et des copies d’arrondi.</li><li><b>Preuve : un test par défaut trouvé en relecture.</b></li></ul></div>
+</div>
+<h3>Ce qui change après la PR B (écarts à valider)</h3>
+<ol>
+  <li>Une vente non payée est rangée selon la date et l’heure d’arrivée, et non plus selon la case « arrivée » ou le SAS. Entre l’heure d’arrivée et un check-in tardif, elle passe au départ. Après un check-in coché en avance, elle reste à l’arrivée.</li>
+  <li>Racheter un article déjà vendu crée une nouvelle ligne. Le nombre de lignes change, pas les totaux.</li>
+  <li>Le supplément du soir du bain fait partie de la ligne du bain. Le montant ne change pas.</li>
+  <li>Sur les réservations de bain hors séjour, l’heure offerte vaut le tarif de jour, comme pour les séjours. Seules celles qui ont une heure offerte le soir changent.</li>
+  <li>Petit-déjeuner, plateaux et linge du SAS passent par le moteur d’articles. Chaque écart d’un centime sera listé, séjour par séjour.</li>
+  <li>Remises sur les articles et remises par ligne : c’est nouveau, et aucun séjour stocké ne bouge.</li>
+  <li>Baisser une ligne payée demande une confirmation et crée un remboursement à faire.</li>
+  <li>Le détail d’arrivée, la répartition encaissée et le récap du SAS déduisent enfin ce qui a été payé par carte.</li>
+  <li>Chaque ligne porte son taux de TVA. Avec un seul taux par séjour, les montants ne changent pas ; le détail affiche « TVA 10 % ».</li>
+  <li>Une séance de bain vendue au SAS est réservée dans la transaction de vente. Un créneau déjà pris refuse la vente.</li>
+</ol>
+<p class="ex">Les interfaces arrivent avec le premier code qui en a besoin. Aucune ne demande une PR à elle seule : on reste à 3 PR.</p>
+
+<h2>Les risques</h2>
+<ul class="find">
+  <li><b>Aucune formule en double</b>TVA, arrondis, grille du bain, comparaisons de dates et recalculs des exports n’existent qu’une fois. Des tests statiques interdisent d’en réintroduire une copie : ils sont tolérants pendant la refonte et deviennent stricts à la fin de la PR C.</li>
+  <li><b>La PR A grossit (environ 4 700 lignes)</b>On pose d’abord les interfaces, avec le code actuel derrière (les adaptateurs lisent les colonnes actuelles), puis on déplace les unités sans rien renommer. Un commit par unité, la copie de prod rejouée à chaque commit. Au besoin, on la coupe en A1 et A2 sans toucher B ni C.</li>
+  <li><b>La vente hors séjour est une nouvelle fonctionnalité</b>Elle est dans la PR C, mais elle peut en sortir sans toucher à la refonte de la boutique.</li>
+  <li><b>La PR B mélange le reclassement et des changements de comportement</b>Le reclassement est le commit 1, prouvé seul à 0 écart. La liste des écarts attendus est validée avant d’ouvrir la PR.</li>
+  <li><b>La règle « commencé » revient sur une décision passée</b>La spec <code>arrival-moment-is-the-check-in.md</code> rangeait les ventes selon le check-in réel. Elle sera amendée dans la PR B.</li>
+  <li><b>Les remises sur les articles</b>Elles ne touchent aucun séjour existant, qui gardent tous leur remise sur les nuits. Le risque porte sur les nouvelles remises uniquement, et il est couvert par les tests de répartition.</li>
+  <li><b>Le délai avant la boutique J-7</b>Il faut trois PR, au lieu d’une énième passe de correctifs. En contrepartie, il n’y aura plus de rustine à chaque relecture.</li>
+</ul>
+
+<h2>Questions</h2>
+<div>
+  <div class="q"><b>1. Quand le séjour est-il commencé ?</b><span class="res">Tranché le 11/11 (Adrien) : quand la date et l’heure d’arrivée sont passées, heure de Paris. La case « arrivée » et le SAS ne changent que l’affichage. Une vente faite après l’heure d’arrivée alors que le SAS arrivée est encore ouvert est « à payer au départ ». Le SAS ouvert la montre, et on peut la percevoir tout de suite ou la passer à l’arrivée.</span></div>
+  <div class="q"><b>2. Faut-il une nouvelle ligne ou une fusion ?</b><span class="res">Tranché le 11/11 (Adrien, suit la recommandation) : une nouvelle ligne, regroupée à l’affichage.</span></div>
+  <div class="q"><b>3. Où vivent les composants ?</b><span class="res">Tranché le 11/11 (Adrien, découpage élargi) : un fichier par unité dans le cœur. Le bain et la boutique restent des plugins.</span></div>
+  <div class="q"><b>4. Peut-on changer le moment d’une ligne non payée ?</b><span class="res">Tranché le 11/11 (Adrien) : oui, et le changement est noté dans l’historique. Une ligne payée est figée.</span></div>
+  <div class="q"><b>5. Paiement par carte depuis la boutique sur un séjour plateforme, avant l’arrivée ?</b><span class="res">Tranché le 11/11 (Adrien) : autorisé, avec un lien Qonto séparé, en dehors du prix plateforme.</span></div>
+  <div class="q"><b>6. Remises sur les articles ?</b><span class="res">Tranché le 11/11 (Adrien) : oui, sur les nuits, les articles ou le tout. Les remises existantes gardent leur effet.</span></div>
+  <div class="q"><b>7. Que faire de la branche J-7 ?</b><span class="res">Tranché le 11/11 (Adrien, suit la recommandation) : on la gèle et on la reconstruit dans la PR C.</span></div>
+  <div class="q"><b>8. Quelle tolérance au rejeu ?</b><span class="res">Tranché le 11/11 (Adrien, suit la recommandation) : aucune sur la PR A et le premier commit de la PR B. Ensuite, chaque écart doit être listé et validé.</span></div>
+  <div class="q"><b>9. Les centimes entiers ?</b><span class="res">Tranché le 11/11 (Adrien, suit la recommandation) : plus tard, à part.</span></div>
+  <div class="q"><b>10. Ajouter un produit sur un séjour pas encore vendu ?</b><span class="res">Tranché le 11/11 (Adrien, suit la recommandation) : enregistrement habituel de la fiche jusqu’au premier verrouillage.</span></div>
+  <div class="q"><b>11. Sur quoi porte par défaut une remise saisie sur la fiche ?</b><span class="res">Tranché le 11/11 (Adrien) : « Nuits ».</span></div>
+  <div class="q"><b>12. Une remise « Articles » couvre-t-elle aussi les ventes ajoutées plus tard ?</b><span class="res">Tranché le 11/11 (Adrien) : non. Une vente ajoutée plus tard peut recevoir sa propre remise de ligne.</span></div>
+  <div class="q"><b>13. Où enregistrer une vente hors séjour ?</b><span class="res">Tranché le 11/11 (Adrien, suit la recommandation) : un enregistrement « vente hors séjour » dans le cœur, saisi depuis la page Encaissements, repris dans le journal comptable, livré dans la PR C.</span></div>
+  <div class="q"><b>14. Un détecteur de copier-coller en CI ?</b><span class="res">Tranché le 11/11 (Adrien) : non. Les gardes ciblées suffisent.</span></div>
+  <div class="q"><b>15. La base de commission de Gîtes de France ?</b><span class="res">Tranché le 11/11 (Adrien, suit la recommandation) : garder les deux bases comme variantes nommées du composant « Paiement plateforme » : relevé (brut − versement − taxe retenue) et loyer seul (Gîtes de France). Chaque formule n’existe ainsi qu’une fois, et le rejeu prouve 0 écart.</span></div>
+</div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var eur = new Intl.NumberFormat('fr-FR',{style:'currency',currency:'EUR'});
+  function m(c){ return eur.format(c/100); }
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];}); }
+
+  /* ---------- Diagramme ---------- */
+  var COMP = {
+    stay:{t:'1 · Séjour — nuits et personnes en plus',r:'Calcule les nuits et les personnes en plus. Il ne sait rien des articles ni des paiements.',i:'Dates, groupe, nuits déjà vendues figées. Le tarif arrive par les réglages (composant « nights »).',o:'Le détail par nuit, l’hébergement, les personnes en plus et le contexte du séjour, en lecture seule pour les articles.',x:'calculateBaseStayPrice et computeExtraGuestSurcharge (pricing.js).',w:'Appelé seulement quand on modifie le séjour lui-même. Une vente ne l’appelle jamais.'},
+    tax:{t:'Taxe de séjour — composant à part',r:'Calcule la taxe par personne, en pourcentage ou au forfait. Gère aussi les voyageurs ajoutés, le gel, le reversement et la taxe perçue par la plateforme.',i:'La base, le groupe et les nuits. Le taux, le plafond, les exonérations et qui perçoit la taxe viennent des réglages du logement, par l’interface de réglages, jamais en lisant la fiche du logement.',o:'Le total, la base, le montant par personne, qui la perçoit et si elle est gelée.',x:'computeTouristTaxBreakdown, resolveAddedGuestsTouristTax et les prédicats plateforme.',w:'Absente du pipeline des ventes et de la vente hors séjour.'},
+    extras:{t:'2 · Articles — tête, familles, articles',r:'La tête est la seule interface : chiffrer, valider, décrire, valider la vente, libérer. Elle choisit la famille de chaque article, gère les offerts, « Offert », les lignes figées et la réservation en aval. La formule est dans la famille (une par manière de calculer un prix). Un article n’est qu’une configuration de sa famille (prix, libellé, classe de TVA, limites, offerts, réservation en aval).',i:'Le contexte du séjour (absent pour une vente hors séjour), le catalogue (par le port Catalogue), les demandes et la réserve d’offerts.',o:'Des lignes chiffrées et leurs montants étiquetés pour la TVA (jamais de TVA calculée ici), plus, pour le bain, une réservation de créneau à confirmer.',x:'Les boucles de pricing.js, sasOptionSale, le linge de bain, sellable.js et les 4 grilles du bain.',w:'Un nouvel article est une ligne de catalogue. Une nouvelle manière de calculer un prix est une famille, qu’un plugin peut inscrire. Personne n’appelle une famille directement.'},
+    totals:{t:'3 · Totaux',r:'Prix plateforme, remises, puis TVA par ligne. Le dernier pas, l’agrégation, ne fait qu’additionner ce que les étapes ont posé.',i:'Les sorties du séjour, de la taxe et des articles, plus les ajustements et le contexte client.',o:'Le prix final, la taxe, le total, la TVA par taux et le détail.',x:'pricing.js l. 2300-2606.',w:'Les totaux ne calculent plus la TVA : ils additionnent ce que le composant TVA a rendu.'},
+    coll:{t:'4 · Encaissement',r:'Décide quand et comment chaque montant est payé.',i:'Les totaux, les lignes avec leur moment et ce qu’elles ont déjà encaissé (par le port Paiements), et l’horloge.',o:'Chaque poste avec son dû et son payé, et l’état de chaque ligne.',x:'pricing.js l. 2615-3139, complementBuckets, checkoutComplement, arrivalSasPlan, departureSasPlan, prepaidNetter et arrivalPaymentDetail.',w:'Pour une vente hors séjour, seul le paiement sur place ou par lien Qonto reste.'},
+    clock:{t:'H · Horloge du séjour — consultée par tous',r:'C’est le seul endroit qui répond à « le séjour a-t-il commencé ? ». Aucun autre module ne compare de dates.',i:'Le séjour seulement. Le résolveur lit les dates et les heures, et l’heure par défaut du logement arrive par les réglages.',o:'La phase (avant, pendant, après), « commencé », le moment par défaut d’une vente et les deux réponses de calendrier.',x:'hasGuestArrived, isArrivalNotMarked, midStayExtrasWindow et 10 autres comparaisons de dates.',w:'Le moment est décidé une seule fois, quand la ligne est écrite. L’opérateur peut le changer, et le journal garde les deux.'},
+    vat:{t:'V · TVA — composant à part',r:'Le seul endroit qui transforme un montant TTC en taux, TVA et HT. Les nuits, les familles d’articles, les remises, la taxe de séjour et la vente hors séjour lui envoient des montants étiquetés.',i:'Des montants étiquetés { montant, classe de TVA, contexte client, origine } et les réglages TVA (régime, franchise, taux par classe et par contexte).',o:'Par montant : taux, TVA, HT. Par groupe (classe, taux, contexte) et par taux : les totaux.',x:'5 copies : le moteur (par famille), accountingModel.bucketFromTtc, financeModel.htAmount, paymentLinkItems.buildVatItems, bookingPricing.vatOf.',w:'Arrondi une fois par groupe et par document, comme aujourd’hui, puis réparti sur les lignes : 0 écart, pas de dérive d’un centime entre la TVA par taux d’une facture et ses lignes.'},
+    acc:{t:'C · Sortie comptable',r:'Produit des écritures neutres (vente, encaissement, remboursement, avoir, pénalité, pourboire, vente hors séjour) en lisant seulement les lignes, la sortie TVA, les encaissements, les remboursements et les ventes hors séjour.',i:'Les modèles de lecture. Jamais le moteur de prix.',o:'Des écritures par rôle (produit par classe, TVA par taux, taxe de séjour, client, banque…). Chaque format est un adaptateur : CSV du journal, JSON, synthèse TVA, FEC plus tard.',x:'Les constructeurs d’écritures de accountingModel, le découpage TVA de l’export, les recalculs (computeBucketTtcsFromContribs, grossRatio) gardés une seule fois pour les anciennes lignes.',w:'Aucun export ne recalcule un prix ni une TVA. PR B, commit 2 : chaque fichier exporté identique à l’octet près.'},
+    infra:{t:'P · Ports, réglages, pipeline, événements',r:'Les composants ne lisent ni la base ni Qonto ni les plugins. Ils reçoivent des valeurs. Ces quatre mécanismes s’en chargent.',i:'—',o:'—',x:'Les lectures de base cachées dans pricing.js (règles tarifaires, échéancier, encaissements), les lectures de la fiche du logement et les appels directs entre modules.',w:'Le tout en fonctions et objets simples (CommonJS), sans classes ni framework d’injection.'}
+  };
+  function kindU(t,c,ex){ return {t:'Famille « '+t+' »',c:'{ id: \''+c+'\', configSchema, validate(config, demande, ctx) → refus[], price(config, demande, ctx) → { quantité, prix unitaire, composantes, offerts utilisés, montants étiquetés }, describe(config, ligne) }',why:ex+' Appelée seulement par la tête.'}; }
+  var UNIT = {
+    nights:{t:'Nuits',c:'priceNights({séjour, groupe, nuits figées}, réglages « nights ») → {nuits[], hébergement, validation, contexte}',why:'Unité : le cœur tarifaire, testable sur un simple calendrier.'},
+    guests:{t:'Personnes en plus',c:'priceExtraGuests({nuits[], groupe, voyageurs payés plateforme}, réglages) → {nombre, supplément, dans le brut, au complément}',why:'Unité : elle a ses propres paliers et sa propre répartition.'},
+    tax:{t:'Taxe de séjour',c:'priceTouristTax({base, groupe, nuits, gel}, réglages : mode, taux, plafond, exonérations, perçue par) → {total, base, par personne, perçue par}',why:'Unité, à la demande d’Adrien. Le suivi de la taxe l’appelle seule.'},
+    head:{t:'Articles — la tête (seule interface)',c:'quote({demandes[], contexte séjour?, contexte client, offerts}) → {lignes[], montants étiquetés[], offerts consommés, refus[]} ; commit(devis, transaction) ; release(ligne, motif) ; describe(ligne)',why:'Elle aiguille, agrège, refuse, coordonne les offerts et la réservation en aval. Elle n’a aucune formule.'},
+    i_biere:{t:'Article « Bière locale »',c:'makeArticle(ligne de catalogue) → { family: \'per_unit\', config: { price: 650, label: \'Bière locale\', vatClass: \'boissons\', limits: { max: 12 }, sellableExternally: true } }',why:'Une instance de la famille « à l’unité » : de la configuration, aucun code.'},
+    i_pdj:{t:'Article « Petit-déjeuner »',c:'makeArticle(…) → { family: \'per_person_per_night\', config: { price: 1200, vatClass: \'repas\', limits: { mornings: \'dans le séjour\' } } }',why:'Une instance de la famille « par personne et par nuit ».'},
+    i_bain:{t:'Article « Bain nordique »',c:'makeArticle(…) → { family: \'hourly\', config: { grid: 30 € l’heure, soir + 20 €, allowance: { freeMinutes: 60 }, vatClass: \'bien-être\', fulfilment: \'hourly-slot\' } }',why:'Une instance de la famille horaire du plugin, avec une réservation de créneau en aval.'},
+    i_menage:{t:'Article « Ménage »',c:'makeArticle(…) → { family: \'fixed\', config: { price: 6000, vatClass: \'services\', limits: { max: 1 } } }',why:'Une instance de la famille « prix simple ».'},
+    tag:{t:'Montant étiqueté',c:'{ amountCents, vatClass, customerContext, source: { kind, ref }, docKey }',why:'Chaque composant dit ce qu’est un montant ; il ne calcule jamais sa TVA.'},
+    accout:{t:'Écritures neutres',c:'journalEntries({ from, to }, modèles de lecture) → [{ date, kind, ref, lines: [{ role, amountCents, vatRate?, vatCents? }] }]',why:'Un seul journal, indépendant du format et du plan de comptes.'},
+    exp:{t:'Exports (adaptateurs)',c:'{ id, export(écritures, { plan de comptes, période }) → fichier } : csvJournal, salesJson, synthesis, fec plus tard',why:'Ils mettent en forme, additionnent des centimes et traduisent un rôle en compte. Un test statique leur interdit d’importer la TVA ou les articles.'},
+    allow:{t:'Offerts',c:'consumeAllowance({droits, consommé[], demande}) → {utilisé, reste}',why:'Une heure offerte reste attachée à la ligne qui l’a prise.'},
+    k_fixed:kindU('Prix simple','fixed','Tout article à prix simple, par exemple le ménage à 60 €.'),
+    k_unit:kindU('À l’unité','per_unit','Exemple : bière, 6,50 € × quantité. Vendable hors séjour.'),
+    k_night:kindU('Par nuit','per_night','Exemple : un supplément par nuit. Refusé hors séjour (« NEEDS_STAY »).'),
+    k_person:kindU('Par personne','per_person','Exemple : un panier par personne. Refusé hors séjour.'),
+    k_pn:kindU('Par personne et par nuit','per_person_per_night','Exemple : petit-déjeuner, par personne et par matin. Refusé hors séjour.'),
+    k_pct:kindU('% du séjour','percent_of_stay','Exemple : assurance annulation, 4 % de l’hébergement.'),
+    k_prog:kindU('Paliers','per_participant_progressive','Exemple : un prix dégressif par participant.'),
+    k_hour:{t:'Famille « horaire » (plugin)',c:'articleFamilies.register(\'hourly\', { configSchema, validate, price, describe }) — la seule grille horaire (heure offerte, soirée)',why:'Inscrite par le plugin du bain. C’est une famille, pas un article : tout article horaire en est une instance.'},
+    fulfil:{t:'Réservation en aval (port « fulfilment »)',c:'ArticleFulfilment { reserve(brouillon) → hold, confirm(hold, ligne, transaction), release(hold, motif) }',why:'Une réservation provisoire (hold) au devis, confirmée dans la même transaction que la vente, libérée à l’annulation ou au remboursement. L’adaptateur du bain gère le stock, la chauffe et les chevauchements.'},
+    platform:{t:'Prix plateforme',c:'resolvePlatformPrice({brut, personnes dans le brut, lignes comprises, taxe retenue}, réglages : mode, commission) → {hébergement, commission, versement}',why:'Unité : la même arithmétique existe à 3 endroits.'},
+    disc:{t:'Remises',c:'allocateDiscount({remise:{%, montant, prix forcé, cible}, hébergement, lignes[]}) → {hébergement remisé, part par ligne, total}',why:'Unité : la répartition au centime est la partie délicate.'},
+    vat:{t:'vatOf — la TVA',c:'vatOf(montants étiquetés[], { régime, réglages }) → { par montant : taux, TVA, HT ; par groupe (classe, taux, contexte) ; par taux }',why:'Le taux vient de resolveRate(classe, contexte client). La TVA est arrondie une fois par groupe et par document, puis répartie sur les lignes au plus fort reste. C’est le calcul d’aujourd’hui, d’où 0 écart, et il n’y a aucun passage prévu à un arrondi par article.'},
+    agg:{t:'Agrégation',c:'aggregateTotals(ctx) → {prix final, remises, total, TVA par taux, détail}',why:'Aucune formule : une addition de ce que les autres étapes ont posé.'},
+    sched:{t:'Échéancier',c:'planSchedule({totaux, lignes au plan, échéances, encaissements}, réglages : acompte, dates) → {acompte, solde, échéances}',why:'Unité : l’argent du séjour lui-même.'},
+    settle:{t:'Règlement des lignes',c:'planSettlement({lignes[], part séjour, encaissements, remboursements, phase}) → {arrivée, départ, payé, à rembourser}',why:'Unité : le seul endroit où l’on retire ce qui est déjà payé.'},
+    clock:{t:'phaseOf — l’horloge, en pur',c:'phaseOf({arrivalDate, departureDate, checkInTime, checkOutTime}, now) → {phase, started, defaultCollectAt, arrivalDayReached, departureDayReached}',why:'Unité sans base de données ni lecture de l’heure. Ses tests couvrent la minute exacte, les changements d’heure et l’heure manquante.'},
+    clockres:{t:'phaseForReservation — l’horloge, par séjour',c:'phaseForReservation(id, now) → la même sortie',why:'Le seul point d’accès. Un test refuse toute autre comparaison de dates.'},
+    pipe:{t:'Pipeline (étapes chaînables)',c:'buildPipeline([{ id, requires[], provides[], apply(ctx) → ctx }], { initial }) → run(ctx)',why:'Chaque cas d’usage enchaîne seulement ses étapes. Si une étape attend une donnée qu’aucune étape précédente ne fournit, la construction échoue au démarrage, pas pendant la commande d’un client. Les cas : séjour, vente fiche, vente SAS, vente boutique, vente hors séjour.'},
+    ports:{t:'Ports (accès aux données)',c:'StayRepository, CatalogueProvider, PaymentLedger, SlotAvailabilityProvider, PaymentGateway, EventPublisher',why:'Les composants restent purs. Seuls le compositeur et les services de vente appellent les ports. Le tableau de la spec (règle 48) dit qui consomme quoi.'},
+    settings:{t:'Réglages (une seule interface)',c:'SettingsProvider.for(componentId, scope) → valeurs ; chaque composant déclare settingsSchema [{ key, type, default, scope, validate }]',why:'La taxe, les nuits, les personnes en plus, le prix plateforme, la TVA, l’horloge et l’échéancier reçoivent leurs paramètres ainsi, jamais en lisant la fiche du logement. Dans la PR A, l’adaptateur lit les colonnes actuelles : 0 écart.'},
+    ppay:{t:'Paiement plateforme',c:'commissionOf({base, brut, versement, taxe retenue, commission d’acompte}) · clampCommissions · netReceived · acompteNet · grossOf · payoutWithPenalty · withheldOnCancellation',why:'Vérifié dans le code. La commission « brut − versement − taxe retenue − commission d’acompte » existait deux fois (utilitaire et contrôleur des pénalités). L’acompte net et le brut de repli existaient aussi deux fois, et les commissions retenues à l’annulation à deux endroits. Tout passe ici. Gîtes de France garde sa base « loyer seul » comme variante nommée (question 15). Le garde-fou des prix couvre les 56 séjours plateforme de la copie.'},
+    intake:{t:'Port « réservation plateforme » (SDK 2.27.0)',c:'reservations.fromPlatform({ platform, numéro, séjour, groupe, money: { brut, versement, taxe retenue, commission? }, includedLines[], notes }) ; les appels actuels (reservations.update, updateBody, platformCommission, platformWithholdsTouristTax, suggestBeds) restent identiques',why:'Booking, Airbnb et Gîtes de France écrivent aujourd’hui par la sauvegarde de la fiche du SDK, l’iCal crée des séjours vides, Google Vacation Rentals lit les prix, et la skill remplit la fiche à l’écran. Rien ne change pour eux. Un adaptateur traduit « inComplement: 0 » en « compris dans le prix plateforme ». Preuves : leurs suites de tests restent vertes, et le rejeu des réservations reçues (11 Booking, 1 Airbnb) donne 0 écart.'},
+    events:{t:'Événements (observateurs)',c:'extraSale.sold, extraSale.lineMoved, extraSale.lineCancelled, extraSale.refundOwed, standaloneSale.sold → eventBus',why:'Publiés après validation de la vente. L’e-mail, l’agenda et les notifications réagissent ; leur échec n’annule jamais une vente.'}
+  };
+  var NOT='Chaque formule existe une seule fois (règle 65) ; des tests statiques empêchent de la recopier. Ne sont pas des unités : la lecture du catalogue (c’est un port), le titre affiché, le contrôle des jours d’arrivée (il fait partie des nuits), les dates limites et les paiements en plusieurs moyens (déjà isolés), l’export comptable. Les arrondis sont un module partagé.';
+  var ALL=['stay','tax','extras','totals','coll','clock','vat','infra'], SALE=['extras','totals','coll','clock','vat','infra'];
+  var PATHS={
+    fiche:{c:ALL,n:'Pipeline « séjour » : toutes les étapes.'},
+    ajout:{c:SALE,n:'Pipeline « vente fiche » : relit le séjour stocké, sans recalculer les nuits ni la taxe.'},
+    boutique:{c:SALE,n:'Pipeline « vente boutique » : comme la fiche. Pour le bain, le créneau est réservé au devis et confirmé dans la vente.'},
+    sas:{c:SALE,n:'Pipeline « vente SAS » : les ventes du SAS passent par les calculateurs d’articles.'},
+    ext:{c:['extras','totals','vat','infra'],n:'Pipeline « vente hors séjour » : articles, remise de ligne, TVA du client extérieur, total, paiement. Pas de nuits, pas de taxe, pas d’horloge, pas d’échéancier.'},
+    intake:{c:ALL,n:'Par le port « réservation plateforme » : les appels actuels des plugins restent identiques. Pipeline « séjour ». Les articles compris dans le brut sont déclarés à ce moment-là, et seulement là. La commission vient de « Paiement plateforme ».'},
+    devis:{c:ALL,n:'Pipeline « séjour ».'},
+    acc:{c:['acc','vat','infra'],n:'L’export lit les lignes, la sortie TVA et les encaissements. Il ne rappelle ni les articles ni le moteur de prix.'},
+    annul:{c:['coll','clock','vat','infra'],n:'Aucun prix recalculé : on lit les lignes et ce qu’elles ont encaissé, et on libère les réservations de créneau.'}
+  };
+  var curPath=null, curComp='extras', curUnit=null;
+  function renderDiag(){
+    document.querySelectorAll('.entry').forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.path===curPath)); });
+    document.querySelectorAll('.cbox').forEach(function(box){
+      var c=box.dataset.c, used=!curPath||PATHS[curPath].c.indexOf(c)>=0;
+      box.classList.toggle('off',!used);
+      box.classList.toggle('sel', c===curComp && !curUnit);
+      var tag=box.querySelector('.tag'); tag.textContent=curPath?(used?'appelé':'non appelé'):''; tag.style.display=curPath?'':'none';
+      box.querySelector('.chead').setAttribute('aria-expanded', String(c===curComp && !curUnit));
+    });
+    document.querySelectorAll('.unit').forEach(function(u){ u.setAttribute('aria-pressed', String(u.dataset.u===curUnit)); });
+    $('pathnote').textContent=curPath?PATHS[curPath].n:'';
+    var d=$('cdetail');
+    if(curUnit){ var u=UNIT[curUnit]; d.innerHTML='<h4>'+esc(u.t)+'</h4><dl><dt>Contrat</dt><dd><code>'+esc(u.c)+'</code></dd><dt>Pourquoi</dt><dd>'+esc(u.why)+'</dd><dt>Tests</dt><dd>Un fichier de tests pour elle seule, sans base de données.</dd></dl><p class="pathnote">'+esc(NOT)+'</p>'; return; }
+    if(!curComp){ d.innerHTML='<p class="hint" style="margin:0">Aucun composant sélectionné.</p>'; return; }
+    var c=COMP[curComp];
+    d.innerHTML='<h4>'+esc(c.t)+'</h4><dl><dt>Rôle</dt><dd>'+esc(c.r)+'</dd><dt>Entrées</dt><dd>'+esc(c.i)+'</dd><dt>Sorties</dt><dd>'+esc(c.o)+'</dd><dt>Remplace</dt><dd>'+esc(c.x)+'</dd><dt>Ce qui change</dt><dd>'+esc(c.w)+'</dd></dl>';
+  }
+  document.querySelectorAll('.entry').forEach(function(b){ b.addEventListener('click',function(){ curPath=curPath===b.dataset.path?null:b.dataset.path; renderDiag(); }); });
+  document.querySelectorAll('.chead').forEach(function(b){ b.addEventListener('click',function(){ curUnit=null; curComp=curComp===b.dataset.c?null:b.dataset.c; renderDiag(); }); });
+  document.querySelectorAll('.unit').forEach(function(b){ b.addEventListener('click',function(){ curUnit=curUnit===b.dataset.u?null:b.dataset.u; renderDiag(); }); });
+  renderDiag();
+
+  /* ---------- Simulateur ---------- */
+  var ART = {
+    pdj:{l:'Petit-déjeuner',u:1200,q:'Matins',max:21,kind:'per_person_per_night',fam:'food'},
+    linge:{l:'Linge de lit',u:1500,q:'Lits',max:4,kind:'per_unit',fam:'serv'},
+    menage:{l:'Ménage de fin de séjour',u:6000,q:'Forfait',max:1,kind:'fixed',fam:'serv'},
+    bain:{l:'Bain nordique',u:3000,q:'Heures',max:6,kind:'per_hour',fam:'well',ext:true},
+    biere:{l:'Bière locale',u:650,q:'Bouteilles',max:12,kind:'per_unit',fam:'drink',ext:true},
+    planche:{l:'Planche apéritif',u:1700,q:'Planches',max:4,kind:'per_unit',fam:'food',ext:true}
+  };
+  var OPT={pdj:'Petit-déjeuner, 12 € par personne et par matin',linge:'Linge de lit, 15 € par lit',menage:'Ménage de fin de séjour, forfait de 60 €',bain:'Bain nordique, 30 € de l’heure (1 h offerte par séjour)',biere:'Bière locale, 6,50 €',planche:'Planche apéritif, 17 €'};
+  var FAM={acc:'Hébergement',food:'Repas',drink:'Boissons',well:'Bien-être',serv:'Services'};
+  var RATES={acc:{hosted:10,external:10},food:{hosted:10,external:10},drink:{hosted:20,external:20},well:{hosted:10,external:20},serv:{hosted:10,external:20}};
+  function resolveRate(fam,ctx){ return RATES[fam][ctx]; }
+  var STEPS={stay:['Séjour chargé','Horloge','Nuits','Personnes en plus','Articles','Prix plateforme','Remises','Taxe de séjour','TVA par ligne','Totaux','Échéancier','Règlement'],
+             ext:['Catalogue chargé','Articles','Remises de ligne','TVA par ligne','Totaux','Paiement']};
+  var ALLSTEPS=['Séjour chargé','Catalogue chargé','Horloge','Nuits','Personnes en plus','Articles','Prix plateforme','Remises','Remises de ligne','Taxe de séjour','TVA par ligne','Totaux','Échéancier','Règlement','Paiement'];
+
+  var S={uc:'stay',ctx:'external',channel:'direct',target:'nights',src:'fiche',pay:'later',view:'fiche'};
+  var lines=[], extLines=[], refunds=0, seq=1, pendingRemove=null, journal=[];
+  function segs(){ document.querySelectorAll('.seg[data-k]').forEach(function(g){ var k=g.dataset.k; g.querySelectorAll('button').forEach(function(b){ b.setAttribute('aria-pressed', String(S[k]===b.dataset.v)); }); }); }
+  document.querySelectorAll('.seg[data-k]').forEach(function(g){ g.addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b||b.disabled) return; S[g.dataset.k]=b.dataset.v; pendingRemove=null; if(g.dataset.k==='uc'){ S.pay= S.uc==='ext'?'now':'later'; fillArticles(); $('addMsg').className='msg'; $('addMsg').textContent=''; } render(); }); });
+  ['nights','adults','disc','qty','hour','cin'].forEach(function(id){ $(id).addEventListener('input',render); });
+  ['art','day','sasA','depDone','eve'].forEach(function(id){ $(id).addEventListener('change',render); });
+
+  function fillArticles(){
+    var sel=$('art'), cur=sel.value;
+    var keys=Object.keys(ART).filter(function(k){ return S.uc==='stay'||ART[k].ext; });
+    sel.innerHTML=keys.map(function(k){ return '<option value="'+k+'">'+esc(OPT[k])+'</option>'; }).join('');
+    if(keys.indexOf(cur)>=0) sel.value=cur; else sel.value= S.uc==='ext'?'biere':'pdj';
+  }
+  fillArticles();
+
+  function intOf(id){ var v=$(id).value; if(v===''||!/^\d+$/.test(v)) return NaN; return parseInt(v,10); }
+  function hhmm(min){ var h=Math.floor(min/60), mm=min%60; return (h<10?'0':'')+h+':'+(mm<10?'0':'')+mm; }
+  function cinMin(){ var v=$('cin').value||'15:00'; var p=v.split(':'); return (+p[0])*60+(+p[1]||0); }
+  var COUT=600;
+  function phaseOf(){
+    var d=+$('day').value, h=+$('hour').value, n=intOf('nights')||1;
+    var before=d<0||(d===0&&h<cinMin()), after=d>n||(d===n&&h>=COUT);
+    var phase=before?'before':(after?'after':'during');
+    return {phase:phase,started:phase!=='before',defaultCollectAt:phase==='before'?'arrival':'departure',arrivalDayReached:d>=0,departureDayReached:d>=n};
+  }
+  function started(){ return phaseOf().started; }
+  function sasDone(){ return $('sasA').checked; }
+  function depDone(){ return $('depDone').checked; }
+
+  function stay(){
+    var n=intOf('nights'), a=intOf('adults'), err='';
+    if(!(n>=1&&n<=21)) err='Nuits : entre 1 et 21.';
+    else if(!(a>=1)) err='Adultes : au moins 1.';
+    else if(a>6) err='Capacité dépassée : 6 personnes au plus. Le composant Séjour refuse ce groupe avant tout calcul.';
+    $('nights').setAttribute('aria-invalid', String(!(n>=1&&n<=21)));
+    $('adults').setAttribute('aria-invalid', String(!(a>=1&&a<=6)));
+    if(err) return {err:err};
+    var plat=S.channel==='booking', nc=plat?12500:11000, extra=Math.max(0,a-2);
+    return {n:n,a:a,plat:plat,nights:n*nc,nightCents:nc,extra:extra,extraCents:extra*1500*n,tax:Math.round(a*n*110)};
+  }
+  function allowanceLeft(){ return 1-lines.reduce(function(s,l){return s+(l.used||0);},0); }
+  function priceLine(art,qty,eve,st,ext){
+    var A=ART[art], unit=A.u, units=qty, comps=[];
+    if(art==='pdj'){ units=qty*st.a; comps.push(qty+' matin'+(qty>1?'s':'')+' × '+st.a+' pers. × '+m(unit)); } else comps.push(qty+' × '+m(unit));
+    var base=units*unit, free=0, sup=0, used=0;
+    if(art==='bain'){ if(!ext){ used=Math.min(allowanceLeft(),qty); free=used*unit; if(used) comps.push(used+' h offerte −'+m(free)); } if(eve){ sup=2000; comps.push('créneau du soir +'+m(sup)); } }
+    return {total:base-free+sup,comps:comps,used:used};
+  }
+
+  $('add').addEventListener('click',function(){
+    var msg=$('addMsg'); msg.className='msg';
+    var art=$('art').value, A=ART[art], q=intOf('qty');
+    if(S.uc==='ext'){
+      if(!(q>=1&&q<=A.max)){ $('qty').setAttribute('aria-invalid','true'); msg.className='msg err'; msg.textContent=A.q+' : entre 1 et '+A.max+'.'; return; }
+      var pe=priceLine(art,q,art==='bain'&&$('eve').checked,null,true);
+      var le={id:seq++,art:art,total:pe.total,comps:pe.comps,paid:S.pay==='now',link:S.pay!=='now'};
+      if(art==='bain') le.hold='créneau réservé puis confirmé dans la vente';
+      extLines.push(le);
+      journal.unshift('standaloneSale.sold → '+(art==='bain'?'agenda (séance), ':'')+'reçu par e-mail si une adresse est saisie');
+      msg.className='msg ok'; msg.textContent=A.l+' : '+m(pe.total)+(le.paid?' · payé sur place':' · lien Qonto envoyé')+'. Nuits, taxe, horloge et échéancier : non appelés.';
+      render(); return;
+    }
+    var st=stay();
+    if(st.err){ msg.className='msg err'; msg.textContent='Séjour invalide : corriger d’abord le séjour.'; return; }
+    var max=art==='pdj'?st.n:A.max;
+    if(!(q>=1&&q<=max)){ $('qty').setAttribute('aria-invalid','true'); msg.className='msg err'; msg.textContent= art==='pdj'?'Matins : entre 1 et '+st.n+' (un par nuit).':A.q+' : entre 1 et '+max+'.'; return; }
+    var src=S.src, pay=S.pay, dayV=+$('day').value;
+    if(src==='resa' && (started()||dayV>=0)){ msg.className='msg err'; msg.textContent='« À la réservation » n’existe qu’avant le jour d’arrivée. Ensuite, c’est un ajout.'; return; }
+    if(depDone() && pay==='later' && src!=='resa'){ msg.className='msg err'; msg.textContent='Séjour soldé : la vente doit être payée tout de suite ou enregistrée comme vente séparée.'; return; }
+    var p=priceLine(art,q,art==='bain'&&$('eve').checked,st,false);
+    var line={id:seq++,art:art,src:src,total:p.total,comps:p.comps,used:p.used,offered:false};
+    if(src==='resa'){ line.at=st.plat?'platform':'plan'; line.paid=false; }
+    else { line.at=phaseOf().defaultCollectAt; line.atDefault=line.at; line.paid=pay==='now'; if(line.paid) line.paidBy= src==='sas'?'SAS':(st.plat?'carte, lien Qonto séparé':'carte, lien Qonto'); }
+    if(art==='bain') line.hold='créneau : hold au devis → confirmé dans la vente';
+    lines.push(line);
+    if(src!=='resa') journal.unshift('extraSale.sold → '+(art==='bain'?'agenda (séance), ':'')+(src==='shop'?'e-mail de confirmation':'historique'));
+    msg.className='msg ok';
+    msg.textContent=A.l+' : '+m(p.total)+' → '+statusText(line).t+'. Les nuits et la taxe n’ont pas été recalculées.';
+    render();
+  });
+
+  function statusText(l){
+    if(l.offered) return {t:'Offerte',c:'c-off'};
+    if(l.at==='platform') return {t:'Comprise dans le prix plateforme',c:'c-plan'};
+    if(l.at==='plan') return {t:'Dans l’acompte et le solde',c:'c-plan'};
+    if(l.paid) return {t:'Payée ('+l.paidBy+')',c:'c-paid'};
+    if(l.at==='arrival' && sasDone()) return {t:'À payer au départ (rappel de l’arrivée)',c:'c-dep'};
+    var ov=(l.atDefault&&l.at!==l.atDefault)?' · choix opérateur':'';
+    if(l.at==='arrival') return {t:'À payer à l’arrivée'+ov,c:'c-arr'};
+    return {t:'À payer au départ'+ov,c:'c-dep'};
+  }
+  var srcLbl={resa:'Fiche',fiche:'Fiche',shop:'Boutique',sas:'SAS'};
+  function canMove(l){ return !l.paid && !l.offered && (l.at==='arrival'||l.at==='departure') && !depDone(); }
+  function moveTarget(l){ return l.at==='arrival'?'departure':(sasDone()?null:'arrival'); }
+
+  function act(id,kind){
+    if(S.uc==='ext'){ extLines=extLines.filter(function(x){return x.id!==id;}); journal.unshift('vente hors séjour : ligne retirée'+(kind==='rm'?' · créneau libéré si besoin':'')); render(); return; }
+    var l=lines.filter(function(x){return x.id===id;})[0]; if(!l) return;
+    if(kind==='mv'){
+      var to=moveTarget(l);
+      if(!to||!canMove(l)){ $('refundMsg').textContent='Le SAS arrivée est validé : une ligne ne peut plus être passée à l’arrivée.'; return; }
+      var lbl={arrival:'à payer à l’arrivée',departure:'à payer au départ'};
+      journal.unshift(hhmm(+$('hour').value)+' — '+ART[l.art].l+' : '+lbl[l.at]+(l.at===l.atDefault?' (horloge)':' (opérateur)')+' → '+lbl[to]+(to===l.atDefault?' (retour au choix de l’horloge)':' (opérateur)')+' · défaut de l’horloge à la vente : '+lbl[l.atDefault]);
+      l.at=to; render(); return;
+    }
+    if(l.paid && pendingRemove!==id+kind){ pendingRemove=id+kind; render(); return; }
+    if(l.paid){ refunds+=l.total; journal.unshift(hhmm(+$('hour').value)+' — '+ART[l.art].l+' payée '+(kind==='rm'?'retirée':'offerte')+' : '+m(l.total)+' à rembourser · extraSale.refundOwed'); }
+    if(kind==='rm'){ lines=lines.filter(function(x){return x.id!==id;}); if(l.art==='bain') journal.unshift('fulfilment.release : créneau du bain libéré'); }
+    if(kind==='off'){ l.offered=true; l.paid=false; }
+    pendingRemove=null; render();
+  }
+
+  function allocate(items,D){
+    var sum=items.reduce(function(s,i){return s+i.amt;},0); if(!sum||!D) return items.map(function(){return 0;});
+    var raw=items.map(function(i){return D*i.amt/sum;});
+    var sh=raw.map(Math.floor), left=D-sh.reduce(function(a,b){return a+b;},0);
+    var order=raw.map(function(r,ix){return {ix:ix,rem:r-Math.floor(r)};}).sort(function(a,b){ return (b.rem-a.rem)||(a.ix-b.ix); });
+    for(var k=0;k<left;k++) sh[order[k%order.length].ix]++;
+    return sh;
+  }
+  /* TVA par groupe (famille, taux), puis répartie sur les lignes */
+  /* Composant TVA : seul endroit qui calcule taux, TVA et HT, à partir de montants étiquetés */
+  var VCLASS={acc:'hébergement',food:'repas',drink:'boissons',well:'bien-être',serv:'services'};
+  var ACCOUNT={acc:'706000',food:'706100',drink:'707000',well:'706200',serv:'706300'};
+  function tagOf(label,fam,amt,ctx,src){ return {label:label,amountCents:amt,vatClass:fam,customerContext:ctx,source:src}; }
+  function vatOf(tags){
+    var groups={}, order=[];
+    tags.forEach(function(t,ix){ var r=resolveRate(t.vatClass,t.customerContext), k=t.vatClass+'|'+r+'|'+t.customerContext; if(!groups[k]){ groups[k]={vatClass:t.vatClass,rate:r,ix:[],ttc:0}; order.push(k); } groups[k].ix.push(ix); groups[k].ttc+=t.amountCents; });
+    var per=tags.map(function(){return 0;}), byRate={}, gl=[];
+    order.forEach(function(k){ var g=groups[k], v=Math.round(g.ttc*g.rate/(100+g.rate)); var sh=allocate(g.ix.map(function(i){return {amt:tags[i].amountCents};}),v); g.ix.forEach(function(i,j){ per[i]=sh[j]; }); byRate[g.rate]=(byRate[g.rate]||0)+v; gl.push({vatClass:g.vatClass,rate:g.rate,ttc:g.ttc,vat:v,net:g.ttc-v}); });
+    return {per:per,byRate:byRate,groups:gl,rateOf:function(i){return resolveRate(tags[i].vatClass,tags[i].customerContext);}};
+  }
+  function renderVat(tags,V,ctxLbl){
+    if(!tags.length){ $('oV').innerHTML='<p class="note">Aucun montant.</p>'; return; }
+    var t='<div class="tags">'+tags.map(function(x){ return '{ '+x.amountCents+', \''+VCLASS[x.vatClass]+'\', \''+x.customerContext+'\', '+x.source+' }'; }).join('\n')+'\n→ vatOf(...)</div>';
+    tags.forEach(function(x,i){ t+=kv(esc(x.label)+' · '+V.rateOf(i)+' %',m(V.per[i])); });
+    t+='<p class="note">Arrondi une fois par groupe (classe, taux, contexte), puis réparti sur les lignes. Contexte client : <b>'+ctxLbl+'</b>. Aucun autre composant ne calcule de TVA.</p>';
+    $('oV').innerHTML=t;
+  }
+  function renderJournal(entries){
+    if(!entries.length){ $('oJ').innerHTML='<p class="note">Aucune écriture.</p>'; return; }
+    var h='<div class="scroll"><table class="jr"><thead><tr><th>Rôle neutre</th><th>Compte</th><th>Débit</th><th>Crédit</th></tr></thead><tbody>';
+    entries.forEach(function(e){ h+='<tr class="e"><td colspan="4">'+esc(e.title)+'</td></tr>'; e.lines.forEach(function(l){ h+='<tr><td>'+esc(l.role)+'</td><td>'+l.acct+'</td><td class="n">'+(l.d?m(l.d):'')+'</td><td class="n">'+(l.c?m(l.c):'')+'</td></tr>'; }); });
+    h+='</tbody></table></div><p class="note">AccountingOutput produit les rôles à partir des lignes, de la sortie TVA et des encaissements. L’export CSV ne fait que traduire chaque rôle en compte (plan de comptes d’exemple). Il ne recalcule rien.</p>';
+    $('oJ').innerHTML=h;
+  }
+  function saleLines(V,extra){
+    var out=[]; V.groups.forEach(function(g){ out.push({role:'revenue:'+VCLASS[g.vatClass],acct:ACCOUNT[g.vatClass],c:g.net}); });
+    Object.keys(V.byRate).sort(function(a,b){return a-b;}).forEach(function(r){ out.push({role:'vat:'+r+' %',acct:r==='20'?'445720':'445710',c:V.byRate[r]}); });
+    return out.concat(extra||[]);
+  }
+
+  function kv(a,b,cls){ return '<div class="kv'+(cls?' '+cls:'')+'"><span>'+a+'</span><span>'+b+'</span></div>'; }
+  function skipped(id,txt){ $(id).innerHTML='<p class="note"><b>Non appelé.</b> '+esc(txt)+'</p>'; }
+
+  function renderPipe(){
+    var used=STEPS[S.uc==='ext'?'ext':'stay'];
+    $('pipe').innerHTML='<div class="lbl">Pipeline « '+(S.uc==='ext'?'vente hors séjour':'séjour')+' » — étapes appelées</div><ol class="steps">'+ALLSTEPS.map(function(s){ var on=used.indexOf(s)>=0; return '<li class="'+(on?'on':'skip')+'">'+esc(s)+(on?'':' <span class="sr">(sautée)</span>')+'</li>'; }).join('')+'</ol>'+(S.uc==='stay'?'<p class="note">Une vente ajoutée sur ce séjour (fiche, boutique, SAS) suit le pipeline « vente » : elle saute Nuits, Personnes en plus, Taxe et Échéancier, et relit les montants stockés.</p>':'');
+    document.querySelectorAll('.out .box[data-step]').forEach(function(b){ var s=b.dataset.step; var off= S.uc==='ext' && ['clock','stay','tax','coll'].indexOf(s)>=0; b.classList.toggle('skip',off); });
+  }
+
+  function render(){
+    segs(); renderPipe();
+    var ext=S.uc==='ext';
+    $('fsStay').hidden=ext; $('fsClock').hidden=ext; $('fsCtx').hidden=!ext; $('srcWrap').hidden=ext; $('viewSeg').hidden=ext;
+    $('linesLegend').textContent=ext?'Lignes de la vente hors séjour':'Lignes de la réservation';
+    var art=$('art').value, A=ART[art];
+    $('eveWrap').hidden=art!=='bain';
+    $('qtyLbl').textContent=A.q+(art==='pdj'?' (pour chaque adulte)':'');
+    $('qty').setAttribute('aria-invalid','false');
+    $('discWrap').hidden=S.channel==='booking';
+    $('payWrap').style.opacity=(!ext&&S.src==='resa')?'.45':'1';
+    $('payNow').textContent= ext?'Payer sur place (TPE ou espèces)':(S.src==='sas'?'Payer maintenant (TPE ou espèces)':'Carte maintenant (lien Qonto)');
+    $('payLater').textContent= ext?'Lien Qonto':'À payer';
+    $('journal').innerHTML=journal.slice(0,6).map(function(j){return '<li>'+esc(j)+'</li>';}).join('');
+
+    if(ext){ renderExt(); return; }
+
+    var h=+$('hour').value; $('hourLbl').textContent=hhmm(h);
+    var dLbl=$('day').options[$('day').selectedIndex].text;
+    $('clockLine').innerHTML='Maintenant : <b>'+esc(dLbl)+' à '+hhmm(h)+'</b> · arrivée prévue à <b>'+hhmm(cinMin())+'</b> → '+(phaseOf().phase==='after'?'<b>séjour terminé</b> : une vente non payée va <b>au départ</b>.':started()?'<b>séjour commencé</b> : une vente non payée va <b>au départ</b>.':'<b>pas encore commencé</b> : une vente non payée va <b>à l’arrivée</b>.')+(sasDone()?' Le SAS arrivée est validé (affichage seulement).':'');
+    var ph=phaseOf(), lblP={before:'avant',during:'pendant',after:'après'};
+    $('oH').innerHTML='<div class="phase">phaseOf({ arrivalDate: J, departureDate: J+'+(intOf('nights')||1)+', checkInTime: \''+hhmm(cinMin())+'\', checkOutTime: \'10:00\' }, maintenant = '+esc(dLbl)+' '+hhmm(h)+')\n→ { phase: <b class="ph-'+ph.phase+'">\''+ph.phase+'\'</b> ('+lblP[ph.phase]+'), started: '+ph.started+', defaultCollectAt: \''+ph.defaultCollectAt+'\', arrivalDayReached: '+ph.arrivalDayReached+', departureDayReached: '+ph.departureDayReached+' }</div><p class="note">Consultée par l’encaissement, le service de vente, le SAS, la fiche, le détail et la boutique. Le SAS validé et la case « arrivée » ne changent que l’affichage.</p>';
+
+    var st=stay();
+    $('stayErr').textContent=st.err||'';
+    if(st.err){ ['o1','oT','o2','oV','o3','o4','oJ'].forEach(function(o){ $(o).innerHTML='<p class="note">'+esc(st.err)+'</p>'; }); $('view').innerHTML=''; $('lines').innerHTML=''; return; }
+
+    var pct=st.plat?0:Math.min(50,Math.max(0,intOf('disc')||0));
+    var amt=function(l){return l.offered?0:l.total;};
+    var accBase=st.plat?Math.max(0,st.nights-lines.filter(function(l){return l.at==='platform';}).reduce(function(s,l){return s+amt(l);},0)):st.nights;
+    var accAdj=accBase, shares={};
+    var discLines=lines.filter(function(l){return l.src==='resa'&&!l.paid&&!l.offered&&l.at!=='platform';});
+    if(pct){
+      if(S.target==='nights'){ accAdj=Math.round(accBase*(100-pct)/100); }
+      else { var items=(S.target==='all'?[{k:'acc',amt:accBase}]:[]).concat(discLines.map(function(l){return {k:l.id,amt:l.total};})); var tot=items.reduce(function(s,i){return s+i.amt;},0), D=Math.round(tot*pct/100), sh=allocate(items,D); items.forEach(function(it,ix){ if(it.k==='acc') accAdj=accBase-sh[ix]; else shares[it.k]=sh[ix]; }); }
+    }
+    var net=function(l){return amt(l)-(shares[l.id]||0);};
+
+    var ul=$('lines');
+    if(!lines.length) ul.innerHTML='<li class="empty">Aucune ligne. Ajouter un article ci-dessus.</li>';
+    else ul.innerHTML=lines.map(function(l){
+      var s=statusText(l);
+      var rmLbl=(l.paid&&pendingRemove===l.id+'rm')?'Confirmer : '+m(l.total)+' à rembourser':'Retirer';
+      var offLbl=(l.paid&&pendingRemove===l.id+'off')?'Confirmer : '+m(l.total)+' à rembourser':'Offrir';
+      var mv=''; if(canMove(l)){ var to=moveTarget(l); mv= to?'<button class="btn small ghost" data-a="mv" data-id="'+l.id+'">'+(to==='departure'?'Passer au départ':'Passer à l’arrivée')+'</button>':''; }
+      var disc=shares[l.id]?' <span class="chip c-src">Remise −'+m(shares[l.id])+'</span>':'';
+      return '<li><span class="grow"><b>'+esc(ART[l.art].l)+'</b> · '+(l.offered?'<s>'+m(l.total)+'</s> 0,00 €':m(net(l)))+'<br><span class="chip c-src">'+srcLbl[l.src]+'</span> <span class="chip '+s.c+'">'+s.t+'</span>'+disc+'</span>'+mv+(l.offered?'':'<button class="btn small ghost" data-a="off" data-id="'+l.id+'">'+offLbl+'</button>')+'<button class="btn small danger" data-a="rm" data-id="'+l.id+'">'+rmLbl+'</button></li>';
+    }).join('');
+    ul.querySelectorAll('button[data-a]').forEach(function(b){ b.addEventListener('click',function(){ act(+b.dataset.id,b.dataset.a); }); });
+    var rmsg=pendingRemove?'Cette ligne est payée. La retirer ou l’offrir crée un remboursement à faire. Confirmer ?':(refunds?'Remboursement dû au client : '+m(refunds)+'.':'');
+    if(rmsg) $('refundMsg').textContent=rmsg; else if(!/SAS arrivée est validé/.test($('refundMsg').textContent)) $('refundMsg').textContent='';
+
+    var o1='';
+    if(st.plat){ o1+=kv('Prix plateforme (brut)',m(st.nights)); o1+=kv(st.n+' nuits × '+m(st.nightCents)+' brut','','sub'); } else o1+=kv(st.n+' nuits × '+m(st.nightCents),m(st.nights));
+    o1+=kv('Personnes en plus'+(st.extra?' ('+st.extra+')':''),m(st.extraCents));
+    o1+='<p class="note">Le tarif arrive par les réglages (SettingsProvider). Une vente ne rappelle pas ce composant.</p>';
+    $('o1').innerHTML=o1;
+    $('oT').innerHTML=kv(st.a+' adultes × '+st.n+' nuits × 1,10 €',m(st.tax))+kv(st.plat?'Perçue à l’arrivée':'Payée avec le solde','','sub')+'<p class="note">Le taux, le plafond, les exonérations et qui perçoit la taxe viennent de SettingsProvider.for(\'touristTax\', logement). Les ventes d’articles ne l’appellent pas.</p>';
+
+    var o2='';
+    if(!lines.length) o2='<p class="note">Aucun article.</p>';
+    lines.forEach(function(l){ o2+=kv(esc(ART[l.art].l)+' <span class="chip c-src">'+ART[l.art].kind+'</span>', l.offered?'0,00 €':m(l.total)); l.comps.forEach(function(c){ o2+=kv(esc(c),'','sub'); }); if(l.hold) o2+=kv('↳ '+esc(l.hold),'','sub'); if(l.offered) o2+=kv('offert (valeur '+m(l.total)+')','','sub'); });
+    o2+='<p class="note">Chaque ligne est chiffrée par le calculateur de son type. Offerts : '+(allowanceLeft()>0?'1 h de bain offerte encore disponible.':'l’heure offerte est attachée à la ligne qui l’a prise.')+'</p>';
+    $('o2').innerHTML=o2;
+
+    var platSum=lines.filter(function(l){return l.at==='platform';}).reduce(function(s,l){return s+amt(l);},0);
+    var otherSum=lines.filter(function(l){return l.at!=='platform';}).reduce(function(s,l){return s+net(l);},0);
+    var discTotal=(accBase-accAdj)+Object.keys(shares).reduce(function(s,k){return s+shares[k];},0);
+    var finalP=accAdj+st.extraCents+platSum+otherSum, totalStay=finalP+st.tax;
+
+    var tags=[tagOf('Hébergement et personnes en plus','acc',accAdj+st.extraCents,'hosted','nuits')].concat(lines.filter(function(l){return !l.offered;}).map(function(l){ return tagOf(ART[l.art].l,ART[l.art].fam,l.at==='platform'?amt(l):net(l),'hosted','article:'+ART[l.art].kind); }));
+    var V=vatOf(tags);
+    renderVat(tags,V,'hébergé');
+    var paidStay=lines.filter(function(l){return l.paid&&!l.offered;}).reduce(function(a,l){return a+l.total;},0);
+    var je=[{title:'Vente · séjour (kind: sale)',lines:[{role:'customer',acct:'411000',d:finalP+st.tax}].concat(saleLines(V,[{role:'touristTax (hors TVA)',acct:'467100',c:st.tax}]))}];
+    if(paidStay) je.push({title:'Encaissement des lignes payées (kind: receipt)',lines:[{role:'bank',acct:'512000',d:paidStay},{role:'customer',acct:'411000',c:paidStay}]});
+    renderJournal(je);
+
+    var o3='';
+    o3+=kv('Hébergement',m(accAdj));
+    if(st.plat) o3+=kv('brut − articles compris dans le brut','','sub');
+    if(platSum) o3+=kv('Articles compris dans le brut',m(platSum));
+    o3+=kv('Articles vendus en plus',m(otherSum));
+    if(pct) o3+=kv('Remises ('+pct+' % sur '+({nights:'les nuits',extras:'les articles',all:'le tout'})[S.target]+')','−'+m(discTotal));
+    if(pct && S.target!=='nights') o3+=kv('Répartition au centime, les plus gros restes d’abord','','sub');
+    if(pct && S.target!=='nights' && !discLines.length) o3+=kv('Aucun article vendu avec le séjour à remiser','','sub');
+    o3+=kv('Prix final',m(finalP),'tot');
+    o3+=kv('Taxe de séjour (composant T)',m(st.tax));
+    o3+=kv('Total du séjour',m(totalStay),'tot');
+    Object.keys(V.byRate).sort(function(a,b){return a-b;}).forEach(function(r){ o3+=kv('Dont TVA '+r+' %',m(V.byRate[r]),'sub'); });
+    o3+='<p class="note">Les totaux ne calculent rien : ils additionnent ce que les étapes ont posé.</p>';
+    var post=lines.filter(function(l){return l.src!=='resa'&&!l.offered;});
+    if(st.plat&&post.length){ var s=post.reduce(function(a,l){return a+l.total;},0); o3+='<div class="cmp">Aujourd’hui, une vente lue comme « comprise dans le prix plateforme » pouvait réduire l’hébergement de '+m(s)+'.</div><div class="cmp good">Demain : une vente faite après la réservation n’est jamais comprise. L’hébergement reste à '+m(accAdj)+'.</div>'; }
+    $('o3').innerHTML=o3;
+
+    var due=function(f){return lines.filter(function(l){return !l.offered&&!l.paid&&f(l);}).reduce(function(s,l){return s+net(l);},0);};
+    var paidSum=lines.filter(function(l){return l.paid&&!l.offered;}).reduce(function(s,l){return s+l.total;},0);
+    var arrDue=due(function(l){return l.at==='arrival';}), depDue=due(function(l){return l.at==='departure';});
+    var stayArr=st.plat?st.tax+st.extraCents:0, o4='';
+    if(st.plat) o4+=kv('Versé par la plateforme',m(st.nights));
+    else { var planB=accAdj+st.extraCents+lines.filter(function(l){return l.at==='plan'&&!l.offered;}).reduce(function(s,l){return s+net(l);},0), dep=Math.round(accAdj*0.3); o4+=kv('Acompte (30 % des nuits)',m(dep)); o4+=kv('Solde (avec la taxe)',m(planB-dep+st.tax)); }
+    if(sasDone()){ o4+=kv('Complément d’arrivée','perçu au SAS'); o4+=kv('Complément de départ',m(depDue+arrDue)); if(arrDue) o4+=kv('dont '+m(arrDue)+' rappelés de l’arrivée','','sub'); }
+    else { o4+=kv('Complément d’arrivée',m(arrDue+stayArr)); o4+=kv('Complément de départ',m(depDue)); }
+    o4+=kv('Déjà payé',m(paidSum));
+    if(refunds) o4+=kv('Remboursement dû',m(refunds));
+    o4+='<p class="note">Moment par défaut donné par l’horloge (H) : '+(ph.defaultCollectAt==='arrival'?'à l’arrivée':'au départ')+'. Le déjà-payé n’est retiré qu’ici.</p>';
+    $('o4').innerHTML=o4;
+
+    function vl(l){ var s=statusText(l), g=ART[l.art]; return '<div class="vline"><div>'+esc(g.l)+' <span class="chip c-src">'+srcLbl[l.src]+'</span><div class="d">'+esc(l.comps.join(' · '))+(shares[l.id]?' · remise −'+m(shares[l.id]):'')+'</div></div><div class="a">'+(l.offered?'0,00 €':m(net(l)))+'<br><span class="chip '+s.c+'">'+s.t+'</span></div></div>'; }
+    var hv='';
+    if(S.view==='fiche'){
+      hv+='<h5>Fiche de réservation · Options et articles</h5>'+(lines.length?lines.map(vl).join(''):'<p class="empty">Aucun article.</p>');
+      hv+='<div class="vtotal"><span>À payer à l’arrivée</span><span>'+m(sasDone()?0:arrDue)+'</span></div>';
+      hv+=kv('À payer au départ',m(depDue+(sasDone()?arrDue:0)))+kv('Déjà payé',m(paidSum));
+    } else if(S.view==='sasA'){
+      hv+='<h5>SAS arrivée</h5>';
+      if(sasDone()) hv+='<p class="empty">SAS arrivée validé. Les lignes non payées sont rappelées au SAS départ.</p>';
+      else {
+        var aL=lines.filter(function(l){return l.at==='arrival'&&!l.paid&&!l.offered;});
+        hv+='<div class="sec">À percevoir maintenant</div>';
+        if(st.plat&&st.extraCents) hv+='<div class="vline"><div>Personnes en plus<div class="d">'+st.extra+' × '+st.n+' nuits × 15 €</div></div><div class="a">'+m(st.extraCents)+'</div></div>';
+        if(st.plat) hv+='<div class="vline"><div>Taxe de séjour<div class="d">'+st.a+' adultes × '+st.n+' nuits × 1,10 €</div></div><div class="a">'+m(st.tax)+'</div></div>';
+        hv+=aL.length?aL.map(vl).join(''):(st.plat?'':'<p class="empty">Rien à percevoir.</p>');
+        var pl=lines.filter(function(l){return l.paid;}); if(pl.length) hv+='<div class="sec">Déjà payé (ne peut pas être offert ici)</div>'+pl.map(vl).join('');
+        var dl=lines.filter(function(l){return l.at==='departure'&&!l.paid&&!l.offered;});
+        if(started()&&dl.length) hv+='<div class="sec">Ventes du séjour — au départ</div>'+dl.map(vl).join('')+'<p class="note">Vendues après l’heure d’arrivée. Elles ne sont pas comptées ici : on peut les percevoir maintenant ou les passer à l’arrivée.</p>';
+        hv+='<div class="vtotal"><span>Total à percevoir</span><span>'+m(arrDue+stayArr)+'</span></div>';
+      }
+    } else {
+      hv+='<h5>SAS départ</h5>';
+      var dL=lines.filter(function(l){return !l.paid&&!l.offered&&(l.at==='departure'||(sasDone()&&l.at==='arrival'));});
+      hv+='<div class="sec">À percevoir au départ</div>'+(dL.length?dL.map(vl).join(''):'<p class="empty">Rien à percevoir.</p>');
+      var pd=lines.filter(function(l){return l.paid;}); if(pd.length) hv+='<div class="sec">Déjà payé pendant le séjour</div>'+pd.map(vl).join('');
+      hv+='<div class="vtotal"><span>Total à percevoir</span><span>'+m(depDue+(sasDone()?arrDue:0))+'</span></div>';
+      if(!sasDone()&&arrDue) hv+='<p class="note">Les lignes « à l’arrivée » ne sont rappelées ici que si elles restent impayées une fois le SAS arrivée validé.</p>';
+    }
+    $('view').innerHTML=hv;
+  }
+
+  function renderExt(){
+    skipped('oH','Pas de séjour : l’horloge n’est pas consultée.');
+    skipped('o1','Pas de nuits dans une vente hors séjour.');
+    skipped('oT','Pas de taxe de séjour sans séjour.');
+    skipped('o4','Pas d’échéancier ni de compléments : paiement sur place ou par lien Qonto.');
+    var ul=$('lines');
+    ul.innerHTML=extLines.length?extLines.map(function(l){ return '<li><span class="grow"><b>'+esc(ART[l.art].l)+'</b> · '+m(l.total)+'<br><span class="chip '+(l.paid?'c-paid':'c-arr')+'">'+(l.paid?'Payée sur place':'Lien Qonto envoyé')+'</span></span><button class="btn small danger" data-a="rm" data-id="'+l.id+'">Retirer</button></li>'; }).join(''):'<li class="empty">Aucune ligne. Ajouter une boisson ci-dessus.</li>';
+    ul.querySelectorAll('button[data-a]').forEach(function(b){ b.addEventListener('click',function(){ act(+b.dataset.id,'rm'); }); });
+    $('refundMsg').textContent='';
+    var o2='';
+    if(!extLines.length) o2='<p class="note">Aucun article.</p>';
+    extLines.forEach(function(l){ o2+=kv(esc(ART[l.art].l)+' <span class="chip c-src">'+ART[l.art].kind+'</span>',m(l.total)); l.comps.forEach(function(c){ o2+=kv(esc(c),'','sub'); }); if(l.hold) o2+=kv('↳ '+esc(l.hold),'','sub'); });
+    o2+='<p class="note">Les mêmes calculateurs que pour un séjour. Seuls les articles vendables hors séjour sont proposés. Les articles « par nuit » ou « par personne » répondraient « NEEDS_STAY ». Pas d’heure de bain offerte sans séjour.</p>';
+    $('o2').innerHTML=o2;
+    var items=extLines.map(function(l){ return tagOf(ART[l.art].l,ART[l.art].fam,l.total,S.ctx,'standalone:'+ART[l.art].kind); });
+    var V=vatOf(items);
+    renderVat(items,V,S.ctx==='hosted'?'hébergé':'extérieur');
+    if(items.length) $('oV').innerHTML+='<p class="note">Le bain passe de 10 % à 20 % pour un client extérieur ; la bière reste à 20 %, la planche à 10 %.</p>';
+    var tot=items.reduce(function(s,i){return s+i.amountCents;},0), o3=kv('Total de la vente',m(tot),'tot');
+    Object.keys(V.byRate).sort(function(a,b){return a-b;}).forEach(function(r){ o3+=kv('Dont TVA '+r+' %',m(V.byRate[r]),'sub'); });
+    var paid=extLines.filter(function(l){return l.paid;}).reduce(function(s,l){return s+l.total;},0);
+    o3+=kv('Payé sur place',m(paid))+kv('Par lien Qonto',m(tot-paid));
+    $('o3').innerHTML=o3;
+    var dl=[]; if(paid) dl.push({role:'bank',acct:'512000',d:paid}); if(tot-paid) dl.push({role:'customer (lien Qonto)',acct:'411000',d:tot-paid});
+    renderJournal(items.length?[{title:'Vente hors séjour (kind: standalone)',lines:dl.concat(saleLines(V))}]:[]);
+    var hv='<h5>Vente hors séjour · ticket</h5>'+(extLines.length?extLines.map(function(l,i){ return '<div class="vline"><div>'+esc(ART[l.art].l)+'<div class="d">'+esc(l.comps.join(' · '))+' · TVA '+V.rateOf(i)+' %</div></div><div class="a">'+m(l.total)+'</div></div>'; }).join(''):'<p class="empty">Aucune ligne.</p>');
+    hv+='<div class="vtotal"><span>Total</span><span>'+m(tot)+'</span></div><p class="note">Enregistrée dans « standalone_sales » (question 13), reprise dans le journal comptable comme les réservations de bain hors séjour.</p>';
+    $('view').innerHTML=hv;
+  }
+  render();
+})();
+</script>
+</body>
+</html>

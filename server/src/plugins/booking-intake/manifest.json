@@ -1,0 +1,100 @@
+{
+  "id": "booking-intake",
+  "name": "Saisie Booking",
+  "version": "1.3.15",
+  "description": "Remplit les fiches Booking depuis la page de la réservation, ouverte dans l’extranet.",
+  "icon": "bookmark",
+  "surfaces": [
+    "Paramètres › Intégrations › Saisie Booking",
+    "Le bandeau en haut de la fiche",
+    "Une alerte du tableau de bord"
+  ],
+  "requires": [],
+  "guestflow": ">=3.10.0",
+  "sdk": "^2.15.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet : un script du navigateur envoie la page de la réservation ouverte dans l’extranet Booking, et la fiche iCal se remplit.",
+      "Une alerte du tableau de bord liste les réservations Booking encore à compléter."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée.",
+      "Le secret du script se crée par « Créer le secret » ; l’installation du script n’en crée plus.",
+      "Le script et son secret sont refusés à une session du support."
+    ],
+    "1.1.0": [
+      "Le voyageur reçoit sa propre fiche client : remplir une réservation ne renomme plus les autres séjours Booking qui partageaient le même client provisoire.",
+      "Les calendriers comptés comme Booking ne se règlent plus : le flux Booking toujours, le relais Lodgify seulement tant qu’il est actif."
+    ],
+    "1.1.1": [
+      "Le script attend que la page Booking ait fini de s’afficher avant de l’envoyer : la saisie n’est plus refusée « Sous-total introuvable ». Réinstaller le script (version 2)."
+    ],
+    "1.2.0": [
+      "Accueil : les fiches Booking à compléter rejoignent « À traiter », comptées par le serveur, avec le même dessin que les autres alertes."
+    ],
+    "1.2.1": [
+      "Lecture de la page Booking : les tarifs repliés sont ouverts avant la lecture (script à réinstaller, version 3), le téléphone en fin de phrase est lu.",
+      "Taxe de séjour « retenue » seulement quand Booking la garde ; reversée, la commission est « Commission et frais »."
+    ],
+    "1.3.0": [
+      "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
+    ],
+    "1.3.1": [
+      "Demande la version 1.6 du SDK, celle qui sait si Booking garde la taxe de séjour : une installation plus ancienne refuse le paquet au lieu de planter à la saisie."
+    ],
+    "1.3.2": [
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.3.3": [
+      "Le bandeau de la fiche est celui des autres saisies, avec le SDK 2.3 de GuestFlow."
+    ],
+    "1.3.4": [
+      "Une fiche refusée par GuestFlow ne laisse plus de fiche client derrière elle : le client du voyageur est créé dans la même opération que la mise à jour de la fiche (SDK 2.7 de GuestFlow)."
+    ],
+    "1.3.5": [
+      "Lecture des montants de la page Booking plus rapide sur une ligne démesurée.",
+      "Compatible avec le SDK 2.7 de GuestFlow."
+    ],
+    "1.3.6": [
+      "Une fiche annulée ou d’une autre plateforme n’est plus remplie ; si plusieurs fiches correspondent, la page est refusée au lieu de choisir la première.",
+      "L’adresse e-mail lue sur la page doit être une seule adresse.",
+      "Compatible avec le SDK 2.7 de GuestFlow."
+    ],
+    "1.3.7": [
+      "L’adresse e-mail de la page est vérifiée par un contrôle rapide, même sur une ligne démesurée.",
+      "Compatible avec le SDK 2.7 de GuestFlow."
+    ],
+    "1.3.8": [
+      "Le contrôle rapide de l’adresse e-mail est celui du cœur de GuestFlow : le paquet exige désormais un GuestFlow qui l’embarque.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
+    ],
+    "1.3.9": [
+      "Le secret de réception ne peut plus être remplacé depuis les réglages : il se crée et se régénère seulement avec les boutons prévus (SDK 2.15 de GuestFlow)."
+    ],
+    "1.3.10": [
+      "Un numéro de réservation ou d’établissement de mauvais type reçoit « Requête incomplète ».",
+      "Écarter une fiche dont le numéro n’est pas fait de chiffres répond « introuvable », jamais une erreur interne.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
+    ],
+    "1.3.11": [
+      "« Installer le script » sans URL publique renvoie vers Paramètres → Système.",
+      "Compatible avec le SDK 2.15 de GuestFlow."
+    ],
+    "1.3.12": [
+      "Compatible avec GuestFlow 4 (SDK 2.15)."
+    ],
+    "1.3.13": [
+      "« Ignorer » refuse un numéro de fiche qui ne désigne aucun séjour.",
+      "Compatible avec GuestFlow 4 (SDK 2.15)."
+    ],
+    "1.3.14": [
+      "Réglages : un établissement rattaché à un logement inconnu est refusé.",
+      "« Ignorer » refuse une proposition déjà appliquée ou ignorée.",
+      "Compatible avec GuestFlow 4 (SDK 2.15)."
+    ],
+    "1.3.15": [
+      "Réglages : un logement écrit avec des zéros en tête (« 01 ») est refusé.",
+      "Compatible avec GuestFlow 4 (SDK 2.15)."
+    ]
+  }
+}

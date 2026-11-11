@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { calculateReservationQuote, resolveAddedGuestsTouristTax } = require('../utils/pricing').__test;
-const { resolvePlatformPaidAdults } = require('../utils/platformPaidGuests');
+const { resolvePlatformPaidAdults, resolvePlatformPaidOccupants } = require('../utils/platformPaidGuests');
 
 const MODES = { reversed: [1, 0], remits: [1, 1], owner: [0, 0] };
 
@@ -172,4 +172,87 @@ test('rule 16: the solde\'s accommodation leaves out what the complement collect
   const q = quote({ adults: 3 });
   assert.equal(computeAccommodationTtc(q), 595.2);
   assert.equal(computeAccommodationTtc(q) + (q.touristTaxTotal - q.touristTaxAddedGuestsAmount), q.balanceAmount);
+});
+
+// R22-DB-3 — the old head count is not the party the backfill read, and a percentage tax depends on occupants.
+test('rule 19: the occupants follow the brut like the persons, and the body is never read', () => {
+  const body = { platform: 'Canal', platformGrossAmount: 600, adults: 3, children: 1, platformPaidOccupants: 9 };
+  assert.equal(resolvePlatformPaidOccupants(null, body), 4);
+  const stored = { platform: 'Canal', platformGrossAmount: 600, platformPaidOccupants: 2, platformPaidGuests: 7 };
+  assert.equal(resolvePlatformPaidOccupants(stored, { ...body, platformGrossAmount: 610 }), 2);
+  assert.equal(resolvePlatformPaidOccupants(stored, { ...body, platformGrossAmount: '' }), null);
+  assert.equal(resolvePlatformPaidOccupants(stored, { ...body, platform: 'direct' }), null);
+  assert.equal(resolvePlatformPaidOccupants({ ...stored, platformGrossAmount: null }, body), 4);
+  assert.equal(resolvePlatformPaidOccupants({ ...stored, platformPaidOccupants: null }, body), 7, 'a row written by an older release reads the persons');
+});
+
+test('rule 19: a party that differs from the old head count bills nothing on a percentage property', () => {
+  const percentage = { taxMode: 'percentage_accommodation' };
+  for (const party of [{ adults: 2, children: 1 }, { adults: 3, children: 0 }, { adults: 3, children: 1 }]) {
+    const occupants = party.adults + party.children;
+    const q = quote({ ...party, platformPaidGuests: 4, platformPaidAdults: party.adults, platformPaidOccupants: occupants }, percentage);
+    assert.equal(q.touristTaxAddedGuestsAmount, 0, JSON.stringify(party));
+    assert.equal(q.touristTaxAddedGuestsAdults, 0);
+    assert.equal(q.platformPaidOccupants, occupants);
+    assert.equal(q.platformPaidGuests, 4);
+  }
+});
+
+test('rule 19: a collected complement keeps the tax of the party, not of the old head count', () => {
+  const q = quote(
+    { adults: 2, children: 1, platformPaidGuests: 4, platformPaidAdults: 2, platformPaidOccupants: 3, complementPaid: true },
+    { taxMode: 'percentage_accommodation' },
+  );
+  const live = quote({ adults: 2, children: 1, platformPaidGuests: 3, platformPaidAdults: 2 }, { taxMode: 'percentage_accommodation' });
+  assert.equal(q.touristTaxTotal, live.touristTaxTotal);
+});
+
+test('rule 19: the supplement keeps the persons the platform billed', () => {
+  const q = quote({ adults: 3, platformPaidGuests: 2, platformPaidAdults: 3, platformPaidOccupants: 3 });
+  assert.equal(q.extraGuestComplementSurcharge, 40);
+  assert.equal(q.touristTaxAddedGuestsAmount, 0);
+});
+
+test('D12, rule 5: a child removed raises the per-occupant base: the gap is billed, nobody is added', () => {
+  const q = quote(
+    { adults: 2, children: 1, platformPaidGuests: 4, platformPaidAdults: 2, platformPaidOccupants: 4 },
+    { taxMode: 'percentage_accommodation' },
+  );
+  assert.ok(q.touristTaxAddedGuestsAmount > 0);
+  assert.equal(q.touristTaxAddedGuestsAdults, 0);
+  assert.equal(q.complementDetailLines.find((l) => l.kind === 'tax').label, 'Complément de taxe de séjour');
+  assert.equal(q.complementDetailLines.find((l) => l.kind === 'tax').addedGuests, true);
+});
+
+test('rule 21: the added adults go with the amount, frozen with it once collected', () => {
+  const added = quote({ adults: 4 });
+  assert.equal(added.touristTaxAddedGuestsAdults, 2);
+  assert.equal(quote({ adults: 2 }).touristTaxAddedGuestsAdults, 0);
+  const noise = quote({ adults: 3 }, { taxMode: 'percentage_accommodation' });
+  assert.equal(noise.touristTaxAddedGuestsAmount, 0);
+  assert.equal(noise.touristTaxAddedGuestsAdults, 0, 'no amount, nobody it is for');
+  const collected = quote({ adults: 2, complementPaid: true, storedTouristTaxAddedGuests: 2.4, storedTouristTaxAddedGuestsAdults: 1 });
+  assert.equal(collected.touristTaxAddedGuestsAmount, 2.4);
+  assert.equal(collected.touristTaxAddedGuestsAdults, 1);
+});
+
+test('rule 21: a collected amount with no adults stored falls back on the party (a rollback, then a re-upgrade)', () => {
+  const collected = quote({ adults: 3, complementPaid: true, storedTouristTaxAddedGuests: 2.4, storedTouristTaxAddedGuestsAdults: null });
+  assert.equal(collected.touristTaxAddedGuestsAmount, 2.4);
+  assert.equal(collected.touristTaxAddedGuestsAdults, 1);
+});
+
+test('rule 23: a tax collected on arrival keeps its name on the live detail', () => {
+  const q = quote({ adults: 3 }, { mode: 'owner' });
+  assert.equal(q.touristTaxCollectedOnArrival, true);
+  const line = q.complementDetailLines.find((l) => l.kind === 'tax');
+  assert.equal(line.label, 'Taxe de séjour');
+  assert.equal(line.addedGuests, undefined);
+});
+
+test('rule 23: a tax whole in the complement keeps its name on the live detail', () => {
+  const q = quote({ adults: 3, touristTaxInComplement: 1 });
+  const line = q.complementDetailLines.find((l) => l.kind === 'tax');
+  assert.equal(line.label, 'Taxe de séjour');
+  assert.equal(line.addedGuests, undefined);
 });

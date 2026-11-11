@@ -24,6 +24,16 @@ function typedCountOf({ priceType, billedUnits }, stay) {
   return nights > 0 ? Number(billedUnits) / nights : null;
 }
 
+// The figure a reader prints for a line (rule 29): the count the fiche's field shows, read from what the
+// line bills. A card line counts its moments and the insurance covers the stay, so both keep `quantity`,
+// as does any line with no count of its own.
+function displayCountOf(line, stay, { isCard = false, isInsurance = false } = {}) {
+  const quantity = Number(line?.quantity || 0);
+  if (isCard || isInsurance) return quantity;
+  const count = typedCountOf(line, stay);
+  return Number.isFinite(count) && count > 0 ? Math.round(count * 100) / 100 : quantity;
+}
+
 const unitLabel = (kind, n) => (kind === 'nights'
   ? `${n} nuit${n > 1 ? 's' : ''}`
   : `${n} personne${n > 1 ? 's' : ''}`);
@@ -53,7 +63,7 @@ function alertFor(line, kind, typed, reference, current) {
 function typedCountAlerts({
   quoteLines = [], requestLines = [], persons, nights, storedPersons = null, storedNights = null,
 } = {}) {
-  const requested = new Map((requestLines || []).map((line) => [Number(line?.optionId), line]));
+  const requested = new Map((Array.isArray(requestLines) ? requestLines : []).map((line) => [Number(line?.optionId), line]));
   const alerts = [];
   for (const line of quoteLines || []) {
     if (line?.isCustom || line?.optionId == null) continue;
@@ -80,4 +90,4 @@ function typedCountsErrorPayload(alerts) {
   return { error: lines.join(' '), code: 'TYPED_COUNTS_STALE', lines: alerts };
 }
 
-module.exports = { partyOf, nightsOf, typedCountOf, typedCountAlerts, typedCountsErrorPayload };
+module.exports = { partyOf, nightsOf, typedCountOf, displayCountOf, typedCountAlerts, typedCountsErrorPayload };

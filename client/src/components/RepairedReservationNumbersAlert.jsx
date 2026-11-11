@@ -10,14 +10,15 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, AlertTitle, Box, Button, Divider, Stack, Typography,
+  Box, Button, Divider, Stack, Typography,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useNavigate } from 'react-router';
 import api from '../api';
+import AttentionCard from './AttentionCard';
 import { displayDateShort } from '../utils/formatters';
 
-export default function RepairedReservationNumbersAlert() {
+export default function RepairedReservationNumbersAlert({ attention }) {
   const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
   const [busyId, setBusyId] = useState(null);
@@ -50,14 +51,8 @@ export default function RepairedReservationNumbersAlert() {
   const open = (reservationId) => navigate(`/reservations/${reservationId}`);
 
   return (
-    <Alert severity="warning" variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}>
-      <AlertTitle sx={{ fontWeight: 700 }}>
-        À vérifier — {alerts.length === 1 ? '1 réservation restée sans numéro' : `${alerts.length} réservations restées sans numéro`}
-      </AlertTitle>
-      <Typography variant="body2" color="text.secondary">
-        Un séjour fantôme bloque ses dates : vérifier qu’il s’agit d’un vrai séjour.
-      </Typography>
-      <Stack divider={<Divider flexItem />} spacing={0.5} sx={{ mt: 1 }}>
+    <AttentionCard attention={attention}>
+      <Stack divider={<Divider flexItem />} spacing={0.5}>
         {alerts.map((alert) => (
           <Box
             key={alert.reservationId}
@@ -98,6 +93,6 @@ export default function RepairedReservationNumbersAlert() {
           </Box>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

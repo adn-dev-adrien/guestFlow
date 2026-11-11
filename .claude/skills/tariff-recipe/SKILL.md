@@ -6,11 +6,11 @@ description: Author, review or amend a GuestFlow tariff recipe — the JSON docu
 # Authoring a GuestFlow tariff recipe
 
 A recipe is **data, not code**: a versioned JSON document describing *what* a property's tariff model
-is. `server/src/utils/seasonPlan.js` turns it into dated season ranges; `models/tariffRecipeModel.js`
+is. `server/src/plugins/tariff-recipes/seasonPlan.js` turns it into dated season ranges; `plugins/tariff-recipes/model.js`
 diffs it against a property and applies it. You never write date logic — you declare rules.
 
 Read `specs/tariff-recipes/spec.md` before a substantial change; it is the source of truth.
-`server/src/recipes/aventura-lodge-2026.json` is the worked example.
+`server/src/plugins/tariff-recipes/recipes/aventura-lodge-2026.json` is the worked example.
 
 ## Workflow
 
@@ -18,15 +18,15 @@ Read `specs/tariff-recipes/spec.md` before a substantial change; it is the sourc
    prose rather than tables (closures, what is included in the rate, direct-vs-platform differences).
 2. **Check every table for internal contradictions before encoding it** — see "Traps" below. Raise
    contradictions with the user; do not silently pick a reading.
-3. Write the JSON in `server/src/recipes/<id>.json`.
+3. Write the JSON in `server/src/plugins/tariff-recipes/recipes/<id>.json`.
 4. **Derive the calendar and compare it against the document's own control cases**, with a script,
    not by hand:
    ```bash
    cd server && node -e '
      const fs=require("fs");
-     const {validateRecipe}=require("./src/utils/tariffRecipe");
-     const {buildYearPlan,materializeClosures}=require("./src/utils/seasonPlan");
-     const out=validateRecipe(JSON.parse(fs.readFileSync("src/recipes/<id>.json","utf8")));
+     const {validateRecipe}=require("./src/plugins/tariff-recipes/store");
+     const {buildYearPlan,materializeClosures}=require("./src/plugins/tariff-recipes/seasonPlan");
+     const out=validateRecipe(JSON.parse(fs.readFileSync("src/plugins/tariff-recipes/recipes/<id>.json","utf8")));
      if(!out.valid){console.error(out.error);process.exit(1);}
      const r=out.recipe, y=2026;
      const p=buildYearPlan(r,y,materializeClosures(r,y-1,y));
@@ -40,7 +40,7 @@ Read `specs/tariff-recipes/spec.md` before a substantial change; it is the sourc
 7. **Publish the study as a page the owner can read**, archived beside the deployment reports in
    `docs/tarifs/` (see its README):
    ```bash
-   node .claude/skills/tariff-recipe/build-study-page.mjs entrees.json server/src/recipes/<id>.json \
+   node .claude/skills/tariff-recipe/build-study-page.mjs entrees.json server/src/plugins/tariff-recipes/recipes/<id>.json \
      docs/tarifs/AAAA-MM-JJ-<hébergement>-etude-tarifaire.html
    ```
    Same golden rule as the rollout skill's generator: `entrees.json` declares **observed facts only**
@@ -95,7 +95,9 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
 5. **Holiday blocks are the run of consecutive non-working days minus the last day** — the guest
    checks out that morning. A Monday holiday gives 2 nights (Sat, Sun), a Thursday bridge gives 3.
 6. **A holiday block already at the top rank is not raised, but still carries its minimum stay**, so
-   it still splits the range. 14 juillet inside high season is the case to check.
+   it still splits the range — **only when that minimum exceeds what the night already demands**.
+   14 juillet inside high season is the case to check: on the Lodge (season minimum 1) it splits with
+   a 3-night minimum; on the Gîte (summer core at 4) it leaves the range whole (rule 16quater).
 7. **Seasons must cover the whole year with no gap** — an uncovered date silently falls back to the
    engine's 100 €/night default. Closures do not cover: they block availability, not pricing.
 8. **A closure is not a season.** Declare it in `closures`; it blocks bookings and (with
@@ -129,6 +131,13 @@ Nights past the last declared one fall to the engine's carry-forward: **the last
     DISPLAYED prices as if they were net (direct showed 16/9 instead of 15/8). After applying a
     recipe, verify the grid's direct row REPRODUCES the displayed prices — that identity is the
     whole point of a net pivot, and it fails loudly the moment one is dropped.
+16. **`extraGuest.unit` and `appliesAbove` are written on the property by the apply** (rule 64 of
+    `specs/tariff-recipes/spec.md`); the preview lists them as « Supplément voyageurs » / « Personnes
+    incluses ». A tier table on a `per_stay` unit is refused at load: a per-stay supplement never reads
+    tiers, and the card would announce a price nobody is billed.
+17. **A cleaning fee for a channel the installation does not record is skipped, not blocking**
+    (`specs/tariff-recipe-platform-cleaning-fee.md` rule 15). The preview names it; re-apply once
+    the platform exists in Paramètres › Plateformes.
 
 ## Validation the loader enforces
 
@@ -151,7 +160,7 @@ never blocks the others or the boot.
 
 ## Shipping and updating
 
-Recipes load from `server/src/recipes/` then from `<data dir>/recipes/` on the host; a local file
+Recipes load from `server/src/plugins/tariff-recipes/recipes/` then from `<data dir>/recipes/` on the host; a local file
 **replaces** a bundled one of the same `id`. Dropping a file there updates a recipe with no release —
 effective on the next restart (no watcher). Bump `version` on any change: the property stores the
 version it applied, and the tariff page flags when the file has moved on.

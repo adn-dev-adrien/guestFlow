@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 
 // specs/ical-sync-mapping-resilience.md — guards against the 2026-07-21 GdF incident:
 // one degenerate empty 200 wiped every UID→reservation mapping, and the next sync
@@ -87,7 +88,7 @@ function freshModel() {
   db.exec(DDL);
   db.prepare("INSERT INTO properties (id, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, '15:00', '10:00', 500)").run();
   db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'GitesDeFrance', 'http://feed.test/ical', 'gitesdefrance', 'GitesDeFrance')").run();
-  const model = propertyIcalModel.buildModel(db);
+  const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'gitesdefrance', platformLabel: 'GitesDeFrance', name: 'GitesDeFrance' };
   return { db, model, source };
 }

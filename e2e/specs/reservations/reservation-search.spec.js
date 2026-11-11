@@ -4,6 +4,7 @@
 // crash here would blank those pages — exactly the regression this spec exists to catch).
 import { test, expect } from '@playwright/test';
 import { createClient, createProperty, createReservation } from '../../fixtures/apiSeed.js';
+import { FAR_YEAR } from '../../fixtures/farYear.js';
 
 // Distinctive name so the seeded reservation is unambiguous in the results; every result line also
 // carries the (globally-unique) reservation number, which is what the assertions filter on.
@@ -23,7 +24,7 @@ async function seedReservation({ firstName, lastName, startDate, endDate }) {
 
 test('search matches by number, first name, last name, and both name orders', async ({ page }) => {
   const { client, reservation } = await seedReservation({
-    firstName: 'Amandine', lastName: 'Berthollet', startDate: '2099-08-10', endDate: '2099-08-12',
+    firstName: 'Amandine', lastName: 'Berthollet', startDate: `${FAR_YEAR}-08-10`, endDate: `${FAR_YEAR}-08-12`,
   });
   // The create response carries the generated number (AAAAMM###).
   expect(reservation.reservationNumber).toMatch(/^\d{9}$/);
@@ -53,7 +54,7 @@ test('search matches by number, first name, last name, and both name orders', as
 
 test('selecting a result opens the reservation fiche, whose number field carries the value', async ({ page }) => {
   const { reservation } = await seedReservation({
-    firstName: 'Marc', lastName: 'Numbersearch', startDate: '2099-10-05', endDate: '2099-10-08',
+    firstName: 'Marc', lastName: 'Numbersearch', startDate: `${FAR_YEAR}-10-05`, endDate: `${FAR_YEAR}-10-08`,
   });
 
   await page.goto('/');

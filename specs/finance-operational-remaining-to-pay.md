@@ -60,6 +60,16 @@ fiche.
    unchanged (it already settles the four buckets).
 6. **No change** to the accounting figures (`comptaCollected`, encaissé, exports) nor to the shared
    `computePaymentStatus.remainingDue` — it still drives the overdue/due-date display elsewhere.
+   _(Superseded by rule 7 on 2026-10-27.)_
+
+**Fixed at the 2026-10-27 audit**
+
+7. **`computePaymentStatus.remainingDue` is `remainingToPay`.** It used to be `finalPrice − paid
+   buckets`: the tourist tax (outside `finalPrice`, inside the solde) made a fully paid stay read
+   « −6 € », a disabled acompte stayed « due », and a line routed to the arrival complement read a wrong
+   « Reste » on the Finance stays table once the solde was paid (380 − 306 = 74 € instead of the 80 €
+   complement). It now reads the same unpaid buckets as rule 3 (installment plan included), never
+   negative; a trop-perçu is the refund flow's.
 
 **Edge cases:**
 - Caisse-interne complement (`*PaidCash`) → settled (green), excluded from « reste à payer ».
@@ -117,6 +127,9 @@ Compl. fin de séjour** · Reste à payer · Total de séjour · Solder.
       owed → counts only the complements (legacy remainingDue would say 0); caisse-interne complement
       + disabled deposit excluded; equals 0 ⟺ settled (drops from pending); pending totals expose
       `remainingToPay` + `complementAmount` + `endOfStayComplementAmount` (4 new tests).
+- [x] `server/src/tests/payment-status.unit.test.js` — rule 7: tax on the solde (386 due, not 380), the
+      complement still owed after the solde (80, not 74), every bucket paid → 0 (+2 tests, 1 rewritten);
+      `finance-model.unit.test.js` pending totals follow (450 with a disabled acompte).
 
 ### Manual UI verification (Playwright on the dev server)
 - [x] Pending table now shows the 4 bucket columns (Acompte · Solde · Complément · Compl. fin de
@@ -129,7 +142,7 @@ Compl. fin de séjour** · Reste à payer · Total de séjour · Solder.
 ## 8. Out of scope
 
 - Per-complement paid toggles in the operational table (done from the fiche / « Tout solder »).
-- Changing `computePaymentStatus.remainingDue` or any accounting/export figure.
+- Changing any accounting/export figure. (`computePaymentStatus.remainingDue` was aligned on 2026-10-27, rule 7.)
 - The « overdue » and « upcoming » sub-views (only « Paiements en attente » changes).
 
 ## 9. Open questions

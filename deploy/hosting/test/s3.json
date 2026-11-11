@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "gf",
+      "credentials": [{ "accessKey": "gfaccess", "secretKey": "gfsecret-0123456789" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

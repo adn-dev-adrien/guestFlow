@@ -172,6 +172,45 @@ réservation — préparée, planifiée, comptée — et son montant rejoint le 
     lignes ménage / linge de toilette existantes
     ([arrival-departure-sas.md](arrival-departure-sas.md) §3.7).
 
+Rule added 2026-11-03 (audit R21-A1):
+
+15. **On n'écrit que ce que l'offre vend.** `resolveSasOptionSales` construit la même offre que la
+    lecture (`buildSasSaleOffers` sur `optionsModel.listForProperty`) et ne garde que le petit déjeuner
+    disponible, les options du catalogue offert et les options que ce séjour détient déjà avec
+    `sasArrivalOrigin = 1`, pour qu'un SAS rouvert ou un archivage ultérieur ne perde jamais sa propre
+    ligne ([reopen-completed-sas.md](reopen-completed-sas.md) §4 rule 4). Tout le reste (assurance
+    annulation, option masquée, automatique, archivée, hors « Restauration », hors logement, inconnue)
+    est ignoré sans erreur : l'aperçu passe par le même résolveur, le récapitulatif montre donc ce qui
+    est réellement facturé. Vaut pour l'accueil comme pour l'administrateur.
+
+### 3.6 Bornes (audit R21, 2026-11-03)
+
+16. Les `units` d'une vente sont un nombre fini de 0 à 999, fractions admises sur une option au séjour ; sur une
+    option à la nuit, un entier d'au plus 366 (elles deviennent des `cardNights`). `persons` est un entier de 1
+    à 999 (lecture du 2026-11-04, audit R22 : `-5`, `0` et `0.5` facturaient tout le groupe), puis plafonné à la capacité comme avant. Du texte fait d'espaces n'est pas un nombre (`''` et null restent « non envoyé »). Sinon **400 `INVALID_QUANTITY`**, à l'aperçu comme à la
+    validation, avant tout calcul (`plugins/sas/sasQuantityBounds.js`). Des unités ou des personnes que ce SAS a déjà vendues,
+    renvoyées telles quelles à la réouverture, ne sont pas rejugées. Test :
+    `plugins/sas/tests/sas-quantity-bounds.unit.test.js`.
+
+### 3.7 Complément de fin de séjour encaissé (audit R26 H1, 2026-11-06)
+
+17. **Une vente sur un complément d'arrivée encaissé est refusée quand le complément de fin de séjour l'est aussi.** Une telle
+    vente part en fin de séjour (règle 13), qui ne bouge plus une fois encaissée ([mid-stay-extras-to-end-of-stay-complement.md](mid-stay-extras-to-end-of-stay-complement.md)
+    règle 18) : l'option s'écrivait, préparée et planifiée, et n'était facturée nulle part. Complément de fin de séjour
+    encaissé (CB ou caisse interne) sans que le SAS départ l'ait encaissé, `soldOptions` dont le total dépasse ce que ce
+    SAS avait déjà vendu : aperçu et validation répondent **409 `END_OF_STAY_ALREADY_COLLECTED`** « Complément de fin de
+    séjour déjà encaissé : le décocher sur la fiche avant de vendre une prestation. », rien n'est écrit. Sans vente, une
+    vente qui ne monte pas, ou une fin de séjour ouverte, le SAS passe comme avant. Même refus que le SAS départ
+    ([recall-unpaid-arrival-complement-at-checkout.md](recall-unpaid-arrival-complement-at-checkout.md) règle 11). Test :
+    `tests/sas-collected-end-of-stay-growth.unit.test.js`.
+    > **Reading of 2026-11-06 (audit R26 LOW 2, accepted).** « Ce que ce SAS avait déjà vendu » se lit sur les options
+    > `sasArrivalOrigin = 1` présentes, pas sur le détail du complément de fin de séjour : un SAS rouvert qui retire une vente
+    > déjà vendue (la planche de 17 €) la supprime, le complément de fin de séjour encaissé la facturant toujours (baisse,
+    > figée), puis la même vente remise est refusée. Coût 0 € ; la prestation payée n'est plus préparée ni planifiée tant que
+    > l'opérateur n'a pas décoché le complément de fin de séjour sur la fiche. Accepté tel quel. Avec D20
+    > (reservation-payment-ledger règle 68), le cas ne naît plus que d'une ligne enregistrée avant D20. Test :
+    > `sas-collected-end-of-stay-growth`.
+
 **Edge cases:**
 - Aucune option « Restauration » vendable pour ce logement → la page de demande n'apparaît pas.
 - Petit déjeuner sans carte de planning (config héritée) → non vendable au SAS (les matins *sont* le
@@ -281,6 +320,13 @@ recalculée.
       touche à rien ; complément gelé → ligne écrite, complément d'arrivée intact, montant en fin de
       séjour, clé hors baseline ; re-run qui dé-sélectionne et rend l'argent sans toucher aux ventes
       faites depuis la fiche ; historique des prestations vendues.
+
+### Server unit tests — `tests/sas-sale-contract.unit.test.js`
+- [x] Règle 15 : un test par type exclu, l'aperçu et le commit, les lignes déjà vendues par ce SAS.
+
+### Server unit tests — `tests/sas-collected-end-of-stay-growth.unit.test.js`
+- [x] Règle 17 : vente refusée à l'aperçu et à la validation sur les deux compléments encaissés, rien d'écrit ; sans vente,
+      ou fin de séjour ouverte, comme avant (3 cas sur 11).
 
 ### Client tests (vitest) — `components/sas/__tests__/ReservationSasDialog.test.jsx` (7 tests)
 - [x] Vente du petit déjeuner : matins pré-cochés, légende « (2 × 2 pers.) », total, composition

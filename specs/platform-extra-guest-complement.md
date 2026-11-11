@@ -73,6 +73,11 @@ still be offered. The operator keeps a single way of working: the usual composit
 10. **The complement part lives 100 % in the arrival Complément bucket** (`inComplement = 1`, NULL
     acompte/solde contributions), like any extra on a platform reservation
     (`force-extras-complement-on-platform.md`). It is stay revenue at the accommodation VAT rate.
+    > **Reading of 2026-11-05 (audit R22-5).** That applies from its first entry. The stored-money path of a complement
+    > entry credits `extraGuestComplementSurcharge` on the accommodation (the export selects the column), so the supplement
+    > never starts on 70600010 and moves to 70600000 when the solde is paid, in any platform mode or order; a complement
+    > stamped at its flip keeps it (accounting-books rule 16). Not an open accounting choice: this rule already named it.
+    > Accounting-export 1.0.26. Test: `plugins/accounting-export/tests/added-guests-supplement-account`.
 11. **Recomputed on every save** — adding guests raises the line, removing guests lowers it, and it
     disappears when `persons ≤ max(included, paid)`.
 12. A complement **already marked collected** is frozen as today (`frozen-complement-trusts-client.md`):
@@ -188,7 +193,7 @@ Interactive summary: `docs/specs/2026-10-22-platform-extra-guest-complement.html
 
 ## 7. Test plan
 
-### Server unit tests — `server/src/tests/platform-extra-guest-complement.unit.test.js` (21 tests)
+### Server unit tests — `server/src/tests/platform-extra-guest-complement.unit.test.js` (21 tests), `plugins/accounting-export/tests/added-guests-supplement-account.unit.test.js` (9, rule 10 reading)
 - [x] Rules 1–2: non-direct without brut → supplement 0; direct and Lodgify unchanged.
 - [x] Rules 4–6: capture on first brut (babies excluded), kept on a correction, cleared with the brut and on switch to direct, re-captured.
 - [x] Rules 7–8: split with included/paid combinations, per-stay and per-night (tiers rank nights, not guests: the split is linear).

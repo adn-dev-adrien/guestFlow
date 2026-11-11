@@ -10,8 +10,10 @@
 // still mounts cleanly with the skip set non-empty — proving the wiring through
 // `api.listLaundrySkips → useState → LaundryDayCard` doesn't crash.
 import { test, expect } from '@playwright/test';
+import { farYearWeekday } from '../../fixtures/farYear.js';
 
-const FAR_FUTURE_TUESDAY = '2099-09-08'; // Date.getUTCDay() === 2 for this date.
+// Inside the date window (specs/reservations-backend-mvc.md rule 13): 2099 is refused since 2026-11-02.
+const FAR_FUTURE_TUESDAY = farYearWeekday(2);
 
 test('laundry trip skip — API round-trip + planning page still renders with a skip set', async ({ page, request }) => {
   // Add via the API. The shared Playwright `request` context inherits the admin session

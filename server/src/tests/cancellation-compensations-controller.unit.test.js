@@ -23,6 +23,7 @@ function fakeModel(overrides = {}) {
   return {
     calls,
     model: {
+      getById: (id) => ({ id, status: 'pending' }),
       listPending: () => [{ id: 1, expectedAmount: 84, status: 'pending' }, { id: 2, expectedAmount: 16.5, status: 'pending' }],
       listReceivedByMonth: (bounds) => { calls.bounds = bounds; return [{ id: 3, receivedAmount: 79.2, status: 'received' }]; },
       create: (payload) => { calls.create.push(payload); return { id: 9, ...payload }; },
@@ -147,7 +148,8 @@ test('receive: money that has not arrived yet is refused', () => {
   const res = fakeRes();
   controller.receive({ params: { id: '5' }, body: { receivedAmount: 79.2, receivedDate: '2026-08-20' } }, res);
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'RECEIVED_DATE_IN_FUTURE');
+  assert.equal(res.body.code, 'RECEIVED_DATE_IN_FUTURE');
+  assert.equal(res.body.error, 'La date ne peut pas être dans le futur.');
   assert.deepEqual(calls.receive, []);
 });
 
@@ -156,7 +158,9 @@ test('receive: a mistyped year (2016 for 2026) is refused', () => {
   const res = fakeRes();
   controller.receive({ params: { id: '5' }, body: { receivedAmount: 79.2, receivedDate: '2016-08-18' } }, res);
   assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'RECEIVED_DATE_TOO_OLD');
+  assert.equal(res.body.code, 'RECEIVED_DATE_TOO_OLD');
+  assert.equal(res.body.error, 'Date trop ancienne : 5 ans au plus.');
+  assert.equal(res.body.field, 'receivedDate');
 });
 
 test('receive: 0 € is not a payment', () => {

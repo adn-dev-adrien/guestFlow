@@ -1,10 +1,10 @@
 /**
  * Booking.com feed — echo classification (specs/lodgify-decommission.md §3 rules 6-8).
  *
- * Booking's iCal export labels every taken night « CLOSED - Not available », including the nights it
- * imported from GuestFlow's own export. An incoming Booking event is therefore compared, night by
- * night, with the ranges GuestFlow already holds (other reservations, closures, recent tombstones):
- *   - every night covered  → 'echo'    (Booking is only mirroring GuestFlow)
+ * An incoming Booking event is compared, night by night, with the ranges GuestFlow already holds
+ * (other reservations, closures, recent tombstones). The closure guard still drops a closure's own echo
+ * on 'echo'; for stays and tombstones every covered night is a conflict (rule 6, amended 2026-10-28):
+ *   - every night covered  → 'echo'    (wholly held: a closure's own echo, or a stay sold twice)
  *   - some nights covered  → 'partial' (merged adjacent stays, or a real overbooking)
  *   - no night covered     → 'free'    (a genuine Booking reservation)
  *

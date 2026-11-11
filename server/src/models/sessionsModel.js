@@ -13,13 +13,19 @@
  *
  * `buildModel(db)` factory for tests; a default instance is bound to the production database.
  *
- * The user id is stored at `sess.user.id` (a number, set at login), so it is read with
- * `json_extract(sess, '$.user.id')`. Every statement is prepared lazily and wrapped in try/catch:
+ * The user id is stored at `sess.user.id` (a number, set at login) — or at
+ * `sess.pendingTwoFactor.userId` while the second step is awaited — so it is read with `json_extract`. Every statement is prepared lazily and wrapped in try/catch:
  * a unit database that never installed the session store has no `sessions` table, and revocation
  * there is simply a no-op rather than a crash.
  */
 
 const db = require('../database');
+
+// A session belongs to a user once logged in (`sess.user.id`) and while it waits for the second step
+// (`sess.pendingTwoFactor.userId`): a deactivation or a password reset must end that one too, or the
+// code typed a minute later would still open it (specs/security-auth-encryption.md rule 3).
+const OWNED_BY = "CAST(json_extract(sess, '$.user.id') AS INTEGER) = @id"
+  + " OR CAST(json_extract(sess, '$.pendingTwoFactor.userId') AS INTEGER) = @id";
 
 function buildModel(database) {
   let revokeForUserStmt;
@@ -28,12 +34,8 @@ function buildModel(database) {
 
   function prepare() {
     if (revokeForUserStmt) return;
-    revokeForUserStmt = database.prepare(
-      "DELETE FROM sessions WHERE CAST(json_extract(sess, '$.user.id') AS INTEGER) = ?"
-    );
-    revokeOthersForUserStmt = database.prepare(
-      "DELETE FROM sessions WHERE CAST(json_extract(sess, '$.user.id') AS INTEGER) = ? AND sid <> ?"
-    );
+    revokeForUserStmt = database.prepare(`DELETE FROM sessions WHERE ${OWNED_BY}`);
+    revokeOthersForUserStmt = database.prepare(`DELETE FROM sessions WHERE (${OWNED_BY}) AND sid <> @keepSid`);
     revokeAllStmt = database.prepare('DELETE FROM sessions');
   }
 
@@ -44,7 +46,7 @@ function buildModel(database) {
     if (!Number.isInteger(id)) return 0;
     try {
       prepare();
-      return revokeForUserStmt.run(id).changes;
+      return revokeForUserStmt.run({ id }).changes;
     } catch {
       return 0;
     }
@@ -58,7 +60,7 @@ function buildModel(database) {
     if (!keepSid) return revokeAllForUser(id);
     try {
       prepare();
-      return revokeOthersForUserStmt.run(id, String(keepSid)).changes;
+      return revokeOthersForUserStmt.run({ id, keepSid: String(keepSid) }).changes;
     } catch {
       return 0;
     }

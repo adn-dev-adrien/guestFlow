@@ -5,7 +5,7 @@ description: Roll a GuestFlow tariff recipe out to the booking platforms (Lodgif
 
 # Rolling a tariff recipe out to the platforms
 
-The recipe (`server/src/recipes/*.json`) is what GuestFlow bills. The platforms are separate systems
+The recipe (`server/src/plugins/tariff-recipes/recipes/*.json`) is what GuestFlow bills. The platforms are separate systems
 that must be made to agree with it. This skill is the operator-side counterpart of `tariff-recipe`:
 it never edits the recipe, it makes the outside world match it.
 
@@ -20,9 +20,9 @@ makes a second run fast; do not re-derive it by clicking around.
 1. **Derive the target grid from the recipe with the repo's own code.** Never hand-compute.
    ```bash
    cd server && node -e '
-     const {validateRecipe}=require("./src/utils/tariffRecipe");
+     const {validateRecipe}=require("./src/plugins/tariff-recipes/store");
      const {grossFromNet}=require("./src/utils/pricing");
-     const r=validateRecipe(JSON.parse(require("fs").readFileSync("src/recipes/<id>.json","utf8"))).recipe;
+     const r=validateRecipe(JSON.parse(require("fs").readFileSync("src/plugins/tariff-recipes/recipes/<id>.json","utf8"))).recipe;
      for (const s of r.seasons) console.log(s.label, s.pricePerNight, "net", s.netTargetPerNight);
    '
    ```

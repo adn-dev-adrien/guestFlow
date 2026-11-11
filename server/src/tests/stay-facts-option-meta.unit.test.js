@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const { freshDb, seedProperty, seedClient, seedReservation } = require('./guestEmailSequenceFixtures');
 const { loadStayFacts } = require('../models/stayFactsModel');
 const { classifyOptions } = require('../utils/stayContentContext');
+const { withSolioWording } = require('./solioWordingFixture');
 
 function stayWithJuiceBooked() {
   const db = freshDb();
@@ -26,9 +27,13 @@ test('the option metadata loads on the production schema', () => {
   assert.equal(facts.optionMeta[21].seedKey, 'drink_jus_pomme_1l');
 });
 
+// Since specs/plugins-phase-p-productisation.md, a catering option reaches the emails through its
+// mention (rules 7–8).
 test('a booked catering option is booked, hence not proposed again', () => {
   const { facts, lines } = stayWithJuiceBooked();
-  const cls = classifyOptions(lines, facts);
-  assert.ok(cls.booked.has('juice'));
-  assert.equal(cls.proposable('juice'), false);
+  const solio = withSolioWording(facts);
+  const juice = solio.mentions.find((m) => m.optionIds.includes(21));
+  const cls = classifyOptions(lines, solio);
+  assert.equal(cls.mentionBooked(juice), true);
+  assert.equal(cls.mentionProposable(juice), false);
 });

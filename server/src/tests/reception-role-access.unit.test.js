@@ -1,7 +1,12 @@
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const enforceRoleAccess = require('../middleware/enforceRoleAccess');
+
+// Plugin modules declare their own reception entries (specs/plugins-phase-1-sdk.md rule 5).
+require('../plugins/loader').registerAll({ db: null, isInstalled: () => false });
+require('../plugins/sdk/registry').configure({ isActive: () => true, allows: () => true });
 
 // specs/reception-role-checkin-only.md §3.6 rule 11 — pins the exact reachable set for the
 // `reception` role, plus the combined-role edge cases.
@@ -28,15 +33,16 @@ const ALLOWED = [
   ['GET', '/reservations/42'],
   ['GET', '/reservations/42/sas'],
   ['GET', '/reservations/42/weather-alerts'],
+  ['GET', '/calendar'],
   ['POST', '/reservations/42/sas/arrival'],
   ['POST', '/reservations/42/sas/departure'],
   ['PATCH', '/reservations/42/payment'],
   ['GET', '/properties'],
   ['GET', '/properties/platform-colors'],
-  ['GET', '/planning/laundry'],
-  ['GET', '/planning/linen-inventory'],
+  ['GET', '/planning/laundry/days'],
   ['GET', '/planning/breakfast'],
-  ['GET', '/planning/option-cards'],
+  ['GET', '/planning/today'],
+  ['GET', '/planning/days'],
   ['GET', '/planning/resource-cards'],
   ['POST', '/planning/option-cards/done'],
   ['POST', '/planning/resource-cards/done'],
@@ -48,6 +54,8 @@ const ALLOWED = [
   // Extra laundry trips — READ only (specs/laundry-extra-trip.md §3.4 rule 16).
   ['GET', '/laundry/extra-trips'],
   ['GET', '/laundry/extra-trips/preview'],
+  // The laundry schedule — READ only (specs/linen-laundry-days.md §3.5 rule 23).
+  ['GET', '/laundry/schedule'],
   ['GET', '/resource-bookings/planning-events'],
   // Self endpoints — reachable by every role.
   ['GET', '/auth/me'],
@@ -84,9 +92,12 @@ const FORBIDDEN = [
   // Extra laundry trips are admin-only to create / edit / delete (specs/laundry-extra-trip.md §3.4).
   ['PUT', '/laundry/extra-trips/2026-08-21'],
   ['DELETE', '/laundry/extra-trips/2026-08-21'],
+  // The laundry schedule is admin-only to change or preview (specs/linen-laundry-days.md §3.5 rule 23).
+  ['PUT', '/laundry/schedule'],
+  ['POST', '/laundry/schedule/preview'],
 ];
 
-test('reception: every allowlisted method+path passes', () => {
+test('reception: every allowlisted method+path passes', { skip: skipWithout(['hourly-resources', 'linen', 'sas', 'weather-alerts']) }, () => {
   for (const [method, path] of ALLOWED) {
     assert.equal(call({ roles: ['reception'], method, path }).nextCalled, true, `${method} ${path}`);
   }
@@ -112,11 +123,11 @@ test('reception + admin → admin wins (unrestricted)', () => {
   assert.equal(call({ roles: ['reception', 'admin'], method: 'GET', path: '/finance' }).nextCalled, true);
 });
 
-test('reception + accountant → union of both branches', () => {
+test('reception + accountant → union of both branches', { skip: skipWithout(['sas']) }, () => {
   // Reception operational surface…
   assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/reservations/42/sas' }).nextCalled, true);
-  // …plus the accountant read-only accounting.
-  assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/accounting/sales.csv' }).nextCalled, true);
+  // …plus the accountant's core read (the compensations; the export's entries are its plugin's).
+  assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/accounting/cancellation-compensations' }).nextCalled, true);
   // But neither branch grants clients.
   assert.equal(call({ roles: ['reception', 'accountant'], method: 'GET', path: '/clients' }).nextCalled, false);
 });

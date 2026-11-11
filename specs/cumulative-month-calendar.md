@@ -38,6 +38,13 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    start/end** (same look as reservations); they span `[startDate, endDate)`
    (the model's half-open interval → last occupied day = `endDate − 1`); a closure with no `propertyId`
    is **global** (« Tous les logements »).
+   **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rules 13-14): a closure is no longer
+   a bar — it hatches its days (a band along the bottom for one logement, the whole day for a global
+   one) with one label per week, and a stay bar is a 14 % tint of its platform colour with a 3 px stripe
+   and ink text.
+   **Amended 2026-10-28** (`calendar-property-parity.md` rules 1-11): data from `GET /api/calendar`;
+   a current or future stay is a solid bar with a server-chosen text colour, a past one keeps the tint;
+   a logement's closure is a hatched bar in its logement's lanes, half-day from `startDate` to `endDate`.
 3. **Grouped by logement.** Within a week the lanes are organised **per logement** (a contiguous band of
    lanes per property: all of one logement's bars, then the next). Global closures take the **top** band.
    Within a band, bars are lane-packed by start (a same-day departure→arrival shares a lane thanks to the
@@ -62,8 +69,11 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    settles the heights. The scroll offset is computed **rect-relative** (`getBoundingClientRect`), not via
    `offsetTop` — the month anchors have no positioned ancestor, so `offsetTop` measured from the page top
    and clamped the scroll to the last month (the « date bizarre » bug, fixed 2026-06-23).
-7. **Legend**: the platforms present, with their colours, plus a grey « Fermeture » entry when closures
+12. **Legend**: the platforms present, with their colours, plus a grey « Fermeture » entry when closures
    are present. On mobile (agenda list) closures render as grey rows « Fermé — {logement} ».
+   **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rules 13, 15): the legend is folded
+   behind « Légende » and prints display names (« Gîtes de France »); a closure swatch is hatched, and
+   on mobile a closure is a hatched row « {logement} fermé ».
 8. **Today is framed**: today's day cell carries a 2 px primary border (in addition to the bold primary
    day number).
 8bis. **Past stays are greyed (visual only).** A reservation/closure whose last occupied day is before
@@ -74,12 +84,19 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
    `CumulativeMonthCalendar` (no duplication, identical behaviour), replacing its old per-logement
    mini-calendars. Only the navigation callbacks differ (origin `'/'`).
 10. Drilling into a single logement's full calendar stays via the toolbar's property selector (unchanged).
+11. **A month added above keeps the view still** (fixed at the 2026-10-27 spec review). When the scroll
+    adds a month above the first one, the view moves by exactly what that month pushed the first one
+    down — measured on the first month's anchor, not on the scroller's total height. On a phone both
+    edges are near at load, a month is added at each end in the same commit, and the height-based delta
+    counted the months appended below too: the view landed ~180 px past the current month and its first
+    stay hid under the sticky « Octobre 2026 » label. (Rule 6 of the per-property calendar uses the same
+    hook and gets the same correction.)
 
 ## 4. Architecture
 | Layer | File | Responsibility |
 |---|---|---|
 | components | `CumulativeMonthCalendar.js` (new) | Self-contained: reuses `useInfiniteMonthScroll`, incrementally fetches each visible month's reservations **+ closures** (merged by id), normalises them (`normalizeItems`), computes the week/lane layout grouped by logement with half-day reservation edges (`buildMonthLayout`), renders stacked month blocks + bars + legend. Render-only; reuses `getPlatformColor`. |
-| hooks | `useInfiniteMonthScroll.js` | Reused as-is (a truthy sentinel keeps its scroll effects active outside the per-property flow). |
+| hooks | `useInfiniteMonthScroll.js` | Reused (a truthy sentinel keeps its scroll effects active outside the per-property flow). Since 2026-10-27 (rule 11) a prepend keeps the former first month's anchor still on screen instead of adding the scroller's whole growth. |
 | pages | `CalendarPage.js` | Replace `SyncedPropertyMiniCalendars` (no-property branch) with `CumulativeMonthCalendar` (props: `onReservationClick`, `onCreateReservation`). |
 | pages | `Dashboard.js` | Replace its `SyncedPropertyMiniCalendars` overview with the **same** `CumulativeMonthCalendar` (callbacks with origin `'/'`). |
 
@@ -113,6 +130,10 @@ endDate`).
 - [x] Unit (`useInfiniteMonthScroll`, 3 tests): one scroll event at the bottom chains short months until the
   scroller is clear of the edge; repeated returns to the bottom keep appending without scrolling away
   first; a zero-height layout stays bounded. (`hooks/__tests__/useInfiniteMonthScroll.edge-chain.test.jsx`)
+- [x] Rule 11 (2026-10-27): a month added above and one below in the same pass leave the former first
+  month where it was on screen. (`hooks/__tests__/useInfiniteMonthScroll.prepend-anchor.test.jsx`.)
+  Browser, 390 px `/calendar`: the current month's label sits at the top of the list and its first stay
+  right under it (was hidden under the label).
 - [ ] _(superseded)_ a stay within one week → one segment on the right
   lane; a stay crossing a week boundary → two segments; two overlapping stays → two lanes.
 - [ ] Manual (dev): the overview shows all logements' reservations as platform-coloured bars on one month;

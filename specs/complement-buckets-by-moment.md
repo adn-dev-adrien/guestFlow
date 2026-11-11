@@ -60,6 +60,20 @@ the same way in the summary panel and in the Finance cards.
    ([defer-arrival-complement-to-checkout.md](defer-arrival-complement-to-checkout.md) §3.3) and it is
    not collected.
 
+   > **Révision du 2026-11-08 (audit R28 V1, R29).** A collected deferred complement also stays in
+   > `endOfStay` when it was settled together with the end of stay (same date, same caisse flag; defer
+   > rule 22) or when the end of stay is 0 € (defer rule 24): it is then the one « Complément de fin de
+   > séjour » collection the ledger draws. Collected on its own beside an end of stay settled apart, it
+   > is filed in `arrival`.
+   >
+   > **Lecture du 2026-11-08 (audit R30-C-L1).** The live summary panel follows the same reading. The
+   > engine has no stored payment columns, so on calculate-price for a stored stay the controller
+   > re-files `quote.complementSplit` from the live block's `checkoutComplement.deferred`
+   > (`isComplementDeferred`, through `splitComplementBuckets`' `filedAtEndOfStay`); the raw marker
+   > reading (rule 2 beats it) is kept only where there is no row (a new stay, a devis). Stays 11, 12 and
+   > 22291 of the prod copy read « Complément de fin de séjour » in the panel as on their card. Test:
+   > `tests/live-summary-split-filing.unit.test.js`.
+
    > **Révision du 2026-08-22.** Cette règle disait initialement « … plus le complément d'arrivée
    > quand le séjour a commencé et qu'il n'est pas encaissé, qu'il ait été explicitement reporté ou
    > simplement laissé impayé ». L'inférence par le calendrier avait raison dans le cas courant et
@@ -179,6 +193,10 @@ of « Complément à percevoir », and the notes block is titled « Complément 
       asserted on **every** case: not started, started+collected, started+uncollected, on top of an
       existing end-of-stay complement, the three buckets together, deferred+collected, no reservation,
       and cent rounding.
+- [x] `tests/live-summary-split-filing.unit.test.js` (3 tests, 2026-11-08, audit R30-C-L1) — the live
+      split of calculate-price equals the stored summary's on ten matrix states (marker × arrival due /
+      paid / paid apart × end of stay 0 € / due / apart / together), stay 11's paid merged complement at
+      0 € (books and caisse) and stay 12's « paiement unique » naming both buckets file at the end of stay.
 - [x] Full server suite: 2383 pass — no existing total moved.
 
 ### Client tests

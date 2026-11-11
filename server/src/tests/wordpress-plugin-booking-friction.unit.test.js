@@ -1,5 +1,6 @@
 /**
- * specs/booking-drawer-friction.md — the WordPress side (plugin + Solio drawer).
+ * specs/booking-drawer-friction.md — the WordPress plugin side. The Solio drawer's rules (17, 20) are
+ * held by the private solio-site repository, which carries the drawer (tests/booking-drawer-friction.test.js).
  *
  * This is PHP and browser JavaScript, so nothing here executes it (the behaviour was verified end to
  * end, spec §10). What the suite can do is hold the shape that makes the rules true: the setting off
@@ -21,7 +22,6 @@ const render = read(PLUGIN, 'blocks', 'booking', 'render.php');
 const blocks = read(PLUGIN, 'includes', 'class-gf-blocks.php');
 const po = read(PLUGIN, 'languages', 'guestflow-booking-en_GB.po');
 const css = read(PLUGIN, 'assets', 'style.css');
-const drawer = read(WP, 'solio-site', 'mu-plugins', 'gf-seo-reservation.php');
 
 /** The French source string of an i18n key in class-gf-blocks.php. */
 function source(key) {
@@ -55,7 +55,7 @@ test('rules 2 + 4 — two actions: the amount on the primary, the request on a s
 });
 
 test('rule 6 — booking-requested says which action was taken', () => {
-  assert.match(view, /GF\.track\('booking-requested', \{[^}]*mode: pays \? 'pay' : 'request'/);
+  assert.match(view, /GF\.track\('booking-requested', \{[^}]*mode: paying \? 'pay' : 'request'/);
 });
 
 test('rule 7 — the travellers block comes before the calendar', () => {
@@ -79,12 +79,4 @@ test('rules 11-12 — short departures are hatched, refused on tap, and the earl
   for (const key of ['minShort', 'minNightsFrom', 'minNightsPick']) translated(source(key));
   // The placeholders keep their order in English: the date is a %s, the count a %d.
   assert.equal(translated(source('minNightsPick')), '%d nights minimum: choose %s or later.');
-});
-
-test('rule 17 — the off-screen step of the drawer is inert', () => {
-  assert.match(drawer, /ecrans\.forEach\( function \( ecran, i \) \{ ecran\.inert = \( i !== etape - 1 \); \} \);/);
-});
-
-test('rule 20 — the theme section padding is reset inside the drawer', () => {
-  assert.match(drawer, /\.gf-resa-panneau \.gf-section \{ max-width: none; margin: 0 0 18px; padding: 0; \}/);
 });

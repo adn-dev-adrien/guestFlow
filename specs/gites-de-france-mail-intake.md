@@ -28,7 +28,7 @@ Montant net propriétaire = Prix location + Options − round(10 % × Prix locat
 Brut to type             = Prix location + Options + Taxe de séjour        (frais de dossier excluded)
 ```
 
-Copying by hand is where the errors come from: three past fiches (Lehmann, Vallée, Filizetti) hold
+Copying by hand is where the errors come from: three past fiches (Xray, Borealis, Quebec) hold
 the guest's « Prix total client » as brut, so their commission silently absorbed the centrale's
 booking fees — and the ✓ « cohérent avec le virement » still showed.
 
@@ -42,9 +42,9 @@ sample (dossier 11773):
 Réservation n° 11773-2026            État : Réservation confirmée
 Gîte 309700 | Domaine Solio
 du 13/11/2026 à partir de 16h00      au 15/11/2026 avant 10h00 (2 nuits)
-Réservation effectuée par : ROUX Lucie
+Réservation effectuée par : IOTA Lucie
 8 adultes, 2 enfants et 2 bébés      Pas de chien, pas de chat
-lucie.roux@ymail.com                 0743338633
+lucie.renard@example.com                 0700000001
 Détail des suppléments    Forfait ménage ( 1 ) x 1    80.00 €
 Montant net de la location 454.00 €  Total des options 80.00 €   Total net : 534.00 €
 une taxe de séjour d'un montant de 19.20 € … Nous la reverserons directement à votre mairie
@@ -90,15 +90,15 @@ choice in one click.
 
 ### 3.2 Parsing (pure, unit-tested)
 
-4. Extracted fields: dossier number (`11773` from `11773-2026`), gîte number, arrival/departure date +
+4. *(Amended 2026-10-28 by rule 23: values are read per line, not from a flattened text.)* Extracted fields: dossier number (`11773` from `11773-2026`), gîte number, arrival/departure date +
    time, guest « NOM Prénom » → last/first name, adults / children / babies, e-mail, phone, each
    supplement line (label, quantity, amount), « Montant net de la location », « Total des options »,
    « Total net », tourist tax.
 5. **Internal consistency is checked before anything else:** net location + total options = total net,
    and the sum of supplement lines = total options, to the cent. A mismatch → `status = error`, nothing
    applied.
-6. Phone normalised to the French spaced form (`0743338633` → `07 43 33 86 33`); name in title case
-   (`ROUX Lucie` → Lucie Roux); e-mail language `fr`.
+6. Phone normalised to the French spaced form (`0700000001` → `07 00 00 00 01`); name in title case
+   (`IOTA Lucie` → Lucie Iota); e-mail language `fr`.
 
 ### 3.3 The gross rent — the one figure the mail does not give
 
@@ -135,6 +135,15 @@ choice in one click.
 12. The fiche shows a banner while an intake is open: applied (dismissible), proposal, or rent choice
     (two buttons with the two candidate amounts, the resulting commission under each, and a link to the
     dossier on ITEA).
+    *Reading of 2026-11-03 (audit R21, E21-1):* `POST /:intakeId/apply` writes a fiche once. Only the open banner's
+    client-side `busy` stood in the way, so a second tab or a lost response on an `applied` intake overwrote the party
+    and beds, piled up the custom lines and moved the status back to `needs_rent`. With a rent, a written intake
+    (`needs_rent`, `applied`) goes to the rent choice first, as before: only the payment block moves, dismissed or not.
+    Then a dismissed intake is refused (`400` « Saisie ignorée »), and a written one without a rent writes nothing and
+    answers its status, so a stale tab reloads into the right banner (`needs_rent` used to answer `400` « Loyer hors des
+    valeurs possibles »). `proposed` and `error` (a retry) still apply. The auto-apply is untouched: the pass calls
+    `apply` directly. Same rule as `airbnb-mail-intake.md` rule 14. Gîtes de France 1.4.9. Test:
+    `gites-de-france-intake/tests/reapply-real-core.unit.test.js` (real core).
 13. A supplement is put on a catalogue option only when it is the property's cleaning option
     (« Forfait ménage ») at the same price. Any other supplement is not guessed onto the catalogue: it
     becomes a custom line with the centrale's own label and amount, paid to the platform
@@ -143,6 +152,9 @@ choice in one click.
     back-solved accommodation price by their amount.)*
 14. Dashboard: one line per intake in `error` or unmatched for > 24 h, linking to the fiche or to the
     settings.
+    > **Amended 2026-10-18 (review n5):** a fiche waiting for the operator to choose between two
+    > possible rents (`needs_rent`) is listed too — « Dossier 11773 du 14/10/2026 — loyer à choisir sur
+    > la fiche · Ouvrir la fiche ». The banner alone could be missed. Plugin `1.1.0`.
 15. Applying never sends an e-mail to the guest (the per-template `sendMode` stays as configured;
     the intake does not call any sender).
 
@@ -154,7 +166,14 @@ choice in one click.
 - Two Gîtes de France fiches on the same dates (impossible on one property) → no auto-apply, error.
 - IMAP down / wrong password → the failed pass is logged (`[plugin:gites-de-france-intake] mail
   intake failed`) and retried at the next period; « Tester la connexion » shows the server's answer;
-  the iCal flow is unaffected.
+  the iCal flow is unaffected. The mailbox is logged out whatever fails — the connect or the INBOX
+  lock included (2026-10-23).
+- One intake that throws while it is processed → recorded `error` (« Erreur inattendue : … ») and the
+  pass carries on with the next ones. Before 2026-10-23 it stayed `pending`, first in the open list,
+  and stopped every later pass there.
+- A stay that has already started (start date ≤ today) → `error` « Séjour commencé : fiche à saisir à
+  la main », refused **before** the guest's client record is created: the core would refuse the save
+  (rule 17) and leave an orphan client otherwise.
 
 16. **Nothing is read before a property is tied to a gîte number.** The first boot of the plugin
     system installs every catalogue plugin on an existing base (specs/plugins-phase-0-foundation.md
@@ -163,6 +182,147 @@ choice in one click.
     mailbox. A new customer's fresh base installs no plugin at all.
 17. `ctx.core.reservations.update` refuses a stay that has started or is past (`409 PAST_RESERVATION`):
     those stay the operator's, as the fiche's own lock already says.
+18. *(Fixed at the 2026-10-27 audit.)* A mail for a gîte number **no property is tied to yet** waits
+    `pending`, its reason kept (« Aucun logement n’est relié au gîte n°… »), and is retried at every pass
+    like a mail whose iCal fiche has not arrived; once the operator fills « N° de gîte », the next pass
+    applies it. After 24 h the dashboard line shows that reason instead of « aucune fiche sur ces dates ».
+    It used to end in a final `error` that no later pass looked at again (the Airbnb intake already
+    waited, `specs/airbnb-mail-intake.md` rule 11).
+19. *(Fixed at the 2026-10-27 spec review.)* The guest's client is created **in the same transaction as the
+    fiche's update**: the plugin hands its find-or-create payload to `ctx.core.reservations.update(id, patch,
+    { label, client })` (SDK 2.7.0) instead of calling `ctx.core.clients.findOrCreate` first. A fiche the core
+    refuses for any reason (capacity, validation, a race with the start of the stay) rolls the client back:
+    no orphan client holds the guest's personal data. Test: `tests/plugin-intake-client-in-update-transaction.unit.test.js`.
+20. *(Added 2026-10-28, audit findings F2 and injection #1.)* **The sender is proven, not read.** IMAP `SEARCH FROM` is a substring
+    match over the whole From field, display name included; the SDK reader (`mailAuthentication.js`) therefore
+    keeps a mail only when its header From address **equals** the configured sender
+    (case-insensitive), and flags it `authenticated` only when the `Authentication-Results` header written by the
+    mailbox's own server reports `dkim=pass` with a signing domain (`header.d`, or the domain of `header.i`) equal
+    to the sender's domain or listed in the `senderDomains` setting. Only one such header is trusted: the one
+    whose `authserv-id` is the `trustedAuthservId` setting (« Serveur de réception »), or, when empty, the provider's
+    known name (`smtp.gmail.com` → `mx.google.com`); for any other provider with the setting empty, no mail is
+    authenticated, so every one is a proposal. The header is read with an RFC 8601 tokenizer (quoted strings and
+    nested comments never split a result) and only the `dkim` result's `header.d` / `header.i` count. A mail that
+    fails is stored (`senderVerified = 0`) and, once matched, becomes a **proposal** — also listed on the dashboard
+    (rule 15 / 14) so it never sits unseen — whose banner is
+    « Expéditeur non vérifié » — it is never auto-applied, whatever `autoApply` says; the operator can still
+    apply it by hand. A forged proposal never counts as « already handled » for rule 8's dossier dedup, so it cannot
+    shadow the genuine mail, and an unauthenticated mail that does not parse leaves no row. Tests:
+    `server/src/tests/mail-sender-authentication.unit.test.js`, `gites-de-france-intake/tests/sender-verification.unit.test.js`,
+    `IntakeBanner.sender-verification.test.jsx`.
+21. *(Added 2026-10-28, audit injection #1.)* **An authenticated mail never swaps contact details.** When the
+    fiche's current client already has an e-mail or a phone (the iCal placeholder has none), the mail is not
+    auto-applied: it becomes a proposal whose banner says « E-mail ou téléphone déjà renseigné sur la fiche »,
+    since applying would replace the guest's address with the one in the mail (the later payment and portal mails
+    go there). The operator can apply it by hand. Test: `gites-de-france-intake/tests/sender-verification.unit.test.js`.
+22. *(Added 2026-10-28, audit finding H1 of authz.)* **The mailbox password has one destination.** The reader
+    connects over implicit TLS on 993 and requires STARTTLS on any other port (never plaintext); **the SDK pins the
+    host itself** (`sdk.mailbox.resolveImapHost`, applied inside `readMailsFrom` / `testConnection` against the core's
+    SMTP host, whatever the caller passes — so it holds for any plugin version): the SMTP server's own host, its
+    `imap.` counterpart, or a host one label away under the same parent (never two labels, a public suffix or an
+    IP), a configured host elsewhere being refused at save and ignored at use. The card shows the host used.
+    `imapHost`, `imapPort`, `senderAddress`, `senderDomains` and `trustedAuthservId` are declared `supportLocked`:
+    refused to a support session when changed (`specs/hosting-h2-account-security.md` rule 18, which also refuses a
+    plugin rollback). Test:
+    `server/src/tests/mail-intake-credential-destination.unit.test.js`.
+23. *(Added 2026-10-28, audit finding F4.)* **Field by field, never first match in the text.** The guest types his
+    own name, which comes before the party, the contact and the money lines: a name « DUPONT Claire 1 adulte »
+    gave 1 adult, and a name carrying « Montant net de la location … Total net … » chose the amounts. The parser
+    (amending rule 4, whose « line breaks do not matter » test is replaced) now reads each value on the line its
+    label opens (the « picto … » alt texts may prefix it): the name after « Réservation effectuée par : » (at most
+    80 characters, no digit, `€`, `@`, `:` or angle bracket), the party on the first « N adultes » line after it,
+    the e-mail and phone on a line of their own, the supplements between « Détail des suppléments » and
+    « Détail des crédits », and every amount **after** « Détail des crédits ». A label that opens two lines makes
+    the mail ambiguous (« Mail ambigu : un libellé apparaît plusieurs fois »). Dates must be real calendar dates,
+    the departure after the arrival, the stay at most 120 nights (« Dates du séjour invalides »). A mail flattened
+    to a single line is refused. Test: `gites-de-france-intake/tests/mail-injection.unit.test.js`.
+24. *(Added 2026-10-28, audit finding F6.)* **A cancelled fiche is never matched.** The match (rule 9) excludes
+    `cancelledAt` (the plugin's query now selects it); a cancelled fiche plus its rebooking no longer reads
+    « Plusieurs fiches », and a cancelled fiche alone is no longer written to. Test: same file.
+25. *(Added 2026-10-28, audit finding F2.)* **A hostile mail costs milliseconds and is read once.** Mail text over
+    256 KB is refused, the supplements are cut after each « € » (no pattern backtracks across the mail), the SDK
+    reader skips parts over 256 KB and reduces HTML in linear time. An unauthenticated mail that does not parse
+    is stored as `ignored` (never open, never on the dashboard) instead of leaving no row, so it is not parsed
+    again at each pass (rule 20 amended). Tests: same file, `server/src/tests/mail-reader-limits.unit.test.js`.
+26. *(Added 2026-10-28, audit finding F8.)* **An unverified mail never attaches a stay to an existing client.**
+    The guest's client is found by e-mail only when the sender was verified (`reuseByEmail: senderVerified` on
+    `ctx.core.reservations.update`, SDK 2.13.0); an unverified proposal the operator applies by hand gets a
+    client of its own. The client payload also goes through the SDK validation (SDK rule 28). Test:
+    `gites-de-france-intake/tests/mail-injection.unit.test.js`.
+27. *(Added 2026-10-28, review of PR #849.)* **A real HTML-only mail reads like the plain-text fixture.** `htmlToText`
+    renders as a browser does: entities are decoded, whitespace of the source is one space inside a text run, and only
+    block tags (`tr`, `td`, `th`, `br`, `p`, `div`, `li`, headings, lists) start a line, so a label and its value split
+    over source lines, a `<tr>` per line, a `<br>` per line or every cell in one row give the same result. The party
+    is the « picto personnes » line, or the line right after the name; a second « N adultes » line, e-mail line
+    or phone line in the contact block refuses the mail (a name carrying a line break, raw or `&#10;`). Tests:
+    `gites-de-france-intake/tests/html-layouts.unit.test.js`.
+28. *(Added 2026-10-28, review of PR #849.)* **A refused mail is read again after a plugin update.** A parse failure
+    (`parsed` empty, status `error` or `ignored`) is stamped with the plugin version in `parserVersion`; when the
+    version differs, the row is dropped and the mail read again, so a later parser fix recovers it. An intake that
+    parsed but failed to apply is never re-read, nor is a row the operator dismissed. Same in `airbnb-intake`. Test: same file.
+
+29. **The mail must open with the centrale's sentence** (audit R2 external N4, 2026-10-29). « Une nouvelle réservation a été effectuée pour votre logement N » as the FIRST line naming a « nouvelle réservation », before the « Réservation n° » line (a relayed text sits after it); a mail with another first line is refused. Same delivery assumption as airbnb-mail-intake rule 29: auto-apply needs direct delivery to the trusted server, and is tested on Gmail only. The subject template is not checked (unknown wording, open decision). Test: `gites-de-france-intake/tests/opening-line.unit.test.js`.
+30. **A pass downloads each mail once, and holds none** (audit r3, external N5, 2026-10-29; amends rules 3 and
+    25). The reader (SDK 2.15.0) takes `seen(messageId)` — a known Message-ID is skipped before its body is
+    downloaded — `onMail(mail)` — each mail is handed over as it is read, none is kept — and `limit` (the service
+    passes 200: a pass downloads at most 200 bodies, newest first). A mail of another kind from the centrale
+    (« Autre type de mail ») and a part over 256 KB (`skipped: 'tooLarge'`, « Mail trop volumineux ») are
+    remembered as `ignored` rows, out of every list, and read again when the plugin's version changes (rule 25).
+    Heap and downloads are bounded however many mails were forged. Tests: `tests/mail-reader-flood.unit.test.js`,
+    `gites-de-france-intake/tests/mail-flood.unit.test.js`.
+31. *(Added (review of PR #865, 2026-10-29). (a) The cap bounds only the UNAUTHENTICATED mails: a mail with a good DKIM verdict
+    is read whatever the cap, in a first phase (the verdict comes from the headers, known before any body). That
+    guarantee holds ONLY when the receiving server's `authserv-id` is known (Gmail, or `trustedAuthservId` set):
+    on any other mailbox no mail can be verified and rule 32 applies instead (rewritten 2026-10-29, audit r4,
+    external N1: the first wording claimed « a forged flood cannot push a genuine booking out of the 30-day
+    window » without that condition).
+    (b) The envelopes and the authentication header are fetched in bulk, 500 UIDs per request, instead of one
+    request per mail. (c) A pass is single-flight: the running promise lives at `register()` scope of the plugin's
+    `index.js` (each call builds its own service), so the job tick and « Lire maintenant » share one IMAP pass and
+    one result; the service keeps its own guard too. `insert` is `ON CONFLICT(messageId) DO NOTHING`, returns
+    `null` when nothing was written, and a pass counts as `read` only the rows it wrote. Test:
+    `tests/mail-intake-single-flight.unit.test.js`. (d) `count()` (« N mails … lus ») leaves out `ignored`
+    rows, and an `ignored` row older than the 30-day window plus one day is purged at the start of a pass.
+    Tests: `tests/mail-reader-flood.unit.test.js`, `gites-de-france-intake/tests/mail-flood.unit.test.js`.
+32. **When nothing can be verified, the cap is shared between the newest and the oldest unread mails; a capped
+    pass says so; a batch never blocks the server** (audit r4, external N1 and N2, 2026-10-29, SDK 2.16.0).
+    (a) With no trusted `authserv-id` every mail is unauthenticated, so a forged flood used to share the 200-mail
+    cap with the genuine mails, newest first, and could keep a genuine booking unread. The reader now reads the
+    newest half of the cap (a fresh mail is still read at once) and the OLDEST half of the unread mails: the front
+    of the backlog moves by half a cap every pass whatever arrives behind it, so a mail with `k` unread mails older
+    than it is read within `ceil((k + 1) / 100)` passes. This is a DELAY, not a guarantee against loss. Measured
+    (deque model, 30-day window): under a sustained flood of `r` forged mails per pass, `r` above 200, a mail can
+    wait up to 30 days (about t/2 for a mail arriving on day t at `r` = 250) and mails start to be lost after about
+    `30 + 3000 / (r - 200)` days (day 89 at 250 per pass, day 60 at 300, day 34 at 1000), never inside the first
+    30 days. Setting `trustedAuthservId` removes the limit (rule 31(a)); a WRONG `trustedAuthservId` verifies
+    nothing yet keeps the newest-only cap, as a trusted one does. (b) A pass that leaves mails behind reports them
+    (`onCap({ notRead, limit })`, the pass result carries `unread`); the plugin shows the line only once TWO passes
+    in a row hit the cap (a first read of a 30-day backlog or a re-read after a parser update drains within a
+    pass or two and is no flood), and clears it with a pass that is not capped, is skipped or throws
+    (`unreadMails`, `unreadStreak` settings). The home line is « Mails Gîtes de France non lus : N (afflux). » with
+    « Plafond de lecture atteint » and counts as ONE subject; with mails to check it adds « · N non lus
+    (afflux) » to « Mails Gîtes de France à vérifier ». (c) `verifyDkim`: the FIRST `Authentication-Results` header whose
+    authserv-id is the trusted one decides, as before (the receiving server writes its own on top; a header
+    below is the sender's). It is found by a prefix test plus a boundary (`;`, whitespace or end of value), so
+    `mx.google.com.x` is not it, and only it is tokenized; when it is over 4 KB the verification is REFUSED
+    (`oversized-authentication-results`) and no later header is tried: skipping it would believe a forged header
+    below it. An authserv-id preceded by a comment (RFC 8601 CFWS) is not found and fails closed. The batch loop
+    gives the event loop a turn (`setImmediate`) every 25 mails, so 500 mails of 64 KB headers no longer block the
+    server for a second. Gîtes de France 1.4.6 asks for `sdk ^2.16.0`. Tests: `tests/mail-reader-unverifiable.unit.test.js`,
+    `gites-de-france-intake/tests/mail-unread-attention.unit.test.js`.
+33. **The reader keeps small records** (audit r5, N3, 2026-10-30): see `airbnb-mail-intake.md` rule 33; the
+    counters `lastRunAt`, `unreadMails`, `unreadStreak` are `internal` settings (`plugins-phase-1-sdk.md` rule 34).
+    Gîtes de France 1.4.7 asks for `sdk ^2.17.0`.
+34. **An unparsable Date header or a throwing mail never stops a pass** (audit r5, review of PR #874, R1): see
+    `airbnb-mail-intake.md` rule 34. The genuine booking is applied beside a forged `Date: not a date` or 32 KB Date,
+    with and without a trusted server. A database error (`SQLITE_*`) on a mail stores nothing and the next pass retries it (R2); any other error is stored `error` for a verified mail, `ignored` otherwise. Test: `tests/unparsable-date-header.unit.test.js`.
+35. **Applying a mail keeps the fiche's own lines, planning cards included** (audit R20, E20-1, 2026-11-03): see
+    `airbnb-mail-intake.md` rule 35. `stayPatch` starts its options, custom lines and offered ids from
+    `ctx.core.reservations.updateBody`, on the first write (`applied` or `needs_rent`), the auto-apply and « Appliquer »;
+    the rent chosen later (`paymentPatch`) sends money fields only and was never affected. Gîtes de France 1.4.8 asks
+    for `sdk ^2.21.0`. Test: `gites-de-france-intake/tests/card-lines-real-core.unit.test.js` (real core, both paths).
+36. **A gîte number is tied to a logement that exists** (audit R42-EXT-L2 class, 2026-11-10). A key of `giteNumbers`
+    that names no logement of the core is refused « Logement inconnu. », nothing stored. A key already stored stays accepted, so the line of a logement deleted since never blocks a save. *Why:* the map read any digits as a logement; a phantom key bypassed the read pass's « nothing tied yet » skip and tied a logement created later (ids are AUTOINCREMENT, never reused, but given in order) to a listing nobody chose. Same class as google-vacation-rentals-feed rule 20. Test: `server/src/tests/plugin-settings-unknown-logement.unit.test.js`. gites-de-france-intake 1.4.11. *Reading of 2026-11-10 (audit R43-DB-L1):* the key is the logement's id as the page writes it — a key with leading zeros (« 01 », « 002 ») is refused « Logement inconnu. », nothing stored, where it used to pass as logement 1 through its number while the readers that look a key up as written saw no logement at all; a stored key is exempt exactly as stored. Test: `server/src/tests/plugin-settings-canonical-logement-key.unit.test.js`. gites-de-france-intake 1.4.12.
 
 ---
 
@@ -217,7 +377,7 @@ plugin-local; if a second intake plugin appears, it moves to `components/` then.
 | Method | Endpoint | Body | Response |
 |---|---|---|---|
 | GET | `/api/gdf-intake/reservation/:reservationId` | — | `{ intake: { id, status, error, receivedAt, receivedLabel, dossierNumber, netRent, rentCandidates: [{ rent, commission }], customLines: [{ label, amount }], iteaUrl } \| null }` — the banner, ready to render |
-| POST | `/api/gdf-intake/:intakeId/apply` | `{ rent? }` | `{ status }` (`rent` chooses between two candidates; 400 + `{ error }` on refusal) |
+| POST | `/api/gdf-intake/:intakeId/apply` | `{ rent? }` | `{ status }` (`rent` chooses between two candidates; without one, a written intake answers its status and writes nothing, rule 12; « Saisie ignorée » when dismissed; 400 + `{ error }` on refusal) |
 | POST | `/api/gdf-intake/:intakeId/dismiss` | — | `{ ok }` |
 | GET | `/api/gdf-intake` | — | `{ items }` — intakes in error, or pending > 24 h (dashboard) |
 | POST | `/api/gdf-intake/run` | — | `{ read, applied?, needs_rent?, proposed?, pending?, error?, ignored? }` or `{ skipped }` (« Relever maintenant ») |
@@ -276,14 +436,21 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
 
 ## 7. Test plan
 
+- [x] `server/src/plugins/gites-de-france-intake/tests/reapply-real-core.unit.test.js` (6): rule 12, reading of
+  2026-11-03: a POST without a rent writes nothing on `applied` or `needs_rent`, typed values stay, the rent choice moves
+  the payment block only, dismissed refused, `error` retried.
 - [x] `server/src/plugins/gites-de-france-intake/tests/mailParser.unit.test.js` (11): the 11773 layout
   with a fictitious guest (public repository), flattened HTML, towels + compound names + thousands, no
   supplement, both consistency refusals, other mails, phone forms, the 6 measured dossiers, 504/505
   ambiguity, no rate.
 - [x] `.../tests/intakeService.unit.test.js` (18): sender/mailbox, auto-fill patch, payment block,
-  rent choice, proposal, auto-apply off, pending → applied, unmapped gîte, no mapping → no read,
+  rent choice, proposal, auto-apply off, pending → applied, unmapped gîte (pending, rule 18), no mapping → no read,
   `Message-ID` and dossier dedup, unreadable vs other mails, rate 0, custom lines, refused save, no
   e-mail, dismiss, no mailbox.
+- [x] `.../tests/unmapped-gite-pending.unit.test.js` (2, audit 2026-10-27): rule 18 — unmapped → pending
+  with its reason → applied once mapped; mapped without a fiche → pending, reason cleared.
+- [x] Client `IntakeAlert.unmapped-gite.test.jsx` (1, audit 2026-10-27): the dashboard line of rule 18 says
+  the server's reason.
 - [x] `.../tests/isolation.unit.test.js` (1): rule 0 — no core file names the plugin's table, routes or
   folder outside the two registration lists.
 - [x] Core `server/src/tests/reservation-update-service.unit.test.js` (6): recorder, `performUpdate` =
@@ -292,6 +459,7 @@ Responsive: on `xs` the rent buttons stack full width and every button keeps 44 
 - [x] Guards updated: catalogue count (13), module lists, job intervals (`plugins-phase-0`,
   `plugins-phase-1-sdk`, client `registry.test.jsx`), E2E `plugins-page.spec.js` (Installés (13)).
 - [x] Client `IntakeBanner.rent.test.jsx` (1) and `IntakeBanner.states.test.jsx` (4).
+- [x] 2026-10-28 audit fix (rules 20–22): `server/src/tests/mail-sender-authentication.unit.test.js`, `mail-intake-credential-destination.unit.test.js`, `gites-de-france-intake/tests/sender-verification.unit.test.js` (9), client `IntakeBanner.sender-verification` (2). Plugin 1.4.0, SDK 2.12.0.
 - [x] Suites on 2026-10-15: server 4945 ✓, client 1538 ✓, E2E 98 ✓ (+1 skipped),
   `check-spec-coverage` 0 missing.
 - [x] Manual, real browser on a copy of the dev base (IMAP stubbed with the fixture mail): settings card →

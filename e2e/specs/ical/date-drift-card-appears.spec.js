@@ -32,8 +32,10 @@ test('A pending date-drift alert renders an orange card on the Dashboard', async
   });
 
   await page.goto('/');
-  // The alert title (specs/ical-sync-override-locked-dates.md §6.1).
-  await expect(page.getByText(/Modifications de dates iCal/i)).toBeVisible({ timeout: 10_000 });
+  // The subject's row in « À traiter » (specs/shell-and-home-day-first.md rules 6, 10), unfolded in place.
+  const row = page.getByRole('button', { name: /Dates iCal à valider/ });
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await row.click();
   // The proposed new start date appears in the alert body — built from the app's own short format
   // (displayDateShort → « 05 oct. 2026 »), tolerant to the ICU period/spacing.
   const p = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })

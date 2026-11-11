@@ -43,6 +43,11 @@ stage to defer to).
    already commits « non réglé → encaissé au check-out », so the default selection makes that visible instead
    of leaving the operator in front of three unlit buttons. Clicking the active mode again therefore falls
    **back to « En fin de séjour »**, never to « nothing selected ».
+   > **2026-10-27 (spec review):** when the recap settles the stay and the complement in one payment
+   > ([single-payment-at-check-in.md](single-payment-at-check-in.md), « Règlement »), the same third
+   > button reads **« Plus tard »** (the stay stays due and the complement is recalled at check-out);
+   > « En fin de séjour » remains the label of the complement-only « Règlement du complément ». Read
+   > rules 3 and 4 and the UI section with that in mind: same `'defer'` mode, two labels.
 2. **Departure recap** (shown only when `departureGrandTotal > 0`): two buttons — **CB / Chèque**, **Payé en
    liquide**. No « En fin de séjour ».
 3. **Mapping to the existing paid flags** (no new fields; the commit contract is unchanged):

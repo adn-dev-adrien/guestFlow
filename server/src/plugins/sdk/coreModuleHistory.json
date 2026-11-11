@@ -1,0 +1,262 @@
+{
+  "_doc": "What coreModule() exposed at each SDK minor since 2.0.0 (specs/plugins-phase-1-sdk.md, SDK notes). A plugin may only call a module or a name that exists at the FLOOR of its manifest `sdk` range: tests/plugins-sdk-core-module-floor.unit.test.js. Adding a module or a name to coreModules.json means recording it here under the SDK minor that ships it.",
+  "baseline": {
+    "version": "2.0.0",
+    "modules": [
+      "database",
+      "settingsModel",
+      "reservationsModel",
+      "linenItemsModel",
+      "repairAmountsModel",
+      "breakfastModel",
+      "optionsModel",
+      "sasCommitHooks",
+      "sasOptionSale",
+      "arrivalSasPlan",
+      "arrivalPaymentGroup",
+      "optionCategoriesMigration",
+      "roles",
+      "sasEditWindow",
+      "reservationSettlement",
+      "platformNameFormat",
+      "receptionView",
+      "planningDateRange",
+      "propertiesModel",
+      "resourcesModel",
+      "propertyOptionDefaultsModel",
+      "propertyDefaultOptions",
+      "clientsModel",
+      "devisModel",
+      "termsModel",
+      "updateStateModel",
+      "pricing",
+      "reservationHelpers",
+      "capacity",
+      "blockedDates",
+      "changeover",
+      "mealPortions",
+      "quotePostProcessors",
+      "insuranceOffer",
+      "resourceOffer",
+      "translationResolver",
+      "optionVisibility",
+      "optionGrouping",
+      "publicLabels",
+      "publicDevisToken",
+      "publicPaymentMode",
+      "paymentProviders",
+      "attributionChannel",
+      "babyBedResource",
+      "releaseClient",
+      "notificationService",
+      "publicHttp",
+      "publicPaymentController",
+      "rateLimiters",
+      "enforceSubscription",
+      "platformsModel",
+      "refundsModel",
+      "cancellationCompensationsModel",
+      "midStayExtras",
+      "complementAllocation",
+      "csv",
+      "settingsValidation",
+      "paymentLinksModel",
+      "paymentPollRunner",
+      "paymentEffectDeps",
+      "qonto",
+      "reservationEngineInput",
+      "pushService",
+      "dateFr",
+      "reservationLedger",
+      "reservationPaymentMark",
+      "platformDisplay",
+      "devisHelpers"
+    ]
+  },
+  "added": [
+    {
+      "version": "2.1.0",
+      "modules": [
+        "departureSasPlan"
+      ],
+      "names": {
+        "reservationsModel": [
+          "buildDepartureSeed",
+          "planDepartureSas",
+          "resolveSasDepartureItems"
+        ]
+      }
+    },
+    {
+      "version": "2.4.0",
+      "modules": [
+        "directQuote"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.5.0",
+      "modules": [
+        "installmentPlan"
+      ],
+      "names": {
+        "platformNameFormat": [
+          "isChoreFreeChannel",
+          "refreshChoreFreeChannels",
+          "setChoreFreeChannels"
+        ],
+        "platformsModel": [
+          "choreFreeIds",
+          "refreshChoreFreeChannels",
+          "setForbidsGuestChores"
+        ],
+        "propertiesModel": [
+          "setPlatformCleaningFees"
+        ]
+      }
+    },
+    {
+      "version": "2.6.0",
+      "modules": [
+        "installmentsModel"
+      ],
+      "names": {
+        "platformNameFormat": [
+          "isRelayChannel",
+          "platformReviewWhere",
+          "refreshGuestContactChannels",
+          "setPlatformReviewWhere",
+          "setRelayChannels"
+        ],
+        "platformsModel": [
+          "guestContactById",
+          "refreshGuestContactChannels",
+          "setRelaysGuestEmail",
+          "setReviewWhere"
+        ]
+      }
+    },
+    {
+      "version": "2.7.0",
+      "modules": [],
+      "names": {
+        "devisModel": [
+          "appendPublicMessage"
+        ]
+      }
+    },
+    {
+      "version": "2.9.0",
+      "modules": [
+        "platformPenaltiesModel"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.10.0",
+      "modules": [
+        "vatRegimeModel"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.18.0",
+      "modules": [],
+      "names": {
+        "paymentPollRunner": [
+          "runLinkLifecycle"
+        ]
+      }
+    },
+    {
+      "version": "2.19.0",
+      "modules": [
+        "storedMoneySplit"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.20.0",
+      "modules": [
+        "stayDates"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.21.0",
+      "modules": [],
+      "names": {
+        "reservationPaymentMark": [
+          "takeBackRefusal"
+        ]
+      }
+    },
+    {
+      "version": "2.22.0",
+      "modules": [],
+      "names": {
+        "blockedDates": [
+          "stayTimesRefused"
+        ]
+      }
+    },
+    {
+      "version": "2.23.0",
+      "modules": [
+        "financeModel",
+        "financeDashboardModel",
+        "financeWindow",
+        "fiscalYear",
+        "yearOverYear"
+      ],
+      "names": {
+        "vatRegimeModel": [
+          "regimesDuring"
+        ]
+      }
+    },
+    {
+      "version": "2.24.0",
+      "modules": [
+        "paymentTenders",
+        "paymentSettlementsModel",
+        "paymentSettlementService"
+      ],
+      "names": {}
+    },
+    {
+      "version": "2.25.0",
+      "modules": [
+        "invoiceIssuers",
+        "standaloneSales"
+      ],
+      "names": {
+        "paymentTenders": [
+          "methodLabel",
+          "validateSettlement"
+        ]
+      }
+    },
+    {
+      "version": "2.26.0",
+      "modules": [
+        "stayWindow",
+        "encryption",
+        "publicCatalogProjection",
+        "midStayExtrasWindow",
+        "safeFeedFetch",
+        "instancePaths",
+        "midStayOrderCommit",
+        "securityConfig",
+        "requireAuth"
+      ],
+      "names": {
+        "pricing": [
+          "applyFreeUnitsToLine",
+          "getApplicableOptions",
+          "getApplicableResources"
+        ]
+      }
+    }
+  ]
+}

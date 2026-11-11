@@ -19,7 +19,7 @@
  *   replaceSaved(group, key, value) — records a value written by another endpoint (the logo)
  *
  * Secret fields use a draft key whose `undefined` means « keep the stored secret »:
- *   smtp.passwordDraft → smtp.password, weather.apiKeyDraft → weather.apiKey.
+ *   smtp.passwordDraft → smtp.password.
  */
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api';
@@ -29,16 +29,15 @@ import useDirtyFormGuard from './useDirtyFormGuard';
 // Fields the server computes or writes through another endpoint: never sent back.
 const READ_ONLY = {
   company: ['logoPath'],
-  smtp: ['passwordSet', 'derived', 'passwordDraft'],
+  smtp: ['passwordSet', 'derived', 'passwordDraft', 'platform'],
   notifications: ['derivedRecipient'],
-  emails: ['sequenceStartDate'],
-  weather: ['apiKeySet', 'apiKeyDraft'],
+  emails: ['sequenceStartDate', 'instagramUrl', 'socialNetworks'],
+  vat: ['franchise'],
 };
 
 // Secret drafts → the payload key the server expects.
 const SECRET_DRAFTS = {
   smtp: { draft: 'passwordDraft', payload: 'password' },
-  weather: { draft: 'apiKeyDraft', payload: 'apiKey' },
 };
 
 // Client field → server error key (the server validates by column name).
@@ -48,13 +47,12 @@ const ERROR_KEYS = {
     siret: 'companySiret', tva: 'companyTva', iban: 'companyIban', bic: 'companyBic', bankName: 'companyBankName',
   },
   quote: { footerText: 'quoteFooterText', footerTextEn: 'quoteFooterTextEn', validityDays: 'quoteValidityDays' },
-  vat: { rate: 'vatRate' },
+  vat: { rate: 'vatRate', legalMention: 'legalMention', franchiseThreshold: 'vatFranchiseThreshold' },
   accounting: { fiscalYearEndMonth: 'fiscalYearEndMonth', revenueGoals: 'revenueGoals' },
   smtp: { host: 'smtpHost', fromEmail: 'smtpFromEmail', fromName: 'smtpFromName', publicUrl: 'publicUrl' },
   notifications: { recipientEmail: 'notificationRecipientEmail' },
   emails: {
-    googleReviewUrl: 'googleReviewUrl', instagramUrl: 'instagramUrl',
-    poolSeasonStart: 'poolSeasonStart', poolSeasonEnd: 'poolSeasonEnd',
+    googleReviewUrl: 'googleReviewUrl', socialLinks: 'socialLinks',
   },
 };
 
@@ -64,6 +62,8 @@ function pickGroups(settings, groups) {
     const value = { ...((settings && settings[group]) || {}) };
     const secret = SECRET_DRAFTS[group];
     if (secret) value[secret.draft] = undefined;
+    // The threshold is edited as a field of its own; the server's block stays read-only.
+    if (group === 'vat') value.franchiseThreshold = value.franchise && value.franchise.threshold != null ? value.franchise.threshold : '';
     out[group] = value;
   }
   return out;
@@ -143,6 +143,13 @@ export default function useSettingsForm({ groups, navigate }) {
     try {
       if (Object.keys(payload).length > 0) {
         const updated = await api.updateSettings(payload);
+        // Rule 27 — stays whose tourist tax the new rate would also have moved the price of keep their figures.
+        if (updated && updated.vatNotRepriced && updated.vatNotRepriced.length) {
+          const n = updated.vatNotRepriced.length;
+          showError(n === 1
+            ? '1 séjour garde sa taxe de séjour enregistrée : le recalcul changerait aussi le prix.'
+            : `${n} séjours gardent leur taxe de séjour enregistrée : le recalcul changerait aussi le prix.`);
+        }
         const shaped = pickGroups(updated, groups);
         setSaved(shaped);
         setDraft(shaped);

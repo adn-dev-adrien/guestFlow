@@ -5,6 +5,7 @@ const Database = require('better-sqlite3');
 
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
+const { withStoredUpdateBody } = require('../../sdk/testing');
 const { listingIdOf, detectedFromIcal, listingPairs } = require('../listings');
 const { SUBJECT, SENT_AT, bookingMail, WITH_CLEANING } = require('./fixtures');
 
@@ -19,13 +20,13 @@ const MAIL = { messageId: '<m1@airbnb>', receivedAt: SENT_AT, sentAt: SENT_AT, s
 
 function setup({
   reservations = [PLACEHOLDER], mails = [MAIL], listings = [[1, '1234567890123456789']],
-  autoApply = true, updateStatus = 200, withholds = true, notes = '', dates = ['2026-12-26', '2026-12-30'],
+  autoApply = true, updateStatus = 200, withholds = true, notes = '', dates = ['2026-12-26', '2026-12-30'], now = '2026-10-25T09:00:00.000Z',
 } = {}) {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const intakes = buildModel(db);
   const calls = { updates: [], clients: [] };
-  const service = createIntakeService({
+  const service = createIntakeService(withStoredUpdateBody({
     intakes,
     settings: {
       mailbox: () => ({ host: 'imap.test', port: 993, user: 'contact@test', password: 'x' }),
@@ -33,7 +34,7 @@ function setup({
       listings: () => listings,
       autoApply: () => autoApply,
     },
-    readMails: async (cfg) => { calls.readWith = cfg; return mails; },
+    readMails: async (cfg, h) => { calls.readWith = cfg; calls.handlers = h; for (const m of mails) if (!h.seen(m.messageId)) await h.onMail({ authenticated: true, ...m }); },
     findReservations: ({ propertyIds, startDate, endDate }) => reservations
       .filter((r) => propertyIds.includes(r.propertyId) && startDate === dates[0] && endDate === dates[1]),
     propertyOptions: () => CATALOGUE,
@@ -41,14 +42,19 @@ function setup({
       { optionId: 12, quantity: 1, offered: 0, inComplement: 1 },
     ] }),
     core: {
-      updateReservation: (id, patch, opts) => { calls.updates.push({ id, patch, opts }); return { status: updateStatus, body: updateStatus === 200 ? { ok: true } : { error: 'Séjour commencé ou passé' } }; },
+      // Like the core: the client of `opts.client` is found or created with the update (SDK 2.7.0), and only kept on success.
+      updateReservation: (id, patch, opts) => {
+        const own = opts.client ? { id: 141, ...opts.client } : null;
+        if (own && updateStatus === 200) calls.clients.push(opts.client);
+        calls.updates.push({ id, patch: own ? { ...patch, clientId: own.id } : patch, opts });
+        return { status: updateStatus, clientId: own && updateStatus === 200 ? own.id : undefined, body: updateStatus === 200 ? { ok: true } : { error: 'Séjour commencé ou passé' } };
+      },
       suggestBeds: () => ({ singleBeds: 5, doubleBeds: 4 }),
       platformCommission: ({ gross, payout, touristTax }) => Math.round((gross - payout - touristTax) * 100) / 100,
       withholdsTouristTax: () => withholds,
-      findOrCreateClient: (c) => { calls.clients.push(c); return { id: 141, ...c }; },
     },
-    now: () => new Date('2026-10-25T09:00:00.000Z'),
-  });
+    now: () => new Date(now),
+  }));
   return { service, intakes, calls };
 }
 
@@ -88,7 +94,7 @@ test('rule 12: the guest message is appended under the existing notes, once', as
 
 test('rule 12: a cleaning fee at the catalogue price ticks the cleaning option, paid to the platform', async () => {
   const mail = { ...MAIL, subject: 'Réservation confirmée : Camille Martin arrive le 9 oct.', text: bookingMail(WITH_CLEANING), sentAt: '2026-09-10T08:00:00.000Z', receivedAt: '2026-09-10T08:00:00.000Z' };
-  const { service, calls } = setup({ mails: [mail], dates: ['2026-10-09', '2026-10-11'] });
+  const { service, calls } = setup({ mails: [mail], dates: ['2026-10-09', '2026-10-11'], now: '2026-09-10T09:00:00.000Z' });
   await service.runPass();
   const { patch } = calls.updates[0];
   assert.deepEqual(patch.options, [{ optionId: 7, quantity: 1, inComplement: 0 }]);
@@ -144,10 +150,11 @@ test('edge cases: the same mail twice, and a second mail with the same code', as
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 2: other mails from Airbnb are skipped without a trace', async () => {
+test('rule 2: other mails from Airbnb are no intake — remembered as ignored (rule 30), out of every list', async () => {
   const { service, intakes } = setup({ mails: [{ ...MAIL, subject: 'Nouveau message de Camille', text: 'Bonjour' }] });
   assert.deepEqual(await service.runPass(), { read: 0 });
-  assert.equal(intakes.count(), 0);
+  assert.equal(intakes.has(MAIL.messageId), true);
+  assert.deepEqual(intakes.listOpen(), []);
 });
 
 test('rule 3: a booking mail that fails its checks is recorded as an error, nothing written', async () => {

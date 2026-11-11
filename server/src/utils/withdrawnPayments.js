@@ -1,0 +1,82 @@
+/**
+ * A payment received on a link withdrawn by hand, AFTER its withdrawal (specs/payment-link-lifecycle.md rule 56,
+ * decided by Adrien 2026-10-31). The poll found it paid (rule 8 alert): the money is not the stay's, and no new
+ * payment request of the stay leaves until the operator settles it.
+ *
+ *   unsettledWithdrawnRefusal(database, stayId) → { httpStatus: 409, error: 'UNSETTLED_WITHDRAWN_PAYMENT', message } | null
+ *   settleWithdrawnPayment(linkId, { database, paymentLinksModel, outcome: 'stay' | 'refunded', bookPaid }) → { link }
+ *     (`stay` refused 409 `INSTALLMENT_PLAN_IN_PLACE` for an acompte / solde / séjour link of a stay with a plan, rule 63)
+ *   planHoldsBucketPayment(database, link) → an acompte / solde / séjour link of a stay (or its devis) that has a plan
+ *
+ * Unsettled: `status = 'cancelled'`, `cancelReason` `operator` — or `dates-taken`, a bucket payment held beside an
+ * installment plan (rule 63, audit R11 M1) — and a `paidAt`. Settled: `refunded` turns the reason
+ * into `refunded` (the money stays off the stay, the payment id stays on the row); `stay` books it as the stay's
+ * money through `bookPaid(link, payment)`, the poll's late booking of its reason (`cancelled → paid`) — refused (409
+ * `STAY_READ_ONLY`) on a cancelled or set-aside stay, where only the refund is recorded.
+ */
+
+const { LINK_REASONS } = require('../constants/paymentLinks');
+const { withConvertedDevis } = require('./deletionGuard');
+
+const UNSETTLED = Object.freeze({
+  httpStatus: 409,
+  error: 'UNSETTLED_WITHDRAWN_PAYMENT',
+  message: 'Paiement reçu sur un lien retiré : à traiter avant toute nouvelle demande.',
+});
+
+const UNSETTLED_REASONS = [LINK_REASONS.OPERATOR, LINK_REASONS.DATES_TAKEN];
+const UNSETTLED_SQL = `status = 'cancelled' AND cancelReason IN (${UNSETTLED_REASONS.map(() => '?').join(', ')}) AND paidAt IS NOT NULL`;
+const OUTCOMES = new Set(['stay', 'refunded']);
+
+function unsettledWithdrawnRefusal(database, stayId) {
+  const owners = withConvertedDevis(database, [Number(stayId)]);
+  const hit = database.prepare(`
+    SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(', ')}) AND ${UNSETTLED_SQL} LIMIT 1
+  `).get(...owners, ...UNSETTLED_REASONS);
+  return hit ? { ...UNSETTLED } : null;
+}
+
+const isUnsettled = (link) => Boolean(link) && link.status === 'cancelled' && UNSETTLED_REASONS.includes(link.cancelReason) && Boolean(link.paidAt);
+
+// The stay the link answers for is cancelled or set aside (a devis converted into one included): refund only (O2, O4).
+function stayIsReadOnly(database, stayId) {
+  const { stayKindOf, READ_ONLY_KINDS } = require('./paymentLinkWithdrawal');
+  return READ_ONLY_KINDS.has(stayKindOf(database, stayId));
+}
+
+// Rule 63 (Adrien, 2026-10-31) — once a stay has an installment plan, an acompte / solde / séjour payment cannot be
+// its money: the plan holds the whole pre-arrival amount. It is refunded, or recorded after the plan is deleted.
+const BUCKET_TYPES = new Set(['deposit', 'balance', 'full']);
+const PLAN_IN_PLACE = Object.freeze({
+  httpStatus: 409,
+  error: 'INSTALLMENT_PLAN_IN_PLACE',
+  message: 'Échéancier en place : rembourser, ou supprimer l’échéancier d’abord.',
+});
+function planHoldsBucketPayment(database, link) {
+  if (!BUCKET_TYPES.has(String(link.type))) return false;
+  const owner = database.prepare('SELECT convertedReservationId FROM reservations WHERE id = ?').get(Number(link.reservationId));
+  const stayId = owner && owner.convertedReservationId ? owner.convertedReservationId : link.reservationId;
+  return Boolean(database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1').get(Number(stayId)));
+}
+
+async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, outcome, bookPaid }) {
+  if (!OUTCOMES.has(outcome)) throw { httpStatus: 400, error: 'INVALID_OUTCOME', message: 'Issue invalide (stay/refunded).' };
+  const link = paymentLinksModel.findById(Number(linkId));
+  if (!link) throw { httpStatus: 404, error: 'LINK_NOT_FOUND', message: 'Lien de paiement introuvable.' };
+  if (!isUnsettled(link)) throw { httpStatus: 409, error: 'NOTHING_TO_SETTLE', message: 'Aucun paiement à traiter sur ce lien.' };
+  // Review of #902 (O2) — a cancelled or set-aside stay can record the refund, never take the money as its own.
+  if (outcome === 'stay' && stayIsReadOnly(database, link.reservationId)) {
+    throw { httpStatus: 409, error: 'STAY_READ_ONLY', message: 'Séjour en lecture seule : paiement à rembourser.' };
+  }
+  if (outcome === 'stay' && planHoldsBucketPayment(database, link)) throw { ...PLAN_IN_PLACE };
+  if (outcome === 'refunded') {
+    const info = database.prepare(`UPDATE payment_links SET cancelReason = ? WHERE id = ? AND ${UNSETTLED_SQL}`)
+      .run(LINK_REASONS.REFUNDED, link.id, ...UNSETTLED_REASONS);
+    if (Number(info.changes) === 0) throw { httpStatus: 409, error: 'NOTHING_TO_SETTLE', message: 'Aucun paiement à traiter sur ce lien.' };
+  } else {
+    await bookPaid(link, { paid: true, paymentId: link.providerPaymentId, paidAt: link.paidAt });
+  }
+  return { link: paymentLinksModel.findById(link.id) };
+}
+
+module.exports = { unsettledWithdrawnRefusal, settleWithdrawnPayment, isUnsettled, stayIsReadOnly, planHoldsBucketPayment, UNSETTLED };

@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { buildController } = require('../controllers/emailsController');
+const registry = require('../plugins/sdk/registry');
 const { buildModel: buildTemplatesModel } = require('../models/emailTemplatesModel');
 const { buildModel: buildLogModel }       = require('../models/emailLogModel');
 
@@ -23,9 +24,15 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, templateId INTEGER, reservationId INTEGER NOT NULL,
     sentAt TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL, channel TEXT NOT NULL DEFAULT 'smtp',
     errorMessage TEXT DEFAULT '', renderedSubject TEXT NOT NULL, renderedBody TEXT NOT NULL,
-    recipientEmail TEXT NOT NULL DEFAULT ''
+    recipientEmail TEXT NOT NULL DEFAULT '', occurrenceKey TEXT NOT NULL DEFAULT ''
+  );
+  CREATE TABLE reservation_installments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, number INTEGER NOT NULL, dueDate TEXT NOT NULL,
+    amountCents INTEGER NOT NULL, paid INTEGER NOT NULL DEFAULT 0, paidDate TEXT, paidMethod TEXT, requestedAt TEXT,
+    dateEdited INTEGER NOT NULL DEFAULT 0, amountEdited INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE reservations (
+    installmentsTarget REAL NOT NULL DEFAULT 0, installmentsPaidAmount REAL NOT NULL DEFAULT 0,
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     platform TEXT,
     clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT,
@@ -48,6 +55,8 @@ const DDL = `
   CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, nameEn TEXT);
   CREATE TABLE property_option_defaults (propertyId INTEGER, optionId INTEGER, offered INTEGER DEFAULT 0, PRIMARY KEY (propertyId, optionId));
   CREATE TABLE reservation_custom_options (reservationId INTEGER, description TEXT, amount REAL, inComplement INTEGER DEFAULT 0, offered INTEGER DEFAULT 0, sortOrder INTEGER);
+  CREATE TABLE establishment_closures (id INTEGER PRIMARY KEY, propertyId INTEGER, label TEXT, startDate TEXT, endDate TEXT);
+  CREATE TABLE payment_links (id INTEGER PRIMARY KEY, reservationId INTEGER, status TEXT, cancelReason TEXT, paidAt TEXT);
 `;
 
 function fakeSettings(extra = {}) {
@@ -118,11 +127,17 @@ test('preview: deposit_reminder injects the open deposit link as {{paymentLink}}
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
-  const paymentLinksModel = { findOpenForReservation: (id, type) => (id === 300 && type === 'deposit' ? { url: 'https://pay.qonto/pl_X' } : null) };
+  // specs/payment-link-lifecycle.md rule 26 — re-offered only while the send would reuse it: 24 h left at least.
+  const expiresAt = new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString();
+  const paymentLinksModel = { findOpenForStay: (id, type) => (id === 300 && type === 'deposit' ? { url: 'https://pay.qonto/pl_X', expiresAt } : null) };
+  registry.reset();
+  registry.configure({ isActive: () => true, allows: () => true });
+  registry.ensure('online-payment').paymentProvider = { id: 'fixture', isReady: () => true };
 
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, paymentLinksModel, emailServiceFactory: fakeEmailService() });
   const r = res();
   ctl.preview({ query: { reservationId: 300, templateId: 20 } }, r);
+  registry.reset();
   assert.equal(r.body.body, 'Lien : https://pay.qonto/pl_X');
 });
 
@@ -130,7 +145,7 @@ test('preview: deposit_reminder with no open link falls back to the no-link bran
   const { db, templatesModel, logModel, settingsModel } = makeFixture();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (20, 'deposit_reminder', 'Relance', 'Devis', '{{#if hasPaymentLink}}Lien : {{paymentLink}}{{else}}Aucun lien{{/if}}', -3, 'manual', 1, 'validUntil')").run();
   db.prepare("INSERT INTO reservations (id, kind, clientId, propertyId, startDate, endDate, validUntil, devisStatus) VALUES (300, 'devis', 1, 1, '2026-08-10', '2026-08-12', '2026-07-04', 'sent')").run();
-  const paymentLinksModel = { findOpenForReservation: () => null };
+  const paymentLinksModel = { findOpenForStay: () => null };
 
   const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, paymentLinksModel, emailServiceFactory: fakeEmailService() });
   const r = res();
@@ -230,6 +245,16 @@ test('send: client with no email + operator-typed override.to → sends to it AN
   assert.equal(db.prepare('SELECT recipientEmail FROM email_log').get().recipientEmail, 'typed@guest.fr');
   // Persisted onto the client record.
   assert.equal(db.prepare('SELECT email FROM clients WHERE id = 1').get().email, 'typed@guest.fr');
+});
+
+test('send: a typed recipient with a non-ASCII letter is saved in lower case (specs/clients.md rule 12)', async () => {
+  const { db, templatesModel, logModel, settingsModel } = makeFixture();
+  db.prepare("UPDATE clients SET email = '' WHERE id = 1").run();
+  const ctl = buildController({ database: db, templatesModel, logModel, settingsModel, emailServiceFactory: fakeEmailService({ sendImpl: async () => {} }) });
+  const r = res();
+  await ctl.send({ body: { reservationId: 100, templateId: 10, overrides: { to: 'ÉLODIE@Guest.fr' } } }, r);
+  assert.equal(r.statusCode, 200);
+  assert.equal(db.prepare('SELECT email FROM clients WHERE id = 1').get().email, 'élodie@guest.fr');
 });
 
 test('send: 404 CLIENT_NO_EMAIL when the client has none AND no override is typed', async () => {

@@ -1,0 +1,105 @@
+/**
+ * The host drivers (specs/hosting-h1-fleet-runtime.md H-D6). Every host action goes through one of
+ * four: `process`, `proxy`, `backup`, `mail`. Each has a `local` implementation, so the whole
+ * lifecycle runs on a laptop and in CI; production selects the real ones by environment:
+ *
+ *   CP_PROCESS_DRIVER   local | systemd      CP_SYSTEMCTL (default `sudo -n systemctl`), CP_IDENTITY_COMMAND
+ *   CP_PROXY_DRIVER     none  | caddy        CP_CADDY_SITES_DIR, CP_CADDYFILE, CP_CLOSED_PAGE_DIR
+ *   CP_BACKUP_DRIVER    local | litestream   CP_BACKUP_URL, CP_BACKUP_ENDPOINT, CP_BACKUP_REGION,
+ *                                            CP_RCLONE_REMOTE (derived when empty), CP_LITESTREAM_APPLY,
+ *                                            LITESTREAM_ACCESS_KEY_ID, LITESTREAM_SECRET_ACCESS_KEY
+ *   CP_MAIL_DRIVER      local | platform     CP_PLATFORM_SMTP_*, CP_PLATFORM_MAIL_FROM, CP_MAIL_DAILY_LIMIT
+ *
+ * Every driver works on the same instance shape: { customerId, key, slug, dir, dbPath, port, version }.
+ */
+
+const path = require('path');
+const { createExec } = require('./exec');
+const { createLocalProcessDriver } = require('./process-local');
+const { createSystemdProcessDriver } = require('./process-systemd');
+const { createCaddyProxyDriver } = require('./proxy-caddy');
+const { createNoneProxyDriver } = require('./proxy-none');
+const { createLocalBackupDriver } = require('./backup-local');
+const { createLitestreamBackupDriver } = require('./backup-litestream');
+const { createMailDriver } = require('./mail-platform');
+
+/**
+ * specs/hosting-h1-fleet-runtime.md rule 27 — rclone uses the object storage Litestream uses, with
+ * the same keys, typed once: the remote is derived from CP_BACKUP_URL (`s3://<bucket>/<path>`) and
+ * configured through rclone's environment (`RCLONE_CONFIG_GFBACKUP_*`), so no `rclone config` is run.
+ * CP_RCLONE_REMOTE, when set, wins (a remote configured by hand). → { remote, env }
+ */
+function rcloneTarget(env) {
+  if (env.CP_RCLONE_REMOTE) return { remote: env.CP_RCLONE_REMOTE, env: null };
+  const m = String(env.CP_BACKUP_URL || '').match(/^s3:\/\/([^/]+)\/?(.*)$/);
+  if (!m) return { remote: null, env: null };
+  const conf = {
+    RCLONE_CONFIG_GFBACKUP_TYPE: 's3',
+    RCLONE_CONFIG_GFBACKUP_PROVIDER: 'Other',
+    RCLONE_CONFIG_GFBACKUP_ENV_AUTH: 'false',
+    RCLONE_CONFIG_GFBACKUP_ACCESS_KEY_ID: env.LITESTREAM_ACCESS_KEY_ID || '',
+    RCLONE_CONFIG_GFBACKUP_SECRET_ACCESS_KEY: env.LITESTREAM_SECRET_ACCESS_KEY || '',
+  };
+  if (env.CP_BACKUP_ENDPOINT) conf.RCLONE_CONFIG_GFBACKUP_ENDPOINT = env.CP_BACKUP_ENDPOINT;
+  if (env.CP_BACKUP_REGION) conf.RCLONE_CONFIG_GFBACKUP_REGION = env.CP_BACKUP_REGION;
+  return { remote: `gfbackup:${m[1]}${m[2] ? `/${m[2].replace(/\/+$/, '')}` : ''}`, env: conf };
+}
+
+function choose(value, allowed, fallback) {
+  const v = String(value || fallback);
+  if (!allowed.includes(v)) throw new Error(`driver « ${v} » inconnu (${allowed.join(' | ')})`);
+  return v;
+}
+
+function createDrivers({ env = process.env, root, releasesDir, dataDir, domain, now = () => new Date(), exec = createExec(), listReplicas = () => [] }) {
+  const rclone = rcloneTarget(env);
+  const processKind = choose(env.CP_PROCESS_DRIVER, ['local', 'systemd'], 'local');
+  const proxyKind = choose(env.CP_PROXY_DRIVER, ['none', 'caddy'], 'none');
+  const backupKind = choose(env.CP_BACKUP_DRIVER, ['local', 'litestream'], 'local');
+  const mailKind = choose(env.CP_MAIL_DRIVER, ['local', 'platform'], 'local');
+
+  return {
+    process: processKind === 'systemd'
+      ? createSystemdProcessDriver({
+        exec,
+        releasesDir,
+        systemctl: env.CP_SYSTEMCTL || 'sudo -n systemctl',
+        identityCommand: env.CP_IDENTITY_COMMAND || 'sudo -n /usr/local/sbin/guestflow-instance-identity',
+      })
+      : createLocalProcessDriver({ releasesDir }),
+    proxy: proxyKind === 'caddy'
+      ? createCaddyProxyDriver({
+        exec,
+        domain,
+        sitesDir: env.CP_CADDY_SITES_DIR || '/etc/caddy/sites',
+        caddyfile: env.CP_CADDYFILE || '/etc/caddy/Caddyfile',
+        closedDir: env.CP_CLOSED_PAGE_DIR || '/srv/guestflow/closed',
+      })
+      : createNoneProxyDriver({ root }),
+    backup: backupKind === 'litestream'
+      ? createLitestreamBackupDriver({
+        exec,
+        listReplicas,
+        url: env.CP_BACKUP_URL,
+        endpoint: env.CP_BACKUP_ENDPOINT || '',
+        region: env.CP_BACKUP_REGION || '',
+        // B3 (review 2026-10-17): Litestream reads the object storage keys from its environment.
+        credentials: {
+          LITESTREAM_ACCESS_KEY_ID: env.LITESTREAM_ACCESS_KEY_ID || '',
+          LITESTREAM_SECRET_ACCESS_KEY: env.LITESTREAM_SECRET_ACCESS_KEY || '',
+        },
+        applyCommand: env.CP_LITESTREAM_APPLY || 'sudo -n /usr/local/sbin/guestflow-litestream-apply',
+        rcloneRemote: rclone.remote,
+        rcloneEnv: rclone.env,
+        tmpDir: path.join(dataDir, 'tmp'),
+      })
+      : createLocalBackupDriver({
+        dir: env.CP_LOCAL_BACKUP_DIR || path.join(dataDir, 'backups'),
+        now,
+        intervalMs: Number(env.CP_LOCAL_BACKUP_INTERVAL_MS) || undefined,
+      }),
+    mail: createMailDriver({ kind: mailKind, domain, env }),
+  };
+}
+
+module.exports = { createDrivers, rcloneTarget };

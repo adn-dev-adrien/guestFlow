@@ -20,13 +20,15 @@
 const { addDaysToIsoDate } = require('./devisHelpers');
 const { isDirectChannel } = require('./platformNameFormat');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('./platformPayout');
+const { bookingDayOf } = require('./vatRegime');
 
 const isIsoDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-// A stored date may carry a time part (`createdAt` is a datetime); only the day matters here.
+// A stored date may carry a time part: `createdAt` is a UTC timestamp, whose day is the operator's
+// calendar day it fell on, as the VAT regime reads it (rule 54) — not its first ten characters.
 function toIsoDay(value) {
   if (!value) return null;
-  const day = String(value).slice(0, 10);
+  const day = bookingDayOf(value);
   return isIsoDate(day) ? day : null;
 }
 
@@ -48,6 +50,8 @@ const positiveDays = (value, fallback) => {
  * @param {string}  input.validUntil             devis validity date (devis only)
  * @param {string}  input.existingDepositDueDate the stored date, when the reservation already has one
  * @param {number}  input.depositDueDays         property setting, days after booking
+ * @param {string}  input.notAfter               the solde deadline: a fresh acompte deadline never
+ *                                               falls after it (rule 47)
  * @returns {string|null}
  */
 function resolveDepositDueDate({
@@ -57,6 +61,7 @@ function resolveDepositDueDate({
   validUntil = null,
   existingDepositDueDate = null,
   depositDueDays = 7,
+  notAfter = null,
 } = {}) {
   if (!hasDeposit) return null;
   // A devis promises the dates until its validity date — that IS its acompte deadline (rule 5).
@@ -66,7 +71,12 @@ function resolveDepositDueDate({
   if (existing) return existing;
   const booked = toIsoDay(bookingDate);
   if (!booked) return null;
-  return addDaysToIsoDate(booked, positiveDays(depositDueDays, 7));
+  const due = addDaysToIsoDate(booked, positiveDays(depositDueDays, 7));
+  // Rule 47 — booked 31 to 36 days out, `booking + 7` lands after `arrival − 30`: the acompte would be
+  // owed after the solde. It is due on the solde's day instead. Only a fresh date is capped; a stored
+  // one stays the promise it was (rule 4).
+  const cap = toIsoDay(notAfter);
+  return cap && due && cap < due ? cap : due;
 }
 
 /**
@@ -135,6 +145,55 @@ function isLastMinuteStay({ bookingDate = null, startDate = null, balanceDaysBef
 }
 
 /**
+ * D23 — does a quote owe ONE payment, due on its validity date? (specs/deposit-blocks-the-dates.md rule 19)
+ *
+ * True when the solde deadline `startDate − balanceDaysBefore` falls on or before `validUntil`: an acompte
+ * due on the validity date would then be owed after the solde. The last-minute switch (rule 4) seen from
+ * the quote's validity date instead of its issue day. Either date missing → false.
+ */
+function owesSinglePaymentByValidity({ startDate = null, validUntil = null, balanceDaysBefore = 30 } = {}) {
+  const start = toIsoDay(startDate);
+  const until = toIsoDay(validUntil);
+  if (!start || !until) return false;
+  const soldeDue = addDaysToIsoDate(start, -positiveDays(balanceDaysBefore, 30));
+  return Boolean(soldeDue) && soldeDue <= until;
+}
+
+/**
+ * Does a devis promise ONE payment, due on its validity date? Its stored acompte is 0 (a direct devis with no
+ * acompte, specs/deposit-blocks-the-dates.md rule 7), or its solde falls on or before its validity date (D23,
+ * rule 19). The conversion and the converted reservation's later saves keep that promise (rule 22, audit
+ * R34-RES-L2). The caller judges the channel: an OTA devis never had an acompte to lose.
+ */
+function devisPromisesOnePayment({ startDate = null, validUntil = null, balanceDaysBefore = 30, depositAmount = null } = {}) {
+  if (!toIsoDay(validUntil)) return false;
+  const storedNoAcompte = depositAmount !== null && depositAmount !== undefined && depositAmount !== '' && Number(depositAmount) === 0;
+  return storedNoAcompte || owesSinglePaymentByValidity({ startDate, validUntil, balanceDaysBefore });
+}
+
+/**
+ * Does the devis a reservation was converted from still hold a promise for it? The devis was made on a direct
+ * channel (rule 24) and promises one payment (`devisPromisesOnePayment`) on its own dates and validity, judged with
+ * the delay of the STAY's logement, the one the engine prices (rule 26 reading R36b L1). The engine's
+ * `keepsDevisPromise` and the devis-delete refusal both read this, so they cannot drift apart.
+ */
+function devisPromiseHeld({ devisPromise = null, balanceDaysBefore = 30 } = {}) {
+  if (!devisPromise || !isDirectChannel(devisPromise.platform)) return false;
+  return devisPromisesOnePayment({
+    startDate: devisPromise.startDate, validUntil: devisPromise.validUntil,
+    balanceDaysBefore, depositAmount: devisPromise.depositAmount,
+  });
+}
+
+/**
+ * D23 — the deadline of the single payment a reservation keeps from the devis it was converted from: the
+ * devis's validity date, never before the reservation's own booking day (an expired quote converted late).
+ */
+function devisPromiseDueDate({ validUntil = null, bookingDate = null } = {}) {
+  return [toIsoDay(validUntil), toIsoDay(bookingDate)].filter(Boolean).sort().pop() || null;
+}
+
+/**
  * Cancellation deadline (rule 11) — the day from which an unpaid solde may cost the stay.
  */
 function resolveCancelOn({ balanceDueDate = null, cancelAfterBalanceDueDays = 7 } = {}) {
@@ -156,6 +215,10 @@ module.exports = {
   resolveDepositDueDate,
   resolveBalanceDueDate,
   isLastMinuteStay,
+  owesSinglePaymentByValidity,
+  devisPromisesOnePayment,
+  devisPromiseHeld,
+  devisPromiseDueDate,
   resolveCancelOn,
   daysBetween,
   toIsoDay,

@@ -70,10 +70,10 @@ test('parseSpecRules rend une liste vide quand la spec n’a pas de §3', async 
 test('parseCitations comprend les formes réellement écrites dans le dépôt', async () => {
   const { parseCitations } = await load();
   const src = [
-    '// specs/ma-spec.md §3.2 rule 10 — ce que fait la règle',
-    '// specs/autre.md §4 rules 4-5 — une plage',
-    '// specs/troisieme.md §3.E rules 28 + 30b — une liste',
-    '// specs/quatrieme.md règle 11bis — en français',
+    '// specs\/ma-spec.md §3.2 rule\x2010 — ce que fait la règle',
+    '// specs\/autre.md §4 rules\x204-5 — une plage',
+    '// specs\/troisieme.md §3.E rules\x2028 + 30b — une liste',
+    '// specs\/quatrieme.md règle\x2011bis — en français',
   ].join('\n');
   const got = parseCitations(src).map((c) => `${c.spec}:${c.rule}`);
   assert.deepEqual(got, [
@@ -82,6 +82,16 @@ test('parseCitations comprend les formes réellement écrites dans le dépôt', 
     'troisieme:28', 'troisieme:30b',
     'quatrieme:11bis',
   ]);
+});
+
+// specs/spec-rule-coverage.md §3.1 rule 4 — « quater » est un suffixe comme « bis » et « ter » :
+// sans lui, « 11quater » se lisait « 11q », une règle qui n'existe pas.
+test('un suffixe quater est lu en entier, dans la spec comme dans la citation', async () => {
+  const { parseSpecRules, parseCitations } = await load();
+  const spec = ['## 3. Functional rules', '', '11. **Une.**', '11ter. **Deux.**', '11quater. **Trois.**', '', '## 4. Architecture'].join('\n');
+  assert.deepEqual(parseSpecRules(spec).map((r) => r.id), ['11', '11ter', '11quater']);
+  const got = parseCitations('// specs\/ma-spec.md rules\x2011ter, 11quater — deux suffixes').map((c) => c.rule);
+  assert.deepEqual(got, ['11ter', '11quater']);
 });
 
 // specs/spec-rule-coverage.md §3.1 rule 3 — une citation est rattachée à la spec nommée près d'elle,
@@ -99,7 +109,7 @@ test('une citation loin de sa spec retombe sur celle que le fichier annonce en t
     '',
     '',
     '',
-    "test('rule 18 — un remboursement par virement sort du total', () => {});",
+    "test('rule\x2018 — un remboursement par virement sort du total', () => {});",
   ].join('\n');
   assert.deepEqual(parseCitations(src), [{ spec: 'reservation-refunds', rule: '18' }]);
 });
@@ -195,4 +205,59 @@ test('une règle REFORMULÉE avertit mais ne bloque pas', async () => {
 test('aucune règle ajoutée : le contrôle passe sans rien dire', async () => {
   const { gateVerdict } = await load();
   assert.deepEqual(gateVerdict({}), { ok: true, failures: [], warnings: [] });
+});
+
+// specs/spec-rule-coverage.md §3.1 rule 2 + §3.2 rule 8 — la barrière ne compte comme règle ajoutée
+// qu'une entrée de la section « Functional rules ». Le 2026-09-28 elle bloquait une PR sur les
+// listes numérotées d'une étude (§1, §11, §12…) : des lignes « 1. » que le diff ne situe pas.
+test('la barrière ignore les lignes numérotées hors de la section des règles', async () => {
+  const { rulesChangedInDiff } = await load();
+  const diff = [
+    '+++ b/specs/etude.md',
+    '+1. Une raison dans le contexte.',
+    '+2. Un risque.',
+    '+++ b/specs/ma-spec.md',
+    '+7. Une vraie règle ajoutée.',
+    '+8. Une règle déclarée sans test.',
+  ].join('\n');
+  const specsNow = new Map([
+    ['etude', []],
+    ['ma-spec', [{ id: '7', exempt: false }, { id: '8', exempt: true }]],
+  ]);
+  const { addedRules } = rulesChangedInDiff(diff, specsNow);
+  assert.deepEqual(addedRules, [
+    { spec: 'ma-spec', rule: '7', exempt: false },
+    { spec: 'ma-spec', rule: '8', exempt: true },
+  ]);
+});
+
+test('une règle reformulée reste une modification, pas un ajout', async () => {
+  const { rulesChangedInDiff } = await load();
+  const diff = ['+++ b/specs/ma-spec.md', '-3. Ancienne formulation.', '+3. Nouvelle formulation.'].join('\n');
+  const specsNow = new Map([['ma-spec', [{ id: '3', exempt: false }]]]);
+  assert.deepEqual(rulesChangedInDiff(diff, specsNow), {
+    addedRules: [],
+    modifiedRules: [{ spec: 'ma-spec', rule: '3' }],
+  });
+});
+
+// specs/spec-rule-coverage.md rule 15 — « <spec> rule N » without the `specs/` prefix goes to that spec.
+test('rule 15: une citation qui nomme une spec sans préfixe lui est rattachée', async () => {
+  const { parseCitations } = await load();
+  const known = new Set(['reservation-refunds', 'public-online-payment', 'defer-arrival-complement-to-checkout']);
+  const src = [
+    '// specs/reservation-refunds.md §3.3 — l’argent rendu sort du total de séjour.',
+    '',
+    '',
+    '',
+    '',
+    "test('rule 4 — x (public-online-payment rule 12 ; defer-arrival-complement-to-checkout §3.3 règle 16 ; unknown-thing rule 9)', () => {});",
+  ].join('\n');
+  assert.deepEqual(parseCitations(src, known), [
+    { spec: 'reservation-refunds', rule: '4' },
+    { spec: 'public-online-payment', rule: '12' },
+    { spec: 'defer-arrival-complement-to-checkout', rule: '16' },
+    { spec: 'reservation-refunds', rule: '9' },
+  ]);
+  assert.deepEqual(parseCitations(src).map((c) => c.spec), ['reservation-refunds', 'reservation-refunds', 'reservation-refunds', 'reservation-refunds']);
 });

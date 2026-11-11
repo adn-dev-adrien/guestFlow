@@ -78,8 +78,10 @@ final class GF_Shortcodes
 
         return '<div class="gf-cgv" data-open-lang="' . esc_attr($open) . '">'
             . '<div class="gf-cgv-entete"><div class="gf-cgv-switch">'
-            . '<button type="button" data-lang="fr" aria-label="Français">🇫🇷</button>'
-            . '<button type="button" data-lang="en" aria-label="English">🇬🇧</button>'
+            // Text, not flags: Windows draws a flag emoji as two letters, and a flag names a country,
+            // not a language (specs/wordpress-plugin.md rule 23).
+            . '<button type="button" data-lang="fr" lang="fr" aria-label="Français">FR</button>'
+            . '<button type="button" data-lang="en" lang="en" aria-label="English">EN</button>'
             . '</div></div>'
             . '<p class="gf-cgv-version">' . $notice . '</p>'
             . '<div class="gf-cgv-lang" data-lang="fr" data-visible="' . ($open === 'fr' ? '1' : '0') . '" lang="fr">' . $fr . '</div>'

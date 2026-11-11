@@ -45,6 +45,34 @@
     }
   };
 
+  // Weekday headings Monday → Sunday in the page's language (« Lun » / « Mon »), shared by the booking
+  // and calendar blocks (specs/wordpress-plugin.md rule 19). Built from a week that really starts on
+  // a Monday (2024-01-01 was one), so the order matches the grids rather than the locale's first day.
+  GF.weekdays = function () {
+    try {
+      var f = new Intl.DateTimeFormat(GF.locale, { weekday: 'short' });
+      var out = [];
+      for (var i = 0; i < 7; i++) {
+        var j = f.format(new Date(2024, 0, 1 + i));
+        out.push(j.charAt(0).toUpperCase() + j.slice(1).replace(/\.$/, ''));
+      }
+      return out;
+    } catch (e) {
+      return ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    }
+  };
+
+  // A calendar day read in full by a screen reader: « vendredi 6 novembre 2026 », and «, indisponible »
+  // when it cannot be booked (specs/wordpress-plugin.md rule 15).
+  GF.dayLabel = function (year, month, day, blocked) {
+    var label = GF.date(new Date(year, month, day), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return blocked ? label + ', ' + GF.t('blocked').toLowerCase() : label;
+  };
+
+  // A unique id for a label's `for` (specs/wordpress-plugin.md rule 15): several blocks may share a page.
+  var uid = 0;
+  GF.uid = function (prefix) { uid += 1; return (prefix || 'gf') + '-' + uid; };
+
   // Build a DOM node: el('div', { class: 'x', onclick: fn }, child, child, ...)
   GF.el = function (tag, attrs) {
     var node = document.createElement(tag);
@@ -118,7 +146,11 @@
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   };
 
+  // A plain string error (`{"error":"PLUGIN_INACTIVE"}`) is GuestFlow saying the website booking is
+  // switched off: the site shows its « unavailable » state, not a generic failure
+  // (specs/wordpress-plugin.md rule 18).
   GF.errorMessage = function (res) {
+    if (res && res.body && typeof res.body.error === 'string') return GF.t('unavailable');
     if (res && res.body && res.body.error && res.body.error.message) return res.body.error.message;
     return GF.t('genericError');
   };

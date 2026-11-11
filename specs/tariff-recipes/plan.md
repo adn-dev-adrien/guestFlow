@@ -2,7 +2,7 @@
 
 Companion to [spec.md](spec.md) and [architecture.md](architecture.md). Rule numbers refer to spec §3.
 
-**Status:** awaiting validation
+**Status:** validated and implemented (2026-10; see `spec.md` for the delivered rules and `architecture.md` for the code map)
 **Surface:** 8 new server files (incl. the recipe itself), 8 touched · 2 new client files, 4 touched ·
 1 script · 12 new test files.
 
@@ -224,6 +224,8 @@ comprises » caption are gone, and `tests/tourist-tax-included-in-rate.unit.test
 3. **Backup first:** `scripts/backup-from-pi.sh` before touching production data.
 4. `node scripts/configure-aventura-lodge-2026.mjs` (dry run) → read the diff.
 5. `node scripts/configure-aventura-lodge-2026.mjs --apply`.
+   *(Since 2026-10-19 the script lives in the deployment's private repository and runs against a
+   GuestFlow checkout — [phase P](../plugins-phase-p-productisation.md) rule 30.)*
 6. Spot-check in the app: the recipe card shows v1.0.0 applied; the calendar matches spec rule 44; the
    platform grid matches rule 34; one existing upcoming reservation is **unchanged** (locked snapshot);
    one fresh test reservation at each season boundary.

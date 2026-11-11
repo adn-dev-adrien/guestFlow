@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
  * Lists the reservations whose client was overwritten through a client shared with other stays
- * (specs/booking-extranet-intake.md rule 26). Read-only: the database is opened `readonly`, nothing
+ * (specs/booking-extranet-intake.md rule 28). Read-only: the database is opened `readonly`, nothing
  * is migrated, nothing is written.
  *
  *   node server/scripts/diagnose-shared-clients.js <path/to/guestflow.db> [--json]
  *
  * Safe on the live file as on a copy (`sqlite3 guestflow.db "VACUUM INTO '/tmp/copy.db'"`).
  *
- * Before rule 25, the Booking intake wrote the guest onto the fiche's client. When that client was the
+ * Before rule 27, the Booking intake wrote the guest onto the fiche's client. When that client was the
  * placeholder every stay of the feed shared (« Closed Not available », « Reserved Ical »), every other
  * stay took the guest's name and e-mail. Filling such a client by hand in the fiche had the same effect.
  *

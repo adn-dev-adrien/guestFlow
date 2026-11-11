@@ -1,4 +1,6 @@
 // emailLogModel CRUD + pending join + history pagination. See specs/email-automation.md §4.1.
+// specs/email-history-rolling-window.md rule 4 — the status / template / reservation filters combine with
+// the window (AND); see « history: paginated » below.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,9 +22,15 @@ const DDL = `
     templateId INTEGER, reservationId INTEGER NOT NULL,
     sentAt TEXT NOT NULL DEFAULT (datetime('now')),
     status TEXT NOT NULL, channel TEXT NOT NULL DEFAULT 'smtp', errorMessage TEXT DEFAULT '',
-    renderedSubject TEXT NOT NULL, renderedBody TEXT NOT NULL, recipientEmail TEXT NOT NULL DEFAULT ''
+    renderedSubject TEXT NOT NULL, renderedBody TEXT NOT NULL, recipientEmail TEXT NOT NULL DEFAULT '', occurrenceKey TEXT NOT NULL DEFAULT ''
+  );
+  CREATE TABLE reservation_installments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, number INTEGER NOT NULL, dueDate TEXT NOT NULL,
+    amountCents INTEGER NOT NULL, paid INTEGER NOT NULL DEFAULT 0, paidDate TEXT, paidMethod TEXT, requestedAt TEXT,
+    dateEdited INTEGER NOT NULL DEFAULT 0, amountEdited INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE reservations (
+    installmentsTarget REAL NOT NULL DEFAULT 0, installmentsPaidAmount REAL NOT NULL DEFAULT 0,
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     platform TEXT,
     clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT,
@@ -144,7 +152,7 @@ test('listPending: a before-arrival reminder is NOT re-proposed once the guest h
   // J-2 reminder for up to 5 days AFTER arrival (its sendDate stays in the window). Once startDate is
   // past, a before-or-on-arrival reminder must drop out.
   const { db, model } = fresh();
-  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Nicolas', 'Vigier', 'nico@v.fr')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Sigma', 'Dune', 'nico@v.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (20, 'arrival_reminder_1d', 'J-2', 'S', 'B', -2, 'manual', 1)").run();
 
@@ -164,7 +172,7 @@ test('listPending: a post-stay email (positive dayOffset) is kept even after arr
   // Future-proofing rule 8: emails meant to fire AFTER arrival (e.g. a J+1 review request) must keep
   // surfacing for a past-startDate stay — the past-arrival guard only drops before/on-arrival reminders.
   const { db, model } = fresh();
-  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Nicolas', 'Vigier', 'nico@v.fr')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Sigma', 'Dune', 'nico@v.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled) VALUES (21, NULL, 'J+1', 'S', 'B', 1, 'manual', 1)").run();
 
@@ -178,7 +186,7 @@ test('listPending: a post-stay email (positive dayOffset) is kept even after arr
 
 test('listPending: a validUntil-anchored reminder surfaces for an open, deposit-unpaid devis; converted/paid excluded', () => {
   const { db, model } = fresh();
-  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Tom', 'Baz', 'tom@b.fr')").run();
+  db.prepare("INSERT INTO clients (id, firstName, lastName, email) VALUES (1, 'Psi', 'Baz', 'tom@b.fr')").run();
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Villa A')").run();
   // deposit_reminder anchored on validUntil, dayOffset -3.
   db.prepare("INSERT INTO email_templates (id, stableKey, name, subject, body, dayOffset, sendMode, enabled, anchor) VALUES (40, 'deposit_reminder', 'Relance', 'S', 'B', -3, 'manual', 1, 'validUntil')").run();
@@ -285,10 +293,42 @@ test('history: keeps in-window stays (incl. exactly arrival+3), drops past-windo
   for (const rid of [300, 301, 302, 999]) {
     model.insert({ templateId: null, reservationId: rid, status: 'sent', renderedSubject: 'S', renderedBody: 'B' });
   }
+  // Written before every arrival: the arrival is what the window counts from (rule 9).
+  db.prepare("UPDATE email_log SET sentAt = '2026-06-01 08:00:00'").run();
   const today = '2026-06-18';
   const res = model.history({ limit: 50, today });
   const ids = res.rows.map((r) => r.reservationId).sort();
   // 300 (future) + 301 (arrival+3 == today, boundary inclusive) kept; 302 (arrival+4 < today) + 999 (orphan) dropped.
   assert.deepEqual(ids, [300, 301]);
   assert.equal(res.total, 2);
+});
+
+// specs/email-history-rolling-window.md rules 5 + 6 — every status follows the window (listed and purged
+// the same way) and the page's total counts only in-window rows.
+test('rule 5: sent, failed and acknowledged-skip rows are scoped and purged identically', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO reservations (id, kind, startDate, endDate) VALUES (301, 'reservation', '2026-06-15', '2026-06-16'), (302, 'reservation', '2026-06-14', '2026-06-15')").run();
+  for (const rid of [301, 302]) {
+    for (const status of ['sent', 'failed', 'acknowledged-skip']) {
+      model.insert({ templateId: null, reservationId: rid, status, renderedSubject: 'S', renderedBody: 'B' });
+    }
+  }
+  db.prepare("UPDATE email_log SET sentAt = '2026-06-01 08:00:00'").run();
+  for (const status of ['sent', 'failed', 'acknowledged-skip']) {
+    assert.deepEqual(model.history({ status, limit: 50, today: '2026-06-18' }).rows.map((r) => r.reservationId), [301], status);
+  }
+  assert.equal(model.purgeRealizedStays('2026-06-18'), 3);
+  assert.deepEqual(db.prepare('SELECT status FROM email_log ORDER BY status').all().map((r) => r.status), ['acknowledged-skip', 'failed', 'sent']);
+});
+
+test('rule 6: the total counts only in-window rows, whatever the page size', () => {
+  const { db, model } = fresh();
+  db.prepare("INSERT INTO reservations (id, kind, startDate, endDate) VALUES (301, 'reservation', '2026-06-15', '2026-06-16'), (302, 'reservation', '2026-06-14', '2026-06-15')").run();
+  for (const rid of [301, 301, 301, 302, 302]) {
+    model.insert({ templateId: null, reservationId: rid, status: 'sent', renderedSubject: 'S', renderedBody: 'B' });
+  }
+  db.prepare("UPDATE email_log SET sentAt = '2026-06-01 08:00:00'").run();
+  const page = model.history({ limit: 2, offset: 0, today: '2026-06-18' });
+  assert.equal(page.total, 3);
+  assert.equal(page.rows.length, 2);
 });

@@ -171,6 +171,15 @@ guest was quoted holds for as long as the quote is valid.
 20. The resulting reservation produces the same planning cards (petit déjeuner, repas) and the same resource
     sessions as a hand-typed reservation with the same basket. No re-entry after acceptance.
 
+### F. Audit fix (2026-10-30, audit R8-1)
+
+21. **« Today » is the operator's day.** Every validity decision of the devis model — the price lock
+    (rules 13-14), the fiche and list `expired` / `extendable` flags (rule 16), « prolonger » and the
+    window a re-issue opens — compares `validUntil` to `utils/localDate.todayIso()`, the process's local
+    day, never to the UTC date. *Why:* between 00:00 and 01:00 / 02:00 in Paris the model still read
+    yesterday: a devis expired the day before kept its frozen prices and « prolonger » refused it as
+    « encore valable », while `vatRegimeModel.isLiveDevis` already counted it expired.
+
 **Edge cases:**
 
 - Planning-card option enabled but **zero** occurrence checked → not billed, not stored (engine rule,
@@ -324,6 +333,9 @@ supprimer, Enregistrer/Annuler). This spec only adds the `subtitle` chip — no 
       `devis-pdf*.unit.test.js`, `public-devis-options-persist.unit.test.js`,
       `reservation-option-immutability.unit.test.js`, `pricing-option-planning-card.unit.test.js`,
       `reservation-devis-isolation.unit.test.js`
+- [x] `tests/devis-local-day.unit.test.js` (2026-10-30, audit R8-1) — rule 21: clock frozen at 31/10 00:30
+      Paris (30/10 23:30 UTC), a devis valid until 30/10 reads expired and extendable on the fiche and the
+      list, « prolonger » accepts it, and a save re-issues its window from 31/10
 
 ### Client tests (`cd client && npx vitest run`) — **17 added, suite green at 912**
 

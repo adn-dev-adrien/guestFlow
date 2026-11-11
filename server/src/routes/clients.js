@@ -4,6 +4,7 @@ const controller = require('../controllers/clientsController');
 router.get('/', controller.list);
 // Declared before `/:id` so the literal path wins (specs/clients-upcoming-past-directory.md §4.1).
 router.get('/directory', controller.directory);
+router.get('/duplicate', controller.duplicate);
 router.post('/parse-contact', controller.parseContact);
 router.post('/cleanup-orphans', controller.cleanupOrphans);
 router.get('/cleanup-orphans/preview', controller.cleanupOrphansPreview);

@@ -1,24 +1,21 @@
 /**
- * Planning controller — aggregate endpoints for the Planning page
- * (specs/weekly-bed-linen-tracking.md).
- *
- * Currently exposes only `laundrySummary`. Other planning aggregates can join here later
- * (e.g. weekly occupancy chips, cleaning lists) — keeps planning-domain endpoints out of
- * the already-fat /api/reservations route.
+ * Planning controller — aggregate endpoints of the home and the Planning page: the day lists, the days
+ * of a window, the breakfast list and the option-card ticks. The laundry endpoints belong to the
+ * `linen` plugin (specs/plugins-phase-2-hosts.md rule 4), the resource cards to `hourly-resources`
+ * (specs/plugins-phase-3c-hourly-resources.md rule 10).
  */
 
-const { checkPlanningRange } = require('../utils/planningDateRange');
-const laundryModel = require('../models/laundryModel');
-const settingsModel = require('../models/settingsModel');
-const linenInventoryModel = require('../models/linenInventoryModel');
-const laundryTripSkipsModel = require('../models/laundryTripSkipsModel');
-const laundryManualAdditionsModel = require('../models/laundryManualAdditionsModel');
-const laundryExtraTripsModel = require('../models/laundryExtraTripsModel');
 const breakfastModel = require('../models/breakfastModel');
 const planningOptionCardsModel = require('../models/planningOptionCardsModel');
-const planningResourceCardsModel = require('../models/planningResourceCardsModel');
-const { findLaundryDaysInRange, activeExtraDates } = require('../utils/laundryWindow');
-const { createTripLedger, makeBlockBuilders } = require('../utils/laundryTripLedger');
+const planningAlertsModel = require('../models/planningAlertsModel');
+const planningDaysModel = require('../models/planningDaysModel');
+const reservationsModel = require('../models/reservationsModel');
+const { asText, isOptionalText, numeric, isFlag } = require('../utils/bodyText');
+const { getTodayIsoDate } = require('../utils/reservationHelpers');
+const { isReceptionOnly } = require('../constants/roles');
+const { toReceptionReservationView } = require('../utils/receptionView');
+const { frenchDayLabel, toArrivalCard, toDepartureRow } = require('../utils/upcomingArrivals');
+const { checkWindow, relativeLabel, windowDays, idsByDate } = require('../utils/planningDays');
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -27,151 +24,85 @@ function isIsoDate(value) {
 }
 
 function buildController({
-  laundryModel: injectedLaundryModel = laundryModel,
-  settingsModel: injectedSettingsModel = settingsModel,
-  linenInventoryModel: injectedLinenInventoryModel = linenInventoryModel,
-  laundryTripSkipsModel: injectedLaundryTripSkipsModel = laundryTripSkipsModel,
-  laundryManualAdditionsModel: injectedLaundryManualAdditionsModel = laundryManualAdditionsModel,
-  laundryExtraTripsModel: injectedLaundryExtraTripsModel = laundryExtraTripsModel,
   breakfastModel: injectedBreakfastModel = breakfastModel,
   planningOptionCardsModel: injectedOptionCardsModel = planningOptionCardsModel,
-  planningResourceCardsModel: injectedResourceCardsModel = planningResourceCardsModel,
+  planningAlertsModel: injectedAlertsModel = planningAlertsModel,
+  planningDaysModel: injectedDaysModel = planningDaysModel,
+  detailOf = (id) => reservationsModel.getByIdWithDetails(id),
+  today = getTodayIsoDate,
 } = {}) {
+  // The stay as the requester may read it: the detailed model shape, finance-free for reception.
+  const stayReader = (req) => {
+    const cache = new Map();
+    return (id) => {
+      if (!cache.has(id)) {
+        const detail = detailOf(id);
+        cache.set(id, detail && isReceptionOnly(req.user) ? toReceptionReservationView(detail) : detail);
+      }
+      return cache.get(id);
+    };
+  };
+  const stays = (ids, read) => (ids || []).map(read).filter(Boolean);
+
   return {
     /**
-     * GET /api/planning/laundry?from=YYYY-MM-DD[&to=YYYY-MM-DD]
-     *
-     * Returns the laundry summary for every occurrence of `laundryWeekday` (from settings)
-     * in the requested range, plus every extra laundry trip in the range
-     * (specs/laundry-extra-trip.md). Drop-off counts sheets used by reservations whose endDate
-     * is in `(previous trip, T]`; pick-up is what sits at the laundry before T — with weekly
-     * trips only, exactly the previous laundry day's drop-off (which may itself be outside the
-     * requested range — we still compute it).
-     *
-     * `to` is OPTIONAL. When omitted the server defaults it to the inventory horizon
-     * (= the last reservation's endDate, same business concept that drives the linen
-     * simulation). This keeps the client from having to derive the "right" upper bound
-     * from UI state (scroll position, page size, etc.) — the business horizon is a server
-     * concern (specs/skip-laundry-trip.md §4.1 hotfix 2026-06-05 follow-up #3,
-     * CLAUDE.md §6.0). The client passes `to` only when it explicitly wants a slice (e.g.
-     * incremental loading of a future window via infinite scroll).
-     *
-     * The client filters out silent laundry days (both sides zero) — the server emits them
-     * uniformly so the contract stays predictable.
-     *
-     * Each drop-off also carries `incomplete: [{ id, clientName, propertyName, endDate }]` — the
-     * stays of the window that declare bed linen but have no quantity saved yet
-     * (specs/laundry-counts-explicit-option-only.md §3.2), so the card can flag a figure it knows
-     * is short instead of under-reporting in silence.
+     * GET /api/planning/today (specs/dashboard-planning-scroll.md rules 1–3): the home's day lists in
+     * one call — today's departures and arrivals and, when nobody arrives, the next arrival day.
      */
-    laundrySummary(req, res) {
-      const from = (req.query && req.query.from) || '';
-      const rawTo = (req.query && req.query.to) || '';
-      if (!isIsoDate(from)) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      if (rawTo && !isIsoDate(rawTo)) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      const row = injectedSettingsModel.read();
-      const weekday = row && row.laundryWeekday != null ? Number(row.laundryWeekday) : 2;
-      // Compute `to`. Explicit query param wins; otherwise derive from the inventory horizon.
-      // No horizon (no future reservations) AND no explicit `to` → emit nothing: there's
-      // nothing to project against.
-      let to = rawTo;
-      if (!to) {
-        const sim = injectedLinenInventoryModel.simulate();
-        to = sim?.horizon || null;
-        if (!to) {
-          return res.json({ laundryWeekday: weekday, laundryDays: [] });
+    today(req, res) {
+      const current = today();
+      const read = stayReader(req);
+      const arrivals = idsByDate(injectedDaysModel.arrivalsInRange(current, current))[current];
+      const departures = idsByDate(injectedDaysModel.departuresInRange(current, current))[current];
+      let nextArrival = null;
+      if (!arrivals) {
+        const date = injectedDaysModel.nextArrivalDayAfter(current);
+        if (date) {
+          nextArrival = {
+            date,
+            label: frenchDayLabel(date, current),
+            relativeLabel: relativeLabel(current, date),
+            reservations: stays(idsByDate(injectedDaysModel.arrivalsInRange(date, date))[date], read),
+          };
         }
       }
-      if (from > to) {
-        // Explicit slice that ends before it starts → still a 400 (operator error).
-        // The horizon fallback never trips this because horizon ≥ today by construction.
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      // Bound the span before the ledger walks it date by date (DATA-1): reception can reach this
-      // endpoint, and the ledger runs ~10 queries per date — an unbounded `from` is a CPU/SQL DoS.
-      // The ceiling is generous enough never to reject a real laundry horizon (see planningDateRange).
-      const rangeError = checkPlanningRange(from, to);
-      if (rangeError) return res.status(rangeError.status).json({ error: rangeError.error });
-      // specs/laundry-extra-trip.md §3.2 — the summary is a ledger over the TRIP SEQUENCE: every
-      // non-skipped regular laundry day plus every active extra trip, chronologically. A skipped
-      // trip (specs/skip-laundry-trip.md §3.1 rule 6) is simply absent from the sequence, so the
-      // next trip's drop-off window widens backward across it; an extra trip takes the dirty pile
-      // (and all or part of the pool) with it, so the next trip only carries what came after.
-      // The ledger's buildBlock merges bed + bathroom + bath-mat sums + the signed manual lines into
-      // one block per side (the client renders both under a unified "À apporter / À récupérer").
-      //
-      // The "Disponible après ce dépôt" line (via `linenInventoryModel.simulate`) follows the same
-      // sequence — the two paths must agree (PR #126 hotfix 2026-06-05 taught us what happens when
-      // they don't).
-      const skippedDates = new Set(injectedLaundryTripSkipsModel.listAll());
-      const extraTrips = injectedLaundryExtraTripsModel.listAll();
-      const ledger = createTripLedger({
-        weekday,
-        skippedDates,
-        extraTrips,
-        ...makeBlockBuilders({
-          laundryModel: injectedLaundryModel,
-          laundryManualAdditionsModel: injectedLaundryManualAdditionsModel,
-        }),
+      return res.json({
+        today: current,
+        departures: stays(departures, read),
+        arrivals: stays(arrivals, read),
+        nextArrival,
       });
-      const regularDates = findLaundryDaysInRange(from, to, weekday);
-      const extraDates = activeExtraDates(extraTrips.map((t) => t.date), weekday)
-        .filter((d) => d >= from && d <= to);
-      const tripDates = Array.from(new Set([...regularDates, ...extraDates])).sort();
-      // Each entry: { date, kind, dropOff (+ incomplete), pickUp } and, for an extra trip,
-      // { pickUpAll, leftAtLaundry }. A skipped regular trip emits zeros — the client masks them with
-      // the "Voyage non réalisé" caption.
-      const laundryDays = tripDates.map((date) => ledger.entryFor(date)).filter(Boolean);
-      return res.json({ laundryWeekday: weekday, laundryDays });
     },
 
     /**
-     * GET /api/planning/linen-inventory
-     *
-     * Returns the per-laundry-day inventory snapshot (post-day-end clean per type) so the
-     * client can render "Disponible après ce dépôt" on each laundry card
-     * (specs/linen-inventory-shortage-tracking.md §3.5 / §4.3).
-     *
-     * Payload shape:
-     *   { horizon: 'YYYY-MM-DD', byLaundryDay: { 'YYYY-MM-DD': { single, double, baby, large, medium, small }, ... } }
-     *
-     * Empty `byLaundryDay` when no horizon (no future reservation) or no stock tracked.
+     * GET /api/planning/days?from&to (rules 8–9): every calendar day of a window, at most 31 days,
+     * with its arrivals, departures, breakfast and option cards, plus the window's cleaning alerts.
      */
-    linenInventory(req, res) {
-      const result = injectedLinenInventoryModel.simulate();
-      if (!result) return res.json({ horizon: null, byLaundryDay: {} });
-      const row = injectedSettingsModel.read();
-      const laundryWeekday = Number(row.laundryWeekday == null ? 2 : row.laundryWeekday);
-      // Emit only the TRACKED types (stock > 0) in the « Disponible après ce dépôt » snapshot —
-      // a type with stock 0 is "not tracked" (no availability figure, no shortage) per
-      // specs/linen-inventory-shortage-tracking.md §3.1 + specs/laundry-bath-mat.md §3 rule 7.
-      // Without this, an untracked type with demand (e.g. bath mats at stock 0) would surface a
-      // misleading negative figure on the card.
-      const trackedTypes = {
-        single: row.bedLinenStockSingle, double: row.bedLinenStockDouble, baby: row.bedLinenStockBaby,
-        large: row.towelStockLarge, medium: row.towelStockMedium, small: row.towelStockSmall,
-        bathMat: row.towelStockBathMat,
-      };
-      const tracked = Object.keys(trackedTypes).filter((t) => Number(trackedTypes[t] || 0) > 0);
-      const projectClean = (clean) => {
-        const out = {};
-        for (const t of tracked) out[t] = clean[t];
-        return out;
-      };
-      // Keyed by every regular laundry day (skipped or not) AND every extra trip day
-      // (specs/laundry-extra-trip.md §3.3 rule 15), so the extra card shows its own line.
-      const byLaundryDay = {};
-      for (const day of result.days) {
-        const isLaundryDay = (new Date(`${day.date}T00:00:00Z`).getUTCDay()) === laundryWeekday;
-        if (isLaundryDay || day.isTripDay) {
-          byLaundryDay[day.date] = projectClean(day.clean);
-        }
-      }
-      return res.json({ horizon: result.horizon, byLaundryDay });
+    days(req, res) {
+      const from = (req.query && req.query.from) || '';
+      const to = (req.query && req.query.to) || '';
+      const invalid = checkWindow(from, to);
+      if (invalid) return res.status(400).json({ error: invalid, message: 'Période invalide.' });
+      const current = today();
+      const read = stayReader(req);
+      const arrivals = idsByDate(injectedDaysModel.arrivalsInRange(from, to));
+      const departures = idsByDate(injectedDaysModel.departuresInRange(from, to));
+      const breakfast = injectedBreakfastModel.breakfastByDate({ from, to }) || {};
+      const optionCards = injectedOptionCardsModel.cardsInRange({ from, to }) || {};
+      return res.json({
+        from,
+        to,
+        today: current,
+        days: windowDays(from, to, current).map((day) => ({
+          ...day,
+          // The Planning page renders the arrival card and the departure row only (rule 22).
+          arrivals: stays(arrivals[day.date], read).map(toArrivalCard),
+          departures: stays(departures[day.date], read).map(toDepartureRow),
+          breakfast: breakfast[day.date] || null,
+          optionCards: optionCards[day.date] || null,
+        })),
+        alerts: injectedAlertsModel.alertsInRange({ from, to }),
+      });
     },
 
     /**
@@ -198,29 +129,13 @@ function buildController({
       const from = (req.query && req.query.from) || '';
       const to = (req.query && req.query.to) || '';
       if (!isIsoDate(from) || !isIsoDate(to)) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
       }
       if (from > to) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+        return res.status(400).json({ error: 'INVALID_DATE_RANGE', message: 'Période invalide.' });
       }
       const breakfastByDate = injectedBreakfastModel.breakfastByDate({ from, to });
       return res.json({ breakfastByDate });
-    },
-
-    /**
-     * GET /api/planning/option-cards?from=YYYY-MM-DD&to=YYYY-MM-DD
-     *
-     * Option-driven planning cards (specs/option-planning-card.md §3.3): one card per stored
-     * occurrence of a `showsPlanningCard` option whose date ∈ [from, to], shaped ready to render.
-     */
-    optionCards(req, res) {
-      const from = (req.query && req.query.from) || '';
-      const to = (req.query && req.query.to) || '';
-      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      const optionCardsByDate = injectedOptionCardsModel.cardsInRange({ from, to });
-      return res.json({ optionCardsByDate });
     },
 
     /**
@@ -230,59 +145,29 @@ function buildController({
      */
     setOptionCardDone(req, res) {
       const body = req.body || {};
-      const reservationId = Number(body.reservationId);
-      const optionId = Number(body.optionId);
-      const date = String(body.date || '');
+      const reservationId = numeric(body.reservationId);
+      const optionId = numeric(body.optionId);
+      const date = asText(body.date);
+      // A tick reads as INVALID_PAYMENT_FLAG does: `Boolean("false")` ticked the card
+      // (specs/hosting-h2-account-security.md rule 68).
       if (!Number.isInteger(reservationId) || reservationId <= 0
         || !Number.isInteger(optionId) || optionId <= 0
-        || !isIsoDate(date)) {
-        return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+        || !isIsoDate(date)
+        || !isOptionalText(body.time)
+        || (body.done !== undefined && !isFlag(body.done))) {
+        return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
       }
-      const result = injectedOptionCardsModel.setOccurrenceDone({
-        reservationId, optionId, date, time: String(body.time || ''), done: Boolean(body.done),
+      let result = injectedOptionCardsModel.setOccurrenceDone({
+        reservationId, optionId, date, time: asText(body.time), done: Boolean(body.done),
       });
+      // A breakfast served without chosen mornings has a card every morning but no stored occurrence:
+      // its flag is kept apart (specs/breakfast-option-planning-card.md, 2026-10-27 spec review).
+      if (result && (result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND')) {
+        const fallback = injectedBreakfastModel.setFallbackDone({ reservationId, optionId, date, done: Boolean(body.done) });
+        if (fallback && !fallback.error) result = fallback;
+      }
       if (result && result.error) {
         const status = result.error === 'NOT_FOUND' || result.error === 'OCCURRENCE_NOT_FOUND' ? 404 : 400;
-        return res.status(status).json({ error: result.error });
-      }
-      return res.json(result);
-    },
-
-    /**
-     * GET /api/planning/resource-cards?from=YYYY-MM-DD&to=YYYY-MM-DD
-     * Resource-driven planning cards (specs/resource-hourly-scheduling.md §3.4): one card per session.
-     */
-    resourceCards(req, res) {
-      const from = (req.query && req.query.from) || '';
-      const to = (req.query && req.query.to) || '';
-      if (!isIsoDate(from) || !isIsoDate(to) || from > to) {
-        return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
-      }
-      const resourceCardsByDate = injectedResourceCardsModel.cardsInRange({ from, to });
-      return res.json({ resourceCardsByDate });
-    },
-
-    /**
-     * POST /api/planning/resource-cards/done
-     * Body: { reservationId, resourceId, date, start, done, kind? } — toggles one session's « préparé »
-     * flag, or its « démarrer » one with `kind: 'ignition'` (specs/resource-ignition-task.md §3 rule 6).
-     */
-    setResourceCardDone(req, res) {
-      const body = req.body || {};
-      const reservationId = Number(body.reservationId);
-      const resourceId = Number(body.resourceId);
-      const date = String(body.date || '');
-      if (!Number.isInteger(reservationId) || reservationId <= 0
-        || !Number.isInteger(resourceId) || resourceId <= 0
-        || !isIsoDate(date)) {
-        return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-      }
-      const result = injectedResourceCardsModel.setSessionDone({
-        reservationId, resourceId, date, start: String(body.start || ''), done: Boolean(body.done),
-        kind: body.kind === 'ignition' ? 'ignition' : 'session',
-      });
-      if (result && result.error) {
-        const status = result.error === 'NOT_FOUND' || result.error === 'SESSION_NOT_FOUND' ? 404 : 400;
         return res.status(status).json({ error: result.error });
       }
       return res.json(result);

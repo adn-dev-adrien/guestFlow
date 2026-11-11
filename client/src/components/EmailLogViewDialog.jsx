@@ -6,8 +6,9 @@
 import React from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, Box,
-  Typography, Stack, Chip,
+  Typography, Stack, Chip, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 function statusLabel(status) {
   if (status === 'sent') return { label: 'Envoyé', color: 'success' };
@@ -17,10 +18,13 @@ function statusLabel(status) {
 }
 
 export default function EmailLogViewDialog({ open, row, onClose }) {
+  const theme = useTheme();
+  // Full screen on a phone (CLAUDE.md §7 dialog rule; specs/inte-performance.md rule 24).
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   if (!row) return null;
   const status = statusLabel(row.status);
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={fullScreen}>
       <DialogTitle>Aperçu de l'email</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
@@ -34,10 +38,11 @@ export default function EmailLogViewDialog({ open, row, onClose }) {
             </Typography>
           </Stack>
 
-          {row.status === 'failed' && row.errorMessage ? (
-            <Box sx={{ p: 1.5, bgcolor: 'error.lighter', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
+          {row.status === 'failed' && (row.errorLabel || row.errorMessage) ? (
+            <Box sx={{ p: 1.5, bgcolor: 'error.soft', border: '1px solid', borderColor: 'error.light', borderRadius: 1 }}>
               <Typography variant="body2" color="error.main" sx={{ fontWeight: 600 }}>
-                Erreur : {row.errorMessage}
+                {/* The server words the failure in French (specs/email-automation.md rule 15). */}
+                Erreur : {row.errorLabel || row.errorMessage}
               </Typography>
             </Box>
           ) : null}

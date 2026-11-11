@@ -4,13 +4,14 @@
 // pricing/contrib ones, because settling the acompte / solde also captures the per-bucket
 // contribution snapshot the accounting export reads afterwards.
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = localTodayIso();
 
 function makeDb() {
   const db = new Database(':memory:');
@@ -282,7 +283,7 @@ test('releaseStayBucket: a bucket written from the fiche stops being the SAS\'s'
 });
 
 // specs/collect-stay-payment-at-check-in.md rule 2
-test('a stay whose stored solde disagrees with the engine is STILL collected (contribs left NULL)', () => {
+test('a stay whose stored solde disagrees with the engine is STILL collected (stored-money path)', () => {
   // The common OTA case: the stored solde is the platform's figure, the engine re-derives another
   // number, and the conservation invariant of the capture cannot hold. Losing the whole check-in over
   // it would cost the caution, the upsells and the planning flags — for something the operator cannot
@@ -299,7 +300,9 @@ test('a stay whose stored solde disagrees with the engine is STILL collected (co
   const after = rowOf(db, id);
   assert.equal(after.balancePaid, 1, 'the money is recorded');
   assert.equal(after.balancePaidAtArrival, 1);
-  assert.equal(after.accommodationSoldeContribTtc, null, 'no per-line freeze — the export derives it');
+  // specs/reservation-payment-ledger.md rule 46 — no contribution on this stay yet: the solde stays on
+  // the stored-money path of the export (a stored split would flip its whole reservation).
+  assert.equal(after.accommodationSoldeContribTtc, null, 'no contribution written');
   assert.equal(after.arrivalSasDoneAt !== null, true, 'and the check-in is not lost');
 });
 

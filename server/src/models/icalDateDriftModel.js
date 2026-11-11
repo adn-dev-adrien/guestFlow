@@ -20,7 +20,15 @@
  * Factory pattern (`buildModel(database)`) for unit-test isolation.
  */
 
+const { classifyBookingEvent } = require('../utils/icalBookingEcho');
+const { effectiveRange, timeColumnsOf } = require('../utils/occupancy');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+const { isDirectChannel } = require('../utils/platformNameFormat');
+const { stayDatesRefusal } = require('../utils/stayDates');
+
 function buildModel(database) {
+  const reservationColumns = new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name));
+  const has = (name) => reservationColumns.has(name);
   const selectPending = database.prepare(`
     SELECT id, reservationId, newStartDate, newEndDate
       FROM ical_date_drift_alerts
@@ -66,6 +74,8 @@ function buildModel(database) {
            d.newEndDate,
            d.detectedAt,
            r.id IS NOT NULL AS reservationExists,
+           r.propertyId,
+           ${has('platform') ? 'r.platform' : 'NULL AS platform'},
            c.firstName,
            c.lastName,
            p.name AS propertyName
@@ -76,6 +86,23 @@ function buildModel(database) {
      WHERE d.acknowledgedAt IS NULL
      ORDER BY datetime(d.detectedAt) DESC, d.id DESC
   `);
+
+  // specs/payment-link-lifecycle.md rule 39 — approving the drift would put the platform stay on nights another
+  // stay holds: the approval dialog says so first, with the stays, and the operator decides.
+  function heldDatesWarning(row) {
+    if (!Number(row.reservationExists)) return null;
+    const { heldOverlaps, stayRefs } = require('../utils/datesTaken');
+    const holders = heldOverlaps(database, {
+      propertyId: row.propertyId, startDate: row.newStartDate, endDate: row.newEndDate, excludeIds: [row.reservationId],
+    });
+    if (holders.length === 0) return null;
+    const platform = String(row.platform || '').trim() || 'iCal';
+    return {
+      title: `Surbooking : ${platform} sur des dates réservées`,
+      message: 'Ces dates sont réservées par un autre séjour. Approuver crée un surbooking : annuler ensuite l’une des deux réservations.',
+      stays: stayRefs(database, holders, String(row.newStartDate).slice(0, 4)),
+    };
+  }
 
   function listPending() {
     return listPendingStmt.all().map((row) => {
@@ -93,6 +120,7 @@ function buildModel(database) {
         newEndDate: row.newEndDate,
         detectedAt: row.detectedAt,
         reservationExists: Number(row.reservationExists) === 1,
+        heldDates: heldDatesWarning(row),
       };
     });
   }
@@ -103,10 +131,35 @@ function buildModel(database) {
      WHERE id = ?
   `);
   const getReservationCore = database.prepare(`
-    SELECT id, startDate, endDate
+    SELECT ${['id', 'startDate', 'endDate', 'kind', 'propertyId', 'platform', 'bookingConflictAt']
+    .filter((c) => c === 'id' || c === 'startDate' || c === 'endDate' || c === 'propertyId' || has(c)).join(', ')}
       FROM reservations
      WHERE id = ?
   `);
+
+  // What the approved dates would sit on: the property's other stays and its closures, as the sync
+  // judges a moved stay (specs/ical-import-hardening.md rule 3).
+  function overlapsTakenNights(reservation, startDate, endDate) {
+    const stay = { startDate, endDate };
+    const others = has('kind')
+      ? database.prepare(`SELECT ${['startDate', 'endDate', ...timeColumnsOf(database)].join(', ')} FROM reservations WHERE propertyId = ? AND kind = 'reservation' AND id != ?`)
+        .all(reservation.propertyId, reservation.id).map((r) => effectiveRange(r))
+      : [];
+    let closures = [];
+    try {
+      closures = database.prepare('SELECT startDate, endDate FROM establishment_closures WHERE propertyId IS NULL OR propertyId = ?').all(reservation.propertyId);
+    } catch { closures = []; }
+    return classifyBookingEvent(stay, others) !== 'free' || classifyBookingEvent(stay, closures) !== 'free';
+  }
+
+  // A platform stay's balance date is the platform's payout deadline: it follows the departure.
+  function payoutDeadlineFor(reservation, endDate) {
+    if (!has('balanceDueDate') || !reservation.platform || isDirectChannel(reservation.platform)) return undefined;
+    try {
+      const days = require('./platformsModel').create(database).getPayoutDueDays(reservation.platform);
+      return addDaysToIsoDate(endDate, days);
+    } catch { return undefined; }
+  }
   // Narrow date override — see spec §3 rules 6+7. Touches ONLY the date fields and
   // metadata; the price, capacity, bed, options/resources/payment fields are untouched.
   const narrowDateUpdate = database.prepare(`
@@ -151,13 +204,28 @@ function buildModel(database) {
       // row is left pending so the user can still Reject it from the alert.
       return { error: 'RESERVATION_SUPPRIMEE', status: 410 };
     }
+    if (has('kind') && reservation.kind !== 'reservation') {
+      return { error: 'RESERVATION_NON_ACTIVE', status: 409 };
+    }
+    // specs/reservations-backend-mvc.md rules 11, 13 — the proposal stays pending: Reject still clears it.
+    const datesRefusal = stayDatesRefusal(drift.newStartDate, drift.newEndDate, { stored: reservation });
+    if (datesRefusal) return datesRefusal;
     narrowDateUpdate.run(drift.newStartDate, drift.newEndDate, drift.reservationId);
+    const deadline = payoutDeadlineFor(reservation, drift.newEndDate);
+    if (deadline) database.prepare('UPDATE reservations SET balanceDueDate = ? WHERE id = ?').run(deadline, drift.reservationId);
+    const conflict = overlapsTakenNights(reservation, drift.newStartDate, drift.newEndDate);
+    if (has('bookingConflictAt')) {
+      if (conflict) database.prepare('UPDATE reservations SET bookingConflictAt = ? WHERE id = ? AND bookingConflictAt IS NULL').run(new Date().toISOString(), drift.reservationId);
+      else if (reservation.bookingConflictAt) database.prepare('UPDATE reservations SET bookingConflictAt = NULL WHERE id = ?').run(drift.reservationId);
+    }
+    // specs/payment-link-lifecycle.md rule 32 — the platform stay moved onto nights: unpaid requests there lose their links.
+    require('../utils/datesTaken').withdrawForStay(database, drift.reservationId);
     insertHistoryStmt.run(drift.reservationId, buildDateHistoryPayload(
       reservation.startDate, reservation.endDate, drift.newStartDate, drift.newEndDate,
     ));
     ackApproved.run(id);
     // reservationId feeds the controller's Google Calendar push hook (additive, spec rule 20).
-    return { ok: true, reservationId: drift.reservationId };
+    return { ok: true, reservationId: drift.reservationId, ...(conflict && has('bookingConflictAt') && !reservation.bookingConflictAt ? { conflict: true } : {}) };
   });
 
   function approve(id) {

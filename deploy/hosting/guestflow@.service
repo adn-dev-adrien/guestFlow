@@ -1,0 +1,70 @@
+# One GuestFlow instance per customer (specs/hosting-h1-fleet-runtime.md H-D1, rule 21).
+#
+# Installed once by bootstrap-host.sh into /etc/systemd/system/. The console enables and starts
+# `guestflow@<slug>.service`; everything the instance needs — its port, its version, its database,
+# its secrets, the platform sender — is in its environment file /srv/guestflow/envs/<slug>, written by
+# the console (0600 in a 0700 directory the instance never sees; PID 1 reads it as root). The release
+# directory is shared by every instance on that version (H-D4) and read-only here.
+#
+# Isolation (rule 21, reviews of 2026-10-17):
+#   - each instance runs as its own user gf-c<customer id> (primary group guestflow-app), set by the
+#     drop-in guestflow@<slug>.service.d/identity.conf that guestflow-instance-identity writes; this
+#     template says `nobody`, so a unit without its identity cannot read anything and fails closed;
+#   - its mount namespace shows /srv/guestflow/instances as an empty tmpfs with only its own
+#     directory bound into it, the releases read-only, and neither the console's directory, the
+#     env files nor Caddy's admin socket;
+#   - /proc shows only its own processes (ProtectProc, ProcSubset). PrivatePIDs= needs systemd 257
+#     (Debian 13); on Debian 12 (252) ProtectProc=invisible already hides the others' /proc entries.
+
+[Unit]
+Description=GuestFlow — %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobody
+Group=guestflow-app
+UMask=0007
+EnvironmentFile=/srv/guestflow/envs/%i
+WorkingDirectory=/srv/guestflow/instances/%i
+ExecStart=/usr/bin/node ${GUESTFLOW_RELEASE_DIR}/server/src/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+# The memory limit per instance; the console's probe alerts above 90 % of it (rule 16).
+MemoryMax=512M
+MemoryHigh=460M
+
+# Only its own directory, writable; the other customers do not exist in its view.
+TemporaryFileSystem=/srv/guestflow/instances:ro
+BindPaths=/srv/guestflow/instances/%i
+ReadWritePaths=/srv/guestflow/instances/%i
+ReadOnlyPaths=/srv/guestflow/releases
+InaccessiblePaths=/srv/guestflow/console /srv/guestflow/envs -/srv/guestflow/.config -/run/caddy -/etc/guestflow -/etc/caddy -/etc/litestream.yml -/etc/default/litestream
+ProtectProc=invisible
+ProcSubset=pid
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+# No RestrictSUIDSGID=: the instances directory is setgid (its group must reach every file), and
+# that option refuses to create anything inheriting it — found on the real-host check.
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

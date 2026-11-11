@@ -16,16 +16,12 @@ const {
   MAIL_LABELS, REASONS, POST_STAY_STABLE_KEYS, SEQUENCE_STABLE_KEYS, planStayMails, planSeasonMail, seasonSendDates, capReached,
   __test: { addDays },
 } = require('./guestEmailSequence');
+const { todayIso } = require('./localDate');
+const { bookingDayOf } = require('./vatRegime');
 
 const CATCH_UP_DAYS = 2;
 const STALE_CLAIM_MINUTES = 60;
 
-function isoToday(now = new Date()) {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 // ---------------------------------------------------------------- planning
 
@@ -100,7 +96,7 @@ function planWindow({ database, ledger, from, to, startDate }) {
         entry.reason = entry.status === 'to-check' ? 'Envoi commencé puis interrompu : à vérifier, jamais renvoyé automatiquement' : 'Envoi en cours';
       } else {
         entry.status = 'already-sent';
-        entry.reason = row.status === 'skipped' ? 'Ignoré par l\'opérateur' : `Déjà envoyé le ${String(row.sentAt || '').slice(0, 10)}`;
+        entry.reason = row.status === 'skipped' ? 'Ignoré par l\'opérateur' : `Déjà envoyé le ${bookingDayOf(row.sentAt) || ''}`;
       }
       continue;
     }
@@ -140,10 +136,11 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   // planning half of this file must stay free of it so the CLI simulation opens its target read-only.
   const { renderTemplate } = require('./emailTemplateRenderer');
   const { buildContext } = require('./emailContextBuilder');
-  const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+  const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING } = require('./emailTemplateLanguage');
   const { loadReservationGraph } = require('./reservationEmailGraph');
   const { sequenceContextFor } = require('./sequenceRenderContext');
-  const { usableInvitation } = require('./gateInvitationView');
+  const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
+  const { guestEmailMessage } = require('./guestEmailHtml');
   const { database, ledger, templatesModel, logModel, settingsModel, emailServiceFactory, preferences } = deps;
   const template = templatesModel.findByStableKey(plan.stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
@@ -168,14 +165,25 @@ async function sendSequenceMail(deps, plan, opts = {}) {
   const context = buildContext({
     ...graph, settings, lang, sequence,
     // The stored gate key (specs/gate-access-sowel-connector.md §3.5 rule 23) — never reaches Sowel.
-    gateInvitation: usableInvitation(database, graph.reservation.id),
+    pluginContext: pluginEmailContext(graph.reservation.id),
   });
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, context);
 
+  // specs/email-language-fr-en.md rule 9 — no English version, nothing leaves for an English-speaking
+  // guest. The claim is released as failed, so the mail goes once the translation exists.
+  if (englishMissing(template, lang)) {
+    logModel.insert({
+      templateId: template.id, reservationId: graph.reservation.id, status: 'failed',
+      errorMessage: ENGLISH_VERSION_MISSING, renderedSubject: subject, renderedBody: body, recipientEmail: to,
+    });
+    ledger.markFailed(plan.dedupKey, ENGLISH_VERSION_MISSING);
+    return { sent: false, reason: ENGLISH_VERSION_MISSING };
+  }
+
   try {
     const service = emailServiceFactory(settingsModel.decryptedSmtpSettings());
-    await service.send({ to, subject, text: body });
+    await service.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
     const row = logModel.insert({
       templateId: template.id, reservationId: graph.reservation.id, status: 'sent', channel: 'smtp',
       errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to,
@@ -204,7 +212,7 @@ function autoMailKeys(templatesModel) {
   return SEQUENCE_STABLE_KEYS.filter((key) => stableKeyAutoSends(templatesModel, key));
 }
 
-async function runSequencePass(deps, { today = isoToday() } = {}) {
+async function runSequencePass(deps, { today = todayIso() } = {}) {
   const { database, ledger, settingsModel, templatesModel } = deps;
   const autoKeys = new Set(autoMailKeys(templatesModel));
   if (autoKeys.size === 0) return { blocked: true, sent: 0, failed: 0, results: [] };
@@ -234,7 +242,7 @@ async function runSequencePass(deps, { today = isoToday() } = {}) {
  * What the sequence would send between `from` and `to` (rule 31). No SMTP, no ledger write. Before
  * activation, the start date is assumed to be today so the operator sees what activating would do.
  */
-function simulate({ database, ledger, settingsModel, templatesModel }, { from, to, today = isoToday() }) {
+function simulate({ database, ledger, settingsModel, templatesModel }, { from, to, today = todayIso() }) {
   const settings = settingsModel.read();
   const startDate = settings.guestSequenceStartDate || today;
   const entries = planWindow({ database, ledger, from, to, startDate });
@@ -286,4 +294,4 @@ function simulate({ database, ledger, settingsModel, templatesModel }, { from, t
   };
 }
 
-module.exports = { planWindow, sendSequenceMail, runSequencePass, simulate, isoToday, CATCH_UP_DAYS };
+module.exports = { planWindow, sendSequenceMail, runSequencePass, simulate, CATCH_UP_DAYS };

@@ -8,6 +8,7 @@
 // On reconstruit ici la même terminaison qu'`index.js` plutôt que de démarrer le vrai serveur (qui
 // ouvre la base, les tâches planifiées et un port) : c'est le CONTRAT qui est testé.
 
+const { listenLocal } = require('./listenLocal');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
@@ -24,20 +25,20 @@ function mountErrorHandler(app, logs) {
 }
 
 // Démarre l'app sur un port éphémère, joue une requête, rend la réponse, ferme.
-function call(app, path, method = 'GET') {
-  return new Promise((resolve, reject) => {
-    const server = app.listen(0, async () => {
-      try {
-        const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { method });
-        const text = await res.text();
-        server.close(() => resolve({
-          status: res.status,
-          type: res.headers.get('content-type') || '',
-          body: text,
-        }));
-      } catch (e) { server.close(() => reject(e)); }
-    });
-  });
+async function call(app, path, method = 'GET') {
+  const server = await listenLocal(app);
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { method, signal: AbortSignal.timeout(10_000) });
+    const text = await res.text();
+    return {
+      status: res.status,
+      type: res.headers.get('content-type') || '',
+      body: text,
+    };
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
 }
 
 test('un handler async qui rejette produit un 500 JSON (et non une page HTML ni une requête suspendue)', async () => {

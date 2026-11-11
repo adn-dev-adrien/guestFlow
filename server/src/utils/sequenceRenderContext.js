@@ -7,6 +7,7 @@
  * occurrence of the template's date after `today`, which is what a preview wants.
  */
 
+const { todayIso: localTodayIso } = require('./localDate');
 const { MAIL, SEASON_STABLE_KEYS, giftDeadline, isLastMinute } = require('./guestEmailSequence');
 const { unsubscribeUrl } = require('../models/emailPreferencesModel');
 
@@ -20,14 +21,14 @@ function nextSeasonDate(stableKey, today) {
 function sequenceContextFor({ stableKey, reservation, client, settings, preferences, sendDate, today }) {
   const context = { lastMinute: reservation ? isLastMinute(reservation) : false };
   if (!SEASON_STABLE_KEYS.includes(stableKey)) return context;
-  const day = String(today || new Date().toISOString().slice(0, 10));
+  const day = String(today || localTodayIso());
   const date = sendDate || nextSeasonDate(stableKey, day);
   const token = client && preferences ? preferences.ensureToken(client.id) : '';
   return {
     ...context,
     sendDate: date,
     giftDeadline: giftDeadline(stableKey, date),
-    unsubscribeUrl: unsubscribeUrl(settings && settings.publicUrl, token),
+    unsubscribeUrl: unsubscribeUrl((settings && settings.publicUrl) || process.env.GUESTFLOW_PUBLIC_URL, token),
   };
 }
 

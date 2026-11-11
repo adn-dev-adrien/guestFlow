@@ -49,7 +49,7 @@ function GoalField({ exercise, isCurrent, value, serverError, onChange, disabled
   // bounds hint above, it restates what is on screen and decides nothing.
   const hint = isCurrent && !error && amount > 0
     ? `Aujourd'hui : ${formatCurrencyRounded(exercise.revenue)}, soit ${Math.round((exercise.revenue / amount) * 100)} % de l'objectif.`
-    : 'Laissez vide pour ne pas afficher de barre.';
+    : 'Vide : aucune barre affichée.';
   return (
     <TextField
       label={`Exercice ${exercise.label}${isCurrent ? ' (en cours)' : ''}`}
@@ -89,8 +89,7 @@ export default function SettingsFiscalYearSection({
               Exercice comptable
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Sur quel mois votre bilan est-il arrêté ? Le suivi financier calcule ses totaux annuels
-              sur cet exercice.
+              Mois d’arrêté du bilan. Le suivi financier calcule ses totaux annuels sur cet exercice.
             </Typography>
           </Box>
 

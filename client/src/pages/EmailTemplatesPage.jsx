@@ -1,16 +1,20 @@
 /**
  * EmailTemplatesPage — CRUD UI for the email templates library.
  * See specs/email-automation.md §6.1.
+ *
+ * The library reads in the order of the stay (specs/guest-email-texts-made-simple.md rule 44 — UI/UX
+ * review 2026-10-18, decision 12): one name per email, grouped by moment, its « Quand » under it; the
+ * mode shows only when it is « Auto »; a shipped email is switched off, never deleted; a shipped email
+ * opens its texts. « Quand ? » is one sentence read by the server (rule 43, decision 11).
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Box, Card, TableRow, TableCell,
-  IconButton, Chip, Typography, Switch, Button, Stack, FormControl, InputLabel,
-  Select, MenuItem, TextField, Tooltip, FormHelperText,
+  Box, ButtonBase, Card, Chip, Divider, IconButton, ListItemText, Menu, Typography, Switch, Button, Stack, FormControl, InputLabel,
+  Select, MenuItem, TextField, FormHelperText, Link, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import HistoryIcon from '@mui/icons-material/History';
 import { useNavigate } from 'react-router';
 import FormDialog from '../components/FormDialog';
@@ -18,77 +22,21 @@ import EmailPendingList from '../components/EmailPendingList';
 import EmailManualSendDialog from '../components/EmailManualSendDialog';
 import EmailComposeDialog from '../components/EmailComposeDialog';
 import ClientFormFields from '../components/ClientFormFields';
-import PropertyHooksEditor from '../components/PropertyHooksEditor';
+import { Link as RouterLink } from 'react-router';
 import api from '../api';
 import { useAppDialogs, useToast } from '../components/DialogProvider';
 import PageActionBar from '../components/PageActionBar';
 import ErrorAlert from '../components/ErrorAlert';
 import LoadingState from '../components/LoadingState';
-import ResponsiveTable from '../components/ResponsiveTable';
+import TokenTextField from '../components/TokenTextField';
+import RelativeDayField from '../components/RelativeDayField';
+import StatusBadge from '../components/StatusBadge';
 import { isValidEmail } from '../utils/validation';
 
 const EMPTY_CLIENT = {
   lastName: '', firstName: '', streetNumber: '', street: '', postalCode: '',
   city: '', address: '', phone: '', email: '', notes: '',
 };
-
-// Variable + condition picker — labels shown in the dialog, payload = the literal {{token}} text
-// inserted at the cursor. Adding a new token means: append a row + the matching var/flag in
-// `utils/emailContextBuilder.js` (see specs/email-automation.md §4.4).
-const VARIABLE_BUTTONS = [
-  // Client
-  { label: 'Prénom client',    token: '{{clientFirstName}}' },
-  { label: 'Nom client',       token: '{{clientLastName}}' },
-  { label: 'Nom complet',      token: '{{clientFullName}}' },
-  { label: 'Email client',     token: '{{clientEmail}}' },
-  { label: 'Téléphone client', token: '{{clientPhone}}' },
-  // Séjour
-  { label: 'Logement',         token: '{{propertyName}}' },
-  { label: 'Logement + article', token: '{{propertyWithArticle}}' },
-  { label: 'Date arrivée',     token: '{{startDate}}' },
-  { label: 'Date départ',      token: '{{endDate}}' },
-  { label: 'Heure arrivée',    token: '{{checkInTime}}' },
-  { label: 'Heure départ',     token: '{{checkOutTime}}' },
-  { label: 'Nuits',            token: '{{nights}}' },
-  // Tarification
-  { label: 'Prix final',       token: '{{finalPrice}}' },
-  { label: 'Acompte',          token: '{{depositAmount}}' },
-  { label: 'Solde',            token: '{{balanceAmount}}' },
-  { label: 'Caution',          token: '{{cautionAmount}}' },
-  { label: 'Complément',       token: '{{complementAmount}}' },
-  { label: 'Texte complément', token: '{{complementNotice}}' },
-  // Options
-  { label: 'Liste options',    token: '{{optionsList}}' },
-  { label: 'Option(s) réservée(s)', token: '{{reservedOptionsList}}' },
-  { label: 'Liste ressources', token: '{{resourcesList}}' },
-  { label: 'Config lits',      token: '{{bedConfig}}' },
-  // Gate key (specs/gate-access-sowel-connector.md §3.5 rule 23) — from the stored Sowel result.
-  { label: 'Code portail',     token: '{{gateAccessCode}}' },
-  { label: 'Lien portail',     token: '{{gateAccessUrl}}' },
-  // Entreprise
-  { label: 'Société',          token: '{{companyName}}' },
-  { label: 'Nom expéditeur',   token: '{{senderName}}' },
-  { label: 'Téléphone société',token: '{{companyPhone}}' },
-  // specs/terms-acceptance-record.md rule 26 — the CGV of the stay, pinned to the accepted version.
-  { label: 'Lien CGV',         token: '{{cgvUrl}}' },
-];
-
-const CONDITION_BUTTONS = [
-  { label: 'Si linge de lit',       token: '{{#if hasBedLinenOption}}' },
-  { label: 'Si linge fourni par défaut', token: '{{#if bedLinenProvidedByDefault}}' },
-  { label: 'Si apporter son linge', token: '{{#if bedLinenBringYourOwn}}' },
-  { label: 'Si ménage',             token: '{{#if hasCleaningOption}}' },
-  { label: 'Si caution non encaissée', token: '{{#if cautionNotBanked}}' },
-  { label: 'Si caution non reçue',  token: '{{#if cautionNotReceived}}' },
-  { label: 'Si complément à percevoir', token: '{{#if complementToCollect}}' },
-  { label: 'Si options',            token: '{{#if hasOptions}}' },
-  { label: 'Si option(s) réservée(s)', token: '{{#if hasReservedOptions}}' },
-  { label: 'Si ressources',         token: '{{#if hasResources}}' },
-  { label: 'Si CGV publiées',        token: '{{#if hasCgvUrl}}' },
-  { label: 'Si accès portail',      token: '{{#if hasGateAccess}}' },
-  { label: 'Sinon',                 token: '{{else}}' },
-  { label: 'Fin si',                token: '{{/if}}' },
-];
 
 const emptyTemplate = {
   id: null,
@@ -105,40 +53,32 @@ const emptyTemplate = {
 
 // A template's own mode is the only switch for automatic sending (specs/settings-rationalization.md
 // rule 17b): « Automatique » leaves by itself at 08:00, « Manuel » waits in « Emails à envoyer ».
-const J7_STABLE_KEY = 'arrival_reminder_7d';
 
-function sendModeChip(row) {
-  if (row.sendMode !== 'auto') {
-    return <Chip label="Manuel" size="small" color="info" variant="outlined" />;
-  }
-  return <Chip label="Automatique" size="small" color="success" variant="outlined" />;
-}
-
-function describeOffset(n) {
-  const num = Number(n);
-  if (num === 0) return 'Jour J';
-  if (num < 0) return `J${num}`;
-  return `J+${num}`;
-}
+const WHEN_DELAY_MS = 300;
+const NEW_TEMPLATE_WHEN = { editable: true, anchorLabel: 'l’arrivée', days: 7, direction: 'before', sentence: 'Envoyé 7 jours avant l’arrivée' };
 
 export default function EmailTemplatesPage() {
+  // The chips of the template being edited, labelled by the server (specs/guest-email-texts-made-simple.md
+  // rule 10), live plugins' included (specs/plugins-phase-1-sdk.md rule 13).
+  const [chips, setChips] = useState({ variables: [], conditions: [] });
   const { confirm, alert } = useAppDialogs();
   const navigate = useNavigate();
-  const [items, setItems] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [menu, setMenu] = useState(null); // { anchorEl, row }
+  // « Quand ? » as typed, and the server's reading of it (rule 43).
+  const [when, setWhen] = useState({ days: '7', direction: 'before', error: '', example: '' });
+  const [language, setLanguage] = useState('fr');
+  const whenTimer = useRef(null);
+  // Only the last reading counts: an earlier answer arriving late is dropped (rule 43).
+  const whenSeq = useRef(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const { showError } = useToast();
   const [open, setOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [form, setForm] = useState(emptyTemplate);
-  // J-7 hooks per property, edited with the J-7 template (specs/settings-rationalization.md rule 17c).
-  const [hooks, setHooks] = useState(null);
-  const [savedHooks, setSavedHooks] = useState(null);
-  const bodyRef = useRef(null);
-  const subjectRef = useRef(null);
-  const bodyEnRef = useRef(null);
-  const subjectEnRef = useRef(null);
-  const [focusedField, setFocusedField] = useState('body');
+  // A server refusal { field, message }, shown under the field it names.
+  const [fieldError, setFieldError] = useState(null);
 
   const [pending, setPending] = useState([]);
   const [sending, setSending] = useState(null); // { reservationId, templateId, reservationStartDate }
@@ -150,8 +90,8 @@ export default function EmailTemplatesPage() {
     setLoading(true);
     setLoadError(false);
     try {
-      const rows = await api.getEmailTemplates();
-      setItems(rows);
+      const timeline = await api.getEmailTemplatesTimeline();
+      setGroups(timeline.groups || []);
     } catch {
       // Silent before this sweep — a failed load rendered as an innocent empty list.
       setLoadError(true);
@@ -177,6 +117,7 @@ export default function EmailTemplatesPage() {
     templateId: row.templateId,
     reservationId: row.reservationId,
     reservationStartDate: row.startDate,
+    occurrenceKey: row.occurrenceKey || '',
   });
 
   const handleOpenReservation = (row) => navigate(`/reservations/${row.reservationId}`);
@@ -201,7 +142,7 @@ export default function EmailTemplatesPage() {
 
   const handleSaveFixClient = async () => {
     if (!fixClient || !isValidEmail(fixClient.email)) {
-      await alert({ title: 'Email invalide', message: 'Veuillez saisir une adresse email valide.' });
+      await alert({ title: 'Email invalide', message: 'Adresse email invalide.' });
       return;
     }
     const payload = {
@@ -227,7 +168,7 @@ export default function EmailTemplatesPage() {
     });
     if (!ok) return;
     try {
-      await api.acknowledgePendingEmail({ templateId: row.templateId, reservationId: row.reservationId });
+      await api.acknowledgePendingEmail({ templateId: row.templateId, reservationId: row.reservationId, occurrenceKey: row.occurrenceKey });
       await reloadPending();
     } catch (e) {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible d\'acquitter l\'email.' });
@@ -243,72 +184,98 @@ export default function EmailTemplatesPage() {
     });
     if (!ok) return;
     try {
-      await api.markEmailSent({ templateId: row.templateId, reservationId: row.reservationId });
+      await api.markEmailSent({ templateId: row.templateId, reservationId: row.reservationId, occurrenceKey: row.occurrenceKey });
       await reloadPending();
     } catch (e) {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible de marquer l\'email comme envoyé.' });
     }
   };
 
+  // Only the two bodies: what was typed elsewhere in the form stays.
+  const readBodies = (id) => {
+    api.getEmailTemplate(id)
+      .then((full) => setForm((f) => (f.id === id ? { ...f, body: full.body || '', bodyEn: full.bodyEn || '', bodiesState: 'ready' } : f)))
+      .catch(() => setForm((f) => (f.id === id ? { ...f, bodiesState: 'failed' } : f)));
+  };
+
   const handleOpen = (row) => {
+    whenSeq.current += 1;
+    clearTimeout(whenTimer.current);
     if (row) {
       setForm({
         id: row.id,
         name: row.name || '',
         subject: row.subject || '',
-        body: row.body || '',
+        body: '',
         subjectEn: row.subjectEn || '',
-        bodyEn: row.bodyEn || '',
+        bodyEn: '',
+        bodiesState: 'loading',
         dayOffset: Number(row.dayOffset || 0),
         sendMode: row.sendMode || 'manual',
+        sendModeLocked: Boolean(row.sendModeLocked),
+        sendModeLabel: row.sendModeLabel || '',
         enabled: row.enabled !== 0,
         stableKey: row.stableKey,
+        textsSection: row.textsSection,
+        when: row.when,
+        displayName: row.displayName,
       });
+      setWhen({ days: String(row.when ? row.when.days : Math.abs(Number(row.dayOffset || 0))), direction: row.when ? row.when.direction : 'before', error: '', example: '' });
     } else {
-      setForm(emptyTemplate);
+      setForm({ ...emptyTemplate, when: NEW_TEMPLATE_WHEN });
+      setWhen({ days: '7', direction: 'before', error: '', example: '' });
     }
-    setHooks(null);
-    setSavedHooks(null);
-    if (row && row.stableKey === J7_STABLE_KEY) {
-      api.getPropertyEmailHooks()
-        .then((list) => { setHooks(list || []); setSavedHooks(list || []); })
-        .catch(() => { setHooks([]); setSavedHooks([]); });
-    }
+    // The list carries no body (specs/inte-performance.md rule 11): both are read when the editor opens, and
+    // « Enregistrer » waits for them so an empty body is never saved over a real one.
+    if (row) readBodies(row.id);
+    api.getEmailTemplateVariables(row ? row.id : null).then(setChips).catch(() => setChips({ variables: [], conditions: [] }));
     setOpen(true);
   };
 
-  const handleClose = () => setOpen(false);
+  const handleClose = () => { setOpen(false); setFieldError(null); };
 
-  const insertToken = (token) => {
-    const ref = { subject: subjectRef, body: bodyRef, subjectEn: subjectEnRef, bodyEn: bodyEnRef }[focusedField] || bodyRef;
-    const field = ref.current;
-    if (!field) {
-      setForm((f) => ({ ...f, [focusedField]: (f[focusedField] || '') + token }));
-      return;
-    }
-    const start = field.selectionStart ?? (form[focusedField] || '').length;
-    const end   = field.selectionEnd   ?? start;
-    const current = form[focusedField] || '';
-    const next = current.slice(0, start) + token + current.slice(end);
-    setForm((f) => ({ ...f, [focusedField]: next }));
-    // Restore cursor position just after the inserted token.
-    requestAnimationFrame(() => {
-      if (field) {
-        field.focus();
-        const pos = start + token.length;
-        field.setSelectionRange(pos, pos);
+  // Rule 43 — the server reads « Envoyé [n] jours [avant|après] … », answers the example or refuses
+  // under the number. « Enregistrer » waits for the reading, and the save sends the sentence itself
+  // (`when`): the server stores the offset it reads, never one kept from an earlier answer.
+  const changeWhen = (next) => {
+    const seq = whenSeq.current + 1;
+    whenSeq.current = seq;
+    setWhen((w) => ({ ...w, ...next, pending: true, touched: true }));
+    clearTimeout(whenTimer.current);
+    whenTimer.current = setTimeout(async () => {
+      try {
+        const r = await api.describeTemplateWhen({ templateId: form.id || undefined, days: next.days, direction: next.direction });
+        if (whenSeq.current !== seq) return;
+        setWhen((w) => ({ ...w, pending: false, error: '', example: r.example || r.sentence }));
+      } catch (e) {
+        if (whenSeq.current !== seq) return;
+        setWhen((w) => ({ ...w, pending: false, error: e.message || 'Moment invalide.', example: '' }));
       }
-    });
+    }, WHEN_DELAY_MS);
   };
+  useEffect(() => () => clearTimeout(whenTimer.current), []);
+
+  // The owner's rule: no guest email leaves without validation unless it is said, once, explicitly.
+  const confirmAuto = () => confirm({
+    title: 'Envoi automatique',
+    message: 'Cet email partira sans validation, à sa date.',
+    confirmLabel: 'Envoyer automatiquement',
+    confirmColor: 'warning',
+  });
 
   const handleSave = async () => {
+    const wasAuto = Boolean(form.id) && (groups.flatMap((g) => g.templates).find((t) => t.id === form.id) || {}).sendMode === 'auto';
+    if (form.sendMode === 'auto' && !wasAuto && !(await confirmAuto())) return;
+    const editableWhen = !form.when || form.when.editable;
     const payload = {
       name: String(form.name || '').trim(),
       subject: String(form.subject || ''),
       body: String(form.body || ''),
       subjectEn: String(form.subjectEn || ''),
       bodyEn: String(form.bodyEn || ''),
-      dayOffset: Number(form.dayOffset || 0),
+      ...(editableWhen && (when.touched || !form.id)
+        ? { when: { days: when.days, direction: when.direction } }
+        : (form.id ? {} : { dayOffset: Number(form.dayOffset || 0) })),
       sendMode: form.sendMode || 'manual',
       enabled: !!form.enabled,
     };
@@ -318,14 +285,21 @@ export default function EmailTemplatesPage() {
       } else {
         await api.createEmailTemplate(payload);
       }
-      if (hooks && JSON.stringify(hooks) !== JSON.stringify(savedHooks)) {
-        await api.savePropertyEmailHooks(hooks.map(({ propertyId, emailHook, emailHookEn }) => ({ propertyId, emailHook, emailHookEn })));
-      }
       handleClose();
       // A template change (subject/body/offset/mode/enabled) reshapes the manual queue and
       // its rendered content → refresh both the library and the « Emails à envoyer » list.
       await Promise.all([reload(), reloadPending()]);
     } catch (e) {
+      // specs/guest-email-texts-made-simple.md rules 27, 37 — a broken variable or condition is refused
+      // by the server and named under its field, with the closest variable as a fix.
+      if (e?.field === 'days' || e?.field === 'direction' || e?.field === 'when') {
+        setWhen((w) => ({ ...w, error: e.message, example: '' }));
+        return;
+      }
+      if (e?.field && ['subject', 'body', 'subjectEn', 'bodyEn'].includes(e.field)) {
+        setFieldError({ field: e.field, message: e.message, unknown: e.unknown, suggestion: e.suggestion });
+        return;
+      }
       await alert({ title: 'Erreur', message: e?.message || 'Impossible d\'enregistrer le modèle.' });
     }
   };
@@ -333,7 +307,7 @@ export default function EmailTemplatesPage() {
   const handleDelete = async (row) => {
     const ok = await confirm({
       title: 'Supprimer le modèle',
-      message: `Confirmer la suppression de « ${row.name} » ?${row.stableKey ? '\nCe modèle est livré avec l\'application : il sera ré-inséré au prochain démarrage du serveur.' : ''}`,
+      message: `Supprimer « ${row.displayName || row.name} » ? Les envois prévus ne partiront pas.`,
       confirmLabel: 'Supprimer',
       confirmColor: 'error',
     });
@@ -355,6 +329,53 @@ export default function EmailTemplatesPage() {
       await alert({ title: 'Erreur', message: e?.message || 'Impossible de modifier le modèle.' });
     }
   };
+
+  const handleToggleMode = async (row) => {
+    if (row.sendMode !== 'auto' && !(await confirmAuto())) return;
+    try {
+      await api.updateEmailTemplate(row.id, { sendMode: row.sendMode === 'auto' ? 'manual' : 'auto' });
+      await Promise.all([reload(), reloadPending()]);
+    } catch (e) {
+      await alert({ title: 'Erreur', message: e?.message || 'Impossible de modifier le mode d’envoi.' });
+    }
+  };
+
+  // A shipped email opens its texts; a template of the operator's own opens its editor (rule 44).
+  const openRow = (row) => {
+    if (row.textsSection) navigate(`/settings/emails/textes#${row.textsSection}`);
+    else handleOpen(row);
+  };
+
+  const rowOf = (row) => (
+    <Stack key={row.id} direction="row" spacing={1} sx={{ alignItems: 'center', px: 2, py: 0.5, opacity: row.enabled ? 1 : 0.6, borderTop: 1, borderColor: 'divider' }}>
+      <ButtonBase
+        onClick={() => openRow(row)}
+        aria-label={`${row.textsSection ? 'Modifier les textes' : 'Modifier'} : ${row.displayName}`}
+        sx={{ flex: 1, minWidth: 0, justifyContent: 'flex-start', textAlign: 'left', py: 1, minHeight: 44, borderRadius: 1 }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Stack direction="row" spacing={1} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+            <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{row.displayName}</Typography>
+            {!row.shipped && <Chip label="personnalisé" size="small" variant="outlined" />}
+            {row.sendMode === 'auto' && <StatusBadge status="success" label="Auto" />}
+            {/* specs/payment-link-lifecycle.md rule 45 — the one email that leaves without validation, by name. */}
+            {row.sendModeLocked && <StatusBadge status="info" label={row.sendModeLabel} />}
+            {/* specs/email-language-fr-en.md rule 9 — never sent to an English-speaking guest. */}
+            {row.hasEnglish === false && <StatusBadge status="warning" label="EN manquant" />}
+          </Stack>
+          <Typography variant="body2" color="text.secondary">{row.when ? row.when.label : row.whenLabel}</Typography>
+        </Box>
+      </ButtonBase>
+      <Switch
+        checked={Boolean(row.enabled)}
+        onChange={(e) => handleToggleEnabled(row, e.target.checked)}
+        slotProps={{ input: { 'aria-label': `Envoyer ${row.displayName}` } }}
+      />
+      <IconButton aria-label={`Plus d’actions : ${row.displayName}`} aria-haspopup="menu" onClick={(e) => setMenu({ anchorEl: e.currentTarget, row })} sx={{ minWidth: 44, minHeight: 44 }}>
+        <MoreHorizIcon />
+      </IconButton>
+    </Stack>
+  );
 
   return (
     <Box>
@@ -408,70 +429,37 @@ export default function EmailTemplatesPage() {
         {loading ? (
           <Box sx={{ px: 2, pb: 2 }}><LoadingState variant="skeleton" rows={4} /></Box>
         ) : (
-          <ResponsiveTable
-            items={items}
-            getKey={(row) => row.id}
-            minWidth={860}
-            emptyText="Aucun modèle d'email"
-            head={(
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Nom</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Quand</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Mode</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Activé</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
-              </TableRow>
-            )}
-            renderRow={(row) => (
-              <TableRow
-                key={row.id}
-                hover
-                onClick={() => handleOpen(row)}
-                sx={{ cursor: 'pointer' }}
-              >
-                <TableCell>
-                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                    <Typography>{row.name}</Typography>
-                    {row.stableKey ? <Chip label="Modèle livré" size="small" variant="outlined" /> : null}
-                  </Stack>
-                </TableCell>
-                <TableCell>{describeOffset(row.dayOffset)}</TableCell>
-                <TableCell>{sendModeChip(row)}</TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={Boolean(row.enabled)}
-                    onChange={(e) => handleToggleEnabled(row, e.target.checked)}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                  <Tooltip title="Supprimer">
-                    <IconButton onClick={() => handleDelete(row)} size="small" color="error" aria-label="Supprimer"><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
-            )}
-            renderMobileCard={(row) => (
-              <Stack onClick={() => handleOpen(row)} sx={{ cursor: 'pointer', gap: 0.5 }}>
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.name}</Typography>
-                  {sendModeChip(row)}
-                </Stack>
-                <Typography variant="caption" color="text.secondary">{describeOffset(row.dayOffset)}</Typography>
-                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={Boolean(row.enabled)}
-                    onChange={(e) => handleToggleEnabled(row, e.target.checked)}
-                    size="small"
-                  />
-                  <Tooltip title="Supprimer">
-                    <IconButton onClick={() => handleDelete(row)} size="small" color="error" aria-label="Supprimer"><DeleteIcon fontSize="small" /></IconButton>
-                  </Tooltip>
-                </Stack>
-              </Stack>
-            )}
-          />
+          <Box sx={{ pb: 1 }}>
+            {groups.length === 0 && <Typography color="text.secondary" sx={{ px: 2, pb: 2 }}>Aucun modèle d'email</Typography>}
+            {groups.map((g) => (
+              <Box key={g.id} component="section" aria-label={g.label}>
+                <Typography variant="overline" color="text.secondary" sx={{ display: 'block', px: 2, pt: 1.5 }}>{g.label}</Typography>
+                {g.templates.map(rowOf)}
+              </Box>
+            ))}
+          </Box>
         )}
+        <Menu anchorEl={menu ? menu.anchorEl : null} open={Boolean(menu)} onClose={() => setMenu(null)}>
+          {menu && [
+            <MenuItem key="edit" onClick={() => { const { row } = menu; setMenu(null); handleOpen(row); }}>Modifier le modèle</MenuItem>,
+            menu.row.textsSection && (
+              <MenuItem key="texts" onClick={() => { const { row } = menu; setMenu(null); navigate(`/settings/emails/textes#${row.textsSection}`); }}>Modifier les textes</MenuItem>
+            ),
+            !menu.row.sendModeLocked && (
+              <MenuItem key="mode" onClick={() => { const { row } = menu; setMenu(null); handleToggleMode(row); }}>
+                {menu.row.sendMode === 'auto' ? 'Revenir à l’envoi manuel' : 'Envoi automatique…'}
+              </MenuItem>
+            ),
+            <Divider key="d" />,
+            menu.row.shipped ? (
+              <MenuItem key="del" disabled>
+                <ListItemText primary="Supprimer" secondary="Email livré : il se coupe seulement" />
+              </MenuItem>
+            ) : (
+              <MenuItem key="del" onClick={() => { const { row } = menu; setMenu(null); handleDelete(row); }} sx={{ color: 'error.main' }}>Supprimer</MenuItem>
+            ),
+          ]}
+        </Menu>
       </Card>
 
       <EmailManualSendDialog
@@ -479,6 +467,7 @@ export default function EmailTemplatesPage() {
         reservationId={sending?.reservationId}
         reservationStartDate={sending?.reservationStartDate}
         defaultTemplateId={sending?.templateId}
+        occurrenceKey={sending?.occurrenceKey}
         onClose={() => setSending(null)}
         onSent={() => { setSending(null); reloadPending(); }}
       />
@@ -514,110 +503,104 @@ export default function EmailTemplatesPage() {
       <FormDialog
         open={open}
         onClose={handleClose}
-        title={form.id ? 'Modifier le modèle' : 'Nouveau modèle'}
+        title={form.id ? (form.displayName || 'Modifier le modèle') : 'Nouveau modèle'}
         onSubmit={handleSave}
-        submitDisabled={!form.name || !form.subject || !form.body}
+        submitDisabled={!form.name || !form.subject || !form.body || form.bodiesState === 'loading' || form.bodiesState === 'failed' || Boolean(when.error) || Boolean(when.pending)}
         maxWidth="md"
       >
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField
-            label="Nom du modèle"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            fullWidth
-            required
-          />
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          {/* Rule 44 — a shipped email is named by the server; only the operator's own has a name to type. */}
+          {!form.stableKey && (
             <TextField
-              label="Décalage en jours"
-              type="number"
-              value={form.dayOffset}
-              onChange={(e) => setForm({ ...form, dayOffset: e.target.value })}
-              helperText="Négatif = avant le séjour ; 0 = jour J ; positif = après. Plage [-90, +90]."
-              slotProps={{ htmlInput: { min: -90, max: 90 } }}
-              sx={{ flex: 1 }}
+              label="Nom du modèle"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              fullWidth
+              required
             />
-            <FormControl sx={{ flex: 1 }}>
-              <InputLabel>Mode d'envoi</InputLabel>
-              <Select
-                label="Mode d'envoi"
-                value={form.sendMode}
-                onChange={(e) => setForm({ ...form, sendMode: e.target.value })}
-              >
-                <MenuItem value="manual">Manuel : attend ma validation</MenuItem>
-                <MenuItem value="auto">Automatique : part seul à 08:00</MenuItem>
-              </Select>
-              {form.sendMode === 'auto' ? (
-                <FormHelperText>
-                  Cet email partira sans votre validation, à sa date.
-                </FormHelperText>
-              ) : null}
-            </FormControl>
-          </Stack>
+          )}
+          {/* Rule 43 — « Quand ? » is one sentence; a moment the scheduler does not count from the day
+              offset (the sequence, an action) reads as a fixed sentence. */}
+          {form.when && !form.when.editable ? (
+            <Box>
+              <Typography variant="subtitle2">Quand</Typography>
+              <Typography>{form.when.sentence}</Typography>
+            </Box>
+          ) : (
+            <RelativeDayField
+              days={when.days}
+              direction={when.direction}
+              anchorLabel={(form.when && form.when.anchorLabel) || 'l’arrivée'}
+              onChange={changeWhen}
+              error={when.error}
+              example={when.example}
+            />
+          )}
+          {form.sendModeLocked ? (
+            <Box>
+              <Typography variant="subtitle2">Mode d’envoi</Typography>
+              <Typography>{form.sendModeLabel}</Typography>
+              <FormHelperText>Part seul, une fois, quand les dates sont prises par une autre réservation.</FormHelperText>
+            </Box>
+          ) : (
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <FormControl sx={{ flex: 1 }}>
+                <InputLabel>Mode d'envoi</InputLabel>
+                <Select
+                  label="Mode d'envoi"
+                  value={form.sendMode}
+                  onChange={(e) => setForm({ ...form, sendMode: e.target.value })}
+                >
+                  <MenuItem value="manual">Manuel : attend ma validation</MenuItem>
+                  <MenuItem value="auto">Automatique : part seul à 08:00</MenuItem>
+                </Select>
+                {form.sendMode === 'auto' ? (
+                  <FormHelperText>
+                    Part sans validation, à sa date.
+                  </FormHelperText>
+                ) : null}
+              </FormControl>
+            </Stack>
+          )}
 
-          <TextField
+          {/* specs/email-automation.md rule 17 — the same view as « Textes des emails »: each variable
+              by its French label, the chips insert it at the cursor; the English side is optional
+              (empty: the email leaves in French). */}
+          <ToggleButtonGroup size="small" exclusive value={language} onChange={(e, v) => v && setLanguage(v)} aria-label="Langue du modèle" sx={{ alignSelf: 'flex-start' }}>
+            <ToggleButton value="fr" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>FR</ToggleButton>
+            <ToggleButton value="en" sx={{ minWidth: 56, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>EN</ToggleButton>
+          </ToggleButtonGroup>
+          <TokenTextField
+            id="template-subject"
             label="Sujet"
-            value={form.subject}
-            onChange={(e) => setForm({ ...form, subject: e.target.value })}
-            onFocus={() => setFocusedField('subject')}
-            inputRef={subjectRef}
-            fullWidth
-            required
+            language={language}
+            fr={form.subject}
+            en={form.subjectEn || ''}
+            onChange={(lang, value) => { setFieldError(null); setForm((f) => ({ ...f, [lang === 'fr' ? 'subject' : 'subjectEn']: value })); }}
+            tokens={chips.variables}
+            errorFr={fieldError?.field === 'subject' ? fieldError : undefined}
+            errorEn={fieldError?.field === 'subjectEn' ? fieldError : undefined}
           />
-
-          <TextField
+          {form.bodiesState === 'loading' && <LoadingState variant="skeleton" rows={4} />}
+          {form.bodiesState === 'failed' && <ErrorAlert message="Impossible de charger le texte du modèle." onRetry={() => { setForm((f) => ({ ...f, bodiesState: 'loading' })); readBodies(form.id); }} />}
+          {(!form.bodiesState || form.bodiesState === 'ready') && <TokenTextField
+            id="template-body"
             label="Corps du message"
-            value={form.body}
-            onChange={(e) => setForm({ ...form, body: e.target.value })}
-            onFocus={() => setFocusedField('body')}
-            inputRef={bodyRef}
-            fullWidth
-            required
-            multiline
-            minRows={12}
-          />
-
-          {/* English version (specs/email-language-fr-en.md): used when the reservation's email language
-              is English. Optional — leave empty to always send in French. */}
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Version anglaise (optionnelle) — utilisée pour les réservations en anglais. Laissez vide pour envoyer en français.
-          </Typography>
-          <TextField
-            label="Sujet (EN)"
-            value={form.subjectEn || ''}
-            onChange={(e) => setForm({ ...form, subjectEn: e.target.value })}
-            onFocus={() => setFocusedField('subjectEn')}
-            inputRef={subjectEnRef}
-            fullWidth
-          />
-          <TextField
-            label="Corps du message (EN)"
-            value={form.bodyEn || ''}
-            onChange={(e) => setForm({ ...form, bodyEn: e.target.value })}
-            onFocus={() => setFocusedField('bodyEn')}
-            inputRef={bodyEnRef}
-            fullWidth
-            multiline
-            minRows={12}
-          />
-
-          <Box>
-            <Typography variant="caption" color="text.secondary">Variables :</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {VARIABLE_BUTTONS.map((v) => (
-                <Chip key={v.token} label={v.label} size="small" onClick={() => insertToken(v.token)} variant="outlined" />
-              ))}
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>Blocs conditionnels :</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
-              {CONDITION_BUTTONS.map((c) => (
-                <Chip key={c.token} label={c.label} size="small" onClick={() => insertToken(c.token)} variant="outlined" color="secondary" />
-              ))}
-            </Box>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-              Une variable inconnue sera remplacée par une chaîne vide. Les blocs conditionnels supportent un seul niveau (pas d'imbrication).
-            </Typography>
-          </Box>
+            language={language}
+            fr={form.body}
+            en={form.bodyEn || ''}
+            onChange={(lang, value) => { setFieldError(null); setForm((f) => ({ ...f, [lang === 'fr' ? 'body' : 'bodyEn']: value })); }}
+            tokens={chips.variables}
+            flags={chips.conditions}
+            minRows={10}
+            errorFr={fieldError?.field === 'body' ? fieldError : undefined}
+            errorEn={fieldError?.field === 'bodyEn' ? fieldError : undefined}
+            helper={(
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                Anglais vide : l'email part en français. Une seule condition à la fois.
+              </Typography>
+            )}
+          />}
 
           <FormControl>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -629,16 +612,17 @@ export default function EmailTemplatesPage() {
             </Box>
           </FormControl>
 
-          {form.stableKey === J7_STABLE_KEY ? (
-            <PropertyHooksEditor
-              hooks={hooks}
-              onChange={(propertyId, key, value) => setHooks((list) => list.map((h) => (h.propertyId === propertyId ? { ...h, [key]: value } : h)))}
-            />
+          {/* specs/guest-email-texts-made-simple.md rule 12 — a shipped template is written on « Textes
+              des emails », in its section; the J-7 hook too. */}
+          {form.textsSection ? (
+            <Link component={RouterLink} to={`/settings/emails/textes#${form.textsSection}`}>
+              {form.stableKey === 'arrival_reminder_7d' ? 'Accroche par logement et phrases : Textes des emails' : 'Phrases de cet email : Textes des emails'}
+            </Link>
           ) : null}
 
           {form.stableKey ? (
             <Typography variant="caption" color="text.secondary">
-              Ce modèle est livré avec l'application (clé technique : <code>{form.stableKey}</code>). Vos modifications sont conservées au prochain démarrage.
+              Email livré avec l'application : les modifications sont conservées au prochain démarrage.
             </Typography>
           ) : null}
         </Stack>

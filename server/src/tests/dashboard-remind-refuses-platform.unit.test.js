@@ -25,6 +25,8 @@ function controllerFor(platform, sent) {
     reservationsModel: { getPlatform: () => platform },
     sendDepositRequest: async (id) => { sent.push(['deposit', id]); return { httpStatus: 200, body: { ok: true } }; },
     sendBalanceRequest: async (id) => { sent.push(['balance', id]); return { httpStatus: 200, body: { ok: true } }; },
+    // A payment provider is connected (specs/plugins-phase-3a-online-payment.md rule 5).
+    hasPaymentProvider: () => true,
   });
 }
 
@@ -34,6 +36,9 @@ async function remind(platform, body = { type: 'balance' }) {
   await controllerFor(platform, sent).remindPaymentDeadline({ params: { id: '7' }, body }, res);
   return { res, sent };
 }
+
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('rule 20 — relancer une réservation Airbnb est refusé, et aucun email ne part', async () => {
   const { res, sent } = await remind('airbnb');

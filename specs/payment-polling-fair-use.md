@@ -62,10 +62,13 @@ double-processing a payment.
 ## 3. Functional rules
 
 1. At the start of a poll pass, an `open` link whose stored `expiresAt` is in the past is retired
-   locally to `expired` **without any provider call**.
+   locally to `expired` **without any provider call deciding it** (amended 2026-10-30 by
+   specs/payment-link-lifecycle.md rule 17: the expiry is decided without a call, the deactivation then
+   costs one, followed by one payment read — rule 18 there).
 2. `markPaid` flips a link from `open` **or** `expired`, so a payment confirmed after a local
    retirement is still processed exactly once; `paid` and `cancelled` stay final and still report
-   `flipped: false`.
+   `flipped: false`. Since specs/payment-link-lifecycle.md rule 23 it also clears the deactivation
+   marker and the last look of the link it flips.
 3. An `open` link is polled at a cadence that decays with its age: every pass under 24 h, at most once
    per hour from 24 h to 7 days, at most once per day beyond 7 days. A link not due is skipped with no
    provider call.
@@ -106,6 +109,12 @@ double-processing a payment.
     a webhook that never arrived, which is a question of hours, not of minutes. The tick is
     environment-configurable through `PAYMENT_POLL_TICK_MINUTES`, default `480`, with the same
     "missing, non-numeric or non-positive falls back to the default" reading as rule 9.
+12. **One Qonto request is bounded in time (2026-10-29, audit R3).** The client gives each request (headers and
+    body) 20 s (`QONTO_REQUEST_TIMEOUT_MS`, or `timeoutMs` in the client config), then aborts it and fails with a
+    `timeout` error carrying `code: 'ETIMEDOUT'` and no HTTP status. That is a network failure: it is not retried
+    (rule 6 retries only 429/5xx) and the health check reads it as « unreachable ». 20 s is far above Qonto's usual
+    second or two, and keeps three attempts with their waits under about a minute, where a hung socket held a poll
+    or retry run, and the retry queue behind it, for about 300 s.
 
 **Edge cases:**
 

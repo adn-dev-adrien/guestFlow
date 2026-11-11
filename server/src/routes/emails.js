@@ -21,9 +21,15 @@ const controller = buildController({
   emailServiceFactory: createEmailService,
   ledger,
   preferences,
+  installmentRequests: require('../utils/installmentRequests').createInstallmentRequests(),
+  paymentRequests: require('../utils/paymentRequests').createPaymentRequests(),
+  testMailer: require('../utils/accountMailer').createAccountMailer({ settingsModel }),
 });
 
 router.get('/preview', controller.preview);
+// specs/guest-email-texts-made-simple.md rules 13–15 — a draft rendered, and a test to oneself.
+router.post('/preview', controller.previewDraft);
+router.post('/test', controller.sendTest);
 router.post('/send',   controller.send);
 router.get('/pending', controller.pending);
 router.post('/pending/:templateId/:reservationId/acknowledge', controller.acknowledge);
@@ -33,3 +39,6 @@ router.get('/eligible-reservations', controller.eligibleReservations);
 router.post('/queue', controller.queue);
 
 module.exports = router;
+// The home's « À traiter » counts the pending list through this very handler
+// (specs/shell-and-home-day-first.md rule 7).
+module.exports.controller = controller;

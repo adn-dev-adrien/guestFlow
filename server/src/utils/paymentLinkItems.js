@@ -8,8 +8,8 @@
  *
  * GuestFlow prices are TTC and the CHARGED total is inviolable. So we send HT per taxable line and
  * guarantee the exact total: floor the HT (residual after Qonto's rounding is then always ≥ 0) and fold
- * the ≤1-cent-per-line residual into a 0 %-VAT line (the tourist-tax line if present, else a small
- * "Ajustement" line). All arithmetic is in INTEGER cents — floating point breaks half-up rounding
+ * the ≤1-cent-per-line residual into a small 0 %-VAT "Ajustement" line — never into the tourist-tax
+ * line, whose amount the guest checks against the stay. All arithmetic is in INTEGER cents — floating point breaks half-up rounding
  * (e.g. 23295 × 1.1 = 25624.499999996 in FP → would round to 256.24 instead of 256.25).
  */
 
@@ -59,14 +59,9 @@ function buildVatItems({ components, vatRatePercent }) {
   let residual = target - predicted; // ≥ 0 by construction (floored HT)
 
   if (residual > 0) {
-    // Fold into an existing 0 %-VAT line (keeps the basket clean); else add a small "Ajustement" line.
-    const zeroLine = items.find((it) => !it._taxable);
-    if (zeroLine) {
-      zeroLine.amountCents += residual;
-      zeroLine._lineTotal += residual;
-    } else {
-      items.push({ title: 'Ajustement', amountCents: residual, vatRate: 0, _lineTotal: residual, _taxable: false });
-    }
+    // A line of its own (rule 3, amended 2026-10-18): the 0 %-VAT lines are the tourist tax, a figure
+    // the guest can check against the stay (nights × rate), so they never absorb the rounding.
+    items.push({ title: 'Ajustement', amountCents: residual, vatRate: 0, _lineTotal: residual, _taxable: false });
     residual = 0;
   }
 

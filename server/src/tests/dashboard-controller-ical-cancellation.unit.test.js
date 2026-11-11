@@ -2,6 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { buildController } = require('../controllers/dashboardController');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // HTTP shaping for the iCal cancellation Dashboard endpoints
 // (specs/ical-cancellation-approval.md §4.3). The model is faked — only the route ←→
@@ -38,8 +43,8 @@ test('GET ical-cancellation: empty list → { alerts: [] }', () => {
 
 test('GET ical-cancellation: forwards the model payload as-is', () => {
   const pending = [
-    { id: 1, reservationId: 10, clientName: 'Jean Dupont', propertyName: 'Gîte', sourceName: 'Airbnb', startDate: '2026-07-10', endDate: '2026-07-13', detectedAt: '2026-06-03 09:00:00', reservationExists: true },
-    { id: 2, reservationId: 11, clientName: '#11', propertyName: '', sourceName: 'Booking', startDate: '2026-08-01', endDate: '2026-08-05', detectedAt: '2026-06-03 08:00:00', reservationExists: false },
+    { id: 1, reservationId: 10, clientName: 'Jean Dupont', propertyName: 'Gîte', sourceName: 'Airbnb', startDate: inDays(-116), endDate: inDays(-113), detectedAt: `${inDays(-153)} 09:00:00`, reservationExists: true },
+    { id: 2, reservationId: 11, clientName: '#11', propertyName: '', sourceName: 'Booking', startDate: inDays(-94), endDate: inDays(-90), detectedAt: `${inDays(-153)} 08:00:00`, reservationExists: false },
   ];
   const fakes = makeFake({ pending });
   const c = buildController(fakes);
@@ -72,7 +77,7 @@ test('POST approve: fires the Google Calendar delete hook with the model-returne
   const fakes = makeFake({ approveResult: { ok: true, outcome: 'approved', reservationId: 10 } });
   const c = buildController({
     ...fakes,
-    googleCalendarSync: { schedulePush: () => {}, scheduleDelete: (id) => deleted.push(id) },
+    emitPluginEvent: (name, payload) => { if (name === 'reservation.cancelled') deleted.push(payload.reservationId); },
   });
   const res = fakeRes();
   c.approveIcalCancellation({ params: { id: '42' } }, res);
@@ -150,13 +155,13 @@ test('POST approve: forwards the validated compensation and returns its id', () 
   const res = fakeRes();
   c.approveIcalCancellation({
     params: { id: '42' },
-    body: { compensation: { expectedAmount: '84.567', expectedDate: '2026-08-26', notes: '  Airbnb  ' } },
+    body: { compensation: { expectedAmount: '84.567', expectedDate: inDays(-69), notes: '  Airbnb  ' } },
   }, res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body, { ok: true, outcome: 'approved', compensationId: 7 });
   // Rounded to the cent and trimmed by the pure validator before it ever reaches the model.
   assert.deepEqual(fakes.calls.approveCompensations, [
-    { expectedAmount: 84.57, expectedDate: '2026-08-26', notes: 'Airbnb' },
+    { expectedAmount: 84.57, expectedDate: inDays(-69), notes: 'Airbnb' },
   ]);
 });
 

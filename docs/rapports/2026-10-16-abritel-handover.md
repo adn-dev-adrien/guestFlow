@@ -71,11 +71,11 @@ Each shadowed a real Booking reservation on the same dates and property:
 
 | Phantom (`Lodgify`, 0 €) | Shadowed (`Booking`, real) | Dates | Property |
 |---|---|---|---|
-| #22316 / 202610004 | #22309 / 6392081711 — 638 € | 2026-11-06 → 11-08 | Granja |
-| #22317 / 202610005 | #22282 / 6396936881 — 750 € | 2027-06-11 → 06-13 | Granja |
-| #22318 / 202610006 | #22301 / 6617083884 — 930,40 € | 2027-07-08 → 07-11 | Granja |
-| #22319 / 202610007 | #22304 / 5449776734 — 1 804 € | 2027-07-25 → 08-01 | Granja |
-| #22315 / 202610003 | #22270 / 6646665983 — 600 € | 2027-08-07 → 08-13 | L'Estiva |
+| #22316 / 202610004 | #22309 / 6300000001 — 638 € | 2026-11-06 → 11-08 | Granja |
+| #22317 / 202610005 | #22282 / 6300000003 — 750 € | 2027-06-11 → 06-13 | Granja |
+| #22318 / 202610006 | #22301 / 6300000004 — 930,40 € | 2027-07-08 → 07-11 | Granja |
+| #22319 / 202610007 | #22304 / 5300000003 — 1 804 € | 2027-07-25 → 08-01 | Granja |
+| #22315 / 202610003 | #22270 / 6600000002 — 600 € | 2027-08-07 → 08-13 | L'Estiva |
 
 Signature, checked on each one before deleting: created `2026-10-15 18:41`, total `0 €`, one guest,
 anonymous client `#144`, and the reservation page's own warning « Ce logement est déjà réservé pour
@@ -113,7 +113,7 @@ them himself, and pastes a one-time code only if he chooses to.
 
 ### Step A — the blocking check (spec §10 step 2)
 
-In the Abritel partner space, establish who owns listing **AB 2622643** (property **123465737**):
+In the Abritel partner space, establish who owns listing **AB <abritel-listing>** (property **123465737**):
 the Lodgify integration, or the owner account directly. **If disconnecting would deactivate the
 listing or drop its reviews, stop** and ask Vrbo support for a transfer to a direct owner account
 before touching anything. Nothing else on this channel starts before this answer.
@@ -276,14 +276,14 @@ for the short fields and more for « Mon logement » (1 778 characters observed)
 `provider_id=689`.
 
 **Abritel** — gîte: listing `AB 2577203`, property `118194015`, unit `326936714`, calendar key
-`731.2577203.2754136`; tent: listing `AB 2622643`, property `123465737`, unit `327755592`, key
+`731.2577203.2754136`; tent: listing `AB <abritel-listing>`, property `123465737`, unit `327755592`, key
 `731.2622643.2799576`. Lodgify Vrbo settings: `channels/manager/vrbo/<rental>/room/<roomType>/settings`
 — gîte markup 4 %, cleaning 80 €, tax 1,20 €; tent markup 7,5 %, tax 5,51 %, VAT 10 % included.
 
 **GuestFlow** — properties `#1 Granja`, `#2 Estiva`. iCal sources: Granja #9 Abracadaroom, #2 Airbnb,
 #12 Booking, #1 GitesDeFrance, #7 Greengo, #10 Lodgify (`isActive = 0` since 2026-10-16); Estiva
 #8 Abracadaroom, #14 Airbnb, #11 Booking, #13 Campspace, #6 Greengo, #5 Lodgify (`isActive = 0`).
-Every other source is active. Production `adrien@192.168.0.24`, public host
+Every other source is active. Production `<operator>@<prod-host>`, public host
 `https://guestflow.adn-dev.fr`.
 
 **Files** — [`specs/lodgify-decommission.md`](../../specs/lodgify-decommission.md) (rules §3, runbook

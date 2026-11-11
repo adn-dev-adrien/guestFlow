@@ -1,0 +1,162 @@
+{
+  "id": "accounting-export",
+  "name": "Export comptable",
+  "version": "1.2.4",
+  "description": "Écritures, plan comptable et export pour le cabinet comptable.",
+  "icon": "book",
+  "surfaces": [
+    "Suivi financier › Comptabilité et Plateformes comptables",
+    "Le rôle « Comptable »"
+  ],
+  "requires": [],
+  "guestflow": ">=3.18.0",
+  "sdk": "^2.25.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Sur un téléphone, chaque ligne d’écriture s’affiche en entier, montant compris.",
+      "Les totaux du mois passent à la ligne au lieu de sortir du cadre."
+    ],
+    "1.0.3": [
+      "L’export CSV transcrit les caractères hors Latin-1 (’, Œ, …) au lieu de les corrompre.",
+      "Une écriture au prorata ventile son TTC au taux de TVA : plus d’écart d’un centime.",
+      "Le plan comptable affiche « Direct » au lieu de « direct »."
+    ],
+    "1.0.4": [
+      "Un séjour payé puis réduit (une personne de moins, petit déjeuner retiré) ne passe plus de ligne négative sur la taxe de séjour : l'écriture reprend la répartition des lignes actuelles."
+    ],
+    "1.0.5": [
+      "Les mois réglés avant l'installation de cette version gardent au centime près les montants déjà exportés.",
+      "Un trop-perçu remboursé n'est plus déduit deux fois : le compte client reprend ce qui a été encaissé, moins le remboursement."
+    ],
+    "1.0.6": [
+      "Texte du taux de TVA des indemnités sans « votre comptable »."
+    ],
+    "1.0.7": [
+      "Sur téléphone, le titre de la page s’affiche dans la barre du haut."
+    ],
+    "1.0.8": [
+      "Une écriture qui porte tout son montant sur la taxe de séjour, sans chiffre d’affaires ni TVA, est signalée au-dessus du journal."
+    ],
+    "1.0.9": [
+      "Un séjour plateforme d’avant la commission saisie (prix payé par le client) dont le solde est coché aujourd’hui passe sa TVA au taux, et non plus la commission en TVA."
+    ],
+    "1.0.10": [
+      "Commentaire du code débarrassé du prénom d’un voyageur et d’un numéro de réservation ; l’export ne change pas."
+    ],
+    "1.0.11": [
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.12": [
+      "Chaque échéance payée d’un échéancier est une écriture à sa date, la taxe de séjour répartie au prorata.",
+      "Compatible avec le SDK 2.0 de GuestFlow."
+    ],
+    "1.0.13": [
+      "Ne s’installe plus sur un GuestFlow trop ancien pour lire les échéanciers : demande le SDK 2.5.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.0.14": [
+      "Une hausse de taxe de séjour après le solde ne réécrit plus l’écriture du solde : le complément qui l’encaisse la passe en 46710000.",
+      "Une échéance payée garde la ventilation enregistrée à son paiement : une modification ultérieure de la fiche ne change plus un mois passé.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.0.15": [
+      "Une pénalité qu’une plateforme a gardée sur un versement est une écriture à part : débit du compte « Pénalités plateformes » (658000 par défaut, modifiable dans le Plan comptable), crédit du compte client, sans TVA.",
+      "Compatible avec le SDK 2.9 de GuestFlow."
+    ],
+    "1.0.16": [
+      "Le taux de TVA de chaque écriture est celui du régime de la réservation.",
+      "Une réservation « Sans TVA » n’écrit ni TVA collectée, ni TVA déductible sur la commission ; l’indemnité d’annulation et l’avoir restent à 0 %.",
+      "Le plan comptable masque les taux de TVA qui ne peuvent pas s’appliquer sous « Sans TVA ».",
+      "Compatible avec le SDK 2.10 de GuestFlow."
+    ],
+    "1.0.17": [
+      "Le plan comptable range tous les comptes dans une seule carte « Comptes », par groupes : ventes, taxes, commissions et produits divers, journal.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.18": [
+      "Cas de référence des commentaires rendus anonymes (SDK 2 inchangé)."
+    ],
+    "1.0.19": [
+      "Une écriture dont les montants saisis par ligne ne couvrent pas l’encaissement est ventilée au prorata : plus de TVA gonflée (octobre 2026 : −182,91 € de TVA).",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.20": [
+      "Message de validation des plateformes à la forme impersonnelle.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.21": [
+      "L’annulation d’un séjour payé en plusieurs échéances s’équilibre au centime sur chaque compte de produits et de TVA.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.22": [
+      "Un remboursement sur un séjour annulé réduit l’indemnité d’annulation au lieu de repasser une vente négative et sa TVA.",
+      "Une indemnité soumise à TVA rendue en plusieurs fois s’équilibre au centime.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.0.23": [
+      "Une annulation après un remboursement ne reprend que ce qui restait de l’acompte ou des échéances : chaque compte de produits et de TVA s’équilibre au centime.",
+      "L’annulation d’un ancien acompte reprend la répartition hébergement / prestations sur laquelle il a été comptabilisé, et un solde payé absorbe les remboursements au centime près.",
+      "L’avoir d’un ancien acompte reprend au centime le HT et la TVA de son écriture.",
+      "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.24": [
+      "La taxe de séjour des voyageurs ajoutés sur une plateforme qui la reverse est comptabilisée avec le complément, le solde gardant ce que la plateforme a reversé.",
+      "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.25": [
+      "Un compte, un taux ou une ligne de plateforme de mauvais type reçoit le refus du champ, jamais une erreur interne.",
+      "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.26": [
+      "Un complément encaissé garde son écriture : une modification de la fiche ne la réécrit plus.",
+      "Une ligne payée puis retirée reste dans l’écriture qui l’a encaissée.",
+      "Le supplément des voyageurs ajoutés va sur le compte d’hébergement dès la première écriture.",
+      "Sur un échéancier, la taxe des voyageurs ajoutés n’est plus comptée deux fois.",
+      "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.27": [
+      "Aucun changement de comportement : référence de spec mise à jour.",
+      "Compatible avec le SDK 2.19 de GuestFlow."
+    ],
+    "1.0.28": [
+      "Comptabilité s’ouvre sur l’onglet « Synthèse » : chiffres de la période (mois, trimestre, exercice ou dates libres) comparés à l’an dernier, TVA à déclarer par taux ou par compte, contrôles des écritures.",
+      "Onglet « Encaissements » : répartition par moyen de paiement et par type de règlement, encaissements jour après jour et cumul. Le journal passe dans l’onglet « Écritures ».",
+      "La date du dernier export CSV est conservée, quand le fichier est demandé depuis la page.",
+      "Une annulation qui garde un acompte déjà encaissé ne compte ni comme encaissement ni comme remboursement.",
+      "Un écart de TVA d’un centime par écriture s’affiche comme un écart d’arrondi.",
+      "Une période sans encaissement l’indique au lieu d’afficher des graphiques vides ; la ligne « Autres » dit ce qu’elle regroupe.",
+      "Demande le SDK 2.23 de GuestFlow."
+    ],
+    "1.1.0": [
+      "Un paiement réparti sur plusieurs moyens n’est comptabilisé que pour sa part hors caisse interne, à la date de chacun de ses encaissements.",
+      "Un geste commercial accordé sur un tel paiement est passé en rabais.",
+      "Compatible avec le SDK 2.24 de GuestFlow."
+    ],
+    "1.2.0": [
+      "Les ventes hors séjour (bain nordique d’un client de passage) entrent dans le journal, avec le numéro de facture Qonto en pièce.",
+      "Compatible avec le SDK 2.25 de GuestFlow."
+    ],
+    "1.2.1": [
+      "Compatible avec GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.2.2": [
+      "Séjour payé en plusieurs moyens puis remboursé en entier : chaque compte revient à 0, sans centime d'écart ni rabais laissé sur 709.",
+      "Séjour payé en un seul moyen puis remboursé en entier : chaque compte revient aussi à 0, à partir du mois qui suit l'installation.",
+      "Toujours pour GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.2.3": [
+      "Comptabilité › Plateformes : la colonne « Brut » ne reste plus vide sur un séjour dont l'écriture se calcule sur l'argent enregistré.",
+      "Toujours pour GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.2.4": [
+      "Comptabilité › Plateformes : « Brut » est le brut de la plateforme enregistré sur la fiche (à défaut, le prix du séjour sans les compléments payés sur place) ; aucune écriture ne change, la colonne « Prix payé client » du CSV suit ce brut et la colonne « Commission » reste vide sur une écriture sans commission (elle affichait 0).",
+      "Toujours pour GuestFlow 4 (SDK 2.25)."
+    ]
+  }
+}

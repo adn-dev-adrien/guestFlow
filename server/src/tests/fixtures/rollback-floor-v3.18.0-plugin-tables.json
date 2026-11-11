@@ -1,0 +1,173 @@
+{
+  "airbnb_intakes": [
+    "id",
+    "messageId",
+    "receivedAt",
+    "confirmationCode",
+    "parsed",
+    "status",
+    "error",
+    "reservationId",
+    "appliedAt",
+    "dismissedAt",
+    "createdAt"
+  ],
+  "booking_dismissals": [
+    "reservationId",
+    "createdAt"
+  ],
+  "booking_intakes": [
+    "id",
+    "resId",
+    "hotelId",
+    "reservationId",
+    "status",
+    "error",
+    "parsed",
+    "guestMessagePending",
+    "dismissedAt",
+    "createdAt"
+  ],
+  "gate_connector_state": [
+    "id",
+    "lastReadAt",
+    "staleAlertedAt"
+  ],
+  "gate_key_results": [
+    "reservationId",
+    "action",
+    "ok",
+    "state",
+    "code",
+    "url",
+    "error",
+    "message",
+    "label",
+    "startsAt",
+    "endsAt",
+    "receivedAt",
+    "alertedError",
+    "propertyId"
+  ],
+  "gdf_intakes": [
+    "id",
+    "messageId",
+    "receivedAt",
+    "dossierNumber",
+    "parsed",
+    "status",
+    "error",
+    "reservationId",
+    "appliedAt",
+    "dismissedAt",
+    "createdAt"
+  ],
+  "laundry_extra_trips": [
+    "tripDate",
+    "pickUpAll",
+    "singleBeds",
+    "doubleBeds",
+    "babyBeds",
+    "largeTowels",
+    "mediumTowels",
+    "smallTowels",
+    "bathMats",
+    "createdAt",
+    "updatedAt"
+  ],
+  "laundry_trip_manual_additions": [
+    "tripDate",
+    "singleBeds",
+    "doubleBeds",
+    "babyBeds",
+    "largeTowels",
+    "mediumTowels",
+    "smallTowels",
+    "updatedAt"
+  ],
+  "laundry_trip_skips": [
+    "tripDate",
+    "createdAt"
+  ],
+  "neat_price_cache": [
+    "id",
+    "environment",
+    "contractId",
+    "fieldsHash",
+    "premium",
+    "fetchedAt"
+  ],
+  "neat_subscriptions": [
+    "id",
+    "reservationId",
+    "environment",
+    "externalId",
+    "status",
+    "neatSubscriptionId",
+    "premiumAmount",
+    "billedAmount",
+    "attempts",
+    "nextAttemptAt",
+    "lastError",
+    "errorKind",
+    "lastNotifiedAt",
+    "createdAt",
+    "updatedAt"
+  ],
+  "resource_bookings": [
+    "id",
+    "resourceId",
+    "reservationId",
+    "clientId",
+    "clientName",
+    "clientPhone",
+    "propertyId",
+    "date",
+    "startTime",
+    "endTime",
+    "notes",
+    "totalPrice",
+    "paid",
+    "createdAt",
+    "updatedAt"
+  ],
+  "school_holidays": [
+    "id",
+    "label",
+    "zoneA_start",
+    "zoneA_end",
+    "zoneB_start",
+    "zoneB_end",
+    "zoneC_start",
+    "zoneC_end",
+    "externalRef",
+    "isLocked",
+    "lastSyncedAt"
+  ],
+  "school_holidays_sync_state": [
+    "id",
+    "syncIntervalDays",
+    "syncHorizonMonths",
+    "lastSyncAt",
+    "lastSyncStatus",
+    "lastSyncMessage",
+    "lastImportedCount",
+    "updatedAt"
+  ],
+  "tariff_recipe_runs": [
+    "id",
+    "propertyId",
+    "recipeId",
+    "recipeVersion",
+    "generatedYear",
+    "note",
+    "blocking",
+    "createdAt",
+    "dismissedAt"
+  ],
+  "weather_vigilance_cache": [
+    "departmentCode",
+    "payload",
+    "fetchedAt"
+  ]
+}

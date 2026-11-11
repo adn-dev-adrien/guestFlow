@@ -113,7 +113,7 @@ test('SAS button — opens the arrival SAS when not yet done', () => {
   render(
     <ReservationCard reservation={BASE} onToggleReady={noop} onOpenSas={onOpenSas} />
   );
-  const sasBtn = screen.getByRole('button', { name: 'Check-in (SAS arrivée)' });
+  const sasBtn = screen.getByRole('button', { name: 'Accueil' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(100);
@@ -124,7 +124,7 @@ test('SAS button — once the arrival SAS is done it stays a clickable ✓ for r
   const onOpenSas = vi.fn();
   const r = { ...BASE, arrivalSasDoneAt: '2026-06-13 09:00:00' };
   render(<ReservationCard reservation={r} onToggleReady={noop} onOpenSas={onOpenSas} />);
-  const sasBtn = screen.getByRole('button', { name: 'Revoir / modifier le check-in' });
+  const sasBtn = screen.getByRole('button', { name: 'Revoir l’accueil' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(100);
@@ -149,7 +149,7 @@ test.each([
 test('SAS button — no lock field (admin payload) leaves the ✓ clickable', () => {
   const onOpenSas = vi.fn();
   render(<ReservationCard reservation={BASE} onToggleReady={noop} onOpenSas={onOpenSas} />);
-  const sasBtn = screen.getByRole('button', { name: 'Check-in (SAS arrivée)' });
+  const sasBtn = screen.getByRole('button', { name: 'Accueil' });
   expect(sasBtn).not.toBeDisabled();
   fireEvent.click(sasBtn);
   expect(onOpenSas).toHaveBeenCalledWith(100);
@@ -201,7 +201,7 @@ test('ready checkbox — toggling it does NOT trigger any open handler (stopProp
 test('open handlers omitted — card renders read-only with no action buttons', () => {
   render(<ReservationCard reservation={BASE} onToggleReady={noop} />);
   expect(screen.queryByLabelText('Ouvrir la réservation')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText('Check-in (SAS arrivée)')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Accueil', { exact: true })).not.toBeInTheDocument();
   // Client name falls back to plain text (no button) when onOpenClient is absent.
   expect(screen.queryByRole('button', { name: 'Famille Dupont' })).not.toBeInTheDocument();
   expect(screen.getByText('Famille Dupont')).toBeInTheDocument();
@@ -292,7 +292,7 @@ test('platform badge — absent when the reservation has no platform', () => {
   expect(screen.queryByText('Airbnb')).toBeNull();
 });
 
-// Bed-linen alert (specs/planning-arrival-alerts.md §3 rule 14) — server-computed `bedLinenAlert`.
+// Bed-linen alert (specs/planning-arrival-alerts.md §3 bed-linen alert) — server-computed `bedLinenAlert`.
 test('bed-linen alert — "non pris" when bedLinenAlert.type is no_linen', () => {
   render(<ReservationCard reservation={{ ...BASE, bedLinenAlert: { type: 'no_linen' } }} onToggleReady={noop} />);
   expect(screen.getByText('Linge de lit non pris')).toBeInTheDocument();
@@ -340,7 +340,7 @@ test('mobile (matchMedia matches) renders each action button exactly ONCE (no CS
       <ReservationCard reservation={BASE} onToggleReady={noop} onOpenReservation={vi.fn()} onOpenSas={vi.fn()} />
     );
     // getByRole throws if there were two — pins the single-render (useMediaQuery branch, not display:none).
-    expect(screen.getByRole('button', { name: 'Check-in (SAS arrivée)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accueil' })).toBeInTheDocument();
   } finally {
     window.matchMedia = orig;
   }

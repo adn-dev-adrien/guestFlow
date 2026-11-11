@@ -17,8 +17,8 @@
 
 A guest booking on domainesolio.com must tick « J'ai lu et j'accepte les conditions générales de
 location » before the « Réserver » button unlocks. That checkbox is **not part of the booking engine**:
-it is injected by the site mu-plugin `integrations/wordpress/solio-site/mu-plugins/gf-seo-reservation.php`
-(lines 403-411) and only toggles the button's `disabled` state (line 611). The click then forwards to
+it is injected by the site mu-plugin `gf-seo-reservation.php` (then under `integrations/wordpress/solio-site/`,
+the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30); lines 403-411) and only toggles the button's `disabled` state (line 611). The click then forwards to
 the GuestFlow plugin's own button, which posts `stay + guest + message + _hp` to
 `POST /public/v1/booking-requests`. Nothing about the terms travels:
 
@@ -155,7 +155,8 @@ exact version accepted.
 
 23. The proxy determines the visitor IP: `REMOTE_ADDR`, unless it belongs to the plugin's new
     « Proxys de confiance » list (empty by default; set to the edge Caddy on Solio), in which case the
-    right-most `X-Forwarded-For` entry not in that list. It sends it on **every** proxied call as
+    right-most `X-Forwarded-For` entry not in that list (`REMOTE_ADDR` again when every entry is
+    trusted — the left-most one is client-controlled). It sends it on **every** proxied call as
     `X-GuestFlow-Visitor-IP`, and the User-Agent as `X-GuestFlow-Visitor-UA` (≤ 512 chars).
     > **Sans test** — visitor IP resolution in `class-gf-api-client.php`: the plugin and the site mu-plugins have no test harness (PHP / build-free JS). Verified by hand on a throwaway WordPress with plugin 1.8.0 on 2026-09-22 (§7).
 24. GuestFlow trusts those headers **only on an API-key-authenticated request**. `bookingRequestLimiter`
@@ -205,6 +206,16 @@ exact version accepted.
       the delete would cascade the stay's proof away. An unconverted request is deleted with its
       acceptance, as before.
 
+### 3.10 Refusals in the visitor's language (fixed at the 2026-10-27 spec review)
+
+30. The three CGV refusals of a booking request — `503 TERMS_NOT_CONFIGURED` (rule 16), `422
+    TERMS_NOT_ACCEPTED` (rule 15), `409 TERMS_OUTDATED` (rule 13) — are answered in the visitor's
+    language like every other public error (`publicLabels` keys `termsUnavailableForBooking`,
+    `termsNotAccepted`, `termsOutdated`; `failT`). An English page used to read them in French. Codes,
+    statuses and `details[0].currentVersion` unchanged. English: « Online booking is temporarily
+    unavailable. », « You must accept the terms and conditions of rental. », « The terms and conditions
+    have been updated. Please read and accept them again. »
+
 **Edge cases:**
 - Honeypot filled → fake success, nothing stored.
 - Request fails later (dates taken, capacity, min nights) → no acceptance (one transaction, after all
@@ -230,7 +241,7 @@ exact version accepted.
 | `index.js` | `index.js` | T | Mounts `/api/terms` (admin-only through the deny-by-default role guard). |
 | `controllers/` | `controllers/termsController.js` | C | Overview (can publish? unknown variables, stale facts, outdated plugin), publication of the saved draft, fiche block (rules 21-22), Paris-time labels. |
 | `controllers/` | `controllers/public/publicTermsController.js` | C | Public reads (rule 7). |
-| `controllers/` | `controllers/public/publicBookingRequestController.js` | T | `checkTermsAcceptance` (rules 13, 15-17); client + devis + origin marker + acceptance written in one `db.transaction`; last plugin version stored. |
+| `controllers/` | `controllers/public/publicBookingRequestController.js` | T | `checkTermsAcceptance` (rules 13, 15-17; its refusals name a `publicLabels` key, answered in the visitor's language — rule 30); client + devis + origin marker + acceptance written in one `db.transaction`; last plugin version stored. |
 | `controllers/` | `controllers/reservationsController.js`, `controllers/devisController.js` | T | Add the `cgv` fiche block to `GET /api/reservations/:id` and `GET /api/devis/:id`. |
 | `models/` | `models/termsModel.js` | C | Draft, versions (insert-only, number allocated in a transaction), acceptances (insert-only, with their `terms_accepted` history entry). Statements prepared lazily so controllers stay loadable on test schemas. |
 | `models/` | `models/settingsModel.js` | T | `requireTermsAcceptance` (default 1), `lastSeenPluginVersion`, accessor `termsSettings()`. |
@@ -278,7 +289,7 @@ exact version accepted.
 | `guestflow-booking/includes/class-gf-blocks.php`, `assets/style.css` | T | `cgvPageUrl` + i18n strings; checkbox style. |
 | `guestflow-booking/blocks/booking/view.js` | T | Checkbox, refusal on click, `termsVersion`, `TERMS_OUTDATED` handling. |
 | `guestflow-booking/guestflow-booking.php`, `readme.txt` | T | 1.8.0 + changelog. |
-| `solio-site/mu-plugins/gf-seo-reservation.php` | T | Removes its own checkbox and its gating of « Réserver »; dresses the plugin's checkbox in the site colours. |
+| site `mu-plugins/gf-seo-reservation.php` (private repository since 2026-10-19) | T | Removes its own checkbox and its gating of « Réserver »; dresses the plugin's checkbox in the site colours. |
 
 ### 4.4 API contract
 
@@ -387,6 +398,8 @@ interactive mock-up validated on 2026-09-22.
 - [x] `tests/public-booking-request-controller.unit.test.js` — fixtures accept version 1.
 - [x] `tests/cgv-acceptance-follows-conversion.unit.test.js` (3) — rule 29: the converted stay's fiche
       block, its `{{cgvUrl}}` pinned to the accepted version, the converted devis's delete refused.
+- [x] `plugins/website-booking/tests/public-terms-refusal-language.unit.test.js` (3) — rule 30: 503 / 422 /
+      409 in English and French, `currentVersion` kept. Failed (French on an English page) before the fix.
 
 ### Client (Vitest, +13)
 - [x] `pages/settings/__tests__/TermsSettingsPage.test.jsx` (9)

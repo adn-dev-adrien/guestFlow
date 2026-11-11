@@ -70,7 +70,7 @@ test('the J-7 leaves on its day, once: a second pass the same day sends nothing'
   const first = await runSequencePass(deps, { today: J7_DUE });
   assert.equal(first.sent, 1);
   assert.equal(mail.sent.length, 1);
-  assert.match(mail.sent[0].subject, /Plus qu'une semaine avant La Granja/);
+  assert.match(mail.sent[0].subject, /Plus qu'une semaine avant votre séjour à La Granja/);
   assert.equal(deps.ledger.findByKey(stayDedupKey(MAIL.J7, rid)).status, 'sent');
 
   const second = await runSequencePass(deps, { today: J7_DUE });

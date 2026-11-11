@@ -58,6 +58,11 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
    belongs to that collection, and its accounting entry books at that date like every other.
    It carries the name of its accounting entry (`endOfStayComplement`), so the journal stamps it with
    no mapping. The **mid-stay notes stay out**: each one is its own collection, at its own date.
+   > **Reading of 2026-11-06 (D20, Adrien).** Only once the guest has left: before the check-out
+   > (reservation-payment-ledger rule 68) the end of stay is no bucket of the single payment, in the offer
+   > (`arrivalPayment.collectible`) and in the write alike; when it is all that is left, « Encaisser » answers 409
+   > `END_OF_STAY_BEFORE_CHECKOUT`. A group stored before D20 that names it is not rewritten. Test:
+   > `end-of-stay-after-checkout`, `arrival-payment-from-fiche`.
 3. It announces what it will collect: « Encaisser en une fois : 852,82 € » and, underneath, the
    buckets it covers with their amounts (« solde 720,82 € · complément 132,00 € »).
 3bis. **The collection date is the operator's**, not the clock's (2026-08-31). A guest who paid at the
@@ -70,6 +75,8 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
      the money has not been received, and the entry would book into a month nobody is looking at yet;
    - a date **before the booking existed** is refused, for the same reason in the other direction.
    Any other past date is accepted: recording late is exactly the case this feature exists for.
+      *Reading of 2026-11-02 — the date window.* The collection date is also refused before today − 5 years
+      (« Date trop ancienne : 5 ans au plus. », `specs/reservations-backend-mvc.md` rule 13, second reading).
 4. **Never shown to a reception-only user** ([reception-role-checkin-only.md](reception-role-checkin-only.md)):
    the fiche is finance-stripped for that role, and the amounts are not in its payload.
 
@@ -92,6 +99,24 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
    are untouched by construction. That is the whole point of the control.
 9. **History**: the fiche's « Historique des modifications » records « Paiement unique encaissé à
    l'arrivée » with the amount, the means and the buckets covered.
+   *Reading of 2026-11-10 (audit R44-RES-L2):* written for the operator, the French way: « 281,98 € — CB / Chèque le
+   01/09/2026 — solde, complément de fin de séjour » (`utils/arrivalPaymentHistoryText`: the history's money format,
+   DD/MM/YYYY, the buckets « acompte », « solde », « complément d'arrivée », « complément de fin de séjour »), with no
+   « vide → » before it. The same holds for its undo (« 281,98 € (solde, …) → annulé »), the group's dissolution trace,
+   the adjusted total (« 300 € → 281,50 € (réduction 18,50 €) ») and the sas's folded line (sas 1.9.3). A line stored
+   before is read back the same way, the stored row untouched; the cancel entry's « Acompte conservé », « Solde
+   abandonné » and « Somme conservée » read as amounts. Two refusals that printed a dot decimal now write a comma (the
+   mid-stay note's « reste à percevoir », the refund's stay cap). *Why:* the fiche read « 281.98 € — CB / Chèque le
+   2026-09-01 — balance, endOfStayComplement » beside rows reading « 281,98 € » and « 30/08/2026 ». Test:
+   `tests/history-texts-french.unit.test.js`, `arrival-payment-history-line`, `arrival-payment-dissolution-is-traced`,
+   sas `sas-history-folds-the-single-payment`, `mid-stay-note-refusal-french-amount` (both note refusals, verification
+   R44 L4).
+   *Reading of 2026-11-10 (audit R45-PL-L1):* « a line stored before » includes the sas's folded line stored before
+   sas 1.9.3 (and by the core SAS of v3.21.0), kept as rendered text (`fromText` « — », `toText` « 144.95 € — CB /
+   Chèque le 2026-09-01 — solde, complément »): `reservationAudit` reads every `arrivalPayment` /
+   `arrivalPaymentAdjustment` text through the same French reading, the bare « complément » named « complément
+   d'arrivée ». It is idempotent: a line already French reads the same. Test:
+   `tests/history-legacy-sas-single-payment.unit.test.js`.
 
 ### 3.3 Undoing it
 
@@ -112,6 +137,11 @@ buckets, same date, same accounting, the same group read by the fiche and the Co
     les branches « échéance gelée » du moteur et la ligne qu'il s'apprête à écrire ne puissent pas
     diverger. La seule exception est `depositDisabled`, qui EST un champ du formulaire et continue de
     remettre l'acompte à zéro ([disable-deposit-per-reservation.md](disable-deposit-per-reservation.md)).
+    **Étendu le 2026-10-19 aux quatre colonnes de la caution** (`cautionReceived`,
+    `cautionReceivedDate`, `cautionReturned`, `cautionReturnedDate`) par
+    [reservation-payment-ledger.md](reservation-payment-ledger.md) règle 13 : l'enregistrement les
+    relit en base, la liste blanche de la fiche passée ne les contient plus, et seul le PATCH de
+    paiement — avec ses contrôles d'ordre et de date — les modifie.
 
     **Mesuré en production sur la réservation 22281 le 2026-08-31.** L'opérateur ouvrait la fiche,
     cliquait « Encaisser en une fois » — le solde et le complément de fin de séjour étaient encaissés
@@ -249,7 +279,7 @@ everything this feature needs.
   the Comptabilité of THAT month**, and the planning « préparé » flags of that stay verified untouched.
 - The same in caisse interne, then « Annuler ce paiement ».
 - Mobile (`xs`) at 420 px.
-- [x] **Done 2026-08-31, rule 2bis** on a copy of production, rebuilt to Harmen's exact shape (platform
+- [x] **Done 2026-08-31, rule 2bis** on a copy of production, rebuilt to Testy's exact shape (platform
       booking, acompte disabled, no arrival complement, 50 € in the end-of-stay complement): the control
       now appears, announces **1 983,52 €**, and settles both at 2026-08-17. The fiche reads « solde
       1 933,52 € · complément de fin de séjour 50,00 € », and August's Comptabilité carries the two

@@ -23,6 +23,7 @@ function makeDb() {
       isActive INTEGER NOT NULL DEFAULT 1,
       lastLoginAt TEXT,
       emailChangedAt TEXT,
+      isSupportAccount INTEGER NOT NULL DEFAULT 0,
       createdAt TEXT, updatedAt TEXT
     );
     CREATE UNIQUE INDEX uniq_users_email ON users(email);

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
 
 // Guards the iCal anti-overbooking contract: create / update / locked-skip / stale-removal /
 // unavailable-filter. The sync engine was moved verbatim from routes/properties.js — this locks it in.
@@ -86,7 +87,7 @@ function freshModel() {
   db.prepare("INSERT INTO properties (id, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, '15:00', '10:00', 500)").run();
   // The empty-feed guard persists its streak on the ical_sources row — the source must exist in DB.
   db.prepare("INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (1, 1, 'Airbnb', 'http://feed.test/ical', 'airbnb', 'Airbnb')").run();
-  const model = propertyIcalModel.buildModel(db);
+  const model = propertyIcalModel.buildModel(db, { fetchImpl: globalFetch });
   const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'airbnb', platformLabel: 'Airbnb', name: 'Airbnb' };
   return { db, model, source };
 }
@@ -573,7 +574,7 @@ test('locked: a drift the operator has not approved moves neither the dates nor 
   });
 });
 
-// specs/normalize-platform-names.md §3.2 rule 8bis — the sync stores the platform's CANONICAL name
+// specs/normalize-platform-names.md §3.2 (8bis) — the sync stores the platform's CANONICAL name
 // in `reservations.platform`, not the feed slug. Writing the slug (`abracadaroom`, `gites-de-france`)
 // put a second spelling next to the `Abracadaroom` of manually-created reservations, and the calendar
 // legend listed the platform twice until the next boot healed it. `sourcePlatformKey` keeps the slug:

@@ -120,10 +120,11 @@ test('the requalification avoir is not a refund to the guest — no money went b
   db.close();
 });
 
+// specs/payment-schedule-and-cancellation.md rule 48 — nothing collected reads `unpaid_deposit`.
 test('an acompte never collected requalifies nothing (rule 27)', () => {
   const { db, deps } = seed({ depositPaid: 0 });
   const out = cancel(deps);
-  assert.equal(out.cancellationReason, 'unpaid_balance');
+  assert.equal(out.cancellationReason, 'unpaid_deposit');
   assert.equal(out.retainedDepositAmount, 0);
   assert.equal(out.refundId, null);
   assert.equal(out.compensationId, null);
@@ -138,7 +139,9 @@ test('the cancellation is written to the reservation history', () => {
   const entry = db.prepare("SELECT eventType, changedFields FROM reservation_history WHERE reservationId = 10 AND eventType = 'cancel'").get();
   assert.ok(entry, 'an audit entry exists');
   const fields = JSON.parse(entry.changedFields);
-  assert.deepEqual(fields.map((f) => f.field), ['kind', 'cancellationReason', 'retainedDeposit', 'writtenOffBalance']);
+  // Rule 61 — the sum the notice states, stored beside them.
+  assert.deepEqual(fields.map((f) => f.field), ['kind', 'cancellationReason', 'retainedDeposit', 'writtenOffBalance', 'keptFromGuest']);
+  assert.equal(fields.find((f) => f.field === 'keptFromGuest').to, 274);
   assert.equal(fields.find((f) => f.field === 'retainedDeposit').to, 274);
   assert.equal(fields.find((f) => f.field === 'writtenOffBalance').to, 640);
   db.close();

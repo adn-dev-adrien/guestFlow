@@ -2,10 +2,12 @@
 // number of people or of nights, turns red when the party or the stay moved, and offers the new value.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import OptionRow from '../OptionRow';
 import { ReservationFormProvider } from '../ReservationFormContext';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
+
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 const PER_PERSON = { id: 30, title: 'Repas', price: 8, priceType: 'per_person', autoEnabled: 0 };
 const PER_PERSON_NIGHT = { id: 31, title: 'Panier', price: 8, priceType: 'per_person_per_night', autoEnabled: 0 };

@@ -10,9 +10,9 @@ name: Release
 # `workflow_dispatch` path builds and checks everything but never publishes: it is there to rehearse
 # the packaging without burning a version number.
 #
-# Job order: verify → (tests ‖ e2e) → package → publish. `verify` is first and everything depends on
-# it, so a release whose version bumps or changelog entry are missing fails in ~20 s, before a single
-# dependency is installed and long before an artefact could exist.
+# Job order: verify → (server tests ‖ 3 client test shards ‖ e2e) → package → publish. `verify` is first
+# and everything depends on it, so a release whose version bumps or changelog entry are missing fails in
+# ~20 s, before a single dependency is installed and long before an artefact could exist.
 
 on:
   push:
@@ -35,7 +35,10 @@ jobs:
       is_release: ${{ steps.resolve.outputs.is_release }}
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The plugin version check compares with the previous tag: it needs the history and tags.
+          fetch-depth: 0
 
       - name: 🔢 Resolve the version being released
         id: resolve
@@ -110,24 +113,31 @@ jobs:
           set -euo pipefail
           node scripts/build-changelog.mjs --check-digest "${{ steps.resolve.outputs.version }}"
 
+      - name: 🔌 A plugin that changed carries a new version
+        # specs/plugins-phase-4-registry.md P26, rule 23 — an instance compares plugin versions to offer
+        # an update; a changed plugin that kept its number would never be offered, or would install
+        # different code under the same version. The release skill bumps them (`--bump`).
+        run: node scripts/check-plugin-versions.mjs
+
   # ── Unit suites ──────────────────────────────────────────────────────────────────────────────
-  tests:
-    name: tests (server + client)
+  # specs/server-test-isolation.md rule 8 — the server suite and three client shards run side by side. In one
+  # job, one after the other, the suites of inte/plugins add up to 1030–1310 s against a 1200 s cap (audit R8
+  # M-2): a release cancelled at its limit publishes nothing. `package` needs every one of them.
+  server-tests:
+    name: tests (server)
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # No `check-latest` here, unlike unit-tests.yml: a release build wants a reproducible
           # toolchain, not the freshest patch (same reasoning the deploy workflow used).
           node-version: '24'
 
       - name: 📚 Install deps
-        run: |
-          cd server && npm ci
-          cd ../client && npm ci
+        run: cd server && npm ci
 
       - name: ⚛️ Build native modules against the runtime Node
         run: cd server && env npm_config_build_from_source=true npm rebuild better-sqlite3
@@ -135,10 +145,29 @@ jobs:
       - name: 🧪 Server unit suite
         run: cd server && npm test
 
-      - name: 🧪 Client unit suite
-        run: cd client && npm test
+  client-tests:
+    name: tests (client ${{ matrix.shard }}/3)
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: 📚 Install deps
+        run: cd client && npm ci
+
+      - name: 🧪 Client unit suite (shard ${{ matrix.shard }}/3)
+        run: cd client && npm test -- --shard=${{ matrix.shard }}/3
 
       - name: 🏗️ Client production build
+        if: matrix.shard == 1
         run: cd client && npm run build
 
   # ── End-to-end suite ─────────────────────────────────────────────────────────────────────────
@@ -149,8 +178,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
 
@@ -173,7 +202,7 @@ jobs:
 
       - name: 📤 Upload Playwright HTML report (on failure)
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
           path: playwright-report/
@@ -182,17 +211,55 @@ jobs:
   # ── Build the artefacts the updater will download ────────────────────────────────────────────
   package:
     name: package
-    needs: [verify, tests, e2e]
+    needs: [verify, server-tests, client-tests, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The plugin content check reads the previous tag.
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24'
 
       - name: ⚛️ Build the React client
         run: cd client && npm ci && npm run build
+
+      - name: 📱 Build the plugins' web apps
+        # specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) ship
+        # inside its package as their Vite build (`server/assets/<name>`); a build missing here would answer 503.
+        run: |
+          for app in server/src/plugins/*/apps/*/; do
+            [ -f "$app/package.json" ] || continue
+            (cd "$app" && npm ci && npm run build)
+          done
+
+      - name: 🔌 Build the plugin packages
+        # specs/plugins-phase-4-registry.md rule 23 — one package per plugin, shipped inside the core
+        # archive (`plugins-dist/`) and attached to the release for the registry. The manifests are read
+        # with the server's own validator, hence its dependencies (semver).
+        run: |
+          (cd server && npm ci --omit=dev --ignore-scripts)
+          node scripts/build-plugin-packages.mjs --out plugins-dist
+
+      - name: 🔌 A published plugin version keeps its content
+        # specs/plugins-phase-4-registry.md rule 27 — the packages of the previous release, compared by
+        # content hash: a plugin whose built files changed under the same version would be cached as the
+        # old one by every browser, so the release stops until the version is bumped. The downloaded
+        # packages are only compared, never shipped again (release assets are mutable, audit r2 N4); the
+        # skill's pre-flight runs the same check before the tag, so this never fails after tagging.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p prev-dist
+          PREV="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "v${VERSION}^" 2>/dev/null || git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
+          if [ -n "$PREV" ] && [ "$PREV" != "v${VERSION}" ]; then
+            gh release download "$PREV" -p '*.tgz' -D prev-dist || echo "::notice::No plugin package in $PREV."
+          fi
+          node scripts/check-plugin-versions.mjs --built plugins-dist --previous prev-dist
 
       - name: 📦 Create the release archive
         env:
@@ -203,6 +270,7 @@ jobs:
           ./release.sh "guestflow-${VERSION}"
           mkdir -p dist-release
           mv "guestflow-${VERSION}.tar.gz" dist-release/
+          cp plugins-dist/*.tgz dist-release/
 
       - name: 🔌 Package the WordPress plugin
         # The plugin updates itself from WordPress admin against this asset
@@ -228,7 +296,7 @@ jobs:
           cat SHA256SUMS
 
       - name: 📤 Upload the artefacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-artifacts
           path: dist-release/
@@ -244,10 +312,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: 📥 Download the artefacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-artifacts
           path: dist-release

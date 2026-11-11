@@ -6,8 +6,13 @@
  * tests can inject a fake model. (The factory is NOT named `create` — that's a request handler here.)
  */
 
-const { validateClientPayload } = require('../utils/clientValidation');
-const { parseAddressBlock, extractEmail, extractPhone } = require('../utils/contactParsing');
+const { validateClientPayload, cleanClientText } = require('../utils/clientValidation');
+const { parseAddressBlock, extractEmail, extractPhone, MAX_RAW_LENGTH } = require('../utils/contactParsing');
+const { clientExistsRefusal } = require('../utils/clientDuplicates');
+const { deactivateOpenLinksBeforeDelete } = require('../utils/paymentLinkDeactivation');
+const { isHistoryMessage } = require('../utils/deletionGuard');
+
+const clientBlockerCode = (message) => (isHistoryMessage(message) ? 'CLIENT_KEEPS_HISTORY' : 'CLIENT_CARRIES_MONEY');
 
 // When a drop holds nothing recognizable, the raw text is echoed back rather than swallowed: the user
 // sees what they dropped and the field's format validation flags it (spec §3 rules 8 and 11).
@@ -25,8 +30,8 @@ function createController(model) {
   // specs/clients-upcoming-past-directory.md §4.3 — the Clients page's read. Unknown values fall back
   // to the defaults rather than 400: a stale bookmark must still show a list.
   function directory(req, res) {
-    const { q, bucket, sort, dir } = req.query || {};
-    return res.json(model.directory({ q, bucket, sort, dir }));
+    const { q, view, bucket, sort, dir } = req.query || {};
+    return res.json(model.directory({ q, view, bucket, sort, dir }));
   }
 
   function getOne(req, res) {
@@ -35,35 +40,56 @@ function createController(model) {
     return res.json(client);
   }
 
+  // specs/clients.md rule 12 — the client a record being typed would duplicate, or null: the fiche
+  // offers to use it before anything is written.
+  function duplicate(req, res) {
+    const { email, phone } = req.query || {};
+    const existing = typeof model.findDuplicate === 'function' ? model.findDuplicate({ email, phone }) : null;
+    if (!existing) return res.json({ client: null });
+    const { client, error } = clientExistsRefusal(existing);
+    return res.json({ client, message: error });
+  }
+
   function getDeleteImpact(req, res) {
     const impact = model.getDeleteImpact(req.params.id);
     if (!impact) return res.status(404).json({ error: 'Client non trouvé' });
     return res.json(impact);
   }
 
+  // specs/clients.md rule 12 — a record with the email or phone of an existing client is
+  // refused with that client, unless the operator asked for a second one (`allowDuplicate`).
   function create(req, res) {
-    const error = validateClientPayload(req.body);
+    const body = cleanClientText(req.body);
+    const error = validateClientPayload(body);
     if (error) return res.status(400).json({ error });
-    return res.json(model.insert(req.body));
+    if (!body.allowDuplicate && typeof model.findDuplicate === 'function') {
+      const existing = model.findDuplicate(body);
+      if (existing) return res.status(409).json(clientExistsRefusal(existing));
+    }
+    return res.json(model.insert(body));
   }
 
   function update(req, res) {
-    if (!model.findById(req.params.id)) return res.status(404).json({ error: 'Client non trouvé' });
-    const error = validateClientPayload(req.body);
+    const stored = model.findById(req.params.id);
+    if (!stored) return res.status(404).json({ error: 'Client non trouvé' });
+    const body = cleanClientText(req.body, stored);
+    const error = validateClientPayload(body);
     if (error) return res.status(400).json({ error });
-    return res.json(model.update(req.params.id, req.body));
+    return res.json(model.update(req.params.id, body));
   }
 
-  function remove(req, res) {
+  async function remove(req, res) {
     const id = Number(req.params.id);
     const force = String((req.query && req.query.force) || '').toLowerCase() === 'true';
     const impact = model.getDeleteImpact(id);
     if (!impact) return res.status(404).json({ error: 'Client non trouvé' });
 
+    if (impact.blocker) return res.status(409).json({ error: impact.blocker, code: clientBlockerCode(impact.blocker) });
+
     const hasLinks = impact.reservationsCount > 0 || impact.devisCount > 0;
     if (hasLinks && !force) {
       return res.status(409).json({
-        error: 'Ce client est lié à des réservations ou des devis. Utilisez la suppression forcée pour tout supprimer.',
+        error: 'Ce client est lié à des réservations ou des devis. Suppression forcée requise pour tout supprimer.',
         code: 'CLIENT_IN_USE',
         client: impact.client,
         reservationsCount: impact.reservationsCount,
@@ -73,7 +99,13 @@ function createController(model) {
       });
     }
 
-    model.remove(id);
+    try {
+      await deactivateOpenLinksBeforeDelete(model.rowIdsToDelete(id), { paymentLinksModel: require('../models/paymentLinksModel') });
+    } catch (err) {
+      return res.status((err && err.httpStatus) || 500).json({ error: (err && err.message) || 'Suppression impossible.', code: (err && err.error) || 'DELETE_FAILED' });
+    }
+    const outcome = model.removeGuarded(id);
+    if (outcome.blocker) return res.status(409).json({ error: outcome.blocker, code: clientBlockerCode(outcome.blocker) });
     return res.json({ ok: true });
   }
 
@@ -82,7 +114,8 @@ function createController(model) {
   function parseContact(req, res) {
     const body = req.body || {};
     const requested = Object.keys(CONTACT_PARSERS).filter((key) => typeof body[key] === 'string');
-    if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
+    if (requested.length === 0) return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
+    if (requested.some((key) => body[key].length > MAX_RAW_LENGTH)) return res.status(400).json({ error: 'PAYLOAD_TOO_LONG' });
 
     const parsed = {};
     for (const key of requested) parsed[key] = CONTACT_PARSERS[key](body[key]);
@@ -109,7 +142,7 @@ function createController(model) {
   }
 
   return {
-    list, directory, getOne, getDeleteImpact, create, update, remove, parseContact,
+    list, directory, duplicate, getOne, getDeleteImpact, create, update, remove, parseContact,
     cleanupOrphans, cleanupOrphansPreview, cleanupOrphansDelete,
   };
 }

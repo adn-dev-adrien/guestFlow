@@ -82,6 +82,7 @@ versioned reference doc that keeps it that way. Migration proceeds block by bloc
 | `palette.error.main` | `#A8433A` | Soft bg `#F7E8E5`. |
 | `palette.info.main` | `#31556E` | Soft bg `#E4EDF3`. |
 | `palette.divider` | `rgba(60,54,36,0.1)` | Warm hairline. |
+| `palette.chart.*` | see `theme.js` | 2026-10-19 — every chart colour (this year, à venir `#B07F2E`, last year sand + `#8E8470` edge, ghost, grid, ticks, today, logement series, ink-banner accents), contrast-checked on white by a test. Owned by `finance-dashboard-redesign.md` rule 45; charts read it through `utils/chartColors.js`. |
 | `shape.borderRadius` | `14` | Was 12. |
 | Card/Paper shadow | `0 3px 16px rgba(60,54,36,0.09)` | Warm, soft. |
 | Spacing scale | `0.5, 1, 1.5, 2, 3` only | Blessed `Stack`/`gap`/padding multipliers. |
@@ -287,3 +288,13 @@ Per phase (details in phase specs):
 - **Serif face:** spec proposes Source Serif 4 (`@fontsource`, self-hosted). Swappable in phase 1 review if
   the rendered result disappoints — one token.
 - **Per-phase open questions** live in each phase spec.
+
+## 10. Report grammar (2026-11-05)
+
+Report screens (tourist tax, accounting synthesis, occupancy/RevPAR, stay profile, data checks) are
+composed from one grammar, specified in **`specs/report-grammar.md`**: the KPI tile anatomy
+(`SelectableTile` with `info` + `comparison`, `YearOverYearBadge` report mode, « — vs N-1 » and one
+`NoComparisonNotice`), `Panel` with the `panelLabel` typography role, `PageTabs` item counts, and the
+report charts `TrendChart`, `AlignedDailyCumulativeCharts` and `ShareTable` (with the generic
+`ChartMenu` / `ChartDataTable`). Chart colours come from `palette.chart`, categories from
+`palette.chart.categorical`. A development build shows them all at `/design/report-grammar`.

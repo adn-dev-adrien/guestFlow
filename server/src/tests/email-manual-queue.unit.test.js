@@ -9,6 +9,11 @@ const { buildController } = require('../controllers/emailsController');
 const { buildModel: buildTemplatesModel } = require('../models/emailTemplatesModel');
 const { buildModel: buildLogModel }       = require('../models/emailLogModel');
 const { buildModel: buildManualQueueModel } = require('../models/emailManualQueueModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 const DDL = `
   CREATE TABLE email_templates (
@@ -22,14 +27,20 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, templateId INTEGER, reservationId INTEGER NOT NULL,
     sentAt TEXT NOT NULL DEFAULT (datetime('now')), status TEXT NOT NULL, channel TEXT NOT NULL DEFAULT 'smtp',
     errorMessage TEXT DEFAULT '', renderedSubject TEXT NOT NULL, renderedBody TEXT NOT NULL,
-    recipientEmail TEXT NOT NULL DEFAULT ''
+    recipientEmail TEXT NOT NULL DEFAULT '', occurrenceKey TEXT NOT NULL DEFAULT ''
+  );
+  CREATE TABLE reservation_installments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, number INTEGER NOT NULL, dueDate TEXT NOT NULL,
+    amountCents INTEGER NOT NULL, paid INTEGER NOT NULL DEFAULT 0, paidDate TEXT, paidMethod TEXT, requestedAt TEXT,
+    dateEdited INTEGER NOT NULL DEFAULT 0, amountEdited INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE email_manual_queue (
     templateId INTEGER NOT NULL, reservationId INTEGER NOT NULL,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (templateId, reservationId)
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')), occurrenceKey TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (templateId, reservationId, occurrenceKey)
   );
   CREATE TABLE reservations (
+    installmentsTarget REAL NOT NULL DEFAULT 0, installmentsPaidAmount REAL NOT NULL DEFAULT 0,
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     platform TEXT,
     clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT,
@@ -158,7 +169,7 @@ test('pending: a manually-queued far-future pair shows even though it is outside
   const { ctl, manualQueueModel } = makeFixture();
   manualQueueModel.add(10, 100);
   const r = res();
-  ctl.pending({ query: { today: '2026-01-01' } }, r);
+  ctl.pending({ query: { today: inDays(-306) } }, r);
   assert.equal(r.body.length, 1);
   assert.equal(r.body[0].reservationId, 100);
   assert.equal(r.body[0].manual, 1);
@@ -169,7 +180,7 @@ test('pending: a manually-queued pair shows even when it was already sent (resen
   logModel.insert({ templateId: 10, reservationId: 100, status: 'sent', renderedSubject: 's', renderedBody: 'b', recipientEmail: 'x@y.fr' });
   manualQueueModel.add(10, 100);
   const r = res();
-  ctl.pending({ query: { today: '2026-01-01' } }, r);
+  ctl.pending({ query: { today: inDays(-306) } }, r);
   assert.equal(r.body.length, 1);
   assert.equal(r.body[0].manual, 1);
   assert.ok(r.body[0].lastSentAt);
@@ -224,7 +235,7 @@ test('markSent: logs status=sent + channel=manual, dequeues, leaves pending', ()
   assert.equal(manualQueueModel.has(10, 100), false);
 
   const p = res();
-  ctl.pending({ query: { today: '2026-01-01' } }, p);
+  ctl.pending({ query: { today: inDays(-306) } }, p);
   assert.equal(p.body.length, 0);
 });
 

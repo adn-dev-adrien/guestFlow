@@ -4,44 +4,197 @@
  * Factory `createAuthController(usersModel)` so tests can inject a fake model; a default instance is
  * bound to the production usersModel. Sessions store only the safe user object (no hash).
  *
- * `login` and `me` also carry `enabledPlugins`, the ids of the live plugins: the client hides every entry
- * point of the others (specs/plugin-engine-backport.md rule 4). It is not stored in the session, so a
- * plugin switched on or off shows at the next `/me`.
+ * The second step, the forgotten password and the support sign-in link
+ * (specs/hosting-h2-account-security.md) are HTTP glue here over their own controllers
+ * (twoFactorController, passwordResetController, supportAccessController), injected so the tests of
+ * the plain login keep a fake users model.
+ *
+ * `login` and `me` also carry `enabledPlugins`, the ids of the active plugins: the client hides every
+ * entry point of the others (specs/plugins-phase-0-foundation.md rule 14). It is not stored in the
+ * session, so a plugin switched on or off shows at the next `/me`.
  */
 
 const defaultUsersModel = require('../models/usersModel');
 const defaultSessionsModel = require('../models/sessionsModel');
 const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
+const { ADMIN, userHasRole } = require('../constants/roles');
+const { sendError } = require('../utils/httpError');
+const deviceTrust = require('../utils/deviceTrust');
+const requireAuthMiddleware = require('../middleware/requireAuth');
 
-function createAuthController(users, sessions = defaultSessionsModel, { activePlugins = () => [] } = {}) {
-  const withPlugins = (user) => ({ ...user, enabledPlugins: activePlugins() });
+const { isOpenSupportSession } = requireAuthMiddleware;
+const createRequireAuth = requireAuthMiddleware.create;
 
-  function login(req, res) {
+// A password that was right waits this long for its second step.
+const PENDING_MS = 10 * 60 * 1000;
+
+function createAuthController(users, {
+  sessions = defaultSessionsModel,
+  activePlugins = () => [],
+  pluginsManageable = () => true,
+  onboardingOpen = () => false,
+  twoFactor = null,
+  passwordReset = null,
+  supportAccess = null,
+  passwordGuard = null,
+  cookieOptions = {},
+  now = () => new Date(),
+} = {}) {
+  // `onboardingOpen` sends an admin to the start assistant (specs/plugins-phase-p-productisation.md
+  // rule 20); the other roles never see it.
+  const withPlugins = (user, session = {}) => ({
+    ...user,
+    enabledPlugins: activePlugins(),
+    // specs/plugin-operator-provisioning.md rule 3: the Plugins page exists where the administrator manages them.
+    pluginsManageable: userHasRole(user, ADMIN) && pluginsManageable(),
+    onboardingOpen: userHasRole(user, ADMIN) && !user.isSupport && onboardingOpen(),
+    // specs/hosting-h2-account-security.md rule 17: the support page exists on a managed instance only.
+    supportAccessEnabled: Boolean(supportAccess && supportAccess.enabled()) && userHasRole(user, ADMIN),
+    // Rule 16: the red bar of a support session.
+    supportSession: user.isSupport && session.supportExpiresAt ? { expiresAt: session.supportExpiresAt } : null,
+  });
+
+  // A fresh session id for a new identity (no fixation), when the store offers it.
+  function freshSession(req, fn) {
+    if (req.session && typeof req.session.regenerate === 'function') {
+      return req.session.regenerate((err) => (err ? fn(err) : fn()));
+    }
+    return fn();
+  }
+
+  function finishLogin(req, res, user, extra = {}) {
+    // Track the last login so the admin can see who's been actively using their account and so the
+    // hard-delete guard knows whether a user has ever connected (specs/admin-account-management.md).
+    if (typeof users.touchLastLogin === 'function') users.touchLastLogin(user.id);
+    req.session.user = user;
+    delete req.session.pendingTwoFactor;
+    return res.json({ ...withPlugins(user, req.session), ...extra });
+  }
+
+  const trustTokenOf = (req, userId) => deviceTrust.readCookie(req.headers && req.headers.cookie, deviceTrust.cookieName(userId));
+
+  // Rule 7: the password was right; the second step is asked unless the device is trusted.
+  async function secondStepOrLogin(req, res, user) {
+    if (!twoFactor || !twoFactor.isRequired(user, trustTokenOf(req, user.id))) return finishLogin(req, res, user);
+    const step = await twoFactor.beginLogin(user);
+    delete req.session.user;
+    req.session.pendingTwoFactor = { userId: user.id, at: now().getTime() };
+    return res.json(step);
+  }
+
+  function login(req, res, next) {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'MISSING_CREDENTIALS' });
+    }
     const user = users.verifyCredentials(email, password);
     if (!user) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
-
-    const finish = () => {
-      // Track the last login so the admin can see who's been actively using their account and so the
-      // hard-delete guard knows whether a user has ever connected (specs/admin-account-management.md).
-      if (typeof users.touchLastLogin === 'function') users.touchLastLogin(user.id);
-      req.session.user = user;
-      return res.json(withPlugins(user));
-    };
-
     // Regenerate the session id on login so a session id planted in the victim's browser BEFORE
     // authentication (cookie injection from a sibling host, or over plain HTTP) cannot be reused
     // once the victim logs in — session fixation. 2026-10-08 infrastructure audit, finding AUTH-2.
-    // Falls back to the existing session when the store/mock exposes no `regenerate` (unit tests).
-    if (req.session && typeof req.session.regenerate === 'function') {
-      return req.session.regenerate((err) => {
-        if (err) console.error('[authController.login] session regenerate failed:', err);
-        return finish();
-      });
+    if (!twoFactor || !twoFactor.isRequired(user, trustTokenOf(req, user.id))) {
+      return freshSession(req, (err) => (err ? next(err) : finishLogin(req, res, user)));
     }
-    return finish();
+    return secondStepOrLogin(req, res, user).catch((err) => {
+      // Rule 62 — the password was right; only the code mail is limited. Not a failure for the IP limiter.
+      if (err && err.body && ['RESEND_TOO_SOON', 'TOO_MANY_SENDS'].includes(err.body.error)) res.locals.codeMailLimited = true;
+      return sendError(res, err, next);
+    });
   }
+
+  function pendingUserId(req) {
+    const pending = req.session && req.session.pendingTwoFactor;
+    if (!pending || now().getTime() - pending.at > PENDING_MS) return null;
+    return pending.userId;
+  }
+
+  // POST /api/auth/2fa/verify { code, trustDevice }
+  function verifySecondFactor(req, res, next) {
+    try {
+      const userId = pendingUserId(req);
+      if (!userId) return res.status(401).json({ error: 'NO_PENDING_LOGIN', message: 'Reconnexion nécessaire.' });
+      const { user, notice } = twoFactor.verifyLogin(userId, req.body || {});
+      if (req.body && req.body.trustDevice) {
+        const trust = twoFactor.issueTrust(user.id);
+        res.cookie(trust.name, trust.value, { ...cookieOptions, httpOnly: true, sameSite: 'lax', path: '/api/auth', maxAge: trust.maxAge });
+      }
+      return freshSession(req, (err) => (err ? next(err) : finishLogin(req, res, user, { notice })));
+    } catch (err) {
+      return sendError(res, err, next);
+    }
+  }
+
+  async function resendSecondFactor(req, res, next) {
+    try {
+      const userId = pendingUserId(req);
+      if (!userId) return res.status(401).json({ error: 'NO_PENDING_LOGIN', message: 'Reconnexion nécessaire.' });
+      return res.json(await twoFactor.resendLogin(userId));
+    } catch (err) {
+      return sendError(res, err, next);
+    }
+  }
+
+  // GET /api/auth/options — what the login page offers (rule 5).
+  function options(req, res) {
+    return res.json(passwordReset ? passwordReset.options() : { forgotPassword: false });
+  }
+
+  // POST /api/auth/forgot { email } — always the same answer (rules 1, 3).
+  function forgotPassword(req, res) {
+    const { message } = passwordReset.request({ email: (req.body || {}).email, ip: req.ip });
+    return res.json({ message });
+  }
+
+  function checkResetToken(req, res) {
+    return res.json(passwordReset.check(String((req.query || {}).token || '')));
+  }
+
+  // POST /api/auth/reset { token, password } — rule 4, then the login (and its second step).
+  function resetPassword(req, res, next) {
+    try {
+      const { token, password } = req.body || {};
+      const { user } = passwordReset.reset({ token, password });
+      return freshSession(req, (err) => {
+        if (err) return next(err);
+        return secondStepOrLogin(req, res, user).catch((e) => sendError(res, e, next));
+      });
+    } catch (err) {
+      return sendError(res, err, next);
+    }
+  }
+
+  // GET /api/auth/support?token=… — the console's sign-in link (rule 14). A browser follows it, so
+  // it answers with a redirection, never JSON.
+  function supportLogin(req, res, next) {
+    let opened;
+    try {
+      opened = supportAccess.consumeLink((req.query || {}).token);
+    } catch (err) {
+      if (err && err.body) return res.redirect(303, '/login?reason=support-link');
+      return next(err);
+    }
+    return freshSession(req, (err) => {
+      if (err) return next(err);
+      req.session.user = opened.user;
+      req.session.supportAccessId = opened.accessId;
+      req.session.supportExpiresAt = opened.expiresAt;
+      return res.redirect(303, '/');
+    });
+  }
+
+  // « Mon compte » — the user's own second step (rule 6), and the dashboard's « Plus tard » (rule 10).
+  // These routes sit outside requireAuth (the router is mounted before it), so they apply its gate
+  // themselves: a deleted or deactivated account, or one still on its default password, cannot
+  // toggle its second step or regenerate backup codes from a session that is still open.
+  const gate = createRequireAuth(users);
+  const self = (fn) => (req, res, next) => gate(req, res, async () => {
+    try {
+      const out = await fn(req.user, req.body || {}, req);
+      return out === undefined ? res.status(204).end() : res.json(out);
+    } catch (err) {
+      return sendError(res, err, next);
+    }
+  });
 
   function logout(req, res) {
     if (req.session && typeof req.session.destroy === 'function') {
@@ -65,7 +218,7 @@ function createAuthController(users, sessions = defaultSessionsModel, { activePl
     // The re-read also refreshes `req.session.user` so downstream middleware reads
     // (req.user via requireAuth) see the new values without needing a logout / login cycle.
     const fresh = users.findById(req.session.user.id);
-    if (!fresh || fresh.isActive === false) {
+    if (!fresh || (fresh.isActive === false && !isOpenSupportSession(req, fresh))) {
       // Underlying user was deleted OR deactivated while the session was live — kill the session
       // too, so a deactivated account cannot keep reading its own profile (2026-10-08 audit AUTH-1).
       if (typeof req.session.destroy === 'function') {
@@ -74,18 +227,29 @@ function createAuthController(users, sessions = defaultSessionsModel, { activePl
       return res.status(401).json({ error: 'UNAUTHENTICATED' });
     }
     req.session.user = fresh;
-    return res.json(withPlugins(fresh));
+    return res.json(withPlugins(fresh, req.session));
   }
 
   function changePassword(req, res) {
     const sessionUser = req.session && req.session.user;
     if (!sessionUser) return res.status(401).json({ error: 'UNAUTHENTICATED' });
     const { currentPassword, newPassword } = req.body || {};
-    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'MISSING_FIELDS' });
-    if (String(newPassword).length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
+    // specs/hosting-h2-account-security.md rule 68 — only a string is a new password; a current password that is
+    // not one is a wrong one, counted by the guard below.
+    if (currentPassword === undefined || currentPassword === null || currentPassword === '' || typeof newPassword !== 'string' || !newPassword) {
+      return res.status(400).json({ error: 'MISSING_FIELDS' });
+    }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: 'PASSWORD_TOO_SHORT' });
     if (newPassword === currentPassword) return res.status(400).json({ error: 'PASSWORD_UNCHANGED' });
 
-    const verified = users.verifyCredentials(sessionUser.email, currentPassword);
+    // Rule 49 — the same limit as the second step's confirmation password: a stolen session cannot guess
+    // the current password here either.
+    let verified;
+    try {
+      verified = passwordGuard ? passwordGuard.check(sessionUser, currentPassword) : users.verifyCredentials(sessionUser.email, currentPassword);
+    } catch (err) {
+      return sendError(res, err);
+    }
     if (!verified) return res.status(401).json({ error: 'INVALID_CREDENTIALS' });
 
     // Capture the "this was a forced first-login change" state BEFORE running the update — the safe
@@ -112,15 +276,45 @@ function createAuthController(users, sessions = defaultSessionsModel, { activePl
     return res.status(204).end();
   }
 
-  return { login, logout, me, changePassword };
+  return {
+    login,
+    logout,
+    me,
+    changePassword,
+    verifySecondFactor,
+    resendSecondFactor,
+    options,
+    forgotPassword,
+    checkResetToken,
+    resetPassword,
+    supportLogin,
+    twoFactorStatus: self((user) => twoFactor.status(user)),
+    twoFactorStart: self((user, body) => twoFactor.start(user, body)),
+    twoFactorCancel: self((user) => twoFactor.cancel(user)),
+    twoFactorCode: self((user) => twoFactor.sendCode(user)),
+    twoFactorConfirm: self((user, body) => twoFactor.confirm(user, body)),
+    twoFactorDisable: self((user, body) => twoFactor.disable(user, body)),
+    twoFactorRegenerate: self((user, body) => twoFactor.regenerate(user, body)),
+    twoFactorSnooze: self((user) => twoFactor.snooze(user)),
+  };
 }
 
-const defaultController = createAuthController(defaultUsersModel, defaultSessionsModel, {
-  // The registry's answer: a plugin that failed to start reads as off everywhere.
+const services = require('../utils/accountSecurityServices');
+
+const defaultController = createAuthController(defaultUsersModel, {
+  twoFactor: services.twoFactor,
+  passwordReset: services.passwordReset,
+  supportAccess: services.supportAccess,
+  passwordGuard: services.passwordGuard,
+  cookieOptions: services.trustCookieOptions,
+  // The registry's answer: a plugin outside the licence (specs/control-plane-plans-and-access.md
+  // rule 12) or one that failed to start (specs/plugins-phase-1-sdk.md rule 4) reads as off everywhere.
   activePlugins: () => {
     const registry = require('../plugins/sdk/registry');
     return require('../models/pluginsModel').listActiveIds().filter((id) => registry.isLive(id));
   },
+  pluginsManageable: () => !require('../utils/pluginGovernance').isOperatorManaged(),
+  onboardingOpen: () => require('../models/onboardingModel').buildModel(require('../database')).isOpen(),
 });
 defaultController.create = createAuthController;
 

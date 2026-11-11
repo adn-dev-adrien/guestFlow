@@ -50,6 +50,9 @@ the stock projection + shortage alert follow.
    un-skip it instead. If the weekday setting later changes so that a stored extra trip lands on the
    new laundry weekday, that record becomes **inert** (ignored by the summary and by the engine; the
    regular rules apply that day) — mirrors the skip spec's « skip on a non-laundry day is inert ».
+   *Reading of 2026-11-02 — the date window.* Past dates stop at today − 5 years and future ones at today + 5 years,
+   400 `DATE_OUTSIDE_WINDOW` with the French message; a trip already stored is edited whatever its day
+   (linen 1.2.2, `specs/reservations-backend-mvc.md` rule 13, second reading).
 3. **Drop-off = the whole dirty pile.** On an extra trip the operator always brings all the dirty
    linen accumulated since the previous trip (« on apporte le linge sale qu'on a »). No partial
    drop-off.
@@ -170,6 +173,12 @@ the stock projection + shortage alert follow.
   revert restores it.
 - Reception user → sees the card and the captions, no create / edit / delete controls; a direct
   `PUT`/`DELETE` returns `403 FORBIDDEN_ROLE`.
+
+21. **Extra trips under a multi-day schedule (2026-10-28, [linen-laundry-days.md](linen-laundry-days.md)
+    rules 10, 12, 16).** Rule 2 refuses any regular day of the schedule in force on the trip's date.
+    Rules 8 and 12: a trip collects the batches that are ready (all of them, or the declared quantities
+    oldest first), not the whole pool. Rule 13's seed and its known approximation are replaced by the
+    engine's replay from `today − 42`.
 
 ---
 

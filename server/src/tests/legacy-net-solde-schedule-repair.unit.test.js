@@ -12,12 +12,14 @@
  */
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { runLegacyNetSoldeRepair } = require('../utils/legacyNetSoldeRepair');
-const { __test: { buildEntry } } = require('../models/accountingModel');
-const { buildRows } = require('../utils/accountingExport');
+const accountingModel = optionalPlugin(() => require('../plugins/accounting-export/accountingModel'));
+const buildEntry = accountingModel.__test && accountingModel.__test.buildEntry;
+const { buildRows } = optionalPlugin(() => require('../plugins/accounting-export/accountingExport'));
 
 const COMMISSION_CONTEXT = {
   defaultAccount: '622600', vatRateCommission: 20, vatRate: 10, platformByName: new Map(),
@@ -62,13 +64,13 @@ function insert(db, row) {
 const read = (db, id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(id);
 
 // La forme historique exacte de la #7 : total 994 €, solde 903 € (net), commission 91 €.
-const PARRETON = {
+const GAMMA = {
   id: 7, platform: 'GitesDeFrance', finalPrice: 994, balanceAmount: 903, platformCommissionAmount: 91,
 };
 
 test('le solde net redevient brut : la commission rejoint son échéance', () => {
   const db = repairDb();
-  insert(db, PARRETON);
+  insert(db, GAMMA);
 
   const { repaired, ids } = runLegacyNetSoldeRepair(db);
 
@@ -80,16 +82,16 @@ test('le solde net redevient brut : la commission rejoint son échéance', () =>
   assert.equal(row.depositAmount + row.balanceAmount, row.finalPrice + row.touristTaxTotal);
 });
 
-test('le journal comptable est inchangé, au centime', () => {
+test('le journal comptable est inchangé, au centime', { skip: skipWithout(['accounting-export']) }, () => {
   const before = buildEntry(
-    { ...PARRETON, balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Parreton' },
+    { ...GAMMA, balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Gamma' },
     'balance', null, COMMISSION_CONTEXT, { collectedOnArrival: false },
   );
   const db = repairDb();
-  insert(db, PARRETON);
+  insert(db, GAMMA);
   runLegacyNetSoldeRepair(db);
   const after = buildEntry(
-    { ...read(db, 7), balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Parreton' },
+    { ...read(db, 7), balancePaid: 1, balancePaidDate: '2026-05-21', firstName: 'Yann', lastName: 'Gamma' },
     'balance', null, COMMISSION_CONTEXT, { collectedOnArrival: false },
   );
 
@@ -180,7 +182,7 @@ test('une commission sans échéance où atterrir est signalée, pas réparée',
 
 test('rejouer la réparation ne change plus rien', () => {
   const db = repairDb();
-  insert(db, PARRETON);
+  insert(db, GAMMA);
 
   runLegacyNetSoldeRepair(db);
   const afterFirst = read(db, 7);

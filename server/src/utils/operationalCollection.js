@@ -35,9 +35,11 @@ function buildOperationalCollection(reservation = {}, checkoutComplement = null)
 
   const arrivalDue = b.complement.applicable && !b.complement.settled ? b.complement.amount : 0;
   const endOfStayDue = b.endOfStay.applicable && !b.endOfStay.settled ? b.endOfStay.amount : 0;
-  const deferred = checkoutComplement
+  // Deferred only while there is something left to defer: since defer rule 24 the block stays `deferred` over a
+  // complement collected at a 0 € end of stay, and that money is not « reporté » (dashboard-collection-alert, R30-M-L1).
+  const deferred = arrivalDue > 0 && (checkoutComplement
     ? Boolean(checkoutComplement.deferred)
-    : (Number(reservation.complementDeferredToCheckout || 0) === 1 && arrivalDue > 0);
+    : Number(reservation.complementDeferredToCheckout || 0) === 1);
 
   // The two échéances the platform settles for us. Both sides of the block share them.
   const echeances = [

@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event';
 
 import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
+
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // specs/option-categories.md §3 rules 7-14 — collapsible option categories on the fiche.
 //
@@ -59,7 +62,7 @@ test('categories are collapsed on load — their options are not rendered', () =
   expect(screen.queryByText('Planche S')).not.toBeInTheDocument();
   // The affordance says how many are hidden.
   expect(screen.getByText('Voir les 3 options')).toBeInTheDocument();
-  expect(screen.getByText('Voir les 1 option')).toBeInTheDocument();
+  expect(screen.getByText('Voir l’option')).toBeInTheDocument();
 });
 
 test('expanding a category reveals its options', async () => {
@@ -85,7 +88,7 @@ test('ENABLED options are pinned: visible while the category is still collapsed'
   expect(screen.getByText('Jus de pomme 1L')).toBeInTheDocument();
   // ...while the untouched one stays folded away.
   expect(screen.queryByText('Mad Max 75cl')).not.toBeInTheDocument();
-  expect(screen.getByText('Voir les 1 autre')).toBeInTheDocument();
+  expect(screen.getByText('Voir l’autre')).toBeInTheDocument();
 });
 
 test('the header chip counts the enabled options of the category', () => {
@@ -147,7 +150,7 @@ test('an internal-only category yields no section (server filtered it out)', () 
   expect(screen.queryByText('Tapis de bain')).not.toBeInTheDocument();
 });
 
-// ---- rule 9bis: an alwaysVisible option is pinned even when nothing is selected ----
+// ---- 9bis: an alwaysVisible option is pinned even when nothing is selected ----
 
 const PDJ = { id: 30, title: 'Petit déjeuner', price: 12, priceType: 'per_person', category: 'Restauration', alwaysVisible: 1 };
 
@@ -161,7 +164,7 @@ test('an alwaysVisible option renders while its category is collapsed', () => {
   expect(screen.getByText('Petit déjeuner')).toBeInTheDocument();
   // …while its unpinned sibling stays folded.
   expect(screen.queryByText('Planche S')).not.toBeInTheDocument();
-  expect(screen.getByText('Voir les 1 autre')).toBeInTheDocument();
+  expect(screen.getByText('Voir l’autre')).toBeInTheDocument();
 });
 
 test('an alwaysVisible option that is NOT selected does not inflate the count chip', () => {

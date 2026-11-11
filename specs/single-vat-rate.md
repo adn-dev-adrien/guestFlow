@@ -128,6 +128,19 @@ pricing engine from current settings).
   per-line contrib capture (force-item-to-complement) preserves the persisted
   acompte/solde amounts and only the new entry (Complément) absorbs the delta.
 
+13. **The extra-guest supplement is in the accommodation's VAT base (audit 2026-10-27).** The live
+    quote computed « Total HT / TVA » on the accommodation alone, while the stored summary and the
+    accounting export include the supplement (a supplement on the nights): 345,46 + 34,54 = 380 on a
+    stay of 500 € with 120 € of supplement. `accommodationVatAmount` / `accommodationNetPrice` are
+    now computed on `accommodationAdjustedPrice + extraGuestSurcharge`: 454,55 + 45,45 = 500, as
+    stored.
+14. **The rate belongs to a VAT period (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md)).**
+    The single rate of rule 1 becomes the rate of the VAT period in force; every reader takes the rate
+    of the reservation's own period (vat-optional-mode rules 4-8), never `app_settings.vatRate`
+    directly. Rule 12's retroactivity holds inside a period only: editing « Taux de TVA (%) » re-rates
+    the reservations of the period in force, not those of an earlier period. With a single period
+    (every install before the switch exists) the output is unchanged to the byte.
+
 ---
 
 ## 4. Architecture
@@ -184,6 +197,8 @@ Settings payload changes:
 
 Quote payload (`/api/reservations/:id/quote` etc.) — **unchanged shape**, just the three
 `vatPercentage*` fields now always hold the same value.
+
+**Audit 2026-10-27 (rule 13).** `utils/pricing.js` — `accommodationVatBase`.
 
 ---
 
@@ -325,6 +340,8 @@ assertion delta: ~80 assertions adapted across the 18 files.
 - [ ] Set the rate to 20 % temporarily → export emits a VAT line on `44571200`
       (STANDARD_20), proving the `vatAccountForRate` resolver still works.
 - [ ] Mobile (`xs`): Settings field reachable; PricingSummary totals stack cleanly.
+
+**Audit 2026-10-27:** `tests/pricing-vat-extra-guest.unit.test.js` (1, rule 13).
 
 ---
 

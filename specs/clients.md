@@ -69,7 +69,8 @@ list.
    delete is dropped). Force deletes everything (reservations + devis).
 7. **Cleanup orphans** unchanged in behavior: delete clients with **no** reservations **and no** devis;
    report `deletedCount` + `keptWithDevisCount`. Logic moves into the model.
-8. **Selective cleanup popup (added 2026-06-06).** Clicking **Cleanup clients** no longer deletes
+8. **Selective cleanup popup (added 2026-06-06).** Clicking **Cleanup clients** (labelled « Nettoyer
+   les clients » since 2026-10-18, specs/ds-components.md rule 25) no longer deletes
    immediately. The page fetches the orphan list (clients with no reservation **and** no devis), opens a
    popup listing one row per client (last name + first name + email + phone) with a **checkbox checked by
    default** on each row, plus a "Tout cocher / décocher" master toggle. Two actions:
@@ -100,6 +101,71 @@ list.
    URL update a render after the component's own state. On Annuler the dialog would not close; on
    Confirmer it came back on a client the server no longer had — « Client non trouvé », reading as if
    the deletion had already happened. Same race, same cure as `clientId` on the edit side.)
+
+12. **No duplicate client (2026-10-18).** A client whose email (case-insensitive) or phone (its last 9
+    digits, so `06 12 34 56 78` and `+33 6 12 34 56 78` match) already belongs to a client is a
+    duplicate. `POST /clients` refuses it with 409 `CLIENT_EXISTS`, carrying the existing client
+    (`{ id, firstName, lastName, email, phone }`) and « Client existant : Camille Revue (email). »,
+    unless the body asks `allowDuplicate` — the Clients page offers « Créer quand même ».
+    `GET /clients/duplicate?email=&phone=` answers `{ client, message }` or `{ client: null }`: the fiche's
+    « Créer un nouveau client » asks it first and offers « Utiliser ce client » or « Modifier la saisie ».
+    *Why: the review of 2026-10-18 (F6) created a second client with an email that already existed.*
+    *Reading of 2026-11-05 (audit R23 public finding 4):* an address holding a non-ASCII character is stored in lower case by
+    every writer (`storedEmail`: the model and an operator-typed recipient). The lookups compare a JS lower case with SQLite's
+    `lower()`, which folds ASCII only, so `ÉMILIE@…` matched nothing and made a client per request. An ASCII address keeps
+    its case. No backfill: the production copy holds no such address. Test: `tests/client-email-stored-lowercase.unit.test.js`.
+13. **A client typed on a new fiche is written with the stay (2026-10-18).** On a reservation or a devis
+    not saved yet, « Créer un nouveau client » writes nothing: the fiche shows the typed client and sends
+    it as `newClient` (no `clientId`) with the first save. `POST /reservations` and `POST /devis` then
+    write the client and the stay in one transaction (`utils/draftClient.js`): a refused save (dates
+    taken, duplicate client…) leaves no client behind. On a fiche already saved, the dialog still creates
+    the client at once. *Why: the review of 2026-10-18 (F6) left three copies of the same client after
+    three abandoned fiches.*
+14. **« Créer quand même » on the fiche too (2026-10-18).** The fiche's « Client existant » dialog offers a
+    third answer beside « Utiliser ce client » and « Modifier la saisie »: « Créer quand même », which
+    creates the typed client as a second one by sending `allowDuplicate: true` — on `POST /clients` for a
+    fiche already saved, inside `newClient` for one not saved yet (rule 13, `utils/draftClient.js` honours
+    it). The shared `ConfirmDialog` gains an optional `secondaryLabel`, resolved by `confirm()` as the
+    string `'secondary'`. *Why: the second review of 2026-10-18 found no way to create, from the fiche, a
+    partner sharing the family phone (compared on its last 9 digits): only the Clients page could.*
+15. **The client sheet is the only way to delete (2026-10-28).** The Clients list rows carry no
+    trash icon any more ([clients-upcoming-past-directory.md](clients-upcoming-past-directory.md) rule
+    18): rule 10's « Supprimer » in the sheet is the single entry, and it opens the same impact dialog.
+    `?deleteClientId=` stays a valid deep link (rule 11). *Why: two stacked icons doubled the height of
+    every row for an action taken a few times a year; the sheet already holds it, with the impact.*
+    _Q-B resolved 2026-10-28: (a)._
+
+16. **Protected history is shown and refused up front (2026-10-29, audit R2).** The client's stay list
+    (`GET /api/clients/:id/delete-impact`, also the sheet's stay list) now includes cancelled and set-aside
+    stays, each with its `kind`; the sheet shows a short « Annulée » / « Écartée » badge on them. The
+    payload carries `blocker` (null or one short refusal: « Ce client a une réservation annulée. », « Ce
+    client a une réservation écartée. », « Ce client a accepté des CGV. », or the money refusal), computed by
+    the server. When it is set the delete dialog turns neutral: title « Suppression impossible », only the
+    refusal (no « supprimera aussi… » warning, no lists) and a « Fermer » button, no confirm button, so the
+    operator never reaches a forced delete that would be refused; `DELETE /api/clients/:id` answers the same
+    `409 CLIENT_KEEPS_HISTORY` / `CLIENT_CARRIES_MONEY` on the first, non-forced call
+    (`specs/payment-schedule-and-cancellation.md` rule 53).
+
+17. **An answer about a client the operator has left never lands on screen (2026-11-02, audit R18-C1).**
+    The delete confirmation and the sheet's stay list each show only the answer of their latest request
+    (`useLatestRequest`): opening another client, closing the confirmation or confirming a deletion
+    supersedes the pending `delete-impact` request, and its late answer or error is dropped. The
+    confirmation stays loading, « Confirmer la suppression » disabled, until the client it names has
+    answered. A deletion that ends after the operator moved to another client's confirmation neither
+    closes nor marks that confirmation; the list still reloads. *Why: client A's late impact replaced
+    the confirmation of client B (A's name, stays, devis and blocker) while « Confirmer la suppression »
+    deleted B; on the sheet, B listed A's stays and a click opened A's fiche.*
+
+18. **A superseded deletion still reports its failure; a closed cleanup popup stays closed (2026-11-02,
+    review of PR #932).** When a forced deletion fails after the operator closed its confirmation or
+    moved to another client's, the failure is shown as an error toast (the server's message, or « Une
+    erreur est survenue pendant la suppression. »), never inside the confirmation on screen; while its
+    own confirmation is still open the failure stays in that dialog, with no toast. « Nettoyer les
+    clients » guards its orphan preview the same way (`useLatestRequest`): closing the popup while the
+    list loads supersedes the request, so its late answer does not reopen the popup and its late error
+    shows no toast. *Why: after rule 17 a deletion that failed once the operator had moved on was
+    reported nowhere, and A was still listed with nothing saying the deletion had failed; a late
+    preview reopened a popup the operator had just closed.*
 
 **Edge cases:**
 - Client with only devis (no reservations) → `409` now also triggers (was silently deleted); impact shows
@@ -136,7 +202,7 @@ list.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `components/` | `ClientFormFields.js` | T | One phone `TextField` (remove the add/remove multi-phone list + per-row errors). |
-| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). **2026-06-06:** wires the existing **Cleanup clients** button to fetch the preview and open `<ClientCleanupDialog>` instead of bulk-deleting. **2026-09-25:** the edit sheet passes a « Supprimer » button through `FormDialog`'s `secondaryAction`; a `lastHandledDeleteClientIdRef` guards the `?deleteClientId=` effect the way `lastHandledClientIdRef` guards `?clientId=`; the list drops the Notes column. |
+| `pages/` | `ClientsPage.js` | T | Single-phone form state/validation/display; remove the client-side reservation sort + nights math; both the in-form reservations list **and** the delete dialog consume the server-shaped `delete-impact` (reservations sorted + `nights`, plus devis). **2026-06-06:** wires the existing **Cleanup clients** button to fetch the preview and open `<ClientCleanupDialog>` instead of bulk-deleting. **2026-09-25:** the edit sheet passes a « Supprimer » button through `FormDialog`'s `secondaryAction`; a `lastHandledDeleteClientIdRef` guards the `?deleteClientId=` effect the way `lastHandledClientIdRef` guards `?clientId=`; the list drops the Notes column. **2026-11-02:** `useLatestRequest` guards the sheet's stay list, the delete confirmation (rule 17) and the cleanup preview (rule 18); a superseded deletion failure goes to `showError`. |
 | `pages/` | `ReservationPage.js` | T | Inline "create client" dialog: single `phone` (drop `phoneNumbers` from `EMPTY_CLIENT` + payload). |
 | `components/` | `ClientCleanupDialog.js` | C | **NEW (2026-06-06):** focused dialog showing the orphan list with per-row checkboxes (default checked) + master toggle + Annuler / Supprimer. Calls the delete-by-ids API on confirm, surfaces deleted/skipped counts. |
 
@@ -154,7 +220,8 @@ list.
 | GET | `/clients?q=` | — | `[client]` (`phone` string) | Search incl. phone. |
 | GET | `/clients/:id` | — | `client` | `404` if missing. |
 | GET | `/clients/:id/delete-impact` | — | `{ client, reservationsCount, reservations[], devisCount, devis[] }` | Sorted; reservations carry `nights`. |
-| POST | `/clients` | client body (`phone`) | created `client` | `400` on invalid email/phone. |
+| GET | `/clients/duplicate?email=&phone=` | — | `{ client, message }` or `{ client: null }` | _(NEW 2026-10-18, rule 12)_ The existing client a record would duplicate. |
+| POST | `/clients` | client body (`phone`, optional `allowDuplicate`) | created `client` | `400` on invalid email/phone; `409 CLIENT_EXISTS` (+`client`) on a duplicate (rule 12). |
 | PUT | `/clients/:id` | client body (`phone`) | updated `client` | `400` / `404`. |
 | DELETE | `/clients/:id?force=` | — | `{ ok }` or `409 CLIENT_IN_USE` (+impact) | Force cascades reservations + devis. |
 | POST | `/clients/cleanup-orphans` | — | `{ ok, deletedCount, keptWithDevisCount }` | Bulk delete-all (kept for back-compat / headless callers — UI no longer uses it). |
@@ -210,7 +277,7 @@ drop is irreversible.
   it is ever long enough to be useful.
 - **Cleanup orphans (2026-06-06):** clicking **Cleanup clients** opens `<ClientCleanupDialog>`:
   - Title: "Nettoyer la base clients".
-  - Subtitle (caption): "Sélectionne les clients à supprimer. Seuls les clients sans réservation ni
+  - Subtitle (caption): "Seuls les clients sans réservation ni
     devis apparaissent ici."
   - Empty state: "Aucun client à supprimer — tous les clients ont au moins une réservation ou un devis."
   - List: one row per orphan, layout `[checkbox] Nom Prénom · email · phone`. Master "Tout cocher /
@@ -269,6 +336,27 @@ drop is irreversible.
       - **Confirmer la suppression** calls `deleteClient(id, { force: true })` exactly once, closes, and
         never re-fetches the impact of the client it just deleted.
       _(All five regression cases fail against the pre-fix page.)_
+
+- [x] **NEW (2026-11-02, rule 17)** `client/src/pages/__tests__/ClientsPage.stale-impact.test.jsx` (5 tests):
+      - A late impact answer for A never lands in B's confirmation; the confirm deletes B (`42`) once.
+      - When A answers first, B's confirmation stays loading with the confirm disabled, then shows B.
+      - A late impact failure for A shows no error in B's confirmation.
+      - A deletion of A ending after B's confirmation opened neither closes it nor shows A's failure
+        (reading of 2026-11-02, audit R19-S1: true for a failure and for a success — see the case below).
+      - B's sheet never lists A's late stays, and stays loading until B answers.
+      _(All five fail against the pre-fix page.)_
+- [x] **NEW (2026-11-02, rules 17, audit R19-S1)** same file, 2 more tests (11 in all) — each kills a guard
+      mutant the nine above let through:
+      - B's sheet keeps B's stays only when A's stay list answers **after** B's (kills dropping the
+        `current()` guard on the sheet's `then`).
+      - A deletion of A that **succeeds** after B's confirmation opened leaves it open, naming B, its
+        confirm enabled, and no toast (kills dropping the `current()` guard before `closeDeleteImpact`).
+- [x] **NEW (2026-11-02, rule 18)** same file, 4 more tests (9 at the time; 11 since R19-S1):
+      - A deletion of A failing after B's confirmation opened is reported once as a toast, not in B's dialog.
+      - A deletion failing while its own confirmation is open shows in the dialog, with no toast.
+      - A late orphan preview does not reopen the cleanup popup the operator closed.
+      - A late orphan preview failure after the popup was closed shows no toast.
+      _(The first, third and fourth fail against the rule-17 page.)_
 
 ### Manual UI verification (in browser)
 - [x] "Nouveau client" form shows a single **Téléphone** field (no add/remove); `0` console errors.

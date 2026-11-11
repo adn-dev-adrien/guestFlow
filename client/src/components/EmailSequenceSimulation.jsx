@@ -13,7 +13,9 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import DataPageScaffold from './DataPageScaffold';
 import StatusBadge from './StatusBadge';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
 import { displayDate } from '../utils/formatters';
+import { addIsoDays, localIsoToday } from '../utils/isoDay';
 
 const STATUS = {
   send: { status: 'success', label: 'Part' },
@@ -22,31 +24,33 @@ const STATUS = {
   'to-check': { status: 'warning', label: 'À vérifier' },
 };
 
-const isoDay = (date) => date.toISOString().slice(0, 10);
-
 function SimulationBadge({ status }) {
   const s = STATUS[status] || { status: 'neutral', label: status };
   return <StatusBadge status={s.status} label={s.label} />;
 }
 
 export default function EmailSequenceSimulation({ tabs }) {
-  const [from, setFrom] = useState(() => isoDay(new Date()));
-  const [to, setTo] = useState(() => isoDay(new Date(Date.now() + 60 * 86400000)));
+  const [from, setFrom] = useState(() => localIsoToday());
+  const [to, setTo] = useState(() => addIsoDays(localIsoToday(), 60));
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const beginLoad = useLatestRequest();
+
   const load = useCallback(async () => {
+    const current = beginLoad();
     setLoading(true);
     setError('');
     try {
-      setResult(await api.getEmailSequenceSimulation({ from, to }));
+      const answer = await api.getEmailSequenceSimulation({ from, to });
+      if (current()) setResult(answer);
     } catch (err) {
-      setError(err.error === 'INVALID_RANGE' ? 'Période invalide (400 jours au plus, fin après début).' : 'La simulation n\'a pas pu être calculée.');
+      if (current()) setError(err.error === 'INVALID_RANGE' ? (err.message !== 'INVALID_RANGE' && err.message) || 'Période invalide (400 jours au plus, fin après début).' : 'La simulation n\'a pas pu être calculée.');
     } finally {
-      setLoading(false);
+      if (current()) setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, beginLoad]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -57,8 +61,8 @@ export default function EmailSequenceSimulation({ tabs }) {
   // (specs/settings-rationalization.md rule 17b); the server lists which ones.
   const autoCount = result ? (result.autoMailKeys || []).length : 0;
   const banner = result && (autoCount > 0 && result.startDate
-    ? <Alert severity="success">Séquence active depuis le {displayDate(result.startDate)} : {autoCount} mail{autoCount > 1 ? 's' : ''} en mode « Automatique » partiront à leur date, à 8 h. Les autres vous seront proposés.</Alert>
-    : <Alert severity="info">Aucun mail de la séquence en mode « Automatique » : rien ne part seul, tout vous est proposé dans « Emails à envoyer ». La simulation montre ce qui partirait.</Alert>);
+    ? <Alert severity="success">Séquence active depuis le {displayDate(result.startDate)} : {autoCount} mail{autoCount > 1 ? 's' : ''} en mode « Automatique » partiront à leur date, à 8 h. Les autres sont proposés.</Alert>
+    : <Alert severity="info">Aucun mail de la séquence en mode « Automatique » : rien ne part seul, tout est proposé dans « Emails à envoyer ». La simulation montre ce qui partirait.</Alert>);
 
   return (
     <DataPageScaffold
@@ -69,7 +73,7 @@ export default function EmailSequenceSimulation({ tabs }) {
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField size="small" type="date" label="Du" value={from} onChange={(e) => setFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 170 } }} />
             <TextField size="small" type="date" label="Au" value={to} onChange={(e) => setTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 170 } }} />
-            <Button startIcon={<RefreshIcon />} onClick={load} variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' }, minHeight: 40 }}>
+            <Button startIcon={<RefreshIcon />} onClick={load} variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' }, minHeight: 40, '@media (pointer: coarse)': { minHeight: 44 } }}>
               Actualiser
             </Button>
           </Box>

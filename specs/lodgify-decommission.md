@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (amendment rule 14, 2026-10-22) |
+| **Status** | Implemented (amendment rule 14, 2026-10-22; rules 16-17, audit 2026-10-27) |
 | **Branch** | `feature/lodgify-decommission` _(Claude-managed)_ |
 | **Created** | 2026-09-21 |
 | **Author** | Adrien |
@@ -44,10 +44,11 @@ Three facts shape the work:
    reservation**: GuestFlow would never know about them, and its export would leave those dates open
    on every other channel — an overbooking machine.
 
-The Booking feed also **echoes back** what it imported from GuestFlow's export: a GreenGo stay
-exported to Booking returns as a `CLOSED - Not available` event on the same dates. Treating every
-Booking event as a reservation would therefore turn every other channel's booking into a phantom
-Booking one.
+The Booking feed was thought to **echo back** what it imported from GuestFlow's export: a GreenGo stay
+exported to Booking returning as a `CLOSED - Not available` event on the same dates, which would turn every
+other channel's booking into a phantom Booking one. _(Amended 2026-10-28, rule 18: measured on the gîte
+(rule 14), Booking's feed carries its own reservations only. A wholly covered event is a conflict to
+flag, not an echo to drop; only a closure's own echo is still skipped, rule 17.)_
 
 ## 2. Goal
 
@@ -80,8 +81,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    Lodgify is a real Booking booking, not an echo, and must be claimed by the native Booking feed.
 4. A reservation whose platform is still `Lodgify` but which really came from a channel is **not**
    claimed — the platform equality is the safety. The runbook (§10 step 3) has the operator relabel
-   those before the switch. On a Booking feed such a stay is covered, hence skipped as an echo (no
-   duplicate, but no link either); on Airbnb or Abritel it is created next to the old one.
+   those before the switch. On a Booking feed such a stay holds the nights, so the Booking event is
+   created and flagged in conflict (rule 18, amended 2026-10-28 — it used to be skipped as an echo); on
+   Airbnb or Abritel it is created next to the old one.
 4bis. **Booking re-issuing a UID.** The Booking feed has no guest name, so the summary fallbacks are
    blind there. A Booking event with no mapping re-claims this source's own stay with the exact same
    dates when that stay's UID has left the feed and it is the only one. The summary-based re-claim of
@@ -94,12 +96,19 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 5. For a source whose `platformKey` is `booking`, `isUnavailableIcalEvent` does **not** drop events:
    every event is a candidate reservation, then goes through takeover (rule 1) and the echo filter
    (rule 6). Airbnb, Vrbo/Abritel and all other sources keep today's filter unchanged.
+   > **Amended 2026-10-27 (rule 16):** « a Booking feed » is now the source's own setting
+   > `feedMarksStaysClosed`, not the exact slug `booking`. Every rule of this spec that says « Booking
+   > feed » (4bis, 5–8, 14) applies to a source with that setting ticked.
 6. **Echo filter (Booking only).** After takeover, a Booking event is an **echo** and is skipped —
    no insert, no mapping — when its nights are **entirely covered** by:
    - reservations of the property imported by another source or entered in GuestFlow, and/or
    - closures applying to the property (`closuresModel`), and/or
    - **tombstones** (rule 7).
    Echoes are counted in the sync result (`échos Booking ignorés`).
+   > **Amended 2026-10-28 (rule 18):** the full-cover skip is withdrawn for stays and tombstones. An
+   > event wholly over held nights is **created and flagged** exactly like a partial one (rule 8); the
+   > counter `échos Booking ignorés` / `echoSkipped` no longer exists. Only a closure's own echo is still
+   > dropped, by the closure guard (rule 17).
 7. **Tombstones.** When a range stops being exported by GuestFlow (stay deleted, cancelled, or its
    dates changed), it is written to `ical_export_tombstones` with the time. A tombstone covers an echo
    for **72 hours**, the time for Booking to re-import GuestFlow's feed and drop the dates; tombstones
@@ -115,6 +124,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
    overbooking. GuestFlow cannot tell, so it **creates** the Booking reservation and flags it
    `bookingConflictAt = now` — the existing conflict badge (fiche + calendar) and admin notification
    do the rest. An overlap is never silently dropped.
+   > **Amended 2026-10-18:** every feed now flags an overlap the same way, and a date change that moves
+   > a stay onto taken nights too (`specs/ical-import-hardening.md` rule 3). The Booking feed alone
+   > still skips a full echo.
 9. Booking reservations created from the native feed have no guest name (the feed has none): client
    « Booking », platform `Booking`, as the empty-summary fallback already does today.
 
@@ -135,6 +147,11 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     > `disabled`, or rewrite this rule. **Applied 2026-10-16** on both Lodgify sources with a
     > `PUT /api/properties/<id>/ical-sources/<sourceId>` carrying `isActive: false` — which is not a
     > procedure to leave in a runbook, hence the arbitration.
+    >
+    > **Amended 2026-10-18 (`specs/ical-import-hardening.md` rule 2):** an inactive source is now
+    > stopped on every path — the row's « Synchroniser » is refused (`409 « Calendrier arrêté. »`),
+    > and the platforms tab shows « Arrêté » without that button. The arbitration above (one control
+    > that writes `isActive`, or `disabled` honoured by the hourly job) stays open.
 11. The `Lodgify` platform row stays: 17 reservations and their accounting entries reference it, and
     `isDirectChannel()` keeps counting it as an own channel. No new reservation is filed under it.
     > **Sans test** — nothing is changed: the row and `isDirectChannel()` stay as they are.
@@ -157,8 +174,9 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 - Lodgify feed and native feed both active during the transition → the takeover moves each booking
   once; the Lodgify feed still lists the UID, but it is superseded (rule 2bis), so its next syncs skip
   it and never raise a cancellation alert for it.
-- A Booking event overlapping a closure → skipped by the pre-existing closure guard (counted as
-  « ignoré (fermeture) »), before the echo filter is reached.
+- A Booking event whose every night is inside a closure → skipped by the closure guard (counted as
+  « ignoré (fermeture) »), before the echo filter is reached. Partly inside → created and flagged in
+  conflict (rule 8, rule 17). _(Was « any overlap → skipped » until the 2026-10-27 audit.)_
 - A stay moved on a channel after takeover → handled by the existing UID and 3.5 steps on the native
   source, like any other feed.
 
@@ -175,7 +193,7 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     tombstone inherits it. When a Booking source runs the echo filter, tombstones whose owner is
     **that same source** are not part of the cover; tombstones with another owner or `NULL` cover as
     before.
-    **Why** (incident 2026-10-22, gîte, Booking 6669322709): a Booking guest whose card failed
+    **Why** (incident 2026-10-22, gîte, Booking 6600000001): a Booking guest whose card failed
     cancelled and re-booked the same nights (6 → 8 November 2026). The first stay (fiche 22309,
     Booking source #12) left the feed, the operator approved the cancellation alert, the fiche was
     deleted and its range became a tombstone. The new booking then came back — with the **same
@@ -207,6 +225,51 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
     old UID itself comes back. Without it, the operator approving that alert would delete a live
     stay and free its nights until the next sync re-created it, without its notes or payments.
 
+16. **« Séjours en CLOSED » is a setting of the iCal source** _(fixed at the 2026-10-27 audit)_.
+    `ical_sources.feedMarksStaysClosed` says that the feed names every stay « CLOSED - Not available »
+    (Booking.com's export). It is what the sync reads for rules 4bis, 5–8 and 14 — no longer the
+    exact slug `booking`. **Why:** a Booking calendar registered as `booking-com`, `BookingCom` or
+    `booking-tente` (a second listing) was not recognised; every one of its stays was dropped at
+    parse time, the feed then looked empty, and the empty-feed sweep proposed every stay it had
+    imported for cancellation.
+    - **Default.** `NULL` means « never chosen »: the platform's spelling decides — a source whose
+      key, label or name reads « booking… » under any spelling (accents, case and separators ignored)
+      is treated as ticked, any other as unticked. A new source is stored with that default; a schema
+      without the column falls back the same way.
+    - **Migration.** One-shot `migrations.ical_feed_marks_stays_closed_v1`: every existing source
+      whose spelling reads « booking… » gets `1`. It runs once, so an operator who later unticks a
+      source keeps it unticked.
+    - **Operator control.** The URL editor of the property's « Plateformes & iCal » tab carries the
+      switch « Chaque séjour est noté « CLOSED - Not available » », saved with the URL; a ticked row
+      shows the chip « Séjours en « CLOSED » ». An edit that does not send the field keeps it.
+17. **The closure guard only drops the closure's own echo** _(fixed at the 2026-10-27 audit)_. An
+    event with **no mapping** whose **every night** is inside an operator-declared closure (property
+    or global) is skipped, counted « ignoré (fermeture) », no mapping, no alert — the closure coming
+    back from a channel. Anything else follows the normal path:
+    - a new event only **partly** inside a closure is created and flagged `bookingConflictAt` (badge
+      and notification of `specs/ical-import-hardening.md` rule 3), on every feed;
+    - a **known** stay its platform moves onto a closure is updated when pristine and flagged in
+      conflict, or, when locked, raises its date-drift alert (`specs/ical-sync-override-locked-dates.md`);
+    - a closure counts as a taken range in the overlap check of rule 8 / hardening rule 3, so a stay
+      moved off it loses the flag (hardening rule 13).
+    **Why:** the 2026-06-06 guard dropped every overlapping event before the matching cascade. A stay
+    the guest moved on Airbnb onto a closure stayed on its old dates in GuestFlow with no alert, and a
+    new booking straddling the end of a closure never existed in GuestFlow — its nights stayed open
+    in the export to every other channel.
+18. **A Booking event wholly over held nights is a conflict, not an echo** _(fixed at the 2026-10-28
+    audit; rule 6 amended)_. Rule 14 records the measurement behind it: with Booking's import set to
+    « Uniquement les dates réservées » its feed carries **its own reservations only** — GuestFlow's
+    ranges are absent from it. A Booking event whose every night is held by a stay from another origin or
+    by a recent tombstone is therefore not Booking mirroring GuestFlow: it is a Booking stay sold on nights
+    GuestFlow holds (an import lag on Booking's side, or a sale within 72 h of a cancellation). It used to
+    be skipped with no row, no mapping, no flag and no notification, and stayed invisible for as long as
+    it was covered, while a partial overlap — the lesser case — was flagged. It is now created and flagged
+    `bookingConflictAt` with the conflict notification, like rule 8. A tombstone still counts as held
+    (a flag on a stay whose predecessor was just cancelled is noise the operator dismisses; a silent drop
+    is an overbooking). A wholly-closure event stays dropped by rule 17. **Accepted residual risk:** if the
+    operator ever sets Booking's import to « all dates », every non-Booking stay comes back as a flagged
+    Booking event; the answer is the import setting, not a silent skip.
+
 ---
 
 ## 4. Architecture
@@ -224,10 +287,13 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 | `utils/` | `platformMerge.js` | T | Rule 14: merging sources also moves the owners in `ical_export_ranges` / `ical_export_tombstones` |
 | `models/` | `icalModel.js` | T | `exportProperty` refreshes the snapshot each time a feed is served (never allowed to break the feed) |
 | `utils/` | `icalBookingEcho.js` | C | Pure function: event range + covering ranges → `echo` / `partial` / `free`, night by night |
-| `utils/` | `icalParser.js` | T | `parseIcsEvents(ics, { keepUnavailable })` — the caller decides from `platformKey` |
+| `utils/` | `icalParser.js` | T | `parseIcsEvents(ics, { keepUnavailable })` — the caller decides from the source's setting (rule 16) |
+| `utils/` | `icalClosedFeed.js` | C | Rule 16: `defaultMarksStaysClosed(...labels)` (the « booking… » spelling default) and `runClosedFeedMigration(db)` (the one-shot) |
+| `models/` | `propertyIcalModel.js` (rules 16–17) | T | Reads/writes `feedMarksStaysClosed` on create/update and in `syncSource`; the closure guard moved after the matching cascade, applied to unmapped events entirely inside a closure; closures join the overlap check |
+| `models/` | `platformsModel.js` | T | Rule 16: `listForProperty` rows carry `feedMarksStaysClosed` (boolean, default resolved) |
 | `utils/` | `notificationService.js` | T | `notifyBookingConflict(id, { origin: 'ical' })` — conflict copy for the Booking feed |
 | `scheduledTasks.js` | `scheduledTasks.js` | T | Purge tombstones older than 7 days in the existing iCal task |
-| `database.js` + `schema.sql` | both | T | Create `ical_export_ranges`, `ical_export_tombstones`, `ical_superseded_events` (idempotent). Rule 14: `ADD COLUMN sourceIcalSourceId` on the first two |
+| `database.js` + `schema.sql` | both | T | Create `ical_export_ranges`, `ical_export_tombstones`, `ical_superseded_events` (idempotent). Rule 14: `ADD COLUMN sourceIcalSourceId` on the first two. Rule 16: `ADD COLUMN ical_sources.feedMarksStaysClosed` (nullable) + the one-shot migration |
 | `controllers/` / `routes/` | — | — | None: sources, toggles and sync endpoints already exist |
 
 ### 4.2 Client side (`client/src/`)
@@ -235,11 +301,16 @@ no duplicate, no lost Booking reservation, no phantom — before the Lodgify sub
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `pages/` / `components/` | — | — | None: the sync message is server-built text; the conflict badge already exists |
+| `components/property/` | `PropertyPlatformsTab.jsx` | T | Rule 16: the switch in the URL editor (MUI `Switch` + `FormControlLabel`), sent with the URL and with « Désactiver / Réactiver »; the chip on a ticked row |
 
 **Component reuse declaration:** consumed — the existing iCal sources screen and conflict badge;
-created — none; specific — none.
+created — none; specific — none. Rule 16 adds a plain MUI switch to the existing editor: no new component.
 
 ### 4.3 API contract
+
+Rule 16: `POST` / `PUT /api/properties/:id/ical-sources[/:sourceId]` accept `feedMarksStaysClosed:
+boolean` (absent → kept, or the spelling default on creation); `GET /api/properties/:id/platforms` rows
+carry `feedMarksStaysClosed: boolean`.
 
 No new endpoint. The sync endpoints return three more fields (`takenOverCount`, `echoSkippedCount`,
 `conflictReservationIds`), and `ical_sources.lastSyncCounts` gains `takenOver`, `echoSkipped`,
@@ -277,13 +348,22 @@ snapshot is rewritten in full at its next refresh, so every range has its owner 
 served after the upgrade. Tombstones written before the upgrade keep `NULL` and expire within 72 h.
 No data is lost or rewritten.
 
+**Rule 16 (2026-10-27):** `ical_sources.feedMarksStaysClosed INTEGER` (nullable, idempotent
+`ADD COLUMN`). `NULL` = never chosen, the spelling decides; the one-shot migration writes `1` on every
+existing « booking… » source. Nothing is lost or rewritten elsewhere.
+
 **Data impact:** additive table, empty at start. Takeover rewrites `sourceIcalSourceId`,
 `sourceIcalEventUid` and the mapping rows of reservations it claims — logged in
 `reservation_history`, and a production DB backup is taken before the switch (§10 step 1).
 
 ## 6. UI / UX
 
-No screen changes. The sync message under each iCal source reads, for example:
+Rule 16 (2026-10-27): « Logement › Plateformes & iCal », « Modifier l'URL » opens the URL field and,
+under it, the switch « Chaque séjour est noté « CLOSED - Not available » » (≥ 44 px row, the label
+wraps on 390 px). A ticked row shows the chip « Séjours en « CLOSED » » next to the other chips.
+Desktop and mobile alike — the chips already wrap.
+
+Otherwise no screen changes. The sync message under each iCal source reads, for example:
 « 0 créé(s), 0 mis à jour, **3 reprise(s)**, **2 écho(s) ignoré(s)**, 0 annulation(s) à valider, 5 inchangé(s) ».
 A conflicting Booking reservation shows the existing conflict badge on the fiche and the calendar.
 Mobile behaviour unchanged (text wraps as today).
@@ -322,6 +402,25 @@ Mobile behaviour unchanged (text wraps as today).
 `tests/property-ical-dedup.unit.test.js` — its schema gains `kind`, `bookingConflictAt` and the three
 tables, because its Booking source now goes through the Booking path.
 
+### Server unit tests — 2026-10-27 audit (rules 16-17)
+- [x] `tests/ical-closed-feed-setting.unit.test.js` (7 tests) — `Booking.com` and `BookingTente` sources
+  keep their CLOSED stays; the setting, not the name, decides (ticked on another feed, unticked on
+  Booking, kept by an edit that does not send it); a never-chosen source follows its spelling; the
+  `/platforms` payload; the one-shot migration; the fallback without the column.
+- [x] `tests/ical-closure-guard-scope.unit.test.js` (4 tests) — a new event inside a closure is skipped;
+  partly inside → created and flagged; a pristine stay moved onto a closure is updated and flagged; a
+  locked one raises its drift alert.
+- [x] `tests/property-ical-closure-guard.unit.test.js` — the « mixed feed » case now creates the event
+  straddling the end of the closure.
+- [x] Client: `components/property/__tests__/PropertyPlatformsTab.closed-feed.test.jsx` (3 tests) — chip,
+  switch saved with the URL, kept by « Désactiver ».
+
+### Server unit tests — 2026-10-28 audit (rules 6, 14, 18)
+- [x] `lodgify-decommission-native-feeds.unit.test.js` and `booking-tombstone-owner.unit.test.js` updated:
+  a Booking event wholly over a GreenGo stay, over a GreenGo + hand-entered stay back to back, over a
+  fresh tombstone (owner other source or none) is created and flagged; past 72 h it is created unflagged;
+  the recorded sync message and counts name the conflicts and no longer any echo.
+
 ### Manual verification
 - [ ] On a prod copy (`DB_PATH`), point the Booking source at a recorded native feed fixture and run a sync: no duplicate, echoes counted.
 - [ ] Mobile: the longer sync message wraps without horizontal scroll on the sources screen.
@@ -336,7 +435,7 @@ tables, because its Booking source now goes through the Booking path.
   non-regression on the same copy. The output of both runs goes in the PR.
 - [ ] The live case cannot serve as the check: tombstone #3 was written without an owner and
   expires on 2026-10-25 around 07:55 (Paris), before any release can be installed. After that time,
-  confirm in production that Booking 6669322709 did appear on its own, and complete its fiche.
+  confirm in production that Booking 6600000001 did appear on its own, and complete its fiche.
 
 ## 8. Out of scope
 
@@ -437,13 +536,13 @@ tables, because its Booking source now goes through the Booking path.
 Order matters: a channel is never left without a sync path, and Lodgify is cancelled last.
 
 1. **Backup** the production database; screenshot each channel's calendar for the next 12 months.
-2. **Check Abritel first.** In the Abritel partner space, find out whether listing AB 2622643
+2. **Check Abritel first.** In the Abritel partner space, find out whether listing AB <abritel-listing>
    (property 123465737) is owned by the Lodgify integration. If disconnecting would deactivate it or
    drop its reviews, stop and ask Vrbo support for a transfer to a direct owner account before going
    further on this channel.
 
    **Checked 2026-10-16 — stop condition met.** Abritel carries **two** listings, not one: the gîte
-   (AB 2577203, property 118194015, 3 reviews) as well as the tent (AB 2622643, property
+   (AB 2577203, property 118194015, 3 reviews) as well as the tent (AB <abritel-listing>, property
    123465737). Both sit on the owner account and are mapped in Lodgify on full sync. Lodgify cannot
    disconnect Vrbo itself: the account is decommissioned **by Vrbo** on request, in a time Vrbo
    decides, which elsewhere has left listings unlisted for days. A written request to Abritel
@@ -495,7 +594,7 @@ Order matters: a channel is never left without a sync path, and Lodgify is cance
      per night *above* the recipe's net target, so applying the recipe is a price cut of about 3 %
      (see §9 Q5).
    - Two future reservations carried the grid faithfully and can be used to check the re-entry:
-     `6392081711` (6–8 Nov 2026, 2 nights, 701.80 € = 2 × 350.90) and `5449776734` (25 Jul–1 Aug
+     `6300000001` (6–8 Nov 2026, 2 nights, 701.80 € = 2 × 350.90) and `5300000003` (25 Jul–1 Aug
      2027, 7 nights, 2 014.18 € = 7 × 496.10 × 0.58).
    - Unrelated but blocking in time: the extranet shows a « Connaître son partenaire » compliance
      banner on both hotels.
@@ -545,6 +644,10 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
 
 ## 11. Implementation progress
 
+- 2026-10-27 — **Audit.** Rule 16 (the « séjours en CLOSED » setting replaces the exact slug `booking`)
+  and rule 17 (the closure guard narrowed to the closure's own echo) added, with their tests; rule 5
+  and the closure edge case amended.
+
 - 2026-09-21 — server implementation, 19 unit tests, rehearsed on a production copy, spec synced (Implemented). No client code: the
   sync message is server-built text.
 - 2026-10-22 — **Incident: a re-booked Booking stay hidden as an echo** → rule 14 (Approved 2026-10-22). Measured
@@ -583,7 +686,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - *iCal wired both ways.* GuestFlow's export is imported into each hotel, and Booking's own feed
     (`ical.booking.com/v1/export?t=…`) into sources #12 and #11. First sync: **4 takeovers on the
     gîte and 1 on L'Estiva, zero creations** — rule 4 behaving exactly as specified, the five stays
-    now carrying their Booking references (6392081711, 6646665983, 5449776734 and the two others).
+    now carrying their Booking references (6300000001, 6600000002, 5300000003 and the two others).
   - *The incident.* See the rewritten step 6 above. Five duplicates (22310–22314) were created by
     the **Lodgify** source, not by the Booking one, in the minutes following the cut. GuestFlow
     flagged each of them itself with « Ce logement est déjà réservé pour ces dates ». Both Lodgify
@@ -729,8 +832,8 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
   - ⚠️ **The five duplicate reservations of 15/10 are still in production.** #22316, #22317, #22318,
     #22319 and #22315 (numbers 202610003 to 202610007), all created `2026-10-15 18:41`, all at 0 €
     with one guest and the anonymous client #144, each shadowing a real Booking reservation on the
-    same dates and property (#22309 / 6392081711, #22282 / 6396936881, #22301 / 6617083884, #22304 /
-    5449776734, #22270 / 6646665983). They carry no money but they occupy the calendar twice on five
+    same dates and property (#22309 / 6300000001, #22282 / 6300000003, #22301 / 6300000004, #22304 /
+    5300000003, #22270 / 6600000002). They carry no money but they occupy the calendar twice on five
     future stays. Deleting a production reservation is irreversible, so it waits for the operator.
   - *Runbook step 3 is smaller than it reads.* Production holds 14 future reservations (2026-10-16 →
     2028-12-31): 5 `Booking`, 5 `Lodgify`, 2 `direct`, 1 `Greengo`, 1 `GitesDeFrance` — **no
@@ -776,7 +879,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
 
 - 2026-10-16 (afternoon) — **Abritel step A: stopped, as the runbook asks.**
   - *Two listings.* The partner space lists the **gîte** (AB 2577203, property 118194015, unit
-    326936714, 3 reviews) and the **tent** (AB 2622643, property 123465737, no review), both
+    326936714, 3 reviews) and the **tent** (AB <abritel-listing>, property 123465737, no review), both
     « Performance - 2 (15 % pour chaque réservation) », online on Abritel and Expedia. Every earlier
     note knew the tent only. Lodgify's Vrbo page maps both, full sync, « Synchronisé ».
   - *No self-service cut.* Lodgify's help centre: a Vrbo account is disconnected by asking Vrbo for a
@@ -814,7 +917,7 @@ Airbnb, Booking and Abritel become consoles of their own, no longer « nourris p
     export (`abritel.fr/icalendar/<hash>.ics?nonTentative`) carries only Abritel's native stays —
     no echo of imported dates — and is wired as GuestFlow source **#15** (`Abritel`, La Granja). Its
     first sync created two **past** reservations at 0 €: #22328 (24→26/10/2025, « Reserved -
-    Adrien ») and #22329 (31/12/2025→03/01/2026, « Reserved - Carole », the twin of #22201, a
+    Adrien ») and #22329 (31/12/2025→03/01/2026, « Reserved - Camille », the twin of #22201, a
     hand-corrected Lodgify fiche with its own accounting). The takeover does not fire (different
     platform label, one night apart), and relabelling #22201 to `Abritel` to force it would switch
     its tourist-tax mode and move its totals (1 222 € → 1 246 €) on a past stay — not done.

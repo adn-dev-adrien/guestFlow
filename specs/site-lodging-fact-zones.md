@@ -97,10 +97,10 @@ once, in a table that reads on two columns when there is room and on one when th
 ## 4. Architecture
 
 This change lives in the WordPress site, not in the GuestFlow client/server. The repository copy
-under `integrations/wordpress/solio-site/` is the versioned source; deployment is manual
-(see §7 and `solio-site/README.md`).
+under `integrations/wordpress/solio-site/` was the versioned source — the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30) —; deployment is manual
+(see §7 and that repository's README).
 
-### 4.1 WordPress modules (`integrations/wordpress/solio-site/mu-plugins/`)
+### 4.1 WordPress modules (`mu-plugins/` of the site, now in the deployment's private repository)
 
 | File | T/C | Responsibility in this change |
 |---|---|---|

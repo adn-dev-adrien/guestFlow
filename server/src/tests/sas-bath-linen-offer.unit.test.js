@@ -28,6 +28,7 @@ function reservation(overrides = {}) {
   };
 }
 
+// specs/sas-bath-linen-upsell.md rules 2 + 4 — engine multiplier, babies excluded, « Linge de toilette ».
 test('offer: per-person amount = billable persons × unit price (babies excluded)', () => {
   const db = makeDb();
   db.prepare("INSERT INTO options (id, autoOptionType, price, priceType) VALUES (1, 'bathroom_linen', 6, 'per_person')").run();
@@ -40,6 +41,7 @@ test('offer: per-person amount = billable persons × unit price (babies excluded
   assert.equal(offer.label, 'Linge de toilette');
 });
 
+// specs/sas-bath-linen-upsell.md rule 2 — the per-property override.
 test('offer: per-property price override wins over the base price', () => {
   const db = makeDb();
   db.prepare("INSERT INTO options (id, autoOptionType, price, priceType) VALUES (1, 'bathroom_linen', 6, 'per_person')").run();
@@ -50,6 +52,7 @@ test('offer: per-property price override wins over the base price', () => {
   assert.equal(offer.amount, 36); // 4 × 9
 });
 
+// specs/sas-bath-linen-upsell.md rule 2 — whatever priceType the option carries.
 test('offer: respects a non-per_person priceType (mirrors the engine multiplier)', () => {
   const db = makeDb();
   // per_stay → multiplier 1 → amount = unit price regardless of persons.
@@ -59,6 +62,7 @@ test('offer: respects a non-per_person priceType (mirrors the engine multiplier)
   assert.equal(offer.amount, 10);
 });
 
+// specs/sas-bath-linen-upsell.md rule 1 — bath linen already taken: no page.
 test('offer: not available when the option is already on the reservation', () => {
   const db = makeDb();
   db.prepare("INSERT INTO options (id, autoOptionType, price, priceType) VALUES (1, 'bathroom_linen', 6, 'per_person')").run();

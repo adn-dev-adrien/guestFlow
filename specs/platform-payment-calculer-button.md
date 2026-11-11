@@ -8,6 +8,19 @@
 | **Author** | Adrien |
 | **Related PR** | (link once opened) |
 
+> **Updated 2026-10-27 (spec review) — the formula moved to the server.** §4 « pure local computation,
+> no server change, no API change » no longer holds. The fiche's « Calculer la commission » now lives in
+> `client/src/components/reservation/PlatformStatementEditor.jsx` and asks the server through
+> `api.computePlatformCommission` → **`POST /api/reservations/platform-commission`**
+> (`server/src/routes/reservations.js` → `reservationsController.platformCommission` →
+> `server/src/utils/platformCommission.js` `computePlatformCommission`), shared with the Booking intake
+> plugin so the two can never disagree ([booking-extranet-intake.md](booking-extranet-intake.md) §4.1).
+> The formula also gained the tourist tax withheld by the platform:
+> `commission = max(0, round2(gross − payout − touristTax − acompteCommission))` (rule 3 otherwise holds).
+> Request `{ gross, payout, touristTax?, acompteCommission?, expectedNet?, forMark? }` → `{ commission, … }`
+> (`expectedNet` / `forMark` serve the ledger's « Marquer reçu », reservation-payment-ledger.md rule 26).
+> Rules 1–2 and 4–5 (one-shot, acompte commission untouched) still describe the behaviour.
+
 ---
 
 ## 1. Context
@@ -45,6 +58,8 @@ clicks the button.
 2. It is **enabled only** when both **Montant total payé par le client** and **Virement reçu** are
    filled (and the reservation isn't locked). A tooltip explains the formula / why it's disabled.
 3. On click: `Commission solde = max(0, round2(montant client − virement − commission acompte))`.
+   _(Updated 2026-10-27: computed by the server, and the tourist tax withheld by the platform is also
+   subtracted — see the note at the top.)_
    - With no acompte commission entered → `Commission solde = montant client − virement` (the
      operator's stated rule).
    - With an acompte commission already entered → it's subtracted first, so the **total** commission
@@ -68,12 +83,16 @@ clicks the button.
 |---|---|---|---|
 | `components/` | `reservation/FinanceSection.js` | T | Add `computeCommissionFromPayout()` + a « Calculer la commission » `Button` (disabled until brut + virement filled) in the platform block. Pure local computation → `updateForm({ platformCommissionAmount })`. |
 
+_(Superseded 2026-10-27: the computation is server-side now — `POST /api/reservations/platform-commission`,
+see the note at the top; the button lives in `PlatformStatementEditor.jsx`.)_
+
 No server change, no API change, no schema change. (The "redisplay" turned out to be a blocked-save
 symptom, and the live écart already works — both confirmed during investigation, see §1.)
 
 ### 4.2 Server
 
-None.
+None. _(Superseded 2026-10-27: `utils/platformCommission.js` (pure formula),
+`reservationsController.platformCommission`, route `POST /reservations/platform-commission`.)_
 
 ## 5. Data model
 

@@ -5,6 +5,13 @@ const db = require('../database');
 const { sentenceCase, capitalizeFirst } = require('../utils/textFormatters');
 const { formatTimeShort } = require('../utils/dateFr');
 const { normalizeCategory, pinCancellationInsurance } = require('../utils/optionGrouping');
+const { insuranceOffered } = require('../utils/quotePostProcessors');
+const { archiveBlockedReason } = require('../utils/optionArchiveGuard');
+const { scopePayload, withStoredScope } = require('../utils/optionPayloadScope');
+
+// specs/plugins-phase-3b-neat.md rule 21 — the catalogue hides the cancellation insurance while no plugin
+// offers it. The row and its settings stay; they come back with the plugin.
+const hiddenInsurance = (o) => Number(o && o.isCancellationInsurance ? 1 : 0) === 1 && !insuranceOffered();
 
 function normalizeProgressiveOptionTiers(raw) {
   let parsed = [];
@@ -248,22 +255,40 @@ function createOptionsModel(database) {
     }
   }
 
+  // The free units a recipe wrote on each property's row (specs/tariff-recipes/spec.md rules 51, 69): { [propertyId]: n } for
+  // the rows that hold some. The editor never sends them. Guarded: several minimal test schemas have no such column.
+  const HAS_FREE_UNITS = HAS_OPTION_PROPERTY_PRICES
+    && database.prepare('PRAGMA table_info(property_option_prices)').all().some((c) => c.name === 'freeUnits');
+  const freeUnitsFor = (optionId) => {
+    if (!HAS_FREE_UNITS) return {};
+    return Object.fromEntries(database
+      .prepare('SELECT propertyId, freeUnits FROM property_option_prices WHERE optionId = ? AND freeUnits > 0')
+      .all(optionId)
+      .map((row) => [String(row.propertyId), Number(row.freeUnits)]));
+  };
   // Replace the override rows for an option. A blank/empty value means "inherit the base price" (no
-  // row); an explicit number (incl. 0 = free) is persisted. `undefined` payload → leave untouched.
+  // row); an explicit number (incl. 0 = free) is persisted, with the free units its row already held.
+  // `undefined` payload → leave untouched.
   function persistPropertyPrices(optionId, payload) {
     if (!HAS_OPTION_PROPERTY_PRICES || payload.propertyPrices === undefined) return;
+    const freeUnits = freeUnitsFor(optionId);
     database.prepare('DELETE FROM property_option_prices WHERE optionId = ?').run(optionId);
-    const insert = database.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (?, ?, ?)');
+    const insert = HAS_FREE_UNITS
+      ? database.prepare('INSERT INTO property_option_prices (propertyId, optionId, price, freeUnits) VALUES (?, ?, ?, ?)')
+      : database.prepare('INSERT INTO property_option_prices (propertyId, optionId, price) VALUES (?, ?, ?)');
     for (const [pid, raw] of Object.entries(payload.propertyPrices || {})) {
       if (raw === null || raw === undefined || raw === '') continue; // blank = inherit
       const price = Number(raw);
       const propertyId = Number(pid);
-      if (!Number.isFinite(price) || price < 0 || !Number.isInteger(propertyId) || propertyId <= 0) continue;
-      insert.run(propertyId, optionId, price);
+      if (!Number.isFinite(price) || price < 0 || !Number.isInteger(propertyId) || propertyId <= 0) {
+        throw new Error(`Invalid per-property price for property ${pid}: ${JSON.stringify(raw)}`);
+      }
+      insert.run(propertyId, optionId, price, ...(HAS_FREE_UNITS ? [freeUnits[String(propertyId)] || 0] : []));
     }
   }
 
   const model = {
+
     list() {
       // Ungrouped options ('') come first, then the categories alphabetically — the same reading
       // order the fiche and the public widget render (specs/option-categories.md §3 rule 3).
@@ -272,7 +297,7 @@ function createOptionsModel(database) {
       const english = englishTitles();
       // Same reading order as the fiche: the cancellation insurance sits just after « Départ
       // tardif » instead of under « A » (specs/cancellation-insurance.md §3.2 rule 17bis).
-      return pinCancellationInsurance(rows).map((o) => attachEnglish(decoratePlanningCard({
+      return pinCancellationInsurance(rows.filter((o) => !hiddenInsurance(o))).map((o) => attachEnglish(decoratePlanningCard({
         ...o,
         propertyIds: propertyIdsFor(o.id),
         propertyPrices: propertyPricesFor(o.id),
@@ -284,11 +309,12 @@ function createOptionsModel(database) {
 
     get(id) {
       const option = database.prepare('SELECT * FROM options WHERE id = ?').get(id);
-      if (!option) return null;
+      if (!option || hiddenInsurance(option)) return null;
       option.propertyIds = propertyIdsFor(id);
       option.propertyPrices = propertyPricesFor(id);
       option.propertyDefaults = propertyDefaultsFor(id);
       option.propertyBathMats = propertyBathMatsFor(id);
+      option.propertyFreeUnits = freeUnitsFor(id);
       option.optionProgressiveTiers = normalizeProgressiveOptionTiers(option.optionProgressiveTiers);
       return attachEnglish(decoratePlanningCard(option), englishTitles());
     },
@@ -316,7 +342,7 @@ function createOptionsModel(database) {
         ORDER BY ${HAS_OPTION_CATEGORY ? 'o.category, ' : ''}o.title
       `).all(...(HAS_OPTION_PROPERTY_PRICES ? [pid, pid] : [pid]));
       const english = englishTitles();
-      return rows.map((o) => {
+      return rows.filter((o) => !hiddenInsurance(o)).map((o) => {
         const { __propertyPrice, ...rest } = o;
         return attachEnglish(decoratePlanningCard({
           ...rest,
@@ -334,20 +360,21 @@ function createOptionsModel(database) {
      * when no option carries the flag, when it isn't applicable to that property, or when it is
      * still unpriced — an insurance at 0 is not an offer (rule 15).
      */
-    // `neatPricingActive` (specs/neat-cancellation-insurance-subscription.md rule 13): with the
-    // Neat-derived guest price active, the insurance is sellable even at a static price of 0 — the
-    // static tariff is then only the fallback. Without it, unpriced = invisible (rule 15).
-    getCancellationInsurance(propertyId, { neatPricingActive = false } = {}) {
+    // `dynamicPrice` (specs/plugins-phase-3b-neat.md rule 2): with a plugin pricing it per stay, the
+    // insurance is sellable even at a static price of 0 — the static tariff is then only the
+    // fallback. Without it, unpriced = invisible (rule 15).
+    getCancellationInsurance(propertyId, { dynamicPrice = false } = {}) {
       if (!HAS_OPTION_CANCELLATION_INSURANCE) return null;
       const found = this.listForProperty(propertyId)
         .filter((o) => Number(o.isCancellationInsurance || 0) === 1)
         .sort((a, b) => Number(a.id) - Number(b.id))[0] || null;
       if (!found) return null;
-      if (Number(found.price || 0) <= 0 && !neatPricingActive) return null;
+      if (Number(found.price || 0) <= 0 && !dynamicPrice) return null;
       return found;
     },
 
-    create(payload = {}) {
+    create(rawPayload = {}) {
+      const payload = scopePayload(rawPayload);
       const insertOption = database.prepare(`
         INSERT INTO options (
           title, description, priceType, price, optionProgressiveTiers,
@@ -364,7 +391,7 @@ function createOptionsModel(database) {
           sentenceCase(payload.title),
           capitalizeFirst(payload.description),
           payload.priceType || 'per_stay',
-          Number(payload.price || 0),
+          payload.priceType === 'free' ? 0 : Number(payload.price || 0),
           JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
           payload.autoOptionType || null,
           payload.autoEnabled ? 1 : 0,
@@ -400,53 +427,48 @@ function createOptionsModel(database) {
       return { id: optionId };
     },
 
-    update(id, payload = {}) {
-      const updateOption = database.prepare(`
-        UPDATE options SET
-          title = ?, description = ?, priceType = ?, price = ?, optionProgressiveTiers = ?,
-          autoOptionType = ?, autoEnabled = ?, autoPricingMode = ?, autoFullNightThreshold = ?,
-          countsAsBedLinen = ?, countsAsBathroomLinen = ?,
-          linenIncludesSingle = ?, linenIncludesDouble = ?, linenIncludesBaby = ?,
-          towelLargePerPerson = ?, towelMediumPerPerson = ?, towelSmallPerPerson = ?
-        WHERE id = ?
-      `);
+    update(id, rawPayload = {}) {
+      const storedRow = database.prepare('SELECT * FROM options WHERE id = ?').get(id);
+      if (!storedRow) return { ok: true };
+      // specs/options-resources-ux.md rule 33 (audit R25-DB-1) — a key the save does not send keeps the stored value: the
+      // side panel never sends the auto-option columns, and `autoEnabled = 0` took « Lit bébé » off every new stay.
+      const payload = scopePayload(withStoredScope(rawPayload, { ...storedRow, propertyIds: propertyIdsFor(id) }));
+      const sentKey = (key) => rawPayload[key] !== undefined;
+      const bit = (key) => (payload[key] ? 1 : 0);
+      const towels = (key, fallback) => Math.max(0, Math.floor(Number(payload[key] ?? fallback)));
+      const writers = {
+        title: () => sentenceCase(payload.title),
+        description: () => capitalizeFirst(payload.description),
+        priceType: () => payload.priceType || 'per_stay',
+        optionProgressiveTiers: () => JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
+        autoOptionType: () => payload.autoOptionType || null,
+        autoEnabled: () => bit('autoEnabled'),
+        autoPricingMode: () => payload.autoPricingMode || 'fixed',
+        autoFullNightThreshold: () => payload.autoFullNightThreshold || null,
+        countsAsBedLinen: () => bit('countsAsBedLinen'),
+        countsAsBathroomLinen: () => bit('countsAsBathroomLinen'),
+        linenIncludesSingle: () => bit('linenIncludesSingle'),
+        linenIncludesDouble: () => bit('linenIncludesDouble'),
+        linenIncludesBaby: () => bit('linenIncludesBaby'),
+        towelLargePerPerson: () => towels('towelLargePerPerson', 1),
+        towelMediumPerPerson: () => towels('towelMediumPerPerson', 0),
+        towelSmallPerPerson: () => towels('towelSmallPerPerson', 1),
+      };
+      const values = Object.fromEntries(Object.entries(writers).map(([column, write]) => [column, sentKey(column) ? write() : storedRow[column]]));
+      values.price = values.priceType === 'free' ? 0 : (sentKey('price') ? Number(payload.price || 0) : storedRow.price);
+      const columns = Object.keys(values);
+      const updateOption = database.prepare(`UPDATE options SET ${columns.map((c) => `${c} = @${c}`).join(', ')} WHERE id = @id`);
       const deleteLinks = database.prepare('DELETE FROM property_options WHERE optionId = ?');
       const insertLink = database.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)');
       database.transaction(() => {
-        // `autoOptionType` is a seeded system marker (breakfast / cleaning / linen…), not a form
-        // field: the Options edit form never sends it. An absent key must PRESERVE the stored
-        // type — writing `payload.autoOptionType || null` blindly stripped the breakfast type on
-        // every save of the option, killing the planning card / SAS step / push (bug found
-        // 2026-07-19 during specs/sas-breakfast-bread-and-push.md verification).
-        const existingAutoType = (database.prepare('SELECT autoOptionType FROM options WHERE id = ?').get(id) || {}).autoOptionType || null;
-        const args = [
-          sentenceCase(payload.title),
-          capitalizeFirst(payload.description),
-          payload.priceType || 'per_stay',
-          Number(payload.price || 0),
-          JSON.stringify(normalizeProgressiveOptionTiers(payload.optionProgressiveTiers)),
-          payload.autoOptionType === undefined ? existingAutoType : (payload.autoOptionType || null),
-          payload.autoEnabled ? 1 : 0,
-          payload.autoPricingMode || 'fixed',
-          payload.autoFullNightThreshold || null,
-          payload.countsAsBedLinen ? 1 : 0,
-          payload.countsAsBathroomLinen ? 1 : 0,
-          payload.linenIncludesSingle === undefined ? 1 : (payload.linenIncludesSingle ? 1 : 0),
-          payload.linenIncludesDouble === undefined ? 1 : (payload.linenIncludesDouble ? 1 : 0),
-          payload.linenIncludesBaby   === undefined ? 1 : (payload.linenIncludesBaby   ? 1 : 0),
-          Math.max(0, Math.floor(Number(payload.towelLargePerPerson  ?? 1))),
-          Math.max(0, Math.floor(Number(payload.towelMediumPerPerson ?? 0))),
-          Math.max(0, Math.floor(Number(payload.towelSmallPerPerson  ?? 1))),
-        ];
-        args.push(id);
-        updateOption.run(...args);
+        updateOption.run({ ...values, id });
         deleteLinks.run(id);
         for (const pid of (payload.propertyIds || [])) insertLink.run(pid, id);
         persistBreakfastTime(id, payload);
         persistBreakfastNotifyLeadMinutes(id, payload);
         persistPlanningCard(id, payload);
         persistPropertyPrices(id, payload);
-        persistPropertyDefaults(id, payload);
+        persistPropertyDefaults(id, { ...payload, autoEnabled: values.autoEnabled });
         persistPropertyBathMats(id, payload);
         persistDisplayToClient(id, payload);
         persistCategory(id, payload);
@@ -462,11 +484,11 @@ function createOptionsModel(database) {
     // reservations) are kept; only the per-property DEFAULT rows are removed so the option stops being
     // auto-added to new reservations. Auto-options (autoOptionType) are non-deletable (UI + here).
     remove(id) {
-      const row = database.prepare('SELECT autoOptionType FROM options WHERE id = ?').get(id);
+      const insuranceCol = HAS_OPTION_CANCELLATION_INSURANCE ? 'isCancellationInsurance' : '0 AS isCancellationInsurance';
+      const row = database.prepare(`SELECT autoOptionType, ${insuranceCol} FROM options WHERE id = ?`).get(id);
       if (!row) return { error: 'OPTION_NOT_FOUND', status: 404 };
-      if (row.autoOptionType) {
-        return { error: 'AUTO_OPTION_NON_DELETABLE', status: 409 };
-      }
+      // specs/cancellation-insurance.md rule 14 — the insurance is not deletable, like the typed seeds.
+      if (archiveBlockedReason(row)) return { error: 'AUTO_OPTION_NON_DELETABLE', status: 409 };
       database.transaction(() => {
         if (HAS_OPTION_ARCHIVED) {
           database.prepare("UPDATE options SET archivedAt = datetime('now') WHERE id = ?").run(id);
@@ -479,6 +501,24 @@ function createOptionsModel(database) {
         try { database.prepare('DELETE FROM property_option_defaults WHERE optionId = ?').run(id); } catch { /* table may be absent in minimal schemas */ }
       })();
       return { ok: true, archived: HAS_OPTION_ARCHIVED };
+    },
+
+    // specs/options-resources-ux.md rule 26 — the archived options, the latest archived first.
+    listArchived() {
+      if (!HAS_OPTION_ARCHIVED) return [];
+      return database.prepare('SELECT * FROM options WHERE archivedAt IS NOT NULL ORDER BY archivedAt DESC, id DESC').all()
+        .map((o) => ({ ...o, propertyIds: propertyIdsFor(o.id) }));
+    },
+
+    // Rule 27 — an archived option comes back to the catalogue. The per-property defaults the archive
+    // dropped are not restored (specs/option-soft-delete.md rule 5): the operator decides again.
+    restore(id) {
+      if (!HAS_OPTION_ARCHIVED) return { error: 'OPTION_NOT_FOUND', status: 404 };
+      const row = database.prepare('SELECT archivedAt FROM options WHERE id = ?').get(id);
+      if (!row) return { error: 'OPTION_NOT_FOUND', status: 404 };
+      if (!row.archivedAt) return { error: 'OPTION_NOT_ARCHIVED', status: 409 };
+      database.prepare('UPDATE options SET archivedAt = NULL WHERE id = ?').run(id);
+      return { ok: true };
     },
   };
 

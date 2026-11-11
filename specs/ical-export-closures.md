@@ -69,6 +69,25 @@ iCal feed, with no per-channel manual re-declaration.
 10. The feed stays **additive** for its consumers: no existing event changes shape, so no platform
     can lose a contract here. Under `specs/self-update-and-releases.md` §3.A rule 2 this is a **Y**,
     not an X, even though the iCal feeds are an out-of-repo consumer.
+11. *(Fixed at the 2026-10-27 spec review.)* Every exported event is RFC 5545 conformant: `DTSTART` and
+    `DTEND` are all-day values written `DTSTART;VALUE=DATE:YYYYMMDD` (the dates themselves, start
+    inclusive / end exclusive, do not change), and `DTSTAMP` is the UTC date-time of the generation
+    (`YYYYMMDDTHHMMSSZ`, §3.8.7.2 types it DATE-TIME — a date alone was invalid). GuestFlow's own importer
+    reads the feed back to the same nights. Test: `tests/ical-export-rfc5545.unit.test.js`.
+12. **A stay is exported on the nights GuestFlow refuses** _(added 2026-10-28, audit)_. The availability
+    check, the site's blocked dates and the closure overlap all treat a check-in at 10:00 or earlier as
+    taking the night before and a check-out at 17:00 or later as taking the night after. The feed used to
+    publish the bare `startDate` / `endDate`, so a platform was told a night was free that GuestFlow would
+    refuse. Each stay event now spans its effective range (`utils/occupancy.effectiveRange`); the export
+    snapshot and the tombstones (`specs/lodgify-decommission.md` rules 7, 14) are kept on those same
+    ranges. The times themselves never leave the database (`specs/ical-export-guest-privacy.md`).
+13. **TEXT values are escaped and lines folded per RFC 5545** _(added 2026-10-28, audit)_. `SUMMARY` and
+    `X-WR-CALNAME` escape the backslash first, then CR/LF/CRLF (to `\n`), comma and semicolon, so an
+    operator label can neither end a line nor open another property or event. Every content line is folded
+    at 75 octets (continuation lines start with one space), never inside a multi-byte character (§3.1).
+    The feed ends with a CRLF after `END:VCALENDAR` (§3.1: every content line, the last included, is
+    terminated).
+
 
 **Edge cases:**
 - **No applicable closure** → the feed is byte-for-byte what it is today.
@@ -171,6 +190,10 @@ Every rule is cited by the test that covers it (`rule N` in the test title), as
 `scripts/check-spec-coverage.mjs` requires — the `spec rules` CI gate fails a PR that adds a rule no
 test names. Rule 10's other half, that this makes the change a **Y** and not an **X**, is a
 versioning judgement no assertion can hold; the behaviour it rests on is the one tested.
+The two byte-for-byte comparisons (the feed with no applicable closure, rule 10's event) hold the clock
+still (`mock.timers`, 2026-11-03, audit R20): each export stamps `DTSTAMP` with the second it is built,
+and two exports a second boundary apart failed CI on PR #939. A sweep of the whole server suite under a
+clock that moves 1.1 s on every read found no other test comparing two stamped exports.
 - [ ] `tests/ical-model.unit.test.js` — still green: the devis exclusion and the reservation event
       are untouched (its DDL gains the `establishment_closures` table).
 

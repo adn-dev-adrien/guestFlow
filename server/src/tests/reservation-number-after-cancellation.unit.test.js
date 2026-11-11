@@ -18,9 +18,14 @@ const {
 const reservationsModelFactory = require('../models/reservationsModel');
 const devisModelFactory = require('../models/devisModel');
 const propertyIcalModel = require('../models/propertyIcalModel');
+const { globalFetch } = require('./icalFetchFixture');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const PREFIX = monthPrefix(new Date());
+/** `YYYY-MM-DD`, `days` after today: a stay the controller creates is never in the past (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 function realSchemaDb() {
   const db = new Database(':memory:');
@@ -120,7 +125,7 @@ test('rule 13 — an iCal booking imported after a cancellation is created and n
   });
   try {
     const source = { id: 1, propertyId: 1, url: 'http://feed.test/ical', platformKey: 'booking', platformLabel: 'Booking', name: 'Booking' };
-    const result = await propertyIcalModel.buildModel(db).syncSource(source);
+    const result = await propertyIcalModel.buildModel(db, { fetchImpl: globalFetch }).syncSource(source);
     assert.equal(result.createdCount, 1);
   } finally {
     global.fetch = origFetch;
@@ -174,7 +179,7 @@ test('rule 13 — create after a cancellation answers 200 with the next number (
   const controller = loadController();
   const db = bootDb();
   const created = [];
-  for (const dates of [['2027-07-01', '2027-07-04'], ['2027-07-10', '2027-07-13']]) {
+  for (const dates of [[inDays(244), inDays(247)], [inDays(253), inDays(256)]]) {
     const res = fakeRes();
     controller.create({ body: { ...BODY, startDate: dates[0], endDate: dates[1] }, user: { role: 'admin' } }, res);
     assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -183,7 +188,7 @@ test('rule 13 — create after a cancellation answers 200 with the next number (
   db.prepare("UPDATE reservations SET kind = 'cancelled' WHERE id = ?").run(created[1].id);
 
   const res = fakeRes();
-  controller.create({ body: { ...BODY, startDate: '2027-07-20', endDate: '2027-07-23' }, user: { role: 'admin' } }, res);
+  controller.create({ body: { ...BODY, startDate: inDays(263), endDate: inDays(266) }, user: { role: 'admin' } }, res);
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   const last = Number(String(created[1].reservationNumber).slice(6));
   assert.equal(res.body.reservationNumber, `${PREFIX}${String(last + 1).padStart(3, '0')}`);
@@ -198,7 +203,7 @@ test('rule 13 — a creation that fails half-way leaves no stay behind', () => {
   reservationsModel.insertNights = () => { throw new Error('disk full'); };
   try {
     assert.throws(() => controller.create(
-      { body: { ...BODY, startDate: '2027-08-01', endDate: '2027-08-04' }, user: { role: 'admin' } }, fakeRes(),
+      { body: { ...BODY, startDate: inDays(275), endDate: inDays(278) }, user: { role: 'admin' } }, fakeRes(),
     ), /disk full/);
   } finally {
     reservationsModel.insertNights = original;
@@ -211,14 +216,17 @@ test('rule 13 — a creation that fails half-way leaves no stay behind', () => {
 test('rule 14 — numberless stays get a number, a history line, and are reported; devis and cancelled untouched', () => {
   const db = realSchemaDb();
   seedCancelledMax(db);
+  // The repair reads the month from the stored string, and PREFIX is the local month: a UTC stamp would miss it in
+  // the first hour of a month (audit R21-S3).
+  const [arrival, departure, devisStart, devisEnd] = [inDays(120), inDays(122), inDays(127), inDays(129)];
   const ghost = db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, createdAt)
-                            VALUES ('reservation', 1, 1, '2027-03-20', '2027-03-22', datetime('now'))`).run().lastInsertRowid;
+                            VALUES ('reservation', 1, 1, ?, ?, datetime('now', 'localtime'))`).run(arrival, departure).lastInsertRowid;
   db.prepare(`INSERT INTO reservations (kind, devisNumber, propertyId, clientId, startDate, endDate, createdAt)
-              VALUES ('devis', '2026-10-004', 1, 1, '2027-03-25', '2027-03-27', datetime('now'))`).run();
+              VALUES ('devis', '2026-10-004', 1, 1, ?, ?, datetime('now', 'localtime'))`).run(devisStart, devisEnd);
 
   const repaired = repairNumberlessReservations(db);
   assert.deepEqual(repaired, [{
-    id: Number(ghost), reservationNumber: `${PREFIX}003`, propertyId: 1, startDate: '2027-03-20', endDate: '2027-03-22',
+    id: Number(ghost), reservationNumber: `${PREFIX}003`, propertyId: 1, startDate: arrival, endDate: departure,
   }]);
   const history = db.prepare('SELECT eventType, changedFields FROM reservation_history WHERE reservationId = ?').get(ghost);
   assert.equal(history.eventType, 'update');

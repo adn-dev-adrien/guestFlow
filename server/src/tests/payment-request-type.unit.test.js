@@ -27,12 +27,12 @@ function deps(db, sent, amountCents = 30000) {
   return {
     database: db,
     paymentLinksModel: {
-      findOpenForReservation: () => null,
+      findOpenForStay: () => null,
       create: (row) => ({ id: 1, ...row }),
       updateStatus: () => {},
     },
     resolveAmountCents: () => amountCents,
-    createLink: async () => ({ id: 'ql_1', url: 'https://pay.qonto/ql_1', mappedStatus: 'open', expirationDate: null }),
+    provider: { id: 'qonto', createLink: async () => ({ id: 'ql_1', url: 'https://pay.qonto/ql_1', status: 'open', expiresAt: null }) },
     sendTemplate: async (args) => { sent.push(args); return { sent: true, emailLogId: 1, recipientEmail: 'jean@x.fr' }; },
   };
 }

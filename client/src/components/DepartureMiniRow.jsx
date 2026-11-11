@@ -36,6 +36,7 @@ import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import ChecklistIcon from '@mui/icons-material/Checklist';
+import { softChipSx } from './StatusBadge';
 import { sasLockTooltip, statusLockTooltip } from '../constants/receptionSasLock';
 
 const DEPARTURE_BG = grey[100]; // #F5F5F5 — quieter than the arrival peach on purpose.
@@ -61,7 +62,7 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
   const sasLock = reservation.departureSasLock || null;
   const sasLabel = (() => {
     if (sasLock) return sasLockTooltip('departure', sasLock);
-    return sasDone ? 'Revoir / modifier le check-out' : 'Check-out (SAS départ)';
+    return sasDone ? 'Revoir le départ' : 'Départ';
   })();
   const statusLocked = reservation.checkOutStatusEditable === false;
   const statusLabel = statusLocked
@@ -120,35 +121,31 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
           {/* DÉPART badge — FlightTakeoff (plane lifting off) = symmetric counterpart
               to the ARRIVÉE Land icon. Same airport-board family, distinct silhouette. */}
           <Chip
-            icon={<FlightTakeoffIcon sx={{ fontSize: 18, color: 'white !important' }} />}
+            icon={<FlightTakeoffIcon sx={{ fontSize: 18 }} />}
             label="DÉPART"
             size="small"
-            sx={{
+            sx={[softChipSx(done ? 'success' : 'warning'), {
               height: 26,
               fontSize: 12,
               fontWeight: 800,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
               px: 0.5,
               '& .MuiChip-icon': { ml: 0.75, mr: -0.25 },
-            }}
+            }]}
           />
           {/* Time pill — symmetric with the arrival card (Adrien 2026-06-06). */}
           <Chip
-            icon={<AccessTimeIcon sx={{ fontSize: 16, color: 'white !important' }} />}
+            icon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
             label={checkOutTime}
             size="small"
-            sx={{
+            sx={[softChipSx(done ? 'success' : 'warning'), {
               height: 22,
               fontSize: 13,
               fontWeight: 800,
               borderRadius: 1.5,
-              color: 'white',
-              bgcolor: done ? 'success.main' : 'warning.main',
               '& .MuiChip-icon': { ml: 0.5, mr: -0.25 },
-            }}
+            }]}
           />
-          {done && <Chip label="Effectué" size="small" color="success" sx={{ height: 20, fontSize: 11 }} />}
+          {done && <Chip label="Effectué" size="small" sx={[softChipSx('success'), { height: 20, fontSize: 11, fontWeight: 600 }]} />}
           <Box sx={{ flexGrow: 1 }} />
           {/* Actions top-right on tablet/desktop; on mobile they move to the bottom row below. */}
           {!isMobile && (
@@ -161,10 +158,13 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
         {/* Detail block indented to align with the left edge of the DÉPART badge */}
         <Box sx={{ pl: '40px' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
-              {reservation.propertyName}
-            </Typography>
+            {/* Icon and name wrap together: a long name never leaves the icon alone on its line. */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, maxWidth: '100%' }}>
+              <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2, minWidth: 0 }}>
+                {reservation.propertyName}
+              </Typography>
+            </Box>
             {alertInfo?.explanation && (
               <Typography
                 variant="caption"
@@ -182,7 +182,7 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
           {/* Second-line block reduced to the client name. Clock + "Départ HH:MM"
               duplicate of the top time pill is removed (Adrien 2026-06-06). */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
             {onOpenClient && reservation.clientId ? (
               <Link
                 component="button"

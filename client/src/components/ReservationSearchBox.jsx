@@ -16,7 +16,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Autocomplete, TextField, InputAdornment, Box, Typography } from '@mui/material';
+import { Autocomplete, TextField, InputAdornment, Box, Typography, Chip } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import api from '../api';
 
@@ -39,22 +39,23 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
   const [inputValue, setInputValue] = useState('');
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   const debounceRef = useRef(null);
   const reqIdRef = useRef(0);
 
   useEffect(() => {
     const term = inputValue.trim();
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!term) { setOptions([]); setLoading(false); return undefined; }
+    if (!term) { setOptions([]); setFailed(false); setLoading(false); return undefined; }
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       const reqId = (reqIdRef.current += 1);
       try {
         const rows = await api.searchReservations(term);
         // Ignore stale responses (a newer keystroke already fired).
-        if (reqId === reqIdRef.current) setOptions(Array.isArray(rows) ? rows : []);
+        if (reqId === reqIdRef.current) { setOptions(Array.isArray(rows) ? rows : []); setFailed(false); }
       } catch {
-        if (reqId === reqIdRef.current) setOptions([]);
+        if (reqId === reqIdRef.current) { setOptions([]); setFailed(true); }
       } finally {
         if (reqId === reqIdRef.current) setLoading(false);
       }
@@ -83,7 +84,7 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
       }}
       getOptionLabel={(o) => (o && (o.reservationNumber || o.clientFullName)) || ''}
       isOptionEqualToValue={(o, v) => o.id === v.id}
-      noOptionsText={inputValue.trim() ? 'Aucune réservation' : 'Tapez un numéro ou un nom…'}
+      noOptionsText={failed ? 'Recherche indisponible.' : (inputValue.trim() ? 'Aucune réservation' : 'Numéro ou nom à saisir…')}
       loadingText="Recherche…"
       renderOption={(props, option) => {
         // React 19 + MUI v9: `key` is part of `props`; extract it so it isn't spread (spreading a
@@ -91,8 +92,10 @@ export default function ReservationSearchBox({ onSelect, placeholder = 'Recherch
         const { key, ...liProps } = props;
         return (
           <Box component="li" key={key} {...liProps} sx={{ display: 'block !important', py: 1 }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
               {option.reservationNumber ? `${option.reservationNumber} · ` : ''}{option.clientFullName || '—'}
+              {option.cancelled && <Chip size="small" color="error" variant="outlined" label="Annulée" sx={{ ml: 1, height: 20 }} />}
+              {option.superseded && <Chip size="small" color="warning" variant="outlined" label="Doublon écarté" sx={{ ml: 1, height: 20 }} />}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {[option.propertyName, formatStayRange(option.startDate, option.endDate)].filter(Boolean).join(' · ')}

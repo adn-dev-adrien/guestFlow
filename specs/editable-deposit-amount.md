@@ -41,9 +41,13 @@ the automatic calculation.
    every recompute, so the deposit **does not change** when the stay total changes — the delta lands
    in the **solde** (and, once both deposit and balance are paid, in the Complément, exactly like a
    paid deposit does today).
-4. The override is **clamped** to `[0, preArrival]`: a value above the pre-arrival total collapses to
-   `preArrival` (deposit = whole pre-arrival, balance = 0); a negative value is rejected at the
-   validation boundary (`NEGATIVE_AMOUNT`).
+4. The override is **refused above the accommodation** (`depositAmountOverride > accommodationPreArrival`,
+   the tourist tax stays on the solde) and below zero, in French, by the ledger's amount editor and
+   again at save (400) — amended 2026-10-19 by
+   [reservation-payment-ledger.md](reservation-payment-ledger.md) rule 16; it is no longer silently
+   clamped. The engine keeps its clamp to `[0, accommodation]` only as a last line of defence: an
+   override stored before, then overtaken by a price drop, is clamped and the ledger row says so
+   (ledger rule 17).
 5. Marking the deposit **paid** does not change the amount: the paid path already freezes
    `depositAmount` (rule 3 just makes the same freeze happen *before* payment). Editing is disabled
    once the deposit is paid.
@@ -52,6 +56,11 @@ the automatic calculation.
    **not** clear the override — per the operator's decision the deposit stays frozen; only the solde
    reflects the refreshed total. (To return to auto, clear the field.)
 8. The override survives reload: it is persisted on the reservation and rehydrated into the form.
+9. **Fixed at the 2026-10-27 spec review — refusals in French.** A negative (or non-numeric) amount
+   answered the raw code `{"error":"NEGATIVE_AMOUNT"}`. Every money / percentage refusal of the
+   reservation endpoints now answers `{ error: <French>, code }` (`financeErrorBody` in
+   `utils/financeValidation.js`): « Un montant ne peut pas être négatif. », « Montant invalide : saisir
+   un nombre. », « Pourcentage invalide : entre 0 et 100. ».
 
 **Edge cases:**
 - Override set, then platform changed to non-direct → engine ignores the override (platform branch
@@ -161,10 +170,13 @@ page-level action.
 - [ ] Clear the field → deposit returns to the percentage calculation.
 - [ ] Regression: platform reservation still shows "Pas d'acompte"; `depositDisabled` toggle still shows "Acompte désactivé".
 - [ ] Mobile (`xs`): field stacks full-width, no horizontal scroll.
+- Spec review 2026-10-27 (rule 9): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — negative acompte refused in French with its code; `complement-override-validation.unit.test.js` now asserts `code`.
 
 ## 8. Out of scope
 
-- Editing the **balance** directly (it stays derived = preArrival − deposit).
+- ~~Editing the **balance** directly~~ — now settable from the ledger: the split when the acompte is not
+  perceived, the price otherwise ([reservation-payment-ledger.md](reservation-payment-ledger.md) rules
+  17-18, 2026-10-19).
 - A per-property default "deposit as fixed amount" setting (this is per-reservation only).
 - Changing how a **paid** deposit behaves (already frozen).
 - Platform reservations' single-transfer model.

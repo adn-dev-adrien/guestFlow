@@ -6,41 +6,10 @@
 // unsaved-changes navigation guard. Locking them down here guards against silent regressions.
 
 import {
-  previewWithArticle,
   getSortedSeasonRanges,
   normalizeTimedOptionForSnapshot,
   buildTimedOptionsSnapshot,
 } from '../PropertyDetail';
-
-// ── previewWithArticle: "votre séjour <article> <name>" preview (mirrors the server formatter) ──
-
-describe('previewWithArticle', () => {
-  test('empty / whitespace / nullish name → empty string', () => {
-    expect(previewWithArticle('', 'au')).toBe('');
-    expect(previewWithArticle('   ', 'au')).toBe('');
-    expect(previewWithArticle(null, 'au')).toBe('');
-    expect(previewWithArticle(undefined, 'au')).toBe('');
-  });
-
-  test('apostrophe article elides (no space)', () => {
-    expect(previewWithArticle('Étable', "à l'")).toBe("à l'Étable");
-  });
-
-  test('non-apostrophe articles get a separating space', () => {
-    expect(previewWithArticle('Moulin', 'au')).toBe('au Moulin');
-    expect(previewWithArticle('Bergerie', 'à la')).toBe('à la Bergerie');
-    expect(previewWithArticle('Écuries', 'aux')).toBe('aux Écuries');
-  });
-
-  test('falsy article defaults to « au »', () => {
-    expect(previewWithArticle('Moulin')).toBe('au Moulin');
-    expect(previewWithArticle('Moulin', '')).toBe('au Moulin');
-  });
-
-  test('trims surrounding whitespace from the name', () => {
-    expect(previewWithArticle('  Moulin  ', 'au')).toBe('au Moulin');
-  });
-});
 
 // ── getSortedSeasonRanges: prefer dateRanges (filtered + sorted), else the legacy single range ──
 

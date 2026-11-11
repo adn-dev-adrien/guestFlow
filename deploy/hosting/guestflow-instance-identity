@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# One system user per instance (specs/hosting-h1-fleet-runtime.md rule 21). Installed by
+# bootstrap-host.sh as /usr/local/sbin/guestflow-instance-identity (root:root, 755) and allowed to the
+# console by /etc/sudoers.d/guestflow.
+#
+#   guestflow-instance-identity ensure <slug> c<id>   user gf-c<id> (group guestflow-app) + the unit's User=
+#   guestflow-instance-identity forget <slug> c<id>   the drop-in of that slug only (a rename keeps the user)
+#   guestflow-instance-identity remove <slug> c<id>   the drop-in and the user (erasure)
+#   guestflow-instance-identity --dry-run …           prints what it would do
+#
+# The user is keyed on the customer, never the slug: a rename keeps it, and with it the owner of the
+# files. Without its drop-in, guestflow@<slug>.service runs as `nobody` and fails closed.
+set -euo pipefail
+
+dry=0
+if [[ "${1:-}" == "--dry-run" ]]; then dry=1; shift; fi
+[[ $# -eq 3 ]] || { echo "usage : ensure|forget|remove <slug> c<id>" >&2; exit 64; }
+action="$1"; slug="$2"; cid="$3"
+[[ "$action" =~ ^(ensure|forget|remove)$ ]] || { echo "refusé : $action" >&2; exit 64; }
+[[ "$slug" =~ ^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$ ]] || { echo "refusé : $slug" >&2; exit 64; }
+[[ "$cid" =~ ^c[0-9]{1,9}$ ]] || { echo "refusé : $cid" >&2; exit 64; }
+user="gf-$cid"
+dropin="/etc/systemd/system/guestflow@${slug}.service.d"
+
+run() { if [[ $dry -eq 1 ]]; then echo "$*"; else "$@"; fi; }
+
+case "$action" in
+  ensure)
+    if ! id -u "$user" >/dev/null 2>&1; then
+      run useradd --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin --gid guestflow-app "$user"
+    fi
+    if [[ $dry -eq 1 ]]; then
+      echo "write $dropin/identity.conf: User=$user Group=guestflow-app"
+    else
+      mkdir -p "$dropin"
+      printf '[Service]\nUser=%s\nGroup=guestflow-app\n' "$user" > "$dropin/identity.conf"
+      chmod 644 "$dropin/identity.conf"
+    fi
+    ;;
+  forget)
+    run rm -rf "$dropin"
+    ;;
+  remove)
+    run rm -rf "$dropin"
+    if id -u "$user" >/dev/null 2>&1; then run userdel "$user"; fi
+    ;;
+esac
+run /usr/bin/systemctl daemon-reload

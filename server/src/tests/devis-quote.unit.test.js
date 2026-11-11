@@ -1,19 +1,20 @@
-// devisQuote — the online full-payment amount for a public devis (specs/public-online-payment.md).
-// SENSITIVE: the guest must be charged EXACTLY the quote they agreed to — the stored finalPrice
-// (accommodation + the options/resources THEY selected) + the stored tourist tax — never a fresh engine
-// recompute (which can drift, e.g. auto-add a "Linge de lit" option the quote never showed). The tax is
-// included EXCEPT when collected on arrival.
+// devisQuote — the online full-payment amount for a public devis (specs/public-online-payment.md,
+// specs/deposit-blocks-the-dates.md rule 18).
+// SENSITIVE: the guest must be charged EXACTLY what the payment then records — the stored acompte plus
+// the stored solde, i.e. the pre-arrival amount of the quote they agreed to (tourist tax included unless
+// paid on arrival, arrival-complement lines excluded) — never a fresh engine recompute (which can drift,
+// e.g. auto-add a "Linge de lit" option the quote never showed).
 //
-// Part A: fullPaymentCents (stubbed) — locks the agreed-amount rule, the tax decision, the anti-drift
-//         guarantee, and the fallback.
+// Part A: fullPaymentCents / fullPaymentComponents (stubbed) — the agreed-amount rule, the tax line, the
+//         anti-drift guarantee, and the fallback.
 // Part B: recomputeDevisQuote over the REAL pricing engine — proves the engine prices options/resources
-//         and the tourist tax correctly (this is what feeds the stored devis finalPrice at creation).
+//         and the tourist tax correctly (this is what feeds the stored devis amounts at creation).
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
-const { recomputeDevisQuote, fullPaymentCents } = require('../utils/devisQuote');
+const { recomputeDevisQuote, fullPaymentCents, fullPaymentComponents } = require('../utils/devisQuote');
 const { calculateReservationQuote } = require('../utils/pricing');
 
 // ---------- Part A: agreed amount + tax decision + anti-drift + fallback ----------
@@ -21,48 +22,50 @@ const { calculateReservationQuote } = require('../utils/pricing');
 // devisModel.findById returns the SAVED devis row (the amounts the guest saw); calc only feeds the
 // collectedOnArrival flag.
 const deps = ({ devis, onArrival = false, recomputeFinalPrice }) => ({
-  database: {},
+  database: { prepare: () => ({ get: () => ({ vatRate: 10 }) }) },
   devisModel: { findById: () => devis },
   calc: () => ({ finalPrice: recomputeFinalPrice != null ? recomputeFinalPrice : (devis && devis.finalPrice), touristTaxCollectedOnArrival: onArrival }),
 });
 
-test('charges the stored finalPrice + stored tourist tax (tax included by default)', () => {
-  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
+test('charges the stored acompte + solde — the pre-arrival amount, tourist tax included', () => {
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20, depositAmount: 0, balanceAmount: 789.60 };
   assert.equal(fullPaymentCents(deps({ devis }), 1, devis), 78960); // 789,60 €
 });
 
-test('collected on arrival → charges finalPrice only (tax excluded)', () => {
-  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
-  assert.equal(fullPaymentCents(deps({ devis, onArrival: true }), 1, devis), 78240);
+test('a line routed to the arrival complement is NOT charged now (it is asked for on arrival)', () => {
+  // 3 nights × 100 + ménage 80 in the Complément, tax 6: finalPrice 380, solde 306, complement 80.
+  const devis = { finalPrice: 380, touristTaxTotal: 6, depositAmount: 0, balanceAmount: 306, complementAmount: 80 };
+  assert.equal(fullPaymentCents(deps({ devis }), 1, devis), 30600, 'never finalPrice + tax = 386');
+  const basket = fullPaymentComponents(deps({ devis }), 1, devis);
+  assert.deepEqual(basket.components.map((c) => [c.grossCents, c.taxable]), [[30000, true], [600, false]]);
 });
 
-test('options + resources are already baked into the stored finalPrice → included in the charge', () => {
-  const devis = { finalPrice: 440, touristTaxTotal: 6 }; // 360 + option 50 + resource 30, tax 6
+test('an acompte on the devis: the full payment covers acompte + solde', () => {
+  const devis = { finalPrice: 440, touristTaxTotal: 6, depositAmount: 132, balanceAmount: 314 };
   assert.equal(fullPaymentCents(deps({ devis }), 1, devis), 44600);
 });
 
+test('collected on arrival → the solde carries no tax, and the basket has no tax line', () => {
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20, depositAmount: 0, balanceAmount: 782.40 };
+  assert.equal(fullPaymentCents(deps({ devis, onArrival: true }), 1, devis), 78240);
+  const basket = fullPaymentComponents(deps({ devis, onArrival: true }), 1, devis);
+  assert.deepEqual(basket.components.map((c) => c.grossCents), [78240]);
+});
+
 test('REGRESSION: a drifting engine recompute (auto-added option) must NOT change the charge', () => {
-  // The guest agreed to 782,40 + 7,20. A recompute would add a 14 € "Linge de lit" auto-option (796,40).
-  // We must still charge the agreed 789,60 — never the recompute.
-  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20, depositAmount: 0, balanceAmount: 789.60 };
   assert.equal(fullPaymentCents(deps({ devis, recomputeFinalPrice: 796.40 }), 1, devis), 78960);
 });
 
-test('no devis found → falls back to the passed row finalPrice (payment never blocked)', () => {
-  const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => null }, calc: () => null }, 1, { finalPrice: 500 });
-  assert.equal(cents, 50000);
-});
-
-test('no devis found → the fallback row STILL carries the tourist tax (no silent tax-free undercharge)', () => {
-  // paymentRequestService now selects touristTaxTotal onto the fallback row; the tax must be charged.
-  const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => null }, calc: () => null }, 1, { finalPrice: 500, touristTaxTotal: 12 });
+test('no devis found → falls back to the passed row (payment never blocked)', () => {
+  const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => null }, calc: () => null }, 1, { depositAmount: 0, balanceAmount: 512 });
   assert.equal(cents, 51200);
 });
 
-test('engine throws (flag unknown) → defaults to tax included', () => {
-  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20 };
-  const cents = fullPaymentCents({ database: {}, devisModel: { findById: () => devis }, calc: () => { throw new Error('boom'); } }, 1, devis);
-  assert.equal(cents, 78960);
+test('engine throws (flag unknown) → the basket keeps the tax line', () => {
+  const devis = { finalPrice: 782.40, touristTaxTotal: 7.20, depositAmount: 0, balanceAmount: 789.60 };
+  const basket = fullPaymentComponents({ database: deps({ devis }).database, devisModel: { findById: () => devis }, calc: () => { throw new Error('boom'); } }, 1, devis);
+  assert.deepEqual(basket.components.map((c) => c.grossCents), [78240, 720]);
 });
 
 test('recomputeDevisQuote: passes the devis options + resources to the engine (so they are priced)', () => {

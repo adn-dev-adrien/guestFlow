@@ -26,10 +26,13 @@ vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../components/PropertyDefaultOptionsCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getProperty: vi.fn(), getOptions: vi.fn(),
+    getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
+    getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(),
+    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
+    getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
+    savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
-    getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(), setPlatformTouristTax: vi.fn(),
-    setPlatformPayoutDueDays: vi.fn(),
+    getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(),
     createPropertyIcalSource: vi.fn(), updatePropertyIcalSource: vi.fn(),
     deletePropertyIcalSource: vi.fn(), syncPropertyIcalSource: vi.fn(), syncAllPropertyIcalSources: vi.fn(),
     createOption: vi.fn(), updateOption: vi.fn(),
@@ -46,6 +49,7 @@ const PLATFORMS = [
 import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
+import { LIMITS } from '../../components/property/__tests__/propertyLimitsFixtures';
 
 const renderPage = () => render(
   <MemoryRouter><DialogProvider><PropertyDetail /></DialogProvider></MemoryRouter>,
@@ -66,6 +70,7 @@ const PROPERTY = {
 };
 
 beforeEach(() => {
+  api.getPropertyLimits.mockResolvedValue(LIMITS);
   vi.clearAllMocks();
   routerState.id = '5';
   routerState.navigate = vi.fn();
@@ -95,8 +100,8 @@ test('existing property: loads via api.getProperty and populates the form', asyn
   // screen — the switch and what it reveals live in PropertyDetail.deposit-switch.test.jsx.
   openTab('Paiement');
   expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
-  expect(screen.getByLabelText(/jours avant l'arrivée/)).toHaveValue(30);
-  expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue(7);
+  expect(screen.getByLabelText(/jours avant l'arrivée/)).toHaveValue('30');
+  expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue('7');
   expect(screen.queryByLabelText(/Acompte \(jours avant\)/)).toBeNull();
   // Not dirty → Save/Cancel hidden; the destructive action is always available.
   expect(screen.queryByRole('button', { name: 'Enregistrer' })).toBeNull();

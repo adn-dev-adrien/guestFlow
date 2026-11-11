@@ -35,44 +35,44 @@ function fakeRes() {
   };
 }
 
-function call(body) {
+async function call(body) {
   upserted = null;
   const res = fakeRes();
-  updateSettings({ body }, res);
+  await updateSettings({ body }, res);
   return { upserted, res };
 }
 
-test('Gmail App Password 4×4 format with spaces is stored space-free', () => {
-  const { upserted: pl } = call({ smtp: { password: 'abcd efgh ijkl mnop' } });
+test('Gmail App Password 4×4 format with spaces is stored space-free', async () => {
+  const { upserted: pl } = await call({ smtp: { password: 'abcd efgh ijkl mnop' } });
   assert.equal(pl.smtpPasswordEncrypted, 'abcdefghijklmnop');
 });
 
-test('every whitespace variant is stripped: tabs, multiple spaces, leading/trailing, line breaks', () => {
-  const { upserted: pl } = call({ smtp: { password: '   abcd\tefgh\n\nijkl    mnop   ' } });
+test('every whitespace variant is stripped: tabs, multiple spaces, leading/trailing, line breaks', async () => {
+  const { upserted: pl } = await call({ smtp: { password: '   abcd\tefgh\n\nijkl    mnop   ' } });
   assert.equal(pl.smtpPasswordEncrypted, 'abcdefghijklmnop');
 });
 
-test('password without whitespace passes through unchanged', () => {
-  const { upserted: pl } = call({ smtp: { password: 'JustAPlainSecret1!' } });
+test('password without whitespace passes through unchanged', async () => {
+  const { upserted: pl } = await call({ smtp: { password: 'JustAPlainSecret1!' } });
   assert.equal(pl.smtpPasswordEncrypted, 'JustAPlainSecret1!');
 });
 
-test('explicit empty string clears the password (3-way semantics preserved)', () => {
-  const { upserted: pl } = call({ smtp: { password: '' } });
+test('explicit empty string clears the password (3-way semantics preserved)', async () => {
+  const { upserted: pl } = await call({ smtp: { password: '' } });
   assert.equal(pl.smtpPasswordEncrypted, '');
 });
 
-test('null clears like empty string', () => {
-  const { upserted: pl } = call({ smtp: { password: null } });
+test('null clears like empty string', async () => {
+  const { upserted: pl } = await call({ smtp: { password: null } });
   assert.equal(pl.smtpPasswordEncrypted, '');
 });
 
-test('absent password property → field never set in payload (preserve existing)', () => {
-  const { upserted: pl } = call({ smtp: { host: 'smtp.gmail.com' } });
+test('absent password property → field never set in payload (preserve existing)', async () => {
+  const { upserted: pl } = await call({ smtp: { host: 'smtp.gmail.com' } });
   assert.equal(Object.prototype.hasOwnProperty.call(pl, 'smtpPasswordEncrypted'), false);
 });
 
-test('password that is ONLY whitespace becomes empty (treated as a clear)', () => {
-  const { upserted: pl } = call({ smtp: { password: '       ' } });
+test('password that is ONLY whitespace becomes empty (treated as a clear)', async () => {
+  const { upserted: pl } = await call({ smtp: { password: '       ' } });
   assert.equal(pl.smtpPasswordEncrypted, '');
 });

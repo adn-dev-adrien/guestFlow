@@ -7,7 +7,7 @@
  *
  * Safe user shape (returned everywhere):
  *   { id, email, firstName, lastName, companyName, notes, roles: string[], isActive,
- *     mustChangePassword, lastLoginAt, emailChangedAt }
+ *     mustChangePassword, lastLoginAt, emailChangedAt, isSupport }
  *
  * `emailChangedAt` (added 2026-06-02): ISO timestamp of the last `updateUser` call that mutated
  * the email column. Lets the client surface the "vérifier votre nouvelle adresse" banner until the
@@ -22,25 +22,34 @@
  *   - hardDelete: only allowed when the user has never logged in (lastLoginAt IS NULL AND
  *     mustChangePassword = 1) — throws HARD_DELETE_NOT_ELIGIBLE otherwise
  *   - findActiveAdminCount + the guards in the controller protect against last-admin removal
+ *   - the « Support GuestFlow » account (specs/hosting-h2-account-security.md rule 21) is told by
+ *     `isSupportAccount`, never by its email, and no method of this model changes it: identity, email,
+ *     roles, password, active flag. Every write on it throws SUPPORT_ACCOUNT_LOCKED. It is never
+ *     listed and never the target of the admin recovery.
  */
 
+const crypto = require('crypto');
 const db = require('../database');
 const { hashPassword, verifyPassword } = require('../utils/passwordHash');
 const { DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD } = require('../constants/authDefaults');
 const { isKnownRole, ADMIN } = require('../constants/roles');
 
 function normalizeEmail(value) {
-  return String(value || '').trim().toLowerCase();
+  return (typeof value === 'string' ? value : '').trim().toLowerCase();
 }
+
+const DUMMY_PASSWORD_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
 
 function buildModel(database) {
   // ----- prepared statements (built once per model instance) -----
   const findByEmailStmt = database.prepare('SELECT * FROM users WHERE email = ?');
   const findByIdStmt = database.prepare('SELECT * FROM users WHERE id = ?');
+  // The « Support GuestFlow » account (specs/hosting-h2-account-security.md rule 14) is never listed.
   const listStmt = database.prepare(`
-    SELECT * FROM users
+    SELECT * FROM users WHERE isSupportAccount = 0
     ORDER BY lastName COLLATE NOCASE, firstName COLLATE NOCASE, email COLLATE NOCASE
   `);
+  const findSupportStmt = database.prepare('SELECT * FROM users WHERE isSupportAccount = 1 ORDER BY id LIMIT 1');
   const loadRolesStmt = database.prepare('SELECT role FROM user_roles WHERE userId = ? ORDER BY role');
   const deleteRolesStmt = database.prepare('DELETE FROM user_roles WHERE userId = ?');
   const insertRoleStmt = database.prepare('INSERT OR IGNORE INTO user_roles (userId, role) VALUES (?, ?)');
@@ -84,6 +93,21 @@ function buildModel(database) {
     WHERE u.isActive = 1 AND r.role = ?
   `);
 
+  const tableExists = (name) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+
+  // specs/hosting-h2-account-security.md rule 63 — a link mailed before the address or the password
+  // changed must not work after.
+  function voidResetLinks(userId) {
+    if (!tableExists('password_reset_tokens')) return;
+    database.prepare("UPDATE password_reset_tokens SET usedAt = ? WHERE userId = ? AND usedAt IS NULL").run(new Date().toISOString(), Number(userId));
+  }
+
+  // specs/pwa-push-notifications.md rule 13 — devices of an account that is no longer an active admin.
+  function dropPushDevices(userId) {
+    if (!tableExists('push_subscriptions')) return;
+    database.prepare('DELETE FROM push_subscriptions WHERE userId = ?').run(Number(userId));
+  }
+
   function loadRoles(userId) {
     return loadRolesStmt.all(Number(userId)).map((r) => r.role);
   }
@@ -102,7 +126,17 @@ function buildModel(database) {
       mustChangePassword: Number(row.mustChangePassword) === 1,
       lastLoginAt: row.lastLoginAt || null,
       emailChangedAt: row.emailChangedAt || null,
+      isSupport: Number(row.isSupportAccount) === 1,
     };
+  }
+
+  // Rule 21: nothing in this model writes the support account.
+  function assertNotSupport(row) {
+    if (row && Number(row.isSupportAccount) === 1) {
+      const err = new Error('SUPPORT_ACCOUNT_LOCKED');
+      err.code = 'SUPPORT_ACCOUNT_LOCKED';
+      throw err;
+    }
   }
 
   // ----- role management -----
@@ -111,9 +145,11 @@ function buildModel(database) {
     for (const role of roles) {
       insertRoleStmt.run(userId, role);
     }
+    if (!roles.includes(ADMIN)) dropPushDevices(userId);
   });
 
   function setRoles(userId, roles) {
+    assertNotSupport(findByIdStmt.get(Number(userId)));
     const cleaned = Array.from(new Set((roles || []).map((r) => String(r || '').trim()).filter(Boolean)));
     if (cleaned.length === 0) {
       const err = new Error('ROLES_REQUIRED');
@@ -147,9 +183,17 @@ function buildModel(database) {
 
     verifyCredentials(email, password) {
       const row = findByEmailStmt.get(normalizeEmail(email));
-      if (!row || Number(row.isActive) !== 1) return null;
-      if (!verifyPassword(String(password || ''), row.passwordHash)) return null;
+      // One scrypt run whatever the account: an unknown, inactive or support account answers in the
+      // time of a wrong password (specs/hosting-h2-account-security.md rule 61).
+      const passwordOk = verifyPassword(typeof password === 'string' ? password : '', row ? row.passwordHash : DUMMY_PASSWORD_HASH);
+      if (!row || !passwordOk || Number(row.isActive) !== 1 || Number(row.isSupportAccount) === 1) return null;
       return toSafeUser(row);
+    },
+
+    // The « Support GuestFlow » account a signed link opens (rule 14), or null.
+    findSupportAccount() {
+      const row = findSupportStmt.get();
+      return row ? toSafeUser(row) : null;
     },
 
     list() {
@@ -197,6 +241,7 @@ function buildModel(database) {
       const numericId = Number(id);
       const existing = findByIdStmt.get(numericId);
       if (!existing) return null;
+      assertNotSupport(existing);
 
       // Optional email change — normalize, check it's actually different, then enforce
       // uniqueness BEFORE the write so we don't have to map a SQLite unique-constraint
@@ -225,6 +270,7 @@ function buildModel(database) {
         );
         if (normalizedEmail && normalizedEmail !== existing.email) {
           updateEmailStmt.run(normalizedEmail, numericId);
+          voidResetLinks(numericId);
         }
         if (roles !== undefined) setRoles(numericId, roles);
       });
@@ -244,7 +290,11 @@ function buildModel(database) {
     setRoles,
 
     updatePassword(id, newPassword) {
-      updatePasswordStmt.run(hashPassword(String(newPassword)), Number(id));
+      assertNotSupport(findByIdStmt.get(Number(id)));
+      database.transaction(() => {
+        updatePasswordStmt.run(hashPassword(String(newPassword)), Number(id));
+        voidResetLinks(id);
+      })();
     },
 
     // Admin-side reset: hash the new password, force mustChangePassword=1, reactivate. Returns null
@@ -254,8 +304,12 @@ function buildModel(database) {
       const numericId = Number(id);
       const existing = findByIdStmt.get(numericId);
       if (!existing) return null;
+      assertNotSupport(existing);
       const hash = hashPassword(String(newPassword || ''));
-      resetPasswordStmt.run(hash, numericId);
+      database.transaction(() => {
+        resetPasswordStmt.run(hash, numericId);
+        voidResetLinks(numericId);
+      })();
       return toSafeUser(findByIdStmt.get(numericId));
     },
 
@@ -263,7 +317,11 @@ function buildModel(database) {
       const numericId = Number(id);
       const existing = findByIdStmt.get(numericId);
       if (!existing) return null;
-      softDeleteStmt.run(numericId);
+      assertNotSupport(existing);
+      database.transaction(() => {
+        softDeleteStmt.run(numericId);
+        dropPushDevices(numericId);
+      })();
       return toSafeUser(findByIdStmt.get(numericId));
     },
 
@@ -273,6 +331,7 @@ function buildModel(database) {
       const numericId = Number(id);
       const existing = findByIdStmt.get(numericId);
       if (!existing) return null;
+      assertNotSupport(existing);
       const eligible = existing.lastLoginAt == null && Number(existing.mustChangePassword) === 1;
       if (!eligible) {
         const err = new Error('HARD_DELETE_NOT_ELIGIBLE');
@@ -286,6 +345,13 @@ function buildModel(database) {
       return true;
     },
 
+    // A fingerprint of the stored password hash: it changes with every new password, which is what
+    // revokes a trusted device (specs/hosting-h2-account-security.md rule 7). Never the hash itself.
+    credentialStamp(id) {
+      const row = findByIdStmt.get(Number(id));
+      return row ? require('crypto').createHash('sha256').update(String(row.passwordHash)).digest('hex') : null;
+    },
+
     touchLastLogin(id) {
       touchLastLoginStmt.run(Number(id));
     },
@@ -293,6 +359,11 @@ function buildModel(database) {
     // Counts active admin users, used by the controller's last-admin guard.
     findActiveAdminCount() {
       return activeAdminCountStmt.get(ADMIN).n;
+    },
+
+    // specs/control-plane-plans-and-access.md rule 13 — the accounts the plan quota counts.
+    countActive() {
+      return database.prepare('SELECT COUNT(*) AS n FROM users WHERE isActive = 1').get().n;
     },
 
     // Recovery: restore an admin account to the documented default email + password with a forced
@@ -309,11 +380,12 @@ function buildModel(database) {
     resetAdminToDefault() {
       const hash = hashPassword(DEFAULT_ADMIN_PASSWORD);
       const existing = findByEmailStmt.get(DEFAULT_ADMIN_EMAIL);
-      // Case 2 fallback target: the oldest admin row (id ASC), if any.
+      // Case 2 fallback target: the oldest admin row (id ASC), if any — never the support account
+      // (rule 21), which every instance carries and which a recovery must not turn into a login.
       const findOldestAdminStmt = database.prepare(`
         SELECT u.* FROM users u
         JOIN user_roles r ON r.userId = u.id
-        WHERE r.role = ?
+        WHERE r.role = ? AND u.isSupportAccount = 0
         ORDER BY u.id ASC
         LIMIT 1
       `);
@@ -321,6 +393,7 @@ function buildModel(database) {
         if (existing) {
           resetPasswordStmt.run(hash, existing.id);
           clearEmailChangedStmt.run(existing.id);
+          voidResetLinks(existing.id);
           setRoles(existing.id, [ADMIN]);
           return;
         }
@@ -337,6 +410,7 @@ function buildModel(database) {
           // surface the verification banner on first login.
           clearEmailChangedStmt.run(fallbackAdmin.id);
           resetPasswordStmt.run(hash, fallbackAdmin.id);
+          voidResetLinks(fallbackAdmin.id);
           setRoles(fallbackAdmin.id, [ADMIN]);
           return;
         }

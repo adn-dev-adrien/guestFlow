@@ -171,6 +171,29 @@ through.
     the fiche shows a warning state (« Ligne assurance retirée — souscription Neat toujours
     active ») until the operator either restores the line or voids (rule 15). A `pending` job whose
     line disappears is simply dropped by the next scan.
+    > 2026-10-23 (review of `inte/plugins`): so is a **`failed`** job — the backoff ladder retries
+    > it like a pending one, so a failed job whose reservation stops qualifying (cancelled, line
+    > removed, stay started, deposit no longer paid) is dropped by the same scan. Before, Neat being
+    > down then a cancellation let the retry price and subscribe a paid policy for a stay that no
+    > longer wanted it (`neat-failed-job-disqualified.unit.test.js`).
+
+17. **Neat calls are bounded** (2026-10-30, round-6 audit N6 and review D1). Each public method of the
+    Neat client has **one budget**, `timeoutMs` (5 s by default, below the WordPress plugin's 8 s
+    give-up), shared by the auth, the request and the 401 re-auth retry: every HTTP exchange gets
+    what is left of it, headers and body read included. A Neat that does not answer in time rejects
+    with a 504 `NEAT_TIMEOUT` error instead of holding the quote for undici's 300 s. Rule 13's
+    fallback ladder therefore runs inside the bound: stale cache, then the static tariff.
+    - **One client per account.** The quote processor keeps one client per environment, client id and
+      secret, so its token is reused and a normal quote is a single exchange. The client renews a
+      token after 6 days (Neat's sliding validity is 7) and, as before, once on a 401.
+    - **Breaker.** After a failed live price caused by an **outage** (timeout, network error, HTTP
+      429 rate limit, HTTP 5xx), guest pricing does not call Neat again for 60 s (per environment and service account)
+      and goes straight to the ladder; the first success closes it and the call is retried once the
+      window has elapsed. Any other 4xx (Neat refusing one stay's fields) or a non-amount answer never
+      opens it: it says nothing about the next stay.
+    - The subscription pass is not behind the breaker: a timeout there is an ordinary `unavailable`
+      failure on the job (rule 10 schedule).
+    Test: `neat-timeout.unit.test.js`.
 
 **Edge cases:**
 
@@ -195,6 +218,14 @@ through.
 ---
 
 ## 4. Architecture
+
+> **Moved to plugin `neat` (phase 3b, `specs/plugins-phase-3b-neat.md`) — current file map (audit
+> 2026-10-27).** The tables below are the map at implementation time. The code lives in
+> `server/src/plugins/neat/`: `client.js` (partner API client) · `controller.js` · `routes.js` (thin) ·
+> `fieldMapping.js` (rule 4) · `pricing.js` (guest pricing, rule 13, a quote post-processor) ·
+> `subscriptionRunner.js` (worker, §3.2) · `subscriptionsModel.js` (jobs + premium cache, §5) ·
+> `settingsStore.js` (settings in `plugin_settings`) · `migrations.js` · `index.js`. Client
+> `client/src/plugins/neat/`: `NeatInsuranceStatus.jsx`, `SettingsNeatSection.jsx`, `index.js`.
 
 > **Fat backend, thin frontend — holds.** Discovery, mapping validation, payload construction,
 > pricing, retries, idempotency and status derivation are all server-side. The client renders
@@ -324,7 +355,7 @@ insurance is never sold nor subscribed once the stay began, mirroring
 - Summary lines (`SummaryItem`): canal, contrat, « Champs requis mappés : 4/4 », « Souscriptions :
   2 en attente · 1 en échec ».
 - Copy for errors: « Connexion Neat impossible : <message> », « Champ requis non mappé : <name> »,
-  « Ce canal ne propose pas de mode de paiement à la charge de l'établissement — contacte Neat. »
+  « Ce canal ne propose pas de mode de paiement à la charge de l'établissement — à voir avec Neat. »
 - **Responsive:** the mapping table becomes stacked rows on `xs` (label above select, full-width);
   the card follows the existing settings column layout. No horizontal scroll.
 - **Sticky action bar:** unchanged — `SettingsPage` keeps its existing `PageActionBar` (global

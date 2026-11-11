@@ -22,6 +22,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import { useLocation } from 'react-router';
 import api from '../api';
 import { useAuth } from '../hooks/useAuth';
+import { logoutThroughGuard } from '../utils/guardedNavigation';
 
 export default function EmailVerifyBanner() {
   const { user, logout } = useAuth();
@@ -55,17 +56,17 @@ export default function EmailVerifyBanner() {
         variant="outlined"
         sx={{ borderWidth: 2 }}
         action={(
-          <Button color="warning" size="small" startIcon={<LogoutIcon />} onClick={() => logout()}>
+          <Button color="warning" size="small" startIcon={<LogoutIcon />} onClick={() => logoutThroughGuard(logout)}>
             Se déconnecter
           </Button>
         )}
       >
         <AlertTitle sx={{ fontWeight: 700 }}>
-          Vérifiez votre nouvelle adresse de connexion
+          Nouvelle adresse de connexion à vérifier
         </AlertTitle>
-        Votre identifiant est désormais <strong>{newEmail}</strong>. Déconnectez-vous et
-        reconnectez-vous au moins une fois avec cette adresse pour confirmer qu'elle fonctionne —
-        ce message disparaîtra automatiquement.
+        L'identifiant est désormais <strong>{newEmail}</strong>. Une déconnexion suivie d'une
+        reconnexion avec cette adresse confirme qu'elle fonctionne ; ce message disparaît ensuite
+        automatiquement.
       </Alert>
     </Box>
   );

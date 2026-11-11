@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, IconButton } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
@@ -7,32 +7,26 @@ import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
 import MidStayNoteDialog from './MidStayNoteDialog';
 import MidStayNoteRow from './MidStayNoteRow';
+import { createPortal } from 'react-dom';
 import RefundDialog from './RefundDialog';
+import PaymentMarkForm from './PaymentMarkForm';
+import TenderLines from '../TenderLines';
+import { TENDER_TEXTS } from '../../constants/tenderMethods';
+import PlatformStatementEditor from './PlatformStatementEditor';
+import PlatformPenaltyDialog from './PlatformPenaltyDialog';
+import DeleteIcon from '@mui/icons-material/Delete';
+import LedgerList from '../LedgerList';
+import InstallmentPlanCard from './InstallmentPlanCard';
+import LedgerAmountEditor from '../LedgerAmountEditor';
 import { useAppDialogs, useToast } from '../DialogProvider';
 import { useReservationForm } from './ReservationFormContext';
-import { formatCurrency, displayDate } from '../../utils/formatters';
-import { COMPLEMENT_LABELS } from '../../constants/complements';
+import { formatCurrency, formatAmountInput, displayDate } from '../../utils/formatters';
 import { complementDeferralAccess } from '../../utils/complementDeferralAccess';
-
-// specs/platform-tourist-tax-out-of-the-commission.md rule 25 — a refused flip must not look like a dead button.
-const PAYMENT_NOT_SAVED = 'Paiement non enregistré';
-
-// Means of refund, French labels for the history rows (specs/reservation-refunds.md §3.1 rule 4).
-const REFUND_METHOD_LABELS = {
-  transfer: 'Virement',
-  cash: 'Espèces',
-  internal: 'Caisse interne',
-};
+import { localIsoToday } from '../../utils/isoDay';
 
 function todayStr() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-// « 06/08 » — the note history is dense, the year adds nothing (a stay never spans one).
-function displayNoteDate(iso) {
-  const full = displayDate(iso);
-  return full ? full.slice(0, 5) : '';
 }
 
 // The end-of-stay complement breakdown is stored as a JSON array string ([{ label, amount }]) by the
@@ -177,22 +171,17 @@ function ArrivalPaymentCard({ payment, busy, error, readOnly, onCommitTotal, onU
 }
 
 /**
- * One collectible complement: title + amount, optional itemised lines, the operator's adjusted amount,
- * « payé » / « caisse interne » toggles and the payment date. Shared by the arrival complement, the
- * end-of-stay complement and the merged « complément de fin de séjour » of a deferred reservation
- * (specs/defer-arrival-complement-to-checkout.md §3.2), so the three can never drift apart visually.
+ * ComplementDetail — what sits under a complement row of the ledger, folded under « Détail »
+ * (specs/reservation-payment-ledger.md rule 22, §9 Q5): the itemised lines, the operator's adjusted
+ * amount with its accounting split, and an optional `extra` node (« Percevoir en fin de séjour »).
+ * Marking it perceived is the row's own action now. Shared by the arrival, end-of-stay and merged
+ * complements (specs/defer-arrival-complement-to-checkout.md §3.2), so they can never drift apart.
  *
- * Renders the CARD ONLY: the parent owns the grid, so two complements sit side by side on a desktop
- * (specs/adjustable-complement-amounts.md §6.5).
- *
- * Props: `title`, `amount`, `lines` ([{ label, amount }], optional), `paid`, `paidCash`, `paidDate`,
- * the three handlers `onTogglePaid(next)` / `onToggleCash(next)` / `onDateChange(v)`, the adjustment
- * (`overrideValue`, `onOverrideCommit`, `autoAmount`, `allocation`, `floor`, `adjustDisabledReason`)
- * and an optional `extra` node rendered above the actions (the « fin de séjour » switch).
+ * Props: `lines` ([{ label, amount }]), the adjustment (`overrideValue`, `onOverrideCommit`,
+ * `autoAmount`, `allocation`, `floor`, `adjustDisabledReason`) and `extra`.
  */
-function ComplementCard({
-  title, amount, lines = [], paid, paidCash, paidDate, onTogglePaid, onToggleCash, onDateChange,
-  overrideValue, onOverrideCommit, autoAmount, allocation = null, floor = null, adjustDisabledReason = '',
+function ComplementDetail({
+  lines = [], overrideValue, onOverrideCommit, autoAmount, allocation = null, floor = null, adjustDisabledReason = '',
   extra = null,
 }) {
   const adjusted = overrideValue !== '' && overrideValue != null;
@@ -206,30 +195,18 @@ function ComplementCard({
         ? "Montant figé — l'écart est absorbé par le total du séjour."
         : `Calcul auto (${formatCurrency(autoAmount)})`);
   return (
-    <Box
-      sx={{
-        height: '100%',
-        border: paid ? 'none' : '1px solid',
-        borderColor: paid ? 'transparent' : 'error.main',
-        borderRadius: 1,
-        p: paid ? 0 : 1.5,
-      }}
-    >
-      {/* Red border tant qu'impayé pour signaler le reste à percevoir ; bascule en visuel
-          neutre (= Acompte/Solde payé) une fois le complément encaissé. */}
-      <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: lines.length ? 1 : 2 }}>
-        {title}
-        <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
-          ({formatCurrency(amount)})
-        </Typography>
-      </Typography>
-      {lines.map((line, i) => (
-        <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
-          {line.label} : {formatCurrency(line.amount || 0)}
-        </Typography>
-      ))}
+    <Box sx={{ mt: 1, pl: 1.5, borderLeft: '2px solid', borderColor: 'divider', display: 'grid', gap: 1 }}>
+      {lines.length > 0 && (
+        <Box>
+          {lines.map((line, i) => (
+            <Typography key={i} variant="body2" sx={{ color: 'text.secondary' }}>
+              {line.label} : {formatCurrency(line.amount || 0)}
+            </Typography>
+          ))}
+        </Box>
+      )}
       {adjustable && (
-        <Box sx={{ mt: lines.length ? 1.5 : 0 }}>
+        <Box>
           {/* specs/adjustable-complement-amounts.md §3.1 — le montant annoncé au client l'emporte sur
               le calcul, même après encaissement. Vider le champ rend la main au moteur. */}
           <Tooltip title={adjustDisabledReason} disableHoverListener={!adjustDisabledReason}>
@@ -239,14 +216,13 @@ function ComplementCard({
                 value={overrideValue == null ? '' : overrideValue}
                 onCommit={(v) => onOverrideCommit(v)}
                 disabled={Boolean(adjustDisabledReason)}
-                fullWidth
                 size="small"
                 helperText={helper}
+                sx={{ maxWidth: { sm: 280 }, width: '100%' }}
               />
             </span>
           </Tooltip>
-          {/* §3.6 — ce qui partira en comptabilité, poste par poste : la fiche décide, la compta
-              ne recalcule rien. */}
+          {/* §3.6 — ce qui partira en comptabilité, poste par poste. */}
           {adjusted && allocation && (
             <Box sx={{ mt: 0.5 }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
@@ -262,108 +238,100 @@ function ComplementCard({
         </Box>
       )}
       {extra}
-      <Button
-        fullWidth
-        variant={paid ? 'contained' : 'outlined'}
-        color={paid ? 'success' : 'inherit'}
-        onClick={() => onTogglePaid(!paid)}
-        sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: (lines.length || adjustable || extra) ? 1.5 : 0 }}
-      >
-        {paid ? 'Complément payé' : 'Marquer complément payé'}
-      </Button>
-      {paid && (
-        <DateField
-          label="Payé le"
-          type="date"
-          value={paidDate || ''}
-          onChange={(e) => onDateChange(e.target.value)}
-          fullWidth
-          sx={{ mt: 1.5 }}
-          slotProps={{ inputLabel: { shrink: true } }}
-        />
-      )}
-      {/* « Caisse interne » : compté dans le suivi financier, exclu de la compta
-          (specs/cash-complement-and-endofstay-finance.md §3.2). Implique « payé ». */}
-      <Button
-        fullWidth
-        size="small"
-        variant={paidCash ? 'contained' : 'outlined'}
-        color={paidCash ? 'success' : 'inherit'}
-        onClick={() => onToggleCash(!paidCash)}
-        sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1 }}
-      >
-        {paidCash ? 'Caisse interne ✓' : 'Caisse interne'}
-      </Button>
-      {paidCash && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-          Compté dans le suivi financier, hors compta.
-        </Typography>
-      )}
     </Box>
   );
 }
 
+// What the PATCH flips for each ledger row (specs/reservation-payment-ledger.md rules 8, 14).
+const MARK_FIELDS = {
+  deposit: { flag: 'depositPaid', date: 'depositPaidDate' },
+  balance: { flag: 'balancePaid', date: 'balancePaidDate' },
+  complement: { flag: 'complementPaid', date: 'complementPaidDate', cash: 'complementPaidCash' },
+  checkoutComplement: { flag: 'complementPaid', date: 'complementPaidDate', cash: 'complementPaidCash' },
+  endOfStayComplement: { flag: 'endOfStayComplementPaid', date: 'endOfStayComplementPaidDate', cash: 'endOfStayComplementPaidCash' },
+  cautionReceived: { flag: 'cautionReceived', date: 'cautionReceivedDate' },
+  cautionReturned: { flag: 'cautionReturned', date: 'cautionReturnedDate' },
+};
+const LOCKED_AMOUNT_REASON = 'Séjour commencé : déverrouiller la fiche pour modifier les montants.';
+const AMOUNT_ROWS = new Set(['deposit', 'balance', 'complement', 'checkoutComplement', 'endOfStayComplement']);
+const EDITOR_LABELS = { deposit: "Montant de l'acompte (€)", balance: 'Montant du solde (€)' };
+
 /**
- * Finance card: adjusted accommodation price + "Actualiser tarifs", deposit / balance / caution with paid toggles.
- * Reads everything from the reservation form context — no props.
+ * Finance card: the price block (« Prix hébergement brut / ajusté ») and the payments ledger
+ * (specs/reservation-payment-ledger.md). Every row, state, amount, action and refusal comes from the
+ * server (`ledger`); this component keeps only which panel is open and the drafts. Reads everything
+ * from the reservation form context — no props.
  */
+const DEPOSIT_DISABLED_LOCK_REASONS = {
+  'collected-by-link': 'Acompte perçu par un lien de paiement : remboursement pour l’annuler.',
+};
+
+// specs/force-item-to-complement.md rule 20.
+const TAX_IN_COMPLEMENT_LOCK_REASONS = {
+  'collected-on-solde': 'Taxe encaissée avec le solde : décocher le solde d’abord.',
+  'collected-on-acompte': 'Taxe encaissée avec l’acompte : décocher l’acompte d’abord.',
+  'collected-on-installment': 'Taxe encaissée avec une échéance.',
+};
+
 export default function FinanceSection() {
   const {
     formSectionCardSx, formSectionContentSx, sectionGridSx,
-    form, updateForm, pricingQuote, accommodationBasePriceDisplay,
+    form, updateForm, pricingQuote, accommodationBasePriceDisplay, isPlatformSale,
     isDevisMode, reservationId, editingReservationId, isReservationLocked, refreshToCurrentPricing,
-    // specs/mid-stay-notes.md — the page owns the save pipeline + the reload; the block only calls them.
     saveThenRun, reloadReservationFinance,
-    // …and it owns the dialog state + the access rule, because the sticky action bar opens the same
-    // dialog. Two entry points, one source of truth.
     midStayNoteOpen, setMidStayNoteOpen, midStayNote,
-    // specs/reservation-refunds.md — the register is server-owned (never part of the editable form);
-    // the page holds it and exposes the two mutations.
-    refunds = [], refundableLines = [], refundTotals = { book: 0, withCash: 0 }, refundCollectedTtc = 0,
+    refundableLines = [], refundCollectedTtc = 0,
+    refundOverpaymentTtc = 0,
+    refundOverpaymentLines = [],
     refundDialogOpen, setRefundDialogOpen, createRefund, deleteRefund,
+    // A cancelled fiche is a disabled fieldset, yet a refund is still its legitimate write
+    // (specs/calendar-property-parity.md rule 25): the button goes through a portal to a node outside it.
+    refundHost = null,
+    // specs/payment-link-lifecycle.md rule 56 (O2) — on a closed fiche, where « Marquer remboursé » is drawn instead.
+    closedActionsHost = null,
+    // specs/reservation-payment-ledger.md — the ledger and its three server round-trips.
+    ledger = null, checkLedgerEdit, applyLedgerPatch, markFromLedger, resendPaymentRequest, withdrawPaymentLink, settlePaymentLink,
+    // specs/direct-installments.md — the plan of a direct reservation and its setter.
+    installmentPlan = null, setInstallmentPlan, fichePristine = true,
+    // specs/disable-deposit-per-reservation.md rule 13 — why « Sans acompte » cannot be ticked, from the server.
+    depositDisabledLockedReason = null,
+    touristTaxInComplementLockedReason = null,
   } = useReservationForm();
+  const depositDisabledLockReason = DEPOSIT_DISABLED_LOCK_REASONS[depositDisabledLockedReason] || null;
+  const taxInComplementLockReason = form.touristTaxInComplement ? null : (TAX_IN_COMPLEMENT_LOCK_REASONS[touristTaxInComplementLockedReason] || null);
   const { confirm } = useAppDialogs();
-  const { showError } = useToast();
-  // specs/single-payment-from-the-fiche.md §3.1 — the single arrival payment. The date is the
-  // OPERATOR's (a guest who paid at the door yesterday is recorded yesterday); the server validates
-  // it and its refusal is what the field shows, so both say the same thing.
+  const { showError, showSuccess } = useToast();
+  const [penaltyOpen, setPenaltyOpen] = useState(false);
   const [arrivalPayDate, setArrivalPayDate] = useState(todayStr());
   const [arrivalPayBusy, setArrivalPayBusy] = useState(false);
   const [arrivalPayError, setArrivalPayError] = useState('');
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [refundHistoryOpen, setRefundHistoryOpen] = useState(false);
+  // specs/mixed-method-payments.md rules 21-22 — « Plusieurs moyens » on the single payment, closed by default.
+  const [arrivalSplitOpen, setArrivalSplitOpen] = useState(false);
+  const [arrivalTenders, setArrivalTenders] = useState(null);
+  // Rules 17, 20, 41 — the inline form under a recorded split payment: { rowKey, kind: 'modify' | 'remainder', settlementId?, target? }.
+  const [splitPanel, setSplitPanel] = useState(null);
+  // The one open panel under a row: { key, kind: 'mark' | 'edit' | 'statement' | 'locked' }.
+  const [panel, setPanel] = useState(null);
+  // Rule 41 — the date of a payment undone in this visit, proposed again when it is redone.
+  const [undoneDates, setUndoneDates] = useState({});
+  const [folds, setFolds] = useState(() => new Set());
+  const toggleFold = (key) => setFolds((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
-  // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » chosen on the check-in
-  // recap: there is only ONE collection left, at the door. The server ships the merged block
-  // (`checkoutComplement`: total + arrival & end-of-stay lines + paid state); the fiche just renders
-  // it in place of the two separate cards.
-  // Le bloc fusionné vit sur le devis LIVE dès qu'il est disponible : le bloc stocké date du dernier
-  // enregistrement, et une option modifiée pendant l'édition laissait la carte afficher les anciennes
-  // lignes pendant que le panneau de droite suivait déjà le moteur (Adrien, 2026-08-23).
+  // specs/defer-arrival-complement-to-checkout.md §3.2 — the merged block lives on the live quote.
   const checkoutComplement = pricingQuote?.checkoutComplement || form.checkoutComplement || null;
-  // specs/complement-buckets-by-moment.md §3 rule 4 (révisée 2026-08-22) — une seule chose fusionne
-  // les cartes : le marqueur posé par l'opérateur. La fiche déduisait aussi le report du calendrier
-  // (« le séjour a commencé et personne n'a encaissé »), ce qui déplaçait l'argent tout seul le jour
-  // de l'arrivée, sans moyen de revenir en arrière.
   const complementDeferred = Boolean(checkoutComplement?.deferred)
     && Number(checkoutComplement?.amount || 0) > 0;
-
-  // specs/adjustable-complement-amounts.md §3.6 — le plancher et la ventilation prête à rendre sont
-  // décidés par le serveur ; la carte ne fait que les afficher.
   const complementAdjustment = form.complementAdjustment || { floor: 0, accommodation: 0, tax: 0, allocation: null };
   const arrivalAdjusted = form.complementAmountOverride !== '' && form.complementAmountOverride != null;
-  const endOfStayAdjusted = form.endOfStayComplementAmountOverride !== '' && form.endOfStayComplementAmountOverride != null;
   const arrivalAutoAmount = Number(pricingQuote?.complementAmountAuto || 0);
-  // Le complément de fin de séjour se lit sur le devis LIVE, pas sur le montant stocké : une
-  // prestation vendue sur un complément d'arrivée déjà encaissé y part immédiatement (le moteur la
-  // route, specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3), et la carte doit le
-  // montrer avant l'enregistrement — sinon l'opérateur voit son option disparaître de l'écran.
   const endOfStayLiveTotal = pricingQuote?.endOfStayComplementTotal;
   const endOfStayAmountNow = endOfStayLiveTotal != null
     ? Number(endOfStayLiveTotal)
     : Number(form.endOfStayComplementAmount || 0);
-  // Mêmes lignes que ce que l'enregistrement écrira : celles que le SAS départ possède (et la ligne
-  // d'ajustement), plus les ventes en séjour telles que le moteur vient de les recalculer.
   const storedEndOfStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail);
   const endOfStayLines = pricingQuote?.midStayExtrasLines
     ? [
@@ -371,35 +339,33 @@ export default function FinanceSection() {
       ...pricingQuote.midStayExtrasLines,
     ]
     : storedEndOfStayLines;
-  // §3.6 règle 34 — un complément fait uniquement d'hébergement n'a rien à ventiler : le réduire est
-  // une remise sur le séjour, qui a son propre champ.
+  // §3.6 règle 34 — un complément fait uniquement d'hébergement n'a rien à ventiler.
   const arrivalAdjustDisabledReason = (!arrivalAdjusted
     && arrivalAutoAmount > 0
     && Number(complementAdjustment.tax || 0) === 0
     && Number(complementAdjustment.floor || 0) >= arrivalAutoAmount - 0.005)
     ? 'Ce complément ne contient que de l\'hébergement. Pour le réduire, utilisez « Prix hébergement ajusté ».'
     : '';
-  // §3.5 règles 29-30 — sur la carte fusionnée l'opérateur saisit le TOTAL ; l'ajustement stocké reste
-  // celui du complément d'ARRIVÉE, le complément de fin de séjour gardant ses propres lignes. Le
-  // décalage est un affichage, pas une règle : le serveur valide et stocke la part arrivée.
-  const mergedAutoAmount = Math.round((arrivalAutoAmount + endOfStayAmountNow) * 100) / 100;
-  const mergedFloor = Math.round((Number(complementAdjustment.floor || 0) + endOfStayAmountNow) * 100) / 100;
+  // §3.5 règles 29-30 — sur la ligne fusionnée l'opérateur saisit le TOTAL ; l'ajustement stocké reste
+  // celui du complément d'ARRIVÉE.
+  // Règle 22 (defer-arrival-complement-to-checkout) — la carte fusionnée ne porte que la fin de séjour encore due : le
+  // bloc du serveur dit laquelle.
+  const mergedEndOfStay = complementDeferred ? Number(checkoutComplement.endOfStayAmount || 0) : endOfStayAmountNow;
+  const mergedAutoAmount = Math.round((arrivalAutoAmount + mergedEndOfStay) * 100) / 100;
+  const mergedFloor = Math.round((Number(complementAdjustment.floor || 0) + mergedEndOfStay) * 100) / 100;
   const commitArrivalOverride = (v) => {
     if (v === '' || v == null) { updateForm({ complementAmountOverride: '' }); return; }
     const floor = complementDeferred ? mergedFloor : Number(complementAdjustment.floor || 0);
     const target = Math.max(floor, Number(v));
-    const stored = complementDeferred ? Math.max(0, Math.round((target - endOfStayAmountNow) * 100) / 100) : target;
+    const stored = complementDeferred ? Math.max(0, Math.round((target - mergedEndOfStay) * 100) / 100) : target;
     updateForm({ complementAmountOverride: stored });
   };
   const mergedOverrideValue = arrivalAdjusted
-    ? Math.round((Number(form.complementAmountOverride) + endOfStayAmountNow) * 100) / 100
+    ? Math.round((Number(form.complementAmountOverride) + mergedEndOfStay) * 100) / 100
     : '';
 
-  // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour » depuis la
-  // fiche : même marqueur que le récap du SAS arrivée, effet immédiat, réversible, disponible à tout
-  // moment. Rendu comme un bouton pleine largeur, dans la même langue visuelle que « Marquer
-  // complément payé » et « Caisse interne » : en interrupteur MUI discret, l'opérateur ne le voyait
-  // pas (retour d'Adrien, 2026-08-22).
+  // specs/defer-arrival-complement-to-checkout.md §3.3 — « Percevoir en fin de séjour ».
+  const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
   const deferAccess = complementDeferralAccess({
     editingReservationId,
     isDevisMode,
@@ -407,9 +373,9 @@ export default function FinanceSection() {
     complementPaid: Boolean(form.complementPaid) || Boolean(form.complementPaidCash),
     deferred: Boolean(form.complementDeferredToCheckout),
     locked: Boolean(isReservationLocked),
+    endOfStaySettled,
   });
   const onToggleDefer = async (next) => {
-    // Reporter un complément déjà marqué encaissé le remet à percevoir : ça se confirme.
     if (next && deferAccess.needsConfirm) {
       const ok = await confirm({
         title: 'Reporter ce complément au départ ?',
@@ -417,61 +383,74 @@ export default function FinanceSection() {
       });
       if (!ok) return;
     }
+    const reopens = next && deferAccess.needsConfirm;
+    // R30-C-L2 — the fiche moves only once the server took the switch: a refusal is shown and the stored state re-read.
+    try {
+      await api.markPayment(editingReservationId, {
+        complementDeferredToCheckout: next,
+        ...(reopens ? { complementPaid: false, complementPaidCash: false } : {}),
+      });
+    } catch (err) {
+      showError(err?.message || 'Report impossible.');
+      await reloadReservationFinance();
+      return;
+    }
     updateForm({
       complementDeferredToCheckout: next,
-      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false, complementPaidDate: '' } : {}),
-    });
-    await api.markPayment(editingReservationId, {
-      complementDeferredToCheckout: next,
-      ...(next && deferAccess.needsConfirm ? { complementPaid: false, complementPaidCash: false } : {}),
+      ...(reopens ? { complementPaid: false, complementPaidCash: false, complementPaidDate: '' } : {}),
     });
     await reloadReservationFinance();
   };
   const deferButton = deferAccess.visible ? (
-    <Tooltip
-      title={deferAccess.reason
-        || (deferAccess.checked
+    <Box>
+      <Tooltip
+        title={deferAccess.reason ? '' : (deferAccess.checked
           ? 'Le complément d\'arrivée est encaissé au départ, avec le complément de fin de séjour — une seule collecte.'
           : 'Regrouper ce complément avec celui de fin de séjour : une seule ligne, un seul encaissement.')}
-    >
-      <span style={{ display: 'block' }}>
-        <Button
-          fullWidth
-          size="small"
-          variant={deferAccess.checked ? 'contained' : 'outlined'}
-          color={deferAccess.checked ? 'info' : 'inherit'}
-          disabled={deferAccess.disabled}
-          onClick={() => onToggleDefer(!deferAccess.checked)}
-          sx={{ textTransform: 'none', justifyContent: 'flex-start', mt: 1 }}
-        >
-          {deferAccess.checked ? 'Perçu en fin de séjour ✓' : 'Percevoir en fin de séjour'}
-        </Button>
-      </span>
-    </Tooltip>
+      >
+        <span style={{ display: 'block' }}>
+          <Button
+            size="small"
+            variant={deferAccess.checked ? 'contained' : 'outlined'}
+            color={deferAccess.checked ? 'info' : 'inherit'}
+            disabled={deferAccess.disabled}
+            onClick={() => onToggleDefer(!deferAccess.checked)}
+            sx={{ textTransform: 'none', minHeight: 44 }}
+          >
+            {deferAccess.checked ? 'Perçu en fin de séjour ✓' : 'Percevoir en fin de séjour'}
+          </Button>
+        </span>
+      </Tooltip>
+      {deferAccess.reason ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          {deferAccess.reason}
+        </Typography>
+      ) : null}
+    </Box>
   ) : null;
 
-  // specs/platform-payment-entry.md — on a platform reservation the brut is the single price lever, so
-  // « Prix hébergement ajusté » / « Réduction » are hidden (they'd conflict with the brut pin).
-  const isPlatform = String(form.platform || 'direct').toLowerCase() !== 'direct';
-  // specs/platform-deposit-toggle.md — a platform configured « Acompte = Oui » takes a normal
-  // acompte/solde split, so the fiche shows the acompte block instead of the « pas d'acompte » message.
-  // The flag is echoed by the engine in the live quote (true only for non-direct platforms).
-  const platformTakesDeposit = Boolean(pricingQuote?.platformTakesDeposit);
-  const showNoDepositMessage = isPlatform && !platformTakesDeposit;
-
-  // specs/mid-stay-notes.md §3.5 — « Complément durant le séjour ». La règle d'affichage vient du même
-  // `midStayNoteAccess` que le bouton de la barre d'actions (utils/midStayNoteAccess.js) : les deux
-  // surfaces ne peuvent pas diverger.
+  // specs/plugins-phase-p-productisation.md rule 45 — the server's answer, never the platform's name.
+  const isPlatform = Boolean(isPlatformSale);
   const midStayNotes = parseEndOfStayDetail(form.midStaySettledNotes);
+  const showMidStayNotes = Boolean(midStayNote?.visible);
+  const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
+    .filter((l) => l && l.source === 'midStayExtra' && Number(l.amount) > 0);
 
-  // One click, one payment: settle every collectible arrival bucket (or undo the group), then reload
-  // the finance block from the server — the amounts, the group and the bucket flags are all its call.
   const runArrivalPayment = async (mode) => {
     if (!editingReservationId) return;
     setArrivalPayBusy(true);
     setArrivalPayError('');
     try {
-      await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate);
+      if (mode === 'split') {
+        await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate, {
+          expectedAmountCents: Math.round(Number(form.arrivalPayment?.collectible?.total || 0) * 100),
+          tenders: arrivalTenders ? arrivalTenders.tenders : [],
+          shortfall: arrivalTenders ? arrivalTenders.shortfall : null,
+        });
+      } else {
+        await api.settleArrivalPayment(editingReservationId, mode, arrivalPayDate);
+      }
+      if (mode === 'split') setArrivalSplitOpen(false);
       await reloadReservationFinance();
     } catch (err) {
       setArrivalPayError(err?.message || 'L\'encaissement n\'a pas pu être enregistré.');
@@ -479,10 +458,6 @@ export default function FinanceSection() {
       setArrivalPayBusy(false);
     }
   };
-
-  // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest ACTUALLY handed over. The
-  // réduction (or the pourboire) is derived and clamped server-side; the field only carries the
-  // operator's amount, and '' restores the computed total.
   const commitArrivalTotal = async (value) => {
     if (!editingReservationId) return;
     setArrivalPayBusy(true);
@@ -496,53 +471,565 @@ export default function FinanceSection() {
       setArrivalPayBusy(false);
     }
   };
-  const midStayNotesTotal = midStayNotes.reduce((s, n) => s + (Number(n.total) || 0), 0);
-  const endOfStaySettled = Boolean(form.endOfStayComplementPaid) || Boolean(form.endOfStayComplementPaidCash);
-  const showMidStayNotes = Boolean(midStayNote?.visible);
-  // Mid-stay lines still to collect: what a new note can settle (the SAS-billed lines of the
-  // end-of-stay complement are collected at the door, never on a note).
-  const pendingMidStayLines = parseEndOfStayDetail(form.endOfStayComplementDetail)
-    .filter((l) => l && l.source === 'midStayExtra' && Number(l.amount) > 0);
 
-  const onDeleteRefund = async (refund) => {
-    const ok = await confirm({
-      title: 'Supprimer ce remboursement ?',
-      message: 'L\'écriture d\'avoir correspondante disparaîtra de l\'export comptable.',
-      confirmColor: 'error',
-    });
-    if (!ok) return;
-    await deleteRefund(refund.id);
-  };
-
-  // §3.1 règle 9 — une carte dont le montant tombe à 0 À CAUSE d'un ajustement reste affichée : sinon
-  // l'opérateur n'aurait plus aucun moyen d'effacer l'ajustement. À 0 sans ajustement, elle disparaît.
-  const showArrivalComplement = !complementDeferred
-    && (Number(pricingQuote?.complementAmount || 0) > 0 || arrivalAdjusted);
-  const showEndOfStayComplement = !complementDeferred
-    && (endOfStayAmountNow > 0 || endOfStayAdjusted);
-
-  // §3.4 — modifier une note en place. L'erreur serveur (montant supérieur au reste à percevoir,
-  // complément déjà encaissé) remonte à la ligne, qui l'affiche sans se refermer.
   const onAdjustNote = async (note, patch) => {
     await api.markPayment(editingReservationId, { adjustMidStayNote: { id: note.id, ...patch } });
     await reloadReservationFinance();
   };
-
-  // §3.4 — reporter une note au départ. Mécaniquement c'est l'annulation de l'encaissement : les
-  // prestations de la note repartent dans ce qui reste à percevoir à la porte, et la note quitte le
-  // registre. Le libellé dit l'intention (regrouper la collecte) plutôt que le mécanisme.
   const onCancelNote = async (note) => {
     const ok = await confirm({
       title: 'Reporter cette note au départ ?',
       message: 'Ses prestations rejoignent le complément de fin de séjour, à encaisser en une seule fois. La note disparaît du registre.',
     });
     if (!ok) return;
-    await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
+    try {
+      await api.markPayment(editingReservationId, { cancelMidStayNote: { id: note.id } });
+    } catch (err) {
+      showError(err?.message || 'Report impossible.');
+    }
     await reloadReservationFinance();
   };
+  // The note's settlement runs after the fiche's save, which does not wait for it: the dialog waits here, so a refusal
+  // keeps it open with the server's wording instead of closing on an unseen error. Only the settlement decides: the
+  // re-read that follows is best effort, so a failed one never reports a stored settlement as refused nor leaves the
+  // dialog busy (mid-stay-notes rule 24 reading R32-C-L2).
+  const saveThenSettle = (settle) => new Promise((resolve, reject) => {
+    Promise.resolve(saveThenRun(async () => {
+      let refusal = null;
+      try {
+        await settle();
+      } catch (err) {
+        refusal = err;
+        showError(err?.message || 'Encaissement impossible.');
+      }
+      try { await reloadReservationFinance(); } catch { /* the settlement's outcome is already known */ }
+      if (refusal) reject(refusal); else resolve();
+    })).then((saved) => { if (saved !== true) resolve(); }, reject);
+  });
+
+  // ── Ledger actions (rules 8-14, 19, 25-26, 28) ─────────────────────────────
+  const rows = ledger?.rows || [];
+  const openOverpaymentRow = rows.find((r) => r.key === 'overpayment' && r.action && r.action.kind === 'refund') || null;
+  // The plan replaces the acompte and the solde: their « Sans acompte » switch has nothing to switch.
+  const hasInstallmentPlan = Boolean(installmentPlan && installmentPlan.installments && installmentPlan.installments.length > 0);
+  // Closing a panel gives the focus back to what opened it (the amount, or the row's action).
+  const close = () => {
+    const key = panel && panel.key;
+    setPanel(null);
+    if (key) {
+      setTimeout(() => {
+        const row = document.querySelector(`[data-row="${key}"]`);
+        const target = row && (row.querySelector('[data-ledger-amount]') || row.querySelector('[data-ledger-action]'));
+        if (target) target.focus();
+      }, 0);
+    }
+  };
+
+  const onAction = async (row) => {
+    const action = row.action || {};
+    if (action.kind === 'mark') { setPanel({ key: row.key, kind: 'mark' }); return; }
+    if (action.kind === 'refund') {
+      setRefundDialogOpen(row.refundPrefill || { overpaymentTtc: refundOverpaymentTtc, overpaymentLines: refundOverpaymentLines });
+      return;
+    }
+    if (action.kind === 'deleteRefund') {
+      const ok = await confirm({ title: 'Supprimer ce remboursement ?', message: 'L\'avoir correspondant sera supprimé.', confirmColor: 'error' });
+      if (ok) await deleteRefund(action.refundId);
+      return;
+    }
+    if (action.kind === 'undo') {
+      // §9 Q4 — the confirmation names the date and the accounting entry (server wording).
+      const ok = await confirm({ title: `${action.confirmLabel || 'Annuler la perception'} ?`, message: action.confirm, confirmLabel: action.confirmLabel || 'Annuler la perception', cancelLabel: 'Garder' });
+      if (!ok) return;
+      const fields = MARK_FIELDS[row.key];
+      if (!fields) return;
+      try {
+        await api.markPayment(editingReservationId, { [fields.flag]: false, ...(fields.cash ? { [fields.cash]: false } : {}) });
+        if (row.paidDate) setUndoneDates((prev) => ({ ...prev, [row.key]: row.paidDate }));
+        await reloadReservationFinance();
+      } catch (err) {
+        showError(err.message || 'Annulation impossible.');
+      }
+    }
+  };
+
+  const onAmountClick = (row) => {
+    const mode = row.amountEdit?.mode;
+    // Review of #727 (M1) — on a past, locked fiche the amounts and the split are read-only; only the
+    // marks stay. The complement detail still unfolds.
+    if (isReservationLocked && mode !== 'complement') { setPanel({ key: row.key, kind: 'locked', reason: LOCKED_AMOUNT_REASON }); return; }
+    if (mode === 'complement') { toggleFold(row.key); return; }
+    if (mode === 'statement') { setPanel({ key: row.key, kind: 'statement' }); return; }
+    if (mode === 'locked') { setPanel({ key: row.key, kind: 'locked' }); return; }
+    setPanel({ key: row.key, kind: 'edit' });
+  };
+
+  const submitMark = async (row, { date, cash, payout, commission, tenders, shortfall }) => {
+    const fields = MARK_FIELDS[row.key];
+    const body = { [fields.flag]: true, [fields.date]: date };
+    // specs/mixed-method-payments.md rules 1-10 — the lines replace the caisse-interne switch.
+    if (tenders) {
+      const res = await markFromLedger({
+        ...body, expectedAmountCents: row.action.split.dueCents, tenders, ...(shortfall ? { shortfall } : {}),
+      });
+      if (res && res.ok) close();
+      return res;
+    }
+    if (cash && fields.cash) body[fields.cash] = true;
+    // Rule 11 — the amount the operator saw, to the cent.
+    if (AMOUNT_ROWS.has(row.key) && row.amount != null) body.expectedAmountCents = Math.round(Number(row.amount) * 100);
+    // Rule 34 — the transfer (and the commission, if taken) ride the mark: no full save of the fiche.
+    if (payout != null) {
+      body.platformPayoutAmount = payout;
+      if (commission != null) body.platformCommissionAmount = commission;
+    }
+    const res = await markFromLedger(body);
+    if (res && res.ok) close();
+    return res;
+  };
+
+  // Rules 24, 30 — a penalty is declared and removed where the payout is, on a locked fiche too: the server writes
+  // it, the fiche only re-reads what the server moved.
+  const removePenalty = async (penalty) => {
+    const ok = await confirm({ title: 'Supprimer la pénalité ?', message: penalty.label, confirmLabel: 'Supprimer' });
+    if (!ok) return;
+    try {
+      const answer = await api.removePlatformPenalty(editingReservationId, penalty.id);
+      showSuccess(answer.message || 'Pénalité supprimée.');
+      await reloadReservationFinance();
+      close();
+    } catch (err) { showError(err?.message || 'Suppression impossible.'); }
+  };
+
+  // specs/payment-link-lifecycle.md rule 42 — the server words the confirmation; the page withdraws and re-reads.
+  const askWithdraw = async (withdraw) => {
+    const ok = await confirm({
+      title: withdraw.confirmTitle,
+      message: withdraw.confirmMessage,
+      confirmLabel: withdraw.confirmLabel,
+      cancelLabel: 'Annuler',
+      confirmColor: 'error',
+    });
+    if (ok) await withdrawPaymentLink(withdraw.linkId);
+  };
+
+  // Rule 56 — a payment received after a withdrawal by hand: recorded on the stay, or marked refunded.
+  const askSettle = async (linkId, outcome, action) => {
+    const ok = await confirm({
+      title: action.confirmTitle,
+      message: action.confirmMessage,
+      confirmLabel: action.confirmLabel,
+      cancelLabel: 'Annuler',
+      confirmColor: 'primary',
+    });
+    if (ok) await settlePaymentLink(linkId, outcome);
+  };
+
+  // The by-hand actions the server offers on one link: withdraw it, or settle the payment it received.
+  const linkActions = (link) => (
+    <>
+      {link.withdraw && withdrawPaymentLink && (
+        <Button size="small" variant="text" onClick={() => askWithdraw(link.withdraw)} sx={{ minHeight: 44, textTransform: 'none' }}>
+          {link.withdraw.label}
+        </Button>
+      )}
+      {link.settle && settlePaymentLink && !closedActionsHost && ['stay', 'refunded'].filter((outcome) => link.settle[outcome]).map((outcome) => (
+        <Button key={outcome} size="small" variant="text" onClick={() => askSettle(link.settle.linkId, outcome, link.settle[outcome])} sx={{ minHeight: 44, textTransform: 'none' }}>
+          {link.settle[outcome].label}
+        </Button>
+      ))}
+    </>
+  );
+
+  // specs/mixed-method-payments.md rules 17, 20 — a correction or a reste goes straight to the server, then the
+  // fiche re-reads its money like after any other payment.
+  const runSplit = async (call) => {
+    try {
+      await call();
+      setSplitPanel(null);
+      await reloadReservationFinance();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message || 'Enregistrement impossible.', field: err?.field || null };
+    }
+  };
+
+  // Rule 30 — one block per settlement (its lines, the caisse, the shortfall), « Modifier », and the reste.
+  const renderSplit = (row) => {
+    const split = row.split;
+    if (!split || !Array.isArray(split.settlements) || split.settlements.length === 0) return null;
+    // Audit R34-C-L1 — a panel left open on a settlement or a reste the row no longer has (undone meanwhile) is closed.
+    const pointed = splitPanel && splitPanel.rowKey === row.key ? splitPanel : null;
+    const stillThere = pointed && (pointed.kind === 'modify'
+      ? split.settlements.some((s) => s.id === pointed.settlementId && s.edit)
+      : (split.remainders || []).some((r) => `${r.targetKind}:${r.targetKey}` === pointed.target));
+    const open = stillThere ? pointed : null;
+    return (
+      <Box sx={{ mt: 0.5, display: 'grid', gap: 1 }} data-split-row={row.key}>
+        {split.settlements.map((s) => (
+          <Box key={s.id} data-settlement={s.id}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">{s.label}</Typography>
+              {s.edit && !open && (
+                <Button size="small" variant="text" onClick={() => setSplitPanel({ rowKey: row.key, kind: 'modify', settlementId: s.id })} sx={{ minHeight: 44, textTransform: 'none' }}>
+                  {TENDER_TEXTS.modify}
+                </Button>
+              )}
+            </Box>
+            {open && open.kind === 'modify' && open.settlementId === s.id ? (
+              <PaymentMarkForm
+                row={{ key: row.key, action: {} }}
+                mode="modify"
+                split={{ dueCents: s.edit.dueCents, methods: split.methods, whole: s.edit.whole, noCaisse: s.edit.noCaisse }}
+                initialTenders={s.edit.tenders}
+                initialShortfallKind={s.edit.shortfallKind}
+                initialDate={s.paidDate}
+                previousDate={s.paidDate}
+                today={todayStr()}
+                dateLabel="Perçu le"
+                formatAmountInput={formatAmountInput}
+                onCancel={() => setSplitPanel(null)}
+                onSubmit={({ date, tenders, shortfall }) => runSplit(() => api.modifySettlement(editingReservationId, s.id, { date, tenders, shortfall }))}
+              />
+            ) : (
+              <Box component="ul" sx={{ m: 0, pl: 2.25, color: 'text.secondary', fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' }}>
+                {s.lines.map((l) => (
+                  <li key={l.label}>
+                    {l.label}
+                    {l.internal && <Box component="span" sx={{ ml: 1, color: 'warning.text', fontWeight: 600 }}>{TENDER_TEXTS.internalTag}</Box>}
+                  </li>
+                ))}
+                {s.shortfall && <Box component="li" sx={{ color: 'warning.text' }}>{s.shortfall.label}</Box>}
+              </Box>
+            )}
+          </Box>
+        ))}
+        {(split.overpaid || []).map((o) => (
+          <Typography key={o.label} variant="body2" sx={{ p: 1.25, borderRadius: 1.5, bgcolor: 'warning.soft', color: 'warning.text', fontWeight: 600 }}>
+            {o.label}
+          </Typography>
+        ))}
+        {(split.remainders || []).map((r) => {
+          const key = `${r.targetKind}:${r.targetKey}`;
+          return open && open.kind === 'remainder' && open.target === key ? (
+            <PaymentMarkForm
+              key={key}
+              row={{ key: row.key, action: {} }}
+              mode="remainder"
+              split={{ dueCents: r.dueCents, methods: split.methods }}
+              today={todayStr()}
+              dateLabel="Perçu le"
+              formatAmountInput={formatAmountInput}
+              onCancel={() => setSplitPanel(null)}
+              onSubmit={({ date, tenders, shortfall }) => runSplit(() => api.collectSettlementRemainder(editingReservationId, {
+                targetKind: r.targetKind, targetKey: r.targetKey, date, tenders, shortfall,
+              }))}
+            />
+          ) : (
+            <Box key={key} sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 1, p: 1.25, borderRadius: 1.5, bgcolor: 'warning.soft' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.text' }}>{r.label}</Typography>
+              {!open && (
+                <Button variant="outlined" onClick={() => setSplitPanel({ rowKey: row.key, kind: 'remainder', target: key })} sx={{ minHeight: 44, borderRadius: 999, textTransform: 'none' }}>
+                  Marquer payé
+                </Button>
+              )}
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  };
+
+  const renderDetail = (row) => {
+    const splitBlock = renderSplit(row);
+    const rest = renderDetailRest(row);
+    if (!splitBlock) return rest;
+    return <Box>{splitBlock}{rest}</Box>;
+  };
+
+  const renderDetailRest = (row) => {
+    const d = row.detail || {};
+    const bits = [];
+    if (d.commission) bits.push(<span key="c">{d.commission}</span>);
+    if (d.hint) bits.push(<span key="h">{d.hint}</span>);
+    if (d.link) bits.push(<span key="l">{d.link.label}</span>);
+    if (d.pending) bits.push(<span key="p">{d.pending}</span>);
+    const warnings = d.warnings || [];
+    const lines = d.lines || [];
+    const penaltyLines = d.penalties || [];
+    const otherLinks = d.otherLinks || [];
+    const slot = d.slot;
+    const foldable = Boolean(slot) || row.state === 'paid-group';
+    const groupFirst = row.state === 'paid-group' && rows.find((r) => r.state === 'paid-group')?.key === row.key;
+    const hasFold = slot || (groupFirst && form.arrivalPayment?.covers);
+    if (bits.length === 0 && warnings.length === 0 && lines.length === 0 && penaltyLines.length === 0 && !row.penaltyAction && !d.reconciliation && !d.note && !hasFold && !d.link?.resend && !d.link?.withdraw && !d.link?.settle && otherLinks.length === 0) return null;
+    const open = folds.has(row.key);
+    return (
+      <Box sx={{ mt: 0.5 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' }}>
+          {bits.map((b, i) => <React.Fragment key={b.key}>{i > 0 && <span aria-hidden>·</span>}{b}</React.Fragment>)}
+          {d.link?.resend && !isReservationLocked && (
+            <Button size="small" variant="text" onClick={() => resendPaymentRequest(d.link.resend.type)} sx={{ minHeight: 44, textTransform: 'none' }}>
+              {d.link.resend.label}
+            </Button>
+          )}
+          {d.link && linkActions(d.link)}
+          {d.reconciliation && <StatusBadge status={d.reconciliation.tone === 'done' ? 'success' : 'warning'} label={d.reconciliation.label} />}
+          {warnings.map((w) => <StatusBadge key={w.label} status="warning" label={w.label} wrap />)}
+          {foldable && hasFold && (
+            <Button size="small" variant="text" onClick={() => toggleFold(row.key)} aria-expanded={open} sx={{ minHeight: 44, textTransform: 'none' }}>
+              {open ? 'Masquer le détail' : 'Détail'}
+            </Button>
+          )}
+        </Box>
+        {otherLinks.map((l) => (
+          <Box key={(l.withdraw || l.settle || {}).linkId || l.label} sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' }}>
+            <span>{l.label}</span>
+            {linkActions(l)}
+          </Box>
+        ))}
+        {lines.map((l) => <Typography key={l} variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{l}</Typography>)}
+        {penaltyLines.map((p) => (
+          <Stack key={p.id} direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>{p.label}</Typography>
+            <Tooltip title="Supprimer la pénalité">
+              <span>
+                <IconButton aria-label="Supprimer la pénalité" disabled={!fichePristine} onClick={() => removePenalty(p)} sx={{ minWidth: 44, minHeight: 44 }}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+        ))}
+        {row.penaltyAction && editingReservationId && (
+          <Tooltip title={fichePristine ? '' : 'Enregistrer ou annuler les modifications avant de déclarer une pénalité.'}>
+            <span>
+              <Button size="small" variant="text" disabled={!fichePristine} onClick={() => setPenaltyOpen(true)} sx={{ minHeight: 44, textTransform: 'none' }}>
+                {row.penaltyAction.label}
+              </Button>
+            </span>
+          </Tooltip>
+        )}
+        {d.note && <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>{d.note}</Typography>}
+        {open && slot === 'complement' && (
+          <ComplementDetail
+            overrideValue={form.complementAmountOverride}
+            onOverrideCommit={commitArrivalOverride}
+            autoAmount={arrivalAutoAmount}
+            allocation={complementAdjustment.allocation}
+            floor={complementAdjustment.floor}
+            adjustDisabledReason={arrivalAdjustDisabledReason}
+            extra={deferButton}
+          />
+        )}
+        {open && slot === 'checkoutComplement' && (
+          <ComplementDetail
+            lines={checkoutComplement?.lines || []}
+            overrideValue={mergedOverrideValue}
+            onOverrideCommit={commitArrivalOverride}
+            autoAmount={mergedAutoAmount}
+            allocation={complementAdjustment.allocation}
+            floor={mergedFloor}
+            adjustDisabledReason={arrivalAdjustDisabledReason}
+            extra={deferButton}
+          />
+        )}
+        {open && slot === 'endOfStayComplement' && (
+          <ComplementDetail
+            lines={endOfStayLines}
+            overrideValue={form.endOfStayComplementAmountOverride}
+            onOverrideCommit={(v) => updateForm({ endOfStayComplementAmountOverride: v })}
+            autoAmount={pricingQuote?.endOfStayComplementAutoTotal != null
+              ? pricingQuote.endOfStayComplementAutoTotal
+              : form.endOfStayComplementAmountAuto}
+          />
+        )}
+        {open && slot === 'midStayNotes' && (
+          <Box sx={{ mt: 1, pl: 1.5, borderLeft: '2px solid', borderColor: 'divider' }}>
+            {midStayNotes.map((note) => (
+              <MidStayNoteRow
+                key={note.id}
+                note={note}
+                settled={endOfStaySettled}
+                onCancel={() => onCancelNote(note)}
+                onAdjust={(patch) => onAdjustNote(note, patch)}
+              />
+            ))}
+          </Box>
+        )}
+        {open && groupFirst && form.arrivalPayment?.covers && (
+          <Box sx={{ mt: 1 }}>
+            <ArrivalPaymentCard
+              payment={form.arrivalPayment}
+              busy={arrivalPayBusy}
+              error={arrivalPayError}
+              readOnly={isReservationLocked}
+              onCommitTotal={commitArrivalTotal}
+              onUndo={() => runArrivalPayment('undo')}
+            />
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
+  const renderPanel = (row) => {
+    if (!panel || panel.key !== row.key) return null;
+    if (panel.kind === 'mark') {
+      return (
+        <PaymentMarkForm
+          row={row}
+          today={todayStr()}
+          dateLabel={row.action?.dateLabel || 'Perçu le'}
+          previousDate={undoneDates[row.key] || null}
+          onSubmit={(values) => submitMark(row, values)}
+          onCancel={close}
+          formatAmountInput={formatAmountInput}
+          checkPayout={(payout) => api.computePlatformCommission({
+            gross: form.platformGrossAmount,
+            payout,
+            touristTax: form.platformTouristTaxAmount,
+            acompteCommission: form.acompteCommissionAmount,
+            expectedNet: row.action.payout.expected,
+            forMark: true,
+            taxEstimate: pricingQuote?.touristTaxOriginalTotal ?? form.touristTaxTotal,
+          })}
+        />
+      );
+    }
+    if (panel.kind === 'statement') {
+      return (
+        <PlatformStatementEditor
+          form={form}
+          pricingQuote={pricingQuote}
+          withDepositCommission={Boolean(pricingQuote?.platformTakesDeposit)}
+          locked={isReservationLocked}
+          computeCommission={api.computePlatformCommission}
+          onError={showError}
+          onApply={(patch) => { updateForm(patch); close(); }}
+          onCancel={close}
+        />
+      );
+    }
+    if (panel.kind === 'locked') {
+      return (
+        <Box sx={{ mt: 1.25, p: 1.25, borderRadius: 1.5, bgcolor: 'background.default', display: 'grid', gap: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>{panel.reason || row.amountEdit?.reason}</Typography>
+          <Box><Button variant="text" onClick={close} sx={{ minHeight: 44, textTransform: 'none' }}>Fermer</Button></Box>
+        </Box>
+      );
+    }
+    const edit = row.amountEdit || {};
+    return (
+      <LedgerAmountEditor
+        label={EDITOR_LABELS[row.key] || 'Montant (€)'}
+        initialValue={row.amount == null ? '' : formatAmountInput(row.amount)}
+        help={edit.reason || edit.help || ''}
+        onCheck={(raw) => checkLedgerEdit(row.key, raw)}
+        onApply={(answer) => { applyLedgerPatch(answer.formPatch || {}); close(); }}
+        onCancel={close}
+        onRefund={(refund) => { close(); setRefundDialogOpen({ overpaymentTtc: refund.amount, overpaymentLines: null }); }}
+        extraActions={edit.reset ? (
+          <Button variant="text" onClick={() => { applyLedgerPatch(edit.reset.patch); close(); }} sx={{ minHeight: 44, textTransform: 'none' }}>
+            {edit.reset.label}
+          </Button>
+        ) : null}
+      />
+    );
+  };
+
+  // Rule 56 (O2) — a closed fiche is a disabled fieldset: the refund of a payment to settle is drawn outside it.
+  const toSettle = closedActionsHost && settlePaymentLink
+    ? rows.flatMap((r) => [r.detail?.link, ...(r.detail?.otherLinks || [])]).filter((l) => l && l.settle && l.settle.refunded)
+    : [];
+  // specs/calendar-property-parity.md rule 25 reading of 2026-11-02 — so is the deletion of a refund made after the
+  // cancellation; its row in the ledger, inside the fieldset, shows no button. A duplicate set aside takes no refund.
+  const toDelete = closedActionsHost && refundHost ? rows.filter((r) => r.action && r.action.kind === 'deleteRefund') : [];
+  // specs/payment-schedule-and-cancellation.md rule 59 — so is the return of a caution the cancelled stay still holds.
+  const toReturn = closedActionsHost && refundHost ? rows.filter((r) => r.key === 'cautionReturned' && r.action && r.action.kind === 'mark') : [];
+  const drawnOutside = [...toDelete, ...toReturn];
+  const ledgerRows = drawnOutside.length > 0 ? rows.map((r) => (drawnOutside.includes(r) ? { ...r, action: null } : r)) : rows;
+  const returnCaution = async () => {
+    const ok = await confirm({ title: 'Restituer la caution ?', message: 'Restitution datée d’aujourd’hui.', confirmLabel: 'Restituer', cancelLabel: 'Garder' });
+    if (!ok) return;
+    try {
+      await api.markPayment(editingReservationId, { cautionReturned: true });
+      await reloadReservationFinance();
+    } catch (err) {
+      showError(err.message || 'Restitution impossible.');
+    }
+  };
+  const closedLineSx = { display: 'flex', flexWrap: 'wrap', columnGap: 1.25, alignItems: 'center', color: 'text.secondary', fontSize: '0.8125rem' };
+  const closedLines = (toSettle.length > 0 || toDelete.length > 0 || toReturn.length > 0) ? (
+    <Stack spacing={0.5}>
+      {toSettle.map((l) => (
+        <Box key={l.settle.linkId} sx={closedLineSx}>
+          <span>{l.label}</span>
+          <Button size="small" variant="text" onClick={() => askSettle(l.settle.linkId, 'refunded', l.settle.refunded)} sx={{ minHeight: 44, textTransform: 'none' }}>
+            {l.settle.refunded.label}
+          </Button>
+        </Box>
+      ))}
+      {toDelete.map((r) => (
+        <Box key={r.key} sx={closedLineSx}>
+          <span style={{ overflowWrap: 'anywhere' }}>{`${r.label} ${formatCurrency(r.amount)} · ${r.stateLabel}`}</span>
+          <Button
+            size="small"
+            variant="text"
+            color="error"
+            aria-label={`${r.action.label} : ${r.label} ${formatCurrency(r.amount)}`}
+            onClick={() => onAction(r)}
+            sx={{ minHeight: 44, textTransform: 'none' }}
+          >
+            {r.action.label}
+          </Button>
+        </Box>
+      ))}
+      {toReturn.map((r) => (
+        <Box key={r.key} sx={closedLineSx}>
+          <span style={{ overflowWrap: 'anywhere' }}>{`${r.label} ${formatCurrency(r.amount)} · ${r.stateLabel}`}</span>
+          <Button
+            size="small"
+            variant="text"
+            aria-label={`${r.action.label} : ${r.label} ${formatCurrency(r.amount)}`}
+            onClick={returnCaution}
+            sx={{ minHeight: 44, textTransform: 'none' }}
+          >
+            {r.action.label}
+          </Button>
+        </Box>
+      ))}
+    </Stack>
+  ) : null;
+  // On a cancelled fiche they follow « + Nouveau remboursement » in the same place (the footer); on a duplicate set
+  // aside, which takes no refund, they stand alone.
+  const closedActions = closedLines && !refundHost && createPortal(closedLines, closedActionsHost);
+
+
+  const refundButton = (
+    <Button variant="text" onClick={() => setRefundDialogOpen(true)} sx={{ minHeight: 44, textTransform: 'none' }}>
+      + Nouveau remboursement
+    </Button>
+  );
+
+  const footer = (
+    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 1 }} sx={{ mt: 1.5, alignItems: { xs: 'flex-start', sm: 'center' }, flexWrap: 'wrap' }}>
+      {showMidStayNotes && (
+        <Tooltip title={midStayNote?.reason || ''}>
+          <span>
+            <Button variant="text" disabled={Boolean(midStayNote?.disabled)} onClick={() => setMidStayNoteOpen(true)} sx={{ minHeight: 44, textTransform: 'none' }}>
+              + Nouvelle note
+            </Button>
+          </span>
+        </Tooltip>
+      )}
+      {!isDevisMode && editingReservationId && (refundHost ? createPortal(<>{refundButton}{closedLines}</>, refundHost) : refundButton)}
+    </Stack>
+  );
 
   return (
     <Card variant="outlined" sx={formSectionCardSx}>
+      {closedActions}
       <CardContent sx={formSectionContentSx}>
         <Box sx={{ position: 'relative', zIndex: 10 }}>
           <Stack spacing={2}>
@@ -557,11 +1044,7 @@ export default function FinanceSection() {
               </Box>
 
               <Grid container spacing={2} sx={{ ...sectionGridSx, alignItems: 'stretch' }}>
-                <Grid
-                  size={{
-                    xs: 12,
-                    md: 6
-                  }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Card variant="outlined" sx={{ height: '100%', bgcolor: 'grey.50', borderColor: 'divider' }}>
                     <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
                       <Typography variant="kpiLabel" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
@@ -577,11 +1060,7 @@ export default function FinanceSection() {
                   </Card>
                 </Grid>
                 {!isPlatform && (
-                <Grid
-                  size={{
-                    xs: 12,
-                    md: 6
-                  }}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Card
                     variant="outlined"
                     sx={{
@@ -594,8 +1073,7 @@ export default function FinanceSection() {
                       <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.4 }}>
                         Prix hébergement ajusté
                       </Typography>
-                      {/* Accepts arithmetic: typing e.g. "100+20" commits 120 on Enter/blur
-                          (specs/reservation-price-arithmetic.md). */}
+                      {/* Accepts arithmetic (specs/reservation-price-arithmetic.md). */}
                       <ArithmeticTextField
                         label="Prix ajusté"
                         value={form.customPrice}
@@ -623,9 +1101,7 @@ export default function FinanceSection() {
                           onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
                           fullWidth
                           size="small"
-                          slotProps={{
-                            htmlInput: { min: 0, max: 100 }
-                          }}
+                          slotProps={{ htmlInput: { min: 0, max: 100 } }}
                         />
                       </Stack>
                     </CardContent>
@@ -635,905 +1111,208 @@ export default function FinanceSection() {
               </Grid>
             </Box>
 
-            {String(form.platform || 'direct').toLowerCase() !== 'direct' && (() => {
-              // specs/platform-payment-entry.md + platform-per-echeance-commission.md — the brut pins the
-              // total séjour; the commissions are now entered per échéance (acompte + solde blocks). The
-              // « Net perçu » here = total − the engine's total commission; the virement reconciles it.
-              const totalSejour = Number(pricingQuote?.totalStayPrice ?? pricingQuote?.finalPrice ?? 0);
-              const commission = Number(pricingQuote?.totalPlatformCommission
-                ?? ((Number(form.platformCommissionAmount || 0)) + (Number(form.acompteCommissionAmount || 0))));
-              // The platform only settles the PRE-ARRIVAL amount: the complement (the on-arrival tourist
-              // tax for owner-collect platforms + on-site extras) is collected by us at check-in, never by
-              // the platform. Exclude it so the reconciliation no longer shows an écart equal to the tax
-              // (specs/platform-payment-entry.md). The server-provided `platformNetReceivedAmount` already
-              // accounts for this; this fallback (no commission entered) must mirror it.
-              const preArrival = Math.round((totalSejour - Number(pricingQuote?.complementAmount || 0)) * 100) / 100;
-              const netPercu = pricingQuote?.platformNetReceivedAmount != null
-                ? Number(pricingQuote.platformNetReceivedAmount)
-                : Math.round((preArrival - commission) * 100) / 100;
-              const virement = form.platformPayoutAmount === '' || form.platformPayoutAmount == null
-                ? null : Number(form.platformPayoutAmount);
-              const ecart = virement == null ? null : Math.round((netPercu - virement) * 100) / 100;
-              const reconcileOk = ecart != null && Math.abs(ecart) < 0.01;
-              // « Calculer » (specs/platform-payment-calculer-button.md): one-shot, on-demand fill of
-              // the SOLDE commission from the entered amounts — commission = montant client − virement,
-              // minus an already-entered acompte commission (so the books reconcile: net perçu = virement).
-              // Nothing is automatic; the computed value stays freely editable. Enabled only once both the
-              // montant client (brut) and the virement reçu are filled.
-              // The only tourist tax ever subtracted here is the one the OPERATOR stated
-              // (specs/platform-tourist-tax-out-of-the-commission.md rule 10). That is the whole
-              // difference with the deduction removed in August: the engine's own estimate is never
-              // the platform's figure (Booking bills 4,4 % of the stay where we compute a per-person
-              // nightly rate), so subtracting it could not reconcile. An empty box subtracts nothing
-              // and reproduces the August formula exactly.
-              const platformGrossFilled = form.platformGrossAmount !== '' && form.platformGrossAmount != null;
-              const platformPayoutFilled = form.platformPayoutAmount !== '' && form.platformPayoutAmount != null;
-              const canComputeCommission = platformGrossFilled && platformPayoutFilled && !isReservationLocked;
-              const withheldTouristTax = (() => {
-                if (form.platformTouristTaxAmount === '' || form.platformTouristTaxAmount == null) return 0;
-                const n = Number(form.platformTouristTaxAmount);
-                return Number.isFinite(n) ? Math.max(0, n) : 0;
-              })();
-              const computeCommissionFromPayout = async () => {
-                try {
-                  const { commission } = await api.computePlatformCommission({
-                    gross: form.platformGrossAmount,
-                    payout: form.platformPayoutAmount,
-                    touristTax: form.platformTouristTaxAmount,
-                    acompteCommission: form.acompteCommissionAmount,
-                  });
-                  updateForm({ platformCommissionAmount: commission });
-                } catch (err) {
-                  showError(err.message || 'Calcul impossible');
-                }
-              };
-              // Which number to copy off the platform's statement depends on its tourist-tax mode, so the
-              // field says it (specs/platform-brut-excludes-offered-tourist-tax.md §6). Getting this wrong
-              // is what under-stated the commission on every Gîtes de France booking.
-              const taxOfferedByPlatform = Boolean(pricingQuote?.touristTaxOfferedByPlatform);
-              const taxReversedByPlatform = Boolean(pricingQuote?.touristTaxReversedByPlatform);
-              // specs/platform-tourist-tax-out-of-the-commission.md rules 1, 3 and 14 — in the offered
-              // mode the convention now depends on the box below: filled, the field is the statement's
-              // guest-paid total; empty, it is still read tourist-tax-excluded (the August reading,
-              // which every stored reservation relies on). The label has to say which, because getting
-              // it wrong is precisely what produced the accountant's report.
-              const withheldTaxFilled = form.platformTouristTaxAmount !== '' && form.platformTouristTaxAmount != null;
-              const showWithheldTaxBox = taxOfferedByPlatform;
-              const grossLabel = taxOfferedByPlatform && !withheldTaxFilled
-                ? 'Total séjour facturé par la plateforme'
-                : 'Montant total payé par le client';
-              const grossHelper = taxOfferedByPlatform
-                ? (withheldTaxFilled
-                  ? 'Total du relevé, taxe de séjour comprise. La taxe saisie ci-dessous en est déduite.'
-                  : "Hébergement + options, hors taxe de séjour et hors frais de dossier — l'hébergement s'ajuste automatiquement.")
-                : taxReversedByPlatform
-                  ? 'Taxe de séjour comprise — la plateforme vous la reverse avec le virement.'
-                  : "L'hébergement s'ajuste automatiquement (brut − options). La taxe de séjour est encaissée à l'arrivée.";
-              // Rule 5 — the engine's own estimate, which « Reprendre le calcul » offers. Never written
-              // on its own: moving a fiche to the tax-inclusive convention is a deliberate click.
-              const engineTouristTax = Number(pricingQuote?.touristTaxOriginalTotal || 0);
-              // Rule 12 — the amount that carries the VAT and that the commission is computed on, which
-              // is no longer the number typed above once the box holds something.
-              const grossNumForNet = Number(form.platformGrossAmount);
-              const taxExcludedAmount = platformGrossFilled && Number.isFinite(grossNumForNet)
-                ? Math.round((grossNumForNet - withheldTouristTax) * 100) / 100
-                : null;
-              return (
-                <>
-                  <Divider />
-                  <Box>
-                    <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1.5 }}>Paiement plateforme</Typography>
-                    <Grid container spacing={2} sx={{ ...sectionGridSx, alignItems: 'flex-start' }}>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <ArithmeticTextField
-                          label={grossLabel}
-                          value={form.platformGrossAmount ?? ''}
-                          onCommit={(v) => updateForm({ platformGrossAmount: v })}
-                          fullWidth
-                          size="small"
-                          helperText={grossHelper}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <ArithmeticTextField
-                          label="Virement reçu (contrôle)"
-                          value={form.platformPayoutAmount ?? ''}
-                          onCommit={(v) => updateForm({ platformPayoutAmount: v })}
-                          fullWidth
-                          size="small"
-                          helperText="Le montant réellement viré (facultatif) — pour vérifier la cohérence."
-                        />
-                      </Grid>
-                      {/* specs/platform-tourist-tax-out-of-the-commission.md rules 1, 5 and 12 — only
-                          for a platform that collects the tax AND remits it to the commune itself.
-                          The amount is the PLATFORM's, which is what makes deducting it safe. */}
-                      {showWithheldTaxBox && (
-                        <Grid size={{ xs: 12, md: 6 }}>
-                          <ArithmeticTextField
-                            label="Taxe de séjour retenue"
-                            value={form.platformTouristTaxAmount ?? ''}
-                            onCommit={(v) => updateForm({ platformTouristTaxAmount: v })}
-                            fullWidth
-                            size="small"
-                            disabled={isReservationLocked}
-                            helperText="Collectée par la plateforme et reversée à la commune — jamais encaissée par nous."
-                          />
-                          <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                            <Tooltip title={`Reprendre le calcul du moteur : ${formatCurrency(engineTouristTax)}`}>
-                              <span>
-                                <Button
-                                  size="small"
-                                  variant="text"
-                                  onClick={() => updateForm({ platformTouristTaxAmount: engineTouristTax })}
-                                  disabled={isReservationLocked}
-                                  sx={{ textTransform: 'none', minHeight: 44 }}
-                                >
-                                  Reprendre le calcul
-                                </Button>
-                              </span>
-                            </Tooltip>
-                            {withheldTaxFilled && taxExcludedAmount != null && (
-                              <Typography variant="caption" color="text.secondary">
-                                Montant hors taxe de séjour : <strong>{formatCurrency(taxExcludedAmount)}</strong> — base TVA et base de commission.
-                              </Typography>
-                            )}
-                          </Stack>
-                        </Grid>
-                      )}
-                    </Grid>
-                    <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Tooltip title={canComputeCommission
-                        ? (withheldTaxFilled
-                          ? 'Commission solde = montant client − virement − taxe de séjour retenue (− commission acompte éventuelle)'
-                          : 'Commission solde = total facturé − virement (− commission acompte éventuelle)')
-                        : 'Renseignez le total facturé et le virement reçu'}>
-                        <span>
-                          <Button size="small" variant="outlined" onClick={computeCommissionFromPayout} disabled={!canComputeCommission}>
-                            Calculer la commission
-                          </Button>
-                        </span>
-                      </Tooltip>
-                      <Typography variant="body2">
-                        Net perçu : <strong>{formatCurrency(netPercu)}</strong>
-                      </Typography>
-                      {virement != null && (
-                        <StatusBadge
-                          status={reconcileOk ? 'success' : 'warning'}
-                          label={reconcileOk ? '✓ cohérent avec le virement' : `écart : ${formatCurrency(ecart)}`}
-                        />
-                      )}
-                    </Stack>
-                  </Box>
-                </>
-              );
-            })()}
-
             <Divider />
 
-            {/* specs/single-payment-at-check-in.md §3.4 rule 16 — the guest handed over ONE payment
-                at the door. The buckets below keep their own amounts and their own controls; this
-                line is what says they were collected together, once. It disappears the moment one of
-                them is un-ticked (rule 17), because the payment is then no longer true. */}
-            {form.arrivalPayment?.covers && (
-              <ArrivalPaymentCard
-                payment={form.arrivalPayment}
-                busy={arrivalPayBusy}
-                error={arrivalPayError}
-                readOnly={isReservationLocked}
-                onCommitTotal={commitArrivalTotal}
-                onUndo={() => runArrivalPayment('undo')}
-              />
-            )}
-
-            {/* specs/single-payment-from-the-fiche.md §3.1 — the stay and the complement are both
-                still to be collected: offer to record them as the ONE payment the guest actually
-                made. Nothing else is touched — no SAS page runs, so the planning « préparé » flags
-                and everything the check-in recorded stay exactly as they are. */}
-            {form.arrivalPayment?.collectible && (
-              <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Encaisser en une fois : {formatCurrency(form.arrivalPayment.collectible.total)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                  {form.arrivalPayment.collectible.buckets.map((b) => `${b.label} ${formatCurrency(b.amount)}`).join(' · ')}
-                </Typography>
-                <DateField
-                  label="Encaissé le"
-                  type="date"
-                  size="small"
-                  value={arrivalPayDate}
-                  onChange={(e) => setArrivalPayDate(e.target.value)}
-                  error={Boolean(arrivalPayError)}
-                  helperText={arrivalPayError || ' '}
-                  sx={{ maxWidth: 200 }}
-                />
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5 }}>
-                  <Button
-                    variant="outlined"
-                    disabled={arrivalPayBusy || !arrivalPayDate}
-                    onClick={() => runArrivalPayment('card')}
-                    sx={{ textTransform: 'none', minHeight: 44 }}
-                  >
-                    CB / Chèque
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    disabled={arrivalPayBusy || !arrivalPayDate}
-                    onClick={() => runArrivalPayment('cash')}
-                    sx={{ textTransform: 'none', minHeight: 44 }}
-                  >
-                    Caisse interne
-                  </Button>
-                </Stack>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                  « Caisse interne » : encaissé hors comptabilité, comme un complément en liquide.
-                </Typography>
-              </Box>
-            )}
-
             <Box>
-              <Grid container spacing={2} sx={sectionGridSx}>
-                {/* accounting-platform-commission-and-no-deposit.md §3.3 rule 5 + §3.8 rule 21.
-                    A platform configured « sans acompte » (default) is paid in a single transfer — the
-                    whole pre-arrival amount lands on the Solde. A platform set « Acompte = Oui »
-                    (specs/platform-deposit-toggle.md) shows the normal acompte block below. */}
-                {showNoDepositMessage ? (
-                  <Grid
-                    size={{ xs: 12, md: 6 }}>
-                    <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>Acompte</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                      Pas d'acompte (réservation plateforme — virement unique). Le montant total est
-                      encaissé en une fois via le Solde.
-                    </Typography>
-                  </Grid>
-                ) : (
-                <Grid
-                  size={{
-                    xs: 12,
-                    md: 6
-                  }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 2 }}>
-                    <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 0 }}>Acompte</Typography>
+              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>Paiements</Typography>
+
+              {/* specs/single-payment-from-the-fiche.md §3.1 — several buckets still to collect: offer
+                  to record them as the ONE payment the guest made. */}
+              {form.arrivalPayment?.collectible && !isReservationLocked && (
+                <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Encaisser en une fois : {formatCurrency(form.arrivalPayment.collectible.total)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                    {form.arrivalPayment.collectible.buckets.map((b) => `${b.label} ${formatCurrency(b.amount)}`).join(' · ')}
+                  </Typography>
+                  <DateField
+                    label="Encaissé le"
+                    type="date"
+                    size="small"
+                    value={arrivalPayDate}
+                    onChange={(e) => setArrivalPayDate(e.target.value)}
+                    error={Boolean(arrivalPayError)}
+                    helperText={arrivalPayError || ' '}
+                    sx={{ maxWidth: 200 }}
+                  />
+                  {arrivalSplitOpen && (
+                    <Box sx={{ mt: 0.5, mb: 1 }}>
+                      <TenderLines
+                        dueCents={Math.round(Number(form.arrivalPayment.collectible.total || 0) * 100)}
+                        methods={splitMethodsOf(rows)}
+                        onChange={setArrivalTenders}
+                        disabled={arrivalPayBusy}
+                        autoFocus
+                      />
+                    </Box>
+                  )}
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 0.5, alignItems: { sm: 'center' } }}>
+                    {arrivalSplitOpen ? (
+                      <Button
+                        variant="contained"
+                        disabled={arrivalPayBusy || !arrivalPayDate || !(arrivalTenders && arrivalTenders.canSubmit)}
+                        onClick={() => runArrivalPayment('split')}
+                        sx={{ textTransform: 'none', minHeight: 44, borderRadius: 999 }}
+                      >
+                        {TENDER_TEXTS.collect(formatCurrency(arrivalTenders && arrivalTenders.gapCents > 0
+                          ? arrivalTenders.receivedCents / 100
+                          : form.arrivalPayment.collectible.total))}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button variant="outlined" disabled={arrivalPayBusy || !arrivalPayDate} onClick={() => runArrivalPayment('card')} sx={{ textTransform: 'none', minHeight: 44 }}>
+                          CB / Chèque
+                        </Button>
+                        <Button variant="outlined" disabled={arrivalPayBusy || !arrivalPayDate} onClick={() => runArrivalPayment('cash')} sx={{ textTransform: 'none', minHeight: 44 }}>
+                          Caisse interne
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="text"
+                      data-split-toggle="arrival"
+                      onClick={() => { setArrivalSplitOpen((v) => !v); setArrivalTenders(null); setArrivalPayError(''); }}
+                      sx={{ textTransform: 'none', minHeight: 44, color: 'text.secondary', ml: { sm: 'auto !important' } }}
+                    >
+                      {arrivalSplitOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
+                    </Button>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    « Caisse interne » : encaissé hors comptabilité, comme un complément en liquide.
+                  </Typography>
+                </Box>
+              )}
+
+              {editingReservationId && !isDevisMode && installmentPlan && installmentPlan.eligible && (
+                <Box sx={{ mb: 2 }}>
+                  <InstallmentPlanCard
+                    key={editingReservationId}
+                    reservationId={editingReservationId}
+                    plan={installmentPlan}
+                    disabled={!fichePristine}
+                    today={localIsoToday()}
+                    onPlanChange={setInstallmentPlan}
+                    onMoneyChanged={reloadReservationFinance}
+                  />
+                </Box>
+              )}
+
+              <LedgerList
+                rows={ledgerRows}
+                closing={ledger?.closing || null}
+                formatAmount={formatCurrency}
+                onAction={onAction}
+                onAmountClick={onAmountClick}
+                renderDetail={renderDetail}
+                renderPanel={renderPanel}
+                openKey={panel ? panel.key : null}
+                footer={footer}
+              />
+            </Box>
+
+            {/* The split settings of the stay: they move money between the rows above. */}
+            {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit) || (Number(pricingQuote?.touristTaxTotal || 0) > 0 && !pricingQuote?.touristTaxCollectedOnArrival)) && (
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 0, sm: 2 }} useFlexGap sx={{ flexWrap: 'wrap' }}>
+                {(!isPlatform || Boolean(pricingQuote?.platformTakesDeposit)) && !hasInstallmentPlan && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', maxWidth: { sm: 340 } }}>
                     <FormControlLabel
-                      control={
+                      control={(
                         <Switch
-                          size="small"
                           checked={Boolean(form.depositDisabled)}
                           onChange={(e) => updateForm({
                             depositDisabled: e.target.checked,
-                            // When the operator disables the deposit, also clear the paid flags
-                            // so the next save doesn't persist an inconsistent (disabled + paid)
-                            // state. The server enforces the same on its side; the client mirror
-                            // keeps the UI consistent immediately. See
-                            // specs/disable-deposit-per-reservation.md.
+                            // specs/disable-deposit-per-reservation.md — the server enforces the same.
                             ...(e.target.checked ? { depositPaid: false, depositPaidDate: '' } : {}),
                           })}
-                          disabled={isReservationLocked && !editingReservationId}
-                        />
-                      }
-                      label={<Typography variant="caption" color="text.secondary">Désactiver</Typography>}
-                      labelPlacement="start"
-                      sx={{ mr: 0, ml: 0 }}
-                    />
-                  </Box>
-
-                  {form.depositDisabled ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
-                      Acompte désactivé — ajouté au solde.
-                    </Typography>
-                  ) : (
-                    <>
-                      {/* Manual deposit override (specs/editable-deposit-amount.md). Empty = auto
-                          (percentage). A value freezes the acompte; the solde absorbs tariff changes.
-                          Hidden in devis mode (out of scope) and locked once the acompte is paid.
-                          Accepts arithmetic like "Prix ajusté" (commit on Enter/blur). */}
-                      {!isDevisMode && (
-                        <ArithmeticTextField
-                          label="Montant acompte (€)"
-                          value={form.depositAmountOverride}
-                          onCommit={(v) => updateForm({ depositAmountOverride: v })}
-                          fullWidth
-                          size="small"
-                          disabled={isReservationLocked || Boolean(form.depositPaid)}
-                          sx={{ mb: 1.5 }}
-                          helperText={
-                            form.depositPaid
-                              ? 'Acompte payé, montant figé.'
-                              : form.depositAmountOverride !== ''
-                                ? 'Acompte figé — le solde absorbe les variations de tarif.'
-                                : `Calcul automatique${pricingQuote?.property?.depositPercent != null ? ` (${pricingQuote.property.depositPercent}%)` : ''}. Saisir un montant pour le figer.`
-                          }
+                          // disable-deposit-per-reservation.md rule 14 — a lock never freezes the switch ON: it may be unticked, never ticked.
+                          disabled={(isReservationLocked && !editingReservationId) || (Boolean(depositDisabledLockedReason) && !form.depositDisabled)}
+                          slotProps={{ input: { 'aria-describedby': depositDisabledLockReason ? 'deposit-disabled-lock-reason' : undefined } }}
                         />
                       )}
-                      {/* specs/platform-per-echeance-commission.md — commission on the acompte (platform
-                          only), booked on the platform's account on the deposit entry. */}
-                      {isPlatform && (
-                        <ArithmeticTextField
-                          label="Commission acompte (€)"
-                          value={form.acompteCommissionAmount ?? ''}
-                          onCommit={(v) => updateForm({ acompteCommissionAmount: v })}
-                          fullWidth
-                          size="small"
-                          disabled={isReservationLocked}
-                          sx={{ mb: 1.5 }}
-                          helperText="Frais retenus sur l'acompte (compta : compte de la plateforme)."
-                        />
-                      )}
-                      <DateField
-                        label="Échéance acompte"
-                        type="date"
-                        value={form.depositDueDate}
-                        disabled={isReservationLocked}
-                        onChange={(e) => updateForm({ depositDueDate: e.target.value })}
-                        fullWidth
-                        slotProps={{
-                          inputLabel: { shrink: true }
-                        }}
-                      />
-                      <Button
-                        fullWidth
-                        variant={form.depositPaid ? 'contained' : 'outlined'}
-                        color={form.depositPaid ? 'success' : 'inherit'}
-                        onClick={async () => {
-                          const next = !form.depositPaid;
-                          const today = todayStr();
-                          const date = next ? (form.depositPaidDate || today) : '';
-                          // specs/single-payment-from-the-fiche.md rule 11bis — l'état payé appartient
-                          // au serveur : on l'écrit TOUT DE SUITE, comme le complément le fait déjà, au
-                          // lieu de le confier au prochain Enregistrer. C'est ce qui permet à
-                          // l'enregistrement d'ignorer ces drapeaux, et donc de ne plus pouvoir en
-                          // effacer un par mégarde.
-                          if (editingReservationId) {
-                            try {
-                              await api.markPayment(editingReservationId, { depositPaid: next, depositPaidDate: date || null });
-                            } catch {
-                              showError(PAYMENT_NOT_SAVED);
-                              return;
-                            }
-                          }
-                          updateForm({ depositPaid: next, depositPaidDate: date });
-                          // …et le bloc du paiement unique reflète le serveur : le groupe a pu mourir ici.
-                          if (editingReservationId) await reloadReservationFinance();
-                        }}
-                        sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
-                      >
-                        {form.depositPaid ? 'Acompte payé' : 'Marquer acompte payé'}
-                      </Button>
-                      {/* specs/collect-stay-payment-at-check-in.md §3.4 rule 20 — read-only: the SAS
-                          collected it at the door, hors compta. Un-ticking the bucket clears it. */}
-                      {form.depositPaid && form.depositPaidCash && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                          Caisse interne ✓ — encaissé à l'arrivée, hors compta.
-                        </Typography>
-                      )}
-                      {form.depositPaid && (
-                        <DateField
-                          label="Payé le"
-                          type="date"
-                          value={form.depositPaidDate || ''}
-                          onChange={async (e) => {
-                            const v = e.target.value;
-                            updateForm({ depositPaidDate: v });
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { depositPaid: true, depositPaidDate: v || null });
-                            }
-                          }}
-                          fullWidth
-                          sx={{ mt: 1.5 }}
-                          slotProps={{
-                            inputLabel: { shrink: true }
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
-                </Grid>
-                )}
-
-                <Grid
-                  size={{
-                    xs: 12,
-                    md: 6
-                  }}>
-                  <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 2 }}>Solde</Typography>
-                  {/* specs/platform-per-echeance-commission.md — commission on the solde (platform only),
-                      booked on the platform's account on the balance entry. */}
-                  {isPlatform && (
-                    <ArithmeticTextField
-                      label="Commission solde (€)"
-                      value={form.platformCommissionAmount ?? ''}
-                      onCommit={(v) => updateForm({ platformCommissionAmount: v })}
-                      fullWidth
-                      size="small"
-                      disabled={isReservationLocked}
-                      sx={{ mb: 1.5 }}
-                      helperText="Frais retenus sur le solde (compta : compte de la plateforme)."
+                      label={<Typography variant="body2">Sans acompte</Typography>}
+                      sx={{ minHeight: 44, m: 0 }}
                     />
-                  )}
-                  <DateField
-                    label="Échéance solde"
-                    type="date"
-                    value={form.balanceDueDate}
-                    disabled={isReservationLocked}
-                    onChange={(e) => updateForm({ balanceDueDate: e.target.value })}
-                    fullWidth
-                    slotProps={{
-                      inputLabel: { shrink: true }
-                    }}
-                  />
-                  <Button
-                    fullWidth
-                    variant={form.balancePaid ? 'contained' : 'outlined'}
-                    color={form.balancePaid ? 'success' : 'inherit'}
-                    onClick={async () => {
-                      const next = !form.balancePaid;
-                      const today = todayStr();
-                      const date = next ? (form.balancePaidDate || today) : '';
-                      // rule 11bis — même règle que l'acompte : écriture immédiate, serveur maître.
-                      if (editingReservationId) {
-                        try {
-                          await api.markPayment(editingReservationId, { balancePaid: next, balancePaidDate: date || null });
-                        } catch {
-                          showError(PAYMENT_NOT_SAVED);
-                          return;
-                        }
-                      }
-                      updateForm({ balancePaid: next, balancePaidDate: date });
-                      if (editingReservationId) await reloadReservationFinance();
-                    }}
-                    sx={{ mt: 1.5, textTransform: 'none', justifyContent: 'flex-start' }}
-                  >
-                    {form.balancePaid ? 'Solde payé' : 'Marquer solde payé'}
-                  </Button>
-                  {form.balancePaid && form.balancePaidCash && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                      Caisse interne ✓ — encaissé à l'arrivée, hors compta.
-                    </Typography>
-                  )}
-                  {form.balancePaid && (
-                    <DateField
-                      label="Payé le"
-                      type="date"
-                      value={form.balancePaidDate || ''}
-                      onChange={async (e) => {
-                        const v = e.target.value;
-                        updateForm({ balancePaidDate: v });
-                        if (editingReservationId) {
-                          await api.markPayment(editingReservationId, { balancePaid: true, balancePaidDate: v || null });
-                        }
-                      }}
-                      fullWidth
-                      sx={{ mt: 1.5 }}
-                      slotProps={{
-                        inputLabel: { shrink: true }
-                      }}
-                    />
-                  )}
-                </Grid>
-              </Grid>
-            </Box>
-
-            {/* Per-item routing for the tourist tax (spec force-item-to-complement.md §6.4).
-                When ON, the tax bypasses the auto deposit/balance split and lives 100 % in the
-                Complément entry. Hidden when:
-                  - no tax to route (touristTaxTotal === 0), OR
-                  - the engine already routes the tax to Complément on its own — i.e. the
-                    booking is on a non-direct platform configured to NOT collect the tax
-                    (`touristTaxCollectedOnArrival = true`). In that case the toggle is moot:
-                    the tax always lands in Complément, the user can't change it, showing the
-                    Switch would only be confusing. */}
-            {Number(pricingQuote?.touristTaxTotal || 0) > 0
-              && !Boolean(pricingQuote?.touristTaxCollectedOnArrival) && (
-              <>
-                <Divider />
-                <Box>
-                  <Tooltip title="Lorsque cette option est activée, la taxe de séjour n'est pas comprise dans l'acompte ni le solde : elle est intégralement perçue dans le Complément à percevoir (par exemple, encaissée à l'arrivée)." arrow>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={Boolean(form.touristTaxInComplement)}
-                          onChange={(e) => updateForm({ touristTaxInComplement: e.target.checked })}
-                        />
-                      }
-                      label={
-                        <Typography variant="body2">
-                          Taxe de séjour en complément
-                          <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                            ({formatCurrency(pricingQuote.touristTaxTotal)})
-                          </Typography>
-                        </Typography>
-                      }
-                    />
-                  </Tooltip>
-                </Box>
-              </>
-            )}
-
-            {/* Les compléments, dans une seule grille : deux cartes par ligne sur ordinateur, empilées
-                sur mobile (specs/adjustable-complement-amounts.md §6.5). Arrivée et fin de séjour
-                d'abord, côte à côte — ce sont les deux qu'on compare, et le report bascule de l'une à
-                l'autre. « Durant le séjour », qui est un registre et pas une collecte à venir, suit. */}
-            {(complementDeferred || showArrivalComplement || showMidStayNotes || showEndOfStayComplement) && (
-              <>
-                <Divider />
-                <Box>
-                  <Grid container spacing={2} sx={{ ...sectionGridSx, alignItems: 'stretch' }}>
-                    {/* Deferred to check-out (specs/defer-arrival-complement-to-checkout.md §3.2 rules 6-8):
-                        ONE card for ONE collection — the arrival lines and the end-of-stay lines together,
-                        one total, one « payé » action (the server settles both buckets). */}
-                    {complementDeferred && (
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <ComplementCard
-                          title={COMPLEMENT_LABELS.endOfStay}
-                          amount={checkoutComplement.amount}
-                          lines={checkoutComplement.lines || []}
-                          paid={form.complementPaid}
-                          paidCash={form.complementPaidCash}
-                          paidDate={form.complementPaidDate}
-                          extra={deferButton}
-                          overrideValue={mergedOverrideValue}
-                          onOverrideCommit={commitArrivalOverride}
-                          autoAmount={mergedAutoAmount}
-                          allocation={complementAdjustment.allocation}
-                          floor={mergedFloor}
-                          adjustDisabledReason={arrivalAdjustDisabledReason}
-                          onTogglePaid={async (next) => {
-                            const date = next ? (form.complementPaidDate || todayStr()) : '';
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
-                            }
-                            updateForm({
-                              complementPaid: next, complementPaidDate: date,
-                              endOfStayComplementPaid: next, endOfStayComplementPaidDate: date,
-                              ...(next ? {} : { complementPaidCash: false, endOfStayComplementPaidCash: false }),
-                            });
-                          }}
-                          onDateChange={async (v) => {
-                            updateForm({ complementPaidDate: v, endOfStayComplementPaidDate: v });
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
-                            }
-                          }}
-                          onToggleCash={async (next) => {
-                            const date = form.complementPaidDate || todayStr();
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { complementPaidCash: next });
-                            }
-                            updateForm(next
-                              ? {
-                                complementPaidCash: true, complementPaid: true, complementPaidDate: date,
-                                endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date,
-                              }
-                              : { complementPaidCash: false, endOfStayComplementPaidCash: false });
-                          }}
-                        />
-                      </Grid>
-                    )}
-
-                    {showArrivalComplement && (
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <ComplementCard
-                          title={COMPLEMENT_LABELS.arrival}
-                          amount={pricingQuote?.complementAmount || 0}
-                          paid={form.complementPaid}
-                          paidCash={form.complementPaidCash}
-                          paidDate={form.complementPaidDate}
-                          extra={deferButton}
-                          overrideValue={form.complementAmountOverride}
-                          onOverrideCommit={commitArrivalOverride}
-                          autoAmount={arrivalAutoAmount}
-                          allocation={complementAdjustment.allocation}
-                          floor={complementAdjustment.floor}
-                          adjustDisabledReason={arrivalAdjustDisabledReason}
-                          // L'encaissement est un acte, pas un brouillon : il part tout de suite, comme
-                          // « Caisse interne » et comme le bouton de la carte de fin de séjour. Il
-                          // n'écrivait qu'en base sur une réservation VERROUILLÉE et attendait un
-                          // « Enregistrer » sinon — le formulaire disait « non encaissé » pendant que le
-                          // serveur disait l'inverse, et c'est le serveur qui décide de la fusion des
-                          // cartes : dé-marquer puis reporter ne fusionnait rien (Adrien, 2026-08-22).
-                          onTogglePaid={async (next) => {
-                            const date = next ? (form.complementPaidDate || todayStr()) : '';
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { complementPaid: next, complementPaidDate: date || null });
-                            }
-                            updateForm({ complementPaid: next, complementPaidDate: date });
-                            if (editingReservationId) await reloadReservationFinance();
-                          }}
-                          onDateChange={async (v) => {
-                            updateForm({ complementPaidDate: v });
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { complementPaid: true, complementPaidDate: v || null });
-                            }
-                          }}
-                          onToggleCash={async (next) => {
-                            const date = form.complementPaidDate || todayStr();
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { complementPaidCash: next });
-                            }
-                            updateForm(next
-                              ? { complementPaidCash: true, complementPaid: true, complementPaidDate: date }
-                              : { complementPaidCash: false });
-                          }}
-                        />
-                      </Grid>
-                    )}
-
-                    {showEndOfStayComplement && (
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <ComplementCard
-                          title={COMPLEMENT_LABELS.endOfStay}
-                          amount={endOfStayAmountNow}
-                          lines={endOfStayLines}
-                          paid={form.endOfStayComplementPaid}
-                          paidCash={form.endOfStayComplementPaidCash}
-                          paidDate={form.endOfStayComplementPaidDate}
-                          overrideValue={form.endOfStayComplementAmountOverride}
-                          onOverrideCommit={(v) => updateForm({ endOfStayComplementAmountOverride: v })}
-                          autoAmount={pricingQuote?.endOfStayComplementAutoTotal != null
-                            ? pricingQuote.endOfStayComplementAutoTotal
-                            : form.endOfStayComplementAmountAuto}
-                          onTogglePaid={async (next) => {
-                            const date = next ? (form.endOfStayComplementPaidDate || todayStr()) : '';
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: next, endOfStayComplementPaidDate: date || null });
-                            }
-                            updateForm({ endOfStayComplementPaid: next, endOfStayComplementPaidDate: date, ...(next ? {} : { endOfStayComplementPaidCash: false }) });
-                          }}
-                          onDateChange={async (v) => {
-                            updateForm({ endOfStayComplementPaidDate: v });
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { endOfStayComplementPaid: true, endOfStayComplementPaidDate: v || null });
-                            }
-                          }}
-                          onToggleCash={async (next) => {
-                            const date = form.endOfStayComplementPaidDate || todayStr();
-                            if (editingReservationId) {
-                              await api.markPayment(editingReservationId, { endOfStayComplementPaidCash: next });
-                            }
-                            updateForm(next
-                              ? { endOfStayComplementPaidCash: true, endOfStayComplementPaid: true, endOfStayComplementPaidDate: date }
-                              : { endOfStayComplementPaidCash: false });
-                          }}
-                        />
-                      </Grid>
-                    )}
-                    {/* Complément durant le séjour (specs/mid-stay-notes.md §3.5 rule 17): running total of the
-                        settled notes + the « Nouvelle note » entry point + a browsable history. Placed
-                        between the two complements, in collection order. */}
-                    {showMidStayNotes && (
-                      <Grid size={{ xs: 12, md: 6 }}>
-                        <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
-                          {COMPLEMENT_LABELS.duringStay}
-                          {midStayNotesTotal > 0 && (
-                            <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
-                              ({formatCurrency(midStayNotesTotal)})
-                            </Typography>
-                          )}
-                        </Typography>
-                        <Tooltip title={midStayNote?.reason || ''}>
-                          <span>
-                            <Button
-                              fullWidth
-                              variant="outlined"
-                              disabled={Boolean(midStayNote?.disabled)}
-                              onClick={() => setMidStayNoteOpen(true)}
-                              sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
-                            >
-                              + Nouvelle note
-                            </Button>
-                          </span>
-                        </Tooltip>
-                        {midStayNotes.length > 0 && (
-                          <>
-                            <Button
-                              size="small"
-                              onClick={() => setHistoryOpen((v) => !v)}
-                              sx={{ textTransform: 'none', mt: 1 }}
-                            >
-                              {historyOpen ? 'Masquer l\'historique' : `Voir l'historique (${midStayNotes.length} note${midStayNotes.length > 1 ? 's' : ''})`}
-                            </Button>
-                            {historyOpen && midStayNotes.map((note) => (
-                              <MidStayNoteRow
-                                key={note.id}
-                                note={note}
-                                settled={endOfStaySettled}
-                                onCancel={() => onCancelNote(note)}
-                                onAdjust={(patch) => onAdjustNote(note, patch)}
-                              />
-                            ))}
-                          </>
-                        )}
-                      </Grid>
-                    )}
-
-                  </Grid>
-                </Box>
-                {showMidStayNotes && (
-                  <MidStayNoteDialog
-                    open={Boolean(midStayNoteOpen)}
-                    onClose={() => setMidStayNoteOpen(false)}
-                    pendingLines={pendingMidStayLines}
-                    // A catalogue addition is a normal sale: it rides the STANDARD save pipeline, then
-                    // the note is settled against the freshly stored remainder.
-                    onSettle={(items, cash) => saveThenRun(async () => {
-                      await api.markPayment(editingReservationId, {
-                        settleMidStayNote: { items: items.map(({ key, amount }) => ({ key, amount })), cash },
-                      });
-                      await reloadReservationFinance();
-                    })}
-                    onSellOnly={() => saveThenRun(reloadReservationFinance)}
-                  />
-                )}
-              </>
-            )}
-
-            {/* Remboursements (specs/reservation-refunds.md §6): what was given back to the guest
-                AFTER the sale. Placed after the collection blocks — the money flows out once
-                everything above has flowed in. Hidden entirely on a devis. */}
-            {!isDevisMode && editingReservationId && (
-              <>
-                <Divider />
-                <Box>
-                  <Grid container spacing={2} sx={sectionGridSx}>
-                    <Grid size={{ xs: 12, md: 6 }}>
-                      <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1 }}>
-                        Remboursements
-                        {refundTotals.withCash > 0 && (
-                          <Typography component="span" variant="body2" sx={{ ml: 1, color: 'text.secondary', fontWeight: 500 }}>
-                            (− {formatCurrency(refundTotals.withCash)})
-                          </Typography>
-                        )}
+                    {depositDisabledLockReason && (
+                      <Typography id="deposit-disabled-lock-reason" variant="caption" color="text.secondary" sx={{ mt: -0.5, mb: 1, lineHeight: 1.4 }}>
+                        {depositDisabledLockReason}
                       </Typography>
-                      <Button
-                        fullWidth
-                        variant="outlined"
-                        onClick={() => setRefundDialogOpen(true)}
-                        sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
-                      >
-                        + Nouveau remboursement
-                      </Button>
-                      {refunds.length > 0 && (
-                        <>
-                          <Button
-                            size="small"
-                            onClick={() => setRefundHistoryOpen((v) => !v)}
-                            sx={{ textTransform: 'none', mt: 1 }}
-                          >
-                            {refundHistoryOpen
-                              ? 'Masquer l\'historique'
-                              : `Voir l'historique (${refunds.length} remboursement${refunds.length > 1 ? 's' : ''})`}
-                          </Button>
-                          {refundHistoryOpen && refunds.map((refund) => (
-                            <Box key={refund.id} sx={{ mt: 1, pl: 1, borderLeft: '2px solid', borderColor: 'divider' }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                  {displayDate(refund.refundDate)} — {formatCurrency(refund.totalTtc)} — {REFUND_METHOD_LABELS[refund.method] || refund.method}
-                                </Typography>
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  onClick={() => onDeleteRefund(refund)}
-                                  sx={{ textTransform: 'none', minWidth: 44, minHeight: 44 }}
-                                  aria-label="Supprimer ce remboursement"
-                                >
-                                  ✕
-                                </Button>
-                              </Box>
-                              {(refund.lines || []).map((line) => (
-                                <Typography key={line.id} variant="body2" sx={{ color: 'text.secondary' }}>
-                                  {line.label} : − {formatCurrency(line.amountTtc)}
-                                </Typography>
-                              ))}
-                              {refund.reason && (
-                                <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
-                                  « {refund.reason} »
-                                </Typography>
-                              )}
-                            </Box>
-                          ))}
-                        </>
-                      )}
-                    </Grid>
-                  </Grid>
-                </Box>
-                <RefundDialog
-                  open={Boolean(refundDialogOpen)}
-                  onClose={() => setRefundDialogOpen(false)}
-                  refundableLines={refundableLines}
-                  collectedTtc={refundCollectedTtc}
-                  onSubmit={createRefund}
-                />
-              </>
+                    )}
+                  </Box>
+                )}
+                {/* Per-item routing for the tourist tax (spec force-item-to-complement.md §6.4). */}
+                {Number(pricingQuote?.touristTaxTotal || 0) > 0 && !pricingQuote?.touristTaxCollectedOnArrival && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <Tooltip title="Lorsque cette option est activée, la taxe de séjour n'est pas comprise dans l'acompte ni le solde : elle est intégralement perçue dans le Complément à percevoir (par exemple, encaissée à l'arrivée)." arrow describeChild>
+                      <FormControlLabel
+                        control={(
+                          <Switch
+                            checked={Boolean(form.touristTaxInComplement)}
+                            onChange={(e) => updateForm({ touristTaxInComplement: e.target.checked })}
+                            disabled={Boolean(taxInComplementLockReason)}
+                            slotProps={{ input: { 'aria-describedby': taxInComplementLockReason ? 'tax-in-complement-lock-reason' : undefined } }}
+                          />
+                        )}
+                        label={(
+                          <Typography variant="body2">
+                            Taxe de séjour en complément
+                            <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                              ({formatCurrency(pricingQuote.touristTaxTotal)})
+                            </Typography>
+                          </Typography>
+                        )}
+                        sx={{ minHeight: 44, m: 0 }}
+                      />
+                    </Tooltip>
+                    {taxInComplementLockReason && (
+                      <Typography id="tax-in-complement-lock-reason" variant="caption" color="text.secondary" sx={{ mt: -0.5, mb: 1, lineHeight: 1.4 }}>
+                        {taxInComplementLockReason}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+              </Stack>
             )}
-
-            <Divider />
-
-            <Box>
-              <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem', mb: 1.5 }}>Caution</Typography>
-              <Grid container spacing={1.5} sx={sectionGridSx}>
-                <Grid
-                  size={{
-                    xs: 12,
-                    md: 6
-                  }}>
-                  <Button
-                    fullWidth
-                    variant={form.cautionReceived ? 'contained' : 'outlined'}
-                    color={form.cautionReceived ? 'info' : 'inherit'}
-                    onClick={async () => {
-                      const next = !form.cautionReceived;
-                      const today = todayStr();
-                      if (isReservationLocked && editingReservationId) {
-                        const date = next ? today : '';
-                        await api.markPayment(editingReservationId, { cautionReceived: next, cautionReceivedDate: date });
-                        updateForm({ cautionReceived: next, cautionReceivedDate: date });
-                      } else {
-                        updateForm({ cautionReceived: next, cautionReceivedDate: next ? today : '' });
-                      }
-                    }}
-                    sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
-                  >
-                    {form.cautionReceived ? 'Caution reçue' : 'Marquer caution reçue'}
-                  </Button>
-                  <DateField
-                    label="Date réception"
-                    type="date"
-                    value={form.cautionReceivedDate}
-                    onChange={(e) => {
-                      const selectedDate = e.target.value;
-                      updateForm({
-                        cautionReceivedDate: selectedDate,
-                        cautionReceived: selectedDate ? true : form.cautionReceived,
-                      });
-                    }}
-                    fullWidth
-                    sx={{ mt: 2 }}
-                    slotProps={{
-                      inputLabel: { shrink: true }
-                    }}
-                  />
-                </Grid>
-                <Grid
-                  size={{
-                    xs: 12,
-                    md: 6
-                  }}>
-                  <Button
-                    fullWidth
-                    variant={form.cautionReturned ? 'contained' : 'outlined'}
-                    color={form.cautionReturned ? 'secondary' : 'inherit'}
-                    onClick={async () => {
-                      const next = !form.cautionReturned;
-                      const today = todayStr();
-                      if (isReservationLocked && editingReservationId) {
-                        const date = next ? today : form.cautionReturnedDate;
-                        await api.markPayment(editingReservationId, { cautionReturned: next, cautionReturnedDate: date });
-                        updateForm({ cautionReturned: next, cautionReturnedDate: date });
-                      } else {
-                        updateForm({ cautionReturned: next, cautionReturnedDate: next ? today : form.cautionReturnedDate });
-                      }
-                    }}
-                    sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
-                  >
-                    {form.cautionReturned ? 'Caution restituée' : 'Marquer caution restituée'}
-                  </Button>
-                  <DateField
-                    label="Date restitution"
-                    type="date"
-                    value={form.cautionReturnedDate}
-                    onChange={(e) => updateForm({ cautionReturnedDate: e.target.value })}
-                    fullWidth
-                    sx={{ mt: 2 }}
-                    slotProps={{
-                      inputLabel: { shrink: true }
-                    }}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
           </Stack>
         </Box>
+        {showMidStayNotes && (
+          <MidStayNoteDialog
+            open={Boolean(midStayNoteOpen)}
+            onClose={() => setMidStayNoteOpen(false)}
+            pendingLines={pendingMidStayLines}
+            onSettle={({ checkedKeys, opening }, cash, split = null) => saveThenSettle(() => api.markPayment(editingReservationId, {
+              settleMidStayNote: { checkedKeys, opening: opening.map(({ key, amount }) => ({ key, amount })), cash },
+              // specs/mixed-method-payments.md rule 1 — the note's lines, checked against its total by the server.
+              ...(split ? { expectedAmountCents: split.expectedAmountCents, tenders: split.tenders, ...(split.shortfall ? { shortfall: split.shortfall } : {}) } : {}),
+            }))}
+            onSellOnly={() => saveThenRun(reloadReservationFinance)}
+          />
+        )}
+        {editingReservationId && (
+          <PlatformPenaltyDialog open={penaltyOpen} onClose={() => setPenaltyOpen(false)} reservationId={editingReservationId} source="fiche" onDone={async () => { await reloadReservationFinance(); close(); }} />
+        )}
+        {!isDevisMode && editingReservationId && (
+          <RefundDialog
+            open={Boolean(refundDialogOpen)}
+            onClose={() => setRefundDialogOpen(false)}
+            refundableLines={refundableLines}
+            collectedTtc={refundCollectedTtc}
+            overpaymentTtc={refundDialogOpen && refundDialogOpen.overpaymentTtc ? refundDialogOpen.overpaymentTtc : 0}
+            overpaymentLines={refundDialogOpen && refundDialogOpen.overpaymentLines ? refundDialogOpen.overpaymentLines : null}
+            defaultMethod={(refundDialogOpen && refundDialogOpen.method) || 'transfer'}
+            openOverpaymentTtc={openOverpaymentRow ? Number(openOverpaymentRow.amount || 0) : 0}
+            onUseOverpayment={() => openOverpaymentRow && onAction(openOverpaymentRow)}
+            onSubmit={createRefund}
+          />
+        )}
       </CardContent>
     </Card>
   );
+}
+
+// The methods the server listed on any markable row (specs/mixed-method-payments.md rule 4); TenderLines falls
+// back to its own copy when none is at hand.
+function splitMethodsOf(rows) {
+  const row = (rows || []).find((r) => r && r.action && r.action.split && Array.isArray(r.action.split.methods));
+  return row ? row.action.split.methods : null;
 }

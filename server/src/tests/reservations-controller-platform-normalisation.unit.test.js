@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 // specs/bed-config-in-linen-card.md §10 hotfix follow-up #4 — empty platform must never be persisted.
@@ -66,6 +67,8 @@ function buildController({ quoteFinalPrice = 100, quoteBalanceAmount, captures }
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
     '../models/establishmentClosuresModel': new Proxy({}, { get: () => () => null }),
     '../models/reservationsModel': new Proxy({}, { get: (_, k) => {
+      // The stay exists: an unknown id is refused 404 first (reservations-backend-mvc rule 26, audit R44-C-L3).
+      if (k === 'getRow') return (id) => ({ id: Number(id), kind: 'reservation' });
       if (k === 'getPropertyIdOf') return () => null;
       if (k === 'getPropertyCapacity') return () => ({ maxGuests: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
       if (k === 'getPropertyBeds') return () => ({ singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
@@ -73,7 +76,7 @@ function buildController({ quoteFinalPrice = 100, quoteBalanceAmount, captures }
       if (k === 'validateAvailability') return () => null;
       if (k === 'insertReservation') return (body) => { captures.inserted = { platform: body.platform }; return 1; };
       if (k === 'updateReservation') return (id, body) => { captures.updated = { id, platform: body.platform }; };
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getForUpdate') return () => ({ propertyId: 1 });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       return () => null;
@@ -90,7 +93,7 @@ function buildController({ quoteFinalPrice = 100, quoteBalanceAmount, captures }
 function bodyFor(platform, opts = {}) {
   return {
     propertyId: 1, clientId: 1,
-    startDate: '2099-09-10', endDate: '2099-09-12',
+    startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
     adults: 2, children: 0, teens: 0, babies: 0,
     checkInTime: '15:00', checkOutTime: '10:00',
     singleBeds: 0, doubleBeds: 0, babyBeds: 0,

@@ -106,15 +106,78 @@ each of these lives on the server — no UI-side calculation.
    - `quoteValidityDays` = `settingsModel.read().quoteValidityDays || 30`.
    - The cap at `startDate - 2 days` preserves the existing PDF logic (a devis can't be
      valid past the customer's check-in date minus a buffer).
+   - **Reading 2026-11-08 (audit R30-RES-M1) — never before the issue day.** The result is floored at
+     `createdAt`: `validUntil = MAX(createdAt, MIN(createdAt + quoteValidityDays, startDate - 2 days))`
+     (`utils/devisValidity.js` `computeValidUntil`, the one helper of create, update, « Prolonger » and
+     « Transformer en devis », and of the PDF fallback of rule 9). A stay starting tomorrow or today (the
+     site accepts an arrival from today on) used to be capped before the issue day: the quote was « Périmé
+     · prolonger » a second after its creation, its PDF said « Valable jusqu'au » and « À payer avant » the
+     day before its own date, its prices were never locked, and « Prolonger » answered 200 leaving it
+     expired, endlessly. Such a quote now stands, and is due (specs/deposit-blocks-the-dates.md rule 7),
+     on the day it is issued; « Prolonger » re-issues it until that day, and is not offered once it holds.
+     Tests: `tests/devis-last-minute-validity.unit.test.js`, `plugins/website-booking/tests/public-request-last-minute-validity.unit.test.js`.
 7. At devis **update** time (`devisModel.update`), if the payload doesn't include a
    `validUntil` AND the existing row's `validUntil` is empty, the same formula
    applies. Otherwise the existing `validUntil` is preserved (the operator's manual
    override stays).
+   > **Reading R31-RES-M1 (2026-11-08).** A still-valid quote moved to earlier dates kept its stored
+   > date, so the quote, its PDF and its single payment said « pay by » a date after the arrival. The
+   > preserved date is now read against the new start (`validUntilForStart`): at most `startDate − 2`,
+   > floored at today so the move never expires it (rule 6 reading R30). A quote moved later keeps its
+   > date _(amended by reading R32-RES-M1: only a quote created far from its dates; one created near them gets the
+   > window its creation day gives the new dates)_. The same reading feeds the live quote of an unsaved edit. Tests:
+   > `tests/devis-moved-earlier-validity.unit.test.js`.
+
+   > **Reading R32-RES-M1 (2026-11-09) — one resolver for every save and preview.** The R31 reading only ever lowered
+   > the stored date: a quote moved earlier then back (a mistyped arrival corrected) kept the lowered date, so its PDF
+   > and its single payment said « avant le » today for a stay weeks away, and it expired that night. And its last
+   > sentence was not true: the fiche's live quote (`POST /reservations/calculate-price` with `devisId`) read the raw
+   > stored date, so the preview announced a deadline after the arrival (or, for an expired quote, in the past) that the
+   > save then changed. `utils/devisValidity.js` `devisValidUntil` is now the one reading of `devisModel.update`, of the
+   > engine input of `computeQuote` (create, `recomputeQuote` for the PDF and the payment links), of the live quote
+   > (`scheduleQuoteInputs` with the edited start) and of the read (`findById`, the PDF, the schedule `findById`
+   > answers). From the stored date, the stored start, the creation day, the start asked for, today and
+   > `quoteValidityDays`:
+   >
+   > | Stored date | Start | Validity |
+   > |---|---|---|
+   > | none (legacy) | any | rule 7's backfill: `computeValidUntil` from the creation day |
+   > | expired | any | a save and its preview re-issue it from today (devis-extras-parity rule 14); a read keeps it |
+   > | valid | unchanged | the stored date, capped at `max(today, start − 2)` (reading R31-RES-M1) |
+   > | valid | moved | MAX(stored, `computeValidUntil` from the creation day for the new start), capped at `max(today, start − 2)` |
+   >
+   > The MAX keeps a later window (« Prolonger », an API override) and gives back, on a move back, what an earlier move
+   > took; the cap's floor at today keeps a move from ever expiring a valid quote (rule 6 reading R30). A quote moved
+   > later from a near creation gets the window its creation day gives the new dates. Unchanged dates write the stored
+   > date again, so a save is idempotent and a later change of « Validité des devis » touches no quote that did not
+   > move. The live quote answers the date as `validUntil` and the PUT answers it with `expired` / `extendable`: the
+   > fiche's chip shows the first while the edit is unsaved and applies the second once saved, and a quote the save
+   > re-issued is re-read so its price lock follows (§6). *Known and accepted (D22, Adrien 2026-11-09):* the day « Prolonger » opened a window is
+   > not stored, so an extended quote moved earlier then back keeps the lowered date (never before today); « Prolonger »
+   > is offered again once it expires. *Data, 2026-11-09:* on the prod copies (22/10 and 28/10) no still-valid open
+   > devis is stored above its `start − 2`, so the capped read changes no row on screen. Tests:
+   > `tests/devis-validity-resolver.unit.test.js`, client `ReservationPage.devis-validity-after-save`.
+
+   > **Reading R33-C-L1 (2026-11-09) — a superseded load writes nothing.** The devis route and the reservation route
+   > share one `ReservationPage`. The re-read after a re-issued save could still be on its way when « Accepté » had
+   > converted the devis and navigated, land last, and fill the new reservation's fiche with the devis (form,
+   > `updatedAt`, baseline). Each page load now carries a sequence number; a load overtaken by a newer one stops at its
+   > next step and writes nothing more, its property context and defaults included. The re-read itself stays (the PDF
+   > and payment-request actions after the save need the new price lock). Client test
+   > `ReservationPage.stale-load`.
+
+   > **Reading R33-M-L1 (2026-11-09) — a new devis too.** The live quote of a devis not saved yet was priced as a
+   > reservation, so its summary showed deadlines its first save did not store. The fiche sends `kind: 'devis'` and the
+   > live quote reads the validity the create will write (`computeValidUntil` from today); the site's public quote does
+   > the same (specs/deposit-blocks-the-dates.md rule 19). Tests: `tests/devis-single-payment-by-validity.unit.test.js`,
+   > client `ReservationPage.new-devis-quote-kind`.
 8. At devis **convert-from-reservation** time, `validUntil` is also persisted using
    the same formula.
 9. The PDF reads `full.validUntil` straight, formats with `formatDateFR`, no
    fallback to "today + days". If `full.validUntil` is empty (legacy data), the PDF
    recomputes from `createdAt + quoteValidityDays` (the same formula the model uses).
+   *Reading 2026-11-08 (R30-RES-M1):* the fallback calls the model's `computeValidUntil` itself, so it
+   caps at `startDate - 2` (it used to cap only past `startDate`) and carries rule 6's floor.
 10. The `quoteValidityDays` value the PDF reads comes from `settingsModel.read()` —
     same path as today.
 
@@ -203,6 +266,28 @@ each of these lives on the server — no UI-side calculation.
   today's `if (Number(full.touristTaxTotal || 0) > 0)` guard. No regression on direct
   reservations.
 
+**Review fixes (2026-10-18, mega review #5)**
+
+21. **A devis printed after its validity says so** (2026-10-18, mega review #5): « Valable jusqu'au
+    07/10/2026 (expiré) » (« (expired) » in English). A converted devis and a reservation never carry
+    it. *Why:* an expired devis printed on 18/10 read as a live offer.
+    **Amended 2026-10-19** (specs/ui-review-2026-10-19-operations.md rule 20, UI/UX review proposal 22):
+    the PDF prints the validity date alone — « (expiré) » on the guest's document read as a dead offer
+    sent anyway. The operator is warned on the fiche (« Périmé · prolonger »), and saving re-stamps the
+    validity.
+22. **The pricing table's HT column is named for what it holds**, the line total: « Total HT »
+    (« Total excl. VAT »). *Why:* « Hébergement — Qté 3 — Prix HT 272,73 € » read as 3 × 272,73.
+
+**Audit fix (2026-10-30, audit R8-1)**
+
+23. **A devis is dated on the operator's day, not the UTC one.** `createdAt` stays a UTC timestamp
+    (rule 1), but the day it stands for is its local calendar day (`vatRegime.bookingDayOf`, the
+    process's time zone, Europe/Paris by default): the PDF's « Date du devis », and the start of the
+    validity window of rules 6-8 on create, convert-from-reservation and the legacy backfill. *Why:*
+    a devis created between 00:00 and 01:00 / 02:00 in Paris printed the previous day and carried one
+    day less than `quoteValidityDays`, while the rest of the server already read the local day
+    (`utils/localDate.js`, specs/finance-dashboard-redesign.md rule 37).
+
 ---
 
 ## 4. Architecture
@@ -217,6 +302,8 @@ each of these lives on the server — no UI-side calculation.
 | `controllers/` | [server/src/controllers/devisController.js](server/src/controllers/devisController.js) | T | `pdf` calls `calculateReservationQuote(...)` on the persisted devis state to get a live quote, passes it as a third arg to `generateDevisPdf`. |
 | `utils/` | [server/src/utils/devisPdf.js](server/src/utils/devisPdf.js) | T | (a) `generateDevisPdf(full, settings, quote)` — `quote` is optional, additive. (b) `Date du devis` pill falls back to today when `full.createdAt` is empty (legacy guard). (c) `Valable jusqu'au` uses `full.validUntil` when set, recomputes from `createdAt + quoteValidityDays` (legacy guard). (d) `Taxe de séjour` block reads from `quote` when provided. |
 | `utils/` | [server/src/utils/pricing.js](server/src/utils/pricing.js) | — | No change. Already emits the breakdown fields the PDF needs. |
+| `utils/` | [server/src/utils/devisValidity.js](server/src/utils/devisValidity.js) | T | (2026-11-09, R32-RES-M1) `devisValidUntil`, the one validity reading of save, preview and read (rule 7 reading R32), and `readQuoteValidityDays(db)`. |
+| `utils/` | [server/src/utils/reservationQuoteContext.js](server/src/utils/reservationQuoteContext.js) | T | (2026-11-09) `scheduleQuoteInputs(db, id, { editedStartDate })`: on a devis, the validity the save will write for the edited start. `reservationsController.calculatePrice` passes it and answers `validUntil` on a devis's live quote. |
 
 ### 4.2 Client side
 
@@ -253,6 +340,10 @@ No UI change beyond the PDF output itself. The user sees:
   quoteValidityDays`).
 - Tourist tax breakdown: matches PricingSummary.
 - Linen options (or any property default): always present on devis lines.
+- (2026-11-09, rule 7 reading R32-RES-M1) The devis fiche's « Valide jusqu'au » chip reads the live quote's
+  `validUntil` while the quote is valid and the edit unsaved, so moving the dates moves the chip and « Paiements »
+  together; after « Enregistrer » it shows the PUT's `validUntil` / `expired` / `extendable`, and a quote the save
+  re-issued (was « Périmé · prolonger ») is re-read. Same at every width (the chip's compact wording on a phone).
 
 ---
 
@@ -266,7 +357,13 @@ No UI change beyond the PDF output itself. The user sees:
 | `tests/devis-model-property-defaults.unit.test.js` (C) | (1) `create` merges property default options not in the payload. (2) Default option already present in the payload → no duplicate. (3) No property defaults configured → behaviour unchanged. (4) Default offered flag is propagated. | Rules 11–13. |
 | `tests/reservations-controller-property-defaults.unit.test.js` (C) | Same shape as the devis test, for the reservation path. Pins rule 13. | Rule 13. |
 | `tests/devis-pdf-date-and-validity.unit.test.js` (C) | (1) Empty `full.createdAt` → "Date du devis" defaults to today. (2) Empty `full.validUntil` → recomputed from `createdAt + quoteValidityDays`. (3) `validUntil` capped at `startDate - 2`. (4) Both populated → strings round-trip via `formatDateFR`. | Rules 4 + 9 + cap. |
+| `tests/devis-local-day.unit.test.js` (2026-10-30, audit R8-1) | Clock frozen at 2026-10-30T23:30Z under Europe/Paris: create, convert-from-reservation and the legacy backfill open the window on 31/10; the PDF dates a UTC `createdAt` on its Paris day (`__test.resolveDevisDates`). Shared with specs/devis-extras-parity-and-price-lock.md rule 21. 10 cases. | Rule 23. |
 | `tests/devis-pdf-date-validity-tax.unit.test.js` (C) | (1) `computeValidUntil` helper unit cases (rules 6 + 9 + cap). (2) PDF render smoke per scenario (rules 4, 9, 16, 18) — assert the magic header + a non-trivial buffer size. (3) **Consistency invariant** via `resolveLiveTaxTotals(full, quote)`: live tax total + grand total mirror `quote.touristTaxTotal` / `quote.finalPrice` when provided, fall back to row values otherwise, treat `touristTaxTotal = 0` in the quote as "engine didn't compute" (row wins), honour `quote.finalPrice = 0` (offered stay). | Rules 4, 6, 9, 15–18, **20**. |
+| `tests/devis-moved-earlier-validity.unit.test.js` (2026-11-08, audit R31-RES-M1) | `validUntilForStart` helper cases; a valid devis moved from +42 to +10 / +2 / 0 days owes its payment before the arrival, never before today, and stays valid; a devis moved later keeps its date (amended by reading R32-RES-M1: a devis created far from its dates, as this suite's). 5 cases. | Rule 7 reading R31-RES-M1. |
+| `tests/devis-validity-resolver.unit.test.js` (2026-11-09, audit R32-RES-M1/L1) | Today-relative table of `devisValidUntil` (21 rows: created far/near, moved earlier / to tomorrow / to a past start, moved back, moved later, override, extended then moved, extended earlier then back, expired re-saved / read, legacy NULL saved / read, `quoteValidityDays` 0, a non-ISO start), each re-fed to prove a save idempotent; on the model and controller, a devis +42 → +10 → +42 → +1 → +42 → +80 where calculate-price, the PUT, `findById` and the PDF date agree at every step; an expired devis whose live quote announces the re-issued window; a row stored above `start − 2` read capped with its schedule. 24 cases. Client `ReservationPage.devis-validity-after-save.test.jsx`: the chip follows the live quote then the PUT; a re-issued quote drops « Périmé · prolonger » and is re-read (2 cases). | Rule 7 reading R32-RES-M1. |
+| `tests/devis-validity-chain-gaps.unit.test.js` (2026-11-09, verification R32 mutants m7, m8, m10) | A devis created ten days ago: « Validité des devis » raised to 30, saved with its start unchanged, keeps its date on the preview, the save and the read (m7); moved later, the preview reads its real creation day and agrees with the save (m8); a row stored above `start − 2`: `recomputeQuote` (the link quote) is due on the capped date the fiche reads (m10). 3 cases. | Rule 7 reading R32-RES-M1. |
+| client `pages/__tests__/ReservationPage.stale-load.test.jsx` (2026-11-09, audit R33-C-L1) | A devis load held until the page has moved to a reservation: released last, it leaves the reservation's notes in place; a logement read (`getProperty`) held the same way leaves the reservation's logement in place (audit R33 N2, `loadPropertyContext`'s own guard). 2 cases. | Rule 7 reading R33-C-L1. |
+| `tests/devis-last-minute-validity.unit.test.js` (2026-11-08, audit R30-RES-M1) | Today-relative: `computeValidUntil` at +1, 0, −3, +2, +3 and +400 days; the PDF fallback of a legacy row at +1, 0 and +10; a devis created at +1 and at 0 days is valid and due today, neither expired nor extendable; « Prolonger » on an expired last-minute quote opens it today and is no longer offered; « Transformer en devis » on a stay starting tomorrow. 6 cases. Plus `plugins/website-booking/tests/public-request-last-minute-validity.unit.test.js`: a site request at +1 and at 0 days (2 cases). | Rule 6 reading R30-RES-M1, rule 9. |
 
 These tests focus on the model + the utility — not the live PDF render (PDFs are
 binary; we assert the inputs the renderer would receive and the strings the renderer

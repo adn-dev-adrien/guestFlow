@@ -35,6 +35,9 @@ const HISTORY_FIELD_LABELS = {
   discountPercent: 'Réduction (%)',
   finalPrice: 'Prix final',
   depositAmount: 'Acompte',
+  // specs/reservation-history-granular-diff.md rule 13 — an acompte typed by hand is a decision, not a
+  // recalculation: it reads as its own row, apart from the « Recalculs » block.
+  depositAmountOverride: 'Acompte saisi',
   depositDueDate: 'Date acompte',
   balanceAmount: 'Solde',
   balanceDueDate: 'Date solde',
@@ -117,7 +120,12 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     discountPercent: Number(payload.discountPercent || 0),
     finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
     depositAmount: Number(quote.depositAmount || 0),
-    depositDueDate: quote.depositDueDate || payload.depositDueDate || null,
+    // Same rule as the model: a zero acompte carries no deadline (disable-deposit-per-reservation rule 2).
+    depositDueDate: Math.round(Number(quote.depositAmount || 0) * 100) > 0
+      ? (quote.depositDueDate || payload.depositDueDate || null)
+      : null,
+    depositAmountOverride: payload.depositAmountOverride === undefined || payload.depositAmountOverride === null || payload.depositAmountOverride === ''
+      ? null : Number(payload.depositAmountOverride),
     balanceAmount: Number(quote.balanceAmount || 0),
     balanceDueDate: quote.balanceDueDate || payload.balanceDueDate || null,
     notes: capitalizeFirst(payload.notes) || null,
@@ -181,6 +189,7 @@ const HISTORY_FIELD_FORMATS = {
   touristTaxTotal: 'money',
   finalPrice: 'money',
   depositAmount: 'money',
+  depositAmountOverride: 'money',
   balanceAmount: 'money',
   cautionAmount: 'money',
   discountPercent: 'percent',
@@ -191,7 +200,21 @@ const HISTORY_FIELD_FORMATS = {
   touristTaxInComplement: 'boolean',
   complementAmountOverride: 'money',
   endOfStayComplementAmountOverride: 'money',
+  // The cancel entry's figures (payment-schedule-and-cancellation rules 55, 61), stored as numbers.
+  retainedDeposit: 'money',
+  writtenOffBalance: 'money',
+  keptFromGuest: 'money',
+  cancellationReason: 'cancellationReason',
 };
+
+// specs/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1, R45-DB-L1) — a cancel
+// confirmed with an empty « Motif » stores the derived key; it reads French, the stored row untouched. Only the whole
+// value is matched, so a reason the operator typed reads as typed.
+const CANCELLATION_REASON_LABELS = Object.freeze({
+  unpaid_deposit: 'Acompte impayé',
+  unpaid_balance: 'Solde impayé',
+  manual: 'Annulation manuelle',
+});
 
 // Fields the pricing engine recomputes on its own: they move on almost every edit and would bury the
 // change the user actually made, so the UI renders them in a separate « Recalculs » block.
@@ -237,6 +260,7 @@ function formatHistoryFieldValue(field, value, context = {}) {
     case 'date': return formatHistoryDateFr(value);
     case 'property': return propertyDisplayName(value, context.propertyNames);
     case 'client': return clientDisplayName(value, context.clientNames);
+    case 'cancellationReason': return Object.hasOwn(CANCELLATION_REASON_LABELS, String(value)) ? CANCELLATION_REASON_LABELS[String(value)] : String(value);
     default: return String(value);
   }
 }
@@ -305,7 +329,35 @@ function diffSignatureChange(change, context = {}) {
   return rows;
 }
 
+// specs/single-payment-from-the-fiche.md rule 9 reading of 2026-11-10 (audit R44-RES-L2) — the « paiement unique »
+// lines stored before it wrote « 281.98 € — CB / Chèque le 2026-09-01 — balance, endOfStayComplement »: read back
+// the French way, the stored row untouched.
+const STORED_ARRIVAL_BUCKETS = {
+  deposit: 'acompte', balance: 'solde', complement: "complément d'arrivée", endOfStayComplement: 'complément de fin de séjour',
+};
+function frenchArrivalPaymentText(value) {
+  if (value === null || value === undefined || value === '') return null;
+  return String(value)
+    .replace(/(\d+)\.(\d+) €/g, (_, units, cents) => `${units},${cents.padEnd(2, '0')} €`)
+    .replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, y, m, d) => `${d}/${m}/${y}`)
+    .replace(/\b(deposit|balance|complement|endOfStayComplement)\b/g, (key) => STORED_ARRIVAL_BUCKETS[key])
+    // Audit R45-PL-L1 — the SAS line stored before sas 1.9.3 named the arrival complement « complément » alone.
+    .replace(/complément(?! d['’]arrivée| de fin de séjour)/g, "complément d'arrivée");
+}
+
+const ARRIVAL_PAYMENT_FIELDS = new Set(['arrivalPayment', 'arrivalPaymentAdjustment']);
+
 function expandHistoryChange(change, context) {
+  if (ARRIVAL_PAYMENT_FIELDS.has(change.field)) {
+    // Rule 9 reading — the core rows (from/to) and the SAS rows (fromText/toText, audit R45-PL-L1) stored before read
+    // French; a text already French reads the same.
+    const rendered = change.fromText !== undefined || change.toText !== undefined;
+    return [{
+      field: change.field, group: null, label: change.label, kind: 'changed',
+      fromText: frenchArrivalPaymentText(rendered ? change.fromText : change.from),
+      toText: frenchArrivalPaymentText(rendered ? change.toText : change.to),
+    }];
+  }
   // The SAS commits and the iCal lock line already ship rendered French text — never re-format them.
   if (change.fromText !== undefined || change.toText !== undefined) {
     return [{

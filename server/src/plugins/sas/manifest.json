@@ -1,0 +1,166 @@
+{
+  "id": "sas",
+  "name": "Arrivée et départ guidés",
+  "version": "1.9.3",
+  "description": "Le sas pas à pas de l’accueil et du départ.",
+  "icon": "door",
+  "surfaces": [
+    "Le bouton sas des cartes du planning",
+    "L’onglet « Facturables au SAS »",
+    "Le rôle « Accueil » et son écran d’accueil"
+  ],
+  "requires": [],
+  "guestflow": ">=3.9.0",
+  "sdk": "^2.24.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Le compteur d’étapes du sas n’affiche plus de total, qui grandissait quand une prestation était ajoutée."
+    ],
+    "1.0.3": [
+      "Message des modifications non enregistrées sans « vous »."
+    ],
+    "1.0.4": [
+      "Réponse principale en bas de l’écran, sous le pouce ; « Reporter au départ » en bouton neutre.",
+      "Compteur « 3 sur 9 » qui ne grandit plus quand une prestation est ajoutée.",
+      "« Rien à percevoir » quand le récapitulatif n’a rien à encaisser."
+    ],
+    "1.1.0": [
+      "Récapitulatif : « Voyageurs ajoutés » perçus à l’arrivée quand une réservation de plateforme gagne des voyageurs, offerts d’un geste comme les autres prestations."
+    ],
+    "1.2.0": [
+      "Récapitulatif d’arrivée : montants, total et règlement en une fois calculés par le serveur, à jour à chaque geste.",
+      "Un total qui a changé entre le récapitulatif et l’enregistrement est signalé et noté dans l’historique de la fiche.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.3.0": [
+      "Récapitulatif de départ : lignes, total et règlement calculés par le serveur, à jour à chaque geste.",
+      "La ligne « Ajustement » n’est plus proposée à l’offre : un montant ajusté sur la fiche est signalé sous le total.",
+      "Un total qui a changé entre le récapitulatif et l’enregistrement est signalé et noté dans l’historique de la fiche.",
+      "Compatible avec le SDK 2.1 de GuestFlow."
+    ],
+    "1.4.0": [
+      "Le prix du petit déjeuner proposé à l’arrivée vient du serveur.",
+      "Compatible avec le SDK 2.1 de GuestFlow."
+    ],
+    "1.5.0": [
+      "Compatible avec le SDK 2.2 de GuestFlow."
+    ],
+    "1.5.1": [
+      "À l’arrivée, le séjour à régler inclut les échéances restantes ; le SAS les marque payées en espèces.",
+      "Compatible avec le SDK 2.2 de GuestFlow."
+    ],
+    "1.6.0": [
+      "Sur une plateforme « Sans corvées de départ », le sas ne rappelle plus la vaisselle ni les poubelles.",
+      "Au départ, le ménage non fait n’est plus facturé sur ces plateformes.",
+      "Compatible avec le SDK 2.5 de GuestFlow."
+    ],
+    "1.7.0": [
+      "Le champ « Code portail » de Paramètres › Établissement est dessiné par le plugin, avec sa recherche.",
+      "Départ : « Les serviettes et les draps sont-ils tous là ? » — « Oui » reste à droite sur toutes les questions.",
+      "Compatible avec le SDK 2.6 de GuestFlow."
+    ],
+    "1.7.1": [
+      "Récapitulatif d’arrivée : une caution reportée s’affiche « Caution non perçue : reportée au départ. ».",
+      "Une quantité de linge non entière (1,5) est refusée au lieu d’être arrondie.",
+      "Un élément de linge facturé en plusieurs pièces garde sa quantité à la réouverture du sas.",
+      "Compatible avec le SDK 2.6 de GuestFlow."
+    ],
+    "1.7.2": [
+      "Un séjour annulé ou un doublon écarté ne peut plus être validé à l’arrivée ou au départ.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.7.3": [
+      "Une étape ajoutée par un autre module qui plante n’arrête plus le sas.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.7.4": [
+      "Questions des clés et de l’extincteur sans « vous ».",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.7.5": [
+      "Le sas vend une option par personne au nombre de personnes servies.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.7.6": [
+      "« Personnes servies » affiche le montant de la ligne.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.7": [
+      "Une quantité aberrante est refusée au récapitulatif, avec sa raison, et les compteurs s’arrêtent à 999.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.8": [
+      "Les prestations réservées affichent le nombre de personnes servies ou de nuits de la fiche.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.9": [
+      "Vente de restauration à l’arrivée : seul le nombre de personnes servies est envoyé.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.10": [
+      "Un nombre de personnes servies, une quantité de petit-déjeuner ou un prix facturable aberrants sont refusés, jamais facturés.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.11": [
+      "Une réservation introuvable ou des données invalides se lisent en français.",
+      "Un libellé facturable qui n’est pas un texte est refusé : plus de « [object Object] » proposé à l’accueil.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.12": [
+      "Un SAS rouvert qui reprendrait un paiement déjà en partie remboursé est refusé : supprimer d’abord le remboursement.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.13": [
+      "Un complément payé avant l’arrivée reste payé après le SAS d’arrivée.",
+      "Au départ, un complément de fin de séjour réglé ailleurs garde son mode de paiement.",
+      "L’accueil ne voit plus le détail d’un remboursement dans un refus du SAS.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.14": [
+      "Au départ, un complément de fin de séjour déjà encaissé ailleurs ne prend plus de frais : le décocher sur la fiche d’abord.",
+      "À l’arrivée, une vente qui irait sur ce complément encaissé est refusée de même.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.7.15": [
+      "À l’arrivée, « Plus tard » est refusé quand le complément de fin de séjour est déjà encaissé.",
+      "Compatible avec le SDK 2.21 de GuestFlow."
+    ],
+    "1.8.0": [
+      "Au départ et à l’arrivée, « Plusieurs moyens » enregistre un paiement réparti (espèces, CB…), espèces en caisse interne par défaut.",
+      "Une somme non couverte se règle en reste à percevoir ou en geste commercial.",
+      "Compatible avec le SDK 2.24 de GuestFlow."
+    ],
+    "1.8.1": [
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.8.2": [
+      "Chaque ouverture du sas repart sur un seul moyen de paiement : un départ sans rien à percevoir se termine normalement.",
+      "« Plusieurs moyens » réservé à l’administrateur ; l’accueil enregistre le départ avec un seul moyen.",
+      "Un acompte réparti va tout en compta ou tout en caisse interne, sans reste ni geste ; un paiement déjà rapproché avec la banque ne se répartit plus.",
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.9.0": [
+      "L’étape « Portail » du sas d’arrivée peut laisser la place à l’étape « Mon séjour » de l’application clients, le QR du portail restant à portée.",
+      "Compatible avec le SDK 2.24 de GuestFlow."
+    ],
+    "1.9.1": [
+      "Au départ, une caution jamais reçue ne peut pas être marquée rendue ; à l’arrivée, « non reçue » efface aussi la restitution.",
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.9.2": [
+      "À l’arrivée, une caution déjà reçue garde le montant perçu, même si la caution du logement a changé depuis.",
+      "Une coche du sas autre que oui ou non est refusée, sans rien enregistrer.",
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.9.3": [
+      "L’historique de la fiche écrit le paiement unique du sas à la française : montant avec virgule, date jj/mm/aaaa, « complément d’arrivée ».",
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ]
+  }
+}

@@ -25,14 +25,17 @@ function seed() {
   return { db, devisId: Number(info.lastInsertRowid) };
 }
 
-// A qontoClient stub: the payments sub-resource is the authoritative paid signal; the link status
-// covers the expired/cancelled cases. `outcome` ∈ 'paid' | 'open' | 'expired'.
+// A payment-provider stub (specs/plugins-phase-3a-online-payment.md rule 4): the payment record is the
+// authoritative paid signal; the link status covers the expired/cancelled cases.
+// `outcome` ∈ 'paid' | 'open' | 'expired'.
 function qontoStub(outcome) {
   return {
-    getPaymentLinkPayments: async () => (outcome === 'paid'
-      ? { paid: true, paidPayment: { id: 'pay_remote_1', paid_at: '2026-09-21T10:00:00Z' }, payments: [{ status: 'paid' }] }
-      : { paid: false, paidPayment: null, payments: [] }),
-    getPaymentLink: async ({ id }) => ({ id, mappedStatus: outcome === 'paid' ? 'processing' : outcome, raw: {} }),
+    id: 'qonto',
+    getPayment: async () => (outcome === 'paid'
+      ? { paid: true, paymentId: 'pay_remote_1', paidAt: '2026-09-21T10:00:00Z' }
+      : { paid: false }),
+    getLinkStatus: async () => (outcome === 'paid' ? 'processing' : outcome),
+    cancelLink: async () => {},
   };
 }
 
@@ -40,14 +43,13 @@ const deps = (db, outcome) => ({
   database: db,
   paymentLinksModel: paymentLinksModel.buildModel(db),
   devisModel: devisModel.buildModel(db),
-  qontoClient: qontoStub(outcome),
-  getAccessToken: async () => 'tok_test',
+  provider: qontoStub(outcome),
 });
 
 test('a paid deposit link on a devis → converts it + flags the new reservation deposit paid', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  const link = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_1', url: 'https://pay/ql_1', status: 'open' });
+  const link = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_1', url: 'https://pay/ql_1', status: 'open' });
 
   const summary = await runPaymentPoll(deps(db, 'paid'));
   assert.equal(summary.checked, 1);
@@ -71,7 +73,7 @@ test('a paid deposit link on a devis → converts it + flags the new reservation
 test('idempotent: a second pass does nothing (the paid link is no longer open)', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_1', url: 'u', status: 'open' });
+  links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_1', url: 'u', status: 'open' });
 
   await runPaymentPoll(deps(db, 'paid'));
   const convertedCount1 = db.prepare("SELECT COUNT(*) AS c FROM reservations WHERE kind = 'reservation'").get().c;
@@ -84,7 +86,7 @@ test('idempotent: a second pass does nothing (the paid link is no longer open)',
 test('a paid deposit link → calls sendConfirmation with the converted reservation id', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_1', url: 'u', status: 'open' });
+  links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_1', url: 'u', status: 'open' });
 
   const calls = [];
   await runPaymentPoll({ ...deps(db, 'paid'), sendConfirmation: async (id) => { calls.push(id); } });
@@ -99,7 +101,7 @@ test('a paid balance link → does NOT send a confirmation (it is a later top-up
   const conv = devisModel.buildModel(db).convertToReservation(devisId);
   const resaId = conv.data.reservationId;
   const links = paymentLinksModel.buildModel(db);
-  links.create({ reservationId: resaId, type: 'balance', amountCents: 21000, qontoPaymentLinkId: 'ql_bal', url: 'u', status: 'open' });
+  links.create({ reservationId: resaId, type: 'balance', amountCents: 21000, providerLinkId: 'ql_bal', url: 'u', status: 'open' });
 
   const calls = [];
   await runPaymentPoll({ ...deps(db, 'paid'), sendConfirmation: async (id) => { calls.push(id); } });
@@ -111,7 +113,7 @@ test('a paid balance link → does NOT send a confirmation (it is a later top-up
 test('a confirmation that throws never breaks the poll (best-effort)', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  const link = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_1', url: 'u', status: 'open' });
+  const link = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_1', url: 'u', status: 'open' });
 
   const summary = await runPaymentPoll({ ...deps(db, 'paid'), sendConfirmation: async () => { throw new Error('SMTP down'); } });
   assert.equal(summary.paid, 1, 'the link is still marked paid despite the email error');
@@ -121,7 +123,7 @@ test('a confirmation that throws never breaks the poll (best-effort)', async () 
 test('a paid FULL link on a devis → converts it + marks fully paid (deposit + balance)', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
+  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, providerLinkId: 'ql_full', url: 'u', status: 'open' });
 
   await runPaymentPoll(deps(db, 'paid'));
 
@@ -136,7 +138,7 @@ test('a paid FULL link on a devis → converts it + marks fully paid (deposit + 
 test('a paid FULL link on a devis with a date conflict → flags bookingConflictAt + notifies the admin', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
+  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, providerLinkId: 'ql_full', url: 'u', status: 'open' });
 
   const notified = [];
   await runPaymentPoll({ ...deps(db, 'paid'), checkConflict: () => true, notifyConflict: (id) => { notified.push(id); } });
@@ -150,7 +152,7 @@ test('a paid FULL link on a devis with a date conflict → flags bookingConflict
 test('no conflict → bookingConflictAt stays null, admin not notified', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
+  links.create({ reservationId: devisId, type: 'full', amountCents: 30000, providerLinkId: 'ql_full', url: 'u', status: 'open' });
 
   const notified = [];
   await runPaymentPoll({ ...deps(db, 'paid'), checkConflict: () => false, notifyConflict: (id) => { notified.push(id); } });
@@ -165,8 +167,8 @@ test('concurrent processPaidLink on the same paid link (webhook + poll race) →
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
   // Both the webhook and the on-demand poll captured the SAME still-open link before either flipped it.
-  const link = links.create({ reservationId: devisId, type: 'full', amountCents: 30000, qontoPaymentLinkId: 'ql_full', url: 'u', status: 'open' });
-  const captured = { id: link.id, reservationId: devisId, type: 'full', qontoPaymentLinkId: 'ql_full' };
+  const link = links.create({ reservationId: devisId, type: 'full', amountCents: 30000, providerLinkId: 'ql_full', url: 'u', status: 'open' });
+  const captured = { id: link.id, reservationId: devisId, type: 'full', providerLinkId: 'ql_full' };
 
   const emails = [];
   const notified = [];
@@ -177,7 +179,7 @@ test('concurrent processPaidLink on the same paid link (webhook + poll race) →
     checkConflict: () => true,
     sendConfirmation: async (id) => { emails.push(id); },
     notifyConflict: (id) => { notified.push(id); },
-    paidPayment: { id: 'pay_1', paid_at: '2026-09-21T10:00:00Z' },
+    paidPayment: { paymentId: 'pay_1', paidAt: '2026-09-21T10:00:00Z' },
   };
 
   const first = await processPaidLink({ ...deps, link: captured });
@@ -195,7 +197,7 @@ test('concurrent processPaidLink on the same paid link (webhook + poll race) →
 test('an open link stays open; an expired link is recorded', async () => {
   const { db, devisId } = seed();
   const links = paymentLinksModel.buildModel(db);
-  const a = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, qontoPaymentLinkId: 'ql_open', url: 'u', status: 'open' });
+  const a = links.create({ reservationId: devisId, type: 'deposit', amountCents: 9000, providerLinkId: 'ql_open', url: 'u', status: 'open' });
   assert.equal((await runPaymentPoll(deps(db, 'open'))).paid, 0);
   assert.equal(db.prepare('SELECT status FROM payment_links WHERE id = ?').get(a.id).status, 'open');
 

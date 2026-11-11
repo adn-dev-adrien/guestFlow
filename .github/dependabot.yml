@@ -6,8 +6,9 @@
 # audit a révélé 8 failles « high » dormantes. Le retard accumulé coûte plus cher que la mise à jour
 # continue : ce fichier fait remonter les nouvelles versions au fil de l'eau, sans attendre l'incident.
 #
-# Trois manifestes distincts — la racine porte Playwright + concurrently, `server/` l'API, `client/`
-# la SPA. Un `package-lock.json` par dossier, donc un écosystème npm par dossier.
+# Cinq manifestes distincts — la racine porte Playwright + concurrently, `server/` l'API, `client/`
+# la SPA, `control-plane/server` et `control-plane/client` le plan de contrôle. Un `package-lock.json`
+# par dossier, donc un écosystème npm par dossier.
 #
 # Stratégie de regroupement : les patchs/mineures arrivent EN LOT (une PR par dossier et par semaine,
 # facile à relire et à merger d'un bloc), tandis que chaque MAJEURE arrive SEULE — une majeure se
@@ -37,6 +38,40 @@ updates:
     labels: [dependencies]
     groups:
       racine-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Plugin guest-app : l'app clients « Mon séjour » (Vite + React) ──
+  - package-ecosystem: npm
+    directory: /server/src/plugins/guest-app/apps/guest
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies]
+    groups:
+      guest-app-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Plugin guest-app : le Studio du livret (Vite + React) ──
+  - package-ecosystem: npm
+    directory: /server/src/plugins/guest-app/apps/studio
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies]
+    groups:
+      studio-app-mineures:
         patterns: ['*']
         update-types: [minor, patch]
 
@@ -74,7 +109,41 @@ updates:
         patterns: ['*']
         update-types: [minor, patch]
 
-  # ── Actions GitHub : les workflows épinglent des actions (checkout@v6, setup-node@v6…) ──
+  # ── Control plane (server) : déployé à part, son propre package-lock.json ──
+  - package-ecosystem: npm
+    directory: /control-plane/server
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies, server]
+    groups:
+      control-plane-server-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Control plane (client) : déployé à part, son propre package-lock.json ──
+  - package-ecosystem: npm
+    directory: /control-plane/client
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels: [dependencies, client]
+    groups:
+      control-plane-client-mineures:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # ── Actions GitHub : les workflows épinglent des actions (checkout@v7, setup-node@v7…) ──
   - package-ecosystem: github-actions
     directory: /
     schedule:

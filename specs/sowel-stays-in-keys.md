@@ -45,19 +45,20 @@ Every key, `create` and `revoke`, gains:
 
 ## Where it lives
 
-- `server/src/utils/gateWindow.js` — `toParisIso`: an instant as Paris wall clock with its offset.
-- `server/src/utils/gateKeys.js` — the `stay` block on `create` and `revoke`.
-- `server/src/models/gateKeysModel.js` — `propertyId` read with the stays, stored with the results;
-  `migratePropertyId` (column + backfill), run by `database.js` at start.
-- `server/src/utils/gateResults.js` — stores the reservation's `propertyId` with each result.
-- `server/src/schema.sql` — `gate_key_results.propertyId INTEGER` for fresh databases.
+The gate connector is the `gate-access` plugin since phase 2 (`specs/plugins-phase-2-hosts.md`):
+
+- `server/src/plugins/gate-access/window.js` — `toParisIso`: an instant as Paris wall clock with its offset.
+- `server/src/plugins/gate-access/keys.js` — the `stay` block on `create` and `revoke`.
+- `server/src/plugins/gate-access/keysModel.js` — `propertyId` read with the stays, stored with the
+  results; `migratePropertyId` (column + backfill), run once by the plugin migration `stay_property_v1`.
+- `server/src/plugins/gate-access/results.js` — stores the reservation's `propertyId` with each result.
 
 The rule itself is written in `gate-access-sowel-connector.md` §3.1 rule 4b, and the wire contract
 there in §4.3 (v3); this file has no numbered rules of its own.
 
 ## Tests
 
-`server/src/tests/gate-keys-stay.unit.test.js`: payload shape for `create` and `revoke`, per-stay
+`server/src/plugins/gate-access/tests/gate-keys-stay.unit.test.js`: payload shape for `create` and `revoke`, per-stay
 check-in/check-out times honoured (and their fallback), DST boundary (a stay across 2026-10-25),
 deleted reservation rebuilt from the results table, old row without `propertyId` → no `stay`, the
 migration and its backfill. The existing `create` shape assertion in `gate-keys-list.unit.test.js`

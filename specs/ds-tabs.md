@@ -44,6 +44,8 @@ on desktop as on mobile — and a page can no longer invent its own.
    sticky block**, directly under the title row — never above the bar, never on the paper background.
 3. **The title is always visible when tabs are present.** Passing `tabs` to `PageActionBar` implies
    `titleOnXs`: the mobile bar can never be an anonymous row of actions again.
+   > 2026-10-19: the intent holds, the means changed — on `xs` every page title now lives in the top
+   > bar (`specs/shell-and-home-day-first.md` rule 15) and `titleOnXs` is gone.
 4. **Card-level tabs** (a switch that belongs to one card or dialog, not to the page) use the same
    component with `variant="card"`: same typography, left-aligned, a bottom divider and a standard
    `mb: 2` rhythm. No forced width, no `fullWidth` stretching.
@@ -61,6 +63,22 @@ on desktop as on mobile — and a page can no longer invent its own.
    look (rule 5, 6), so a stray `<Tabs>` written later still lands on the house style; `PageTabs` carries
    the structure and the behaviour (rules 4, 7, 8).
 10. **Nothing about tab content changes** — same labels, same order, same `?tab=` URLs, same routes.
+11. **The tabs give way, never the actions** (added 2026-10-22, specs/integrations-tab-per-plugin.md,
+    seven tabs on Intégrations). On `sm+` a bar with `tabs` does not wrap its row: the title side and the
+    actions keep their width (the title side at least `min(100%, 17rem)`, room for a one-line
+    « Dernière mise à jour » under the title), and the tab strip shrinks to the room left and scrolls
+    inside it, with its arrows. While they fit, the side columns keep their equal share, so the tabs
+    stay truly centred. Under 720 px of bar the tabs still take a second row (ds-components rule 19).
+    Checked at 900 / 1200 / 1400 / 1600 px on Intégrations, Clients, Textes des emails, Plugins,
+    Options & ressources, Vacances & fermetures: Save / Cancel always on the title's row.
+12. **A tab switch never blanks the bar** (added 2026-10-28). A wrapper that mounts only the active tab
+    (Options & ressources, Vacances & fermetures) shows, while a lazy plugin tab's chunk loads, the
+    bar itself (`PageBarFallback`: the tab's label as title, the same tabs, and inert Save / Cancel in
+    the same slots when the loaded tab has them — Options & ressources' « Facturables au SAS » —
+    otherwise an empty action-sized slot that holds the row's height, so a page without Save never
+    flashes one — Vacances scolaires) — not an empty or skeleton-only Suspense fallback. Before, switching to
+    « Facturables au SAS » made the title and the tabs disappear for ~400 ms (measured at 390 px, CPU
+    x5), and a fallback without Save / Cancel made the tab strip jump 44 px when the real bar mounted.
 
 **Edge cases:**
 - 6 long labels + a long page title on a laptop (~1040 px of content) → the tabs scroll **inside** the
@@ -152,6 +170,7 @@ CTA); the only addition is the `tabs` prop described above.
 None — no server-side logic (CLAUDE.md §9 "tests not required for pure styling changes").
 
 ### Client unit tests (Vitest) — 13 new tests, suite green at 1317
+- [x] `pages/__tests__/OptionsResourcesPage.suspense-bar.test.jsx` (1), `pages/__tests__/SeasonsClosuresPage.suspense-bar.test.jsx` (1) — rule 12.
 - [x] `components/__tests__/PageTabs.render.test.jsx` — renders one `role="tab"` per item, marks the active
       one `aria-selected`, fires `onChange` with the clicked value, renders the badge node, keeps the
       label, and scrolls its overflow instead of wrapping (rules 7, 8).

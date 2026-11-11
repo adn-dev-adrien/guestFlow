@@ -12,7 +12,8 @@
  *   windowLabel:        string   « Exercice 2026 »…
  *   staysScope:         'window' | 'upcoming';  onStaysScopeChange(scope)
  *   until:              'YYYY-MM-DD';           onUntilChange(date)
- *   onClose, onOpenReservation(id), onTogglePayment(row, field), onSettleAll(row), onSelectProperty(id)
+ *   onClose, onOpenReservation(id), onTogglePayment(row, field), onSettleAll(row), onSettleOverdue(row) (ticks only the row's
+ *   `overdueItems`), onSelectProperty(id)
  */
 import React from 'react';
 import {
@@ -26,19 +27,19 @@ import PlatformChip from './PlatformChip';
 import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import YearOverYearBadge from './YearOverYearBadge';
-import { displayDate, formatCurrency, formatCurrencyRounded } from '../utils/formatters';
+import { displayDate, formatCurrency, formatCurrencyRounded, plural } from '../utils/formatters';
+import { seriesColor } from '../utils/chartColors';
 
 const TAB = { fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)} %`);
 const money = (n) => (n == null ? '—' : formatCurrencyRounded(n));
-const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 
 const TITLES = {
-  collected: ['Encaissé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
+  collected: ['Déjà payé', 'Chaque paiement reçu pour les séjours de la période, du plus récent au plus ancien'],
   toCollect: ['À encaisser', 'Séjours terminés pas encore soldés, tous exercices · cochez un paiement à sa réception'],
-  late: ['En retard', 'Échéances dépassées des réservations en direct, tous exercices · à relancer'],
+  late: ['En retard', 'Échéances dépassées des réservations en direct et versements plateforme attendus, tous exercices'],
   stays: ['Réservations', 'Rattachées à la période par leur date comptable'],
-  properties: ['Logements', 'Nuits, occupation, revenu moyen par nuit vendue, RevPAR (revenu ÷ nuits ouvrables)'],
+  properties: ['Logements', 'Nuits, occupation, revenu moyen par nuit vendue, RevPAR (revenu des nuits ÷ nuits ouvertes)'],
   channels: ['Canaux', 'Ce que chaque canal rapporte vraiment, commission déduite'],
 };
 
@@ -64,18 +65,18 @@ function CollectedTable({ data, onOpenReservation }) {
     <>
       <ResponsiveTable
         items={data.rows}
-        getKey={(r) => `${r.reservationId}-${r.kind}-${r.date}-${r.amount}`}
+        getKey={(r) => `${r.reservationId}-${r.kind}-${r.label}-${r.date}-${r.amount}`}
         emptyText="Aucun paiement reçu pour les séjours de la période."
         minWidth={760}
         onItemClick={(r) => onOpenReservation(r.reservationId)}
         head={(
           <TableRow>
             <TableCell>Date</TableCell><TableCell>Client</TableCell><TableCell>Logement</TableCell>
-            <TableCell>Canal</TableCell><TableCell>Paiement</TableCell><TableCell align="right">Montant</TableCell>
+            <TableCell>Plateforme</TableCell><TableCell>Paiement</TableCell><TableCell align="right">Montant</TableCell>
           </TableRow>
         )}
         renderRow={(r) => (
-          <TableRow key={`${r.reservationId}-${r.kind}-${r.date}-${r.amount}`} hover sx={{ cursor: 'pointer' }} onClick={() => onOpenReservation(r.reservationId)}>
+          <TableRow key={`${r.reservationId}-${r.kind}-${r.label}-${r.date}-${r.amount}`} hover sx={{ cursor: 'pointer' }} onClick={() => onOpenReservation(r.reservationId)}>
             <TableCell sx={TAB}>{displayDate(r.date)}</TableCell>
             <TableCell>{r.clientName}</TableCell>
             <TableCell>{r.propertyName}</TableCell>
@@ -94,19 +95,27 @@ function CollectedTable({ data, onOpenReservation }) {
           </>
         )}
       />
-      {data.rows.length > 0 && <Total label={`Total encaissé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
+      {data.rows.length > 0 && <Total label={`Total déjà payé · ${plural(data.totals.count, 'paiement')}`}>{formatCurrency(data.totals.amount)}</Total>}
     </>
   );
 }
 
-function LateTable({ data, onOpenReservation, onSettleAll }) {
+function LateTable({ data, onOpenReservation, onSettleOverdue }) {
   const chips = (r) => (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-      {r.depositOverdue && <Chip size="small" color="error" variant="outlined" label={`Acompte ${formatCurrency(r.depositAmount)} · échu ${displayDate(r.depositDueDate)}`} />}
-      {r.balanceOverdue && <Chip size="small" color="error" variant="outlined" label={`Solde ${formatCurrency(r.balanceAmount)} · échu ${displayDate(r.balanceDueDate)}`} />}
+      {(r.overdueItems || []).map((item) => (
+        <Chip
+          key={item.kind}
+          size="small"
+          color="error"
+          variant="outlined"
+          label={`${item.label} ${formatCurrency(item.amount)} · échu ${displayDate(item.dueDate)}`}
+          sx={{ height: 'auto', maxWidth: '100%', '& .MuiChip-label': { whiteSpace: 'normal', py: 0.25 } }}
+        />
+      ))}
     </Box>
   );
-  const settle = (r) => (e) => { e.stopPropagation(); onSettleAll(r); };
+  const settle = (r) => (e) => { e.stopPropagation(); onSettleOverdue(r); };
   return (
     <>
       <ResponsiveTable
@@ -148,8 +157,10 @@ function LateTable({ data, onOpenReservation, onSettleAll }) {
   );
 }
 
-function StaysTable({ data, onOpenReservation }) {
-  const paymentChips = (r) => (
+function StaysTable({ data, emptyText, onOpenReservation }) {
+  const paymentChips = (r) => (r.amountMissing ? (
+    <Chip size="small" color="warning" variant="outlined" label="Montant à saisir" />
+  ) : (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
       <Chip size="small" color={r.settled ? 'success' : 'warning'} label={r.settled ? 'Réglé' : `Reste ${formatCurrency(r.remainingDue)}`} />
       {r.depositDisabled
@@ -157,18 +168,18 @@ function StaysTable({ data, onOpenReservation }) {
         : <Chip size="small" color={r.depositPaid ? 'success' : 'default'} variant={r.depositPaid ? 'filled' : 'outlined'} label={`Acompte ${r.depositPaid ? 'payé' : 'non payé'}${r.depositDueDate && !r.depositPaid ? ` (${displayDate(r.depositDueDate)})` : ''}`} />}
       <Chip size="small" color={r.balancePaid ? 'success' : 'default'} variant={r.balancePaid ? 'filled' : 'outlined'} label={`Solde ${r.balancePaid ? 'payé' : 'non payé'}${r.balanceDueDate && !r.balancePaid ? ` (${displayDate(r.balanceDueDate)})` : ''}`} />
     </Box>
-  );
+  ));
   return (
     <>
       <ResponsiveTable
         items={data.rows}
         getKey={(r) => r.id}
-        emptyText="Aucune réservation sur la période."
+        emptyText={emptyText}
         minWidth={980}
         onItemClick={(r) => onOpenReservation(r.id)}
         head={(
           <TableRow>
-            <TableCell>Client</TableCell><TableCell>Logement</TableCell><TableCell>Dates</TableCell><TableCell>Canal</TableCell>
+            <TableCell>Client</TableCell><TableCell>Logement</TableCell><TableCell>Dates</TableCell><TableCell>Plateforme</TableCell>
             <TableCell align="right">Nuits</TableCell><TableCell align="right">Total de séjour</TableCell><TableCell>Suivi paiement</TableCell>
           </TableRow>
         )}
@@ -214,18 +225,20 @@ function PropertiesTable({ data, onSelectProperty }) {
           <TableRow>
             <TableCell>Logement</TableCell><TableCell align="right">Nuits</TableCell><TableCell align="right">Occupation</TableCell>
             <TableCell align="right">Revenu / nuit</TableCell><TableCell align="right">RevPAR</TableCell>
-            <TableCell align="right">TTC</TableCell><TableCell align="right">HT</TableCell><TableCell align="right">vs N-1</TableCell>
+            <TableCell align="right">{data.showHt === false ? 'Revenu' : 'TTC'}</TableCell>
+            {data.showHt !== false && <TableCell align="right">HT</TableCell>}
+            <TableCell align="right">vs N-1</TableCell>
           </TableRow>
         )}
         renderRow={(r) => (
           <TableRow key={r.propertyId} hover sx={{ cursor: 'pointer' }} onClick={() => onSelectProperty(r.propertyId)}>
-            <TableCell><Box component="span" sx={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', bgcolor: r.color, mr: 1 }} />{r.name}</TableCell>
+            <TableCell><Box component="span" sx={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', bgcolor: seriesColor(r.colorIndex), mr: 1 }} />{r.name}</TableCell>
             <TableCell align="right" sx={TAB}>{r.nights}</TableCell>
             <TableCell align="right" sx={TAB}>{pct(r.occupancy)}</TableCell>
             <TableCell align="right" sx={TAB}>{money(r.revenuePerNight)}</TableCell>
             <TableCell align="right" sx={TAB}>{money(r.revPar)}</TableCell>
             <TableCell align="right" sx={{ ...TAB, fontWeight: 700 }}>{formatCurrencyRounded(r.revenue)}</TableCell>
-            <TableCell align="right" sx={TAB}>{formatCurrencyRounded(r.revenueHt)}</TableCell>
+            {data.showHt !== false && <TableCell align="right" sx={TAB}>{formatCurrencyRounded(r.revenueHt)}</TableCell>}
             <TableCell align="right">{r.change == null ? <Typography variant="caption" color="text.secondary">—</Typography> : badge(r.change)}</TableCell>
           </TableRow>
         )}
@@ -302,27 +315,28 @@ function ChannelsTable({ data }) {
 
 export default function FinanceDetailPanel({
   id, tile, data, loading, error, onRetry, windowLabel, staysScope, onStaysScopeChange, until, onUntilChange,
-  onClose, onOpenReservation, onTogglePayment, onSettleAll, onSelectProperty,
+  onClose, onOpenReservation, onTogglePayment, onSettleAll, onSettleOverdue, onSelectProperty,
 }) {
   const [title, caption] = TITLES[tile];
   const windowed = !['toCollect', 'late'].includes(tile) && !(tile === 'stays' && staysScope === 'upcoming');
+  const staysEmptyText = staysScope === 'unpriced' ? 'Aucun séjour sans montant sur la période.' : 'Aucune réservation sur la période.';
   let body = null;
   if (error) body = <ErrorAlert message="Impossible de charger ce tableau." onRetry={onRetry} />;
   else if (loading || !data) body = <LoadingState label="Chargement du tableau…" />;
   else if (tile === 'collected') body = <CollectedTable data={data} onOpenReservation={onOpenReservation} />;
-  else if (tile === 'late') body = <LateTable data={data} onOpenReservation={onOpenReservation} onSettleAll={onSettleAll} />;
+  else if (tile === 'late') body = <LateTable data={data} onOpenReservation={onOpenReservation} onSettleOverdue={onSettleOverdue} />;
   else if (tile === 'properties') body = <PropertiesTable data={data} onSelectProperty={onSelectProperty} />;
   else if (tile === 'channels') body = <ChannelsTable data={data} />;
   else if (tile === 'stays' && data.scope === 'upcoming') {
     body = <OperationalPaymentsTable rows={data.rows} totals={data.totals} onOpenReservation={onOpenReservation} minWidth={960} />;
-  } else if (tile === 'stays') body = <StaysTable data={data} onOpenReservation={onOpenReservation} />;
+  } else if (tile === 'stays') body = <StaysTable data={data} emptyText={staysEmptyText} onOpenReservation={onOpenReservation} />;
   else if (tile === 'toCollect') {
     body = (
       <>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: 1, sm: 2.5 }, bgcolor: 'rgba(60,54,36,0.04)', borderRadius: '10px', px: 1.5, py: 1.25, mb: 1.5 }}>
-          <TextField size="small" type="date" label="Arrivées d'ici le" value={until} onChange={(e) => e.target.value && onUntilChange(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+          <TextField size="small" type="date" label="Encaissable d'ici le" value={until || data.projection.until} onChange={(e) => e.target.value && onUntilChange(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
           <Typography variant="body2" sx={TAB}>Total de séjour <b>{formatCurrencyRounded(data.projection.total)}</b></Typography>
-          <Typography variant="body2" sx={TAB}>Déjà encaissé <b>{formatCurrencyRounded(data.projection.collected)}</b></Typography>
+          <Typography variant="body2" sx={TAB}>Déjà payé <b>{formatCurrencyRounded(data.projection.collected)}</b></Typography>
           <Typography variant="body2" sx={TAB}>Reste <b>{formatCurrencyRounded(data.projection.pending)}</b></Typography>
         </Box>
         {data.rows.length === 0
@@ -342,9 +356,10 @@ export default function FinanceDetailPanel({
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {tile === 'stays' && (
-              <ToggleButtonGroup exclusive size="small" value={staysScope} onChange={(_, v) => v && onStaysScopeChange(v)} aria-label="Réservations" sx={{ '& .MuiToggleButton-root': { textTransform: 'none', minHeight: 36 } }}>
+              <ToggleButtonGroup exclusive size="small" value={staysScope} onChange={(_, v) => v && onStaysScopeChange(v)} aria-label="Réservations" sx={{ '& .MuiToggleButton-root': { textTransform: 'none', minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } } }}>
                 <ToggleButton value="window">De la période</ToggleButton>
                 <ToggleButton value="upcoming">À venir</ToggleButton>
+                <ToggleButton value="unpriced">Sans montant</ToggleButton>
               </ToggleButtonGroup>
             )}
             <Tooltip title="Fermer">

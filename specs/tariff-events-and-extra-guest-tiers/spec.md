@@ -163,6 +163,17 @@ decision to make, not a side effect to bury:
 22. `version` goes to `1.1.0` — the tariff changes, so the property must be told a new version is
     available.
 
+### 3.5 Fixed at the 2026-10-27 spec review
+
+23. **The tier table is stored with the sale even when nobody is billed.** A stay sold for the
+    included guests (Lodge booked for 2) used to store `extraGuestTiers: null` in its tariff snapshot,
+    because the tiers were only resolved when an extra guest existed; a teen added later then replayed
+    « no tiers » and fell back to the property's single price (0 € on the Lodge) — never billed. The
+    engine now resolves the season's tiers whatever the count, and the snapshot stores them, or an
+    explicit `[]` when the season has none. A `null` left by an older snapshot still replays as « no
+    tiers » (the rule-12ter backfill depends on it), so reservations sold for ≤ 2 before this fix keep
+    the bug until their snapshot is rewritten; the operator can list them (see the PR).
+
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
@@ -170,6 +181,7 @@ decision to make, not a side effect to bury:
 | Layer | File | Responsibility |
 |---|---|---|
 | utils | `pricing.js` | `computeExtraGuestSurcharge` gains the tier branch: when tiers are present, night N costs the tier price with no ratio applied. Everything else untouched. |
+| utils | `pricing.js` (2026-10-27, rule 23) | The tiers are resolved even when no guest is billed, and the tariff snapshot stores them, or `[]` when the season has none. |
 | utils | `extraGuestTiers.js` _(new)_ | Pure resolution of `(tiers, nightIndex) → price`, with carry-forward. Isolated so it is unit-testable without a database. |
 | utils | `seasonPlan.js` | New step 3bis in `buildYearPlan`: after the holiday raise, repaint the event nights with the event's season and overrides. |
 | utils | `tariffRecipe.js` | Validation: tier shape, `fromNight` strictly increasing and starting at 1, the `perNightTiers` × `followsDiscount` conflict, event shape, ISO dates, `from <= to`, a year key matching the dates it declares. |
@@ -220,11 +232,17 @@ current pricing. No other property is affected.
 - **Seasons table** — the event's range shows its label in the Saison cell, in the same discreet
   style as the closure marker.
 - **Devis / invoice PDF** — the supplement is a **line item**: « Surcoût voyageurs (3 pers. au-delà
-  du tarif de base) — 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit », accommodation VAT, struck through with
-  the « OFFERT » badge when offered. Before this line existed the supplement lived in the grand total
-  only, so any devis with extra guests printed a sub-total that did not match its own lines. The EN
-  PDF prints the row without the French tier phrase. Skipped under a manual price, whose
-  accommodation row already absorbs the whole total.
+  du tarif de base) » (« Extra-guest supplement (3 guests above the base rate) » in English),
+  accommodation VAT, struck through with the « OFFERT » badge when offered. Before this line existed
+  the supplement lived in the grand total only, so any devis with extra guests printed a sub-total
+  that did not match its own lines. Skipped under a manual price, whose accommodation row already
+  absorbs the whole total.
+  *Reading of 2026-11-05 (Adrien):* the tier phrase that followed the count on the French row
+  (« — 15,00 € la 1ʳᵉ nuit, puis 8,00 €/nuit ») is dropped, on Adrien's request. On v3.21.0 the PDF
+  drew it in a PDF standard face (WinAnsi), which has neither « ʳ » (U+02B3) nor « ᵉ » (U+1D49): an
+  L'Estiva quote read « 15,00 € la 1+1Ô’ àuit, puis 8,00 €/nuit ». The tier rule stays on the
+  reservation summary (`extraGuestTiersLabel`); the PDF row no longer carries it. Tests:
+  `devis-pdf-extra-guest-row`, `devis-pdf-glyphs`.
 - **Dashboard** — the missing event years ride the same card as the horizon-task journal (rule 17):
   one warning row per (property, event, year), not dismissible — it leaves when the dates are filled.
 - **Mobile** — the tier text wraps on two lines on `xs`; no table gains a column, so nothing new can
@@ -240,6 +258,11 @@ current pricing. No other property is affected.
   minimum nights; a year with no dates changes nothing; a closed day is not reopened; ranges appear
   in the preview; `missingEventYears` reports the right years.
 - `tariff-recipe-load.unit.test.js` — the new validations, each with its own rejection case.
+- `extra-guest-tiers-party-grows.unit.test.js` (4, rule 23) — a stay sold for 2 stores the tiers;
+  a teen added later is billed 15 + 8 + 8; a later recipe change does not reach it; a season with no
+  tiers stores `[]`.
+- `devis-pdf-extra-guest-row.unit.test.js`, `devis-pdf-glyphs.unit.test.js` — the PDF row, its amounts
+  and its wording (count only, 2026-11-05).
 - `pricing-baseline` — must stay green untouched: it is the proof that no existing quote moved.
 
 ### Manual UI verification

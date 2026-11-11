@@ -38,7 +38,7 @@ describe('SelfProfileSection', () => {
     expect(email).toHaveValue('adrien@example.com');
     expect(email).not.toBeDisabled();
     // Neutral helper text when the email is not the bootstrap seed.
-    expect(screen.getByText(/C'est l'adresse utilisée pour vous connecter/)).toBeInTheDocument();
+    expect(screen.getByText(/Adresse utilisée pour la connexion/)).toBeInTheDocument();
   });
 
   test('red default-email warning fires when the user still has the bootstrap seed + the server confirms it', () => {
@@ -49,7 +49,7 @@ describe('SelfProfileSection', () => {
     const email = screen.getByLabelText(/Email/);
     expect(email).toHaveValue('admin@guestflow.local');
     // MUI's `error` prop adds Mui-error on both the input AND the helper text wrapper.
-    expect(screen.getByText(/Vous utilisez encore l'adresse par défaut/)).toBeInTheDocument();
+    expect(screen.getByText(/Adresse par défaut encore en place/)).toBeInTheDocument();
   });
 
   test('default-email warning stays silent when the server says the seed has already been replaced', () => {
@@ -59,7 +59,7 @@ describe('SelfProfileSection', () => {
       initialValues: { ...BASE, email: 'admin@guestflow.local' },
       emailStatus: { defaultStillUsed: false },
     });
-    expect(screen.queryByText(/Vous utilisez encore l'adresse par défaut/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Adresse par défaut encore en place/)).not.toBeInTheDocument();
   });
 
   test('Save + Cancel are disabled until the user modifies a field, re-disabled on Cancel', async () => {

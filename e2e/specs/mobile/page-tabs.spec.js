@@ -11,7 +11,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 test('/parametres/options-ressources at 390px: title first, tabs under it, no sideways scroll', async ({ page }) => {
   await page.goto('/parametres/options-ressources');
 
-  const title = page.getByRole('heading', { name: 'Options de séjour' });
+  const title = page.getByRole('heading', { name: 'Options & ressources' });
   await expect(title).toBeVisible({ timeout: 10_000 });
 
   const tabs = page.getByRole('tab');
@@ -31,15 +31,51 @@ test('/parametres/options-ressources at 390px: title first, tabs under it, no si
 
 test('switching tab on a phone keeps the title + tabs in the same block', async ({ page }) => {
   await page.goto('/parametres/options-ressources');
-  await expect(page.getByRole('heading', { name: 'Options de séjour' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('heading', { name: 'Options & ressources' })).toBeVisible({ timeout: 10_000 });
 
   // rule 10 — the tab still lives in the URL, under its original name.
   await page.getByRole('tab', { name: 'Ressources' }).click();
   await expect(page).toHaveURL(/tab=resources/);
 
-  const title = page.getByRole('heading', { name: 'Ressources' });
+  const title = page.getByRole('heading', { name: 'Options & ressources' });
   await expect(title).toBeVisible();
-  const tabsBox = await page.getByRole('tab').first().boundingBox();
-  expect(tabsBox.y).toBeGreaterThan((await title.boundingBox()).y);
+  // Each tab mounts its own bar, so the strip is replaced on a switch: measure what is there NOW, retrying
+  // while the previous strip is detached (a handle taken from it has no box).
+  await expect.poll(async () => {
+    const tabsBox = await page.getByRole('tab').first().boundingBox();
+    const titleBox = await title.boundingBox();
+    return tabsBox && titleBox ? tabsBox.y > titleBox.y : null;
+  }).toBe(true);
   await expect(page.getByRole('tab', { name: 'Ressources' })).toHaveAttribute('aria-selected', 'true');
+});
+
+// specs/ds-tabs.md rule 12 — a lazy plugin tab keeps the bar drawn while its chunk loads.
+test('switching to a plugin tab never leaves the page without tabs', async ({ page }) => {
+  await page.goto('/parametres/options-ressources');
+  await expect(page.getByRole('tab')).toHaveCount(3, { timeout: 10_000 });
+  await page.evaluate(() => {
+    window.__tabCounts = new Set();
+    window.__tabYs = new Set();
+    // A Y counts once it held for two consecutive frames. One-frame readings are out of scope on purpose: a single
+    // sample 238 px lower was seen once on a loaded runner and never reproduced (12 runs at 6x CPU throttling and
+    // 52 under load show one constant Y), so it is read as a sampling artefact, not a flash. A bar that really
+    // jumps stays in the layout for more than one frame and is caught.
+    let previous = null;
+    const sample = () => {
+      const tabs = document.querySelectorAll('[role=tab]');
+      window.__tabCounts.add(tabs.length);
+      const y = tabs.length ? Math.round(tabs[0].getBoundingClientRect().y) : null;
+      if (y !== null && y === previous) window.__tabYs.add(y);
+      previous = y;
+      requestAnimationFrame(sample);
+    };
+    sample();
+  });
+  await page.getByRole('tab', { name: 'Facturables au SAS' }).click();
+  await expect(page).toHaveURL(/tab=sas/);
+  await expect(page.getByRole('heading', { name: 'Facturables au SAS' }).first()).toBeVisible();
+  await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))); }));
+  expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([3]);
+  // The fallback bar has the same rows as the loaded one: the strip does not jump when the real bar mounts.
+  expect(await page.evaluate(() => [...window.__tabYs])).toHaveLength(1);
 });

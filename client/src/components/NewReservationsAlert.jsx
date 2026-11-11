@@ -3,18 +3,19 @@
  * last 24 hours, whatever its origin (specs/dashboard-ical-new-reservations.md).
  *
  * Self-contained: fetches its own list on mount and every 5 minutes, so a reservation leaves the
- * card at the end of its 24 hours without a reload. Renders one blue (`info`) `<Alert>` with one
+ * card at the end of its 24 hours without a reload. Renders one `AttentionCard` with one
  * CLICKABLE row per reservation that navigates to its reservation page. Read-only — no
  * approve/reject/dismiss. Renders nothing when the list is empty, or on fetch error (a dashboard
  * card must never break the page). Mirrors the IcalCancellationAlert / IcalDateDriftAlert pattern.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, AlertTitle, Box, Typography, Divider, Stack,
+  Box, Typography, Divider, Stack,
 } from '@mui/material';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useNavigate } from 'react-router';
 import api from '../api';
+import AttentionCard from './AttentionCard';
 import { displayDateShort } from '../utils/formatters';
 
 const REFRESH_MS = 5 * 60 * 1000;
@@ -35,7 +36,7 @@ function relativeFromNow(iso) {
   return `il y a ${days} j`;
 }
 
-export default function NewReservationsAlert() {
+export default function NewReservationsAlert({ attention }) {
   const navigate = useNavigate();
   const [alerts, setAlerts] = useState([]);
 
@@ -59,16 +60,8 @@ export default function NewReservationsAlert() {
   const open = (reservationId) => navigate(`/reservations/${reservationId}`);
 
   return (
-    <Alert
-      severity="info"
-      variant="outlined"
-      sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}
-      icon={false}
-    >
-      <AlertTitle sx={{ fontWeight: 700 }}>
-        Nouvelles réservations — {alerts.length} sur les dernières 24 h
-      </AlertTitle>
-      <Stack divider={<Divider flexItem />} spacing={0.5} sx={{ mt: 1 }}>
+    <AttentionCard attention={attention}>
+      <Stack divider={<Divider flexItem />} spacing={0.5}>
         {alerts.map((alert) => (
           <Box
             key={alert.reservationId}
@@ -100,6 +93,6 @@ export default function NewReservationsAlert() {
           </Box>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

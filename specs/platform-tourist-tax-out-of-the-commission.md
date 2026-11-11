@@ -18,7 +18,7 @@ On a platform that collects the tourist tax from the guest **and** remits it to 
 the platform's statement and only two of them are ours:
 
 ```
-Gîtes de France — Grimaud #22225, 26–28 June 2026
+Gîtes de France — Victor #22225, 26–28 June 2026
   Prix location                653,00
   Options / forfait ménage      80,00
   Taxe de séjour                14,40   ← collectée ET reversée par la centrale
@@ -98,7 +98,7 @@ counted.
    `accommodation = max(0, brut − extraGuestSurcharge − pre-arrival options/resources − withheldTax)`.
    So `finalPrice = brut − withheldTax`, and the revenue (accommodation + options) excludes the tax.
    An empty box makes the term `0`, leaving the back-solve byte-identical to today.
-   Grimaud: brut 747,40, withheld 14,40 → `finalPrice` 733,00, accommodation 653,00, options 80,00.
+   Victor: brut 747,40, withheld 14,40 → `finalPrice` 733,00, accommodation 653,00, options 80,00.
 
 6bis. **The declared tax base drops the withheld tax too — no tax on the tax.** Since
    [tourist-tax-matches-the-office-calculation.md](tourist-tax-matches-the-office-calculation.md)
@@ -131,7 +131,7 @@ counted.
 10. **« Calculer la commission » subtracts the withheld tax**:
     `commission solde = max(0, brut − virement reçu − withheldTax − commission acompte)`.
     An empty box reproduces the August formula (`brut − virement − commission acompte`) exactly.
-    Grimaud: 747,40 − 668,00 − 14,40 − 0 = **65,00**, where today's formula on the guest-paid total
+    Victor: 747,40 − 668,00 − 14,40 − 0 = **65,00**, where today's formula on the guest-paid total
     would give 79,40.
 
 11. **« Net perçu » and the écart reconcile with no new code.** `preArrivalAmount = finalPrice =
@@ -228,6 +228,14 @@ counted.
     19,20 €) could not be marked paid from the fiche. The fiche now shows the refusal instead of
     swallowing it, so a future drift is visible rather than silent.
 
+### Fixed at the 2026-10-27 spec review
+
+26. **« 0 » withheld is an answer.** The engine served `platformTouristTaxWithheld: null` whenever the
+    amount was 0, so a platform that kept no tax made the fiche fall back to the engine's estimate and
+    print it struck through as if the platform had kept it. The box now distinguishes empty (`null`,
+    the estimate) from 0 (the platform's figure, printed 0,00 €), as rules 9 and 15 already said. A
+    negative amount stays an empty box (rule 20). The rule-15 test now pins 0 → 0.
+
 ---
 
 ## 4. Architecture
@@ -245,6 +253,7 @@ counted.
 | `database.js` | [database.js](../server/src/database.js) | T | Idempotent, PRAGMA-guarded `ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL`. No backfill (rule 2). |
 | `schema.sql` | [schema.sql](../server/src/schema.sql) | T | The column on the `CREATE TABLE reservations` for fresh installs. |
 | `utils/pricing.js` | [pricing.js:2058](../server/src/utils/pricing.js#L2058) | T | Accept `platformTouristTaxAmount`. Resolve `withheldTouristTaxInBrut` = the amount when the box is set **and** `platformGrossPin != null` **and** `isTouristTaxOfferedByPlatform`, else `0`; subtract it in `pinnedAccommodation` beside the existing `reversedTouristTaxInBrut`. Publish `platformTouristTaxWithheld` in the quote (rule 9); `touristTaxOriginalTotal` keeps its meaning. |
+| `utils/pricing.js` | — | T | 2026-10-27 (rule 26) — `withheldTouristTaxEntered` keeps « 0 » apart from an empty box in `platformTouristTaxWithheld`. |
 | `models/reservationsModel.js` | [reservationsModel.js:1337](../server/src/models/reservationsModel.js#L1337) | T | Persist `platformTouristTaxAmount` on insert/update (`NULL` on direct, rule 18); expose it from the reservation detail mapping. |
 | `controllers/reservationsController.js` | [reservationsController.js:612](../server/src/controllers/reservationsController.js#L612) | T | Validate it as money; forward it to the engine in `calculatePrice` **and** `create`/`update`, so the live preview and the persisted books price identically (the defect [platform-payment-entry.md](platform-payment-entry.md) §4.1 had to fix for `platformGrossAmount`). |
 | `utils/reservationEngineInput.js` | [reservationEngineInput.js](../server/src/utils/reservationEngineInput.js) | T | Carry `platformTouristTaxAmount` into every replay of a stored booking (rule 25). |
@@ -368,6 +377,8 @@ cancel, PDF/sync/delete slots) untouched.
 
 ### Server unit tests
 
+- `platform-withheld-tax-zero.unit.test.js` (3, rule 26) — 0 is served as 0, empty and negative as null.
+
 - [x] `tests/platform-tourist-tax-out-of-the-commission.unit.test.js` (new)
   - rule 1 — the withheld amount is read only in mode `platform`; ignored on `platform_reversed`,
     `owner` and direct (rules 1, 17)
@@ -390,7 +401,7 @@ cancel, PDF/sync/delete slots) untouched.
 - [x] `components/reservation/__tests__/FinanceSection.platform-tourist-tax.test.jsx` (new) — rules
   1, 4, 5, 10, 12, 14, 15: the box renders in mode `platform` only; pre-filled on a new fiche and not
   rewritten once touched; « Reprendre le calcul » fills it; « Calculer la commission » gives 65,00 on
-  the Grimaud numbers and the August value when the box is empty; the tax-excluded caption; the brut
+  the Victor numbers and the August value when the box is empty; the tax-excluded caption; the brut
   label.
 - [x] `components/__tests__/PricingSummary.platform-tourist-tax.test.jsx` (new) — rule 13: the amount
   is struck through with the « Plateforme » tag, and the cascade deducts the withheld amount.

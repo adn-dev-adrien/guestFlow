@@ -1,0 +1,25 @@
+# The GuestFlow console (control plane), specs/control-plane-plans-and-access.md and
+# specs/hosting-h1-fleet-runtime.md. Runs as `guestflow`, a member of `guestflow-app` (to create and
+# read the instances' directories) and of `caddy` (to reach Caddy's admin socket). Its only root
+# commands are the two wrappers allowed by /etc/sudoers.d/guestflow.
+
+[Unit]
+Description=GuestFlow — console
+After=network-online.target caddy.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=guestflow
+Group=guestflow
+UMask=0007
+EnvironmentFile=/srv/guestflow/console/env
+WorkingDirectory=/srv/guestflow/console/src/control-plane/server
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -26,9 +26,9 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── Lecture des specs ────────────────────────────────────────────────────────
 
-// Un numéro de règle : 10, 2bis, 20c. Gardé en chaîne, minuscule — c'est un identifiant, pas un
+// Un numéro de règle : 10, 2bis, 11quater, 20c. Gardé en chaîne, minuscule — c'est un identifiant, pas un
 // nombre : « 2 » et « 2bis » sont deux règles distinctes.
-const RULE_ID = String.raw`\d+(?:bis|ter|[a-z])?`;
+const RULE_ID = String.raw`\d+(?:bis|ter|quater|[a-z])?`;
 const RULE_LINE = new RegExp(String.raw`^(${RULE_ID})\.\s`, 'i');
 // Une règle déclarée non testable le dit DANS la spec, sous elle. Jamais en silence (règle 5).
 const EXEMPT_LINE = /^\s*>?\s*\*\*Sans test\*\*\s*[—-]?\s*(.*)$/i;
@@ -40,17 +40,9 @@ const EXEMPT_LINE = /^\s*>?\s*\*\*Sans test\*\*\s*[—-]?\s*(.*)$/i;
  * @returns {Array<{id: string, exempt: boolean, reason: string}>}
  */
 export function parseSpecRules(markdown) {
-  const lines = String(markdown || '').split('\n');
-  const start = lines.findIndex((l) => /^##\s+3\./.test(l));
-  if (start === -1) return [];
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^##\s/.test(lines[i])) { end = i; break; }
-  }
-
   const rules = [];
   let current = null;
-  for (const line of lines.slice(start + 1, end)) {
+  for (const line of functionalRuleLines(markdown)) {
     const m = line.match(RULE_LINE);
     if (m) {
       current = { id: m[1].toLowerCase(), exempt: false, reason: '' };
@@ -61,9 +53,43 @@ export function parseSpecRules(markdown) {
     const ex = line.match(EXEMPT_LINE);
     if (ex) { current.exempt = true; current.reason = ex[1].trim(); }
   }
-  // Une spec peut citer deux fois le même numéro (une règle et son rappel) : une seule règle.
+  // Un numéro répété ne compte qu'une fois ici ; la barrière le refuse (règle 17).
   const seen = new Set();
   return rules.filter((r) => (seen.has(r.id) ? false : seen.add(r.id)));
+}
+
+function functionalRuleLines(markdown) {
+  const lines = String(markdown || '').split('\n');
+  const start = lines.findIndex((l) => /^##\s+3\./.test(l));
+  if (start === -1) return [];
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^##\s/.test(lines[i])) { end = i; break; }
+  }
+  return lines.slice(start + 1, end);
+}
+
+/**
+ * Règle 17 — les numéros portés par plus d'une règle du §3 : un test qui cite ce numéro couvre les deux,
+ * et une règle ajoutée sous un numéro déjà pris passerait la barrière sans test.
+ *
+ * @returns {string[]} les numéros répétés
+ */
+export function duplicateRuleIds(markdown) {
+  const counts = new Map();
+  for (const line of functionalRuleLines(markdown)) {
+    const m = line.match(RULE_LINE);
+    if (m) counts.set(m[1].toLowerCase(), (counts.get(m[1].toLowerCase()) || 0) + 1);
+  }
+  return [...counts].filter(([, n]) => n > 1).map(([id]) => id);
+}
+
+/** `[[fileName, markdown]]` → les specs lues par la couverture qui répètent un numéro. */
+export function specsWithDuplicates(entries) {
+  return entries
+    .filter(([f, markdown]) => f.endsWith('.md') && !/^(TEMPLATE|README|ROADMAP)/.test(f) && !isSuperseded(markdown))
+    .map(([f, markdown]) => ({ spec: f.replace(/\.md$/, ''), rules: duplicateRuleIds(markdown) }))
+    .filter((s) => s.rules.length > 0);
 }
 
 // ── Lecture des citations dans les tests ─────────────────────────────────────
@@ -101,7 +127,7 @@ function expandGroup(group) {
 // Une date (« 2026-08-31 ») ressemble à une plage de règles. Et aucune spec n'a 200 règles : au-delà,
 // c'est un numéro de version, une année ou un montant. Les deux filtres évitent des couvertures
 // fantômes, qui seraient pires que pas de couverture du tout.
-const PLAUSIBLE_RULE = /^\d{1,3}(?:bis|ter|[a-z])?$/i;
+const PLAUSIBLE_RULE = /^\d{1,3}(?:bis|ter|quater|[a-z])?$/i;
 const isPlausible = (id) => PLAUSIBLE_RULE.test(id) && Number.parseInt(id, 10) <= 200;
 
 // Une citation est rattachée à la spec nommée juste au-dessus d'elle — mais « juste » veut dire dans
@@ -112,18 +138,24 @@ const isPlausible = (id) => PLAUSIBLE_RULE.test(id) && Number.parseInt(id, 10) <
 // annonce en tête — la convention veut qu'un fichier de test ouvre en nommant son sujet.
 const NEAR_LINES = 3;
 
+// « reservation-refunds.md rule 38 », « public-online-payment rule 12 » : la spec est nommée juste avant
+// « rule », sans le préfixe `specs/`. Reconnue seulement si ce nom est celui d'une spec existante.
+const NAME_BEFORE_CITATION = /([a-z0-9]+(?:-[a-z0-9]+)+)(?:\.md)?\s*(?:§\s*[\d.]+\s*)?,?\s*$/i;
+
 /**
  * Les couples (spec, règle) cités par un fichier de test (règle 3).
  *
+ * `knownSpecs` (ensemble de noms de specs) active la forme « <spec> rule N » sans préfixe `specs/`.
+ *
  * @returns {Array<{spec: string, rule: string}>}
  */
-export function parseCitations(source) {
+export function parseCitations(source, knownSpecs = null) {
   const text = String(source || '');
   const lineOf = (index) => text.slice(0, index).split('\n').length;
   const specs = [...text.matchAll(SPEC_MENTION)]
     .map((m) => ({ at: m.index, line: lineOf(m.index), name: m[1].toLowerCase() }));
-  if (specs.length === 0) return [];
-  const primary = specs[0].name;
+  if (specs.length === 0 && !knownSpecs) return [];
+  const primary = specs.length ? specs[0].name : null;
   const out = [];
   for (const m of text.matchAll(CITATION)) {
     const line = lineOf(m.index);
@@ -132,7 +164,10 @@ export function parseCitations(source) {
       if (s.at > m.index) break;
       if (line - s.line <= NEAR_LINES) near = s;
     }
-    const spec = near ? near.name : primary;
+    const lineStart = text.lastIndexOf('\n', m.index - 1) + 1;
+    const named = knownSpecs && text.slice(lineStart, m.index).match(NAME_BEFORE_CITATION);
+    const spec = named && knownSpecs.has(named[1].toLowerCase()) ? named[1].toLowerCase() : (near ? near.name : primary);
+    if (!spec) continue;
     for (const rule of expandGroup(m[1])) {
       if (isPlausible(rule)) out.push({ spec, rule });
     }
@@ -206,6 +241,18 @@ export function gateVerdict({ addedRules = [], modifiedRules = [], citedAfter = 
   return { ok: failures.length === 0, failures, warnings };
 }
 
+/**
+ * Règle 16 — les citations orphelines que cette PR introduit : celles d'un fichier modifié, absentes
+ * de ce même fichier à la base. Une orpheline déjà là reste un signal du rapport, pas un échec.
+ *
+ * @param {Array<{file, spec, rule, why}>} orphans
+ * @param {Set<string>} changedFiles
+ * @param {(file: string) => Set<string>} citedAtBase  `spec:rule` cités par le fichier à la base
+ */
+export function newOrphans(orphans, changedFiles, citedAtBase) {
+  return orphans.filter((o) => changedFiles.has(o.file) && !citedAtBase(o.file).has(`${o.spec}:${o.rule}`));
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 function listFiles(dir, match, acc = []) {
@@ -221,42 +268,68 @@ function listFiles(dir, match, acc = []) {
 
 const isTestFile = (f) => /\.(test|unit\.test|spec)\.[jt]sx?$/.test(f) || /\/tests\/.*\.js$/.test(f);
 
-function readSpecs() {
-  const dir = path.join(ROOT, 'specs');
+// Règle 13 : une spec remplacée (« superseded » dans son Status) ne décrit plus le produit ; ses
+// règles ne sont plus livrées, donc plus exigées.
+export function isSuperseded(markdown) {
+  const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
+  return Boolean(status && /superseded/i.test(status[1]));
+}
+
+/** `[[fileName, markdown]]` → Map nom → règles, sans les specs remplacées (règle 13). */
+export function specsFromMarkdown(entries) {
   const out = new Map();
-  for (const f of fs.readdirSync(dir)) {
-    if (!f.endsWith('.md') || /^(TEMPLATE|README|ROADMAP)/.test(f)) continue;
-    out.set(f.replace(/\.md$/, '').toLowerCase(), parseSpecRules(fs.readFileSync(path.join(dir, f), 'utf8')));
+  for (const [f, markdown] of entries) {
+    if (!f.endsWith('.md') || /^(TEMPLATE|README|ROADMAP)/.test(f) || isSuperseded(markdown)) continue;
+    out.set(f.replace(/\.md$/, '').toLowerCase(), parseSpecRules(markdown));
   }
   return out;
 }
 
-function readCitations() {
+function readSpecs() {
+  const dir = path.join(ROOT, 'specs');
+  return specsFromMarkdown(fs.readdirSync(dir).filter((f) => f.endsWith('.md'))
+    .map((f) => [f, fs.readFileSync(path.join(dir, f), 'utf8')]));
+}
+
+const knownSpecNames = () => new Set(readSpecs().keys());
+
+function readCitations(knownSpecs) {
   const files = [
     ...listFiles(path.join(ROOT, 'server', 'src', 'tests'), isTestFile),
-    // specs/plugin-engine-backport.md — a plugin module carries its tests in its own folder.
+    // specs/plugins-phase-1-sdk.md rule 1 — a plugin module carries its tests in its own folder.
     ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/tests\/.*\.test\.js$/.test(f)),
+    // specs/plugins-phase-1-sdk.md rule 48 — a plugin's web apps (`server/src/plugins/<id>/apps/<name>`) carry their own suites.
+    ...listFiles(path.join(ROOT, 'server', 'src', 'plugins'), (f) => /\/apps\/[^/]+\/src\/.*__tests__\/.*\.test\.jsx?$/.test(f)),
     ...listFiles(path.join(ROOT, 'client', 'src'), isTestFile),
     ...listFiles(path.join(ROOT, 'e2e'), isTestFile),
+    // specs/control-plane-plans-and-access.md — the control plane is its own app in the same repo.
+    ...listFiles(path.join(ROOT, 'control-plane', 'server', 'src', 'tests'), isTestFile),
+    ...listFiles(path.join(ROOT, 'control-plane', 'client', 'src'), isTestFile),
   ];
   const out = [];
   for (const f of files) {
     const rel = path.relative(ROOT, f);
-    for (const c of parseCitations(fs.readFileSync(f, 'utf8'))) out.push({ ...c, file: rel });
+    for (const c of parseCitations(fs.readFileSync(f, 'utf8'), knownSpecs)) out.push({ ...c, file: rel });
   }
   return out;
 }
 
 const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
-// Les règles ajoutées / modifiées par le diff, par spec. On relit la spec APRÈS changement pour
-// connaître l'exemption éventuelle : une règle peut naître déjà déclarée non testable.
-function changedRules(base) {
-  const diff = git(['diff', '--unified=0', `${base}...HEAD`, '--', 'specs/']);
+/**
+ * Les règles ajoutées / modifiées par un diff de `specs/`, par spec. `specsNow` est la lecture des
+ * specs APRÈS changement (nom → règles de la section « Functional rules ») : elle donne l'exemption
+ * éventuelle — une règle peut naître déjà déclarée non testable — et elle écarte les lignes
+ * numérotées qui ne sont pas des règles (règle 2) : un plan de test, une étude, des questions
+ * ouvertes ont aussi des listes « 1. », que le diff ne sait pas situer dans la spec.
+ *
+ * @returns {{addedRules: Array, modifiedRules: Array}}
+ */
+export function rulesChangedInDiff(diff, specsNow) {
   const added = [];
   const modified = [];
   let spec = null;
-  for (const line of diff.split('\n')) {
+  for (const line of String(diff || '').split('\n')) {
     const head = line.match(/^\+\+\+ b\/specs\/([a-z0-9-]+)\.md/i);
     if (head) { spec = head[1].toLowerCase(); continue; }
     if (!spec) continue;
@@ -267,18 +340,135 @@ function changedRules(base) {
     const mm = (minus ?? '').match(RULE_LINE);
     if (mm) modified.push({ spec, rule: mm[1].toLowerCase() });
   }
+  const ruleOf = (r) => (specsNow.get(r.spec) || []).find((x) => x.id === r.rule);
+  const isRule = (r) => Boolean(ruleOf(r));
   // Une règle présente des deux côtés du diff a été reformulée, pas ajoutée.
   const removedKeys = new Set(modified.map((r) => `${r.spec}:${r.rule}`));
-  const specsNow = readSpecs();
-  const exemptOf = (r) => Boolean((specsNow.get(r.spec) || []).find((x) => x.id === r.rule)?.exempt);
   return {
-    addedRules: added.filter((r) => !removedKeys.has(`${r.spec}:${r.rule}`)).map((r) => ({ ...r, exempt: exemptOf(r) })),
-    modifiedRules: modified.filter((r) => added.some((a) => a.spec === r.spec && a.rule === r.rule)),
+    addedRules: added
+      .filter((r) => isRule(r) && !removedKeys.has(`${r.spec}:${r.rule}`))
+      .map((r) => ({ ...r, exempt: Boolean(ruleOf(r).exempt) })),
+    modifiedRules: modified.filter((r) => isRule(r) && added.some((a) => a.spec === r.spec && a.rule === r.rule)),
   };
 }
 
+// Règle 14 : une spec pas encore livrée (Status « Draft » ou « Approved ») décrit ce qu'on va
+// construire. Une PR de spec seule doit pouvoir la poser ou l'approuver sans tests décoratifs ; mais
+// rien ne doit passer à travers : voir `specTransitions` et `exemptCitations`.
+const UNDELIVERED = /^\s*(draft|approved)\b/i;
+
+/** Le Status de la spec dit-il « pas encore livrée » (Draft ou Approved) ? */
+export function isUndelivered(markdown) {
+  const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
+  return Boolean(status && UNDELIVERED.test(status[1]));
+}
+
+/** « Draft » seulement — l'état d'avant toute approbation. */
+export function isDraft(markdown) {
+  const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
+  return Boolean(status && /^\s*draft\b/i.test(status[1]));
+}
+
+/**
+ * Règle 14, pour chaque spec touchée par la PR (`before` = son texte au merge-base, sous son ancien
+ * nom si elle a été renommée ; `null` si elle n'existait pas) :
+ *   - exemptée : non livrée APRÈS la PR, et au merge-base absente ou Draft. Une spec déjà Approved
+ *     au merge-base reste soumise à la barrière comme avant ; une spec livrée qu'on repasse en Draft
+ *     n'est jamais exemptée (ce serait un contournement) ;
+ *   - livrée : non livrée au merge-base, livrée après — TOUTES ses règles sont exigées.
+ *
+ * @param {Array<{name: string, before: (string|null), now: string}>} touched
+ * @returns {{exempt: Set<string>, delivered: Set<string>}}
+ */
+export function specTransitions(touched = []) {
+  const exempt = new Set();
+  const delivered = new Set();
+  for (const { name, before, now } of touched) {
+    const nowPending = isUndelivered(now);
+    const wasPending = before != null && isUndelivered(before);
+    if (nowPending && (before == null || isDraft(before))) exempt.add(name);
+    else if (!nowPending && wasPending) delivered.add(name);
+  }
+  return { exempt, delivered };
+}
+
+/**
+ * Applique la règle 14 au résultat de `rulesChangedInDiff` : les règles d'une spec exemptée sortent
+ * du contrôle ; celles d'une spec livrée y entrent toutes, comme si elles venaient d'être écrites.
+ */
+export function applyDraftStatus({ addedRules = [], modifiedRules = [] } = {}, { exempt = new Set(), delivered = new Set(), specsNow = new Map() } = {}) {
+  const keep = (r) => !exempt.has(r.spec);
+  const added = addedRules.filter(keep);
+  for (const spec of delivered) {
+    for (const rule of specsNow.get(spec) || []) {
+      if (!added.some((a) => a.spec === spec && a.rule === rule.id)) added.push({ spec, rule: rule.id, exempt: Boolean(rule.exempt) });
+    }
+  }
+  return {
+    addedRules: added,
+    modifiedRules: modifiedRules.filter((r) => keep(r) && !delivered.has(r.spec)),
+  };
+}
+
+/**
+ * Règle 14, second verrou : du code ne part pas contre une spec non livrée. Lit un diff unifié de
+ * la PR HORS `specs/` et `docs/` (les résumés HTML d'une spec la citent légitimement) et renvoie
+ * chaque ligne AJOUTÉE qui nomme `specs/<x>.md` d'une spec exemptée.
+ *
+ * @returns {Array<{file: string, spec: string}>}
+ */
+export function exemptCitations(diff, exempt = new Set()) {
+  const out = [];
+  let file = null;
+  for (const line of String(diff || '').split('\n')) {
+    const head = line.match(/^\+\+\+ b\/(.+)$/);
+    if (head) { file = head[1]; continue; }
+    if (!file || /^(specs|docs)\//.test(file) || !line.startsWith('+') || line.startsWith('+++')) continue;
+    for (const m of line.matchAll(/specs\/([a-z0-9-]+)\.md/gi)) {
+      const spec = m[1].toLowerCase();
+      if (exempt.has(spec) && !out.some((o) => o.file === file && o.spec === spec)) out.push({ file, spec });
+    }
+  }
+  return out;
+}
+
+/** `git diff --name-status -M` → [{ path, from }] pour les specs touchées (`from` = ancien chemin). */
+export function parseNameStatus(text) {
+  const out = [];
+  for (const line of String(text || '').split('\n')) {
+    const parts = line.split('\t');
+    if (parts.length < 2) continue;
+    const code = parts[0].trim();
+    if (code.startsWith('D')) continue;
+    const isMove = /^[RC]/.test(code);
+    const from = isMove ? parts[1] : (code.startsWith('A') ? null : parts[1]);
+    const to = isMove ? parts[2] : parts[1];
+    if (/^specs\/[^/]+\.md$/.test(to)) out.push({ path: to, from });
+  }
+  return out;
+}
+
+function changedRules(base) {
+  const specsNow = readSpecs();
+  const mb = git(['merge-base', base, 'HEAD']).trim();
+  const changed = rulesChangedInDiff(git(['diff', '--unified=0', `${mb}..HEAD`, '--', 'specs/']), specsNow);
+  const touched = [];
+  for (const { path: f, from } of parseNameStatus(git(['diff', '--name-status', '-M', `${mb}..HEAD`, '--', 'specs/']))) {
+    let now = '';
+    try { now = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch { continue; }
+    let before = null;
+    if (from) {
+      try { before = execFileSync('git', ['show', `${mb}:${from}`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { before = null; }
+    }
+    touched.push({ name: path.basename(f, '.md').toLowerCase(), before, now });
+  }
+  const { exempt, delivered } = specTransitions(touched);
+  const outside = git(['diff', '--unified=0', `${mb}..HEAD`, '--', '.', ':(exclude)specs/', ':(exclude)docs/']);
+  return { ...applyDraftStatus(changed, { exempt, delivered, specsNow }), exempt, codeCitations: exemptCitations(outside, exempt) };
+}
+
 function report({ specName }) {
-  const { specs, orphans } = buildCoverage(readSpecs(), readCitations());
+  const { specs, orphans } = buildCoverage(readSpecs(), readCitations(knownSpecNames()));
   if (specName) {
     const one = specs.find((s) => s.name === specName.replace(/\.md$/, '').toLowerCase());
     if (!one) { console.error(`Spec inconnue ou sans règles : ${specName}`); process.exit(2); }
@@ -312,9 +502,39 @@ function report({ specName }) {
 }
 
 function gate(base) {
-  const { addedRules, modifiedRules } = changedRules(base);
-  const citedAfter = new Set(readCitations().map((c) => `${c.spec}:${c.rule}`));
+  const dir = path.join(ROOT, 'specs');
+  const duplicates = specsWithDuplicates(fs.readdirSync(dir).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(dir, f), 'utf8') : '']));
+  if (duplicates.length) {
+    for (const d of duplicates) console.error(`✗ specs/${d.spec}.md : numéro(s) porté(s) par plusieurs règles du §3 : ${d.rules.join(', ')}.`);
+    console.error('\n  Un numéro de règle est une identité : la règle la plus récente prend le prochain numéro libre, et ses citations la suivent.');
+    return 1;
+  }
+  const { addedRules, modifiedRules, exempt, codeCitations } = changedRules(base);
+  const citedAfter = new Set(readCitations(knownSpecNames()).map((c) => `${c.spec}:${c.rule}`));
   const verdict = gateVerdict({ addedRules, modifiedRules, citedAfter });
+  const mb = git(['merge-base', base, 'HEAD']).trim();
+  const changedFiles = new Set(git(['diff', '--name-only', `${mb}..HEAD`]).split('\n').filter(Boolean));
+  const citedAtBase = (file) => {
+    let before = '';
+    try { before = git(['show', `${mb}:${file}`]); } catch { return new Set(); }
+    return new Set(parseCitations(before, knownSpecNames()).map((c) => `${c.spec}:${c.rule}`));
+  };
+  const orphans = [...new Map(newOrphans(buildCoverage(readSpecs(), readCitations(knownSpecNames())).orphans, changedFiles, citedAtBase)
+    .map((o) => [`${o.file}|${o.spec}|${o.rule}`, o])).values()];
+  if (orphans.length) {
+    for (const o of orphans) console.error(`✗ ${o.file} cite specs/${o.spec}.md règle ${o.rule} (${o.why}).`);
+    console.error('\n  Une citation doit retomber sur une règle : corrigez le numéro, ou nommez la bonne spec sur la ligne.');
+    return 1;
+  }
+  for (const spec of exempt) console.log(`… specs/${spec}.md : pas encore livrée (Draft / Approved), règles différées (règle 14).`);
+  if (codeCitations.length) {
+    for (const c of codeCitations) {
+      console.error(`✗ ${c.file} cite specs/${c.spec}.md, qui n'est pas encore livrée (Draft / Approved).`);
+    }
+    console.error('\n  Du code ne part pas contre une spec non livrée : passez-la en « Implemented » dans la même PR');
+    console.error('  (toutes ses règles devront alors être citées par un test, ou déclarées « Sans test »).');
+    return 1;
+  }
   for (const w of verdict.warnings) {
     console.log(`⚠ specs/${w.spec}.md règle ${w.rule} : reformulée, et toujours citée par aucun test.`);
   }
@@ -325,7 +545,7 @@ function gate(base) {
     console.log(addedRules.length
       ? `✓ ${addedRules.length} règle(s) ajoutée(s) : ${addedRules.length - declared} citée(s) par un test`
         + `${declared ? `, ${declared} déclarée(s) sans test` : ''}.`
-      : '✓ Aucune règle ajoutée par cette PR.');
+      : '✓ Aucune règle ajoutée par cette PR. (Compare le HEAD commité à --base, par défaut origin/master : sur une branche inte, passer --base origin/inte/plugins.)');
     return 0;
   }
   for (const f of verdict.failures) {

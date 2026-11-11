@@ -7,22 +7,24 @@
  *
  * API:
  *   insert({ templateId, reservationId, status, errorMessage?, renderedSubject,
- *            renderedBody, recipientEmail }) → created row
- *   existsFor(templateId, reservationId, statuses[]) → boolean
+ *            renderedBody, recipientEmail, occurrenceKey? }) → created row
+ *   existsFor(templateId, reservationId, statuses[], occurrenceKey?) → boolean
+ *   hasFailure(templateId, reservationId, errorMessage) → a `failed` row with that stored reason exists
+ *     `occurrenceKey` tells apart the several sends of one template on one reservation (one per
+ *     installment: `installment:<id>`, specs/direct-installments.md rule 19); '' for every other email.
  *   listPending({ today, lookbackDays })
  *                               → « manual » candidates not yet acted on (joins reservation + client
  *                                 + property). « auto » templates leave on their own and are never
- *                                 proposed (specs/settings-rationalization.md rule 17b).
+ *                                 proposed (specs/settings-rationalization.md rule 17b), nor is the acompte
+ *                                 reminder of a stay whose dates were taken (specs/payment-link-lifecycle.md rule 65).
  *   history({ limit, offset, reservationId?, templateId?, status? }) → { rows, total }
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const { EVENT_TRIGGERED_STABLE_KEYS } = require('../utils/defaultEmailTemplatesRegistry');
-const { DIRECT_CHANNELS } = require('../utils/platformNameFormat');
+const { registerDirectChannelSql } = require('../utils/platformNameFormat');
 
-// Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
-// platformNameFormat.js — same pattern as emailAutoSendRunner.
-const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
-const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', ');
+const INSTALLMENT_STABLE_KEY = 'installment_request';
 
 // The request whose departure unlocks each anchor's reminder (rule 40bis).
 const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDate: 'balance_request' };
@@ -32,33 +34,45 @@ const REQUEST_KEY_BY_ANCHOR = { depositDueDate: 'deposit_request', balanceDueDat
 // switch (specs/settings-rationalization.md rule 17b). Literal constant, never user input.
 const SEND_MODE_MANUAL_ONLY = "t.sendMode = 'manual'";
 
-// specs/email-history-rolling-window.md §3 rule 1 — an email_log row is "current" (shown + kept) while
-// today ≤ reservation.startDate + this many days; past that it is hidden by history() AND purged.
+// specs/email-history-rolling-window.md §3 rules 1 and 9 — an email_log row is "current" (shown + kept)
+// while today ≤ the later of the arrival and the day it was written, + this many days; past that it is
+// hidden by history() AND purged. The later of the two keeps a J+1 or a season e-mail, written after
+// the arrival, visible as long as any other (rule 9, 2026-10-27 spec review).
 const STAY_RETENTION_DAYS = 3;
+const CURRENT_ROW_SQL = (log) => `date(max(r.startDate, COALESCE(date(${log}.sentAt), r.startDate)), '+' || ? || ' days') >= date(?)`;
 
 function buildModel(database) {
-  const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail';
+  // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  registerDirectChannelSql(database);
+  const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, occurrenceKey';
 
   // Resolve "today" to a UTC ISO date (matches SQLite's date('now')); injectable for tests.
-  const resolveToday = (today) => (today ? String(today) : new Date().toISOString().slice(0, 10));
+  const resolveToday = (today) => (today ? String(today) : localTodayIso());
 
   const insertStmt = database.prepare(`
     INSERT INTO email_log
-      (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail)
+      (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, occurrenceKey)
     VALUES
-      (@templateId, @reservationId, datetime('now'), @status, @channel, @errorMessage, @renderedSubject, @renderedBody, @recipientEmail)
+      (@templateId, @reservationId, datetime('now'), @status, @channel, @errorMessage, @renderedSubject, @renderedBody, @recipientEmail, @occurrenceKey)
   `);
 
   // The cron + pending list both need to know "has this (template, reservation) pair already
   // produced a `sent` or `acknowledged-skip` row?". A small prepared `IN (?, ?)` family
   // would force per-call SQL string assembly; an array-bind helper keeps it readable.
-  function existsFor(templateId, reservationId, statuses = []) {
+  function existsFor(templateId, reservationId, statuses = [], occurrenceKey = '') {
     if (!Array.isArray(statuses) || statuses.length === 0) return false;
     const placeholders = statuses.map(() => '?').join(', ');
     const row = database.prepare(
-      `SELECT 1 FROM email_log WHERE templateId = ? AND reservationId = ? AND status IN (${placeholders}) LIMIT 1`
-    ).get(Number(templateId), Number(reservationId), ...statuses);
+      `SELECT 1 FROM email_log WHERE templateId = ? AND reservationId = ? AND occurrenceKey = ? AND status IN (${placeholders}) LIMIT 1`
+    ).get(Number(templateId), Number(reservationId), String(occurrenceKey), ...statuses);
     return Boolean(row);
+  }
+
+  // A `failed` row of this template and stay with this stored reason (an occurrence of any key).
+  function hasFailure(templateId, reservationId, errorMessage) {
+    return Boolean(database.prepare(
+      "SELECT 1 FROM email_log WHERE templateId = ? AND reservationId = ? AND status = 'failed' AND errorMessage = ? LIMIT 1"
+    ).get(Number(templateId), Number(reservationId), String(errorMessage)));
   }
 
   function insert(payload) {
@@ -71,6 +85,7 @@ function buildModel(database) {
       renderedSubject: String(payload.renderedSubject || ''),
       renderedBody:    String(payload.renderedBody || ''),
       recipientEmail:  String(payload.recipientEmail || ''),
+      occurrenceKey:   String(payload.occurrenceKey || ''),
     };
     const info = insertStmt.run(params);
     return database.prepare(`SELECT ${SELECT_COLS} FROM email_log WHERE id = ?`).get(info.lastInsertRowid);
@@ -109,7 +124,9 @@ function buildModel(database) {
         c.id AS clientId,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
         COALESCE(c.email, '') AS clientEmail,
-        COALESCE(p.name, '')  AS propertyName
+        COALESCE(p.name, '')  AS propertyName,
+        '' AS occurrenceKey,
+        NULL AS installmentNumber
       FROM email_templates t
       JOIN reservations r
         ON COALESCE(r.kind, 'reservation') = 'reservation'
@@ -123,7 +140,7 @@ function buildModel(database) {
         AND ${sendModePredicate}
         AND COALESCE(t.anchor, 'start') = '${anchor}'
         AND COALESCE(t.stableKey, '') NOT IN (${EVENT_TRIGGERED_STABLE_KEYS.map(() => '?').join(', ')})
-        AND LOWER(COALESCE(NULLIF(TRIM(r.platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
+        AND is_direct_channel(r.platform) = 1
         AND EXISTS (
           SELECT 1 FROM email_log rl
             JOIN email_templates rt ON rt.id = rl.templateId
@@ -132,6 +149,43 @@ function buildModel(database) {
         AND NOT EXISTS (
           SELECT 1 FROM email_log l
           WHERE l.templateId = t.id AND l.reservationId = r.id
+            AND l.status IN ('sent', 'acknowledged-skip')
+        )`;
+
+  // specs/direct-installments.md rule 19 — one entry PER installment: on its due date, while it is unpaid
+  // and no request has left, until the stay is over. The pair (template, reservation) alone cannot tell
+  // them apart, hence the occurrence key. Own channels only (rule 1), like the payment anchors above.
+  const installmentBranch = (sendModePredicate) => `
+      SELECT
+        t.id   AS templateId,
+        t.name AS templateName,
+        t.dayOffset AS dayOffset,
+        r.id   AS reservationId,
+        r.startDate AS startDate,
+        i.dueDate AS sendDate,
+        c.id AS clientId,
+        TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
+        COALESCE(c.email, '') AS clientEmail,
+        COALESCE(p.name, '')  AS propertyName,
+        'installment:' || i.id AS occurrenceKey,
+        i.number AS installmentNumber
+      FROM email_templates t
+      JOIN reservation_installments i
+        ON i.paid = 0 AND i.requestedAt IS NULL AND i.dueDate <= date(?)
+      JOIN reservations r
+        ON r.id = i.reservationId
+       AND COALESCE(r.kind, 'reservation') = 'reservation'
+       AND NOT (r.installmentsTarget > 0 AND ROUND(r.installmentsPaidAmount * 100) >= ROUND(r.installmentsTarget * 100))
+       AND date(r.endDate) >= date(?)
+      LEFT JOIN clients    c ON c.id = r.clientId
+      LEFT JOIN properties p ON p.id = r.propertyId
+      WHERE t.enabled = 1
+        AND ${sendModePredicate}
+        AND t.stableKey = '${INSTALLMENT_STABLE_KEY}'
+        AND is_direct_channel(r.platform) = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM email_log l
+          WHERE l.templateId = t.id AND l.reservationId = r.id AND l.occurrenceKey = 'installment:' || i.id
             AND l.status IN ('sent', 'acknowledged-skip')
         )`;
 
@@ -149,7 +203,7 @@ function buildModel(database) {
     //   • 'balanceDueDate' → reservations whose solde is still unpaid, same shape.
     // The two payment anchors only ever match a reservation that still owes the money: a paid échéance
     // drops out of the queue on its own, without relying on the email_log dedup.
-    return database.prepare(`
+    const rows = database.prepare(`
       SELECT
         t.id   AS templateId,
         t.name AS templateName,
@@ -160,7 +214,9 @@ function buildModel(database) {
         c.id AS clientId,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
         COALESCE(c.email, '') AS clientEmail,
-        COALESCE(p.name, '')  AS propertyName
+        COALESCE(p.name, '')  AS propertyName,
+        '' AS occurrenceKey,
+        NULL AS installmentNumber
       FROM email_templates t
       JOIN reservations r
         ON COALESCE(r.kind, 'reservation') = 'reservation'
@@ -190,7 +246,9 @@ function buildModel(database) {
         c.id AS clientId,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
         COALESCE(c.email, '') AS clientEmail,
-        COALESCE(p.name, '')  AS propertyName
+        COALESCE(p.name, '')  AS propertyName,
+        '' AS occurrenceKey,
+        NULL AS installmentNumber
       FROM email_templates t
       JOIN reservations r
         ON COALESCE(r.kind, '') = 'devis'
@@ -219,17 +277,36 @@ function buildModel(database) {
 
       ${paymentAnchorBranch('balanceDueDate', 'balanceAmount', 'balancePaid', sendModePredicate)}
 
-      ORDER BY startDate ASC, dayOffset ASC
+      UNION ALL
+
+      ${installmentBranch(sendModePredicate)}
+
+      ORDER BY startDate ASC, dayOffset ASC, installmentNumber ASC
     `).all(
       // 'start' branch (the extra `today` is its past-arrival guard), then 'validUntil'…
       String(today), Number(lookbackDays), String(today), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
       // …then the two payment anchors, each followed by its channel list and its request key.
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
-      ...DIRECT_CHANNEL_LIST, REQUEST_KEY_BY_ANCHOR.depositDueDate,
+      REQUEST_KEY_BY_ANCHOR.depositDueDate,
       String(today), Number(lookbackDays), String(today), ...EVENT_TRIGGERED_STABLE_KEYS,
-      ...DIRECT_CHANNEL_LIST, REQUEST_KEY_BY_ANCHOR.balanceDueDate,
+      REQUEST_KEY_BY_ANCHOR.balanceDueDate,
+      // …and the installment branch: its due-date cut-off, then the stay still running.
+      String(today), String(today),
     );
+    return withoutRemindersOnTakenDates(rows);
+  }
+
+  // specs/payment-link-lifecycle.md rule 65 — the acompte reminder of a stay whose nights another stay took is never
+  // proposed: its send would be refused (rule 35), and the guest is told by the notice of rule 43 instead.
+  function withoutRemindersOnTakenDates(rows) {
+    const reminder = database.prepare("SELECT id FROM email_templates WHERE stableKey = 'deposit_reminder'").get();
+    if (!reminder || !rows.some((row) => Number(row.templateId) === Number(reminder.id))) return rows;
+    // A minimal schema (a unit suite's) without the stay kind or conversion holds no dates.
+    const columns = new Set(database.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name));
+    if (!['kind', 'platform', 'propertyId', 'convertedReservationId'].every((name) => columns.has(name))) return rows;
+    const { takenByOf } = require('../utils/datesTaken');
+    return rows.filter((row) => Number(row.templateId) !== Number(reminder.id) || !takenByOf(database, row.reservationId));
   }
 
   // Rolling-window history (specs/email-history-rolling-window.md §3 rule 2): only rows whose reservation
@@ -238,7 +315,7 @@ function buildModel(database) {
   function history({ limit = 50, offset = 0, reservationId, templateId, status, today } = {}) {
     const day = resolveToday(today);
     // Window predicate first → its two params lead the positional list.
-    const where = ["date(r.startDate, '+' || ? || ' days') >= date(?)"];
+    const where = [CURRENT_ROW_SQL('l')];
     const params = [STAY_RETENTION_DAYS, day];
     if (reservationId != null) { where.push('l.reservationId = ?'); params.push(Number(reservationId)); }
     if (templateId    != null) { where.push('l.templateId    = ?'); params.push(Number(templateId)); }
@@ -255,7 +332,7 @@ function buildModel(database) {
     const rows = database.prepare(`
       SELECT
         l.id, l.templateId, l.reservationId, l.sentAt, l.status, l.channel, l.errorMessage,
-        l.renderedSubject, l.renderedBody, l.recipientEmail,
+        l.renderedSubject, l.renderedBody, l.recipientEmail, l.occurrenceKey,
         COALESCE(t.name, '') AS templateName,
         TRIM(COALESCE(c.firstName, '') || ' ' || COALESCE(c.lastName, '')) AS clientFullName,
         COALESCE(p.name, '') AS propertyName,
@@ -284,7 +361,7 @@ function buildModel(database) {
       WHERE NOT EXISTS (
         SELECT 1 FROM reservations r
         WHERE r.id = email_log.reservationId
-          AND date(r.startDate, '+' || ? || ' days') >= date(?)
+          AND ${CURRENT_ROW_SQL('email_log')}
       )
     `).run(STAY_RETENTION_DAYS, day);
     return info.changes;
@@ -297,16 +374,17 @@ function buildModel(database) {
   // Most recent successful-send timestamp for a (template, reservation) pair, or null if it was
   // never sent. Drives the "déjà envoyé le …" guard when queuing a manual email
   // (specs/manual-email-from-template.md §3 rule 5).
-  function lastSentAt(templateId, reservationId) {
+  function lastSentAt(templateId, reservationId, occurrenceKey = '') {
     const row = database.prepare(
-      "SELECT MAX(sentAt) AS lastSentAt FROM email_log WHERE templateId = ? AND reservationId = ? AND status = 'sent'"
-    ).get(Number(templateId), Number(reservationId));
+      "SELECT MAX(sentAt) AS lastSentAt FROM email_log WHERE templateId = ? AND reservationId = ? AND occurrenceKey = ? AND status = 'sent'"
+    ).get(Number(templateId), Number(reservationId), String(occurrenceKey));
     return row && row.lastSentAt ? row.lastSentAt : null;
   }
 
   return {
     insert,
     existsFor,
+    hasFailure,
     listPending,
     history,
     purgeRealizedStays,

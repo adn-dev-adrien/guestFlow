@@ -10,6 +10,10 @@
 
 const MONTHS = { jan: 1, fev: 2, mar: 3, avr: 4, mai: 5, juin: 6, juil: 7, aou: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
+const sdk = require('../sdk');
+
+const isEmailLine = (line) => sdk.coreModule('settingsValidation').validateEmail(line) === null;
+
 const round2 = (n) => Math.round(n * 100) / 100;
 const strip = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -93,7 +97,7 @@ function readGuest(lines) {
     if (/^Langue préférée/i.test(line)) break;
     if (!name) { name = line; continue; }
     if (!country && /^[a-z]{2}$/i.test(line)) { country = line.toLowerCase(); continue; }
-    if (!email && /^\S+@\S+\.\S+$/.test(line)) { email = line.toLowerCase(); continue; }
+    if (!email && isEmailLine(line)) { email = line.toLowerCase(); continue; }
     // Rule 28 — Booking prints the revealed number on its own line or at the end of « Un simple appel
     // suffit : … ».
     const number = !phone && line.match(/(?:^|\s)(\+\d[\d ]{7,}\d)$/);
@@ -149,7 +153,7 @@ function guestMessagePending(lines) {
 function findAmount(lines, labelRe) {
   const line = lines.find((l) => labelRe.test(l));
   if (!line) return null;
-  const all = [...line.matchAll(/€\s*[\d .,]+|[\d .,]+\s*€/g)];
+  const all = [...line.matchAll(/€\s{0,3}[\d .,]{1,24}|[\d .,]{1,24}\s{0,3}€/g)];
   return all.length ? parseAmount(all[all.length - 1][0]) : null;
 }
 

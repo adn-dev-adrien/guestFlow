@@ -52,6 +52,9 @@ final class GF_Blocks
         // Runtime holder for the localized config; every block script depends on it.
         wp_register_script('gf-runtime', GF_BOOKING_URL . 'assets/runtime.js', [], $this->asset_ver('assets/runtime.js'), true);
         wp_localize_script('gf-runtime', 'GFBooking', $this->runtime_config());
+        // The proof of work of the booking request (GuestFlow specs/public-request-abuse-and-grouping.md
+        // rule 2): solved in a Web Worker (assets/pow-worker.js), this copy only as the page's fallback.
+        wp_register_script('gf-pow', GF_BOOKING_URL . 'assets/pow.js', [], $this->asset_ver('assets/pow.js'), true);
 
         foreach (self::BLOCKS as $name) {
             wp_register_script(
@@ -64,7 +67,7 @@ final class GF_Blocks
             wp_register_script(
                 "guestflow-{$name}-view",
                 GF_BOOKING_URL . "blocks/{$name}/view.js",
-                ['gf-runtime'],
+                $name === 'booking' ? ['gf-runtime', 'gf-pow'] : ['gf-runtime'],
                 $this->asset_ver("blocks/{$name}/view.js"),
                 true
             );
@@ -86,10 +89,12 @@ final class GF_Blocks
             'restUrl'           => esc_url_raw(rest_url('guestflow/v1')),
             'nonce'             => wp_create_nonce('wp_rest'),
             'defaultPropertyId' => (int) $s->get('default_property_id', 0),
-            'bookingPageUrl'    => (string) $s->get('booking_page_url', ''),
+            'bookingPageUrl'    => $s->get_booking_page_url(),
             // specs/terms-acceptance-record.md rule 10 — the page the CGV checkbox links to.
             'cgvPageUrl'        => esc_url_raw($s->get_cgv_page_url()),
             'configured'        => $s->is_configured(),
+            // Same origin as the page, as a Worker requires.
+            'powWorkerUrl'      => esc_url_raw(GF_BOOKING_URL . 'assets/pow-worker.js?ver=' . $this->asset_ver('assets/pow-worker.js')),
             // The language the page is being read in, and the locale the browser should format
             // DATES with. Amounts are deliberately not included: rule 10 keeps « 1 234,56 € » in
             // both languages, because the quote PDF attached to the confirmation already writes it
@@ -103,7 +108,9 @@ final class GF_Blocks
                 'noAvailability'  => __('Aucune disponibilité sur cette période.', 'guestflow-booking'),
                 'blocked'         => __('Indisponible', 'guestflow-booking'),
                 'available'       => __('Disponible', 'guestflow-booking'),
-                'nights'          => __('nuit(s)', 'guestflow-booking'),
+                // Real plurals in the recap (specs/wordpress-plugin.md rule 22).
+                'night'           => __('nuit', 'guestflow-booking'),
+                'nights'          => __('nuits', 'guestflow-booking'),
                 'from'            => __('à partir de', 'guestflow-booking'),
                 'perNight'        => __('/ nuit', 'guestflow-booking'),
                 'adults'          => __('Adultes', 'guestflow-booking'),
@@ -128,11 +135,14 @@ final class GF_Blocks
                 'sendRequest'     => __('Envoyer la demande', 'guestflow-booking'),
                 'sending'         => __('Envoi…', 'guestflow-booking'),
                 'requestSent'     => __('Demande envoyée ! Référence : %s. Nous vous recontactons rapidement.', 'guestflow-booking'),
+                // GuestFlow specs/public-request-abuse-and-grouping.md rules 2 and 13.
+                'verifying'       => __('Vérification…', 'guestflow-booking'),
+                'requestUpdated'  => __('Votre demande du %s a été mise à jour.', 'guestflow-booking'),
+                'messageAdded'    => __('Votre demande du %s a déjà été transmise : votre message a été ajouté.', 'guestflow-booking'),
+                'requestReceived' => __('Demande reçue. Nous vous recontactons rapidement.', 'guestflow-booking'),
                 'bookNow'         => __('Réserver', 'guestflow-booking'),
                 'capacity'        => __('Capacité', 'guestflow-booking'),
                 'persons'         => __('personnes', 'guestflow-booking'),
-                'requiredFields'  => __('Merci de renseigner tous les champs obligatoires.', 'guestflow-booking'),
-                'fieldRequired'   => __('Champ obligatoire.', 'guestflow-booking'),
                 // Online payment flow (specs/public-online-payment.md)
                 'payOnline'       => __('Payer en ligne', 'guestflow-booking'),
                 'preparingPayment' => __('Préparation du paiement…', 'guestflow-booking'),
@@ -140,6 +150,8 @@ final class GF_Blocks
                 'confirmingPayment' => __('Confirmation de votre paiement en cours…', 'guestflow-booking'),
                 'paymentConfirmed' => __('Paiement confirmé — votre réservation est validée !', 'guestflow-booking'),
                 'paymentPending'  => __('Paiement en attente. Si vous venez de payer, patientez quelques instants.', 'guestflow-booking'),
+                'paymentCancelled' => __('Cette réservation est annulée.', 'guestflow-booking'),
+                'paymentExpired'  => __('Ce lien de paiement a expiré. Refaire la réservation depuis la page du logement.', 'guestflow-booking'),
                 'paymentConflict' => __('Paiement reçu et réservation enregistrée. Nous revenons vers vous très vite pour confirmer les détails.', 'guestflow-booking'),
                 'stayRecap'       => __('Votre séjour', 'guestflow-booking'),
                 // Online-deposit flow (specs/public-online-deposit.md)
@@ -156,7 +168,7 @@ final class GF_Blocks
                 'pickArrival'     => __('Sélectionnez votre date d’arrivée', 'guestflow-booking'),
                 'pickDeparture'   => __('Sélectionnez votre date de départ', 'guestflow-booking'),
                 'rangeBlocked'    => __('Ces dates incluent une nuit indisponible. Choisissez une autre période.', 'guestflow-booking'),
-                // specs/wp-booking-widget-redesign.md §3 rules 29-31 — a complete range stays editable.
+                // specs/wp-booking-widget-redesign.md §3 rules 24-28 — a complete range stays editable.
                 'changeDeparture' => __('Cliquez une autre date pour changer le départ, ou l’arrivée pour recommencer.', 'guestflow-booking'),
                 'minNightsExtend' => __('Cliquez une date plus tard pour allonger le séjour.', 'guestflow-booking'),
                 'clearDates'      => __('Effacer les dates', 'guestflow-booking'),
@@ -202,6 +214,27 @@ final class GF_Blocks
                 'calPrevMonth'    => __('Mois précédent', 'guestflow-booking'),
                 'calNextMonth'    => __('Mois suivant', 'guestflow-booking'),
                 'honeypot'        => __('Ne pas remplir', 'guestflow-booking'),
+                // Stepper buttons, read by screen readers with the line they count (rule 15).
+                'stepAdd'         => __('Ajouter : %s', 'guestflow-booking'),
+                'stepRemove'      => __('Retirer : %s', 'guestflow-booking'),
+                // No CGV published while GuestFlow requires them (rule 21).
+                'bookingClosed'   => __('Réservation en ligne fermée pour le moment.', 'guestflow-booking'),
+                // A failed payment leaves the request recorded (rule 16).
+                'paymentRetry'    => __('Demande enregistrée (référence %s). Le paiement peut être relancé.', 'guestflow-booking'),
+                // UI/UX review 2026-10-18 — the calendar's states and its way out of a closed window
+                // (specs/wp-booking-widget-redesign.md rules 30-31).
+                'legendFree'      => __('Libre', 'guestflow-booking'),
+                'legendTaken'     => __('Pris', 'guestflow-booking'),
+                'nextAvailable'   => __('Prochaine disponibilité : %s', 'guestflow-booking'),
+                'nextAvailableGo' => __('Voir', 'guestflow-booking'),
+                // Refused on the field (specs/wordpress-plugin.md rule 28). The server sends its own
+                // sentence per field; these two are the local check and the fallback for an older server.
+                'fieldRequired'   => __('Champ requis.', 'guestflow-booking'),
+                'emailInvalid'    => __('Adresse e-mail incomplète.', 'guestflow-booking'),
+                // The sticky bar's button follows the step (specs/wp-booking-widget-redesign.md rule 32).
+                'barPickDates'    => __('Choisir les dates', 'guestflow-booking'),
+                'barContinue'     => __('Continuer', 'guestflow-booking'),
+                'taxIncluded'     => __('taxe de séjour incluse', 'guestflow-booking'),
                 // specs/booking-drawer-friction.md — minimum stay before choosing (rules 11-12), the
                 // price per person (rule 9) and the request without paying (rules 2-4).
                 'minShort'        => __('min. %d', 'guestflow-booking'),
@@ -212,7 +245,6 @@ final class GF_Blocks
                 'payDepositAmount' => __('Payer l’acompte %s', 'guestflow-booking'),
                 'sendRequestNoPay' => __('Envoyer une demande sans payer', 'guestflow-booking'),
                 'requestNoPayHint' => __('Une question avant de vous engager ? Envoyez une demande : aucun paiement tant que nous n’avons pas répondu.', 'guestflow-booking'),
-                'invalidEmail'    => __('Adresse e-mail invalide.', 'guestflow-booking'),
             ],
         ];
     }

@@ -174,6 +174,9 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
       matin* offered to the whole family.
     GuestFlow does not apply them automatically: the operator adds the option as offered on the
     reservation (Out of scope).
+    _Superseded for the shipped copy (noted at the 2026-10-27 spec review): since phase P (#672,
+    specs/plugins-phase-p-productisation.md) the shipped season templates are neutral and announce no
+    gift; Solio's gifts, if any, are the operator's own wording in « Textes des emails »._
 29. The complement to collect on site, when any, is one sentence with the amount (« Un complément
     de 45 € reste à régler sur place à votre arrivée ») — no itemised list, no total line.
 30. The emails are rendered in the client's language (FR/EN), as today. The EN copy is a translation
@@ -184,6 +187,12 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 31. **Simulation** — a page tab and a CLI show, for a date range, every sequence mail that *would*
     leave: date, mail, client, reservation, status (`part` / `ne part pas` / `déjà envoyé` / `à
     vérifier`) and the reason. Same eligibility code as the real pass, no SMTP, no ledger write.
+    *Reading of 2026-11-02 — the date window.* The simulation's `from` and `to` are real days (`02-30` used to pass)
+    inside [today − 5 years, today + 5 years]: 400 `INVALID_RANGE` with the French `message`, shown by the tab;
+    the pending list's simulated `today` is held to the same window (`specs/reservations-backend-mvc.md` rule 13, second reading).
+    *Reading of 2026-11-03 (audit R20-C4) — the operator's day.* « Du » opens on the browser's own day and
+    « Au » 60 days later (`utils/isoDay.localIsoToday` / `addIsoDays`), never the UTC day: between midnight and
+    01:00 / 02:00 in Paris it used to open on yesterday. Test: `components/__tests__/EmailSequenceSimulation.local-day.test.jsx`.
 32. The CLI (`scripts/simulate-guest-email-sequence.mjs`) runs against any database given in
     `SIMULATION_DB_PATH`, opened **read-only**, so it can be pointed at a copy of production before
     the switch is turned on. It forces GuestFlow's own `DB_PATH` to an in-memory database first, so no
@@ -197,6 +206,20 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
     venir » block carries the gate code and link. Whichever branch merges second wires it.
     > **Sans test** — nothing to test here yet: the rule commits the branch that merges second to
     > wire the two together, and the test lands with that wiring, in the J-2 render suite.
+35. **Fixed at the 2026-10-27 audit — no platform name in the sequence.** « Relay address » (rule 7) is
+    the platform's « Adresse e-mail relais » switch, and the platform of the J+1 review sentence is its
+    « Où laisser un avis » wording, both set in Paramètres › Plateformes; a migration wrote Solio's
+    Airbnb / Booking / Gîtes de France knowledge onto its database, so its e-mails are byte-identical
+    (specs/platform-settings-relay-and-review.md rules 1–7).
+36. **« Déjà envoyé le … » is the operator's day** (2026-10-30, audit R9). The simulation dates an
+    already-sent mail with the local day of the ledger's `sentAt` (a UTC `datetime('now')`), through
+    `vatRegime.bookingDayOf` (`specs/finance-dashboard-redesign.md` rule 50). *Why:* a mail sent between
+    00:00 and 01:00 / 02:00 in Paris read as sent the day before.
+37. **The unsubscribe page declares the language it speaks** (audit R42-PUB-L1, 2026-11-10). The page of rule 9, its
+    confirmation and its « déjà fait » state carry `<html lang="en">` around the English copy, `lang="fr"` around the
+    French one; the neutral unknown-token page stays `fr`. *Why:* it always declared `fr`, so a screen reader or a
+    browser's translation offer read the English text as French, while the guest e-mails and the guest app declare
+    their language. Test: `tests/email-preferences-lang.unit.test.js`.
 
 **Edge cases:**
 - One-night stay booked the day before → confirmation carries the arrival block; J-7 and J-2 not
@@ -279,7 +302,7 @@ The former J+7 satisfaction survey and the « season reminder, 8 weeks before th
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
 | GET | `/api/email-sequence/simulation?from=YYYY-MM-DD&to=YYYY-MM-DD` | — | `{ rows: [{ date, mailKey, mailLabel, reservationId, reservationNumber, clientId, clientName, propertyName, status, reason }], counts: { send, blocked, alreadySent, toCheck }, startDate, assumedStartDate, autoSendEnabled }` | Auth; range ≤ 400 days; 400 `INVALID_RANGE`; `status` ∈ `send`, `blocked`, `already-sent`, `to-check` |
-| GET | `/preferences/emails?t=<token>` | — | HTML page with a confirm button | No session, no API key (outside `/public/v1`, which requires the plugin key); own rate limiter; unknown token → neutral page |
+| GET | `/preferences/emails?t=<token>` | — | HTML page with a confirm button | No session, no API key (outside `/public/v1`, which requires the plugin key); own rate limiter; unknown token → neutral page. Past 60 hits in 15 min from one address the limiter answers its own English 429, « Too many requests, please try again later. »: accepted 2026-11-05 (audit R24 public finding 3), no guest reaches it by normal use |
 | POST | `/preferences/emails` | form `t=<token>` | HTML confirmation | Sets `marketingUnsubscribedAt` once; idempotent |
 | POST | `/api/emails/send` | + optional `confirmResend: boolean` | + 409 `ALREADY_SENT` (with `sentAt`) for a sequence key already sent and no `confirmResend` | Rule 13bis |
 | PUT | `/api/clients/:id`, `/api/reservations/:id`, `/api/properties/:id`, `/api/settings` | + new fields | unchanged | Validated at the boundary |
@@ -343,7 +366,13 @@ proper names: « La Granja » stayed « La granja » before), and « à » joins
 
 ## 6. UI / UX
 
-### 6.1 The emails (FR copy — source of truth for the registry)
+### 6.1 The emails (FR copy — history)
+
+> _Noted at the 2026-10-27 spec review:_ this copy is no longer the source of truth. Since phase P
+> (#672) the registry ships neutral templates (`utils/defaultEmailTemplatesRegistry.js`) whose sentences
+> come from « Textes des emails » (specs/guest-email-texts-made-simple.md); the Solio wording below —
+> the planche du terroir, the first-morning breakfast, the Solio-specific lines — is what Solio typed,
+> not what GuestFlow ships. The registry and the shipped texts win over this section.
 
 Rendered examples; `[…]` marks a server-composed, conditional paragraph. The exact rendering on real
 cases is in the decision record.
@@ -516,6 +545,9 @@ Ne plus recevoir nos nouvelles : {{unsubscribeUrl}}
 - **Client form** — switch « Ne pas envoyer les mails après séjour » with helper text « Remerciement, bons cadeau et vœux ne lui seront pas envoyés ». When unsubscribed: `StatusBadge` « Désinscrit des nouvelles le … » (read-only).
 - **Property detail** — card « Dans les mails clients »: accroche FR / EN (`HelpedTextField`, multiline), distance du parking (m), switches « Wifi » and « Cafetière filtre familiale ».
 - **Réglages › Emails automatiques** — line « Séquence active depuis le … » (or « pas encore activée »), URL avis Google, URL Instagram, saison piscine (début / fin, JJ/MM).
+  **Amended 2026-10-28** (specs/settings-input-guards.md rules 35-44): « URL Instagram » became an
+  ordered list « Réseaux sociaux » (network + URL, up to 8, validated server-side); one link renders the
+  J+1 e-mail exactly as before.
 - **Public page** — « Vos préférences Domaine Solio »: one sentence and a button « Ne plus recevoir les nouvelles du domaine »; after POST, « C'est noté. Vous continuerez à recevoir les informations liées à vos séjours. » Mobile-first, no external asset.
 
 Responsive: every new field stacks full width on `xs`; the simulation swaps table → cards under `md`.
@@ -535,11 +567,13 @@ Responsive: every new field stacks full width on `xs`; the simulation swaps tabl
   file: the target is byte-identical afterwards and leaves no `-wal` / `-journal` behind, even when
   `DB_PATH` names it; no `SIMULATION_DB_PATH`, no run.
 - [x] `tests/remove-lost-items.unit.test.js` (5, added 2026-09-28) — rule 33 removal: shipped J+1 bodies; token line stripped with its blank line; operator-edited template (CRLF, inline token, last line); template migration on body + bodyEn then no-op; column drop keeps the rows then no-op.
+- [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (1 of 4, 2026-10-30) — rule 36: a mail sent at 23:30 UTC reads « Déjà envoyé le » on its Paris day.
 - [x] Touched: `email-template-renderer` (J-7/J-2 body section rewritten for the new copy), `default-email-templates-registry`, `default-email-templates-seed`, `confirmation-email-gate`, `reservation-email-sender`.
 
 Full server suite: 4 191 tests, all green (4 553 on 2026-09-28, after the rule 33 removal: +5 in `remove-lost-items`).
 
 ### Client
+- [x] Vitest `EmailSequenceSimulation.local-day.test.jsx` (1, 2026-11-03, audit R20-C4) — rule 31: the default range starts on the local day.
 - [x] Vitest (11 new): `EmailSequenceSimulation.render.test.jsx` (5), `EmailManualSendDialog.already-sent.test.jsx` (2), `ClientFormFields.post-stay-emails.test.jsx` (3), ~~`ReservationLostItemsCard.test.jsx` (1)~~ (deleted with rule 33, 2026-09-28). Full suite green.
 - [x] Playwright: `emails-page.spec.js` and `email-language-fr-en.spec.js` updated for the new names and copy; full suite 68 passed, 1 skipped (unchanged).
 

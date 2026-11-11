@@ -147,7 +147,7 @@ label + the client + the property. Clicking the card opens the reservation fiche
 | models | `models/reservationsModel.js` | T | On save, persist each card-option's `cardOccurrences` (JSON, incl. `done`). Return it parsed with the reservation's options. |
 | pricing | `utils/pricing.js` (where `billedUnits` is derived) | T | For a card-option, **derive `billedUnits` from `cardOccurrences`** (§3.4): `count × (guests if per-person else 1)`, replacing nights/days. `normalizeCardOccurrences` preserves `{date,time,done}`. Authoritative server-side. |
 | models | `models/planningOptionCardsModel.js` | C | `cardsInRange(from,to)` → emit one card per stored occurrence (with family + `done`) whose `date` ∈ [from,to]; `'reservation'` only. **`setOccurrenceDone({reservationId,optionId,date,time,done})`** flips one occurrence's `done`. Factory `buildModel(db)`. |
-| controllers | `controllers/planningController.js` | T | `optionCards` → `GET /api/planning/option-cards?from&to`; **`setOptionCardDone` → `POST /api/planning/option-cards/done`** (validates + toggles). |
+| controllers | `controllers/planningController.js` | T | `optionCards` → `GET /api/planning/option-cards?from&to` (removed 2026-10-28: each day's `optionCards` ride in `GET /api/planning/days`, dashboard-planning-scroll.md rule 10); **`setOptionCardDone` → `POST /api/planning/option-cards/done`** (validates + toggles). |
 | routes | `routes/planning.js` | T | Wire both routes. |
 
 No change to accounting (the flag + occurrences drive only this option's `billedUnits`; `done` is metadata).

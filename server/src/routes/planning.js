@@ -9,12 +9,9 @@
 const router = require('express').Router();
 const controller = require('../controllers/planningController');
 
-router.get('/laundry', controller.laundrySummary);
-router.get('/linen-inventory', controller.linenInventory);
+router.get('/today', controller.today);
+router.get('/days', controller.days);
 router.get('/breakfast', controller.breakfastSummary);
-router.get('/option-cards', controller.optionCards);
 router.post('/option-cards/done', controller.setOptionCardDone);
-router.get('/resource-cards', controller.resourceCards);
-router.post('/resource-cards/done', controller.setResourceCardDone);
 
 module.exports = router;

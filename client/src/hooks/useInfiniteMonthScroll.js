@@ -37,6 +37,7 @@ export default function useInfiniteMonthScroll(selectedProp) {
   const [months, setMonths] = useState(getInitialMonths);
   const scrollRef = useRef(null);
   const prevScrollHeight = useRef(0);
+  const prevFirstAnchor = useRef(null);
   const shouldAdjustScroll = useRef(false);
   const focusMonthKeyRef = useRef('');
   const pendingFocusScrollRef = useRef(false);
@@ -51,11 +52,18 @@ export default function useInfiniteMonthScroll(selectedProp) {
   const edgeChainRef = useRef(0);
   const autoPreloadAttemptsRef = useRef(0);
 
-  // Maintain scroll position when prepending months.
+  // Maintain scroll position when prepending months: the month that was first keeps its place on screen.
+  // Measured on that month's anchor, not on the scroller's total height — a month appended in the same
+  // commit (both edges near on a short phone agenda) grew the height too and pushed the view past the
+  // month in focus, its first stay hidden under the sticky month label (2026-10-27 spec review, F11).
   useLayoutEffect(() => {
     if (shouldAdjustScroll.current && scrollRef.current) {
-      const diff = scrollRef.current.scrollHeight - prevScrollHeight.current;
-      scrollRef.current.scrollTop += diff;
+      const el = scrollRef.current;
+      const kept = prevFirstAnchor.current;
+      const anchor = kept && el.querySelector(`[data-month-anchor="${kept.key}"]`);
+      el.scrollTop += anchor
+        ? anchor.getBoundingClientRect().top - kept.top
+        : el.scrollHeight - prevScrollHeight.current;
       shouldAdjustScroll.current = false;
     }
   }, [months]);
@@ -124,6 +132,10 @@ export default function useInfiniteMonthScroll(selectedProp) {
     const el = scrollRef.current;
     if (el) {
       prevScrollHeight.current = el.scrollHeight;
+      const first = el.querySelector('[data-month-anchor]');
+      prevFirstAnchor.current = first
+        ? { key: first.getAttribute('data-month-anchor'), top: first.getBoundingClientRect().top }
+        : null;
       shouldAdjustScroll.current = true;
     }
     setMonths((prev) => {

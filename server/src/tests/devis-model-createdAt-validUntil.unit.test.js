@@ -53,74 +53,79 @@ function freshModel({ quoteValidityDays = 30 } = {}) {
   return { model: devisModel.buildModel(db), db };
 }
 
-const todayDate = () => new Date().toISOString().slice(0, 10);
+// The validity window opens on the operator's day, not the UTC one (rule 23).
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+const { todayIso } = require('../utils/localDate');
+// A stay far enough ahead that today + validity never reaches the rule 6 cap (start - 2 days).
+const inDays = (n) => addDaysToIsoDate(todayIso(), n);
+const { bookingDayOf } = require('../utils/vatRegime');
 
 test('create persists a non-empty createdAt (rule 1, never blank)', () => {
   const { model, db } = freshModel();
   const result = model.create({
-    propertyId: 1, clientId: 1, startDate: '2026-09-10', endDate: '2026-09-12', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(-54), endDate: inDays(-52), adults: 2,
   });
   const row = db.prepare("SELECT createdAt, length(coalesce(createdAt,'')) AS len FROM reservations WHERE id = ?").get(result.data.id);
   assert.ok(row.len > 0, 'createdAt must not be empty');
-  assert.equal(row.createdAt.slice(0, 10), todayDate());
+  assert.equal(bookingDayOf(row.createdAt), todayIso(), 'stored in UTC, dated on the operator\'s day');
 });
 
 test('create persists validUntil = createdAt + quoteValidityDays (rule 6)', () => {
   const { model, db } = freshModel({ quoteValidityDays: 14 });
   const result = model.create({
-    propertyId: 1, clientId: 1, startDate: '2026-12-10', endDate: '2026-12-12', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(60), endDate: inDays(62), adults: 2,
   });
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(result.data.id);
-  const expected = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  const expected = inDays(14);
   assert.equal(row.validUntil, expected);
 });
 
 test('create caps validUntil at startDate - 2 days (rule 6 cap)', () => {
   // quoteValidityDays = 90 but startDate is in 5 days → cap forces validUntil = start - 2.
   const { model, db } = freshModel({ quoteValidityDays: 90 });
-  const startDate = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
-  const endDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const startDate = inDays(5);
+  const endDate = inDays(7);
   const result = model.create({ propertyId: 1, clientId: 1, startDate, endDate, adults: 2 });
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(result.data.id);
-  const expectedCap = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10); // start - 2
+  const expectedCap = inDays(3); // start - 2
   assert.equal(row.validUntil, expectedCap);
 });
 
 test('update fills missing validUntil on a legacy row (rule 7)', () => {
   const { model, db } = freshModel({ quoteValidityDays: 21 });
   const created = model.create({
-    propertyId: 1, clientId: 1, startDate: '2027-01-15', endDate: '2027-01-17', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(90), endDate: inDays(92), adults: 2,
   });
   // Simulate a legacy row whose validUntil column was never set.
   db.prepare('UPDATE reservations SET validUntil = NULL WHERE id = ?').run(created.data.id);
 
   model.update(created.data.id, {
-    propertyId: 1, clientId: 1, startDate: '2027-01-15', endDate: '2027-01-17', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(90), endDate: inDays(92), adults: 2,
   });
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(created.data.id);
   // The update path recomputes from existing.createdAt + quoteValidityDays.
   const createdAt = db.prepare('SELECT createdAt FROM reservations WHERE id = ?').get(created.data.id).createdAt;
-  const expected = new Date(new Date(createdAt.slice(0, 10) + 'T00:00:00Z').getTime() + 21 * 86400000).toISOString().slice(0, 10);
+  const expected = addDaysToIsoDate(bookingDayOf(createdAt), 21);
   assert.equal(row.validUntil, expected);
 });
 
 test('update preserves an explicit payload validUntil', () => {
   const { model, db } = freshModel();
   const created = model.create({
-    propertyId: 1, clientId: 1, startDate: '2026-09-10', endDate: '2026-09-12', adults: 2,
+    propertyId: 1, clientId: 1, startDate: inDays(-54), endDate: inDays(-52), adults: 2,
   });
   model.update(created.data.id, {
-    propertyId: 1, clientId: 1, startDate: '2026-09-10', endDate: '2026-09-12', adults: 2,
-    validUntil: '2026-08-31',
+    propertyId: 1, clientId: 1, startDate: inDays(-54), endDate: inDays(-52), adults: 2,
+    validUntil: inDays(-64),
   });
   const row = db.prepare('SELECT validUntil FROM reservations WHERE id = ?').get(created.data.id);
-  assert.equal(row.validUntil, '2026-08-31');
+  assert.equal(row.validUntil, inDays(-64));
 });
 
 test('convertFromReservation persists createdAt + validUntil on the new devis row', () => {
   const { model, db } = freshModel({ quoteValidityDays: 30 });
-  const startDate = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
-  const endDate = new Date(Date.now() + 62 * 86400000).toISOString().slice(0, 10);
+  const startDate = inDays(60);
+  const endDate = inDays(62);
   const insert = db.prepare(`
     INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, totalPrice, finalPrice, touristTaxRate, touristTaxTotal)
     VALUES ('reservation', 1, 1, ?, ?, 2, 240, 240, 0, 0)
@@ -130,7 +135,7 @@ test('convertFromReservation persists createdAt + validUntil on the new devis ro
   const result = model.convertFromReservation(reservationId);
   const row = db.prepare('SELECT createdAt, validUntil FROM reservations WHERE id = ?').get(result.data.id);
   assert.ok(row.createdAt && row.createdAt.length > 0);
-  assert.equal(row.createdAt.slice(0, 10), todayDate());
-  const expected = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  assert.equal(bookingDayOf(row.createdAt), todayIso(), 'stored in UTC, dated on the operator\'s day');
+  const expected = inDays(30);
   assert.equal(row.validUntil, expected);
 });

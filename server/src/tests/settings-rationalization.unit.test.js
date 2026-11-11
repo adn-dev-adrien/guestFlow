@@ -11,7 +11,7 @@ const Module = require('module');
 const Database = require('better-sqlite3');
 
 const settingsModel = require('../models/settingsModel');
-const schoolHolidaysModel = require('../models/schoolHolidaysModel');
+const { applyPluginSchema, skipWithout } = require('../plugins/sdk/testing');
 const { shapeResponse } = require('../utils/settingsResponse');
 const { __test: { SMTP_FIELDS } } = require('../controllers/settingsController');
 const { smtpPortForSecure } = require('../utils/settingsValidation');
@@ -48,6 +48,9 @@ function legacyDb() {
 }
 
 // ---------- rules 9-10 — dead settings are dropped ----------
+
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
 
 test('rules 9-10: a fresh install never creates the dead columns', () => {
   const columns = settingsColumns(baselineDb());
@@ -109,8 +112,10 @@ test('rule 11: the SMTP field map has no port entry, so a sent port cannot be st
 
 // ---------- rule 13 — the school-holiday sync cadence is fixed ----------
 
-test('rule 13: the sync cadence is 60 days / 24 months whatever the legacy columns hold', () => {
+test('rule 13: the sync cadence is 60 days / 24 months whatever the legacy columns hold', { skip: skipWithout(['school-holidays']) }, () => {
+  const schoolHolidaysModel = require('../plugins/school-holidays/model');
   const db = baselineDb();
+  applyPluginSchema(db, 'school-holidays');
   db.prepare('INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1)').run();
   db.prepare('UPDATE school_holidays_sync_state SET syncIntervalDays = 7, syncHorizonMonths = 3 WHERE id = 1').run();
   const state = schoolHolidaysModel.create(db).getSyncState();
@@ -176,6 +181,7 @@ test('rule 12: GET /settings returns each override and what it falls back to whe
     fromEmail: 'contact@solio.fr', // the contact email
     username: 'no-reply@solio.fr', // the sending address in force
     fromName: 'Domaine Solio', // the company name
+    publicUrl: '', // the hosting's address (specs/hosting-h1-fleet-runtime.md rule 25): none here
   });
   assert.equal(shaped.notifications.derivedRecipient, 'no-reply@solio.fr');
   assert.equal('port' in shaped.smtp, false);
@@ -262,11 +268,11 @@ function reservationsControllerWith(stored, captures) {
     if (id === '../models/reservationsModel') {
       return new Proxy({}, { get: (_, key) => {
         if (key === 'getForArchiveCheck') return () => stored;
-        if (key === 'remove') return (rid) => { captures.removed = rid; };
+        if (key === 'removeGuarded') return (rid) => { captures.removed = rid; return { ok: true }; };
         return () => null;
       } });
     }
-    if (id === '../utils/googleCalendarSync') return { scheduleDelete() {}, scheduleUpsert() {} };
+    if (id === '../plugins/sdk/eventBus') return { emit() {} };
     return origRequire.call(this, id);
   };
   try {
@@ -281,30 +287,30 @@ function fakeRes() {
   return { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
 }
 
-const ENDED = { id: 9, endDate: '2020-01-05' };
+const ENDED = { id: 9, endDate: '2020-01-05', kind: 'reservation' };
 const admin = { roles: ['admin'] };
 const reception = { roles: ['reception'] };
 
-test('rule 17a: a stay that has ended cannot be deleted without an explicit unlock', () => {
+test('rule 17a: a stay that has ended cannot be deleted without an explicit unlock', async () => {
   const captures = {};
   const res = fakeRes();
-  reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: {}, user: admin }, res);
+  await reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: {}, user: admin }, res);
   assert.equal(res.statusCode, 403);
   assert.equal(captures.removed, undefined);
 });
 
-test('rule 17a: an admin who unlocked the fiche can delete it', () => {
+test('rule 17a: an admin who unlocked the fiche can delete it', async () => {
   const captures = {};
   const res = fakeRes();
-  reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, user: admin }, res);
+  await reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, user: admin }, res);
   assert.equal(res.statusCode, 200);
-  assert.equal(captures.removed, '9');
+  assert.equal(captures.removed, 9);
 });
 
-test('rule 17a: the unlock flag means nothing coming from another role', () => {
+test('rule 17a: the unlock flag means nothing coming from another role', async () => {
   const captures = {};
   const res = fakeRes();
-  reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, body: { unlockPast: true }, user: reception }, res);
+  await reservationsControllerWith(ENDED, captures).remove({ params: { id: '9' }, query: { unlockPast: '1' }, body: { unlockPast: true }, user: reception }, res);
   assert.equal(res.statusCode, 403);
   assert.equal(captures.removed, undefined);
 });
@@ -381,14 +387,18 @@ test('rule 17c: saving the hooks writes the two hook columns and nothing else', 
 function optionsControllerWith(rows) {
   const modelPath = require.resolve('../models/optionsModel');
   const controllerPath = require.resolve('../controllers/optionsController');
+  const propertiesPath = require.resolve('../models/propertiesModel');
   const saved = require.cache[modelPath];
+  const savedProperties = require.cache[propertiesPath];
   delete require.cache[controllerPath];
-  require.cache[modelPath] = { id: modelPath, filename: modelPath, loaded: true, exports: { list: () => rows } };
+  require.cache[modelPath] = { id: modelPath, filename: modelPath, loaded: true, exports: { list: () => rows, listArchived: () => [] } };
+  require.cache[propertiesPath] = { id: propertiesPath, filename: propertiesPath, loaded: true, exports: { list: () => [] } };
   try {
     return require('../controllers/optionsController');
   } finally {
     delete require.cache[controllerPath];
     if (saved) require.cache[modelPath] = saved; else delete require.cache[modelPath];
+    if (savedProperties) require.cache[propertiesPath] = savedProperties; else delete require.cache[propertiesPath];
   }
 }
 
@@ -398,12 +408,14 @@ function listed(controller, query) {
   return body.map((o) => o.id);
 }
 
-test('rule 15: the catalogue view hides early arrival / late departure; every other caller gets them', () => {
+test('rule 15: the catalogue leaves out early arrival / late departure; the plain list gets them all', () => {
   const controller = optionsControllerWith([
     { id: 1, autoOptionType: null },
     { id: 2, autoOptionType: 'early_check_in' },
     { id: 3, autoOptionType: 'late_check_out' },
   ]);
-  assert.deepEqual(listed(controller, { view: 'catalogue' }), [1]);
+  let view;
+  controller.catalogueView({ query: {} }, { json: (value) => { view = value; return value; } });
+  assert.deepEqual(view.groups.flatMap((g) => g.items.map((i) => i.id)), [1]);
   assert.deepEqual(listed(controller, {}), [1, 2, 3]);
 });

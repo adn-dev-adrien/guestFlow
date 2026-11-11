@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 // specs/property-capacity-single-total.md §3 rules 2, 6 and 9 — the controller enforces the ONE-total
@@ -47,6 +48,8 @@ function buildController({ capacity, stored = null, captures = {} }) {
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
     '../models/establishmentClosuresModel': new Proxy({}, { get: () => () => null }),
     '../models/reservationsModel': new Proxy({}, { get: (_, k) => {
+      // The stay exists: an unknown id is refused 404 first (reservations-backend-mvc rule 26, audit R44-C-L3).
+      if (k === 'getRow') return (id) => ({ id: Number(id), kind: 'reservation' });
       if (k === 'getPropertyCapacity') return () => capacity;
       if (k === 'getPropertyBeds') return () => ({ singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
       if (k === 'getBabyBedAvailability') return () => ({ availableBabyBeds: 99 });
@@ -55,7 +58,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
       if (k === 'updateReservation') return (id) => { captures.updated = { id }; };
       if (k === 'getReservationNumber') return () => 'R-42';
       if (k === 'getForUpdate') return () => stored;
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       if (k === 'resolveArrivalExtrasBaseline') return () => null;
       if (k === 'totalsByReservation') return () => ({ book: 0 });
@@ -63,7 +66,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
     } }),
     '../models/settingsModel': { read: () => ({}) },
     '../models/propertyOptionDefaultsModel': { listForProperty: () => [] },
-    '../utils/googleCalendarSync': { schedulePush: () => null },
+    '../plugins/sdk/eventBus': { emit: () => null },
     '../database': dbMock,
   }, () => {
     delete require.cache[require.resolve('../controllers/reservationsController')];
@@ -74,7 +77,7 @@ function buildController({ capacity, stored = null, captures = {} }) {
 const LODGE = { maxGuests: 5, maxBabies: 1, singleBeds: 99, doubleBeds: 99 };
 const STAY = {
   clientId: 1, platform: 'direct', options: [],
-  propertyId: 2, startDate: '2099-09-10', endDate: '2099-09-12',
+  propertyId: 2, startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
   checkInTime: '15:00', checkOutTime: '10:00',
   adults: 1, children: 1, teens: 0, babies: 0,
 };

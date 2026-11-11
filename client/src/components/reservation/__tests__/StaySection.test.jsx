@@ -3,7 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import StaySection from '../StaySection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
 import { vi } from 'vitest';
 
 // Vitest factory must return an object with `default` for default-export modules
@@ -20,6 +20,7 @@ function renderStay(overrides) {
   return ctx;
 }
 
+// specs/email-client-language-and-fiche-polish.md rule 3 — no e-mail language selector on the fiche.
 test('renders property select, both date fields, the time selects and the mini-calendar host', () => {
   renderStay();
   // Three MUI Selects in DOM order: Logement, Heure d'arrivée, Heure de départ. (The email-language

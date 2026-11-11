@@ -46,6 +46,9 @@ vi.mock('../../components/DialogProvider', () => ({
 import api from '../../api';
 import DevisPage from '../DevisPage';
 
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../hooks/usePlugins', () => ({ usePlugin: () => true }));
+
 function renderPage() {
   return render(
     <MemoryRouter>

@@ -5,7 +5,7 @@ const Database = require('better-sqlite3');
 const reservationsModel = require('../models/reservationsModel');
 
 // specs/force-extras-complement-on-platform.md §3 + §7.1.
-// The write-time contract changed (rule 1bis): the pricing engine is the single authority for
+// The write-time contract changed (update 2026-06-20): the pricing engine is the single authority for
 // `inComplement` — it applies the platform default for unflagged lines AND honours an explicit
 // operator override. The model therefore persists the engine-resolved flag VERBATIM and never
 // re-forces by platform. This suite locks that: whatever `inComplement` the line carries is what
@@ -79,7 +79,7 @@ test('platform reservation: engine-resolved inComplement = 1 persists with NULL 
 });
 
 test('platform reservation: operator override inComplement = 0 is HONOURED (no re-forcing)', () => {
-  // The core of spec rule 1bis: even on a platform reservation, a line the operator pulled OUT of
+  // The core of spec update 2026-06-20 (1bis): even on a platform reservation, a line the operator pulled OUT of
   // Complément (engine returns 0) must persist as 0 — the model no longer re-forces by platform.
   const { model, db } = freshModel({ platform: 'Airbnb' });
   model.replaceOptions(1, [

@@ -1,7 +1,7 @@
 /**
  * SettingsFormPage — the frame of every Paramètres page that edits settings
  * (specs/settings-rationalization.md rule 4 + §6): sticky PageActionBar with one Save / Cancel for
- * the page, the « unsaved changes » / « last update » subtitle, a single readable column, the
+ * the page, the « unsaved changes » / « Réglages enregistrés le … » subtitle, a single readable column, the
  * load-error alert and the dirty-form guard dialog.
  *
  * Props:
@@ -12,6 +12,7 @@
  *   dirty?:        boolean           — overrides form.isDirty (a card saving through its own endpoint)
  *   saveBlocked?:  boolean           — a field is invalid client-side: Enregistrer stays disabled
  *   actionsBefore?: Action[]         — PageActionBar extra actions
+ *   tabs?:         ReactNode         — a <PageTabs> node for the bar (specs/ds-tabs.md rule 2)
  *   children:      ReactNode         — the page's cards
  */
 import React from 'react';
@@ -20,7 +21,7 @@ import PageActionBar from './PageActionBar';
 import ErrorAlert from './ErrorAlert';
 import ConfirmDialog from './ConfirmDialog';
 
-export default function SettingsFormPage({ title, form, onSave, onCancel, dirty, saveBlocked = false, actionsBefore, children }) {
+export default function SettingsFormPage({ title, form, onSave, onCancel, dirty, saveBlocked = false, actionsBefore, tabs, children }) {
   const isDirty = dirty === undefined ? form.isDirty : dirty;
   const busy = form.loading || form.saving;
   const subtitle = isDirty ? (
@@ -29,7 +30,7 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
     </Typography>
   ) : (form.updatedAtLabel ? (
     <Typography variant="caption" color="text.disabled">
-      Dernière mise à jour : {form.updatedAtLabel}
+      Réglages enregistrés le {form.updatedAtLabel}
     </Typography>
   ) : null);
 
@@ -37,11 +38,12 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
     <Box>
       <PageActionBar
         title={title}
-        titleOnXs
+        backTo="/settings"
         subtitle={subtitle}
+        tabs={tabs}
         onSave={onSave || (() => form.save())}
         saveDisabled={!isDirty || busy || saveBlocked}
-        saveTooltip={saveBlocked ? 'Corrigez les champs en rouge avant d’enregistrer' : undefined}
+        saveTooltip={saveBlocked ? 'Champs en rouge à corriger avant d’enregistrer' : undefined}
         saveBusy={form.saving}
         onCancel={onCancel || form.cancel}
         cancelDisabled={!isDirty || busy}
@@ -62,7 +64,7 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
         onClose={form.dismissGuard}
         onConfirm={form.confirmLeave}
         title="Modifications non enregistrées"
-        message="Vous avez des modifications non enregistrées. Quitter sans sauvegarder ?"
+        message="Des modifications ne sont pas enregistrées. Quitter sans enregistrer ?"
         confirmLabel="Quitter sans enregistrer"
         cancelLabel="Rester"
         confirmColor="error"

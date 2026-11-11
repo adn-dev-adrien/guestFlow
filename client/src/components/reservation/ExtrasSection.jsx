@@ -1,117 +1,22 @@
 import React from 'react';
 import {
   Box, Card, CardContent, Typography, Stack, Divider, Button, TextField, Chip,
-  FormControlLabel, Switch, Tooltip, MenuItem, IconButton
+  FormControlLabel, Switch, Tooltip
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
 import ArithmeticTextField from '../ArithmeticTextField';
 import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
-import { enumerateStayDates, timeOptions, toMinutes, minutesToTime } from '../../utils/resourceSessions';
 import { formatCurrency } from '../../utils/formatters';
 import OptionRow from './OptionRow';
 import OptionCategorySection from './OptionCategorySection';
 import { COMPLEMENT_TOOLTIP, PRICE_TYPE_LABELS } from './extrasLabels';
+import { useSlot } from '../../plugins/sdk/useSlot';
+import { Contribution } from '../../plugins/sdk/Slot';
 import { ARRIVAL_LINE_CAPTION, OFFERED_LINE_CAPTION } from '../../constants/reservationLock';
 import { resourceLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 
 const NO_ARRIVAL_LINES = {};
-
-// French day-of-week + date label for an occurrence row (e.g. « lun. 7 juil. »).
-function occurrenceDateLabel(iso) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return iso || '';
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-}
-
-/**
- * Session editor for an hourly-scheduled resource (specs/resource-hourly-scheduling.md §3.2). Lets the
- * operator add several sessions (date within the stay + start/end, slot-stepped) priced server-side from
- * the time-banded grid. Replaces the plain « Heures » quantity field for these resources.
- */
-function ResourceSessions({ resource }) {
-  const { form, setResourceSessions, isReservationLocked, extrasWindowOpen } = useReservationForm();
-  const sessionsLocked = isReservationLocked && !extrasWindowOpen;
-  const selected = form.selectedResources.find((sr) => sr.resourceId === resource.id);
-  const sessions = Array.isArray(selected?.sessions) ? selected.sessions : [];
-  const days = enumerateStayDates(form.startDate, form.endDate);
-  const times = timeOptions(resource.openTime, resource.closeTime, resource.slotDuration);
-  const minMinutes = Math.max(0, Number(resource.minimumUsageMinutes || 0));
-  const slot = Math.max(1, Number(resource.slotDuration || 30));
-  // The mandatory first whole hour: the minimum gap between start and end (≥ 1 h).
-  const firstDur = minMinutes > 0 ? minMinutes : 60;
-  const closeMin = toMinutes(resource.closeTime || '22:00');
-  // End of a session given its start: start + the first whole hour, clamped to the closing time.
-  const endForStart = (start) => minutesToTime(Math.min(closeMin, toMinutes(start) + firstDur));
-
-  const dateLabel = (iso) => occurrenceDateLabel(iso);
-  const updateSession = (idx, patch) => setResourceSessions(resource.id, sessions.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
-  const removeSession = (idx) => setResourceSessions(resource.id, sessions.filter((_, i) => i !== idx));
-  // Picking a start auto-sets the end to start + 1 h (the first whole hour).
-  const setStart = (idx, start) => updateSession(idx, { start, end: endForStart(start) });
-  const addSession = () => {
-    const date = days[0] || form.startDate;
-    const start = (times[0]) || resource.openTime || '12:00';
-    setResourceSessions(resource.id, [...sessions, { date, start, end: endForStart(start) }]);
-  };
-  const isInvalid = (s) => {
-    const dur = toMinutes(s.end) - toMinutes(s.start);
-    return dur <= 0 || (minMinutes > 0 && dur < minMinutes);
-  };
-
-  return (
-    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>Séances</Typography>
-        <Typography variant="caption" color="text.secondary">{resource.openTime}–{resource.closeTime} • pas {slot} min</Typography>
-      </Stack>
-      <Stack spacing={1}>
-        {sessions.length === 0 && (
-          <Typography variant="caption" color="text.secondary">Aucune séance — ajoutez-en une.</Typography>
-        )}
-        {sessions.map((s, idx) => (
-          <Stack key={idx} direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ alignItems: { sm: 'center' } }}>
-            <TextField
-              select size="small" label="Jour" value={days.includes(s.date) ? s.date : ''}
-              onChange={(e) => updateSession(idx, { date: e.target.value })}
-              disabled={sessionsLocked} sx={{ minWidth: 150 }}
-            >
-              {days.map((d) => <MenuItem key={d} value={d} sx={{ textTransform: 'capitalize' }}>{dateLabel(d)}</MenuItem>)}
-            </TextField>
-            <TextField
-              select size="small" label="Début" value={times.includes(s.start) ? s.start : ''}
-              onChange={(e) => setStart(idx, e.target.value)}
-              disabled={sessionsLocked} sx={{ width: 110 }}
-            >
-              {/* A start that can't fit the first whole hour before closing is disabled. */}
-              {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) + firstDur > closeMin}>{t}</MenuItem>)}
-            </TextField>
-            <TextField
-              select size="small" label="Fin" value={times.includes(s.end) ? s.end : ''}
-              onChange={(e) => updateSession(idx, { end: e.target.value })}
-              error={isInvalid(s)}
-              helperText={isInvalid(s) ? `min. ${Math.round(minMinutes / 60 * 10) / 10} h` : ''}
-              disabled={sessionsLocked} sx={{ width: 110 }}
-            >
-              {/* End options before « début + 1 h » are greyed out; the Select opens centred on the
-                  current value (MUI scrolls the selected item into view). */}
-              {times.map((t) => <MenuItem key={t} value={t} disabled={toMinutes(t) < toMinutes(s.start) + firstDur}>{t}</MenuItem>)}
-            </TextField>
-            <IconButton size="small" color="error" onClick={() => removeSession(idx)} disabled={sessionsLocked} aria-label="Retirer la séance">
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Stack>
-        ))}
-        <Button size="small" startIcon={<AddIcon />} onClick={addSession} disabled={sessionsLocked || days.length === 0} sx={{ alignSelf: 'flex-start' }}>
-          Ajouter une séance
-        </Button>
-      </Stack>
-    </Box>
-  );
-}
 
 /**
  * Options et ressources card: catalog options (incl. auto-timed), custom options, and resource pickers.
@@ -120,17 +25,22 @@ function ResourceSessions({ resource }) {
 export default function ExtrasSection() {
   const {
     formSectionCardSx, lockedSectionSx, formSectionContentSx,
-    form, propertyOptions, propertyOptionGroups, displayableResources, pricingQuote,
+    form, propertyOptions, propertyOptionGroups, displayableResources, pricingQuote, storedSummary,
     quantityPersons, quantityNights, toDisplayedQuantity, toBaseQuantity, getQuantityMultiplier,
-    setResourceEnabled, setResourceQuantity,
+    setResourceEnabled, setResourceQuantity, setResourceSessions,
     addCustomOption, updateCustomOption, removeCustomOption, isReservationLocked,
     // specs/mid-stay-extras-on-locked-fiche.md — the server-decided window and the floor of each line
     // sold at arrival; absent (older context) → the card behaves as before.
     extrasWindowOpen, arrivalLines: rawArrivalLines, frozenCustomOptionIds,
     setResourceInComplement,
     bedLinenForcedOptionIds, lockedIncludedOptionIds,
-    isDevisMode,
+    isDevisMode, isPlatformSale,
   } = useReservationForm();
+  // The server lists only what is offered; a resource the stay carries but the catalogue hides comes
+  // back from `frozenResources`, read-only (specs/plugins-phase-3c-hourly-resources.md rule 18).
+  const offerableResources = displayableResources;
+  // What plugins draw under a resource line (rule 21): the sessions of a resource sold by the hour.
+  const resourceLineSlots = useSlot('reservation.resourceLine');
   const arrivalLines = rawArrivalLines || NO_ARRIVAL_LINES;
   // Inside the window the card is live again (rule 15); outside it the whole card stays locked.
   const extrasLocked = Boolean(isReservationLocked) && !extrasWindowOpen;
@@ -141,7 +51,7 @@ export default function ExtrasSection() {
   // extra into Complément, but the per-line "Compl." toggle stays available so a line can be pulled
   // back out (rule 1bis). A muted caption explains the default. Only engine-derived auto-options keep
   // their toggle hidden — their routing is the algorithm's, not the operator's (rule 5).
-  const isPlatformReservation = Boolean(form?.platform) && String(form.platform).toLowerCase() !== 'direct';
+  const isPlatformReservation = Boolean(isPlatformSale);
   // A freshly-added line carries no explicit `inComplement` flag yet; on a platform reservation it
   // defaults INTO Complément, so the toggle must read ON until the operator flips it. A DEVIS is the
   // exception: a quote shows the guest one total, so every extra starts inside the acompte/solde
@@ -261,7 +171,7 @@ export default function ExtrasSection() {
                                 live recompute dropped the line entirely (bug 2026-07-20). */}
                             <ArithmeticTextField
                               size="small"
-                              label="Prix TTC"
+                              label={(pricingQuote?.vatRegime ?? storedSummary?.vatRegime)?.regime === 'not_subject' ? 'Prix' : 'Prix TTC'}
                               value={line.amount ?? 0}
                               onCommit={(v) => updateCustomOption(line.customKey, { amount: v === '' ? 0 : v })}
                               disabled={lineLocked}
@@ -300,19 +210,22 @@ export default function ExtrasSection() {
             </Box>
           </>
 
-          {displayableResources.length > 0 && (
+          {offerableResources.length > 0 && (
             <>
               {visiblePropertyOptions.length > 0 && <Divider />}
               <Box>
                 <Typography variant="sectionHeader" sx={{ fontSize: '0.95rem' }} gutterBottom>Ressources</Typography>
                 <Stack spacing={1.25}>
-                  {displayableResources.map(resource => {
+                  {offerableResources.map(resource => {
                     const selected = form.selectedResources.find(sr => sr.resourceId === resource.id);
                     const enabled = Boolean(selected && Number(selected.quantity) > 0);
-                    const isPerHour = Boolean(resource.isComplex) || resource.priceType === 'per_hour';
-                    const isHourlyScheduled = Boolean(resource.showsPlanningCard) && resource.priceType === 'per_hour';
+                    // specs/plugins-phase-3c-hourly-resources.md rule 4 — hours for `per_hour` only.
+                    const isPerHour = resource.priceType === 'per_hour';
+                    const isHourlyScheduled = Boolean(resource.showsPlanningCard) && isPerHour;
+                    const readOnly = Boolean(resource.readOnly);
                     const hasFreeFirstHour = isPerHour && Number(resource.freeMinutes || 0) >= 60;
-                    const unavailable = Number(resource.available || 0) <= 0;
+                    // A read-only line is already on the stay: it is never « Indispo ».
+                    const unavailable = !readOnly && Number(resource.available || 0) <= 0;
                     const requestedTooMuch = selected && Number(selected.quantity || 0) > Number(resource.available || 0);
                     const resourceConflict = Boolean(selected) && !isPerHour && (unavailable || requestedTooMuch);
                     const arrivalLine = arrivalLines[resourceLineKey(resource.id)];
@@ -361,7 +274,7 @@ export default function ExtrasSection() {
                             <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
                               <FormControlLabel
                                 sx={{ m: 0 }}
-                                control={<Switch checked={enabled} onChange={(e) => setResourceEnabled(resource.id, e.target.checked)} disabled={unavailable || Boolean(arrivalLine)} />}
+                                control={<Switch checked={enabled} onChange={(e) => setResourceEnabled(resource.id, e.target.checked)} disabled={unavailable || readOnly || Boolean(arrivalLine)} />}
                                 label={unavailable ? 'Indispo' : ''}
                               />
                             </Stack>
@@ -370,7 +283,13 @@ export default function ExtrasSection() {
                           {/* Same layout as the option card (uniform): the [Qté | spacer] + [Compl + Total]
                               row first, then — for an hourly resource — the session editor below (mirrors
                               the option's occurrence checklist placement). */}
-                          {enabled && (
+                          {readOnly && (
+                            <Box sx={{ mt: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>Prix figé : {formatCurrency(selected?.totalPrice || 0)}</Typography>
+                              <Typography variant="caption" color="text.secondary">{resource.readOnlyReason}</Typography>
+                            </Box>
+                          )}
+                          {enabled && !readOnly && (
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
                               {/* An hourly-scheduled resource keeps its « Heures » field: the hours are
                                   what is SOLD here, and they get placed on real slots with the guest
@@ -424,7 +343,17 @@ export default function ExtrasSection() {
                             </Stack>
                           )}
 
-                          {enabled && isHourlyScheduled && <ResourceSessions resource={resource} />}
+                          {enabled && !readOnly && resourceLineSlots.filter((c) => c.appliesTo(resource)).map(({ key, pluginId, Component }) => (
+                            <Contribution key={`${pluginId}:${key}`} pluginId={pluginId}>
+                              <Component
+                                resource={resource}
+                                sessions={selected?.sessions}
+                                stay={{ startDate: form.startDate, endDate: form.endDate, checkInTime: form.checkInTime, checkOutTime: form.checkOutTime }}
+                                onSessionsChange={(next) => setResourceSessions(resource.id, next)}
+                                disabled={extrasLocked}
+                              />
+                            </Contribution>
+                          ))}
                         </CardContent>
                       </Card>
                     );

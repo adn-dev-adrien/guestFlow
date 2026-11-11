@@ -1,11 +1,82 @@
 // Vite injects build-time env vars via `import.meta.env`. CRA's `process.env.REACT_APP_*`
 // equivalents become `VITE_*` (specs/cra-to-vite-migration.md §3.1 rule 6).
+import { DATA_CHANGED_EVENT } from './constants/appEvents';
+
 const API = import.meta.env.VITE_API_URL || '/api';
 
-async function request(path, options = {}) {
-  const res = await fetch(`${API}${path}`, {
+// Identical GETs in flight at the same moment (the shell and a page both reading /properties or
+// /system/version) are one request: the first caller gets the parsed body, each other its own copy.
+// Any write empties the table when it starts and again when it settles, so a read started after the
+// write never joins one started before it commits (specs/inte-performance.md rule 8). A POST that writes
+// nothing (`readOnly`) leaves it alone.
+const inFlight = new Map();
+
+function request(path, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET' || options.body) {
+    if (options.readOnly) return send(path, options);
+    inFlight.clear();
+    const written = send(path, options);
+    const settled = () => inFlight.clear();
+    written.then(settled, settled);
+    return written;
+  }
+  let shared = inFlight.get(path);
+  if (!shared) {
+    const promise = send(path, options);
+    shared = { promise, taken: false };
+    inFlight.set(path, shared);
+    const forget = () => { if (inFlight.get(path) === shared) inFlight.delete(path); };
+    promise.then(forget, forget);
+  }
+  const first = !shared.taken;
+  shared.taken = true;
+  // Both go through `then`, so every copy is made before any caller's continuation can touch the original.
+  return shared.promise.then((body) => (first || body == null ? body : structuredClone(body)));
+}
+
+// The stay a write touched and its version before / after (specs/reservation-fiche-concurrency.md rule 4),
+// so an open fiche can tell its own writes from a foreign one.
+function ficheVersionOf(path, res) {
+  const header = (name) => (res.headers && res.headers.get ? res.headers.get(name) : null);
+  const match = /^\/(?:reservations|devis)\/(\d+)(?:[/?]|$)/.exec(path);
+  const before = header('X-Fiche-Version-Before');
+  const after = header('X-Fiche-Version-After');
+  if (match && before !== null && after !== null) return { reservationId: Number(match[1]), before, after };
+  // A write from outside the stay (bank reconciliation, payment poll) lists the stays it moved
+  // (specs/reservation-fiche-concurrency.md rule 8).
+  const trail = header('X-Stay-Versions');
+  if (!trail) return null;
+  try {
+    const stays = JSON.parse(trail).map((s) => ({ reservationId: Number(s.id), before: s.before, after: s.after }));
+    return { stays };
+  } catch { return null; }
+}
+
+// What the operator reads when the server had no say (specs/ui-review-2026-10-19-operations.md rule 44).
+const NETWORK_MESSAGE = 'Connexion au serveur impossible.';
+const BAD_ANSWER_MESSAGE = 'Le serveur ne répond pas correctement.';
+const SESSION_MESSAGE = 'Session expirée.';
+// The loader's bare code for every route of a plugin switched off (rule 53).
+const PLUGIN_INACTIVE_MESSAGE = 'Module inactif.';
+
+function badAnswerError() {
+  return Object.assign(new Error(BAD_ANSWER_MESSAGE), { code: 'BAD_ANSWER' });
+}
+
+// `fetch` with the session cookie (same-origin in prod, credentialed CORS in dev); a server out of reach says so in French.
+async function reach(path, options = {}) {
+  try {
+    return await fetch(`${API}${path}`, { credentials: 'include', ...options });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    throw Object.assign(new Error(NETWORK_MESSAGE), { code: 'NETWORK' });
+  }
+}
+
+async function send(path, options = {}) {
+  const res = await reach(path, {
     headers: options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' },
-    credentials: 'include', // send the session cookie (same-origin in prod, credentialed CORS in dev)
     ...options,
     // A raw string body (the translation CSV) is sent as it is; everything else is JSON.
     body: options.body instanceof FormData || typeof options.body === 'string'
@@ -13,18 +84,40 @@ async function request(path, options = {}) {
       : (options.body ? JSON.stringify(options.body) : undefined),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    const message = err.error || res.statusText;
-    const apiError = new Error(message);
+    const parsed = await res.json().catch(() => null);
+    const err = parsed && typeof parsed === 'object' ? parsed : {};
+    // A code alone says nothing to an operator when it means the session is gone; `message`, when the
+    // server sends one, still wins through the assign below.
+    const sessionLost = res.status === 401 && !path.startsWith('/auth/');
+    const said = err.error === 'PLUGIN_INACTIVE' && !err.message ? PLUGIN_INACTIVE_MESSAGE : (err.error || err.message);
+    const apiError = sessionLost ? new Error(SESSION_MESSAGE) : (said ? new Error(said) : badAnswerError());
     Object.assign(apiError, err, { status: res.status });
-    // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth.
-    if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login') {
+    // A lost/absent session on any call (other than the auth probe itself) → tell the app to re-auth. A wrong current
+    // password on a password change is the form's refusal, the session stands (rule 44, R24-C1).
+    const wrongCurrentPassword = path === '/auth/change-password' && err.error === 'INVALID_CREDENTIALS';
+    if (res.status === 401 && !wrongCurrentPassword && path !== '/auth/me' && path !== '/auth/login' && !path.startsWith('/auth/2fa/') && path !== '/auth/reset') {
       window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
     }
+    // An unpaid instance refuses writes (specs/control-plane-plans-and-access.md rule 14): the app
+    // says so even on a page that does not show its own errors.
+    if (res.status === 402 && err.error === 'SUBSCRIPTION_READ_ONLY') {
+      window.dispatchEvent(new CustomEvent('guestflow:read-only', { detail: { message: err.message } }));
+    }
+    // specs/reservation-fiche-concurrency.md rule 12 — a refusal that still wrote a stay (409 LINK_ALREADY_PAID
+    // booked the payment) hands the open fiche the versions it moved.
+    const moved = ficheVersionOf(path, res);
+    if (moved) window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT, { detail: moved }));
     throw apiError;
   }
+  // Every write that succeeded tells the open pages their counts may have moved: the home re-reads
+  // its « À traiter » (specs/shell-and-home-day-first.md rule 11).
+  // A POST that writes nothing (`readOnly`, e.g. the SAS arrival preview) moves no count.
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD' && !options.readOnly) {
+    window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT, { detail: ficheVersionOf(path, res) }));
+  }
   if (res.status === 204) return null;
-  return res.json();
+  return res.json().catch(() => { throw badAnswerError(); });
 }
 
 // Query string of the Suivi financier: window, logement and detail options; empty values are left out.
@@ -38,6 +131,8 @@ const api = {
   // Système et mises à jour (specs/self-update-and-releases.md §4.3). Admin-only server-side; the
   // client gates on the role before calling so a non-admin never sees a 403 in the console.
   getSystemVersion: () => request('/system/version'),
+  // The running process's start time: the Plugins page waits for it to change after a restart.
+  getRuntimeVersion: () => request('/version'),
   checkSystemVersion: () => request('/system/version/check', { method: 'POST' }),
   getUpdateStatus: () => request('/system/update/status'),
   startUpdate: (targetVersion) => request('/system/update/start', { method: 'POST', body: { targetVersion } }),
@@ -54,7 +149,7 @@ const api = {
   // Downloaded through fetch rather than a bare link so the session cookie travels and a failure is
   // an error we can show, not a browser error page.
   downloadTranslations: async () => {
-    const res = await fetch(`${API}/translations/export`, { credentials: 'include' });
+    const res = await reach('/translations/export');
     if (!res.ok) throw new Error('Téléchargement impossible.');
     const blob = await res.blob();
     const disposition = res.headers.get('Content-Disposition') || '';
@@ -74,12 +169,53 @@ const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   getMe: () => request('/auth/me'),
-  // specs/plugin-engine-backport.md rule 5 — the plugins' activation and their own settings (a secret reads `<key>Set`).
+  // specs/hosting-h2-account-security.md — the forgotten password (rules 1-5), the second step of the
+  // login (rules 6-10) and the support access (rules 12-17).
+  getAuthOptions: () => request('/auth/options'),
+  forgotPassword: (email) => request('/auth/forgot', { method: 'POST', body: { email } }),
+  checkResetToken: (token) => request(`/auth/reset?token=${encodeURIComponent(token)}`),
+  resetPassword: (token, password) => request('/auth/reset', { method: 'POST', body: { token, password } }),
+  verifySecondFactor: (code, trustDevice) => request('/auth/2fa/verify', { method: 'POST', body: { code, trustDevice } }),
+  resendSecondFactor: () => request('/auth/2fa/resend', { method: 'POST' }),
+  getTwoFactorStatus: () => request('/auth/2fa/status'),
+  startTwoFactor: (method, password, code, enrolmentToken) => request('/auth/2fa/start', { method: 'POST', body: { method, password, code, enrolmentToken } }),
+  cancelTwoFactor: () => request('/auth/2fa/cancel', { method: 'POST' }),
+  sendTwoFactorActionCode: () => request('/auth/2fa/code', { method: 'POST' }),
+  confirmTwoFactor: (code, options = {}) => request('/auth/2fa/confirm', { method: 'POST', body: { code, ...options } }),
+  disableTwoFactor: (password, code) => request('/auth/2fa/disable', { method: 'POST', body: { password, code } }),
+  regenerateBackupCodes: (password, code) => request('/auth/2fa/backup-codes', { method: 'POST', body: { password, code } }),
+  snoozeTwoFactor: () => request('/auth/2fa/snooze', { method: 'POST' }),
+  disableUserTwoFactor: (id) => request(`/users/${id}/two-factor`, { method: 'DELETE' }),
+  getSupportBanner: () => request('/support-access/banner'),
+  getSupportAccesses: () => request('/support-access'),
+  getSupportAccessLog: (id) => request(`/support-access/${id}/log`),
+  decideSupportAccess: (id, decision, hours) => request(`/support-access/${id}/decide`, { method: 'POST', body: { decision, hours } }),
+  revokeSupportAccess: (id) => request(`/support-access/${id}/revoke`, { method: 'POST' }),
+  logSupportPage: (path) => request('/support-access/page', { method: 'POST', body: { path } }),
+
+  // Plugins (specs/plugins-phase-0-foundation.md §4.3) — admin only.
   getPlugins: () => request('/plugins'),
-  activatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
-  deactivatePlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST' }),
+  // specs/plugins-phase-p-productisation.md rule 40 — which plugin an address belongs to.
+  getPluginPage: (path) => request(`/plugins/page?path=${encodeURIComponent(path)}`),
+  // `withRequirements` / `withDependents` are the ids the operator confirmed; the server refuses when the
+  // closure has changed since (specs/plugin-dependencies.md rule 22).
+  installPlugin: (id, { withRequirements = [] } = {}) => request(`/plugins/${encodeURIComponent(id)}/install`, { method: 'POST', body: { withRequirements } }),
+  // specs/plugins-phase-4-registry.md rules 9, 13, 16, 20 — versions, updates, rollback.
+  getPluginsStatus: () => request('/plugins/status'),
+  refreshPlugins: () => request('/plugins/refresh', { method: 'POST' }),
+  updatePlugin: (id, { version } = {}) => request(`/plugins/${encodeURIComponent(id)}/update`, { method: 'POST', body: version ? { version } : {} }),
+  updateAllPlugins: () => request('/plugins/update-all', { method: 'POST' }),
+  rollbackPlugin: (id) => request(`/plugins/${encodeURIComponent(id)}/rollback`, { method: 'POST' }),
+  activatePlugin: (id, { withRequirements = [] } = {}) => request(`/plugins/${encodeURIComponent(id)}/activate`, { method: 'POST', body: { withRequirements } }),
+  deactivatePlugin: (id, { withDependents = [] } = {}) => request(`/plugins/${encodeURIComponent(id)}/deactivate`, { method: 'POST', body: { withDependents } }),
+  // `purge` also erases a plugin module's data (specs/plugins-phase-1-sdk.md rules 12, 21).
+  uninstallPlugin: (id, { purge = false } = {}) => request(`/plugins/${encodeURIComponent(id)}${purge ? '?purge=1' : ''}`, { method: 'DELETE' }),
+  // A plugin module's own settings (specs/plugins-phase-1-sdk.md rule 7): a secret reads `<key>Set`.
   getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
   savePluginSettings: (id, values) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: values }),
+  // A plugin's own routes under `/api` (its `ctx.mount`), through the same session, errors and data-changed event as
+  // every core call — so a plugin keeps its endpoints in its own folder instead of this file (SDK 2.26.0).
+  pluginRequest: (path, options) => request(path, options),
   // Saisie Gîtes de France plugin (specs/gites-de-france-mail-intake.md §4.4).
   getGdfIntakeForReservation: (reservationId) => request(`/gdf-intake/reservation/${reservationId}`),
   applyGdfIntake: (intakeId, body = {}) => request(`/gdf-intake/${intakeId}/apply`, { method: 'POST', body }),
@@ -88,6 +224,7 @@ const api = {
   getGdfIntakeMailbox: () => request('/gdf-intake/mailbox'),
   testGdfIntakeMailbox: () => request('/gdf-intake/test-mailbox', { method: 'POST' }),
   runGdfIntake: () => request('/gdf-intake/run', { method: 'POST' }),
+  // Saisie Booking plugin (specs/booking-extranet-intake.md §4.4).
   getBookingIntakeForReservation: (reservationId) => request(`/booking-intake/reservation/${reservationId}`),
   applyBookingIntake: (intakeId) => request(`/booking-intake/${intakeId}/apply`, { method: 'POST' }),
   ignoreBookingIntake: (intakeId) => request(`/booking-intake/${intakeId}/ignore`, { method: 'POST' }),
@@ -95,6 +232,7 @@ const api = {
   getBookingIntakePending: () => request('/booking-intake/pending'),
   dismissBookingIntakePending: (reservationId) => request(`/booking-intake/pending/${reservationId}/dismiss`, { method: 'POST' }),
   getBookingIntakeLog: (limit = 10) => request(`/booking-intake/intakes?limit=${limit}`),
+  createBookingIntakeSecret: () => request('/booking-intake/secret', { method: 'POST' }),
   regenerateBookingIntakeSecret: () => request('/booking-intake/secret/regenerate', { method: 'POST' }),
   // Saisie Airbnb plugin (specs/airbnb-mail-intake.md §4.4).
   getAirbnbIntakeForReservation: (reservationId) => request(`/airbnb-intake/reservation/${reservationId}`),
@@ -104,30 +242,42 @@ const api = {
   getAirbnbIntakeMailbox: () => request('/airbnb-intake/mailbox'),
   testAirbnbIntakeMailbox: () => request('/airbnb-intake/test-mailbox', { method: 'POST' }),
   runAirbnbIntake: () => request('/airbnb-intake/run', { method: 'POST' }),
+  // Google Vacation Rentals plugin (specs/google-vacation-rentals-feed.md §4.3).
+  getGoogleVrStatus: () => request('/google-vacation-rentals/status'),
+  pushGoogleVr: ({ propertyId, full } = {}) => request('/google-vacation-rentals/push', { method: 'POST', body: { propertyId, full: Boolean(full) } }),
+  checkGoogleVr: ({ propertyId, samples } = {}) => request('/google-vacation-rentals/check', { method: 'POST', body: { propertyId, samples }, readOnly: true }),
+  getGoogleVrLog: (limit = 20) => request(`/google-vacation-rentals/log?limit=${limit}`),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
-  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page read: `{ items, counts }` with the
-  // bucket (« à venir » / « passés »), the qualifying stay date and the server-side ordering.
-  getClientsDirectory: ({ q, bucket, sort, dir } = {}) => {
+  // specs/clients-upcoming-past-directory.md §4.3 — the Clients page read: the three views with their
+  // groups (stay, `whenLabel`, `stayCount` per row), counts, `elsewhere` and `orphanCount`.
+  getClientsDirectory: ({ q, view, sort, dir } = {}) => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
-    if (bucket) params.set('bucket', bucket);
+    if (view) params.set('view', view);
     if (sort) params.set('sort', sort);
     if (dir) params.set('dir', dir);
     const suffix = params.toString() ? `?${params.toString()}` : '';
     return request(`/clients/directory${suffix}`);
   },
   getClient: (id) => request(`/clients/${id}`),
+  // specs/clients.md rule 12 — the existing client a record being typed would duplicate ({ client: null } if none).
+  findDuplicateClient: ({ email = '', phone = '' } = {}) => {
+    const params = new URLSearchParams();
+    if (email) params.set('email', email);
+    if (phone) params.set('phone', phone);
+    return request(`/clients/duplicate?${params.toString()}`);
+  },
   getClientDeleteImpact: (id) => request(`/clients/${id}/delete-impact`),
   cleanupOrphanClients: () => request('/clients/cleanup-orphans', { method: 'POST' }),
   getOrphanClientsPreview: () => request('/clients/cleanup-orphans/preview'),
   cleanupOrphanClientsByIds: (ids) => request('/clients/cleanup-orphans/delete', { method: 'POST', body: { ids } }),
   // Server-side cleanup of a dropped/typed raw string → clean field values
   // (specs/client-contact-smart-input.md). Send any of { address, email, phone }.
-  parseClientContact: (payload) => request('/clients/parse-contact', { method: 'POST', body: payload }),
+  parseClientContact: (payload) => request('/clients/parse-contact', { method: 'POST', body: payload, readOnly: true }),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),
   deleteClient: (id, options = {}) => {
@@ -139,8 +289,10 @@ const api = {
 
   // Properties
   getProperties: () => request('/properties'),
-  getProperty: (id) => request(`/properties/${id}`),
+  getProperty: (id, view) => request(`/properties/${id}${view ? `?view=${view}` : ''}`),
   getPlatformColors: () => request('/properties/platform-colors'),
+  getPropertyLimits: () => request('/properties/limits'),
+  getArticleLabels: (name) => request(`/properties/article-labels?name=${encodeURIComponent(name || '')}`),
   createProperty: (formData) => request('/properties', { method: 'POST', body: formData }),
   updateProperty: (id, formData) => request(`/properties/${id}`, { method: 'PUT', body: formData }),
   deleteProperty: (id) => request(`/properties/${id}`, { method: 'DELETE' }),
@@ -148,13 +300,6 @@ const api = {
   // property's iCal-source config + global colour) and the global per-platform colour setter.
   getPropertyPlatforms: (propId) => request(`/properties/${propId}/platforms`),
   setPlatformColor: (platformKey, color) => request(`/platforms/${encodeURIComponent(platformKey)}/color`, { method: 'PUT', body: { color } }),
-  // Global per-platform tourist-tax mode ('platform' | 'platform_reversed' | 'owner') — applies to every property.
-  setPlatformTouristTax: (platformKey, touristTaxCollection) => request(`/platforms/${encodeURIComponent(platformKey)}/tourist-tax`, { method: 'PUT', body: { touristTaxCollection } }),
-  // specs/platform-deposit-toggle.md — global per-platform « acompte » flag (applies to every property).
-  setPlatformDepositMode: (platformKey, takesDeposit) => request(`/platforms/${encodeURIComponent(platformKey)}/deposit-mode`, { method: 'PUT', body: { takesDeposit } }),
-  // specs/platform-payout-due-date.md — days after departure before the platform's transfer is late.
-  setPlatformPayoutDueDays: (platformKey, days) => request(`/platforms/${encodeURIComponent(platformKey)}/payout-due-days`, { method: 'PUT', body: { days } }),
-  getPropertyIcalSources: (propId) => request(`/properties/${propId}/ical-sources`),
   createPropertyIcalSource: (propId, data) => request(`/properties/${propId}/ical-sources`, { method: 'POST', body: data }),
   updatePropertyIcalSource: (propId, sourceId, data) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'PUT', body: data }),
   deletePropertyIcalSource: (propId, sourceId) => request(`/properties/${propId}/ical-sources/${sourceId}`, { method: 'DELETE' }),
@@ -169,11 +314,9 @@ const api = {
   // specs/pricing-min-nights-per-range.md — calendar season painting: (re)assign a selected period to
   // a season (existing/new) with a minimum-nights; the server carves/splits the covering season(s).
   assignPricingDateRange: (propId, data) => request(`/properties/${propId}/pricing/assign-dates`, { method: 'POST', body: data }),
-  previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data }),
-  // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up)
-  // + the per-platform commission % editor (global per platform).
+  previewProgressivePricing: (propId, data) => request(`/properties/${propId}/pricing/progressive-preview`, { method: 'POST', body: data, readOnly: true }),
+  // specs/platform-price-from-commission.md — « prix plateformes » grid (seasons × platforms gross-up).
   getPlatformPrices: (propId) => request(`/properties/${propId}/platform-prices`),
-  setPlatformCommission: (platformId, commissionPercent) => request(`/platforms/${platformId}/commission`, { method: 'PUT', body: { commissionPercent } }),
   // Tariff recipes (specs/tariff-recipes/spec.md §3.5)
   getTariffRecipes: () => request('/tariff-recipes'),
   getTariffRecipe: (recipeId) => request(`/tariff-recipes/${recipeId}`),
@@ -182,6 +325,25 @@ const api = {
   detachTariffRecipe: (propId) => request(`/properties/${propId}/tariff-recipe/detach`, { method: 'POST' }),
   getTariffRecipeRuns: () => request('/tariff-recipes/runs'),
   dismissTariffRecipeRun: (runId) => request(`/tariff-recipes/runs/${runId}/dismiss`, { method: 'POST' }),
+  // Rapprochement bancaire Qonto (specs/qonto-bank-reconciliation.md §4.3) + the generic plugin settings
+  getReconciliation: (view, filter) => request(`/payments/reconciliation?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`),
+  readReconciliation: (view, filter) => request(`/payments/reconciliation/read?view=${encodeURIComponent(view || 'todo')}${filter ? `&filter=${encodeURIComponent(filter)}` : ''}`, { method: 'POST' }),
+  confirmReconciliation: (payload) => request('/payments/reconciliation/links', { method: 'POST', body: payload }),
+  undoReconciliation: (transactionId) => request(`/payments/reconciliation/links/${encodeURIComponent(transactionId)}`, { method: 'DELETE' }),
+  discardReconciliation: (payload) => request('/payments/reconciliation/discards', { method: 'POST', body: payload }),
+  setReconciliationOutside: (transactionId, outside) => request(`/payments/reconciliation/transactions/${encodeURIComponent(transactionId)}/outside`, { method: outside ? 'POST' : 'DELETE' }),
+  getReconciliationCandidates: ({ transactionId, q, offset } = {}) => request(`/payments/reconciliation/candidates?transactionId=${encodeURIComponent(transactionId || '')}&q=${encodeURIComponent(q || '')}&offset=${Number(offset) || 0}`),
+  getReconciliationFicheCredits: (reservationId, { q, offset } = {}) => request(`/payments/reconciliation/reservations/${encodeURIComponent(reservationId)}/credits?q=${encodeURIComponent(q || '')}&offset=${Number(offset) || 0}`),
+  previewReconciliationAllocation: (payload) => request('/payments/reconciliation/allocation-preview', { method: 'POST', body: payload }),
+  linkReconciliationBatch: (payload) => request('/payments/reconciliation/links/batch', { method: 'POST', body: payload }),
+  confirmAllReconciliation: (payload) => request('/payments/reconciliation/confirm-all', { method: 'POST', body: payload }),
+  listPlatformPenalties: (reservationId) => request(`/reservations/${reservationId}/platform-penalties`),
+  previewPlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties/preview`, { method: 'POST', body: payload }),
+  declarePlatformPenalty: (reservationId, payload) => request(`/reservations/${reservationId}/platform-penalties`, { method: 'POST', body: payload }),
+  removePlatformPenalty: (reservationId, penaltyId) => request(`/reservations/${reservationId}/platform-penalties/${penaltyId}`, { method: 'DELETE' }),
+  getReconciliationBankAccounts: () => request('/payments/reconciliation/bank-accounts'),
+  getPluginSettings: (id) => request(`/plugins/${encodeURIComponent(id)}/settings`),
+  savePluginSettings: (id, payload) => request(`/plugins/${encodeURIComponent(id)}/settings`, { method: 'PUT', body: payload }),
   // Journal des changements tarifaires (specs/tariff-change-journal.md §4.3)
   getTariffChangeJournal: (propId) => request(`/tariff-recipes/journal${propId ? `?propertyId=${propId}` : ''}`),
   addTariffChangeEvent: (payload) => request('/tariff-recipes/journal', { method: 'POST', body: payload }),
@@ -191,12 +353,8 @@ const api = {
   uploadDocument: (propId, formData) => request(`/properties/${propId}/documents`, { method: 'POST', body: formData }),
   deleteDocument: (propId, docId) => request(`/properties/${propId}/documents/${docId}`, { method: 'DELETE' }),
 
-  // Property options
-  updatePropertyOptions: (propId, optionIds) => request(`/properties/${propId}/options`, { method: 'PUT', body: { optionIds } }),
-
   // Per-property option DEFAULTS (specs/weekly-bed-linen-tracking.md §3.7,
-  // specs/reservation-option-immutability.md). Independent of updatePropertyOptions, which only
-  // manages the availability filter. `getPropertyOptionDefaults` feeds the reservation form
+  // specs/reservation-option-immutability.md). `getPropertyOptionDefaults` feeds the reservation form
   // (forced-option detection when CREATING a reservation) and the read-only mirror on the Options
   // page. The defaults are edited from the Options page (the per-property grid on an option); the
   // former PropertyDetail "Options incluses" card was removed, so no per-property write endpoint is
@@ -213,7 +371,12 @@ const api = {
   // Options
   getOptions: () => request('/options'),
   // The options catalogue page: without the early / late options edited on each property (rule 15).
-  getCatalogueOptions: () => request('/options?view=catalogue'),
+  // specs/options-resources-ux.md — the catalogue shaped by the server, one option for the editor, restore.
+  getOptionsCatalogueView: (propertyId) => request(`/options/catalogue-view${propertyId ? `?propertyId=${propertyId}` : ''}`),
+  getOption: (id) => request(`/options/${id}`),
+  restoreOption: (id) => request(`/options/${id}/restore`, { method: 'POST' }),
+  getResourcesCatalogueView: () => request('/resources/catalogue-view'),
+  getResource: (id) => request(`/resources/${id}`),
   createOption: (data) => request('/options', { method: 'POST', body: data }),
   updateOption: (id, data) => request(`/options/${id}`, { method: 'PUT', body: data }),
   deleteOption: (id) => request(`/options/${id}`, { method: 'DELETE' }),
@@ -250,15 +413,34 @@ const api = {
   },
   getResourceBookingPlanningEvents: (from, to) => request(`/resource-bookings/planning-events?from=${from}&to=${to}`),
   getOccupiedSlots: (resourceId, date) => request(`/resource-bookings/occupied-slots?resourceId=${resourceId}&date=${date}`),
+  // specs/resource-supplements-total-server-side.md rule 21 — the price of a booking draft, written nowhere.
+  previewResourceBooking: (draft, { signal } = {}) => request('/resource-bookings/preview', {
+    method: 'POST', body: draft, signal, readOnly: true,
+  }),
+  getResourceBooking: (id) => request(`/resource-bookings/${id}`),
   createResourceBooking: (data) => request('/resource-bookings', { method: 'POST', body: data }),
   updateResourceBooking: (id, data) => request(`/resource-bookings/${id}`, { method: 'PUT', body: data }),
   deleteResourceBooking: (id) => request(`/resource-bookings/${id}`, { method: 'DELETE' }),
+  // specs/resource-booking-pricing-and-invoicing.md §4.3 — payment, arrival and Qonto invoice of a booking.
+  recordResourceBookingPayment: (id, body) => request(`/resource-bookings/${id}/payment`, { method: 'POST', body }),
+  clearResourceBookingPayment: (id) => request(`/resource-bookings/${id}/payment`, { method: 'DELETE' }),
+  recordResourceBookingArrival: (id, body) => request(`/resource-bookings/${id}/arrival`, { method: 'POST', body }),
+  issueResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice`, { method: 'POST', body }),
+  attachResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice/attach`, { method: 'POST', body }),
 
   // Reservations
   getReservations: (params) => {
     const qs = new URLSearchParams(params).toString();
     return request(`/reservations${qs ? `?${qs}` : ''}`);
   },
+  // The one read both calendars share: stays + closures of a range, every bar shaped by the server
+  // (specs/calendar-property-parity.md rule 1). `propertyId` restricts it to one logement.
+  getCalendar: ({ from, to, propertyId, signal }) => {
+    const qs = new URLSearchParams({ from, to, ...(propertyId ? { propertyId } : {}) });
+    return request(`/calendar?${qs}`, { signal });
+  },
+  // « Rétablir » on a duplicate set aside (rule 22).
+  restoreSupersededReservation: (id) => request(`/reservations/${id}/restore`, { method: 'POST' }),
   // Canonical platform-name list for the dropdowns (built-ins ∪ DB platforms, incl. iCal-added).
   // specs/ical-platforms-in-dropdowns.md.
   getPlatforms: () => request('/platforms'),
@@ -266,9 +448,11 @@ const api = {
   getPlatformSettings: () => request('/platforms/settings'),
   savePlatformSettings: (platforms) => request('/platforms/settings', { method: 'PUT', body: { platforms } }),
   // J-7 hooks per property, edited from the J-7 template (rule 17c).
-  getPropertyEmailHooks: () => request('/properties/email-hooks'),
-  savePropertyEmailHooks: (hooks) => request('/properties/email-hooks', { method: 'PUT', body: { hooks } }),
   getReservation: (id) => request(`/reservations/${id}`),
+  // Every arrival from today on, grouped by day and detailed, in one call (specs/upcoming-reservations-cards.md rule 6).
+  getUpcomingReservations: (day) => request(day ? `/reservations/upcoming?day=${encodeURIComponent(day)}` : '/reservations/upcoming'),
+  // The server's calendar day (specs/upcoming-reservations-cards.md rule 7).
+  getToday: () => request('/today'),
   // Live "jump to a reservation" search by number / name (specs/reservation-number-and-search.md).
   searchReservations: (q) => request(`/reservations/search?q=${encodeURIComponent(q || '')}`),
   getReservationHistory: (id) => request(`/reservations/${id}/history`),
@@ -280,15 +464,25 @@ const api = {
   // Admin-only: guestFlow's address + both secrets, for the Sowel plugin's settings (§3.6 rule 29b).
   getGateConnectorSecrets: () => request('/settings/gate-connector/secrets'),
   getGateKeysAlerts: () => request('/dashboard/gate-keys'),
-  calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data }),
-  suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data }),
-  computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures }),
+  // Admin-only: the address and the key the WordPress plugin is given (specs/plugins-phase-2-hosts.md
+  // rules 30-31).
+  getWebsiteConnection: () => request('/settings/website-connection'),
+  regenerateWebsiteKey: () => request('/settings/website-connection/regenerate', { method: 'POST' }),
+  calculatePrice: (data) => request('/reservations/calculate-price', { method: 'POST', body: data, readOnly: true }),
+  suggestBeds: (data) => request('/reservations/suggest-beds', { method: 'POST', body: data, readOnly: true }),
+  // specs/mid-stay-notes.md rule 22 — the « Nouvelle note » items and total, derived by the server.
+  previewMidStayNote: (data) => request('/reservations/mid-stay-note/preview', { method: 'POST', body: data, readOnly: true }),
+  computePlatformCommission: (figures) => request('/reservations/platform-commission', { method: 'POST', body: figures, readOnly: true }),
   createReservation: (data) => request('/reservations', { method: 'POST', body: data }),
   updateReservation: (id, data) => request(`/reservations/${id}`, { method: 'PUT', body: data }),
   markPayment: (id, data) => request(`/reservations/${id}/payment`, { method: 'PATCH', body: data }),
   // specs/single-payment-from-the-fiche.md §4.3 — the stay and the complement collected as ONE
   // payment, at a date the operator chooses. `mode` is 'card' | 'cash' | 'undo'.
-  settleArrivalPayment: (id, mode, date) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode, date } }),
+  // specs/mixed-method-payments.md — `extra` carries `{ expectedAmountCents, tenders, shortfall }` with mode 'split'.
+  settleArrivalPayment: (id, mode, date, extra = {}) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode, date, ...extra } }),
+  // specs/mixed-method-payments.md §4.3 — collect the reste of a split payment, or correct one.
+  collectSettlementRemainder: (id, body) => request(`/reservations/${id}/settlements`, { method: 'POST', body }),
+  modifySettlement: (id, settlementId, body) => request(`/reservations/${id}/settlements/${settlementId}`, { method: 'PUT', body }),
   // specs/arrival-payment-detail-and-adjustment.md §3.2 — what the guest actually handed over. `total`
   // null restores the computed total; the réduction / pourboire is derived and clamped server-side.
   adjustArrivalPayment: (id, total) => request(`/reservations/${id}/arrival-payment`, { method: 'POST', body: { mode: 'adjust', total } }),
@@ -297,7 +491,6 @@ const api = {
 
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation
   // payload, so the fiche only calls these two on a mutation.
-  getReservationRefunds: (id) => request(`/reservations/${id}/refunds`),
   createReservationRefund: (id, data) => request(`/reservations/${id}/refunds`, { method: 'POST', body: data }),
   deleteReservationRefund: (id, refundId) => request(`/reservations/${id}/refunds/${refundId}`, { method: 'DELETE' }),
   getOccupiedDates: (propertyId, from, to, excludeReservationId) => {
@@ -314,13 +507,54 @@ const api = {
   // specs/finance-dashboard-redesign.md §4.3 — the Suivi financier and the table behind each tile.
   getFinanceDashboard: (params = {}) => request(`/finance/dashboard?${financeQuery(params)}`),
   getFinanceDashboardDetail: (tile, params = {}) => request(`/finance/dashboard/detail/${encodeURIComponent(tile)}?${financeQuery(params)}`),
+  // specs/stay-profile.md §4.3 — the « Profil des séjours »: same window and logement parameters as the dashboard.
+  getFinanceStayProfile: (params = {}) => request(`/finance/stay-profile?${financeQuery(params)}`),
+  // specs/finance-data-checks.md §4.3 — « À vérifier » of the exercise: `{ fiscalYear, propertyId }`.
+  getFinanceDataChecks: (params = {}) => request(`/finance/data-checks?${financeQuery(params)}`),
   // specs/booking-pace.md §4.3 — réservations à date vs last year, and one month's pickup curve.
   getFinancePace: (params = {}) => request(`/finance/pace?${financeQuery(params)}`),
   getFinancePaceMonth: (month, params = {}) => request(`/finance/pace/${encodeURIComponent(month)}?${financeQuery(params)}`),
   getFinanceGoalContext: () => request('/finance/goal-context'),
+  // specs/vat-optional-mode.md rules 35-44 — the franchise threshold card (`{ applies: false }` outside the franchise).
+  getVatFranchise: () => request('/finance/vat-franchise'),
+  // specs/vat-optional-mode.md §4.3 — the VAT regime, its switch and the undo of an unused one.
+  getVatRegime: () => request('/settings/vat-regime'),
+  previewVatSwitch: (input) => request('/settings/vat-regime/preview', { method: 'POST', body: input }),
+  switchVatRegime: (input) => request('/settings/vat-regime/switch', { method: 'POST', body: input }),
+  deleteVatPeriod: (id) => request(`/settings/vat-regime/periods/${id}`, { method: 'DELETE' }),
   getTouristTaxExtraction: (month) => request(`/finance/tourist-tax?month=${encodeURIComponent(month)}`),
   // specs/tourist-tax-declared-checkbox.md — tick / untick « Déclarée » for one reservation.
   setTouristTaxDeclared: (reservationId, declared, { addedGuests = false } = {}) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared, addedGuests } }),
+  // specs/tourist-tax-report-v2.md §4.3 — the report over a month, quarter, year or du / au, by logement and
+  // declaration status: `{ period, month | quarter | year | from + to, propertyId, declaration }`.
+  getTouristTaxReport: (params = {}) => request(`/finance/tourist-tax/report?${financeQuery(params)}`),
+  // The CSV of the same selection (`view`: 'list' | 'night'), saved under the server's file name. A refusal
+  // throws the server's French reason.
+  downloadTouristTaxReportCsv: async (params = {}, view = 'list') => {
+    const res = await reach(`/finance/tourist-tax/report.csv?${financeQuery({ ...params, view })}`);
+    if (!res.ok) {
+      // specs/tourist-tax-report-v2.md rule 36 (review R1-06) — the refusals read as everywhere else: a lost session
+      // says « Session expirée. » and sends the app back to the login; a code alone never reaches the operator.
+      const parsed = await res.json().catch(() => null);
+      if (res.status === 401) {
+        window.dispatchEvent(new CustomEvent('guestflow:unauthenticated'));
+        throw Object.assign(new Error(SESSION_MESSAGE), { status: 401 });
+      }
+      const said = parsed && (parsed.message || (/^[A-Z0-9_]+$/.test(String(parsed.error || '')) ? '' : parsed.error));
+      throw Object.assign(new Error(said || 'Téléchargement impossible.'), { status: res.status });
+    }
+    const blob = await res.blob();
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? match[1] : 'taxe-de-sejour.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return a.download;
+  },
 
   // School holidays — getSchoolHolidays now returns { periods, syncState }.
   getSchoolHolidays: () => request('/school-holidays'),
@@ -345,10 +579,11 @@ const api = {
 
   // iCal Export
   getIcalToken: (propertyId) => request(`/ical/token/${propertyId}`),
-  regenerateIcalToken: (propertyId) => request(`/ical/regenerate-token/${propertyId}`, { method: 'POST' }),
 
   // App settings
   getSettings: () => request('/settings'),
+  // specs/settings-rationalization.md rule 25 — one line of state per Paramètres page.
+  getSettingsSummary: () => request('/settings/summary'),
   updateSettings: (payload) => request('/settings', { method: 'PUT', body: payload }),
 
   // PWA Web Push (specs/pwa-push-notifications.md §4.3). Per-user (the session cookie identifies the user).
@@ -363,19 +598,27 @@ const api = {
   getQontoStatus: () => request('/payments/qonto/status'),
   // The Qonto application settings + the connection test (specs/qonto-settings-in-app.md §4.3).
   // Secrets travel one way only: written here, never read back.
-  getQontoCredentials: () => request('/payments/qonto/credentials'),
   updateQontoCredentials: (payload) => request('/payments/qonto/credentials', { method: 'PUT', body: payload }),
   testQontoConnection: () => request('/payments/qonto/test', { method: 'POST' }),
   getQontoBankAccounts: () => request('/payments/qonto/bank-accounts'),
   connectQontoProvider: (payload) => request('/payments/qonto/connect-provider', { method: 'POST', body: payload }),
   refreshQontoConnection: () => request('/payments/qonto/refresh-connection'),
   // Payment links on a reservation/devis + manual poll (specs/online-payments-qonto.md §3.4/§7).
-  createReservationPaymentLink: (id, type = 'deposit') => request(`/payments/reservations/${id}/payment-links`, { method: 'POST', body: { type } }),
-  getReservationPaymentLinks: (id) => request(`/payments/reservations/${id}/payment-links`),
   // specs/deposit-blocks-the-dates.md rule 10 — no type: the server asks for the acompte when there
   // is one, for the whole stay otherwise, and says which in its response.
   sendPaymentRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: {} }),
   sendBalanceRequestEmail: (id) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'balance' } }),
+  // specs/reservation-payment-ledger.md rule 28 — « Renvoyer la demande » of a ledger row.
+  sendPaymentRequestOfType: (id, type) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type } }),
+  // specs/payment-link-lifecycle.md rule 42 — « Retirer le lien »; answers `{ link }`, 409 LINK_ALREADY_PAID / STAY_READ_ONLY.
+  withdrawPaymentLink: (linkId) => request(`/payments/links/${linkId}/withdraw`, { method: 'POST', body: {} }),
+  // Rule 56 — a payment received after a withdrawal by hand: `outcome` 'stay' or 'refunded'; answers `{ link }`.
+  settlePaymentLink: (linkId, outcome) => request(`/payments/links/${linkId}/settle`, { method: 'POST', body: { outcome } }),
+  // Échéancier d'une réservation directe (specs/direct-installments.md §4.3). Each answers `{ installmentPlan }`.
+  putInstallments: (id, body) => request(`/reservations/${id}/installments`, { method: 'PUT', body }),
+  deleteInstallments: (id) => request(`/reservations/${id}/installments`, { method: 'DELETE' }),
+  markInstallmentPaid: (id, installmentId, body) => request(`/reservations/${id}/installments/${installmentId}/payment`, { method: 'POST', body }),
+  sendInstallmentRequest: (id, installmentId) => request(`/payments/reservations/${id}/payment-emails`, { method: 'POST', body: { type: 'installment', installmentId } }),
   pollPayments: () => request('/payments/poll', { method: 'POST' }),
   uploadCompanyLogo: (formData) => request('/settings/logo', { method: 'POST', body: formData }),
   deleteCompanyLogo: () => request('/settings/logo', { method: 'DELETE' }),
@@ -388,25 +631,36 @@ const api = {
   getDevisById: (id) => request(`/devis/${id}`),
   createDevis: (data) => request('/devis', { method: 'POST', body: data }),
   updateDevis: (id, data) => request(`/devis/${id}`, { method: 'PUT', body: data }),
-  updateDevisStatus: (id, status) => request(`/devis/${id}/status`, { method: 'PATCH', body: { status } }),
+  // specs/ui-review-2026-10-19-operations.md rule 20 — what « prolonger » would change, then do it.
+  getDevisExtension: (id) => request(`/devis/${id}/extension`),
+  extendDevis: (id) => request(`/devis/${id}/extend`, { method: 'POST' }),
   deleteDevis: (id) => request(`/devis/${id}`, { method: 'DELETE' }),
   convertDevisToReservation: (id) => request(`/devis/${id}/convert-to-reservation`, { method: 'POST' }),
   createDevisFromReservation: (reservationId) => request(`/devis/from-reservation/${reservationId}`, { method: 'POST' }),
-  getDevisPdfUrl: (id) => `${API}/devis/${id}/pdf`,
   // Fetch the devis PDF as a blob. Uses credentials so the session cookie is sent — required because
   // VITE_API_URL can be absolute (cross-origin in dev), where a default fetch would omit the cookie.
   getDevisPdfBlob: async (id) => {
-    const res = await fetch(`${API}/devis/${id}/pdf`, { credentials: 'include' });
+    const res = await reach(`/devis/${id}/pdf`);
     if (!res.ok) throw new Error('Impossible de générer le PDF.');
     return res.blob();
   },
-  getDevisHistory: (id) => request(`/devis/${id}/history`),
 
   // Accounting (read-only; admin + accountant)
   getAccountingSales: (month, year) => request(`/accounting/sales?month=${month}&year=${year}`),
   getAccountingPlatforms: (month, year) => request(`/accounting/platforms?month=${month}&year=${year}`),
+  // specs/accounting-synthesis.md §4.3 — `{ period: 'month'|'quarter'|'fy'|'custom', month, quarter, fiscalYear, from, to }`;
+  // only the keys given are sent, the server judges them (400 `{ error }` with the French refusal).
+  getAccountingSynthesis: (params = {}) => {
+    const query = new URLSearchParams();
+    ['period', 'month', 'quarter', 'fiscalYear', 'from', 'to'].forEach((key) => {
+      if (params[key] != null && params[key] !== '') query.set(key, String(params[key]));
+    });
+    const qs = query.toString();
+    return request(`/accounting/synthesis${qs ? `?${qs}` : ''}`);
+  },
   downloadAccountingSalesCsv: async (month, year) => {
-    const res = await fetch(`${API}/accounting/sales.csv?month=${month}&year=${year}`, { credentials: 'include' });
+    // specs/accounting-synthesis.md rule 48 — the app's own download: the server stamps « Dernier export CSV ».
+    const res = await reach(`/accounting/sales.csv?month=${month}&year=${year}`, { headers: { 'X-GuestFlow-Download': '1' } });
     if (!res.ok) throw new Error("Impossible de générer le CSV.");
     return res.blob();
   },
@@ -437,7 +691,6 @@ const api = {
   // User management (admin-only). resetUserPassword no longer takes a password — the server
   // generates the temp password and emails it (specs/admin-account-management.md M2).
   listUsers: () => request('/users'),
-  getCurrentUser: () => request('/users/me'),
   // Self-service profile update — every authenticated role can call this on their own row.
   // Email IS editable since 2026-06-02 (the bootstrap admin must be able to replace the
   // `admin@guestflow.local` seed). Roles stay locked server-side (privilege guard).
@@ -445,28 +698,37 @@ const api = {
   // Lightweight status feed for the email field's "you still use the default admin seed"
   // red warning. Returns `{ myEmail, defaultStillUsed }`.
   getMyEmailStatus: () => request('/users/me/email-status'),
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Returns the laundry-day
-  // summaries that fall in [from, to] inclusive — each with dropOff + pickUp bed counts.
-  // `to` is OPTIONAL: when omitted the server projects to the inventory horizon (= last
-  // reservation endDate). Use the explicit form when paginating an infinite-scroll viewport;
-  // omit it for "give me everything that matters" calls like a post-toggle refetch
-  // (specs/skip-laundry-trip.md §4.3 — hotfix 2026-06-05 follow-up #3).
+  // specs/control-plane-plans-and-access.md — the admin subscription banner.
+  getSubscription: () => request('/subscription'),
+  // The laundry cards of the Planning for [from, to] (specs/linen-laundry-days.md §4.3): `{ days: { date: card } }`
+  // holding only the dates to draw, each card ready to render — the weekly bed-linen summary, the
+  // « disponible après ce dépôt » projection, the skips, manual lines and extra trips in one answer.
+  // Both bounds are required; any window, past or future.
+  getLaundryPlanningDays: ({ from, to }) =>
+    request(`/planning/laundry/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // Kept for `linen` 1.1.x, still installable from the registry: its own server answers these two URLs
+  // (specs/linen-laundry-days.md §4.2). `linen` 1.2.0 does not call them; remove at the next major SDK.
   getLaundryPlanningSummary: ({ from, to } = {}) => {
     const params = [`from=${encodeURIComponent(from)}`];
     if (to) params.push(`to=${encodeURIComponent(to)}`);
     return request(`/planning/laundry?${params.join('&')}`);
   },
+  getLinenInventory: () => request('/planning/linen-inventory'),
   // Per-day breakfast list (specs/breakfast-option-and-planning-card.md §4.3). Returns the
   // dates in [from, to] where ≥1 reservation has the breakfast option AND the customer is
   // present in the morning (= `startDate < D AND endDate >= D`). Payload:
   // `{ breakfastByDate: { 'YYYY-MM-DD': { items: [{ clientName, propertyName, persons }], totalPersons } } }`.
   getBreakfastPlanningSummary: ({ from, to }) =>
     request(`/planning/breakfast?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  // Option-driven planning cards (specs/option-planning-card.md §3.3). Returns one card per stored
-  // occurrence of a « carte planning » option whose date ∈ [from, to]. Payload:
-  // `{ optionCardsByDate: { 'YYYY-MM-DD': { items: [{ reservationId, optionId, title, clientName, propertyName, date, time }] } } }`.
-  getPlanningOptionCards: ({ from, to }) =>
-    request(`/planning/option-cards?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  // The home's day lists in one call (specs/dashboard-planning-scroll.md rules 1-3): today's departures
+  // and arrivals, and the next arrival day when nobody arrives. Payload:
+  // `{ today, departures, arrivals, nextArrival: null | { date, label, relativeLabel, reservations } }`.
+  getPlanningToday: () => request('/planning/today'),
+  // Every day of a window of at most 31 days, cards and cleaning alerts included (rules 8-9). Payload:
+  // `{ from, to, today, days: [{ date, label, shortLabel, isToday, isPast, arrivals, departures, breakfast,
+  // optionCards }], alerts: { arrivals, departures } }`.
+  getPlanningDays: ({ from, to }) =>
+    request(`/planning/days?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   // Toggle the « préparé » flag of one option-card occurrence (specs/option-planning-card.md §3.5).
   setPlanningOptionCardDone: ({ reservationId, optionId, date, time, done }) =>
     request('/planning/option-cards/done', {
@@ -485,9 +747,6 @@ const api = {
       method: 'POST',
       body: { reservationId, resourceId, date, start, done, ...(kind ? { kind } : {}) },
     }),
-  // Linen inventory projection (specs/linen-inventory-shortage-tracking.md §4.3). Returns the
-  // post-day-end clean state per laundry day in the horizon, used by LaundryDayCard.
-  getLinenInventory: () => request('/planning/linen-inventory'),
   // Dashboard linen shortage alert. Returns the grouped-by-type list of projected shortages,
   // empty when nothing is in shortage.
   getLinenShortageAlert: () => request('/dashboard/linen-shortage'),
@@ -498,7 +757,15 @@ const api = {
   getReservationSas: (id, mode) => request(
     `/reservations/${encodeURIComponent(id)}/sas${mode ? `?mode=${encodeURIComponent(mode)}` : ''}`,
   ),
+  // specs/sas-arrival-total-server-side.md rule 3 — the recap of a draft (the commit body), priced by
+  // the server and written nowhere. `signal` lets a newer draft abort a stale request (rule 18).
+  previewArrivalSas: (id, body, { signal } = {}) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival/preview`, {
+    method: 'POST', body, signal, readOnly: true,
+  }),
   commitArrivalSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/arrival`, { method: 'POST', body }),
+  previewDepartureSas: (id, body, { signal } = {}) => request(`/reservations/${encodeURIComponent(id)}/sas/departure/preview`, {
+    method: 'POST', body, signal, readOnly: true,
+  }),
   commitDepartureSas: (id, body) => request(`/reservations/${encodeURIComponent(id)}/sas/departure`, { method: 'POST', body }),
   // Weather-alert page for the arrival SAS (specs/checkin-weather-alerts.md). Fired in the
   // background when the check-in opens; returns { configured, resolved, department, alerts:[] }.
@@ -508,6 +775,11 @@ const api = {
   updateLinenItems: (items) => request('/settings/linen-items', { method: 'PUT', body: items }),
   getRepairAmounts: () => request('/settings/repair-amounts'),
   updateRepairAmounts: (items) => request('/settings/repair-amounts', { method: 'PUT', body: items }),
+  // The laundry schedule (specs/linen-laundry-days.md §4.3): `{ current, pending, tomorrow }`; PUT writes
+  // the version effective tomorrow, the preview describes the cycle of a candidate without writing.
+  getLaundrySchedule: () => request('/laundry/schedule'),
+  saveLaundrySchedule: (schedule) => request('/laundry/schedule', { method: 'PUT', body: schedule }),
+  previewLaundrySchedule: (schedule) => request('/laundry/schedule/preview', { method: 'POST', body: schedule, readOnly: true }),
   // Laundry trip skips — admin-only toggle on `/api/laundry/skips`. Marking a date as
   // skipped tells the linen inventory engine to defer drop-off + pick-up to the next
   // non-skipped trip. Global per date (one human, one trip). Spec
@@ -548,16 +820,22 @@ const api = {
   // Stays numbered by the boot repair, listed until checked (specs/reservation-number-and-search.md rule 15).
   getRepairedReservationNumbers: () => request('/dashboard/repaired-reservation-numbers'),
   acknowledgeRepairedReservationNumber: (id) => request(`/dashboard/repaired-reservation-numbers/${id}/acknowledge`, { method: 'POST' }),
-  // Dashboard "pending site devis" — booking requests submitted from the public website that are
-  // still awaiting handling (specs/site-booking-notifications.md §3 rule 5).
-  getPendingPublicDevis: () => request('/dashboard/public-devis-pending'),
+  // Stays whose dates another stay took, told or not, until « Vu » (specs/payment-link-lifecycle.md rule 43).
+  getDatesTakenAlerts: () => request('/dashboard/dates-taken'),
+  getPaymentDeactivations: () => request('/dashboard/payment-deactivations'),
+  acknowledgeDatesTaken: (id) => request(`/dashboard/dates-taken/${id}/acknowledge`, { method: 'POST' }),
 
   // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4 / §3.5). Rows arrive
   // ready to render — the client decides nothing about states, amounts or available actions.
   getPaymentDeadlines: () => request('/dashboard/payment-deadlines'),
+  // The home's pinned subjects and « À traiter », counted and ordered by the server
+  // (specs/shell-and-home-day-first.md §3.B).
+  getAttention: () => request('/dashboard/attention'),
   snoozePaymentDeadline: (id, days) => request(`/dashboard/payment-deadlines/${id}/snooze`, { method: 'POST', body: { days } }),
   remindPaymentDeadline: (id, type) => request(`/dashboard/payment-deadlines/${id}/remind`, { method: 'POST', body: { type } }),
   cancelReservation: (id, payload) => request(`/reservations/${id}/cancel`, { method: 'POST', body: payload }),
+  // What the cancel would keep and write off, from its own figures (specs/payment-schedule-and-cancellation.md rule 60).
+  getCancellationPreview: (id) => request(`/reservations/${id}/cancel-preview`),
   createUser: (payload) => request('/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) => request(`/users/${id}`, { method: 'PUT', body: payload }),
   resetUserPassword: (id) => request(`/users/${id}/reset-password`, { method: 'POST' }),
@@ -566,6 +844,8 @@ const api = {
   // SMTP test (specs/admin-account-management.md M3) — sends "Email de test GuestFlow" to the
   // current admin so they can verify the SMTP block before inviting anyone.
   sendSmtpTest: () => request('/settings/smtp-test', { method: 'POST' }),
+  // specs/settings-rationalization.md rule 28 — the server found from the sending address.
+  detectSmtp: (address) => request('/settings/smtp-detect', { method: 'POST', body: { address }, readOnly: true }),
 
   // Google Calendar sync (specs/google-calendar-oauth-rework.md §4.3). The OAuth authorize
   // redirect is a full-page navigation (window.location), not an XHR — no helper for it.
@@ -579,10 +859,14 @@ const api = {
   // CGV — draft, preview, publication, versions, enforcement (specs/terms-acceptance-record.md §4.4).
   getTerms: () => request('/terms'),
   saveTermsDraft: (payload) => request('/terms/draft', { method: 'PUT', body: payload }),
-  previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload }),
+  // specs/plugins-phase-3a-online-payment.md rule 15.
+  saveTermsPublicSiteOrigin: (publicSiteOrigin) => request('/terms/public-site-origin', { method: 'PUT', body: { publicSiteOrigin } }),
+  previewTerms: (payload) => request('/terms/preview', { method: 'POST', body: payload, readOnly: true }),
   publishTerms: () => request('/terms/publish', { method: 'POST' }),
-  updateTermsEnforcement: (requireTermsAcceptance) => request('/terms/enforcement', { method: 'PUT', body: { requireTermsAcceptance } }),
   getTermsVersion: (version) => request(`/terms/versions/${version}`),
+  // The « Réservation en ligne » card of the website-booking plugin (specs/plugins-phase-2-hosts.md rule 25).
+  getOnlineBooking: () => request('/terms/online-booking'),
+  updateTermsEnforcement: (requireTermsAcceptance) => request('/terms/enforcement', { method: 'PUT', body: { requireTermsAcceptance } }),
 
   // Neat cancellation-insurance integration (specs/neat-cancellation-insurance-subscription.md §4.3).
   getNeatSettings: () => request('/neat/settings'),
@@ -602,12 +886,66 @@ const api = {
     const qs = new URLSearchParams(filtered).toString();
     return request(`/establishment-closures${qs ? `?${qs}` : ''}`);
   },
+  // specs/payment-link-lifecycle.md rules 41, 49 — what a closure would meet: `{ reservations, requests, devis }`.
+  getClosureConflicts: ({ propertyId = null, startDate, endDate }) => {
+    const qs = new URLSearchParams({ ...(propertyId != null ? { propertyId: String(propertyId) } : {}), startDate, endDate }).toString();
+    return request(`/establishment-closures/conflicts?${qs}`);
+  },
   createEstablishmentClosure: (data) => request('/establishment-closures', { method: 'POST', body: data }),
   updateEstablishmentClosure: (id, data) => request(`/establishment-closures/${id}`, { method: 'PUT', body: data }),
   deleteEstablishmentClosure: (id) => request(`/establishment-closures/${id}`, { method: 'DELETE' }),
 
   // Email automation (specs/email-automation.md)
-  getEmailTemplates:        () => request('/email-templates'),
+  getEmailTemplates:        (view) => request(`/email-templates${view ? `?view=${view}` : ''}`),
+  getEmailTemplatesTimeline: () => request('/email-templates?view=timeline'),
+  describeTemplateWhen:     (body) => request('/email-templates/when', { method: 'POST', body, readOnly: true }),
+  getEmailMentions: () => request('/email-mentions'),
+  createEmailMention: (body) => request('/email-mentions', { method: 'POST', body }),
+  updateEmailMention: (id, body) => request(`/email-mentions/${id}`, { method: 'PUT', body }),
+  deleteEmailMention: (id) => request(`/email-mentions/${id}`, { method: 'DELETE' }),
+  reorderEmailMentions: (ids) => request('/email-mentions/order', { method: 'PUT', body: { ids } }),
+  saveConfirmationOrder: (items) => request('/email-mentions/confirmation-order', { method: 'PUT', body: { items } }),
+  // specs/guest-email-texts-made-simple.md — « Textes des emails », one page, one file.
+  getEmailTexts: (propertyId) => request(`/email-texts${propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : ''}`),
+  saveEmailTexts: (changes) => request('/email-texts', { method: 'PUT', body: { changes } }),
+  confirmEmailText: (key) => request('/email-texts/confirm', { method: 'POST', body: { key } }),
+  translateEmailTexts: () => request('/email-texts/translate', { method: 'POST' }),
+  importEmailTexts: (csv, { confirm = false } = {}) => request(
+    `/email-texts/import${confirm ? '?confirm=true' : ''}`,
+    { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv },
+  ),
+  downloadEmailTexts: async () => {
+    const res = await reach('/email-texts/export');
+    if (!res.ok) throw new Error('Téléchargement impossible.');
+    const blob = await res.blob();
+    const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? match[1] : 'textes-emails.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return a.download;
+  },
+  getEmailReadiness: () => request('/email-readiness'),
+  previewEmailDraft: (body) => request('/emails/preview', { method: 'POST', body, readOnly: true }),
+  sendTestEmail: (body) => request('/emails/test', { method: 'POST', body }),
+  getEmailTemplateVariables: (id) => request(`/email-templates/${id || 'new'}/variables`),
+  getPropertyArrivalFacts: (id) => request(`/properties/${id}/arrival-facts`),
+  savePropertyArrivalFacts: (id, body) => request(`/properties/${id}/arrival-facts`, { method: 'PUT', body }),
+  // specs/plugins-phase-p-productisation.md §3.D — the start assistant.
+  saveOnboardingEmails: (body) => request('/onboarding/emails', { method: 'PUT', body }),
+  getOnboarding: () => request('/onboarding'),
+  saveOnboardingCompany: (body) => request('/onboarding/company', { method: 'PUT', body }),
+  saveOnboardingProperty: (body) => request('/onboarding/property', { method: 'PUT', body }),
+  // specs/plugins-phase-p-productisation.md rule 21 — the capacity the beds propose: { maxGuests }.
+  getOnboardingDefaultCapacity: (doubleBeds, singleBeds) =>
+    request(`/onboarding/default-capacity?${new URLSearchParams({ doubleBeds: String(doubleBeds ?? ''), singleBeds: String(singleBeds ?? '') })}`),
+  // specs/plugins-phase-p-productisation.md rule 43 — { options, website, payment } yes/no.
+  saveOnboardingPlugins: (answers) => request('/onboarding/plugins', { method: 'PUT', body: { answers } }),
+  completeOnboarding: () => request('/onboarding/done', { method: 'POST' }),
   getEmailTemplate:         (id) => request(`/email-templates/${id}`),
   createEmailTemplate:      (data) => request('/email-templates', { method: 'POST', body: data }),
   updateEmailTemplate:      (id, data) => request(`/email-templates/${id}`, { method: 'PUT', body: data }),
@@ -615,21 +953,22 @@ const api = {
 
   // `lang` overrides the language for THIS preview only (specs/site-english-version.md §6). Absent,
   // the server resolves it as a real send would: the client's language, then the reservation's.
-  previewEmail: ({ reservationId, templateId, lang }) =>
-    request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}`),
+  // `occurrenceKey` names which installment an installment request is for (specs/direct-installments.md rule 19).
+  previewEmail: ({ reservationId, templateId, lang, occurrenceKey }) =>
+    request(`/emails/preview?reservationId=${encodeURIComponent(reservationId)}&templateId=${encodeURIComponent(templateId)}${lang ? `&lang=${encodeURIComponent(lang)}` : ''}${occurrenceKey ? `&occurrenceKey=${encodeURIComponent(occurrenceKey)}` : ''}`),
   // `confirmResend` — explicit resend of a guest-sequence email already sent (specs/guest-email-sequence.md
   // rule 13bis); without it the server answers 409 ALREADY_SENT.
-  sendEmail:    ({ reservationId, templateId, overrides, confirmResend, lang }) =>
-    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides, confirmResend: Boolean(confirmResend), ...(lang ? { lang } : {}) } }),
+  sendEmail:    ({ reservationId, templateId, overrides, confirmResend, lang, occurrenceKey }) =>
+    request('/emails/send', { method: 'POST', body: { reservationId, templateId, overrides, confirmResend: Boolean(confirmResend), ...(lang ? { lang } : {}), ...(occurrenceKey ? { occurrenceKey } : {}) } }),
   // Guest email sequence simulation (specs/guest-email-sequence.md §4.3) — nothing sent, nothing written.
   getEmailSequenceSimulation: ({ from, to }) =>
     request(`/email-sequence/simulation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   getPendingEmails:          () => request('/emails/pending'),
-  acknowledgePendingEmail:   ({ templateId, reservationId }) =>
-    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge`, { method: 'POST' }),
+  acknowledgePendingEmail:   ({ templateId, reservationId, occurrenceKey }) =>
+    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/acknowledge${occurrenceKey ? `?occurrenceKey=${encodeURIComponent(occurrenceKey)}` : ''}`, { method: 'POST' }),
   // Mark a pending email as sent outside GuestFlow (specs/mark-email-sent-manually.md).
-  markEmailSent:             ({ templateId, reservationId }) =>
-    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/mark-sent`, { method: 'POST' }),
+  markEmailSent:             ({ templateId, reservationId, occurrenceKey }) =>
+    request(`/emails/pending/${encodeURIComponent(templateId)}/${encodeURIComponent(reservationId)}/mark-sent${occurrenceKey ? `?occurrenceKey=${encodeURIComponent(occurrenceKey)}` : ''}`, { method: 'POST' }),
   // Manual email compose (specs/manual-email-from-template.md)
   getEmailEligibleReservations: (q) =>
     request(`/emails/eligible-reservations${q ? `?q=${encodeURIComponent(q)}` : ''}`),

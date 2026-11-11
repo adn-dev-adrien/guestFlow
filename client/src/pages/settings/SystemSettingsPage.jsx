@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router';
-import { Card, CardContent, Stack, Typography, TextField } from '@mui/material';
+import { Box, Button, Card, CardContent, Stack, Typography, TextField } from '@mui/material';
 import useSettingsForm from '../../hooks/useSettingsForm';
 import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsSystemUpdateSection from '../../components/SettingsSystemUpdateSection';
@@ -18,6 +18,7 @@ export default function SystemSettingsPage() {
   const navigate = useNavigate();
   const form = useSettingsForm({ groups: ['smtp'], navigate });
   const smtp = form.draft.smtp || {};
+  const derivedUrl = (smtp.derived && smtp.derived.publicUrl) || '';
 
   return (
     <SettingsFormPage title="Système" form={form}>
@@ -30,15 +31,31 @@ export default function SystemSettingsPage() {
             <TextField
               label="URL publique"
               value={smtp.publicUrl || ''}
+              placeholder={derivedUrl || undefined}
+              slotProps={derivedUrl ? { inputLabel: { shrink: true } } : undefined}
               onChange={(e) => form.setField('smtp', 'publicUrl', e.target.value)}
               disabled={form.loading || form.saving}
               error={Boolean(form.errors.publicUrl)}
               helperText={form.errors.publicUrl
-                || 'Utilisée dans les emails, le retour Google et les notifications Qonto (ex. https://guestflow.adn-dev.fr).'}
+                || (derivedUrl
+                  ? `Par défaut : ${derivedUrl}.`
+                  : 'Adresse de cet espace, utilisée dans les liens des emails (ex. https://guestflow.example.com).')}
               fullWidth
               size="small"
             />
           </Stack>
+        </CardContent>
+      </Card>
+      {/* specs/plugins-phase-p-productisation.md rule 22 — the start assistant, reopened at will. */}
+      <Card variant="outlined" sx={{ bgcolor: 'background.paper', mb: 3 }}>
+        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+          <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <Box>
+              <Typography variant="sectionHeader">Assistant de démarrage</Typography>
+              <Typography variant="body2" color="text.secondary">Entreprise, premier logement et plugins, pas à pas.</Typography>
+            </Box>
+            <Button variant="outlined" onClick={() => navigate('/demarrage', { state: { reopen: true } })}>Ouvrir l'assistant</Button>
+          </Box>
         </CardContent>
       </Card>
     </SettingsFormPage>

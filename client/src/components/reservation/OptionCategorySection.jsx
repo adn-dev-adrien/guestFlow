@@ -30,11 +30,11 @@ export default function OptionCategorySection({ category, pinned = [], foldable 
 
   // Nothing left to reveal (every option is already pinned) → no affordance at all, rather than a
   // button that expands into an empty box.
-  const toggleLabel = foldable.length === 0
-    ? null
-    : (pinned.length > 0
-      ? `Voir les ${foldable.length} autre${foldable.length > 1 ? 's' : ''}`
-      : `Voir les ${foldable.length} option${foldable.length > 1 ? 's' : ''}`);
+  // One hidden line reads in the singular (« Voir l’option », not « Voir les 1 option » — fixed at the
+  // 2026-10-27 spec review, specs/option-categories.md rule 10).
+  let toggleLabel = null;
+  if (foldable.length === 1) toggleLabel = pinned.length > 0 ? 'Voir l’autre' : 'Voir l’option';
+  else if (foldable.length > 1) toggleLabel = `Voir les ${foldable.length} ${pinned.length > 0 ? 'autres' : 'options'}`;
 
   return (
     <CollapsibleSection

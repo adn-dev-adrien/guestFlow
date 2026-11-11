@@ -11,13 +11,21 @@
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext } = require('./emailContextBuilder');
 const { loadTermsVersion } = require('./reservationEmailGraph');
-const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING } = require('./emailTemplateLanguage');
 const { stableKeyAutoSends } = require('./autoSendPolicy');
 const { MAIL, planStayMails } = require('./guestEmailSequence');
 const { sendSequenceMail } = require('./guestEmailSequenceRunner');
-const { usableInvitation } = require('./gateInvitationView');
+const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
+const { guestEmailMessage } = require('./guestEmailHtml');
+const { emailAmount } = require('./emailMoney');
+const { formatMomentLong } = require('./dateFr');
 
-async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext }) {
+// `installment` (the plan context of utils/installmentPlan.requestContext) and `occurrenceKey` make this the
+// request of ONE installment (specs/direct-installments.md rules 19-21). `onAccepted(logRow)` runs in the transaction
+// that writes the `sent` history row, once SMTP accepted the message (specs/payment-link-lifecycle.md rule 64); a
+// failure after that acceptance answers `accepted: true` (the guest may have it) and writes no `failed` row; without
+// `onAccepted`, such a failure is logged `failed` as any other.
+async function sendReservationTemplateEmail({ database, templatesModel, logModel, settingsModel, emailServiceFactory, reservationId, stableKey, extraContext, installment = null, occurrenceKey = '', onAccepted = null }) {
   const template = templatesModel.findByStableKey(stableKey);
   if (!template || !template.enabled) return { sent: false, reason: 'no-template' };
 
@@ -36,6 +44,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   `).all(reservation.id);
   // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
   require('./translationResolver').attachEnglishNames(database, { options, resources });
+  require('../models/stayFactsModel').attachResourceSentences(database, resources);
   const customOptions = database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ?').all(reservation.id);
   const bedLinenProvidedByDefault = reservation.propertyId
     ? Boolean(database.prepare(`
@@ -52,33 +61,60 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   const termsVersion = loadTermsVersion(database, reservation.id);
   const context = buildContext({
     reservation, client, property, options, resources, customOptions,
-    bedLinenProvidedByDefault, settings, lang, termsVersion,
+    bedLinenProvidedByDefault, settings, lang, termsVersion, installment,
+    // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
+    cancellationKept: require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation),
     // The local copy of the gate-access result — nothing to reach, nothing to wait for.
-    gateInvitation: usableInvitation(database, reservation.id),
+    pluginContext: pluginEmailContext(reservation.id),
   });
   // Per-send overrides (e.g. the payment link, which isn't a reservation column) are merged over the
   // built context's vars/flags so callers can inject values without touching emailContextBuilder.
+  // `amounts` carries euros, written here like every other amount of the mail, in the guest's language
+  // (specs/email-language-fr-en.md rule 10): a caller never pre-formats money.
+  // `dates` carries instants (ISO), written the same way: « lundi 2 novembre à 18 h 00 » / « Monday 2 November
+  // at 6:00 pm », Paris time (specs/payment-link-lifecycle.md rule 36).
   const extra = extraContext || {};
+  const amounts = Object.fromEntries(Object.entries(extra.amounts || {}).map(([k, v]) => [k, emailAmount(Number(v || 0), lang)]));
+  const dates = Object.fromEntries(Object.entries(extra.dates || {}).map(([k, v]) => [k, formatMomentLong(v, lang)]));
   const merged = {
-    vars:  { ...context.vars,  ...(extra.vars || {}) },
+    vars:  { ...context.vars,  ...(extra.vars || {}), ...amounts, ...dates },
     flags: { ...context.flags, ...(extra.flags || {}) },
   };
   const side = pickTemplateSide(template, lang);
   const { subject, body } = renderTemplate({ subject: side.subject, body: side.body }, merged);
 
+  // specs/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking guest.
+  if (englishMissing(template, lang)) {
+    logModel.insert({
+      templateId: template.id, reservationId: reservation.id, status: 'failed',
+      errorMessage: ENGLISH_VERSION_MISSING, renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
+    });
+    return { sent: false, reason: ENGLISH_VERSION_MISSING };
+  }
+
+  let accepted = false;
   try {
     const svc = emailServiceFactory(settingsModel.decryptedSmtpSettings());
-    await svc.send({ to, subject, text: body });
-    const row = logModel.insert({
-      templateId: template.id, reservationId: reservation.id, status: 'sent', channel: 'smtp',
-      errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to,
-    });
+    await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
+    accepted = true;
+    const record = () => {
+      const logged = logModel.insert({
+        templateId: template.id, reservationId: reservation.id, status: 'sent', channel: 'smtp',
+        errorMessage: '', renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
+      });
+      if (onAccepted) onAccepted(logged);
+      return logged;
+    };
+    const row = onAccepted ? database.transaction(record)() : record();
     return { sent: true, emailLogId: row && row.id, recipientEmail: to };
   } catch (err) {
     const errMsg = err && err.code === 'EMAIL_NOT_CONFIGURED' ? 'EMAIL_NOT_CONFIGURED' : String((err && err.message) || 'unknown');
+    // Re-review of #912 (n4) — only the caller that watches the acceptance (the dates-taken notice) gets it; every
+    // other send keeps its `failed` trace, as before.
+    if (accepted && onAccepted) return { sent: false, accepted: true, reason: errMsg };
     logModel.insert({
       templateId: template.id, reservationId: reservation.id, status: 'failed',
-      errorMessage: errMsg, renderedSubject: subject, renderedBody: body, recipientEmail: to,
+      errorMessage: errMsg, renderedSubject: subject, renderedBody: body, recipientEmail: to, occurrenceKey,
     });
     return { sent: false, reason: errMsg };
   }

@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accueil et planning sans date</title>
+<style>
+:root{--fir:#2F5D46;--fir-s:rgba(47,93,70,.1);--paper:#F8F5EF;--card:#fff;--ink:#27251F;--muted:#6E6A5E;--line:rgba(60,54,36,.12);
+--err:#A8433A;--err-s:#F7E8E5;--warn:#8F6A1D;--warn-s:#F6EDD7;--warn-t:#6F5112;--ok:#3E7D54;--ok-s:#E6EFE7;--ok-t:#2F6A43;--info:#31556E;--info-s:#E4EDF3;--grey:#ECE8E0;
+--serif:'Iowan Old Style',Charter,Georgia,serif;--sans:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
+.page{max-width:1100px;margin:0 auto;padding:24px 16px 80px}
+h1{font:600 1.7rem/1.2 var(--serif);letter-spacing:-.01em;margin:0 0 6px}
+h2{font:600 1.2rem/1.3 var(--serif);margin:36px 0 8px}
+h3{font:600 1rem/1.3 var(--sans);margin:18px 0 6px}
+p{margin:0 0 10px;max-width:72ch}.muted{color:var(--muted)}
+code{font-size:.85em;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:6px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+ul{margin:6px 0 10px;padding-left:20px}li{margin:3px 0;max-width:72ch}
+.toc{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}
+.toc a{color:var(--fir);text-decoration:none;font-weight:600;font-size:.9rem;padding:6px 12px;border-radius:999px;background:var(--fir-s)}
+/* controls */
+.ctl{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:12px 0}
+.ctl label{max-width:100%;display:flex;flex-direction:column;font-size:.82rem;color:var(--muted);gap:4px}
+.ctl select,.ctl input{max-width:100%;font:16px var(--sans);padding:8px 10px;border:1px solid #cfc8b8;border-radius:12px;background:#fff;min-height:44px;color:var(--ink)}
+.ctl input[aria-invalid=true]{border-color:var(--err);background:var(--err-s)}
+.seg{display:inline-flex;border:1px solid #cfc8b8;border-radius:12px;overflow:hidden;background:#fff}
+.seg button{font:500 .9rem var(--sans);min-height:42px;padding:0 12px;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--fir);color:#fff}
+.btn{font:500 .9rem var(--sans);min-height:44px;padding:0 14px;border-radius:12px;border:1px solid #cfc8b8;background:#fff;color:var(--ink);cursor:pointer}
+.btn:focus-visible,.seg button:focus-visible,.ib:focus-visible,.nrow:focus-visible{outline:2px solid var(--fir);outline-offset:2px}
+.chk{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--ink);min-height:44px;cursor:pointer}
+.chk input{width:20px;height:20px;accent-color:var(--fir)}
+.log{font-size:.85rem;color:var(--muted);min-height:1.5em;margin-top:6px}
+/* device */
+.stage{display:flex;justify-content:center;margin-top:10px}
+.dev{background:var(--paper);border:1px solid #d8d1c2;border-radius:18px;overflow:hidden;box-shadow:0 10px 40px rgba(60,54,36,.12);width:100%;max-width:1040px;transition:max-width .25s ease}
+.dev.phone{max-width:390px}
+@media (prefers-reduced-motion:reduce){.dev{transition:none}}
+.scr{height:660px;overflow:auto;position:relative;overscroll-behavior:contain}
+.chrome{position:sticky;top:0;z-index:5;background:var(--paper)}
+.top{display:flex;align-items:center;gap:6px;height:56px;padding:0 10px;background:#fff;border-bottom:1px solid var(--line)}
+.word{font:700 1.15rem var(--serif);color:var(--fir)}
+.ptitle{font:600 1.1rem var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.ib{width:44px;height:44px;border:1px solid transparent;background:transparent;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;flex:none}
+.ib.bord{border-color:var(--fir);color:var(--fir);background:#fff}
+.ib.plug{border-color:var(--line);background:#fff}
+.ib[disabled]{opacity:.38;cursor:default}
+.search{flex:1;max-width:340px;margin-left:16px;height:38px;border:1px solid var(--line);border-radius:12px;display:flex;align-items:center;padding:0 10px;color:var(--muted);font-size:.9rem}
+.wrap{padding:12px}
+.phone .wrap{padding:8px}
+.bar{background:#fff;border:1px solid var(--line);border-radius:14px;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 14px;min-height:58px}
+.bar .t{font:600 1.25rem var(--serif);flex:1}
+.phone .bar .t{display:none}
+.phone .bar{justify-content:flex-end}
+.bar-gap{height:12px;background:var(--paper)}
+/* home */
+.sec{margin:16px 0 0}
+.sech{font:600 1.05rem var(--serif);margin:0 0 6px}
+.fold{display:flex;align-items:center;gap:2px 10px;min-height:48px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:14px;flex-wrap:wrap}
+.fold b{font:600 1rem var(--serif)}
+.fold span{color:var(--muted);font-size:.92rem}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:.9rem}
+th{font-weight:600;text-align:left;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.rdy td{background:rgba(62,125,84,.1)}
+tr.dn td{background:rgba(110,106,94,.14)}
+tbody tr{cursor:pointer}
+.cards{display:flex;flex-direction:column;gap:8px}
+.ccard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;font-size:.9rem}
+.ccard.rdy{background:#EEF4EF}.ccard.dn{background:#EEECE7}
+.ccard .l1{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.next{margin-top:8px;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.nhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:14px 14px 10px}
+.nhead .k{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;flex-basis:100%}
+.nhead .d{font:700 1.3rem/1.2 var(--sans);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:999px;background:var(--fir-s);color:var(--fir);font:600 .85rem var(--sans);white-space:nowrap}
+.nrow{display:grid;grid-template-columns:64px minmax(0,1.2fr) minmax(0,1.4fr) auto;gap:10px;align-items:start;width:100%;text-align:left;font:inherit;color:inherit;border:0;border-top:1px solid var(--line);background:transparent;padding:12px 14px;cursor:pointer;min-height:48px}
+.nrow[data-inert]{cursor:default}
+.nrow:hover:not([data-inert]){background:rgba(47,93,70,.04)}
+.nrow .h{font-weight:700;font-variant-numeric:tabular-nums}
+.nrow .lg,.nrow .cl{overflow-wrap:anywhere;min-width:0}
+.nrow .bd{color:var(--muted);font-size:.85rem;white-space:nowrap}
+.phone .nrow{grid-template-columns:52px minmax(0,1fr)}
+.phone .nrow .cl,.phone .nrow .bd{grid-column:2}
+.ghost{height:96px;border:1px dashed #d8d1c2;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);margin-top:16px;font-size:.9rem}
+/* old */
+.old{display:flex;align-items:center;gap:6px;justify-content:center;flex:2}
+.old span{padding:6px 10px;border:1px solid #cfc8b8;border-radius:12px;font-variant-numeric:tabular-nums;font-size:.9rem;background:#fff}
+.empty{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;color:var(--muted);text-align:center;font-size:.9rem}
+/* planning */
+.dayh{position:sticky;top:var(--bar-bottom,126px);z-index:3;display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:12px;background:var(--grey);margin:14px 0 8px;font:600 1rem var(--serif);text-transform:none}
+.dayh.today{background:var(--fir);color:#fff}
+.dayh.done{background:var(--ok);color:#fff}
+.dayh.past{background:#F0EDE6;color:var(--muted)}
+.dayh .tc{margin-left:auto;font:700 .8rem var(--sans);font-variant-numeric:tabular-nums;padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.35)}
+.dayh.past .tc,.dayh:not(.today):not(.done) .tc{background:rgba(60,54,36,.08)}
+.pc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;display:flex;gap:10px;align-items:flex-start;font-size:.9rem}
+.pc.arr{background:var(--warn-s);border-color:rgba(143,106,29,.25)}
+.pc.arr.rdy{background:var(--ok-s);border-color:rgba(62,125,84,.3)}
+.pc.dep{background:#F3F1EC}
+.pc.dep.dn{background:var(--ok-s)}
+.pc.bf{background:var(--info-s);border-color:rgba(49,85,110,.2)}
+.pc.lin{background:#fff;border-style:dashed;border-color:#b8ae98}
+.pc .tm{font-weight:700;font-variant-numeric:tabular-nums;min-width:44px}
+.pc .bd2{flex:1;min-width:0;overflow-wrap:anywhere}
+.pc .bd2 small{display:block;color:var(--muted)}
+.pc label{display:flex;align-items:center;gap:6px;font-size:.82rem;white-space:nowrap;min-height:32px;cursor:pointer}
+.pc input{width:18px;height:18px;accent-color:var(--ok)}
+.run{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.88rem;padding:10px 14px;margin:10px 0;border-top:1px dashed #d8d1c2;border-bottom:1px dashed #d8d1c2}
+.run.todayrun{border:0;padding:4px 14px 10px}
+.skel{height:54px;border-radius:12px;margin:12px 0;background:linear-gradient(90deg,#EFEBE3 0%,#F7F4EE 50%,#EFEBE3 100%);background-size:200% 100%;animation:sh 1.2s linear infinite}
+@keyframes sh{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}}
+.edgeerr{display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between;background:var(--err-s);color:#7d2f28;border-radius:12px;padding:10px 12px;margin:12px 0;font-size:.9rem}
+.edgeerr button{min-height:40px;border:0;border-radius:10px;background:#fff;color:var(--err);font:600 .88rem var(--sans);padding:0 12px;cursor:pointer}
+.meter{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.meter span{font:500 .82rem var(--sans);padding:4px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.meter span b{font-weight:700}
+/* api probe */
+.resp{font:13px/1.45 ui-monospace,Menlo,monospace;background:#27251F;color:#F3EFE6;border-radius:12px;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px}
+.resp.bad{background:#4a1f1b}
+.refuse{color:var(--err);font-size:.88rem;min-height:1.4em;flex-basis:100%}
+/* arbitrages */
+.arb{border-left:3px solid var(--warn);padding:12px 14px;background:#fff;border-radius:0 12px 12px 0;margin:10px 0}
+.arb h3{margin-top:0}
+.arb ol{margin:4px 0 0;padding-left:20px}
+.rec{color:var(--ok-t);font-weight:600}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:760px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Accueil et planning sans date dans le bandeau</h1>
+<p class="muted">Résumé de <code>specs/dashboard-planning-scroll.md</code> (brouillon du 28/10/2026). Les deux maquettes plus bas se manipulent : changer de scénario, cocher, faire défiler, provoquer une panne. Noms de clients inventés.</p>
+<nav class="toc"><a href="#constat">Le constat</a><a href="#propose">Ce qu'on propose</a><a href="#accueil">Maquette accueil</a><a href="#planning">Maquette planning</a><a href="#pas">Ce qu'on ne fait pas</a><a href="#risque">Le risque</a><a href="#arb">Les arbitrages</a></nav>
+
+<h2 id="constat">Le constat</h2>
+<div class="cols">
+<div class="box">
+<h3>Accueil</h3>
+<ul>
+<li>Sur la copie du shadow, le 28/10 : deux tableaux vides « Aucun départ ce jour » / « Aucune arrivée ce jour ». La prochaine arrivée (6 novembre) n'apparaît nulle part ; il faut cliquer jour après jour avec les flèches de la date.</li>
+<li>La page télécharge <b>toutes</b> les réservations de la saison pour en garder celles du jour, puis relit chaque fiche complète une par une (1 + N requêtes à chaque ouverture).</li>
+</ul>
+</div>
+<div class="box">
+<h3>Planning</h3>
+<ul>
+<li>Le passé n'est accessible que par la date du bandeau ; le futur se charge par blocs de 14 jours en descendant.</li>
+<li><b>Bug bloquant</b> : dès qu'un bloc de 14 jours ne contient aucune réservation, le défilement s'arrête définitivement. Sur le shadow, depuis le 28/10, le bloc du 25/11 au 8/12 est vide : les séjours de Noël et toute l'année 2027 sont inatteignables en faisant défiler. Supprimer la date sans corriger ça couperait l'accès au futur.</li>
+<li>5 requêtes par bloc, plus une par réservation ; les jours sont assemblés dans le navigateur.</li>
+</ul>
+</div>
+</div>
+
+<h2 id="propose">Ce qu'on propose</h2>
+<div class="cols">
+<div class="box">
+<h3>Accueil</h3>
+<ul>
+<li>Un seul appel serveur donne les départs du jour, les arrivées du jour et, s'il n'y a aucune arrivée, <b>la prochaine arrivée</b> : sa date en clair (« vendredi 6 novembre »), « dans 9 jours », et tous les séjours qui arrivent ce jour-là.</li>
+<li>Une liste vide se replie en une ligne.</li>
+<li>Plus de date dans le bandeau : ni flèches, ni champ, ni « Aujourd'hui ». La page se recharge seule au changement de jour.</li>
+</ul>
+</div>
+<div class="box">
+<h3>Planning</h3>
+<ul>
+<li>Une frise continue de jours, comme le calendrier général : ouverture sur aujourd'hui, le passé en remontant, le futur en descendant, sans saut d'affichage.</li>
+<li>Un appel serveur par bloc de 14 jours (au lieu de 5 + N), 31 jours maximum par appel, 8 blocs gardés en mémoire au plus.</li>
+<li>Les jours sans rien se regroupent en une ligne « Rien de prévu · du … au … » : un mois vide ne bloque plus le défilement.</li>
+<li>L'en-tête du jour reste collé sous le bandeau pendant qu'on fait défiler ses cartes ; « Aujourd'hui » devient un bouton du bandeau.</li>
+<li>Le linge (plugin) et les futurs jours de blanchisserie arrivent par le même canal, bloc par bloc, passé compris.</li>
+</ul>
+</div>
+</div>
+
+<h2 id="accueil">Maquette : l'accueil</h2>
+<div class="ctl">
+<label>Scénario
+<select id="hScen">
+<option value="none" selected>Aujourd'hui sans départ ni arrivée (shadow, 28/10)</option>
+<option value="noArr">Des départs, aucune arrivée</option>
+<option value="full">Départs et arrivées du jour</option>
+<option value="many">Prochaine arrivée : 3 séjours le même jour</option>
+<option value="far">Prochaine arrivée l'an prochain</option>
+<option value="nothing">Plus aucune arrivée prévue</option>
+<option value="long">Noms très longs</option>
+</select></label>
+<div><div class="muted" style="font-size:.82rem;margin-bottom:4px">Compte</div><div class="seg" id="hRole"><button aria-pressed="true" data-v="admin">Admin</button><button aria-pressed="false" data-v="reception">Accueil</button></div></div>
+<div><div class="muted" style="font-size:.82rem;margin-bottom:4px">Écran</div><div class="seg" id="hDev"><button aria-pressed="true" data-v="desk">Ordinateur</button><button aria-pressed="false" data-v="phone">Téléphone</button></div></div>
+<div><div class="muted" style="font-size:.82rem;margin-bottom:4px">Arbitrage 1</div><div class="seg" id="hVar"><button aria-pressed="true" data-v="compact">Lignes compactes</button><button aria-pressed="false" data-v="table">Tableau + « Prêt »</button></div></div>
+<label class="chk"><input type="checkbox" id="hOld"> Voir l'écran actuel</label>
+</div>
+<div class="stage"><div class="dev" id="hDevice"><div class="scr" id="hScr" style="height:620px"></div></div></div>
+<div class="log" id="hLog" aria-live="polite"></div>
+
+<h2 id="planning">Maquette : le planning</h2>
+<p class="muted">Le cadre se fait défiler comme la page : remonter montre le passé, descendre le futur. Aujourd'hui = mercredi 28 octobre 2026. Une fermeture de janvier à avril 2027 reproduit le trou du shadow.</p>
+<div class="ctl">
+<div><div class="muted" style="font-size:.82rem;margin-bottom:4px">Écran</div><div class="seg" id="pDev"><button aria-pressed="true" data-v="desk">Ordinateur</button><button aria-pressed="false" data-v="phone">Téléphone</button></div></div>
+<label class="chk"><input type="checkbox" id="pLinen" checked> Linge (plugin) installé</label>
+<label class="chk"><input type="checkbox" id="pFail"> Simuler une panne réseau</label>
+<div><div class="muted" style="font-size:.82rem;margin-bottom:4px">Arbitrage 2</div><div class="seg" id="pVar"><button aria-pressed="true" data-v="runs">Jours vides regroupés</button><button aria-pressed="false" data-v="hide">Jours vides masqués</button></div></div>
+</div>
+<div class="stage"><div class="dev" id="pDevice"><div class="scr" id="pScr"></div></div></div>
+<div class="meter" id="pMeter" aria-live="polite"></div>
+<div class="log" id="pLog" aria-live="polite"></div>
+
+<h3>Le contrat serveur, mis à l'épreuve</h3>
+<p class="muted">Ce que répond <code>GET /api/planning/days</code> : le client ne demande jamais plus de 31 jours ; toute autre demande est refusée.</p>
+<div class="ctl">
+<label>Du<input id="aFrom" value="2026-10-28" inputmode="numeric" autocomplete="off"></label>
+<label>Au<input id="aTo" value="2026-11-10" inputmode="numeric" autocomplete="off"></label>
+<button class="btn" id="aGo">Interroger</button>
+<div class="refuse" id="aRef" aria-live="polite"></div>
+</div>
+<div class="resp" id="aOut">—</div>
+
+<h2 id="pas">Ce qu'on ne fait pas</h2>
+<ul>
+<li>Pas de saut à une date précise sur le planning (« aller au 15 mars ») : retiré exprès ; le calendrier général reste là pour ça.</li>
+<li>Le calendrier général et celui d'un logement ne changent pas : le mécanisme de défilement est repris dans un outil commun nouveau, et le calendrier y sera branché plus tard, une fois la refonte du calendrier logement (menée en parallèle) livrée.</li>
+<li>Les jours de blanchisserie ne sont pas décrits ici : ils passent par le canal existant du plugin linge, qui reçoit désormais aussi les blocs du passé.</li>
+<li>La page « Réservations à venir » ne change pas.</li>
+</ul>
+
+<h2 id="risque">Le risque</h2>
+<ul>
+<li><b>Défilement qui saute.</b> Ajouter des jours au-dessus de ce qu'on regarde peut faire bondir l'écran. Parade : la technique d'ancrage du calendrier général, testée (jour visible gardé à sa place, au pixel).</li>
+<li><b>Deux chantiers sur le même outil.</b> Le calendrier logement réutilise le défilement du calendrier général. Parade : ce chantier-ci crée un outil commun neuf sans toucher à l'existant ; le rapprochement se fera après.</li>
+<li><b>Le plugin linge relit 4 listes à chaque bloc</b> (stock, sauts, ajouts, voyages). Avec le passé, ça double les appels de linge. Signalé au chantier blanchisserie et au chantier lenteurs.</li>
+<li><b>Volume.</b> 3 lots, une trentaine de fichiers ; le lot accueil part seul et vite.</li>
+</ul>
+
+<h2 id="arb">Les arbitrages en attente</h2>
+<div class="arb"><h3>1. La prochaine arrivée : lignes ou tableau ?</h3>
+<ol><li><span class="rec">Lignes compactes, sans case à cocher (recommandé)</span> : la date se lit d'abord ; « Prêt » et « Arrivé » restent des gestes du jour même.</li>
+<li>Le tableau des arrivées avec « Prêt » cochable en avance : plus d'actions, mais une case « Arrivé » n'a pas de sens pour un jour futur.</li></ol></div>
+<div class="arb"><h3>2. Les jours vides du planning</h3>
+<ol><li><span class="rec">Regroupés en « Rien de prévu · du … au … » (recommandé)</span> : on sait toujours où on est, et un mois vide se traverse en un geste.</li>
+<li>Masqués comme aujourd'hui : plus dense, mais un passé vide ne laisse rien à faire défiler ; il faudrait un bouton « Jours précédents ».</li></ol></div>
+<div class="arb"><h3>3. Jusqu'où remonter dans le passé ?</h3>
+<ol><li><span class="rec">Sans limite (recommandé)</span> : un appel par quinzaine, mémoire plafonnée à 8 blocs.</li>
+<li>12 mois en arrière, puis une ligne « Début de l'historique affiché ».</li></ol></div>
+<div class="arb"><h3>4. L'outil de défilement commun</h3>
+<ol><li><span class="rec">Créé ici, calendriers branchés dessus plus tard (recommandé)</span> : aucun conflit avec la refonte du calendrier logement.</li>
+<li>Tout faire dans ce lot : un seul mécanisme tout de suite, mais conflits garantis avec le chantier parallèle.</li></ol></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+var MS=86400000;
+function d2(s){return new Date(s+'T00:00:00Z');}
+function iso(d){return d.toISOString().slice(0,10);}
+function add(s,n){return iso(new Date(d2(s).getTime()+n*MS));}
+function diff(a,b){return Math.round((d2(b)-d2(a))/MS);}
+var WD=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'],WS=['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+var MO=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'],MS3=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+var TODAY='2026-10-28';
+function label(s){var d=d2(s);var t=WD[d.getUTCDay()]+' '+d.getUTCDate()+' '+MO[d.getUTCMonth()];if(d.getUTCFullYear()!==2026)t+=' '+d.getUTCFullYear();return t;}
+function shortL(s){var d=d2(s);var t=WS[d.getUTCDay()]+' '+d.getUTCDate()+' '+MS3[d.getUTCMonth()];if(d.getUTCFullYear()!==2026)t+=' '+d.getUTCFullYear();return t;}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+function rel(n){return n===1?'demain':'dans '+n+' jours';}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function segInit(id,cb){var el=document.getElementById(id);el.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;el.querySelectorAll('button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});cb(b.dataset.v);});}
+var ICON={today:'<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 16H5V9h14v11ZM7 11h5v5H7z"/></svg>',
+menu:'<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>',
+search:'<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.5 14h-.8l-.3-.3A6.5 6.5 0 1 0 14 15.5l.3.3v.7l5 5 1.5-1.5-5-5Zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z"/></svg>',
+linen:'<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2ZM7 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm5 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10Z"/></svg>'};
+function topBar(phone,title,slot){return '<div class="top">'+(phone?'<button class="ib" aria-label="Ouvrir le menu">'+ICON.menu+'</button><span class="ptitle">'+(title==='home'?'<span class="word">GuestFlow</span>':esc(title))+'</span>'+(slot||'')+'<button class="ib" aria-label="Rechercher">'+ICON.search+'</button>':'<span class="word">GuestFlow</span><div class="search">Rechercher une réservation…</div>')+'</div>';}
+
+/* ---------------- HOME ---------------- */
+var H={scen:'none',role:'admin',dev:'desk',vr:'compact',old:false,ready:{}};
+var P1='La Granja',P2="L'Estiva",P3='Aventura lodge',PL='Studio Avec Un Nom De Logement Vraiment Très Long';
+var SC={
+ none:{dep:[],arr:[],next:{date:'2026-11-06',rows:[{id:412,h:'16:00',p:P1,c:'Camille Rivière',b:'D:1 / S:2 / B:0'}]}},
+ noArr:{dep:[{id:401,h:'10:00',p:P2,c:'Hugo Martel'},{id:398,h:'11:00',p:P3,c:'Léa Fontaine'}],arr:[],next:{date:'2026-10-30',rows:[{id:415,h:'15:00',p:P2,c:'Inès Garnier',b:'D:1 / S:0 / B:1'}]}},
+ full:{dep:[{id:401,h:'10:00',p:P2,c:'Hugo Martel'}],arr:[{id:420,h:'15:00',p:P2,c:'Nora Lambert',b:'D:1 / S:0 / B:0',pay:'Solde réglé',cau:'OK (300,00 €)'},{id:421,h:'17:30',p:P1,c:'Paul Besson',b:'D:1 / S:2 / B:0',pay:'Reste 120,00 €',cau:'NON (500,00 €)'}],next:null},
+ many:{dep:[],arr:[],next:{date:'2026-11-13',rows:[{id:430,h:'15:00',p:P2,c:'Julie Perrin',b:'D:1 / S:0 / B:0'},{id:431,h:'16:00',p:P1,c:'Marc Delorme',b:'D:2 / S:2 / B:1'},{id:432,h:'18:00',p:P3,c:'Sofia Moreau',b:null}]}},
+ far:{dep:[],arr:[],next:{date:'2027-04-19',rows:[{id:440,h:'15:00',p:P1,c:'Antoine Leroy',b:'D:1 / S:2 / B:0'}]}},
+ nothing:{dep:[],arr:[],next:null,none:true},
+ long:{dep:[{id:450,h:'10:00',p:PL,c:'Marie-Thérèse de La Rochefoucauld-Montbazon'}],arr:[],next:{date:'2026-10-29',rows:[{id:451,h:'15:00',p:PL,c:'Jean-Baptiste Alexandre Montgolfier-Desrosiers',b:'D:1 / S:4 / B:2'}]}}
+};
+function hRender(){
+ var s=SC[H.scen],ph=H.dev==='phone',rec=H.role==='reception';
+ document.getElementById('hDevice').className='dev'+(ph?' phone':'');
+ var out='<div class="chrome">'+topBar(ph,'home','')+'</div><div class="wrap">';
+ if(H.old){
+  out+='<div class="bar"><span class="t">Tableau de bord</span>'+(ph?'':'<div class="old"><span>‹</span><span>28/10/2026</span><span>›</span></div><span style="flex:1"></span>')+'</div>';
+  if(ph)out+='<div class="old" style="margin:10px 0"><span>‹</span><span>28/10/2026</span><span>›</span></div>';
+  out+='<div class="sec"><div class="sech">Départs — 28/10/2026</div>'+(s.dep.length?'<div class="empty">(liste du jour)</div>':'<div class="empty">Aucun départ ce jour.</div>')+'</div>';
+  out+='<div class="sec"><div class="sech">Arrivées — 28/10/2026</div>'+(s.arr.length?'<div class="empty">(liste du jour)</div>':'<div class="empty">Aucune arrivée ce jour.</div>')+'</div>';
+  out+='<div class="ghost">À traiter · calendrier du mois</div></div>';
+  document.getElementById('hScr').innerHTML=out;return;
+ }
+ if(!ph)out+='<div class="bar"><span class="t">Tableau de bord</span></div>';
+ /* departures */
+ out+='<div class="sec">';
+ if(!s.dep.length)out+='<div class="fold"><b>Départs du jour</b><span>Aucun départ aujourd\'hui</span></div>';
+ else{out+='<div class="sech">Départs du jour</div>';out+=ph?'<div class="cards">'+s.dep.map(function(r){return '<div class="ccard'+(H.ready['d'+r.id]?' dn':'')+'" data-open="'+r.id+'"><div class="l1"><span>'+r.h+' · '+esc(r.p)+'</span><input type="checkbox" aria-label="Départ effectué" data-tick="d'+r.id+'"'+(H.ready['d'+r.id]?' checked':'')+'></div>'+esc(r.c)+'</div>';}).join('')+'</div>':
+  '<table><thead><tr><th>Parti</th><th>Heure</th><th>Logement</th><th>Client</th>'+(rec?'':'<th>Paiements</th>')+'</tr></thead><tbody>'+s.dep.map(function(r){return '<tr class="'+(H.ready['d'+r.id]?'dn':'')+'" data-open="'+r.id+'"><td><input type="checkbox" aria-label="Départ effectué" data-tick="d'+r.id+'"'+(H.ready['d'+r.id]?' checked':'')+'></td><td>'+r.h+'</td><td style="overflow-wrap:anywhere">'+esc(r.p)+'</td><td style="overflow-wrap:anywhere">'+esc(r.c)+'</td>'+(rec?'':'<td>Réglé</td>')+'</tr>';}).join('')+'</tbody></table>';}
+ out+='</div>';
+ /* arrivals */
+ out+='<div class="sec">';
+ if(!s.arr.length){
+  out+='<div class="fold"><b>Arrivées du jour</b><span>Aucune arrivée aujourd\'hui'+(s.next?'':' · aucune arrivée prévue')+'</span></div>';
+  if(s.next){
+   var n=diff(TODAY,s.next.date);
+   out+='<div class="next"><div class="nhead"><span class="k">Prochaine arrivée</span><span class="d">'+label(s.next.date)+'</span><span class="chip">'+rel(n)+'</span></div>';
+   if(H.vr==='compact'){
+    out+=s.next.rows.map(function(r){return '<button class="nrow" data-open="'+r.id+'"'+(rec?' data-inert="1" tabindex="-1"':'')+'><span class="h">'+r.h+'</span><span class="lg">'+esc(r.p)+'</span><span class="cl">'+esc(r.c)+'</span><span class="bd">'+(r.b?'Lits '+r.b:'')+'</span></button>';}).join('');
+   }else{
+    out+='<table style="border:0;border-top:1px solid var(--line);border-radius:0"><thead><tr><th>Prêt</th><th>Heure</th><th>Logement</th><th>Client</th><th>Lits</th></tr></thead><tbody>'+s.next.rows.map(function(r){return '<tr class="'+(H.ready['n'+r.id]?'rdy':'')+'" data-open="'+r.id+'"><td><input type="checkbox" aria-label="Logement prêt" data-tick="n'+r.id+'"'+(H.ready['n'+r.id]?' checked':'')+'></td><td>'+r.h+'</td><td style="overflow-wrap:anywhere">'+esc(r.p)+'</td><td style="overflow-wrap:anywhere">'+esc(r.c)+'</td><td>'+(r.b||'—')+'</td></tr>';}).join('')+'</tbody></table>';
+   }
+   out+='</div>';
+  }
+ }else{
+  out+='<div class="sech">Arrivées du jour</div>';
+  out+=ph?'<div class="cards">'+s.arr.map(function(r){return '<div class="ccard'+(H.ready['a'+r.id]?' rdy':'')+'" data-open="'+r.id+'"><div class="l1"><span>'+r.h+' · '+esc(r.p)+'</span><input type="checkbox" aria-label="Logement prêt" data-tick="a'+r.id+'"'+(H.ready['a'+r.id]?' checked':'')+'></div>'+esc(r.c)+'<br><span class="muted">Lits : '+r.b+'</span>'+(rec?'':'<br><span class="muted">'+r.pay+'</span>')+'</div>';}).join('')+'</div>':
+  '<table><thead><tr><th>Prêt</th><th>Heure</th><th>Logement</th><th>Client</th><th>Lits</th>'+(rec?'':'<th>Paiements</th>')+'<th>Caution</th></tr></thead><tbody>'+s.arr.map(function(r){return '<tr class="'+(H.ready['a'+r.id]?'rdy':'')+'" data-open="'+r.id+'"><td><input type="checkbox" aria-label="Logement prêt" data-tick="a'+r.id+'"'+(H.ready['a'+r.id]?' checked':'')+'></td><td>'+r.h+'</td><td>'+esc(r.p)+'</td><td>'+esc(r.c)+'</td><td>'+r.b+'</td>'+(rec?'':'<td>'+r.pay+'</td>')+'<td style="font-weight:700;color:'+(r.cau.indexOf('OK')===0?'var(--ok)':'var(--err)')+'">'+r.cau+'</td></tr>';}).join('')+'</tbody></table>';
+ }
+ out+='</div>';
+ out+=rec?'':'<div class="ghost">À traiter · calendrier du mois (inchangés)</div>';
+ out+='</div>';
+ document.getElementById('hScr').innerHTML=out;
+}
+var hLog=document.getElementById('hLog');
+document.getElementById('hScr').addEventListener('click',function(e){
+ var t=e.target.closest('[data-tick]');
+ if(t){H.ready[t.dataset.tick]=t.checked;hLog.textContent=t.checked?'Coché : enregistré tout de suite, sans recharger la page.':'Décoché.';hRender();return;}
+ var r=e.target.closest('[data-open]');if(!r)return;
+ if(H.old){return;}
+ if(r.dataset.inert){hLog.textContent='Compte accueil : la ligne ne mène nulle part, le SAS de ce séjour s\'ouvrira le jour de son arrivée.';return;}
+ hLog.textContent='Ouvre la fiche de la réservation n° '+r.dataset.open+' (retour vers l\'accueil).';
+});
+document.getElementById('hScen').addEventListener('change',function(e){H.scen=e.target.value;hLog.textContent='';hRender();});
+document.getElementById('hOld').addEventListener('change',function(e){H.old=e.target.checked;hLog.textContent=H.old?'Écran actuel : il faut changer la date à la main pour trouver la prochaine arrivée.':'';hRender();});
+segInit('hRole',function(v){H.role=v;hLog.textContent='';hRender();});
+segInit('hDev',function(v){H.dev=v;hRender();});
+segInit('hVar',function(v){H.vr=v;hRender();});
+hRender();
+
+/* ---------------- PLANNING DATA ---------------- */
+function rnd(seed){var x=Math.sin(seed*9301+49297)*233280;return x-Math.floor(x);}
+var FIRST=['Camille','Hugo','Léa','Nora','Paul','Inès','Julie','Marc','Sofia','Antoine','Chloé','Lucas','Emma','Théo','Zoé','Malik'];
+var LAST=['Rivière','Martel','Fontaine','Lambert','Besson','Garnier','Perrin','Delorme','Moreau','Leroy','Caron','Roussel','Vidal','Brun'];
+var PROPS=[P1,P2,P3];
+var STAYS=[];(function(){var id=500;PROPS.forEach(function(p,pi){var cur='2026-05-01';var k=pi*7+3;while(cur<'2027-10-31'){k++;var gap=Math.floor(rnd(k)*12)+2;var len=Math.floor(rnd(k+99)*5)+2;var s=add(cur,gap);var e=add(s,len);cur=e;
+ if(s>='2027-01-03'&&s<'2027-04-19')continue; if(s<'2027-01-03'&&e>'2027-01-03')continue;
+ if(s>'2026-11-16'&&s<'2026-12-24')continue;
+ var name=FIRST[Math.floor(rnd(k+7)*FIRST.length)]+' '+LAST[Math.floor(rnd(k+13)*LAST.length)];
+ if(id===512)name='Marie-Thérèse de La Rochefoucauld-Montbazon';
+ STAYS.push({id:id++,p:pi===2&&id%5===0?PL:p,c:name,s:s,e:e,hi:['15:00','16:00','17:30'][Math.floor(rnd(k+3)*3)],ho:['10:00','11:00'][Math.floor(rnd(k+5)*2)],bf:rnd(k+21)>.55,beds:'D:1 / S:'+Math.floor(rnd(k+31)*3)+' / B:'+(rnd(k+41)>.7?1:0),ready:false,out:false});}});
+ STAYS.forEach(function(s){if(s.s<TODAY){s.ready=true;}if(s.e<TODAY)s.out=true;});
+})();
+function serverDays(from,to){var days=[];for(var d=from;d<=to;d=add(d,1)){days.push({date:d,label:label(d),shortLabel:shortL(d),isToday:d===TODAY,isPast:d<TODAY,arrivals:STAYS.filter(function(s){return s.s===d;}),departures:STAYS.filter(function(s){return s.e===d;}),breakfast:STAYS.filter(function(s){return s.bf&&s.s<d&&s.e>=d;})});}return days;}
+function linenDays(from,to){var o={};for(var d=from;d<=to;d=add(d,1)){var w=d2(d).getUTCDay();if((w===2||w===4)&&!(d>='2027-01-03'&&d<'2027-04-12'))o[d]=true;}return o;}
+
+/* ---------------- PLANNING UI ---------------- */
+var P={dev:'desk',linen:true,fail:false,vr:'runs',win:{},req:0,rel:0,pendingTop:false,pendingBot:false};
+var CAP=8,WLEN=14,THR=500;
+var scr=document.getElementById('pScr'),pLog=document.getElementById('pLog');
+function winFrom(k){return add(TODAY,k*WLEN);}
+function keys(){return Object.keys(P.win).map(Number).sort(function(a,b){return a-b;});}
+function loadWin(k,cb){
+ if(P.win[k]&&P.win[k].state!=='failed')return;
+ P.win[k]={state:'loading'};P.req++;meter();
+ var fail=P.fail;
+ setTimeout(function(){
+  if(!P.win[k])return;
+  if(fail){P.win[k]={state:'failed'};}
+  else{var f=winFrom(k),t=add(f,WLEN-1);P.win[k]={state:'loaded',days:serverDays(f,t),linen:linenDays(f,t)};}
+  cb&&cb();
+ },380);
+}
+function capRelease(near){var ks=keys().filter(function(k){return P.win[k].state==='loaded';});var rel=null;
+ while(keys().length>CAP){var ks2=keys();var far=near==='bottom'?ks2[0]:ks2[ks2.length-1];delete P.win[far];P.rel++;rel=far;}
+ return rel;}
+function hasCards(day){return day.arrivals.length||day.departures.length||day.breakfast.length||day.linen;}
+function card(day,kind,s){
+ if(kind==='dep')return '<div class="pc dep'+(s.out?' dn':'')+'"><span class="tm">'+s.ho+'</span><div class="bd2">Départ · '+esc(s.p)+'<small>'+esc(s.c)+'</small></div><label><input type="checkbox" data-out="'+s.id+'"'+(s.out?' checked':'')+'>Effectué</label></div>';
+ if(kind==='arr')return '<div class="pc arr'+(s.ready?' rdy':'')+'"><span class="tm">'+s.hi+'</span><div class="bd2">Arrivée · '+esc(s.p)+'<small>'+esc(s.c)+' · Lits '+s.beds+'</small></div><label><input type="checkbox" data-ready="'+s.id+'"'+(s.ready?' checked':'')+'>Prêt</label></div>';
+ if(kind==='bf')return '<div class="pc bf"><span class="tm">08:30</span><div class="bd2">Petit déjeuner · '+esc(s.p)+'<small>'+esc(s.c)+'</small></div></div>';
+ return '<div class="pc lin"><span class="tm">—</span><div class="bd2">Linge · dépôt blanchisserie<small>Carte du plugin linge (les jours de blanchisserie viendront par ce même canal)</small></div></div>';
+}
+function render(anchorMode){
+ var ph=P.dev==='phone';
+ document.getElementById('pDevice').className='dev'+(ph?' phone':'');
+ var lin=P.linen;
+ var todayBtn='<button class="ib bord" id="pToday" aria-label="Aujourd\'hui" title="Aujourd\'hui">'+ICON.today+'</button>';
+ var linBtn=lin?'<button class="ib plug" aria-label="Voyage de linge supplémentaire" title="Voyage de linge supplémentaire">'+ICON.linen+'</button>':'';
+ var chrome='<div class="chrome" id="pChrome">'+topBar(ph,'Planning',ph&&!lin?todayBtn:'')+(ph&&!lin?'':'<div class="wrap" style="padding-bottom:0"><div class="bar"><span class="t">Planning</span>'+todayBtn+linBtn+'</div></div>')+'<div class="bar-gap"></div></div>';
+ var ks=keys(),body='';
+ var first=ks[0],last=ks[ks.length-1];
+ function edge(k,pos){var w=P.win[k];if(!w)return '';if(w.state==='loading')return '<div class="skel" aria-label="Chargement"></div>';if(w.state==='failed')return '<div class="edgeerr" role="alert"><span>Ces jours n\'ont pas pu être chargés.</span><button data-retry="'+k+'">Réessayer</button></div>';return '';}
+ if(ks.length&&P.win[first].state!=='loaded')body+=edge(first,'top');
+ var seq=[];ks.forEach(function(k){var w=P.win[k];if(w.state!=='loaded')return;w.days.forEach(function(d){seq.push({d:d,lin:lin&&w.linen[d.date]});});});
+ var run=[];
+ function flush(){if(!run.length)return;if(P.vr==='runs'){body+='<div class="run" data-anchor="'+run[0]+'">Rien de prévu · '+(run.length===1?shortL(run[0]):'du '+shortL(run[0])+' au '+shortL(run[run.length-1]))+'</div>';}run=[];}
+ seq.forEach(function(x){var d=x.d;var full=d.arrivals.length||d.departures.length||d.breakfast.length||x.lin;
+  if(!full&&!d.isToday){run.push(d.date);return;}
+  flush();
+  var tot=d.arrivals.length+d.departures.length,done=d.arrivals.filter(function(s){return s.ready;}).length+d.departures.filter(function(s){return s.out;}).length;
+  var cls=d.isToday?'today':d.isPast?'past':(tot&&done===tot?'done':'');
+  body+='<div class="dayh '+cls+'" data-anchor="'+d.date+'"'+(d.isToday?' id="pTodayH"':'')+'><span>'+cap(d.label)+(d.isToday?' — Aujourd\'hui':'')+'</span><span class="tc">'+done+'/'+tot+'</span></div>';
+  if(!full){body+='<div class="run todayrun">Rien de prévu aujourd\'hui</div>';return;}
+  var cards=[];d.departures.forEach(function(s){cards.push([s.ho,card(d,'dep',s)]);});d.breakfast.forEach(function(s){cards.push(['08:30',card(d,'bf',s)]);});d.arrivals.forEach(function(s){cards.push([s.hi,card(d,'arr',s)]);});
+  cards.sort(function(a,b){return a[0]<b[0]?-1:1;});cards.forEach(function(c){body+=c[1];});if(x.lin)body+=card(d,'lin');
+ });
+ flush();
+ if(ks.length>1&&P.win[last].state!=='loaded')body+=edge(last,'bottom');
+ /* anchor keep */
+ var keep=null;
+ if(anchorMode==='keep'){var top=scr.getBoundingClientRect().top+barBottom();var els=scr.querySelectorAll('[data-anchor]');for(var i=0;i<els.length;i++){var r=els[i].getBoundingClientRect();if(r.bottom>top){keep={a:els[i].dataset.anchor,y:r.top};break;}}}
+ scr.innerHTML=chrome+'<div class="wrap" style="padding-top:0">'+body+'<div style="height:40px"></div></div>';
+ var bb=barBottom();scr.style.setProperty('--bar-bottom',bb+'px');
+ if(keep){var el=scr.querySelector('[data-anchor="'+keep.a+'"]');if(!el){var all=[].slice.call(scr.querySelectorAll('[data-anchor]'));el=all.filter(function(e){return e.dataset.anchor<=keep.a;}).pop();}if(el)scr.scrollTop+=el.getBoundingClientRect().top-keep.y;}
+ document.getElementById('pToday').addEventListener('click',goToday);
+ syncToday();meter();
+}
+function barBottom(){var c=document.getElementById('pChrome');return c?c.offsetHeight:126;}
+function todayOffset(){var h=document.getElementById('pTodayH');if(!h)return null;return h.getBoundingClientRect().top-scr.getBoundingClientRect().top-barBottom();}
+function syncToday(){var b=document.getElementById('pToday');var o=todayOffset();if(b)b.disabled=o!==null&&Math.abs(o)<=8;}
+function snapToday(smooth){var o=todayOffset();if(o===null)return;var red=window.matchMedia('(prefers-reduced-motion: reduce)').matches;scr.scrollTo({top:scr.scrollTop+o,behavior:smooth&&!red?'smooth':'auto'});}
+function goToday(){
+ if(P.win[0]&&P.win[0].state==='loaded'&&P.win[-1]){snapToday(true);pLog.textContent='Retour à aujourd\'hui.';return;}
+ P.win={};pLog.textContent='Les jours d\'aujourd\'hui avaient été libérés : rechargement, puis retour.';open();
+}
+function open(){var n=0;[-1,0,1].forEach(function(k){loadWin(k,function(){n++;if(n===3){render();snapToday(false);syncToday();}});});render();}
+function extend(){
+ if(!P.win[0]||P.win[0].state==='loading')return;
+ var ks=keys();if(!ks.length)return;
+ var top=scr.scrollTop,bot=scr.scrollHeight-scr.scrollTop-scr.clientHeight;
+ var first=ks[0],last=ks[ks.length-1];
+ if(top<THR&&!P.pendingTop&&P.win[first].state==='loaded'){P.pendingTop=true;var k=first-1;loadWin(k,function(){P.pendingTop=false;capRelease('top');render('keep');pLog.textContent=P.win[k]&&P.win[k].state==='failed'?'Le bloc du '+shortL(winFrom(k))+' n\'a pas répondu : l\'autre bord continue de se charger.':'Bloc ajouté au-dessus ('+shortL(winFrom(k))+' → '+shortL(add(winFrom(k),13))+') sans que l\'écran bouge.';setTimeout(extend,30);});render('keep');}
+ if(bot<THR&&!P.pendingBot&&P.win[last].state==='loaded'){P.pendingBot=true;var j=last+1;loadWin(j,function(){P.pendingBot=false;capRelease('bottom');render('keep');pLog.textContent=P.win[j]&&P.win[j].state==='failed'?'Le bloc du '+shortL(winFrom(j))+' n\'a pas répondu.':'Bloc ajouté en dessous ('+shortL(winFrom(j))+' → '+shortL(add(winFrom(j),13))+').';setTimeout(extend,30);});render('keep');}
+}
+function meter(){var ks=keys();var loaded=ks.filter(function(k){return P.win[k].state==='loaded';});
+ var span=loaded.length?shortL(winFrom(loaded[0]))+' → '+shortL(add(winFrom(loaded[loaded.length-1]),13)):'—';
+ document.getElementById('pMeter').innerHTML='<span>Blocs en mémoire <b>'+loaded.length+'</b> / '+CAP+'</span><span>Appels serveur <b>'+P.req+'</b> (aujourd\'hui : 5 + 1 par séjour, par bloc)</span><span>Blocs libérés <b>'+P.rel+'</b></span><span>Période chargée <b>'+span+'</b></span>';}
+var ticking=false;
+scr.addEventListener('scroll',function(){if(ticking)return;ticking=true;requestAnimationFrame(function(){ticking=false;syncToday();extend();});},{passive:true});
+scr.addEventListener('click',function(e){
+ var r=e.target.closest('[data-retry]');if(r){var k=Number(r.dataset.retry);P.win[k].state='failed';loadWin(k,function(){render('keep');pLog.textContent=P.win[k].state==='loaded'?'Bloc rechargé.':'Toujours en panne : décocher « Simuler une panne » puis réessayer.';});render('keep');return;}
+ var a=e.target.closest('[data-ready]');if(a){var s=STAYS.filter(function(x){return x.id===Number(a.dataset.ready);})[0];s.ready=a.checked;render('keep');pLog.textContent='« Prêt » enregistré tout de suite ; le compteur du jour suit.';return;}
+ var o=e.target.closest('[data-out]');if(o){var s2=STAYS.filter(function(x){return x.id===Number(o.dataset.out);})[0];s2.out=o.checked;render('keep');return;}
+});
+segInit('pDev',function(v){P.dev=v;render('keep');});
+segInit('pVar',function(v){P.vr=v;render('keep');pLog.textContent=v==='hide'?'Jours vides masqués : remonter dans un passé vide ne laisse plus rien à faire défiler.':'';});
+document.getElementById('pLinen').addEventListener('change',function(e){P.linen=e.target.checked;render('keep');pLog.textContent=P.linen?'':'Sans plugin de linge : « Aujourd\'hui » seul passe dans la barre du haut sur téléphone.';});
+document.getElementById('pFail').addEventListener('change',function(e){P.fail=e.target.checked;pLog.textContent=P.fail?'Panne active : le prochain bloc demandé échouera à son bord.':'Réseau rétabli.';});
+open();
+
+/* ---------------- API PROBE ---------------- */
+function realDay(v){if(!/^\d{4}-\d{2}-\d{2}$/.test(v))return false;var d=d2(v);return !isNaN(d)&&iso(d)===v;}
+document.getElementById('aGo').addEventListener('click',probe);
+['aFrom','aTo'].forEach(function(id){document.getElementById(id).addEventListener('keydown',function(e){if(e.key==='Enter')probe();});});
+function probe(){
+ var f=document.getElementById('aFrom'),t=document.getElementById('aTo'),ref=document.getElementById('aRef'),out=document.getElementById('aOut');
+ f.removeAttribute('aria-invalid');t.removeAttribute('aria-invalid');
+ var why=null;
+ if(!realDay(f.value)){why='« Du » n\'est pas un jour du calendrier (AAAA-MM-JJ).';f.setAttribute('aria-invalid','true');}
+ else if(!realDay(t.value)){why='« Au » n\'est pas un jour du calendrier (AAAA-MM-JJ).';t.setAttribute('aria-invalid','true');}
+ else if(f.value>t.value){why='« Du » est après « Au ».';t.setAttribute('aria-invalid','true');}
+ else if(diff(f.value,t.value)+1>31){why='Fenêtre de '+(diff(f.value,t.value)+1)+' jours : 31 au maximum.';t.setAttribute('aria-invalid','true');}
+ if(why){ref.textContent='Refusé : '+why;out.className='resp bad';out.textContent='HTTP 400\n{ "error": "INVALID_DATE_RANGE" }';return;}
+ ref.textContent='';
+ var days=serverDays(f.value,t.value);
+ var full=days.filter(function(d){return d.arrivals.length||d.departures.length||d.breakfast.length;});
+ out.className='resp';
+ out.textContent='HTTP 200 — '+days.length+' jour(s), dont '+full.length+' avec des cartes\n'+JSON.stringify({from:f.value,to:t.value,today:TODAY,days:days.slice(0,3).map(function(d){return {date:d.date,label:d.label,shortLabel:d.shortLabel,isToday:d.isToday,isPast:d.isPast,arrivals:d.arrivals.map(function(s){return {id:s.id,checkInTime:s.hi,propertyName:s.p};}),departures:d.departures.map(function(s){return {id:s.id,checkOutTime:s.ho};}),breakfast:d.breakfast.length?{items:d.breakfast.length}:null,optionCards:null};}).concat(days.length>3?['… '+(days.length-3)+' autre(s) jour(s)']:[]),alerts:{arrivals:{},departures:{}}},null,2);
+}
+probe();
+})();
+</script>
+</body>
+</html>

@@ -69,7 +69,8 @@ overrides, so even a stray `<Tabs>` lands on the house style.
 
 - **Page tabs** (`variant="bar"`, the default) go to `PageActionBar`'s `tabs` slot — centred in the
   bar on `sm+`, second row of the **same** sticky block on `xs`. Never a detached strip, never above
-  the bar. Passing `tabs` implies `titleOnXs`: a page with tabs always shows its title.
+  the bar. On a phone the page title is the top bar's (`specs/shell-and-home-day-first.md` rule 15,
+  2026-10-19): the bar publishes it and never draws it on `xs`; `titleOnXs` no longer exists.
 - **Card tabs** (`variant="card"`) sit at the top of a Card/Dialog: bottom divider, `mb: 2`.
 - Sentence case (no uppercase), inactive `text.secondary` / active `primary.main` 600, 44 px
   targets, 2 px indicator. Overflow **scrolls** (`scrollable` + `allowScrollButtonsMobile`).
@@ -97,7 +98,8 @@ overrides, so even a stray `<Tabs>` lands on the house style.
 | `useAppDialogs()` | `confirm` / `alert` (**options object**) / `openForm`. | Raw `<Dialog>` for these roles. |
 | `FormDialog` / `ConfirmDialog` | Form/confirm dialogs — fullScreen on xs built-in. | Forgetting they exist. |
 | `UnsavedChangesDialog` | The one dirty-form prompt (stay first, « Enregistrer »). | Page-local variants. |
-| `StatusBadge` | Status chips — soft bg + dark text. | Filled semantic Chips; local StatusBadge clones. |
+| `StatusBadge` | Status chips — soft bg + `<sem>.text` (≥ 4.5:1, `specs/shell-and-home-day-first.md` rule 14). | Filled semantic Chips; local StatusBadge clones. |
+| `AttentionCard` / `AttentionInbox` | Every subject that asks for the operator on the home: one card recipe, the « À traiter (n) » box, server-made words (`specs/shell-and-home-day-first.md` §3.C–D). Plugins get `AttentionCard` from the SDK. | Outlined `Alert`s with 2 px borders, `info.lighter` cards, client-built titles. |
 | `PlatformChip` | Platform badges (color via `getPlatformColor`). | Hand-rolled boxes/chips. |
 | `ResponsiveTable` | Table md+ / cards xs. | Scroll-only tables for operator-critical lists. |
 | `TableCard` | Scroll-contained table wrapper. | Raw unwrapped `<Table>`. |
@@ -117,3 +119,16 @@ outcome toasts. A toast is never a substitute for « impossible de charger la pa
 ## 8. Per-page done-criteria (sweeps)
 
 See [design-system.md §3.9](design-system.md) — the checklist every swept page must satisfy.
+
+## 9. Shared rule — the primary action on a phone
+
+Recorded 2026-10-19 (integrated review of inte/plugins, L4), from the SAS decision of the UI/UX review
+of 2026-10-18 (decision 5). Under `sm`, a step-by-step flow or a dialog whose actions stack puts them
+**at the bottom of the screen, under the thumb**, in this order from top to bottom: the secondary
+actions first (« Plus tard », « Précédent », « Reporter »), **neutral** (`color="inherit"`, text or
+outlined), then the **primary action last, filled** (`variant="contained"`) and full width — never the
+primary on top of a column. A bar that stays at the bottom pads itself with
+`env(safe-area-inset-bottom)`. From `sm` the actions sit on one row, right-aligned, the primary one
+last. Applied by `plugins/sas/ReservationSasDialog.jsx` (specs/ui-review-2026-10-19-operations.md) and
+`components/StepperPage.jsx`, the onboarding assistant (specs/plugins-phase-p-productisation.md
+rule 44).

@@ -5,14 +5,19 @@
 // séance meaning.
 
 const test = require('node:test');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
+
+// The public boundary refuses a stay starting before today (specs/public-api.md rule 8) and these
+// fixtures' dates are fixed: today is pinned before all of them.
+require('../utils/reservationHelpers').getTodayIsoDate = () => '2026-01-01';
 const Database = require('better-sqlite3');
 
 const {
   isPerPersonCardOption, servingsFor, portionCap, clampPortions, portionWording,
 } = require('../utils/mealPortions');
 const { calculateReservationQuote } = require('../utils/pricing');
-const { toPublicOptionLimits } = require('../utils/publicProjections');
+const { toPublicOptionLimits } = optionalPlugin(() => require('../plugins/website-booking/publicProjections'));
 const { mergePropertyDefaultsIntoPayload } = require('../utils/propertyDefaultOptions');
 const { runMealPortionQuantitiesMigration } = require('../utils/migrateMealPortionQuantities');
 
@@ -184,7 +189,7 @@ test('the admin flow is untouched: occurrences still drive the billed units', ()
 
 // ---- the caps the quote publishes (rules 7-8) ----
 
-test('optionLimits carries the cap and its French hint, per option', () => {
+test('optionLimits carries the cap and its French hint, per option', { skip: skipWithout(['website-booking']) }, () => {
   const limits = toPublicOptionLimits({
     options: [BREAKFAST, TRAPPER, ROOM], persons: 4, nights: 3, property: PROPERTY,
   });
@@ -195,7 +200,7 @@ test('optionLimits carries the cap and its French hint, per option', () => {
   assert.equal(limits[1].hint, "Jusqu'à 24 — 4 personnes × 6 repas");
 });
 
-test('the hint counts the lunches the times add, without explaining them', () => {
+test('the hint counts the lunches the times add, without explaining them', { skip: skipWithout(['website-booking']) }, () => {
   const limits = toPublicOptionLimits({
     options: [TRAPPER], persons: 4, nights: 3, checkInTime: '11:00', checkOutTime: '14:00', property: PROPERTY,
   });
@@ -203,7 +208,7 @@ test('the hint counts the lunches the times add, without explaining them', () =>
   assert.equal(limits[0].hint, "Jusqu'à 32 — 4 personnes × 8 repas");
 });
 
-test('no dates or no guests → no caps to publish', () => {
+test('no dates or no guests → no caps to publish', { skip: skipWithout(['website-booking']) }, () => {
   assert.deepEqual(toPublicOptionLimits({ options: [BREAKFAST], persons: 4, nights: 0 }), []);
   assert.deepEqual(toPublicOptionLimits({ options: [BREAKFAST], persons: 0, nights: 3 }), []);
 });
@@ -309,7 +314,9 @@ function buildBookingController({ options, captures }) {
   const origRequire = Module.prototype.require;
   const dbMock = {
     transaction: (fn) => (...args) => fn(...args),
-    prepare: () => ({ get: () => ({ maxGuests: 10, maxBabies: 2 }), run: () => ({ changes: 1 }) }),
+    // Only the property read answers: no open quote of the same stay, no earlier request for the
+    // e-mail (specs/public-request-abuse-and-grouping.md rules 7, 12).
+    prepare: (sql) => ({ get: () => (/FROM properties/i.test(sql) ? { maxGuests: 10, maxBabies: 2 } : undefined), run: () => ({ changes: 1 }) }),
   };
   const mocks = {
     '../../database': dbMock,
@@ -325,7 +332,7 @@ function buildBookingController({ options, captures }) {
       checkOptionApplicability: () => null,
       checkResourceApplicability: () => null,
     },
-    '../../models/settingsModel': { termsSettings: () => ({ requireTermsAcceptance: false }), upsert: () => {} },
+    '../settings': { termsSettings: () => ({ requireTermsAcceptance: false }), recordPluginVersion: () => {} },
     '../../models/termsModel': { getCurrent: () => ({ id: 1, version: 1 }), insertAcceptance: () => {} },
   };
   Module.prototype.require = function patched(id) {
@@ -333,7 +340,7 @@ function buildBookingController({ options, captures }) {
     return origRequire.call(this, id);
   };
   try {
-    const path = '../controllers/public/publicBookingRequestController';
+    const path = '../plugins/website-booking/controllers/publicBookingRequestController';
     delete require.cache[require.resolve(path)];
     return require(path);
   } finally {
@@ -360,7 +367,7 @@ function fakeRes() {
   };
 }
 
-test('booking request: portions over the cap are refused, never quietly lowered', () => {
+test('booking request: portions over the cap are refused, never quietly lowered', { skip: skipWithout(['website-booking']) }, () => {
   const captures = {};
   const controller = buildBookingController({ options: [BREAKFAST, TRAPPER], captures });
   const res = fakeRes();
@@ -372,7 +379,7 @@ test('booking request: portions over the cap are refused, never quietly lowered'
   assert.equal(captures.devisCreate, undefined, 'nothing persisted');
 });
 
-test('booking request: portions within the cap go through untouched', () => {
+test('booking request: portions within the cap go through untouched', { skip: skipWithout(['website-booking']) }, () => {
   const captures = {};
   const controller = buildBookingController({ options: [BREAKFAST, TRAPPER], captures });
   const res = fakeRes();

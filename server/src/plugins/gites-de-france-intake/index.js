@@ -6,7 +6,7 @@
 
 const express = require('express');
 const sdk = require('../sdk');
-const { buildModel, TABLE_SQL } = require('./intakesModel');
+const { buildModel, TABLE_SQL, addSenderVerifiedColumn, addParserVersionColumn } = require('./intakesModel');
 const { createIntakeService } = require('./intakeService');
 
 const id = 'gites-de-france-intake';
@@ -28,16 +28,36 @@ const validateGiteNumbers = (v) => {
 };
 
 function register(ctx) {
-  ctx.migrations([{ name: 'intakes_table_v1', up: (db) => db.exec(TABLE_SQL) }]);
+  ctx.migrations([
+    { name: 'intakes_table_v1', up: (db) => db.exec(TABLE_SQL) },
+    { name: 'intakes_sender_verified_v2', up: addSenderVerifiedColumn },
+    { name: 'intakes_parser_version_v3', up: addParserVersionColumn },
+  ]);
 
+  // specs/gites-de-france-mail-intake.md rule 36 (audit R42-EXT-L2 class) — a key names a logement of the core, or one already stored (a deleted
+  // logement's line never blocks a save). A phantom key bypassed the « nothing tied yet » skip and tied a logement
+  // created later to a listing nobody chose.
+  const unknownLogementKey = (raw) => {
+    let map;
+    try { map = JSON.parse(raw || '{}'); } catch { return null; }
+    let stored = {};
+    try { stored = JSON.parse(ctx.settings.get('giteNumbers') || '{}') || {}; } catch { /* unreadable: nothing exempt */ }
+    const allowed = new Set([...ctx.db.prepare('SELECT id FROM properties').all().map((r) => String(r.id)), ...Object.keys(stored)]);
+    // Audit R43-DB-L1 — the key as written, never its number: « 01 » is not logement 1 to every reader.
+    return Object.keys(map || {}).some((k) => !allowed.has(k)) ? 'Logement inconnu.' : null;
+  };
   ctx.settings.declare([
-    { key: 'senderAddress', default: 'resa@gdf07.com' },
-    { key: 'imapHost', default: '' },
-    { key: 'imapPort', default: '993' },
+    { key: 'senderAddress', supportLocked: true, default: 'resa@gdf07.com' },
+    { key: 'imapHost', supportLocked: true, default: '', validate: (v) => (!v || sdk.mailbox.resolveImapHost(ctx.core.settings.mailbox().host, v) === String(v).trim().toLowerCase() ? null : 'Un serveur du même domaine que le serveur d’envoi.') },
+    { key: 'imapPort', supportLocked: true, default: '993' },
     { key: 'pollEveryHours', default: '3', validate: validateHours },
-    { key: 'giteNumbers', default: '{}', validate: validateGiteNumbers },
+    { key: 'giteNumbers', default: '{}', validate: (v) => validateGiteNumbers(v) || unknownLogementKey(v) },
     { key: 'autoApply', default: '1' },
-    { key: 'lastRunAt', default: '' },
+    { key: 'senderDomains', supportLocked: true, default: '' },
+    { key: 'trustedAuthservId', supportLocked: true, default: '' },
+    { key: 'lastRunAt', internal: true, default: '' },
+    { key: 'unreadMails', internal: true, default: '0' },
+    { key: 'unreadStreak', internal: true, default: '0' },
   ]);
 
   let model = null;
@@ -47,20 +67,23 @@ function register(ctx) {
 
   const mailboxConfig = () => {
     const core = ctx.core.settings.mailbox();
-    return { host: ctx.settings.get('imapHost') || sdk.mailbox.imapHostFor(core.host), port: Number(ctx.settings.get('imapPort') || 993), user: core.user, password: core.password };
+    return { host: sdk.mailbox.resolveImapHost(core.host, ctx.settings.get('imapHost')), port: Number(ctx.settings.get('imapPort') || 993), user: core.user, password: core.password };
   };
 
   const service = () => createIntakeService({
+    log: (line) => ctx.log.warn(line),
     intakes: intakes(),
+    parserVersion: sdk.manifestVersion(__dirname),
     settings: {
       mailbox: mailboxConfig,
       sender: () => ctx.settings.get('senderAddress'),
+      authentication: () => ({ allowedDomains: ctx.settings.get('senderDomains'), trustedAuthservId: ctx.settings.get('trustedAuthservId') }),
       giteNumbers: () => JSON.parse(ctx.settings.get('giteNumbers') || '{}'),
       autoApply: () => String(ctx.settings.get('autoApply')) !== '0',
     },
-    readMails: (cfg) => sdk.mailbox.readMailsFrom(cfg),
+    readMails: (cfg, handlers) => sdk.mailbox.readMailsFrom({ ...cfg, ...handlers, log: (line) => ctx.log.warn(line) }),
     findReservations: ({ propertyIds, startDate, endDate }) => ctx.db.prepare(`
-      SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount FROM reservations
+      SELECT id, propertyId, platform, kind, sourceType, icalSyncLocked, platformGrossAmount, cancelledAt FROM reservations
       WHERE propertyId IN (${propertyIds.map(() => '?').join(',')}) AND startDate = ? AND endDate = ?`)
       .all(...propertyIds, startDate, endDate),
     commissionPercent: (platform) => Number((platforms().findByName(platform) || {}).commissionPercent || 0),
@@ -68,15 +91,37 @@ function register(ctx) {
     getReservation: (reservationId) => ctx.core.reservations.getByIdWithDetails(reservationId),
     core: {
       updateReservation: ctx.core.reservations.update,
+      updateBody: ctx.core.reservations.updateBody,
       suggestBeds: ctx.core.reservations.suggestBeds,
-      findOrCreateClient: ctx.core.clients.findOrCreate,
     },
   });
 
-  async function runPass() {
-    const result = await service().runPass();
-    ctx.settings.set('lastRunAt', new Date().toISOString());
-    return result;
+  // Rule 31(c) — one pass at a time across the job tick and « Lire maintenant »: a second caller joins it.
+  // Rule 32(b) — the home line shows the mails left unread only once two passes in a row hit the cap: a first
+  // read of a 30-day backlog, or a re-read after a parser update, drains within a pass or two and is no flood.
+  function noteUnread(unread) {
+    const streak = unread ? (Number(ctx.settings.get('unreadStreak')) || 0) + 1 : 0;
+    ctx.settings.set('unreadStreak', String(streak));
+    ctx.settings.set('unreadMails', String(streak >= 2 ? unread : 0));
+  }
+
+  let running = null;
+  function runPass() {
+    if (!running) {
+      running = (async () => {
+        let result;
+        try {
+          result = await service().runPass();
+        } catch (err) {
+          noteUnread(0);
+          throw err;
+        }
+        ctx.settings.set('lastRunAt', new Date().toISOString());
+        noteUnread(result.skipped ? 0 : result.unread || 0);
+        return result;
+      })().finally(() => { running = null; });
+    }
+    return running;
   }
 
   // Rule 2 — every `pollEveryHours` (3 by default). The job ticks every 15 minutes and only reads the
@@ -100,7 +145,8 @@ function register(ctx) {
   });
 
   const router = express.Router();
-  router.get('/', (req, res) => res.json({ items: service().attention() }));
+  const listAttention = (req, res) => res.json({ items: service().attention(), unread: Number(ctx.settings.get('unreadMails')) || 0 });
+  router.get('/', listAttention);
   router.post('/run', async (req, res) => {
     try { res.json(await runPass()); } catch (err) { res.status(502).json({ error: err.message }); }
   });
@@ -117,6 +163,7 @@ function register(ctx) {
   });
   router.post('/:intakeId/dismiss', (req, res) => { service().dismiss(Number(req.params.intakeId)); res.json({ ok: true }); });
   ctx.mount('/api/gdf-intake', router);
+  ctx.attention({ key: 'gdf-intake', rank: 60, handler: listAttention, summarize: require('./attention').summarize });
 
   ctx.data({
     tables: ['gdf_intakes'],

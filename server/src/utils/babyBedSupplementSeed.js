@@ -9,7 +9,9 @@
  *   - `autoOptionType = 'baby_bed'` + `autoEnabled = 1` → the pricing engine derives the line itself
  *     from `reservations.babyBeds`; the option is never ticked by hand, and stays undeletable in the
  *     Options screen (every typed option is).
- *   - `priceType = 'per_stay'`, `price = 5` → 5 € per cot for the whole stay. The engine bills
+ *   - `priceType = 'per_stay'`, `price = 0` → free until the operator prices it
+ *     (specs/plugins-phase-p-productisation.md rule 15; a price is never the product's to choose).
+ *     Once priced, it is per cot for the whole stay. The engine bills
  *     `price × babyBeds` whatever the price type says: a cot is never per-night or per-person
  *     (spec §3.1 rule 3). Re-pricing per logement goes through `property_option_prices`, and a
  *     per-property price of 0 is the documented way to opt a logement out (rule 4).
@@ -25,7 +27,7 @@
 
 const SEED_KEY = 'baby_bed';
 const AUTO_OPTION_TYPE = 'baby_bed';
-const DEFAULT_PRICE = 5;
+const DEFAULT_PRICE = 0;
 
 const SEED_DEFINITION = Object.freeze({
   seedKey: SEED_KEY,

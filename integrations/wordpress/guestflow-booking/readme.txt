@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.14.3
+Stable tag: 1.19.0
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -22,10 +22,10 @@ Architecture : le navigateur ne parle qu'au **proxy PHP** du plugin (`/wp-json/g
 
 1. Installez et activez le plugin (Extensions → Ajouter → Téléverser).
 2. Réglages → GuestFlow : renseignez l'URL de l'API GuestFlow et la clé d'API.
-   * La clé est la valeur `PUBLIC_API_KEY` de GuestFlow (`server/.env.local`).
+   * Les deux valeurs se copient dans GuestFlow : Paramètres › Intégrations › Site internet.
    * Plus sûr : définissez-la dans `wp-config.php` via `define('GUESTFLOW_API_KEY', '…');` — elle prime alors sur le réglage et n'est pas stockée en base.
 3. Cliquez « Tester la connexion ».
-4. Ajoutez les blocs GuestFlow dans vos pages. Définissez éventuellement un logement et une page de réservation par défaut dans les réglages.
+4. Ajoutez les blocs GuestFlow dans vos pages. Le logement se choisit par son nom ; la page de réservation et celle des conditions générales sont trouvées d'elles-mêmes, ou créées depuis les réglages.
 
 == Frequently Asked Questions ==
 
@@ -37,13 +37,46 @@ Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur 
 
 == Changelog ==
 
-= 1.14.3 =
-* Coordonnées manquantes : au clic sur « Payer » ou « Envoyer », chaque champ vide est signalé en rouge sous lui-même et l’écran défile jusqu’au premier ; sur téléphone, le refus restait hors de vue et le bouton semblait inactif.
+= 1.19.0 =
+* Page de retour du paiement : quand le lien de paiement a expiré sans être payé (un lien est valable 36 heures), la page affiche « Ce lien de paiement a expiré. Refaire la réservation depuis la page du logement. » et cesse de vérifier le paiement (GuestFlow à jour requis, sinon la page finit sur « Paiement en attente » comme avant).
 
-= 1.14.2 =
+= 1.18.1 =
+* Page de retour du paiement : quand la réservation a été annulée entre-temps, la page affiche « Cette réservation est annulée. » et cesse de vérifier le paiement (GuestFlow à jour requis, sinon le comportement reste celui d'avant).
+
+= 1.18.0 =
+* Anti-robot : dès que les coordonnées s'affichent ou qu'on y touche (jamais au simple chargement de la page), le navigateur résout une vérification de GuestFlow (preuve de travail, calculée en arrière-plan, sans service extérieur ni cookie). Le visiteur ne la voit pas, sauf s'il envoie avant la fin : le bouton affiche alors « Vérification… ». GuestFlow 3 avec l'extension « Réservation depuis le site » 1.8.0 requis ; à partir de cette version, GuestFlow refuse les demandes envoyées sans vérification.
+* La même demande renvoyée (même e-mail, même logement, mêmes dates) met à jour la demande en cours : « Votre demande du <date> a été mise à jour. » ; si elle est déjà traitée, seul le message est transmis : « Votre demande du <date> a déjà été transmise : votre message a été ajouté. ». Le paiement en ligne n'est proposé que pour la demande créée dans cette page. Message limité à 2 000 caractères ; prénom et nom à 100, téléphone à 40, e-mail à 254. Au-delà de 10 messages sur une demande déjà traitée, le site affiche « Demande reçue. » sans parler du message.
+
+= 1.17.1 =
+* Durée maximale et jours d'arrivée / de départ : quand GuestFlow refuse le séjour choisi, le moteur l'affiche clairement (« Séjour trop long : maximum 7 nuits. », « Arrivée le samedi uniquement sur cette période. ») au lieu d'un devis, et la demande ne peut pas être envoyée (GuestFlow à jour requis).
+* Mises à jour : l'archive installée doit porter dans son nom la version annoncée, être plus récente que la version installée et correspondre à l'empreinte SHA-256 publiée avec la version de GuestFlow (`SHA256SUMS`) ; sinon WordPress n'installe rien.
+
+= 1.17.0 =
+* Lien d'arrivée de Google Vacation Rentals : le bloc de réservation s'ouvre avec les dates (`checkin`, `checkout` au format JJ/MM/AAAA) et le nombre de voyageurs (`guests`) passés dans l'adresse. Une valeur invalide ou passée est ignorée.
+
+= 1.16.1 =
+* Mises à jour : seule une archive publiée par les versions de GuestFlow sur GitHub est acceptée (dépôt et chemin vérifiés, plus seulement l'hôte).
+* Adresse du visiteur : quand tous les relais de `X-Forwarded-For` sont des proxys de confiance, l'adresse transmise est celle du proxy, jamais la première entrée, que le navigateur peut écrire lui-même.
+* Paiement en ligne : le visiteur n'est redirigé que vers une page de paiement en `https:`.
+
+= 1.16.0 =
 * Personnes supplémentaires : le récapitulatif affiche leur supplément sur sa propre ligne (calculé par GuestFlow selon la grille tarifaire du logement), et le sélecteur de voyageurs rappelle combien de personnes le prix de base couvre.
 * La capacité du logement est toujours plafonnée côté site, même quand elle n'est pas renseignée dans GuestFlow.
+* Reprend tout le contenu des 1.14.2 et 1.14.3 (demande sans paiement, prix par personne, séjour minimum visible, chaque champ refusé signalé sous lui-même et amené à l’écran).
+* Calendrier : le séjour choisi reste lisible au toucher (le survol ne vaut que pour une souris, et l'emporte même sur l'ancien module `gf-booking.php`), les jours passés, les nuits prises et les nuits libres ne se ressemblent plus, et une légende dit ce que chaque couleur veut dire. Quand les deux mois affichés n'offrent aucune arrivée possible (nuits prises, durée minimale, jours d'arrivée), « Prochaine disponibilité : mercredi 31 mars 2027 » propose d'y aller d'un clic (GuestFlow à jour requis).
+* Coordonnées : chaque champ manquant ou mal rempli est signalé sous le champ lui-même (« Champ requis. », « Adresse e-mail incomplète. »), le premier reçoit le curseur ; les refus de GuestFlow arrivent au même endroit, dans la langue de la page. Le moteur émet l'événement `gf:refused` pour qu'un thème qui déplace ses blocs puisse montrer le champ refusé. Claviers adaptés sur téléphone et saisie à 16 px, qui ne fait plus zoomer iOS.
+* Sur téléphone, le total et le bouton restent dans une barre en bas de l'écran ; le bouton suit l'étape (« Choisir les dates », « Continuer », puis l'envoi). La barre tient aussi dans un thème qui coupe le débordement de la page. Dans un bloc large, le récapitulatif suit le défilement dans une colonne à droite, avec le bouton ; sous un en-tête collant, régler `--gf-sticky-top` à sa hauteur. Les heures d'arrivée et de départ ont leur propre ligne.
+* Couleurs : une seule couleur d'accent règle tout le moteur (`--gf-accent`) ; sans réglage, la couleur principale du thème, puis le vert sapin. Une couleur d'accent trop claire est assombrie là où elle porte du texte blanc. Plus de bleu par défaut ni de jours bleus dans le calendrier de disponibilités, et les boutons `.gf-btn` du thème ne sont plus touchés.
 
+= 1.15.0 =
+* Réglages : le logement par défaut se choisit dans la liste des logements de GuestFlow ; la page de réservation et celle des conditions générales sont trouvées d'elles-mêmes (la page qui contient le bloc, celle qui contient `[guestflow_cgv]`) ou créées en un clic ; une page dont le bloc fixe un logement n'est jamais retenue comme page de réservation. Un reverse proxy du réseau local est reconnu sans réglage. Le test de connexion se lance à l'ouverture de la page et signale un module « Réservation depuis le site » inactif dans GuestFlow.
+* Accessibilité du moteur : chaque champ porte son libellé, les boutons − / + disent ce qu'ils comptent (« Ajouter : Adultes »), les jours du calendrier se lisent en entier (« vendredi 6 novembre 2026, indisponible ») et le devis, les indications et les erreurs sont annoncés.
+* Paiement en ligne : relancer un paiement échoué paie la même demande au lieu d'en créer une nouvelle, même après une correction du message ou du téléphone, et la référence de la demande s'affiche. Le retour du paiement affiche son suivi, y compris sur une page de réservation commune à tous les logements. Tant qu'aucun moyen de paiement n'est connecté dans GuestFlow, le bouton envoie une demande simple.
+* Sans conditions générales publiées alors que GuestFlow les exige, le formulaire annonce « Réservation en ligne fermée pour le moment. » au lieu de refuser la demande à la fin.
+* Mise en page : les champs restent dans leur cadre sur tous les thèmes (box-sizing propre aux blocs) ; dans un bloc étroit, l'e-mail et « Effacer » prennent une ligne entière.
+* Calendrier de disponibilités : jours de la semaine dans la langue de la page. Récapitulatif : « 1 nuit », « 3 nuits ». Sélecteur de langue des CGV en texte (FR, EN).
+* Un module « Réservation depuis le site » éteint dans GuestFlow affiche « Réservation temporairement indisponible. » plutôt qu'une erreur générique.
+* En-tête `Update URI` : WordPress ne demande plus de mise à jour à wordpress.org pour ce plugin.
 = 1.14.1 =
 * Demande sans paiement : le récapitulatif peut proposer « Envoyer une demande sans payer » à côté du paiement (réglage du bloc, désactivé par défaut).
 * Prix par personne et par nuit sous le total, calculé par GuestFlow ; les voyageurs se choisissent avant les dates.

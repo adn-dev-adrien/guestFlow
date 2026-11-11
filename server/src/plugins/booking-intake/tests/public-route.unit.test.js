@@ -25,13 +25,13 @@ async function serve({ live = true, perMinute = 100, secret = () => SECRET, hand
   return { post, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-const PAGE = { v: 1, hotelId: '14407976', resId: '6392081711', text: 'Numéro de réservation' };
+const PAGE = { v: 1, hotelId: '14407976', resId: '6300000001', text: 'Numéro de réservation' };
 
 test('specs/booking-extranet-intake.md rule 7: the right secret reaches the handler and its answer comes back', async () => {
   const s = await serve({ handlePage: (page) => ({ status: 'applied', message: `fiche pour ${page.resId}` }) });
   const res = await s.post(PAGE);
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { status: 'applied', message: 'fiche pour 6392081711' });
+  assert.deepEqual(await res.json(), { status: 'applied', message: 'fiche pour 6300000001' });
   await s.close();
 });
 
@@ -117,4 +117,63 @@ test('specs/booking-extranet-intake.md rule 2: the admin routes serve the script
   assert.equal((await fetch(`${base}/secret/regenerate`, { method: 'POST' })).status, 200);
   assert.equal(regenerated, 1);
   await new Promise((resolve) => server.close(resolve));
+});
+
+// specs/public-api.md rule 22, reading of 2026-11-04 (audit R22, public finding 4).
+test('rule 22 — a non-scalar id is « Requête incomplète », the handler never called', async () => {
+  let called = 0;
+  const s = await serve({ handlePage: () => { called += 1; return { status: 'applied', message: 'ok' }; } });
+  for (const value of [JSON.parse('{"toString":1}'), ['309700'], true, {}]) {
+    for (const key of ['hotelId', 'resId']) {
+      const res = await s.post({ ...PAGE, [key]: value });
+      assert.equal(res.status, 400, `${key} ${JSON.stringify(value)}`);
+      assert.deepEqual(await res.json(), { status: 'refused', message: 'Requête incomplète' });
+    }
+  }
+  assert.equal(called, 0);
+  assert.equal((await s.post({ ...PAGE, hotelId: 14407976 })).status, 200);
+  await s.close();
+});
+
+test('specs/booking-extranet-intake.md rule 36: dismissing a fiche takes digits, anything else is a 404 and nothing is written', async (t) => {
+  const dismissed = [];
+  const app = express();
+  app.use('/admin', adminRouter({ dismissFiche: (id) => dismissed.push(id) }));
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}/admin/pending`;
+  for (const id of ['1e999', 'abc', '1.5', '-1', '0', '0x10', '99999999999999999999']) {
+    const res = await fetch(`${base}/${id}/dismiss`, { method: 'POST' });
+    assert.equal(res.status, 404, id);
+  }
+  assert.deepEqual(dismissed, []);
+  const res = await fetch(`${base}/12/dismiss`, { method: 'POST' });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true });
+  assert.deepEqual(dismissed, [12]);
+});
+
+test('specs/booking-extranet-intake.md rule 37: a fiche number that names no stay is a 404, never a stored dismissal', async (t) => {
+  const app = express();
+  app.use('/admin', adminRouter({ dismissFiche: () => false }));
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const res = await fetch(`http://127.0.0.1:${server.address().port}/admin/pending/22326/dismiss`, { method: 'POST' });
+  assert.equal(res.status, 404);
+});
+
+test('specs/booking-extranet-intake.md rule 37: the model dismisses an existing stay only', () => {
+  const Database = require('better-sqlite3');
+  const { buildModel, TABLE_SQL } = require('../intakesModel');
+  const db = new Database(':memory:');
+  db.exec('CREATE TABLE reservations (id INTEGER PRIMARY KEY AUTOINCREMENT)');
+  db.exec(TABLE_SQL);
+  const id = Number(db.prepare('INSERT INTO reservations DEFAULT VALUES').run().lastInsertRowid);
+  const model = buildModel(db);
+  assert.equal(model.dismissFiche(id + 1), false, 'an id not yet given');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM booking_dismissals').get().n, 0);
+  assert.equal(model.dismissFiche(id), true);
+  assert.deepEqual(db.prepare('SELECT reservationId FROM booking_dismissals').all(), [{ reservationId: id }]);
 });

@@ -15,7 +15,40 @@
  * exactly the same thing to the operator.
  */
 
+const { dateBeforeHorizon, PAST_HORIZON_MESSAGE } = require('./stayDates');
+
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The « not in the future » half on its own (specs/reservation-payment-ledger.md rule 9): every mark of
+ * the payments ledger goes through it. The « not before the booking » half is NOT applied there —
+ * reservations entered after the fact (Abritel typed by hand, iCal or intake imports) carry a
+ * `createdAt` later than the real payments.
+ *
+ * @param {string} date  the proposed date, `YYYY-MM-DD`
+ * @param {object} ctx
+ * @param {string} ctx.today  today, `YYYY-MM-DD`
+ * @param {string} [ctx.invalidReason]  the wording of an unreadable date
+ * @returns {{ok: true, date: string} | {ok: false, reason: string}}
+ */
+function validateCollectionDate(date, { today, invalidReason = 'Date d\'encaissement invalide.' } = {}) {
+  // specs/reservation-payment-ledger.md rule 66 — `String(["2026-10-30"])` reads as a day: only a string is one.
+  if (typeof date !== 'string') return { ok: false, reason: invalidReason };
+  const value = date.slice(0, 10);
+  if (!ISO_DATE_RE.test(value)) return { ok: false, reason: invalidReason };
+  // A real calendar day: the regex accepts 2026-02-31, the Date constructor does not keep it.
+  const parsed = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+    return { ok: false, reason: invalidReason };
+  }
+  const now = String(today || '').slice(0, 10);
+  if (ISO_DATE_RE.test(now) && value > now) {
+    return { ok: false, reason: 'Un encaissement ne peut pas être daté dans le futur.' };
+  }
+  // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — nor before today − 5 years.
+  if (ISO_DATE_RE.test(now) && dateBeforeHorizon(value, now)) return { ok: false, reason: PAST_HORIZON_MESSAGE };
+  return { ok: true, date: value };
+}
 
 /**
  * @param {string} date      the proposed date, `YYYY-MM-DD`
@@ -26,19 +59,9 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * @returns {{ok: true, date: string} | {ok: false, reason: string}}
  */
 function validateArrivalPaymentDate(date, { today, bookedAt } = {}) {
-  const value = String(date || '').slice(0, 10);
-  if (!ISO_DATE_RE.test(value)) {
-    return { ok: false, reason: 'Date d\'encaissement invalide.' };
-  }
-  // A real calendar day: the regex accepts 2026-02-31, the Date constructor does not keep it.
-  const parsed = new Date(`${value}T12:00:00Z`);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
-    return { ok: false, reason: 'Date d\'encaissement invalide.' };
-  }
-  const now = String(today || '').slice(0, 10);
-  if (ISO_DATE_RE.test(now) && value > now) {
-    return { ok: false, reason: 'Un encaissement ne peut pas être daté dans le futur.' };
-  }
+  const checked = validateCollectionDate(date, { today });
+  if (!checked.ok) return checked;
+  const value = checked.date;
   const booked = String(bookedAt || '').slice(0, 10);
   if (ISO_DATE_RE.test(booked) && value < booked) {
     return { ok: false, reason: `La réservation n'existait pas encore le ${value.split('-').reverse().join('/')}.` };
@@ -46,4 +69,4 @@ function validateArrivalPaymentDate(date, { today, bookedAt } = {}) {
   return { ok: true, date: value };
 }
 
-module.exports = { validateArrivalPaymentDate };
+module.exports = { validateArrivalPaymentDate, validateCollectionDate };

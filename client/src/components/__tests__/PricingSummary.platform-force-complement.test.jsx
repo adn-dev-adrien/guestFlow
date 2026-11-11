@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 
 import PricingSummary from '../PricingSummary';
 
-// specs/force-extras-complement-on-platform.md §3 rule 1bis + §7.2.
+// specs/force-extras-complement-on-platform.md §3 update 2026-06-20 (1bis) + §7.2.
 // On non-direct platform reservations, operator-added extras (regular options, custom options,
 // resources) KEEP their per-line <ComplementChip> so the operator can pull a line back OUT of
 // Complément. Only engine-derived auto-options (early/late check, `autoEnabled = 1`) stay chip-less
@@ -124,7 +124,7 @@ test('platform reservation: an AUTO option (autoEnabled = 1) stays chip-less eve
     ],
     resourceLines: [],
   };
-  renderSummary({ form: { ...BASE_FORM, platform: 'Airbnb' }, quote: quoteWithAuto, propertyOptions: PROPERTY_OPTIONS_WITH_AUTO });
+  renderSummary({ form: { ...BASE_FORM, platform: 'Airbnb' }, quote: { ...quoteWithAuto, platformSale: true }, propertyOptions: PROPERTY_OPTIONS_WITH_AUTO });
   // The regular breakfast keeps its "+ compl." chip; the auto late-checkout (inComplement: 1 →
   // would be a clickable "compl." chip on direct) renders chip-less on platform.
   expect(screen.getAllByText('+ compl.')).toHaveLength(1);

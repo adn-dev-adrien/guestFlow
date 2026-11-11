@@ -3,11 +3,14 @@ const ctrl = require('../controllers/propertiesController');
 const ical = require('../controllers/propertyIcalController');
 const optionDefaults = require('../controllers/propertyOptionDefaultsController');
 const welcomePack = require('../controllers/welcomePackController');
-const { handlePhotoUpload, handleDocumentUpload, multerErrorHandler } = require('../utils/propertyUploads');
+const arrivalFacts = require('../controllers/propertyArrivalFactsController').buildController({ database: require('../database') });
+const { handlePhotoUpload, handleDocumentUpload } = require('../utils/propertyUploads');
 
 // Properties
 router.get('/', ctrl.list);
 router.get('/platform-colors', ctrl.platformColors);
+router.get('/article-labels', ctrl.articleLabels);
+router.get('/limits', ctrl.limits);
 router.get('/email-hooks', ctrl.emailHooks);
 router.put('/email-hooks', ctrl.saveEmailHooks);
 router.get('/:id', ctrl.getOne);
@@ -15,6 +18,10 @@ router.post('/:id/pricing/progressive-preview', ctrl.progressivePreview);
 router.post('/', handlePhotoUpload, ctrl.create);
 router.put('/:id', handlePhotoUpload, ctrl.update);
 router.delete('/:id', ctrl.remove);
+
+// Arrival facts of the guest emails (specs/guest-email-texts-made-simple.md rules 1–2).
+router.get('/:id/arrival-facts', arrivalFacts.get);
+router.put('/:id/arrival-facts', arrivalFacts.save);
 
 // Pricing rules
 router.post('/:id/pricing', ctrl.addPricing);
@@ -24,14 +31,9 @@ router.post('/:id/pricing/apply-to', ctrl.applyPricing);
 router.post('/:id/pricing/assign-dates', ctrl.assignPricingDateRange);
 router.get('/:id/platform-prices', ctrl.platformPrices);
 
-// Tariff recipe preview/apply for a property (specs/tariff-recipes/spec.md §3.2).
-const tariffRecipes = require('../controllers/tariffRecipesController');
-router.get('/:id/tariff-recipe/preview', tariffRecipes.previewForProperty);
-router.post('/:id/tariff-recipe/apply', tariffRecipes.applyToProperty);
-router.post('/:id/tariff-recipe/detach', tariffRecipes.detachFromProperty);
-
 // Documents
 router.post('/:id/documents', handleDocumentUpload, ctrl.addDocument);
+router.get('/:id/documents/:docId/file', ctrl.downloadDocument);
 router.delete('/:id/documents/:docId', ctrl.deleteDocument);
 
 // Property ↔ options linkage
@@ -57,7 +59,5 @@ router.put('/:id/ical-sources/:sourceId', ical.updateSource);
 router.delete('/:id/ical-sources/:sourceId', ical.removeSource);
 router.post('/:id/ical-sources/:sourceId/sync', ical.sync);
 router.post('/:id/ical-sources/sync-all', ical.syncAll);
-
-router.use(multerErrorHandler);
 
 module.exports = router;

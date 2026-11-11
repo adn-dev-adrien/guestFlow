@@ -1,0 +1,153 @@
+/**
+ * Authoritative validation of an option write (specs/options-resources-ux.md rule 16, and
+ * specs/cancellation-insurance.md §3.1 rule 2 for the percentage bound).
+ *
+ * Returns `[{ field, message }]`, empty when the payload is acceptable. `field` is `title`, `price`
+ * or `propertyPrices.<propertyId>`; the message is the French text the editor prints under the field.
+ * The editor mirrors these checks as a UX hint, only this one can reject a write.
+ */
+
+const { NO_PROPERTY_PRICE } = require('./optionPayloadScope');
+const { readNumber, usableNumber, numberRefused, nonNegative, wholeFrom, rowsOf } = require('./lineInputBounds');
+const { isOptionalText, isClockTime, cleanedBody } = require('./bodyText');
+
+const MESSAGES = Object.freeze({
+  titleRequired: 'Nom requis',
+  notText: 'Texte attendu',
+  notANumber: 'Nombre attendu',
+  negative: 'Positif ou nul',
+  decimals: '2 décimales max',
+  percentMax: '100 % max',
+  unknownProperty: 'Logement inconnu',
+  whole: 'Nombre entier attendu',
+  choice: 'Choix invalide',
+  time: 'Heure invalide',
+  freeUnitsNeedPrice: 'Prix requis : unités offertes ici (0 € accepté)',
+});
+
+// A negative base price used to be refused with its own 400; the code now rides on the `price` detail.
+const NEGATIVE_PRICE_CODE = 'NEGATIVE_OPTION_PRICE';
+
+const TOWEL_COUNTS = ['towelLargePerPerson', 'towelMediumPerPerson', 'towelSmallPerPerson'];
+
+// The closed values of an option (specs/options-resources-ux.md rule 32): what the editors offer and the seeds write.
+const PRICE_TYPES = ['per_stay', 'per_person', 'per_night', 'per_person_per_night', 'per_participant_progressive', 'percent_of_stay', 'free'];
+const AUTO_TYPES = ['breakfast', 'cleaning', 'bed_linen', 'bathroom_linen', 'bath_mat', 'baby_bed', 'early_check_in', 'late_check_out'];
+const PRICING_MODES = ['fixed', 'proportional'];
+const notSent = (value) => value === undefined || value === null || value === '';
+
+/** The refusal of a closed value, or null: not sent and the value the row already stores are never judged. */
+function closedValueRefused(value, isValid, stored) {
+  if (notSent(value)) return false;
+  if (stored !== undefined && stored !== null && value === stored) return false;
+  return !isValid(value);
+}
+
+/** Audit R23-I8 — control characters out of a title and a description, a stored value left as it is. */
+const cleanOptionText = (payload, stored = null) => cleanedBody(payload || {}, { fields: ['title', 'description'], lineFields: ['description'], stored });
+
+const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
+
+/**
+ * The message a price value deserves, or '' when it is a fine price. Past the usable range it is not a
+ * number, unless it is the `stored` value sent back unchanged (specs/options-resources-ux.md rule 31).
+ */
+function priceProblem(raw, { percent = false, stored } = {}) {
+  const value = readNumber(raw);
+  if (value === undefined) return '';
+  const kept = stored !== undefined && stored !== null && Number(stored) === value;
+  if (!kept && !usableNumber(value)) return MESSAGES.notANumber;
+  if (value < 0) return MESSAGES.negative;
+  if (Math.abs(Math.round(value * 100) - value * 100) > 1e-6) return MESSAGES.decimals;
+  if (percent && value > 100) return MESSAGES.percentMax;
+  return '';
+}
+
+/**
+ * @param {object} payload
+ * @param {{ knownPropertyIds?: number[], stored?: object, storedFreeUnits?: object }} [context]  the ids of the properties
+ *   that exist: any property id the payload names (scope, prices, defaults, bath mats) must be one of them — an unknown
+ *   one would otherwise reach a foreign key and answer 500. `stored` is the option being edited, `storedFreeUnits` the
+ *   free units its rows hold ({ [propertyId]: n }).
+ */
+function validateOptionPayload(payload, { knownPropertyIds, stored, storedFreeUnits = {} } = {}) {
+  const body = payload || {};
+  const details = [];
+  const known = knownPropertyIds ? new Set(knownPropertyIds.map(Number)) : null;
+  const unknown = (pid) => !/^[1-9]\d*$/.test(String(pid)) || (known !== null && !known.has(Number(pid)));
+  if (body.propertyIds !== undefined && body.propertyIds !== null && !Array.isArray(body.propertyIds)) {
+    details.push({ field: 'propertyIds', message: MESSAGES.unknownProperty });
+  }
+  if (Array.isArray(body.propertyIds) && body.propertyIds.some((pid) => (typeof pid !== 'number' && typeof pid !== 'string') || unknown(pid))) {
+    details.push({ field: 'propertyIds', message: MESSAGES.unknownProperty });
+  }
+  for (const group of ['propertyDefaults', 'propertyBathMats']) {
+    Object.keys(body[group] || {}).filter(unknown).forEach((pid) => {
+      details.push({ field: `${group}.${pid}`, message: MESSAGES.unknownProperty });
+    });
+  }
+  // Only a string is text: an object used to be stored as « [object Object] » (hosting-h2 rule 68).
+  if (typeof body.title !== 'string' || !body.title.trim()) details.push({ field: 'title', message: MESSAGES.titleRequired });
+  if (body.description !== undefined && body.description !== null && typeof body.description !== 'string') {
+    details.push({ field: 'description', message: MESSAGES.notText });
+  }
+
+  if (!isOptionalText(body.category)) details.push({ field: 'category', message: MESSAGES.notText });
+  for (const [field, valid, message] of [
+    ['priceType', (v) => PRICE_TYPES.includes(v), MESSAGES.choice],
+    ['autoOptionType', (v) => AUTO_TYPES.includes(v), MESSAGES.choice],
+    ['autoPricingMode', (v) => PRICING_MODES.includes(v), MESSAGES.choice],
+    ['autoFullNightThreshold', isClockTime, MESSAGES.time],
+  ]) {
+    if (closedValueRefused(body[field], valid, stored?.[field])) details.push({ field, message });
+  }
+
+  const percent = body.priceType === 'percent_of_stay';
+  // specs/options-resources-ux.md rule 34 (audit R25 N1) — a price type sent without its price keeps the stored price:
+  // that price is judged under the new type, as if it had been sent back.
+  const typeChanged = Boolean(stored) && body.priceType !== undefined && body.priceType !== stored.priceType;
+  const price = body.price === undefined && typeChanged ? stored.price : body.price;
+  if (!isBlank(price) && body.priceType !== 'free') {
+    const message = priceProblem(price, { percent, stored: stored?.price });
+    if (message) details.push({ field: 'price', message, ...(message === MESSAGES.negative ? { code: NEGATIVE_PRICE_CODE } : {}) });
+  }
+
+  const scope = Array.isArray(body.propertyIds) ? new Set(body.propertyIds.map(Number)) : null;
+  const keptPrices = Object.fromEntries(Object.entries(stored?.propertyPrices || {}).filter(([pid]) => !scope || scope.has(Number(pid))));
+  const propertyPrices = body.propertyPrices === undefined && typeChanged ? keptPrices : body.propertyPrices;
+  if (!NO_PROPERTY_PRICE.includes(body.priceType)) {
+    for (const [pid, raw] of Object.entries(propertyPrices || {})) {
+      if (unknown(pid)) {
+        details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.unknownProperty });
+        continue;
+      }
+      if (isBlank(raw)) continue;
+      const message = priceProblem(raw, { percent, stored: stored?.propertyPrices?.[pid] });
+      if (message) details.push({ field: `propertyPrices.${pid}`, message });
+    }
+  }
+  // specs/tariff-recipes/spec.md rule 69 — the row carries the free units: a save that would drop it (price blanked, property
+  // no longer proposed, a price type with no per-property price) is refused on that row's price.
+  if (body.propertyPrices !== undefined) {
+    for (const pid of Object.keys(storedFreeUnits)) {
+      const kept = !NO_PROPERTY_PRICE.includes(body.priceType) && !isBlank((body.propertyPrices || {})[pid]);
+      if (!kept) details.push({ field: `propertyPrices.${pid}`, message: MESSAGES.freeUnitsNeedPrice });
+    }
+  }
+  for (const field of TOWEL_COUNTS) {
+    if (numberRefused(body[field], wholeFrom(0), stored?.[field])) details.push({ field, message: MESSAGES.whole });
+  }
+  for (const [pid, raw] of Object.entries(body.propertyBathMats || {})) {
+    if (numberRefused(raw, wholeFrom(0), stored?.propertyBathMats?.[pid])) details.push({ field: `propertyBathMats.${pid}`, message: MESSAGES.whole });
+  }
+  for (const tier of rowsOf(body.optionProgressiveTiers)) {
+    const kept = rowsOf(stored?.optionProgressiveTiers).some((known) => Number(known.unitPrice) === Number(tier?.unitPrice));
+    if (numberRefused(tier?.unitPrice, nonNegative, kept ? tier.unitPrice : undefined)) {
+      details.push({ field: 'optionProgressiveTiers', message: MESSAGES.notANumber });
+      break;
+    }
+  }
+  return details;
+}
+
+module.exports = { validateOptionPayload, cleanOptionText, closedValueRefused, priceProblem, MESSAGES, NEGATIVE_PRICE_CODE };

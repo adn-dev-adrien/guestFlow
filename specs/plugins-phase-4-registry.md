@@ -1,0 +1,734 @@
+# Plugins — phase 4: plugin packages, a signed registry, install and update from the Plugins page
+
+| Field | Value |
+|---|---|
+| **Status** | Implemented |
+| **Branch** | `feature/plugins-phase-4` (from `inte/plugins` at 4a5a66ae) |
+| **Created** | 2026-10-08 |
+| **Author** | Adrien |
+| **Related PR** | #692 (target `inte/plugins`) |
+| **Parent study** | [`specs/plugins-inventory.md`](plugins-inventory.md) — D1, §8, §11 risk 4, phasing §12 |
+| **Previous phase** | [`specs/plugins-phase-p-productisation.md`](plugins-phase-p-productisation.md) (PR #672) |
+| **Summary for review** | [`docs/specs/2026-10-08-plugins-phase-4-registry.html`](../docs/specs/2026-10-08-plugins-phase-4-registry.html) |
+
+---
+
+## 1. Context
+
+D1 (2026-09-28): plugins are downloaded, as in Sowel — a registry, one package per plugin, SHA-256
+pinned, installed from the Plugins page. Phases 0–3 gave every optional feature a module behind the
+SDK (`server/src/plugins/<id>`, `client/src/plugins/<id>`), but the twelve modules are still compiled
+into the core:
+
+- `server/src/plugins/index.js` and `client/src/plugins/index.js` are static import lists;
+- the `plugins` table has no `manifest` and no pinned hash (`utils/pluginsSchema.js`), the catalogue is
+  a frozen constant (`constants/plugins.js`) with `requires` frozen to `[]`;
+- the SDK has no version, the core does not check any range;
+- the release workflow publishes one core archive and nothing per plugin;
+- the client plugins still import core files directly (`../../../api`, `DialogProvider`, `useAuth`…).
+
+D4 makes the repository private: an instance cannot download from GitHub without a token
+(`plugins-inventory.md` §10). The control plane already holds an Ed25519 key and every managed
+instance already verifies its signatures (`control-plane-plans-and-access.md` rules 11 and 30).
+
+## 2. Goal
+
+A plugin is a package with its own version. An administrator installs, updates or removes it from the
+Plugins page; the package comes from the official registry when the instance has one, or from the
+copy shipped in the release archive when it has none. A plugin that is not installed costs nothing:
+no server code loaded, no client code downloaded.
+
+## 3. Functional rules
+
+### 3.A Decisions taken for this phase (2026-10-08)
+
+The owner asked for the whole plan to run end to end and to be asked only when blocked. The options
+below are the recommended ones; each is reversible in a later spec.
+
+- **P23 — the registry lives in the control plane.** It signs the index with the key it already uses
+  for licences and serves the packages. Instances only make outbound calls. GitHub raw (Sowel) is
+  ruled out by D4.
+- **P24 — the release archive still ships every plugin package.** An instance without registry (Solio
+  today, a development machine, an offline install) installs and updates plugins from the archive it
+  runs; the registry only adds versions published between two core releases.
+- **P25 — the administrator of the instance installs and updates plugins**, within the plugins its
+  licence allows (control-plane rule 11). Nothing updates by itself. Fleet-wide pushes are the
+  operator's, in the hosting phase H.
+  > **2026-10-28 (owner feedback on the shadow):** on an operator-managed space (`GUESTFLOW_MANAGED=1`
+  > or a licence carrying `activePlugins`) the operator decides which plugins run, from the console, and
+  > the Plugins page does not exist — [`plugin-operator-provisioning.md`](plugin-operator-provisioning.md)
+  > rules 1–9, 16. P25 still holds on an unmanaged space (Solio, development, E2E).
+- **P26 — one plugin version per plugin, semver, bumped by the release.** A plugin whose files changed
+  since the last tag gets a patch bump; the `verify` job refuses a release where a plugin changed and
+  its version did not.
+  > **2026-10-17 (review of PR #692):** « bumped by the release » is replaced by rule 28: the pull
+  > request that changes a plugin bumps it, because the owner's authorisation to merge the release
+  > PR covers only the three `package.json` bumps and the changelog fold (CLAUDE.md §5.6).
+- **P27 — one loading path in production.** Every plugin, bundled or downloaded, is loaded from a
+  package directory on the server and from its own ES module in the browser. The development server
+  keeps loading sources directly, so hot reload still works.
+
+### 3.B Package and manifest
+
+1. A plugin package is a `tar.gz` named `<id>-<version>.tgz`. It holds `manifest.json`, `server/`
+   (the module's server code, CommonJS, no `node_modules`) and `client/` (one ES module `index.js`
+   plus its chunks and assets). No `npm install` at install time.
+   > **2026-10-08 (implementation):** The package also lands unpacked next to its archive in `plugins-dist/<id>/`, which is what a `bundled` row runs (rule 17). `tar` is created with `COPYFILE_DISABLE=1`: macOS would otherwise add `._*` members the instance refuses.
+2. The manifest is the single description of a plugin: `id`, `name`, `version`, `description`,
+   `icon`, `surfaces`, `requires` (`[{ id, range }]`), `guestflow` (core version range), `sdk` (SDK
+   version range). It lives in the plugin's source folder (`server/src/plugins/<id>/manifest.json`);
+   `constants/plugins.js` builds the catalogue from the twelve manifests instead of repeating them.
+   > **2026-10-08 (implementation):** Every module of the host side validates with the same `server/src/plugins/manifest.js` (`validateManifest`): the catalogue, the package store, the registry client, the package build and the console's registry. `changelog` is an optional `{ version: [lines] }` (rule 24). The twelve manifests start at `1.0.0` with `guestflow: ">=3.9.0"` and `sdk: "^1.0.0"`: the core version is a floor only — the SDK range is what protects a plugin from a breaking core, so a major core release does not orphan every plugin.
+3. The SDK has a version (`sdk/version.js`, semver, starting at `1.0.0`). Removing or changing an SDK
+   entry point is a major bump; adding one is a minor bump.
+4. A plugin's server code requires the core only through `guestflow/sdk` (and its sub-paths); its
+   client code imports only `react`, `react-dom`, `react-router`, `@mui/material`,
+   `@mui/icons-material` and `guestflow/sdk` (and its sub-paths). The build of a package fails on any
+   other import that leaves the plugin folder. The core imports the client SDK re-exports (`api`
+   helpers, `DialogProvider`, `useAuth`, menu constants) from one place.
+   > **2026-10-08 (implementation):** The plugin sources keep requiring `../sdk` (server) and importing `../sdk` / `../sdk/ui` (client): development, the unit suites and the console (which renders the online-payment page from the sources) run them as they are. The package build is where rule 4 is enforced: on the server it rewrites every require reaching `server/src/plugins/sdk` to `guestflow/sdk[/<file>]` and fails on any other require leaving the folder, or on an npm package `server/package.json` does not ship; on the client the same check turns the SDK into the externals `guestflow/sdk` and `guestflow/sdk/ui`. At run time the loader resolves `guestflow/sdk` to the core SDK and a package's npm requires to the core's `node_modules` (a `Module._resolveFilename` hook limited to the package directories).
+5. The client bundle is built with `react`, `react-dom`, `react/jsx-runtime`, `react-router`,
+   `@mui/material` and `guestflow/sdk` as externals, resolved at run time to the host's own modules:
+   one React, one MUI theme. Icons are bundled into the plugin.
+   > **2026-10-08 (implementation):** The externals are the list `client/src/plugins/hostModules.json` — `react`, `react/jsx-runtime`, `react-dom`, `react-router`, `@mui/material` and its `styles`, `colors` and `utils` sub-paths (an icon imports `createSvgIcon` from `@mui/material/utils`), `guestflow/sdk`, `guestflow/sdk/ui`. No import map: the build rewrites each import of an external into a read of `globalThis.__GUESTFLOW_HOST__.modules[<name>]`, which `client/src/plugins/runtime.js` fills with the app's own modules before importing any bundle. A bare import left in a bundle fails the build.
+   > **2026-10-17 (review of PR #692):** Superseded in part by rule 26: the externals are no longer a fixed list. Everything of React, the router, MUI (`@mui/material/*`, `@mui/system`, `@mui/utils`, …) and emotion stays the host's, whoever imports it — an icon imports `@mui/material/SvgIcon`, which used to pull a copy of MUI and emotion into every bundle (~100 KB each) and drop the GuestFlow theme on the icons.
+   > **2026-10-18 (merge of `master` v3.10.0):** `@mui/icons-material` 9.5 makes `createSvgIcon` a
+   > re-export (`export { createSvgIcon as default } from '@mui/material/SvgIcon'`), which Vite keeps as a
+   > chunk re-exporting the host module. The build now rewrites such a re-export like an import — a read
+   > of the host module, re-exported under the chunk's name — instead of refusing the bundle.
+
+### 3.C Registry
+
+6. The registry index is a JSON document listing, per plugin, every published version with its
+   manifest, its SHA-256 and its size. It is signed with Ed25519 (detached signature next to the
+   index). An index whose signature does not verify is ignored entirely.
+7. The control plane serves `GET /registry/v1/index.json`, `GET /registry/v1/index.json.sig` and
+   `GET /registry/v1/packages/<id>-<version>.tgz`, without authentication (packages contain no
+   customer data; the licence decides what an instance may install).
+8. The operator publishes packages from the console page **Registre**: upload one or more `.tgz`
+   files; the console reads each manifest, refuses a duplicate `id@version`, a manifest that fails
+   rule 2, or an archive whose layout fails rule 1, stores the file under `CP_DATA_DIR/registry/`,
+   and re-signs the index. A published version can be withdrawn (it disappears from the index; an
+   instance that runs it keeps it).
+9. An instance reads the registry from `GUESTFLOW_REGISTRY_URL` and verifies it with
+   `GUESTFLOW_REGISTRY_PUBLIC_KEY`, falling back to `GUESTFLOW_LICENCE_PUBLIC_KEY`. Without a URL, or
+   without a key, the instance has no remote registry and says so nowhere: it simply offers what its
+   archive ships (P24). The index is fetched at boot, then every 6 hours, and on demand from the
+   Plugins page (« Rechercher des mises à jour »).
+   > **2026-10-08 (implementation):** The URL must be https, except a loopback address (the E2E registry, a development machine). The page shows the state of the last read under the search field: « Registre lu il y a 5 min. », « Registre injoignable, dernière lecture il y a 3 h. », or « Registre ignoré : signature invalide. » (rule 6) — and nothing at all without a registry. « Rechercher des mises à jour » is an icon of the page's action bar, shown only when a registry is configured.
+
+### 3.D Install, update, uninstall
+
+10. Sources, in order: the registry, then the packages shipped in the release archive
+    (`<release>/plugins-dist/`). For each plugin the instance offers the highest version that is
+    compatible (rule 12) and allowed by the licence.
+   > **2026-10-08 (implementation):** Offers exist only where packages run (rule 19): a development tree is offered nothing and runs its sources. Only the twelve plugin ids of the catalogue are offered: a registry entry for another id is ignored, because a new plugin needs a core that knows its licence entry and its plan (third-party plugins are out of scope, §8).
+11. Installing or updating downloads the package (or copies it from the archive), checks its SHA-256
+    against the signed index (or against `plugins-dist/SHA256SUMS`, itself covered by the release's
+    `SHA256SUMS`), unpacks it to `<GUESTFLOW_DATA>/plugins/<id>/<version>/`, then switches the
+    plugin's `current` pointer. The `plugins` row records `version`, `source`
+    (`registry` | `bundled`), `manifest` and `pinned_sha256`. A failed download or a hash mismatch
+    leaves the running version untouched.
+   > **2026-10-08 (implementation):** A `bundled` version is not unpacked at install: the release already carries it unpacked in `plugins-dist/<id>/`, covered by the release's own SHA-256 when the core was installed. Its row records the archive's hash from `plugins-dist/SHA256SUMS` as `pinned_sha256`. A registry download is limited to 50 MB and follows no redirect.
+12. A version is compatible when the running core satisfies `guestflow`, the SDK satisfies `sdk`, and
+    every `requires` entry names an installed plugin whose version satisfies its range. Installing a
+    plugin whose requirement is missing proposes to install the requirement first, in the same
+    confirmation. Uninstalling a plugin that another installed plugin requires is refused with the
+    name of that plugin.
+   > **2026-10-08 (implementation):** The confirmation of rule 12 is a dialog on the card: « Nécessite aussi : Linge et blanchisserie 1.0.0, installé en premier. » with « Tout installer »; the server answers 409 `REQUIREMENTS` with the plan when the request did not include `withRequirements`. An **update** whose new version requires a plugin not installed is refused with « Nécessite X : à installer d’abord. » instead of installing it on the way: an update restarts the instance and stays one plugin at a time.
+13. A plugin's server code takes effect without a restart for an install (its routes, jobs and
+    migrations are registered live). An **update** asks for a restart of the instance, done by the
+    application itself as the core update already does (`specs/self-update-and-releases.md`); the
+    page says « Redémarrage en cours » and reloads when the server answers.
+   > **2026-10-08 (implementation):** Two precisions. An install in a release answers `reload: true` and the page reloads, because the browser loads plugin bundles only before the app renders (rule 18); the server part needed no restart. Reinstalling, in the same process, a version other than the one still loaded from before an uninstall restarts the instance, like an update. The restart is a clean exit that the supervisor turns into a restart: PM2 in production (`pm_id` set), `GUESTFLOW_SUPERVISED=1` for the E2E harness. Without a supervisor an update is refused with 412 « Redémarrage automatique indisponible sur cette installation : rien n’a été modifié. » before anything moves. The page waits until `/api/version` answers with a new start time, then reloads.
+   > **2026-10-17 (review of PR #692):** `/api/version` gives the start time of the process (fixed at boot): it used to be the time of the request, so the page « detected » a restart on its first poll. The restart is a SIGINT through the server's own shutdown (requests in flight finish), not an immediate exit.
+14. At boot, a package whose ranges no longer match the running core (after a core update) stays
+    installed but is not loaded; the Plugins page shows it as « Incompatible avec cette version » and
+    offers the compatible version when one exists. Its data is untouched.
+   > **2026-10-08 (implementation):** A package whose requirement is itself not loadable (missing, incompatible, or at a version outside the range) is left unloaded too, with « Nécessite <plugin>. ». A package whose files are missing (deleted by hand) is reported « Paquet introuvable : à réinstaller. ». The compatible version is offered on the card as « Installer la version x.y.z » — it goes through the update path (restart).
+   > **2026-10-17 (review of PR #692):** An update to an **older** version is accepted only for a plugin in this state; otherwise only a newer one.
+15. Each plugin has a persistent data directory `<GUESTFLOW_DATA>/plugin-data/<id>/` exposed as
+    `ctx.dataDir`; updates never touch it; uninstalling with « Effacer aussi ses données » removes it.
+16. The last two versions of a plugin are kept on disk. « Revenir à la version précédente » is offered
+    for 7 days after an update, then the older copy is deleted.
+   > **2026-10-08 (implementation):** The previous copy is recorded in the row (`previous_version`, `previous_source`, `previous_sha256`, `rollback_until`, §5). A rollback is a restart like an update, and clears the window: there is no « rollback of the rollback ». The housekeeping that deletes an expired copy runs at boot and every 6 hours; it also deletes the package directories of plugins no longer installed.
+
+### 3.E Loading
+
+17. Production: the server loads each installed plugin from `<GUESTFLOW_DATA>/plugins/<id>/current/server`
+    (the release's own copy for `bundled` packages that were never re-installed). `guestflow/sdk` is
+    resolved to the core SDK by the loader. A module that throws keeps the existing failure isolation
+    (phase 1 rule 4).
+   > **2026-10-08 (implementation):** A `bundled` row runs from the release's unpacked package, `<release>/plugins-dist/<id>/server` — not from `server/src/plugins/<id>`, which the archive still ships for the console and the unit suites: one loading path for every plugin (P27). Only the installed packages load: a plugin not installed registers nothing, and the registry then answers « not live » for it (`requireRecord`).
+18. Production: `GET /api/plugins` gives each active plugin's `clientEntry` (a URL served by the
+    instance under `/plugin-assets/<id>/<version>/`, long-cache, immutable). The client imports every
+    active entry before rendering the routes; a plugin whose bundle fails to load is shown as failed on
+    the Plugins page and the rest of the app renders.
+   > **2026-10-08 (implementation):** The list of entries is `GET /plugin-assets/entries.json`, outside `/api` and readable before the login: the browser imports the bundles before the app's modules evaluate, so the menus, routes and slots computed from the module list see them, and a session never needs a reload. It lists every loaded package — active or inactive (activating stays instant); not installed costs nothing. The few maps the core derived at import time from the module list (`ROUTE_PLUGINS`, `MODULE_ROUTE_ROLES`, `ROUTE_ROLES`, `useSlot`'s ids) read it live. A bundle that fails to import is shown « Échec du chargement. » on its card; the failure is a fact of that browser, kept client-side (`BUNDLE_FAILURES`).
+   > **2026-10-17 (review of PR #692):** `/plugin-assets/entries.json` is readable without a session on purpose (it names the active plugins and their versions, nothing else). When it cannot be read, the app renders without its plugins and shows « Modules indisponibles. » with « Recharger ». The App chunks are fetched (`modulepreload`, without evaluation) in parallel with the bundles, and the list is fetched before the runtime arrives. Measured with `npx vite build`: the code loaded before the first render is 572 KB gzip (+ 8 KB of plugin entry bundles) against 573 KB on `inte/plugins` — under +5 %.
+19. Development (`npm run dev`) and the unit suites keep importing the plugin sources directly. One E2E
+    suite runs against the production build served by the server, so the package path is exercised in
+    CI.
+   > **2026-10-08 (implementation):** The mode is `GUESTFLOW_PLUGINS=packages|sources`; without it a process that finds `plugins-dist/SHA256SUMS` beside `server/` runs packages, whatever `NODE_ENV` says — a release's client build carries no plugin code, so a release must never fall back to sources. `npm run dev` and the dev E2E suite set `sources`. The production-build suite is `npm run test:e2e:prod` (`playwright.prod.config.js`, `e2e/prod/`), a job of the E2E workflow: it serves `client/dist` and the packages beside a test registry signed with a throwaway key, behind a supervisor that restarts the server like PM2.
+
+### 3.F Plugins page
+
+20. Each installed plugin's card shows its version. When a newer compatible version exists, a chip
+    « Mise à jour 1.2.0 » opens a dialog with the plugin's changelog lines for the versions in between
+    and one button « Mettre à jour ». A banner « 3 mises à jour disponibles » offers « Tout mettre à
+    jour ».
+   > **2026-10-08 (implementation):** « Tout mettre à jour » downloads and verifies every package first; a refused one leaves every plugin as it was. Then it switches them all and restarts once.
+   > **2026-10-23 (review of inte/plugins):** « Tout mettre à jour » follows the server's answer as a single update does: `restarting` waits for the restart, `reload: true` reloads the page, anything else reads the list and the session again. The chip « À configurer (n) » is a 44 px touch target.
+21. The « Disponibles » tab lists plugins allowed by the licence and not installed, with their version;
+    a plugin outside the licence keeps the « Hors forfait » state of control-plane rule 11.
+22. Refusals are shown in the dialog, in plain French, never as a raw error: version of GuestFlow too
+    old (« Nécessite GuestFlow 4.1 ou plus récent »), missing requirement, package refused (« Le
+    paquet reçu ne correspond pas à sa signature — rien n'a été modifié »), download impossible.
+
+### 3.G Release and publication
+
+23. The release workflow builds the twelve packages (`scripts/build-plugin-packages.mjs`), puts them in
+    the core archive under `plugins-dist/` with a `SHA256SUMS`, and attaches them to the GitHub
+    release. The `verify` job runs `scripts/check-plugin-versions.mjs`: a plugin folder changed since
+    the previous tag with the same manifest version fails the release.
+   > **2026-10-08 (implementation):** `release.sh` builds the packages when `plugins-dist/` is missing and copies the directory into the archive; the release workflow builds them after the client and attaches every `<id>-<version>.tgz` to the GitHub release (they are listed in the release's `SHA256SUMS` like every asset). `scripts/check-plugin-versions.mjs --bump` is the release skill's step that patch-bumps every changed plugin; tests-only changes do not count.
+   > **2026-10-17 (review of PR #692):** The release PR no longer bumps plugins (rule 28); the `verify` job's check now passes or stops the release. The package job also compares each package's content hash with the package published under the same version in the previous release (rule 27).
+24. Plugin changelog lines live in `changelog.d/` like the core's, with a `plugin:<id>` prefix on the
+    bullet; the release fold writes them into the core section and into the manifest's `changelog`
+    entry for that version.
+   > **2026-10-08 (implementation):** The `plugin:<id>` bullet is written in **French**, like the operator digest: it is read inside the application, in the update dialog. In the core section it becomes « **Plugin `<id>`** — <text> ». The fold runs after the bump (P26), so the lines land under the version this release ships.
+   > **2026-10-17 (review of PR #692):** Superseded by rule 28: the release fold no longer edits manifests. A `plugin:<id>` bullet still names its plugin in the core section; the French lines the update dialog shows are written in the manifest by the PR that bumps the plugin.
+
+**Edge cases:**
+- Registry unreachable → the page shows the archive's versions; no error toast, a discreet « Registre
+  injoignable, dernière lecture il y a 3 h ».
+- Registry and archive both offer the same version → the archive copy is used (no download).
+- A plugin installed from the registry, then the core is updated to a release that ships an older
+  version of that plugin → the installed (newer) version stays.
+- An instance offline for months → nothing changes until someone clicks; the 7-day rollback window
+  starts at the update, not at the first boot after it.
+- Two administrators click « Mettre à jour » together → the second request gets 409 « Mise à jour déjà
+  en cours ».
+
+### 3.H Added during implementation (2026-10-08)
+
+25. A `bundled` row follows the copy the running release ships: at each boot its `version`,
+    `manifest` and `pinned_sha256` are those of `plugins-dist/<id>/`. A core update that ships a newer
+    version of a `bundled` plugin therefore updates it with the core, with no separate click; a plugin
+    installed from the registry (`registry` row) keeps its own version (edge case « older version in
+    the archive »). Added because the spec said where a `bundled` package runs (rule 17) but not which
+    version its row then records.
+
+### 3.I Added after the review of PR #692 (2026-10-17)
+
+26. **The host gives the plugins exactly what they import.** A plugin bundle carries no copy of React,
+    the router, MUI (any `@mui/material` sub-path, `@mui/system`, `@mui/utils`) or emotion — only its
+    icons — and the package build fails otherwise. The names the twelve-plus plugins take from the host
+    are listed in `client/src/plugins/hostModules.json` and imported one by one by `hostModules.js`,
+    both generated by `node scripts/build-plugin-packages.mjs --write-host`; the build fails when a
+    plugin takes a name the list lacks. A bundle checks the names as it loads: a version built for a
+    newer core that needs a name this core does not expose fails to load (shown « Échec du
+    chargement. ») instead of rendering `undefined` — and its `guestflow` floor must say so.
+    > **2026-10-18 (second review):** The SDK (`guestflow/sdk`, `guestflow/sdk/ui`) is exposed whole: it is GuestFlow's own versioned contract, so a plugin version built later may use any of its entries. The list is append-only and each package says what it needs (rule 33).
+27. **A plugin's client files are cached by content.** Their URL carries the package's hash
+    (`/plugin-assets/<id>/<version>-<hash12>/…`), so files served immutable are never those of another
+    build with the same version. Each package's manifest records a `contentHash` of its files; the
+    release refuses a package whose content differs from the one already published under the same
+    version (a dependency bump, say) — the plugin is then bumped in a PR.
+    > **Withdrawn 2026-10-29 (audit r2 N4, rule 49 below):** the reuse described in the next note no longer exists.
+    > **2026-10-18 (second review):** The URL's hash is the package manifest's `contentHash` (not the archive's), and the archive itself is reproducible: names sorted, owner 0, mtime 0, gzip without a timestamp. When a rebuilt package differs from the one published under the same version but the plugin's sources did not change since the previous tag (a dependency bump), the release keeps the published package instead of failing; it fails only for changed sources without a bump — and the release skill runs the same check in its pre-flight, so this never fails after the tag.
+28. **A plugin is versioned in the pull request that changes it.** CI refuses a PR that changes a
+    plugin's files (tests excepted) without a new `version` in its manifest and French lines under
+    `changelog["<version>"]`. The release PR never edits a manifest; it only folds `changelog.d/`.
+    Reading of 2026-11-10 (audit R36-CON-L1): a plugin's files include the core client files its web apps build in
+    (`apps/*` importing `@guestflow/…`, and what those files import in turn, `coreClientClosure` of
+    `check-plugin-versions.mjs`): its package carries that build, so a change to `StatusBadge` reached guest-app's
+    package under an unchanged version and only the release's `package` job (rule 27) saw it, after the tag. The release
+    skill's pre-flight builds the plugins' web apps before it builds and judges the packages, as that job does.
+29. **One plugin operation at a time, all or nothing.** An install takes the same lock as an update
+    (409 « Mise à jour déjà en cours. »); a requirement installed for a plugin whose own install then
+    fails is uninstalled again; an install that needs a restart (another version still loaded) is
+    refused without a supervisor, like an update (412).
+    > **2026-10-18 (second review):** Every refusal releases the lock; only an actual restart keeps it (the next process starts unlocked). An undone requirement loses its row, its `current` pointer and its place in the list of bundles the browser loads; its server code, already registered, stays in memory, inert (not live), until the next restart.
+30. **A replayed index is refused.** The instance remembers the `generatedAt` of the last index it
+    accepted (`<data>/plugins/registry-state.json`) and ignores an older one, even correctly signed
+    (« Registre ignoré : index plus ancien que le dernier lu. »). An index or package larger than its
+    limit is refused as it streams (declared length first), not after being read whole.
+    > **2026-10-18 (second review):** An index dated more than 24 hours ahead of the instance's clock is refused and not remembered (one bad date would otherwise lock out every honest index after it). The remembered date is kept per registry URL and key. The console dates each index after the previous one (`max(now, last + 1 ms)`).
+31. **Writes under `/api` come from GuestFlow's pages.** A non-GET request whose `Origin` (or
+    `Referer`) names another site is refused with 403 — so another site cannot install or update a
+    plugin with an administrator's session. Requests without either (scripts, server-to-server) and
+    the plugin webhooks pass; the public API (`/public/v1`, the WordPress site) is not under `/api`. A
+    development process (`NODE_ENV` unset) does not check: the Vite proxy rewrites the host.
+    > **2026-10-18 (second review):** Same origin is now the same host **and port**. The check is on everywhere unless `GUESTFLOW_DEV=1`, which only the development scripts set (`npm run dev`, the dev E2E suite) — no longer inferred from `NODE_ENV`. The boot log says « same-origin writes: on » or « off ».
+32. **The waits ask and give up.** « Revenir à la version précédente » asks for confirmation; the
+    « Redémarrage en cours » wait says « Le redémarrage est plus long que prévu. » after 90 s and
+    offers « Réessayer ».
+   > **2026-10-23 (review of inte/plugins):** when the start time before the update could not be read, the old process may still be the one answering: the wait reloads only once the server has been seen unreachable and answers again. If it never was within the 90 s, « Réessayer » accepts the next answer.
+33. **A package says what it needs from the app, and the app's list only grows** (added 2026-10-18,
+    second review). The package build records in each package's manifest the names it takes from the
+    app (`hostImports`) and ships the app's own list with the release (`plugins-dist/hostModules.json`).
+    An instance refuses a version — install, update, or loading at boot — whose `hostImports` its app
+    does not expose, with the refusal of a core too old (« Nécessite une version plus récente de
+    GuestFlow. »). `client/src/plugins/hostModules.json` only grows: `--write-host` keeps what was there,
+    and CI refuses a PR or a release that removes a module or a name since its base.
+34. **A package names the last GuestFlow major it runs on** (added 2026-10-18, code review M3). Every
+    manifest's `guestflow` range has an upper bound (`">=3.9.0 <4.0.0"`); the package build refuses a
+    manifest without one. An instance reads an open range published before this rule as stopping at
+    the next major of its floor (`>=3.9.0` → `>=3.9.0 <4.0.0`), so GuestFlow 4 refuses every 3.x
+    package — install, update or loading at boot — until a version built for it is published. The
+    refusal blames the package, not the core: « Incompatible avec cette version de GuestFlow. » on the
+    Plugins page (`CORE_INCOMPATIBLE`), « Incompatible avec cette version. » for a package refused at
+    boot. *(Corrected 2026-10-18, second review: the text first quoted rule 33's « Nécessite une version
+    plus récente de GuestFlow. », which is for a core too old.)*
+    > **Superseded 2026-11-09 by rule 62 (D24, Adrien; audit R34-CON-H1 / R34-P1).** The release after
+    > 3.21 is 4.0.0, and this rule would have switched off all sixteen plugins at its first boot, with no
+    > compatible version to offer. The `guestflow` range is read as a floor again (the reading rule 2's
+    > implementation note started from); the ceiling, written or derived, is no longer applied. The
+    > boot message « Incompatible avec cette version. » stays for a package refused on its SDK range.
+35. **What `coreModule()` hands a server plugin is part of the SDK contract** (added 2026-10-18, code
+    review M3). `server/src/plugins/sdk/coreModules.json` lists every module of `CORE_MODULES` and the
+    names it exports. A unit test fails when a listed module or name is no longer exported, when the
+    list and `CORE_MODULES` differ, or when a plugin calls `coreModule()` with a name outside the list;
+    `check-plugin-versions` refuses a PR or a release that removes a module or a name since its base
+    unless the SDK major version moves (`server/src/plugins/sdk/version.js`). Adding stays free, like
+    the host modules of rule 33. *(Clarified 2026-10-18, second review: the list holds names only. It
+    catches a module or an export removed or renamed; a changed signature behind the same name is not
+    detected, and stays a matter of review and of the SDK major version.)*
+    *Reading of 2026-11-05 (audit R24-P2):* the list holds every name a plugin reads, not only the modules it
+    reaches. A test reads each plugin's `coreModule('m')` destructuring, `coreModule('m').x` and the names taken
+    through a variable holding the module, and fails on a name missing from the list (a second-level read such as
+    `coreModule('qonto').qontoService.x` belongs to its object). Five names joined: `pricing#effectiveMinNightsForDate`,
+    `pricing#getRuleNightBaseForDate` and `propertiesModel#listPricingRules` (there since SDK 2.0.0),
+    `devisModel#appendPublicMessage` (recorded under SDK 2.7.0) and `reservationPaymentMark#takeBackRefusal` (SDK
+    2.21.0); online-payment, which reads the last one, declares `^2.21.0` from 1.5.5.
+    *Reading of 2026-11-05 (audit R24 NEW-2):* the census also reads a module taken through
+    `require('../sdk').coreModule('m')`, a getter `x = () => [y ||] sdk.coreModule('m')` read as `x().n` or destructured
+    from `x()`, and a default parameter or injected property `x = / x: sdk.coreModule('m')` read as `x.n`; comments are
+    not reads. A module name built at run time is still not seen.
+36. **A plugin an active plugin requires stays active** (operator decision 2026-10-27, spec review).
+    Deactivating a plugin that an **active** plugin requires is refused like uninstalling it (rule
+    12): `POST /api/plugins/:id/deactivate` answers 409 `REQUIRED_BY` with `requiredBy` (the
+    dependants' ids) and « Nécessaire à <nom> : à désactiver d’abord. », which the Plugins page shows
+    on the card. An **inactive** dependant does not block a deactivation (it does not run), but still
+    blocks an uninstall. Found when `website-booking` could be switched off while
+    `google-vacation-rentals`, which requires it, stayed active.
+37. **A plugin activates only on top of active requirements** (adversarial review of the 2026-10-27
+    fixes, mirror of rule 36). `POST /api/plugins/:id/activate` refuses a plugin one of whose
+    requirements (`manifest.requires`) is not installed or not active: 409 `REQUIREMENT_INACTIVE`
+    with `requires` (those ids) and « Nécessite <nom> : à activer d’abord. », which the Plugins page
+    shows on the card. Found when Google Vacation Rentals could be re-activated while
+    `website-booking` was off.
+38. **Install refuses an installed but inactive requirement** (audit 2026-10-28, mirror of rule 37).
+    `POST /api/plugins/:id/install` — install is install-and-activate (rule 4) — answers 409
+    `REQUIREMENT_INACTIVE` (`requires`, « Nécessite <nom> : à activer d’abord. ») when a requirement
+    is installed yet switched off. A requirement not installed is the install plan's business (rule
+    12), not a refusal. Test: `plugin-install-requirement-inactive.unit.test.js`.
+39. **Reinstall, retry, erasure and slots tell the truth** (audit 2026-10-28):
+    - an install always runs the plugin's migrations, also when the same version is still loaded in
+      the process (the ledger makes it idempotent). Without it, « Effacer aussi ses données » then
+      a reinstall without a restart left the plugin active with no tables. The loaded record is
+      deliberately kept on uninstall: it names the code the process holds, and a different version
+      still restarts (rule 13);
+    - activating a plugin runs its migrations too (500 `PLUGIN_MIGRATION_FAILED` if they throw, the
+      plugin stays off): after an « Effacement incomplet » the tables are gone, and « Activer » must
+      not turn on a plugin without them;
+    - a plugin whose live `register` failed is registered afresh by the next install: its failed
+      record, its mounted layers and its job schedule are dropped first, so the retry either comes up
+      whole or answers 500 `PLUGIN_REGISTER_FAILED` again. The same holds for a plugin that failed at
+      boot and is installed again at the same version;
+    - an erasure runs the database step (one transaction) then the files step. A failure of the
+      first answers « rien n’a été effacé » (true: it rolled back); a failure of the second answers
+      « Effacement incomplet : les données sont effacées, pas les fichiers. À relancer. », leaves the
+      plugin installed and inactive, and a retry finishes the job;
+    - on the client each slot contribution sits in its own error boundary
+      (`client/src/plugins/sdk/Slot.jsx`): a throwing one renders nothing and is logged; a lazy chunk
+      that 404s after a plugin update (another tab) shows « Module mis à jour. Recharger ».
+    Tests: `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`,
+    `Slot.isolation.test.jsx`.
+40. **The trust root is the registry signing key, and a package is fully trusted code** (audit
+    2026-10-28). A package runs in-process with the server's full `require` (any core file, raw SQL
+    through `ctx.db`, the decrypted SMTP settings, `secrets.getOrCreate` on any environment name) and
+    its client bundle runs same-origin with the administrator's session. `coreModule()`'s allowlist is
+    a contract and a lint aid, not a security boundary. This is acceptable for first-party packages
+    only (§8: third-party plugins are out of scope): whoever holds the key that signs the index can
+    run arbitrary code on every instance that clicks « Installer » or « Mettre à jour ». Before any
+    third-party plugin is considered, the registry must have its own dedicated key (it still falls
+    back to the licence key, handled by the control plane) and packages must be sandboxed.
+    `tar` refuses links but lets FIFO and device members through, and a gzip can expand without
+    limit: both need a signed package to be reached.
+    **Sans test** — a statement of the trust model, not a behaviour.
+41. **An install that needed a restart owes its hooks** (audit 2026-10-28, finding 4; lifts the
+    limit noted under rule 13). When an install is recorded but the old code is still loaded (a version
+    other than the loaded one), no hook can run. The row carries `hooks_pending = 1`; at the next boot,
+    once the plugins are registered and migrated, `loader.runPendingInstallHooks` runs the install hooks
+    then the activation hooks of each such plugin, clears the marker first (a failing hook is logged,
+    never repeated or blocking). School-holidays' first sync and Google Vacation Rentals' catch-up no
+    longer wait for something else to trigger them. Test: `plugin-install-hooks-after-restart.unit.test.js`.
+42. **Amendment of the registry-key fallback (rule 40's « it still falls back to the licence key »)**
+    (audit 2026-10-28). The fallback is now optional: `CP_REGISTRY_PRIVATE_KEY` (Ed25519, base64 DER PKCS8,
+    same format as `CP_LICENCE_PRIVATE_KEY`) signs the index when set, and the console writes its public half
+    to every instance as `GUESTFLOW_REGISTRY_PUBLIC_KEY` (rewritten at each environment sync); the instance
+    already read that variable separately from the licence key (rule 6). Unset, the licence key signs the
+    index and is the registry key, as before. Rolling it out: set the variable, restart the console, let the
+    next sync rewrite each instance's environment (a fleet update does), then restart the instances; in
+    between, instances see an index they cannot verify and ignore it.
+43. **Activate, deactivate and uninstall wait for the plugin-operation lock** (audit round 2, N1,
+    2026-10-29). `POST /:id/activate`, `POST /:id/deactivate` and `DELETE /:id` answer 409
+    `UPDATE_IN_PROGRESS` (« Mise à jour déjà en cours. ») while `state.updating` is set, like install,
+    update and rollback (rule 29): an install awaiting its package has not written its dependant's row
+    yet, so rules 12, 36 and 37 would read a graph that is about to change (a requirement switched off or
+    uninstalled under a dependant that then goes live). The reconciler already treats the code as
+    transient. Test: `plugin-operation-lock.unit.test.js`.
+44. **Rule 39's isolation covers every site that mounts a plugin component** (audit round 2, N2,
+    2026-10-29). `client/src/plugins/sdk/Slot.jsx` exports `ContributionBoundary` and `Contribution`
+    (boundary + `Suspense`, with an optional `fallback`; also exported by the client SDK, 2.14.0).
+    Every host that renders a `useSlot` entry's `Component` itself goes through `Contribution`:
+    `AttentionInbox` (the home's pinned and legacy alerts), `ExtrasSection` and `OptionRow` (the fiche),
+    `PlanningPage` (day cards, bar buttons), the SAS dialog's plugin steps, `SeasonsClosuresPage`,
+    `OptionsResourcesPage`, `ResourceEditorPanel` and the integrations settings sections. A throwing
+    contribution, or a lazy chunk gone after an update in another tab, no longer takes the route to its
+    error screen. Tests: `Contribution.isolation.test.jsx`, `AttentionInbox.isolation.test.jsx`,
+    `ExtrasSection.isolation.test.jsx`, `PlanningPage.isolation.test.jsx`,
+    `SeasonsClosuresPage.isolation.test.jsx`, `OptionsResourcesPage.isolation.test.jsx`.
+45. **A restart-needing dependency plan owes every activation hook, and the boot runs them**
+    (audit round 2, N3, 2026-10-29). `loader.runPendingInstallHooks` forgets the plugin's `announced`
+    mark for both kinds of marker: `syncLiveTransitions` runs first at boot and announces every live
+    plugin, which silently skipped the activation-only kind (rule 41, kind 2). In the plan, a requirement
+    installed live before the restart is marked `hooks_pending = 2` too (its install hooks already ran).
+    Test: `plugin-pending-activate-boot.unit.test.js` (the production boot order) and test 3 of
+    `plugin-install-hooks-after-restart.unit.test.js`, which now reproduces it.
+46. **A dependant revived live is failed when its migration throws, and waits for enabled
+    requirements** (audit round 2, N4, 2026-10-29). In `reviveDependants`, a migration failure after
+    `registerLive` marks the plugin failed (nothing of it runs; its routes answer `PLUGIN_INACTIVE`), as
+    a migration failing at boot does. An enabled dependant is revived only when each requirement is
+    enabled too (rule 37), not merely loaded. `POST /:id/activate` (cascade included) runs the same revive once the requirements are on, so a dependant left unloaded comes up in that operation: the answer carries `reload: true` and `revived: [ids]` (the page reloads to import the bundle), and a dependant still waiting names the requirement still unmet. Tests: `plugin-revive-failures.unit.test.js`, `plugin-revive-reload.unit.test.js`, `PluginsPage.activate-reload.test.jsx`.
+47. **The registry key falls back to the licence key — still, on purpose** (audit round 2, F7,
+    2026-10-29; restates rules 9, 40 and 42). `GUESTFLOW_REGISTRY_PUBLIC_KEY` unset, the instance verifies
+    the index with `GUESTFLOW_LICENCE_PUBLIC_KEY`. Whoever holds the signing key (the registry key, or the
+    licence key while it falls back) is the sole root of trust: it can run arbitrary code on every
+    instance that installs or updates. No behaviour change.
+    **Sans test** — a statement of the trust model, not a behaviour.
+48. **Hooks run in graph order and are bounded** (audit round 2 review, 2026-10-29). `runPendingInstallHooks` runs
+    the pending plugins requirements first (rule 4 of plugin-dependencies), not in id order. An `onInstall` or
+    `onActivate` hook that has not settled after 120 s is logged (« hook did not settle ») and given up on, like one
+    that throws, so it cannot hold the plugin-operation lock (rule 43) for ever; it may still finish in the
+    background. Test: `plugin-hook-limits.unit.test.js`.
+49. **A published package is never shipped again** (audit r2 N4, 2026-10-29; withdraws the reuse note of
+    rule 27). The release compares the rebuilt packages with the previous release's and fails on any
+    difference under the same version (« Bump the version »); it never copies a downloaded package into
+    `plugins-dist/` or `SHA256SUMS`. Test: `plugin-packages-release.unit.test.js`; see
+    `self-update-and-releases.md` rule 48.
+50. **A restart owed by a step makes every later install of the plan wait for the boot** (audit r3,
+    N-R3-4, 2026-10-29). Once a step of `installFromPackages` needs the restart (a requirement loaded at
+    another version), each later `install` step only writes its row and its package and marks
+    `hooks_pending`: it is not registered live and its install hook does not run now, so a dependant's
+    `onInstall` never runs against the old requirement code (rules 4 and 48). Test:
+    `plugin-restart-requirements-first.unit.test.js`.
+51. **A plugin that rests on a hardening of the core asks for the SDK that ships it** (audit r3, N-R3-1,
+    2026-10-29). `website-booking` 1.8.6, `booking-intake` 1.3.8, `airbnb-intake` 1.1.3 and
+    `gites-de-france-intake` 1.4.5 declare `sdk ^2.15.0` (the linear e-mail check of `settingsValidation`,
+    the DKIM « en-tête douteux » refusal, the mailbox reader's caps), so an older core refuses the package
+    (`SDK_INCOMPATIBLE`, « Incompatible avec cette version ») instead of running without them. The floor is
+    the SDK, not `guestflow >=3.19.0`: it exists on the integration branch before the core release it will
+    ride, so it loads in development and in CI, and it names the feature actually needed. Test:
+    `plugin-core-hardening-floor.unit.test.js`.
+52. **A plugin never `require`s its own `manifest.json`** (audit r3, N-0, 2026-10-29; a regression of
+    round 1). In a built package the code sits under `server/` and the manifest at the package root, so
+    `require('./manifest.json')` threw `MODULE_NOT_FOUND` there: the mail intakes' pass, attention line and
+    fiche block (500) all broke in production. A plugin reads its version with `sdk.manifestVersion(__dirname)`
+    (SDK 2.15.0: the manifest beside `index.js` in the source tree, beside `server/` in a package).
+    `airbnb-intake` 1.1.3 and `gites-de-france-intake` 1.4.5 use it. Test:
+    `plugin-built-package-manifest.unit.test.js` builds the packages and loads them from the extracted layout.
+53. **A package file always matches its signed hash, and the index date follows the clock** (audit r4, R4-1, 2026-10-29). `publish` never overwrites: the file is copied to a temporary name and put under `<id>-<version>.tgz` with `link`, which fails when the name exists, so two concurrent uploads of one version leave the first one's bytes, and the loser answers `DUPLICATE_VERSION`. A failed `INSERT` removes only the file this call created; a file with no row (an orphan of an earlier failure) is replaced. Separately, when the last index's `generatedAt` is more than 24 h ahead of the console clock, a warning is logged and the next index is dated now, so one clock fault no longer freezes the registry for days. The bound is the instances' own future tolerance (`FUTURE_TOLERANCE_MS` of `registryClient.js`, shared by the console through `utils/gf.js`): an instance accepts and remembers a date up to 24 h ahead, so a smaller bound would reset the console below a date the instances already hold and they would refuse the next index as stale (review of #869, 2026-10-29); a date beyond 24 h is refused by the instances and never remembered, so resetting it is safe. An `x-file-name` that is not valid percent-encoding answers 400 `BAD_FILE_NAME` (it used to throw a 500). Test: `registry-race.unit.test.js`, `registry-upload-header.unit.test.js`.
+54. **The plugins that rest on a hardening of the core are discovered, not listed** (audit r4, N-R4-1,
+    2026-10-29; extends rule 51). `online-payment` 1.4.4 declares `sdk ^2.15.0`: its webhook scopes the
+    cancellation retry with `retryPendingCancellations({ only })` and relies on the Qonto request timeout, both
+    core code of SDK 2.15.0. `plugin-core-hardening-floor.unit.test.js` no longer carries a hard-coded list: a
+    table maps each core feature (recognised by the call that reaches it: `validateEmail`,
+    `mailbox.readMailsFrom` / `manifestVersion`, `onCap` (SDK 2.16.0), `retryPendingCancellations`, `coreModule('qonto')`) to the SDK
+    that shipped it (quote-agnostic, a bare `readMailsFrom` call counts), scans every plugin's server sources, and
+    requires every plugin that reaches one to floor at that SDK. A hardening nobody listed is not known: shipping
+    one adds a line to the table (a reviewer's check), and a module name built at run time is not seen.
+    *Reading of 2026-11-05 (audit R24 NEW-1):* `reservationPaymentMark#takeBackRefusal` (SDK 2.21.0, the take-back
+    refused while a refund needs the money, specs/reservation-refunds.md rule 52) is a row of the table, so
+    online-payment and sas, which both call it, are held to `^2.21.0`; `blockedDates#stayTimesRefused` (SDK 2.22.0)
+    holds website-booking to `^2.22.0`.
+55. **An update, an update-all, a rollback and the bundled-row sync are held to the requirement checks**
+    (audit r4, N-R4-2, 2026-10-29). Before the switch: the target manifest is substituted in the graph and a
+    cycle through the plugin refuses with `REQUIREMENT_CYCLE` (« Dépendance circulaire : … »); an ACTIVE
+    plugin whose target manifest requires an installed but OFF plugin is refused with `REQUIREMENT_INACTIVE`
+    (« Nécessite X : à activer d’abord. », mirror of rule 37; an inactive plugin may still update). The
+    card's `update.refusal` says it before the click, update-all skips such a plugin, and the rollback applies
+    both checks to the older manifest. `syncBundled` at boot (`host.housekeeping`) leaves a row on its
+    current manifest and logs `REQUIREMENT_CYCLE` when the shipped manifest would close a cycle. Test:
+    `plugin-update-requirements.unit.test.js`.
+56. **An installed cycle can be dismantled** (audit r4, N-R4-2, 2026-10-29). The uninstall checks (the card's
+    `actions.uninstall` and the endpoint's `REQUIRED_BY`) ignore the dependants that sit in the plugin's own
+    strongly connected group (`graph.groupOf`), so two plugins that require each other can be uninstalled one
+    after the other. A dependant outside the group still blocks, for every member: a plugin that needs the cycle through one
+    member blocks the removal of all of them. Test: `plugin-update-requirements.unit.test.js`.
+57. **A core update that makes an active plugin require an OFF plugin switches the dependant off** (audit r4,
+    N-R4-2 case A, 2026-10-29; decision of Adrien: « Éteindre le dépendant »). When `host.housekeeping`
+    syncs a `bundled` row whose shipped manifest now requires an installed but OFF plugin (weather-alerts 1.3.0
+    over an off SAS), it switches the dependant off at boot, then the active dependants of that one (nearest
+    first, whatever the depth), and records
+    `plugins.off_reason` (the id of the off requirement; idempotent column). It NEVER switches the requirement on.
+    Any later `setEnabled` clears the reason. The sync of the bundled rows and the switch-offs are one transaction: an error saves nothing, so the next
+    boot retries, and it is logged and never stops the boot; a bundled
+    sync refused for a cycle is logged once per release. Test: `plugin-switched-off-at-update.unit.test.js`.
+58. **The home says which plugins were switched off, and a rollback needs its requirements installed** (same
+    decision, 2026-10-29). Core attention subject `plugins-switched-off` (rank 45): one plugin reads
+    « Vigilance Météo-France éteint : nécessite Arrivée et départ guidés. », several read « Plugins éteints : N »,
+    with « À réactiver depuis la page Plugins » and a « Voir les plugins » button; it ends once the plugin is back
+    on. The subject is skipped for whoever is not an administrator; on a managed space the detail reads « À
+    réactiver par l’exploitant » and the button is absent (the Plugins page does not exist there). A rollback to a version whose requirement is not installed is refused with `REQUIREMENT_MISSING`
+    (rule 55 applies the same refusals as an update). Tests: `plugin-switched-off-at-update.unit.test.js`,
+    `PluginsSwitchedOffAlert.test.jsx`.
+59. **An update or a rollback of a requirement is held to the ranges its active dependants declare** (audit r5,
+    N-R5-1, 2026-10-30; mirror of rules 37 and 55 seen from the requirement). `movingRefusal` also refuses when an
+    installed, active, licensed dependant requires the moving plugin with a range the target version does not
+    satisfy: `REQUIRED_BY_RANGE`, « Vigilance Météo-France nécessite Arrivée et départ guidés 1.7 ou plus récente :
+    à mettre à jour d’abord. » (or « … compatible avec ^1.0.0 » when the target is past the upper bound). It shows
+    in the card's `update.refusal` and in a new `rollback.refusal` (the card disables « Revenir à la version
+    précédente » and prints the message instead of the label). `update-all` judges every target (cycle, dependant
+    ranges) on the graph with ALL the targets substituted, dropping the refused ones until the set is stable. The
+    status label of an unmet range no longer says « plus récente » to a version above the range: « version 2.0.0 —
+    compatible avec ^1.0.0 requise ». Test: `plugin-requirement-moves.unit.test.js`.
+60. **The switched-off notice checks itself** (audit r5, database N1, 2026-10-30). `plugins.off_at` (idempotent
+    column, never backfilled: no shipped core wrote `off_reason`, and a backfill would revive a stale reason) is stamped with `updated_at` by the
+    switch-off of rule 57 and cleared by `setEnabled`. The home shows the notice only while
+    `enabled = 0 AND off_reason IS NOT NULL AND off_at = updated_at`: a core older than the column toggles the row
+    through its own `setEnabled`, which moves `updated_at` and ends the notice, so a rollback followed by manual
+    toggles no longer leaves a false line on a roll-forward. An update or rollback of the switched-off plugin also
+    ends it. Test: `plugin-switched-off-stale.unit.test.js`.
+61. **Review follow-ups of rule 59** (audit r5 review of #875, 2026-10-30). (a) Activating an inactive plugin
+    (card `actions.activate`, endpoint `activate`) is refused with `REQUIREMENT_OUT_OF_RANGE` (too old or too new; the install plan keeps `REQUIREMENT_TOO_OLD`) when it, or a requirement it
+    would switch on, is installed at a version outside a declared range: « Nécessite X compatible avec ^1.0.0
+    (installé : 2.0.0). »; the install plan's `REQUIREMENT_TOO_OLD` uses the same `rangeNeed` wording. (b) When
+    update-all refuses every target, it answers the first refusal (code and message) instead of « Aucune mise à
+    jour disponible. ». (c) A refused rollback says « … : à remettre à sa version précédente ou à désactiver
+    d’abord. » (updating the dependant does not help there); an update keeps « à mettre à jour d’abord ». (d) The
+    boot switch-off of rule 57 also covers a requirement installed at a version a dependant's range refuses: the
+    candidates are the synced rows (judged on all their requirements) AND their active dependants (a
+    registry-installed dependant is not synced), the latter judged only on the edge to the row that moved, so an
+    unrelated sync never switches off a plugin over another requirement that was already off. The dependant is
+    switched off with `off_reason` = the requirement. When that requirement is ON but outside the range, the notice
+    carries `need` (« compatible avec ^1.7.0 », « 1.7 ou plus récent ») and the home line reads « X éteint :
+    nécessite Y compatible avec ^1.7.0. » with « À mettre à jour puis réactiver depuis la page Plugins » (« … puis réactiver par l’exploitant » on a
+    managed space) in place of « À réactiver … » — the plugin stays off after the update, so the line says so
+    (audit r6, 2026-10-30).
+    Tests: `plugin-requirement-moves.unit.test.js`, `plugin-switched-off-out-of-range.unit.test.js`,
+    `plugin-switched-off-stale.unit.test.js`.
+62. **A core major never switches off a plugin whose contract holds** (D24, Adrien, 2026-11-09; audit
+    R34-CON-H1 / R34-P1; supersedes rule 34). What a plugin calls is the SDK contract, so its `sdk` range
+    is what judges it: a core at or above the floor of `guestflow` runs a package whatever ceiling its
+    manifest wrote, while the SDK satisfies `sdk` and the app exposes its `hostImports` (rule 33).
+    - *Install, update, offer and boot alike* (`pluginOffers.rangeRefusal`, read by the loader, the
+      offers and `switch-plugin-package.js`): a core below the floor → `CORE_TOO_OLD` « Nécessite
+      GuestFlow 4.1 ou plus récent. »; an SDK outside `sdk` → `SDK_INCOMPATIBLE`; an unreadable range
+      fails closed (`CORE_INCOMPATIBLE`). A package already installed with « <4.0.0 » (every 3.x package
+      built under rule 34) keeps loading on GuestFlow 4, 5…; an SDK major (3.0.0) still refuses it.
+    - *A manifest writes the floor it is read as.* Every source manifest's `guestflow` is `>=X.Y.Z`,
+      nothing else; the package build refuses any other form, so no ceiling can come back and drift
+      from the core. The sixteen plugins moved from `>=3.x.0 <4.0.0` to `>=3.x.0` in one patch bump
+      each, with « Compatible avec GuestFlow 4 (SDK 2.N). » (N = the floor of its `sdk` range).
+    - *The gate.* `check-plugin-versions` (every PR, the release `verify` job, the release skill's
+      pre-flight as `--core-version X.Y.Z`, before the bump) refuses a release whose bundled manifests
+      its own core or SDK would refuse: a range that is not a floor, a floor above the core, an `sdk`
+      range `SDK_VERSION` does not satisfy. It reads the ranges without a dependency; a unit test holds
+      it equal to `rangeRefusal` over the bundled manifests and a grid of core and SDK versions.
+    - *Not covered:* a changed signature behind an unchanged SDK name stays a matter of review and of the
+      SDK major (rule 35's clarification).
+    Tests: `plugins-bundled-admit-release.unit.test.js`, `plugins-manifest-upper-bound.unit.test.js`.
+
+
+---
+
+## 4. Architecture
+
+### 4.1 Server side (`server/src/`)
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `plugins/sdk/` | `version.js` | C | SDK semver |
+| `plugins/<id>/` | `manifest.json` (×12) | C | Rule 2 |
+| `plugins/` | `index.js` | T | Development list only; production goes through `packageStore` |
+| `plugins/` | `loader.js` | T | Load from a package directory, resolve `guestflow/sdk`, live register on install, compatibility at boot |
+| `plugins/` | `packageStore.js` | C | Unpack, verify, `current` pointer, keep two versions, rollback window, `dataDir` |
+| `plugins/` | `registryClient.js` | C | Fetch + verify the signed index, merge with `plugins-dist`, 6 h poll |
+| `utils/` | `semverRange.js` | C | Range checks (dependency `semver`) |
+| `utils/` | `pluginsSchema.js` | T | `manifest`, `pinned_sha256` columns |
+| `models/` | `pluginsModel.js` | T | Version, source, manifest, hash |
+| `controllers/` | `pluginsController.js` | T | Offers, install, update, rollback, uninstall checks (rules 10–16); deactivation refused while an active plugin requires it (rule 36), activation refused while a requirement is inactive (rule 37) |
+| `routes/` | `plugins.js` | T | `POST /api/plugins/:id/update`, `/rollback`, `POST /api/plugins/refresh` |
+| `index.js` | `index.js` | T | `/plugin-assets` static mount |
+| `constants/` | `plugins.js` | T | Catalogue built from the manifests |
+| `plugins/` | `manifest.js` | C | _(added 2026-10-08)_ Rule 2 validation, shared by the catalogue, the store, the registry client, the package build and the console |
+| `plugins/` | `host.js` | C | _(added 2026-10-08)_ The mode (rule 19), the boot of the packages (rules 14, 17, 25), the housekeeping (rule 16), `/plugin-assets` and its entries (rule 18) |
+| `utils/` | `pluginOffers.js` | C | _(added 2026-10-08)_ Pure offer logic: best compatible version, refusals in French, requirement plan, changelog lines (rules 10, 12, 20, 22) |
+| `utils/` | `processRestart.js` | C | _(added 2026-10-08)_ The clean exit a supervisor turns into a restart (rule 13) |
+| `middleware/` | `sameOriginWrites.js` | C | _(added 2026-10-17)_ Rule 31 |
+| `plugins/sdk/` | `createContext.js`, `registry.js` | T | _(added 2026-10-08)_ `ctx.dataDir` (rule 15); a plugin with no record is not live in the package mode |
+| `models/` | `pluginsModel.js` | T | _(added 2026-10-08)_ `switchVersion`, `rollBack`, `expireRollback`, `syncBundled` |
+| `scripts/` | `seed-e2e.js` | T | _(added 2026-10-08)_ `E2E_SEED_PLUGINS` picks the installed plugins; rows are `bundled` |
+| `plugins/sdk/` | `coreModules.json` | C | _(added 2026-10-18)_ The modules and names `coreModule()` exposes (rule 35) |
+| `utils/` | `semverRange.js` | T | _(added 2026-10-18)_ `coreFloor`, `isFloorRange` (rule 62; `hasUpperBound` and `boundedRange` of rule 34 removed 2026-11-09) |
+
+### 4.2 Client side (`client/src/`)
+
+| Layer | File | T/C | Responsibility in this change |
+|---|---|---|---|
+| `plugins/sdk/` | `index.js`, `ui.js` | T | Re-export everything a plugin needs from the core (rule 4) |
+| `plugins/` | `runtime.js` | C | Expose the host modules to bundles; import active entries before render |
+| `plugins/` | `index.js` | T | Development only |
+| `pages/` | `PluginsPage.jsx` | T | Versions, update chip, banner, dialogs, refusals |
+| `components/` | `PluginUpdateDialog.jsx` | C | Changelog between versions + action; generic enough for the core update dialog later |
+| `components/` | `PluginCard.jsx` | T | _(added 2026-10-08)_ Version, « Mise à jour x.y.z » chip, « Incompatible avec cette version », « Installer la version x.y.z », the requirements confirmation, « Revenir à la version précédente », « Échec du chargement. » |
+| `plugins/` | `runtimeModules.js`, `hostModules.json` | C | _(added 2026-10-08)_ The module list of a production build, the failed bundles, the host module names |
+| `plugins/` | `hostModules.js` | C | _(added 2026-10-17)_ Generated: the exact host names the plugins import (rule 26) |
+| `components/` | `PluginLoadBanner.jsx` | C | _(added 2026-10-17)_ « Modules indisponibles. » (rule 18) |
+| `index.jsx`, `vite.config.js` | — | T | _(added 2026-10-08)_ The build redirects `plugins/index.js` to the runtime list; the bundles load before `App` is imported |
+| `constants/`, `plugins/sdk/`, `utils/` | `plugins.js`, `roles.js`, `useSlot.js`, `liveRecord.js` | T/C | _(added 2026-10-08)_ The maps derived from the module list read it live (rule 18) |
+| `api.js` | — | T | _(added 2026-10-08)_ status, refresh, update, update-all, rollback, `withRequirements` |
+
+**Component reuse declaration:** `FormDialog`, `ConfirmDialog`, `StatusBadge`, `PageActionBar`
+reused; `PluginUpdateDialog` is plugin-specific.
+
+### 4.3 Control plane (`control-plane/`)
+
+| Layer | File | T/C | Responsibility |
+|---|---|---|---|
+| server `utils/` | `registryStore.js` | C | Store packages, validate, sign the index |
+| server `routes/` | `registry.js` | C | Public `/registry/v1/*`, operator upload and withdraw |
+| client `pages/` | `RegistryPage.jsx` | C | Upload, list, withdraw |
+| server | `database.js`, `context.js`, `app.js`, `utils/gf.js` | T | _(added 2026-10-08)_ `registry_packages`, the store in the context, the public mount before the session, the instance's package checks shared |
+| client | `App.jsx`, `api.js` | T | _(added 2026-10-08)_ « Registre » in the navigation; list, upload (one request per file, raw body), withdraw |
+
+### 4.4 Tooling
+
+`scripts/build-plugin-packages.mjs` (Vite library build per plugin + tar), `scripts/check-plugin-versions.mjs`,
+`.github/workflows/release.yml` (rules 23–24), `release.sh` (copies `plugins-dist/`).
+_(added 2026-10-08)_ `scripts/build-changelog.mjs` folds the `plugin:<id>` bullets (rule 24);
+`playwright.prod.config.js`, `e2e/prod/{serve,global-setup}.js` and the `production-build` job of
+`.github/workflows/e2e.yml` run the production-build suite (rule 19); `npm run test:e2e:prod`.
+
+## 5. Data model
+
+`plugins`: `+ manifest TEXT` (JSON), `+ pinned_sha256 TEXT`; `source` takes `bundled` or `registry`
+(existing `builtin` rows become `bundled`). Idempotent migration, no data loss.
+_(added 2026-10-08)_ `+ previous_version`, `+ previous_source`, `+ previous_sha256`, `+ rollback_until`
+(rule 16); the default of `source` is `bundled` on a new database. `enabled` and every plugin table
+are untouched: Solio's twelve rows stay installed and active (verified on a copy of the dev database).
+
+Control plane: `registry_packages(id, version, sha256, size, manifest, published_at, withdrawn_at)`.
+
+## 6. UI / UX
+
+See the summary page. Mobile: cards stack, the update chip stays on the card, dialogs are full screen.
+_(added 2026-10-08)_ The banner « N mises à jour disponibles » with « Tout mettre à jour » sits above
+the search field; the registry line beside it (under it on a phone); « Rechercher des mises à jour »
+is an icon of the action bar. « Redémarrage en cours » covers the page until the server answers
+again. Console « Registre »: a table on desktop, cards on a phone. The cards sit two per row from
+`lg` only (1 200 px): at 900 px, beside the menu, two columns squeezed each description to a
+word per line (seen in the browser check of 2026-10-17).
+
+## 7. Test plan
+
+- Server unit: manifest validation, range checks, compatibility and dependency refusal, package
+  store (hash mismatch leaves the running version, rollback window, two versions kept), signed index
+  (bad signature ignored), loader from a package directory, live install.
+- Control plane unit: upload validation, duplicate refusal, signature, withdraw.
+- Client unit: Plugins page states (update chip, banner, refusals, incompatible).
+- E2E: production-build suite (rule 19) — app renders with plugins loaded from bundles; install from
+  a test registry; update with restart.
+- Release tooling: version check fails on a changed plugin without a bump.
+- _(added 2026-10-18)_ `plugins-manifest-upper-bound.unit.test.js` (rule 34) and
+  `plugins-sdk-core-modules-contract.unit.test.js` (rule 35).
+- _(added 2026-10-27)_ `plugins-deactivate-required-by.unit.test.js` (rule 36, 4 tests).
+- _(added 2026-10-27, adversarial review)_ `plugins-activate-requires-active.unit.test.js` (rule 37, 3 tests; the refusal failed on the code before the fix).
+- _(added 2026-11-09, D24)_ rule 62: `plugins-bundled-admit-release.unit.test.js` (7 tests: the bundled
+  plugins admit the root version, the next two majors and `SDK_VERSION`; `loadPackages` on « <4.0.0 »
+  packages at 4.0.0 and 5.0.0; the gate equals the loader; the gate red on a ceiling, a floor above the
+  core, an SDK major; the skill runs it) and `plugins-manifest-upper-bound.unit.test.js` rewritten (4).
+- _(added 2026-11-09, audit R34 L-T1, listed after verification N3-1)_ rule 62: `build-plugin-packages-floor.unit.test.js`
+  (1 test) — `buildPackage` refuses a `guestflow` range that is not a floor (« >=3.18.0 <4.0.0 », a caret, a bare
+  ceiling, an unreadable range) before staging anything.
+- _(added 2026-10-28, audit)_ rules 38–41: `plugin-install-hooks-after-restart.unit.test.js`, `plugin-install-requirement-inactive.unit.test.js`, `plugin-reinstall-after-purge.unit.test.js`, `plugin-live-register-retry.unit.test.js`, `Slot.isolation.test.jsx`.
+
+## 8. Out of scope
+
+Third-party plugins and developer accounts (§8.2 rule 5); fleet-wide plugin pushes (phase H); moving
+plugins to separate repositories.
+
+## 9. Open questions
+
+None at writing time; P23–P27 are recorded in §3.A.
+
+## 10. Implementation progress
+
+Implemented 2026-10-08, merged with `inte/plugins` on 2026-10-17 (H2 #673, Saisie Gîtes de France
+#683). That merge brought a thirteenth plugin, `gites-de-france-intake`: it got its manifest
+(`1.0.0`) and builds into a package like the others, so « the twelve » in this spec reads « every
+plugin of the catalogue » from then on.
+
+2026-10-18 — `master` (v3.10.0) merged into `inte/plugins` brought a fourteenth plugin,
+`booking-intake` (`specs/booking-extranet-intake.md` §10), manifest `1.0.0`. The two SDK entries it uses
+(`ctx.core.clients.update`, `ctx.core.reservations.platformCommission`) and the core module
+`planningDateRange` (the 750-day cap of the planning reads, `specs/reception-role-checkin-only.md`
+rule 12ter) raise the SDK to **1.1.0** (rule 3, minor). Under rule 28 the plugins whose sources the
+merge changed are bumped in the merge PR: `gate-access` 1.1.0 (« Partager » on the « Portail » step),
+`linen` 1.0.1 and `hourly-resources` 1.0.1 (both `sdk ^1.1.0`).
+
+2026-10-18 — code review (`fix/review-code-security`): rules 34 and 35. Every manifest is bounded
+`<4.0.0`, an open range is read as bounded, and `coreModules.json` freezes what `coreModule()` exposes.
+`ctx.secretRoutes` (`specs/hosting-h2-account-security.md` rule 23) and the core module `qonto`
+(`specs/plugins-phase-3a-online-payment.md` rule 22) raise the SDK to **1.2.0** (minor); every plugin is
+bumped for its new range, and `booking-intake`, `gate-access` and `online-payment` ask for `sdk ^1.2.0`.
+
+2026-10-19 — UI/UX review of the WordPress booking engine (`feature/ui-wp-booking-engine`): the core
+module `changeover` (`resolveChangeover`, `checkChangeover`, `FRENCH_DAYS`) and `pricing`'s
+`calculateBaseStayPrice` are exposed so the public availability can name the first *bookable* arrival
+with the engine's own minimum stay and arrival days (`specs/wp-booking-widget-redesign.md` rule 30).
+Two additions: the SDK goes to **1.3.0** (rule 3, minor); `website-booking` 1.2.0 asks for `sdk ^1.3.0`.
+
+2026-10-19 — the home's « À traiter » (`specs/shell-and-home-day-first.md` rule 9): `ctx.attention`
+and the client SDK's `AttentionCard` raise the SDK to **1.4.0** (minor); `booking-intake`,
+`gate-access`, `gites-de-france-intake`, `linen`, `tariff-recipes` and `website-booking` 1.3.0 ask for
+`sdk ^1.4.0` and `guestflow >=3.10.0`.
+
+2026-10-19 — UI/UX review, proposal 19 (`specs/plugins-phase-0-foundation.md` rule 25): `ctx.setupStatus`
+raises the SDK to **1.5.0** (minor). The four plugins that declare it ask for `sdk ^1.5.0` and
+`guestflow >=3.10.0`: `google-calendar` 1.1.0, `neat` 1.1.0, `online-payment` 1.1.0, `weather-alerts` 1.1.0.
+
+2026-11-09 — D24 (`fix/audit-r34-core`): rule 62 supersedes rule 34. The sixteen manifests write a floor
+(`>=3.9.0`, `>=3.10.0`, `>=3.18.0`), one patch bump each; the loader reads any `guestflow` range as its floor;
+`check-plugin-versions` refuses a release its bundled plugins would refuse. Measured with the real
+`loader.loadPackages` over packages built by `build-plugin-packages.mjs` (host list of the build, SDK 2.24.0):
+the sixteen built from this branch and the sixteen built from `inte/plugins` at ad4dff66 (« <4.0.0 ») all load
+at 3.21.0, 4.0.0 and 5.0.0; the loader of ad4dff66 refused all sixteen of both sets at 4.0.0. v3.21.0 itself
+ships no package (`master` runs the three intakes from sources), so no older package exists in production.
+
+| Suite | Result (after the second review, 2026-10-18, merged with `inte/plugins` #691 #693 #694) |
+|---|---|
+| Server (`node --test`) | 5 136 / 5 136 — of which `plugins-phase-4-registry.unit.test.js` 54, `plugin-packages-release.unit.test.js` 15 |
+| Client (Vitest) | 1 605 / 1 605 — of which `PluginsPage.registry.test.jsx` 13, `runtime.bundles.test.jsx` 4, `PluginLoadBanner.modules.test.jsx` 2 |
+| Control plane server | 173 / 173 — of which `registry.unit.test.js` 6 |
+| Control plane client | 51 / 51; console build OK |
+| Spec rules | 33 / 33 rules cited by a test |
+| E2E dev suite | 103 passed, 1 skipped |
+| E2E production build (`npm run test:e2e:prod`) | 4 / 4 |
+| Package build | 13 packages, reproducible byte for byte; no MUI, emotion or React code inside a bundle |
+| Eager client code (gzip, `npx vite build`) | 576 KB + 8 KB of plugin entry bundles, against 578 KB on `inte/plugins` (+1.0 %) |
+
+The review (2026-10-17) also checked in the browser, production mode, on the copy of the
+development database: the hourly-resources card icon (`color: 'info.main'`) renders `#31556E`, the
+Maison palette — MUI's default would be `#0288d1`; a cross-site write gets 403; the rollback asks
+for confirmation.
+
+Verified by hand on a copy of the development database (Solio's data), first booted by the code of
+`inte/plugins` before phase 4 (twelve `builtin` rows), then by this branch in the package mode with
+the production client build: the rows became `bundled` 1.0.0, all active; dashboard, reservation
+page, planning, Plugins page, Paramètres › Linge, Intégrations and Vacances scolaires render without
+a console error; an update from a local signed registry restarted the instance and left the rollback;
+a package with a wrong hash was refused with nothing changed. Screenshots at 390 px and 1 280 px.

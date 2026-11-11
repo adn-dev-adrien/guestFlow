@@ -8,6 +8,19 @@
 | **Author** | Adrien |
 | **Related PR** | (same PR as `admin-unlock-past-reservations`) |
 
+> **Updated 2026-10-27 (spec review — drift only).** The code is shipped, but the Status line stays
+> `Approved`: moving it to `Implemented` requires every §3 rule to be cited by a test or declared
+> « Sans test » ([spec-rule-coverage.md](spec-rule-coverage.md) rule 14), and only rule 4 is today
+> (`pricing-deposit-disabled.unit.test.js`). That coverage pass is left to a code PR. The flag, the engine consolidation and the past-lock
+> allowlist (rule 6) behave as written. Two things moved: the « unlock past reservations » toggle rule 6
+> refers to is now a per-fiche action ([settings-rationalization.md](settings-rationalization.md) rule 17a),
+> and the fiche no longer has an « Acompte » block (rule 8, §6). The switch is **« Sans acompte »**, in the
+> row of split settings at the bottom of the « Paiements » section of `FinanceSection`
+> (`client/src/components/reservation/FinanceSection.jsx`), hidden when an instalment plan replaces the
+> acompte and on a platform stay whose platform does not take a deposit. With the switch on, the acompte
+> row of the payment ledger reads « Sans objet · acompte désactivé »
+> (`server/src/utils/reservationLedger.js`).
+
 ---
 
 ## 1. Context
@@ -42,11 +55,79 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 4. The switch is shown only in the reservation page (`FinanceSection`) next to the "Acompte" title. No confirmation dialog; the toggle is reversible (flip OFF restores the standard pricing computation; the engine will recompute deposit from `property.depositPercent` like for a brand-new reservation, since the original deposit value isn't preserved by Adrien's choice).
 5. **Reversibility caveat (documented in the UI hint):** flipping OFF→ON loses the original deposit/balance split because Variant A was chosen over a flag-plus-preserved-values design. Going back ON→OFF re-derives the split from the property's `depositPercent`, which may differ from what was there originally if it was a manual override. Acceptable for the platform-handles-deposit use case where the original split was irrelevant anyway.
 6. The flag is included in the existing 14-field allowlist of `pastReservationLocked` so that an admin who realises *after the fact* that a past reservation was a platform booking can still disable the deposit without needing the broader "unlock past reservations" toggle (the two features compose).
+   _(Updated 2026-10-27: that global toggle is gone — the broader unlock is now the per-fiche, admin-only
+   « Déverrouiller cette fiche » action, [settings-rationalization.md](settings-rationalization.md) rule 17a.
+   `depositDisabled` is still in the past-lock allowlist, `server/src/controllers/reservationsController.js`
+   `allowedLockedFields`, so the rule holds without unlocking.)_
 7. The flag is captured in `reservationAudit.buildAuditSnapshotFromPayload` + diffed by `computeAuditChanges` so the reservation history surfaces the toggle changes.
-8. UI behaviour when ON:
+8. _(Superseded 2026-10-27 for the layout — see the note at the top: the ledger's acompte row reads
+   « Sans objet · acompte désactivé »; the consolidation into the solde is unchanged.)_ UI behaviour when ON:
    - The whole Acompte block (montant + date d'échéance + bouton "Marquer payé" + date paiement) collapses to a single line in `text.secondary` : *"Acompte désactivé — ajouté au solde"*, with the Switch still visible to flip back.
    - The Solde block displays its amount as usual; that amount is now the full pre-arrival total because the pricing engine has already done the consolidation.
 9. **Access**: same as any other reservation edit — admin and accountant cannot edit reservations today (accountant is read-only on reservations); admin handles this exclusively. No role-specific UI gating needed.
+10. **Fixed at the 2026-10-27 spec review — a 0 € acompte has no deadline.** Rule 2 said
+    `depositDueDate = NULL`, but the model fell back to the date the fiche posted back
+    (`quote.depositDueDate || depositDueDate`), so switching the acompte off (here or with the property
+    switch) kept the old deadline. Insert and update now store NULL whenever the acompte is 0, and the
+    history shows the deadline going.
+11. **Fixed at the adversarial review of the 2026-10-27 fixes — a legacy 0 € acompte deadline is read as
+    none, then cleared.** Rule 10 nulled the deadline on the payload side of the audit snapshot only;
+    `getAuditSnapshotFromDb` returned the stored date, and production holds rows with a 0 € acompte and
+    a deadline. Every save of such a PAST fiche was refused (400 `PAST_RESERVATION_LOCKED`, the deadline
+    looked edited) and an unlocked one wrote a phantom « Date acompte … → — » history row. Both sides of
+    the snapshot now read a 0 € acompte as « no deadline », and a one-shot boot cleanup
+    (`zero_deposit_deadline_cleared_v1`, `utils/zeroDepositDeadlineCleanup.js`) sets `depositDueDate =
+    NULL` on reservations (not devis) whose acompte rounds to 0 and on which nothing was ever paid
+    (`depositPaid = 0`, no `depositPaidDate`), logging the count. It also stops `computePaymentStatus`
+    reading an overdue acompte of 0 €.
+12. **Fixed at audit R7 M1 (2026-10-30, Adrien's call) — an acompte link paid after « Sans acompte » re-enables
+    the acompte.** Turning the acompte off retires its open link as stale
+    ([plugins-phase-3a-online-payment.md](plugins-phase-3a-online-payment.md) rules 29-30), but the guest can
+    still pay it: the Qonto deactivation failed (the rule 8 retry finds it paid) or the payment landed between the
+    check and the deactivation (the live path). The booking (`utils/ledgerLinks.js`
+    `bookPaidAfterAmountChange`) wrote `depositPaid = 1` on a `depositDisabled = 1` stay: the ledger showed the
+    acompte « Sans objet », and the next save forced `depositPaid = 0` and dropped the deposit entry from the
+    journal — money really collected vanished from GuestFlow. Now, inside the booking transaction, the acompte is
+    re-enabled: `depositDisabled = 0`, the acompte recorded at the amount received (`depositAmount`,
+    `depositAmountOverride`, `depositPaid`, `depositPaidDate`), the solde lowered by as much (pre-arrival total
+    unchanged), and the history line « Acompte réactivé : payé par un lien retiré ». The ledger then shows the
+    acompte collected, a save of the fiche (which posts back `depositDisabled = 0`) keeps it, and the journal keeps
+    its deposit entry. The admin alert says so (online-payment rule 48). The invariant « `depositPaid` stays at 0
+    whenever `depositDisabled = 1` » holds: it is the flag that moves, not the payment.
+13. **Fixed at the review of PR #893 (RC1, 2026-10-30) — an acompte a payment link collected cannot be switched
+    off.** Rule 12 re-enabled the acompte, but the save still trusted the fiche's flag: a tab loaded before the
+    booking and still holding « Sans acompte » erased it again — sent without its version (« Enregistrer quand
+    même », a script) or in the same second as the booking (the live race lands milliseconds after the save, below
+    the one-second resolution of the stale-fiche guard). Now, when the stored acompte is paid (`depositPaid = 1`)
+    and a paid `deposit` or `full` payment link exists on the stay or on the devis converted into it
+    (`utils/ledgerLinks.js` `acompteHeldByLink`), the save (`performUpdate`) and the live quote
+    (`POST /calculate-price` with a `reservationId`) ignore `depositDisabled = 1`: the engine, the ledger and the
+    stored row keep the acompte, its payment and its journal entry, and the row is written with
+    `depositDisabled = 0`. The deliberate case of rule 3 stays: an acompte ticked by hand with no paid link behind
+    it (the platform took it) is still zeroed by « Sans acompte ». Giving the link's money back goes through the
+    refund (specs/reservation-refunds.md rule 34), never through the switch.
+    - **The refused switch keeps the acompte's metadata (re-review of PR #893, RQ1).** The fiche that ticks « Sans
+      acompte » also clears the acompte amount it typed and still posts the deadline it showed. When the save
+      refuses the flag (requested 1, applied 0), `depositAmountOverride` and `depositDueDate` are taken from the
+      stored row before the engine runs and before the row is written: the amount received stays the acompte's
+      override, a paid acompte never gains a past deadline, and the history writes no « Acompte saisi » or « Date
+      acompte » line.
+    - **The fiche says so before the save (re-review of PR #893, RQ2).** `GET /api/reservations/:id` and
+      `POST /calculate-price` (with a `reservationId`) carry `depositDisabledLockedReason`: `'collected-by-link'`
+      when `acompteHeldByLink` holds, `null` otherwise (and on a devis or a new stay). FinanceSection then disables
+      « Sans acompte » and writes under it, as a caption: « Acompte perçu par un lien de paiement : remboursement
+      pour l’annuler. » (linked to the switch by `aria-describedby`). The page takes the live quote's value, and
+      the GET's until the first quote arrives. On mobile (`xs`) the switches stack, and the caption wraps under its
+      switch at full width. From `sm` up it stays under the switch, at most 340 px wide; the tourist-tax switch then
+      wraps to the next line, aligned on the left edge (the row spaces its switches with a flex gap).
+14. **Fixed at audit R8 (client N2, 2026-10-30) — the lock never freezes « Sans acompte » ON.** The reason of
+    rule 13 can arrive while the fiche already ticks the switch: the acompte was paid by its link while the
+    operator edited, or he ticked it after the GET and the live quote then answered `'collected-by-link'`. Rule 13
+    disabled the switch whatever its state, so it stayed checked and greyed: the caption pointed back to the
+    acompte while the only ways out were « Annuler » on the whole fiche or a save the server silently corrected.
+    Now the reason disables the switch **only while it is off**: a ticked switch stays enabled, with the same
+    caption under it, so the operator can untick it; once off, it is locked again and cannot be ticked. The
+    server's refusal of rule 13 is unchanged (a save that still sends `depositDisabled = 1` keeps the acompte).
 
 **Edge cases:**
 
@@ -70,6 +151,7 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 | `utils/` | `reservationAudit.js` | T | Add `depositDisabled` to `buildAuditSnapshotFromPayload` + the diff fields so the reservation history surfaces toggles. |
 | `models/` | `accountingModel.js` | — | No change — the existing `WHERE depositPaid = 1 AND depositPaidDate ...` filter is exactly what we need (no `depositPaid=1` → no journal entry). |
 | `tests/` | `pricing-deposit-disabled.unit.test.js` | C | New unit test file covering: `depositDisabled=0` (regression), `=1` (deposit collapses to 0, balance absorbs), the engine respects the flag across multiple recomputes (regression for the bug Variant A would have produced), the override doesn't break `complementAmount` math. |
+| `utils/` | `zeroDepositDeadlineCleanup.js` | C | Rule 11 — one-shot cleanup of the deadline a 0 € unpaid acompte still stores (`zero_deposit_deadline_cleared_v1`, run from `database.js`). `reservationsModel.getAuditSnapshotFromDb` reads a 0 € acompte as « no deadline », like `buildAuditSnapshotFromPayload`. |
 | `tests/` | `accounting-deposit-disabled.unit.test.js` | C | New: insert a reservation with `depositDisabled=1` + `balancePaid=1`, run the month export, assert exactly one journal entry (the balance) and zero deposit entries. |
 
 ### 4.2 Client side (`client/src/`)
@@ -99,6 +181,7 @@ For each reservation, Adrien can flip a single switch in the reservation page to
 | PUT | `/api/reservations/:id` | `{ ...usual, depositDisabled?: 0\|1 }` | Updated reservation | Honoured even on past-locked reservations (in the allowlist). |
 | PATCH | `/api/reservations/:id/payment` | unchanged | unchanged | Not concerned — only payment statuses. |
 | GET | `/api/reservations` / `/api/reservations/:id` | — | Each reservation row includes `depositDisabled: 0\|1` | Wired through the SELECT shape. |
+| GET / POST | `/api/reservations/:id` / `/api/reservations/calculate-price` | — | `depositDisabledLockedReason: 'collected-by-link' \| null` | Rule 13 — why « Sans acompte » cannot be ticked. Not on the reception view. |
 
 ---
 
@@ -120,6 +203,9 @@ ALTER TABLE reservations ADD COLUMN depositDisabled INTEGER NOT NULL DEFAULT 0
 
 ### Reservation page → FinanceSection — Acompte block
 
+> _Superseded 2026-10-27: the block below predates the payment ledger. Today: a « Sans acompte » switch
+> at the bottom of « Paiements », and a « Sans objet · acompte désactivé » acompte row when it is on._
+
 **State A — `depositDisabled = 0` (default):**
 
 ```
@@ -139,9 +225,24 @@ Acompte                                          [ ⬛ ]   ← Switch ON
 
 Le bloc Solde reste identique dans les deux états ; quand ON, son montant est juste plus élevé (le moteur fait la consolidation).
 
+**State C — acompte perçu par un lien de paiement (rule 13, `depositDisabledLockedReason = 'collected-by-link'`):**
+
+```
+[ ⬜ ] Sans acompte          ← Switch OFF, disabled
+Acompte perçu par un lien de paiement : remboursement pour l’annuler.   ← caption, text.secondary
+```
+
+When the reason arrives on a fiche that already ticks the switch (rule 14), the switch stays **ON and enabled**
+with the same caption: unticking it is allowed, and it is disabled again once off.
+
+```
+[ ⬛ ] Sans acompte          ← Switch ON, enabled (can only be unticked)
+Acompte perçu par un lien de paiement : remboursement pour l’annuler.
+```
+
 ### Responsive behavior
 
-No breakpoint-specific change. The Switch is small enough to fit on any width next to the title. The collapsed-block on `depositDisabled=1` is one line of caption-style text — fits naturally on mobile.
+State C (rule 13): on `xs` the caption wraps under its switch at full width; from `sm` up it stays under the switch, at most 340 px wide, and the tourist-tax switch wraps to the next line, left-aligned. The rest: no breakpoint-specific change. The Switch is small enough to fit on any width next to the title. The collapsed-block on `depositDisabled=1` is one line of caption-style text — fits naturally on mobile.
 
 ### Sticky action bar
 
@@ -151,8 +252,9 @@ No change. ReservationPage already uses `PageActionBar`. The toggle change is ca
 
 | Where | String |
 |---|---|
-| Switch label / aria-label | `Désactiver l'acompte (encaissé directement au solde)` |
-| Collapsed-state line | `Acompte désactivé — ajouté au solde` |
+| Switch label / aria-label | `Désactiver l'acompte (encaissé directement au solde)` — _shipped as `Sans acompte` (noted 2026-10-27)_ |
+| Collapsed-state line | `Acompte désactivé — ajouté au solde` — _now the ledger row `Sans objet · acompte désactivé` (noted 2026-10-27)_ |
+| Locked switch caption (rule 13) | `Acompte perçu par un lien de paiement : remboursement pour l’annuler.` |
 
 No empty / loading / error states unique to this section — handled by the parent ReservationPage.
 
@@ -172,10 +274,14 @@ No empty / loading / error states unique to this section — handled by the pare
 - [ ] Marquer le solde payé → export comptable du mois → **une seule ligne** (le solde au montant total), pas de ligne acompte.
 - [ ] Re-flipper OFF → bloc Acompte revient avec montant recalculé par le moteur (depositPercent de la propriété).
 - [ ] Régression : créer une réservation normale (sans toucher le Switch) → 2 lignes dans l'export comme avant.
-- [ ] Régression : flipper sur une réservation passée (avec `allowEditPastReservations=0` car le flag est dans l'allowlist) → Save accepté.
+- [ ] Régression : flipper sur une réservation passée (without « Déverrouiller cette fiche », the flag being on the allowlist — the former `allowEditPastReservations` setting no longer exists, noted 2026-10-27) → Save accepté.
 - [ ] Mobile (`xs`) : titre "Acompte" + Switch tiennent sur une ligne, ou label/Switch stack vertical proprement.
 
 ---
+- Spec review 2026-10-27 (rule 10): `server/src/tests/deposit-due-date-and-override-history.unit.test.js` — deadline cleared on save and at creation.
+- Adversarial review of the 2026-10-27 fixes (rule 11): `server/src/tests/zero-deposit-deadline-legacy-rows.unit.test.js` (3 tests — past locked fiche with a legacy deadline saves, no phantom history row, boot cleanup limited to unpaid 0 € acomptes and idempotent).
+- Audit R7 M1, 2026-10-30 (rule 12): `server/src/tests/deposit-link-paid-on-disabled-acompte.unit.test.js` (8 tests — live and `amount-changed` retry paths × acompte re-enabled with the history line; the alert wording; ledger collected and `depositPaid` kept by a save; journal entry kept after a save).
+- Review of PR #893, RC1, 2026-10-30 (rule 13): `server/src/tests/deposit-collected-by-link-kept-on-save.unit.test.js` (12 tests — live and retry paths × a « Sans acompte » save without its version, the same in the same second, the acompte's stored override and due date kept with no « Acompte saisi » / « Date acompte » history line, the journal entry kept; the live quote keeps the acompte; a hand-ticked acompte with no paid link is still switched off; the GET and the live quote carry `depositDisabledLockedReason`, null for a hand-ticked acompte). Shared setup: `server/src/tests/disabledAcompteLinkFixture.js`. Client: `client/src/components/reservation/__tests__/FinanceSection.deposit-held-by-link.test.jsx` (2 tests — the locked switch is disabled, described by its caption and inert; without a reason it is free and has no caption).
 
 ## 8. Out of scope
 

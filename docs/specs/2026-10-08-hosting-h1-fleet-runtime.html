@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hébergement de la flotte</title>
+<meta name="description" content="Résumé interactif de H1 : création automatique, flotte mesurée, mises à jour une instance après l’autre, sauvegardes vérifiées et emails sans configuration.">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:14px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen);display:block;margin:10px 0 4px}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:13px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:8px;padding:0 14px;min-height:44px;cursor:pointer}
+.btn.primary{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.btn.danger{color:var(--ko);border-color:var(--ko)}
+.btn.link{border:0;background:none;color:var(--info);text-decoration:underline;padding:0 4px}
+input[type=text],input[type=email],input[type=password],input[type=date],select,textarea{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:44px;width:100%}
+textarea{min-height:64px}
+.err{color:var(--ko);font-size:13px;min-height:18px;margin-top:4px}
+.okmsg{color:var(--ok);font-size:13px}
+/* console frame */
+.frame{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:14px 0}
+.url{font:12.5px ui-monospace,Menlo,monospace;padding:8px 12px;border-bottom:1px solid var(--line);background:rgba(127,127,127,.08);overflow-wrap:anywhere}
+.pab{position:sticky;top:0;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--card);flex-wrap:wrap}
+.pab .t{font:600 18px var(--serif);color:var(--sapin);flex:1;min-width:120px}
+.body{padding:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:999px;padding:0 14px;min-height:40px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.fchip b{font-size:16px;margin-right:6px}
+.fchip[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.st-trial,.st-due{background:color-mix(in srgb,var(--info) 16%,var(--card));color:var(--info)}
+.st-active{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.st-grace{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.st-read_only,.st-suspended{background:color-mix(in srgb,var(--ko) 16%,var(--card));color:var(--ko)}
+.st-archived{background:rgba(127,127,127,.18);color:var(--muted)}
+.fleet tbody tr{cursor:pointer}
+.fleet tbody tr:hover{background:rgba(127,127,127,.07)}
+.fleet th button{appearance:none;border:0;background:none;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;padding:0}
+.cards{display:none}
+.fcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.fcard .r{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+@media (max-width:700px){.fleet{display:none}.cards{display:block}}
+.steps li{list-style:none;display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.steps{padding:0;margin:0}
+.dot{width:22px;height:22px;border-radius:50%;flex:0 0 22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.d-ok{background:var(--ok)} .d-ko{background:var(--ko)} .d-todo{background:transparent;border:2px solid var(--fieldline)}
+.steps .txt{flex:1;min-width:180px}
+.steps small{display:block;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px}
+@media (max-width:640px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.modal{border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;background:color-mix(in srgb,var(--lichen) 6%,var(--card));display:none}
+.modal.show{display:block}
+.hist li{font-size:13.5px;margin:4px 0}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.login{max-width:380px;margin:10px auto;padding:20px;border:1px solid var(--line);border-radius:12px}
+.login h4{font:600 20px var(--serif);margin:0 0 10px;text-align:center}
+.qr{width:120px;height:120px;margin:8px auto;display:grid;grid-template-columns:repeat(12,1fr);border:6px solid #fff;background:#fff}
+.qr i{display:block}
+.alerts li{margin:6px 0}
+</style>
+<style>
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px);display:none;z-index:9}
+.toast.show{display:block}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.d-run{background:var(--info)}
+.d-skip{background:rgba(127,127,127,.4)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.d-run::after{content:"";width:10px;height:10px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+.pill{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.p-ok{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.p-ko{background:color-mix(in srgb,var(--ko) 16%,var(--card));color:var(--ko)}
+.p-warn{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.p-info{background:color-mix(in srgb,var(--info) 16%,var(--card));color:var(--info)}
+.p-mute{background:rgba(127,127,127,.18);color:var(--muted)}
+.alert{border-radius:8px;padding:9px 12px;margin:6px 0;font-size:14px;border:1px solid}
+.a-ko{border-color:color-mix(in srgb,var(--ko) 40%,transparent);background:color-mix(in srgb,var(--ko) 8%,var(--card))}
+.a-warn{border-color:color-mix(in srgb,var(--ocre) 40%,transparent);background:color-mix(in srgb,var(--ocre) 8%,var(--card))}
+.a-ok{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:color-mix(in srgb,var(--ok) 8%,var(--card))}
+.tablewrap{overflow-x:auto}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.sim{border:1px dashed var(--fieldline);border-radius:10px;padding:8px 12px;margin:8px 0;font-size:13px;color:var(--muted)}
+.sim label{display:inline-flex;gap:6px;align-items:center;margin-right:14px;min-height:36px;cursor:pointer}
+.vrow{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}
+.prog li{list-style:none;display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.prog{padding:0;margin:0}
+.prog .txt{flex:1;min-width:160px}
+.prog small{display:block;color:var(--muted)}
+.expander{border:1px solid var(--line);border-radius:10px;margin-top:10px}
+.expander summary{cursor:pointer;padding:10px 12px;min-height:44px;font-weight:600;display:flex;align-items:center}
+.expander .in{padding:0 12px 12px}
+.field{margin:8px 0}
+@media (max-width:700px){.fleet{display:none}.cards{display:block}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Hébergement H1 — la console fait tourner la flotte</h1>
+<div class="meta">Résumé de la spec <code>specs/hosting-h1-fleet-runtime.md</code> · 08/10/2026 · données fictives, tout se manipule.</div>
+
+<div class="card">
+<h3>En bref</h3>
+<div class="cols2">
+<div>
+<b>Le constat</b>
+<ul class="tight">
+<li>Créer, arrêter, relancer ou renommer un client laisse aujourd'hui trois cases « À faire à la main jusqu'à la phase H » : dossier et base, processus, route et certificat.</li>
+<li>La vue de la flotte affiche « — » pour la version, le processus et la sauvegarde : rien ne les mesure.</li>
+<li>Aucune base n'est sauvegardée. Les mises à jour passent par le bouton de chaque instance, qu'un client hébergé ne doit pas presser.</li>
+<li>Un nouveau client doit configurer un serveur SMTP avant qu'un seul email parte.</li>
+</ul>
+</div>
+<div>
+<b>Ce qu'on propose</b>
+<ul class="tight">
+<li><b>Tout depuis la console, sans shell</b> : création en 8 étapes automatiques et visibles, arrêt, relance, renommage, effacement.</li>
+<li><b>Sauvegarde continue</b> de chaque base vers un stockage objet européen, et une restauration vérifiée chaque dimanche.</li>
+<li><b>Mises à jour par l'opérateur</b>, une instance après l'autre, avec retour arrière automatique si le contrôle de santé échoue.</li>
+<li><b>Sonde chaque minute</b> : l'opérateur est prévenu avant le client, une fois, puis toutes les 24 h.</li>
+<li><b>Emails sans configuration</b> : la plateforme envoie au nom du gîte, les réponses arrivent au gîte.</li>
+</ul>
+</div>
+</div>
+</div>
+
+<h2>1. Créer un client : les étapes en direct</h2>
+<p class="muted">La création enchaîne seule les étapes. Une étape en échec arrête la suite, affiche son erreur et propose « Reprendre » à partir d'elle. Chaque étape est idempotente : reprendre ne duplique rien.</p>
+<div class="sim">Simulation :
+<label><input type="checkbox" id="failRoute"> la route échoue (Caddy refuse la configuration)</label>
+<label><input type="checkbox" id="failPorts"> plage de ports épuisée</label>
+</div>
+<div class="frame">
+<div class="url">console.guestflow.fr/clients/12</div>
+<div class="pab"><span class="t">Gîte des Aulnes</span><span class="st st-trial">Essai</span></div>
+<div class="body">
+<div class="ctl"><button class="btn primary" id="createBtn">Créer le client</button><span class="muted" id="createNote"></span></div>
+<h3>Création</h3>
+<ul class="steps" id="steps"></ul>
+</div>
+</div>
+
+<h2>2. La flotte, avec ses vraies valeurs</h2>
+<p class="muted">Chaque ligne affiche la version, l'état du processus, la dernière sauvegarde répliquée, la dernière restauration vérifiée, le disque et l'expiration du certificat. Sur téléphone, la table devient des cartes.</p>
+<div class="sim">Simuler une alerte :
+<label><input type="checkbox" data-al="down"> Moulin arrêté depuis 3 min</label>
+<label><input type="checkbox" data-al="backup"> sauvegarde des Oliviers &gt; 1 h</label>
+<label><input type="checkbox" data-al="cert"> certificat d'Ombre &lt; 14 j</label>
+<label><input type="checkbox" data-al="disk"> disque de l'hôte à 88 %</label>
+<label><input type="checkbox" data-al="mail"> Aulnes a atteint 300 emails aujourd'hui</label>
+</div>
+<div class="frame">
+<div class="url">console.guestflow.fr</div>
+<div class="pab"><span class="t">Clients</span><button class="btn" id="tick24">Avancer de 24 h</button></div>
+<div class="body">
+<div id="alerts"></div>
+<div class="tablewrap">
+<table class="fleet">
+<thead><tr><th>Client</th><th>Version</th><th>Processus</th><th>Sauvegarde</th><th>Restauration vérifiée</th><th>Disque</th><th>Certificat</th></tr></thead>
+<tbody id="fleetRows"></tbody>
+</table>
+</div>
+<div class="cards" id="fleetCards"></div>
+<p class="muted" style="font-size:13px;margin-top:10px">Envois de l'email opérateur : <span id="sentLog">aucun</span>.</p>
+</div>
+</div>
+
+<h2>3. Versions : installer une fois, mettre à jour une instance après l'autre</h2>
+<p class="muted">Une version est téléchargée avec son <code>SHA256SUMS</code>, vérifiée et dépaquetée une seule fois sur l'hôte, puis partagée. Pour chaque instance : instantané de la base, bascule de version, redémarrage, contrôle de santé sous 60 s. Un contrôle raté remet cette instance sur sa version précédente et arrête la mise à jour de la flotte.</p>
+<div class="sim">Simulation :
+<label><input type="checkbox" id="failHealth"> Les Oliviers ne répond pas après la bascule</label>
+</div>
+<div class="frame">
+<div class="url">console.guestflow.fr/versions</div>
+<div class="pab"><span class="t">Versions</span></div>
+<div class="body">
+<h3>Installées sur l'hôte</h3>
+<div id="releases"></div>
+<div class="ctl"><button class="btn" id="installBtn">Installer la 3.10.0</button><span class="muted" id="installNote"></span></div>
+<h3>Mettre à jour</h3>
+<div class="ctl">
+<label class="lab" for="target" style="margin:0">Version cible</label>
+<select id="target" style="max-width:160px"><option>3.9.0</option></select>
+<div class="seg" role="group" aria-label="Portée"><button type="button" aria-pressed="true" data-scope="all">Toute la flotte</button><button type="button" aria-pressed="false" data-scope="sel">Sélection</button></div>
+</div>
+<div id="selection" style="display:none" class="chk"></div>
+<div class="ctl"><button class="btn primary" id="updBtn">Mettre à jour</button><button class="btn danger" id="restoreTry">Restaurer Ombre à une date</button></div>
+<ul class="prog" id="prog"></ul>
+<div id="updResult"></div>
+</div>
+</div>
+
+<h2>4. Dans l'instance : Réglages › Système</h2>
+<p class="muted">Sur une instance hébergée (<code>GUESTFLOW_MANAGED=1</code>), le bouton de mise à jour disparaît et <code>POST /api/system/update/start</code> répond 403. Une installation autonome (Solio aujourd'hui) ne change pas.</p>
+<div class="seg" role="group" aria-label="Type d'installation" id="sysSeg"><button type="button" aria-pressed="true" data-m="1">Hébergée</button><button type="button" aria-pressed="false" data-m="0">Autonome (Solio)</button></div>
+<div class="phone" style="margin-top:10px">
+<div class="url">aulnes.guestflow.fr/parametres/systeme</div>
+<div class="body" id="sysCard"></div>
+</div>
+
+<h2>5. Dans l'instance : Paramètres › Emails</h2>
+<p class="muted">Sans SMTP à soi, l'instance hébergée envoie par la plateforme : <code>From: "Gîte des Aulnes" &lt;noreply@guestflow.fr&gt;</code>, <code>Reply-To</code> l'email de contact. Un SMTP configuré passe toujours devant.</p>
+<div class="frame">
+<div class="url">aulnes.guestflow.fr/parametres/emails</div>
+<div class="body">
+<div class="card">
+<div class="vrow" style="border:0"><b>Envoi</b><span class="pill p-ok" id="mailBadge">Envoi par la plateforme</span></div>
+<p class="muted" id="mailLine">Les réponses arrivent à <b>claire@aulnes.fr</b>.</p>
+<details class="expander" id="ownSmtp"><summary>Utiliser mon propre serveur</summary>
+<div class="in">
+<div class="field"><label class="lab" for="smtpHost">Serveur SMTP</label><input type="text" id="smtpHost" placeholder="smtp.exemple.fr"></div>
+<div class="field"><label class="lab" for="smtpPass">Mot de passe SMTP</label><input type="password" id="smtpPass"></div>
+<div class="ctl"><button class="btn primary" id="saveSmtp">Enregistrer</button><button class="btn" id="clearSmtp">Revenir à la plateforme</button></div>
+<div class="err" id="smtpErr"></div>
+</div>
+</details>
+</div>
+<div class="ctl"><button class="btn" id="sendOne">Envoyer un email client</button><span class="muted" id="sentCount"></span></div>
+<div id="mailHist"></div>
+</div>
+</div>
+
+<h2>Ce qu'on ne fait pas</h2>
+<ul class="tight">
+<li>Pas de deuxième hôte ni de bascule automatique : un seul serveur, restauré depuis le stockage objet en cas de perte.</li>
+<li>Pas de changement pour une installation autonome : Solio garde PM2, son bouton de mise à jour et son SMTP.</li>
+<li>Pas de mise à jour automatique : l'opérateur décide de chaque version, et le client ne voit qu'un message.</li>
+<li>Pas de schéma modifié dans l'instance : seul le plan de contrôle gagne des tables.</li>
+<li>Pas de pousse de plugins tant que le registre (phase 4) n'est pas livré : le mécanisme est prêt, le branchement attend.</li>
+</ul>
+
+<h2>Risques</h2>
+<table>
+<thead><tr><th>Risque</th><th>Parade</th></tr></thead>
+<tbody>
+<tr><td>Une version casse au démarrage chez un client.</td><td>Instantané avant bascule, contrôle de santé sous 60 s, retour arrière automatique, flotte arrêtée au premier échec.</td></tr>
+<tr><td>Caddy refuse une configuration.</td><td>L'ancien fichier du site est remis en place : la configuration précédente reste en service, l'étape affiche le message de Caddy.</td></tr>
+<tr><td>Le stockage objet est injoignable.</td><td>Les instances tournent ; l'alerte « sauvegarde de plus d'1 h » part.</td></tr>
+<tr><td>Un client hébergé épuise la réputation de l'expéditeur commun.</td><td>Plafond quotidien (300 par défaut) : refus clair dans l'historique des emails et alerte opérateur.</td></tr>
+<tr><td>La sauvegarde existe mais ne se restaure pas.</td><td>Restauration réelle chaque dimanche, <code>PRAGMA integrity_check</code> et comptage des réservations ; un échec est une alerte.</td></tr>
+<tr><td>Restaurer pendant une mise à jour de flotte.</td><td>Refusé (409) jusqu'à la fin de la mise à jour.</td></tr>
+</tbody>
+</table>
+
+<h2>Arbitrages (tranchés le 08/10/2026, option recommandée)</h2>
+<table>
+<thead><tr><th>N°</th><th>Question</th><th>Choix</th></tr></thead>
+<tbody>
+<tr><td>H-D1</td><td>Superviseur des instances</td><td><b>systemd</b> : un gabarit <code>guestflow@.service</code>, limite mémoire, relance sur échec. PM2 reste pour l'autonome.</td></tr>
+<tr><td>H-D2</td><td>Proxy et certificats</td><td><b>Caddy</b> : un fichier par instance, certificats automatiques, rechargé par la console.</td></tr>
+<tr><td>H-D3</td><td>Sauvegarde</td><td><b>Litestream</b> vers un stockage objet européen (API S3), restaurations par la console.</td></tr>
+<tr><td>H-D4</td><td>Versions</td><td><b>Partagées sur l'hôte</b> (<code>releases/&lt;version&gt;</code>) ; chaque instance lit la sienne dans son fichier d'environnement.</td></tr>
+<tr><td>H-D5</td><td>Emails</td><td><b>SMTP de la plateforme</b>, Reply-To du gîte ; un SMTP du client passe devant.</td></tr>
+<tr><td>H-D6</td><td>Pilotes</td><td><b>process, proxy, backup, mail</b>, chacun avec une version <code>local</code> : tout le cycle tourne sur un portable et en CI.</td></tr>
+</tbody>
+</table>
+
+<h2>Ce qui reste au propriétaire (ne se code pas)</h2>
+<ol class="tight">
+<li>Acheter le domaine de la plateforme et poser son DNS joker (<code>*.&lt;domaine&gt;</code>).</li>
+<li>Louer l'hôte (Hetzner CX33/43, UE).</li>
+<li>Ouvrir le stockage objet européen (Scaleway ou Hetzner) pour Litestream.</li>
+<li>Créer le compte d'email transactionnel et poser SPF, DKIM et DMARC sur le domaine.</li>
+<li>Lancer une fois <code>deploy/hosting/bootstrap-host.sh</code> sur l'hôte, en suivant le guide <code>deploy/hosting/README.md</code>.</li>
+</ol>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(function(){
+const $=(id)=>document.getElementById(id);
+const esc=(s)=>String(s).replace(/[&<>"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2600);}
+const sleep=(ms)=>new Promise((r)=>setTimeout(r,ms));
+
+// ---- 1. create
+const STEPS=[
+ ['dir','Dossier, données et fichier d’environnement','/srv/guestflow/instances/aulnes'],
+ ['secrets','Clé de chiffrement et secret de session','générés'],
+ ['port','Port','4407'],
+ ['licence','Licence signée','Écrite dans data/licence.jws'],
+ ['database','Base initialisée','Version 3.9.0'],
+ ['process','Processus','guestflow@aulnes actif'],
+ ['route','Route et certificat TLS','aulnes.guestflow.fr'],
+ ['health','Contrôle de santé','3.9.0 répond'],
+ ['backup','Sauvegarde continue','Réplique ajoutée'],
+ ['admin','Premier compte administrateur et invitation','Invitation envoyée à claire@aulnes.fr'],
+];
+let state=STEPS.map(()=>({s:'todo',d:''}));
+let running=false;
+function renderSteps(){
+  $('steps').innerHTML=STEPS.map(([k,l],i)=>{const st=state[i];const dot=st.s==='ok'?'<span class="dot d-ok">✓</span>':st.s==='failed'?'<span class="dot d-ko">!</span>':st.s==='running'?'<span class="dot d-run"></span>':'<span class="dot d-todo"></span>';
+  const act=st.s==='failed'?`<button class="btn" data-resume="${i}">Reprendre</button>`:'';
+  return `<li>${dot}<div class="txt"><b>${l}</b><small style="${st.s==='failed'?'color:var(--ko)':''}">${esc(st.d||(st.s==='running'?'En cours…':''))}</small></div>${act}</li>`;}).join('');
+}
+async function run(from){
+  if(running)return; running=true;
+  for(let i=from;i<STEPS.length;i++){
+    state[i]={s:'running',d:''};renderSteps();await sleep(450);
+    const k=STEPS[i][0];
+    if(k==='port'&&$('failPorts').checked){state[i]={s:'failed',d:'Plage de ports 4400-4499 épuisée.'};renderSteps();running=false;return;}
+    if(k==='route'&&$('failRoute').checked){state[i]={s:'failed',d:'Caddy : adapting config using caddyfile: unrecognized directive: reverse_prox (configuration précédente conservée).'};renderSteps();running=false;return;}
+    state[i]={s:'ok',d:STEPS[i][2]};renderSteps();
+  }
+  running=false;$('createNote').textContent='Espace ouvert : aulnes.guestflow.fr';toast('Client créé.');
+}
+$('createBtn').onclick=()=>{state=STEPS.map(()=>({s:'todo',d:''}));$('createNote').textContent='';run(0);};
+$('steps').addEventListener('click',(e)=>{const b=e.target.closest('[data-resume]');if(!b)return;const i=Number(b.dataset.resume);
+  if(STEPS[i][0]==='route')$('failRoute').checked=false; if(STEPS[i][0]==='port')$('failPorts').checked=false; run(i);});
+renderSteps();
+
+// ---- 2. fleet
+const FLEET=[
+ {id:'aulnes',n:'Gîte des Aulnes',v:'3.9.0',p:'ok',b:'il y a 2 min',r:'05/10',disk:'48 Mo',cert:'02/01/2027'},
+ {id:'moulin',n:'Le Moulin',v:'3.9.0',p:'ok',b:'il y a 1 min',r:'05/10',disk:'212 Mo',cert:'14/12/2026'},
+ {id:'oliviers',n:'Les Oliviers',v:'3.8.0',p:'ok',b:'il y a 3 min',r:'05/10',disk:'96 Mo',cert:'28/11/2026'},
+ {id:'ombre',n:'Domaine Ombre',v:'3.9.0',p:'ok',b:'il y a 1 min',r:'05/10',disk:'331 Mo',cert:'03/01/2027'},
+];
+const ALERTS={
+ down:{sev:'ko',t:'Le Moulin ne répond plus depuis 3 minutes.',row:'moulin',f:{p:'down'}},
+ backup:{sev:'ko',t:'Les Oliviers : dernière sauvegarde répliquée il y a 1 h 12.',row:'oliviers',f:{b:'il y a 1 h 12'}},
+ cert:{sev:'warn',t:'Domaine Ombre : certificat expire le 19/10/2026.',row:'ombre',f:{cert:'19/10/2026'}},
+ disk:{sev:'warn',t:'Disque de l’hôte rempli à 88 %.',row:null,f:{}},
+ mail:{sev:'warn',t:'Gîte des Aulnes : limite de 300 emails par jour atteinte, envois refusés.',row:'aulnes',f:{}},
+};
+const open={};let hours=0;const sent=[];
+function pState(p){return p==='down'?'<span class="pill p-ko">Arrêté</span>':'<span class="pill p-ok">En marche</span>';}
+function renderFleet(){
+  const rows=FLEET.map((r)=>{let x={...r};for(const k of Object.keys(open)){if(ALERTS[k].row===r.id)x={...x,...ALERTS[k].f};}return x;});
+  $('fleetRows').innerHTML=rows.map((r)=>`<tr><td><b>${r.n}</b><br><span class="muted" style="font-size:12px">${r.id}.guestflow.fr</span></td><td>${r.v}</td><td>${pState(r.p)}</td><td>${r.b}</td><td>${r.r}</td><td>${r.disk}</td><td>${r.cert}</td></tr>`).join('');
+  $('fleetCards').innerHTML=rows.map((r)=>`<div class="fcard"><div class="r"><b>${r.n}</b>${pState(r.p)}</div><div class="muted" style="font-size:13px">${r.id}.guestflow.fr · ${r.v}</div><div class="muted" style="font-size:13px">Sauvegarde ${r.b} · vérifiée le ${r.r}</div><div class="muted" style="font-size:13px">${r.disk} · certificat ${r.cert}</div></div>`).join('');
+  $('alerts').innerHTML=Object.keys(open).map((k)=>`<div class="alert a-${ALERTS[k].sev}">${ALERTS[k].t}</div>`).join('');
+  $('sentLog').textContent=sent.length?sent.join(' ; '):'aucun';
+}
+document.querySelectorAll('[data-al]').forEach((c)=>c.addEventListener('change',()=>{const k=c.dataset.al;
+  if(c.checked){open[k]={at:hours};sent.push(`h+${hours} « ${ALERTS[k].t} »`);toast('Alerte ouverte : email envoyé une fois.');}
+  else{delete open[k];toast('Condition levée : l’alerte se ferme seule.');}
+  renderFleet();}));
+$('tick24').onclick=()=>{hours+=24;for(const k of Object.keys(open)){sent.push(`h+${hours} rappel « ${ALERTS[k].t} »`);}renderFleet();toast(Object.keys(open).length?'24 h plus tard : un rappel par alerte encore ouverte.':'24 h plus tard : rien à signaler.');};
+renderFleet();
+
+// ---- 3. versions
+let installed=[{v:'3.8.0',n:1},{v:'3.9.0',n:3}];
+const INST=[{id:'aulnes',n:'Gîte des Aulnes',v:'3.9.0'},{id:'moulin',n:'Le Moulin',v:'3.9.0'},{id:'oliviers',n:'Les Oliviers',v:'3.8.0'},{id:'ombre',n:'Domaine Ombre',v:'3.9.0'}];
+let scope='all';let updating=false;
+function renderReleases(){
+  installed.forEach((r)=>{r.n=INST.filter((i)=>i.v===r.v).length;});
+  $('releases').innerHTML=installed.map((r)=>`<div class="vrow"><b>${r.v}</b><span class="muted">${r.n} instance${r.n>1?'s':''}</span></div>`).join('');
+  $('target').innerHTML=installed.slice().reverse().map((r)=>`<option>${r.v}</option>`).join('');
+  $('selection').innerHTML=INST.map((i)=>`<label><input type="checkbox" value="${i.id}" checked><span>${i.n} — ${i.v}</span></label>`).join('');
+}
+$('installBtn').onclick=async()=>{if(installed.some((r)=>r.v==='3.10.0'))return toast('Déjà installée.');$('installBtn').disabled=true;
+  for(const p of ['Téléchargement…','Empreinte SHA-256 vérifiée…','Dépendances installées…']){$('installNote').textContent=p;await sleep(500);}
+  installed.push({v:'3.10.0',n:0});$('installNote').textContent='3.10.0 installée sur l’hôte.';renderReleases();$('installBtn').disabled=false;};
+document.querySelectorAll('[data-scope]').forEach((b)=>b.onclick=()=>{scope=b.dataset.scope;document.querySelectorAll('[data-scope]').forEach((x)=>x.setAttribute('aria-pressed',String(x===b)));$('selection').style.display=scope==='sel'?'block':'none';});
+const PH=['Instantané de la base','Bascule de version','Redémarrage','Contrôle de santé'];
+$('updBtn').onclick=async()=>{
+  if(updating)return; const target=$('target').value;
+  let list=INST; if(scope==='sel'){const ids=[...$('selection').querySelectorAll('input:checked')].map((c)=>c.value);list=INST.filter((i)=>ids.includes(i.id));}
+  list=list.filter((i)=>i.v!==target);
+  if(!list.length)return toast('Toutes les instances choisies sont déjà en '+target+'.');
+  updating=true;$('updResult').innerHTML='';
+  const st=list.map(()=>({s:'todo',d:'En attente'}));
+  const draw=()=>{$('prog').innerHTML=list.map((i,k)=>{const x=st[k];const pill=x.s==='ok'?'<span class="pill p-ok">Fait</span>':x.s==='ko'?'<span class="pill p-ko">Revenue en '+i.prev+'</span>':x.s==='run'?'<span class="pill p-info">En cours</span>':x.s==='skip'?'<span class="pill p-mute">Non traitée</span>':'<span class="pill p-mute">En attente</span>';return `<li><div class="txt"><b>${i.n}</b><small>${esc(x.d)}</small></div>${pill}</li>`;}).join('');};
+  draw();
+  for(let k=0;k<list.length;k++){
+    const i=list[k];i.prev=i.v;
+    for(const p of PH){st[k]={s:'run',d:p+'…'};draw();await sleep(380);
+      if(p==='Contrôle de santé'&&i.id==='oliviers'&&$('failHealth').checked){
+        st[k]={s:'ko',d:'Aucune réponse de /api/version en 60 s : retour en '+i.prev+', base de l’instantané remise.'};
+        for(let j=k+1;j<list.length;j++)st[j]={s:'skip',d:'Mise à jour arrêtée'};draw();
+        $('updResult').innerHTML=`<div class="alert a-ko">Mise à jour vers ${target} arrêtée sur Les Oliviers : aucune réponse en 60 s.</div>`;
+        updating=false;renderReleases();return;}
+    }
+    i.v=target;st[k]={s:'ok',d:target+' répond'};draw();renderReleases();
+  }
+  $('updResult').innerHTML=`<div class="alert a-ok">${list.length} instance${list.length>1?'s':''} en ${target}.</div>`;updating=false;
+};
+$('restoreTry').onclick=()=>{toast(updating?'Mise à jour de la flotte en cours : restauration refusée (409).':'Restauration proposée entre le 08/09 et maintenant.');};
+renderReleases();
+
+// ---- 4. system
+let managed=true;
+function renderSys(){
+  $('sysCard').innerHTML=managed
+   ?`<div class="card"><div class="vrow" style="border:0"><b>Système et mises à jour</b><span class="pill p-ok">Gérées par l’hébergeur</span></div><dl class="kv"><dt>Version installée</dt><dd>3.9.0</dd></dl><p class="muted" style="margin-top:8px">Mises à jour gérées par l’hébergeur.</p></div>`
+   :`<div class="card"><div class="vrow" style="border:0"><b>Système et mises à jour</b><span class="pill p-warn">Version 3.10.0 disponible</span></div><dl class="kv"><dt>Version installée</dt><dd>3.9.0</dd><dt>Dernière vérification</dt><dd>08/10/2026 09:12</dd><dt>Version publiée</dt><dd>3.10.0</dd></dl><div class="ctl"><button class="btn">Vérifier maintenant</button><button class="btn primary">Installer la 3.10.0</button></div></div>`;
+}
+document.querySelectorAll('#sysSeg button').forEach((b)=>b.onclick=()=>{managed=b.dataset.m==='1';document.querySelectorAll('#sysSeg button').forEach((x)=>x.setAttribute('aria-pressed',String(x===b)));renderSys();});
+renderSys();
+
+// ---- 5. email
+let own='';let count=297;const LIMIT=300;const hist=[];
+function renderMail(){
+  $('mailBadge').textContent=own?'Serveur personnel':'Envoi par la plateforme';
+  $('mailBadge').className='pill '+(own?'p-info':'p-ok');
+  $('mailLine').innerHTML=own?`Envoi par <b>${esc(own)}</b>.`:'Les réponses arrivent à <b>claire@aulnes.fr</b>.';
+  $('sentCount').textContent=own?'':`${count} / ${LIMIT} aujourd’hui par la plateforme`;
+  $('mailHist').innerHTML=hist.slice(-4).reverse().map((h)=>`<div class="alert a-${h.ok?'ok':'ko'}">${esc(h.t)}</div>`).join('');
+}
+$('saveSmtp').onclick=()=>{const v=$('smtpHost').value.trim();if(!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(v)){$('smtpErr').textContent='Serveur SMTP invalide.';return;}if(!$('smtpPass').value){$('smtpErr').textContent='Mot de passe SMTP requis.';return;}$('smtpErr').textContent='';own=v;renderMail();toast('Serveur personnel enregistré : il passe devant la plateforme.');};
+$('clearSmtp').onclick=()=>{own='';$('smtpHost').value='';$('smtpPass').value='';$('smtpErr').textContent='';renderMail();toast('Envoi par la plateforme.');};
+$('sendOne').onclick=()=>{
+  if(own){hist.push({ok:true,t:`Envoyé par ${own} — From: "Gîte des Aulnes" <claire@aulnes.fr>`});}
+  else if(count>=LIMIT){hist.push({ok:false,t:'Échec : limite quotidienne d’envoi par la plateforme atteinte (300). Envoi refusé.'});toast('Refusé : alerte envoyée à l’opérateur.');}
+  else{count++;hist.push({ok:true,t:'Envoyé — From: "Gîte des Aulnes" <noreply@guestflow.fr> · Reply-To: claire@aulnes.fr'});}
+  renderMail();};
+renderMail();
+})();
+</script>
+</body>
+</html>

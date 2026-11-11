@@ -55,7 +55,7 @@ test('the ordinary prepaid stay offers nothing', () => {
 test('the buckets come back in payment order, acompte first', () => {
   const out = collectibleArrivalBuckets({
     depositAmount: 200, balanceAmount: 300, complementAmount: 50, endOfStayComplementAmount: 20,
-  });
+  }, { endOfStayCollectible: true });
   assert.deepEqual(out.map((b) => b.bucket), ['deposit', 'balance', 'complement', 'endOfStayComplement']);
 });
 
@@ -64,27 +64,34 @@ test('the buckets come back in payment order, acompte first', () => {
 // and 50 € sitting in the end-of-stay complement offered NO control at all — one collectible bucket.
 // The guest had nonetheless paid everything on arrival.
 
-// specs/single-payment-from-the-fiche.md rule 2bis
-test('an unpaid end-of-stay complement is collectible with the stay', () => {
+// specs/single-payment-from-the-fiche.md rule 2bis, reading of 2026-11-06 (D20) — once the guest has left.
+test('an unpaid end-of-stay complement is collectible with the stay after the check-out', () => {
   const out = collectibleArrivalBuckets({
     depositDisabled: 1, depositAmount: 0,
     balanceAmount: 1933.52, complementAmount: 0, endOfStayComplementAmount: 50,
-  });
+  }, { endOfStayCollectible: true });
   assert.deepEqual(out, [
     { bucket: 'balance', label: 'solde', amount: 1933.52 },
     { bucket: 'endOfStayComplement', label: 'complément de fin de séjour', amount: 50 },
   ]);
 });
 
+// specs/single-payment-from-the-fiche.md rule 2bis, reading of 2026-11-06 (D20); reservation-payment-ledger rule 68.
+test('before the check-out the end-of-stay complement is not offered: the caller must say it is collectible', () => {
+  const row = { depositDisabled: 1, balanceAmount: 300, complementAmount: 40, endOfStayComplementAmount: 50 };
+  assert.deepEqual(collectibleArrivalBuckets(row).map((b) => b.bucket), ['balance', 'complement']);
+  assert.deepEqual(collectibleArrivalBuckets(row, { endOfStayCollectible: false }).map((b) => b.bucket), ['balance', 'complement']);
+});
+
 // specs/single-payment-from-the-fiche.md rule 2bis
 test('an end-of-stay complement already settled — cash included — is left alone', () => {
   const paid = collectibleArrivalBuckets({
     balanceAmount: 300, endOfStayComplementAmount: 50, endOfStayComplementPaid: 1,
-  });
+  }, { endOfStayCollectible: true });
   assert.deepEqual(paid.map((b) => b.bucket), ['balance']);
   const cash = collectibleArrivalBuckets({
     balanceAmount: 300, endOfStayComplementAmount: 50, endOfStayComplementPaidCash: 1,
-  });
+  }, { endOfStayCollectible: true });
   assert.deepEqual(cash.map((b) => b.bucket), ['balance'], 'caisse interne counts as settled');
 });
 
@@ -124,6 +131,7 @@ test('a malformed or impossible date is refused, never coerced', () => {
   }
 });
 
-test('without a booking date, only the future check applies', () => {
-  assert.equal(validateArrivalPaymentDate('2020-01-01', { today: '2026-08-31' }).ok, true);
+test('without a booking date, only the future check and the date window apply', () => {
+  assert.equal(validateArrivalPaymentDate('2022-01-01', { today: '2026-08-31' }).ok, true);
+  assert.equal(validateArrivalPaymentDate('2021-08-30', { today: '2026-08-31' }).ok, false);
 });

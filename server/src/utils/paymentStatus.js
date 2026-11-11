@@ -2,13 +2,14 @@
 // Pure: takes a reservation row + the reference "today" (YYYY-MM-DD) and returns ready-to-render fields.
 // Replaces the two divergent client-side getRemainingDue implementations.
 
+const { todayIso: localTodayIso } = require('./localDate');
 function round2(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
 /**
- * @param {object} reservation row with finalPrice, depositAmount/depositPaid/depositDueDate,
- *                              balanceAmount/balancePaid/balanceDueDate
+ * @param {object} reservation row with depositAmount/depositPaid/depositDueDate,
+ *                              balanceAmount/balancePaid/balanceDueDate, the complements and the plan totals
  * @param {string} today reference date `YYYY-MM-DD` (defaults to the current UTC day)
  * @returns {{
  *   remainingDue:number, paymentComplete:boolean,
@@ -16,16 +17,17 @@ function round2(value) {
  *   overdueAmount:number, oldestDueDate:(string|null), isOverdue:boolean
  * }}
  */
-function computePaymentStatus(reservation = {}, today = new Date().toISOString().split('T')[0]) {
-  const finalPrice = Number(reservation.finalPrice || 0);
+function computePaymentStatus(reservation = {}, today = localTodayIso()) {
   const depositAmount = Number(reservation.depositAmount || 0);
   const balanceAmount = Number(reservation.balanceAmount || 0);
   const depositPaid = !!reservation.depositPaid;
   const balancePaid = !!reservation.balancePaid;
 
-  const remainingDue = round2(
-    finalPrice - (depositPaid ? depositAmount : 0) - (balancePaid ? balanceAmount : 0),
-  );
+  // What is still owed = the unpaid buckets, the very figure the finance invariant reads
+  // (`remainingToPay`). It used to be `finalPrice − paid buckets`: the tourist tax (outside finalPrice,
+  // inside the solde) made a fully paid stay read « −6 € », and a line routed to the arrival complement
+  // read the wrong « reste » once the solde was paid (audit 2026-10-27).
+  const remainingDue = require('./reservationSettlement').remainingToPay(reservation);
 
   const depositOverdue = !depositPaid && !!reservation.depositDueDate && reservation.depositDueDate < today;
   const balanceOverdue = !balancePaid && !!reservation.balanceDueDate && reservation.balanceDueDate < today;

@@ -6,7 +6,10 @@
 
 const platformsModel = require('../models/platformsModel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
+const { isOptionalText } = require('../utils/bodyText');
 const { parsePayoutDueDaysInput } = require('../utils/platformPayout');
+const { PLATFORM_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
+const { textColorFor, validateCalendarColor } = require('../utils/colorContrast');
 
 function listNames(req, res) {
   res.json({ platforms: platformsModel.listNames() });
@@ -17,9 +20,12 @@ function listWithCommission(req, res) {
   res.json({ platforms: platformsModel.listWithCommission() });
 }
 
-// Set a platform's global commission % (clamped server-side to [0, 99.99]; Direct is rejected).
+// Set a platform's global commission % (refused outside [0, 99.99], never clamped —
+// specs/settings-input-guards.md rule 30).
 function setCommission(req, res) {
-  const updated = platformsModel.setCommissionPercent(req.params.id, req.body && req.body.commissionPercent);
+  const parsed = parseBoundedNumber(req.body && req.body.commissionPercent, PLATFORM_LIMITS.commissionPercent);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const updated = platformsModel.setCommissionPercent(req.params.id, parsed.value);
   if (!updated) return res.status(404).json({ error: 'PLATFORM_NOT_FOUND_OR_DIRECT' });
   return res.json({ id: updated.id, name: updated.name, commissionPercent: Number(updated.commissionPercent) || 0 });
 }
@@ -29,9 +35,12 @@ function setCommission(req, res) {
 // override. Upserts the platform so a never-used built-in can still be recoloured.
 function setColor(req, res) {
   const key = decodeURIComponent(req.params.key || '');
-  const updated = platformsModel.setColor(key, req.body && req.body.color);
+  const color = String((req.body && req.body.color) || '').trim();
+  const refusal = color ? validateCalendarColor(color) : null;
+  if (refusal) return res.status(400).json({ error: refusal });
+  const updated = platformsModel.setColor(key, color);
   if (!updated) return res.status(400).json({ error: 'PLATFORM_REQUIRED' });
-  return res.json({ name: updated.name, color: updated.color });
+  return res.json({ name: updated.name, color: updated.color, textColor: textColorFor(updated.color) });
 }
 
 // `:key` is the platform label/name. Sets the GLOBAL tourist-tax mode (applies to every property).
@@ -72,13 +81,15 @@ function setPayoutDueDays(req, res) {
 }
 
 const TOURIST_TAX_MODES = ['platform', 'platform_reversed', 'owner'];
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
-const MAX_COMMISSION_PERCENT = 99.99;
+const MAX_REVIEW_WHERE = 80;
 
 // GET /api/platforms/settings — the « Plateformes » settings page (specs/settings-rationalization.md
 // rule 17): every per-platform commercial setting, in one list.
+// A platform that appeared since the boot (a reservation, an intake, an import) is registered first,
+// so it is on the page the moment it exists — not after a restart (specs/platforms-and-ical-rework.md rule 16).
 function listSettings(req, res) {
-  res.json({ platforms: platformsModel.listSettings() });
+  platformsModel.rescan();
+  res.json({ platforms: platformsModel.listSettings(), limits: PLATFORM_LIMITS });
 }
 
 /**
@@ -91,14 +102,14 @@ function planRow(row, current) {
   const has = (key) => Object.prototype.hasOwnProperty.call(row, key);
   if (has('color')) {
     const color = String(row.color || '').trim();
-    if (color && !HEX_COLOR.test(color)) errors.color = 'Couleur invalide.';
+    const refusal = color ? validateCalendarColor(color) : null;
+    if (refusal) errors.color = refusal;
     else apply.push(() => platformsModel.setColor(current.name, color));
   }
   if (has('commissionPercent')) {
-    const pct = Number(String(row.commissionPercent).replace(',', '.'));
-    if (String(row.commissionPercent).trim() === '' || !Number.isFinite(pct) || pct < 0 || pct > MAX_COMMISSION_PERCENT) {
-      errors.commissionPercent = 'Entre 0 et 99,99 %.';
-    } else apply.push(() => platformsModel.setCommissionPercent(current.id, pct));
+    const parsed = parseBoundedNumber(row.commissionPercent, PLATFORM_LIMITS.commissionPercent);
+    if (parsed.error) errors.commissionPercent = parsed.error;
+    else apply.push(() => platformsModel.setCommissionPercent(current.id, parsed.value));
   }
   if (!current.isDirect && has('takesDeposit')) {
     apply.push(() => platformsModel.setDepositMode(current.name, row.takesDeposit === true));
@@ -107,16 +118,42 @@ function planRow(row, current) {
     if (!TOURIST_TAX_MODES.includes(row.touristTaxCollection)) errors.touristTaxCollection = 'Mode inconnu.';
     else apply.push(() => platformsModel.setTouristTaxCollection(current.name, row.touristTaxCollection));
   }
-  if (!isDirectChannel(current.name) && has('payoutDueDays')) {
-    const days = parsePayoutDueDaysInput(row.payoutDueDays);
-    if (days === null) errors.payoutDueDays = 'Un nombre entier de jours (0 à 365).';
-    else apply.push(() => platformsModel.setPayoutDueDays(current.name, days));
+  // specs/plugins-phase-p-productisation.md rule 19 — `direct` always counts; the others by choice.
+  if (!current.isDirect && has('countsAsDirect')) {
+    apply.push(() => platformsModel.setCountsAsDirect(current.id, row.countsAsDirect === true));
+  }
+  // The own-channel guards below read the state AFTER this save: a row ticked « Compté comme vente
+  // directe » in the same batch takes no platform rule (specs/airbnb-no-checkout-chores.md rule 10).
+  const ownChannel = current.isDirect
+    || (has('countsAsDirect') ? row.countsAsDirect === true : isDirectChannel(current.name));
+  // specs/airbnb-no-checkout-chores.md rule 8 — a platform rule, so never on an own channel.
+  if (!ownChannel && has('forbidsGuestChores')) {
+    apply.push(() => platformsModel.setForbidsGuestChores(current.id, row.forbidsGuestChores === true));
+  }
+  // specs/platform-settings-relay-and-review.md rules 1-4 — guest-contact settings, never on an own channel.
+  if (!ownChannel && has('relaysGuestEmail')) {
+    apply.push(() => platformsModel.setRelaysGuestEmail(current.id, row.relaysGuestEmail === true));
+  }
+  const reviewNotText = ['reviewWhereFr', 'reviewWhereEn'].filter((key) => !isOptionalText(row[key]));
+  reviewNotText.forEach((key) => { errors[key] = 'Texte attendu.'; });
+  if (!ownChannel && !reviewNotText.length && (has('reviewWhereFr') || has('reviewWhereEn'))) {
+    const fr = has('reviewWhereFr') ? String(row.reviewWhereFr ?? '').trim() : current.reviewWhereFr;
+    const en = has('reviewWhereEn') ? String(row.reviewWhereEn ?? '').trim() : current.reviewWhereEn;
+    if (fr.length > MAX_REVIEW_WHERE) errors.reviewWhereFr = `${MAX_REVIEW_WHERE} caractères au plus.`;
+    if (en.length > MAX_REVIEW_WHERE) errors.reviewWhereEn = `${MAX_REVIEW_WHERE} caractères au plus.`;
+    if (fr.length <= MAX_REVIEW_WHERE && en.length <= MAX_REVIEW_WHERE) apply.push(() => platformsModel.setReviewWhere(current.id, { fr, en }));
+  }
+  if (!ownChannel && has('payoutDueDays')) {
+    const parsed = parseBoundedNumber(row.payoutDueDays, PLATFORM_LIMITS.payoutDueDays);
+    if (parsed.error) errors.payoutDueDays = parsed.error;
+    else apply.push(() => platformsModel.setPayoutDueDays(current.name, parsed.value));
   }
   return { errors, apply };
 }
 
 // PUT /api/platforms/settings — body `{ platforms: [{ id, color?, commissionPercent?, takesDeposit?,
-// touristTaxCollection?, payoutDueDays? }] }`. All rows are validated first; one invalid field
+// touristTaxCollection?, payoutDueDays?, countsAsDirect?, forbidsGuestChores?, relaysGuestEmail?,
+// reviewWhereFr?, reviewWhereEn? }] }`. All rows are validated first; one invalid field
 // refuses the whole save with `{ code: 'PLATFORMS_INVALID', errors: { [id]: { field: message } } }`.
 function saveSettings(req, res) {
   const rows = req.body && Array.isArray(req.body.platforms) ? req.body.platforms : null;
@@ -136,6 +173,9 @@ function saveSettings(req, res) {
   }
   if (Object.keys(errors).length) return res.status(400).json({ code: 'PLATFORMS_INVALID', errors });
   actions.forEach((run) => run());
+  platformsModel.refreshDirectChannels();
+  platformsModel.refreshChoreFreeChannels();
+  platformsModel.refreshGuestContactChannels();
   return res.json({ platforms: platformsModel.listSettings() });
 }
 

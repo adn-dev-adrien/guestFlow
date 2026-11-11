@@ -17,7 +17,7 @@ Ce que tu dois savoir avant de proposer quoi que ce soit :
 - La commission Abritel stockée est de 15 % et a été mesurée à 9,7 % à un moment : à remesurer sur
   un versement réel AVANT de dériver le moindre prix.
 - Première action du canal : vérifier dans l'espace partenaire si débrancher désactiverait l'annonce
-  AB 2622643 (logement 123465737) ou ferait perdre ses avis. Si oui, on s'arrête et on écrit au
+  AB <abritel-listing> (logement 123465737) ou ferait perdre ses avis. Si oui, on s'arrête et on écrit au
   support Vrbo.
 
 Règles de travail : tu ne me demandes jamais mes identifiants, j'ouvre moi-même les sessions ; tu

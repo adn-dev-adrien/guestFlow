@@ -46,11 +46,21 @@ the reservation **into** a conflict (changing dates/place/occupancy) still valid
 2. On **update**, the **capacity** guards (`checkCapacity` + `checkBabyBeds`) run **only if the
    occupancy changed** — i.e. any of `propertyId`, `adults`, `children`, `teens`, `babies`,
    `singleBeds`, `doubleBeds`, `babyBeds` differs from the stored reservation. If unchanged, a
-   pre-existing capacity excess does **not** block the save.
+   pre-existing capacity excess does **not** block the save. *Corrected 2026-11-05 (audit R22-C6):* `checkBabyBeds` also
+   runs when the logement or the dates move, since cots are held on a range: a fiche with one cot moved onto a full range
+   was saved and oversold the stock (specs/reservations-backend-mvc.md rule 17). `checkCapacity` is not concerned.
 3. **Create** is unchanged — a new reservation always validates fully (it has no prior placement).
 4. Moving a reservation **into** a conflict (changed placement → overlap) is still rejected (409);
    increasing occupancy beyond capacity (changed occupancy) is still rejected (400). The min-nights
    and past-reservation guards are untouched.
+5. **Fixed at the 2026-10-27 spec review — times and cots are really compared.** The server compared
+   property + dates only, and so did the fiche: a departure moved to 18:00 with the next guest arriving
+   at 15:00 (+ 3 h of cleaning) was saved, while the same booking was refused at creation. Rule 1 now
+   holds on both sides. The server compares each time on its **effective** value — the stored time, or
+   the property's `defaultCheckIn` / `defaultCheckOut` when an older iCal row stored NULL — so the fiche
+   filling a NULL with the property default is not a move. `babyBeds` joins the occupancy comparison of
+   rule 2 whenever a count is stored (a NULL count, from an import, is « not set » and does not trigger
+   the guard). Client: `isPlacementUnchanged` in `utils/reservationConflicts.js`.
 
 **Edge cases:**
 - Finance-only edit (platform payment, client, notes, payment flags) on an overlapping/over-capacity
@@ -69,7 +79,7 @@ the reservation **into** a conflict (changing dates/place/occupancy) still valid
 | Layer | File | T/C | Responsibility |
 |---|---|---|---|
 | `models/` | `reservationsModel.js` | T | `getForUpdate` now also returns the placement + occupancy columns (`startDate`, `endDate`, `checkInTime`, `checkOutTime`, `adults`, `children`, `teens`, `babies`, `singleBeds`, `doubleBeds`, `babyBeds`) so the controller can diff them. |
-| `controllers/` | `reservationsController.js` | T | In `update`, compute `placementUnchanged` / `occupancyUnchanged` from the stored reservation vs the payload; run `validateAvailability` only when placement changed, and `checkCapacity` / `checkBabyBeds` only when occupancy changed. |
+| `controllers/` | `reservationsController.js` | T | In `update`, compute `placementUnchanged` / `occupancyUnchanged` from the stored reservation vs the payload; run `validateAvailability` only when placement changed, `checkCapacity` only when occupancy changed, and `checkBabyBeds` when occupancy, logement or dates changed. |
 
 No API/schema/client change.
 
@@ -102,6 +112,7 @@ conflict still shows the existing blocking dialog.
       saved → **no** « Conflit » dialog, save navigated away, reopen shows `platformGrossAmount = 655`.
       (Before the fix: « Conflit de réservation » blocked the save with no PUT.)
 - [ ] Changing its dates onto another booking → « Conflit de réservation » still blocks (guard runs).
+- Spec review 2026-10-27 (rule 5): `server/src/tests/reservation-time-change-overlap.unit.test.js` (4 tests — later departure, earlier arrival, NULL-time import not seen as moved, cot increase checked) and `client/src/utils/__tests__/reservationConflicts.placement-times.test.js` (5 tests).
 
 ## 8. Out of scope
 

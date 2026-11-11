@@ -24,10 +24,13 @@ vi.mock('../../components/IcalExportCard', () => ({ default: () => null }));
 vi.mock('../../components/PropertyDefaultOptionsCard', () => ({ default: () => null }));
 vi.mock('../../api', () => ({
   default: {
-    getProperty: vi.fn(), getOptions: vi.fn(),
+    getArticleLabels: vi.fn(() => Promise.resolve({ labels: [] })),
+    getProperty: vi.fn(), getPropertyLimits: vi.fn(), getOptions: vi.fn(),
+    // The « Arrivée » block is part of the page (specs/guest-email-texts-made-simple.md rule 35).
+    getPropertyArrivalFacts: vi.fn(() => Promise.resolve({ address: "", mapUrl: "", accessFr: "", accessEn: "", wifiName: "", hasAccessCode: false, hasWifiPassword: false })),
+    savePropertyArrivalFacts: vi.fn(() => Promise.resolve({})),
     createProperty: vi.fn(), updateProperty: vi.fn(), deleteProperty: vi.fn(),
-    getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(), setPlatformTouristTax: vi.fn(),
-    setPlatformPayoutDueDays: vi.fn(),
+    getPropertyPlatforms: vi.fn(), setPlatformColor: vi.fn(),
     createPropertyIcalSource: vi.fn(), updatePropertyIcalSource: vi.fn(),
     deletePropertyIcalSource: vi.fn(), syncPropertyIcalSource: vi.fn(), syncAllPropertyIcalSources: vi.fn(),
     createOption: vi.fn(), updateOption: vi.fn(),
@@ -38,6 +41,7 @@ vi.mock('../../api', () => ({
 import DialogProvider from '../../components/DialogProvider';
 import PropertyDetail from '../PropertyDetail';
 import api from '../../api';
+import { LIMITS } from '../../components/property/__tests__/propertyLimitsFixtures';
 
 const property = (depositEnabled) => ({
   id: 5, name: 'Le Moulin', nameArticle: 'au',
@@ -62,13 +66,14 @@ const renderWith = async (depositEnabled) => {
 
 // Rule 11 — the three settings of « Paiement & Caution », plus the wording of rule 12.
 const alwaysThere = () => {
-  expect(screen.getByLabelText(/jours avant l'arrivée/)).toHaveValue(30);
-  expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue(7);
+  expect(screen.getByLabelText(/jours avant l'arrivée/)).toHaveValue('30');
+  expect(screen.getByLabelText(/Annulation \(jours après échéance du solde\)/)).toHaveValue('7');
   expect(screen.getByLabelText(/Caution par défaut/)).toHaveValue(500);
   expect(screen.getByText(/ou du paiement unique quand l'acompte est désactivé/)).toBeInTheDocument();
 };
 
 beforeEach(() => {
+  api.getPropertyLimits.mockResolvedValue(LIMITS);
   vi.clearAllMocks();
   routerState.id = '5';
   routerState.navigate = vi.fn();
@@ -94,8 +99,8 @@ test('switch ON: the two acompte settings appear, the rest stays put', async () 
   await renderWith(1);
   expect(screen.getByRole('switch', { name: 'Demander un acompte' })).toBeChecked();
   expect(screen.getByText(/payé en deux fois/)).toBeInTheDocument();
-  expect(screen.getByLabelText(/% acompte/)).toHaveValue(30);
-  expect(screen.getByLabelText(/Acompte \(jours après réservation\)/)).toHaveValue(7);
+  expect(screen.getByLabelText(/% acompte/)).toHaveValue('30');
+  expect(screen.getByLabelText(/Acompte \(jours après réservation\)/)).toHaveValue('7');
   alwaysThere();
 });
 
@@ -105,7 +110,7 @@ test('flipping the switch reveals the fields and saves depositEnabled', async ()
   await renderWith(0);
   fireEvent.click(screen.getByRole('switch', { name: 'Demander un acompte' }));
 
-  expect(await screen.findByLabelText(/% acompte/)).toHaveValue(30);
+  expect(await screen.findByLabelText(/% acompte/)).toHaveValue('30');
   expect(screen.getByText(/payé en deux fois/)).toBeInTheDocument();
 
   fireEvent.click(await screen.findByRole('button', { name: 'Enregistrer' }));

@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<title>Textes des emails</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC; --ghost:#9aa093;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A; --ghost:#6a7266;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:22px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(0,0,0,.05);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.alert{border-left:4px solid var(--ko);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+.studio{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.sbar{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--lichen) 8%,var(--card))}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen)}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;min-height:40px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--lichen)}
+.sbody{padding:14px}
+.badge{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 15%,var(--card));color:var(--ok)}
+.badge.ko{background:color-mix(in srgb,var(--ko) 15%,var(--card));color:var(--ko)}
+.badge.i{background:color-mix(in srgb,var(--info) 15%,var(--card));color:var(--info)}
+.mini{appearance:none;font:inherit;font-size:12.5px;font-weight:600;border-radius:7px;padding:0 10px;min-height:40px;border:1px solid var(--fieldline);background:transparent;color:inherit;cursor:pointer}
+.mini:disabled{opacity:.45;cursor:not-allowed}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+@media (max-width:600px){.acts .mini{flex:1 1 100%;min-height:44px}}
+.field{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.field label{font-size:12.5px;color:var(--muted)}
+.field select,.field input{font:inherit;min-height:44px;padding:0 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media (max-width:600px){.grid2{grid-template-columns:1fr}}
+.err{color:var(--ko);font-size:13px;margin-top:4px}
+.btn{appearance:none;font:inherit;font-weight:600;min-height:44px;padding:0 14px;border-radius:9px;border:1px solid var(--sapin);background:var(--sapin);color:var(--paper);cursor:pointer}
+.btn.o{background:transparent;color:var(--sapin)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.q{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:12px 14px;margin:12px 0}
+.q h3{margin:0 0 6px}
+.opt{display:block;border:1px solid var(--fieldline);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;background:var(--field)}
+.opt.rec{border-color:var(--ok)}
+textarea{font:inherit;font-size:13.5px;width:100%;min-height:76px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);resize:vertical}
+.tok{display:inline-flex;align-items:center;font-size:12.5px;padding:3px 10px;margin:3px 4px 0 0;border-radius:999px;border:1px solid var(--info);color:var(--info);background:transparent;cursor:pointer;min-height:32px}
+.mail{font:14px/1.6 var(--serif);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:12px 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.mail .subj{font-weight:700;display:block;margin-bottom:8px;font-family:var(--sans);font-size:13.5px}
+.mail .hl{background:color-mix(in srgb,var(--ocre) 18%,transparent);border-radius:3px}
+.phone{max-width:390px;margin:0 auto;border:1px solid var(--line);border-radius:18px;background:var(--field);padding:14px;display:flex;flex-direction:column}
+/* the page mock */
+.page{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:860px){.page{grid-template-columns:1fr}}
+.pane{border:1px solid var(--line);border-radius:10px;background:var(--field);padding:10px 12px}
+.pin{position:sticky;top:12px;align-self:start}
+@media (max-width:860px){.pin{position:static}}
+.ready{border:1px solid var(--ocre);background:color-mix(in srgb,var(--ocre) 8%,var(--field));border-radius:10px;padding:8px 12px;margin-bottom:12px}
+.ready h4{margin:0 0 4px;font:600 14px var(--serif);color:var(--ocre)}
+.ready ul{margin:0;padding-left:18px;font-size:13.5px}
+.ready li{margin:3px 0}
+.ready a{color:var(--info);cursor:pointer;text-decoration:underline}
+.ready.done{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 8%,var(--field))}
+.ready.done h4{color:var(--ok)}
+.sec{border:1px solid var(--line);border-radius:8px;margin:6px 0;background:var(--field)}
+.sec>button{appearance:none;border:0;background:transparent;color:inherit;font:600 14px var(--serif);width:100%;text-align:left;padding:10px 12px;min-height:44px;display:flex;gap:8px;align-items:center;cursor:pointer}
+.sec>button .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--sapin);color:var(--paper);font:700 11.5px var(--sans)}
+.sec>button .w{margin-left:auto;font:12px var(--sans);color:var(--muted)}
+.sec .in{padding:0 12px 12px;display:none}
+.sec.open .in{display:block}
+.tf{margin:10px 0}
+.tf .l{font-size:12.5px;font-weight:600;margin-bottom:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.editor{min-height:60px;border:1px solid var(--fieldline);border-radius:8px;padding:8px 10px;background:var(--field);font-size:13.5px;line-height:1.8;white-space:pre-wrap;outline:none}
+.editor:focus{border-color:var(--info)}
+.editor .chip{display:inline-block;padding:0 8px;border-radius:999px;background:color-mix(in srgb,var(--info) 15%,var(--field));color:var(--info);font-size:12.5px;line-height:1.6;user-select:all}
+.fallback{font-size:12.5px;color:var(--ocre);border-left:3px solid var(--ocre);padding:4px 8px;margin:8px 0;background:color-mix(in srgb,var(--ocre) 8%,var(--field));border-radius:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.masked{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:0 10px;min-height:44px;background:var(--paper)}
+.masked span{flex:1;font-family:ui-monospace,Menlo,monospace;letter-spacing:2px;color:var(--muted)}
+table.sum{border-collapse:collapse;width:100%;font-size:13px}
+table.sum td,table.sum th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+table.sum th{font-weight:600;color:var(--muted)}
+.wrapx{overflow-x:auto}
+.choice{display:flex;flex-wrap:wrap;gap:6px}
+.choice button{appearance:none;font:inherit;font-size:13px;min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);cursor:pointer}
+.choice button[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:6px 0 14px}
+.bar i{display:block;height:100%;background:var(--lichen)}
+</style>
+<body>
+<div class="wrap">
+
+<h1>Textes des emails : une page, un aperçu, un fichier</h1>
+<div class="meta">Spec <code>specs/guest-email-texts-made-simple.md</code> · 08/10/2026 · branche <code>feature/email-texts-made-simple</code> (depuis <code>inte/plugins</code>) · rendu avant l’implémentation, arbitrages 5–6 ajoutés pendant</div>
+
+<div class="note"><b>En une phrase.</b> Un nouveau propriétaire saisit quelques faits par logement et reçoit des mails complets ; une phrase se change sur une seule page, dans l’ordre où le voyageur reçoit les mails, avec le vrai mail à côté. Solio ne voit aucune différence.</div>
+
+<h2>Le constat</h2>
+<div class="cols2">
+  <div class="card">
+    <h3>Écrire est encore difficile</h3>
+    <ul class="tight">
+      <li>Le texte se tape à <b>cinq endroits</b> : modèles, textes de séjour, textes par logement, accroche J-7 (cachée dans le modèle J-7), mentions.</li>
+      <li>Les boutons de variables sont une constante du client : ~30 variables, ~40 autres sans bouton.</li>
+      <li>Une variable inconnue est <b>effacée en silence</b> dans un modèle, mais <b>refusée</b> dans un texte de séjour.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Le mail d’un nouveau client est creux</h3>
+    <ul class="tight">
+      <li>Aucun aperçu pendant la saisie, aucun envoi de test.</li>
+      <li>Le J-2 neutre ne dit ni l’adresse, ni comment entrer, ni le Wi-Fi : aucun champ ne les porte.</li>
+      <li>Un téléphone vide donne « appelez-nous au . ».</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Ce qu’on propose</h2>
+<div class="cols2">
+  <div class="card"><h3>A · Faits d’arrivée par logement</h3><p>Adresse, lien carte, accès FR/EN, code de la boîte à clés, Wi-Fi. Code et mot de passe Wi-Fi chiffrés et masqués. Trois paragraphes composés par le serveur, absents si vides.</p></div>
+  <div class="card"><h3>B · Ce qui manque est calculé</h3><p><code>GET /api/email-readiness</code> : nom, téléphone, expéditeur, article du logement, adresse et accès, EN manquant, variable inconnue. En tête de page, à la fin de l’assistant, et une alerte du tableau de bord à 14 jours.</p></div>
+  <div class="card"><h3>C · Une page, dans l’ordre d’envoi</h3><p>Confirmation → acompte/solde → J-7 → J-2 → lendemain → relances → annulation. Chaque section montre ses phrases, ses mentions, l’accroche et l’objet ; le modèle brut est derrière « Modifier le modèle complet ». Variables affichées par leur nom.</p></div>
+  <div class="card"><h3>D · Aperçu en direct, test</h3><p>Le serveur rend le brouillon (<code>POST /api/emails/preview</code>) sur le prochain séjour concerné, ou « Exemple ». FR/EN, repli signalé. « M’envoyer un test » : objet « [Test] », rien n’est historisé.</p></div>
+  <div class="card"><h3>E · Un fichier</h3><p>Un CSV <code>;</code> UTF-8 avec BOM : objets, textes, mentions, accroches, accès. Réimport en une transaction, résumé avant d’enregistrer, ligne refusée avec son numéro. Cellule vide = garder, <code>-</code> = vider.</p></div>
+  <div class="card"><h3>F–G · Anglais et démarrage</h3><p>« Traduire les textes manquants » par la clé de la plateforme, variables protégées, marqué « à relire ». L’assistant gagne l’étape « Vos emails » avant « C’est prêt ».</p></div>
+</div>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="tight">
+  <li>Un éditeur riche (WYSIWYG).</li>
+  <li>Une bibliothèque de tons alternatifs.</li>
+  <li>L’import <code>.docx</code> : la mise en forme coupe les variables.</li>
+  <li>Des modèles par canal (Airbnb, Booking…).</li>
+</ul>
+
+<div class="alert"><b>Le risque.</b> Un mail de Solio qui change. Trois parades :
+<ul class="tight">
+<li>le J-2 neutre n’est utilisé que par une base neuve ; les modèles enregistrés de Solio ne sont jamais réécrits ;</li>
+<li>les propriétés de Solio n’ont aucun fait d’arrivée : les trois paragraphes sont vides, et les modèles de Solio ne les citent pas ;</li>
+<li>le test <code>productisation-golden</code> reste inchangé, et chaque réservation de la copie de la base est rendue 6 mails × 2 langues avant/après : 0 différence exigée.</li>
+</ul>
+Second risque : les secrets. Code et mot de passe Wi-Fi sont chiffrés, jamais exportés, jamais journalisés.</div>
+
+<!-- ============================================================ MOCK A + B -->
+<h2>Maquette 1 — Réglages › Textes des emails</h2>
+<p class="muted">Taper dans une phrase met l’aperçu à jour. Les variables s’insèrent par les boutons et s’affichent par leur nom. Remplir un champ de la liste « À compléter » fait disparaître la ligne. Basculer en EN pour voir le repli.</p>
+<div class="studio">
+  <div class="sbar">
+    <span class="lab">Langue de l’aperçu</span>
+    <div class="seg" id="lang"><button aria-pressed="true" data-l="fr">FR</button><button aria-pressed="false" data-l="en">EN</button></div>
+    <span class="lab">Réservation</span>
+    <div class="seg" id="resa"><button aria-pressed="true" data-r="next">Prochaine : Martin, 12/10</button><button aria-pressed="false" data-r="sample">Exemple</button></div>
+    <button class="mini" id="reset">Recommencer</button>
+  </div>
+  <div class="sbody">
+    <div class="page">
+      <div>
+        <div class="ready" id="ready"><h4>À compléter</h4><ul id="readyList"></ul></div>
+        <div class="pane" id="facts" style="margin-bottom:12px">
+          <div class="lab" style="margin-bottom:4px">Réglages et logement (extraits)</div>
+          <div class="grid2">
+            <div class="field"><label for="fPhone">Téléphone de l’entreprise</label><input id="fPhone" placeholder="Vide"></div>
+            <div class="field"><label for="fAddr">Adresse — Le Gîte</label><input id="fAddr" placeholder="Vide"></div>
+          </div>
+        </div>
+        <div id="secs"></div>
+      </div>
+      <div class="pin">
+        <div class="lab" style="margin-bottom:6px">Aperçu — J-2</div>
+        <div id="fallback" class="fallback" hidden>Texte anglais manquant : le français sera envoyé</div>
+        <div class="mail" id="preview"></div>
+        <div class="acts"><button class="mini" id="testBtn">M’envoyer un test</button><span id="testMsg" class="muted" style="font-size:13px"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Maquette 2 — Logement › Séjour › Arrivée</h2>
+<p class="muted">Ces faits composent trois paragraphes du J-2. Un champ vide retire son paragraphe. Le code reste masqué. Un code portail déclaré par le plugin <code>gate-access</code> n’est pas répété.</p>
+<div class="studio">
+  <div class="sbar">
+    <label class="chk"><input type="checkbox" id="gate"> Séjour avec code portail (plugin)</label>
+  </div>
+  <div class="sbody">
+    <div class="page">
+      <div class="pane">
+        <div class="field"><label for="aAddr">Adresse</label><input id="aAddr" value="12 chemin des Prés, 42410 Pélussin"></div>
+        <div class="field"><label for="aMap">Lien carte</label><input id="aMap" placeholder="Construit depuis l’adresse si vide"></div>
+        <div class="grid2">
+          <div class="field"><label for="aAccFr">Accès (FR)</label><textarea id="aAccFr">La clé est dans la boîte à côté de la porte.</textarea></div>
+          <div class="field"><label for="aAccEn">Accès (EN)</label><textarea id="aAccEn" placeholder="Vide : le français"></textarea></div>
+        </div>
+        <div class="field"><label>Code de la boîte à clés</label>
+          <div class="masked" id="codeMasked"><span>••••••••</span><button class="mini" id="codeEdit">Modifier</button></div>
+          <input id="aCode" value="4521" hidden>
+        </div>
+        <div class="grid2">
+          <div class="field"><label for="aWifi">Réseau Wi-Fi</label><input id="aWifi" value="Gite-Invites"></div>
+          <div class="field"><label>Mot de passe Wi-Fi</label><div class="masked"><span>••••••••</span><button class="mini" disabled>Modifier</button></div></div>
+        </div>
+      </div>
+      <div class="pin">
+        <div class="lab" style="margin-bottom:6px">Aperçu — J-2, partie arrivée</div>
+        <div class="mail" id="arrPreview"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ MOCK C -->
+<h2>Maquette 3 — Exporter, modifier, importer</h2>
+<p class="muted">Le fichier ci-dessous est celui exporté. Le modifier puis « Importer » : le résumé apparaît avant tout enregistrement. Une variable inconnue (ici <code>{{prenon}}</code>) refuse sa ligne, avec son numéro.</p>
+<div class="studio">
+  <div class="sbar">
+    <button class="mini" id="csvBad">Glisser une faute : {{prenon}}</button>
+    <button class="mini" id="csvReset">Fichier d’origine</button>
+  </div>
+  <div class="sbody">
+    <div class="field"><label for="csv">textes-emails-2026-10-08.csv</label><textarea id="csv" style="min-height:170px;font:12.5px/1.6 ui-monospace,Menlo,monospace"></textarea></div>
+    <div class="acts"><button class="btn" id="csvImport">Importer</button></div>
+    <div id="csvSummary" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ============================================================ MOCK D -->
+<h2>Maquette 4 — Assistant : « Vos emails » (390 px)</h2>
+<p class="muted">Étape 4 sur 5, avant « C’est prêt ». Tout peut être passé. L’aperçu suit la saisie.</p>
+<div class="studio"><div class="sbody">
+  <div class="phone">
+    <div class="row" style="justify-content:space-between"><b style="font:600 17px var(--serif);color:var(--sapin)">GuestFlow</b><span class="muted" style="font-size:13px">Étape 4 sur 5</span></div>
+    <div class="bar"><i style="width:80%"></i></div>
+    <h3 style="margin:0 0 6px">Vos emails</h3>
+    <div class="field"><label for="oPhone">Téléphone</label><input id="oPhone" value="06 12 34 56 78"></div>
+    <div class="field"><label for="oSender">Nom d’expéditeur</label><input id="oSender" value="Les Prés"></div>
+    <div class="field"><label>Article du logement</label><div class="choice" id="oArt"></div></div>
+    <div class="field"><label for="oAddr">Adresse</label><input id="oAddr" placeholder="Vide"></div>
+    <div class="field"><label for="oAcc">Accès</label><textarea id="oAcc" placeholder="Vide"></textarea></div>
+    <div class="grid2">
+      <div class="field"><label for="oWifi">Wi-Fi</label><input id="oWifi" placeholder="Vide"></div>
+      <div class="field"><label for="oPwd">Mot de passe</label><input id="oPwd" type="password" placeholder="Vide"></div>
+    </div>
+    <div class="lab" style="margin:8px 0 6px">Aperçu — J-2 · Exemple</div>
+    <div class="mail" id="oPreview" style="font-size:13px"></div>
+    <div class="row" style="margin-top:12px"><button class="btn" style="flex:1 1 100%">Suivant</button><button class="btn o" style="flex:1 1 100%">Précédent</button><button class="mini" style="flex:1 1 100%">Plus tard</button></div>
+  </div>
+</div></div>
+
+<h2>Arbitrages</h2>
+<p class="muted">Tous tranchés avec l’option recommandée, sur instruction de dérouler le plan.</p>
+<div class="q"><h3>1 · Import avec des lignes refusées</h3>
+  <div class="opt rec"><b>Retenu :</b> les lignes valides s’enregistrent à la confirmation, les refusées sont listées et ignorées.</div>
+  <div class="opt">Écarté : tout bloquer tant qu’une ligne est refusée.</div></div>
+<div class="q"><h3>2 · « Article jamais confirmé »</h3>
+  <div class="opt rec"><b>Retenu :</b> un logement enregistré par sa fiche a confirmé son article ; seuls ceux créés par l’assistant sans choix restent à confirmer. Les logements existants sont confirmés à la migration.</div>
+  <div class="opt">Écarté : demander une confirmation à tous les logements.</div></div>
+<div class="q"><h3>3 · Code portail et code de la boîte à clés</h3>
+  <div class="opt rec"><b>Retenu :</b> quand le séjour a un accès portail (plugin actif), le paragraphe d’accès omet le code de la boîte.</div>
+  <div class="opt">Écarté : afficher les deux codes.</div></div>
+<div class="q"><h3>4 · Nom de variable du paragraphe Wi-Fi</h3>
+  <div class="opt rec"><b>Retenu :</b> la variable de modèle s’appelle <code>arrivalWifiParagraph</code> : <code>wifiParagraph</code> existe déjà (« pas de wifi » du J-7) et doit garder son sens pour Solio. Les clés de texte restent celles de la spec.</div></div>
+<div class="q"><h3>5 · Anglais vide</h3>
+  <div class="opt rec"><b>Retenu :</b> un modèle anglais vide ou un « accès » anglais vide envoie le français ; toute autre phrase sans anglais reste absente de l’email anglais, comme aujourd’hui, et l’aperçu le dit (« phrase absente de l’email anglais »). Le test golden de Solio contient une accroche sans anglais : la remplacer par le français changerait ses emails.</div>
+  <div class="opt">Écarté : envoyer le français pour toute phrase sans anglais.</div></div>
+<div class="q"><h3>6 · Article dans l’assistant</h3>
+  <div class="opt rec"><b>Retenu :</b> les cinq articles qu’un logement accepte (au, à la, à l’, aux, à), affichés avec le nom du logement ; pas de « dans le ».</div></div>
+<div class="q"><h3>7 · Traduction</h3>
+  <div class="opt rec"><b>Retenu :</b> l’API Messages d’Anthropic (<code>claude-sonnet-5-5</code>), appelée sans SDK supplémentaire. Les variables sont remplacées par des marqueurs avant l’envoi et vérifiées au retour ; un marqueur perdu annule tout.</div></div>
+
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+  // ---------------------------------------------------------------- shared facts
+  const TOKENS = [
+    { t: 'clientFirstName', fr: 'Prénom du voyageur' },
+    { t: 'propertyWithArticle', fr: 'Logement avec article' },
+    { t: 'arrivalDateLabel', fr: 'Date d’arrivée' },
+    { t: 'checkInLabel', fr: 'Heure d’arrivée' },
+    { t: 'companyPhone', fr: 'Téléphone de l’entreprise' },
+  ];
+  const RESAS = {
+    next: { clientFirstName: 'Claire', propertyWithArticle: { fr: 'au Gîte', en: 'the Gîte' }, arrivalDateLabel: { fr: 'samedi 12 octobre', en: 'Saturday 12 October' }, checkInLabel: { fr: '16 h', en: '16:00' } },
+    sample: { clientFirstName: 'Camille', propertyWithArticle: { fr: 'au Gîte', en: 'the Gîte' }, arrivalDateLabel: { fr: 'vendredi 14 mai', en: 'Friday 14 May' }, checkInLabel: { fr: '16 h', en: '16:00' } },
+  };
+  const INIT = {
+    lang: 'fr', resa: 'next', phone: '', addr: '',
+    texts: {
+      subject: { fr: 'À samedi, [propertyWithArticle]', en: 'See you on Saturday at [propertyWithArticle]' },
+      intro: { fr: 'Bonjour [clientFirstName], dans deux jours vous serez [propertyWithArticle].', en: 'Hello [clientFirstName], in two days you will be at [propertyWithArticle].' },
+      house: { fr: 'Café et thé vous attendent dans la cuisine.', en: '' },
+    },
+  };
+  let S = JSON.parse(JSON.stringify(INIT));
+  let openSec = 'j2';
+
+  const value = (tok, lang, resa) => {
+    if (tok === 'companyPhone') return S.phone;
+    const v = RESAS[resa][tok];
+    return typeof v === 'object' ? v[lang] : v;
+  };
+  const label = (tok) => (TOKENS.find((x) => x.t === tok) || {}).fr || tok;
+  const fill = (text, lang, resa) => text.replace(/\[([a-zA-Z]+)\]/g, (_, t) => value(t, lang, resa));
+  // An editor shows a token as its label, never as {{token}}.
+  const toHtml = (text) => esc(text).replace(/\[([a-zA-Z]+)\]/g, (_, t) => `<span class="chip" contenteditable="false" data-t="${t}">${esc(label(t))}</span>`);
+  const fromEditor = (el) => {
+    let out = '';
+    el.childNodes.forEach((n) => {
+      if (n.nodeType === 3) out += n.textContent;
+      else if (n.dataset && n.dataset.t) out += `[${n.dataset.t}]`;
+      else if (n.nodeName === 'BR') out += '\n';
+      else out += n.textContent;
+    });
+    return out;
+  };
+
+  // ---------------------------------------------------------------- readiness
+  function readiness() {
+    const items = [];
+    if (!S.phone.trim()) items.push({ txt: 'Téléphone de l’entreprise — 4 mails', go: 'fPhone' });
+    if (!S.addr.trim()) items.push({ txt: 'Adresse — Le Gîte (séjour le 12/10)', go: 'fAddr' });
+    if (!S.texts.house.en.trim()) items.push({ txt: 'Anglais manquant — J-2 « Dans le logement »', go: 'ed-house-en' });
+    return items;
+  }
+  function renderReady() {
+    const items = readiness();
+    $('ready').classList.toggle('done', !items.length);
+    $('ready').querySelector('h4').textContent = items.length ? `À compléter (${items.length})` : 'Tout est prêt';
+    $('readyList').innerHTML = items.map((i) => `<li><a data-go="${i.go}">${esc(i.txt)}</a></li>`).join('');
+    $('readyList').querySelectorAll('a').forEach((a) => a.onclick = () => {
+      if (a.dataset.go.startsWith('ed-')) { openSec = 'j2'; renderSecs(); }
+      const el = $(a.dataset.go); if (el) el.focus();
+    });
+  }
+
+  // ---------------------------------------------------------------- sections in send order
+  const SECTIONS = [
+    { id: 'conf', n: 1, name: 'Confirmation', when: 'à la réservation' },
+    { id: 'pay', n: 2, name: 'Demande d’acompte / de solde', when: 'selon l’échéancier' },
+    { id: 'j7', n: 3, name: 'J-7', when: '7 jours avant' },
+    { id: 'j2', n: 4, name: 'J-2', when: '2 jours avant' },
+    { id: 'j1', n: 5, name: 'Lendemain du départ', when: 'J+1' },
+    { id: 'season', n: 6, name: 'Relances novembre / janvier', when: '15/11 · 06/01' },
+    { id: 'cancel', n: 7, name: 'Annulation', when: 'à l’annulation' },
+  ];
+  function editorField(key, lang, title) {
+    return `<div class="tf"><div class="l">${title} <span class="badge i">${lang.toUpperCase()}</span></div>
+      <div class="editor" contenteditable="true" id="ed-${key}-${lang}" data-k="${key}" data-lang="${lang}">${toHtml(S.texts[key][lang])}</div></div>`;
+  }
+  function renderSecs() {
+    $('secs').innerHTML = SECTIONS.map((s) => `<div class="sec ${openSec === s.id ? 'open' : ''}" data-s="${s.id}">
+      <button><span class="n">${s.n}</span>${s.name}<span class="w">${s.when}</span></button>
+      <div class="in">${s.id === 'j2' ? `
+        ${editorField('subject', 'fr', 'Objet')}
+        ${editorField('intro', 'fr', 'Ouverture')}
+        <div class="row" style="margin:-4px 0 6px">${TOKENS.map((t) => `<button class="tok" data-ins="${t.t}">${esc(t.fr)}</button>`).join('')}</div>
+        ${editorField('house', 'fr', 'Dans le logement')}
+        ${editorField('house', 'en', 'Dans le logement')}
+        <div class="acts"><button class="mini">Modifier le modèle complet</button></div>` : '<p class="muted" style="font-size:13px;margin:0">Objet, phrases et mentions de ce mail.</p>'}
+      </div></div>`).join('');
+    document.querySelectorAll('.sec>button').forEach((b) => b.onclick = () => { const id = b.parentNode.dataset.s; openSec = openSec === id ? '' : id; renderSecs(); });
+    let last = null;
+    document.querySelectorAll('.editor').forEach((ed) => {
+      ed.addEventListener('focus', () => { last = ed; });
+      ed.addEventListener('input', () => { S.texts[ed.dataset.k][ed.dataset.lang] = fromEditor(ed); renderPreview(); renderReady(); });
+    });
+    document.querySelectorAll('[data-ins]').forEach((b) => b.onmousedown = (e) => {
+      e.preventDefault();
+      const ed = last || $('ed-intro-fr');
+      ed.focus();
+      const chip = document.createElement('span');
+      chip.className = 'chip'; chip.contentEditable = 'false'; chip.dataset.t = b.dataset.ins; chip.textContent = label(b.dataset.ins);
+      const sel = window.getSelection();
+      if (sel.rangeCount && ed.contains(sel.anchorNode)) { const r = sel.getRangeAt(0); r.deleteContents(); r.insertNode(chip); r.setStartAfter(chip); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+      else ed.appendChild(chip);
+      S.texts[ed.dataset.k][ed.dataset.lang] = fromEditor(ed); renderPreview(); renderReady();
+    });
+  }
+
+  // ---------------------------------------------------------------- live preview (the server renders; mimicked here)
+  function side(key) {
+    const en = S.texts[key].en || '';
+    if (S.lang === 'en' && !en.trim()) return { text: S.texts[key].fr, fell: true };
+    return { text: S.texts[key][S.lang] || S.texts[key].fr, fell: false };
+  }
+  function renderPreview() {
+    const L = S.lang; const R = S.resa;
+    const parts = ['subject', 'intro', 'house'].map(side);
+    $('fallback').hidden = !parts.some((p) => p.fell);
+    const lines = [];
+    lines.push(`<span class="subj">${esc(fill(parts[0].text, L, R))}</span>`);
+    lines.push(`<span class="hl">${esc(fill(parts[1].text, L, R))}</span>`);
+    lines.push('');
+    lines.push(L === 'en' ? 'Your arrival' : 'Votre arrivée');
+    lines.push(esc(L === 'en' ? `- On ${value('arrivalDateLabel', L, R)}, from ${value('checkInLabel', L, R)}.` : `- Le ${value('arrivalDateLabel', L, R)}, à partir de ${value('checkInLabel', L, R)}.`));
+    if (S.addr.trim()) lines.push(esc(L === 'en' ? `- Address: ${S.addr}` : `- Adresse : ${S.addr}`));
+    lines.push('');
+    if (parts[2].text.trim()) { lines.push(`<span class="hl">${esc(fill(parts[2].text, L, R))}</span>`); lines.push(''); }
+    if (S.phone.trim()) lines.push(esc(L === 'en' ? `Something unexpected? Call us on ${S.phone}.` : `Un imprévu ? Appelez-nous au ${S.phone}.`));
+    lines.push(L === 'en' ? 'Safe travels,' : 'Bonne route,');
+    lines.push('Les Prés');
+    $('preview').innerHTML = lines.join('\n');
+  }
+
+  function bindSeg(id, attr, key, after) {
+    $(id).querySelectorAll('button').forEach((b) => b.onclick = () => {
+      $(id).querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      S[key] = b.dataset[attr]; after();
+    });
+  }
+  bindSeg('lang', 'l', 'lang', renderPreview);
+  bindSeg('resa', 'r', 'resa', renderPreview);
+  $('fPhone').oninput = (e) => { S.phone = e.target.value; renderPreview(); renderReady(); };
+  $('fAddr').oninput = (e) => { S.addr = e.target.value; renderPreview(); renderReady(); };
+  $('testBtn').onclick = () => { $('testMsg').textContent = 'Envoyé à contact@lespres.fr — objet « [Test] … », non historisé.'; };
+  $('reset').onclick = () => { S = JSON.parse(JSON.stringify(INIT)); $('fPhone').value = ''; $('fAddr').value = ''; $('testMsg').textContent = ''; openSec = 'j2'; renderSecs(); renderPreview(); renderReady(); };
+  renderSecs(); renderPreview(); renderReady();
+
+  // ---------------------------------------------------------------- mock B: arrival facts
+  function renderArrival() {
+    const addr = $('aAddr').value.trim();
+    const map = $('aMap').value.trim() || (addr ? `https://maps.google.com/?q=${encodeURIComponent(addr)}` : '');
+    const acc = $('aAccFr').value.trim();
+    const code = $('aCode').value.trim();
+    const wifi = $('aWifi').value.trim();
+    const out = ['Votre arrivée', '- Le samedi 12 octobre, à partir de 16 h.'];
+    if (addr) out.push(`<span class="hl">- Adresse : ${esc(addr)}\n  ${esc(map)}</span>`);
+    if (acc || (code && !$('gate').checked)) out.push(`<span class="hl">- ${esc(acc)}${code && !$('gate').checked ? ` Code : ${esc(code)}.` : ''}</span>`);
+    if ($('gate').checked) out.push('- Code portail : 4K7M-9QT2');
+    if (wifi) out.push(`<span class="hl">- Wi-Fi : ${esc(wifi)}, mot de passe : ••••••</span>`);
+    $('arrPreview').innerHTML = out.join('\n');
+  }
+  ['aAddr', 'aMap', 'aAccFr', 'aAccEn', 'aWifi', 'aCode', 'gate'].forEach((id) => { $(id).addEventListener('input', renderArrival); $(id).addEventListener('change', renderArrival); });
+  $('codeEdit').onclick = () => { $('codeMasked').hidden = true; $('aCode').hidden = false; $('aCode').focus(); };
+  renderArrival();
+
+  // ---------------------------------------------------------------- mock C: import
+  const CSV0 = [
+    'email;clé;description;français;english;texte par défaut (FR)',
+    'J-2;subject;Objet;À {{arrivalWeekday}}, {{propertyWithArticle}};See you on {{arrivalWeekday}} at {{propertyWithArticle}};À {{arrivalWeekday}}, {{propertyWithArticle}}',
+    'J-2;house;Dans le logement;Café et thé vous attendent.;;',
+    'J-2;arrival.access@Le Gîte;Accès — Le Gîte;La clé est dans la boîte.;The key is in the box.;',
+    'J+1;instagram;Réseaux sociaux;Pour suivre nos nouvelles : {{link}};To follow our news: {{link}};Pour suivre nos nouvelles : {{link}}',
+  ].join('\n');
+  const KNOWN = { subject: ['arrivalWeekday', 'propertyWithArticle'], house: [], 'arrival.access@Le Gîte': [], instagram: ['link'] };
+  $('csv').value = CSV0;
+  $('csvReset').onclick = () => { $('csv').value = CSV0; $('csvSummary').innerHTML = ''; };
+  $('csvBad').onclick = () => { $('csv').value = $('csv').value.replace('Café et thé vous attendent.', 'Bonjour {{prenon}}, café et thé vous attendent.'); $('csvSummary').innerHTML = ''; };
+  $('csvImport').onclick = () => {
+    const lines = $('csv').value.split('\n');
+    const changed = []; const refused = [];
+    const orig = CSV0.split('\n');
+    lines.slice(1).forEach((line, i) => {
+      if (!line.trim()) return;
+      const c = line.split(';');
+      const n = i + 2;
+      if (!(c[1] in KNOWN)) { refused.push({ n, why: `Clé inconnue : ${c[1]}` }); return; }
+      const bad = [c[3], c[4]].join(' ').match(/\{\{\s*([^}]+?)\s*\}\}/g) || [];
+      const unknown = bad.map((b) => b.replace(/[{}\s]/g, '')).find((t) => !KNOWN[c[1]].includes(t));
+      if (unknown) { refused.push({ n, why: `Variable inconnue : {{${unknown}}}` }); return; }
+      if (line !== orig[i + 1]) changed.push({ n, key: c[1], fr: c[3] });
+    });
+    $('csvSummary').innerHTML = `<div class="card"><b>${changed.length} texte${changed.length > 1 ? 's' : ''} modifié${changed.length > 1 ? 's' : ''}, ${refused.length} refusé${refused.length > 1 ? 's' : ''}</b>
+      ${changed.length || refused.length ? `<div class="wrapx"><table class="sum"><tr><th>Ligne</th><th>Clé</th><th>Détail</th></tr>
+      ${changed.map((c) => `<tr><td>${c.n}</td><td><code>${esc(c.key)}</code></td><td>${esc(c.fr)}</td></tr>`).join('')}
+      ${refused.map((r) => `<tr><td>${r.n}</td><td><span class="badge ko">Refusée</span></td><td class="err" style="margin:0">${esc(r.why)}</td></tr>`).join('')}</table></div>` : ''}
+      <div class="acts"><button class="btn" id="csvOk" ${changed.length ? '' : 'disabled'}>Enregistrer ${changed.length}</button><button class="btn o" id="csvNo">Annuler</button></div></div>`;
+    $('csvNo').onclick = () => { $('csvSummary').innerHTML = ''; };
+    $('csvOk').onclick = () => { $('csvSummary').innerHTML = `<div class="card ok">${changed.length} texte${changed.length > 1 ? 's' : ''} enregistré${changed.length > 1 ? 's' : ''}.${refused.length ? ` ${refused.length} ligne ignorée.` : ''}</div>`; };
+  };
+
+  // ---------------------------------------------------------------- mock D: onboarding
+  const ARTICLES = ['au', 'à la', 'à l’', 'aux', 'à'];
+  let art = '';
+  const name = 'Gîte des Prés';
+  const withArt = (a) => (a.endsWith('’') ? `${a}${name}` : `${a} ${name}`);
+  function renderOnb() {
+    $('oArt').innerHTML = ARTICLES.map((a) => `<button aria-pressed="${a === art}" data-a="${a}">${esc(withArt(a))}</button>`).join('');
+    $('oArt').querySelectorAll('button').forEach((b) => b.onclick = () => { art = b.dataset.a; renderOnb(); });
+    const out = [`<span class="subj">À vendredi, ${esc(withArt(art || 'au'))}</span>Bonjour Camille,`, '', `Dans deux jours, vous serez ${esc(withArt(art || 'au'))}.`, '', 'Votre arrivée', '- Le vendredi 14 mai, à partir de 16 h.'];
+    if ($('oAddr').value.trim()) out.push(`<span class="hl">- Adresse : ${esc($('oAddr').value.trim())}</span>`);
+    if ($('oAcc').value.trim()) out.push(`<span class="hl">- ${esc($('oAcc').value.trim())}</span>`);
+    if ($('oWifi').value.trim()) out.push(`<span class="hl">- Wi-Fi : ${esc($('oWifi').value.trim())}${$('oPwd').value ? `, mot de passe : ${esc($('oPwd').value)}` : ''}</span>`);
+    out.push('');
+    if ($('oPhone').value.trim()) out.push(`Un imprévu ? Appelez-nous au ${esc($('oPhone').value.trim())}.`);
+    out.push('', 'Bonne route,', esc($('oSender').value.trim() || 'GuestFlow'));
+    $('oPreview').innerHTML = out.join('\n');
+  }
+  ['oPhone', 'oSender', 'oAddr', 'oAcc', 'oWifi', 'oPwd'].forEach((id) => $(id).addEventListener('input', renderOnb));
+  renderOnb();
+})();
+</script>
+</body>
+</html>

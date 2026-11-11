@@ -3,7 +3,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
+
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // specs/tourist-tax-included-services-deduction.md rule 4 — a service included in the rate (a
 // property default marked « offerte ») is sold inside the night: it leaves the tourist-tax base and

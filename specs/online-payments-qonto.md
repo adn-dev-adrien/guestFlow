@@ -137,6 +137,9 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
     "contactez-nous" line). _Decision (2026-06-29):_ kept manual on the user's explicit request — only
     the template + the validity-date trigger were built; no auto-send cron, no abandonment yet (rule 12
     still deferred).
+    > Amended 2026-10-30 by [payment-link-lifecycle.md](payment-link-lifecycle.md) rule 35: the link is no
+    > longer re-offered read-only — the send resolves the acompte link (reused while it has 24 h left,
+    > else minted) and the e-mail states its end of validity (rule 36). Still sent by hand.
 12. **Deposit overdue → devis abandoned + client email.** At the configured offset after the deposit
     due date (default **J+1**) with the deposit still unpaid, the **devis is switched to "abandoned"**
     (it never became a reservation; no dates were blocked), a **dashboard message** + **host email**
@@ -198,6 +201,11 @@ overdue event notifies the host (dashboard + email) and the guest (confirmation 
 - A stay exactly on the last-minute threshold → treated as last-minute (full payment), engine-decided.
 - Deposit/balance due date changes after a link was issued → the host regenerates the link.
 - Qonto API/network error during a poll → logged, retried next pass; never crashes the scheduler.
+
+21. **An échéance already collected is never billed again** (fixed at the 2026-10-27 spec review).
+    `ensurePaymentLink` refuses **409 `ALREADY_PAID`** before any provider call when the link would charge
+    a paid bucket: `deposit` once the acompte is paid, `balance` once the solde is, `full` once either is.
+    Installment links already had the same guard (`INSTALLMENT_PAID`).
 
 ---
 
@@ -324,6 +332,7 @@ relevant due date. Existing templates default to `'startDate'` (unchanged behavi
 ## 7. Test plan
 
 ### Server unit tests
+- [x] `tests/payment-link-paid-bucket-guard.unit.test.js` (5, spec review 2026-10-27) — rule 21: deposit / balance / full refused 409 on a paid bucket with no provider call; the solde link of a stay whose acompte only is paid still minted
 - [ ] `qontoClient` — link creation payload (amount in cents, reference = reservation id), token
       refresh, payment-status parsing; all against a mocked HTTP layer.
 - [ ] `paymentLinksModel` — create/listOpen/markPaid idempotency.

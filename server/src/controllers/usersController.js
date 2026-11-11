@@ -26,10 +26,32 @@ const { createEmailService } = require('../utils/emailService');
 const defaultEmailTemplates = require('../utils/emailTemplates');
 const { generateTemporaryPassword: defaultGenerateTemporaryPassword } = require('../utils/passwordGenerator');
 const { ROLES, ADMIN, isKnownRole } = require('../constants/roles');
-const { MIN_PASSWORD_LENGTH } = require('../constants/authDefaults');
+const { MIN_PASSWORD_LENGTH, DEFAULT_ADMIN_EMAIL } = require('../constants/authDefaults');
+const { quotaRefusal } = require('../utils/planQuota');
+const { ROLE_PLUGINS } = require('../constants/plugins');
+const { sendError } = require('../utils/httpError');
+const { isValidEmailAddress } = require('../utils/emailAddress');
+const { asText, isOptionalText } = require('../utils/bodyText');
 
 function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+  return isValidEmailAddress(value);
+}
+
+// specs/hosting-h2-account-security.md rule 68 — company and notes are text, null or left out.
+function notTextRefusal(body) {
+  const field = ['companyName', 'notes'].find((key) => !isOptionalText(body[key]));
+  return field ? { error: 'INVALID_FIELD', field } : null;
+}
+
+// A blank entry is dropped; one that is not a string stays, for UNKNOWN_ROLE to refuse.
+const readRoles = (list) => [...new Set(list
+  .map((role) => (role === undefined || role === null ? '' : (typeof role === 'string' ? role.trim() : role)))
+  .filter((role) => role !== ''))];
+
+function unknownRoleRefusal(roles) {
+  const role = roles.find((r) => !isKnownRole(r));
+  if (role === undefined) return null;
+  return { error: 'UNKNOWN_ROLE', field: 'roles', ...(typeof role === 'string' ? { role } : {}) };
 }
 
 function asInt(value) {
@@ -44,7 +66,10 @@ function buildController({
   emailTemplates = defaultEmailTemplates,
   passwordGenerator = defaultGenerateTemporaryPassword,
   buildEmailService = createEmailService,
+  planQuota = quotaRefusal,
+  twoFactor = null,
   sessionsModel = defaultSessionsModel,
+  isPluginLive = (id) => require('../plugins/sdk/registry').isLive(id),
 }) {
   // emailService can be passed in pre-built (test isolation). Otherwise we lazily build it from
   // the live SMTP settings on each call — that way settings changes are honoured without restart.
@@ -52,6 +77,14 @@ function buildController({
     if (emailService) return emailService;
     const smtp = settingsModel.decryptedSmtpSettings();
     return buildEmailService(smtp);
+  }
+
+  // The first role of `roles` the account does not already hold whose plugin is not live
+  // (specs/plugins-phase-0-foundation.md rule 29). A role already held stays: the plugin cannot have
+  // been switched off under it (rule 8).
+  function roleWithoutPlugin(roles, held = []) {
+    const role = roles.find((r) => ROLE_PLUGINS[r] && !held.includes(r) && !isPluginLive(ROLE_PLUGINS[r]));
+    return role ? { error: 'ROLE_PLUGIN_INACTIVE', field: 'roles', role, plugin: ROLE_PLUGINS[role] } : null;
   }
 
   function currentUserId(req) {
@@ -68,46 +101,92 @@ function buildController({
     return predicate(current);
   }
 
+  // Rule 59 — the old address learns of the change. Best effort, after the change: a mail failure must
+  // not undo it, nor tell the caller anything.
+  function notifyOldAddress(before, after) {
+    // The bootstrap login is nobody's mailbox.
+    if (String(before.email).toLowerCase() === DEFAULT_ADMIN_EMAIL) return;
+    Promise.resolve()
+      .then(() => getEmailService().send({
+        to: before.email,
+        subject: 'Adresse email modifiée — GuestFlow',
+        text: `L’adresse de connexion de ce compte est maintenant ${after.email}.\n\nSi ce changement n’est pas de vous, le signaler à l’administrateur sans attendre.`,
+      }))
+      .catch((err) => console.error('[usersController.updateSelf] old-address notice failed:', err && err.code ? err.code : err));
+  }
+
   return {
     // GET /api/users — admin only (the route group is admin-gated by enforceRoleAccess).
+    // Each account says whether its second step is on, so the admin can turn it off
+    // (specs/hosting-h2-account-security.md rule 9). The support account is never listed.
     list(req, res) {
-      return res.json({ users: usersModel.list() });
+      const withTwoFactor = new Set(twoFactor ? twoFactor.enabledUserIds() : []);
+      return res.json({ users: usersModel.list().map((u) => ({ ...u, twoFactorEnabled: withTwoFactor.has(u.id) })) });
+    },
+
+    // DELETE /api/users/:id/two-factor — rule 9: an admin turns another user's second step off
+    // (a lost phone); recorded in that user's history. Never the admin's own: that takes a password.
+    disableTwoFactor(req, res) {
+      const id = asInt(req.params.id);
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
+      if (isSelf(req, id)) return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Action impossible sur son propre compte.' });
+      try {
+        return res.json(twoFactor.disableFor(req.user, id));
+      } catch (err) {
+        if (err && err.body) return res.status(err.status).json(err.body);
+        throw err;
+      }
     },
 
     // GET /api/users/me — any authenticated user reads their own profile.
     getMe(req, res) {
       if (!req.user) return res.status(401).json({ error: 'UNAUTHENTICATED' });
       const fresh = usersModel.findById(req.user.id);
-      if (!fresh) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!fresh) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       return res.json({ user: fresh });
     },
 
-    // PUT /api/users/me — any authenticated user updates their OWN identity fields. Email and
-    // roles are explicitly NOT editable from this endpoint:
+    // PUT /api/users/me — any authenticated user updates their OWN identity fields. Roles are
+    // explicitly NOT editable from this endpoint:
     //   - email is editable since 2026-06-02 (the bootstrap admin needs to replace the
     //     `admin@guestflow.local` seed with a real address). The model enforces uniqueness
     //     and we validate the format here; an unchanged email skips the validation altogether
-    //     so existing callers that don't touch it (or send the same string) keep working.
+    //     so existing callers that don't touch it (or send the same string) keep working. A changed
+    //     one needs `currentPassword` (+ `code` with a second step) and is told to the old address
+    //     (specs/hosting-h2-account-security.md rule 59).
     //   - roles must never be self-modifiable — a user could otherwise grant themselves admin.
     // Validation mirrors `create` (firstName + lastName required). Returns the refreshed safe user
     // so the caller can update its local auth state immediately.
     updateSelf(req, res) {
       if (!req.user) return res.status(401).json({ error: 'UNAUTHENTICATED' });
       const body = req.body || {};
-      const firstName = String(body.firstName || '').trim();
-      const lastName = String(body.lastName || '').trim();
+      const firstName = asText(body.firstName).trim();
+      const lastName = asText(body.lastName).trim();
       if (!firstName) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
       if (!lastName) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
+      const notText = notTextRefusal(body);
+      if (notText) return res.status(400).json(notText);
 
       // Optional email change — only validate when the body carries a value that differs
       // from the current one. Submitting the same email is a no-op (no format check
       // re-runs, no uniqueness ping).
       let emailForModel;
       if (body.email !== undefined && body.email !== null) {
-        const trimmed = String(body.email).trim();
+        if (typeof body.email !== 'string') return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
+        const trimmed = body.email.trim();
         if (trimmed && trimmed.toLowerCase() !== String(req.user.email || '').toLowerCase()) {
           if (!isValidEmail(trimmed)) return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
           emailForModel = trimmed;
+        }
+      }
+
+      // Rule 59 — a new address redirects the reset link and the login code: it asks the current
+      // password, and a current code when the second step is on.
+      if (emailForModel !== undefined) {
+        try {
+          twoFactor.reauthenticateForChange(req.user, { password: body.currentPassword, code: body.code });
+        } catch (err) {
+          return sendError(res, err);
         }
       }
 
@@ -116,8 +195,8 @@ function buildController({
         updated = usersModel.updateUser(req.user.id, {
           firstName,
           lastName,
-          companyName: String(body.companyName || '').trim(),
-          notes: String(body.notes || '').trim(),
+          companyName: asText(body.companyName).trim(),
+          notes: asText(body.notes).trim(),
           // No `roles` key on purpose — the model preserves the existing roles when undefined.
           ...(emailForModel !== undefined ? { email: emailForModel } : {}),
         });
@@ -125,13 +204,22 @@ function buildController({
         if (err && err.code === 'EMAIL_ALREADY_EXISTS') {
           return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', field: 'email' });
         }
+        // specs/hosting-h2-account-security.md rule 21 — the support account is never edited.
+        if (err && err.code === 'SUPPORT_ACCOUNT_LOCKED') {
+          return res.status(403).json({ error: 'SUPPORT_FORBIDDEN', message: 'Action réservée au compte du client.' });
+        }
         throw err;
       }
-      if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!updated) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // Sync the persisted session so the next /me + every downstream `req.user` read
       // (sidebar greeting, dialogs, future navigation) sees the new values immediately,
       // without waiting for the next /me round-trip to refresh from the DB.
       if (req.session) req.session.user = updated;
+      if (emailForModel !== undefined) {
+        // Rule 59 — like a password change: the other devices must sign in again with the new address.
+        sessionsModel.revokeOtherSessionsForUser(req.user.id, req.sessionID);
+        notifyOldAddress(req.user, updated);
+      }
       return res.json({ user: updated });
     },
 
@@ -165,27 +253,33 @@ function buildController({
     // POST /api/users — create + email welcome with temporary password.
     create(req, res) {
       const body = req.body || {};
-      const firstName = String(body.firstName || '').trim();
-      const lastName = String(body.lastName || '').trim();
-      const email = String(body.email || '').trim();
-      const companyName = String(body.companyName || '').trim();
-      const notes = String(body.notes || '').trim();
-      const roles = Array.isArray(body.roles) ? body.roles.map((r) => String(r || '').trim()).filter(Boolean) : [];
+      const firstName = asText(body.firstName).trim();
+      const lastName = asText(body.lastName).trim();
+      const email = asText(body.email).trim();
+      const companyName = asText(body.companyName).trim();
+      const notes = asText(body.notes).trim();
+      const roles = Array.isArray(body.roles) ? readRoles(body.roles) : [];
 
       if (!firstName) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
       if (!lastName) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
       if (!isValidEmail(email)) return res.status(400).json({ error: 'INVALID_EMAIL', field: 'email' });
+      const notText = notTextRefusal(body);
+      if (notText) return res.status(400).json(notText);
       if (roles.length === 0) return res.status(400).json({ error: 'ROLES_REQUIRED', field: 'roles' });
-      for (const role of roles) {
-        if (!isKnownRole(role)) return res.status(400).json({ error: 'UNKNOWN_ROLE', field: 'roles', role });
-      }
+      const unknownRole = unknownRoleRefusal(roles);
+      if (unknownRole) return res.status(400).json(unknownRole);
+      const withoutPlugin = roleWithoutPlugin(roles);
+      if (withoutPlugin) return res.status(400).json(withoutPlugin);
+      // Before the welcome email: a refused account must not receive one.
+      const refusal = planQuota('users', () => usersModel.countActive());
+      if (refusal) return res.status(402).json(refusal);
 
       if (!settingsModel.smtpConfigured()) {
-        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
       }
       const publicUrl = String(settingsModel.publicUrl() || '').trim();
       if (!publicUrl) {
-        return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED' });
+        return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED', message: 'Adresse publique non configurée.' });
       }
 
       // Generate the temp password + prerender the welcome email. We send the email FIRST and only
@@ -214,7 +308,7 @@ function buildController({
         })
         .catch((err) => {
           if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
-            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
           }
           if (err && err.code === 'EMAIL_ALREADY_EXISTS') {
             return res.status(409).json({ error: 'EMAIL_ALREADY_EXISTS', field: 'email' });
@@ -224,34 +318,39 @@ function buildController({
           // stays in the server log; the client only sees the stable code. The user has NOT
           // been persisted. Spotted in the 2026-06-01 security audit (finding M3).
           console.error('[usersController.create] email send failed:', err);
-          return res.status(502).json({ error: 'EMAIL_SEND_FAILED' });
+          return res.status(502).json({ error: 'EMAIL_SEND_FAILED', message: 'Envoi de l’e-mail impossible.' });
         });
     },
 
     // PUT /api/users/:id — identity + roles update.
     update(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       const body = req.body || {};
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
 
-      const nextRoles = Array.isArray(body.roles)
-        ? body.roles.map((r) => String(r || '').trim()).filter(Boolean)
-        : undefined;
+      // Rule 68 — as on /me: a name that is sent must be a name; a field left out stays as it is.
+      if (body.firstName !== undefined && !asText(body.firstName).trim()) return res.status(400).json({ error: 'FIRSTNAME_REQUIRED', field: 'firstName' });
+      if (body.lastName !== undefined && !asText(body.lastName).trim()) return res.status(400).json({ error: 'LASTNAME_REQUIRED', field: 'lastName' });
+      const notText = notTextRefusal(body);
+      if (notText) return res.status(400).json(notText);
+
+      const nextRoles = Array.isArray(body.roles) ? readRoles(body.roles) : undefined;
       if (nextRoles !== undefined) {
         if (nextRoles.length === 0) return res.status(400).json({ error: 'ROLES_REQUIRED', field: 'roles' });
-        for (const role of nextRoles) {
-          if (!isKnownRole(role)) return res.status(400).json({ error: 'UNKNOWN_ROLE', field: 'roles', role });
-        }
+        const unknownRole = unknownRoleRefusal(nextRoles);
+        if (unknownRole) return res.status(400).json(unknownRole);
+        const withoutPlugin = roleWithoutPlugin(nextRoles, target.roles);
+        if (withoutPlugin) return res.status(400).json(withoutPlugin);
         // Self-protection: an admin cannot strip their own admin role.
         if (isSelf(req, id) && target.roles.includes(ADMIN) && !nextRoles.includes(ADMIN)) {
-          return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Vous ne pouvez pas retirer votre propre rôle admin.' });
+          return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Rôle admin de son propre compte : retrait impossible.', detail: 'Rôle admin de son propre compte : retrait impossible.' });
         }
         // Last-admin: would removing admin from this active admin leave zero?
         const isLosingAdmin = target.isActive && target.roles.includes(ADMIN) && !nextRoles.includes(ADMIN);
         if (isLosingAdmin && !ensureAdminCountAfter((count) => count - 1 >= 1)) {
-          return res.status(400).json({ error: 'LAST_ADMIN' });
+          return res.status(400).json({ error: 'LAST_ADMIN', message: 'Au moins un administrateur doit rester actif.' });
         }
       }
 
@@ -276,17 +375,23 @@ function buildController({
     // POST /api/users/:id/reset-password — regenerate + email new temp password, then persist hash.
     resetPassword(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       if (isSelf(req, id)) {
-        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', detail: 'Utilisez la page Mot de passe pour modifier le vôtre.' });
+        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Mot de passe personnel : page Mot de passe.', detail: 'Mot de passe personnel : page Mot de passe.' });
       }
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
+      // A reset reactivates the account, so a disabled one counts against the plan's quota
+      // (specs/control-plane-plans-and-access.md rule 13).
+      if (!target.isActive) {
+        const refusal = planQuota('users', () => usersModel.countActive());
+        if (refusal) return res.status(402).json(refusal);
+      }
       if (!settingsModel.smtpConfigured()) {
-        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+        return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
       }
       const publicUrl = String(settingsModel.publicUrl() || '').trim();
-      if (!publicUrl) return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED' });
+      if (!publicUrl) return res.status(400).json({ error: 'PUBLIC_URL_NOT_CONFIGURED', message: 'Adresse publique non configurée.' });
 
       const temporaryPassword = passwordGenerator();
       const fromName = settingsModel.decryptedSmtpSettings().fromName;
@@ -310,28 +415,28 @@ function buildController({
         })
         .catch((err) => {
           if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
-            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+            return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
           }
           // Same rule as create: keep the raw error server-side, return a stable code.
           // Spotted in the 2026-06-01 security audit (finding M3).
           console.error('[usersController.resetPassword] email send failed:', err);
-          return res.status(502).json({ error: 'EMAIL_SEND_FAILED' });
+          return res.status(502).json({ error: 'EMAIL_SEND_FAILED', message: 'Envoi de l’e-mail impossible.' });
         });
     },
 
     // DELETE /api/users/:id — soft delete by default.
     softDelete(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       if (isSelf(req, id)) {
-        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
+        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Action impossible sur son propre compte.' });
       }
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // Last-admin guard: deactivating an active admin must keep ≥1 active admin alive.
       const removesAnAdmin = target.isActive && target.roles.includes(ADMIN);
       if (removesAnAdmin && !ensureAdminCountAfter((count) => count - 1 >= 1)) {
-        return res.status(400).json({ error: 'LAST_ADMIN' });
+        return res.status(400).json({ error: 'LAST_ADMIN', message: 'Au moins un administrateur doit rester actif.' });
       }
       usersModel.softDelete(id);
       // Deactivation is the control reached for after an employee leaves — it must end the session
@@ -343,23 +448,23 @@ function buildController({
     // DELETE /api/users/:id?hard=1 — hard delete (only when the user never logged in).
     hardDelete(req, res) {
       const id = asInt(req.params.id);
-      if (id == null) return res.status(400).json({ error: 'INVALID_ID' });
+      if (id == null) return res.status(400).json({ error: 'INVALID_ID', message: 'Compte introuvable.' });
       if (isSelf(req, id)) {
-        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN' });
+        return res.status(403).json({ error: 'SELF_ACTION_FORBIDDEN', message: 'Action impossible sur son propre compte.' });
       }
       const target = usersModel.findById(id);
-      if (!target) return res.status(404).json({ error: 'USER_NOT_FOUND' });
+      if (!target || target.isSupport) return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Compte introuvable.' });
       // The user is by definition still mustChangePassword=1 + lastLoginAt=null when eligible, so
       // they can't be the active admin holding the fort. But we still guard for safety.
       const removesAnAdmin = target.isActive && target.roles.includes(ADMIN);
       if (removesAnAdmin && !ensureAdminCountAfter((count) => count - 1 >= 1)) {
-        return res.status(400).json({ error: 'LAST_ADMIN' });
+        return res.status(400).json({ error: 'LAST_ADMIN', message: 'Au moins un administrateur doit rester actif.' });
       }
       try {
         usersModel.hardDelete(id);
       } catch (err) {
         if (err && err.code === 'HARD_DELETE_NOT_ELIGIBLE') {
-          return res.status(400).json({ error: 'HARD_DELETE_NOT_ELIGIBLE' });
+          return res.status(400).json({ error: 'HARD_DELETE_NOT_ELIGIBLE', message: 'Ce compte ne peut pas être supprimé.' });
         }
         throw err;
       }
@@ -381,6 +486,14 @@ const defaultDeps = {
   settingsModel: defaultSettingsModel,
   emailTemplates: defaultEmailTemplates,
   passwordGenerator: defaultGenerateTemporaryPassword,
+  get twoFactor() {
+    const { twoFactor, twoFactorModel } = require('../utils/accountSecurityServices');
+    return {
+      disableFor: twoFactor.disableFor,
+      enabledUserIds: twoFactorModel.enabledUserIds,
+      reauthenticateForChange: twoFactor.reauthenticateForChange,
+    };
+  },
 };
 
 const defaultController = buildController(defaultDeps);

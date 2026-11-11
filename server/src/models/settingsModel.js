@@ -8,8 +8,9 @@
  *   read()                      → full row (defaults applied; SMTP password NEVER returned in clear)
  *   upsert(payload)             → writes only the keys present in payload (per-field 3-way)
  *   updateLogoPath(path)        → single-column update of companyLogoPath
- *   smtpConfigured()            → true when smtpHost AND the resolved sending address are filled
- *   publicUrl()                 → the configured public URL (string, never null)
+ *   smtpConfigured()            → true when smtpHost AND the resolved sending address are filled, or
+ *                                  when a hosted instance has no host and the platform sends for it
+ *   publicUrl()                 → the configured public URL, else GUESTFLOW_PUBLIC_URL (string, never null)
  *   decryptedSmtpSettings()     → { host, port, secure, user, password, fromEmail, fromName }
  *                                  with the password decrypted on the fly — used by the email
  *                                  service. Never exposed via HTTP.
@@ -34,46 +35,14 @@ function warnDecryptFailure(col, reason) {
   console.warn(`[settingsModel] decrypt failed for "${col}" (${reason}). The current GUESTFLOW_ENCRYPTION_KEY can't decrypt the stored blob. Re-saisis la valeur depuis Paramètres pour la re-chiffrer avec la clé courante.`);
 }
 
-// Columns encrypted at rest (AES-256-GCM). Google + SMTP + Qonto OAuth credentials.
+// Columns encrypted at rest (AES-256-GCM). The Google, Météo-France, Qonto and Neat secrets moved to
+// plugin_settings with their plugins (specs/plugins-phase-1-sdk.md §5, plugins-phase-3a-online-payment.md
+// rule 13, plugins-phase-3b-neat.md rule 10); their old columns stay in the table, unread.
 const ENCRYPTED_COLUMNS = [
-  'googleCalendarId',
-  // Google OAuth refresh token (specs/google-calendar-oauth-rework.md §5). Obtained via the
-  // connect flow, stored encrypted, never returned to the client (masked to a boolean below).
-  'googleOAuthRefreshTokenEncrypted',
   'smtpPasswordEncrypted',
-  // Qonto OAuth tokens (specs/online-payments-qonto.md §3.1). The client id/secret live in
-  // .env.local (app-level); these per-connection tokens are obtained via the OAuth flow and stored
-  // encrypted, never returned to the client (masked to booleans below).
-  'qontoAccessTokenEncrypted',
-  'qontoRefreshTokenEncrypted',
-  // Météo-France Vigilance API key (specs/checkin-weather-alerts.md §3 rule 10). Operator secret,
-  // stored encrypted; never returned to the client (masked to a boolean below).
-  'meteoFranceApiKeyEncrypted',
-  // Neat service-account secret (specs/neat-cancellation-insurance-subscription.md §3.1 rule 1).
-  // Stored encrypted, never returned to the client (masked to a boolean below).
-  'neatClientSecretEncrypted',
-  // Qonto application credentials (specs/qonto-settings-in-app.md §3 rules 1 + 3). Editable from
-  // Réglages → Paiements so a secret Qonto regenerates can be rotated without a shell. Encrypted,
-  // and masked to booleans below — the client id is NOT here on purpose (rule 4: it is a public
-  // identifier, and the operator must be able to compare it with the Qonto portal).
-  'qontoClientSecretEncrypted',
-  'qontoStagingTokenEncrypted',
-  'qontoWebhookSecretEncrypted',
 ];
 
 const COLUMNS = [
-  // Google Calendar OAuth connection (specs/google-calendar-oauth-rework.md §5). The OAuth
-  // client id/secret live in .env.local; the refresh token is encrypted (above); the rest is
-  // non-secret connection metadata + last-sync state. `googleLastSyncOk` is tri-state
-  // (1/0/NULL = never ran) and is written via `recordGoogleSyncResult`, never via upsert.
-  'googleCalendarId',
-  'googleOAuthRefreshTokenEncrypted',
-  'googleOAuthConnectedEmail',
-  'googleOAuthConnectedAt',
-  'googleCalendarSummary',
-  'googleLastSyncAt',
-  'googleLastSyncOk',
-  'googleLastSyncDetail',
   'companyName',
   'companyAddress',
   'companyEmail',
@@ -90,27 +59,19 @@ const COLUMNS = [
   'quoteValidityDays',
   'companyLogoPath',
   'vatRate',
-  // accounting-platform-commission-and-no-deposit.md §3.1 + §3.7 rule 17b. Single source of
-  // truth for the per-platform commission accounting:
-  //   - `defaultCommissionAccountNumber` is the 6226xx fallback when a platform row doesn't
-  //     have its own number set on `/comptabilite/plateformes`.
-  //   - `vatRateCommission` is the global VAT rate applied to platform commissions whose
-  //     row carries `hasVatOnCommission = 1`. Lives in Settings → Général → Taux de TVA.
-  'defaultCommissionAccountNumber',
-  'vatRateCommission',
-  // specs/cancellation-compensation.md §3.3 rule 19. `cancellationCompensationAccount` is the
-  // produit account credited when a platform pays an indemnity for a cancelled stay (edited on
-  // `/comptabilite/plateformes`); `vatRateCancellationCompensation` is its VAT rate — 0 by default
-  // (indemnity outside the scope of VAT), edited in Settings → Général → Taux de TVA next to the
-  // other two rates.
-  'cancellationCompensationAccount',
-  'vatRateCancellationCompensation',
+  // The four account and VAT settings of the accounting export (commission account and rate,
+  // cancellation-compensation account and rate) live in plugin_settings since
+  // specs/plugins-phase-2-hosts.md rule 19; their app_settings columns stay in place, unread.
   // Accounting closing month, 1..12 (specs/fiscal-year-and-nights-sold.md §3.1). Drives every annual
   // window of the Suivi financier. Plain integer — nothing secret, no encryption.
   'fiscalYearEndMonth',
   // Revenue goal per exercise, JSON (specs/finance-dashboard-redesign.md §3.8). Validated and merged
   // by the settings controller through utils/revenueGoals.js.
   'revenueGoals',
+  // The franchise threshold, typed by the operator (specs/vat-optional-mode.md rule 36). Read through
+  // `read()`; written only by `setVatFranchiseThreshold`, which keeps NULL and the day of the change.
+  'vatFranchiseThreshold',
+  'vatFranchiseThresholdSetAt',
   // SMTP for the account-management flow (specs/admin-account-management.md). The password column
   // stores the AES-256-GCM ciphertext; the model masks it on read and exposes a boolean flag
   // (smtpPasswordSet) so the client never sees the cleartext or the ciphertext blob.
@@ -136,105 +97,27 @@ const COLUMNS = [
   'guestSequenceStartDate',
   'googleReviewUrl',
   'instagramUrl',
-  'poolSeasonStart',
-  'poolSeasonEnd',
-  // Weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). 0=Sun .. 6=Sat, default
-  // 2 (Tuesday). Drives the LaundryDayCard on PlanningPage. Range-validated in the controller
-  // (400 INVALID_WEEKDAY).
-  'laundryWeekday',
-  // Linen inventory & shortage tracking (specs/linen-inventory-shortage-tracking.md §3.1).
-  // Global stock per type, integer ≥ 0. 0 = "I don't track this type" → simulation skips it
-  // and the UI hides any line for that type.
-  'bedLinenStockSingle',
-  'bedLinenStockDouble',
-  'bedLinenStockBaby',
-  'towelStockLarge',
-  'towelStockMedium',
-  'towelStockSmall',
-  // Bath mat as a 7th linen type (specs/laundry-bath-mat.md §3 rule 7). Stock shared across properties.
-  'towelStockBathMat',
-  // Qonto connection (specs/online-payments-qonto.md §3.1). Tokens are encrypted (above); the rest
-  // are non-secret connection metadata. `qontoConnectionStatus` ∈ not_connected|pending|enabled.
-  'qontoAccessTokenEncrypted',
-  'qontoRefreshTokenEncrypted',
-  'qontoTokenExpiresAt',
-  'qontoConnectionId',
-  'qontoConnectionStatus',
-  'qontoConnectedAt',
-  // Qonto application settings, editable in the interface (specs/qonto-settings-in-app.md §3
-  // rules 1-7). Empty means "keep reading the environment" (rule 2), so an installation configured
-  // through .env.local is unaffected until someone opens the form.
-  'qontoEnvironment',
-  'qontoClientId',
-  'qontoClientSecretEncrypted',
-  'qontoStagingTokenEncrypted',
-  'qontoWebhookSecretEncrypted',
+  // specs/settings-input-guards.md §3.7 — JSON `[{ network, url }]`, ordered; `instagramUrl` mirrors its Instagram entry.
+  'socialLinks',
+  // The public website's origin: the CGV link of the emails and the return page of an online payment
+  // (specs/plugins-phase-3a-online-payment.md rule 15). The 20 Qonto columns moved to the
+  // online-payment plugin's settings (rule 13); they stay in the table, unread.
   'publicSiteOrigin',
-  // The verified state of the connection (rules 11-13): what the last real call to Qonto did, so the
-  // page can stop claiming "Connecté" on the mere presence of a token.
-  'qontoLastCheckAt',
-  'qontoLastSuccessAt',
-  'qontoLastErrorAt',
-  'qontoLastErrorCode',
-  'qontoLastErrorMessage',
-  'qontoLastErrorOrigin',
-  // The payment-link webhook subscription GuestFlow created or adopted
-  // (specs/settings-one-save-and-automatic-webhook.md rules 8-10). Not secrets: an id and a public
-  // URL. Their only job is to make the next check free when nothing has moved.
-  'qontoWebhookSubscriptionId',
-  'qontoWebhookCallbackUrl',
-  // Météo-France Vigilance API key (specs/checkin-weather-alerts.md). Encrypted (above); masked to
-  // `meteoFranceApiKeySet` on read so the client only learns whether a key is configured.
-  'meteoFranceApiKeyEncrypted',
-  // Neat cancellation-insurance connection (specs/neat-cancellation-insurance-subscription.md §3.1).
-  // The secret is encrypted (above); the rest is non-secret configuration read through `neatConfig()`.
-  'neatEnvironment',
-  'neatClientId',
-  'neatClientSecretEncrypted',
-  'neatSalesChannelId',
-  'neatSalesChannelLabel',
-  'neatContractId',
-  'neatContractLabel',
-  'neatPaymentMethodId',
-  'neatPaymentMethodKind',
-  'neatPaymentMethodLabel',
-  'neatFieldMappingJson',
-  'neatContractFieldsJson',
-  'neatMarginPercent',
-  // CGV (specs/terms-acceptance-record.md rules 10, 17): the emergency switch of the enforcement, and
-  // the plugin version last seen on a booking request.
-  'requireTermsAcceptance',
-  'lastSeenPluginVersion',
+  // specs/plugins-phase-p-productisation.md rules 18 and 20.
+  'vapidSubject',
+  'onboardingCompletedAt',
 ];
 
 const NUMERIC_DEFAULTS = {
   quoteValidityDays: 30,
   vatRate: 10,
-  vatRateCommission: 20,
-  vatRateCancellationCompensation: 0,
   smtpSecure: 0,
   notificationsEnabled: 1,
   notifyIcalReservationEnabled: 1,
-  laundryWeekday: 2,
-  bedLinenStockSingle: 0,
-  bedLinenStockDouble: 0,
-  bedLinenStockBaby: 0,
-  towelStockLarge: 0,
-  towelStockMedium: 0,
-  towelStockSmall: 0,
-  towelStockBathMat: 0,
-  requireTermsAcceptance: 1,
-};
-
-const STRING_DEFAULT_OVERRIDES = {
-  neatEnvironment: 'staging',
-  poolSeasonStart: '06-15',
-  poolSeasonEnd: '08-31',
 };
 
 const DEFAULTS = COLUMNS.reduce((acc, col) => {
   if (Object.prototype.hasOwnProperty.call(NUMERIC_DEFAULTS, col)) acc[col] = NUMERIC_DEFAULTS[col];
-  else if (Object.prototype.hasOwnProperty.call(STRING_DEFAULT_OVERRIDES, col)) acc[col] = STRING_DEFAULT_OVERRIDES[col];
   else acc[col] = '';
   return acc;
 }, { createdAt: null, updatedAt: null });
@@ -242,22 +125,12 @@ const DEFAULTS = COLUMNS.reduce((acc, col) => {
 // Columns the client may NEVER see (encrypted blobs). We expose a `*Set` boolean mask instead so
 // the UI knows whether to show "Modifier" on a MaskedTextField vs. "Configurer".
 const HTTP_MASKED_COLUMNS = {
-  // Google OAuth refresh token is never exposed; the client only learns whether a connection exists.
-  googleOAuthRefreshTokenEncrypted: 'googleConnected',
   smtpPasswordEncrypted: 'smtpPasswordSet',
-  // Qonto tokens are never exposed; the client only learns whether a connection exists.
-  qontoAccessTokenEncrypted: 'qontoAccessTokenSet',
-  qontoRefreshTokenEncrypted: 'qontoConnected',
-  // Météo-France key is never exposed; the client only learns whether it's configured.
-  meteoFranceApiKeyEncrypted: 'meteoFranceApiKeySet',
-  // Neat secret is never exposed; the client only learns whether it's configured.
-  neatClientSecretEncrypted: 'neatClientSecretSet',
-  // Qonto application secrets are never exposed (specs/qonto-settings-in-app.md §3 rule 3): the
-  // credentials form writes them and reads back only whether they are configured.
-  qontoClientSecretEncrypted: 'qontoClientSecretSet',
-  qontoStagingTokenEncrypted: 'qontoStagingTokenSet',
-  qontoWebhookSecretEncrypted: 'qontoWebhookSecretSet',
 };
+
+function effectivePublicUrl(row, env = process.env) {
+  return String((row && row.publicUrl) || '').trim() || String(env.GUESTFLOW_PUBLIC_URL || '').trim();
+}
 
 function createSettingsModel(databaseInstance) {
   // Filter `COLUMNS` against the actual `app_settings` schema so the model survives test DBs
@@ -278,19 +151,6 @@ function createSettingsModel(databaseInstance) {
   const updateLogoStmt = databaseInstance.prepare(
     `UPDATE app_settings SET companyLogoPath = ?, updatedAt = datetime('now') WHERE id = 1`
   );
-
-  // Google-sync statements, hoisted like updateLogoStmt; null on schemas that predate the
-  // OAuth columns (test DBs) so the accessors degrade to no-ops instead of crashing.
-  const recordGoogleSyncStmt = actualCols.has('googleLastSyncAt')
-    ? databaseInstance.prepare(
-      `UPDATE app_settings SET googleLastSyncAt = ?, googleLastSyncOk = ?, googleLastSyncDetail = ?, updatedAt = datetime('now') WHERE id = 1`
-    )
-    : null;
-  const clearGoogleConnectionStmt = actualCols.has('googleOAuthRefreshTokenEncrypted') && actualCols.has('googleLastSyncAt')
-    ? databaseInstance.prepare(
-      `UPDATE app_settings SET googleOAuthRefreshTokenEncrypted = '', googleOAuthConnectedEmail = '', googleOAuthConnectedAt = '', googleCalendarId = '', googleCalendarSummary = '', googleLastSyncAt = '', googleLastSyncOk = NULL, googleLastSyncDetail = '', updatedAt = datetime('now') WHERE id = 1`
-    )
-    : null;
 
   function readRaw() {
     const row = readStmt.get();
@@ -346,20 +206,38 @@ function createSettingsModel(databaseInstance) {
         .run(...values);
     },
 
+    // Rule 36 — NULL clears it; the day is stamped only when the amount really changes.
+    setVatFranchiseThreshold(amount, today) {
+      if (!actualCols.has('vatFranchiseThreshold')) return;
+      const next = amount == null ? null : Number(amount);
+      const current = databaseInstance.prepare('SELECT vatFranchiseThreshold AS v FROM app_settings WHERE id = 1').get();
+      const before = current && current.v != null ? Number(current.v) : null;
+      if (before === next) return;
+      databaseInstance
+        .prepare("UPDATE app_settings SET vatFranchiseThreshold = ?, vatFranchiseThresholdSetAt = ?, updatedAt = datetime('now') WHERE id = 1")
+        .run(next, next == null ? null : today);
+    },
+
     updateLogoPath(path) {
       updateLogoStmt.run(String(path || ''));
     },
 
     // ----- SMTP / account-management helpers -----
 
+    // A hosted instance without its own SMTP sends through the platform
+    // (specs/hosting-h1-fleet-runtime.md rule 18): configured with nothing typed.
     smtpConfigured() {
       const row = readRaw();
       const host = String(row.smtpHost || '').trim();
-      return Boolean(host) && Boolean(resolveEmailIdentity(row).fromEmail);
+      if (!host) return require('../utils/platformMail').available();
+      return Boolean(resolveEmailIdentity(row).fromEmail);
     },
 
+    // The typed URL, else the one the hosting writes into the instance's environment
+    // (specs/hosting-h1-fleet-runtime.md rule 25): a hosted instance has its address from day one,
+    // and a rename moves it without anyone typing it again.
     publicUrl() {
-      return String(readRaw().publicUrl || '').trim();
+      return effectivePublicUrl(readRaw());
     },
 
     // Booking-notification config (specs/site-booking-notifications.md). Sender and recipient are
@@ -375,320 +253,19 @@ function createSettingsModel(databaseInstance) {
         icalReservationEnabled: Number(row.notifyIcalReservationEnabled) !== 0,
         recipientEmail: identity.recipient,
         fromEmail: identity.fromEmail,
-        publicUrl: String(row.publicUrl || '').trim(),
+        publicUrl: effectivePublicUrl(row),
       };
     },
 
-    // CGV enforcement (specs/terms-acceptance-record.md rule 17). Only an explicit 0 lifts it: a
-    // partially-migrated DB keeps the safe default, ON.
-    termsSettings() {
-      const row = readRaw();
-      return {
-        requireTermsAcceptance: Number(row.requireTermsAcceptance) !== 0,
-        lastSeenPluginVersion: String(row.lastSeenPluginVersion || ''),
-      };
+    // The public website's origin, without its trailing slash, over PUBLIC_SITE_ORIGIN
+    // (specs/plugins-phase-3a-online-payment.md rule 15). '' when neither is set.
+    publicSiteOrigin() {
+      const stored = String(readRaw().publicSiteOrigin || '').trim();
+      return (stored || String(process.env.PUBLIC_SITE_ORIGIN || '').trim()).replace(/\/+$/, '');
     },
 
-    // ----- Qonto connection (specs/online-payments-qonto.md §3.1) -----
-
-    // Persist the OAuth tokens (encrypted via upsert's ENCRYPTED_COLUMNS handling). `expiresAt` is an
-    // ISO timestamp; `connectedAt` is stamped now. Never logged.
-    storeQontoTokens({ accessToken, refreshToken, expiresAt }) {
-      this.upsert({
-        qontoAccessTokenEncrypted: accessToken == null ? '' : String(accessToken),
-        qontoRefreshTokenEncrypted: refreshToken == null ? '' : String(refreshToken),
-        qontoTokenExpiresAt: expiresAt == null ? '' : String(expiresAt),
-        qontoConnectedAt: new Date().toISOString(),
-      });
-    },
-
-    // Decrypted tokens for internal use (the token manager / API calls). NEVER exposed via HTTP.
-    // On key mismatch a token decodes to '' and a marker fires — the manager then treats the
-    // connection as missing rather than crashing.
-    qontoTokens() {
-      const row = readRaw();
-      const dec = (col) => {
-        const blob = row[col];
-        if (!blob) return '';
-        const r = safeDecrypt(blob);
-        if (r.ok) return r.value;
-        warnDecryptFailure(col, r.reason);
-        return '';
-      };
-      return {
-        accessToken: dec('qontoAccessTokenEncrypted'),
-        refreshToken: dec('qontoRefreshTokenEncrypted'),
-        expiresAt: String(row.qontoTokenExpiresAt || '').trim() || null,
-      };
-    },
-
-    // ----- Qonto application settings (specs/qonto-settings-in-app.md §3 rules 1-3, 8) -----
-
-    // The credentials as stored HERE only. `resolveQontoConfig` is what merges them over the
-    // environment (rule 2); this accessor stays dumb on purpose.
-    qontoCredentials() {
-      const row = readRaw();
-      const dec = (col) => {
-        const blob = row[col];
-        if (!blob) return '';
-        const r = safeDecrypt(blob);
-        if (r.ok) return r.value;
-        warnDecryptFailure(col, r.reason);
-        return '';
-      };
-      return {
-        environment: String(row.qontoEnvironment || '').trim(),
-        clientId: String(row.qontoClientId || '').trim(),
-        clientSecret: dec('qontoClientSecretEncrypted'),
-        stagingToken: dec('qontoStagingTokenEncrypted'),
-        webhookSecret: dec('qontoWebhookSecretEncrypted'),
-        publicSiteOrigin: String(row.publicSiteOrigin || '').trim(),
-        redirectUri: '',
-      };
-    },
-
-    // Whether each secret is configured, without decrypting anything — what the settings payload
-    // shows the operator (rule 3).
-    qontoSecretsPresence() {
-      const row = readRaw();
-      return {
-        clientSecret: Boolean(row.qontoClientSecretEncrypted),
-        stagingToken: Boolean(row.qontoStagingTokenEncrypted),
-        webhookSecret: Boolean(row.qontoWebhookSecretEncrypted),
-      };
-    },
-
-    /**
-     * Write the credentials. A key left `undefined` keeps its stored value, `''` erases it — the
-     * three-state write every masked secret field in GuestFlow uses. Values are trimmed (rule 8):
-     * a secret copied from a web page carries a trailing newline, and Qonto rejects it exactly like
-     * a wrong one, which is a full hour of diagnosis for an invisible character.
-     */
-    storeQontoCredentials({ environment, clientId, clientSecret, stagingToken, webhookSecret, publicSiteOrigin } = {}) {
-      const payload = {};
-      const set = (col, value, transform = (v) => String(v).trim()) => {
-        if (value === undefined) return;
-        payload[col] = value == null ? '' : transform(value);
-      };
-      set('qontoEnvironment', environment, (v) => (String(v).trim().toLowerCase() === 'production' ? 'production' : 'sandbox'));
-      set('qontoClientId', clientId);
-      set('qontoClientSecretEncrypted', clientSecret);
-      set('qontoStagingTokenEncrypted', stagingToken);
-      set('qontoWebhookSecretEncrypted', webhookSecret);
-      set('publicSiteOrigin', publicSiteOrigin, (v) => String(v).trim().replace(/\/+$/, ''));
-      if (Object.keys(payload).length) this.upsert(payload);
-    },
-
-    // ----- Payment-link webhook subscription
-    // (specs/settings-one-save-and-automatic-webhook.md §3 rules 8-10) -----
-
-    // What GuestFlow believes Qonto is subscribed to. Empty id = nothing recorded, which is what
-    // makes the next check reach Qonto instead of trusting the record.
-    qontoWebhookSubscription() {
-      const row = readRaw();
-      return {
-        id: String(row.qontoWebhookSubscriptionId || '').trim(),
-        callbackUrl: String(row.qontoWebhookCallbackUrl || '').trim(),
-      };
-    },
-
-    storeQontoWebhookSubscription({ id, callbackUrl } = {}) {
-      const payload = {};
-      if (id !== undefined) payload.qontoWebhookSubscriptionId = id == null ? '' : String(id).trim();
-      if (callbackUrl !== undefined) payload.qontoWebhookCallbackUrl = callbackUrl == null ? '' : String(callbackUrl).trim();
-      if (Object.keys(payload).length) this.upsert(payload);
-    },
-
-    // ----- Verified connection health (specs/qonto-settings-in-app.md §3 rules 11-13) -----
-
-    // Record what the last real call to Qonto did. Keys left undefined are untouched, so a success
-    // can clear the error columns by passing them empty.
-    recordQontoHealth({ lastCheckAt, lastSuccessAt, lastErrorAt, lastErrorCode, lastErrorMessage, lastErrorOrigin } = {}) {
-      const payload = {};
-      const set = (col, value) => { if (value !== undefined) payload[col] = value == null ? '' : String(value); };
-      set('qontoLastCheckAt', lastCheckAt);
-      set('qontoLastSuccessAt', lastSuccessAt);
-      set('qontoLastErrorAt', lastErrorAt);
-      set('qontoLastErrorCode', lastErrorCode);
-      set('qontoLastErrorMessage', lastErrorMessage);
-      set('qontoLastErrorOrigin', lastErrorOrigin);
-      if (Object.keys(payload).length) this.upsert(payload);
-    },
-
-    /**
-     * The verified state. `lastError` is null once a success came after it (rule 13) — the page must
-     * show the current state, not an old scar.
-     */
-    qontoHealth() {
-      const row = readRaw();
-      const str = (col) => String(row[col] || '').trim();
-      const errorAt = str('qontoLastErrorAt');
-      const successAt = str('qontoLastSuccessAt');
-      const stale = Boolean(errorAt && successAt && Date.parse(successAt) >= Date.parse(errorAt));
-      return {
-        lastCheckAt: str('qontoLastCheckAt') || null,
-        lastSuccessAt: successAt || null,
-        lastError: errorAt && !stale
-          ? {
-            at: errorAt,
-            code: str('qontoLastErrorCode'),
-            message: str('qontoLastErrorMessage'),
-            origin: str('qontoLastErrorOrigin'),
-          }
-          : null,
-      };
-    },
-
-    // Provider-connection metadata (non-secret). Status ∈ not_connected | pending | enabled.
-    storeQontoConnection({ connectionId, status }) {
-      const payload = {};
-      if (connectionId !== undefined) payload.qontoConnectionId = connectionId == null ? '' : String(connectionId);
-      if (status !== undefined) payload.qontoConnectionStatus = status == null ? '' : String(status);
-      this.upsert(payload);
-    },
-
-    qontoConnectionInfo() {
-      const row = readRaw();
-      return {
-        connected: Boolean(row.qontoRefreshTokenEncrypted),
-        connectionId: String(row.qontoConnectionId || '').trim(),
-        connectionStatus: String(row.qontoConnectionStatus || 'not_connected').trim() || 'not_connected',
-        connectedAt: String(row.qontoConnectedAt || '').trim() || null,
-      };
-    },
-
-    // True once the OAuth flow has stored a refresh token (the durable credential).
-    qontoConnected() {
-      return Boolean(readRaw().qontoRefreshTokenEncrypted);
-    },
-
-    // ----- Google Calendar OAuth connection (specs/google-calendar-oauth-rework.md) -----
-
-    // Persist the OAuth refresh token (encrypted via upsert's ENCRYPTED_COLUMNS handling) + the
-    // connected account email extracted from the id_token. Never logged.
-    storeGoogleTokens({ refreshToken, email }) {
-      this.upsert({
-        googleOAuthRefreshTokenEncrypted: refreshToken == null ? '' : String(refreshToken),
-        googleOAuthConnectedEmail: email == null ? '' : String(email),
-        googleOAuthConnectedAt: new Date().toISOString(),
-      });
-    },
-
-    // Decrypted refresh token for internal use (the sync engine / calendar API). NEVER exposed
-    // via HTTP. On key mismatch it decodes to '' and a marker fires — callers then treat the
-    // connection as missing rather than crashing.
-    googleTokens() {
-      const blob = readRaw().googleOAuthRefreshTokenEncrypted;
-      if (!blob) return { refreshToken: '' };
-      const r = safeDecrypt(blob);
-      if (r.ok) return { refreshToken: r.value };
-      warnDecryptFailure('googleOAuthRefreshTokenEncrypted', r.reason);
-      return { refreshToken: '' };
-    },
-
-    // True once the OAuth flow has stored a refresh token (the durable credential).
-    googleConnected() {
-      return Boolean(readRaw().googleOAuthRefreshTokenEncrypted);
-    },
-
-    // Raw encrypted token blob — cache key for the sync engine's calendar client (no decrypt
-    // on the fast path; the blob changes on every connect/disconnect). Never exposed via HTTP.
-    googleTokenBlob() {
-      return String(readRaw().googleOAuthRefreshTokenEncrypted || '');
-    },
-
-    // Target-calendar selection. The id rides upsert's encryption (ENCRYPTED_COLUMNS); the
-    // summary is non-secret display metadata.
-    storeGoogleCalendarSelection({ calendarId, summary }) {
-      this.upsert({
-        googleCalendarId: calendarId == null ? '' : String(calendarId),
-        googleCalendarSummary: summary == null ? '' : String(summary),
-      });
-    },
-
-    googleCalendarSelection() {
-      const row = this.read();
-      return {
-        calendarId: String(row.googleCalendarId || '').trim(),
-        summary: String(row.googleCalendarSummary || '').trim(),
-      };
-    },
-
-    // Last-sync state. Dedicated statement (NOT upsert): `googleLastSyncOk` is tri-state
-    // (1/0/NULL) and upsert's ''-coercion would destroy the NULL "never ran" case.
-    recordGoogleSyncResult({ ok, detail }) {
-      if (!recordGoogleSyncStmt) return;
-      recordGoogleSyncStmt.run(new Date().toISOString(), ok ? 1 : 0, String(detail || ''));
-    },
-
-    // Full disconnect: token, account metadata, calendar selection and sync state all reset.
-    // Dedicated statement for the same NULL-preservation reason as recordGoogleSyncResult.
-    clearGoogleConnection() {
-      if (!clearGoogleConnectionStmt) return;
-      clearGoogleConnectionStmt.run();
-    },
-
-    // Ready-to-serve connection/sync state for the status endpoint. Never contains the token.
-    googleStatus() {
-      const row = this.read();
-      return {
-        connected: Boolean(row.googleConnected),
-        connectedEmail: String(row.googleOAuthConnectedEmail || '').trim(),
-        connectedAt: String(row.googleOAuthConnectedAt || '').trim() || null,
-        calendarId: String(row.googleCalendarId || '').trim(),
-        calendarSummary: String(row.googleCalendarSummary || '').trim(),
-        lastSyncAt: String(row.googleLastSyncAt || '').trim() || null,
-        lastSyncOk: row.googleLastSyncOk == null || row.googleLastSyncOk === '' ? null : Number(row.googleLastSyncOk) === 1,
-        lastSyncDetail: String(row.googleLastSyncDetail || '').trim(),
-      };
-    },
-
-    // ----- Météo-France Vigilance (specs/checkin-weather-alerts.md) -----
-
-    // Decrypted Météo-France API key for internal use (the vigilance fetch). NEVER exposed via HTTP.
-    // On key mismatch it decodes to '' and a marker fires — the caller then treats the feature as
-    // unconfigured rather than crashing.
-    meteoFranceApiKey() {
-      const row = readRaw();
-      const blob = row.meteoFranceApiKeyEncrypted;
-      if (!blob) return '';
-      const r = safeDecrypt(blob);
-      if (r.ok) return r.value;
-      warnDecryptFailure('meteoFranceApiKeyEncrypted', r.reason);
-      return '';
-    },
-
-    // Neat connection + configuration, secret decrypted, for internal use only (never over HTTP).
-    // `marginPercent` is null when unset (Neat-derived guest pricing inactive, rule 13).
-    // Missing/undecryptable secret → `clientSecret: ''` and the feature reads as unconfigured.
-    neatConfig() {
-      const row = readRaw();
-      let clientSecret = '';
-      const blob = row.neatClientSecretEncrypted || '';
-      if (blob) {
-        const r = safeDecrypt(blob);
-        if (r.ok) clientSecret = r.value;
-        else warnDecryptFailure('neatClientSecretEncrypted', r.reason);
-      }
-      const rawMargin = row.neatMarginPercent;
-      const marginPercent = rawMargin === null || rawMargin === undefined || rawMargin === ''
-        ? null
-        : Number(rawMargin);
-      return {
-        environment: String(row.neatEnvironment || 'staging') === 'production' ? 'production' : 'staging',
-        clientId: String(row.neatClientId || '').trim(),
-        clientSecret,
-        salesChannelId: String(row.neatSalesChannelId || ''),
-        salesChannelLabel: String(row.neatSalesChannelLabel || ''),
-        contractId: String(row.neatContractId || ''),
-        contractLabel: String(row.neatContractLabel || ''),
-        paymentMethodId: String(row.neatPaymentMethodId || ''),
-        paymentMethodKind: String(row.neatPaymentMethodKind || ''),
-        paymentMethodLabel: String(row.neatPaymentMethodLabel || ''),
-        fieldMappingJson: String(row.neatFieldMappingJson || ''),
-        contractFieldsJson: String(row.neatContractFieldsJson || ''),
-        marginPercent: Number.isFinite(marginPercent) ? marginPercent : null,
-      };
+    storePublicSiteOrigin(value) {
+      this.upsert({ publicSiteOrigin: String(value == null ? '' : value).trim().replace(/\/+$/, '') });
     },
 
     // Returns the SMTP block in the shape expected by `utils/emailService.createEmailService`.
@@ -729,7 +306,7 @@ function createSettingsModel(databaseInstance) {
     },
 
     /**
-     * One-time, idempotent migration: encrypt any Google credential still stored in clear text.
+     * One-time, idempotent migration: encrypt any credential still stored in clear text.
      * Safe to run on every boot — already-encrypted values are skipped.
      */
     migrateEncryption() {

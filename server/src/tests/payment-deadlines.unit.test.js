@@ -37,6 +37,9 @@ function row(overrides = {}) {
 }
 
 // specs/payment-schedule-and-cancellation.md rule 12
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('a solde late past the cancellation deadline proposes the cancellation', () => {
   const out = buildPaymentDeadlineRow(row(), TODAY);
   assert.equal(out.state, 'cancel_due');
@@ -46,7 +49,7 @@ test('a solde late past the cancellation deadline proposes the cancellation', ()
   assert.equal(out.canCancel, true);
   assert.equal(out.balanceDue, 640);
   assert.equal(out.depositDue, 0, 'a paid acompte is not owed');
-  assert.equal(out.retainedDepositAmount, 274, 'what cancelling now would keep');
+  assert.equal(out.retainedDepositAmount, undefined, 'what cancelling would keep is the cancellation\'s own figure (rule 60)');
   assert.equal(out.remindType, 'balance');
 });
 
@@ -67,7 +70,6 @@ test('a late acompte surfaces on its own', () => {
   assert.equal(out.depositDue, 274);
   assert.equal(out.dueDate, '2026-08-15');
   assert.equal(out.daysLate, 4);
-  assert.equal(out.retainedDepositAmount, 0, 'an unpaid acompte keeps nothing (rule 27)');
   assert.equal(
     out.remindType, 'deposit',
     'the button must ask for what the row is about: this said « Acompte en retard » and sent a SOLDE request',
@@ -142,7 +144,6 @@ test('a late platform payout gets its own state, with no dunning and no cancella
   assert.equal(out.remindType, null);
   assert.equal(out.canCancel, false);
   assert.equal(out.cancelOn, null);
-  assert.equal(out.retainedDepositAmount, 0);
 });
 
 // specs/platform-payout-due-date.md rule 12ter

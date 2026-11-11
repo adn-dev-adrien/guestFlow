@@ -10,14 +10,22 @@
  * after the stay by construction. Admin-only through the standard role guard.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
-const defaultSettingsModel = require('../models/settingsModel');
-const { buildRefundableLines, validateRefundPayload } = require('../utils/refunds');
-const { comptaCollected } = require('../utils/reservationSettlement');
+const database = require('../database');
+const vatRegimeModel = require('../models/vatRegimeModel');
+const {
+  buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf,
+} = require('../utils/refunds');
+const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
+const { bookedStayBuckets, cancellationNettedRefundIds } = require('../utils/cancelReservation');
+const { taxRidesTheComplement } = require('../utils/touristTaxFreeze');
+const { bucketSharesOf } = require('../utils/paymentTenders');
+const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return localTodayIso();
 }
 
 // Nights of the stay — the unit the tourist tax is refunded in (spec §3.5 rule 27). Same UTC-midnight
@@ -28,32 +36,72 @@ function nightsBetween(startDate, endDate) {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
 function createRefundsController(deps = {}) {
   const refundsModel = deps.refundsModel || defaultRefundsModel;
   const reservationsModel = deps.reservationsModel || defaultReservationsModel;
-  const settingsModel = deps.settingsModel || defaultSettingsModel;
+  // Required lazily: the reservations controller requires this one.
+  const storedOverpaymentTtc = deps.storedOverpaymentTtc || ((id) => {
+    const over = require('./reservationsController').storedOverpayment(id);
+    return over ? Number(over.overpaymentTtc || 0) : 0;
+  });
+  const vatRateOf = deps.vatRateOf || ((reservation) => vatRegimeModel.rateForRow(database, reservation));
+  // The stay's stored money lives in the database its models read: an injected model without its database reads no
+  // booked split (rule 49 reading of 2026-11-02).
+  const stayDatabase = deps.database || (deps.reservationsModel ? null : database);
+  const installmentsModel = deps.installmentsModel || (deps.reservationsModel ? null : require('../models/installmentsModel'));
 
   // The whole read side of the feature: register + still-refundable lines + both total readings.
   // Reused by the three endpoints AND by the reservation payload, so the fiche never has to ask twice.
   function buildRegister(reservationId, preloadedReservation) {
     const reservation = preloadedReservation || reservationsModel.getByIdWithDetails(reservationId);
     if (!reservation) return null;
-    const settings = settingsModel.read() || {};
+    const vatRate = vatRateOf(reservation);
     const refunds = refundsModel.listByReservation(reservationId);
     const refundTotals = refundsModel.totalsByReservation(reservationId);
+    const collectedTtc = comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book });
+    // Rule 48 — a cancelled stay gives back only what it collected, the requalified part from the indemnity; the
+    // caisse interne's money in the caisse interne only (reading of 2026-11-02, audit R15-L1).
+    const cancelled = String(reservation.kind) === 'cancelled'
+      ? cancelledRefundBudget({ collectedTtc, cashCollectedTtc: cashCollected(reservation), refunds }) : null;
+    const booked = stayDatabase ? bookedStayBuckets({ database: stayDatabase, reservationsModel, installmentsModel }, reservation, vatRate) : null;
+    const taxOnArrival = stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
+    // specs/mixed-method-payments.md rule 46 — the buckets paid with several methods, read for their share on each side.
+    const splitShares = stayDatabase ? bucketSharesOf(paymentSettlementsModel.buildModel(stayDatabase).listFor(reservationId), reservation) : null;
+    const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash, taxOnArrival, splitShares });
+    // Rule 51 (D15) — a live stay reads it too: its lines answer for what they collected, when its money can be read.
+    const liveReadable = booked && (!(Number(reservation.installmentsPaidAmount) > 0) || booked.installments);
+    const collected = cancelled || liveReadable ? lineReading(false) : null;
+    const cashReading = cancelled && cancelled.cashCollectedTtc > 0 ? lineReading(true) : null;
     const refundableLines = buildRefundableLines({
       finalPrice: reservation.finalPrice,
       touristTaxTotal: reservation.touristTaxTotal,
-      vatRate: settings.vatRate != null ? Number(settings.vatRate) : 10,
+      vatRate,
       options: reservation.options || [],
       resources: reservation.resources || [],
       refunds,
       // Drives the per-night tourist-tax line (spec §3.5 rule 27).
       nights: nightsBetween(reservation.startDate, reservation.endDate),
+      cancelled,
+      // Rule 49 reading of 2026-11-02 — a cancelled stay's line offers at most what that line collected.
+      collected,
+      planBuckets: !cancelled && booked ? booked.installments : null,
+      reservation: cancelled ? null : reservation,
+      cashCollected: cashReading,
+      complementCollected: Number(reservation.complementPaid) === 1,
+      goneLines: cancelled ? collectedLinesGone({ reservation, options: reservation.options || [], resources: reservation.resources || [], collected, cashCollected: cashReading }) : [],
     });
+    // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry:
+    // cash collected on no line of the register (an end-of-stay complement, say) is never promised.
+    if (cancelled) {
+      const carried = round2(refundableLines.reduce((sum, line) => sum + Number(line.cashTtc || 0), 0));
+      cancelled.cashLeftTtc = Math.min(cancelled.cashLeftTtc, carried);
+    }
     return {
       reservation,
-      vatRate: settings.vatRate != null ? Number(settings.vatRate) : 10,
+      vatRate,
+      cancelled,
       payload: {
         refunds,
         refundableLines,
@@ -61,7 +109,7 @@ function createRefundsController(deps = {}) {
         // What the operator has actually banked so far, net of what was already given back — the
         // dialog's « ce remboursement dépasse le montant encaissé » caption (spec §6 rule 7). Same
         // authority as the finance views, never recomputed client-side.
-        collectedTtc: comptaCollected({ ...reservation, refundsBookTtc: refundTotals.book }),
+        collectedTtc: cancelled ? round2(cancelled.collectedTtc + cancelled.cashLeftTtc) : collectedTtc,
       },
     };
   }
@@ -81,7 +129,7 @@ function createRefundsController(deps = {}) {
       const register = buildRegister(id);
       if (!register) return res.status(404).json({ error: 'Réservation non trouvée' });
 
-      const { reservation, vatRate, payload } = register;
+      const { reservation, vatRate, payload, cancelled } = register;
       const validated = validateRefundPayload(req.body, {
         refundableLines: payload.refundableLines,
         finalPrice: reservation.finalPrice,
@@ -89,9 +137,32 @@ function createRefundsController(deps = {}) {
         alreadyRefundedTotal: payload.refundTotals.withCash,
         vatRate,
         today: todayIso(),
+        cancelled,
+        // Rule 50 (D10) — already net of the refunds made so far.
+        liveCollectedTtc: payload.collectedTtc,
+        // Reservation-refunds rule 53 (verification R35b, finding 5).
+        lastBookPaymentDate: lastBookPaymentDateOf(reservation, {
+          installments: installmentsModel ? installmentsModel.listFor(id) : [],
+          settlements: stayDatabase ? paymentSettlementsModel.buildModel(stayDatabase).listFor(id) : [],
+        }),
       });
       if (validated.error) {
         return res.status(validated.status || 400).json({ error: validated.error, code: validated.code });
+      }
+
+      // A refund opened on the trop-perçu (rule 42) cannot exceed what is still over-collected: a double click, a
+      // stale tab or a renamed label would otherwise give the same money back twice.
+      if (req.body && req.body.fromOverpayment === true) {
+        const remaining = storedOverpaymentTtc(id);
+        const cents = (n) => Math.round(Number(n) * 100);
+        const asked = validated.refund.lines.filter((l) => !l.lineKey).reduce((sum, l) => sum + l.amountTtc, 0);
+        const claimed = Number(req.body.overpaymentTtc);
+        if (cents(remaining) <= 0) {
+          return res.status(409).json({ error: 'Le trop-perçu est déjà remboursé.', code: 'REFUND_EXCEEDS_OVERPAYMENT' });
+        }
+        if (cents(asked) > cents(remaining) || (Number.isFinite(claimed) && cents(claimed) > cents(remaining))) {
+          return res.status(409).json({ error: `Dépasse le trop-perçu restant (${remaining.toFixed(2).replace('.', ',')} €).`, code: 'REFUND_EXCEEDS_OVERPAYMENT' });
+        }
       }
 
       const refundId = refundsModel.create(id, validated.refund);
@@ -105,6 +176,16 @@ function createRefundsController(deps = {}) {
     remove(req, res) {
       const id = Number(req.params.id);
       const refundId = Number(req.params.refundId);
+      // Refunds rule 6 and payment-schedule rule 55 readings of 2026-11-02 — the retained avoir, and on a cancelled stay
+      // any refund the cancellation already read, stay.
+      const register = buildRegister(id);
+      const target = register && register.payload.refunds.find((refund) => Number(refund.id) === refundId);
+      const refunds = register && register.payload.refunds;
+      // Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — refused only when it moved the avoir.
+      const nettedIds = register && String(register.reservation.kind) === 'cancelled'
+        ? cancellationNettedRefundIds({ database: stayDatabase, reservationsModel, installmentsModel }, id, refunds, register.vatRate) : null;
+      const refusal = register && refundDeletionRefusal(target, refunds, register.reservation, nettedIds);
+      if (refusal) return res.status(409).json(refusal);
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
       const refreshed = buildRegister(id);

@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 $columns = max(2, min(4, (int) ($attributes['columns'] ?? 3)));
 $booking_page = trim((string) ($attributes['bookingPageUrl'] ?? ''));
 if ($booking_page === '') {
-    $booking_page = (string) GF_Settings::instance()->get('booking_page_url', '');
+    $booking_page = GF_Settings::instance()->get_booking_page_url();
 }
 
 $wrapper = get_block_wrapper_attributes(['class' => 'gf-block gf-properties-block']);

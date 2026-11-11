@@ -91,6 +91,8 @@ arrival stays frozen, and everything else on the fiche stays locked.
    - window **closed** and the extras changed → `400`, `code: 'MID_STAY_EXTRAS_CLOSED'`,
      `error: 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.'`
    - any other forbidden field → unchanged `PAST_RESERVATION_LOCKED`.
+   > **Reading of 2026-11-06 (D21).** The unlocked fiche no longer changes the price (settings-rationalization rule 35), so the
+   > window-closed message stops sending there: « Complément de fin de séjour déjà encaissé : décocher « payé » d’abord. ».
 10. The baseline is captured before the check (`captureArrivalExtrasBaselineIfDue`, already called
     before the lines are replaced), so the first save after arrival compares against the right state.
 11. The arrival complement, deposit and balance never move because of a sale inside the window: the
@@ -264,7 +266,9 @@ Decisions the spec did not cover, taken during implementation (2026-10-26):
   disabled on an arrival line; the price summary's routing chips are read-only and « Offrir » is hidden on
   frozen lines inside the window; the Neat retry/void buttons stay disabled on a locked fiche; the
   displayed floor is a whole number except for hourly resources; after a save that keeps the page open the
-  reservation is refetched. The breakfast « Heure souhaitée » field stays editable in the window (it moves
+  reservation is refetched. *On `inte/plugins` (master sync of 2026-10-26):* only on a locked fiche — on
+  an unlocked one the after-save action is the payments ledger's mark, whose form must stay open to show
+  a refusal ([reservation-payment-ledger.md](reservation-payment-ledger.md) rules 9-10). The breakfast « Heure souhaitée » field stays editable in the window (it moves
   no money).
 - **Routing.** Inside the window the server overwrites the submitted `inComplement` of every line with the
   stored one (a new line falls back to the engine default) and keeps only the already-forced auto-option

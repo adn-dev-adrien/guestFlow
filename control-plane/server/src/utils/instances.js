@@ -1,0 +1,127 @@
+/**
+ * Where the console finds a customer's instance: `<CP_INSTANCES_ROOT>/<slug>/data/guestflow.db`
+ * (phase H will create that layout; until then the operator does). The console only ever reads an
+ * instance's database, opened read-only — its installed plugins and its active accounts — and
+ * writes nothing there but the licence.
+ */
+
+const Database = require('better-sqlite3');
+const fs = require('fs');
+const path = require('path');
+
+const { assertInside, shareDatabase } = require('./instanceFiles');
+
+const DB_FILE = 'guestflow.db';
+
+// What the space's reconciliation reports (specs/plugin-operator-provisioning.md rules 14, 20, 22):
+// its outcome per plugin, the licence it last applied, the erase orders it ran, and the setup and data
+// lines it publishes for each plugin. null on a space from before this release (no such table).
+function readProvisioning(db) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'plugin_provisioning'").get()) return null;
+  const meta = Object.fromEntries(db.prepare('SELECT key, value FROM plugin_provisioning_meta').all().map((r) => [r.key, r.value]));
+  const parse = (value) => { try { return JSON.parse(value); } catch { return null; } };
+  const rows = db.prepare('SELECT pluginId, desired, outcome, code, message, licenceIssuedAt, eraseOrder, at FROM plugin_provisioning').all();
+  return {
+    rows,
+    appliedLicenceIssuedAt: meta.appliedLicenceIssuedAt || null,
+    capabilities: parse(meta.capabilities || 'null'),
+    erasedOrders: Object.keys(meta).filter((k) => k.startsWith('erase:')).map((k) => k.slice('erase:'.length)),
+    moduleFacts: Object.fromEntries(Object.keys(meta).filter((k) => k.startsWith('facts:')).map((k) => [k.slice('facts:'.length), parse(meta[k])])),
+  };
+}
+
+function createInstances({ root, envsDir }) {
+  const base = path.resolve(root || '.');
+  // The environment files, outside every instance directory (specs/hosting-h1-fleet-runtime.md M2).
+  const envs = path.resolve(envsDir || path.join(path.dirname(base), 'envs'));
+
+  function dirOf(slug) {
+    if (!/^[a-z0-9-]{3,30}$/.test(String(slug))) throw new Error(`invalid slug: ${slug}`);
+    return path.join(base, slug);
+  }
+
+  const dataDir = (slug) => path.join(dirOf(slug), 'data');
+  const dbPath = (slug) => path.join(dataDir(slug), DB_FILE);
+  // Never a link out of the instance's directory, and the files SQLite may create while reading
+  // (-shm of a stopped instance) stay writable by the instance (rule 21).
+  const openReadonly = (slug) => {
+    if (!assertInside(dirOf(slug), dbPath(slug))) throw new Error('missing');
+    return new Database(dbPath(slug), { readonly: true, fileMustExist: true });
+  };
+  const close = (db, slug) => {
+    if (!db) return;
+    db.close();
+    shareDatabase(dbPath(slug));
+  };
+
+  return {
+    root: base,
+    envsDir: envs,
+    envFileOf: (slug) => { dirOf(slug); return path.join(envs, slug); },
+    dirOf,
+    dataDir,
+    dbPath,
+    hasDataDir: (slug) => fs.existsSync(dataDir(slug)),
+    hasDatabase: (slug) => fs.existsSync(dbPath(slug)),
+
+    // What is installed on the instance: the rows of its `plugins` table (specs/plugins-phase-0).
+    // null when the instance cannot be read, so callers can say « inconnu » rather than « aucun ».
+    readFacts(slug) {
+      let db;
+      try {
+        db = openReadonly(slug);
+        // `version` arrived with phase 4; an older instance's table has none (null then).
+        const hasVersion = db.prepare("SELECT 1 FROM pragma_table_info('plugins') WHERE name = 'version'").get();
+        const rows = db.prepare(`SELECT id, enabled${hasVersion ? ', version' : ', NULL AS version'} FROM plugins`).all();
+        return {
+          installed: rows.map((r) => r.id),
+          active: rows.filter((r) => r.enabled).map((r) => r.id),
+          versions: Object.fromEntries(rows.map((r) => [r.id, r.version || null])),
+          provisioning: readProvisioning(db),
+        };
+      } catch {
+        return null;
+      } finally {
+        close(db, slug);
+      }
+    },
+
+    // The support access of the instance (specs/hosting-h2-account-security.md §4.2): its pending
+    // request and its open access, read like the rest. null when it cannot be read (an instance from
+    // before H2 has no such table).
+    // `requestId` — the request the console last wrote: `known` says whether the instance has
+    // imported it yet (specs/hosting-h2-account-security.md rule 26).
+    readSupportAccess(slug, nowIso, requestId = null) {
+      let db;
+      try {
+        db = openReadonly(slug);
+        const known = requestId ? Boolean(db.prepare('SELECT 1 FROM support_access WHERE requestId = ?').get(String(requestId))) : null;
+        const pending = db.prepare('SELECT id, requestId, reason, requestedAt FROM support_access WHERE decision IS NULL ORDER BY id DESC LIMIT 1').get() || null;
+        const open = db.prepare(`SELECT id, reason, expiresAt FROM support_access WHERE decision = 'accepted' AND revokedAt IS NULL AND expiresAt > ?
+          ORDER BY expiresAt DESC LIMIT 1`).get(nowIso) || null;
+        const last = db.prepare('SELECT id, reason, decision, decidedAt, expiresAt, revokedAt FROM support_access WHERE decision IS NOT NULL ORDER BY decidedAt DESC, id DESC LIMIT 1').get() || null;
+        return { pending, open, last, known };
+      } catch {
+        return null;
+      } finally {
+        close(db, slug);
+      }
+    },
+
+    // The emails of the active accounts (rule 26), as stored. null when the instance cannot be read,
+    // so the directory keeps what it had rather than forgetting everyone.
+    readActiveEmails(slug) {
+      let db;
+      try {
+        db = openReadonly(slug);
+        return db.prepare('SELECT email FROM users WHERE isActive = 1').all().map((r) => r.email);
+      } catch {
+        return null;
+      } finally {
+        close(db, slug);
+      }
+    },
+  };
+}
+
+module.exports = { createInstances, DB_FILE };

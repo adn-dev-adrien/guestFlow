@@ -4,6 +4,7 @@ const fs = require('fs');
 
 // DB_PATH env var lets CI/CD point to a persistent location outside the deployment folder.
 // PERSISTENT_DB is used by deployment scripts. Falls back to the traditional location so existing dev setups are unaffected.
+require('./utils/testProcessIsolation').isolate();
 const dbPath = process.env.DB_PATH || process.env.PERSISTENT_DB || path.join(__dirname, '..', 'guestflow.db');
 const db = new Database(dbPath);
 // Exposed so index.js can surface it in the single boot banner without a second computation.
@@ -11,6 +12,9 @@ db.dbPath = dbPath;
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+// Every `db.transaction(fn)()` takes the write lock up front: a read-then-write handler no longer fails with SQLITE_BUSY
+// when another connection commits in between (specs/plugins-phase-3a-online-payment.md rule 29).
+require('./utils/immediateTransactions').makeImmediateByDefault(db);
 
 
 // ---------- SCHEMA (generated baseline — see schema.sql) ----------
@@ -36,6 +40,9 @@ db.pragma('foreign_keys = ON');
 // pas pu creer. Si le rejeu echoue encore, l'erreur est reelle et remonte.
 const SCHEMA_SQL = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 let baselineDeferredError = null;
+// The columns schema.sql indexes that an older release's tables lack are added first, so a clean upgrade replays
+// the baseline whole and boots without the partial-baseline warning (payment_links.provider, 3.21.0 -> 4.0.0).
+require('./utils/paymentLinksProviderMigration').migratePaymentLinksToProviders(db);
 try {
   db.exec(SCHEMA_SQL);
 } catch (err) {
@@ -44,6 +51,24 @@ try {
     `[schema] baseline applique partiellement (${err.message}) — rejeu prevu apres les migrations gardees.`
   );
 }
+
+// The tourist tax as stored the moment the arrival complement was collected (specs/reservation-save-keeps-pricing.md rule 4):
+// stamped by the triggers of schema.sql in the statement that flips `complementPaid`. The column must exist
+// before any boot migration touches `complementPaid`, so an upgraded database gets it right after the
+// baseline pass (a fresh one already has it). NULL on rows collected before it existed.
+if (!db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'complementCollectedTax')) {
+  db.exec('ALTER TABLE reservations ADD COLUMN complementCollectedTax REAL');
+}
+
+// specs/accounting-books-the-money-collected.md rules 16-17 — what a booked entry holds beyond the live lines: the split
+// of the arrival complement frozen at its flip, the contribs of paid lines since removed. Additive and nullable: NULL is
+// « nothing stored », and every reader then behaves as before them.
+for (const column of ['complementPaidSplit', 'removedLineContribs']) {
+  if (!db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE reservations ADD COLUMN ${column} TEXT`);
+  }
+}
+
 
 // ---------- CALENDAR NOTES ----------
 db.exec(`
@@ -56,48 +81,6 @@ db.exec(`
     UNIQUE(propertyId, date)
   )
 `);
-
-// ---------- SCHOOL HOLIDAYS ----------
-db.exec(`
-  CREATE TABLE IF NOT EXISTS school_holidays (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    label TEXT NOT NULL,
-    zoneA_start TEXT,
-    zoneA_end TEXT,
-    zoneB_start TEXT,
-    zoneB_end TEXT,
-    zoneC_start TEXT,
-    zoneC_end TEXT
-  )
-`);
-
-// Auto-sync columns (see specs/school-holidays.md §5)
-const schCols = db.prepare("PRAGMA table_info(school_holidays)").all().map(c => c.name);
-const tryAddSchCol = (col, sql) => {
-  if (!schCols.includes(col)) {
-    try { db.exec(sql); } catch (e) {
-      if (!String(e?.message || '').includes('duplicate column name')) throw e;
-    }
-  }
-};
-tryAddSchCol('externalRef', "ALTER TABLE school_holidays ADD COLUMN externalRef TEXT");
-tryAddSchCol('isLocked', "ALTER TABLE school_holidays ADD COLUMN isLocked INTEGER NOT NULL DEFAULT 0");
-tryAddSchCol('lastSyncedAt', "ALTER TABLE school_holidays ADD COLUMN lastSyncedAt TEXT");
-
-// Singleton: school holidays sync state + user-editable config.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS school_holidays_sync_state (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    syncIntervalDays INTEGER NOT NULL DEFAULT 60,
-    syncHorizonMonths INTEGER NOT NULL DEFAULT 24,
-    lastSyncAt TEXT,
-    lastSyncStatus TEXT DEFAULT 'never',
-    lastSyncMessage TEXT DEFAULT '',
-    lastImportedCount INTEGER DEFAULT 0,
-    updatedAt TEXT DEFAULT (datetime('now'))
-  )
-`);
-db.prepare('INSERT OR IGNORE INTO school_holidays_sync_state (id) VALUES (1)').run();
 
 // ---------- ESTABLISHMENT CLOSURES ----------
 // Global (propertyId IS NULL) or per-property (propertyId NOT NULL) closure periods.
@@ -115,19 +98,6 @@ db.exec(`
   )
 `);
 
-// ---------- LAUNDRY TRIP SKIPS ----------
-// specs/skip-laundry-trip.md §5. Global per-date skip — when the operator marks a laundry
-// trip as not made, the simulation engine (utils/linenInventory.js) defers that day's
-// drop-off + pick-up to the next non-skipped trip. Additive table, starts empty, no
-// migration. Date format YYYY-MM-DD (10 chars) enforced via CHECK so a malformed insert
-// fails at the DB boundary.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS laundry_trip_skips (
-    tripDate TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
-    createdAt TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
-
 // specs/laundry-bath-mat.md §5 — per-property bath-mat quantity for the "Tapis de bain" option.
 // Mirror of property_option_prices: an absent row means quantity 0 for that property. Additive,
 // starts empty, no data migration.
@@ -142,40 +112,8 @@ db.exec(`
   )
 `);
 
-// specs/manual-laundry-additions.md §5 — global per-trip manual linen additions. One row per
-// laundry date holds six non-negative per-type counts; they fold into À apporter / À récupérer and
-// the inventory simulation like reservation linen. Additive table, starts empty, no migration.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS laundry_trip_manual_additions (
-    tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
-    singleBeds   INTEGER NOT NULL DEFAULT 0,
-    doubleBeds   INTEGER NOT NULL DEFAULT 0,
-    babyBeds     INTEGER NOT NULL DEFAULT 0,
-    largeTowels  INTEGER NOT NULL DEFAULT 0,
-    mediumTowels INTEGER NOT NULL DEFAULT 0,
-    smallTowels  INTEGER NOT NULL DEFAULT 0,
-    updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
-
-// specs/laundry-extra-trip.md §5 — global extra laundry trips on a free date (early pick-up). One
-// row per date: `pickUpAll` (default 1) or the seven per-type quantities actually taken back when the
-// pick-up is partial. The summary ledger + the inventory engine read it. Additive, starts empty.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS laundry_extra_trips (
-    tripDate     TEXT PRIMARY KEY NOT NULL CHECK (length(tripDate) = 10),
-    pickUpAll    INTEGER NOT NULL DEFAULT 1,
-    singleBeds   INTEGER NOT NULL DEFAULT 0,
-    doubleBeds   INTEGER NOT NULL DEFAULT 0,
-    babyBeds     INTEGER NOT NULL DEFAULT 0,
-    largeTowels  INTEGER NOT NULL DEFAULT 0,
-    mediumTowels INTEGER NOT NULL DEFAULT 0,
-    smallTowels  INTEGER NOT NULL DEFAULT 0,
-    bathMats     INTEGER NOT NULL DEFAULT 0,
-    createdAt    TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt    TEXT NOT NULL DEFAULT (datetime('now'))
-  )
-`);
+// The laundry tables (skips, manual additions, extra trips) belong to the `linen` plugin and are
+// created by its migrations (specs/plugins-phase-2-hosts.md rule 29).
 
 // ---------- APP SETTINGS ----------
 db.exec(`
@@ -335,6 +273,10 @@ tryAddAppSettingsCol('fiscalYearEndMonth', "ALTER TABLE app_settings ADD COLUMN 
 // Annual revenue goal per exercise, JSON `{ "<exercise key>": amount }` (specs/finance-dashboard-redesign.md
 // §5). NULL = no goal anywhere, which is what every existing install starts with.
 tryAddAppSettingsCol('revenueGoals', "ALTER TABLE app_settings ADD COLUMN revenueGoals TEXT");
+// The franchise threshold the operator types (specs/vat-optional-mode.md rule 36): euros, NULL = not set,
+// and the day it was last changed. Nothing is shipped: every existing install starts without one.
+tryAddAppSettingsCol('vatFranchiseThreshold', "ALTER TABLE app_settings ADD COLUMN vatFranchiseThreshold REAL");
+tryAddAppSettingsCol('vatFranchiseThresholdSetAt', "ALTER TABLE app_settings ADD COLUMN vatFranchiseThresholdSetAt TEXT");
 // SMTP for the account-management password-by-email flow (specs/admin-account-management.md).
 // Password stored encrypted (AES-256-GCM via utils/encryption.js) — never logged or returned in cleartext.
 tryAddAppSettingsCol('smtpHost',              "ALTER TABLE app_settings ADD COLUMN smtpHost TEXT DEFAULT ''");
@@ -554,24 +496,6 @@ if (!appSettingsCols.includes('vatRateAccommodation')) {
     }
   }
 
-  // Journal of the scheduled horizon-extension runs → Dashboard alerts (spec §5). UI applies do
-  // not write here — only the background task, so a silently generated year is always surfaced.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS tariff_recipe_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      propertyId INTEGER NOT NULL,
-      recipeId TEXT NOT NULL,
-      recipeVersion TEXT NOT NULL DEFAULT '',
-      generatedYear INTEGER,
-      note TEXT NOT NULL DEFAULT '',
-      blocking INTEGER NOT NULL DEFAULT 0,
-      createdAt TEXT DEFAULT (datetime('now')),
-      dismissedAt TEXT,
-      FOREIGN KEY (propertyId) REFERENCES properties(id) ON DELETE CASCADE
-    )
-  `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_tariff_recipe_runs_propertyId ON tariff_recipe_runs(propertyId)');
-
   // specs/tariff-change-journal.md §5 — WHEN the grid changed, and when travellers saw it. Two
   // distinct beats: `recipe` (the apply inside GuestFlow) and `platforms` (the rollout to Lodgify,
   // GreenGo, Abracadaroom, declared by hand because GuestFlow cannot observe it). `occurredAt` is
@@ -696,30 +620,6 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     // corrupt/partial artefact. Never auto-resolve (data-loss risk) and never re-backup; surface it.
     console.warn(`[Fusion] Ambiguous devis state — left untouched for manual check (legacy devis rows: ${fusion.pendingDevis}, fused: ${fusion.alreadyFused}, legacy rows total: ${fusion.legacyRowTotal}).`);
   }
-}
-
-// Seed school holidays if table is empty
-const holidayCount = db.prepare('SELECT COUNT(*) as c FROM school_holidays').get().c;
-if (holidayCount === 0) {
-  const insert = db.prepare('INSERT INTO school_holidays (label, zoneA_start, zoneA_end, zoneB_start, zoneB_end, zoneC_start, zoneC_end) VALUES (?, ?, ?, ?, ?, ?, ?)');
-  const seed = [
-    ['Toussaint 2024', '2024-10-19', '2024-11-03', '2024-10-19', '2024-11-03', '2024-10-19', '2024-11-03'],
-    ['Noël 2024', '2024-12-21', '2025-01-05', '2024-12-21', '2025-01-05', '2024-12-21', '2025-01-05'],
-    ['Hiver 2025', '2025-02-22', '2025-03-09', '2025-02-08', '2025-02-23', '2025-02-15', '2025-03-02'],
-    ['Printemps 2025', '2025-04-19', '2025-05-04', '2025-04-05', '2025-04-21', '2025-04-12', '2025-04-27'],
-    ['Été 2025', '2025-07-05', '2025-08-31', '2025-07-05', '2025-08-31', '2025-07-05', '2025-08-31'],
-    ['Toussaint 2025', '2025-10-18', '2025-11-02', '2025-10-18', '2025-11-02', '2025-10-18', '2025-11-02'],
-    ['Noël 2025', '2025-12-20', '2026-01-04', '2025-12-20', '2026-01-04', '2025-12-20', '2026-01-04'],
-    ['Hiver 2026', '2026-02-07', '2026-02-22', '2026-02-21', '2026-03-08', '2026-02-14', '2026-03-01'],
-    ['Printemps 2026', '2026-04-04', '2026-04-19', '2026-04-18', '2026-05-03', '2026-04-11', '2026-04-26'],
-    ['Été 2026', '2026-07-04', '2026-08-31', '2026-07-04', '2026-08-31', '2026-07-04', '2026-08-31'],
-    ['Toussaint 2026', '2026-10-17', '2026-11-01', '2026-10-17', '2026-11-01', '2026-10-17', '2026-11-01'],
-    ['Noël 2026', '2026-12-19', '2027-01-03', '2026-12-19', '2027-01-03', '2026-12-19', '2027-01-03'],
-    ['Hiver 2027', '2027-02-13', '2027-02-28', '2027-02-06', '2027-02-21', '2027-02-20', '2027-03-07'],
-    ['Printemps 2027', '2027-04-10', '2027-04-25', '2027-04-03', '2027-04-18', '2027-04-17', '2027-05-02'],
-    ['Été 2027', '2027-07-03', '2027-08-31', '2027-07-03', '2027-08-31', '2027-07-03', '2027-08-31'],
-  ];
-  for (const row of seed) insert.run(...row);
 }
 
 // Hourly-scheduled resources (specs/resource-hourly-scheduling.md): a time-banded grid (day/evening
@@ -948,7 +848,49 @@ function generateDevisNumber() {
     const parts = existing.devisNumber.split('-');
     increment = parseInt(parts[2] || '0', 10) + 1;
   }
+  // A number retired by a deleted devis is never handed out again (specs/public-request-abuse-and-grouping.md
+  // rules 10 and 35): a quote number may have gaps, not repeats.
+  const retired = db.prepare('SELECT lastIncrement FROM devis_number_retired WHERE prefix = ?').get(prefix);
+  if (retired && Number(retired.lastIncrement) >= increment) increment = Number(retired.lastIncrement) + 1;
   return `${prefix}${String(increment).padStart(3, '0')}`;
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devis_number_retired (
+    prefix        TEXT PRIMARY KEY,
+    lastIncrement INTEGER NOT NULL
+  );
+  -- specs/public-request-abuse-and-grouping.md rules 10 and 35 (audit R34b N3-2): every deleted devis retires its
+  -- number, whatever deleted it (« Supprimer… », the purge of untouched website requests, a client's or a logement's
+  -- cascade), so generateDevisNumber never hands it out again.
+  CREATE TRIGGER IF NOT EXISTS devis_number_retire_on_delete
+  AFTER DELETE ON reservations
+  WHEN OLD.kind = 'devis' AND OLD.devisNumber GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9]*'
+  BEGIN
+    INSERT INTO devis_number_retired (prefix, lastIncrement)
+      VALUES (substr(OLD.devisNumber, 1, 8), CAST(substr(OLD.devisNumber, 9) AS INTEGER))
+      ON CONFLICT(prefix) DO UPDATE SET lastIncrement = MAX(lastIncrement, excluded.lastIncrement);
+  END;
+  -- Operator notifications grouped by window (utils/notificationDigest.js,
+  -- specs/public-request-abuse-and-grouping.md rule 9): the first event of a window is mailed at once,
+  -- the next ones wait here for the summary. In the database so a restart neither loses nor repeats it.
+  CREATE TABLE IF NOT EXISTS notification_digest_windows (
+    digestKey       TEXT PRIMARY KEY,
+    windowStartedAt TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS notification_digest_items (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    digestKey TEXT NOT NULL,
+    refId     INTEGER,
+    kind      TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    takenAt   TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_notification_digest_items_key ON notification_digest_items (digestKey, id);
+`);
+// `takenAt`: a summary being sent; the rows go only once it left (review of PR #805).
+if (!db.prepare('PRAGMA table_info(notification_digest_items)').all().some((c) => c.name === 'takenAt')) {
+  db.exec('ALTER TABLE notification_digest_items ADD COLUMN takenAt TEXT');
 }
 
 db.generateDevisNumber = generateDevisNumber;
@@ -1108,6 +1050,12 @@ db.exec(`
   if (!icalSourceCols.includes('emptyFeedStreak')) {
     db.exec('ALTER TABLE ical_sources ADD COLUMN emptyFeedStreak INTEGER NOT NULL DEFAULT 0');
   }
+  // specs/lodgify-decommission.md §3 rule 16 — the feed marks every stay « CLOSED - Not available »
+  // (Booking.com). 1/0 = the operator's choice on the platforms tab; NULL = not chosen yet, the platform's
+  // spelling decides (`utils/icalClosedFeed.js`). The one-shot migration below ticks existing Booking rows.
+  if (!icalSourceCols.includes('feedMarksStaysClosed')) {
+    db.exec('ALTER TABLE ical_sources ADD COLUMN feedMarksStaysClosed INTEGER');
+  }
 }
 // Always-present 'direct' row + auto-seed from EVERY known platform string in the DB
 // (idempotent via INSERT OR IGNORE):
@@ -1128,30 +1076,9 @@ db.exec(`
    WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
 `);
 
-// specs/platforms-and-ical-rework.md §5 — one-time backfill of the new GLOBAL `platforms.color`
-// from any operator-customised per-source `ical_sources.platformColor` (a colour that differs from
-// both the grey default and the platform's built-in brand colour). Only fills rows whose
-// `platforms.color` is still NULL, so it never overwrites a colour later chosen via the new palette.
-{
-  const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('./constants/platformColors');
-  const slug = (v) => String(v || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const setColor = db.prepare('UPDATE platforms SET color = ? WHERE id = ? AND color IS NULL');
-  const platformRows = db.prepare('SELECT id, name FROM platforms WHERE color IS NULL').all();
-  for (const platform of platformRows) {
-    const key = slug(platform.name);
-    const source = db.prepare(`
-      SELECT platformColor FROM ical_sources
-       WHERE lower(platformLabel) = lower(?)
-         AND platformColor IS NOT NULL AND trim(platformColor) != ''
-       ORDER BY updatedAt DESC, id DESC LIMIT 1
-    `).get(platform.name);
-    const custom = source && String(source.platformColor).trim();
-    if (custom && custom.toLowerCase() !== DEFAULT_PLATFORM_COLOR.toLowerCase()
-        && custom.toLowerCase() !== String(KNOWN_PLATFORM_COLORS[key] || '').toLowerCase()) {
-      setColor.run(custom, platform.id);
-    }
-  }
-}
+// specs/platforms-and-ical-rework.md §5 — one-time backfill of the GLOBAL `platforms.color` from the operator's
+// per-source colours; the old built-in palette is not a custom colour (specs/calendar-property-parity.md rule 6).
+require('./utils/platformColorBackfill').backfillPlatformColors(db);
 
 // specs/platforms-and-ical-rework.md — fold the legacy singular "Gîte de France" (slug `gitedefrance`)
 // into the canonical plural "Gîtes de France" ("GitesDeFrance"). Same brand, must show as one. Slug-based
@@ -1286,7 +1213,19 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   tryAddRes('cancellationReason', 'ALTER TABLE reservations ADD COLUMN cancellationReason TEXT');
   tryAddRes('cancelledBy', 'ALTER TABLE reservations ADD COLUMN cancelledBy INTEGER');
   tryAddRes('paymentAlertSnoozedUntil', 'ALTER TABLE reservations ADD COLUMN paymentAlertSnoozedUntil TEXT');
+  // specs/calendar-property-parity.md rule 22 — a duplicate set aside keeps who it duplicates and why.
+  tryAddRes('supersededAt', 'ALTER TABLE reservations ADD COLUMN supersededAt TEXT');
+  tryAddRes('supersededByReservationId', 'ALTER TABLE reservations ADD COLUMN supersededByReservationId INTEGER');
+  tryAddRes('supersededReason', 'ALTER TABLE reservations ADD COLUMN supersededReason TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_cancelled ON reservations(cancelledAt)');
+
+  // specs/reservation-refunds.md rule 6 reading of 2026-11-02 (review of PR #929) — whether a refund was recorded on a
+  // stay already cancelled: the order of the two, which `createdAt` and `cancelledAt` only know to the second. Older
+  // rows stay NULL and read the clock.
+  const refundCols = db.prepare('PRAGMA table_info(reservation_refunds)').all().map((c) => c.name);
+  if (refundCols.length > 0 && !refundCols.includes('afterCancellation')) {
+    db.exec('ALTER TABLE reservation_refunds ADD COLUMN afterCancellation INTEGER');
+  }
 
   const compCols = db.prepare('PRAGMA table_info(cancellation_compensations)').all().map((c) => c.name);
   if (!compCols.includes('origin')) {
@@ -1310,6 +1249,15 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
       catch (err) { console.warn('[migration:deposit-days-before] column left in place:', err.message); }
     }
   }
+}
+
+// ---------- SAS LINES A PLUGIN BILLS ----------
+// specs/plugins-phase-3c-hourly-resources.md rules 6–7 and §5. A custom line the arrival SAS writes
+// for a plugin (the evening supplement of an hourly resource) carries `<pluginId>:<key>`, so the
+// dialog never takes it for one of its own and a re-commit replaces it. NULL on every other line.
+{
+  const rcoCols = db.prepare('PRAGMA table_info(reservation_custom_options)').all().map((c) => c.name);
+  if (!rcoCols.includes('sasLineKey')) db.exec('ALTER TABLE reservation_custom_options ADD COLUMN sasLineKey TEXT');
 }
 
 // ---------- SAS ARRIVAL UPSELLS → CATALOGUE OPTION ----------
@@ -1472,6 +1420,23 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
     }
   } catch (e) {
     console.error('[platform-slug-dedup] failed (non-fatal):', e && e.message);
+  }
+}
+
+// specs/lodgify-decommission.md §3 rule 16 — one-shot: every existing source whose platform reads
+// « booking… » (`booking`, `booking-com`, `BookingTente`…) gets the « séjours en CLOSED » setting, which
+// used to be inferred from the exact slug `booking` only.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'ical_feed_marks_stays_closed_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runClosedFeedMigration } = require('./utils/icalClosedFeed');
+    const tx = db.transaction(() => {
+      const ticked = runClosedFeedMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return ticked;
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[migration:ical-feed-marks-stays-closed] ${tx()} source(s) ticked`);
   }
 }
 
@@ -1638,16 +1603,9 @@ const { ensureCleaningOptionTagged } = require('./utils/cleaningOptionSeed');
 ensureCleaningOptionTagged(db);
 db.ensureCleaningOptionTagged = ensureCleaningOptionTagged;
 
-// specs/option-categories.md §5.2 — the « Boissons » + « Restauration » catalogue. Same structural
-// contract as the linen/breakfast seeds above, keyed by `options.seedKey` because the family is 14
-// rows rather than a singleton.
-const { ensureCateringOptions } = require('./utils/cateringSeed');
-ensureCateringOptions(db);
-db.ensureCateringOptions = ensureCateringOptions;
-
 // specs/cancellation-insurance.md §3.2 — the « Assurance annulation » article, seeded « par nuit »
-// and unpriced (0 €) so it stays invisible to guests until Adrien sets its tariff. Same structural
-// contract as the catering seed: keyed by `seedKey`, linked to every property on each boot.
+// and unpriced (0 €) so it stays invisible to guests until Adrien sets its tariff. Keyed by
+// `seedKey`, linked to every property on each boot.
 const { ensureCancellationInsuranceOption } = require('./utils/cancellationInsuranceSeed');
 ensureCancellationInsuranceOption(db);
 db.ensureCancellationInsuranceOption = ensureCancellationInsuranceOption;
@@ -1661,7 +1619,7 @@ db.ensureBabyBedSupplementOption = ensureBabyBedSupplementOption;
 
 // One-shot migration (specs/option-categories.md §5.3): file the options that pre-date the category
 // column into their group. The 5 « Animation… » rows and « Le repas des trappeurs » were created by
-// hand, so they carry no seedKey and the catering seed above will never touch them — this backfill
+// hand, so they carry no seedKey and no seed ever touched them — this backfill
 // is the only thing that categorises them. Untouched afterwards: the operator owns the label.
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   const migrationName = 'option_categories_v1';
@@ -1766,12 +1724,12 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL,
     type TEXT NOT NULL,
-    qontoPaymentLinkId TEXT,
+    providerLinkId TEXT,
     url TEXT NOT NULL DEFAULT '',
     amountCents INTEGER NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'EUR',
     status TEXT NOT NULL DEFAULT 'open',
-    qontoPaymentId TEXT,
+    providerPaymentId TEXT,
     createdAt TEXT NOT NULL DEFAULT (datetime('now')),
     paidAt TEXT,
     expiresAt TEXT,
@@ -1787,6 +1745,29 @@ db.exec(`
 {
   const plCols = db.prepare('PRAGMA table_info(payment_links)').all().map((c) => c.name);
   if (!plCols.includes('lastPolledAt')) db.exec('ALTER TABLE payment_links ADD COLUMN lastPolledAt TEXT');
+}
+
+// Provider-neutral payment links (specs/plugins-phase-3a-online-payment.md rules 6, 8, 20).
+require('./utils/paymentLinksProviderMigration').migratePaymentLinksToProviders(db);
+
+// Installment plan of a direct reservation (specs/direct-installments.md §5): payment_links type +
+// installmentId, the manual queue's occurrence key, the stay's installment aggregates.
+require('./utils/installmentsMigration').migrateInstallmentsSchema(db);
+
+// One payment, several methods (specs/mixed-method-payments.md §5): settlements, their tender lines, and
+// the stay's four split aggregates.
+require('./utils/paymentSettlementsMigration').migratePaymentSettlementsSchema(db);
+
+// After the rebuild above (it drops the triggers): the v3.18 column names stay in step (rule 31 of
+// specs/self-update-and-releases.md — an automatic rollback runs the previous code on this schema).
+require('./utils/paymentLinksProviderMigration').syncLegacyQontoColumns(db);
+require('./utils/paymentLinksProviderMigration').migrateLinkLifecycleColumns(db);
+
+// payment_links has no foreign key (a rebuild of a table other code reads is not worth it): surface the
+// paid links whose stay was deleted, which are money records without a stay. Nothing is deleted.
+{
+  const orphans = require('./utils/paidPaymentLinks').countOrphanPaidLinks(db);
+  if (orphans > 0) console.warn(`[integrity] ${orphans} lien(s) de paiement payé(s) sans séjour (supprimé avant le garde-fou) : conservés tels quels`);
 }
 
 // Bilingual templates (specs/email-language-fr-en.md): optional English subject/body. Additive +
@@ -1964,6 +1945,38 @@ db.prepare(`
   }
 }
 
+// specs/self-update-and-releases.md rule 43 — a rollback to v3.18.0 must not list the installment request
+// in its manual queue: the row leaves the `start` anchor that release reads.
+{
+  const migrationName = 'installment_template_anchor_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runInstallmentTemplateAnchorMigration } = require('./utils/migrateInstallmentTemplateAnchor');
+    const tx = db.transaction(() => {
+      const { action, changed } = runInstallmentTemplateAnchorMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:installment-template-anchor] ${action} (${changed})`);
+    });
+    tx();
+  }
+}
+
+// specs/self-update-and-releases.md rule 43, reading of 2026-11-01 (audit R11 console N1) — the same for the
+// « Dates plus disponibles » notice: a rollback to v3.19.0 must not offer it for every arriving stay.
+{
+  const migrationName = 'dates_unavailable_notice_anchor_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runDatesUnavailableNoticeAnchorMigration } = require('./utils/migrateDatesUnavailableNoticeAnchor');
+    const tx = db.transaction(() => {
+      const { action, changed } = runDatesUnavailableNoticeAnchorMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      console.log(`[migration:dates-unavailable-notice-anchor] ${action} (${changed})`);
+    });
+    tx();
+  }
+}
+
 // specs/site-meal-portions.md rule 11 — website devis stored while a per-person card option's
 // quantity still meant SÉANCES. Any replay of those devis (PDF, payment link) now reads the quantity
 // as portions and would charge less than the accepted quote; aligning it on `billedUnits` keeps the
@@ -2001,18 +2014,7 @@ db.prepare(`
 // ran (guarded), so reach already-seeded rows with a targeted, idempotent REPLACE — insert the gated
 // `{{#if hasReservationNumber}}` line between the recap header and "- Logement". Idempotent (skipped once
 // the token is present); a no-op when the operator rewrote the recap header (the anchor won't match).
-for (const [stableKey, header] of [
-  ['arrival_reminder_7d', 'Rappel des informations de votre séjour :'],
-  ['arrival_reminder_1d', 'Votre séjour :'],
-]) {
-  const anchor = `${header}\n- Logement : {{propertyName}}`;
-  const replacement = `${header}\n{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}\n{{/if}}- Logement : {{propertyName}}`;
-  db.prepare(`
-    UPDATE email_templates
-       SET body = REPLACE(body, ?, ?), updatedAt = datetime('now')
-     WHERE stableKey = ? AND body NOT LIKE '%{{reservationNumber}}%'
-  `).run(anchor, replacement, stableKey);
-}
+require('./utils/reservationNumberRecapMigration').addReservationNumberToRecaps(db);
 
 // Backfill reservation numbers (specs/reservation-number-and-search.md §5). Existing reservations
 // predate the `reservationNumber` column, so give each one a number once — grouped by the month of
@@ -2086,6 +2088,12 @@ db.exec(`
     sortOrder INTEGER NOT NULL DEFAULT 0
   );
 `);
+
+// ---------- SAS CUSTOM LINES KEEP THEIR QUANTITY ----------
+// specs/arrival-departure-sas.md rule 29 (2026-10-27 spec review): « Taie d'oreiller » × 2 was one
+// custom row carrying the total only. Column + one-shot backfill, recorded in `migrations`.
+require('./utils/sasCustomLineQuantityMigration').ensureCustomLineQuantity(db, { skipBackfill: process.env.SKIP_MIGRATIONS === 'true' });
+
 // « Tarifs facturables » — repair amounts (operator-managed in Réglages). Generic priced list; rows with
 // a `repairKey` are SAS-linked + protected. Seeded with the fire-extinguisher seal
 // (specs/extinguisher-seal-and-repair-amounts.md).
@@ -2098,17 +2106,10 @@ db.exec(`
     sortOrder INTEGER NOT NULL DEFAULT 0
   );
 `);
-if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_seal' LIMIT 1").get()) {
-  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_seal', 'Plomb manquant', 0, 0)").run();
-}
-// Extinguisher-condition tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2 — 2026-06-17):
-// the departure SAS asks « extincteur en bon état ? » and, if not, bills these per-quantity. Relabel
-// the legacy seed (was « Plomb extincteur ») in place — the label is operator-protected, so it's always
-// the seed default — and add the « Utilisation » tariff.
+// Extinguisher-condition tariffs (specs/extinguisher-seal-and-repair-amounts.md §3.2): the rows are the
+// SAS plugin's, inserted when its « Contrôle de l'extincteur » is turned on, never by the core
+// (specs/plugins-phase-p-productisation.md rule 16). Relabel the legacy seed in place.
 db.prepare("UPDATE repair_amounts SET label = 'Plomb manquant' WHERE repairKey = 'extinguisher_seal' AND label = 'Plomb extincteur'").run();
-if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_use' LIMIT 1").get()) {
-  db.prepare("INSERT INTO repair_amounts (repairKey, label, price, sortOrder) VALUES ('extinguisher_use', 'Utilisation', 0, 1)").run();
-}
 // End-of-stay complement (departure SAS): a dedicated amount, separate from the arrival complement.
 {
   const rcols = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
@@ -2245,6 +2246,27 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   // row, no backfill) means the brut was typed tax-excluded — the convention of
   // platform-brut-excludes-offered-tourist-tax.md, which must keep computing to the cent.
   if (!rcols.includes('platformTouristTaxAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformTouristTaxAmount REAL');
+  // specs/reconciliation-assisted-matching.md rules 23-31 — what a platform keeps on a stay's payout for a
+  // reason other than its commission or the tourist tax. `platformPenaltyAmount` is the sum of the lines
+  // (€), kept in step by platformPenaltiesModel, so every reader of the stay's money already has it.
+  if (!rcols.includes('platformPenaltyAmount')) db.exec('ALTER TABLE reservations ADD COLUMN platformPenaltyAmount REAL NOT NULL DEFAULT 0');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reservation_platform_penalties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+      amountCents INTEGER NOT NULL CHECK (amountCents > 0),
+      reason TEXT NOT NULL,
+      penaltyDate TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'fiche',
+      payoutAdjustedFrom REAL,
+      payoutAdjustedTo REAL,
+      commissionAdjustedFrom REAL,
+      commissionAdjustedTo REAL,
+      createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+      createdBy INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_platform_penalties_res ON reservation_platform_penalties (reservationId);
+  `);
   // specs/public-online-payment.md §5 — set when a paid online full-payment was converted onto dates that
   // had become unavailable (the devis never blocked them). Drives the admin notification + the conflict
   // chip; NULL on every normal booking. Idempotent ADD COLUMN.
@@ -2259,6 +2281,13 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   if (!rcols.includes('attributionLabel')) db.exec('ALTER TABLE reservations ADD COLUMN attributionLabel TEXT');
   if (!rcols.includes('attribution')) db.exec('ALTER TABLE reservations ADD COLUMN attribution TEXT');
   if (!rcols.includes('attributionAt')) db.exec('ALTER TABLE reservations ADD COLUMN attributionAt TEXT');
+  // specs/public-request-abuse-and-grouping.md §5 — `publicUpdatedAfterSendAt`: the guest changed a
+  // website request the operator had already sent (rule 14), cleared by the operator's next save;
+  // `operatorSeenAt`: the first time the operator opened the devis, so the 30-day purge of untouched
+  // requests (rule 10) never deletes one somebody read. NULL on every existing row: an old request
+  // counts as unread only while nothing else (status, edit, e-mail, payment) says it was handled.
+  if (!rcols.includes('publicUpdatedAfterSendAt')) db.exec('ALTER TABLE reservations ADD COLUMN publicUpdatedAfterSendAt TEXT');
+  if (!rcols.includes('operatorSeenAt')) db.exec('ALTER TABLE reservations ADD COLUMN operatorSeenAt TEXT');
   // specs/platform-extra-guest-complement.md §5 — the persons the platform billed, and the part of the
   // extra-guest supplement collected on arrival (real price, kept when offered). Reservations whose
   // brut is already entered take their current composition as the paid base: their totals do not move.
@@ -2285,6 +2314,40 @@ if (!db.prepare("SELECT 1 FROM repair_amounts WHERE repairKey = 'extinguisher_us
   }
   if (!rcols.includes('touristTaxAddedGuestsAmount')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsAmount REAL NOT NULL DEFAULT 0');
   if (!rcols.includes('touristTaxAddedGuestsDeclaredAt')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsDeclaredAt TEXT');
+  // Rule 19 — the occupants the paid tax is priced on: the current party, so nothing moves. A stay that
+  // already moved under v3.21.0 keeps the persons that release compared with, or its stored tax would.
+  if (!rcols.includes('platformPaidOccupants')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN platformPaidOccupants INTEGER');
+    db.prepare(`
+      UPDATE reservations
+         SET platformPaidOccupants = CASE
+           WHEN platformPaidGuests IS NOT NULL
+            AND (COALESCE(touristTaxAddedGuestsAmount, 0) > 0 OR COALESCE(platformPaidAdults, adults) <> adults)
+           THEN platformPaidGuests
+           ELSE COALESCE(adults, 1) + COALESCE(teens, 0) + COALESCE(children, 0)
+         END
+       WHERE platformGrossAmount IS NOT NULL AND LOWER(COALESCE(platform, 'direct')) <> 'direct'
+    `).run();
+  }
+  // Rule 21 — the adults the stored amount is for. NULL is a row no release has priced since.
+  if (!rcols.includes('touristTaxAddedGuestsAdults')) {
+    db.exec('ALTER TABLE reservations ADD COLUMN touristTaxAddedGuestsAdults INTEGER');
+    db.prepare(`
+      UPDATE reservations
+         SET touristTaxAddedGuestsAdults = MAX(0, COALESCE(adults, 1) - COALESCE(platformPaidAdults, adults, 1))
+       WHERE COALESCE(touristTaxAddedGuestsAmount, 0) > 0
+    `).run();
+  }
+  // Rule 20 — what the declared row held of the addition, written at the tick. NULL: ticked before this
+  // column, the date test still decides.
+  if (!rcols.includes('touristTaxDeclaredWithAddedAmount')) db.exec('ALTER TABLE reservations ADD COLUMN touristTaxDeclaredWithAddedAmount REAL');
+  // Rule 22 — stamped in the statement that flips complementPaid, whatever the payment path.
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS reservations_clear_added_guests_declared
+    AFTER UPDATE OF complementPaid ON reservations
+    WHEN COALESCE(NEW.complementPaid, 0) = 0 AND OLD.complementPaid = 1
+    BEGIN UPDATE reservations SET touristTaxAddedGuestsDeclaredAt = NULL WHERE id = NEW.id; END;
+  `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_attribution_channel ON reservations(attributionChannel)');
 }
 // PWA Web Push (specs/pwa-push-notifications.md §5): per-(user,device) subscriptions + per-user prefs.
@@ -2322,17 +2385,6 @@ db.exec(`
   if (!scols.includes('meteoFranceApiKeyEncrypted')) db.exec("ALTER TABLE app_settings ADD COLUMN meteoFranceApiKeyEncrypted TEXT DEFAULT ''");
 }
 
-// Weather vigilance cache (specs/checkin-weather-alerts.md §5). One row per département: the normalized
-// phenomena payload (JSON) + the fetch timestamp, so opening several check-ins in a row reuses a fresh
-// cache instead of hammering the Météo-France API. Survives restarts (durable, unlike an in-memory cache).
-db.exec(`
-  CREATE TABLE IF NOT EXISTS weather_vigilance_cache (
-    departmentCode TEXT PRIMARY KEY,
-    payload        TEXT NOT NULL,
-    fetchedAt      TEXT NOT NULL
-  );
-`);
-
 // Neat cancellation-insurance integration (specs/neat-cancellation-insurance-subscription.md §5).
 // Connection + contract choice + field mapping live in app_settings; the secret is AES-256-GCM
 // encrypted at rest (settingsModel.ENCRYPTED_COLUMNS). Empty credentials → the feature is inert.
@@ -2362,41 +2414,15 @@ db.exec(`
   const pcols = db.prepare('PRAGMA table_info(user_push_prefs)').all().map((c) => c.name);
   if (!pcols.includes('neat')) db.exec('ALTER TABLE user_push_prefs ADD COLUMN neat INTEGER NOT NULL DEFAULT 1');
 }
-// One subscription job per (reservation, environment): UNIQUE keeps staging-era jobs dead once the
-// environment flips to production while letting the scan enqueue a fresh production job.
-db.exec(`
-  CREATE TABLE IF NOT EXISTS neat_subscriptions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reservationId INTEGER NOT NULL,
-    environment TEXT NOT NULL,
-    externalId TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    neatSubscriptionId TEXT,
-    premiumAmount REAL,
-    billedAmount REAL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    nextAttemptAt TEXT,
-    lastError TEXT,
-    errorKind TEXT,
-    lastNotifiedAt TEXT,
-    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
-    updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
-    CHECK (environment IN ('production', 'staging')),
-    CHECK (status IN ('pending', 'active', 'failed', 'voided')),
-    UNIQUE (reservationId, environment),
-    FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
-  );
-  CREATE INDEX IF NOT EXISTS idx_neat_subscriptions_due ON neat_subscriptions (status, nextAttemptAt);
-  CREATE TABLE IF NOT EXISTS neat_price_cache (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    environment TEXT NOT NULL,
-    contractId TEXT NOT NULL,
-    fieldsHash TEXT NOT NULL,
-    premium REAL NOT NULL,
-    fetchedAt TEXT NOT NULL,
-    UNIQUE (environment, contractId, fieldsHash)
-  );
-`);
+// The push channels of the plugins (specs/platform-settings-relay-and-review.md rule 8): their toggles
+// live in a table of their own; the `neat` column above is only read once, by the migration.
+{
+  const { applyPushChannelPrefsSchema, runPushChannelPrefsMigration } = require('./utils/pushChannelPrefsMigration');
+  applyPushChannelPrefsSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runPushChannelPrefsMigration(db);
+}
+// The two Neat tables are the `neat` plugin's (specs/plugins-phase-3b-neat.md rule 11): its migration
+// `tables_v1` creates them, and keeps an existing database's rows.
 
 // specs/lodgify-decommission.md §5 — Booking.com feed echo filter and Lodgify takeover:
 //   - ical_export_ranges      the ranges each property's export last published (snapshot);
@@ -2562,6 +2588,28 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// One-shot (specs/settings-input-guards.md rule 41): the Instagram URL becomes the first social link.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const { migrateSocialLinks } = require('./utils/socialLinksMigration');
+  const { action } = migrateSocialLinks(db);
+  if (action === 'copied') console.log('[migration:social-links] Instagram URL copied to the social links');
+}
+
+// One-shot (2026-10-27 spec review): a name holding its own article takes it, confirmed — properties
+// created from the property page were stored « au » (specs/guest-email-texts-made-simple.md rule 30).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'property_own_article_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { repairPropertyOwnArticles } = require('./utils/propertyOwnArticleRepair');
+    const repaired = db.transaction(() => {
+      const n = repairPropertyOwnArticles(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return n;
+    })();
+    if (repaired) console.log(`[migration:property-own-article] ${repaired} property article(s) corrected`);
+  }
+}
+
 // ---------- SETTINGS RATIONALIZATION ----------
 // Derived email identity, per-template automatic sending, dropped settings
 // (specs/settings-rationalization.md §5). Idempotent.
@@ -2654,6 +2702,67 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// ---------- CGV LINK UNDER ITS CONDITION — specs/guest-email-texts-made-simple.md rule 36 ----------
+{
+  const migrationName = 'cgv_link_condition_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runCgvLinkConditionMigration } = require('./utils/migrateCgvLinkCondition');
+    const updated = db.transaction(() => {
+      const n = runCgvLinkConditionMigration(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      return n;
+    })();
+    console.log(`[migration:cgv-link-condition] ${updated} template field(s) leave the CGV sentence out while there is no link`);
+  }
+}
+
+// ---------- PLUGINS — specs/plugins-phase-0-foundation.md §5 ----------
+{
+  const { ensurePluginsTable, seedBuiltinPlugins, ensurePluginSettingsTable, ensureProvisioningTables, copyAppSettingsToPlugins, resyncAfterRollback } = require('./utils/pluginsSchema');
+  ensurePluginsTable(db);
+  ensurePluginSettingsTable(db);
+  ensureProvisioningTables(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') {
+    seedBuiltinPlugins(db);
+    // specs/plugins-phase-1-sdk.md §5 — the moved plugins read their settings from plugin_settings.
+    copyAppSettingsToPlugins(db);
+    resyncAfterRollback(db);
+  }
+}
+
+// ---------- PRODUCTISATION — specs/plugins-phase-p-productisation.md §3.E ----------
+// After the plugins: the migration reads whether the SAS plugin is active. On an existing database it
+// writes, once, the wording the code held before phase P; a new database starts neutral.
+{
+  const { applyProductisationSchema, runProductisationMigration } = require('./utils/productisationMigration');
+  applyProductisationSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') {
+    const result = runProductisationMigration(db);
+    if (result.action === 'migrated') {
+      console.log(`[migration:productisation_v1] ${result.texts} text(s), ${result.mentions} mention(s), ${result.resources} resource sentence(s) kept`);
+    }
+  }
+  // `direct` and every platform counted as a direct sale (rule 19).
+  db.prepare("UPDATE platforms SET countsAsDirect = 1 WHERE name = 'direct'").run();
+  require('./utils/platformNameFormat').refreshDirectChannels(db);
+}
+
+// ---------- CHORE-FREE CHANNELS — specs/airbnb-no-checkout-chores.md rule 8 ----------
+{
+  const { applyChoreFreeChannelsSchema, runChoreFreeChannelsMigration } = require('./utils/choreFreeChannelsMigration');
+  applyChoreFreeChannelsSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runChoreFreeChannelsMigration(db);
+  require('./utils/platformNameFormat').refreshChoreFreeChannels(db);
+}
+
+// ---------- GUEST-CONTACT CHANNELS — specs/platform-settings-relay-and-review.md rules 1-6 ----------
+{
+  const { applyPlatformGuestContactSchema, runPlatformGuestContactMigration } = require('./utils/platformGuestContactMigration');
+  applyPlatformGuestContactSchema(db);
+  if (process.env.SKIP_MIGRATIONS !== 'true') runPlatformGuestContactMigration(db);
+  require('./utils/platformNameFormat').refreshGuestContactChannels(db);
+}
+
 // ---------- TRANSLATION CATALOGUE ----------
 // specs/translation-catalogue.md §5. Two tables rather than a column per language, so a third
 // language is data and never a migration (rule 17). `translation_values` cascades: a retired entry
@@ -2728,6 +2837,161 @@ db.exec(`
 db.exec('CREATE INDEX IF NOT EXISTS idx_booking_pace_cancellations_property ON booking_pace_cancellations(propertyId)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_reservations_createdAt ON reservations(createdAt)');
 
+// ---------- BREAKFAST FALLBACK « PRÉPARÉ » MARKS (specs/breakfast-option-planning-card.md) ----------
+// A breakfast served without chosen mornings (site/API booking, property default) shows a card every
+// morning but has no stored occurrence to carry its « préparé » flag: the flag lives here, one row per
+// reservation and morning. Additive, starts empty.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS breakfast_fallback_done (
+    reservationId INTEGER NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (reservationId, date)
+  )
+`);
+
+// ---------- ACCOUNT SECURITY (specs/hosting-h2-account-security.md §5) ----------
+// Reset links, second step, backup codes, account history, support access and its log, and the
+// disabled « Support GuestFlow » user. Additive, idempotent.
+require('./utils/accountSecuritySchema').applyAccountSecuritySchema(db);
+require('./utils/pushSubscriptionsCleanup').pruneIneligiblePushSubscriptions(db);
+
+// ---------- iCal PLACEHOLDER CLIENTS (specs/ical-import-hardening.md rule 1) ----------
+// Before 2026-10-18 every iCal stay without a guest name shared one placeholder client per feed, so a
+// guest written onto one fiche landed on all of them. Gives each such stay its own placeholder; never
+// touches a client that carries a guest's coordinates. Idempotent, data-only (no schema change).
+try {
+  const split = require('./utils/icalPlaceholderClientsMigration').splitSharedIcalPlaceholderClients(db);
+  if (split.movedReservations > 0 || split.renamedClients > 0) {
+    console.log(`[ical-clients] ${split.movedReservations} séjour(s) iCal détaché(s) de ${split.splitClients} client(s) partagé(s), ${split.renamedClients} client(s) renommé(s).`);
+  }
+} catch (err) {
+  console.warn('[ical-clients] séparation des clients iCal partagés impossible :', err.message);
+}
+
+// ---------- ARRIVAL COMPLEMENT LOST AT CREATION ----------
+// specs/force-item-to-complement.md rule 18. `insertReservation` used to drop `complementAmount`, so a
+// stay created with a line routed to the complement asked for nothing at the SAS until its first save.
+// Restores it on the rows never saved since, and only where the row's own totals prove the gap; each
+// repair is logged here and written to the reservation's history. Placed after every guarded column
+// migration, and idempotent via `migrations.created_complement_amount_repaired_v1`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'created_complement_amount_repaired_v1';
+  const ran = db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName);
+  if (!ran) {
+    const { runCreatedComplementRepair } = require('./utils/createdComplementRepair');
+    const tx = db.transaction(() => {
+      const result = runCreatedComplementRepair(db);
+      if (!result) return;
+      const { repaired } = result;
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      const detail = repaired.map((r) => `${r.reservationNumber || `#${r.id}`} → ${r.amount} €`).join(', ');
+      // eslint-disable-next-line no-console
+      console.log(`[migration:created-complement-amount] repaired ${repaired.length} reservation(s)${detail ? ` : ${detail}` : ''}`);
+    });
+    tx();
+  }
+}
+
+// ---------- A 0 € ACOMPTE HAS NO DEADLINE (specs/disable-deposit-per-reservation.md rule 11) ----------
+// Rows stored before rule 10 kept the deadline of an acompte switched off. Cleared once, where nothing
+// was ever paid on the acompte, with the count logged. Idempotent via `migrations`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'zero_deposit_deadline_cleared_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runZeroDepositDeadlineCleanup } = require('./utils/zeroDepositDeadlineCleanup');
+    db.transaction(() => {
+      const cleared = runZeroDepositDeadlineCleanup(db);
+      if (cleared == null) return;
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:zero-deposit-deadline] cleared the deadline of ${cleared} reservation(s) with a 0 € acompte`);
+    })();
+  }
+}
+
+// ---------- THE LINKS OF A CONVERTED DEVIS FOLLOW ITS STAY (specs/public-online-payment.md rule 16) ----------
+// A link minted on a devis kept billing the devis's amount after the stay it became was re-priced. Once,
+// the open ones that no longer match their stay are retired (never a paid one) with the remote-deactivation
+// marker, so the poll deactivates them — or books them at what was received. Idempotent via `migrations`.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'stale_links_of_converted_devis_retired_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    db.transaction(() => {
+      const retired = require('./utils/staleLinksOfStay').retireStaleLinksOfConvertedDevis(db);
+      db.prepare('INSERT INTO migrations (name) VALUES (?)').run(migrationName);
+      // eslint-disable-next-line no-console
+      console.log(`[migration:stale-links-of-converted-devis] retired ${retired.length} link(s)`);
+    })();
+  }
+}
+
+// ---------- OPEN ORPHAN PAYMENT LINKS WITHDRAWN (specs/payment-link-lifecycle.md rule 5) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  require('./utils/orphanPaymentLinksMigration').runOrphanPaymentLinksMigration(db);
+}
+
+// ---------- OPEN LINKS GET 36 H FROM THE INSTALL (specs/payment-link-lifecycle.md rule 34) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  require('./utils/paymentLinkValidityBackfill').runPaymentLinkValidityBackfill(db);
+}
+
+// ---------- DATES TAKEN (specs/payment-link-lifecycle.md rules 10, 43) ----------
+// One row per stay whose link was withdrawn because another stay took its nights: the notice of rule 43 claims it
+// (`sending`) before it sends, so a stay is told once. The links already on taken nights at the upgrade are withdrawn
+// once and their rows seeded `not-sent` / `upgrade` (dashboard only, never a guest e-mail).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS dates_taken_notices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reservationId INTEGER NOT NULL UNIQUE,
+    takenByReservationId INTEGER,
+    emailLogId INTEGER,
+    noticeStatus TEXT NOT NULL CHECK (noticeStatus IN ('sending', 'sent', 'not-sent')),
+    noticeReason TEXT,
+    createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+    acknowledgedAt TEXT
+  )
+`);
+// Review of #912 (m1) — a table created before `sending` existed is rebuilt once with it.
+require('./utils/datesTakenUpgradeMigration').widenNoticeStatuses(db);
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  require('./utils/datesTakenUpgradeMigration').runDatesTakenUpgradeMigration(db);
+  // Rule 64 — the guest notice never follows a withdrawal older than this version.
+  require('./utils/datesTakenUpgradeMigration').runDatesTakenNoticeBacklog(db);
+}
+
+// ---------- REQUEST E-MAILS STATE THE LINK'S END (specs/payment-link-lifecycle.md rule 36) ----------
+// Untouched default templates only; an edited side keeps its text.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  require('./utils/migrateValidUntilSentence').runValidUntilSentenceMigration(db);
+  // Rule 59 — then in a block a rolled-back release drops whole (never « valable jusqu'au . »).
+  require('./utils/migrateValidUntilSentence').runValidUntilBlockMigration(db);
+}
+
+// ---------- HISTORY OUTLIVES THE STAY (specs/ical-cancellation-approval.md rules 11, 14) ----------
+// `reservation_history` no longer cascades with `reservations`: the audit trail of a deleted stay —
+// the « Suppression iCal approuvée » row first — must survive the delete. Table rebuild, every row kept.
+{
+  const migrationName = 'reservation_history_outlives_reservation_v1';
+  const { keepHistoryBeyondReservation } = require('./utils/reservationHistoryKeepMigration');
+  const copied = keepHistoryBeyondReservation(db);
+  if (copied !== null) console.log(`[history] ${copied} ligne(s) d'historique conservée(s) au-delà de la suppression du séjour.`);
+  db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+}
+
+// `property_resource_prices.price` becomes nullable: NULL = « inherits the resource's base price »
+// (specs/options-resources-ux.md rule 28). Table rebuild, every row and value kept as stored.
+{
+  const migrationName = 'resource_property_price_nullable_v1';
+  const { makeResourcePriceNullable } = require('./utils/resourcePriceNullableMigration');
+  const copied = makeResourcePriceNullable(db);
+  if (copied !== null) console.log(`[resources] property_resource_prices.price accepte NULL — ${copied} ligne(s) conservée(s) telles quelles.`);
+  db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+}
+
+// ---------- VAT REGIME PERIODS (specs/vat-optional-mode.md rule 22) ----------
+require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes
@@ -2740,25 +3004,57 @@ if (baselineDeferredError) {
   console.log('[schema] baseline rejoue avec succes apres les migrations gardees.');
 }
 
-// ---------- GATE KEYS — the stay of each key (specs/sowel-stays-in-keys.md) ----------
-// `gate_key_results.propertyId`, added to older databases and backfilled from the reservation.
-// After the baseline replay: on a database the first baseline pass stopped short of, the table only
-// exists from here.
-require('./models/gateKeysModel').migratePropertyId(db);
+// ---------- DUPLICATES THE OLD « PLATFORM DISABLED » FILTER HID (specs/calendar-property-parity.md rules 23-24) ----------
+// Runs after the baseline replay (the money tables it reads exist) and before any read: the filter is gone
+// from reservationsModel.list(), so a hidden stay that sits on a visible one must already be set aside by
+// then. Idempotent — a second run finds no `kind = 'reservation'` candidate left, and the `migrations` row
+// records it anyway.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'calendar_parity_superseded_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { setAsideDuplicates } = require('./utils/supersededDuplicates');
+    const { superseded, flagged, keptVisible } = setAsideDuplicates(db);
+    const ids = (list) => (list.length ? list.join(', ') : 'aucun');
+    console.log(`[migration:${migrationName}] ${superseded.length} doublon(s) écarté(s) (${ids(superseded.map((s) => s.id))}) ; `
+      + `${flagged.length} séjour(s) signalé(s) en conflit de dates (${ids(flagged)}) ; `
+      + `${keptVisible.length} séjour(s) masqué(s) redevenu(s) visible(s) (${ids(keptVisible)}).`);
+    db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+  }
+}
 
-// ---------- PLUGINS — specs/plugin-engine-backport.md ----------
-// The state and settings tables of the plugin engine; the plugins shipped here start installed but inactive.
-{
-  const { ensurePluginsTable, ensurePluginSettingsTable } = require('./utils/pluginsSchema');
-  ensurePluginsTable(db);
-  ensurePluginSettingsTable(db);
-  if (process.env.SKIP_MIGRATIONS !== 'true') {
-    require('./utils/pluginsBackportSeed').seedBackportPlugins(db);
+// ---------- CANCELLATION NOTICE NAMES « LA SOMME » KEPT (specs/payment-schedule-and-cancellation.md rule 61) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'cancellation_notice_kept_sum_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runCancellationNoticeKeptSumMigration } = require('./utils/migrateCancellationNoticeKeptSum');
+    const updated = db.transaction(() => {
+      const count = runCancellationNoticeKeptSumMigration(db);
+      db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+      return count;
+    })();
+    console.log(`[migration:${migrationName}] ${updated} cancellation notice field(s) now name the sum kept`);
+  }
+}
+
+// ---------- CANCELLATION NOTICE OPENS NEUTRAL (specs/payment-schedule-and-cancellation.md rule 63) ----------
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  const migrationName = 'cancellation_notice_neutral_opening_v1';
+  if (!db.prepare('SELECT 1 FROM migrations WHERE name = ?').get(migrationName)) {
+    const { runCancellationNoticeNeutralOpeningMigration } = require('./utils/migrateCancellationNoticeNeutralOpening');
+    const updated = db.transaction(() => {
+      const count = runCancellationNoticeNeutralOpeningMigration(db);
+      db.prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)').run(migrationName);
+      return count;
+    })();
+    console.log(`[migration:${migrationName}] ${updated} cancellation notice field(s) now open without a reason`);
   }
 }
 
 // ---------- DB HYGIENE — Bloc 0 ----------
 // See specs/db-hygiene-quick-wins.md and utils/dbHygiene.js for the contract.
 require('./utils/dbHygiene').applyHygiene(db);
+
+// Which stays a request wrote, for the open fiche (specs/reservation-fiche-concurrency.md rule 6).
+require('./utils/stayWriteTrail').install(db);
 
 module.exports = db;

@@ -79,6 +79,15 @@ Plateforme ». Accounting and HT/TVA figures are untouched.
     the cash flags). No double-count: `totalSejour` sums the stored deposit/balance (gross of
     commission) + non-cash complements, then subtracts the commission once.
 
+11. **The net counts what the échéances carry (audit 2026-10-27).** `sejourNetTotal` = acompte +
+    solde (or the installment plan: what it schedules once fully paid, else the pre-arrival amount it
+    will absorb) − the platform commissions + complements + mid-stay notes − refunds − réduction +
+    pourboire. While nothing is paid this is exactly the former « pre-arrival − commission ». Once a
+    solde is paid and kept at what it collected, the rise is owed by the arrival complement, and
+    counting the pre-arrival amount too took it twice: solde 600 paid, stay raised to 700 → « Total
+    perçu » 800. A trop-perçu needs no separate term any more: it is inside the acompte and solde kept
+    at what they collected.
+
 ## 4. Architecture
 
 > **Fat backend.** The engine computes `sejourNetTotal`; the finance model reuses the same rule for
@@ -105,6 +114,9 @@ Plateforme ». Accounting and HT/TVA figures are untouched.
 
 `calculateReservationQuote` / `/finance/*` payloads gain `sejourNetTotal` (number). Existing fields
 keep their meaning. No breaking removal.
+
+**Audit 2026-10-27 (rule 11).** `utils/pricing.js` — `netReceivedForTotal` from the resolved
+acompte, solde and plan; `keptOverCollected` removed.
 
 ## 5. Data model
 
@@ -138,6 +150,8 @@ Plateforme »; « Total du séjour TTC » = today's value. Responsive: unchanged
 ### Manual UI verification
 - [ ] Platform-with-commission fiche shows the new order/labels and the net total.
 - [ ] Direct reservation unchanged.
+
+**Audit 2026-10-27:** `tests/pricing-sejour-net-after-payment.unit.test.js` (6, rule 11).
 
 ## 8. Out of scope
 

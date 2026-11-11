@@ -16,18 +16,29 @@
 const path = require('path');
 const fs = require('fs');
 
+const db = require('../database');
 const settingsModel = require('../models/settingsModel');
-const linenItemsModel = require('../models/linenItemsModel');
-const repairAmountsModel = require('../models/repairAmountsModel');
+const vatRegimeModel = require('../models/vatRegimeModel');
+const vatRegime = require('../utils/vatRegime');
+const vatFranchise = require('../utils/vatFranchise');
+const { todayIso } = require('../utils/localDate');
 const { shapeResponse } = require('../utils/settingsResponse');
 const validation = require('../utils/settingsValidation');
+const { validateSocialLinks, validateSocialUrl, networkOf, instagramUrlOf, mergeLegacyInstagram, parseSocialLinks } = require('../utils/socialLinks');
 const { validateRevenueGoals, mergeRevenueGoals } = require('../utils/revenueGoals');
-const { uploadsDir } = require('../middleware/multerLogoUpload');
+const { uploadsDir, LOGO_FORMAT_REFUSAL } = require('../middleware/multerLogoUpload');
+const { ALLOWED } = require('../utils/uploadSafety');
+const { printableLogo } = require('../utils/logoImage');
 const { createEmailService } = require('../utils/emailService');
+const { resolveEmailIdentity } = require('../utils/emailIdentity');
+const { createSmtpDetector, detectionMessage } = require('../utils/smtpPresets');
+
+// specs/settings-rationalization.md rule 28 — DNS from the server; replaced by a stub in the suites.
+let smtpDetector = createSmtpDetector();
 
 // Maps wrapped payload paths to DB column names + validators.
 const COMPANY_FIELDS = [
-  { input: 'name', column: 'companyName' },
+  { input: 'name', column: 'companyName', validator: validation.validateDisplayName },
   { input: 'address', column: 'companyAddress' },
   { input: 'email', column: 'companyEmail', validator: validation.validateEmail },
   { input: 'phone', column: 'companyPhone' },
@@ -47,14 +58,45 @@ const QUOTE_FIELDS = [
   { input: 'validityDays', column: 'quoteValidityDays', validator: validation.validateQuoteValidityDays },
 ];
 
-// Single VAT rate (specs/single-vat-rate.md §4.1). Applied uniformly to accommodation,
-// options, resources, custom options. Previously a 2-rate model (10 % accommodation / 20 %
-// standard) — collapsed because every revenue stream on GuestFlow is invoiced at 10 %.
-const VAT_FIELDS = [
-  { input: 'rate', column: 'vatRate', validator: validation.validateVatRate },
-  // The commission and cancellation-indemnity rates are edited on Plan comptable, next to the
-  // accounts that use them (specs/settings-rationalization.md rule 14).
-];
+// VAT (specs/single-vat-rate.md §4.1, specs/vat-optional-mode.md rules 3 and 9). The rate and the legal
+// mention edit the period in force, never a settings column. The commission and cancellation-indemnity
+// rates are edited on Plan comptable, next to the accounts that use them
+// (specs/settings-rationalization.md rule 14).
+function readVatGroup(vat, errors) {
+  const change = {};
+  if (!vat) return change;
+  // The page sends its whole group back: a value that says nothing new (no mention, a rate of 0 under
+  // « Sans TVA ») is not a change.
+  if (Object.prototype.hasOwnProperty.call(vat, 'rate')) {
+    // Rule 33 — a blank or null rate is refused, never turned into 10 % behind the operator's back.
+    const blank = vat.rate == null || String(vat.rate).trim() === '';
+    const current = vatRegimeModel.inForce(db);
+    if (blank && current && current.regime === vatRegime.REGIMES.NOT_SUBJECT) {
+      // « Sans TVA »: there is no rate to edit, the page's echo of a blank one says nothing.
+    } else {
+      const err = blank ? 'Taux requis.' : validation.validateVatRate(vat.rate);
+      if (err) errors.vatRate = err;
+      else change.rate = vatRegime.parseRate(vat.rate);
+    }
+  }
+  // Rule 36 — the franchise threshold the operator types; the same value sent back says nothing new.
+  if (Object.prototype.hasOwnProperty.call(vat, 'franchiseThreshold')) {
+    const parsed = vatFranchise.parseThreshold(vat.franchiseThreshold);
+    if (!parsed.ok) errors.vatFranchiseThreshold = parsed.error;
+    else change.franchiseThreshold = parsed.value;
+  }
+  const mention = vat.legalMention;
+  if (mention != null && mention !== '') {
+    if (vatRegime.isMentionKey(mention)) change.legalMention = mention;
+    else errors.legalMention = 'Mention inconnue.';
+  }
+  return change;
+}
+
+const VAT_REFUSALS = Object.freeze({
+  rate: { field: 'vatRate', message: 'Sans TVA : pas de taux à modifier.' },
+  legalMention: { field: 'legalMention', message: 'Assujetti à la TVA : pas de mention légale.' },
+});
 
 // SMTP group (specs/admin-account-management.md). `password` is handled separately (3-way mask
 // semantics). `username`, `fromEmail` and `fromName` are overrides: '' means « derived from
@@ -66,7 +108,7 @@ const SMTP_FIELDS = [
   { input: 'secure', column: 'smtpSecure' },
   { input: 'username', column: 'smtpUsername' },
   { input: 'fromEmail', column: 'smtpFromEmail', validator: validation.validateEmail },
-  { input: 'fromName', column: 'smtpFromName', validator: validation.validateHeaderSafeText },
+  { input: 'fromName', column: 'smtpFromName', validator: validation.validateDisplayName },
   { input: 'publicUrl', column: 'publicUrl', validator: validation.validatePublicUrl },
 ];
 
@@ -83,27 +125,8 @@ const NOTIFICATIONS_FIELDS = [
 // is decided per template (specs/settings-rationalization.md rule 17b), not here.
 const EMAILS_FIELDS = [
   { input: 'googleReviewUrl', column: 'googleReviewUrl', validator: validation.validatePublicUrl },
-  { input: 'instagramUrl', column: 'instagramUrl', validator: validation.validatePublicUrl },
-  { input: 'poolSeasonStart', column: 'poolSeasonStart', validator: validation.validateMonthDay },
-  { input: 'poolSeasonEnd', column: 'poolSeasonEnd', validator: validation.validateMonthDay },
 ];
-
-// Laundry group (specs/weekly-bed-linen-tracking.md). Single field: weekday index.
-const LAUNDRY_FIELDS = [
-  { input: 'weekday', column: 'laundryWeekday', validator: validation.validateLaundryWeekday },
-];
-
-// Linen-stock group (specs/linen-inventory-shortage-tracking.md §3.1). 6 integer counts ≥ 0,
-// each capped at 999 by the validator. Stock is global across all properties.
-const LINEN_STOCK_FIELDS = [
-  { input: 'bedSingle',   column: 'bedLinenStockSingle', validator: validation.validateLinenStockCount },
-  { input: 'bedDouble',   column: 'bedLinenStockDouble', validator: validation.validateLinenStockCount },
-  { input: 'bedBaby',     column: 'bedLinenStockBaby',   validator: validation.validateLinenStockCount },
-  { input: 'towelLarge',  column: 'towelStockLarge',     validator: validation.validateLinenStockCount },
-  { input: 'towelMedium', column: 'towelStockMedium',    validator: validation.validateLinenStockCount },
-  { input: 'towelSmall',  column: 'towelStockSmall',     validator: validation.validateLinenStockCount },
-  { input: 'towelBathMat', column: 'towelStockBathMat',  validator: validation.validateLinenStockCount },
-];
+// The pool season moved to the property that has the pool (specs/guest-email-texts-made-simple.md rule 34).
 
 // Accounting group — the closing month driving every annual window of the Suivi financier
 // (specs/fiscal-year-and-nights-sold.md §4.1).
@@ -115,13 +138,9 @@ const ACCOUNTING_FIELDS = [
 // coerce them consistently — any new BOOL column should go in here.
 const BOOLEAN_INT_COLUMNS = new Set(['smtpSecure', 'notificationsEnabled', 'notifyIcalReservationEnabled']);
 
-// Columns that must be coerced to a non-negative integer floor at the boundary (defensive
-// against the form sending strings or decimals). The validator already rejects out-of-range
-// values; the coercion here protects against malformed-but-in-range inputs.
-const INTEGER_COUNT_COLUMNS = new Set([
-  'bedLinenStockSingle', 'bedLinenStockDouble', 'bedLinenStockBaby',
-  'towelStockLarge', 'towelStockMedium', 'towelStockSmall', 'towelStockBathMat',
-]);
+// Everything else in the groups is text: a wrong type is refused, it used to land as « [object Object] »
+// (specs/hosting-h2-account-security.md rule 68, reading of 2026-11-05).
+const NOT_TEXT_COLUMNS = new Set([...BOOLEAN_INT_COLUMNS, 'quoteValidityDays', 'fiscalYearEndMonth']);
 
 // Columns whose value ends up VERBATIM inside an email header — `From: "<name>" <address>` and
 // `To: <address>` (specs/admin-account-management.md §3.4 rule 16b). `validateHeaderSafeText`
@@ -129,8 +148,34 @@ const INTEGER_COUNT_COLUMNS = new Set([
 // deliberately tolerates, so a value pasted with a trailing newline can never reach the header.
 const TRIMMED_TEXT_COLUMNS = new Set([
   'smtpFromName', 'smtpFromEmail', 'notificationRecipientEmail',
-  'googleReviewUrl', 'instagramUrl', 'poolSeasonStart', 'poolSeasonEnd',
+  'googleReviewUrl',
 ]);
+
+/**
+ * Social links (specs/settings-input-guards.md rules 35-43). The list is validated per entry and
+ * `instagramUrl` is kept equal to its Instagram entry for a rollback; an older client sending only
+ * `instagramUrl` replaces that entry and keeps the others.
+ */
+function applySocialLinks(emails, payload, errors) {
+  if (!emails) return;
+  const has = (key) => Object.prototype.hasOwnProperty.call(emails, key);
+  if (has('socialLinks')) {
+    const { links, errors: linkErrors } = validateSocialLinks(emails.socialLinks);
+    Object.assign(errors, linkErrors);
+    payload.socialLinks = JSON.stringify(links);
+    payload.instagramUrl = instagramUrlOf(links);
+  } else if (has('instagramUrl')) {
+    const legacyUrl = String(emails.instagramUrl == null ? '' : emails.instagramUrl).trim();
+    const err = legacyUrl ? validateSocialUrl(legacyUrl, networkOf('instagram')) : '';
+    if (err) {
+      errors.instagramUrl = err;
+      return;
+    }
+    const links = mergeLegacyInstagram(parseSocialLinks(settingsModel.read().socialLinks), emails.instagramUrl);
+    payload.socialLinks = JSON.stringify(links);
+    payload.instagramUrl = legacyUrl;
+  }
+}
 
 function pickGroup(body, group) {
   const value = body && body[group];
@@ -139,21 +184,32 @@ function pickGroup(body, group) {
 
 function getSettings(req, res) {
   const row = settingsModel.read();
-  return res.json(shapeResponse(row));
+  return res.json(shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)));
 }
 
-function updateSettings(req, res) {
+/**
+ * Rule 28 — the server, not the operator, fills an empty sending server, and only on the save that
+ * brings a password (the operator's own server, never the platform's —
+ * specs/hosting-h1-fleet-runtime.md rules 18–19): the provider found from the sending address gives
+ * the host and the security. A host saved, typed or explicitly emptied (`host` in the payload) is
+ * the operator's choice and always wins; a provider not found leaves the host empty, to be typed.
+ */
+function needsDetectedServer(stored, payload, smtp) {
+  if (!smtp || Object.prototype.hasOwnProperty.call(smtp, 'host')) return '';
+  if (String(stored.smtpHost || '').trim()) return '';
+  if (!payload.smtpPasswordEncrypted) return '';
+  return resolveEmailIdentity({ ...stored, ...payload }).fromEmail;
+}
+
+async function updateSettings(req, res) {
   const body = req.body || {};
   const company = pickGroup(body, 'company');
   const quote = pickGroup(body, 'quote');
   const vat = pickGroup(body, 'vat');
   const accounting = pickGroup(body, 'accounting');
   const smtp = pickGroup(body, 'smtp');
-  const laundry = pickGroup(body, 'laundry');
-  const linenStock = pickGroup(body, 'linenStock');
   const notifications = pickGroup(body, 'notifications');
   const emails = pickGroup(body, 'emails');
-  const weather = pickGroup(body, 'weather');
 
   const payload = {};
   const errors = {};
@@ -164,6 +220,10 @@ function updateSettings(req, res) {
     for (const { input: key, column, validator } of schema) {
       if (Object.prototype.hasOwnProperty.call(input, key)) {
         const value = input[key];
+        if (!NOT_TEXT_COLUMNS.has(column) && value != null && typeof value !== 'string') {
+          errors[column] = 'Texte attendu.';
+          continue;
+        }
         if (validator) {
           const err = validator(value);
           if (err) errors[column] = err;
@@ -172,12 +232,6 @@ function updateSettings(req, res) {
         // Switch on the client; normalize to 0/1 for SQLite.
         if (BOOLEAN_INT_COLUMNS.has(column)) {
           payload[column] = (value === true || value === 1 || value === '1') ? 1 : 0;
-        } else if (INTEGER_COUNT_COLUMNS.has(column)) {
-          // Defensive coercion for the linen-stock columns: floor to a non-negative int even
-          // when the form sends a string-decimal or a negative (the validator already runs
-          // above, but the coercion here keeps the DB row clean if the validator path is
-          // bypassed in a future refactor).
-          payload[column] = Math.max(0, Math.floor(Number(value) || 0));
         } else if (TRIMMED_TEXT_COLUMNS.has(column)) {
           payload[column] = String(value == null ? '' : value).trim();
         } else {
@@ -189,12 +243,11 @@ function updateSettings(req, res) {
 
   applyGroup(company, COMPANY_FIELDS);
   applyGroup(quote, QUOTE_FIELDS);
-  applyGroup(vat, VAT_FIELDS);
+  const vatChange = readVatGroup(vat, errors);
   applyGroup(smtp, SMTP_FIELDS);
-  applyGroup(laundry, LAUNDRY_FIELDS);
-  applyGroup(linenStock, LINEN_STOCK_FIELDS);
   applyGroup(notifications, NOTIFICATIONS_FIELDS);
   applyGroup(emails, EMAILS_FIELDS);
+  applySocialLinks(emails, payload, errors);
   applyGroup(accounting, ACCOUNTING_FIELDS);
 
   // `fiscalYearEndMonth` is NOT NULL: an empty/null value (a Select cleared client-side) must
@@ -226,29 +279,91 @@ function updateSettings(req, res) {
     payload.smtpPasswordEncrypted = raw == null ? '' : String(raw).replace(/\s+/g, '');
   }
 
-  // Météo-France Vigilance API key — masked-secret 3-way (absent → preserve; '' → clear; non-empty →
-  // store). Trim surrounding whitespace so a pasted key with a trailing newline still authenticates
-  // (specs/checkin-weather-alerts.md §3 rule 10).
-  if (weather && Object.prototype.hasOwnProperty.call(weather, 'apiKey')) {
-    const raw = weather.apiKey;
-    payload.meteoFranceApiKeyEncrypted = raw == null ? '' : String(raw).trim();
-  }
-
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({ code: 'SETTINGS_INVALID', errors });
   }
 
-  settingsModel.upsert(payload);
+  const inForce = vatRegimeModel.inForce(db);
+  const subject = !inForce || inForce.regime === vatRegime.REGIMES.SUBJECT;
+  const refused = (subject && vatChange.legalMention !== undefined && 'legalMention')
+    || (!subject && vatChange.rate !== undefined && vatChange.rate !== 0 && 'rate');
+  if (!subject) delete vatChange.rate;
+  if (subject) delete vatChange.legalMention;
+  if (refused) {
+    const { field, message } = VAT_REFUSALS[refused];
+    return res.status(422).json({ code: 'SETTINGS_INVALID', errors: { [field]: message } });
+  }
+
+  const stored = settingsModel.read();
+  if (vatChange.franchiseThreshold !== undefined) {
+    const next = vatChange.franchiseThreshold;
+    const before = stored.vatFranchiseThreshold == null || stored.vatFranchiseThreshold === '' ? null : Number(stored.vatFranchiseThreshold);
+    const mentionAfter = vatChange.legalMention !== undefined ? vatChange.legalMention : inForce && inForce.legalMention;
+    const applies = vatFranchise.franchiseApplies(inForce && { regime: inForce.regime, legalMention: mentionAfter });
+    if (next === before) delete vatChange.franchiseThreshold;
+    else if (next !== null && !applies) {
+      return res.status(422).json({ code: 'SETTINGS_INVALID', errors: { vatFranchiseThreshold: vatFranchise.MESSAGES.notApplicable } });
+    }
+  }
+  // Rule 28 — host and password both emptied: back to no server of its own, security included.
+  if (payload.smtpHost === '' && (payload.smtpPasswordEncrypted === '' || (!stored.smtpPasswordSet && payload.smtpPasswordEncrypted === undefined))) {
+    payload.smtpSecure = 0;
+  }
+  const address = needsDetectedServer(stored, payload, smtp);
+  if (address) {
+    const found = await smtpDetector.detect(address);
+    if (found.status === 'found') {
+      payload.smtpHost = found.provider.host;
+      payload.smtpSecure = found.provider.secure ? 1 : 0;
+    }
+  }
+
+  let notRepriced = [];
+  let retiredLinks = [];
+  db.transaction(() => {
+    // Rule 27 — the stored tourist tax of the period's stays follows the rate the same way a switch's does.
+    if (vatChange.rate !== undefined) {
+      const edited = require('../models/vatRegimeSwitchModel').editRateInForce(db, vatChange.rate);
+      notRepriced = edited.notRepriced;
+      retiredLinks = edited.retiredLinks || [];
+    }
+    if (vatChange.legalMention !== undefined) vatRegimeModel.setMentionInForce(db, vatChange.legalMention);
+    if (vatChange.franchiseThreshold !== undefined) settingsModel.setVatFranchiseThreshold(vatChange.franchiseThreshold, todayIso());
+    settingsModel.upsert(payload);
+  })();
+  require('../models/vatRegimeSwitchModel').deactivateAfterCommit(retiredLinks);
 
   const row = settingsModel.read();
-  return res.json(shapeResponse(row));
+  // The push subject follows the company and sender addresses (specs/plugins-phase-p-productisation.md rule 18).
+  if (company || smtp) require('../utils/vapid').ensureVapid(row);
+  return res.json({ ...shapeResponse(row, process.env, vatRegimeModel.inForceBlock(db)), vatNotRepriced: notRepriced });
 }
 
-function uploadLogo(req, res) {
+// Every extension a logo was ever stored under: WEBP and GIF were accepted before 2026-11-05.
+const LOGO_EXTENSIONS = [...ALLOWED.image.ext, '.webp', '.gif'];
+
+// specs/settings.md rule 8 — judged on its first bytes and a whole decode before anything is written; what is stored is
+// what the image library wrote again, named after the format its bytes hold (a JPEG named .png is a JPEG); once stored,
+// the company-logo files of the other extensions go, so no former logo stays public.
+async function uploadLogo(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'Aucun fichier fourni.' });
   }
-  const logoPath = `/uploads/${req.file.filename}`;
+  const printable = await printableLogo(req.file.buffer);
+  if (!printable) return res.status(400).json({ error: LOGO_FORMAT_REFUSAL });
+  const filename = `company-logo${printable.ext}`;
+  try {
+    fs.writeFileSync(path.join(uploadsDir, filename), printable.bytes);
+  } catch (err) {
+    console.error('[settings.logo] write', err && err.code);
+    return res.status(500).json({ error: 'Fichier non enregistré.' });
+  }
+  for (const ext of LOGO_EXTENSIONS) {
+    const other = `company-logo${ext}`;
+    if (other === filename) continue;
+    try { fs.rmSync(path.join(uploadsDir, other), { force: true }); } catch (_) { /* best-effort */ }
+  }
+  const logoPath = `/uploads/${filename}`;
   settingsModel.updateLogoPath(logoPath);
   return res.json({ company: { logoPath } });
 }
@@ -270,7 +385,7 @@ function deleteLogo(req, res) {
 // failure. Used by the "Envoyer un mail de test" button on the SMTP card in /parametres.
 async function sendSmtpTest(req, res) {
   if (!settingsModel.smtpConfigured()) {
-    return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+    return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
   }
   const recipient = req.user && req.user.email;
   if (!recipient) {
@@ -282,46 +397,44 @@ async function sendSmtpTest(req, res) {
     return res.json({ ok: true, recipient });
   } catch (err) {
     if (err && err.code === 'EMAIL_NOT_CONFIGURED') {
-      return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED' });
+      return res.status(400).json({ error: 'SMTP_NOT_CONFIGURED', message: 'Envoi d’e-mails non configuré.' });
     }
     // Don't echo the raw transport error back (it can include hostnames, library versions,
     // file paths). Log server-side for diagnosis, send a stable error code to the client.
     // Spotted in the 2026-06-01 security audit (finding M3).
     console.error('[settingsController.sendSmtpTest]', err);
-    return res.status(400).json({ error: 'SMTP_TEST_FAILED' });
+    return res.status(400).json({ error: 'SMTP_TEST_FAILED', message: 'Envoi d’essai refusé par le serveur d’e-mails.' });
   }
 }
 
-// Priced linen items (Réglages → Blanchisserie) — specs/arrival-departure-sas.md §3.4.
-function getLinenItems(req, res) {
-  return res.json(linenItemsModel.list());
-}
-function updateLinenItems(req, res) {
-  const items = Array.isArray(req.body) ? req.body : (req.body && Array.isArray(req.body.items) ? req.body.items : null);
-  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-  return res.json(linenItemsModel.replaceAll(items));
-}
-
-// Repair amounts (« Tarifs facturables ») — specs/extinguisher-seal-and-repair-amounts.md.
-function getRepairAmounts(req, res) {
-  return res.json(repairAmountsModel.list());
-}
-function updateRepairAmounts(req, res) {
-  const items = Array.isArray(req.body) ? req.body : (req.body && Array.isArray(req.body.items) ? req.body.items : null);
-  if (!items) return res.status(400).json({ error: 'INVALID_PAYLOAD' });
-  return res.json(repairAmountsModel.replaceAll(items));
+/**
+ * POST /api/settings/smtp-detect { address? } — rule 28: what the Envoi card proposes for an address
+ * (the typed one, else the sending address as saved). Never writes.
+ *   → { address, found, provider: { id, name, host, secure, port, hint } | null, message }
+ */
+async function detectSmtp(req, res) {
+  const typed = req.body && typeof req.body.address === 'string' ? req.body.address.trim() : '';
+  const address = typed || resolveEmailIdentity(settingsModel.read()).fromEmail;
+  const result = await smtpDetector.detect(address);
+  return res.json({
+    address,
+    status: result.status,
+    found: result.status === 'found',
+    provider: result.status === 'found' ? result.provider : null,
+    message: detectionMessage(result),
+  });
 }
 
 module.exports = {
+  detectSmtp,
   getSettings,
   updateSettings,
   uploadLogo,
   deleteLogo,
   sendSmtpTest,
-  getLinenItems,
-  updateLinenItems,
-  getRepairAmounts,
-  updateRepairAmounts,
   // exported for tests
-  __test: { SMTP_FIELDS },
+  __test: {
+    SMTP_FIELDS,
+    setSmtpDetector(detector) { smtpDetector = detector; },
+  },
 };

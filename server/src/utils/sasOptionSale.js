@@ -9,7 +9,7 @@
  *   - card option (`showsPlanningCard`): `quantity = occurrences`, `billedUnits = occurrences ×
  *     persons` when the option is per-person ([pricing.js](pricing.js) `showsPlanningCard` branch);
  *   - per person (and per person per night): the operator picks how many people are served, stored in
- *     `cardPersons` with `quantity = 1` (specs/non-card-option-served-persons.md rule 12);
+ *     `cardPersons` with `quantity = 1` (specs/non-card-option-served-persons.md rules 12 and 28);
  *   - per night: the operator picks the nights, stored in `cardNights` with `quantity = 1` (rule 19);
  *   - anything else: the operator picks the units, and `quantity` is that number.
  *
@@ -35,6 +35,15 @@ function isCardOption(option) {
 
 function isPerPerson(option) {
   return String(option?.priceType || '').includes('per_person');
+}
+
+// A tab still running the previous bundle sends the billed units of a per-person line
+// (specs/non-card-option-served-persons.md rule 28). They become people served, whole: the party is
+// not involved, only the nights a per-person-per-night unit counts.
+function servedFromIntent(priceType, { servedPersons, units, nights }) {
+  if (servedPersons != null || !(Number(units) > 0)) return servedPersons;
+  const unitsPerPerson = priceType === 'per_person_per_night' && nights > 0 ? nights : 1;
+  return Math.max(1, Math.floor(Number(units) / unitsPerPerson));
 }
 
 /**
@@ -85,14 +94,16 @@ function priceOptionSale(option, {
   const stayNights = Math.max(0, Number(nights) || 0);
   const perNight = priceType === 'per_night';
   if (isPerPerson(option) || perNight) {
-    if (perNight && !(Number(units) > 0)) return null;
+    if (perNight && !(Number(units) > 0 && Number.isFinite(Number(units)))) return null;
     if (!perNight && !(head > 0)) return null;
+    // Rule 28: units sent that are not a positive number sell nothing, they never fall back to the party.
+    if (!perNight && servedPersons == null && units != null && !(Number(units) > 0)) return null;
     const typed = resolveNonCardUnits({
       priceType,
       quantity: 1,
       persons: head,
       nights: stayNights,
-      cardPersons: servedPersons,
+      cardPersons: perNight ? null : servedFromIntent(priceType, { servedPersons, units, nights: stayNights }),
       cardNights: perNight ? units : null,
       maxGuests: maxPersons,
     });
@@ -112,7 +123,7 @@ function priceOptionSale(option, {
   }
 
   const billedUnits = round2(units);
-  if (!(billedUnits > 0)) return null;
+  if (!(billedUnits > 0 && Number.isFinite(billedUnits))) return null;
   return {
     optionId: Number(option.id),
     quantity: billedUnits,
@@ -156,8 +167,6 @@ function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxP
     defaultPersons: head,
     maxPersons: Math.max(head, Number(maxPersons) > 0 ? Math.floor(Number(maxPersons)) : 0),
     selectedPersons: (sold && Number(sold.cardPersons) > 0) ? Math.floor(Number(sold.cardPersons)) : head,
-    // Billed units of one person served: the nights on a per-person-per-night option, otherwise 1.
-    unitsPerPerson: priceType === 'per_person_per_night' ? stayNights : 1,
     occurrences: card ? buildCandidateGrid(option, stay || {}) : [],
     selectedOccurrences: card ? normalizeOccurrences(sold?.cardOccurrences) : [],
     selectedUnits: !card && sold ? round2(sold.billedUnits) : 0,
@@ -217,7 +226,6 @@ function buildSasSaleOffers({
       // What this SAS decided about the covers, so a re-open reopens on it rather than on the party
       // (specs/card-option-served-persons.md §3.3 rule 11).
       cardPersons: line.cardPersons != null ? Number(line.cardPersons) : null,
-      cardNights: line.cardNights != null ? Number(line.cardNights) : null,
     });
   }
   const soldByThisSas = (optionId) => {
@@ -238,16 +246,29 @@ function buildSasSaleOffers({
     && round2(option?.price) > 0;
 
   const breakfastOption = options.find((o) => o.autoOptionType === 'breakfast');
-  let breakfast = { available: false, optionId: null, mornings: [], selected: [] };
+  let breakfast = { available: false, optionId: null, mornings: [], selected: [], perMorning: null };
   if (breakfastOption && sellable(breakfastOption) && !bookedOnFiche(breakfastOption.id)) {
     const offer = buildOptionOffer(breakfastOption, {
       persons, nights, stay, maxPersons, sold: soldByThisSas(breakfastOption.id),
     });
     // Only a card-configured breakfast can be sold here: the mornings ARE the product. A legacy
     // breakfast option without a planning card keeps being sold from the fiche.
+    const available = offer.showsPlanningCard && offer.occurrences.length > 0 && persons > 0;
+    // The price of ONE morning, by the very function the sale is billed with, so the offer page
+    // announces what the commit will bill (specs/breakfast-offer-price-server-side.md rules 1-3).
+    const oneMorning = available ? priceOptionSale(breakfastOption, {
+      unitPrice: offer.unitPrice,
+      persons,
+      nights,
+      stay,
+      occurrences: [offer.occurrences[0]],
+      servedPersons: offer.selectedPersons,
+      maxPersons,
+    }) : null;
     breakfast = {
       ...offer,
-      available: offer.showsPlanningCard && offer.occurrences.length > 0 && persons > 0,
+      available,
+      perMorning: oneMorning ? { persons: oneMorning.servedPersons, amount: oneMorning.totalPrice } : null,
       mornings: offer.occurrences,
       selected: offer.selectedOccurrences,
       compositionPerPerson: { ...BREAKFAST_COMPOSITION_PER_PERSON },
@@ -271,6 +292,18 @@ function buildSasSaleOffers({
   };
 }
 
+/**
+ * The options a sale may carry: what the offers above sell, the same way the read shows them
+ * (specs/sas-breakfast-and-catering-upsell.md rule 15).
+ * @param {{breakfast: object, catering: {options: object[]}}} offers  from `buildSasSaleOffers`
+ * @returns {Set<number>}
+ */
+function offeredSaleOptionIds({ breakfast, catering } = {}) {
+  const ids = (catering?.options || []).map((offer) => Number(offer.optionId));
+  if (breakfast?.available) ids.push(Number(breakfast.optionId));
+  return new Set(ids);
+}
+
 module.exports = {
   billablePersons,
   BREAKFAST_COMPOSITION_PER_PERSON,
@@ -279,5 +312,6 @@ module.exports = {
   priceOptionSale,
   buildOptionOffer,
   buildSasSaleOffers,
+  offeredSaleOptionIds,
   defaultBreakfastComposition,
 };

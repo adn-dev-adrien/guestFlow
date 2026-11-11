@@ -12,7 +12,8 @@ const { phaseLabel, errorMessage } = require('../constants/updatePhases');
 
 const { buildVersionInfo, buildStatus, healthUrl, stagingErrorMessage } = controller.__test;
 
-// specs/self-update-and-releases.md §4.3. The client renders these payloads as-is: no version
+// specs/self-update-and-releases.md §4.3 and rule 51 (reading of 2026-11-01): every payload is built
+// from the environment the test passes, never from the shell's. The client renders these payloads as-is: no version
 // comparison, no status mapping, no French string built in React.
 
 function freshModel() {
@@ -46,7 +47,7 @@ function olderThanCurrent() {
 
 test('buildVersionInfo answers "no update" when nothing has been published yet', () => {
   const { model, cleanup } = freshModel();
-  const info = buildVersionInfo(model);
+  const info = buildVersionInfo(model, {});
   assert.equal(info.current, getAppVersion());
   assert.equal(info.latest, null);
   assert.equal(info.updateAvailable, false);
@@ -62,7 +63,7 @@ test('buildVersionInfo flags an update and carries the notes the dialog renders'
     publishedAt: '2026-08-20T10:00:00Z',
     notes: [{ title: 'Ajouts', items: ['Une nouveauté'] }],
   }));
-  const info = buildVersionInfo(model);
+  const info = buildVersionInfo(model, {});
   assert.equal(info.latest, latest);
   assert.equal(info.updateAvailable, true);
   assert.equal(info.publishedAt, '2026-08-20T10:00:00Z');
@@ -74,7 +75,7 @@ test('buildVersionInfo flags an update and carries the notes the dialog renders'
 test('buildVersionInfo never advertises an older published version as an update', () => {
   const { model, cleanup } = freshModel();
   model.recordCheck(feed({ version: olderThanCurrent(), publishedAt: null, notes: [] }));
-  assert.equal(buildVersionInfo(model).updateAvailable, false);
+  assert.equal(buildVersionInfo(model, {}).updateAvailable, false);
   cleanup();
 });
 
@@ -83,22 +84,30 @@ test('buildVersionInfo reports the dismissal and the in-progress flag', () => {
   const latest = newerThanCurrent();
   model.recordCheck(feed({ version: latest, publishedAt: null, notes: [] }));
   model.dismissVersion(latest);
-  let info = buildVersionInfo(model);
+  let info = buildVersionInfo(model, {});
   assert.equal(info.dismissedVersion, latest);
   assert.equal(info.updateAvailable, true, 'a dismissal hides the alert, it does not erase the update');
 
   model.acquireLock(latest);
-  info = buildVersionInfo(model);
+  info = buildVersionInfo(model, {});
   assert.equal(info.updateInProgress, true);
   cleanup();
 });
 
 test('buildVersionInfo says why self-update is unavailable on a dev tree', () => {
   const { model, cleanup } = freshModel();
-  const info = buildVersionInfo(model);
+  const info = buildVersionInfo(model, {});
   // The dev checkout has no `current` symlink, so the engine must refuse — with a reason.
   assert.equal(info.selfUpdateSupported, false);
-  assert.match(info.selfUpdateReason, /manuelle|current|PM2|releases/);
+  assert.match(info.selfUpdateReason, /indisponible|PM2|releases/);
+  cleanup();
+});
+
+test('rule 51 — buildVersionInfo asks selfUpdateSupported about the environment it was given', () => {
+  const { model, cleanup } = freshModel();
+  const info = buildVersionInfo(model, { GUESTFLOW_SELF_UPDATE: 'off' });
+  assert.equal(info.selfUpdateSupported, false);
+  assert.match(info.selfUpdateReason, /GUESTFLOW_SELF_UPDATE=off/);
   cleanup();
 });
 
@@ -179,7 +188,7 @@ test('runVersionCheck stores what GitHub published', async () => {
     }]),
   });
 
-  const release = await controller.runVersionCheck({ model, fetchImpl });
+  const release = await controller.runVersionCheck({ model, fetchImpl, env: {} });
   assert.equal(release.version, latest);
   assert.equal(model.readState().latestVersion, latest);
   assert.equal(model.readState().releases[0].notes[0].title, 'Corrections');
@@ -191,7 +200,10 @@ test('runVersionCheck keeps the last known answer when GitHub is unreachable', a
   const latest = newerThanCurrent();
   model.recordCheck(feed({ version: latest, publishedAt: null, notes: [] }));
 
-  const result = await controller.runVersionCheck({ model, fetchImpl: async () => { throw new Error('offline'); } });
+  let fetched = 0;
+  const offline = async () => { fetched += 1; throw new Error('offline'); };
+  const result = await controller.runVersionCheck({ model, fetchImpl: offline, env: {} });
+  assert.equal(fetched, 1, 'the check reached GitHub, so the kept answer is not an early return');
   assert.equal(result, null);
   assert.equal(model.readState().latestVersion, latest, 'an offline check must not erase what we knew');
   cleanup();

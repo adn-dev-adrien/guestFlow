@@ -168,7 +168,8 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
     the fiche, it prints on the devis PDF, it feeds the accounting exactly like the other extras. Its
     amount follows §3.1.
 17. **Never sold once the stay has started.** There is nothing left to cancel, so the insurance is
-    excluded from **both** in-stay selling surfaces:
+    excluded from **both** in-stay selling surfaces (the SAS write path too since 2026-11-03,
+    [sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md) rule 15):
     - the SAS upsell catalogue
       ([sas-breakfast-and-catering-upsell.md](sas-breakfast-and-catering-upsell.md)) — enforced by an
       **explicit guard** in `sasOptionSale.sellable` rather than left to the « Restauration »
@@ -268,6 +269,10 @@ site the visitor must say **oui** or **non** before paying: the choice can no lo
   public API returns `cancellationInsurance: null` (no block, no obligation).
 - A stale WordPress proxy cache still serving the pre-change options payload (no
   `cancellationInsurance` key) → the widget renders exactly as today; no crash, no block.
+
+28. **Fixed at the 2026-10-27 spec review.** `DELETE /api/options/:id` on the insurance answers
+    **409 `AUTO_OPTION_NON_DELETABLE`** like the typed seeds (rule 14) — it archived it; and a percentage
+    with more than 2 decimals (4.333) is refused **422 `VALIDATION_FAILED`** (rule 2) — it was accepted.
 
 ---
 
@@ -438,6 +443,7 @@ is not a GuestFlow page and has no action bar.
 
 ### Server unit tests (36 + 14 new, suite at 3447 ✅)
 
+- [x] `tests/cancellation-insurance-guards.unit.test.js` (2, spec review 2026-10-27) — rule 28: DELETE refused 409 and nothing archived; 4.333 % refused 422, 2 decimals accepted
 - [x] `tests/cancellation-insurance-pricing.unit.test.js` (12) — rules 2-9: percentage → amount, the
       base excludes options/resources/taxe de séjour, includes the extra-guest surcharge, follows
       `customPrice` and `discountPercent`, ignores the platform back-solve, quantity clamped to 1,

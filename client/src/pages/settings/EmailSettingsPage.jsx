@@ -14,14 +14,29 @@ import SettingsFormPage from '../../components/SettingsFormPage';
 import SettingsSmtpSection from '../../components/SettingsSmtpSection';
 import SettingsEmailContentSection from '../../components/SettingsEmailContentSection';
 import SettingsNotificationsSection from '../../components/SettingsNotificationsSection';
+import { usePlugin } from '../../hooks/usePlugins';
+import { WEBSITE_BOOKING } from '../../constants/plugins';
 import SettingsPushNotificationsSection from '../../components/SettingsPushNotificationsSection';
+import useSmtpDetection from '../../hooks/useSmtpDetection';
 
 export default function EmailSettingsPage() {
+  const websiteOn = usePlugin(WEBSITE_BOOKING);
   const navigate = useNavigate();
   const form = useSettingsForm({ groups: ['smtp', 'notifications', 'emails'], navigate });
   const disabled = form.loading || form.saving;
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  // specs/settings-rationalization.md rule 28 — the server proposes the sending server while none is
+  // saved, for an own server only: never on a managed instance sending through the platform, until
+  // a password is stored or typed there (specs/hosting-h1-fleet-runtime.md rules 18–19).
+  const smtpDraft = form.draft.smtp || {};
+  const savedHost = String((form.saved && form.saved.smtp && form.saved.smtp.host) || '').trim();
+  const ownServer = !(smtpDraft.platform && smtpDraft.platform.available)
+    || Boolean(smtpDraft.passwordSet) || String(smtpDraft.passwordDraft || '').trim() !== '';
+  const detection = useSmtpDetection(
+    String(smtpDraft.fromEmail || '').trim() || String((smtpDraft.derived || {}).fromEmail || '').trim(),
+    !form.loading && !savedHost && ownServer,
+  );
 
   const handleSmtpTest = async () => {
     setTesting(true);
@@ -30,7 +45,7 @@ export default function EmailSettingsPage() {
       const out = await api.sendSmtpTest();
       setTestResult({
         severity: 'success',
-        message: `Email de test envoyé à ${out.recipient || 'votre adresse'}.`,
+        message: `Email de test envoyé à ${out.recipient || 'l’adresse du compte'}.`,
         onClose: () => setTestResult(null),
       });
     } catch (err) {
@@ -51,6 +66,7 @@ export default function EmailSettingsPage() {
         onSendTest={handleSmtpTest}
         testing={testing}
         testResult={testResult}
+        detection={detection}
         disabled={disabled}
       />
       <Typography variant="body2" color="text.secondary" sx={{ mt: -1.5, mb: 3 }}>
@@ -68,6 +84,7 @@ export default function EmailSettingsPage() {
         errors={form.errors}
         onChange={(key, value) => form.setField('notifications', key, value)}
         disabled={disabled}
+        websiteOn={websiteOn}
       />
       <SettingsPushNotificationsSection />
     </SettingsFormPage>

@@ -3,8 +3,9 @@
  * platform has proposed new dates (specs/ical-sync-override-locked-dates.md §6.1).
  *
  * Self-contained: fetches its own list on mount + on every route change, then renders one
- * orange `<Alert>` listing every pending drift. Each card offers three actions:
- *   - "Approuver" (color="success") → applies the narrow date override on the reservation.
+ * `AttentionCard` listing every pending drift. Each card offers three actions:
+ *   - "Approuver" (color="success") → applies the narrow date override on the reservation; onto nights another
+ *     stay holds (`heldDates`, specs/payment-link-lifecycle.md rule 39) it asks first, naming those stays.
  *   - "Voir la fiche"               → opens the reservation page without acknowledging.
  *   - ✕ (top-right)                 → ignores the proposal (rejects).
  *
@@ -14,13 +15,16 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Alert, AlertTitle, Box, Typography, Button, IconButton, Tooltip, Divider, Stack,
+  Box, Typography, Button, IconButton, Tooltip, Divider, Stack,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CheckIcon from '@mui/icons-material/Check';
 import { useNavigate } from 'react-router';
 import api from '../api';
+import AttentionCard from './AttentionCard';
+import ConflictList from './ConflictList';
+import { useAppDialogs } from './DialogProvider';
 import { displayDateShort } from '../utils/formatters';
 
 // Relative-time formatting is purely presentational (no business rules), so it lives client-side
@@ -41,8 +45,9 @@ function relativeFromNow(iso) {
   return `il y a ${days} j`;
 }
 
-export default function IcalDateDriftAlert() {
+export default function IcalDateDriftAlert({ attention }) {
   const navigate = useNavigate();
+  const { confirm } = useAppDialogs();
   const [alerts, setAlerts] = useState([]);
   const [busyId, setBusyId] = useState(null);
 
@@ -59,6 +64,17 @@ export default function IcalDateDriftAlert() {
 
   const handleApprove = useCallback(async (alert) => {
     if (!alert.reservationExists) return;
+    // specs/payment-link-lifecycle.md rule 39 — onto nights another stay holds: said first, the operator decides.
+    if (alert.heldDates) {
+      const ok = await confirm({
+        title: alert.heldDates.title,
+        message: alert.heldDates.message,
+        details: <ConflictList severity="warning" items={(alert.heldDates.stays || []).map((stay) => ({ key: stay.id, label: stay.label, url: stay.url }))} />,
+        confirmLabel: 'Approuver quand même',
+        confirmColor: 'warning',
+      });
+      if (!ok) return;
+    }
     const previous = alerts;
     setBusyId(alert.id);
     setAlerts((rows) => rows.filter((r) => r.id !== alert.id));
@@ -69,7 +85,7 @@ export default function IcalDateDriftAlert() {
     } finally {
       setBusyId(null);
     }
-  }, [alerts]);
+  }, [alerts, confirm]);
 
   const handleReject = useCallback(async (alert) => {
     const previous = alerts;
@@ -87,16 +103,8 @@ export default function IcalDateDriftAlert() {
   if (alerts.length === 0) return null;
 
   return (
-    <Alert
-      severity="warning"
-      variant="outlined"
-      sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }}
-      icon={false}
-    >
-      <AlertTitle sx={{ fontWeight: 700 }}>
-        Modifications de dates iCal — {alerts.length} changement{alerts.length > 1 ? 's' : ''} à valider
-      </AlertTitle>
-      <Stack divider={<Divider flexItem />} spacing={1.5} sx={{ mt: 1 }}>
+    <AttentionCard attention={attention}>
+      <Stack divider={<Divider flexItem />} spacing={1.5}>
         {alerts.map((alert) => (
           <Box key={alert.id} sx={{ position: 'relative', pr: 5 }}>
             <Tooltip title="Ignorer cette modification">
@@ -127,6 +135,11 @@ export default function IcalDateDriftAlert() {
             <Typography variant="body2" color="text.secondary">
               Dates proposées : <strong>{displayDateShort(alert.newStartDate)} → {displayDateShort(alert.newEndDate)}</strong>
             </Typography>
+            {alert.heldDates && (
+              <Typography variant="body2" sx={{ color: 'warning.text', fontWeight: 600 }}>
+                Sur des dates réservées par un autre séjour
+              </Typography>
+            )}
             <Typography variant="caption" color="text.secondary">
               Détecté {relativeFromNow(alert.detectedAt)}
             </Typography>
@@ -154,6 +167,6 @@ export default function IcalDateDriftAlert() {
           </Box>
         ))}
       </Stack>
-    </Alert>
+    </AttentionCard>
   );
 }

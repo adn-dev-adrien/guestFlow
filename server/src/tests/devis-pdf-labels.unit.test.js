@@ -1,5 +1,7 @@
 // Label map parity + fail-loud accessor for the bilingual devis PDF.
-// See specs/devis-english-language.md §3 rule 2.
+// See specs/devis-english-language.md §3 rules 2, 4, 5, 8, 9, 10 — the label maps carry the translated
+// accommodation line, discount / offered badges, extra-hour suffix, tax breakdown and the deposit,
+// balance and caution rows.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

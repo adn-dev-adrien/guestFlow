@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rapprochement bancaire v2</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-soft:#E3ECE6; --primary-dark:#244937;
+  --honey:#C99038; --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --muted:#6E6A5E; --line:#E6E0D4;
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --radius:14px; --shadow:0 3px 16px rgba(60,54,36,.09);
+  --serif:"Source Serif 4","Source Serif Pro","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans)}
+::selection{background:#CFE0D5}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+a{color:var(--primary)}
+.wrap{max-width:1120px;margin:0 auto;padding:32px 20px 80px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.01em;margin:0}
+h1{font-size:2rem;line-height:1.15}
+h2{font-size:1.45rem;margin:48px 0 14px}
+h3{font-size:1.08rem;margin:0 0 6px}
+p{margin:0 0 10px;max-width:72ch}
+.lede{color:var(--muted);font-size:1.02rem;margin-top:8px}
+.num{font-variant-numeric:tabular-nums}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.pill{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.pill b{color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.panel{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px}
+.panel p:last-child{margin-bottom:0}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:1px 7px;margin-right:6px;vertical-align:1px}
+.t-err{background:var(--error-soft);color:var(--error)} .t-ok{background:var(--success-soft);color:var(--success)}
+.t-warn{background:var(--warning-soft);color:var(--warning)} .t-info{background:var(--info-soft);color:var(--info)}
+.t-neutral{background:#EFEBE3;color:var(--muted)}
+ul.clean{margin:0;padding-left:18px} ul.clean li{margin:4px 0}
+code{font-size:.9em;background:#EFEBE3;border-radius:5px;padding:0 4px}
+
+/* ---------- demo shell ---------- */
+.demo{margin-top:18px}
+.demo-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.demo-tabs button,.seg button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;min-height:40px;cursor:pointer}
+.demo-tabs button[aria-selected="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.demo-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.demo-note{color:var(--muted);font-size:13px;max-width:70ch}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--card)}
+.seg button{border:0;border-radius:0;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--primary-soft);color:var(--primary-dark);font-weight:600}
+.stage{background:#EDE8DE;border-radius:18px;padding:18px;display:flex;justify-content:center;overflow:hidden}
+.screen{background:var(--paper);border-radius:12px;width:100%;max-width:1000px;position:relative;min-height:760px;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+.screen.phone{max-width:390px;border:8px solid #2a2824;border-radius:30px;min-height:700px}
+@media (prefers-reduced-motion:reduce){.screen{transition:none}}
+.app{padding:16px}
+.screen.phone .app{padding:10px}
+
+/* ---------- app look ---------- */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.sec{font-family:var(--serif);font-weight:600;font-size:1.05rem}
+.cap{font-size:12.5px;color:var(--muted)}
+.row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--success-soft);color:var(--success)} .b-err{background:var(--error-soft);color:var(--error)}
+.b-info{background:var(--info-soft);color:var(--info)} .b-warn{background:var(--warning-soft);color:var(--warning)}
+.b-neutral{background:#EFEBE3;color:var(--muted)}
+.btn{font:inherit;font-size:14px;font-weight:600;border-radius:10px;padding:9px 16px;min-height:44px;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--primary)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-primary:disabled{background:#B9C4BC;cursor:not-allowed}
+.btn-outline{border-color:var(--primary);color:var(--primary);background:#fff}
+.btn-ghost{color:var(--ink)}
+.btn-text{padding:6px 8px;min-height:36px}
+.btn:active:not(:disabled){transform:scale(.98)}
+.line{border-top:1px solid var(--line);padding:12px 0}
+.line:first-child{border-top:0}
+.fix{margin-top:8px;border-radius:10px;padding:8px 10px;font-size:13px}
+.fix.err{background:var(--error-soft);color:var(--error)} .fix.info{background:var(--info-soft);color:var(--info)}
+.fix.warn{background:var(--warning-soft);color:var(--warning)}
+input[type=text],input[type=search],input[type=date],select{font:inherit;font-size:16px;border:1px solid #CFC7B8;border-radius:10px;padding:10px 12px;background:#fff;color:var(--ink);width:100%;min-height:44px}
+input:focus{outline:2px solid var(--primary);outline-offset:0;border-color:var(--primary)}
+input.invalid{border-color:var(--error);outline-color:var(--error)}
+label.f{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+.err-text{color:var(--error);font-size:12.5px;margin-top:4px}
+.help{color:var(--muted);font-size:12.5px;margin-top:4px}
+
+/* dialog */
+.scrim{position:absolute;inset:0;background:rgba(39,37,31,.38);display:flex;align-items:center;justify-content:center;padding:18px;border-radius:inherit;z-index:5;animation:fade .18s ease-out}
+.dialog{background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:92%;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(30,28,20,.28);animation:rise .24s cubic-bezier(.2,.8,.2,1)}
+.screen.phone .scrim{padding:0;align-items:stretch}
+.screen.phone .dialog{max-width:none;max-height:none;border-radius:22px}
+.d-head{padding:16px 18px 8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.d-title{font-family:var(--serif);font-weight:600;font-size:1.15rem}
+.d-body{padding:0 18px 12px;overflow:auto;flex:1}
+.d-foot{border-top:1px solid var(--line);padding:12px 18px;background:#FCFBF8;border-radius:0 0 16px 16px}
+.x{font:inherit;font-size:20px;line-height:1;width:44px;height:44px;border:0;background:transparent;border-radius:10px;cursor:pointer;color:var(--muted)}
+.x:hover{background:#F1EDE5}
+@keyframes fade{from{opacity:0}} @keyframes rise{from{opacity:0;transform:translateY(10px) scale(.985)}}
+@media (prefers-reduced-motion:reduce){.scrim,.dialog{animation:none}}
+
+/* credit rows */
+.group-title{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 4px;font-weight:600;font-size:13.5px}
+.credit{display:grid;grid-template-columns:28px 1fr auto;gap:2px 10px;align-items:start;padding:10px 8px;border-radius:10px;cursor:pointer;border:1px solid transparent}
+.credit:hover{background:#FAF8F3}
+.credit.on{background:var(--primary-soft);border-color:#BFD2C5}
+.credit input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--primary)}
+.c-amt{font-weight:700}
+.c-who{grid-column:2/4;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.chips{grid-column:2/4;display:flex;gap:5px;flex-wrap:wrap;margin-top:3px}
+.chip{font-size:11.5px;border-radius:6px;padding:1px 7px;background:#EFEBE3;color:var(--muted)}
+.chip.exact{background:var(--success-soft);color:var(--success)} .chip.amount{background:var(--info-soft);color:var(--info)} .chip.name{background:var(--warning-soft);color:var(--warning)}
+details.all{margin-top:10px;border-top:1px solid var(--line);padding-top:6px}
+details.all summary{cursor:pointer;font-weight:600;color:var(--primary);min-height:44px;display:flex;align-items:center;list-style:none}
+details.all summary::-webkit-details-marker{display:none}
+details.all summary::before{content:"›";display:inline-block;margin-right:8px;transition:transform .2s;font-size:18px}
+details.all[open] summary::before{transform:rotate(90deg)}
+.receipts{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px}
+.rc{border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px;background:#FCFBF8}
+.rc b{font-variant-numeric:tabular-nums}
+.alloc{font-size:13px;margin:0 0 8px}
+.alloc div{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+.foot-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.screen.phone .foot-row .btn-primary{width:100%}
+.pairs{display:grid;gap:8px;margin:8px 0 10px}
+.pair{display:grid;grid-template-columns:1fr 140px;gap:8px;align-items:center;font-size:13px}
+.screen.phone .pair{grid-template-columns:1fr 120px}
+
+/* page */
+.actionbar{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px 8px 14px;margin-bottom:12px;gap:8px}
+.actionbar .t{font-family:var(--serif);font-weight:600;font-size:1.1rem}
+.icon-btn{width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;position:relative}
+.icon-btn.info{border-color:var(--info);color:var(--info)} .icon-btn.success{border-color:var(--success);color:var(--success)}
+.icon-btn svg{width:20px;height:20px}
+.icon-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:50px;right:0;background:#3a3832;color:#fff;font-size:12px;padding:4px 8px;border-radius:6px;white-space:nowrap;z-index:3}
+.counters{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+.screen.phone .counters{grid-template-columns:1fr 1fr}
+.counter{font:inherit;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;min-height:44px;transition:box-shadow .15s,background .15s}
+.counter:hover{background:#FCFBF8}
+.counter[aria-pressed="true"]{box-shadow:0 0 0 2px var(--primary);background:var(--primary-soft)}
+.counter .n{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.filterchip{display:inline-flex;align-items:center;gap:4px;background:var(--primary);color:#fff;border-radius:999px;padding:2px 4px 2px 12px;font-size:13px;font-weight:600;margin:2px 0 10px}
+.filterchip button{border:0;background:rgba(255,255,255,.18);color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:8px;overflow-x:auto}
+.tabs button{font:inherit;font-size:14px;border:0;background:transparent;padding:10px 12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;min-height:44px}
+.tabs button[aria-selected="true"]{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:#2f2d28;color:#fff;border-radius:12px;padding:10px 16px;font-size:14px;z-index:6;box-shadow:0 8px 24px rgba(0,0,0,.2);animation:rise .2s ease-out;max-width:calc(100% - 32px)}
+.big{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.check{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:12px;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--primary);margin:1px 0 0}
+.radio{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:8px;cursor:pointer;font-size:14px}
+.radio.on{border-color:var(--primary);background:var(--primary-soft)}
+.radio input{accent-color:var(--primary);width:18px;height:18px;margin:2px 0 0}
+.preview{display:grid;grid-template-columns:1fr auto auto auto;gap:4px 10px;font-size:13.5px;margin-top:12px;background:#FCFBF8;border:1px solid var(--line);border-radius:10px;padding:10px 12px;align-items:baseline}
+.preview .arrow{color:var(--muted)}
+.journal{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.journal td,.journal th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+.journal th{color:var(--muted);font-weight:600;font-size:12px}
+.journal td.r,.journal th.r{text-align:right}
+.dash-row{padding:12px 0;border-top:1px solid var(--line)}
+.dash-row:first-child{border-top:0}
+.bankline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:13px}
+.decision{border-left:0;background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:12px}
+.decision h3{margin-bottom:8px}
+.opt{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+.opt:first-of-type{border-top:0}
+.reco{font-size:11.5px;font-weight:700;color:var(--success);background:var(--success-soft);border-radius:6px;padding:1px 7px;white-space:nowrap;align-self:start}
+.alt{font-size:11.5px;font-weight:600;color:var(--muted);background:#EFEBE3;border-radius:6px;padding:1px 7px;white-space:nowrap;align-self:start}
+.lots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.lot b.n{font-family:var(--serif);font-size:1.4rem;color:var(--primary);margin-right:6px}
+@media (max-width:600px){
+  .wrap{padding:22px 16px 60px} h1{font-size:1.6rem} .stage{padding:8px;border-radius:14px}
+  .screen.phone{border-width:0;border-radius:12px}
+  .counters{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Rapprochement bancaire v2</h1>
+<p class="lede">Rattacher le bon virement en deux clics, payer en plusieurs fois, voir les versements groupés, déclarer une pénalité de plateforme — et laisser le reste se confirmer tout seul.</p>
+<div class="pills">
+  <span class="pill">Spec <b>specs/reconciliation-assisted-matching.md</b> · brouillon</span>
+  <span class="pill">Étend <b>qonto-bank-reconciliation.md</b></span>
+  <span class="pill"><b>3 lots</b> livrables séparément</span>
+  <span class="pill">Mesuré sur la copie du <b>22/10</b> · 114 crédits réels</span>
+</div>
+
+<!-- ============ CONSTAT ============ -->
+<h2>Le constat</h2>
+<div class="grid2">
+  <div class="panel"><h3><span class="tag t-err">Bug</span>« Rattacher un virement » montre les mauvais virements</h3>
+    <p>La fenêtre reçoit les <b>40 crédits les plus récents</b> du compte, sans filtre. Sur la copie, une fiche dont l’acompte était dû le 14/03 se voit proposer des virements du 05/06 au 12/10 : <b>ceux de mars n’y sont même pas</b>. 25 des 40 sont des versements de plateforme déjà proposés ailleurs, 12 sont des virements sans rapport.</p></div>
+  <div class="panel"><h3><span class="tag t-warn">Manque</span>Un client qui paie en deux fois</h3>
+    <p>Possible en théorie, mais il faut rouvrir la fenêtre pour chaque virement et taper les montants. Rien ne propose deux virements ensemble. Avec un échéancier à montants égaux, un paiement en retard peut tomber sur la mauvaise échéance.</p></div>
+  <div class="panel"><h3><span class="tag t-warn">Manque</span>Trop de clics, deux alertes qui s’ignorent</h3>
+    <p>40 propositions attendent un clic, dont <b>21 « sûres »</b> (plateforme reconnue, une seule fiche, montant au centime). La carte « Échéances » de l’accueil signale déjà les paiements en retard, mais sans savoir si l’argent est en fait arrivé.</p></div>
+  <div class="panel"><h3><span class="tag t-info">À étendre</span>Versements groupés des plateformes</h3>
+    <p>Déjà détectés quand chaque fiche porte son versement (2 paires Booking, 2 Abracadaroom sur la copie). Jamais quand les fiches n’ont que le brut : ces crédits finissent « non rattachés » (14 sur la copie).</p></div>
+  <div class="panel"><h3><span class="tag t-err">Compta</span>Une pénalité devient une commission</h3>
+    <p>Si le versement saisi est le montant reçu, la pénalité gonfle la commission — et part en compte de commission <b>avec TVA déductible</b>. Si c’est le montant du relevé, la ligne reste en écart pour toujours.</p></div>
+  <div class="panel"><h3><span class="tag t-warn">UX</span>Les compteurs ne filtrent pas</h3>
+    <p>« Écarts » et « À confirmer » ouvrent tous deux le même onglet, tout mélangé. Confirmer 40 lignes, c’est 40 clics.</p></div>
+</div>
+
+<!-- ============ PROPOSITION ============ -->
+<h2>Ce qu’on propose</h2>
+<p>Cinq écrans, à manipuler. Toutes les règles (vraisemblance, recherche, répartition, montants) sont calculées par le serveur ; la maquette les imite.</p>
+
+<div class="demo">
+  <div class="demo-tabs" role="tablist" aria-label="Maquettes">
+    <button role="tab" aria-selected="true" data-demo="fiche">1 · Fiche : rattacher</button>
+    <button role="tab" aria-selected="false" data-demo="page">2 · Liste : filtres et tout confirmer</button>
+    <button role="tab" aria-selected="false" data-demo="group">3 · Versement groupé</button>
+    <button role="tab" aria-selected="false" data-demo="penalty">4 · Pénalité plateforme</button>
+    <button role="tab" aria-selected="false" data-demo="home">5 · Accueil : échéances</button>
+  </div>
+  <div class="demo-bar">
+    <div class="demo-note" id="demoNote"></div>
+    <div class="seg" role="group" aria-label="Largeur">
+      <button aria-pressed="true" data-w="desk">Ordinateur</button><button aria-pressed="false" data-w="phone">Téléphone 390 px</button>
+    </div>
+  </div>
+  <div class="stage"><div class="screen" id="screen"><div class="app" id="app"></div></div></div>
+</div>
+
+<h3 style="margin-top:26px">En trois lots</h3>
+<div class="lots" style="margin-top:8px">
+  <div class="panel lot"><b class="n">1</b><b>Fiche et liste</b><p class="cap" style="margin-top:6px">Fenêtre « Rattacher » (probables, recherche, plusieurs virements, répartition), compteurs-filtres, « Tout confirmer ». Plugin seul, aucun changement du cœur. ~10 fichiers, ~55 tests.</p></div>
+  <div class="panel lot"><b class="n">2</b><b>Rapprochement automatique</b><p class="cap" style="margin-top:6px">Paiements en 2-3 virements proposés, versements groupés avec montants estimés, ordre de l’échéancier, confirmation automatique du « sûr », carte « Échéances » enrichie. ~12 fichiers, ~40 tests.</p></div>
+  <div class="panel lot"><b class="n">3</b><b>Pénalités plateforme</b><p class="cap" style="margin-top:6px">Déclaration sur la fiche ou depuis un écart, registre, pages finances, écriture comptable à part sans TVA. Cœur + 2 plugins. ~16 fichiers, ~35 tests.</p></div>
+</div>
+
+<!-- ============ PAS ============ -->
+<h2>Ce qu’on ne fait pas</h2>
+<div class="panel"><ul class="clean">
+  <li>Aucune écriture automatique d’un <b>montant</b> : la confirmation automatique ne coche que « reçu » et la date, et seulement quand tout correspond au centime.</li>
+  <li>Pas les débits : pénalité facturée et payée par carte, remboursements, rejets de paiement.</li>
+  <li>Pas de lien entre deux séjours pour une pénalité (on la déclare sur le versement qu’elle a réduit, le motif nomme l’autre séjour).</li>
+  <li>Pas de marges réglables : ±5 € et ±15 jours sont fixes, à revoir après la recette.</li>
+  <li>Pas de nouvelle carte d’accueil : la carte « Échéances » existante gagne l’information du compte.</li>
+  <li>Aucune connexion au vrai compte Qonto pendant la recette : export CSV sur la copie, comme en v1.</li>
+</ul></div>
+
+<!-- ============ RISQUE ============ -->
+<h2>Le risque</h2>
+<div class="grid2">
+  <div class="panel"><h3>Confirmation automatique à tort</h3><p>Un « sûr » faux cocherait une échéance reçue. Garde-fous : une seule fiche candidate, montant au centime, plateforme reconnue ou numéro de réservation, jamais de montant écrit, ligne marquée « auto », « Défaire » en un clic, réglage pour couper. À vérifier ligne par ligne pendant la recette (21 cas sur la copie).</p></div>
+  <div class="panel"><h3>Mois déjà transmis au comptable</h3><p>Déclarer une pénalité sur un versement reçu en juin modifie l’écriture de juin (commission plus basse) ou en ajoute une datée de juin. Rien n’est refusé, mais la fenêtre prévient avant d’enregistrer.</p></div>
+  <div class="panel"><h3>Combinaisons trompeuses</h3><p>Avec des montants estimés, plusieurs combinaisons peuvent tomber juste. Contrainte d’un même cycle de versement (14 jours), tolérance de 1 % par fiche estimée, et au-delà d’une fiche estimée : « à vérifier » avec saisie des parts, refusée tant que la somme n’est pas exacte.</p></div>
+  <div class="panel"><h3>Taille</h3><p>~38 fichiers, ~130 tests sur 3 lots. Le lot 3 touche l’argent du cœur (registre, finances, export comptable) : relecture dédiée, comme pour l’échéancier.</p></div>
+</div>
+
+<!-- ============ ARBITRAGES ============ -->
+<h2>Les arbitrages en attente</h2>
+<div class="decision"><h3>A1 · Confirmer tout seul les correspondances « sûres » ?</h3>
+  <div class="opt"><span class="reco">Recommandé</span><span><b>Oui, activé par défaut</b>, réglage pour couper — 21 lignes sur 40 sans un clic, chacune « Défaire » en un clic.</span></div>
+  <div class="opt"><span class="alt">Option</span><span><b>Oui, désactivé par défaut</b> — prudent, mais personne n’ira l’activer.</span></div>
+  <div class="opt"><span class="alt">Option</span><span><b>Non</b>, seulement « Tout confirmer » — un clic de plus, zéro écriture sans vous.</span></div>
+</div>
+<div class="decision"><h3>A2 · L’alerte « paiement non reçu à l’échéance »</h3>
+  <div class="opt"><span class="reco">Recommandé</span><span><b>Enrichir la carte « Échéances »</b> existante avec l’état du compte (maquette 5) — une seule alerte par échéance.</span></div>
+  <div class="opt"><span class="alt">Option</span><span><b>Nouvelle carte</b> « Paiements non reçus » — plus visible, mais doublon avec la carte existante.</span></div>
+</div>
+<div class="decision"><h3>A3 · Compte comptable des pénalités</h3>
+  <div class="opt"><span class="reco">Recommandé</span><span><b>658000</b> (charges diverses) par défaut, modifiable dans le Plan comptable, à faire valider par le comptable avant le lot 3.</span></div>
+  <div class="opt"><span class="alt">Option</span><span><b>Demander d’abord au comptable</b> et bloquer le lot 3 jusqu’à sa réponse.</span></div>
+</div>
+<div class="decision"><h3>A4 · Ordre des lots</h3>
+  <div class="opt"><span class="reco">Recommandé</span><span><b>1 → 2 → 3</b> : ce qui gêne tous les jours d’abord, l’automatisme ensuite, les pénalités (rares) en dernier.</span></div>
+  <div class="opt"><span class="alt">Option</span><span><b>1 → 3 → 2</b> : régler la compta des pénalités avant d’automatiser.</span></div>
+</div>
+<div class="decision"><h3>Q5 · Marge sur le montant</h3>
+  <div class="opt"><span class="reco">Recommandé</span><span><b>±5 € fixes</b> — « quelques euros », lisible.</span></div>
+  <div class="opt"><span class="alt">Option</span><span><b>±2 %</b> — s’adapte aux gros séjours, moins prévisible.</span></div>
+</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const NB = ' ';
+const eur = (c) => { const n = Math.abs(c) / 100; const [i, d] = n.toFixed(2).split('.'); return (c < 0 ? '−' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, NB) + ',' + d + NB + '€'; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fr = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+const days = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+const parseCents = (v) => { const t = String(v).trim().replace(/\s/g, '').replace(',', '.'); if (!/^\d+(\.\d{1,2})?$/.test(t)) return null; return Math.round(Number(t) * 100); };
+const screen = $('#screen'); const app = $('#app');
+let width = 'desk';
+let current = 'fiche';
+const NOTES = {
+  fiche: 'Cliquer « Rattacher un virement ». Essayer : cocher deux virements, chercher « lemaire », « 12/03 » ou « 698 », ouvrir « Modifier la répartition » et taper un montant trop grand.',
+  page: 'Cliquer un compteur pour filtrer, la croix ou Échap pour sortir. « Tout confirmer » (icône verte) : cocher ou non les « à vérifier ».',
+  group: 'Un versement Booking couvre trois séjours dont les fiches n’ont que le brut. Taper les parts : refus tant que la somme n’est pas exacte.',
+  penalty: 'Depuis l’écart, « Déclarer une pénalité ». Basculer « depuis la fiche » pour voir la question avant / après. Essayer un montant de 900 ou un motif vide.',
+  home: 'La carte « Échéances » existante, enrichie par le compte : virement trouvé, ou rien sur le compte.',
+};
+function toast(msg) { screen.querySelectorAll('.toast').forEach((x) => x.remove()); const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; screen.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function closeDialog() { const s = screen.querySelector('.scrim'); if (s) s.remove(); }
+function openDialog(html) { closeDialog(); const s = document.createElement('div'); s.className = 'scrim'; s.innerHTML = html; screen.appendChild(s); s.addEventListener('click', (e) => { if (e.target === s) closeDialog(); }); const f = s.querySelector('input,button.btn'); if (f) setTimeout(() => f.focus({ preventScroll: true }), 30); return s; }
+
+/* ================= 1 · FICHE ================= */
+const RECEIPTS = [
+  { key: 'deposit', label: 'Acompte', open: 30000, anchor: '2026-03-14' },
+  { key: 'balance', label: 'Solde', open: 70000, anchor: '2026-04-06' },
+];
+const LAST = 'Lemaire';
+const CREDITS = [
+  { id: 'c1', date: '2026-03-12', amt: 30000, rem: 30000, who: 'M. OU MME LEMAIRE JULIEN', ref: 'Acompte gîte mars' },
+  { id: 'c2', date: '2026-03-20', amt: 15000, rem: 15000, who: 'LEMAIRE J', ref: '' },
+  { id: 'c3', date: '2026-04-02', amt: 55000, rem: 55000, who: 'M LEMAIRE JULIEN', ref: 'Solde réservation' },
+  { id: 'c4', date: '2026-04-04', amt: 69800, rem: 69800, who: 'SCI DES TILLEULS', ref: 'Virement' },
+  { id: 'c5', date: '2026-03-09', amt: 30250, rem: 30250, who: 'DURAND PAUL', ref: 'Location', elsewhere: true },
+  { id: 'c6', date: '2026-03-27', amt: 45000, rem: 12000, who: 'Booking.com B.V.', ref: 'NO.8831204/ID.7712345', partly: true },
+  { id: 'c7', date: '2026-10-12', amt: 59658, rem: 59658, who: 'Booking.com B.V.', ref: 'NO.9917730/ID.7712345', elsewhere: true },
+  { id: 'c8', date: '2026-09-30', amt: 100000, rem: 100000, who: 'Mme Marie-Clémence de La Tour-Villeneuve-Saint-Hilaire', ref: 'Apport en compte courant d’associé — régularisation exercice 2026' },
+  { id: 'c9', date: '2026-07-06', amt: 23721, rem: 23721, who: 'AIRBNB PAYMENTS LUXEMBOURG S.A.', ref: 'Airbnb' },
+  { id: 'c10', date: '2026-06-30', amt: 412, rem: 412, who: 'Qonto', ref: 'Intérêts' },
+  { id: 'c11', date: '2026-02-26', amt: 56900, rem: 56900, who: 'Vir LOCATION RESERVATION GITES DE FRANCE ARDECHE', ref: '' },
+  { id: 'c12', date: '2026-05-18', amt: 7706, rem: 7706, who: 'AIRBNB PAYMENTS LUXEMBOURG S.A.', ref: 'Airbnb' },
+  { id: 'c13', date: '2026-04-23', amt: 62600, rem: 62600, who: 'Vir LOCATION RESERVATION GITES DE FRANCE ARDECHE', ref: '' },
+];
+function reasonsOf(c) {
+  const near = RECEIPTS.some((r) => Math.abs(days(r.anchor, c.date)) <= 15);
+  if (!near) return null;
+  const totalOpen = RECEIPTS.reduce((s, r) => s + r.open, 0);
+  const out = [];
+  if (RECEIPTS.some((r) => r.open === c.rem) || c.rem === totalOpen) out.push('exact');
+  else if (RECEIPTS.some((r) => Math.abs(r.open - c.rem) <= 500) || Math.abs(c.rem - totalOpen) <= 500) out.push('amount');
+  if (norm(c.who + ' ' + c.ref).includes(norm(LAST))) out.push('name');
+  return out.length ? out : null;
+}
+function tokenMatch(c, tok) {
+  let m = /^(\d{2})\/(\d{2})(?:\/(\d{4}))?$/.exec(tok);
+  if (m && +m[2] >= 1 && +m[2] <= 12 && +m[1] >= 1 && +m[1] <= 31) return c.date.slice(5) === `${m[2]}-${m[1]}` && (!m[3] || c.date.slice(0, 4) === m[3]);
+  m = /^\d{4}-\d{2}-\d{2}$/.exec(tok); if (m) return c.date === tok;
+  if (/^\d+([.,]\d{1,2})?$/.test(tok)) {
+    const cents = parseCents(tok);
+    if (/[.,]/.test(tok)) return c.amt === cents || c.rem === cents;
+    return Math.floor(c.amt / 100) === cents / 100 || Math.floor(c.rem / 100) === cents / 100;
+  }
+  return norm(c.who + ' ' + c.ref).includes(norm(tok));
+}
+const fiche = { selected: new Set(), q: '', manual: false, pairs: null, allOpen: false, linked: [] };
+function fifo(ids) {
+  const credits = CREDITS.filter((c) => ids.has(c.id)).sort((a, b) => a.date.localeCompare(b.date)).map((c) => ({ ...c, left: c.rem }));
+  const recs = RECEIPTS.map((r) => ({ ...r, left: r.open - covered(r.key) }));
+  const pairs = [];
+  for (const r of recs) for (const c of credits) {
+    if (r.left <= 0) break; if (c.left <= 0) continue;
+    const a = Math.min(r.left, c.left); pairs.push({ cid: c.id, rkey: r.key, cents: a }); r.left -= a; c.left -= a;
+  }
+  return { pairs, leftover: credits.filter((c) => c.left > 0) };
+}
+function covered(key) { return fiche.linked.filter((p) => p.rkey === key).reduce((s, p) => s + p.cents, 0); }
+function preview() {
+  const base = fifo(fiche.selected);
+  const pairs = fiche.manual && fiche.pairs ? fiche.pairs : base.pairs.map((p) => ({ ...p, input: (p.cents / 100).toFixed(2).replace('.', ',') }));
+  const errors = {};
+  pairs.forEach((p, i) => {
+    const cents = parseCents(p.input != null ? p.input : (p.cents / 100).toFixed(2));
+    const c = CREDITS.find((x) => x.id === p.cid); const r = RECEIPTS.find((x) => x.key === p.rkey);
+    if (cents == null) errors[i] = 'Montant invalide : chiffres et virgule, 2 décimales au plus.';
+    else if (cents <= 0) errors[i] = 'Le montant doit être supérieur à 0.';
+    else if (cents > c.rem) errors[i] = `Le virement n’a que ${eur(c.rem)} disponibles.`;
+    else if (cents > r.open - covered(r.key)) errors[i] = `${r.label} n’attend plus que ${eur(r.open - covered(r.key))}.`;
+    p.cents = cents == null ? 0 : cents;
+  });
+  // per credit sum
+  const perCredit = {};
+  pairs.forEach((p) => { perCredit[p.cid] = (perCredit[p.cid] || 0) + p.cents; });
+  Object.entries(perCredit).forEach(([cid, s]) => { const c = CREDITS.find((x) => x.id === cid); if (s > c.rem) pairs.forEach((p, i) => { if (p.cid === cid && !errors[i]) errors[i] = `Au total, plus que les ${eur(c.rem)} du virement.`; }); });
+  const leftover = [...fiche.selected].map((id) => { const c = CREDITS.find((x) => x.id === id); return { c, cents: c.rem - (perCredit[id] || 0) }; }).filter((l) => l.cents > 0);
+  return { pairs, errors, leftover, valid: fiche.selected.size > 0 && Object.keys(errors).length === 0 && pairs.length > 0 };
+}
+function creditRow(c, reasons) {
+  const on = fiche.selected.has(c.id);
+  const chips = [];
+  (reasons || []).forEach((r) => chips.push(`<span class="chip ${r}">${r === 'exact' ? 'montant exact' : r === 'amount' ? 'montant ±5 €' : 'nom du client'}</span>`));
+  if (c.partly) chips.push(`<span class="chip">reste ${eur(c.rem)} sur ${eur(c.amt)}</span>`);
+  if (c.elsewhere) chips.push('<span class="chip">proposé ailleurs</span>');
+  return `<label class="credit ${on ? 'on' : ''}"><input type="checkbox" data-cid="${c.id}" ${on ? 'checked' : ''} aria-label="${eur(c.rem)} le ${fr(c.date)}">
+    <span><span class="c-amt num">${eur(c.rem)}</span> <span class="cap">· ${fr(c.date)}/${c.date.slice(0, 4)}</span></span><span></span>
+    <span class="c-who">${esc(c.who)}${c.ref ? ' · « ' + esc(c.ref) + ' »' : ''}</span>
+    ${chips.length ? `<span class="chips">${chips.join('')}</span>` : ''}</label>`;
+}
+function renderFicheDialog() {
+  const s = screen.querySelector('.scrim');
+  const tokens = fiche.q.trim().split(/\s+/).filter(Boolean);
+  const avail = CREDITS.filter((c) => c.rem > 0 && !fiche.linked.some((p) => p.cid === c.id && p.full));
+  const match = (c) => tokens.every((t) => tokenMatch(c, t));
+  const likely = avail.map((c) => ({ c, r: reasonsOf(c) })).filter((x) => x.r && match(x.c))
+    .sort((a, b) => (b.r.includes('exact') - a.r.includes('exact')) || (b.r.includes('amount') - a.r.includes('amount')) || a.c.date.localeCompare(b.c.date));
+  const likelyIds = new Set(likely.map((x) => x.c.id));
+  const others = avail.filter((c) => !likelyIds.has(c.id) && match(c)).sort((a, b) => b.date.localeCompare(a.date));
+  const none = likely.length === 0 && others.length === 0;
+  const pv = preview();
+  const recLines = RECEIPTS.map((r) => {
+    const got = covered(r.key) + pv.pairs.filter((p, i) => p.rkey === r.key && !pv.errors[i]).reduce((t, p) => t + p.cents, 0);
+    const st = got >= r.open ? '<span class="badge b-ok">couvert</span>' : got > 0 ? `<span class="badge b-info">${eur(got)} sur ${eur(r.open)}</span>` : '<span class="cap">rien</span>';
+    return `<div><span>${r.label}</span>${st}</div>`;
+  }).join('');
+  const selCount = fiche.selected.size;
+  const selSum = [...fiche.selected].reduce((t, id) => t + CREDITS.find((c) => c.id === id).rem, 0);
+  s.querySelector('.dialog').innerHTML = `
+    <div class="d-head"><div class="d-title">Rattacher des virements</div><button class="x" aria-label="Fermer" data-close>×</button></div>
+    <div class="d-body">
+      <div class="receipts">${RECEIPTS.map((r) => `<span class="rc">${r.label} · <b>${eur(r.open - covered(r.key))}</b> · avant le ${fr(r.anchor)}</span>`).join('')}</div>
+      <input type="search" id="q" placeholder="Nom, date (12/03) ou montant (596,58)" value="${esc(fiche.q)}" aria-label="Rechercher un virement">
+      ${none ? `<div style="padding:22px 4px;text-align:center"><p class="cap" style="margin:0 auto 8px">Aucun virement ne correspond à « ${esc(fiche.q)} ».</p><button class="btn btn-text" data-clear>Effacer la recherche</button></div>` : `
+      <div class="group-title"><span>Correspondances probables</span><span class="cap">montant ±5 € · date ±15 j</span></div>
+      ${likely.length ? likely.map((x) => creditRow(x.c, x.r)).join('') : '<p class="cap" style="padding:6px 8px">Aucun virement proche du montant attendu.</p>'}
+      <details class="all" ${fiche.allOpen || !likely.length || tokens.length ? 'open' : ''}><summary>Tous les virements disponibles (${others.length})</summary>
+        ${others.map((c) => creditRow(c, null)).join('')}
+      </details>`}
+    </div>
+    <div class="d-foot">
+      ${selCount ? `<div class="alloc">${recLines}</div>` : ''}
+      ${fiche.manual && selCount ? `<div class="pairs">${pv.pairs.map((p, i) => { const c = CREDITS.find((x) => x.id === p.cid); const r = RECEIPTS.find((x) => x.key === p.rkey); return `<div class="pair"><span>${fr(c.date)} · ${eur(c.rem)} → <b>${r.label}</b></span><span><input type="text" inputmode="decimal" data-pair="${i}" value="${esc(p.input != null ? p.input : '')}" class="${pv.errors[i] ? 'invalid' : ''}" aria-label="Montant vers ${r.label}"></span>${pv.errors[i] ? `<span class="err-text" style="grid-column:1/3">${pv.errors[i]}</span>` : ''}</div>`; }).join('')}</div>` : ''}
+      ${pv.leftover.length && !Object.keys(pv.errors).length ? `<div class="fix warn" style="margin:0 0 8px">${pv.leftover.map((l) => `${eur(l.cents)} restent disponibles sur le virement du ${fr(l.c.date)}.`).join(' ')}</div>` : ''}
+      <div class="foot-row">
+        <span class="num" style="font-weight:600">${selCount ? `${selCount} virement${selCount > 1 ? 's' : ''} · ${eur(selSum)}` : '<span class="cap">Cocher un ou plusieurs virements</span>'}
+        ${selCount ? `<button class="btn btn-text" data-manual>${fiche.manual ? 'Répartition automatique' : 'Modifier la répartition'}</button>` : ''}</span>
+        <button class="btn btn-primary" data-link ${pv.valid ? '' : 'disabled'}>Rattacher</button>
+      </div>
+    </div>`;
+  const q = s.querySelector('#q');
+  if (q) { q.addEventListener('input', () => { fiche.q = q.value; fiche.pairs = null; renderFicheDialog(); const n = screen.querySelector('#q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }); }
+  s.querySelectorAll('[data-cid]').forEach((cb) => cb.addEventListener('change', () => { cb.checked ? fiche.selected.add(cb.dataset.cid) : fiche.selected.delete(cb.dataset.cid); if (fiche.selected.size > 10) { fiche.selected.delete(cb.dataset.cid); toast('10 virements au plus'); } fiche.pairs = null; renderFicheDialog(); }));
+  s.querySelectorAll('[data-pair]').forEach((inp) => inp.addEventListener('input', () => { fiche.pairs[Number(inp.dataset.pair)].input = inp.value; const pos = inp.selectionStart; const idx = inp.dataset.pair; renderFicheDialog(); const n = screen.querySelector(`[data-pair="${idx}"]`); n.focus(); n.setSelectionRange(pos, pos); }));
+  const det = s.querySelector('details.all'); if (det) det.addEventListener('toggle', () => { fiche.allOpen = det.open; });
+  const man = s.querySelector('[data-manual]'); if (man) man.addEventListener('click', (e) => { e.preventDefault(); fiche.manual = !fiche.manual; fiche.pairs = fiche.manual ? fifo(fiche.selected).pairs.map((p) => ({ ...p, input: (p.cents / 100).toFixed(2).replace('.', ',') })) : null; renderFicheDialog(); });
+  const clr = s.querySelector('[data-clear]'); if (clr) clr.addEventListener('click', () => { fiche.q = ''; renderFicheDialog(); });
+  s.querySelector('[data-close]').addEventListener('click', closeDialog);
+  s.querySelector('[data-link]').addEventListener('click', () => {
+    const p = preview(); if (!p.valid) return;
+    p.pairs.forEach((x) => fiche.linked.push({ ...x, full: CREDITS.find((c) => c.id === x.cid).rem === p.pairs.filter((y) => y.cid === x.cid).reduce((t, y) => t + y.cents, 0) }));
+    p.pairs.forEach((x) => { const c = CREDITS.find((cc) => cc.id === x.cid); c.rem -= x.cents; });
+    fiche.selected.clear(); fiche.manual = false; fiche.pairs = null; fiche.q = '';
+    closeDialog(); renderFiche(); toast('Virements rattachés');
+  });
+}
+function renderFiche() {
+  const lines = RECEIPTS.map((r) => {
+    const got = covered(r.key);
+    const bank = fiche.linked.filter((p) => p.rkey === r.key).map((p) => { const c = CREDITS.find((x) => x.id === p.cid); return `<div class="cap" style="margin-top:4px">Sur le compte le ${fr(c.date)} · <b class="num" style="color:var(--ink)">${eur(p.cents)}</b> · ${esc(c.who)}</div>`; }).join('');
+    const badge = got >= r.open ? '<span class="badge b-ok">Rapproché</span>' : got > 0 ? '<span class="badge b-info">Reçu en partie</span>' : '<span class="badge b-err">En retard</span>';
+    const fix = got > 0 && got < r.open ? `<div class="fix info">${eur(got)} sur ${eur(r.open)} reçus : la fiche sera cochée quand le reste arrivera.</div>` : '';
+    return `<div class="line"><div class="row"><div><b>${r.label}</b><div class="cap">La fiche attend <span class="num">${eur(r.open)}</span> · attendu le ${fr(r.anchor)}</div></div>${badge}</div>${bank}${fix}</div>`;
+  }).join('');
+  app.innerHTML = `
+    <div class="cap" style="margin-bottom:8px">Fiche · Julien Lemaire · La Granja · 10/04 → 17/04</div>
+    <div class="card">
+      <div class="row"><div><div class="sec">Rapprochement bancaire</div><div class="cap">Lu le 22/10 à 14:05</div></div></div>
+      <div style="margin-top:4px">${lines}</div>
+      <div class="foot-row" style="border-top:1px solid var(--line);padding-top:10px">
+        <span class="cap">Un virement manque ou est mal proposé ?</span>
+        <button class="btn btn-outline" id="openLink">Rattacher un virement</button>
+      </div>
+    </div>`;
+  $('#openLink').addEventListener('click', () => { openDialog('<div class="dialog" role="dialog" aria-modal="true" aria-label="Rattacher des virements"></div>'); renderFicheDialog(); });
+}
+
+/* ================= 2 · PAGE ================= */
+const pageRows = [
+  { id: 'p1', who: 'Nina Garnier', prop: 'L’Estiva', plat: 'Booking', label: 'Versement Booking', exp: 59658, bank: '12/10 · Booking.com B.V.', state: 'proposed', conf: 'sûr' },
+  { id: 'p2', who: 'Hugo Martin', prop: 'La Granja', plat: 'Airbnb', label: 'Versement Airbnb', exp: 41230, bank: '06/10 · AIRBNB PAYMENTS', state: 'proposed', conf: 'sûr' },
+  { id: 'p3', who: 'Marie-Clémence de La Tour-Villeneuve-Saint-Hilaire', prop: 'La Granja', plat: 'Direct', label: 'Solde', exp: 115000, bank: '03/10 · M OU MME DE LA TOUR', state: 'proposed', conf: 'probable' },
+  { id: 'p4', who: 'Lucas Petit', prop: 'L’Estiva', plat: 'GreenGo', label: 'Versement GreenGo', exp: 28840, bank: '29/09 · STRIPE « GREENGO K7QZ2 »', state: 'proposed', conf: 'sûr' },
+  { id: 'p5', who: 'Emma Roux', prop: 'La Granja', plat: 'Gîtes de France', label: 'Versement Gîtes de France', exp: 66800, bank: '15/09 · GITES DE FRANCE ARDECHE', state: 'proposed', conf: 'à vérifier' },
+  { id: 'p6', who: 'Paul Durand', prop: 'L’Estiva', plat: 'Direct', label: 'Acompte', exp: 30250, bank: '09/09 · DURAND PAUL', state: 'proposed', conf: 'à vérifier' },
+  { id: 'g1', who: 'Léa Bernard', prop: 'La Granja', plat: 'Booking', label: 'Versement Booking', exp: 61002, bank: '12/09 · 570,02 € reçus', state: 'gap', fix: 'Le virement fait 570,02 €, la fiche attend 610,02 €.' },
+  { id: 'g2', who: 'Tom Lefèvre', prop: 'L’Estiva', plat: 'Direct', label: 'Solde', exp: 48000, bank: '—', state: 'gap', fix: 'Coché reçu sur la fiche, mais aucun virement correspondant sur le compte.' },
+  { id: 'g3', who: 'Chloé Faure', prop: 'La Granja', plat: 'Airbnb', label: 'Versement Airbnb', exp: 39010, bank: '01/09 · AIRBNB PAYMENTS', state: 'gap', fix: 'Perçu le 01/09 sur le compte : corriger la date de la fiche (mois différent).' },
+  { id: 'u1', who: '—', prop: '', plat: 'Lodgify', label: 'Crédit non rattaché', exp: null, bank: '20/07 · STRIPE « STRIPE » · 85,30 €', state: 'unmatched' },
+  { id: 'u2', who: '—', prop: '', plat: 'Gîtes de France', label: 'Crédit non rattaché', exp: null, bank: '05/12 · GITES DE FRANCE ARDECHE · 584,00 €', state: 'unmatched' },
+  { id: 'r1', who: 'Inès Moreau', prop: 'L’Estiva', plat: 'Booking', label: 'Versement Booking', exp: 51210, bank: '05/09 · Booking.com B.V.', state: 'reconciled', auto: true },
+  { id: 'r2', who: 'Adam Simon', prop: 'La Granja', plat: 'Direct', label: 'Acompte', exp: 24000, bank: '18/08 · SIMON ADAM', state: 'reconciled' },
+];
+const page = { tab: 'todo', filter: null };
+const COUNTERS = [
+  { key: 'gap', label: 'Écarts', color: 'var(--error)' }, { key: 'proposed', label: 'À confirmer', color: 'var(--info)' },
+  { key: 'unmatched', label: 'Non rattachés', color: 'var(--warning)' }, { key: 'reconciled', label: 'Rapprochés', color: 'var(--success)' },
+];
+const ICON_SYNC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></svg>';
+const ICON_ALL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13l4 4 8-9"/><path d="M10 17l1 1 11-12"/></svg>';
+function visibleRows() {
+  if (page.filter) return pageRows.filter((r) => r.state === page.filter);
+  if (page.tab === 'todo') return pageRows.filter((r) => ['gap', 'proposed', 'unmatched'].includes(r.state));
+  return pageRows.filter((r) => r.state === 'reconciled');
+}
+function renderPage() {
+  const count = (k) => pageRows.filter((r) => r.state === k).length;
+  const rows = visibleRows();
+  const hasProposals = rows.some((r) => r.state === 'proposed');
+  const badge = { proposed: ['b-info', 'À confirmer'], gap: ['b-err', 'Écart'], unmatched: ['b-warn', 'Non rattaché'], reconciled: ['b-ok', 'Rapproché'] };
+  const flabel = page.filter ? COUNTERS.find((c) => c.key === page.filter).label : '';
+  app.innerHTML = `
+    <div class="actionbar"><div><div class="t">Rapprochement bancaire</div><div class="cap">Lu le 22/10 à 14:05</div></div>
+      <div style="display:flex;gap:8px">
+        <button class="icon-btn info" data-tip="Actualiser" aria-label="Actualiser">${ICON_SYNC}</button>
+        ${hasProposals ? `<button class="icon-btn success" id="all" data-tip="Tout confirmer" aria-label="Tout confirmer">${ICON_ALL}</button>` : ''}
+      </div></div>
+    <div class="cap" style="margin:-4px 0 10px">2 rapprochements automatiques au dernier relevé · <a href="#" id="seeAuto">Voir</a></div>
+    <div class="counters">${COUNTERS.map((c) => `<button class="counter" data-f="${c.key}" aria-pressed="${page.filter === c.key}"><div class="cap">${c.label}</div><div class="n" style="color:${c.color}">${count(c.key)}</div></button>`).join('')}</div>
+    ${page.filter ? `<div class="filterchip">${flabel} · ${rows.length}<button aria-label="Retirer le filtre" id="unf">×</button></div>` : `
+    <div class="tabs" role="tablist"><button role="tab" data-tab="todo" aria-selected="${page.tab === 'todo'}">À traiter ${count('gap') + count('proposed') + count('unmatched')}</button><button role="tab" data-tab="done" aria-selected="${page.tab === 'done'}">Rapprochés ${count('reconciled')}</button><button role="tab" aria-selected="false" disabled>Attendus 12</button><button role="tab" aria-selected="false" disabled>Autres crédits 27</button></div>`}
+    <div class="card" style="padding:4px 14px">${rows.length ? rows.map((r) => `
+      <div class="line"><div class="row"><div style="min-width:0"><b style="overflow-wrap:anywhere">${esc(r.who)}</b> <span class="cap">· ${esc(r.label)}${r.prop ? ' · ' + esc(r.prop) : ''}</span>
+        <div class="cap">${r.exp != null ? `Attendu <span class="num">${eur(r.exp)}</span> · ` : ''}${esc(r.bank)}${r.conf ? ` · <b>${r.conf}</b>` : ''}</div></div>
+        <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">${r.auto ? '<span class="badge b-neutral">auto</span>' : ''}<span class="badge ${badge[r.state][0]}">${badge[r.state][1]}</span></span></div>
+        ${r.fix ? `<div class="fix ${r.state === 'gap' ? 'err' : 'info'}">${r.fix}</div>` : ''}
+        ${r.state === 'proposed' ? `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn btn-primary" data-one="${r.id}" style="min-height:38px;padding:6px 14px">Confirmer</button><button class="btn btn-ghost" style="min-height:38px">Écarter</button></div>` : ''}
+        ${r.state === 'reconciled' ? `<div style="margin-top:4px"><button class="btn btn-ghost btn-text" data-undo="${r.id}">Défaire</button></div>` : ''}
+      </div>`).join('') : '<p class="cap" style="padding:16px 0;text-align:center">Rien ici.</p>'}</div>`;
+  app.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', () => { page.filter = page.filter === b.dataset.f ? null : b.dataset.f; renderPage(); }));
+  app.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { page.tab = b.dataset.tab; renderPage(); }));
+  const unf = $('#unf', app); if (unf) unf.addEventListener('click', () => { page.filter = null; renderPage(); });
+  $('#seeAuto', app).addEventListener('click', (e) => { e.preventDefault(); page.filter = 'reconciled'; renderPage(); });
+  app.querySelectorAll('[data-one]').forEach((b) => b.addEventListener('click', () => { pageRows.find((r) => r.id === b.dataset.one).state = 'reconciled'; renderPage(); toast('Rapprochement confirmé'); }));
+  app.querySelectorAll('[data-undo]').forEach((b) => b.addEventListener('click', () => { const r = pageRows.find((x) => x.id === b.dataset.undo); r.state = 'proposed'; r.auto = false; r.conf = r.conf || 'sûr'; renderPage(); toast('Rapprochement défait'); }));
+  const all = $('#all', app); if (all) all.addEventListener('click', openBulk);
+}
+function openBulk() {
+  const props = pageRows.filter((r) => r.state === 'proposed');
+  const sure = props.filter((r) => r.conf !== 'à vérifier'); const verify = props.filter((r) => r.conf === 'à vérifier');
+  let include = false;
+  const s = openDialog('<div class="dialog" role="dialog" aria-modal="true" aria-label="Tout confirmer" style="max-width:480px"></div>');
+  const draw = () => {
+    const set = include ? props : sure; const total = set.reduce((t, r) => t + r.exp, 0);
+    s.querySelector('.dialog').innerHTML = `<div class="d-head"><div class="d-title">Tout confirmer</div><button class="x" aria-label="Fermer" data-close>×</button></div>
+      <div class="d-body"><div class="big">${set.length} rapprochement${set.length > 1 ? 's' : ''}</div><div class="num" style="font-size:18px;font-weight:600;color:var(--muted)">${eur(total)}</div>
+      <p style="margin-top:10px">Les fiches seront marquées reçues à la date du virement.</p>
+      ${verify.length ? `<label class="check"><input type="checkbox" id="incl" ${include ? 'checked' : ''}><span>Inclure aussi les ${verify.length} « à vérifier » <span class="cap num">(${eur(verify.reduce((t, r) => t + r.exp, 0))})</span></span></label>` : ''}</div>
+      <div class="d-foot"><div class="foot-row"><button class="btn btn-ghost" data-close>Annuler</button><button class="btn btn-primary" id="go" ${set.length ? '' : 'disabled'}>Confirmer ${set.length}</button></div></div>`;
+    s.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeDialog));
+    const inc = s.querySelector('#incl'); if (inc) inc.addEventListener('change', () => { include = inc.checked; draw(); });
+    s.querySelector('#go').addEventListener('click', () => { set.forEach((r) => { r.state = 'reconciled'; }); closeDialog(); renderPage(); toast(`${set.length} rapprochements confirmés`); });
+  };
+  draw();
+}
+
+/* ================= 3 · GROUP ================= */
+const GROUP = { credit: 148237, date: '2026-03-20', stays: [
+  { who: 'Nina Garnier', dates: '27/02 → 02/03', gross: 61200, est: 51139 },
+  { who: 'Hugo Martin', dates: '01/03 → 05/03', gross: 72000, est: 60163 },
+  { who: 'Marie-Clémence de La Tour-Villeneuve-Saint-Hilaire', dates: '06/03 → 08/03', gross: 44200, est: 36933 },
+] };
+const grp = { open: false, inputs: null, done: false };
+function renderGroup() {
+  const estSum = GROUP.stays.reduce((t, s) => t + s.est, 0);
+  app.innerHTML = `
+    <div class="cap" style="margin-bottom:8px">Rapprochement bancaire · À traiter</div>
+    <div class="card"><div class="line" style="border:0;padding-top:0">
+      <div class="row"><div><b>Versement Booking · 3 séjours</b><div class="cap">Sur le compte le ${fr(GROUP.date)} · <b class="num" style="color:var(--ink)">${eur(GROUP.credit)}</b> · Booking.com B.V. « NO.8823411/ID.7712345 »</div></div>
+      ${grp.done ? '<span class="badge b-ok">Rapproché</span>' : '<span class="badge b-info">À confirmer</span>'}</div>
+      <div style="margin-top:8px">${GROUP.stays.map((s, i) => `<div class="row" style="padding:6px 0;border-top:1px solid var(--line)"><span style="min-width:0;overflow-wrap:anywhere">${esc(s.who)} <span class="cap">· ${s.dates}</span></span><span class="num cap" style="white-space:nowrap">${grp.done ? '<b style="color:var(--ink)">' + eur(grp.inputs[i]) + '</b>' : 'environ ' + eur(s.est)}</span></div>`).join('')}</div>
+      <div class="cap" style="margin-top:6px">${grp.done ? 'Versements écrits sur les 3 fiches, commissions recalculées.' : `<span class="badge b-warn">à vérifier</span> Versement groupé · montants estimés à partir du brut et de la commission Booking (${eur(estSum)} estimés)`}</div>
+      ${grp.done ? '<div style="margin-top:6px"><button class="btn btn-ghost btn-text" id="gundo">Défaire</button></div>' : '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary" id="split">Répartir et confirmer</button><button class="btn btn-ghost">Écarter</button></div>'}
+    </div></div>`;
+  const sp = $('#split', app); if (sp) sp.addEventListener('click', openSplit);
+  const gu = $('#gundo', app); if (gu) gu.addEventListener('click', () => { grp.done = false; renderGroup(); toast('Rapprochement défait'); });
+}
+function openSplit() {
+  if (!grp.inputs) grp.inputs = GROUP.stays.map((s) => s.est);
+  const vals = GROUP.stays.map((s, i) => (grp.inputs[i] / 100).toFixed(2).replace('.', ','));
+  const s = openDialog('<div class="dialog" role="dialog" aria-modal="true" aria-label="Répartir le versement" style="max-width:560px"></div>');
+  const draw = (focusIdx, pos) => {
+    const cents = vals.map(parseCents);
+    const errs = cents.map((c) => (c == null ? 'Montant invalide.' : c <= 0 ? 'Supérieur à 0.' : null));
+    const sum = cents.reduce((t, c) => t + (c || 0), 0); const diff = GROUP.credit - sum;
+    const ok = errs.every((e) => !e) && diff === 0;
+    s.querySelector('.dialog').innerHTML = `<div class="d-head"><div class="d-title">Répartir le versement</div><button class="x" aria-label="Fermer" data-close>×</button></div>
+      <div class="d-body"><p class="cap">Chaque part devient le versement de sa fiche ; la commission suit.</p>
+      ${GROUP.stays.map((st, i) => `<label class="f" for="sh${i}" style="overflow-wrap:anywhere">${esc(st.who)} · brut ${eur(st.gross)}</label><input id="sh${i}" type="text" inputmode="decimal" data-sh="${i}" value="${esc(vals[i])}" class="${errs[i] ? 'invalid' : ''}">${errs[i] ? `<div class="err-text">${errs[i]}</div>` : ''}`).join('')}
+      <div class="fix ${ok ? 'info' : 'err'}" style="margin-top:12px">${ok ? `Total ${eur(sum)} = le virement.` : diff > 0 ? `Il manque ${eur(diff)} pour atteindre ${eur(GROUP.credit)}.` : `${eur(-diff)} de trop : le virement fait ${eur(GROUP.credit)}.`}</div></div>
+      <div class="d-foot"><div class="foot-row"><button class="btn btn-ghost" data-close>Annuler</button><button class="btn btn-primary" id="ok" ${ok ? '' : 'disabled'}>Confirmer</button></div></div>`;
+    s.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeDialog));
+    s.querySelectorAll('[data-sh]').forEach((inp) => inp.addEventListener('input', () => { vals[+inp.dataset.sh] = inp.value; draw(+inp.dataset.sh, inp.selectionStart); }));
+    if (focusIdx != null) { const n = s.querySelector(`[data-sh="${focusIdx}"]`); n.focus(); n.setSelectionRange(pos, pos); }
+    s.querySelector('#ok').addEventListener('click', () => { grp.inputs = cents; grp.done = true; closeDialog(); renderGroup(); toast('Versement groupé rapproché'); });
+  };
+  draw();
+}
+
+/* ================= 4 · PENALTY ================= */
+const pen = { mode: 'reco', declared: null };
+const STAY = { gross: 76242, commission: 15240, payoutStatement: 61002, payoutBank: 57002 };
+function renderPenalty() {
+  const fromReco = pen.mode === 'reco';
+  const d = pen.declared;
+  app.innerHTML = `
+    <div class="demo-bar" style="margin-bottom:10px"><span class="cap">Point de départ :</span>
+      <div class="seg"><button aria-pressed="${fromReco}" data-m="reco">Depuis un écart</button><button aria-pressed="${!fromReco}" data-m="fiche">Depuis la fiche</button></div></div>
+    ${fromReco ? `
+    <div class="card"><div class="sec">Rapprochement bancaire</div>
+      <div class="line"><div class="row"><div><b>Versement Booking</b><div class="cap">La fiche attend <span class="num">${eur(STAY.payoutStatement)}</span></div></div>${d ? '<span class="badge b-ok">Rapproché</span>' : '<span class="badge b-err">Écart de montant</span>'}</div>
+      <div class="cap" style="margin-top:4px">Sur le compte le 12/06 · <b class="num" style="color:var(--ink)">${eur(STAY.payoutBank)}</b> · Booking.com B.V.</div>
+      ${d ? `<div class="fix info">Pénalité ${eur(d.cents)} · ${esc(d.reason)} déclarée : le virement correspond.</div>` : `<div class="fix err">Le virement fait ${eur(STAY.payoutBank)}, la fiche attend ${eur(STAY.payoutStatement)}.</div>
+      <div style="margin-top:8px"><button class="btn btn-outline" id="decl">Déclarer une pénalité de ${eur(STAY.payoutStatement - STAY.payoutBank)}</button></div>`}</div></div>` : `
+    <div class="card"><div class="sec">Paiement plateforme</div>
+      <div class="cap" style="margin-top:6px">Prix payé par le client <b class="num" style="color:var(--ink)">${eur(STAY.gross)}</b></div>
+      <div class="cap">Commission <b class="num" style="color:var(--ink)">${eur(d && d.after ? STAY.commission : STAY.gross - STAY.payoutBank)}</b></div>
+      <div class="cap">Versement <b class="num" style="color:var(--ink)">${eur(d && d.after ? STAY.payoutStatement : STAY.payoutBank)}</b> · reçu le 12/06</div>
+      ${d ? `<div class="row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)"><span class="cap">Pénalité · ${esc(d.reason)} · 12/06</span><span class="num" style="font-weight:600;color:var(--error)">−${eur(d.cents)}</span></div>` : ''}
+      <div style="margin-top:10px">${d ? '<button class="btn btn-ghost btn-text" id="rm">Supprimer la pénalité</button>' : '<button class="btn btn-outline" id="decl">Déclarer une pénalité</button>'}</div></div>`}`;
+  app.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => { pen.mode = b.dataset.m; pen.declared = null; renderPenalty(); }));
+  const de = $('#decl', app); if (de) de.addEventListener('click', openPenalty);
+  const rm = $('#rm', app); if (rm) rm.addEventListener('click', () => { pen.declared = null; renderPenalty(); toast('Pénalité supprimée · versement remis à 570,02 €'); });
+}
+function openPenalty() {
+  const fromReco = pen.mode === 'reco';
+  const st = { amount: fromReco ? '40,00' : '', reason: '', date: '2026-06-12', choice: fromReco ? 'before' : null, touched: false };
+  const s = openDialog('<div class="dialog" role="dialog" aria-modal="true" aria-label="Pénalité plateforme" style="max-width:560px"></div>');
+  const draw = (focusId, pos) => {
+    const cents = parseCents(st.amount);
+    const errs = {};
+    if (st.amount !== '' || st.touched) {
+      if (cents == null) errs.amount = 'Montant invalide : chiffres et virgule, 2 décimales au plus.';
+      else if (cents <= 0) errs.amount = 'Le montant doit être supérieur à 0.';
+      else if (cents > STAY.payoutStatement) errs.amount = `Plus que le versement du séjour (${eur(STAY.payoutStatement)}).`;
+    }
+    if (st.touched && st.reason.trim().length < 3) errs.reason = 'Motif obligatoire (3 caractères au moins).';
+    if (st.date > '2026-10-28') errs.date = 'Date dans le futur.';
+    const needChoice = !fromReco && !st.choice;
+    const c = cents && !errs.amount ? cents : 0;
+    let before, after;
+    if (st.choice === 'after') { before = { com: STAY.gross - STAY.payoutBank, net: STAY.payoutBank, payout: STAY.payoutBank }; after = { com: STAY.gross - STAY.payoutBank - c, net: STAY.payoutBank, payout: STAY.payoutBank + c }; }
+    else { before = { com: STAY.commission, net: STAY.payoutStatement, payout: STAY.payoutStatement }; after = { com: STAY.commission, net: STAY.payoutStatement - c, payout: STAY.payoutStatement }; }
+    if (after.com < 0 && !errs.amount) errs.amount = 'La commission deviendrait négative.';
+    const valid = cents && Object.keys(errs).length === 0 && !needChoice && st.reason.trim().length >= 3;
+    const pastMonth = st.date.slice(0, 7) < '2026-10';
+    s.querySelector('.dialog').innerHTML = `<div class="d-head"><div class="d-title">Pénalité plateforme</div><button class="x" aria-label="Fermer" data-close>×</button></div>
+      <div class="d-body">
+        <label class="f" for="pa">Montant (€)</label><input id="pa" type="text" inputmode="decimal" value="${esc(st.amount)}" class="${errs.amount ? 'invalid' : ''}">${errs.amount ? `<div class="err-text">${errs.amount}</div>` : ''}
+        <label class="f" for="pr">Motif</label><input id="pr" type="text" list="sugg" maxlength="120" value="${esc(st.reason)}" placeholder="Frais de relogement" class="${errs.reason ? 'invalid' : ''}">
+        <datalist id="sugg"><option value="Frais d’annulation hôte"><option value="Frais de relogement"><option value="Non-conformité"></datalist>
+        ${errs.reason ? `<div class="err-text">${errs.reason}</div>` : ''}
+        <label class="f" for="pd">Date</label><input id="pd" type="date" value="${st.date}" class="${errs.date ? 'invalid' : ''}">${errs.date ? `<div class="err-text">${errs.date}</div>` : '<div class="help">Par défaut, la date du versement.</div>'}
+        ${!fromReco ? `<div class="f" style="margin-top:14px">Le versement saisi (${eur(STAY.payoutBank)}) est :</div>
+          <label class="radio ${st.choice === 'before' ? 'on' : ''}"><input type="radio" name="ch" value="before" ${st.choice === 'before' ? 'checked' : ''}><span>le montant du relevé, avant pénalité</span></label>
+          <label class="radio ${st.choice === 'after' ? 'on' : ''}"><input type="radio" name="ch" value="after" ${st.choice === 'after' ? 'checked' : ''}><span>le montant reçu sur le compte, pénalité déjà déduite</span></label>` : ''}
+        ${!needChoice && c ? `<div class="preview"><span class="cap">Commission</span><span class="num">${eur(before.com)}</span><span class="arrow">→</span><b class="num">${eur(after.com)}</b>
+          <span class="cap">Versement</span><span class="num">${eur(before.payout)}</span><span class="arrow">→</span><b class="num">${eur(after.payout)}</b>
+          <span class="cap">Net reçu</span><span class="num">${eur(before.net)}</span><span class="arrow">→</span><b class="num">${eur(after.net)}</b></div>
+          <table class="journal" aria-label="Écriture comptable"><tr><th>Compte</th><th class="r">Débit</th><th class="r">Crédit</th></tr>
+            <tr><td>658000 · Pénalités plateformes</td><td class="r num">${eur(c)}</td><td></td></tr>
+            <tr><td>Client · Booking</td><td></td><td class="r num">${eur(c)}</td></tr></table>
+          ${pastMonth ? `<div class="fix warn">L’écriture de ${['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][+st.date.slice(5, 7) - 1]} ${st.choice === 'after' ? 'et la commission du versement changent' : 'change'} : si ce mois est déjà transmis, prévenir le comptable.</div>` : ''}` : ''}
+      </div>
+      <div class="d-foot"><div class="foot-row"><button class="btn btn-ghost" data-close>Annuler</button><button class="btn btn-primary" id="save">Déclarer</button></div></div>`;
+    s.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeDialog));
+    const bind = (id, key) => { const el = s.querySelector('#' + id); el.addEventListener('input', () => { st[key] = el.value; draw(id, el.selectionStart); }); };
+    bind('pa', 'amount'); bind('pr', 'reason');
+    s.querySelector('#pd').addEventListener('change', (e) => { st.date = e.target.value; draw(); });
+    s.querySelectorAll('[name=ch]').forEach((r) => r.addEventListener('change', () => { st.choice = r.value; draw(); }));
+    if (focusId) { const n = s.querySelector('#' + focusId); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* date input */ } }
+    s.querySelector('#save').addEventListener('click', () => {
+      st.touched = true;
+      if (!valid) { draw(); if (needChoice) toast('Préciser si le versement saisi inclut la pénalité.'); return; }
+      pen.declared = { cents, reason: st.reason.trim(), after: st.choice === 'after' }; closeDialog(); renderPenalty(); toast('Pénalité déclarée');
+    });
+  };
+  draw();
+}
+
+/* ================= 5 · HOME ================= */
+const home = [
+  { who: 'Julien Lemaire', what: 'Solde 700,00 € · en retard de 9 jours', bank: { state: 'proposed', label: 'Virement trouvé : 698,00 € le 04/04' } },
+  { who: 'Marie-Clémence de La Tour-Villeneuve-Saint-Hilaire', what: 'Échéance 2/3 · 1 030,00 € · en retard de 4 jours', bank: { state: 'nothing', label: 'Rien sur le compte' } },
+  { who: 'Booking · Léa Bernard', what: 'Versement plateforme 610,02 € · attendu depuis 6 jours', bank: { state: 'nothing', label: 'Rien sur le compte' } },
+];
+function renderHome() {
+  app.innerHTML = `<div class="cap" style="margin-bottom:8px">Accueil · À traiter</div>
+    <div class="card"><div class="row"><div><div class="sec">Échéances</div><div class="cap">${home.length} en retard</div></div><span class="badge b-warn">${home.length}</span></div>
+    <div style="margin-top:6px">${home.map((h, i) => `<div class="dash-row"><b style="overflow-wrap:anywhere">${esc(h.who)}</b><div class="cap">${esc(h.what)}</div>
+      <div class="bankline">${h.bank.state === 'proposed' ? `<span class="badge b-info">${h.bank.label}</span><button class="btn btn-primary" data-h="${i}" style="min-height:38px;padding:6px 14px">Confirmer</button>` : `<span class="cap">${h.bank.label}</span>`}
+      ${h.bank.state !== 'proposed' && !h.who.startsWith('Booking') ? '<button class="btn btn-outline" style="min-height:38px;padding:6px 12px">Relancer</button>' : ''}<button class="btn btn-ghost btn-text">Reporter</button></div></div>`).join('') || '<p class="cap" style="padding:10px 0">Aucune échéance en retard.</p>'}</div></div>`;
+  app.querySelectorAll('[data-h]').forEach((b) => b.addEventListener('click', () => { home.splice(Number(b.dataset.h), 1); renderHome(); toast('Solde marqué reçu le 04/04'); }));
+}
+
+/* ================= shell ================= */
+const RENDER = { fiche: renderFiche, page: renderPage, group: renderGroup, penalty: renderPenalty, home: renderHome };
+function show(id) { current = id; closeDialog(); document.querySelectorAll('[data-demo]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.demo === id))); $('#demoNote').textContent = NOTES[id]; RENDER[id](); }
+document.querySelectorAll('[data-demo]').forEach((b) => b.addEventListener('click', () => show(b.dataset.demo)));
+document.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => { width = b.dataset.w; document.querySelectorAll('[data-w]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); screen.classList.toggle('phone', width === 'phone'); }));
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (screen.querySelector('.scrim')) { closeDialog(); return; }
+  if (current === 'page' && page.filter) { page.filter = null; renderPage(); }
+});
+if (window.matchMedia('(max-width: 600px)').matches) { screen.classList.add('phone'); document.querySelectorAll('[data-w]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.w === 'phone'))); }
+show('fiche');
+})();
+</script>
+</body>
+</html>

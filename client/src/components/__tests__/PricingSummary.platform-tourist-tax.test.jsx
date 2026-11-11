@@ -9,7 +9,7 @@ import PricingSummary from '../PricingSummary';
 // This revises per-platform-tourist-tax-three-way.md, which printed it plain on the grounds that the
 // tax « isn't offert » — the strike does not say FREE, it says NOT OURS.
 //
-// Numbers: Gîtes de France, Grimaud #22225 — client 747,40 · taxe 14,40 · virement 668,00.
+// Numbers: Gîtes de France, Victor #22225 — client 747,40 · taxe 14,40 · virement 668,00.
 
 const FORM = {
   startDate: '2099-06-26', endDate: '2099-06-28', finalPrice: 733, customPrice: '',
@@ -78,7 +78,9 @@ test('rule 13 — the cascade deducts the withheld amount and lands on the state
   renderSummary({
     ...BASE, touristTaxOfferedByPlatform: true, platformTouristTaxWithheld: 14.40,
     preArrivalAmount: 733, platformCommissionAmount: 65, totalPlatformCommission: 65,
-    platformNetReceivedAmount: 668, sejourNetTotal: 668,
+    platformNetReceivedAmount: 668, sejourNetTotal: 668, platformSale: true,
+    // Shaped by the server (specs/ui-review-2026-10-19-operations.md rule 32).
+    summaryCascade: { grossTotal: 747.4, offeredTaxDeduction: 14.4, onSiteTotal: 0, commissionBase: 733 },
   });
 
   expect(screen.getByText('Total du séjour')).toBeInTheDocument();

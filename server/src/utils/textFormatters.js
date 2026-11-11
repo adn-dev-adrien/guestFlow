@@ -23,7 +23,31 @@ function capitalizeFirst(value) {
   return `${trimmed.slice(0, firstLetterIndex)}${trimmed.charAt(firstLetterIndex).toLocaleUpperCase('fr-FR')}${trimmed.slice(firstLetterIndex + 1)}`;
 }
 
+// A person's name (specs/free-text-keeps-case.md rule 5). Typed all in one case (« jean-pierre »,
+// « MARTIN-DUPONT ») → each word and each part after a hyphen or an apostrophe starts with a capital
+// (« Jean-Pierre », « Martin-Dupont », « D'Arc »). Typed in mixed case (« McDonald », « Le Goff »,
+// « de La Fontaine ») → kept as typed: the guest knows how their name is spelt.
+// Format characters (bidi overrides, zero-width space, BOM…) draw nothing or reorder what is drawn: a name
+// carrying them can read backwards or look identical to another. The joiners U+200C/U+200D stay, since
+// Persian and Indic names spell with them.
+const FORMAT_CHARS = /(?![\u200C\u200D])\p{Cf}/gu;
+const stripFormatChars = (value) => String(value == null ? '' : value).replace(FORMAT_CHARS, '');
+
+function personNameCase(value) {
+  if (value === null || value === undefined) return '';
+  const trimmed = stripFormatChars(value).trim().replace(/\s+/g, ' ');
+  if (!trimmed) return '';
+
+  const lower = trimmed.toLocaleLowerCase('fr-FR');
+  const upper = trimmed.toLocaleUpperCase('fr-FR');
+  if (trimmed !== lower && trimmed !== upper) return trimmed;
+
+  return lower.replace(/(^|[\s\-'’])(\p{L})/gu, (_, sep, letter) => `${sep}${letter.toLocaleUpperCase('fr-FR')}`);
+}
+
 module.exports = {
   sentenceCase,
   capitalizeFirst,
+  personNameCase,
+  stripFormatChars,
 };

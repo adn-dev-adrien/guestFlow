@@ -7,6 +7,8 @@
     "install:all": "cd server && npm install && cd ../client && npm install",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm start",
+    "dev:console": "concurrently \"npm --prefix control-plane/server run dev\" \"npm --prefix control-plane/client start\"",
+    "test:console": "npm --prefix control-plane/server test && npm --prefix control-plane/client test",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "stop": "node scripts/stop-dev.mjs",
     "build": "cd client && npm run build",
@@ -16,7 +18,9 @@
     "test:client": "npm --prefix client test",
     "test:e2e": "node e2e/wipe-db.js && playwright test",
     "test:e2e:headed": "node e2e/wipe-db.js && playwright test --headed",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:prod": "playwright test -c playwright.prod.config.js",
+    "test:e2e:bare": "export GUESTFLOW_E2E_DB_PATH=${GUESTFLOW_E2E_DB_PATH:-/tmp/guestflow-e2e-bare.db} && node e2e/wipe-db.js && playwright test -c playwright.bare.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.0",

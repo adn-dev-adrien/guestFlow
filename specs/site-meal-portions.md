@@ -28,8 +28,7 @@ Two problems reported by Adrien on 2026-09-22:
 2. **The wording says « repas ».** GuestFlow sends « par personne et par séance » / « Nombre de
    séances »; a hand-deployed mu-plugin on the Solio site rewrites « par séance » into « par repas » and
    adds a note « 2 repas × 4 personnes — 64 € » under the line
-   ([gf-seo-reservation.php:483-510](../integrations/wordpress/solio-site/mu-plugins/gf-seo-reservation.php#L483),
-   [gf-seo-blocks.php:261](../integrations/wordpress/solio-site/mu-plugins/gf-seo-blocks.php#L261)).
+   (`gf-seo-reservation.php:483-510`, `gf-seo-blocks.php:261` — mu-plugins that live in the deployment's private repository since 2026-10-19 ([phase P](plugins-phase-p-productisation.md) rule 30)).
    A breakfast is labelled a « repas ».
 
 ## 2. Goal
@@ -148,8 +147,8 @@ WordPress:
 |---|---|---|
 | `integrations/wordpress/guestflow-booking/blocks/booking/view.js` | T | Stepper max from `optionLimits`, hint line, adopt priced quantity |
 | `integrations/wordpress/guestflow-booking/guestflow-booking.php` (+ readme) | T | Plugin 1.8.0 → 1.9.0 (self-update from WP admin) |
-| `integrations/wordpress/solio-site/mu-plugins/gf-seo-reservation.php` | T | Drop the « par repas » rewrite and the « N repas × P personnes » note |
-| `integrations/wordpress/solio-site/mu-plugins/gf-seo-blocks.php` | T | Drop the breakfast/repas branch of `gf_seo_unite_affichee` |
+| site `mu-plugins/gf-seo-reservation.php` (private repository since 2026-10-19) | T | Drop the « par repas » rewrite and the « N repas × P personnes » note |
+| site `mu-plugins/gf-seo-blocks.php` (private repository since 2026-10-19) | T | Drop the breakfast/repas branch of `gf_seo_unite_affichee` |
 
 **Component reuse declaration:** no React component consumed or created. The plugin reuses its existing
 `stepper` and `gf-line-note`.

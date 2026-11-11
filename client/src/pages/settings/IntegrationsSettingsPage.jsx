@@ -1,76 +1,193 @@
 /**
  * IntegrationsSettingsPage — Paramètres → Intégrations (specs/settings-rationalization.md rule 2).
  *
- * The connections to other services: Google Agenda (self-contained OAuth card), the Neat
- * cancellation insurance (its own endpoints, written by this page's Save), the Météo-France key
- * (a masked setting of the settings form), and the Sowel gate-keys connector — a read-only card
- * (specs/gate-access-sowel-connector.md §3.6 rule 29).
+ * The connections to other services are the sections plugin modules contribute to the slot
+ * `settings.integrations` (specs/plugins-phase-1-sdk.md rule 13), one tab per plugin
+ * (specs/integrations-tab-per-plugin.md): a plugin's sections share its tab, in their `order`, and a
+ * single plugin draws no tab strip. The open tab is the URL's `?tab=<pluginId>`; the older
+ * `#plugin-<id>` anchor and the Google OAuth return (`?google=…`) open their plugin's tab.
  *
- * Then the sections of the plugin modules (slot `settings.integrations`) and the « Modules » card that
- * switches them on and off (specs/plugin-engine-backport.md rule 11). A card with a draft has no Save of
- * its own: the bar saves it through its ref.
+ * A section mounts the first time its tab opens and stays mounted, so a draft survives a switch. A
+ * card with a draft (Neat, Météo) has no Save of its own: the bar saves every dirty card, tab by
+ * tab, and stops on the first refusal, which opens its tab.
  */
-import React, { Suspense, useCallback, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
+import { Box } from '@mui/material';
 import useSettingsForm from '../../hooks/useSettingsForm';
 import SettingsFormPage from '../../components/SettingsFormPage';
-import SettingsGoogleCalendarSection from '../../components/SettingsGoogleCalendarSection';
-import SettingsNeatSection from '../../components/SettingsNeatSection';
-import SettingsWeatherSection from '../../components/SettingsWeatherSection';
-import SettingsGateAccessSection from '../../components/SettingsGateAccessSection';
-import PluginsActivationSection from '../../components/PluginsActivationSection';
+import PageTabs from '../../components/PageTabs';
+import TabDot from '../../components/TabDot';
 import { useSlot } from '../../plugins/sdk/useSlot';
+import { Contribution } from '../../plugins/sdk/Slot';
+import { GOOGLE_CALENDAR } from '../../constants/plugins';
+import api from '../../api';
+
+const ANCHOR_PREFIX = '#plugin-';
+
+/** Rule 1 — the contributions grouped by plugin, in the order of each plugin's first section. */
+function tabsOf(sections) {
+  const byPlugin = new Map();
+  sections.forEach((section) => {
+    if (!byPlugin.has(section.pluginId)) byPlugin.set(section.pluginId, []);
+    byPlugin.get(section.pluginId).push(section);
+  });
+  return [...byPlugin.entries()].map(([pluginId, own]) => ({
+    pluginId,
+    sections: own,
+    tabLabel: (own.find((s) => s.tabLabel) || {}).tabLabel || null,
+  }));
+}
+
+// Rule 6 — `#plugin-<id>`; a hash that does not decode is read as typed.
+function anchorId(hash) {
+  if (!String(hash || '').startsWith(ANCHOR_PREFIX)) return null;
+  const raw = hash.slice(ANCHOR_PREFIX.length);
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
 
 export default function IntegrationsSettingsPage() {
   const navigate = useNavigate();
-  const form = useSettingsForm({ groups: ['weather'], navigate });
+  const { pathname, search, hash } = useLocation();
+  const form = useSettingsForm({ groups: [], navigate });
   const { setExternalDirty } = form;
-  const sections = useSlot('settings.integrations');
-  // The Neat card and every plugin section that exposes save/reset keep their own data and endpoints but
-  // not their own Save (specs/settings-one-save-and-automatic-webhook.md rules 1-4).
+  const tabs = tabsOf(useSlot('settings.integrations'));
+  const ids = tabs.map((t) => t.pluginId);
+  const strip = tabs.length > 1;
+
+  // Rules 5–7 — the URL names the tab; an old anchor or the Google return stand in for it.
+  const params = new URLSearchParams(search);
+  const asked = [params.get('tab'), anchorId(hash), params.get('google') ? GOOGLE_CALENDAR : null]
+    .find((id) => id && ids.includes(id));
+  const tab = asked || ids[0] || null;
+
+  useEffect(() => {
+    if (!tab) return;
+    const next = new URLSearchParams(search);
+    if (strip) next.set('tab', tab); else next.delete('tab');
+    if (next.toString() === new URLSearchParams(search).toString() && !hash) return;
+    navigate({ pathname, search: next.toString() ? `?${next}` : '', hash: '' }, { replace: true });
+  }, [tab, strip, pathname, search, hash, navigate]);
+
+  const selectTab = useCallback((id) => {
+    const next = new URLSearchParams(search);
+    next.set('tab', id);
+    navigate({ pathname, search: `?${next}` }, { replace: true });
+  }, [pathname, search, navigate]);
+
+  // Rule 9 — a tab's sections mount at its first opening and stay.
+  const [opened, setOpened] = useState(() => new Set());
+  useEffect(() => {
+    if (tab && !opened.has(tab)) setOpened((prev) => new Set(prev).add(tab));
+  }, [tab, opened]);
+
+  // Rules 4 and 11 — the catalogue names and setup states, as the Plugins page reads them.
+  const [catalogue, setCatalogue] = useState({});
+  const loadCatalogue = useCallback(() => api.getPlugins()
+    .then((list) => setCatalogue(Object.fromEntries((list || []).map((p) => [p.id, p]))))
+    .catch(() => {}), []);
+  useEffect(() => { loadCatalogue(); }, [loadCatalogue]);
+
   const cardRefs = useRef({});
   const [dirtyCards, setDirtyCards] = useState({});
+  const [refused, setRefused] = useState(null);
   const handleDirty = useCallback((key) => (dirty) => {
-    setDirtyCards((prev) => {
-      if (Boolean(prev[key]) === dirty) return prev;
-      const next = { ...prev, [key]: dirty };
-      setExternalDirty(Object.values(next).some(Boolean));
-      return next;
+    setDirtyCards((prev) => (Boolean(prev[key]) === dirty ? prev : { ...prev, [key]: dirty }));
+  }, []);
+
+  // A card whose plugin left the slot (disabled during the session) takes its draft with it: the
+  // page is « modified » only by the cards still drawn.
+  const liveKeys = tabs.flatMap((t) => t.sections.map(({ key }) => `${t.pluginId}:${key}`)).join('\n');
+  useEffect(() => {
+    const live = new Set(liveKeys.split('\n'));
+    setDirtyCards((prev) => (Object.keys(prev).every((key) => live.has(key))
+      ? prev
+      : Object.fromEntries(Object.entries(prev).filter(([key]) => live.has(key)))));
+  }, [liveKeys]);
+  useEffect(() => {
+    setExternalDirty(Object.values(dirtyCards).some(Boolean));
+  }, [dirtyCards, setExternalDirty]);
+
+  // Rule 10 — every dirty card, tab by tab; the first refusal stops the run and opens its tab.
+  const handleSave = async () => {
+    setRefused(null);
+    await form.save({
+      afterSettings: async () => {
+        for (const { pluginId, sections } of tabs) {
+          for (const { key } of sections) {
+            const card = cardRefs.current[`${pluginId}:${key}`];
+            if (!card || !dirtyCards[`${pluginId}:${key}`]) continue;
+            try {
+              await card.save();
+            } catch (err) {
+              setRefused(pluginId);
+              if (pluginId !== tab) selectTab(pluginId);
+              throw err;
+            }
+          }
+        }
+      },
     });
-  }, [setExternalDirty]);
+    loadCatalogue();
+  };
+
+  const handleCancel = () => {
+    form.cancel();
+    setRefused(null);
+    Object.values(cardRefs.current).forEach((card) => { if (card && card.reset) card.reset(); });
+  };
+
   const bindCard = (key) => ({
     ref: (el) => { cardRefs.current[key] = el; },
     onDirtyChange: handleDirty(key),
   });
 
-  const handleSave = () => form.save({
-    afterSettings: async () => {
-      for (const [key, card] of Object.entries(cardRefs.current)) {
-        if (card && dirtyCards[key]) await card.save();
-      }
-    },
-  });
-
-  const handleCancel = () => {
-    form.cancel();
-    Object.values(cardRefs.current).forEach((card) => { if (card && card.reset) card.reset(); });
+  // Rule 11 — one dot at a time: refused, then modified, then still to set up.
+  const dotOf = (pluginId) => {
+    if (refused === pluginId) return <TabDot color="error" label="refusé" />;
+    if (Object.entries(dirtyCards).some(([key, dirty]) => dirty && key.startsWith(`${pluginId}:`))) {
+      return <TabDot color="primary" label="modifié" />;
+    }
+    const setup = catalogue[pluginId] && catalogue[pluginId].setup;
+    return setup && setup.needed ? <TabDot color="warning" label="à configurer" /> : null;
   };
 
+  const labelOf = (t) => t.tabLabel || (catalogue[t.pluginId] && catalogue[t.pluginId].name) || t.pluginId;
+
   return (
-    <SettingsFormPage title="Intégrations" form={form} onSave={handleSave} onCancel={handleCancel}>
-      <SettingsGoogleCalendarSection />
-      <SettingsNeatSection {...bindCard('neat')} />
-      <SettingsWeatherSection
-        values={form.draft.weather}
-        onChangeApiKey={(value) => form.setField('weather', 'apiKeyDraft', value)}
-      />
-      <SettingsGateAccessSection />
-      {sections.map(({ key, pluginId, Component }) => (
-        <Suspense key={`${pluginId}:${key}`} fallback={null}>
-          <Component {...bindCard(`${pluginId}:${key}`)} />
-        </Suspense>
+    <SettingsFormPage
+      title="Intégrations"
+      form={form}
+      onSave={handleSave}
+      onCancel={handleCancel}
+      tabs={strip ? (
+        <PageTabs
+          value={tab}
+          onChange={selectTab}
+          items={tabs.map((t) => ({ value: t.pluginId, label: labelOf(t), badge: dotOf(t.pluginId) }))}
+          ariaLabel="Intégrations"
+        />
+      ) : null}
+    >
+      {tabs.filter((t) => t.pluginId === tab || opened.has(t.pluginId)).map((t) => (
+        <Box
+          key={t.pluginId}
+          role={strip ? 'tabpanel' : undefined}
+          aria-label={strip ? labelOf(t) : undefined}
+          hidden={t.pluginId !== tab}
+          sx={{
+            animation: 'gfIntegrationTabIn 160ms ease-out',
+            '@keyframes gfIntegrationTabIn': { from: { opacity: 0 }, to: { opacity: 1 } },
+            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+          }}
+        >
+          {t.sections.map(({ key, Component }) => (
+            <Contribution key={key} pluginId={t.pluginId}>
+              <Component {...bindCard(`${t.pluginId}:${key}`)} />
+            </Contribution>
+          ))}
+        </Box>
       ))}
-      <PluginsActivationSection />
     </SettingsFormPage>
   );
 }

@@ -51,10 +51,73 @@ function comparableRange(window, coverage) {
   };
 }
 
+const lastDayOf = (ym) => {
+  const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
+  return `${ym}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+};
+const dayBefore = (iso) => new Date(Date.parse(`${iso}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+
+/**
+ * Rule 33 — is last year « as it stood a year ago » known? Only once booking dates were tracked a year
+ * ago: `trackingStart` is the booking pace's start (the day after the initial import). Before that,
+ * reading the stays created by `today − 1 year` finds nothing and would compare against 0 €.
+ */
+function lastYearSnapshotKnown(today, trackingStart) {
+  return Boolean(trackingStart) && shiftYear(today, -1) >= trackingStart;
+}
+
+/**
+ * specs/finance-revpar-year-over-year.md rule 22 — the first day `lastYearSnapshotKnown` holds: the
+ * first d with shiftYear(d, −1) ≥ trackingStart. A tracking start on 29 February is reached a year later
+ * on 1 March, never on the 28th (shiftYear lands the 29th on the 28th).
+ */
+function snapshotKnownFrom(trackingStart) {
+  if (!trackingStart) return null;
+  const next = shiftYear(trackingStart, 1);
+  if (shiftYear(next, -1) >= trackingStart) return next;
+  return new Date(Date.parse(`${next}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+}
+
+/** A month is over once its last day is before today. */
+function isMonthOver(ym, today) {
+  return lastDayOf(ym) < today;
+}
+
+/**
+ * Rule 33 — without last year's snapshot, a comparable range keeps only its months already over
+ * (both sides final); null when none is.
+ */
+function clampToMonthsOver(range, today) {
+  if (!range) return null;
+  const lastOver = dayBefore(`${today.slice(0, 7)}-01`);
+  if (range.current.to <= lastOver) return range;
+  if (lastOver < range.current.from) return null;
+  return {
+    current: { from: range.current.from, to: lastOver },
+    previous: { from: range.previous.from, to: shiftYear(lastOver, -1) },
+    months: monthsTouched(range.current.from, lastOver),
+    totalMonths: range.totalMonths,
+    complete: false,
+  };
+}
+
+/**
+ * Rule 33 — which reading of last year a month gets: 'knownAt' (as it stood a year ago) when that
+ * snapshot is known, 'final' once the month is over, null otherwise. Comparability (rule 18) is
+ * judged apart, by `isComparableMonth`.
+ */
+function lastYearReading(ym, { today, snapshotKnown }) {
+  if (snapshotKnown) return 'knownAt';
+  return isMonthOver(ym, today) ? 'final' : null;
+}
+
 // Change in percent, one decimal; null when there is nothing to compare against.
 function change(current, previous) {
   if (!(previous > 0)) return null;
   return Math.round(((current - previous) / previous) * 1000) / 10;
 }
 
-module.exports = { shiftYear, shiftMonth, coverageMonth, isComparableMonth, comparableRange, change, monthsTouched };
+module.exports = {
+  shiftYear, shiftMonth, coverageMonth, isComparableMonth, comparableRange, change, monthsTouched,
+  lastYearSnapshotKnown, isMonthOver, clampToMonthsOver, lastYearReading, snapshotKnownFrom,
+};

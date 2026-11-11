@@ -49,7 +49,7 @@ const SETTLED = {
 function buildController({ captures, group = SETTLED.arrivalPaymentGroup, resolved }) {
   return withMocks({
     '../utils/pricing': { calculateReservationQuote: () => ({ error: null }) },
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-09-06' },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },
@@ -126,13 +126,13 @@ test('l’ajustement écrit une ligne d’historique qui dit le geste', () => {
   assert.equal(captures.history.length, 1);
   const [line] = captures.history;
   assert.equal(line.label, "Total encaissé à l'arrivée");
-  assert.equal(line.from, '500 €');
-  assert.match(line.to, /450 €.*réduction 50 €/);
+  assert.equal(line.fromText, '500 €');
+  assert.match(line.toText, /450 €.*réduction 50 €/);
 });
 
 test('un pourboire se lit aussi dans l’historique', () => {
   const { captures } = adjust(520, { resolved: { reduction: 0, tip: 20, total: 520, floor: 100, floored: false } });
-  assert.match(captures.history[0].to, /520 €.*pourboire 20 €/);
+  assert.match(captures.history[0].toText, /520 €.*pourboire 20 €/);
 });
 
 test('un ajustement qui ne change rien n’écrit pas de ligne', () => {

@@ -1,3 +1,4 @@
+// server-test-isolation.md rule 11 — a « nothing shown » check first waits for the answer that could show it.
 import { vi } from 'vitest';
 /**
  * « Échéances de paiement » dashboard card (specs/payment-schedule-and-cancellation.md §3.4 / §6).
@@ -6,7 +7,7 @@ import { vi } from 'vitest';
  */
 
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DialogProvider from '../DialogProvider';
 
@@ -17,11 +18,15 @@ vi.mock('../../api', () => ({
     snoozePaymentDeadline: vi.fn(),
     remindPaymentDeadline: vi.fn(),
     cancelReservation: vi.fn(),
+    getCancellationPreview: vi.fn(),
   },
 }));
 
 import api from '../../api';
 import PaymentDeadlinesAlert from '../PaymentDeadlinesAlert';
+
+// The home's subject this card draws (specs/shell-and-home-day-first.md rule 6 — server-made).
+const ATTENTION = { key: 'payment-deadlines', severity: 'todo', count: 1, title: 'Échéances de paiement', detail: '1 en retard' };
 
 const CANCEL_DUE = {
   reservationId: 10,
@@ -103,7 +108,7 @@ const AMOUNT_MISSING = {
 
 const renderCard = () => render(
   <DialogProvider>
-    <PaymentDeadlinesAlert />
+    <PaymentDeadlinesAlert attention={ATTENTION} />
   </DialogProvider>,
 );
 
@@ -114,7 +119,7 @@ beforeEach(() => {
 
 test('renders nothing when no deadline is missed', async () => {
   const { container } = renderCard();
-  await waitFor(() => expect(api.getPaymentDeadlines).toHaveBeenCalled());
+  await act(() => api.getPaymentDeadlines.mock.results.at(-1).value);
   expect(container.textContent).toBe('');
 });
 
@@ -162,16 +167,18 @@ test('« Reporter » snoozes for a week and reloads', async () => {
 // bord, et passe par le récapitulatif de la règle 22 avant d'être confirmée.
 test('cancelling goes through the confirmation dialog and its recap', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE] });
-  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 274 });
+  api.getCancellationPreview.mockResolvedValue({ cancellationReason: 'unpaid_balance', retainedDepositAmount: 274, indemnityAmount: 274, writtenOffBalance: 640 });
+  api.cancelReservation.mockResolvedValue({ ok: true, retainedDepositAmount: 274, indemnityAmount: 274 });
   renderCard();
   await userEvent.click(await screen.findByRole('button', { name: 'Annuler le séjour' }));
 
   const dialog = await screen.findByRole('dialog');
-  expect(within(dialog).getByText(/Acompte conservé/)).toBeInTheDocument();
+  expect(await within(dialog).findByText(/Conservé en indemnité/)).toBeInTheDocument();
   expect(within(dialog).getByText(/Solde abandonné/)).toBeInTheDocument();
   expect(within(dialog).getByText(/remises à la vente/)).toBeInTheDocument();
 
   await userEvent.type(within(dialog).getByLabelText('Motif'), 'Sans nouvelles');
+  await within(dialog).findByText('274,00 €');
   await userEvent.click(within(dialog).getByRole('button', { name: 'Annuler le séjour' }));
   await waitFor(() => expect(api.cancelReservation).toHaveBeenCalledWith(10, {
     reason: 'Sans nouvelles', notifyClient: true,
@@ -258,9 +265,10 @@ test('a to-do past its deadline says how long the asking has waited, not that th
   expect(await screen.findByText(/Acompte jamais demandé — échéance dépassée de 4 jours/)).toBeInTheDocument();
 });
 
-test('the title counts the late rows and the to-dos separately', async () => {
+test('the title, count and « N en retard · M à demander » are the server’s (specs/shell-and-home-day-first.md rule 6)', async () => {
   api.getPaymentDeadlines.mockResolvedValue({ rows: [CANCEL_DUE, DEPOSIT_TO_REQUEST] });
   renderCard();
 
-  expect(await screen.findByText(/Échéances de paiement — 1 en retard · 1 à demander/)).toBeInTheDocument();
+  expect(await screen.findByText('Échéances de paiement')).toBeInTheDocument();
+  expect(screen.getByText(ATTENTION.detail)).toBeInTheDocument();
 });

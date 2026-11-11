@@ -37,7 +37,7 @@ test('GET shows the confirmation button and changes nothing', () => {
   const { db, controller, token } = setup();
   const res = fakeRes();
   controller.show({ query: { t: token }, baseUrl: '/preferences', path: '/emails' }, res);
-  assert.match(res.body, /Ne plus recevoir les nouvelles du domaine/);
+  assert.match(res.body, /Ne plus recevoir nos nouvelles/);
   assert.match(res.body, /method="post" action="\/preferences\/emails"/);
   assert.equal(db.prepare('SELECT marketingUnsubscribedAt AS d FROM clients WHERE id = 1').get().d, null);
   assert.equal(res.headers['Cache-Control'], 'no-store');
@@ -78,7 +78,7 @@ test('the page speaks the client\'s language', () => {
   db.prepare("UPDATE clients SET emailLanguage = 'en' WHERE id = 1").run();
   const res = fakeRes();
   controller.show({ query: { t: token }, baseUrl: '/preferences', path: '/emails' }, res);
-  assert.match(res.body, /Stop receiving news from the domain/);
+  assert.match(res.body, /Stop receiving our news/);
 });
 
 test('unsubscribe link: built on the public URL, empty without one', () => {

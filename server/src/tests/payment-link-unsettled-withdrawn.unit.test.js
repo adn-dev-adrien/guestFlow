@@ -1,0 +1,247 @@
+// specs/payment-link-lifecycle.md rule 56 (decided by Adrien 2026-10-31) — a link withdrawn by hand and paid AFTER
+// its withdrawal (rule-8 alert, money not counted for the stay) blocks every new payment request of the stay until
+// the operator settles it: refunded (`cancelReason = 'refunded'`), or recorded as the stay's money (`paid`).
+
+process.env.TZ = 'Europe/Paris';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const { seedDb, addStay, addLink, fakeProvider, spies } = require('./paymentLinkLifecycleFixture');
+const { ensurePaymentLink, ensureInstallmentLink } = require('../utils/paymentRequestService');
+const { withdrawPaymentLink } = require('../utils/paymentLinkWithdrawal');
+const { retryPendingCancellations } = require('../utils/paymentPollRunner');
+const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
+const { buildLedger } = require('../utils/reservationLedger');
+const devisModel = require('../models/devisModel');
+const { emailsFixture, teardown } = require('./paymentLinkEmailsFixture');
+const { localIsoDate } = require('../utils/localDate');
+
+test.afterEach(teardown);
+
+const inDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return localIsoDate(d); };
+const MESSAGE = 'Paiement reçu sur un lien retiré : à traiter avant toute nouvelle demande.';
+const refused = (err) => err.httpStatus === 409 && err.error === 'UNSETTLED_WITHDRAWN_PAYMENT' && err.message === MESSAGE;
+
+// A deposit link withdrawn while the provider was disconnected, then paid a minute after its withdrawal.
+async function paidAfterWithdrawal(db, links, stayId) {
+  const link = addLink(links, db, stayId, { type: 'deposit' });
+  const at = new Date();
+  await withdrawPaymentLink(link.id, { database: db, paymentLinksModel: links, provider: null, bookPaid: async () => {}, now: at });
+  const provider = fakeProvider({ paid: true, paidAt: new Date(at.getTime() + 60 * 1000).toISOString() });
+  await retryPendingCancellations({ paymentLinksModel: links, provider, database: db, devisModel: devisModel.buildModel(db), logger: { log() {}, warn() {} }, ...spies() });
+  return links.findById(link.id);
+}
+
+async function setup() {
+  const { db, links } = seedDb();
+  const id = addStay(db, { startDate: inDays(40), endDate: inDays(43) });
+  const link = await paidAfterWithdrawal(db, links, id);
+  const provider = fakeProvider();
+  const deps = { database: db, paymentLinksModel: links, provider, resolveAmountCents: () => 21000 };
+  return { db, links, id, link, provider, deps };
+}
+
+test('rule 56: the rule-8 money stays off the stay, and the next request of any bucket is refused before any provider call', async () => {
+  const { db, id, link, provider, deps } = await setup();
+  assert.equal(link.status, 'cancelled');
+  assert.ok(link.paidAt);
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid, 0);
+  await assert.rejects(ensurePaymentLink(deps, id, 'balance'), refused);
+  await assert.rejects(ensurePaymentLink(deps, id, 'deposit'), refused);
+  assert.deepEqual(provider.calls, []);
+});
+
+test('rule 56: an échéance of the stay is refused too', async () => {
+  const { id, provider, deps } = await setup();
+  const installment = { id: 41, reservationId: id, number: 1, amountCents: 15000, paid: 0 };
+  const installmentsModel = { findById: () => installment, listFor: () => [installment] };
+  await assert.rejects(ensureInstallmentLink({ ...deps, installmentsModel }, id, 41), refused);
+  assert.deepEqual(provider.calls, []);
+});
+
+test('rule 56: the request e-mail is refused before any mint, nothing sent', async () => {
+  const f = emailsFixture();
+  await paidAfterWithdrawal(f.db, f.links, f.id);
+  const r = await f.send('balance_request');
+  assert.equal(r.statusCode, 409);
+  assert.equal(r.body.error, 'UNSETTLED_WITHDRAWN_PAYMENT');
+  assert.equal(r.body.message, MESSAGE);
+  assert.deepEqual(f.minted, []);
+  assert.equal(f.sent.length, 0);
+});
+
+test('rule 56: « remboursé » settles it — reason `refunded`, the money still off the stay, requests free again', async () => {
+  const { db, links, id, link, deps } = await setup();
+  const { link: after } = await settleWithdrawnPayment(link.id, { database: db, paymentLinksModel: links, outcome: 'refunded', bookPaid: async () => { throw new Error('not booked'); } });
+  assert.equal(after.status, 'cancelled');
+  assert.equal(after.cancelReason, 'refunded');
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid, 0);
+  assert.equal((await ensurePaymentLink(deps, id, 'balance')).reused, false);
+});
+
+test('rule 56: « enregistrer sur le séjour » settles it — booked through the late-booking path, requests free again', async () => {
+  const { db, links, id, link, deps } = await setup();
+  const booked = [];
+  await settleWithdrawnPayment(link.id, {
+    database: db, paymentLinksModel: links, outcome: 'stay',
+    bookPaid: async (l, pay) => { booked.push([l.id, pay.paymentId, pay.paidAt]); links.markRetiredLinkPaid(l.id, { providerPaymentId: pay.paymentId, paidAt: pay.paidAt, reason: 'operator' }); },
+  });
+  assert.deepEqual(booked, [[link.id, link.providerPaymentId, link.paidAt]]);
+  assert.equal(links.findById(link.id).status, 'paid');
+  assert.equal((await ensurePaymentLink(deps, id, 'balance')).reused, false);
+});
+
+test('rule 56: only such a payment can be settled; a second settle changes nothing', async () => {
+  const { db, links, id, link } = await setup();
+  const other = addLink(links, db, id, { type: 'balance' });
+  const deps = { database: db, paymentLinksModel: links, bookPaid: async () => {} };
+  await assert.rejects(settleWithdrawnPayment(other.id, { ...deps, outcome: 'refunded' }), (err) => err.httpStatus === 409 && err.error === 'NOTHING_TO_SETTLE');
+  await assert.rejects(settleWithdrawnPayment(link.id, { ...deps, outcome: 'elsewhere' }), (err) => err.httpStatus === 400);
+  await assert.rejects(settleWithdrawnPayment(999, { ...deps, outcome: 'refunded' }), (err) => err.httpStatus === 404);
+  await settleWithdrawnPayment(link.id, { ...deps, outcome: 'refunded' });
+  await assert.rejects(settleWithdrawnPayment(link.id, { ...deps, outcome: 'stay' }), (err) => err.error === 'NOTHING_TO_SETTLE');
+});
+
+test('rule 56: the ledger names the payment and offers both ways to settle it; once refunded it says so', async () => {
+  const { db, links, id, link } = await setup();
+  const ledgerOf = () => buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) }, links: links.listForReservation(id), canRequest: true, today: inDays(0) })
+    .rows.find((r) => r.key === 'deposit').detail.link;
+  const day = localIsoDate(new Date(link.paidAt));
+  const shown = ledgerOf();
+  // Review of #902 (O3) — the amount is on the row and in both confirmations.
+  assert.match(shown.label, new RegExp(`^90,00\u00a0€ payés le ${day.slice(8, 10)}/${day.slice(5, 7)}(/\\d{4})? après retrait : à traiter$`));
+  assert.equal(shown.resend, undefined);
+  assert.deepEqual(shown.settle, {
+    linkId: link.id,
+    stay: { label: 'Enregistrer sur le séjour', confirmTitle: 'Enregistrer 90,00\u00a0€ sur le séjour ?', confirmMessage: 'Le montant est compté comme perçu ; confirmation envoyée au client.', confirmLabel: 'Enregistrer' },
+    refunded: { label: 'Marquer remboursé', confirmTitle: '90,00\u00a0€ remboursés ?', confirmMessage: 'À confirmer une fois le remboursement fait chez le prestataire.', confirmLabel: 'Remboursé' },
+  });
+  await settleWithdrawnPayment(link.id, { database: db, paymentLinksModel: links, outcome: 'refunded', bookPaid: async () => {} });
+  const after = ledgerOf();
+  assert.equal(after.label, 'Lien retiré · paiement remboursé');
+  assert.equal(after.settle, undefined);
+  assert.deepEqual(after.resend, { type: 'deposit', label: 'Renvoyer la demande' });
+});
+
+test('rule 56: « enregistrer sur le séjour » through the real late booking marks the bucket paid and confirms', async () => {
+  const { db, links, id, link } = await setup();
+  const { bookWithdrawnPaid } = require('../utils/paymentPollRunner');
+  const s = spies();
+  await settleWithdrawnPayment(link.id, {
+    database: db, paymentLinksModel: links, outcome: 'stay',
+    bookPaid: (l, pay) => bookWithdrawnPaid({ database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, link: l, pay, ...s }),
+  });
+  assert.equal(links.findById(link.id).status, 'paid');
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid, 1);
+  assert.deepEqual(s.confirmed, [id]);
+});
+
+// Review of #902 (O1) — the open link of the bucket is not handed out again while the payment waits.
+test('rule 56 (O1): an open link is not reused while a payment received after a withdrawal is unsettled', async () => {
+  const { db, links, id, provider, deps } = await setup();
+  addLink(links, db, id, { type: 'balance', amountCents: 21000, expiresAt: new Date(Date.now() + 30 * 3600 * 1000) });
+  await assert.rejects(ensurePaymentLink(deps, id, 'balance'), refused);
+  assert.deepEqual(provider.calls, []);
+});
+
+// Review of #902 (O2) — a read-only stay can still record the refund, never take the money as its own.
+for (const kind of ['cancelled', 'superseded']) {
+  test(`rule 56 (O2): on a ${kind} stay « Marquer remboursé » stays offered and works; « stay » is refused STAY_READ_ONLY`, async () => {
+    const { db, links, id, link } = await setup();
+    db.prepare('UPDATE reservations SET kind = ? WHERE id = ?').run(kind, id);
+    const settle = buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) }, links: links.listForReservation(id), canRequest: true, today: inDays(0) })
+      .rows.find((r) => r.key === 'deposit').detail.link.settle;
+    assert.equal(settle.linkId, link.id);
+    assert.equal(settle.stay, undefined);
+    assert.equal(settle.refunded.label, 'Marquer remboursé');
+    const deps = { database: db, paymentLinksModel: links, bookPaid: async () => { throw new Error('never booked'); } };
+    await assert.rejects(settleWithdrawnPayment(link.id, { ...deps, outcome: 'stay' }), (err) => err.httpStatus === 409 && err.error === 'STAY_READ_ONLY');
+    assert.equal((await settleWithdrawnPayment(link.id, { ...deps, outcome: 'refunded' })).link.cancelReason, 'refunded');
+  });
+}
+
+// Review of #902 (O3) — on a devis the confirmation says what « Enregistrer » does: the conversion, and whether
+// the guest is told (not when the nights are closed or taken).
+test('rule 56 (O3): a devis — converted and confirmed; on unavailable nights, converted without confirmation', async () => {
+  const { db, links } = seedDb();
+  const id = addStay(db, { kind: 'devis', startDate: inDays(40), endDate: inDays(43) });
+  await paidAfterWithdrawal(db, links, id);
+  const stayOf = (nightsUnavailable) => buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) }, links: links.listForReservation(id), canRequest: true, today: inDays(0), nightsUnavailable })
+    .rows.find((r) => r.key === 'deposit').detail.link.settle.stay;
+  assert.equal(stayOf(false).confirmMessage, 'Le devis devient une réservation ; confirmation envoyée au client.');
+  assert.equal(stayOf(true).confirmMessage, 'Le devis devient une réservation, sans confirmation au client : dates fermées ou prises.');
+});
+
+test('rule 56 (O3): a reservation on unavailable nights — counted as received, without confirmation', async () => {
+  const { db, links, id } = await setup();
+  const stay = buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(id) }, links: links.listForReservation(id), canRequest: true, today: inDays(0), nightsUnavailable: true })
+    .rows.find((r) => r.key === 'deposit').detail.link.settle.stay;
+  assert.equal(stay.confirmMessage, 'Le montant est compté comme perçu, sans confirmation au client : dates fermées ou prises.');
+});
+
+// Final check of #902 (M1) — one decision, « closed or taken », for the ledger's message, « Enregistrer sur le
+// séjour » and the poll's late booking, on the stay the link answers for: a FICHE whose nights another stay took
+// gets no confirmation and the « déplacer ou rembourser » alert, like a devis in conflict.
+const { conflictCheckerFor } = require('../utils/paymentEffectDeps');
+const { unavailableNights } = require('../utils/closedStayDates');
+
+function takeNights(db, stayId) {
+  const s = db.prepare('SELECT propertyId, startDate, endDate FROM reservations WHERE id = ?').get(stayId);
+  return Number(db.prepare(`INSERT INTO reservations (kind, propertyId, clientId, startDate, endDate, adults, finalPrice, depositAmount, balanceAmount)
+    VALUES ('reservation', ?, 1, ?, ?, 2, 300, 90, 210)`).run(s.propertyId, s.startDate, s.endDate).lastInsertRowid);
+}
+
+test('rule 56 (M1): the shared decision — free, taken by another stay, closed', async () => {
+  const { db, id } = await setup();
+  const checkConflict = conflictCheckerFor(db);
+  assert.equal(unavailableNights(db, id, { checkConflict }), null);
+  takeNights(db, id);
+  assert.equal(unavailableNights(db, id, { checkConflict }), 'taken');
+  db.prepare("INSERT INTO establishment_closures (propertyId, label, startDate, endDate) SELECT propertyId, 'Travaux', startDate, endDate FROM reservations WHERE id = ?").run(id);
+  assert.equal(unavailableNights(db, id, { checkConflict }), 'closed');
+});
+
+test('rule 56 (M1): « Enregistrer sur le séjour » on a fiche whose nights were taken — booked, no confirmation, alert', async () => {
+  const { db, links, id, link } = await setup();
+  takeNights(db, id);
+  const { bookWithdrawnPaid } = require('../utils/paymentPollRunner');
+  const s = spies();
+  await settleWithdrawnPayment(link.id, {
+    database: db, paymentLinksModel: links, outcome: 'stay',
+    bookPaid: (l, pay) => bookWithdrawnPaid({ database: db, devisModel: devisModel.buildModel(db), paymentLinksModel: links, link: l, pay, checkConflict: conflictCheckerFor(db), ...s }),
+  });
+  assert.equal(db.prepare('SELECT depositPaid FROM reservations WHERE id = ?').get(id).depositPaid, 1);
+  assert.deepEqual(s.confirmed, []);
+  assert.deepEqual(s.notified, [[link.id, { nightsUnavailable: 'taken' }]]);
+});
+
+test('rule 42 (M1): the poll’s late booking on a fiche whose nights were taken — booked, no confirmation, alert', async () => {
+  const { db, links } = seedDb();
+  const id = addStay(db, { startDate: inDays(40), endDate: inDays(43) });
+  const link = addLink(links, db, id, { type: 'deposit' });
+  const at = new Date();
+  await withdrawPaymentLink(link.id, { database: db, paymentLinksModel: links, provider: null, bookPaid: async () => {}, now: at });
+  takeNights(db, id);
+  const s = spies();
+  const provider = fakeProvider({ paid: true, paidAt: new Date(at.getTime() - 60 * 1000).toISOString() });
+  await retryPendingCancellations({ paymentLinksModel: links, provider, database: db, devisModel: devisModel.buildModel(db), checkConflict: conflictCheckerFor(db), logger: { log() {}, warn() {} }, ...s });
+  assert.equal(links.findById(link.id).status, 'paid');
+  assert.deepEqual(s.confirmed, []);
+  assert.deepEqual(s.notified, [[link.id, { nightsUnavailable: 'taken' }]]);
+});
+
+// Final check of #902 (O4) — a devis converted into a reservation since cancelled answers as that stay: refund only.
+test('rule 56 (O4): the stay the link answers for decides read-only; the ledger then offers « Marquer remboursé » only', async () => {
+  const { db, links } = seedDb();
+  const devisId = addStay(db, { kind: 'devis', startDate: inDays(40), endDate: inDays(43) });
+  await paidAfterWithdrawal(db, links, devisId);
+  const resa = addStay(db, { kind: 'cancelled', startDate: inDays(40), endDate: inDays(43) });
+  db.prepare("UPDATE reservations SET devisStatus = 'converted', convertedReservationId = ? WHERE id = ?").run(resa, devisId);
+  const { stayIsReadOnly } = require('../utils/withdrawnPayments');
+  assert.equal(stayIsReadOnly(db, devisId), true);
+  const settle = buildLedger({ row: { ...db.prepare('SELECT * FROM reservations WHERE id = ?').get(devisId) }, links: links.listForReservation(devisId), canRequest: true, today: inDays(0), stayReadOnly: true })
+    .rows.find((r) => r.key === 'deposit').detail.link.settle;
+  assert.equal(settle.stay, undefined);
+  assert.equal(settle.refunded.label, 'Marquer remboursé');
+});

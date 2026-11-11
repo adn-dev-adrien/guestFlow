@@ -4,17 +4,20 @@
  * Composes LogoUpload + identity fields + bank details.
  *
  * Props:
- *   values:      { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath }
+ *   values:      { name, address, email, phone, siret, tva, iban, bic, bankName, logoPath, … }
+ *                (plugin fields of the `settings.etablissement` slot read and write the same object)
  *   errors:      { companyEmail?, companySiret?, companyTva?, companyIban?, companyBic? }
  *   onChange:    (key, value) => void   — key is one of the `values` field names
  *   onUploadLogo: (file: File) => Promise
  *   onDeleteLogo: () => Promise
+ *   logoVersion?: string — appended to the preview as `?v=` once a logo is uploaded (same path, new bytes)
  *   disabled:    boolean
  */
 import React from 'react';
 import { Card, CardContent, Stack, Typography, TextField, Divider, Box } from '@mui/material';
 import LogoUpload from './LogoUpload';
 import HelpedTextField from './HelpedTextField';
+import Slot from '../plugins/sdk/Slot';
 
 export default function SettingsCompanySection({
   values,
@@ -22,6 +25,7 @@ export default function SettingsCompanySection({
   onChange,
   onUploadLogo,
   onDeleteLogo,
+  logoVersion = '',
   disabled = false,
 }) {
   const v = values || {};
@@ -34,23 +38,24 @@ export default function SettingsCompanySection({
         <Stack spacing={2}>
           <Box>
             <Typography variant="sectionHeader">
-              Informations sur votre activité
+              Informations sur l’activité
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Ces informations apparaissent sur vos devis (en-tête et pied de page).
+              Affichées sur les devis (en-tête et pied de page).
             </Typography>
           </Box>
 
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              Logo de votre activité
+              Logo
             </Typography>
             <LogoUpload
-              value={v.logoPath || ''}
+              value={v.logoPath && logoVersion ? `${v.logoPath}?v=${logoVersion}` : (v.logoPath || '')}
               onUpload={onUploadLogo}
               onDelete={onDeleteLogo}
               disabled={disabled}
-              helperText="Ce logo apparaît sur vos devis et sert de favicon. Max 2 Mo."
+              accept="image/png,image/jpeg"
+              helperText="Affiché sur les devis et dans l’onglet du navigateur. PNG ou JPEG, 2 Mo maximum."
             />
           </Box>
 
@@ -60,7 +65,7 @@ export default function SettingsCompanySection({
             onChange={setEvt('name')}
             fullWidth
             disabled={disabled}
-            helperText="Nom officiel de votre entreprise."
+            helperText="Nom officiel de l’entreprise."
           />
 
           <TextField
@@ -71,7 +76,7 @@ export default function SettingsCompanySection({
             multiline
             minRows={2}
             disabled={disabled}
-            helperText="Vous pouvez utiliser des retours à la ligne."
+            helperText="Retours à la ligne acceptés."
           />
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -79,7 +84,7 @@ export default function SettingsCompanySection({
               label="Email de contact"
               value={v.email || ''}
               onChange={set('email')}
-              helperText="Affiché sur les devis. C'est aussi l'adresse d'envoi des emails, sauf si vous en choisissez une autre."
+              helperText="Affiché sur les devis. Sert aussi d’adresse d’envoi des emails, sauf autre adresse choisie."
               error={errors.companyEmail}
               disabled={disabled}
             />
@@ -97,7 +102,7 @@ export default function SettingsCompanySection({
               label="SIRET"
               value={v.siret || ''}
               onChange={set('siret')}
-              helperText="14 chiffres. Identifiant unique de votre entreprise."
+              helperText="14 chiffres."
               error={errors.companySiret}
               disabled={disabled}
             />
@@ -105,7 +110,7 @@ export default function SettingsCompanySection({
               label="TVA intracommunautaire"
               value={v.tva || ''}
               onChange={set('tva')}
-              helperText="Format FRxx + 11 chiffres. Laissez vide si vous n'êtes pas assujetti."
+              helperText="Format FRxx + 11 chiffres. Vide si l’entreprise n’est pas assujettie."
               error={errors.companyTva}
               disabled={disabled}
             />
@@ -113,7 +118,7 @@ export default function SettingsCompanySection({
 
           <Divider />
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-            Vos coordonnées bancaires
+            Coordonnées bancaires
           </Typography>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -143,14 +148,9 @@ export default function SettingsCompanySection({
             disabled={disabled}
           />
 
-          <Divider />
-          <TextField
-            label="Code portail"
-            value={v.portalCode || ''}
-            onChange={setEvt('portalCode')}
-            helperText="Code du portail du domaine, communiqué au client à l'arrivée (SAS)."
-            disabled={disabled}
-          />
+          {/* Fields plugins add to the card (`settings.etablissement`), e.g. the SAS's « Code portail »
+              (specs/platform-settings-relay-and-review.md rule 11). */}
+          <Slot name="settings.etablissement" values={v} onChange={onChange} disabled={disabled} />
         </Stack>
       </CardContent>
     </Card>

@@ -18,20 +18,37 @@ export const PLATFORMS = [
 // Custom colours pushed from the platforms-colors API are normalized at merge
 // time in App.js.
 export const PLATFORM_COLORS = {
-  direct: '#c9a227',
-  airbnb: '#FF5A5F',
-  greengo: '#4CAF50',
-  abritel: '#1565c0',
-  abracadaroom: '#00bcd4',
-  booking: '#003580',
-  gitedefrance: '#e6c832',
+  direct: '#2F5D46',
+  airbnb: '#C93848',
+  greengo: '#8BC34A',
+  abritel: '#4FA3E0',
+  abracadaroom: '#8A55B2',
+  booking: '#1B3F8B',
+  gitedefrance: '#F2CC3D',
   // The accent-stripped slug of the French plural "Gîtes de France" — same colour
   // so accidental data drift between Gite/Gites doesn't leave the calendar grey.
-  gitesdefrance: '#e6c832',
-  pitchup: '#f57c00',
+  gitesdefrance: '#F2CC3D',
+  pitchup: '#EF7D22',
 };
 
-export const DEFAULT_PLATFORM_COLOR = '#757575';
+export const DEFAULT_PLATFORM_COLOR = '#6E6A5E';
+
+// The text colour each platform's bar carries (white or ink), decided by the server from the colour
+// (specs/calendar-property-parity.md rule 5) and pushed here with the colour listing by App. The client
+// does no contrast math: a platform not in the map reads as white, the colour of the default grey.
+export const PLATFORM_TEXT_COLORS = {
+  direct: '#FFFFFF',
+  airbnb: '#FFFFFF',
+  greengo: '#27251F',
+  abritel: '#27251F',
+  abracadaroom: '#FFFFFF',
+  booking: '#FFFFFF',
+  gitedefrance: '#27251F',
+  gitesdefrance: '#27251F',
+  pitchup: '#27251F',
+};
+
+export const DEFAULT_PLATFORM_TEXT_COLOR = '#FFFFFF';
 
 /**
  * Reduce any platform-name shape to its slug form: lowercase, alphanumeric only.
@@ -60,8 +77,36 @@ export function getPlatformColor(platform) {
   return PLATFORM_COLORS[key] || DEFAULT_PLATFORM_COLOR;
 }
 
+export function getPlatformTextColor(platform) {
+  return PLATFORM_TEXT_COLORS[normalizePlatformKey(platform)] || DEFAULT_PLATFORM_TEXT_COLOR;
+}
+
+// specs/platform-settings-relay-and-review.md rule 12 — the display names the server serves with the
+// platform colours (`displayNames`, keyed by slug here), loaded once by App. A component that must
+// re-render when they arrive subscribes with `subscribePlatformDisplayNames` (PlatformChip does).
+const PLATFORM_DISPLAY_NAMES = new Map();
+const displayListeners = new Set();
+let displayVersion = 0;
+
+export function setPlatformDisplayNames(map = {}) {
+  Object.entries(map || {}).forEach(([name, label]) => {
+    const key = normalizePlatformKey(name);
+    if (key && label) PLATFORM_DISPLAY_NAMES.set(key, String(label));
+  });
+  displayVersion += 1;
+  displayListeners.forEach((listener) => listener());
+}
+
+export function subscribePlatformDisplayNames(listener) {
+  displayListeners.add(listener);
+  return () => displayListeners.delete(listener);
+}
+
+export const platformDisplayNamesVersion = () => displayVersion;
+
 /**
- * Display label for a stored platform value. The DB stores canonical UpperCamelCase
+ * Display label for a stored platform value: the server's display name (« Gîtes de France ») once
+ * loaded, else the stored value read as below. The DB stores canonical UpperCamelCase
  * ('Airbnb', 'GitesDeFrance') which already reads fine; the lowercase 'direct' enum value is
  * capitalised here for display, and so is any value whose stored spelling drifted to lowercase
  * ('abracadaroom' → 'Abracadaroom'). Only the FIRST character is touched: the inner capitals of
@@ -70,6 +115,8 @@ export function getPlatformColor(platform) {
 export function formatPlatformLabel(platform) {
   const raw = String(platform || '').trim();
   if (!raw) return '';
+  const served = PLATFORM_DISPLAY_NAMES.get(normalizePlatformKey(raw));
+  if (served) return served;
   if (normalizePlatformKey(raw) === 'direct') return 'Direct';
   // A mixed-case spelling carries word boundaries in its inner capitals ('GitesDeFrance'), so only
   // the first character is touched. An all-caps one ('BOOKING') carries none, so its tail is
@@ -112,13 +159,3 @@ export function mergePlatformVariants(platforms) {
     .sort((a, b) => a.label.localeCompare(b.label, 'fr'));
 }
 
-/**
- * Predicate: is `platform` one of the well-known platforms (with a defined
- * brand colour)? Slug-normalises the input first so 'Airbnb', 'airbnb' and
- * 'AIRBNB' all answer `true`. Used by callers that need to distinguish
- * "iCal source uses a well-known platform" from "custom platform name".
- */
-export function isKnownPlatformKey(platform) {
-  const key = normalizePlatformKey(platform);
-  return Boolean(key && PLATFORM_COLORS[key]);
-}

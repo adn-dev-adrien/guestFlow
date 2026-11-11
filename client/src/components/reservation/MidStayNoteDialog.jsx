@@ -7,8 +7,12 @@ import { useTheme } from '@mui/material/styles';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import QuantityField from '../QuantityField';
 import { useReservationForm } from './ReservationFormContext';
-import { typedCountKind, typedCountValue } from '../../utils/optionTypedCount';
+import api from '../../api';
+import { typedCountKind, typedCountValue, MAX_TYPED_NIGHTS } from '../../utils/optionTypedCount';
+import { optionLineKey, displayedFloor } from '../../utils/arrivalLineKey';
 import { formatCurrency } from '../../utils/formatters';
+import TenderLines from '../TenderLines';
+import { TENDER_TEXTS } from '../../constants/tenderMethods';
 
 /**
  * « Nouvelle note » — specs/mid-stay-notes.md §3.2 + §6.
@@ -19,65 +23,74 @@ import { formatCurrency } from '../../utils/formatters';
  * (option toggles + quantities) so a catalogue addition IS a normal sale, saved through the standard
  * pipeline — the note never invents its own pricing.
  *
- * Amounts are engine-authoritative: the note total is read from the live quote's mid-stay remainder
- * (`midStayExtrasLines`), never computed here. On validation the dialog only sends per-key
- * INSTRUCTIONS `{ key, amount }`, which the server re-validates against its stored remainder.
+ * Amounts are the server's (rule 22): the dialog sends the ticked keys, the remainder it opened on and
+ * the live quote's remainder (`midStayExtrasLines`) to `POST /reservations/mid-stay-note/preview`, and
+ * prints the total it gets back. On validation it sends only `{ checkedKeys, opening }`: the server
+ * derives the amounts again against its stored remainder.
  *
  * Props:
  *  - `open`, `onClose()`
  *  - `pendingLines` — the current remainder lines (`[{ label, amount, key }]`), before any addition.
- *  - `onSettle(items, cash)` — save (if the form changed) then settle the note.
+ *  - `onSettle({ checkedKeys, opening }, cash)` — save (if the form changed) then settle the note.
  *  - `onSellOnly()` — save only: everything stays due at check-out.
  */
+const NO_PREVIEW = { items: [], total: 0, arrivalNotMarked: false };
+
 export default function MidStayNoteDialog({ open, onClose, pendingLines = [], onSettle, onSellOnly }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const {
     form, propertyOptions, propertyOptionGroups, setOptionEnabled, setOptionQuantity,
-    quantityPersons, quantityNights, setOptionTypedCount, pricingQuote,
+    quantityPersons, quantityNights, setOptionTypedCount, pricingQuote, editingReservationId,
+    captureOptionsState, restoreOptionsState, arrivalLines, maxGuestsAllowed,
   } = useReservationForm();
 
   const [checkedKeys, setCheckedKeys] = useState([]);
   const [busy, setBusy] = useState(false);
-  // Snapshot of the sold options when the dialog opened: « Annuler » must leave the reservation
-  // exactly as it was, catalogue additions included (§3.5 edge cases).
-  const snapshotRef = useRef(null);
-  // The remainder as it stood on open — the reference for « what did this note add? ».
-  const baseRemainderRef = useRef({});
+  const [preview, setPreview] = useState(NO_PREVIEW);
+  // specs/mixed-method-payments.md rules 1, 21-22 — « Plusieurs moyens », closed on every opening.
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [tenders, setTenders] = useState(null);
+  // The sold options when the dialog opened: « Annuler » must leave the reservation exactly as it was,
+  // catalogue additions and removals included (§3.5 edge cases; non-card-option-served-persons.md rule 31).
+  // State, not a ref: what the note adds is measured against it (rule 33), so it has to render.
+  const [openingOptions, setOpeningOptions] = useState(null);
+  // The remainder as it stood on open — the reference the server measures « what did this note add? » from.
+  const openingRef = useRef([]);
+  const previewSeq = useRef(0);
 
   useEffect(() => {
-    if (!open) return;
-    snapshotRef.current = JSON.parse(JSON.stringify(form.selectedOptions || []));
-    baseRemainderRef.current = Object.fromEntries(
-      (pendingLines || []).filter((l) => l.key).map((l) => [l.key, Number(l.amount) || 0]),
-    );
+    if (!open) {
+      setOpeningOptions(null);
+      return;
+    }
+    setOpeningOptions(captureOptionsState());
+    openingRef.current = (pendingLines || []).filter((l) => l.key)
+      .map((l) => ({ key: l.key, label: l.label, amount: l.amount }));
     setCheckedKeys([]);
     setBusy(false);
+    setPreview(NO_PREVIEW);
+    setSplitOpen(false);
+    setTenders(null);
     // Snapshot once per opening; `form.selectedOptions` intentionally not a dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Live remainder per key, straight from the engine — includes whatever the dialog just added.
-  const liveRemainder = useMemo(() => Object.fromEntries(
-    (pricingQuote?.midStayExtrasLines || []).filter((l) => l.key).map((l) => [l.key, Number(l.amount) || 0]),
-  ), [pricingQuote]);
+  const liveLines = pricingQuote?.midStayExtrasLines;
+  useEffect(() => {
+    if (!open) return;
+    const seq = previewSeq.current + 1;
+    previewSeq.current = seq;
+    api.previewMidStayNote({ reservationId: editingReservationId, opening: openingRef.current, current: liveLines || [], checkedKeys })
+      .then((r) => {
+        if (previewSeq.current !== seq) return;
+        setPreview({ items: (r && r.items) || [], total: Number(r && r.total) || 0, arrivalNotMarked: Boolean(r && r.arrivalNotMarked) });
+      })
+      .catch(() => { if (previewSeq.current === seq) setPreview(NO_PREVIEW); });
+  }, [open, checkedKeys, liveLines, editingReservationId]);
 
-  // What this note collects, per key: the ticked pending amount + whatever the dialog added on top.
-  const items = useMemo(() => {
-    const keys = new Set([...Object.keys(liveRemainder), ...checkedKeys]);
-    const out = [];
-    for (const key of keys) {
-      const base = Number(baseRemainderRef.current[key] || 0);
-      const live = Number(liveRemainder[key] || 0);
-      const added = Math.max(0, Math.round((live - base) * 100) / 100);
-      const ticked = checkedKeys.includes(key) ? Math.min(base, live) : 0;
-      const amount = Math.round((ticked + added) * 100) / 100;
-      if (amount > 0) out.push({ key, amount, label: labelForKey(key, pendingLines, pricingQuote) });
-    }
-    return out;
-  }, [liveRemainder, checkedKeys, pendingLines, pricingQuote]);
-
-  const noteTotal = items.reduce((s, i) => s + i.amount, 0);
+  const noteTotal = preview.total;
+  const instruction = () => ({ checkedKeys, opening: openingRef.current });
   // What a line sold counts: its typed people or nights, else its units (a typed line's `quantity` stays
   // 1, specs/non-card-option-served-persons.md rule 13). Same reading as the field below.
   const kindOf = (optionId) => typedCountKind((propertyOptions || []).find((p) => Number(p.id) === Number(optionId)));
@@ -87,31 +100,29 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
     return typedCountValue(line, kind, kind === 'nights' ? quantityNights : quantityPersons);
   };
   const hasAdditions = useMemo(() => {
-    const before = new Map((snapshotRef.current || []).map((o) => [Number(o.optionId), soldCount(o)]));
+    if (!openingOptions) return false;
+    const before = new Map((openingOptions.selectedOptions || []).map((o) => [Number(o.optionId), soldCount(o)]));
     return (form.selectedOptions || []).some((o) => soldCount(o) > (before.get(Number(o.optionId)) || 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.selectedOptions, propertyOptions, quantityPersons, quantityNights]);
+  }, [openingOptions, form.selectedOptions, propertyOptions, quantityPersons, quantityNights]);
 
-  const rollback = () => {
-    const before = snapshotRef.current;
-    if (!before) return;
-    const beforeCount = new Map(before.map((o) => [Number(o.optionId), soldCount(o)]));
-    for (const o of (form.selectedOptions || [])) {
-      const id = Number(o.optionId);
-      if (!beforeCount.has(id)) setOptionEnabled(id, false);
-      else if (beforeCount.get(id) !== soldCount(o)) {
-        const kind = kindOf(id);
-        if (kind) setOptionTypedCount(id, kind, beforeCount.get(id));
-        else setOptionQuantity(id, beforeCount.get(id));
-      }
-    }
+  const close = () => {
+    if (openingOptions) restoreOptionsState(openingOptions);
+    onClose();
   };
-
-  const close = () => { rollback(); onClose(); };
 
   const run = async (fn) => {
     setBusy(true);
-    try { await fn(); onClose(); } finally { setBusy(false); }
+    try {
+      await fn();
+      onClose();
+    } catch {
+      // Refused: the fiche already shows why; the dialog stays open on what was ticked. A refusal only comes after the
+      // fiche was saved, so the stored state is the new opening « Annuler » returns to (mid-stay-notes rule 24, R31-C-L1).
+      setOpeningOptions(captureOptionsState());
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Same server-computed grouping as the fiche's Options section (specs/option-categories.md):
@@ -173,13 +184,20 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                     {group.options.map((opt) => {
                       const selected = (form.selectedOptions || []).find((o) => Number(o.optionId) === Number(opt.id));
                       // Same field as the fiche's OptionRow (specs/non-card-option-served-persons.md
-                      // rule 13). 0 = not sold; the first « + » sells the default quantity, exactly
-                      // like flicking the switch on the fiche.
+                      // rule 13). 0 = not sold; a number on an unsold line sells that number (rule 35).
                       const typedKind = typedCountKind(opt);
                       const typedCurrent = typedKind === 'nights' ? quantityNights : quantityPersons;
                       const displayed = !selected
                         ? 0
                         : (typedKind ? typedCountValue(selected, typedKind, typedCurrent) : Number(selected.quantity));
+                      // Same bounds as the fiche's OptionRow (rule 32): what was sold at arrival is a
+                      // floor; without one, 0 takes the line off.
+                      const arrivalLine = (arrivalLines || {})[optionLineKey(opt.id)];
+                      const typedFloor = arrivalLine?.minTypedCount != null ? displayedFloor(arrivalLine.minTypedCount) : 1;
+                      const floor = !arrivalLine ? 0 : (typedKind ? typedFloor : displayedFloor(arrivalLine.minQuantity));
+                      let ceiling;
+                      if (typedKind === 'persons') ceiling = Math.max(Number(maxGuestsAllowed) || 0, Number(quantityPersons) || 1, displayed);
+                      else if (typedKind === 'nights') ceiling = Math.max(MAX_TYPED_NIGHTS, displayed);
                       return (
                         <Box
                           key={opt.id}
@@ -204,6 +222,7 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                               variant={selected ? 'contained' : 'outlined'}
                               color={selected ? 'success' : 'primary'}
                               onClick={() => setOptionEnabled(Number(opt.id), !selected)}
+                              disabled={Boolean(arrivalLine)}
                               sx={{ textTransform: 'none', minWidth: 110 }}
                             >
                               {selected ? 'Ajouté ✓' : 'Ajouter'}
@@ -211,15 +230,19 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
                           ) : (
                             <QuantityField
                               value={displayed}
-                              min={0}
+                              min={floor}
+                              max={ceiling}
                               onCommit={(v) => {
                                 const next = Number(v) || 0;
-                                if (next <= 0) setOptionEnabled(Number(opt.id), false);
-                                // Not sold yet → enable it and let the form apply its default
-                                // quantity; calling both setters would fight over the same line.
-                                else if (!selected) setOptionEnabled(Number(opt.id), true);
-                                else if (typedKind) setOptionTypedCount(Number(opt.id), typedKind, next);
-                                else setOptionQuantity(Number(opt.id), next);
+                                if (next <= 0) {
+                                  setOptionEnabled(Number(opt.id), false);
+                                } else if (typedKind) {
+                                  // The switch's way in first: it applies the property's offered default.
+                                  if (!selected) setOptionEnabled(Number(opt.id), true);
+                                  setOptionTypedCount(Number(opt.id), typedKind, next);
+                                } else {
+                                  setOptionQuantity(Number(opt.id), next);
+                                }
                               }}
                             />
                           )}
@@ -237,6 +260,12 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Total de la note</Typography>
             <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{formatCurrency(noteTotal)}</Typography>
           </Box>
+          {splitOpen && noteTotal > 0 && (
+            <TenderLines dueCents={Math.round(noteTotal * 100)} onChange={setTenders} disabled={busy} autoFocus />
+          )}
+          {preview.arrivalNotMarked && (
+            <Typography variant="caption" color="text.secondary">Arrivée non marquée : la vente rejoint le solde.</Typography>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ flexDirection: { xs: 'column', sm: 'row' }, gap: 1, '& > :not(style) ~ :not(style)': { ml: { xs: 0, sm: 1 } } }}>
@@ -248,30 +277,47 @@ export default function MidStayNoteDialog({ open, onClose, pendingLines = [], on
           </Button>
         )}
         <Button
-          variant="outlined"
+          variant="text"
+          data-split-toggle="note"
           disabled={busy || noteTotal <= 0}
-          onClick={() => run(() => onSettle(items, true))}
+          onClick={() => { setSplitOpen((v) => !v); setTenders(null); }}
+          sx={{ color: 'text.secondary' }}
           fullWidth={isMobile}
         >
-          Caisse interne
+          {splitOpen ? TENDER_TEXTS.close : TENDER_TEXTS.open}
         </Button>
-        <Button
-          variant="contained"
-          disabled={busy || noteTotal <= 0}
-          onClick={() => run(() => onSettle(items, false))}
-          fullWidth={isMobile}
-        >
-          CB / Chèque
-        </Button>
+        {splitOpen ? (
+          <Button
+            variant="contained"
+            disabled={busy || noteTotal <= 0 || !(tenders && tenders.canSubmit)}
+            onClick={() => run(() => onSettle(instruction(), false, {
+              expectedAmountCents: Math.round(noteTotal * 100), tenders: tenders.tenders, shortfall: tenders.shortfall,
+            }))}
+            fullWidth={isMobile}
+          >
+            {TENDER_TEXTS.collect(formatCurrency(tenders && tenders.gapCents > 0 ? tenders.receivedCents / 100 : noteTotal))}
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="outlined"
+              disabled={busy || noteTotal <= 0}
+              onClick={() => run(() => onSettle(instruction(), true))}
+              fullWidth={isMobile}
+            >
+              Caisse interne
+            </Button>
+            <Button
+              variant="contained"
+              disabled={busy || noteTotal <= 0}
+              onClick={() => run(() => onSettle(instruction(), false))}
+              fullWidth={isMobile}
+            >
+              CB / Chèque
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );
-}
-
-// A key's label: the pending line it came from, else the live quote line (a fresh catalogue sale).
-function labelForKey(key, pendingLines, quote) {
-  const pending = (pendingLines || []).find((l) => l.key === key);
-  if (pending) return pending.label;
-  const live = (quote?.midStayExtrasLines || []).find((l) => l.key === key);
-  return (live && live.label) || 'Prestation';
 }

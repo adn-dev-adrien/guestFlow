@@ -51,18 +51,46 @@ function seedPendingCancellation({ reservationId, sourceId, eventUid }) {
 }
 
 /**
- * Stamp the app_settings stock columns so the linen simulation projects a shortage given the
- * reservations already in the DB (specs/linen-inventory-shortage-tracking.md §5). The caller
- * is responsible for having seeded enough reservations to actually exceed the stock.
+ * Stamp the linen stock in the `linen` plugin's settings so the linen simulation projects a shortage
+ * given the reservations already in the DB (specs/linen-inventory-shortage-tracking.md §5,
+ * specs/plugins-phase-2-hosts.md rule 15). The caller is responsible for having seeded enough
+ * reservations to actually exceed the stock.
  */
 function setLinenStock({ single = 0, double = 0, baby = 0, large = 0, medium = 0, small = 0 } = {}) {
   return withDb((db) => {
-    db.prepare(`
-      UPDATE app_settings SET
-        bedLinenStockSingle = ?, bedLinenStockDouble = ?, bedLinenStockBaby = ?,
-        towelStockLarge = ?, towelStockMedium = ?, towelStockSmall = ?
-      WHERE id = 1
-    `).run(single, double, baby, large, medium, small);
+    const upsert = db.prepare(`
+      INSERT INTO plugin_settings (plugin_id, key, value, updated_at) VALUES ('linen', ?, ?, datetime('now'))
+      ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `);
+    Object.entries({
+      bedLinenStockSingle: single, bedLinenStockDouble: double, bedLinenStockBaby: baby,
+      towelStockLarge: large, towelStockMedium: medium, towelStockSmall: small,
+    }).forEach(([key, value]) => upsert.run(key, String(value)));
+  });
+}
+
+/**
+ * A bed-linen option ticked on the given stays `{ id, singleBeds }`, with their single beds written, so
+ * their sheets reach the laundry cards (specs/linen-laundry-days.md §7.3). Returns the option id, to hand
+ * back to `removeBedLinenOption`.
+ */
+function seedBedLinenOption(stays) {
+  return withDb((db) => {
+    const res = db.prepare("INSERT INTO options (title, price, priceType, countsAsBedLinen) VALUES ('Linge de lit (E2E blanchisserie)', 0, 'per_stay', 1)").run();
+    const optionId = Number(res.lastInsertRowid);
+    const link = db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (?, ?, 1)');
+    stays.forEach(({ id, singleBeds }) => {
+      link.run(id, optionId);
+      db.prepare('UPDATE reservations SET singleBeds = ? WHERE id = ?').run(singleBeds, id);
+    });
+    return optionId;
+  });
+}
+
+function removeBedLinenOption(optionId) {
+  return withDb((db) => {
+    db.prepare('DELETE FROM reservation_options WHERE optionId = ?').run(optionId);
+    db.prepare('DELETE FROM options WHERE id = ?').run(optionId);
   });
 }
 
@@ -105,6 +133,35 @@ function lockIcalReservation(reservationId) {
  * Force a reservation's stay dates directly (bypasses the API "no past dates" guard). Used to set up
  * a past stay for the email-history rolling-window spec without flipping the global admin escape hatch.
  */
+// specs/reservation-payment-ledger.md — a property that takes an acompte (30 %), so the ledger has
+// both an acompte and a solde row.
+function enablePropertyDeposit(propertyId, percent = 30) {
+  return withDb((db) => {
+    db.prepare('UPDATE properties SET depositEnabled = 1, depositPercent = ? WHERE id = ?').run(percent, propertyId);
+  });
+}
+
+// specs/reservation-payment-ledger.md rule 7 — a stored amount that drifted from today's engine (a
+// stay priced under an earlier rule), to prove the fiche shows and marks what is stored.
+function setReservationAmounts(reservationId, fields) {
+  return withDb((db) => {
+    const cols = Object.keys(fields);
+    db.prepare(`UPDATE reservations SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`)
+      .run(...cols.map((c) => fields[c]), reservationId);
+  });
+}
+
+// specs/reservation-payment-ledger.md §3.8 — a property with one season (so the « Prix plateformes » grid
+// has a cell) and a commissioned platform: the grid then lists the night at ceil(price / (1 − c)).
+function seedPlatformChannel({ propertyId, platform, commissionPercent, pricePerNight }) {
+  return withDb((db) => {
+    db.prepare('INSERT INTO platforms (name, commissionPercent) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET commissionPercent = excluded.commissionPercent')
+      .run(platform, commissionPercent);
+    db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight, minNights) VALUES (?, 'Standard', ?, 1)")
+      .run(propertyId, pricePerNight);
+  });
+}
+
 function setReservationDates(reservationId, startDate, endDate) {
   return withDb((db) => {
     db.prepare('UPDATE reservations SET startDate = ?, endDate = ? WHERE id = ?')
@@ -116,13 +173,13 @@ function setReservationDates(reservationId, startDate, endDate) {
  * Insert a row in `email_log` (specs/email-history-rolling-window.md). Used to exercise the
  * history list + rolling window without an SMTP send.
  */
-function seedEmailLog({ reservationId, templateId = null, status = 'sent', channel = 'smtp', renderedSubject = 'Sujet test', renderedBody = 'Corps test', recipientEmail = 'guest@test.fr' }) {
+function seedEmailLog({ reservationId, templateId = null, status = 'sent', channel = 'smtp', renderedSubject = 'Sujet test', renderedBody = 'Corps test', recipientEmail = 'guest@test.fr', sentAt = null }) {
   return withDb((db) => {
     const res = db.prepare(`
       INSERT INTO email_log
         (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail)
-      VALUES (?, ?, datetime('now'), ?, ?, '', ?, ?, ?)
-    `).run(templateId, reservationId, status, channel, renderedSubject, renderedBody, recipientEmail);
+      VALUES (?, ?, COALESCE(?, datetime('now')), ?, ?, '', ?, ?, ?)
+    `).run(templateId, reservationId, sentAt, status, channel, renderedSubject, renderedBody, recipientEmail);
     return Number(res.lastInsertRowid);
   });
 }
@@ -149,6 +206,39 @@ function setClientEmailLanguage(clientId, lang) {
 }
 
 /**
+ * A « Boissons » + « Restauration » catalogue, linked to one property. The core no longer seeds one
+ * (specs/plugins-phase-p-productisation.md rule 12): the spec that needs it brings it, here the list
+ * Solio's database holds. Idempotent per article.
+ */
+function seedCateringOptions(propertyId) {
+  const CATERING = require('../../server/src/tests/fixtures/productisation/solio-catering.json');
+  return withDb((db) => {
+    for (const o of CATERING) {
+      let row = db.prepare('SELECT id FROM options WHERE seedKey = ?').get(o.seedKey);
+      if (!row) {
+        const res = db.prepare("INSERT INTO options (title, price, priceType, category, seedKey) VALUES (?, ?, 'per_stay', ?, ?)")
+          .run(o.title, o.price, o.category, o.seedKey);
+        row = { id: Number(res.lastInsertRowid) };
+      }
+      db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (?, ?)').run(propertyId, row.id);
+    }
+  });
+}
+
+/**
+ * Set one company setting (specs/guest-email-texts-made-simple.md rule 15 — the test send goes to the
+ * company address). Returns the previous value so a spec can put it back.
+ */
+function setCompanySetting(column, value) {
+  if (!['companyEmail', 'companyPhone'].includes(column)) throw new Error(`unsupported column ${column}`);
+  return withDb((db) => {
+    const previous = (db.prepare(`SELECT ${column} AS v FROM app_settings LIMIT 1`).get() || {}).v;
+    db.prepare(`UPDATE app_settings SET ${column} = ?`).run(value);
+    return previous;
+  });
+}
+
+/**
  * The public URL the userscript of a plugin embeds (app_settings.publicUrl) — empty on a fresh database.
  */
 function setPublicUrl(url) {
@@ -162,7 +252,15 @@ function setPublicUrl(url) {
  */
 function markIcalImported(reservationId, platformKey) {
   return withDb((db) => {
-    db.prepare("UPDATE reservations SET sourceType = 'ical', sourcePlatformKey = ? WHERE id = ?").run(platformKey, reservationId);
+    // Like a real import: the stay points at an active source of its property for that platform, which
+    // is what the Booking intake reads to tell Booking's stays (specs/booking-extranet-intake.md rule 21).
+    const { propertyId } = db.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(reservationId);
+    const existing = db.prepare('SELECT id FROM ical_sources WHERE propertyId = ? AND platformKey = ?').get(propertyId, platformKey);
+    const sourceId = existing ? existing.id : Number(db.prepare(
+      "INSERT INTO ical_sources (propertyId, name, url, platformKey, platformLabel, isActive) VALUES (?, ?, '', ?, ?, 1)",
+    ).run(propertyId, platformKey, platformKey, platformKey).lastInsertRowid);
+    db.prepare("UPDATE reservations SET sourceType = 'ical', sourcePlatformKey = ?, sourceIcalSourceId = ? WHERE id = ?")
+      .run(platformKey, sourceId, reservationId);
   });
 }
 
@@ -175,25 +273,104 @@ function setPlatformPayout(reservationId, amount) {
   });
 }
 
-/**
- * A plain per-person option on a property (specs/non-card-option-served-persons.md rule 25).
- */
-function seedPerPersonOption({ propertyId, title, price }) {
+// specs/vat-optional-mode.md — a stay booked in the past, so a switch « à partir d'aujourd'hui » leaves it alone.
+function backdateReservation(reservationId, createdAt) {
   return withDb((db) => {
-    const optionId = Number(db.prepare("INSERT INTO options (title, price, priceType) VALUES (?, ?, 'per_person')").run(title, price).lastInsertRowid);
+    db.prepare('UPDATE reservations SET createdAt = ? WHERE id = ?').run(createdAt, reservationId);
+  });
+}
+
+// The shared E2E database carries the VAT regime from one spec to the next: back to period 1 at 10 %.
+function resetVatRegime() {
+  return withDb((db) => {
+    db.prepare('UPDATE reservations SET vatPeriodId = 1').run();
+    db.prepare('DELETE FROM vat_periods WHERE id > 1').run();
+    db.prepare('UPDATE vat_periods SET rate = 10 WHERE id = 1').run();
+    db.prepare('UPDATE app_settings SET vatRate = 10 WHERE id = 1').run();
+    db.prepare('UPDATE app_settings SET vatFranchiseThreshold = NULL, vatFranchiseThresholdSetAt = NULL WHERE id = 1').run();
+  });
+}
+
+/** The regime in force becomes « Sans TVA · art. 293 B » for every reservation (the switch itself has its own spec). */
+function setFranchiseRegime() {
+  return withDb((db) => {
+    db.prepare("INSERT INTO vat_periods (regime, rate, legalMention, basis) VALUES ('not_subject', 0, 'art_293_b', 'all')").run();
+    db.prepare('UPDATE app_settings SET vatRate = 0 WHERE id = 1').run();
+  });
+}
+
+/**
+ * Make the bank reconciliation readable on the E2E database (specs/reconciliation-assisted-matching.md):
+ * a stored Qonto connection marker (no Qonto call is ever made), the start date, and credits loaded
+ * straight into the plugin's table. Fictional data only.
+ */
+function seedBankCredits({ startDate = '2026-01-01', credits = [] } = {}) {
+  return withDb((db) => {
+    const put = db.prepare(`INSERT INTO plugin_settings (plugin_id, key, value, updated_at) VALUES ('online-payment', ?, ?, datetime('now'))
+      ON CONFLICT(plugin_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`);
+    put.run('qontoRefreshTokenEncrypted', 'e2e-not-a-real-token');
+    put.run('reconciliationStartDate', startDate);
+    put.run('reconciliationBankAccountId', 'e2e-account');
+    put.run('reconciliationLastReadAt', new Date().toISOString());
+    const insert = db.prepare(`INSERT OR REPLACE INTO bank_transactions
+      (id, bankAccountId, amountCents, currency, settledAt, emittedAt, updatedAt, operationType, label, counterpartyName, reference, note, source, fetchedAt)
+      VALUES (@id, 'e2e-account', @amountCents, 'EUR', @settledAt, @settledAt, @settledAt, 'income', @counterpartyName, @counterpartyName, @reference, '', 'qonto', datetime('now'))`);
+    credits.forEach((c) => insert.run({ reference: '', ...c, settledAt: `${c.date}T09:00:00.000Z` }));
+  });
+}
+
+/** Undo `seedBankCredits`: the instance reads as not connected again, so the other specs are untouched. */
+function clearBankSeed() {
+  return withDb((db) => {
+    db.prepare("DELETE FROM plugin_settings WHERE plugin_id = 'online-payment' AND key IN ('qontoRefreshTokenEncrypted', 'reconciliationStartDate', 'reconciliationBankAccountId', 'reconciliationLastReadAt')").run();
+    db.prepare("DELETE FROM bank_reconciliation_lines WHERE transactionId LIKE 'e2e-%' OR transactionId LIKE 'tc-%'").run();
+    db.prepare("DELETE FROM bank_transactions WHERE bankAccountId = 'e2e-account'").run();
+  });
+}
+
+/**
+ * What a plugin intake or the iCal sync does to a stay behind the operator's back: a new note and a
+ * newer `updatedAt` (specs/reservation-fiche-concurrency.md). The version moves five minutes ahead so
+ * the test never depends on the clock's one-second resolution.
+ */
+function simulateBackgroundWrite(reservationId, notes) {
+  return withDb((db) => db.prepare("UPDATE reservations SET notes = ?, updatedAt = datetime('now', '+5 minutes') WHERE id = ?").run(notes, reservationId));
+}
+
+/**
+ * A plain per-person option on a priced property (specs/non-card-option-served-persons.md rule 25).
+ */
+function seedPerPersonOption({ propertyId, title, price, priceType = 'per_person' }) {
+  return withDb((db) => {
+    const optionId = Number(db.prepare('INSERT INTO options (title, price, priceType) VALUES (?, ?, ?)').run(title, price, priceType).lastInsertRowid);
     db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (?, ?)').run(propertyId, optionId);
+    // A fiche with an unpriced night cannot be saved: give the property a season.
+    db.prepare("INSERT INTO pricing_rules (propertyId, label, pricePerNight, minNights) VALUES (?, 'Standard', 100, 1)").run(propertyId);
     return optionId;
   });
 }
 
 module.exports = {
   seedPerPersonOption,
+  simulateBackgroundWrite,
+  backdateReservation,
+  resetVatRegime,
+  setFranchiseRegime,
+  seedBankCredits,
+  clearBankSeed,
+  enablePropertyDeposit,
+  setReservationAmounts,
+  seedPlatformChannel,
+  setCompanySetting,
+  seedCateringOptions,
   setPublicUrl,
   markIcalImported,
   setPlatformPayout,
   seedPendingDateDrift,
   seedPendingCancellation,
   setLinenStock,
+  seedBedLinenOption,
+  removeBedLinenOption,
   seedClosure,
   setAllowEditPastReservations,
   lockIcalReservation,

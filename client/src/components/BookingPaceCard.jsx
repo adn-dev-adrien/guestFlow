@@ -10,14 +10,15 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Box, Card, CardContent, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import LoadingState from './LoadingState';
 import ErrorAlert from './ErrorAlert';
 import YearOverYearBadge from './YearOverYearBadge';
-import PaceMonthChart, { SAND, GHOST_STROKE } from './PaceMonthChart';
+import PaceMonthChart, { paceMonthLines } from './PaceMonthChart';
 import PickupCurveChart from './PickupCurveChart';
 import { formatCurrencyRounded } from '../utils/formatters';
 import api from '../api';
+import useLatestRequest from '../hooks/useLatestRequest';
+import { chart } from '../utils/chartColors';
 
 const METRICS = [
   { value: 'reservations', label: 'Réservations' },
@@ -69,28 +70,38 @@ function LegendItem({ swatch, label }) {
 }
 
 export default function BookingPaceCard({ propertyId, refreshKey }) {
-  const theme = useTheme();
   const [metric, setMetric] = useState('reservations');
-  const [pace, setPace] = useState(null);
+  const [paceAnswer, setPaceAnswer] = useState(null);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [curve, setCurve] = useState({ data: null, error: false });
+  const [curveAnswer, setCurveAnswer] = useState({ key: null, data: null, error: false });
+  const beginPace = useLatestRequest();
+  const beginCurve = useLatestRequest();
+
+  const paceKey = `${propertyId}|${metric}`;
+  const curveKey = `${selected}|${paceKey}`;
+  const pace = paceAnswer && paceAnswer.key === paceKey ? paceAnswer.data : null;
+  const curve = curveAnswer.key === curveKey ? curveAnswer : { data: null, error: false };
 
   const load = useCallback(async () => {
+    const current = beginPace();
     try {
       setError(null);
-      setPace(await api.getFinancePace({ propertyId, metric }));
+      const data = await api.getFinancePace({ propertyId, metric });
+      if (current()) setPaceAnswer({ key: paceKey, data });
     } catch (err) {
-      setError((err && err.error) || 'Impossible de charger les réservations à date.');
+      if (current()) setError((err && err.error) || 'Impossible de charger les réservations à date.');
     }
   }, [propertyId, metric, refreshKey]);
 
   const loadCurve = useCallback(async () => {
+    const current = beginCurve();
     if (!selected) return;
     try {
-      setCurve({ data: await api.getFinancePaceMonth(selected, { propertyId, metric }), error: false });
+      const data = await api.getFinancePaceMonth(selected, { propertyId, metric });
+      if (current()) setCurveAnswer({ key: curveKey, data, error: false });
     } catch {
-      setCurve({ data: null, error: true });
+      if (current()) setCurveAnswer({ key: curveKey, data: null, error: true });
     }
   }, [selected, propertyId, metric, refreshKey]);
 
@@ -98,8 +109,9 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
   useEffect(() => { loadCurve(); }, [loadCurve]);
 
   const { formatValue, formatShort } = paceFormatters(metric);
+  const openMonth = pace && selected ? pace.months.find((m) => m.month === selected) : null;
   const selectMonth = (month) => {
-    setCurve({ data: null, error: false });
+    setCurveAnswer({ key: null, data: null, error: false });
     setSelected((current) => (current === month ? null : month));
   };
 
@@ -110,7 +122,7 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
           <Box>
             <Typography variant="sectionHeader">Réservations à venir, à date</Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              12 prochains mois de séjour, comparés à l'an dernier à la même date · cliquez un mois pour sa montée en charge
+              12 prochains mois de séjour, comparés à l'an dernier à la même date · un mois touché ou cliqué ouvre sa montée en charge
             </Typography>
           </Box>
           <ToggleButtonGroup
@@ -119,7 +131,7 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
             value={metric}
             aria-label="Mesure"
             onChange={(_, next) => { if (next) setMetric(next); }}
-            sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 1.5, minHeight: 36 } }}
+            sx={{ '& .MuiToggleButton-root': { textTransform: 'none', px: 1.5, minHeight: 36, '@media (pointer: coarse)': { minHeight: 44 } } }}
           >
             {METRICS.map((m) => <ToggleButton key={m.value} value={m.value}>{m.label}</ToggleButton>)}
           </ToggleButtonGroup>
@@ -134,7 +146,7 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
               <YearOverYearBadge change={pace.summary.change} />
             </Box>
             {pace.summary.notice && (
-              <Box sx={{ bgcolor: '#E4EDF3', color: 'info.main', borderRadius: '10px', px: 1.5, py: 1, fontSize: 13, mb: 1 }}>
+              <Box sx={{ bgcolor: 'info.soft', color: 'info.text', borderRadius: '10px', px: 1.5, py: 1, fontSize: 13, mb: 1 }}>
                 {pace.summary.notice}
               </Box>
             )}
@@ -143,11 +155,11 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
               <PickupChip label="Pris ces 30 derniers jours" figure={pace.pickup.last30} formatValue={formatValue} />
             </Box>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', fontSize: 12, color: 'text.secondary', my: 1 }}>
-              <LegendItem swatch={{ bgcolor: theme.palette.primary.main }} label="Cette année, à date" />
-              <LegendItem swatch={{ bgcolor: SAND }} label="L'an dernier à la même date" />
-              <LegendItem swatch={{ border: `1.5px dashed ${GHOST_STROKE}` }} label="L'an dernier, au final" />
+              <LegendItem swatch={{ bgcolor: chart.current }} label="Cette année, à date" />
+              {pace.hasComparison && <LegendItem swatch={{ bgcolor: chart.lastYear, outline: `1px solid ${chart.lastYearEdge}`, outlineOffset: '-1px' }} label="L'an dernier à la même date" />}
+              <LegendItem swatch={{ border: `1.5px dashed ${chart.lastYearEdge}`, bgcolor: chart.ghostFill }} label="L'an dernier, au final" />
             </Box>
-            <PaceMonthChart months={pace.months} selected={selected} onSelectMonth={selectMonth} formatValue={formatValue} formatShort={formatShort} />
+            <PaceMonthChart months={pace.months} hasComparison={pace.hasComparison} selected={selected} onSelectMonth={selectMonth} formatValue={formatValue} formatShort={formatShort} />
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>{CAPTIONS[metric]}</Typography>
 
             {selected && (
@@ -159,14 +171,19 @@ export default function BookingPaceCard({ propertyId, refreshKey }) {
                     <Typography variant="subtitle2" sx={{ textTransform: 'none' }}>
                       Montée en charge · {curve.data.label.charAt(0).toUpperCase() + curve.data.label.slice(1)}
                     </Typography>
+                    {openMonth && (
+                      <Box data-testid="pace-month-figures" sx={{ fontSize: 13, lineHeight: 1.6, my: 0.5, fontVariantNumeric: 'tabular-nums' }}>
+                        {paceMonthLines(openMonth, formatValue).map((line) => <Box key={line}>{line}</Box>)}
+                      </Box>
+                    )}
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
                       Cumul réservé selon le nombre de jours avant le 1er du mois · aujourd'hui : J-{curve.data.todayDaysBefore}
                     </Typography>
                     <PickupCurveChart curve={curve.data} formatValue={formatValue} formatShort={formatShort} />
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
-                      <LegendItem swatch={{ bgcolor: theme.palette.primary.main, height: 3 }} label="Cette année" />
-                      <LegendItem swatch={{ borderTop: `2px dashed ${GHOST_STROKE}`, height: 0, borderRadius: 0 }} label="L'an dernier" />
-                      <LegendItem swatch={{ bgcolor: theme.palette.secondary.main, width: 3 }} label="Aujourd'hui" />
+                      <LegendItem swatch={{ bgcolor: chart.current, height: 3 }} label="Cette année" />
+                      <LegendItem swatch={{ borderTop: `2px dashed ${chart.lastYearEdge}`, height: 0, borderRadius: 0 }} label="L'an dernier" />
+                      <LegendItem swatch={{ bgcolor: chart.today, width: 3 }} label="Aujourd'hui" />
                     </Box>
                   </>
                 )}

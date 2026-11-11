@@ -15,7 +15,7 @@ const { request } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { CLIENT_URL } = require('./clientUrl');
+const { CLIENT_URL, SERVER_PORT } = require('./clientUrl');
 
 const E2E_DB_PATH = process.env.GUESTFLOW_E2E_DB_PATH || '/tmp/guestflow-e2e.db';
 const E2E_ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'e2e@guestflow.test';
@@ -24,7 +24,7 @@ const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'e2e-secret-1234';
 // this session with their own `test.use({ storageState })` — the default stays the admin.
 const E2E_RECEPTION_EMAIL = process.env.E2E_RECEPTION_EMAIL || 'e2e-reception@guestflow.test';
 const E2E_RECEPTION_PASSWORD = process.env.E2E_RECEPTION_PASSWORD || 'e2e-reception-1234';
-const BACKEND_URL = 'http://127.0.0.1:4000';     // direct probe for readiness check
+const BACKEND_URL = `http://127.0.0.1:${SERVER_PORT}`; // direct probe for readiness check
 const FRONTEND_URL = CLIENT_URL;                 // Vite dev — proxies /api/* to the backend.
 // We log in through the FRONTEND so the session cookie is scoped to the client origin, the
 // same origin the browser navigates to in every spec. Logging in directly against
@@ -90,7 +90,9 @@ module.exports = async () => {
   await ctx.dispose();
 
   // (6) Same round-trip for the « Accueil » account → e2e/.auth/reception.json. Only the reception
-  // specs opt into it; every other spec keeps the admin session.
+  // specs opt into it; every other spec keeps the admin session. The bare-install suite has no such
+  // account (specs/plugins-phase-0-foundation.md rule 28).
+  if (process.env.E2E_SEED_PLUGINS === 'none') return;
   const receptionCtx = await request.newContext({ baseURL: FRONTEND_URL });
   const receptionLogin = await receptionCtx.post('/api/auth/login', {
     data: { email: E2E_RECEPTION_EMAIL, password: E2E_RECEPTION_PASSWORD },

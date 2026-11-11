@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion commune GuestFlow</title>
+<meta name="description" content="Maquette interactive de C3 : la page app.guestflow.fr, l’annuaire lu dans les instances, et le changement d’adresse d’un client.">
+<style>
+:root{
+  --paper:#F5F0E6; --card:#FFFDF8; --ink:#1F241D; --muted:#5F665A; --line:#DDD5C4;
+  --sapin:#2E3B2A; --lichen:#5A6B48; --ocre:#B87B2A; --ok:#2F6B3A; --ko:#A33A2A; --info:#2F5876;
+  --field:#FFFFFF; --fieldline:#C9C0AC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+    --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+    --field:#141A14; --fieldline:#4A544A;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161C16; --card:#1F261E; --ink:#EDE8DC; --muted:#A8AE9F; --line:#39433A;
+  --sapin:#C9D8BC; --lichen:#9DB286; --ocre:#E0A956; --ok:#7CC48A; --ko:#EE8A7A; --info:#8FB8D8;
+  --field:#141A14; --fieldline:#4A544A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 16px 90px}
+h1{font:600 30px/1.2 var(--serif);color:var(--sapin);margin:0 0 4px}
+h2{font:600 22px/1.25 var(--serif);color:var(--sapin);margin:44px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+h3{font:600 16px/1.3 var(--serif);color:var(--sapin);margin:14px 0 8px}
+p{margin:0 0 10px}
+.meta{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.muted{color:var(--muted)}
+code{font-size:12.5px;background:rgba(127,127,127,.12);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.note{border-left:4px solid var(--ocre);background:var(--card);padding:12px 14px;border-radius:6px;margin:14px 0}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:760px){.cols2{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+ul.tight{margin:4px 0 0;padding-left:20px} ul.tight li{margin:5px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--lichen)}
+.lab{font:600 11px/1.3 var(--sans);text-transform:uppercase;letter-spacing:.08em;color:var(--lichen);display:block;margin:10px 0 4px}
+.seg{display:inline-flex;border:1px solid var(--fieldline);border-radius:9px;overflow:hidden;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:var(--field);color:var(--ink);font:inherit;font-weight:600;font-size:13px;padding:0 12px;min-height:40px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--fieldline)}
+.seg button[aria-pressed="true"]{background:var(--sapin);color:var(--paper)}
+.btn{appearance:none;font:inherit;font-weight:600;font-size:13px;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:8px;padding:0 14px;min-height:44px;cursor:pointer}
+.btn.primary{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.btn.danger{color:var(--ko);border-color:var(--ko)}
+.btn.link{border:0;background:none;color:var(--info);text-decoration:underline;padding:0 4px}
+input[type=text],input[type=email],input[type=password],input[type=date],select,textarea{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--fieldline);border-radius:8px;background:var(--field);color:var(--ink);min-height:44px;width:100%}
+textarea{min-height:64px}
+.err{color:var(--ko);font-size:13px;min-height:18px;margin-top:4px}
+.okmsg{color:var(--ok);font-size:13px}
+/* console frame */
+.frame{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:14px 0}
+.url{font:12.5px ui-monospace,Menlo,monospace;padding:8px 12px;border-bottom:1px solid var(--line);background:rgba(127,127,127,.08);overflow-wrap:anywhere}
+.pab{position:sticky;top:0;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--card);flex-wrap:wrap}
+.pab .t{font:600 18px var(--serif);color:var(--sapin);flex:1;min-width:120px}
+.body{padding:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--ink);border-radius:999px;padding:0 14px;min-height:40px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.fchip b{font-size:16px;margin-right:6px}
+.fchip[aria-pressed="true"]{background:var(--sapin);color:var(--paper);border-color:var(--sapin)}
+.st{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.st-trial,.st-due{background:color-mix(in srgb,var(--info) 16%,var(--card));color:var(--info)}
+.st-active{background:color-mix(in srgb,var(--ok) 16%,var(--card));color:var(--ok)}
+.st-grace{background:color-mix(in srgb,var(--ocre) 18%,var(--card));color:var(--ocre)}
+.st-read_only,.st-suspended{background:color-mix(in srgb,var(--ko) 16%,var(--card));color:var(--ko)}
+.st-archived{background:rgba(127,127,127,.18);color:var(--muted)}
+.fleet tbody tr{cursor:pointer}
+.fleet tbody tr:hover{background:rgba(127,127,127,.07)}
+.fleet th button{appearance:none;border:0;background:none;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;padding:0}
+.cards{display:none}
+.fcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.fcard .r{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+@media (max-width:700px){.fleet{display:none}.cards{display:block}}
+.steps li{list-style:none;display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.steps{padding:0;margin:0}
+.dot{width:22px;height:22px;border-radius:50%;flex:0 0 22px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.d-ok{background:var(--ok)} .d-ko{background:var(--ko)} .d-todo{background:transparent;border:2px solid var(--fieldline)}
+.steps .txt{flex:1;min-width:180px}
+.steps small{display:block;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 14px}
+@media (max-width:640px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.modal{border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px;background:color-mix(in srgb,var(--lichen) 6%,var(--card));display:none}
+.modal.show{display:block}
+.hist li{font-size:13.5px;margin:4px 0}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.login{max-width:380px;margin:10px auto;padding:20px;border:1px solid var(--line);border-radius:12px}
+.login h4{font:600 20px var(--serif);margin:0 0 10px;text-align:center}
+.qr{width:120px;height:120px;margin:8px auto;display:grid;grid-template-columns:repeat(12,1fr);border:6px solid #fff;background:#fff}
+.qr i{display:block}
+.alerts li{margin:6px 0}
+</style>
+<style>
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:8px;font-size:14px;max-width:calc(100% - 32px);display:none;z-index:9}
+.toast.show{display:block}
+.phone{max-width:390px;margin:0 auto;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--paper)}
+.phone .url{border-radius:0}
+.gf{padding:28px 18px 34px;min-height:430px}
+.gf h4{font:600 26px/1.2 var(--serif);color:var(--sapin);text-align:center;margin:6px 0 4px}
+.gf .sub{text-align:center;color:var(--muted);font-size:14px;margin-bottom:18px}
+.gf .card{padding:18px}
+.gf .btn{width:100%;margin-top:10px}
+.space{display:block;width:100%;text-align:left;border:1px solid var(--fieldline);border-radius:10px;background:var(--field);padding:10px 14px;margin-top:8px;min-height:56px;cursor:pointer;font:inherit;color:var(--ink)}
+.space b{display:block}
+.space small{color:var(--muted)}
+.samples{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.samples button{appearance:none;border:1px solid var(--fieldline);background:var(--field);color:var(--info);border-radius:999px;font:12.5px ui-monospace,Menlo,monospace;padding:0 10px;min-height:32px;cursor:pointer}
+.hmac{font:12px ui-monospace,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}
+.chk label{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;min-height:44px}
+.chk input{width:20px;height:20px;margin-top:2px;flex:0 0 20px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.dest{border:1px dashed var(--fieldline);border-radius:10px;padding:12px;margin-top:10px;background:var(--card)}
+.focus{outline:3px solid color-mix(in srgb,var(--info) 55%,transparent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Connexion commune et adresses — C3</h1>
+<div class="meta">Maquette de la spec <code>specs/control-plane-plans-and-access.md</code> (règles 22, 24–27 ; 28 retirée) · 30/09/2026 · données fictives, tout se manipule.</div>
+
+<div class="card">
+<h3>En bref</h3>
+<div class="cols2">
+<div>
+<b>Le constat</b>
+<p>Chaque client a son adresse (<code>domaine-ombre.guestflow.fr</code>). Un utilisateur qui l'a oubliée n'a aucun point d'entrée, et changer l'adresse d'un client n'existe pas encore.</p>
+<b>Ce qu'on propose</b>
+<ul class="tight">
+<li><b><code>app.guestflow.fr</code></b> ne demande qu'un email et envoie vers le bon espace, avec l'email déjà rempli. Plusieurs espaces : une liste. Aucun : une phrase neutre. Le dernier espace choisi est retenu 90 jours.</li>
+<li>La page est <b>rendue par le serveur, sans script</b>. Elle ne voit jamais de mot de passe.</li>
+<li><b>L'annuaire</b> : chaque minute, la console lit les comptes actifs de chaque instance, en lecture seule, et ne garde que l'empreinte HMAC de chaque email. Rien ne change dans l'instance.</li>
+<li><b>« Changer l'adresse »</b> : cinq points à cocher, l'ancienne adresse réservée et redirigée pendant 12 mois.</li>
+</ul>
+</div>
+<div>
+<b>Ce qu'on ne fait pas</b>
+<ul class="tight">
+<li><b>Pas de relais OAuth central</b> (règle 28 retirée) : Google Agenda et Qonto sont des plugins, non installés par défaut, et chaque client les connecte avec ses propres applications.</li>
+<li>Pas de mot de passe unique pour tous les espaces (règle 25).</li>
+<li>La redirection 301 et le déplacement du dossier restent une étape manuelle jusqu'à la phase H.</li>
+</ul>
+<b>Les risques</b>
+<ul class="tight">
+<li>Une recherche révèle qu'un email a un espace. C'est accepté (Q5), et la page est limitée à 10 recherches par minute et par IP.</li>
+<li>La console dépend de la table <code>users</code> de l'instance, comme elle dépend déjà de la table <code>plugins</code>.</li>
+</ul>
+<b>Décidé le 30/09</b>
+<ul class="tight">
+<li>Q15 : une seule PR.</li>
+<li>Q16 : l'annuaire lu dans la table <code>users</code>.</li>
+<li>Q17 : les applications de chaque client, sans relais.</li>
+</ul>
+</div>
+</div>
+</div>
+
+<h2>1. La page <code>app.guestflow.fr</code></h2>
+<p>Choisis un email d'exemple ou tape le tien, puis « Continuer ». Recommence plus de 10 fois dans la minute pour voir le refus. Après un choix, recharge la page avec « Nouvelle visite » : l'espace est proposé directement.</p>
+<div class="samples" id="samples"></div>
+<div class="cols2">
+<div class="phone">
+<div class="url">https://app.guestflow.fr/</div>
+<div class="gf" id="gf"></div>
+</div>
+<div>
+<h3>Ce qui se passe</h3>
+<div id="what" class="muted">Rien encore.</div>
+<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="revisit">Nouvelle visite (cookie gardé)</button><button class="btn link" id="wipe">Effacer le cookie</button></div>
+</div>
+</div>
+
+<h2>2. L'annuaire</h2>
+<p>La console lit chaque minute les comptes actifs d'une instance et ne garde que leur empreinte. Désactive un compte dans l'instance, puis « Passe d'une minute ».</p>
+<div class="cols2">
+<div class="card"><h3>Instance <code>domaine-ombre</code> — table <code>users</code></h3><table><thead><tr><th>Email</th><th>Actif</th></tr></thead><tbody id="users"></tbody></table></div>
+<div class="card"><h3>Base de la console — table <code>directory</code></h3><table><thead><tr><th>emailHmac</th><th>client</th></tr></thead><tbody id="dir"></tbody></table>
+<button class="btn primary" id="tick" style="margin-top:10px">Passe d'une minute</button>
+<p class="muted" style="margin-top:8px">Aucun email en clair ici. Une instance illisible garde ses lignes ; un client effacé perd les siennes.</p></div>
+</div>
+
+<h2>3. « Changer l'adresse » dans la console</h2>
+<p>Tape <code>admin</code>, <code>ab</code> ou <code>moulin</code> (pris) pour voir les refus. Le bouton reste gris tant que tout n'est pas coché.</p>
+<div class="frame">
+<div class="url">https://console.guestflow.fr/clients/7</div>
+<div class="body" style="max-width:620px">
+<h3>Changer l'adresse de Domaine Ombre</h3>
+<span class="lab">Nouvelle adresse</span><input type="text" id="slug" value="domaine-de-l-ombre">
+<div class="err" id="slugErr"></div><div class="muted" id="slugUrl"></div>
+<p style="margin-top:10px">À refaire, à cocher une fois fait ou prévu :</p>
+<div class="chk" id="chk"></div>
+<p class="muted" id="until"></p>
+<button class="btn primary" id="renameBtn" disabled>Changer l'adresse</button>
+<div id="renamed"></div>
+</div>
+</div>
+
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(function(){
+const $=(id)=>document.getElementById(id);
+const esc=(t)=>String(t).replace(/[&<>"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2600);}
+const SPACES={'domaine-ombre':{name:'Domaine Ombre',state:'active'},'moulin':{name:'Le Moulin',state:'active'},'oliviers':{name:'Mas des Oliviers',state:'suspended'}};
+const DIR={'claire@ombre.fr':['domaine-ombre'],'compta@cabinet-lamy.fr':['domaine-ombre','moulin'],'paul@oliviers.fr':['oliviers']};
+['claire@ombre.fr','  Compta@Cabinet-Lamy.fr ','paul@oliviers.fr','inconnu@exemple.fr'].forEach((e)=>{const b=document.createElement('button');b.textContent=e;b.onclick=()=>{$('email').value=e;};$('samples').appendChild(b);});
+let cookie=null; let hits=[];
+function form(msg){
+  $('gf').innerHTML=`<h4>GuestFlow</h4><div class="sub">Connexion à votre espace</div><div class="card">${msg?`<p class="note" style="margin:0 0 12px">${msg}</p>`:''}<span class="lab">Adresse email</span><input type="email" id="email" autocomplete="email" placeholder="vous@exemple.fr"><button class="btn primary" id="go">Continuer</button></div>`;
+  $('go').onclick=lookup;
+}
+function remembered(){
+  const s=SPACES[cookie];
+  $('gf').innerHTML=`<h4>GuestFlow</h4><div class="sub">Connexion à votre espace</div><div class="card"><button class="btn primary" id="cont">Continuer vers ${esc(s.name)}</button><button class="btn" id="other">Utiliser une autre adresse</button></div>`;
+  $('cont').onclick=()=>go(cookie,'');
+  $('other').onclick=()=>{cookie=null;form();$('what').textContent='« Utiliser une autre adresse » efface le cookie gf_space et revient au formulaire.';};
+}
+function go(slug,email){
+  cookie=slug; const s=SPACES[slug];
+  const url=`https://${slug}.guestflow.fr/login${email?`?login_hint=${encodeURIComponent(email)}`:''}`;
+  $('what').innerHTML=`<b>303 → <code>${esc(url)}</code></b><br>Cookie <code>gf_space=${slug}</code> posé pour 90 jours.
+  <div class="dest">${s.state==='suspended'?`<b>${esc(s.name)}</b> affiche sa propre page : « Cet espace est suspendu ». Ses données sont intactes.`:`<b>Page de connexion de ${esc(s.name)}</b><span class="lab">Email</span><input type="text" value="${esc(email)}" readonly><span class="lab">Mot de passe</span><input type="password" class="focus" placeholder="le curseur est ici"><p class="muted" style="margin-top:6px">Le mot de passe se tape ici, sur l'espace du client, jamais sur app.guestflow.fr.</p>`}</div>`;
+}
+function lookup(){
+  const now=Date.now(); hits=hits.filter((t)=>now-t<60000); hits.push(now);
+  if(hits.length>10){ form('Trop de recherches depuis votre connexion. Réessayez dans une minute.'); $('what').innerHTML='<b>429</b> : 10 recherches par minute et par IP, au-delà la page elle-même répond ce refus.'; return; }
+  const raw=$('email').value; const email=raw.trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ form('Adresse email invalide.'); return; }
+  const found=DIR[email]||[];
+  if(found.length===0){ form('Aucun espace GuestFlow n’est associé à cette adresse. Vérifiez l’orthographe ou contactez la personne qui vous a invité.'); $('what').textContent='Réponse neutre, formulaire à nouveau. Rien n’est enregistré.'; return; }
+  if(found.length===1){ go(found[0],email); if(raw!==email) $('what').insertAdjacentHTML('afterbegin','<p class="muted">Espaces et majuscules ignorés.</p>'); return; }
+  $('gf').innerHTML=`<h4>GuestFlow</h4><div class="sub">Cette adresse a accès à ${found.length} espaces</div><div class="card">${found.map((s)=>`<button class="space" data-s="${s}"><b>${esc(SPACES[s].name)}</b><small>${s}.guestflow.fr</small></button>`).join('')}<button class="btn link" id="back" style="margin-top:8px">Utiliser une autre adresse</button></div>`;
+  $('gf').querySelectorAll('.space').forEach((b)=>b.onclick=()=>go(b.dataset.s,email));
+  $('back').onclick=()=>form();
+  $('what').textContent='Plusieurs espaces : une liste, chaque bouton mène à la même redirection.';
+}
+$('revisit').onclick=()=>{ if(cookie && SPACES[cookie]) remembered(); else form(); $('what').textContent=cookie?'Le cookie gf_space retient le dernier espace : il est proposé directement.':'Aucun espace retenu : le formulaire.'; };
+$('wipe').onclick=()=>{cookie=null;form();$('what').textContent='Cookie effacé.';};
+form();
+
+// ---- directory
+const users=[{e:'claire@ombre.fr',a:true},{e:'Compta@Cabinet-Lamy.fr',a:true},{e:'ancien.gerant@ombre.fr',a:false}];
+let dir=[];
+async function h(e){const k=new TextEncoder().encode('cle-de-la-console');const key=await crypto.subtle.importKey('raw',k,{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(e.trim().toLowerCase()));return [...new Uint8Array(sig)].map((b)=>b.toString(16).padStart(2,'0')).join('').slice(0,20)+'…';}
+function renderUsers(){$('users').innerHTML=users.map((u,i)=>`<tr><td>${esc(u.e)}</td><td><input type="checkbox" data-i="${i}" ${u.a?'checked':''} aria-label="Actif"></td></tr>`).join('');}
+$('users').addEventListener('change',(e)=>{users[e.target.dataset.i].a=e.target.checked;toast('Compte modifié dans l’instance : la console le verra à la prochaine passe.');});
+async function tick(){dir=await Promise.all(users.filter((u)=>u.a).map((u)=>h(u.e)));$('dir').innerHTML=dir.map((x)=>`<tr><td class="hmac">${x}</td><td>Domaine Ombre</td></tr>`).join('')||'<tr><td colspan="2" class="muted">aucune ligne</td></tr>';}
+$('tick').onclick=async()=>{await tick();toast('Lignes de Domaine Ombre remplacées en une transaction.');};
+renderUsers();tick();
+
+// ---- rename
+const RESERVED=['app','www','auth','api','admin','console','mail','status','demo'];
+const TAKEN=['moulin','oliviers'];
+const ITEMS=['Réglage du plugin WordPress (adresse de l’API)','Adresses des flux iCal collées sur chaque plateforme','Adresses de retour des applications Google et Qonto du client, puis « Connecter » à nouveau','URL publique de l’espace (Réglages → Envoi d’emails)','Notifications push : chaque appareil les accepte à nouveau'];
+$('chk').innerHTML=ITEMS.map((t,i)=>`<label><input type="checkbox" data-i="${i}"><span>${t}</span></label>`).join('');
+function slugErr(v){ if(!/^[a-z0-9-]{3,30}$/.test(v)) return v.length<3||v.length>30?'De 3 à 30 caractères.':'Minuscules, chiffres et tirets seulement.'; if(RESERVED.includes(v)) return 'Adresse réservée.'; if(TAKEN.includes(v)) return 'Cette adresse est déjà prise.'; if(v==='domaine-ombre') return 'C’est déjà son adresse.'; return ''; }
+function renderRename(){
+  const v=$('slug').value.trim(); const err=slugErr(v);
+  $('slugErr').textContent=err; $('slugUrl').textContent=err?'':`Nouvelle adresse : https://${v}.guestflow.fr`;
+  $('until').textContent='L’ancienne adresse domaine-ombre.guestflow.fr reste réservée et redirige (301) jusqu’au 30/09/2027.';
+  const all=[...$('chk').querySelectorAll('input')].every((c)=>c.checked);
+  $('renameBtn').disabled=Boolean(err)||!all;
+}
+$('slug').addEventListener('input',renderRename);$('chk').addEventListener('change',renderRename);
+$('renameBtn').onclick=()=>{const v=$('slug').value.trim();$('renamed').innerHTML=`<div class="note">Journal : « Adresse : domaine-ombre → ${esc(v)} ; l’ancienne redirige jusqu’au 30/09/2027 ». Licence réémise. Étape à faire : « Dossier renommé, processus et route relancés, redirection 301 posée jusqu’au 30/09/2027 ».</div>`;toast('Adresse changée.');};
+renderRename();
+})();
+</script>
+</body>
+</html>

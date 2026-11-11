@@ -1,9 +1,9 @@
 /**
- * calendarDaySummary — pure helpers for the mobile week view.
+ * calendarDaySummary — pure helpers for the phone's day agenda.
  * See specs/calendar-mobile-view.md.
  */
 
-import { buildDaySummary, isEmptyDay, getMonday, weekDays } from '../calendarDaySummary';
+import { buildDaySummary, isEmptyDay } from '../calendarDaySummary';
 
 const RES = [
   { id: 1, startDate: '2026-07-10', endDate: '2026-07-13', firstName: 'Jane', lastName: 'S', platform: 'direct' },
@@ -40,19 +40,4 @@ test('devis surface only when no reservation occupies the slot', () => {
   // a day already covered by a reservation arrival → no devis
   const devis2 = [{ id: 9, startDate: '2026-07-10', endDate: '2026-07-22' }];
   expect(buildDaySummary('2026-07-10', RES, devis2).devis).toEqual([]);
-});
-
-test('getMonday returns the Monday of the week at local midnight', () => {
-  // 2026-07-11 is a Saturday → Monday is 2026-07-06
-  const mon = getMonday(new Date(2026, 6, 11));
-  expect(mon.getFullYear()).toBe(2026);
-  expect(mon.getMonth()).toBe(6);
-  expect(mon.getDate()).toBe(6);
-});
-
-test('weekDays returns 7 consecutive days from the Monday', () => {
-  const days = weekDays(new Date(2026, 6, 6));
-  expect(days).toHaveLength(7);
-  expect(days[0].getDate()).toBe(6);
-  expect(days[6].getDate()).toBe(12);
 });

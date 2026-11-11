@@ -20,7 +20,7 @@ const ERROR_FR = {
   PASSWORD_TOO_SHORT: `Le nouveau mot de passe doit faire au moins ${MIN_LENGTH} caractères.`,
   PASSWORD_UNCHANGED: 'Le nouveau mot de passe doit être différent de l\'actuel.',
   INVALID_CREDENTIALS: 'Mot de passe actuel incorrect.',
-  MISSING_FIELDS: 'Veuillez remplir tous les champs.',
+  MISSING_FIELDS: 'Tous les champs sont requis.',
 };
 
 export default function ChangePasswordForm({

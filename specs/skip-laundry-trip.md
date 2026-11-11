@@ -62,6 +62,9 @@ reflect the skip immediately.
    "actually I didn't go last Tuesday" — the stock projection
    re-aligns with reality. Without this, displayed stock would drift
    from the bins on the shelf.
+   *Reading of 2026-11-02 — the date window.* « Past » stops at today − 5 years and the future at today + 5 years: a
+   skip outside is refused, 400 `DATE_OUTSIDE_WINDOW` with the French message; a date already skipped is
+   re-added or removed whatever its day (linen 1.2.2, `specs/reservations-backend-mvc.md` rule 13, second reading).
 
 ### 3.2 Engine behaviour on a skipped date
 
@@ -135,6 +138,10 @@ reflect the skip immediately.
 - Two consecutive trips skipped → engine carries forward 3 weeks
   of dirty + 3 batches of `atLaundry` to the third trip. Tested in
   the engine unit suite.
+
+15. **A skip follows the schedule of its date (2026-10-28, [linen-laundry-days.md](linen-laundry-days.md)
+    rule 12).** Rule 2's « laundry day » is any weekday of the schedule in force on that date. Rule 7's
+    « ≥ 14 days » becomes « every batch whose `readyFrom` is reached ».
 
 ---
 
@@ -380,7 +387,8 @@ that ships each step, per CLAUDE.md §4.1.)_
 - [x] **Hotfix 2026-06-05 follow-up #2** — after skipping two trips
       in a row, the trip-3 card *disappeared* instead of absorbing
       the 3-week backlog. The toggle's refetch used `from = startDate`
-      to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window)
+      to `startDate + DAYS_AHEAD - 1` (= the initial 14-day window; « the loaded windows of the
+      timeline » since dashboard-planning-scroll.md, 2026-10-28, which reloads each window with its own range)
       and `setLaundryByDate` REPLACES the whole map — wiping any
       dates the user had already scrolled into view via infinite
       scroll. **Initial patch** used `lastLoadedRef.current` as the

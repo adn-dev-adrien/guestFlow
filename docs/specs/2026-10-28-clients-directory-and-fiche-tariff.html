@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clients et résumé tarifaire</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-soft:#E3ECE6; --honey:#C99038;
+  --paper:#F8F5EF; --white:#fff; --ink:#27251F; --muted:#6E6A5E;
+  --success:#3E7D54; --success-soft:#E6EFE7; --warning:#8F6A1D; --warning-soft:#F6EDD7;
+  --error:#A8433A; --error-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --divider:rgba(60,54,36,.1); --shadow:0 3px 16px rgba(60,54,36,.09); --r:14px;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 var(--sans)}
+main{max-width:1240px;margin:0 auto;padding:32px 20px 80px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 6px}
+h2{font:600 1.45rem/1.2 var(--serif);margin:48px 0 12px}
+h3{font:600 1.1rem/1.3 var(--serif);margin:28px 0 8px}
+p{max-width:72ch}
+.lead{color:var(--muted);margin:0 0 24px}
+.card{background:var(--white);border-radius:var(--r);box-shadow:var(--shadow);padding:20px 22px;margin:14px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.kpis{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
+.kpi{background:var(--white);border-radius:12px;box-shadow:var(--shadow);padding:12px 16px;min-width:150px}
+.kpi b{display:block;font-size:1.6rem;font-variant-numeric:tabular-nums}
+.kpi span{font-size:.75rem;color:var(--muted);font-weight:600}
+.plain{border-left:3px solid var(--primary);background:var(--primary-soft);padding:12px 16px;border-radius:0 10px 10px 0;max-width:80ch}
+.warn{border-left:3px solid var(--warning);background:var(--warning-soft);padding:12px 16px;border-radius:0 10px 10px 0;max-width:80ch}
+ul.tight{margin:6px 0;padding-left:20px} ul.tight li{margin:4px 0}
+code{font-size:.85em;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 12px}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;background:rgba(60,54,36,.07);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;font:500 13px var(--sans);padding:6px 12px;border-radius:8px;cursor:pointer;color:var(--ink);min-height:32px}
+.seg button[aria-pressed="true"]{background:var(--white);box-shadow:0 1px 4px rgba(60,54,36,.15);font-weight:600}
+.small{font-size:.82rem;color:var(--muted)}
+/* ---------- Frame ---------- */
+.stage{background:#EDE8DE;border-radius:18px;padding:18px;overflow:hidden}
+.frame{background:var(--paper);border-radius:12px;margin:0 auto;box-shadow:0 8px 30px rgba(60,54,36,.14);overflow:hidden;transition:max-width .25s ease}
+.frame.desk{max-width:1100px}.frame.phone{max-width:390px}
+@media (prefers-reduced-motion:reduce){.frame{transition:none}}
+.appbar{height:52px;background:var(--white);display:flex;align-items:center;padding:0 16px;font:600 1.05rem var(--serif);color:var(--primary);border-bottom:1px solid var(--divider)}
+.pbar{position:sticky;top:0;z-index:3;background:var(--white);border-bottom:1px solid var(--divider);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:8px 16px;gap:8px}
+.pbar h4{margin:0;font:600 1.3rem var(--serif)}
+.tabs{display:flex;gap:4px}
+.tab{border:0;background:none;font:500 14px var(--sans);color:var(--muted);padding:10px 12px;cursor:pointer;border-bottom:2px solid transparent;min-height:44px;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--primary);border-color:var(--primary);font-weight:600}
+.tab .n{font-variant-numeric:tabular-nums;opacity:.75;margin-left:4px}
+.btn{border:1px solid var(--divider);background:var(--white);border-radius:10px;padding:8px 14px;font:600 13px var(--sans);cursor:pointer;min-height:40px;color:var(--ink)}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn.warnbtn{color:var(--warning);border-color:rgba(143,106,29,.45)}
+.btn.text{border:0;background:none;color:var(--primary);padding:6px 4px;min-height:36px}
+.btn:focus-visible,.tab:focus-visible,.row:focus-visible,.seg button:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.btn:active{transform:scale(.98)}
+.content{padding:16px}
+.top{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+.search{flex:1;display:flex;align-items:center;gap:8px;background:var(--white);border:1px solid rgba(60,54,36,.2);border-radius:10px;padding:0 12px;min-height:42px}
+.search input{border:0;outline:0;font:14px var(--sans);flex:1;background:transparent;min-width:0;color:var(--ink)}
+select{font:14px var(--sans);border:1px solid rgba(60,54,36,.2);border-radius:10px;min-height:42px;padding:0 10px;background:var(--white);color:var(--ink)}
+.list{background:var(--white);border-radius:var(--r);box-shadow:var(--shadow);overflow:clip}
+.ghead{position:sticky;top:61px;z-index:2;background:#FBF9F5;padding:8px 18px;font:600 11.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--divider);border-top:1px solid var(--divider)}
+.ghead:first-child{border-top:0}
+.row{display:grid;grid-template-columns:44px minmax(0,1.25fr) minmax(0,1.35fr) minmax(0,1fr);gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--divider);cursor:pointer;min-height:72px}
+.row:last-child{border-bottom:0}
+.row:hover{background:rgba(60,54,36,.035)}
+.av{width:40px;height:40px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font:600 14px var(--sans)}
+.nm{min-width:0}
+.nm .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:8px;align-items:center}
+.nm .name span.t{overflow:hidden;text-overflow:ellipsis}
+.when{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.when.instay{color:var(--success);font-weight:600}
+.stay{min-width:0;font-size:13.5px}
+.stay .p{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stay .d{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;display:flex;gap:8px;align-items:center;white-space:nowrap}
+.contact{min-width:0;text-align:right;font-size:13px}
+.contact a{color:var(--muted);text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.contact a:hover{color:var(--primary);text-decoration:underline}
+.chip{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;font:600 11px var(--sans);white-space:nowrap}
+.pf-Booking{background:#E1E9F5;color:#1F3F78}.pf-direct{background:var(--primary-soft);color:var(--primary)}.pf-GdF{background:#EEF2DC;color:#56631D}.pf-Airbnb{background:#F9E3E3;color:#9C3B3B}
+.loyal{background:rgba(60,54,36,.07);color:var(--muted)}
+.tel{display:none}
+.empty{padding:36px 18px;text-align:center;color:var(--muted)}
+.empty .btn{margin-top:10px}
+.strip{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 18px;background:var(--warning-soft);border-bottom:1px solid var(--divider);font-size:13.5px}
+/* phone layout */
+.phone .pbar{grid-template-columns:1fr auto}
+.phone .pbar .tabs{grid-column:1/-1;order:3;justify-content:space-between;border-top:1px solid var(--divider);margin:0 -16px;padding:0 6px}
+.phone .pbar .tab{flex:1;padding:10px 4px;font-size:13px}
+.phone .top{flex-direction:column;align-items:stretch}
+.phone .row{grid-template-columns:40px minmax(0,1fr) 44px;gap:10px;padding:12px 12px}
+.phone .row .stay{grid-column:2/3;grid-row:2}
+.phone .row .contact{display:none}
+.phone .tel{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;border:1px solid var(--divider);color:var(--primary);text-decoration:none;grid-column:3;grid-row:1/3}
+.phone .ghead{top:105px}
+.phone .content{padding:12px}
+.sheet{position:absolute;inset:0;background:rgba(39,37,31,.32);display:none;align-items:center;justify-content:center;z-index:5}
+.sheet.open{display:flex}
+.sheet .panel{background:var(--white);border-radius:var(--r);padding:20px;width:min(420px,92%);box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.phone .sheet .panel{width:100%;height:100%;border-radius:0}
+.sheet h5{font:600 1.15rem var(--serif);margin:0 0 6px}
+.rel{position:relative}
+/* ---------- Pricing card ---------- */
+.ps{background:var(--white);border-radius:var(--r);box-shadow:var(--shadow);padding:18px;width:320px;max-width:calc(100vw - 80px);font-size:14px}
+.ps h6{font:600 1.05rem var(--serif);margin:0 0 10px}
+.ps .prop{margin-bottom:12px}
+.ps .l{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0}
+.ps .l .v{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ps .cap{font-size:12px;color:var(--muted);font-style:italic}
+.ps .sec{font:600 11.5px var(--sans);letter-spacing:.06em;color:var(--muted);margin:12px 0 4px}
+.ps hr{border:0;border-top:1px solid var(--divider);margin:8px 0}
+.ps .sm{font-size:12.5px}
+.ps .strong{font-weight:700}
+.ps .green{color:var(--success)} .ps .honey{color:var(--warning)}
+.ps .link{color:var(--primary);font-size:12.5px;cursor:default}
+.pill{display:inline-block;background:var(--primary);color:#fff;border-radius:999px;font:600 11px var(--sans);padding:3px 10px}
+.strike{text-decoration:line-through;color:var(--muted)}
+.notice{background:var(--warning-soft);border-radius:10px;padding:12px;margin:0 0 12px;font-size:13.5px}
+.notice b{display:block;margin-bottom:4px}
+.notice .il{display:flex;flex-wrap:wrap;gap:0 6px;padding:2px 0}
+.notice .il .num{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.notice .il .cur{color:var(--muted);white-space:nowrap}
+.notice .btn.text{color:var(--warning);padding-left:0}
+.chipwarn{display:inline-block;border:1px solid rgba(143,106,29,.5);color:var(--warning);border-radius:999px;font:600 11.5px var(--sans);padding:3px 10px;margin-bottom:10px}
+.cmp{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+.cmp>div>.small{margin-bottom:6px}
+.phone-ps .ps{width:358px;max-width:calc(100vw - 80px)}
+.phone .row .stay .d{white-space:normal;flex-wrap:wrap}
+.cmp>div{min-width:0;max-width:100%}
+.tag{display:inline-block;font:600 11px var(--sans);padding:2px 8px;border-radius:6px;background:var(--success-soft);color:var(--success);margin-left:6px}
+.tag.no{background:var(--error-soft);color:var(--error)}
+table.q{border-collapse:collapse;width:100%;font-size:14px}
+table.q td,table.q th{border-bottom:1px solid var(--divider);padding:8px 6px;text-align:left;vertical-align:top}
+.reco{background:var(--success-soft);color:var(--success);font:600 11px var(--sans);border-radius:6px;padding:2px 8px;margin-left:6px;white-space:nowrap}
+.fbar{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;background:var(--white);border-bottom:1px solid var(--divider);padding:6px 12px}
+.fbar h4{margin:0;font:600 1.15rem var(--serif);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fback,.fsave{width:40px;height:40px;display:grid;place-items:center;border-radius:10px;border:1px solid var(--divider);color:var(--muted)}
+.fsave{background:var(--primary);color:#fff;border-color:var(--primary);justify-self:end}
+.fbody{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;padding:16px;align-items:start}
+.fcol{display:flex;flex-direction:column;gap:14px;min-width:0}
+.fcard{background:var(--white);border-radius:var(--r);box-shadow:var(--shadow);padding:16px}
+.fcard h5{font:600 1rem var(--serif);margin:0 0 10px}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:3px 0}.kv span:first-child{color:var(--muted)}
+.fld{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.fld label{font:600 12px var(--sans);color:var(--muted)}
+.fld input{font:15px var(--sans);font-variant-numeric:tabular-nums;border:1px solid rgba(60,54,36,.25);border-radius:10px;min-height:44px;padding:0 12px;background:var(--white);color:var(--ink);width:100%}
+.fld input:focus{outline:2px solid var(--primary);outline-offset:1px}
+.fld input.bad{border-color:var(--error);outline-color:var(--error)}
+.fld .err{color:var(--error);font-size:12.5px;min-height:18px}
+.alertp{background:var(--warning-soft);border-radius:10px;padding:12px;margin:0 0 12px;font-size:13.5px;animation:alin .22s ease-out}
+.alertp b{display:block;margin-bottom:2px;color:#5E4512}
+.alertp .ln{display:flex;flex-wrap:wrap;gap:0 6px}.alertp .ln .num{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.alertp a{display:inline-flex;align-items:center;min-height:36px;color:var(--warning);font-weight:600;text-decoration:none}
+.alertp a:hover{text-decoration:underline}
+@keyframes alin{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.alertp{animation:none}}
+.fbody .ps{width:auto;max-width:none}
+.fsticky{display:none}
+.phone .fbody{grid-template-columns:1fr;padding:12px;padding-bottom:84px}
+.phone .fbody .pscol{display:none}
+.phone .fsticky{display:flex;position:absolute;left:0;right:0;bottom:0;background:var(--white);border-top:1px solid var(--divider);padding:10px 12px;align-items:center;justify-content:space-between;gap:10px;z-index:4}
+.fsticky .tt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fsticky .dot{width:8px;height:8px;border-radius:50%;background:var(--warning);display:inline-block;margin-left:6px;vertical-align:middle}
+.sheet.bottom{align-items:flex-end}
+.sheet.bottom .panel{width:100%;max-height:88%;overflow:auto;border-radius:16px 16px 0 0;padding:14px 12px 20px;height:auto}
+.phone .sheet.bottom .panel{height:auto;border-radius:16px 16px 0 0}
+.grab{width:36px;height:4px;border-radius:2px;background:rgba(60,54,36,.2);margin:0 auto 10px}
+#fframe{min-height:560px}
+.phone#fframe{min-height:720px}
+.phone .fbody .ps,.sheet .ps{box-shadow:none;padding:4px;width:auto;max-width:none}
+</style>
+</head>
+<body>
+<main>
+<h1>Clients et résumé tarifaire</h1>
+<p class="lead">Retour du 28/10/2026 sur le shadow <code>inte/plugins</code> (copie de prod du 22/10). Deux sujets : la page Clients, et le résumé tarifaire d’une fiche. Version révisée après le second retour du 28/10 sur le résumé tarifaire ; les décisions Q-A et Q-B sur la page Clients sont prises. Specs modifiées : <code>specs/clients-upcoming-past-directory.md</code> (règles 11-22), <code>specs/clients.md</code> (règle 15), <code>specs/reservation-payment-ledger.md</code> (règles 50-64 ; 53-55 retirées).</p>
+
+<h2>Le constat</h2>
+
+<h3>Page Clients</h3>
+<p>Les onglets « À venir / Passés » existent déjà et « À venir » s’ouvre par défaut. Mais la règle actuelle range aussi dans « À venir » tout client <em>sans séjour</em>. Résultat sur le shadow :</p>
+<div class="kpis">
+  <div class="kpi"><b>29</b><span>lignes dans « À venir »</span></div>
+  <div class="kpi"><b>9</b><span>vraies arrivées</span></div>
+  <div class="kpi"><b>20</b><span>clients sans séjour (18 sans rien, 2 avec un devis)</span></div>
+  <div class="kpi"><b>49</b><span>dans « Passés »</span></div>
+</div>
+<p>Les 9 arrivées sont noyées sous 20 lignes « — » : la page donne l’impression d’afficher tout le monde. Chaque ligne est une suite de sept colonnes de texte de même poids (Nom, Prénom, Séjour, Email, Téléphone, CP, Ville) avec deux icônes empilées qui doublent sa hauteur. Rien n’indique <em>où</em> vient le client, <em>dans combien de temps</em>, par quelle plateforme, ni s’il est déjà venu. Une recherche sans résultat dans l’onglet ouvert ne signale pas les résultats de l’autre onglet. Sur téléphone, impossible de trier.</p>
+
+<h3>Résumé tarifaire « différent »</h3>
+<p>Aujourd’hui, quand les montants enregistrés d’une fiche ne sont plus ceux que GuestFlow calculerait avec les réglages du jour, la fiche passe à une autre carte (<code>StoredPricingSummary</code>) : sans « OPTIONS », sans « Détail » des nuits, avec la phrase « Montants enregistrés. Le calcul actuel du séjour diffère… ». Ce n’est pas un ancien tarif : un changement de prix de saison ne déclenche jamais ce bloc, seul un changement de réglage le fait. Sur le shadow, 4 fiches Booking 2027 sur 9 à venir l’affichent, toutes à cause du passage de la taxe Booking en « nous reverse » le 16/10.</p>
+<p class="plain"><strong>Second retour d’Adrien :</strong> garder la même carte, mais la liste des écarts n’est pas claire, et sur une plateforme il y a <em>toujours</em> un écart avec notre tarif, puisque le prix est majoré de la commission exprès. L’information ne vaut que pour <strong>alerter quand l’écart est trop grand pour être normal</strong>, signe d’une plateforme mal paramétrée.</p>
+<p>La bonne comparaison n’est donc pas « prix plateforme contre notre tarif », mais <strong>« prix payé sur la plateforme contre ce que la grille « Prix plateformes » du logement dit d’afficher sur <em>cette</em> plateforme »</strong>. Cette grille existe déjà (page Tarifs du logement) : pour chaque saison et chaque canal, le net cible majoré de la commission, arrondi à l’euro supérieur, plus les frais de ménage du canal. Un séjour Booking vendu au prix de la grille ne s’en écarte que de l’arrondi. Il s’en écarte franchement quand une saison, un supplément ou des frais de ménage manquent sur la plateforme.</p>
+
+<h2>Ce qu’on propose</h2>
+
+<h3>1. Clients : un annuaire qui se lit d’un coup d’œil</h3>
+<ul class="tight">
+  <li>Trois vues : <b>À venir</b> (s’ouvre par défaut), <b>Passés</b>, <b>Sans séjour</b>. Les passés et les fiches vides ne sont plus dans la vue par défaut, et chacune reste à un clic. La vue choisie est mémorisée dans l’adresse : en revenant d’une fiche, on retombe sur la même liste.</li>
+  <li>Lignes regroupées par période, calculées par le serveur : <em>En séjour · 7 prochains jours · 30 prochains jours · Plus tard</em> ; les passés par année.</li>
+  <li>Chaque ligne affiche le logement, les dates, les nuits, la plateforme, « Arrive dans 9 j », et « 3 séjours » pour les clients fidèles. Email et téléphone sont des liens (sur téléphone : bouton d’appel).</li>
+  <li>La recherche couvre les trois vues : « Aucun résultat dans À venir · <u>2 dans Passés</u> ».</li>
+  <li>Un seul tri, « Date de séjour » ou « Nom », disponible aussi sur téléphone.</li>
+  <li>« Nettoyer les clients » est placé dans la vue « Sans séjour », la seule où il sert.</li>
+</ul>
+<div class="toolbar">
+  <span class="small">Affichage :</span>
+  <div class="seg" role="group" aria-label="Largeur">
+    <button aria-pressed="true" data-w="desk">Ordinateur · 1280</button>
+    <button aria-pressed="false" data-w="phone">Téléphone · 390</button>
+  </div>
+  <span class="small">Données :</span>
+  <div class="seg" role="group" aria-label="Données">
+    <button aria-pressed="true" data-d="demo">Exemple</button>
+    <button aria-pressed="false" data-d="worst">Cas extrêmes</button>
+    <button aria-pressed="false" data-d="zero">Base vide</button>
+  </div>
+</div>
+<div class="stage">
+  <div class="frame desk rel" id="cframe">
+    <div class="appbar">GuestFlow</div>
+    <div style="max-height:620px;overflow:auto" id="cscroll">
+      <div class="pbar">
+        <h4>Clients</h4>
+        <div class="tabs" role="tablist" id="ctabs"></div>
+        <div style="text-align:right"><button class="btn primary" id="newc">+ Nouveau client</button></div>
+      </div>
+      <div class="content">
+        <div class="top">
+          <label class="search"><span aria-hidden="true">⌕</span><input id="q" placeholder="Rechercher un client (nom, email, téléphone…)"></label>
+          <select id="sort" aria-label="Trier"><option value="date">Trier : Date de séjour</option><option value="name">Trier : Nom</option></select>
+        </div>
+        <div class="list" id="clist"></div>
+      </div>
+    </div>
+    <div class="sheet" id="csheet"><div class="panel"><h5 id="sname"></h5><p class="small" id="sbody"></p><p class="small">La fiche client actuelle s’ouvre ici, inchangée. « Supprimer » y reste le seul accès à la suppression.</p><button class="btn" id="sclose">Fermer</button></div></div>
+  </div>
+</div>
+<p class="small">À essayer : « Passés », puis taper <b>morel</b> dans la recherche (le client est dans À venir), « Sans séjour » pour le bouton Nettoyer, « Cas extrêmes » pour les noms très longs, « Base vide » pour les états vides.</p>
+
+<h3>2. Fiche : le même résumé, et une seule alerte</h3>
+<ul class="tight">
+  <li>Les montants enregistrés s’affichent dans <b>la carte habituelle</b>, sans encadré ni liste d’écarts : mêmes sections, mêmes « OPTIONS », même « Détail » des nuits. Seuls « Offrir », « compl. » et « Recalculer » disparaissent tant que la fiche n’est pas modifiée.</li>
+  <li><b>Une alerte, sur les séjours plateforme seulement</b>, quand le prix payé s’écarte de la grille de ce canal de <b>plus de −15 % ou +25 %, et d’au moins 30 €</b>. Texte : « Prix Booking à vérifier » puis « 812,00 € payés · 1 206,00 € selon la grille (−33 %) », et un lien « Voir la grille ».</li>
+  <li>Elle est calculée par le serveur, et suit la saisie : taper le brut dans « Paiement plateforme » la fait apparaître ou disparaître au calcul suivant. Une faute de frappe sur le brut est donc repérée dès la saisie.</li>
+  <li>Elle ne s’affiche jamais sur : une réservation directe, un devis, un séjour annulé ou commencé, un brut pas encore saisi, une plateforme absente de la grille, et un séjour dont le tarif a changé après la réservation sans que ses nuits aient été enregistrées.</li>
+  <li><b>Plus de bouton « Appliquer le calcul actuel »</b> : « Actualiser tarifs », qui existe déjà dans la section Finances, reste le seul moyen de recalculer une fiche directe.</li>
+</ul>
+<div class="toolbar">
+  <span class="small">Cas :</span>
+  <div class="seg" role="group" aria-label="Cas" id="cases">
+    <button aria-pressed="true" data-c="direct">Direct · normal</button>
+    <button aria-pressed="false" data-c="ok">Booking · normal</button>
+    <button aria-pressed="false" data-c="bad">Booking · mal paramétré</button>
+  </div>
+  <div class="seg" role="group" aria-label="Largeur fiche" id="pw">
+    <button aria-pressed="true" data-p="desk">Ordinateur · 1280</button>
+    <button aria-pressed="false" data-p="phone">Téléphone · 390</button>
+  </div>
+</div>
+<div class="stage">
+  <div class="frame desk rel" id="fframe">
+    <div class="appbar">GuestFlow</div>
+    <div class="fbar"><span class="fback" aria-hidden="true">‹</span><h4 id="ftitle">Réservation</h4><span class="fsave" aria-hidden="true">✓</span></div>
+    <div class="fbody" id="fbody"></div>
+    <div class="fsticky" id="fsticky"></div>
+    <div class="sheet bottom" id="fsheet"><div class="panel" id="fsheetp"></div></div>
+  </div>
+</div>
+<p class="small" id="wnote"></p>
+
+<h2>Ce qu’on ne fait pas</h2>
+<ul class="tight">
+  <li>Pas de pagination ni de liste virtualisée : 78 clients aujourd’hui, une seule requête suffit.</li>
+  <li>Pas de vue « Fidèles », pas d’étiquettes, pas de fusion de doublons, pas d’envoi groupé depuis la liste. La fiche client elle-même ne change pas.</li>
+  <li>On ne montre plus ce qui diffère entre l’enregistré et le calcul du jour : ni liste d’écarts, ni « ancien tarif ».</li>
+  <li>On ne corrige pas les 4 fiches Booking 2027 : « Actualiser tarifs » puis « Enregistrer », fiche par fiche, si Adrien le veut.</li>
+  <li>Pas de contrôle des réservations directes contre le tarif : leur prix sort du moteur lui-même, un écart y serait un prix saisi à la main, pas un paramétrage.</li>
+  <li>Pas de liste des alertes au tableau de bord, pas de seuil réglable ni par plateforme, pas de lecture de la configuration des plateformes par API.</li>
+</ul>
+
+<h2>Le risque</h2>
+<ul class="tight">
+  <li><b>Résumé tarifaire :</b> le composant <code>PricingSummary</code> (1 021 lignes) compose aujourd’hui lui-même ses lignes d’options à partir des options du logement. Le faire passer sur des lignes fournies par le serveur, pour les deux modes, touche une carte vue sur chaque fiche. Garde-fou : un test de parité qui vérifie que, sur une fiche sans écart, la carte enregistrée et la carte du jour affichent le même texte ligne par ligne. S’y ajoutent la relecture manuelle des 4 fiches en écart et de 2 fiches sans écart, à 390, 900 et 1280 px.</li>
+  <li><b>Aucun montant n’est recalculé ni écrit :</b> pas de migration, pas de changement de schéma. L’argent reste celui de la base ; seul l’affichage change.</li>
+  <li><b>Alerte à tort :</b> le seuil n’a pas été mesuré sur les vraies fiches (pas de requête en production). Raisonné sur les cas connus : les 8 totaux de référence de la recette Aventura tombent sur la grille (0 alerte) ; un tarif non remboursable à −10 % ne déclenche pas ; Genius ajouté dessus (−19 %) déclenche, volontairement. La recette passe toutes les fiches plateforme à venir de la copie du shadow et compte les alertes : attendu zéro, ou un vrai défaut de paramétrage.</li>
+  <li><b>Alerte manquée :</b> des frais de ménage oubliés sur un long séjour (−6 % sur 7 nuits) restent sous le seuil. Accepté : sur 2 nuits, le même oubli déclenche.</li>
+  <li><b>Clients :</b> la liste passe de deux sous-requêtes par client à une requête agrégée. Le risque est de mal classer un client (séjour annulé, séjour qui se termine aujourd’hui) ; chaque seuil a son test. L’ancien champ <code>items</code> de l’API est conservé pendant une version, pour qu’un onglet resté ouvert continue de fonctionner.</li>
+  <li><b>Changement de règle :</b> un client sans séjour quitte « À venir ». Quelqu’un qui le cherchait là le retrouve par la recherche, qui couvre les trois vues.</li>
+  <li>Taille estimée : 2 lots indépendants. Lot A Clients : environ 10 fichiers, 2 nouveaux composants, 36 tests. Lot B Résumé : environ 11 fichiers, 2 utilitaires purs, 35 tests et 1 E2E (3 cas). Chaque lot peut être livré seul.</li>
+</ul>
+
+<h2>Les arbitrages en attente</h2>
+<p class="small">Déjà tranché le 28/10 : Q-A (vue « Sans séjour » avec « Nettoyer »), Q-B (plus d’icône Supprimer par ligne), Q-C (plus de liste d’écarts ; une alerte plateforme seulement).</p>
+<div class="card">
+<table class="q">
+<tr><th style="width:28%">Question</th><th>Options</th></tr>
+<tr><td><b>Q-D.</b> À partir de quel écart avec la grille l’alerte s’affiche-t-elle ? (essayer dans la maquette, cas Booking)</td><td>
+  <b>a · Sous −15 % ou au-dessus de +25 %, et au moins 30 €</b><span class="reco">recommandé</span><br><span class="small">Laisse passer l’arrondi et un tarif non remboursable ; prévient pour Genius cumulé, une saison ou des frais de ménage oubliés.</span><br>
+  <b>b · ±20 %, et au moins 30 €</b><br><span class="small">Plus simple à dire, mais rate le cumul de promotions (−19 %).</span><br>
+  <b>c · Seulement en dessous : −15 %, et au moins 30 €</b><br><span class="small">Ne prévient jamais d’un prix trop élevé : il ne coûte rien, mais c’est aussi une erreur.</span></td></tr>
+<tr><td><b>Q-F.</b> L’alerte peut-elle être masquée sur une fiche ?</td><td>
+  <b>a · Non</b><span class="reco">recommandé</span><br><span class="small">Rare par construction ; elle disparaît quand la plateforme est corrigée ou que le séjour commence.</span><br>
+  <b>b · « Ignorer » sur la fiche</b><br><span class="small">Utile pour une promotion voulue ; demande une colonne en base et une règle pour savoir quand l’oubli expire.</span></td></tr>
+</table>
+</div>
+</main>
+
+<script>
+(function(){
+// ---------------- Clients mock ----------------
+// Mock data only — invented names. In the product every label, group and count comes from the server.
+const BASE=[
+ {ln:'Morel',fn:'Inès',b:'upcoming',g:'inStay',when:'En séjour · départ le 08/11',p:'La Granja',d:'26/10 → 08/11/2026 · 13 nuits',pf:'Booking',n:2,sd:'2026-10-26',mail:'ines.morel@example.fr',tel:'06 12 34 56 78'},
+ {ln:'Lefèvre',fn:'Bastien',b:'upcoming',g:'next7',when:'Arrive dans 2 j',p:'L’Estiva',d:'30/10 → 02/11/2026 · 3 nuits',pf:'direct',n:1,sd:'2026-10-30',mail:'b.lefevre@example.org',tel:'07 81 22 40 19'},
+ {ln:'Ngo',fn:'Thi Lan',b:'upcoming',g:'next30',when:'Arrive dans 9 j',p:'La Granja',d:'06/11 → 08/11/2026 · 2 nuits',pf:'Booking',n:1,sd:'2026-11-06',mail:'tngo.48213@guest.booking.com',tel:'+33 6 40 18 77 02'},
+ {ln:'Garnier',fn:'Hugo',b:'upcoming',g:'next30',when:'Arrive dans 16 j',p:'L’Estiva',d:'13/11 → 16/11/2026 · 3 nuits',pf:'GdF',n:1,sd:'2026-11-13',mail:'hugo.garnier@example.fr',tel:'06 03 91 55 20'},
+ {ln:'Benali',fn:'Yasmine',b:'upcoming',g:'later',when:'Arrive dans 57 j',p:'La Granja',d:'24/12/2026 → 02/01/2027 · 9 nuits',pf:'direct',n:3,sd:'2026-12-24',mail:'yasmine.benali@example.com',tel:'06 72 10 33 84'},
+ {ln:'Rousseau',fn:'Paul',b:'upcoming',g:'later',when:'Arrive le 19/04/2027',p:'L’Estiva',d:'19/04 → 23/04/2027 · 4 nuits',pf:'direct',n:1,sd:'2027-04-19',mail:'paul.rousseau@example.net',tel:'06 45 88 02 61'},
+ {ln:'Petit',fn:'Camille',b:'upcoming',g:'later',when:'Arrive le 11/06/2027',p:'La Granja',d:'11/06 → 18/06/2027 · 7 nuits',pf:'Booking',n:1,sd:'2027-06-11',mail:'cpetit.90311@guest.booking.com',tel:'+32 470 12 34 56'},
+ {ln:'Fabre',fn:'Louis',b:'past',g:'2026',when:'Parti le 25/10',p:'La Granja',d:'20/10 → 25/10/2026 · 5 nuits',pf:'Airbnb',n:1,sd:'2026-10-20',mail:'louis.fabre@example.fr',tel:'06 11 52 70 08'},
+ {ln:'Durand',fn:'Élodie',b:'past',g:'2026',when:'Parti il y a 2 sem.',p:'L’Estiva',d:'12/10 → 15/10/2026 · 3 nuits',pf:'direct',n:2,sd:'2026-10-12',mail:'elodie.durand@example.com',tel:'06 30 44 18 92'},
+ {ln:'Martin',fn:'Chloé',b:'past',g:'2026',when:'Parti il y a 2 mois',p:'La Granja',d:'16/08 → 23/08/2026 · 7 nuits',pf:'GdF',n:4,sd:'2026-08-16',mail:'chloe.martin@example.org',tel:'06 98 21 03 47'},
+ {ln:'Laurent',fn:'Théo',b:'past',g:'2025',when:'Parti il y a 15 mois',p:'L’Estiva',d:'02/07 → 06/07/2025 · 4 nuits',pf:'Booking',n:1,sd:'2025-07-02',mail:'tlaurent.11820@guest.booking.com',tel:'+33 7 66 05 41 90'},
+ {ln:'Weber',fn:'Anna',b:'none',g:'devis',when:'Devis D-2026-031 · envoyé',p:'',d:'',pf:'',n:0,sd:'',mail:'anna.weber@example.de',tel:'+49 151 2345 6789'},
+ {ln:'Caron',fn:'Mathis',b:'none',g:'nothing',when:'Créé le 14/10/2026',p:'',d:'',pf:'',n:0,sd:'',mail:'mathis.caron@example.fr',tel:'',orphan:true},
+ {ln:'Roy',fn:'Léa',b:'none',g:'nothing',when:'Créé le 02/09/2026',p:'',d:'',pf:'',n:0,sd:'',mail:'',tel:'06 14 62 80 33',orphan:true},
+];
+const WORST=[
+ {ln:'Da Silva-Montgomery de La Roche-Aymon',fn:'Marie-Bérénice Éléonore',b:'upcoming',g:'next7',when:'Arrive demain',p:'Le Grand Gîte des Quatre Saisons et sa Dépendance',d:'29/10 → 12/11/2026 · 14 nuits',pf:'Booking',n:12,sd:'2026-10-29',mail:'marie-berenice.dasilva-montgomery.delarocheaymon@exemple-tres-long-domaine.fr',tel:'+33 6 12 34 56 78'},
+ {ln:'Ø',fn:'',b:'upcoming',g:'next30',when:'Arrive dans 30 j',p:'La Granja',d:'27/11 → 28/11/2026 · 1 nuit',pf:'direct',n:1,sd:'2026-11-27',mail:'',tel:''},
+ {ln:'王',fn:'小明',b:'upcoming',g:'later',when:'Arrive le 03/03/2027',p:'L’Estiva',d:'03/03 → 10/03/2027 · 7 nuits',pf:'Airbnb',n:1,sd:'2027-03-03',mail:'xiaoming.wang@example.cn',tel:'+86 138 0013 8000'},
+];
+const GL={inStay:'En séjour',next7:'7 prochains jours',next30:'30 prochains jours',later:'Plus tard','2026':'2026','2025':'2025',devis:'Devis en cours',nothing:'Aucune réservation'};
+const GO={upcoming:['inStay','next7','next30','later'],past:['2026','2025'],none:['devis','nothing']};
+const VL={upcoming:'À venir',past:'Passés',none:'Sans séjour'};
+const PFL={Booking:'Booking',direct:'Direct',GdF:'Gîtes de France',Airbnb:'Airbnb'};
+let state={view:'upcoming',q:'',sort:'date',data:'demo'};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function dataset(){ if(state.data==='zero') return []; return state.data==='worst'?WORST.concat(BASE):BASE; }
+function norm(s){return String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();}
+function matches(c){ if(!state.q) return true; const q=norm(state.q); return [c.ln,c.fn,c.mail,c.tel].some(v=>norm(v).includes(q)); }
+function initials(c){ const a=(c.fn||'').trim()[0]||''; const b=(c.ln||'').trim()[0]||''; return (a+b).toUpperCase()||'?'; }
+function render(){
+  const all=dataset().filter(matches);
+  const counts={upcoming:0,past:0,none:0}; all.forEach(c=>counts[c.b]++);
+  $('#ctabs').innerHTML=['upcoming','past','none'].map(v=>`<button class="tab" role="tab" aria-selected="${v===state.view}" data-v="${v}">${VL[v]}<span class="n">${counts[v]}</span></button>`).join('');
+  document.querySelectorAll('#ctabs .tab').forEach(t=>t.onclick=()=>{state.view=t.dataset.v;render();});
+  let items=all.filter(c=>c.b===state.view);
+  let html='';
+  const orphans=dataset().filter(c=>c.orphan).length;
+  if(state.view==='none' && orphans>0 && !state.q){
+    html+=`<div class="strip"><span>${orphans} client${orphans>1?'s':''} sans réservation ni devis</span><button class="btn warnbtn" onclick="alert('Ouvre la fenêtre « Nettoyer la base clients » actuelle, inchangée.')">Nettoyer les clients</button></div>`;
+  }
+  if(items.length===0){
+    if(state.q){
+      const other=['upcoming','past','none'].filter(v=>v!==state.view&&counts[v]>0).sort((a,b)=>counts[b]-counts[a])[0];
+      html+= other ? `<div class="empty">Aucun résultat dans ${VL[state.view]}<br><button class="btn" data-go="${other}">${counts[other]} dans ${VL[other]}</button></div>` : `<div class="empty">Aucun client trouvé.</div>`;
+    } else if(state.view==='upcoming'){
+      html+=`<div class="empty">Aucune arrivée prévue.${counts.past?`<br><button class="btn" data-go="past">Voir les passés (${counts.past})</button>`:''}</div>`;
+    } else if(state.view==='none'){ html+=`<div class="empty">Tous les clients ont un séjour.</div>`; }
+    else html+=`<div class="empty">Aucun client passé.</div>`;
+  } else {
+    let groups;
+    if(state.sort==='name'){
+      items.sort((a,b)=>a.ln.localeCompare(b.ln,'fr')||a.fn.localeCompare(b.fn,'fr'));
+      groups=[{label:null,items}];
+    } else {
+      const dir=state.view==='past'?-1:1;
+      items.sort((a,b)=>dir*(a.sd||'').localeCompare(b.sd||''));
+      groups=GO[state.view].map(k=>({label:GL[k],items:items.filter(c=>c.g===k)})).filter(g=>g.items.length);
+    }
+    groups.forEach(g=>{
+      if(g.label) html+=`<div class="ghead">${esc(g.label)} · ${g.items.length}</div>`;
+      g.items.forEach(c=>{
+        const full=`${c.ln} ${c.fn}`.trim();
+        html+=`<div class="row" tabindex="0" role="button" data-name="${esc(full)}" data-when="${esc(c.when)}">
+          <div class="av" aria-hidden="true">${esc(initials(c))}</div>
+          <div class="nm"><div class="name" title="${esc(full)}"><span class="t">${esc(c.ln)} <span style="font-weight:400">${esc(c.fn)}</span></span>${c.n>1?`<span class="chip loyal">${c.n} séjours</span>`:''}</div>
+            <div class="when ${c.g==='inStay'?'instay':''}">${esc(c.when)}</div></div>
+          <div class="stay">${c.p?`<div class="p" title="${esc(c.p)}">${esc(c.p)}</div><div class="d"><span style="overflow:hidden;text-overflow:ellipsis">${esc(c.d)}</span><span class="chip pf-${c.pf}">${PFL[c.pf]}</span></div>`:`<div class="d">—</div>`}</div>
+          <div class="contact">${c.mail?`<a href="mailto:${esc(c.mail)}" title="${esc(c.mail)}" data-stop>${esc(c.mail)}</a>`:''}${c.tel?`<a href="tel:${esc(c.tel)}" data-stop>${esc(c.tel)}</a>`:''}${!c.mail&&!c.tel?'<span class="small">—</span>':''}</div>
+          ${c.tel?`<a class="tel" href="tel:${esc(c.tel)}" aria-label="Appeler" data-stop>✆</a>`:'<span></span>'}
+        </div>`;
+      });
+    });
+  }
+  $('#clist').innerHTML=html;
+  document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{state.view=b.dataset.go;render();});
+  document.querySelectorAll('#clist .row').forEach(r=>{
+    const open=()=>{ $('#sname').textContent=r.dataset.name; $('#sbody').textContent=r.dataset.when; $('#csheet').classList.add('open'); };
+    r.onclick=e=>{ if(e.target.closest('[data-stop]')){ e.preventDefault(); return;} open(); };
+    r.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();open();} };
+  });
+}
+$('#sclose').onclick=()=>$('#csheet').classList.remove('open');
+$('#newc').onclick=()=>{ $('#sname').textContent='Nouveau client'; $('#sbody').textContent='Formulaire actuel, inchangé.'; $('#csheet').classList.add('open'); };
+$('#q').oninput=e=>{state.q=e.target.value;render();};
+$('#sort').onchange=e=>{state.sort=e.target.value;render();};
+document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-w]').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#cframe').className='frame rel '+b.dataset.w;});
+document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-d]').forEach(x=>x.setAttribute('aria-pressed',x===b));state.data=b.dataset.d;render();});
+render();
+
+// ---------------- Fiche mock ----------------
+// Invented stay. In the product, the check and every amount come from the server (calculate-price).
+const eur=v=>v.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}).replace(/ /g,' ')+' €';
+const pct=v=>(v>0?'+':'−')+Math.abs(Math.round(v))+' %';
+const GRID_NIGHT=402, NIGHTS=3, TAX=21.6, COM=15; // Booking 15 %: ceil(341 / 0,85) = 402 € a night
+const EXPECTED=GRID_NIGHT*NIGHTS; // 1 206 €
+const CASES={
+ direct:{label:'Direct',guest:'Camille Duret',acc:1128,brut:null},
+ ok:{label:'Booking',guest:'Jonas Weber',brut:1206},
+ bad:{label:'Booking',guest:'Aurore Lemaire-Saint-Hilaire de Montfaucon',brut:812}
+};
+let fs={c:'direct',phone:false,brut:{ok:'1206',bad:'812'},sheet:false};
+function parseBrut(t){ const v=String(t).trim().replace(/\s/g,'').replace(',','.'); if(v==='') return {empty:true}; if(!/^\d+(\.\d{1,2})?$/.test(v)) return {err:'Montant invalide'}; return {v:Number(v)}; }
+function check(paid){ // mirrors rules 60-61 for the mock only
+  const gap=paid-EXPECTED, p=gap/EXPECTED*100;
+  if(Math.abs(gap)<30) return null; if(p<-15||p>25) return {paid,expected:EXPECTED,p}; return null; }
+function alertHtml(a,label){ return `<div class="alertp" role="status"><b>Prix ${label} à vérifier</b><div class="ln"><span class="num">${eur(a.paid)} payés ·</span><span class="num">${eur(a.expected)} selon la grille (${pct(a.p)})</span></div><a href="#" data-grid>Voir la grille</a></div>`; }
+function card(cs,paid,alert){
+  const plat=cs.brut!==null;
+  const acc=plat?(paid==null?0:paid):cs.acc;
+  const opts=[['Linge de lit','incluse dans le tarif',70,'inc'],['Bois pour le bain nordique','',40]];
+  const optT=40, total=acc+optT+TAX, ht=+(total/1.1).toFixed(2), tva=+(total-ht).toFixed(2);
+  let h=`<div class="ps"><h6>Résumé tarifaire</h6>${alert?alertHtml(alert,cs.label):''}<div class="prop small">La Granja · ${NIGHTS} nuits</div>`;
+  h+=`<div class="l"><span>Prix hébergement</span><span class="v">${eur(acc)}</span></div>${plat?'':`<div class="l" style="justify-content:flex-end;padding-top:0"><span class="link">Détail</span>&nbsp;<span class="small">(${NIGHTS} nuits)</span></div>`}<hr><div class="sec">OPTIONS</div>`;
+  opts.forEach(x=>{ h+=`<div class="l"><span>${x[0]}${x[1]?`<br><span class="cap">${x[1]}</span>`:''}</span><span class="v">${x[3]==='inc'?`<span class="pill">Comprise</span> <span class="strike">${eur(x[2])}</span>`:eur(x[2])}</span></div>`; });
+  h+=`<hr><div class="l"><span>Taxe de séjour</span><span class="v">${eur(TAX)}</span></div>`;
+  if(plat) h+=`<div class="cap honey">Collectée par la plateforme puis reversée — incluse dans le solde</div>`;
+  h+=`<hr><div class="l sm"><span>Total HT</span><span class="v" style="font-weight:400">${eur(ht)}</span></div><div class="l sm"><span>TVA 10%</span><span class="v" style="font-weight:400">${eur(tva)}</span></div><hr>`;
+  h+=`<div class="l strong"><span>Total du séjour</span><span class="v green">${eur(total)}</span></div>`;
+  if(plat){ const com=+((paid||0)*COM/100).toFixed(2); h+=`<div class="l"><span>Commission solde</span><span class="v honey">− ${eur(com)}</span></div><div class="l strong"><span>Versement plateforme</span><span class="v">${eur(+(total-com).toFixed(2))}</span></div>`; }
+  h+=`<hr><div class="l"><span>${plat?'Montant solde payé par le client':'Solde'}</span><span class="v">${eur(plat?total:+(total*0.7).toFixed(2))}</span></div><div class="small">À payer avant : ${plat?'14/08/2027':'12/06/2027'}</div>`;
+  if(!plat) h+=`<hr><div class="l"><span>Acompte</span><span class="v">${eur(+(total*0.3).toFixed(2))}</span></div>`;
+  h+=`<hr><div class="l"><span>Caution</span><span class="v">500,00 €</span></div></div>`;
+  return {h,total};
+}
+function renderF(){
+  const cs=CASES[fs.c], plat=cs.brut!==null;
+  let paid=null, err='', a=null;
+  if(plat){ const r=parseBrut(fs.brut[fs.c]); if(r.err) err=r.err; else if(!r.empty){ paid=r.v; a=check(paid); } }
+  const c=card(cs,paid,a);
+  const left=`<div class="fcol"><div class="fcard"><h5>Séjour</h5><div class="kv"><span>Client</span><span style="font-weight:600;overflow-wrap:anywhere;text-align:right">${cs.guest}</span></div><div class="kv"><span>Dates</span><span>12/07 → 15/07/2027</span></div><div class="kv"><span>Canal</span><span><span class="chip pf-${plat?'Booking':'direct'}">${plat?'Booking':'Direct'}</span></span></div></div>`+
+   (plat?`<div class="fcard"><h5>Paiement plateforme</h5><div class="fld"><label for="brut">Brut payé sur Booking (hors taxe de séjour)</label><input id="brut" inputmode="decimal" value="${fs.brut[fs.c]}" class="${err?'bad':''}" aria-invalid="${!!err}"><div class="err" id="brerr">${err}</div></div></div>`:`<div class="fcard"><h5>Finances</h5><div class="kv"><span>Actualiser tarifs</span><span class="small">inchangé</span></div></div>`)+`</div>`;
+  $('#fbody').innerHTML=left+`<div class="pscol">${c.h}</div>`;
+  $('#ftitle').textContent=fs.phone?cs.guest:'Réservation · '+cs.guest;
+  $('#fsticky').innerHTML=`<span>Total <span class="tt">${eur(c.total)}</span>${a?'<span class="dot" aria-label="Alerte"></span>':''}</span><button class="btn" id="opensheet">Résumé</button>`;
+  $('#fsheetp').innerHTML=`<div class="grab"></div>${c.h}<button class="btn" id="closesheet" style="width:100%;margin-top:8px">Fermer</button>`;
+  $('#fsheet').classList.toggle('open',fs.phone&&fs.sheet);
+  $('#fframe').className='frame rel '+(fs.phone?'phone':'desk');
+  let note='';
+  if(!plat) note='Réservation directe : la carte habituelle, jamais d’alerte. Si les montants enregistrés diffèrent du calcul du jour, rien ne le signale ; « Actualiser tarifs » reste le moyen de recalculer.';
+  else if(err) note='Saisie refusée : le résumé garde le dernier montant valide côté serveur ; ici, aucune alerte tant que le brut n’est pas un montant.';
+  else if(paid==null) note='Brut pas encore saisi : pas d’alerte.';
+  else { const p=(paid-EXPECTED)/EXPECTED*100; note=`Grille Booking : ${eur(EXPECTED)} pour ${NIGHTS} nuits (${GRID_NIGHT} € la nuit). Écart : ${eur(paid-EXPECTED)} (${p>=0?'+':'−'}${Math.abs(p).toFixed(1).replace('.',',')} %). Alerte sous −15 % ou au-dessus de +25 %, et à partir de 30 € (Q-D). Essayer 1 090, 1 020, 1 510.`; }
+  $('#wnote').textContent=note;
+  const inp=$('#brut'); if(inp){ inp.oninput=e=>{ fs.brut[fs.c]=e.target.value; const pos=e.target.selectionStart; renderF(); const n=$('#brut'); n.focus(); try{n.setSelectionRange(pos,pos);}catch(_){} }; }
+  const o=$('#opensheet'); if(o) o.onclick=()=>{fs.sheet=true;renderF();};
+  const cl=$('#closesheet'); if(cl) cl.onclick=()=>{fs.sheet=false;renderF();};
+  document.querySelectorAll('[data-grid]').forEach(l=>l.onclick=e=>{e.preventDefault(); $('#wnote').textContent='« Voir la grille » ouvre la page Tarifs du logement, section « Prix plateformes ».';});
+}
+$('#fsheet').onclick=e=>{ if(e.target.id==='fsheet'){fs.sheet=false;renderF();} };
+document.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-c]').forEach(x=>x.setAttribute('aria-pressed',x===b));fs.c=b.dataset.c;renderF();});
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-p]').forEach(x=>x.setAttribute('aria-pressed',x===b));fs.phone=b.dataset.p==='phone';fs.sheet=fs.phone;renderF();});
+renderF();
+})();
+</script>
+</body>
+</html>

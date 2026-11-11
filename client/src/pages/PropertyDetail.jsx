@@ -4,12 +4,20 @@ import { Box } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { TIME_OPTIONS } from '../constants/timeOptions';
 import { getFromParam, navigateBackWithFrom, withFrom } from '../utils/navigation';
+
+// A logement opened directly goes back to the list (specs/ui-review-2026-10-19-operations.md rule 26).
+const PROPERTIES_LIST = '/properties';
 import PageActionBar from '../components/PageActionBar';
 import PageTabs from '../components/PageTabs';
+import TabDot from '../components/TabDot';
 import ConfirmDialog from '../components/ConfirmDialog';
 import UnsavedChangesDialog from '../components/UnsavedChangesDialog';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
+import EmptyState from '../components/EmptyState';
+import SearchOffIcon from '@mui/icons-material/SearchOff';
+import { holdGuardSlot } from '../utils/backGuard';
+import { navigateThroughGuard } from '../utils/guardedNavigation';
 import { useToast } from '../components/DialogProvider';
 import PropertyGeneralTab from '../components/property/PropertyGeneralTab';
 import PropertyTariffTab from '../components/property/PropertyTariffTab';
@@ -19,18 +27,6 @@ import PropertyPlatformsTab from '../components/property/PropertyPlatformsTab';
 import PropertyDocumentsTab from '../components/property/PropertyDocumentsTab';
 import api from '../api';
 
-// Article options for "votre séjour <article> <name>" in client emails (mirrors the server's
-// formatPropertyWithArticle: the apostrophe form elides, the others get a space).
-// « à » is for names that carry their own article: « à La Granja » (specs/guest-email-sequence.md §5).
-const NAME_ARTICLES = ['au', 'à la', "à l'", 'aux', 'à'];
-// Exported for non-regression unit tests (pages/__tests__/PropertyDetail.helpers.test.js).
-export function previewWithArticle(name, article) {
-  const n = String(name || '').trim();
-  if (!n) return '';
-  const a = article || 'au';
-  return a.endsWith("'") ? `${a}${n}` : `${a} ${n}`;
-}
-
 const NEW_DEFAULTS = {
   name: '', nameArticle: 'au', maxGuests: 2, maxBabies: 0,
   basePriceIncludedGuests: 0,
@@ -39,8 +35,10 @@ const NEW_DEFAULTS = {
   singleBeds: 0, doubleBeds: 1,
   depositPercent: 30, depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7,
   depositEnabled: false,
-  defaultCautionAmount: 500,
-  parkingDistanceMeters: 0, hasWifi: true, hasFilterCoffeeMaker: false,
+  // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
+  defaultCautionAmount: 0,
+  parkingDistanceMeters: 0, hasWifi: true,
+  cleaningIncluded: 'options', towelsProvided: 'options', bedLinenProvided: 'options', poolSeasonMode: 'none', poolSeasonStart: '', poolSeasonEnd: '',
   touristTaxPerDayPerPerson: 0,
   touristTaxMode: 'per_day_per_person',
   touristTaxPercentage: 0,
@@ -67,8 +65,37 @@ export const FIELD_TAB = {
   touristTaxPerDayPerPerson: 'tarifs', touristTaxPercentage: 'tarifs', touristTaxDepartmentPercentage: 'tarifs', touristTaxFixedAmount: 'tarifs',
   depositEnabled: 'paiement', depositPercent: 'paiement', depositDueDays: 'paiement', balanceDaysBefore: 'paiement',
   cancelAfterBalanceDueDays: 'paiement', defaultCautionAmount: 'paiement',
-  parkingDistanceMeters: 'sejour', hasWifi: 'sejour', hasFilterCoffeeMaker: 'sejour',
+  parkingDistanceMeters: 'sejour', hasWifi: 'sejour',
+  cleaningIncluded: 'sejour', towelsProvided: 'sejour', bedLinenProvided: 'sejour', poolSeasonStart: 'sejour', poolSeasonEnd: 'sejour', poolSeasonMode: 'sejour',
 };
+
+// specs/guest-email-texts-made-simple.md rule 28 — a fact the start assistant could not know shows
+// empty, and is sent only once answered: an untouched empty field leaves the emails silent on it.
+const PENDING_FIELDS = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
+const choiceOf = (flag) => (flag == null ? 'options' : String(Number(flag)));
+// Rule 30 (2026-10-18) — the article is sent only once chosen: an untouched one is not confirmed.
+export function propertyFormData(form, original = {}) {
+  const fd = new FormData();
+  Object.entries(form).forEach(([k, v]) => {
+    if (PENDING_FIELDS[k] && (v === '' || v == null)) return;
+    if (k === 'nameArticle' && (!v || v === original.nameArticle)) return;
+    fd.append(k, v);
+  });
+  return fd;
+}
+
+// The « Arrivée » fields saved with the page (rule 35): plain ones, and the two secrets, sent only
+// when typed.
+const ARRIVAL_PLAIN = ['address', 'mapUrl', 'accessFr', 'accessEn', 'wifiName'];
+const arrivalDraftOf = (facts) => ({
+  ...Object.fromEntries(ARRIVAL_PLAIN.map((k) => [k, (facts && facts[k]) || ''])),
+  accessCode: undefined,
+  wifiPassword: undefined,
+});
+const arrivalChanged = (draft, saved) => Boolean(saved) && (
+  ARRIVAL_PLAIN.some((k) => draft[k] !== ((saved && saved[k]) || ''))
+  || draft.accessCode !== undefined || draft.wifiPassword !== undefined
+);
 
 const SUPPORTED_PHOTO_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SUPPORTED_PHOTO_FORMATS_TEXT = 'Formats pris en charge: JPG, JPEG, PNG, WEBP.';
@@ -115,11 +142,14 @@ export default function PropertyDetail() {
   const pendingNavRef = useRef(null);
   const [property, setProperty] = useState(isNew ? { name: 'Nouveau logement', pricingRules: [], documents: [] } : null);
   const [loadError, setLoadError] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [form, setForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [dirty, setDirty] = useState(isNew);
   const [saving, setSaving] = useState(false);
   const [originalForm, setOriginalForm] = useState(isNew ? NEW_DEFAULTS : {});
   const [errors, setErrors] = useState({});
+  const [limits, setLimits] = useState(null);
+  const [limitsError, setLimitsError] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = PROPERTY_TABS.some((t) => t.key === searchParams.get('tab')) ? searchParams.get('tab') : 'general';
   const selectTab = (next) => setSearchParams((prev) => {
@@ -137,21 +167,32 @@ export default function PropertyDetail() {
     () => buildTimedOptionsSnapshot(timedOptions) !== buildTimedOptionsSnapshot(initialTimedOptions),
     [timedOptions, initialTimedOptions]
   );
-  const pageDirty = dirty || timedOptionsDirty;
+  const [arrivalSaved, setArrivalSaved] = useState(null);
+  const [arrival, setArrival] = useState(arrivalDraftOf(null));
+  const [arrivalErrors, setArrivalErrors] = useState({});
+  const arrivalDirty = arrivalChanged(arrival, arrivalSaved);
+  const pageDirty = dirty || timedOptionsDirty || arrivalDirty;
 
   const load = useCallback(async () => {
     if (isNew) return;
     setLoadError(false);
     let p; let allOptions;
     try {
-      [p, allOptions] = await Promise.all([api.getProperty(id), api.getOptions()]);
+      [p, allOptions] = await Promise.all([
+        api.getProperty(id).catch((e) => { if (e && e.status === 404) setNotFound(true); throw e; }),
+        api.getOptions(),
+      ]);
     } catch (e) {
       setLoadError(true);
       return;
     }
     setProperty(p);
+    const pending = new Set(String(p.pendingFacts || '').split(',').filter(Boolean));
+    api.getPropertyArrivalFacts(id)
+      .then((facts) => { setArrivalSaved(facts); setArrival(arrivalDraftOf(facts)); setArrivalErrors({}); })
+      .catch(() => setArrivalSaved(null));
     const initial = {
-      name: p.name, nameArticle: p.nameArticle || 'au', maxGuests: p.maxGuests, maxBabies: p.maxBabies,
+      name: p.name, nameArticle: Number(p.nameArticleConfirmed ?? 1) === 1 ? (p.nameArticle || 'au') : '', maxGuests: p.maxGuests, maxBabies: p.maxBabies,
       basePriceIncludedGuests: p.basePriceIncludedGuests ?? 0,
       extraGuestPrice: p.extraGuestPrice ?? 0,
       extraGuestPriceUnit: p.extraGuestPriceUnit === 'per_night' ? 'per_night' : 'per_stay',
@@ -159,10 +200,13 @@ export default function PropertyDetail() {
       depositPercent: p.depositPercent, depositDueDays: p.depositDueDays,
       balanceDaysBefore: p.balanceDaysBefore, cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
       depositEnabled: Boolean(p.depositEnabled),
-      defaultCautionAmount: p.defaultCautionAmount ?? 500,
+      defaultCautionAmount: pending.has('caution') ? '' : (p.defaultCautionAmount ?? 0),
       parkingDistanceMeters: p.parkingDistanceMeters ?? 0,
       hasWifi: p.hasWifi == null ? true : Boolean(p.hasWifi),
-      hasFilterCoffeeMaker: Boolean(p.hasFilterCoffeeMaker),
+      cleaningIncluded: pending.has('cleaning') ? '' : choiceOf(p.cleaningIncluded),
+      towelsProvided: pending.has('towels') ? '' : choiceOf(p.towelsProvided),
+      bedLinenProvided: pending.has('linen') ? '' : choiceOf(p.bedLinenProvided),
+      poolSeasonMode: p.poolSeasonMode || 'none', poolSeasonStart: p.poolSeasonStart || '', poolSeasonEnd: p.poolSeasonEnd || '',
       touristTaxPerDayPerPerson: p.touristTaxPerDayPerPerson ?? 0,
       touristTaxMode: p.touristTaxMode ?? 'per_day_per_person',
       touristTaxPercentage: p.touristTaxPercentage ?? 0,
@@ -269,6 +313,25 @@ export default function PropertyDetail() {
   }, [canManageExtras, timedOptions, id, load]);
 
   useEffect(() => { load(); }, [load]);
+  const loadLimits = useCallback(() => {
+    setLimitsError(false);
+    api.getPropertyLimits().then(setLimits).catch(() => setLimitsError(true));
+  }, []);
+  useEffect(() => { loadLimits(); }, [loadLimits]);
+
+  // Rule 30 (2026-10-18) — the articles as the emails write them, from the server (it contracts
+  // « au Le Fournil » into « au Fournil »), following the name as it is typed.
+  const [articleLabels, setArticleLabels] = useState([]);
+  const typedName = form.name || '';
+  useEffect(() => {
+    let alive = true;
+    const timer = setTimeout(() => {
+      api.getArticleLabels(typedName)
+        .then((r) => { if (alive) setArticleLabels((r && r.labels) || []); })
+        .catch(() => {});
+    }, 250);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [typedName]);
 
   // Warn on browser close/refresh
   useEffect(() => {
@@ -316,17 +379,18 @@ export default function PropertyDetail() {
     return () => document.removeEventListener('click', handler, true);
   }, []);
 
-  // Intercept browser back/forward
+  // Browser back/forward (specs/ui-review-2026-10-19-operations.md rules 26, 40): the interceptor of
+  // utils/backGuard.js asks this handler before the router moves. `dirtyRef` is cleared once the operator
+  // chose to leave, so the back that follows passes.
   useEffect(() => {
-    if (!pageDirty) return;
-    const handler = () => {
+    if (!pageDirty) return undefined;
+    const keep = { state: window.history.state, url: window.location.href };
+    return holdGuardSlot('__guestflowBeforeBack', () => {
+      if (!dirtyRef.current) return null;
       pendingNavRef.current = null;
       setNavGuardOpen(true);
-      // push current location back to cancel the pop
-      window.history.pushState(null, '', window.location.href);
-    };
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
+      return keep;
+    });
   }, [pageDirty, location]);
 
   const handleNavGuardLeave = () => {
@@ -336,16 +400,18 @@ export default function PropertyDetail() {
     dirtyRef.current = false;
     setDirty(false);
     if (dest) navigate(dest);
-    else navigateBackWithFrom(navigate, from);
+    else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
 
+  // Rule 42: a refused save stays on the page, its reason shown.
   const handleNavGuardSave = async () => {
-    await handleSaveProperty();
+    const saved = await handleSaveProperty();
     setNavGuardOpen(false);
     const dest = pendingNavRef.current;
     pendingNavRef.current = null;
+    if (!saved) return;
     if (dest) navigate(dest);
-    else navigateBackWithFrom(navigate, from);
+    else navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
   };
 
   const updateField = (field, value) => {
@@ -360,7 +426,14 @@ export default function PropertyDetail() {
     }
   };
 
+  const updateArrival = (field, value) => {
+    setArrival((prev) => ({ ...prev, [field]: value }));
+    if (arrivalErrors[field]) setArrivalErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+  };
+
   const handleCancel = () => {
+    setArrival(arrivalDraftOf(arrivalSaved));
+    setArrivalErrors({});
     setForm({ ...originalForm });
     setDirty(false);
     setTimedOptions({ ...initialTimedOptions });
@@ -384,29 +457,55 @@ export default function PropertyDetail() {
     setDirty(true);
   };
 
+  const showFieldRefusals = (fieldErrors) => {
+    setErrors(fieldErrors);
+    const firstTab = PROPERTY_TABS.find((t) => Object.keys(fieldErrors).some((f) => FIELD_TAB[f] === t.key));
+    if (firstTab) selectTab(firstTab.key);
+    showError('Enregistrement refusé : corrigez les champs en rouge.');
+  };
+
+  // Answers whether everything was saved.
   const handleSaveProperty = async () => {
-    if (!form.name?.trim()) return;
+    if (!form.name?.trim()) {
+      showFieldRefusals({ name: 'Le nom est obligatoire.' });
+      return false;
+    }
     if (photoFile && !SUPPORTED_PHOTO_MIME_TYPES.has(photoFile.type)) {
       setPhotoValidationError(`Format non pris en charge pour la photo. ${SUPPORTED_PHOTO_FORMATS_TEXT}`);
-      return;
+      return false;
     }
     setSaving(true);
     setErrors({});
     try {
       if (isNew) {
-        const fd = new FormData();
-        Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+        const fd = propertyFormData(form, {});
         if (photoFile) fd.append('photo', photoFile);
         const result = await api.createProperty(fd);
         navigate(`/properties/${result.id}`, { replace: true });
-        return;
+        return true;
       }
 
       if (dirty || photoFile) {
-        const fd = new FormData();
-        Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+        const fd = propertyFormData(form, originalForm);
         if (photoFile) fd.append('photo', photoFile);
         await api.updateProperty(id, fd);
+      }
+
+      if (arrivalDirty) {
+        const body = Object.fromEntries(ARRIVAL_PLAIN.map((k) => [k, arrival[k]]));
+        if (arrival.accessCode !== undefined) body.accessCode = arrival.accessCode;
+        if (arrival.wifiPassword !== undefined) body.wifiPassword = arrival.wifiPassword;
+        try {
+          await api.savePropertyArrivalFacts(id, body);
+        } catch (err) {
+          if (err && err.errors) {
+            setArrivalErrors(err.errors);
+            selectTab('sejour');
+            showError('Enregistrement refusé : corrigez les champs en rouge.');
+            return false;
+          }
+          throw err;
+        }
       }
 
       if (canManageExtras && timedOptionsDirty) {
@@ -418,17 +517,13 @@ export default function PropertyDetail() {
       setPhotoValidationError('');
       await load();
       showSuccess('Logement enregistré.');
+      return true;
     } catch (err) {
       // A refused field lands under its input and lights its tab (rule 23a); anything else toasts —
       // NOT the photo-validation field (reserved for the local file-format check).
-      if (err && err.errors) {
-        setErrors(err.errors);
-        const firstTab = PROPERTY_TABS.find((t) => Object.keys(err.errors).some((f) => FIELD_TAB[f] === t.key));
-        if (firstTab) selectTab(firstTab.key);
-        showError('Enregistrement refusé : corrigez les champs en rouge.');
-      } else {
-        showError(err?.message || "Impossible d'enregistrer le logement.");
-      }
+      if (err && err.errors) showFieldRefusals(err.errors);
+      else showError(err?.message || "Impossible d'enregistrer le logement.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -437,46 +532,59 @@ export default function PropertyDetail() {
   const handleDeleteProperty = async () => {
     try {
       await api.deleteProperty(id);
-      navigateBackWithFrom(navigate, from);
+      navigateBackWithFrom(navigate, from, PROPERTIES_LIST);
     } catch (err) {
       showError(err?.message || 'Impossible de supprimer le logement.');
     }
   };
 
+  if (notFound) {
+    return (
+      <Box>
+        <PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from, PROPERTIES_LIST)} />
+        <EmptyState
+          icon={<SearchOffIcon />}
+          title="Logement introuvable."
+          message="Le lien est périmé ou le logement a été supprimé."
+          actionLabel="Retour aux logements"
+          onAction={() => navigate(PROPERTIES_LIST, { replace: true })}
+        />
+      </Box>
+    );
+  }
   if (loadError) {
-    return <Box><PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from)} /><ErrorAlert message="Impossible de charger le logement." onRetry={load} /></Box>;
+    return <Box><PageActionBar title="Logement" onBack={() => navigateBackWithFrom(navigate, from, PROPERTIES_LIST)} /><ErrorAlert message="Impossible de charger le logement." onRetry={load} /></Box>;
   }
   if (!property) return <Box><PageActionBar title="Logement" /><LoadingState label="Chargement du logement…" /></Box>;
 
   const showSaveCancel = isNew || pageDirty;
   const tabState = (key) => {
     const fields = Object.keys(FIELD_TAB).filter((f) => FIELD_TAB[f] === key);
-    if (fields.some((f) => errors[f])) return 'error';
+    if (fields.some((f) => errors[f]) || (key === 'sejour' && Object.keys(arrivalErrors).length > 0)) return 'error';
     const changed = fields.some((f) => String(form[f] ?? '') !== String(originalForm[f] ?? ''))
       || (key === 'general' && Boolean(photoFile))
-      || (key === 'sejour' && timedOptionsDirty);
+      || (key === 'sejour' && (timedOptionsDirty || arrivalDirty));
     return changed ? 'dirty' : '';
   };
   const tabDot = (state) => (state ? (
-    <Box component="span" aria-label={state === 'error' ? 'erreur' : 'modifié'} sx={{ width: 8, height: 8, borderRadius: '50%', ml: 0.75, bgcolor: state === 'error' ? 'error.main' : 'warning.main' }} />
+    <TabDot color={state === 'error' ? 'error' : 'warning'} label={state === 'error' ? 'erreur' : 'modifié'} />
   ) : null);
   const tabItems = PROPERTY_TABS
     .filter((t) => !isNew || ['general', 'tarifs', 'paiement', 'sejour'].includes(t.key))
     .map((t) => ({ value: t.key, label: t.label, badge: tabDot(tabState(t.key)) }));
-  const common = { form, errors, updateField, onZeroFocus: handleZeroFocus };
+  const common = { form, errors, updateField, onZeroFocus: handleZeroFocus, limits };
 
   return (
     <Box>
       <PageActionBar
         title={isNew ? 'Nouveau logement' : (property.name || 'Logement')}
-        titleOnXs
         tabs={<PageTabs value={tab} onChange={selectTab} items={tabItems} ariaLabel="Onglets du logement" />}
         {...(showSaveCancel ? {
           onSave: handleSaveProperty,
           saveTooltip: isNew ? 'Créer le logement' : 'Enregistrer',
           saveDisabled: saving || !form.name?.trim(),
           saveBusy: saving,
-          onCancel: isNew ? () => navigateBackWithFrom(navigate, from) : handleCancel,
+          onCancel: isNew ? () => navigateBackWithFrom(navigate, from, PROPERTIES_LIST) : handleCancel,
         } : {})}
         actionsAfter={!isNew ? [{
           icon: <DeleteIcon />,
@@ -494,8 +602,7 @@ export default function PropertyDetail() {
             photoFile={photoFile}
             photoValidationError={photoValidationError}
             onPhotoChange={handlePhotoFileChange}
-            nameArticles={NAME_ARTICLES}
-            previewWithArticle={previewWithArticle}
+            articleLabels={articleLabels}
             photoFormatsText={SUPPORTED_PHOTO_FORMATS_TEXT}
             timeOptions={TIME_OPTIONS}
           />
@@ -506,16 +613,23 @@ export default function PropertyDetail() {
             property={property}
             canManage={canManageExtras}
             getSortedSeasonRanges={getSortedSeasonRanges}
-            onOpenTariffs={() => navigate(withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
+            onOpenTariffs={() => navigateThroughGuard(navigate, withFrom(`/properties/${id}/pricing-seasons`, `/properties/${id}?tab=tarifs`))}
           />
         )}
-        {tab === 'paiement' && <PropertyPaymentTab {...common} />}
+        {tab === 'paiement' && (limits ? <PropertyPaymentTab {...common} /> : (
+          limitsError
+            ? <ErrorAlert message="Impossible de charger les réglages de paiement." onRetry={loadLimits} />
+            : <LoadingState label="Chargement…" />
+        ))}
         {tab === 'sejour' && (
           <PropertyStayTab
             {...common}
             timedOptions={timedOptions}
             updateTimedOptionField={updateTimedOptionField}
             timeOptions={TIME_OPTIONS}
+            propertyId={isNew ? null : property.id}
+            savedSeason={originalForm.poolSeasonMode === 'season' ? { start: originalForm.poolSeasonStart, end: originalForm.poolSeasonEnd } : undefined}
+            arrival={arrivalSaved ? { draft: arrival, saved: arrivalSaved, errors: arrivalErrors, onChange: updateArrival } : null}
           />
         )}
         {tab === 'plateformes' && !isNew && (
@@ -536,7 +650,7 @@ export default function PropertyDetail() {
         onClose={() => setDeleteOpen(false)}
         onConfirm={handleDeleteProperty}
         title="Supprimer le logement"
-        message={`Voulez-vous vraiment supprimer "${property.name}" ?`}
+        message={`Supprimer « ${property.name} » ?`}
         confirmLabel="Supprimer"
       />}
     </Box>

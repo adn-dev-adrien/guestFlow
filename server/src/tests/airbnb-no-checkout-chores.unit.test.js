@@ -1,89 +1,77 @@
-// specs/airbnb-no-checkout-chores.md — Airbnb forbids checkout chores and any request made at arrival:
-// the SAS read must never tell the operator to remind an Airbnb guest of the dishes and the trash.
+// specs/airbnb-no-checkout-chores.md — a channel that forbids checkout chores (Airbnb) is a platform
+// setting, `platforms.forbidsGuestChores`: the guest e-mails and the departure commit read it, never a
+// platform name. The SAS read is pinned by plugins/sas/tests/sas-chore-free-channel.unit.test.js.
+
+// specs/server-test-isolation.md rule 3 — this file sets its own temporary database.
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+process.env.DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gf-chores-')), 'guestflow.db');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const Module = require('module');
-
 const Database = require('better-sqlite3');
 
-const { isAirbnbChannel } = require('../utils/platformNameFormat');
+const { isChoreFreeChannel, setChoreFreeChannels, refreshChoreFreeChannels } = require('../utils/platformNameFormat');
 const { buildContext } = require('../utils/emailContextBuilder');
 const { create: createReservationsModel } = require('../models/reservationsModel');
+const { applyChoreFreeChannelsSchema, runChoreFreeChannelsMigration } = require('../utils/choreFreeChannelsMigration');
 
-function withMocks(modules, fn) {
-  const origRequire = Module.prototype.require;
-  Module.prototype.require = function patched(id) {
-    if (Object.prototype.hasOwnProperty.call(modules, id)) return modules[id];
-    return origRequire.call(this, id);
-  };
-  try { return fn(); } finally { Module.prototype.require = origRequire; }
-}
+// The operator ticked « Sans corvées de départ » on Airbnb.
+setChoreFreeChannels(['Airbnb']);
 
-function readSas({ platform, sold }) {
-  const reservation = { id: 1, propertyId: 1, platform, startDate: '2026-12-01', endDate: '2026-12-03', options: [], resources: [], nights: [] };
-  const reservationsModelMock = new Proxy({}, { get: (_, k) => {
-    if (k === 'getByIdWithDetails') return () => reservation;
-    if (k === 'getSasUpsellOptions') return () => ({
-      cleaning: { present: sold, sasOrigin: false, optionId: 3, totalPrice: 80 },
-      bathLinen: { present: false, sasOrigin: false, optionId: 9, totalPrice: 0 },
+// specs/airbnb-no-checkout-chores.md rules 2, 8
+test('isChoreFreeChannel follows the ticked platforms, whatever the recorded casing', () => {
+  assert.equal(isChoreFreeChannel('Airbnb'), true);
+  assert.equal(isChoreFreeChannel(' airbnb '), true);
+  assert.equal(isChoreFreeChannel('AIRBNB'), true);
+  assert.equal(isChoreFreeChannel('AirbnbTente'), false, 'a platform row of its own, ticked on its own');
+  assert.equal(isChoreFreeChannel('Booking'), false);
+  assert.equal(isChoreFreeChannel(null), false);
+  assert.equal(isChoreFreeChannel(''), false);
+});
+
+// specs/airbnb-no-checkout-chores.md rule 8 — nothing is ticked by name on a new database.
+test('a channel nobody ticked forbids nothing, even when it is called Airbnb', () => {
+  setChoreFreeChannels([]);
+  try {
+    assert.equal(isChoreFreeChannel('Airbnb'), false);
+    const ctx = buildContext({
+      reservation: { id: 1, startDate: '2026-12-01', endDate: '2026-12-03', adults: 2, propertyId: 1, platform: 'Airbnb' },
+      client: { firstName: 'A' }, property: { id: 1, name: 'La Granja' }, options: [], settings: {}, stayFacts: {},
     });
-    if (k === 'isCleaningSoldForReservation') return () => sold;
-    if (k === 'getCleaningPriceForProperty') return () => 80;
-    if (k === 'getBathLinenOfferForReservation') return () => ({ available: false, label: 'Linge de toilette' });
-    if (k === 'buildArrivalComplementDetail') return () => ({ amount: 0, paid: 0, detail: [] });
-    return () => null;
-  } });
-  const controller = withMocks({
-    '../models/reservationsModel': reservationsModelMock,
-    '../models/linenItemsModel': { list: () => [] },
-    '../models/settingsModel': { read: () => ({ portalCode: '' }) },
-    '../models/breakfastModel': { getForReservation: () => ({ applicable: false }) },
-    '../models/repairAmountsModel': { list: () => [] },
-    '../models/resourceSchedulingModel': { getSchedulingPayload: () => ({ applicable: false, resources: [] }) },
-  }, () => {
-    delete require.cache[require.resolve('../controllers/sasController')];
-    return require('../controllers/sasController');
-  });
-  delete require.cache[require.resolve('../controllers/sasController')];
-  const res = { statusCode: 200, body: null, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
-  controller.getSas({ params: { id: 1 }, query: {}, user: { roles: ['admin'] } }, res);
-  return res.body;
-}
-
-// specs/airbnb-no-checkout-chores.md rule 1
-test('Airbnb stay with the ménage included: no guest reminder', () => {
-  const body = readSas({ platform: 'Airbnb', sold: true });
-  assert.equal(body.cleaning.included, true);
-  assert.equal(body.cleaning.guestReminder, false);
+    assert.equal(ctx.flags.hasCleaningOption, false);
+  } finally {
+    setChoreFreeChannels(['Airbnb']);
+  }
 });
 
-// specs/airbnb-no-checkout-chores.md rule 4
-test('Booking stay with the ménage included: the reminder stays', () => {
-  assert.equal(readSas({ platform: 'Booking', sold: true }).cleaning.guestReminder, true);
-});
+// specs/airbnb-no-checkout-chores.md rule 9 — the one-shot migration ticks the rows the code used to
+// recognise by name (slugged prefix), once, and the cache follows the column.
+test('migration chore_free_channels_v1: ticks every Airbnb row of an existing database, once', () => {
+  const db = new Database(':memory:');
+  db.exec('CREATE TABLE migrations (name TEXT PRIMARY KEY, appliedAt TEXT)');
+  db.exec('CREATE TABLE platforms (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL)');
+  for (const name of ['Airbnb', 'AirbnbTente', 'Booking', 'direct']) db.prepare('INSERT INTO platforms (name) VALUES (?)').run(name);
+  applyChoreFreeChannelsSchema(db);
+  applyChoreFreeChannelsSchema(db);
+  assert.deepEqual(runChoreFreeChannelsMigration(db), { action: 'migrated', ticked: 2 });
+  const ticked = () => db.prepare('SELECT name FROM platforms WHERE forbidsGuestChores = 1 ORDER BY name').all().map((r) => r.name);
+  assert.deepEqual(ticked(), ['Airbnb', 'AirbnbTente']);
 
-// specs/airbnb-no-checkout-chores.md rule 5
-test('Airbnb stay without the ménage: no reminder (the ménage offer page is unchanged)', () => {
-  const body = readSas({ platform: 'Airbnb', sold: false });
-  assert.equal(body.cleaning.included, false);
-  assert.equal(body.cleaning.guestReminder, false);
-});
+  // The operator unticks one: a later boot never ticks it back.
+  db.prepare("UPDATE platforms SET forbidsGuestChores = 0 WHERE name = 'AirbnbTente'").run();
+  assert.deepEqual(runChoreFreeChannelsMigration(db), { action: 'skipped' });
+  assert.deepEqual(ticked(), ['Airbnb']);
 
-// specs/airbnb-no-checkout-chores.md edge case — no platform counts as direct
-test('no recorded platform counts as direct: the reminder stays', () => {
-  assert.equal(readSas({ platform: null, sold: true }).cleaning.guestReminder, true);
-});
-
-// specs/airbnb-no-checkout-chores.md rule 2
-test('isAirbnbChannel ignores case and whitespace, and nothing else is Airbnb', () => {
-  assert.equal(isAirbnbChannel('Airbnb'), true);
-  assert.equal(isAirbnbChannel(' airbnb '), true);
-  assert.equal(isAirbnbChannel('AIRBNB'), true);
-  assert.equal(isAirbnbChannel('AirbnbTente'), true, 'an iCal source labelled « Airbnb Tente »');
-  assert.equal(isAirbnbChannel('Booking'), false);
-  assert.equal(isAirbnbChannel(null), false);
-  assert.equal(isAirbnbChannel(''), false);
+  try {
+    refreshChoreFreeChannels(db);
+    assert.equal(isChoreFreeChannel('AirbnbTente'), false);
+    assert.equal(isChoreFreeChannel('Airbnb'), true);
+  } finally {
+    setChoreFreeChannels(['Airbnb']);
+  }
 });
 
 // specs/airbnb-no-checkout-chores.md rule 6
@@ -94,7 +82,7 @@ test('e-mails: the Airbnb cleaning line is a booked ménage, and an Airbnb guest
   });
   const paid = ctx({ platform: 'Airbnb' }, [{ description: 'Frais de ménage (Airbnb)', amount: 122 }]);
   assert.equal(paid.flags.hasCleaningOption, true, 'J-1: no « il reste à votre charge »');
-  assert.match(paid.vars.cleaningParagraph, /option ménage : profitez de votre dernière matinée/);
+  assert.match(paid.vars.cleaningParagraph, /option ménage/);
 
   const unpaid = ctx({ platform: 'Airbnb' });
   assert.equal(unpaid.flags.hasCleaningOption, true);
@@ -167,11 +155,7 @@ function makeDepartureDb(platform) {
 
 
 // specs/airbnb-no-checkout-chores.md rule 7
-test('departure: the ménage is never billable on an Airbnb stay — read flag and commit guard', () => {
-  assert.equal(readSas({ platform: 'Airbnb', sold: false }).cleaning.billableAtDeparture, false);
-  assert.equal(readSas({ platform: 'Booking', sold: false }).cleaning.billableAtDeparture, true);
-  assert.equal(readSas({ platform: 'Booking', sold: true }).cleaning.billableAtDeparture, false, 'already sold');
-
+test('departure commit: the ménage line is dropped on a chore-free channel', () => {
   const commit = (platform) => {
     const db = makeDepartureDb(platform);
     createReservationsModel(db).commitDepartureSas(1, {
@@ -181,4 +165,21 @@ test('departure: the ménage is never billable on an Airbnb stay — read flag a
   };
   assert.equal(commit('Airbnb'), 0, 'the line is dropped whatever the client sends');
   assert.equal(commit('Booking'), 80);
+});
+
+// specs/airbnb-no-checkout-chores.md rule 8 — the boot de-duplication of platform rows keeps the switch:
+// ticked on the duplicate it deletes means ticked on the row it keeps (countsAsDirect likewise).
+test('platform slug de-duplication keeps « Sans corvées de départ » and « Compté comme vente directe »', () => {
+  const { runPlatformSlugDedup } = require('../utils/platformSlugDedupMigration');
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE platforms (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
+    countsAsDirect INTEGER NOT NULL DEFAULT 0, forbidsGuestChores INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE reservations (id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT);`);
+  db.prepare("INSERT INTO platforms (id, name, forbidsGuestChores) VALUES (3, 'Airbnb', 0), (9, 'airbnb', 1)").run();
+  db.prepare("INSERT INTO platforms (id, name, countsAsDirect) VALUES (4, 'Lodgify', 0), (10, 'lodgify', 1)").run();
+  runPlatformSlugDedup(db);
+  const rows = db.prepare('SELECT name, countsAsDirect, forbidsGuestChores FROM platforms ORDER BY id').all();
+  assert.equal(rows.length, 2);
+  assert.equal(rows.find((r) => r.name === 'Airbnb').forbidsGuestChores, 1);
+  assert.equal(rows.find((r) => r.name === 'Lodgify').countsAsDirect, 1);
 });

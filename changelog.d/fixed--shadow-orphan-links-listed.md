@@ -1,0 +1,1 @@
+- **A withdrawn payment link still payable at the provider is listed in « À traiter »** (« Liens de paiement encore actifs »), whichever path withdrew it, with the action to take; the boot log no longer says to deactivate them by hand (the poll does it while the provider is connected).

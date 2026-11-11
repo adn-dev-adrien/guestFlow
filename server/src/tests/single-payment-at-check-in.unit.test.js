@@ -8,13 +8,14 @@
 // Same in-memory harness as `sas-stay-payment.unit.test.js` (the contribution capture needs the
 // pricing tables), plus the two columns this spec adds.
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const { create: createReservationsModel } = require('../models/reservationsModel');
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = localTodayIso();
 
 function makeDb() {
   const db = new Database(':memory:');
@@ -234,7 +235,7 @@ test('« Régler séparément » keeps the v2.8.0 behaviour: two settlements, no
   const model = createReservationsModel(db);
   const id = seedBoth(db);
 
-  // The stay collected, the complement deferred to the check-out — the case rule 22 exists for.
+  // The stay collected, the complement deferred to the check-out — the case collect-stay-payment-at-check-in's recap exists for.
   model.commitArrivalSas(id, {
     stayPaid: true, complementSettled: false, groupArrivalPayment: undefined,
   });

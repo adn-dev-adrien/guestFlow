@@ -243,6 +243,10 @@ that deadline passes with the money still not in.
     réservation est passée ou en cours… », because the fiche was stored under the old J-30 rule
     (10/07) and the engine now derives the payout regime (19/07 + 10 = 29/07). A fiche the admin
     unlocked (« Déverrouiller cette fiche ») re-derives like any other.
+39. *(Fixed at the 2026-10-27 spec review.)* Rule 20's refusal comes **before** the payment-provider check:
+    a platform stay answers `400 PLATFORM_RESERVATION` whether or not a provider is connected. It used to
+    answer `409 NO_PAYMENT_PROVIDER` when none was, telling the operator to connect a provider for a
+    reminder that must never be sent. Test: `tests/dashboard-remind-platform-before-provider.unit.test.js`.
 
 **Edge cases:**
 

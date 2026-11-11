@@ -2,6 +2,7 @@ import {
   ADMIN, ACCOUNTANT, RECEPTION, ROLES, ROLE_LABELS, userHasRole, roleLabel,
   ROUTE_ROLES, canSeeRoute, canSeeAnyRoute, isReceptionOnly,
 } from '../roles';
+import { PLUGIN_IDS } from '../plugins';
 
 describe('roles constants', () => {
   test('exports the frozen taxonomy', () => {
@@ -61,9 +62,13 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   // (see server/src/middleware/enforceRoleAccess.js). The test below pins the accountant scope so
   // any drift is caught here before it ships.
 
-  const admin = { roles: ['admin'] };
-  const accountant = { roles: ['accountant'] };
-  const both = { roles: ['admin', 'accountant'] };
+  // Every plugin active (the Solio configuration): the plugin gate has its own suite,
+  // roles.plugins.test.js.
+  const enabledPlugins = PLUGIN_IDS;
+  // An admin of a managed instance, where « Accès du support » exists (specs/hosting-h2-account-security.md rule 17).
+  const admin = { roles: ['admin'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
+  const accountant = { roles: ['accountant'], enabledPlugins };
+  const both = { roles: ['admin', 'accountant'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
 
   test('admin can see every registered route', () => {
     for (const path of Object.keys(ROUTE_ROLES)) {
@@ -74,11 +79,12 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   // specs/accountant-accounting-export.md rule 22 — la barre latérale d'un comptable est minimale :
   // Comptabilité, son mot de passe, et se déconnecter. Tout le reste lui est fermé, et c'est cette
   // table — pas un `hidden` d'affichage — qui le décide.
-  test('accountant sees ONLY /comptabilite, /comptabilite/plateformes, and /mon-compte', () => {
+  test('accountant sees ONLY /comptabilite, /comptabilite/plateformes, the compensations and /mon-compte', () => {
     // accounting-platform-commission-and-no-deposit.md §3.7 rule 20 — accountant gains
-    // access to the dedicated per-platform commission config page.
+    // access to the dedicated per-platform commission config page; specs/plugins-phase-2-hosts.md
+    // rule 21 — and reads the core « Indemnités d'annulation » page.
     const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(accountant, p));
-    expect(visible.sort()).toEqual(['/comptabilite', '/comptabilite/plateformes', '/mon-compte']);
+    expect(visible.sort()).toEqual(['/comptabilite', '/comptabilite/plateformes', '/finance/indemnites', '/mon-compte']);
   });
 
   test('multi-role admin+accountant: admin scope (everything) wins', () => {
@@ -88,7 +94,7 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   });
 
   test('reception sees ONLY /, /planning and /mon-compte (specs/reception-role-checkin-only.md)', () => {
-    const reception = { roles: ['reception'] };
+    const reception = { roles: ['reception'], enabledPlugins };
     const visible = Object.keys(ROUTE_ROLES).filter((p) => canSeeRoute(reception, p));
     expect(visible.sort()).toEqual(['/', '/mon-compte', '/planning']);
     // Never the finance / clients / settings surfaces.
@@ -98,7 +104,7 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
   });
 
   test('multi-role admin+reception: admin scope (everything) wins', () => {
-    const adminReception = { roles: ['admin', 'reception'] };
+    const adminReception = { roles: ['admin', 'reception'], enabledPlugins, supportAccessEnabled: true, pluginsManageable: true };
     for (const path of Object.keys(ROUTE_ROLES)) {
       expect(canSeeRoute(adminReception, path)).toBe(true);
     }
@@ -115,8 +121,8 @@ describe('ROUTE_ROLES + canSeeRoute', () => {
 });
 
 describe('canSeeAnyRoute', () => {
-  const admin = { roles: ['admin'] };
-  const accountant = { roles: ['accountant'] };
+  const admin = { roles: ['admin'], enabledPlugins: PLUGIN_IDS };
+  const accountant = { roles: ['accountant'], enabledPlugins: PLUGIN_IDS };
 
   test('returns true when at least one path is visible', () => {
     // Finance group: accountant reaches /comptabilite but not /finance.

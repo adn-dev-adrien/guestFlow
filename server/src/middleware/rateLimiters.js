@@ -1,4 +1,6 @@
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { langOf } = require('../controllers/public/publicHttp');
+const { errorMessage } = require('../utils/publicLabels');
 
 /**
  * Rate limiters (per IP). Windows/maxes are env-configurable.
@@ -26,6 +28,8 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // only failed logins count toward the limit
+  // A right password met by the code mail limit (rule 62) is not a failed login.
+  requestWasSuccessful: (req, res) => res.statusCode < 400 || res.locals.codeMailLimited === true,
   message: { error: 'TOO_MANY_ATTEMPTS' },
 });
 
@@ -34,12 +38,15 @@ const ONE_HOUR = 60 * 60 * 1000;
 /**
  * Public limiters count per website VISITOR, not per caller (specs/terms-acceptance-record.md rule 24):
  * every public call comes from the one WordPress host, so keying on `req.ip` capped the whole site at
- * the per-visitor budget. `req.visitor` is set by middleware/visitorContext.js AFTER the API-key check,
+ * the per-visitor budget. `req.visitor` is set by plugins/website-booking/visitorContext.js AFTER the API-key check,
  * so the relayed address is only ever honoured for the authenticated proxy.
  */
 function publicVisitorKey(req) {
   return ipKeyGenerator(req.visitor?.ip || req.ip);
 }
+
+// specs/site-english-version.md rule 8: only the message follows the visitor's language.
+const tooMany = (messageKey) => (req) => ({ error: { code: 'TOO_MANY_REQUESTS', message: errorMessage(langOf(req), messageKey) } });
 
 /**
  * Public API limiters (specs/public-api.md §3 rule 9). The public surface is consumed by a single
@@ -59,7 +66,7 @@ const publicApiLimiter = rateLimit({
   max: Number(process.env.PUBLIC_API_RATELIMIT_MAX) || 600,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
+  message: tooMany('tooManyRequests'),
 });
 
 const bookingRequestLimiter = rateLimit({
@@ -68,7 +75,26 @@ const bookingRequestLimiter = rateLimit({
   max: Number(process.env.BOOKING_REQUEST_RATELIMIT_MAX) || 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de demandes envoyées, réessayez plus tard.' } },
+  // D18 (specs/public-api.md rule 9): a form refused for its input stored nothing and gives its hit back.
+  skipFailedRequests: true,
+  requestWasSuccessful: (req, res) => res.statusCode !== 422,
+  message: tooMany('tooManyBookingRequests'),
+});
+
+/**
+ * Payment-start limiter (POST /booking-requests/:id/pay). Kept apart from the booking-request
+ * anti-spam budget: a guest who sends a request and then retries a failed or abandoned payment a
+ * few times must not be refused for having sent the request. Each call still costs a payment-link
+ * creation at the provider, so it stays capped (default 20 / hour / visitor) and the per-devis
+ * capability token remains required.
+ */
+const paymentStartLimiter = rateLimit({
+  keyGenerator: publicVisitorKey,
+  windowMs: Number(process.env.PAYMENT_START_RATELIMIT_WINDOW_MS) || ONE_HOUR,
+  max: Number(process.env.PAYMENT_START_RATELIMIT_MAX) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: tooMany('tooManyPayments'),
 });
 
 /**
@@ -84,7 +110,7 @@ const paymentStatusLimiter = rateLimit({
   max: Number(process.env.PAYMENT_STATUS_RATELIMIT_MAX) || 120,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: { code: 'TOO_MANY_REQUESTS', message: 'Trop de requêtes, réessayez plus tard.' } },
+  message: tooMany('tooManyRequests'),
 });
 
-module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter, paymentStatusLimiter };
+module.exports = { apiLimiter, loginLimiter, publicApiLimiter, bookingRequestLimiter, paymentStartLimiter, paymentStatusLimiter };

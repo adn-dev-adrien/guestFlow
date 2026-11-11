@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved |
+| **Status** | Implemented |
 | **Branch** | `feature/email-automation` _(Claude-managed)_ |
 | **Created** | 2026-06-07 |
 | **Author** | Adrien |
@@ -216,6 +216,49 @@ The operator can:
 - **Template containing a malformed `{{#if … }}` block.** Renderer logs a warning,
   passes the malformed block through verbatim (so the operator sees what's broken in
   the preview before sending).
+
+**Review of 2026-10-18**
+
+15. **A failed send is told in French.** The send dialog and the history never show a code
+    (`EMAIL_SEND_FAILED`) nor the transport's own text (« Missing credentials for "PLAIN" »). The server
+    words the reason (`utils/sendFailure.js`): « Envoi non configuré : Paramètres › Emails. », « Serveur
+    d'envoi refusé : vérifier Paramètres › Emails. », « Serveur d'envoi injoignable : vérifier
+    Paramètres › Emails. », « Adresse du destinataire refusée. », the platform's own quota sentence,
+    else « Envoi impossible : réessayer plus tard. ». The send answer carries it as `message`, a history
+    row as `errorLabel`. In the dialog the error sits next to the buttons, impersonal (« Adresse
+    destinataire manquante. »), and the dialog is full screen on a phone.
+16. **« Quand » follows what the template is tied to.** The server labels each template (`whenLabel`):
+    « À la réservation » (confirmation), « 15 nov. », « 6 janv. » (season emails), « À l'annulation »,
+    « À la demande » (payment requests), « Échéance de l'acompte », the day offset for the arrival
+    emails (« J-7 », « Jour J »), « Lendemain du départ » / « N j après le départ » for a template tied to
+    the departure. The list, the mobile cards and the send dialog's template list read it.
+    *2026-10-19 (UI/UX review 2026-10-18, decision 11):* the label is the « Quand » sentence of
+    specs/guest-email-texts-made-simple.md rule 43 without its « Envoyé »: « 2 jours avant l'arrivée »,
+    « Le jour de l'arrivée », « Le 15 novembre », « Le lendemain du départ », « 3 jours après l'échéance
+    du solde ». The dialog edits it as that sentence, no longer as a signed « Décalage en jours ».
+17. **The full template editor shows labels, like « Textes des emails ».** Subject and body (FR/EN) are
+    edited through the same token field: each variable and condition by its French label (« ⟦Prénom du
+    voyageur⟧ », « ⟦Si parking⟧ … ⟦fin si⟧ »), chips under the field, the raw `{{token}}` saved; never
+    a raw `{{#if}}` on screen. A refusal lands under its field, in labels (specs/guest-email-texts-made-simple.md
+    rule 27).
+    *2026-10-19 (UI/UX review 2026-10-18, decisions 5 and 12):* the chips leave the field: « + Variable »
+    or a typed `[` opens the list (specs/guest-email-texts-made-simple.md rule 41); FR | EN shows one
+    language at a time (specs/guest-email-texts-made-simple.md rule 42); the list of templates is the
+    timeline of specs/guest-email-texts-made-simple.md rule 44.
+18. **A pending email has its own « Envoyer » button.** The row still opens the send dialog; the button
+    says so next to « Marquer comme envoyé » and « Ignorer ».
+19. **An iCal placeholder is greeted neutrally (2026-10-18).** When the reservation's client is an iCal
+    placeholder (`utils/placeholderClient.js`: first name « Ical », or a name made only of platform
+    words such as « Reserved » or « Closed Not available », the iCal import's own test), the context
+    carries `clientFirstName`, `clientLastName` and `clientFullName` empty, and the renderer drops the
+    spaces before an empty name token followed by punctuation: « Bonjour {{clientFirstName}}, » reads
+    « Bonjour, », « Hello {{clientFirstName}}, » reads « Hello, ». Any other empty token renders as
+    before. *Why: the final review of 2026-10-18 (N5) saw « Bonjour Ical, » / « Hello Ical, » in 24
+    previews of 22281, whose placeholder the boot pass had renamed « Ical Airbnb ».*
+
+20. **Rendering is linear, and a text has a length cap** (audit r4, R4-1, 2026-10-29). The renderer no longer matches the leading spaces of a name token with a `[ \t]*` prefix in the pattern (quadratic on a long run of spaces: 250 000 spaces took 32 s); it walks back from the match, with the same output (rule 19). A template's subject (and `subjectEn`) is capped at 300 characters and its body (and `bodyEn`) at 20 000: the editor answers 422 `{ field, message: « 300 caractères au plus » }`, and the texts screen, its save and its CSV import apply the same caps (a refused row names the limit). The other writers of an email sentence apply the 20 000 cap too, with the same 422 `{ field, message: « 20000 caractères au plus » }` (checked after the variables, as on the texts screen): `/api/stay-texts` save (`fr`, `en`), the mentions on create and update (`offerFr`, `offerEn`, `bookedFr`, `bookedEn`) and the resource sentence (`emailBookedText`, `emailBookedTextEn`); the longest real texts are 349, 141 and 315 characters (review of #869, 2026-10-29). Test: `email-template-redos.unit.test.js`, `email-text-length-caps.unit.test.js`.
+21. **The send dialog starts clean on every opening** (audit r6, 2026-10-30). One `EmailManualSendDialog` serves every row of the pending queue and of the history (« Renvoyer »): each opening remounts its form (an opening counter in the dialog wrapper; no page-level key, which would cut the close animation), so the template, the typed address, the language choice and the preview of the previous row never leave in the next email. Reported: two plain clicks sent a row's email under the template of the row before. Tests: `EmailManualSendDialog.row-switch.test.jsx`, `EmailTemplatesPage.pending-row-switch.test.jsx`, `EmailHistoryPage.resend-row-switch.test.jsx`.
+22. **A preview belongs to the template it was rendered for** (audit r6, 2026-10-30). The dialog's preview request is latest-wins (`useLatestRequest`): the late answer of a template just left is dropped, and « Envoyer » stays disabled from the moment another template is picked until the preview of that very template is in, and a failed preview offers « Réessayer », so the `overrides` (subject, body) sent always belong to the `templateId` sent. Test: `EmailManualSendDialog.row-switch.test.jsx`.
 
 ---
 
@@ -674,7 +717,7 @@ inline property form just above the capacity fields. The value is stored on
 
 ### Server unit tests (target ~25 new cases)
 
-- [ ] `tests/email-template-renderer.unit.test.js` — variable substitution (multi-token,
+- [x] `tests/email-template-renderer.unit.test.js` — variable substitution (multi-token,
       missing, repeated); conditional `{{#if}}…{{/if}}`; `{{else}}` branch; nested blocks
       pass-through warning; malformed `{{#if}}` left verbatim; subject + body both
       rendered.
@@ -684,6 +727,9 @@ inline property form just above the capacity fields. The value is stored on
       content migrations: `séjour à {{propertyName}}` → `séjour {{propertyWithArticle}}` and
       signature `{{companyName}}` → `{{senderName}}`, both idempotent, scoped to the shipped
       `arrival_reminder_7d` template, leaving operator templates + the plain Logement line alone.
+- [x] `tests/email-greeting-placeholder-client.unit.test.js` — _(rule 19)_ « Ical Airbnb »,
+      « Ical Lodgify », « Reserved », « Closed Not available » greeted « Bonjour, » / « Hello, »; a
+      guest keeps their name; a non-name empty token keeps its spaces (4 tests).
 - [x] `tests/email-context-builder.unit.test.js` — _(rules 13 + 14 added)_ `propertyWithArticle`
       joins article + name (`au Gite`, `à la Tente`, `aux Gîtes`), elides the apostrophe
       form (`à l'Aventura Lodge`), defaults to `au`, empty when no name; `senderName` uses
@@ -691,18 +737,18 @@ inline property form just above the capacity fields. The value is stored on
       `nights`, `totalGuests`, `bedConfig`
       formatting (omits zero counts), `optionsList` sort, `hasBedLinenOption` truthy/falsy,
       `cautionNotBanked` truthy/falsy, missing client email → empty string + flag.
-- [ ] `tests/date-fr.unit.test.js` — `formatDateLong('2026-06-15')` → `'15 juin 2026'`;
+- [x] `tests/date-fr.unit.test.js` — `formatDateLong('2026-06-15')` → `'15 juin 2026'`;
       empty → `''`; malformed → `''`.
-- [ ] `tests/default-email-templates-seed.unit.test.js` — fresh DB seeds every registry
+- [x] `tests/default-email-templates-seed.unit.test.js` — fresh DB seeds every registry
       entry (currently one); pre-existing rows with matching `stableKey` are skipped;
       operator edits to a registry row are NEVER overwritten by re-seeding; a deleted
       registry row gets re-inserted on next boot; idempotent on consecutive runs.
-- [ ] `tests/default-email-templates-registry.unit.test.js` — every registry entry has
+- [x] `tests/default-email-templates-registry.unit.test.js` — every registry entry has
       a non-empty `stableKey` + unique across the array; each entry's `subject` + `body`
       reference at least one supported variable (lint-ish check to catch typos).
-- [ ] `tests/email-templates-model.unit.test.js` — CRUD; `listEnabled()` returns
+- [x] `tests/email-templates-model.unit.test.js` — CRUD; `listEnabled()` returns
       `enabled=1` only.
-- [ ] `tests/email-templates-controller.unit.test.js` — `400` on bad sendMode / out-of-range
+- [x] `tests/email-templates-controller.unit.test.js` — `400` on bad sendMode / out-of-range
       dayOffset / missing subject / missing body; `404` on missing id; happy paths.
 - [x] `tests/email-log-model.unit.test.js` — insert; `existsFor` matches by status set;
       pagination; history filters; **past-arrival guard (§3 rule 8):** a before-arrival J-2
@@ -779,8 +825,9 @@ inline property form just above the capacity fields. The value is stored on
 
 - **Bilingual emails** (FR only). The body is plain text; the operator can hand-translate
   if needed.
-- **HTML bodies / inline images / PDF attachments.** Plain text only (matches the existing
-  `emailService.send` signature).
+- **Inline images / PDF attachments.** ~~HTML bodies — plain text only.~~ Lifted 2026-10-19 (UI/UX
+  review, decision 15): guest emails also carry an HTML part derived from the same text
+  (specs/guest-email-texts-made-simple.md rules 37–39).
 - **Cancellation handling.** GuestFlow doesn't carry a cancelled flag today; the cron
   doesn't skip cancelled stays.
 - **Email open / click tracking.** No tracking pixels, no link rewriting.
@@ -824,3 +871,12 @@ Remaining unresolved:
   pick a recipient other than the client email (e.g. an internal owner address)?
   - A: Deferred. Today the recipient is always the client email. If a co-host scenario
     appears, add a small recipient override field in the manual send dialog.
+
+---
+
+## Implementation progress
+
+- **2026-10-28 — Implemented** (status was left on Approved after the merge). Templates, send modes, the
+  daily pass, the manual queue and dialog, the history page and the `EMAIL_NOT_CONFIGURED` handling are in
+  the code; later specs (guest-email-sequence, no-automatic-email-without-approval, email-texts) amend them.
+  Left unticked in §7: the pure-UI manual walkthroughs.

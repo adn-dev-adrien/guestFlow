@@ -25,7 +25,7 @@ function createRefundsModel(database) {
     return cache.get(sql);
   };
   const selectHeaders = () => prep(`
-    SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt
+    SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt, afterCancellation
     FROM reservation_refunds
     WHERE reservationId = ?
     ORDER BY refundDate DESC, id DESC
@@ -37,8 +37,9 @@ function createRefundsModel(database) {
     ORDER BY id
   `);
   const insertHeader = () => prep(`
-    INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason)
-    VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason)
+    INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason, afterCancellation)
+    VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason,
+            (SELECT CASE WHEN kind = 'cancelled' THEN 1 ELSE 0 END FROM reservations WHERE id = @reservationId))
   `);
   const insertLine = () => prep(`
     INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate)
@@ -81,7 +82,7 @@ function createRefundsModel(database) {
 
     getById(refundId) {
       const header = prep(`
-        SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt
+        SELECT id, reservationId, refundDate, method, totalTtc, reason, createdAt, afterCancellation
         FROM reservation_refunds WHERE id = ?
       `).get(refundId);
       if (!header) return null;
@@ -93,7 +94,7 @@ function createRefundsModel(database) {
     // transaction, like the statements above, is built on first use.
     create(reservationId, refund) {
       if (!createTx) createTx = database.transaction(insertRefund);
-      return createTx(reservationId, refund);
+      return createTx.immediate(reservationId, refund);
     },
 
     // Returns false when the refund doesn't exist or belongs to another reservation (the controller
@@ -123,6 +124,15 @@ function createRefundsModel(database) {
       return { book: round2(book), withCash: round2(withCash) };
     },
 
+    // What was given back through FREE lines (« Trop-perçu », no line key): the only refunds that reduce a
+    // trop-perçu. The refund of a sold line takes its price off the stay as well (a retained avoir counts in none).
+    freeLinesTotal(reservationId) {
+      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
+        JOIN reservation_refunds r ON r.id = l.refundId
+        WHERE r.reservationId = ? AND l.lineKey IS NULL AND r.method != 'retained'`).get(reservationId);
+      return round2(row.total);
+    },
+
     // Book-money refund totals for a set of reservations, `{ reservationId → { book, withCash } }`.
     // Used by financeModel to net a whole period in one query instead of N.
     totalsByReservationIds(ids) {
@@ -142,6 +152,25 @@ function createRefundsModel(database) {
         if (!isOffBooks(row.method)) entry.book = round2(entry.book + amount);
       }
       return totals;
+    },
+
+    // TTC a cancelled stay gave back from its indemnity BEFORE `refund` (by date, then id) — the export splits each
+    // indemnity share cumulatively, so the shares' HT add up to the compensation's HT to the cent
+    // (specs/reservation-refunds.md rule 48).
+    indemnityGivenBefore({ reservationId, refundDate, id }) {
+      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
+        JOIN reservation_refunds r ON r.id = l.refundId
+        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'
+          AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`).get(reservationId, refundDate, refundDate, id);
+      return round2(row.total);
+    },
+
+    // TTC every refund of a stay took from its cancellation indemnity (rule 48).
+    indemnityGivenBack(reservationId) {
+      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
+        JOIN reservation_refunds r ON r.id = l.refundId
+        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'`).get(reservationId);
+      return round2(row.total);
     },
 
     // Book-money refunds whose date falls in [from, nextMonth) — the accounting export's source.

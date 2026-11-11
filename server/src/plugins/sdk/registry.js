@@ -4,14 +4,15 @@
  * dispatch, the email and SAS builders to merge contributions, the Plugins controller to install and
  * erase. The core never imports a plugin file: it only asks this registry.
  *
- * `isLive(id)` is the single answer to "may this plugin run now": installed, active, registered
- * without throwing (rule 4), and allowed by the instance's licence
+ * `isLive(id)` is the single answer to "may this plugin run now": registered (a plugin whose code is
+ * not loaded is never live, whatever its row says — specs/plugin-removal-resilience.md rule 2), installed,
+ * active, registered without throwing (rule 4), and allowed by the instance's licence
  * (specs/control-plane-plans-and-access.md rule 12). `isActive` and `allows` are injectable for tests.
  */
 
 const records = new Map();
 let isActiveImpl = (id) => require('../../models/pluginsModel').isActive(id);
-let allowsImpl = () => true;
+let allowsImpl = (id) => require('../../utils/licence').allowsPlugin(id);
 
 function emptyRecord(id) {
   return {
@@ -21,6 +22,8 @@ function emptyRecord(id) {
     routes: [],
     // role → [{ method, re }] allowlist entries (specs/plugins-phase-2-hosts.md rule 3).
     roleAccess: { reception: [], accountant: [] },
+    // [{ method, re }] — refused to a support session (specs/hosting-h2-account-security.md rule 23).
+    secretRoutes: [],
     migrations: [],
     settings: [],
     jobs: [],
@@ -29,6 +32,7 @@ function emptyRecord(id) {
     sasProviders: [],
     onInstall: [],
     onBoot: [],
+    onActivate: [],
     data: null,
     // specs/plugins-phase-3a-online-payment.md rules 4, 12.
     paymentProvider: null,
@@ -39,6 +43,28 @@ function emptyRecord(id) {
     // specs/plugins-phase-3c-hourly-resources.md rules 1, 6.
     priceLineContributor: null,
     sasCommits: [],
+    // specs/options-resources-ux.md rule 19 (SDK 2.8.0) — (resource, { properties }) → { lines?, footer? } | null.
+    resourceCatalogueLines: null,
+    // specs/shell-and-home-day-first.md rule 9 — subjects of the home's « À traiter ».
+    attention: [],
+    // specs/plugins-phase-0-foundation.md rule 25 — () → null | what the plugin still lacks.
+    setupStatus: null,
+    // specs/platform-settings-relay-and-review.md rule 8 — [{ key, label }] push toggles (SDK 2.6.0).
+    pushChannels: [],
+    // specs/reconciliation-assisted-matching.md rule 22 — (rows) → rows, applied to the home's « Échéances » card (SDK 2.9.0).
+    paymentDeadlineDecorator: null,
+    // specs/guest-app.md rules 28-31, 35 (SDK 2.26.0) — the hourly slots of a stay, and the slots a plugin holds.
+    resourceScheduler: null,
+    resourceHolds: null,
+    // specs/guest-app.md rules 35-36 (SDK 2.26.0) — [{ source, paid }]: what a paid basket link does.
+    paymentBaskets: [],
+    // specs/plugins-phase-1-sdk.md rule 48, specs/guest-app.md rules 47, 52 (SDK 2.26.0) — [{ key, path, host, handler }]:
+    // a web app the plugin serves itself, at a path of its own or on a host of its own.
+    webApps: [],
+    // specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20 (SDK 2.25.0) — the instance's invoice issuer (at
+    // most one) and a plugin's sales made outside any stay.
+    invoiceIssuer: null,
+    standaloneSales: null,
   };
 }
 
@@ -62,12 +88,15 @@ module.exports = {
       record.mounts = previous.mounts;
       record.routes = previous.routes;
       record.webhooks = previous.webhooks;
+      record.secretRoutes = previous.secretRoutes;
     }
     records.set(id, record);
   },
+  discard: (id) => records.delete(id),
   isLive: (id) => {
     const record = records.get(id);
-    if (record && record.failed) return false;
+    if (!record) return false;
+    if (record.failed) return false;
     return Boolean(isActiveImpl(id)) && allowsImpl(id);
   },
   configure({ isActive, allows } = {}) {
@@ -77,6 +106,6 @@ module.exports = {
   reset() {
     records.clear();
     isActiveImpl = (id) => require('../../models/pluginsModel').isActive(id);
-    allowsImpl = () => true;
+    allowsImpl = (id) => require('../../utils/licence').allowsPlugin(id);
   },
 };

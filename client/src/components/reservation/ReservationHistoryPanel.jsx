@@ -24,10 +24,17 @@ import { displayDateTime } from '../../utils/formatters';
 const HISTORY_EVENT_TITLES = {
   create: 'Création',
   update: 'Modification',
+  // specs/public-request-abuse-and-grouping.md rule 13.
+  public_update: 'Demande mise à jour depuis le site',
   sas_arrival: 'SAS arrivée',
   sas_departure: 'SAS départ',
   // specs/terms-acceptance-record.md rule 20.
   terms_accepted: 'CGV acceptées en ligne',
+  // specs/plugins-phase-3a-online-payment.md rule 3: money received, accounting split missing.
+  payment_capture_failed: 'Paiement en ligne',
+  // specs/calendar-property-parity.md rule 24.
+  superseded: 'Doublon écarté',
+  unsuperseded: 'Doublon rétabli',
 };
 
 const KIND_PREFIX = {

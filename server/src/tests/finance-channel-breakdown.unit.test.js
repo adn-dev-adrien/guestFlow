@@ -68,6 +68,9 @@ function seed(db) {
 const pick = (rows) => rows.map(({ key, group, label, reservations, nights, revenue, requests, converted, conversionRate }) => (
   { key, group, label, reservations, nights, revenue, requests, converted, conversionRate }));
 
+// Lodgify counted as a direct sale, as productisation_v1 sets it on Solio (specs/plugins-phase-p-productisation.md rule 19).
+require('../utils/platformNameFormat').setDirectChannels(['lodgify']);
+
 test('revenueByChannel: the website by source, then platforms and manual direct, each sorted by revenue', () => {
   const { db, model } = freshModel();
   seed(db);

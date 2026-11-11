@@ -62,7 +62,7 @@ test('POST approve: fires the Google Calendar push hook with the model-returned 
   const fakes = makeFake({ approveResult: { ok: true, reservationId: 10 } });
   const c = buildController({
     ...fakes,
-    googleCalendarSync: { schedulePush: (id) => pushed.push(id), scheduleDelete: () => {} },
+    emitPluginEvent: (name, payload) => { if (name === 'reservation.updated') pushed.push(payload.reservationId); },
   });
   const res = fakeRes();
   c.approveIcalDateDrift({ params: { id: '42' } }, res);

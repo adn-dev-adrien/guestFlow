@@ -25,7 +25,6 @@
 // Single-level conditional regex — captures: cond name, inner body (may contain {{else}}).
 // Non-greedy match so multiple blocks in the same template are evaluated independently.
 const COND_BLOCK_RE = /\{\{#if\s+([a-zA-Z0-9_]+)\s*\}\}([\s\S]*?)\{\{\/if\}\}/g;
-const VARIABLE_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
 function renderConditionals(text, flags) {
   return String(text || '').replace(COND_BLOCK_RE, (_match, condName, inner) => {
@@ -41,15 +40,35 @@ function renderConditionals(text, flags) {
   });
 }
 
+// specs/email-automation.md rule 19 — an empty name token right before punctuation takes its leading
+// spaces with it: « Bonjour {{clientFirstName}}, » reads « Bonjour, », never « Bonjour , ».
+const NAME_TOKENS = new Set(['clientFirstName', 'clientLastName', 'clientFullName']);
+const VARIABLE_RE = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+
+// The spaces before a swallowed name token are dropped by walking back from the match, not by a
+// `[ \t]*` prefix in the pattern: that prefix is quadratic on a long run of spaces (audit r4, R4-1).
 function renderVariables(text, vars, missing) {
-  return String(text || '').replace(VARIABLE_RE, (_match, tokenName) => {
+  const source = String(text || '');
+  let out = '';
+  let from = 0;
+  for (const m of source.matchAll(VARIABLE_RE)) {
+    const tokenName = m[1];
+    let value = '';
     if (vars && Object.prototype.hasOwnProperty.call(vars, tokenName)) {
       const v = vars[tokenName];
-      return v == null ? '' : String(v);
+      value = v == null ? '' : String(v);
+    } else if (missing) {
+      missing.add(tokenName);
     }
-    if (missing) missing.add(tokenName);
-    return '';
-  });
+    let chunkEnd = m.index;
+    const next = source.charAt(m.index + m[0].length);
+    if (value === '' && NAME_TOKENS.has(tokenName) && /[,.!?;:]/.test(next)) {
+      while (chunkEnd > from && (source[chunkEnd - 1] === ' ' || source[chunkEnd - 1] === '\t')) chunkEnd -= 1;
+    }
+    out += source.slice(from, chunkEnd) + (chunkEnd === m.index ? value : '');
+    from = m.index + m[0].length;
+  }
+  return out + source.slice(from);
 }
 
 /**
@@ -79,8 +98,73 @@ function renderTemplate(template, context) {
   };
 }
 
+/**
+ * The first name a text uses that it may not (specs/plugins-phase-p-productisation.md rule 4,
+ * specs/guest-email-texts-made-simple.md rule 11), or null. `{{#if x}}` accepts a flag or a token;
+ * `{{x}}` a token only. Any other `{{…}}` — a name with a space or an accent — is unknown too: the
+ * renderer would leave it in the email as literal braces.
+ */
+function unknownToken(text, { tokens = [], flags = [] } = {}) {
+  const asFlag = new Set([...flags, ...tokens]);
+  const asToken = new Set(tokens);
+  const re = /\{\{([^{}]*)\}\}/g;
+  let m;
+  while ((m = re.exec(String(text || ''))) !== null) {
+    const inner = m[1].trim();
+    if (inner === 'else' || inner === '/if') continue;
+    const cond = /^#if\s+(.*)$/.exec(inner);
+    const name = cond ? cond[1].trim() : inner;
+    const wellFormed = /^[A-Za-z0-9_]+$/.test(name);
+    if (!wellFormed || (cond ? !asFlag.has(name) : !asToken.has(name))) return name;
+  }
+  return null;
+}
+
+/**
+ * What makes a text unreadable to the renderer, or null (specs/guest-email-texts-made-simple.md
+ * rule 27). The renderer passes a broken piece through as literal text, so the guest would read it:
+ *
+ *   'brace'    a `{{` or `}}` without its other half, or a label bracket `⟦` / `⟧` left from the page
+ *   'unclosed' a `{{#if …}}` without its `{{/if}}`
+ *   'orphan'   a `{{/if}}` without its `{{#if …}}`
+ *   'else'     a `{{else}}` outside a condition
+ *   'nested'   a condition inside a condition (the renderer has one level)
+ */
+function structureError(text) {
+  const source = String(text || '');
+  if (/[⟦⟧]/.test(source)) return 'brace';
+  if (/\{\{|\}\}/.test(source.replace(/\{\{[^{}]*\}\}/g, ''))) return 'brace';
+  let depth = 0;
+  const re = /\{\{([^{}]*)\}\}/g;
+  let m;
+  while ((m = re.exec(source)) !== null) {
+    const inner = m[1].trim();
+    if (/^#if\b/.test(inner)) {
+      if (depth > 0) return 'nested';
+      depth += 1;
+    } else if (inner === '/if') {
+      if (depth === 0) return 'orphan';
+      depth -= 1;
+    } else if (inner === 'else' && depth === 0) {
+      return 'else';
+    }
+  }
+  return depth > 0 ? 'unclosed' : null;
+}
+
+const STRUCTURE_MESSAGES = Object.freeze({
+  brace: 'Variable incomplète : la remettre depuis les boutons.',
+  unclosed: 'Condition sans fin : ajouter « fin si ».',
+  orphan: '« fin si » sans condition : le retirer.',
+  else: '« sinon » hors d’une condition : le retirer.',
+  nested: 'Condition dans une condition : une seule à la fois.',
+});
+
 module.exports = {
   renderTemplate,
+  unknownToken,
+  structureError,
+  STRUCTURE_MESSAGES,
   // Exposed for tests + future renderer reuse.
   __test: { renderConditionals, renderVariables },
 };

@@ -12,26 +12,44 @@
  * platform booking whose amount was never entered carries no figure to print at all, only the row's
  * link to the fiche where the operator types it.
  *
+ * Without online payment (specs/plugins-phase-3a-online-payment.md rule 25) the server marks the row
+ * `remindByEmail` with the template to use: « Envoyer la demande » then opens that email in the send
+ * dialog, for the operator to read before it leaves.
+ *
+ * A request refused 409 LINK_ALREADY_PAID (specs/payment-link-lifecycle.md rule 50) has booked the payment: the
+ * card re-reads its rows, from the button and from the draft dialog alike.
+ *
+ * When the online-payment plugin reads the bank account (specs/reconciliation-assisted-matching.md rule 22),
+ * an overdue row may carry a `bank` line — « Virement trouvé : … » with « Confirmer », or « Rien sur le
+ * compte »; the card draws it and nothing otherwise.
+ *
  * No business rule here: the state, the amounts, the days late, whether cancelling is offered — all
- * of it arrives ready to render from the server.
+ * of it arrives ready to render from the server; the card's title, count, « N en retard · M à
+ * demander » and severity come with `attention` (specs/shell-and-home-day-first.md rules 3, 6).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, AlertTitle, Box, Button, Divider, Stack, Typography } from '@mui/material';
+import { Box, Button, Divider, Stack, Typography } from '@mui/material';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import SendIcon from '@mui/icons-material/Send';
 import SnoozeIcon from '@mui/icons-material/Snooze';
+import { Link as RouterLink, useInRouterContext } from 'react-router';
 import api from '../api';
+import AttentionCard from './AttentionCard';
 import StatusBadge from './StatusBadge';
 import ReservationCancelDialog from './ReservationCancelDialog';
+import EmailManualSendDialog from './EmailManualSendDialog';
 import { useToast } from './DialogProvider';
+import { isLinkAlreadyPaid } from '../constants/paymentLinks';
 import { displayDateShort, formatCurrency } from '../utils/formatters';
 import { DEADLINE_STATE_LABELS, DEADLINE_STATE_BADGE, deadlineHeadline } from '../constants/paymentDeadlines';
 
-export default function PaymentDeadlinesAlert() {
+export default function PaymentDeadlinesAlert({ attention }) {
   const { showSuccess, showError } = useToast();
+  const inRouter = useInRouterContext();
   const [rows, setRows] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [cancelRow, setCancelRow] = useState(null);
+  const [draftRow, setDraftRow] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -45,17 +63,39 @@ export default function PaymentDeadlinesAlert() {
   useEffect(() => { refresh(); }, [refresh]);
 
   const handleRemind = useCallback(async (row) => {
+    if (row.remindByEmail) {
+      setDraftRow(row);
+      return;
+    }
     setBusyId(row.reservationId);
     try {
       await api.remindPaymentDeadline(row.reservationId, row.remindType);
       const noun = row.remindType === 'deposit' ? "Demande d'acompte" : 'Demande de solde';
       showSuccess(row.requestSent ? `${noun} renvoyée.` : `${noun} envoyée.`);
+      await refresh();
     } catch (err) {
       showError(err.message || "Envoi impossible.");
+      // specs/payment-link-lifecycle.md rule 50 — the refusal booked the payment: the row is no longer owed.
+      if (isLinkAlreadyPaid(err)) await refresh();
     } finally {
       setBusyId(null);
     }
-  }, [showSuccess, showError]);
+  }, [refresh, showSuccess, showError]);
+
+  const handleBankConfirm = useCallback(async (row) => {
+    setBusyId(row.reservationId);
+    try {
+      const { proposalId, amountCents } = row.bank;
+      const answer = await api.confirmAllReconciliation({ proposalIds: [proposalId], amounts: { [proposalId]: amountCents } });
+      if (answer.skipped.length > 0) showError(answer.skipped[0].message);
+      else showSuccess('Rapproché. La fiche est marquée reçue.');
+      await refresh();
+    } catch (err) {
+      showError(err.message || 'Rapprochement impossible.');
+    } finally {
+      setBusyId(null);
+    }
+  }, [refresh, showSuccess, showError]);
 
   const handleSnooze = useCallback(async (row) => {
     setBusyId(row.reservationId);
@@ -75,9 +115,21 @@ export default function PaymentDeadlinesAlert() {
     setBusyId(cancelRow.reservationId);
     try {
       const result = await api.cancelReservation(cancelRow.reservationId, { reason, notifyClient });
-      showSuccess(result?.retainedDepositAmount > 0
-        ? `Séjour annulé — acompte de ${formatCurrency(result.retainedDepositAmount)} conservé en indemnité.`
-        : 'Séjour annulé — les dates sont remises à la vente.');
+      // specs/plugins-phase-3a-online-payment.md rule 9 — a link the provider still accepts outranks the
+      // success: one toast at a time, so the warning carries the cancellation, and the deposit kept.
+      const done = [
+        result?.indemnityAmount > 0
+          ? `Séjour annulé — ${formatCurrency(result.indemnityAmount)} conservés en indemnité.`
+          : 'Séjour annulé — les dates sont remises à la vente.',
+        // Rule 60 reading (audit R45-C-L1) — the sum the notice states, when it is not the indemnity alone.
+        result?.keptFromGuest > 0 && Math.round(result.keptFromGuest * 100) !== Math.round((result.indemnityAmount || 0) * 100)
+          ? `Somme conservée : ${formatCurrency(result.keptFromGuest)}.`
+          : null,
+      ].filter(Boolean).join(' ');
+      // specs/email-language-fr-en.md rule 12 — a notice asked for and not sent is a warning too.
+      const warnings = [result?.paymentLinksWarning, result?.emailWarning].filter(Boolean);
+      if (warnings.length) showError([done, ...warnings].join(' '));
+      else showSuccess(done);
       setCancelRow(null);
       await refresh();
       window.dispatchEvent(new Event('guestflow:compensations-changed'));
@@ -90,23 +142,10 @@ export default function PaymentDeadlinesAlert() {
 
   if (rows.length === 0) return null;
 
-  // The worst of the rows: a card holding only « à demander » to-dos must not shout like one holding
-  // a stay about to be cancelled.
-  const severity = ['error', 'warning', 'info'].find((level) => rows.some((row) => row.severity === level))
-    || 'warning';
-  const lateCount = rows.filter((row) => !String(row.state).endsWith('_to_request')).length;
-  const toRequestCount = rows.length - lateCount;
-
   return (
     <>
-      <Alert severity={severity} variant="outlined" sx={{ mb: 3, borderWidth: 2, bgcolor: 'background.paper' }} icon={false}>
-        <AlertTitle sx={{ fontWeight: 700 }}>
-          Échéances de paiement — {[
-            lateCount > 0 ? `${lateCount} en retard` : null,
-            toRequestCount > 0 ? `${toRequestCount} à demander` : null,
-          ].filter(Boolean).join(' · ')}
-        </AlertTitle>
-        <Stack divider={<Divider flexItem />} spacing={1.5} sx={{ mt: 1 }}>
+      <AttentionCard attention={attention}>
+        <Stack divider={<Divider flexItem />} spacing={1.5}>
           {rows.map((row) => (
             <Box key={row.reservationId}>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
@@ -133,7 +172,33 @@ export default function PaymentDeadlinesAlert() {
                   {row.canCancel && row.retainedDepositAmount > 0
                     ? <> · acompte conservé si annulation : <strong>{formatCurrency(row.retainedDepositAmount)}</strong></>
                     : null}
+                  {row.canCancel && row.keptFromGuest > 0 && Math.round(row.keptFromGuest * 100) !== Math.round((row.retainedDepositAmount || 0) * 100)
+                    ? <> · somme conservée si annulation (indiquée au client) : <strong>{formatCurrency(row.keptFromGuest)}</strong></>
+                    : null}
                 </Typography>
+              ) : null}
+              {row.bank ? (
+                <Stack direction="row" spacing={1} sx={{ mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Typography variant="body2" color={row.bank.state === 'proposed' ? 'success.main' : 'text.secondary'}>
+                    {row.bank.label}{row.bank.confidenceLabel ? ` · ${row.bank.confidenceLabel}` : ''}
+                  </Typography>
+                  {row.bank.proposalId ? (
+                    <Button
+                      size="small" variant="text" onClick={() => handleBankConfirm(row)} disabled={busyId === row.reservationId} sx={{ minHeight: 44 }}
+                      aria-label={`Confirmer le virement de ${formatCurrency(row.bank.amountCents / 100)} pour ${row.clientName}`}
+                    >
+                      Confirmer
+                    </Button>
+                  ) : null}
+                  {row.bank.state === 'proposed' && !row.bank.proposalId ? (
+                    <Button
+                      size="small" variant="text" sx={{ minHeight: 44 }} {...(inRouter ? { component: RouterLink, to: `/reservations/${row.reservationId}` } : { href: `/reservations/${row.reservationId}` })}
+                      aria-label={`Vérifier le virement pour ${row.clientName}`}
+                    >
+                      Vérifier
+                    </Button>
+                  ) : null}
+                </Stack>
               ) : null}
               <Box sx={{ mt: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
                 {row.remindType ? (
@@ -146,6 +211,11 @@ export default function PaymentDeadlinesAlert() {
                   >
                     {row.requestSent ? 'Relancer' : 'Envoyer la demande'}
                   </Button>
+                ) : null}
+                {row.remindByEmail && row.remindNote ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ alignSelf: { sm: 'center' } }}>
+                    {row.remindNote}
+                  </Typography>
                 ) : null}
                 <Button
                   size="small"
@@ -172,7 +242,22 @@ export default function PaymentDeadlinesAlert() {
             </Box>
           ))}
         </Stack>
-      </Alert>
+      </AttentionCard>
+
+      {draftRow ? (
+        <EmailManualSendDialog
+          key={draftRow.reservationId}
+          open
+          reservationId={draftRow.reservationId}
+          defaultTemplateId={draftRow.remindTemplateId}
+          onClose={() => setDraftRow(null)}
+          onMoneyChanged={refresh}
+          onSent={() => {
+            showSuccess(draftRow.remindType === 'deposit' ? "Demande d'acompte envoyée." : 'Demande de solde envoyée.');
+            refresh();
+          }}
+        />
+      ) : null}
 
       <ReservationCancelDialog
         open={Boolean(cancelRow)}

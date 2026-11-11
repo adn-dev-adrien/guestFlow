@@ -17,9 +17,9 @@
 
 A push on the `release` branch triggers [.github/workflows/deploy.yml](../.github/workflows/deploy.yml),
 which runs on a **self-hosted GitHub Actions runner installed on the production VM**
-(`guestflow`, 192.168.0.24, Proxmox). That single job, executing on the production host, does
+(`<prod-host>`, Proxmox). That single job, executing on the production host, does
 everything: build, archive, `pm2 stop`, DB backup, extraction over `~/guestflow/current`,
-`npm ci`, native rebuild, migrations, `pm2 start`, and even a `docker exec` into the `wp_app`
+`npm ci`, native rebuild, migrations, `pm2 start`, and even a `docker exec` into the `<container>`
 WordPress container.
 
 ### 1.2 Why this has to go
@@ -300,7 +300,8 @@ signed-off releases over HTTPS, when the operator asks for it.
     for health again, and record the status `rolled_back` with the last 50 log lines. The database
     is **not** auto-restored — migrations are additive-only (CLAUDE.md §8), so the previous code
     runs fine against the migrated schema, and auto-restoring would destroy every write made since
-    the backup. The backup stays on disk for a manual restore.
+    the backup. The backup stays on disk for a manual restore. (That premise was not true of the
+    payment-link rename until 2026-10-28; rule 39 makes it true and keeps it so.)
 32. The helper writes every transition to `data/update-status.json` (survives the restart, read
     back by the new process) and a full log to `logs/update-X.Y.Z-<timestamp>.log`.
 33. After a successful update, the helper prunes old releases, keeping the **3 most recent**
@@ -321,6 +322,200 @@ signed-off releases over HTTPS, when the operator asks for it.
     `rolled_back`, plus a French human-readable label, the target version, and — on failure — the
     error and the log tail.
 38. The last 5 update outcomes are kept and shown in the settings section (version, date, result).
+39. **A migration only adds (2026-10-28, database audit).** Rule 31 restores no database, so the release
+    it rolls back to must run on the migrated schema: a migration may add tables and columns, never
+    rename or drop one the previous release reads. `payment_links.qontoPaymentLinkId` / `qontoPaymentId`
+    had been renamed to `providerLinkId` / `providerPaymentId`, which broke every payment-link path of
+    v3.18 after a rollback (no cancellation, no webhook booking, no poll). They are now twin columns:
+    both exist, `syncLegacyQontoColumns` keeps each pair equal in both directions (triggers, re-created
+    after every rebuild of the table) and copies at boot the rows the previous release wrote. The legacy
+    names stay for at least one release after the last release that reads them. A test
+    (`rollback-additive-schema.unit.test.js`) fails when any column of the v3.18.0 schema
+    (`fixtures/rollback-floor-v3.18.0-schema.json`) disappears from a current install: when a release
+    ships, the floor moves to that release's schema. The core floor covers the **core tables**; the tables
+    a plugin owns have their own floor (rule 44). When one
+    UPDATE changes both names of a pair the neutral column wins. **Accepted exception:** the boot move
+    of property documents out of `/uploads` (settings-rationalization.md rule 32) rewrites
+    `documents.filePath` and unlinks the source file, which v3.18 cannot follow; the production instance
+    holds no document. An instance that does rolls back in **two** steps, not one (amended 2026-10-29,
+    round-2 audit: restoring the backup alone leaves every row pointing at `/uploads/<name>` while the
+    file is gone): restore the pre-update database backup **and** move `data/private-documents/*` back into
+    `data/uploads/` (same file names; an aliased `<id>-<name>` file goes back under the name its row held
+    in the backup). Nothing does this automatically: rule 31 restores no database, so no code path
+    performs the file move, and a roll-forward repairs the row again because the boot move recognises a
+    file already in place.
+    **Accepted exception (2026-11-03, audit R21):** `non_card_served_persons_v1` adds only a column, so the floor stays
+    green, but it and every line the code writes since store a typed count with `quantity = 1`. An engine below v3.20.0
+    ignores `cardPersons` on a non-card line and knows no `cardNights`, so after a rollback below v3.20.0 a typed line
+    re-bills the whole party or the whole stay **at its next save**; on a copy of production under v3.19.0, a line of 1
+    unit at 8 € became 4 units at 32 €. Nothing moves until that save. Documentation only: storing a base quantity again
+    is what specs/non-card-option-served-persons.md removes (its §5). After such a rollback, restore the pre-update
+    backup, or review the typed lines before saving their fiches. On a roll-forward the migration's flag is already set:
+    a line typed during the window keeps its decimal base and reads as what it bills until it is retyped.
+    **Reading of 2026-11-05 (audit R22):** `complementPaidSplit`, `removedLineContribs` and their trigger are additive and
+    nullable, and no retained release reads them or writes against them, so the floor stays green. After a rollback the
+    entries read live again, as they did: a complement or a removed line can move in the journal at the next save, and a stay
+    that rose after payment no longer claims the growth. Roll-forward: what was stamped is read again; a complement collected
+    during the window has no split and reads live. Accounting-export 1.0.26 keeps its floors (`guestflow >=3.18.0`,
+    `sdk ^2.19.0`): it asks no new core module, and reads the columns behind `hasReservationColumn`.
+    **Accepted exception (2026-11-09, audit R34-DB-L1):** `payment_settlements`, `payment_tenders` and the four
+    `reservations.split*` aggregates are additive (specs/mixed-method-payments.md §5), so the floor stays green. A release
+    below them knows no settlement: during the rollback window it counts a bucket paid with several methods whole (its
+    caisse-interne share and its reste à percevoir on the books), and its « Annuler l'encaissement » writes the paid flag
+    alone, leaving the settlement and its aggregates behind. Roll-forward: every boot runs `paymentSettlementsModel.syncAll()`
+    before the server answers (mixed-method-payments rule 48), which drops such a settlement and refreshes the aggregates.
+    **Accepted exception (2026-11-09, audit R35-DB-L1):** the `resource_bookings_v2` / `_v3` columns of `hourly-resources`
+    (payment, invoice, frozen VAT rate) are additive and nullable, so the floor stays green. A release below 1.4.0 knows only
+    the `paid` flag: its untick writes `paid = 0` and leaves `paidAt` and the tender lines behind, and it can edit or delete
+    an invoiced booking (it has no freeze). Roll-forward: `paid` is the truth of a payment (resource-booking-pricing rule
+    37) — such a booking reads unpaid and leaves the journal; an invoiced booking edited during the window keeps its Qonto
+    invoice, to be corrected in Qonto by hand.
+    **Accepted exception (2026-11-10, audit R36-DB-L3):** `payment_links.basketJson` (guest-app card orders, #1001) is
+    additive, so the floor stays green. A release before it reads a paid basket link (`type = 'complement'`) as an
+    ordinary complement link and its payment effect does nothing, with no alert: a card order paid inside its 30-minute
+    window while a rollback is live leaves its link `paid` and, after the roll-forward, the order is expired by
+    `expireDue` with no settled note. Rare (a rollback during an order's window); the operator finds the payment in Qonto
+    and settles the note by hand. Documentation only.
+    **Reading of 2026-11-11 (shadow trial of 4.0.0) — fixed, not accepted:** the dormant `support@guestflow.invalid` admin
+    seeded by 4.0.0 (`isSupportAccount = 1`, inactive, hosting-h2-account-security.md rule 21) was listed and reactivable in
+    v3.21.0 after a code rollback, which knows no such flag. The row is now inert in the database itself: the trigger
+    `users_support_account_inert` refuses (`SUPPORT_ACCOUNT_LOCKED`) any `UPDATE` of a flagged row that changes
+    `isActive`, `passwordHash` or the flag, whichever release issues it, so v3.21.0's « Réactiver » and password
+    reset fail instead of opening an admin account. Triggers live in the database file, so they hold after a rollback.
+    Test: `support-account-inert-in-database.unit.test.js`.
+40. **A release's install runs no script and starts from a trusted lockfile** (audit 2026-10-28, H1).
+    Before any `npm` runs, `server/package-lock.json` must exist and every entry must resolve from
+    `https://registry.npmjs.org/` with an `integrity` hash: a git, file, link or http dependency, another
+    host, or a missing hash refuses the release (`LOCKFILE_UNTRUSTED`); no entry is exempt, an `inBundle`
+    one included (it would otherwise let a git dependency's `prepare` run). A release carrying `server/npm-shrinkwrap.json` (npm would use it instead of the checked
+    lockfile) or an `.npmrc` in `server/` or at the release root (it could re-enable scripts or change the
+    registry) is refused the same way, as is a release that ships its own `.install-home` (the throw-away `HOME`, where
+    npm reads the user `.npmrc`); the install deletes and recreates that directory empty before npm runs. That closes what `--ignore-scripts`
+    leaves open — a git dependency's `prepare`, and a look-alike package named `sharp` or `better-sqlite3`.
+    The install is then `npm ci --omit=dev --ignore-scripts` with a minimal environment: `PATH`, the proxy
+    variables (`HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `NODE_EXTRA_CA_CERTS`), a throw-away `HOME` inside the
+    release and an npm cache next to the releases directory (warm across updates); no `CP_*`/`GUESTFLOW_*`
+    variable is inherited. No lifecycle script runs and no rebuild is attempted: `better-sqlite3` ships
+    N-API prebuilds and `sharp` its prebuilt optional packages, and a final `require('better-sqlite3')`
+    proves the module loads. Both the self-update and the fleet console (which holds the licence key) use
+    this one function. **What is guaranteed**: no install-time code of the release or of a dependency runs,
+    subject to rule 46 (workspaces, aliases).
+    **What is not** (rewritten 2026-10-29, audit r2 N1): this is not isolation. The install and the final
+    `require('better-sqlite3')` run as the installer's own unix user, and on the console every release is
+    **trusted code run as the fleet's root identity**: the console itself executes the release's
+    `create-first-admin.js` (for a new customer and for the boot probe) and `switch-plugin-package.js` (on
+    every plugin push) under its own uid, and bootstrap makes `console/env` — which holds
+    `CP_LICENCE_PRIVATE_KEY`, `CP_REGISTRY_PRIVATE_KEY`, the session and proxy secrets — readable by that
+    uid. A separate install user (`gf-build`) would therefore close nothing: the release's code runs under
+    the console's uid right afterwards. **Release signing (rule 41) is the only barrier** between a
+    published GitHub release and the licence key; rule 47 makes its absence loud. Isolating the three
+    script call sites behind a root wrapper is the alternative, and is not done.
+41. **Optional release signature** (audit 2026-10-28, H1). When `GUESTFLOW_RELEASE_PUBLIC_KEY` (base64 DER
+    SPKI Ed25519) is configured on the installer, the release must carry a `SHA256SUMS.sig` asset — the
+    base64 Ed25519 signature of the exact `SHA256SUMS` bytes — and an unsigned release, a signature that
+    does not verify or an unreadable key is refused (`SIGNATURE_MISSING`, `SIGNATURE_INVALID`,
+    `SIGNATURE_KEY_INVALID`) before the archive is trusted. With no key configured nothing changes. The
+    signing key is held by the maintainer, never by GitHub: after the release workflow has published,
+    `node scripts/sign-release.mjs sign <private-key-file> vX.Y.Z` signs the published `SHA256SUMS` and
+    uploads `SHA256SUMS.sig` after checking that the sums list the downloaded archive's real hash and
+    printing them for comparison with the CI log; `keygen <private-key-file>` creates the key pair and
+    prints the public key to configure. The `/guestflow-release` skill runs that signing (step 8b) when
+    `GUESTFLOW_RELEASE_SIGNING_KEY` is set. The key must be Ed25519 and the signature is checked over the
+    raw bytes of `SHA256SUMS`. The check sits in the only two install paths (`stageRelease` for a space,
+    `releases.install` for the console); a version already installed is not re-verified. Once the key is
+    configured a release is not installable until it has been signed.
+42. **The archive is built from tracked files, and refused if it carries a secret** (2026-10-28 audit).
+    `release.sh` copies `server/` from `git ls-files`, never from the working directory, and no longer
+    copies `server/uploads`: a developer's checkout holds untracked secrets (`server/.env.local`, the
+    database and its WAL, `licence.jws`, TLS keys, uploaded photos) that a manual run would have shipped.
+    `scripts/check-release-tree.mjs` then scans the staging tree and fails the script before `tar` when it
+    finds a `.env*` (but `.env.example`), a database file, `licence.jws`, a key / certificate, `update-state.json`,
+    a log, any file under `uploads/` other than `.gitkeep` (a README there is refused too), or any `node_modules`
+    directory (2026-10-29, review of PR #855: the installer refuses such an archive, rule 46, and CI must fail first).
+43. **A rollback does not queue the installment request (2026-10-29, round-2 audit).** v3.18.0's
+    `emailLogModel.listPending` excludes only its own five event keys and lists any enabled manual template
+    whose anchor is `start`; the `installment_request` row, seeded at the first boot of the new release,
+    would have appeared as a pending email for every arriving stay, and sending it would have mailed an
+    installment request with every placeholder empty. The template is therefore seeded with the anchor
+    `installmentDueDate`, which v3.18.0 ignores (inte's own installment branch of the queue never reads
+    `anchor`: it selects by `stableKey`), and the one-shot migration `installment_template_anchor_v1`
+    (`utils/migrateInstallmentTemplateAnchor.js`) moves an existing row off `start`, writing only when the
+    value differs. The anchor is not editable: `templateWhen` keeps the fixed sentence of the key. The same
+    class — template content a rolled-back release would mail broken — is handled for the link's validity
+    sentence by rule 53.
+    Reading of 2026-11-01 (audit R11 console N1): `dates_unavailable_notice` repeated the defect (seeded on `start`,
+    offered by v3.19.0's queue for every stay on its arrival day). It is seeded on the anchor `datesTaken`, and the
+    one-shot migration `dates_unavailable_notice_anchor_v1` (`utils/migrateDatesUnavailableNoticeAnchor.js`) moves an
+    existing row, writing only when the value differs. A generic guard now covers the class
+    (`tests/event-templates-rollback-anchor.unit.test.js`, the floor's queue in `tests/rollbackFloorQueue.js`). The
+    five keys every retained release excludes by name keep their `start` anchor: each of the four UNION branches of
+    `listPending` (`start`, `validUntil`, `depositDueDate`, `balanceDueDate`) of v3.15.1 to v3.19.0 excludes the same
+    five by name, so no rollback target of rule 33's retention ever queues them, and moving them would only add a
+    migration.
+    Reading of 2026-11-01 (review of #915, finding 3): the guard is driven by the default templates, not by the event
+    lists. Every default template absent from a frozen copy of the floor's own keys (`FLOOR_TEMPLATE_KEYS`, the
+    `DEFAULT_TEMPLATES` of v3.19.0) is new to the floor and must be seeded manual on an anchor its queue never matches,
+    or be declared safe for the floor in the suite with the reason (none today). A future date-driven template — a
+    new reminder on `start`, or one with no anchor — fails there as an event template does.
+44. **The plugin-owned tables have a floor too (2026-10-29, round-2 audit).** Rule 39's floor covered the
+    core tables only, so a plugin migration renaming or dropping a column of its own table would have gone
+    unseen. `fixtures/rollback-floor-v3.18.0-plugin-tables.json` lists the 16 tables the v3.18.0 plugins own
+    (columns read from a database booted by v3.18.0); `rollback-plugin-tables-floor.unit.test.js` runs every
+    bundled plugin's migrations on a current install and fails when a column of that floor is missing. A
+    plugin table born after v3.18.0 is outside it. The floor moves with the core one when a release ships.
+45. **Qonto tokens after a rollback (2026-10-29, round-2 audit; known limit, no code).** A refresh by the
+    current release is written to `plugin_settings` only; v3.18.0 reads `app_settings`, which holds the
+    tokens as they were at the one-time copy (the reverse direction is carried by `resyncAfterRollback`).
+    If Qonto rotates refresh tokens, the copy v3.18.0 holds may have been consumed, and the connection
+    shows as expired after a rollback. Mirroring the token into `app_settings` was refused: it would make
+    a plugin write a core table and it would have to be kept in step with `legacy_settings_seen`, for a
+    behaviour of Qonto that cannot be verified without calling its API. The remedy is to reconnect Qonto
+    from the Paiements en ligne settings after a rollback; no payment link already issued is affected.
+    > **Sans test** — documented limit of a third-party behaviour, nothing to execute.
+
+46. **The lockfile check and the smoke test cannot be sidestepped** (audit r2 N2, 2026-10-29). `npm ci` walks up from its cwd
+    to a workspace root and installs from *that* root's lockfile, which is never checked: a release whose
+    root or `server/package.json` declares `workspaces` is refused (`LOCKFILE_UNTRUSTED:workspaces
+    declared`) and the install passes `--workspaces=false`. An npm alias (`"better-sqlite3":
+    "npm:attacker@1"`) resolves from the registry with an integrity hash, so every entry must also be its
+    own package: no `name` that differs from the path after the last `node_modules/`, and `resolved`
+    starting with `https://registry.npmjs.org/<name>/-/`. The npm cache next to the releases directory is
+    emptied once it exceeds 300 MB after an install (audit L-b), so it no longer grows with every update; a
+    failure of that pruning is logged and never fails or masks the install. **The smoke test** (review of
+    PR #855): `require('better-sqlite3')` by name would let Node answer from the release itself — the
+    `server/package.json` self-reference (`name` + `exports`) or a `node_modules` shipped higher in the
+    tree. So the smoke loads `<server>/node_modules/better-sqlite3` by absolute path, any archive member
+    under a `node_modules` segment is refused (`ARCHIVE_NODE_MODULES_MEMBER`; `release.sh` ships none), and
+    `server/package.json` must be named `guestflow-server` (`LOCKFILE_UNTRUSTED:server/package.json name`).
+    Test: `release-install-isolation.unit.test.js`.
+47. **A managed host without a release public key says so** (audit r2 N1, 2026-10-29). At boot the
+    console logs a `[security]` line and keeps an open host alert « Versions non signées… » (shown on the
+    home page and emailed every 24 h, `hostAlerts`) while `GUESTFLOW_RELEASE_PUBLIC_KEY` is unset; setting
+    it closes the alert — only when it parses as an Ed25519 SPKI key (`toKey`); an unreadable key keeps the
+    alert open (« illisible »), since nothing is installable then. The key is **not** mandatory: failing closed is the operator's decision, to be
+    taken once the production signing key exists. Test: `release-signing-check.unit.test.js` (console).
+48. **A release never ships a package it did not build, and its actions are pinned** (audit r2 N4 and
+    L-a, 2026-10-29). Amends the second-review note of `plugins-phase-4-registry.md` rule 27: the `package`
+    job downloads the previous release's packages only to compare content hashes, and a rebuild that
+    differs from the published package fails with « bump the version » even when its sources did not
+    change — release assets are mutable, and a reused package would have been signed by the release skill
+    as if CI had built it. `--previous-tag` is gone. Every action of every workflow is pinned by its full
+    commit SHA, the exact tag in a trailing comment (`# v7.0.1`). Step 8b's and step 7's CHECK in the release skill list the
+    real assets (plugin `.tgz` packages included). Safe reuse was considered and not done: the previous
+    release's `plugins-dist/SHA256SUMS` lives in the same mutable release, and the release public key is
+    deliberately not committed (the signing key is held off GitHub, rule 41), so CI cannot verify a
+    signature; a verified reuse would need that public key committed, which is a decision of its own. Test: `plugin-packages-release.unit.test.js`.
+49. **The "own tarball" check compares canonical URLs, not a string prefix** (audit r3 R3-1, 2026-10-29). Rule
+    46's prefix match ran on the raw `resolved` string, but npm parses it with `new URL()`, which collapses
+    `..`: `…/better-sqlite3/-/../../evil/-/evil-1.0.0.tgz` passed and npm fetched `/evil/-/evil-1.0.0.tgz`.
+    `resolved` must now equal its own `new URL().href` (no dot segment, no `%2e`, no backslash, no
+    upper-case host), have origin exactly `https://registry.npmjs.org`, no query and no fragment, and its
+    pathname must be exactly `/<name>/-/<unscoped name>-<version>.tgz`. The real lockfile passes. **The npm
+    cache prune is safe without a lock** (audit r3, unverified item): `pruneNpmCache` only runs inside
+    `installDependencies`, and two installs never overlap on one cache directory — a space's cache is next to
+    its own releases directory and updates are single-flight (409 `UPDATE_IN_PROGRESS`); the console's cache
+    is next to its releases directory and `releases.install` refuses a second install while one runs
+    (`BUSY`). Test: `release-install-isolation.unit.test.js`.
 
 **Edge cases**
 
@@ -343,6 +538,88 @@ signed-off releases over HTTPS, when the operator asks for it.
 - Dev environment (no symlink layout, no PM2) → `selfUpdateSupported: false`; the version is shown,
   the update button is hidden behind an explanatory tooltip.
 - Disk full during extraction → abort, staging directory removed, status `failed`.
+
+50. **The lockfile's `version` and package name are validated before they build the tarball path** (audit r4, 2026-10-29). `isOwnTarball` requires `semver.valid(version) === version` and an npm package-name pattern (no `%`, one optional `@scope/`), so an encoded path such as `1.0.0%2F..%2Fevil%2F-%2Fevil-1.0.0` cannot ride in a URL that is byte-for-byte canonical. The real `server/package-lock.json` still has 0 violations. Test: `lockfile-provenance-names.unit.test.js`.
+
+51. **No release check on an instance started without outbound access** (added 2026-10-30, audit R7
+    L-1). With `GUESTFLOW_DISABLE_OUTBOUND=1` **and** `NODE_ENV=test` — both set by every E2E server
+    (specs/e2e-playwright-smoke-suite.md rule 23) — `runVersionCheck` returns `null` before any request,
+    as a managed instance does: neither the boot check of rule 12, nor the hourly one, nor « Vérifier
+    maintenant » reads the GitHub releases API, and `update-state.json` is not written. Before, an E2E
+    run wrote ~112 KB of live release data 60 s after boot and depended on GitHub's unauthenticated rate
+    limit. Unset, rule 12 is unchanged. The flag is honoured under `NODE_ENV=test` only (fail-closed, PR
+    #896 review R-2): a production instance (`NODE_ENV=production`, or no `NODE_ENV`) that inherited it by
+    mistake — a copy-pasted command, a stray env file — still checks, instead of silently never offering an
+    update again. Test: `e2e-no-outbound.unit.test.js`.
+    Reading recorded 2026-11-01 (audit R12 suites L-1): the unit tests of the version check and the version
+    payload pass their environment (`env: {}`) instead of inheriting the shell's. A developer shell carrying
+    the E2E flags turned « runVersionCheck stores what GitHub published » red, and made « keeps the last known
+    answer when GitHub is unreachable » pass without ever calling the fake (it now counts the call); one
+    carrying `GUESTFLOW_MANAGED=1` turned seven `buildVersionInfo` tests red. `buildVersionInfo(model, env)` now
+    hands its `env` to `selfUpdateSupported` too, so the payload reads one environment throughout; in production
+    both are `process.env`, as before.
+    Test: « rule 51 — buildVersionInfo asks selfUpdateSupported about the environment it was given »
+    (`self-update-controller.unit.test.js`, `{ GUESTFLOW_SELF_UPDATE: 'off' }` → the `=off` reason; red when
+    the controller calls `selfUpdateSupported()` bare). Since the same day the `npm test` preload also drops the
+    shell's GuestFlow flags ([server-test-isolation.md](server-test-isolation.md) rule 12).
+
+52. **The release's unit suites run side by side** (added 2026-10-30, audit R8 M-2). `release.yml` runs the server
+    suite in its own `server-tests` job (20-minute cap) and the client suite in a 3-shard `client-tests` matrix
+    (15-minute cap each, `vitest run --shard=N/3`, the production build in shard 1), both after `verify` and
+    beside `e2e`; `package` needs `[verify, server-tests, client-tests, e2e]`, so a single red shard still
+    publishes nothing. Before, one `tests` job ran install, server suite, client suite and build one after the
+    other under a 20-minute cap: at the size of inte/plugins (1 134 server and 625 client test files) the CI
+    step times add up to 1 030–1 310 s, and the first release after the integration had a real chance of being
+    cancelled at its limit with nothing published. Same split as the PR workflow
+    (specs/server-test-isolation.md rule 8). Test: `test-suite-calendar-and-ci-budget.unit.test.js`.
+
+53. **A rollback never mails « Ce lien est valable jusqu'au . »** (added 2026-10-31, audit R9 database N1; same
+    class as rule 43). A content migration stays in the database when the code rolls back (rule 31).
+    specs/payment-link-lifecycle.md rule 36 writes « Ce lien est valable jusqu'au {{paymentLinkValidUntil}}. » into
+    the untouched request templates and the acompte reminder; the release before it renders an unknown token as
+    an empty string and stores no end on its links, so every request it sent would have read « jusqu'au . ».
+    Two options were weighed: accept it as a known limit (sending is manual, the operator reads the preview), or
+    make the text safe. Chosen: safe (payment-link-lifecycle rule 59). The sentence sits in its own
+    `{{#if hasPaymentLinkValidUntil}}…{{/if}}` block, a flag only this release sets; the earlier renderer reads an
+    unknown flag as false and drops the whole line, so a rolled-back instance mails the text of before rule 36.
+    The block cannot nest inside `{{#if hasPaymentLink}}` (the renderer is single-level), so it follows that
+    block's `{{/if}}`. Installs already migrated by v1 are moved by `payment_link_valid_until_sentence_v2`, on
+    untouched sides only (SHA-256), at the same boot as v1 on an install that never ran it. An operator who edited
+    the sentence keeps their text, and with it the old behaviour under a rollback. Test:
+    `payment-link-valid-until-rollback.unit.test.js`.
+54. **A core MAJOR never switches the plugins off by itself** (D24, Adrien, 2026-11-09; audit R34-CON-H1).
+    A release boots its plugins from packages (`plugins-dist/SHA256SUMS`), each judged against the root
+    `package.json` version. A core major is a decision about this repository's outside consumers (rule 2); a
+    plugin's contract is the SDK (`sdk/version.js`), so a plugin is judged on its `sdk` range and on the floor
+    of its `guestflow` range, never on a ceiling (`plugins-phase-4-registry.md` rule 62). Installing 4.0.0 over
+    3.x keeps every bundled and installed plugin loaded while SDK 2 is served. The release cannot ship a
+    plugin its own core refuses: `check-plugin-versions` reads the bundled manifests against the version
+    released (the skill's pre-flight with `--core-version X.Y.Z`, then the release PR's CI and the `verify`
+    job on the root version) and fails otherwise; the health check alone would not see it, plugins refused at
+    boot do not fail `/api/health`. Test: `plugins-bundled-admit-release.unit.test.js`.
+55. **The update log records every staging step with its result** (added 2026-11-11, shadow trial of 4.0.0). The
+    log `logs/update-<version>-<ts>.log` opened by `startUpdate` used to hold the header and the swap, nothing of what
+    happened between: an operator reading it could not tell that the archive had been downloaded, its SHA-256 and
+    signature checked, extracted and installed. `stageRelease` now takes `log(line)` and writes one line per step as
+    it completes — `téléchargement : OK, <archive>, <n> octets`, `signature : OK, SHA256SUMS signé par la clé configurée`
+    (or `non vérifiée, aucune clé de signature configurée`), `SHA-256 : OK, <hash>`, `extraction : OK, structure de la
+    version <v> vérifiée`, `dépendances (npm ci) : OK`, `mise en place : OK, releases/<v>` — and, on a failure,
+    `<step> : ÉCHEC` before the controller's own `ÉCHEC (<code>)` and message. The controller adds
+    `sauvegarde de la base : OK, <file>` and `bascule : lancement de l’assistant de mise à jour`. A log that cannot
+    be written never stops an update. Test: `self-update-log-steps.unit.test.js`.
+56. **A release body never exceeds what GitHub accepts** (added 2026-11-11, shadow trial of 4.0.0: the folded 4.0.0
+    section was 408,000 characters, GitHub refuses a release body above 125,000). The body is the `CHANGELOG.md`
+    section as `release.yml`'s awk extracts it. `node scripts/build-changelog.mjs --check-digest X.Y.Z` — which the
+    `verify` job runs — now also fails when that body exceeds 125,000 characters, measuring it with a function that
+    reproduces the awk line for line (`releaseBodyOf`); the preview and `--release` print a warning when the
+    pending changelog or the folded section is over the limit. The way out is the one taken for 4.0.0: condense the
+    fragments into one bullet group per domain and keep the full detail in a committed archive,
+    `docs/changelog/<version>-detail.md`, which the section's last line points to (a `changelog.d/detail--<slug>.md`
+    fragment: its text closes the folded section, after every category, as the bullet of a `### Détail` heading of its own —
+    the parser of 3.21.0, which renders the notes of the first release it installs, appends any non-bullet line to the
+    previous bullet and cannot be changed; test `release-body-size-guard.unit.test.js` runs that parser, kept verbatim in
+    `tests/fixtures/releaseClient.v3.21.0.js`, on a folded section). Every `Migration` item stays
+    explicit in the condensed section. Test: `release-body-size-guard.unit.test.js`.
 
 ---
 
@@ -440,7 +717,7 @@ Errors follow the existing shape (`{ error: 'CODE', message: '…' }`), messages
 
 | File | T/C | Responsibility |
 |---|---|---|
-| `.github/workflows/release.yml` | C | Tag-triggered, GitHub-hosted: `verify` → `test` → `package` → `publish` |
+| `.github/workflows/release.yml` | C | Tag-triggered, GitHub-hosted: `verify` → (`server-tests` ‖ `client-tests` ×3 ‖ `e2e`) → `package` → `publish` (rule 52) |
 | `.github/workflows/deploy.yml` | **D** | Deleted with the self-hosted runner |
 | `release.sh` | T | Produces `guestflow-X.Y.Z.tar.gz` (was `.zip`), plus the SHA-256; drops the CRA-era `dist`→`build` rename? **no** — keeps it (the PM2 layout still expects `client/build`) |
 | `scripts/build-changelog.mjs` | T | `--release X.Y.Z` now scaffolds the `### Summary` digest as a TODO; the new `--check-digest X.Y.Z` judges it (present, non-empty, no leftover TODO, at most 6 lines of at most 160 characters) and is what the workflow's verify job runs |
@@ -460,6 +737,8 @@ something genuinely needs them. Each step carries a check.
 2. **Pre-flight**: on `master`, up to date, tree clean of *tracked* changes, then server suite,
    client Vitest, client build and `npm run test:e2e`, all green. Untracked files are reported, not
    treated as a blocker; a tracked modification stops the release (CLAUDE.md §5.4).
+   `node scripts/check-plugin-versions.mjs --core-version X.Y.Z` passes: every bundled plugin admits the
+   version about to be released (rule 54, added 2026-11-09).
 3. **Changelog**: `node scripts/build-changelog.mjs --release X.Y.Z`, then rewrite the folded section
    into operator-facing English prose, and **write the `### Summary` digest in French** (rule 20c).
    `--check-digest X.Y.Z` must pass. An empty section means there is nothing to release.
@@ -632,6 +911,10 @@ Below, a collapsible **Historique des mises à jour** (last 5).
 
 ### 6.5 Barre du haut — `AppVersionBadge` + `HeaderPill`
 
+> 2026-10-19 (`specs/shell-and-home-day-first.md` rule 16, decision 3 of the UI/UX review): the
+> installed version moved to the foot of the drawer (« GuestFlow vX.Y.Z », `AppVersionFooter`); the
+> top bar keeps only the update pill. The dashboard alert is now the home subject `update-available`.
+
 Right end of the application's `AppBar`, on every page, admin only:
 
 > `v2.1.0`  ( ⬆ 1 )
@@ -729,7 +1012,9 @@ save flow.
       file written by the previous shape reads as an empty span rather than throwing.
 - [x] `tests/self-update-controller.unit.test.js` — the version and status payloads, the dev-tree
       refusal with its reason, the loopback health URL, the French failure messages, and the hourly
-      check keeping its last answer when GitHub is unreachable (rules 14, 21, 37).
+      check keeping its last answer when GitHub is unreachable (rules 14, 21, 37). Every call passes an explicit
+      environment, so the file is green whatever the shell exports, and one test passes
+      `GUESTFLOW_SELF_UPDATE: 'off'` to prove the payload reads that environment (rule 51, reading of 2026-11-01).
 
 ### Client tests (37 new, `cd client && npm test` → 1105 green)
 
@@ -838,7 +1123,10 @@ Resolved 2026-08-20 with the user before writing this spec:
   truncated download and CDN-level tampering, **not** against someone who has taken over the
   GitHub account and publishes a malicious release. Minisign signing with a key held outside
   GitHub was offered and declined for now; it remains the natural hardening step if the threat
-  model changes.
+  model changes. **Amended 2026-10-28:** the threat
+  model did change — the fleet console installs releases in the process that holds the licence key —
+  so rules 40 (install scripts isolated from secrets) and 41 (optional Ed25519 signature of
+  `SHA256SUMS`, enforced once a public key is configured) were added.
 - **Q: Release channel?**
   A: **Tag `vX.Y.Z` on `master` via a `release/vX.Y.Z` PR**, sowel-style. The permanent `release`
   branch disappears.
@@ -855,7 +1143,7 @@ Still open, to settle during implementation:
   - A (2026-08-20): **yes** — `python3`, `make`, `g++` and `cc` are all present. The 2.0.0 install
     rebuilt `better-sqlite3` from source on the host and it loads (ABI 137, Node 24.19).
 - Q: Which system user owns `~/guestflow` and the PM2 daemon on the new Proxmox VM?
-  - A (2026-08-20): **`adrien`**, on hostname `guestflow` (192.168.0.24). The app, PM2 and the whole
+  - A (2026-08-20): **`<operator>`** (the operator's own login account), on host `<prod-host>`. The app, PM2 and the whole
     update path run as that user; no `sudo` anywhere in it.
 - Q: Does the release archive carry `scripts/`, which the README tells the operator to run from
   `~/guestflow/current/scripts/bootstrap-vm.sh`?

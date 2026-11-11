@@ -1,10 +1,12 @@
 // specs/non-card-option-served-persons.md rule 21 — the operator is told at once, where the party changes.
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import GuestsBedsSection from '../GuestsBedsSection';
 import { ReservationFormProvider } from '../ReservationFormContext';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
+
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 function renderSection(pricingQuote) {
   render(

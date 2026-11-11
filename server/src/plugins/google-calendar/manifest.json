@@ -1,0 +1,71 @@
+{
+  "id": "google-calendar",
+  "name": "Google Agenda",
+  "version": "1.2.10",
+  "description": "Copie les séjours dans un agenda Google.",
+  "icon": "event",
+  "surfaces": [
+    "Intégrations › Google Agenda"
+  ],
+  "requires": [],
+  "guestflow": ">=3.18.0",
+  "sdk": "^2.17.0",
+  "changelog": {
+    "1.0.0": [
+      "Première version publiée en paquet."
+    ],
+    "1.0.1": [
+      "Ne se charge pas sur GuestFlow 4 tant qu’une version prévue pour lui n’est pas publiée."
+    ],
+    "1.0.2": [
+      "Réglages › Intégrations : une ligne courte quand la connexion Google n’est pas disponible, sans nom de variable ni chemin du serveur."
+    ],
+    "1.0.3": [
+      "Textes de la connexion à Google Agenda sans « vous » ni « votre »."
+    ],
+    "1.1.0": [
+      "La carte du plugin dit s’il reste à se connecter à Google ou à choisir l’agenda."
+    ],
+    "1.2.0": [
+      "Ses réglages ont leur propre onglet dans Paramètres › Intégrations, retrouvé aussi par la recherche des Paramètres."
+    ],
+    "1.2.1": [
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.2": [
+      "Messages d’erreur de la connexion Google à la forme impersonnelle.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.3": [
+      "Un séjour annulé ne laisse plus d’événement dans l’agenda quand l’annulation arrive pendant l’envoi du séjour.",
+      "Un appel à Google qui ne répond pas est interrompu au bout de 20 s et repris à la synchronisation suivante.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.4": [
+      "Un séjour annulé pendant la synchronisation complète ne laisse plus d’événement dans l’agenda, et un séjour modifié n’y est plus remis aux anciennes dates.",
+      "Compatible avec le SDK 2 de GuestFlow."
+    ],
+    "1.2.5": [
+      "Les informations de connexion et de synchronisation (compte, calendrier, dernière synchro) ne peuvent plus être modifiées depuis les réglages (SDK 2.17 de GuestFlow)."
+    ],
+    "1.2.6": [
+      "La déconnexion de Google Agenda n’attend plus indéfiniment quand Google ne répond pas : elle s’arrête au bout de 20 s.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.2.7": [
+      "Dans la description des événements, chaque option affiche le nombre de personnes servies ou de nuits de la fiche, au lieu de « x1 ».",
+      "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.2.8": [
+      "Une panne réseau pendant le renouvellement de l’accès à Google n’écrit plus le jeton de connexion dans les journaux.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.2.9": [
+      "Une URL publique manquante renvoie vers Paramètres → Système.",
+      "Compatible avec le SDK 2.17 de GuestFlow."
+    ],
+    "1.2.10": [
+      "Compatible avec GuestFlow 4 (SDK 2.17)."
+    ]
+  }
+}

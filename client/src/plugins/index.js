@@ -1,9 +1,23 @@
-// The built-in plugin modules, client side (specs/plugin-engine-backport.md rule 1). The only core file
+// The built-in plugin modules, client side (specs/plugins-phase-1-sdk.md rule 2). The only core file
 // allowed to import a plugin folder; everything else goes through `sdk/`.
+import weatherAlerts from './weather-alerts';
+import schoolHolidays from './school-holidays';
+import googleCalendar from './google-calendar';
+import tariffRecipes from './tariff-recipes';
+import gateAccess from './gate-access';
+import sas from './sas';
+import websiteBooking from './website-booking';
+import accountingExport from './accounting-export';
+import linen from './linen';
+import onlinePayment from './online-payment';
+import neat from './neat';
+import hourlyResources from './hourly-resources';
 import gitesDeFranceIntake from './gites-de-france-intake';
 import bookingIntake from './booking-intake';
 import airbnbIntake from './airbnb-intake';
+import googleVacationRentals from './google-vacation-rentals';
+import guestApp from './guest-app';
 
-const PLUGIN_MODULES = [gitesDeFranceIntake, bookingIntake, airbnbIntake];
+const PLUGIN_MODULES = [weatherAlerts, schoolHolidays, googleCalendar, tariffRecipes, gateAccess, sas, websiteBooking, accountingExport, linen, onlinePayment, neat, hourlyResources, gitesDeFranceIntake, bookingIntake, airbnbIntake, googleVacationRentals, guestApp];
 
 export default PLUGIN_MODULES;

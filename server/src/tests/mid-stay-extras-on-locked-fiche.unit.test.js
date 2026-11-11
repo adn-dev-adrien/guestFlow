@@ -6,6 +6,7 @@
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
+const { skipWithout } = require('../plugins/sdk/testing');
 const assert = require('node:assert/strict');
 
 const {
@@ -110,6 +111,10 @@ test('editLock payload — floors per arrival line, nothing frozen once the wind
 
 // ── Controller + engine on the boot schema ───────────────────────────────────
 
+// `per_hour` lines (S2) are priced by the `hourly-resources` plugin on inte/plugins
+// (specs/plugins-phase-3c-hourly-resources.md rule 11).
+require('./hourlyResourcesFixture').liveHourlyResources();
+
 const db = require('../database');
 const model = require('../models/reservationsModel');
 const controller = require('../controllers/reservationsController');
@@ -210,7 +215,7 @@ test('adding a catalogue option during the stay is saved and goes to the end-of-
 });
 
 // specs/mid-stay-extras-on-locked-fiche.md rule 5
-test('adding a custom line and a resource during the stay lands in the end-of-stay complement', () => {
+test('adding a custom line and a resource during the stay lands in the end-of-stay complement', { skip: skipWithout(['hourly-resources']) }, () => {
   const id = seedStay();
   put(id, () => {});
   const result = put(id, (b) => {
@@ -287,13 +292,14 @@ test('changing dates or guests together with an option is refused as PAST_RESERV
   assert.deepEqual(optionIds(id), [101]);
 });
 
-// specs/mid-stay-extras-on-locked-fiche.md rules 4, 9
+// specs/mid-stay-extras-on-locked-fiche.md rules 4, 9 (reading of 2026-11-06: D21 closes the unlock to a price change,
+// so the message no longer sends there)
 test('an extras change after the end-of-stay complement is collected is refused as MID_STAY_EXTRAS_CLOSED', () => {
   const id = seedStay({ endOfStayPaid: 1 });
   const result = put(id, (b) => { b.options.push({ optionId: 102, quantity: 1 }); });
   assert.equal(result.status, 400);
   assert.equal(result.body.code, 'MID_STAY_EXTRAS_CLOSED');
-  assert.equal(result.body.error, 'Complément de fin de séjour déjà encaissé : décocher « payé » ou déverrouiller la fiche.');
+  assert.equal(result.body.error, 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.');
   assert.deepEqual(optionIds(id), [101]);
   // …while a save that leaves the extras alone is still accepted, as before.
   assert.equal(put(id, () => {}).status, 200);
@@ -377,7 +383,7 @@ test('S2 — fewer served persons on a per-person card option sold at arrival is
   assert.equal(more.status, 200, JSON.stringify(more.body));
 });
 
-test('S2 — an hourly resource with a free first hour cannot lose hours sold at arrival', () => {
+test('S2 — an hourly resource with a free first hour cannot lose hours sold at arrival', { skip: skipWithout(['hourly-resources']) }, () => {
   const id = seedStay();
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
               VALUES (?, 202, 2, 30, 1, 'per_hour', 30, 0)`).run(id);
@@ -387,7 +393,7 @@ test('S2 — an hourly resource with a free first hour cannot lose hours sold at
   assert.equal(result.body.code, 'ARRIVAL_EXTRAS_FROZEN');
 });
 
-test('S3 — a refused resource leaves the row, the options and the resources untouched', () => {
+test('S3 — a refused resource leaves the row, the options and the resources untouched', { skip: skipWithout(['hourly-resources']) }, () => {
   const id = seedStay();
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
               VALUES (?, 201, 1, 12, 1, 'per_stay', 12, 0)`).run(id);

@@ -3,13 +3,16 @@ import { render, screen } from '@testing-library/react';
 
 import { ReservationFormProvider } from '../ReservationFormContext';
 import ExtrasSection from '../ExtrasSection';
-import { makeMockContext } from '../mockReservationForm';
+import { makeMockContext } from './mockReservationForm';
+
+// Every plugin active — the Solio configuration these tests describe (specs/plugins-phase-0-foundation.md).
+vi.mock('../../../hooks/usePlugins', () => ({ usePlugin: () => true }));
 
 // specs/devis-extras-parity-and-price-lock.md §3 rule 17.
 // A quote shows the guest ONE total, not a payment plan: on a devis every extra starts inside the
 // acompte/solde split, even on a non-direct platform where a reservation would default the line into
 // the Complément (specs/force-extras-complement-on-platform.md §3 rule 1). The toggle stays available
-// — an explicit ON is the operator's call and is carried into the reservation at conversion (rule 18).
+// — an explicit ON is the operator's call and is carried into the reservation at conversion (force-extras spec, devis rule).
 
 function renderExtras({ platform, isDevisMode, lineOverrides = {} }) {
   const ctx = makeMockContext({

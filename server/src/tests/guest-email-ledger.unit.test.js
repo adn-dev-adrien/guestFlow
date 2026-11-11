@@ -82,6 +82,8 @@ test('the email_log rolling-window purge never reopens a ledger key', () => {
   const log = emailLogModel.buildModel(db);
   const templateId = db.prepare("SELECT id FROM email_templates WHERE stableKey = 'guest_thanks_j1'").get().id;
   const row = log.insert({ templateId, reservationId: rid, status: 'sent', renderedSubject: 's', renderedBody: 'b', recipientEmail: 'c@x.fr' });
+  // Written the day after the stay, as a J+1 is (specs/email-history-rolling-window.md rule 9).
+  db.prepare("UPDATE email_log SET sentAt = '2026-01-13 08:00:00' WHERE id = ?").run(row.id);
   ledger.claim({ ...KEY, dedupKey: `guest_thanks_j1:r${rid}`, reservationId: rid });
   ledger.markSent(`guest_thanks_j1:r${rid}`, { emailLogId: row.id });
 
@@ -90,7 +92,7 @@ test('the email_log rolling-window purge never reopens a ledger key', () => {
   assert.equal(ledger.claim({ ...KEY, dedupKey: `guest_thanks_j1:r${rid}` }), false);
 });
 
-test('upgrade migration: copies past sends into the ledger and rewrites the three existing templates', () => {
+test('upgrade migration: copies past sends into the ledger and rewrites the existing template that differs', () => {
   const db = freshDb();
   seedProperty(db);
   seedClient(db);
@@ -110,7 +112,8 @@ test('upgrade migration: copies past sends into the ledger and rewrites the thre
   assert.match(row.body, /Plus qu'une semaine/);
   // The registry ships the sequence « manual » (specs/settings-rationalization.md rule 17b).
   assert.equal(row.sendMode, 'manual');
-  assert.equal(result.templatesSynced, 3);
+  // Only the stale row is rewritten: the two seeded from the current registry already match it.
+  assert.equal(result.templatesSynced, 1);
 });
 
 test('upgrade migration: automatic sending already ON starts the sequence today, never earlier', () => {

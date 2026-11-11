@@ -1,7 +1,7 @@
 /**
  * Cancellation-insurance option seeder (specs/cancellation-insurance.md §3.2 rules 11-15).
  *
- * Structural boot-time seed with the same contract as `cateringSeed.js`: idempotent,
+ * Structural boot-time seed: idempotent,
  * non-destructive, re-run on every server start, keyed on `options.seedKey` so the operator can
  * rename, re-price and re-scope the article without the next boot inserting a duplicate beside it.
  *

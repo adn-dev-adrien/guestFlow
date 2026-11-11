@@ -4,17 +4,13 @@ const db = require('./database');
 const propertyIcalModel = require('./models/propertyIcalModel');
 const icalExportRangesModel = require('./models/icalExportRangesModel');
 
-// School holidays auto-sync (spec school-holidays §3 rules 15+).
-const schoolHolidaysModel = require('./models/schoolHolidaysModel');
-const { runSync: runSchoolHolidaysSync } = require('./utils/schoolHolidaysSync');
 
 // Email automation (specs/email-automation.md §3 rule 7). The 08:00 auto-send pass owns its own
 // timer, registered only while automatic sending is authorised
 // (specs/no-automatic-email-without-approval.md §3 rule 2b).
 const emailAutoSendScheduler = require('./utils/emailAutoSendScheduler');
 const emailLogModel       = require('./models/emailLogModel');
-const settingsModel       = require('./models/settingsModel');
-const { isoToday } = require('./utils/emailAutoSendRunner');
+const { localIsoDate } = require('./utils/localDate');
 
 // Arrival/departure push (specs/pwa-push-notifications.md §3.3).
 const reservationsModel = require('./models/reservationsModel');
@@ -24,23 +20,11 @@ const { runArrivalDeparturePush } = require('./utils/arrivalDeparturePushRunner'
 const { runBreakfastPush } = require('./utils/breakfastPushRunner');
 const breakfastModel = require('./models/breakfastModel');
 
-// Online-payment polling (specs/online-payments-qonto.md §3.3): detect paid Qonto links → convert.
-const paymentLinksModel = require('./models/paymentLinksModel');
-const devisModel = require('./models/devisModel');
-const { withQonto } = require('./utils/qontoService');
-const { runPaymentPoll } = require('./utils/paymentPollRunner');
-const { buildPaymentEffectDeps } = require('./utils/paymentEffectDeps');
-const { resolvePaymentPollTickMs } = require('./utils/paymentPollSchedule');
-const { ensureWebhookSubscription } = require('./utils/qontoWebhookRegistrar');
-
-// Google Calendar reconcile pass (specs/google-calendar-oauth-rework.md §3 rule 22).
-const googleCalendarSync = require('./utils/googleCalendarSync');
-
 // Self-update version check (specs/self-update-and-releases.md §3.B rule 12).
 const systemController = require('./controllers/systemController');
+const notificationService = require('./utils/notificationService');
 
 let syncInProgress = false;
-let schoolHolidaysSyncInProgress = false;
 let arrivalDeparturePushInProgress = false;
 // First pass after boot stamps already-due events WITHOUT sending (no restart flood — rule 12).
 let arrivalDeparturePushFirstRun = true;
@@ -67,15 +51,12 @@ async function performAutoSync() {
       return;
     }
 
-    // Sync each source. syncSourceAndRecord runs the sync engine, writes the source status
-    // row, and triggers the Google Calendar reconcile itself when bookings changed.
-    for (const source of sources) {
-      try {
-        await propertyIcalModel.syncSourceAndRecord(source);
-      } catch (error) {
-        console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${source.name}":`, error.message);
-      }
-    }
+    // Sync each source. syncMany fetches every feed at once (specs/ical-import-hardening.md rule 4),
+    // then runs the sync engine source by source, which writes the status row and announces the change.
+    const results = await propertyIcalModel.syncMany(sources);
+    results.filter((r) => !r.ok).forEach((r) => {
+      console.error(`[iCal Sync] ❌ Erreur lors de la synchronisation de "${r.sourceName}":`, r.error);
+    });
 
     // specs/lodgify-decommission.md §3 rule 7 — tombstones only matter for 72 h; keep a week.
     icalExportRangesModel.purge();
@@ -83,43 +64,6 @@ async function performAutoSync() {
     console.error('[iCal Sync] Erreur critique:', error);
   } finally {
     syncInProgress = false;
-  }
-}
-
-async function performSchoolHolidaysSync(reason = 'scheduled') {
-  if (schoolHolidaysSyncInProgress) return;
-  schoolHolidaysSyncInProgress = true;
-  try {
-    const state = schoolHolidaysModel.getSyncState();
-    const result = await runSchoolHolidaysSync({
-      model: schoolHolidaysModel,
-      fetchFn: fetch,
-      horizonMonths: state.syncHorizonMonths,
-    });
-    if (result.ok) {
-      console.log(`[Vacances scolaires] Sync (${reason}) OK : ${result.createdCount} créé(s), ${result.updatedCount} mis à jour, ${result.skippedLockedCount} verrouillé(s), ${result.deletedStaleCount} supprimé(s) en ${result.durationMs} ms.`);
-    } else {
-      console.error(`[Vacances scolaires] Sync (${reason}) en erreur : ${result.error}`);
-    }
-  } catch (err) {
-    console.error('[Vacances scolaires] Sync : exception inattendue :', err);
-  } finally {
-    schoolHolidaysSyncInProgress = false;
-  }
-}
-
-function shouldSyncSchoolHolidays() {
-  const state = schoolHolidaysModel.getSyncState();
-  if (!state.lastSyncAt) return true;
-  const lastMs = Date.parse(state.lastSyncAt);
-  if (Number.isNaN(lastMs)) return true;
-  const elapsedMs = Date.now() - lastMs;
-  return elapsedMs >= state.syncIntervalDays * 24 * 60 * 60 * 1000;
-}
-
-function tickSchoolHolidaysSync(reason) {
-  if (shouldSyncSchoolHolidays()) {
-    performSchoolHolidaysSync(reason).catch(err => console.error('[Vacances scolaires] Erreur non gérée:', err));
   }
 }
 
@@ -136,10 +80,20 @@ function runEmailHistoryPurge(reason = 'cron') {
 
 // Hourly tick, once-per-local-day guard (the window only moves day-by-day).
 function tickEmailHistoryPurge() {
-  const today = isoToday(new Date());
+  const today = localIsoDate(new Date());
   if (lastEmailHistoryPurgeDate === today) return;
   lastEmailHistoryPurgeDate = today;
   runEmailHistoryPurge('daily pass');
+}
+
+// specs/vat-optional-mode.md rule 29 — the settings column mirroring the VAT rate in force follows a period
+// that starts today (no write moves it), at the hourly tick, so it is right within the hour past midnight.
+function tickVatRateMirror() {
+  try {
+    require('./models/vatRegimeModel').syncMirror(db);
+  } catch (err) {
+    console.error('[vat-regime] mirror error:', err && err.message ? err.message : err);
+  }
 }
 
 // Per-minute arrival/departure push pass. Isolated from the other jobs (its own in-progress guard +
@@ -178,51 +132,18 @@ async function runBreakfastPushPass(reason = 'tick') {
   }
 }
 
-// Online payments: poll open Qonto links → mark paid → convert devis / flag deposit. Skips silently
-// when Qonto isn't connected (no token) so it's a no-op until the operator connects.
-let paymentPollInProgress = false;
-async function runPaymentPollPass(reason = 'cron') {
-  if (paymentPollInProgress) return;
-  if (!settingsModel.qontoConnected || !settingsModel.qontoConnected()) return;
-  paymentPollInProgress = true;
+// specs/payment-link-lifecycle.md rules 43, 64 — the guest whose request lost its dates is told once the provider
+// read the withdrawn link unpaid after its deactivation (the lifecycle's last look). Its own guard; never throws.
+let datesTakenNoticeInProgress = false;
+async function runDatesTakenNoticePass() {
+  if (datesTakenNoticeInProgress) return;
+  datesTakenNoticeInProgress = true;
   try {
-    // The webhook is the paid signal; this pass is the safety net behind it. Making sure the
-    // subscription exists is therefore part of the safety net, not a separate chore
-    // (specs/settings-one-save-and-automatic-webhook.md rule 11). It costs no Qonto call once the
-    // subscription is recorded (rule 10), and it never throws.
-    await ensureWebhookSubscription({ settings: settingsModel });
-    // Through `withQonto` so a broken connection is recorded and shown in Réglages → Paiements
-    // instead of failing silently every pass (specs/qonto-settings-in-app.md rule 12).
-    const summary = await withQonto({ settings: settingsModel, origin: 'poll' }, (client, accessToken) => runPaymentPoll({
-      ...buildPaymentEffectDeps(),
-      qontoClient: client,
-      getAccessToken: () => accessToken,
-    }));
-    if (summary.retired > 0) console.log(`[payments] ${reason}: ${summary.retired} expired link(s) retired without a Qonto call`);
-    if (summary.stoppedBy) console.warn(`[payments] ${reason}: pass stopped by ${summary.stoppedBy} after ${summary.checked} link(s); the rest wait for the next tick`);
-    if (summary.paid > 0) {
-      console.log(`[payments] ${reason}: ${summary.paid} paid / ${summary.checked} checked`);
-      // A paid link may just have flipped an insured reservation's acompte — subscribe now, not
-      // at the next Neat tick (specs/neat-cancellation-insurance-subscription.md rule 8).
-      require('./controllers/neatController').kickPass('payment-poll');
-    }
+    await require('./utils/datesTakenNotice').runDueNotices();
   } catch (err) {
-    console.error('[payments] poll pass error:', err && err.message ? err.message : err);
+    console.error('[dates-taken] notice pass error:', err && err.message ? err.message : err);
   } finally {
-    paymentPollInProgress = false;
-  }
-}
-
-// Neat cancellation-insurance subscriptions (specs/neat-cancellation-insurance-subscription.md
-// §3.2 rule 8): scan insured + deposit-paid reservations, subscribe due jobs, retry failures.
-// The controller owns the pass (re-entrancy guard + real deps) and bails silently while the
-// integration is unconfigured; the payment flows kick the same pass so the nominal case
-// subscribes within seconds of the acompte, this tick being the safety net.
-async function runNeatSubscriptionPass(reason = 'cron') {
-  try {
-    await require('./controllers/neatController').runPass(reason);
-  } catch (err) {
-    console.error('[neat] pass error:', err && err.message ? err.message : err);
+    datesTakenNoticeInProgress = false;
   }
 }
 
@@ -230,76 +151,6 @@ async function runNeatSubscriptionPass(reason = 'cron') {
 // A daily job used to mint the solde link and mail the request at J-30; the operator now sends every
 // money email himself from the dashboard's « Échéances de paiement » card, which lists the same
 // reservations. The passes that remain send stay information, never a euro request.
-
-// Google Calendar reconcile: overlap-guarded inside the sync engine (runReconcileGuarded);
-// silent no-op until the operator connects a Google account + picks a calendar.
-async function runGoogleSyncPass(reason = 'cron') {
-  if (!googleCalendarSync.isActive()) return;
-  try {
-    const result = await googleCalendarSync.runReconcileGuarded();
-    if (result && !result.alreadyRunning && (result.pushed || result.deleted || result.errors)) {
-      console.log(`[google-sync] ${reason}: ${result.pushed} pushed, ${result.deleted} deleted, ${result.skipped} unchanged, ${result.errors} error(s)`);
-    }
-  } catch (err) {
-    console.error('[google-sync] pass error:', err && err.message ? err.message : err);
-  }
-}
-
-// Tariff-recipe horizon extension (specs/tariff-recipes/spec.md §3.2 rule 12). For every property
-// with an active recipe: when the horizon (current year + recipe.horizonYears − 1) is no longer
-// fully covered by its recipe-owned seasons, re-apply the recipe (idempotent — a covered horizon
-// produces an empty diff and writes nothing) and journal the run so the Dashboard surfaces it.
-// A blocking condition journals instead of writing — the operator is told, never silently left
-// with a half-configured year. One pending journal row per property max (no daily spam).
-function runTariffRecipeHorizonPass(reason = 'cron', deps = {}) {
-  let model; let store; let database;
-  try {
-    model = deps.model || require('./models/tariffRecipeModel').getDefaultModel();
-    store = deps.store || require('./utils/tariffRecipe').getDefaultStore();
-    database = deps.database || db;
-  } catch (err) {
-    console.error('[tariff-recipes] init error:', err && err.message ? err.message : err);
-    return;
-  }
-  const properties = database.prepare("SELECT id, name, tariffRecipeId FROM properties WHERE tariffRecipeId != ''").all();
-  if (!properties.length) return;
-  const pendingByProperty = new Set(model.listPendingRuns().map((run) => run.propertyId));
-  const currentYear = new Date().getFullYear();
-
-  for (const property of properties) {
-    try {
-      if (pendingByProperty.has(property.id)) continue; // an undismissed alert is already waiting
-      const recipe = store.getRecipe(property.tariffRecipeId);
-      if (!recipe) {
-        model.recordRun({
-          propertyId: property.id, recipeId: property.tariffRecipeId, recipeVersion: '',
-          note: 'Recette introuvable — le calendrier ne sera plus étendu.', blocking: 1,
-        });
-        continue;
-      }
-      const targetYear = currentYear + recipe.horizonYears - 1;
-      const covered = model.coveredUntilYear(property.id);
-      if (covered !== null && covered >= targetYear) continue; // horizon fully covered → no-op
-
-      const result = model.apply(property.id, property.tariffRecipeId);
-      if (result.applied) {
-        model.recordRun({
-          propertyId: property.id, recipeId: recipe.id, recipeVersion: recipe.version,
-          generatedYear: targetYear, note: `Saisons générées jusqu'à fin ${targetYear} — à relire.`,
-        });
-        console.log(`[tariff-recipes] ${reason}: horizon étendu jusqu'à ${targetYear} pour « ${property.name} »`);
-      } else if (result.blocking) {
-        model.recordRun({
-          propertyId: property.id, recipeId: recipe.id, recipeVersion: recipe.version,
-          note: `Extension impossible : ${result.warnings.join(' ') || 'conflit'}`, blocking: 1,
-        });
-        console.warn(`[tariff-recipes] ${reason}: extension bloquée pour « ${property.name} »`);
-      }
-    } catch (err) {
-      console.error(`[tariff-recipes] pass error (« ${property.name} »):`, err && err.message ? err.message : err);
-    }
-  }
-}
 
 function startScheduledTasks() {
   // Sync iCal sources every 5 minutes (300000 ms)
@@ -314,12 +165,6 @@ function startScheduledTasks() {
     performAutoSync().catch(err => console.error('[iCal Sync] Erreur lors de la première synchro:', err));
   }, 30000);
 
-  // School holidays: hourly tick that checks the fixed interval and triggers a sync if due
-  // (specs/settings-rationalization.md rule 13).
-  const SCHOOL_HOLIDAYS_TICK = 60 * 60 * 1000; // 1 hour
-  setInterval(() => tickSchoolHolidaysSync('hourly tick'), SCHOOL_HOLIDAYS_TICK);
-  setTimeout(() => tickSchoolHolidaysSync('boot'), 60 * 1000);
-
   // Email auto-send: no timer at all unless a template is « auto ». Switching one to « auto » in Emails
   // starts it (and runs the day's pass) without a restart — the scheduler is re-synced by
   // emailTemplatesController on every write (specs/settings-rationalization.md rule 17b).
@@ -329,6 +174,7 @@ function startScheduledTasks() {
   // window is trimmed without waiting a full day after a restart.
   const EMAIL_HISTORY_PURGE_TICK = 60 * 60 * 1000; // 1 hour
   setInterval(tickEmailHistoryPurge, EMAIL_HISTORY_PURGE_TICK);
+  setInterval(tickVatRateMirror, EMAIL_HISTORY_PURGE_TICK);
   setTimeout(tickEmailHistoryPurge, 100 * 1000);
 
   // Arrival/departure push: per-minute tick. First pass 95 s after boot (firstRun → stamps the day's
@@ -342,31 +188,10 @@ function startScheduledTasks() {
   setInterval(() => runBreakfastPushPass('tick').catch((err) => console.error('[push] unhandled:', err)), BREAKFAST_PUSH_TICK);
   setTimeout(() => runBreakfastPushPass('boot').catch((err) => console.error('[push] unhandled:', err)), 105 * 1000);
 
-  // Online-payment polling: three passes a day (specs/payment-polling-fair-use.md rule 11). The
-  // webhook confirms in real time and the guest's success page reconciles on demand; this is the
-  // net that catches a webhook that never arrived.
-  const PAYMENT_POLL_TICK = resolvePaymentPollTickMs();
-  setInterval(() => runPaymentPollPass('cron').catch((err) => console.error('[payments] unhandled:', err)), PAYMENT_POLL_TICK);
-  setTimeout(() => runPaymentPollPass('boot').catch((err) => console.error('[payments] unhandled:', err)), 110 * 1000);
-
-  // Google Calendar reconcile: every 15 min (immediate pushes cover the realtime path; this
-  // pass catches missed hooks + purges orphans — specs/google-calendar-oauth-rework.md §3 rule 22).
-  const GOOGLE_SYNC_TICK = 15 * 60 * 1000;
-  setInterval(() => runGoogleSyncPass('cron').catch((err) => console.error('[google-sync] unhandled:', err)), GOOGLE_SYNC_TICK);
-  setTimeout(() => runGoogleSyncPass('boot').catch((err) => console.error('[google-sync] unhandled:', err)), 130 * 1000);
-
-  // Tariff-recipe horizon: a daily check that acts at most once per missing year (idempotent no-op
-  // the rest of the time). Boot pass 140 s after start so a restart never leaves an expiring
-  // horizon waiting a full day.
-  const TARIFF_RECIPE_TICK = 24 * 60 * 60 * 1000;
-  setInterval(() => { try { runTariffRecipeHorizonPass('cron'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, TARIFF_RECIPE_TICK);
-  setTimeout(() => { try { runTariffRecipeHorizonPass('boot'); } catch (err) { console.error('[tariff-recipes] unhandled:', err); } }, 140 * 1000);
-
-  // Neat subscriptions: every 5 min (the payment flows kick the pass for the nominal case; this
-  // tick is the retry ladder + the safety net). Boot pass 150 s after start.
-  const NEAT_TICK = 5 * 60 * 1000;
-  setInterval(() => runNeatSubscriptionPass('cron').catch((err) => console.error('[neat] unhandled:', err)), NEAT_TICK);
-  setTimeout(() => runNeatSubscriptionPass('boot').catch((err) => console.error('[neat] unhandled:', err)), 150 * 1000);
+  // Dates-taken notices: per-minute tick, first pass 115 s after boot.
+  const DATES_TAKEN_NOTICE_TICK = 60 * 1000;
+  setInterval(() => { runDatesTakenNoticePass(); }, DATES_TAKEN_NOTICE_TICK);
+  setTimeout(() => { runDatesTakenNoticePass(); }, 115 * 1000);
 
   // Self-update: poll the GitHub releases API hourly, plus once 60 s after boot so a restart
   // surfaces a pending version straight away (specs/self-update-and-releases.md §3.B rule 12).
@@ -375,38 +200,24 @@ function startScheduledTasks() {
   setInterval(() => { systemController.runVersionCheck().catch(() => {}); }, UPDATE_CHECK_TICK);
   setTimeout(() => { systemController.runVersionCheck().catch(() => {}); }, 60 * 1000);
 
-  // Gate keys (specs/gate-access-sowel-connector.md §3.3 rules 17-18): Sowel reads the list hourly;
-  // past 3 h without a read, the admins are pushed once. Checked hourly, first pass 160 s after boot.
-  const GATE_STALE_TICK = 60 * 60 * 1000;
-  setInterval(() => runGateStaleReadPass('cron').catch((err) => console.error('[gate-keys] unhandled:', err)), GATE_STALE_TICK);
-  setTimeout(() => runGateStaleReadPass('boot').catch((err) => console.error('[gate-keys] unhandled:', err)), 160 * 1000);
-}
+  // Website requests mailed by window (specs/public-request-abuse-and-grouping.md rule 9): the summary
+  // of a 15-minute window leaves within a minute of its end, and a restart sends what was pending.
+  const DIGEST_TICK = 60 * 1000;
+  setInterval(() => { notificationService.flushDueDigests().catch(() => {}); }, DIGEST_TICK);
+  setTimeout(() => { notificationService.flushDueDigests().catch(() => {}); }, 45 * 1000);
 
-// « Sowel has not read the gate keys for more than 3 h » — pushes the admins once, a read clears it.
-async function runGateStaleReadPass(reason = 'cron') {
-  try {
-    const { runStaleReadCheck } = require('./utils/gateResults');
-    const { alerted } = await runStaleReadCheck({ model: require('./models/gateKeysModel').model(), pushService });
-    if (alerted) console.warn(`[gate-keys] ${reason}: Sowel has not read the keys for more than 3 h — admins pushed`);
-  } catch (err) {
-    console.error('[gate-keys] stale-read check error:', err && err.message ? err.message : err);
-  }
+  // The operator's plugin choice carried by the licence (specs/plugin-operator-provisioning.md rule 16).
+  require('./tasks/pluginProvisioning').start();
 }
 
 module.exports = {
   startScheduledTasks,
-  runGateStaleReadPass,
   performAutoSync,
-  performSchoolHolidaysSync,
-  shouldSyncSchoolHolidays,
-  // Tariff-recipe horizon — exposed for tests + ops trigger.
-  runTariffRecipeHorizonPass,
+  // VAT rate mirror — exposed for tests.
+  tickVatRateMirror,
   // Arrival/departure push — exposed for tests + ops trigger.
   runArrivalDeparturePushPass,
   // Breakfast push — exposed for tests + ops trigger.
   runBreakfastPushPass,
-  // Google Calendar reconcile pass — exposed for tests + ops trigger.
-  runGoogleSyncPass,
-  // Neat subscription pass — exposed for tests + ops trigger.
-  runNeatSubscriptionPass,
+  runDatesTakenNoticePass,
 };

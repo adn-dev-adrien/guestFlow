@@ -25,18 +25,18 @@ function fakeRes() {
   };
 }
 
-test('create: missing name → 400', () => {
+test('create: missing name → 422', () => {
   const c = resourcesController.buildController(fakeModel());
   const res = fakeRes();
   c.create({ body: { name: '', quantity: 1, price: 10 } }, res);
-  assert.equal(res.statusCode, 400);
+  assert.equal(res.statusCode, 422);
 });
 
-test('create: negative quantity → 400', () => {
+test('create: negative quantity → 422', () => {
   const c = resourcesController.buildController(fakeModel());
   const res = fakeRes();
   c.create({ body: { name: 'R', quantity: -1, price: 10 } }, res);
-  assert.equal(res.statusCode, 400);
+  assert.equal(res.statusCode, 422);
 });
 
 test('create: valid → returns id', () => {

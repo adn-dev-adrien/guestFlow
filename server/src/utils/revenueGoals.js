@@ -6,7 +6,7 @@
 const MAX_GOAL = 10000000;
 
 const MESSAGES = {
-  notPositive: "L'objectif doit être supérieur à 0 €. Laissez vide pour ne pas en fixer.",
+  notPositive: "L'objectif doit être supérieur à 0 €. Vide : aucun objectif.",
   notANumber: 'Un montant en euros, sans lettres (ex. 85 000).',
   tooManyDecimals: 'Deux décimales au plus.',
   tooHigh: 'Montant trop élevé : 10 000 000 € au plus.',

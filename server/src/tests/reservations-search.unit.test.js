@@ -32,6 +32,7 @@ function addRes(db, { kind = 'reservation', reservationNumber = null, clientId =
   ).run(kind, reservationNumber, clientId, startDate, endDate).lastInsertRowid;
 }
 
+// specs/reservation-number-and-search.md rule 11 — a blank query lists nothing.
 test('blank query returns []', () => {
   const { db, model } = freshModel();
   addRes(db, { reservationNumber: '2026-07-001' });
@@ -49,7 +50,7 @@ test('matches by reservation number (fragment)', () => {
   assert.deepEqual(rows[0], {
     id, reservationNumber: '2026-07-042', clientFullName: 'Jean Dupont',
     propertyName: 'Gîte du Lac', startDate: '2026-07-10', endDate: '2026-07-13',
-    cancelled: false, cancelledAt: null,
+    cancelled: false, cancelledAt: null, superseded: false,
   });
 });
 

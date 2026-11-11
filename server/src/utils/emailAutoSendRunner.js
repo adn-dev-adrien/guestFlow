@@ -16,26 +16,14 @@
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
 const { loadTermsVersion } = require('./reservationEmailGraph');
-const { usableInvitation } = require('./gateInvitationView');
-const { normaliseLang, pickTemplateSide } = require('./emailTemplateLanguage');
+const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
+const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING } = require('./emailTemplateLanguage');
 const reservationsModel = require('../models/reservationsModel');
-const { DIRECT_CHANNELS } = require('./platformNameFormat');
+const { registerDirectChannelSql } = require('./platformNameFormat');
 const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
-
-// Bound as parameters (never interpolated) so the own-channel list stays single-sourced in
-// platformNameFormat.js — adding a channel there reaches this pass for free. Same pattern as
-// balanceRequestRunner.
-const DIRECT_CHANNEL_LIST = [...DIRECT_CHANNELS];
-const DIRECT_CHANNEL_PLACEHOLDERS = DIRECT_CHANNEL_LIST.map(() => '?').join(', ');
-
-function isoToday(now = new Date()) {
-  // Use the server's local date — same locale the cron fires at 08:00 of.
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+const { todayIso } = require('./localDate');
+const { guestEmailMessage } = require('./guestEmailHtml');
 
 /**
  * @param {{ database, templatesModel, logModel, settingsModel, emailServiceFactory,
@@ -43,7 +31,7 @@ function isoToday(now = new Date()) {
  */
 async function performAutoEmailPass(deps) {
   const { database, templatesModel, logModel, settingsModel, emailServiceFactory } = deps;
-  const today = deps.today || isoToday();
+  const today = deps.today || todayIso();
 
   // 0. No template in « auto » mode (specs/settings-rationalization.md rule 17b) → this pass is a
   // no-op: nothing is listed, nothing is rendered, no SMTP connection is opened and no `email_log`
@@ -77,6 +65,8 @@ async function performAutoEmailPass(deps) {
   //   • 'balanceDueDate' → the solde deadline, same guard.
   // A payment anchor whose échéance gets paid stops matching immediately: the dunning email cannot
   // chase money that has arrived, dedup or no dedup.
+  // The own channels are platformNameFormat's, read at query time (specs/plugins-phase-p-productisation.md rule 19).
+  registerDirectChannelSql(database);
   const findReservationsStmt = database.prepare(`
     SELECT * FROM reservations
     WHERE COALESCE(kind, 'reservation') = 'reservation'
@@ -95,18 +85,18 @@ async function performAutoEmailPass(deps) {
       AND COALESCE(${amountColumn}, 0) > 0
       AND COALESCE(${paidColumn}, 0) != 1
       AND date(${anchor}, ? || ' days') = ?
-      AND LOWER(COALESCE(NULLIF(TRIM(platform), ''), 'direct')) IN (${DIRECT_CHANNEL_PLACEHOLDERS})
+      AND is_direct_channel(platform) = 1
   `);
   // Each anchor carries the extra bound parameters ITS query needs, after the shared (offset, today).
   const statementsByAnchor = {
     start: { statement: findReservationsStmt, extraParams: [] },
     depositDueDate: {
       statement: paymentAnchorStmt('depositDueDate', 'depositAmount', 'depositPaid'),
-      extraParams: DIRECT_CHANNEL_LIST,
+      extraParams: [],
     },
     balanceDueDate: {
       statement: paymentAnchorStmt('balanceDueDate', 'balanceAmount', 'balancePaid'),
-      extraParams: DIRECT_CHANNEL_LIST,
+      extraParams: [],
     },
   };
   const findClient   = database.prepare('SELECT * FROM clients WHERE id = ?');
@@ -171,6 +161,7 @@ async function performAutoEmailPass(deps) {
       const resources = findResources.all(reservation.id);
       // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
       require('./translationResolver').attachEnglishNames(database, { options, resources });
+      require('../models/stayFactsModel').attachResourceSentences(database, resources);
       const customOptions = findCustomOptions.all(reservation.id);
       const bedLinenProvidedByDefault = reservation.propertyId
         ? Boolean(findBedLinenDefault.get(reservation.propertyId))
@@ -188,7 +179,9 @@ async function performAutoEmailPass(deps) {
       const context = buildContext({
         reservation, client, property, options, resources, customOptions,
         bedLinenProvidedByDefault, settings, lang, arrivalComplementDetail, termsVersion,
-        gateInvitation: usableInvitation(database, reservation.id),
+        // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, its own figure.
+        cancellationKept: require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation),
+        pluginContext: pluginEmailContext(reservation.id),
       });
       const side = pickTemplateSide(template, lang);
       const { subject, body } = renderTemplate(
@@ -196,6 +189,23 @@ async function performAutoEmailPass(deps) {
         context,
       );
       const to = String(client?.email || '').trim();
+
+      // specs/email-language-fr-en.md rule 9 — no English version, no e-mail to an English-speaking
+      // guest: the pass skips it and the history says why.
+      if (englishMissing(template, lang)) {
+        const row = logModel.insert({
+          templateId:      template.id,
+          reservationId:   reservation.id,
+          status:          'failed',
+          errorMessage:    ENGLISH_VERSION_MISSING,
+          renderedSubject: subject,
+          renderedBody:    body,
+          recipientEmail:  to,
+        });
+        failedCount += 1;
+        results.push({ templateId: template.id, reservationId: reservation.id, status: 'failed', errorMessage: ENGLISH_VERSION_MISSING, emailLogId: row.id });
+        continue;
+      }
 
       if (!to) {
         const row = logModel.insert({
@@ -214,7 +224,7 @@ async function performAutoEmailPass(deps) {
 
       try {
         const svc = getService();
-        await svc.send({ to, subject, text: body });
+        await svc.send(guestEmailMessage({ to, subject, text: body, settings, lang }));
         const row = logModel.insert({
           templateId:      template.id,
           reservationId:   reservation.id,
@@ -249,5 +259,4 @@ async function performAutoEmailPass(deps) {
 
 module.exports = {
   performAutoEmailPass,
-  isoToday,
 };

@@ -6,10 +6,12 @@
  * save re-prices everything at the current tariffs and re-issues a fresh window.
  */
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
+const { FAR_YEAR } = require('./farYearFixture');
 const devisModel = require('../models/devisModel');
 const { isDevisExpired, computeValidUntil } = require('../utils/devisValidity');
 
@@ -84,8 +86,8 @@ function freshModel() {
 const BASE = {
   propertyId: 1,
   clientId: 1,
-  startDate: '2030-07-10',
-  endDate: '2030-07-13',
+  startDate: `${FAR_YEAR}-07-10`,
+  endDate: `${FAR_YEAR}-07-13`,
   adults: 2,
   platform: 'direct',
   selectedOptions: [{ optionId: CLEANING, quantity: 1 }],
@@ -132,7 +134,7 @@ test('saving an expired devis re-issues a validity window (rule 14)', () => {
   expire(db, created.data.id);
 
   const updated = model.update(created.data.id, { ...BASE });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localTodayIso();
 
   assert.equal(isDevisExpired(updated.data.validUntil, today), false, 'the refreshed quote is valid again');
   assert.equal(updated.data.expired, false);
@@ -154,7 +156,7 @@ test('moving the stay dates drops the lock — those prices were for other night
   const created = model.create(BASE);
   raiseTariffs(db);
 
-  const updated = model.update(created.data.id, { ...BASE, startDate: '2030-08-10', endDate: '2030-08-13' });
+  const updated = model.update(created.data.id, { ...BASE, startDate: `${FAR_YEAR}-08-10`, endDate: `${FAR_YEAR}-08-13` });
 
   assert.equal(updated.data.finalPrice, 800);
 });
@@ -187,14 +189,14 @@ test('a legacy devis with no validUntil is treated as expired, and gets one on t
 });
 
 test('isDevisExpired: the validity date is inclusive', () => {
-  assert.equal(isDevisExpired('2026-08-14', '2026-08-14'), false);
-  assert.equal(isDevisExpired('2026-08-13', '2026-08-14'), true);
-  assert.equal(isDevisExpired(null, '2026-08-14'), true);
-  assert.equal(isDevisExpired('', '2026-08-14'), true);
-  assert.equal(isDevisExpired('pas-une-date', '2026-08-14'), true);
+  assert.equal(isDevisExpired('2026-08-14', '2026-08-14'), false); // date-literal-ok: pure input
+  assert.equal(isDevisExpired('2026-08-13', '2026-08-14'), true); // date-literal-ok: pure input
+  assert.equal(isDevisExpired(null, '2026-08-14'), true); // date-literal-ok: pure input
+  assert.equal(isDevisExpired('', '2026-08-14'), true); // date-literal-ok: pure input
+  assert.equal(isDevisExpired('pas-une-date', '2026-08-14'), true); // date-literal-ok: pure input
 });
 
 test('computeValidUntil still caps at startDate − 2 days', () => {
-  assert.equal(computeValidUntil({ createdAtIsoDate: '2026-08-01', startDateIso: '2026-08-10', quoteValidityDays: 30 }), '2026-08-08');
-  assert.equal(computeValidUntil({ createdAtIsoDate: '2026-08-01', startDateIso: '2030-08-10', quoteValidityDays: 30 }), '2026-08-31');
+  assert.equal(computeValidUntil({ createdAtIsoDate: '2026-08-01', startDateIso: '2026-08-10', quoteValidityDays: 30 }), '2026-08-08'); // date-literal-ok: pure input
+  assert.equal(computeValidUntil({ createdAtIsoDate: '2026-08-01', startDateIso: '2030-08-10', quoteValidityDays: 30 }), '2026-08-31'); // date-literal-ok: pure input
 });

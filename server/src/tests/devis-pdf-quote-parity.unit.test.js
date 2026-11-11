@@ -15,6 +15,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
+const { FAR_YEAR } = require('./farYearFixture');
 const devisModel = require('../models/devisModel');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { __test: { resolveLiveTaxTotals } } = require('../utils/devisPdf');
@@ -104,7 +105,7 @@ function freshModel() {
 // Far-future stay so the quote stays valid (validUntil is driven by quoteValidityDays).
 const BASE = {
   propertyId: 1, clientId: 1,
-  startDate: '2030-07-10', endDate: '2030-07-13',
+  startDate: `${FAR_YEAR}-07-10`, endDate: `${FAR_YEAR}-07-13`,
   adults: 2, children: 2, platform: 'direct',
   selectedOptions: [{ optionId: CLEANING, quantity: 1 }],
 };
@@ -225,7 +226,7 @@ test('expired devis: the PDF prints the prices it was sold at, not today’s tar
   raiseTariffs(db);
   db.prepare("UPDATE reservations SET validUntil = '2020-01-01' WHERE id = ?").run(devis.id);
 
-  // Once expired the replay legitimately unlocks and re-prices (rule 14 of the price-lock spec)…
+  // Once expired the replay legitimately unlocks and re-prices (devis-extras-parity-and-price-lock, validUntil rule)…
   const stale = model.findById(devis.id);
   const quote = model.recomputeQuote(devis.id);
   assert.ok(quote.finalPrice > stale.finalPrice);

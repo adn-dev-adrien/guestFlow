@@ -5,7 +5,8 @@
 //   1. Smoke-test that EN renders produce a valid PDF buffer (no exception, correct magic).
 //   2. Smoke-test that FR + EN render to DIFFERENT buffers (proves the language plumbs through).
 //   3. Unit-test the pure resolvers (`resolveOptionTitle`, `resolveResourceName`,
-//      `resolveFooterText`) which the renderer is shown to call — see specs §3 rules 6, 7, 11.
+//      `resolveFooterText`) which the renderer is shown to call — see specs/devis-english-language.md §3
+//      rules 6, 7, 11.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

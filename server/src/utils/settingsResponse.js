@@ -7,6 +7,9 @@
 
 const { resolveEmailIdentity } = require('./emailIdentity');
 const { readRevenueGoals } = require('./revenueGoals');
+const platformMail = require('./platformMail');
+const { franchiseApplies } = require('./vatFranchise');
+const { effectiveSocialLinks, publicNetworks } = require('./socialLinks');
 
 function formatUpdatedAtLabel(updatedAt) {
   if (!updatedAt) return null;
@@ -24,7 +27,13 @@ function formatUpdatedAtLabel(updatedAt) {
   return `${dateFmt.format(date)} à ${timeFmt.format(date)}`;
 }
 
-function shapeResponse(row) {
+/**
+ * @param {object} row  settingsModel.read()
+ * @param {object} env
+ * @param {{ regime, rate, legalMention }} [vat]  the regime in force (vatRegimeModel.inForceBlock); absent →
+ *   the settings row's own rate, as a schema without periods holds it
+ */
+function shapeResponse(row, env = process.env, vat = null) {
   const identity = resolveEmailIdentity(row);
   const safeStr = (v) => String(v == null ? '' : v);
 
@@ -51,7 +60,13 @@ function shapeResponse(row) {
       validityDays: Number(row.quoteValidityDays) || 30,
     },
     vat: {
-      rate: row.vatRate == null ? 10 : Number(row.vatRate),
+      ...(vat || { regime: 'subject', rate: row.vatRate == null ? 10 : Number(row.vatRate), legalMention: null }),
+      // Specs/vat-optional-mode.md rule 36 — the threshold stays stored, unused, outside the franchise.
+      franchise: {
+        applies: franchiseApplies(vat),
+        threshold: row.vatFranchiseThreshold == null || row.vatFranchiseThreshold === '' ? null : Number(row.vatFranchiseThreshold),
+        setAt: row.vatFranchiseThreshold == null || row.vatFranchiseThreshold === '' ? null : (row.vatFranchiseThresholdSetAt || null),
+      },
     },
     // Accounting block (specs/fiscal-year-and-nights-sold.md §4.3). `fiscalYearEndMonth` is the month
     // the books are closed on; 12 (calendar year) when unset. Every annual window of the Suivi
@@ -78,7 +93,16 @@ function shapeResponse(row) {
         fromEmail: safeStr(row.companyEmail).trim(),
         username: identity.fromEmail,
         fromName: resolveEmailIdentity({ companyName: row.companyName }).fromName,
+        // specs/hosting-h1-fleet-runtime.md rule 25 — the address the hosting gives the instance.
+        publicUrl: safeStr(env.GUESTFLOW_PUBLIC_URL).trim(),
       },
+      // specs/hosting-h1-fleet-runtime.md rule 19 — a hosted instance offers the platform's sender.
+      // `active` while no host of its own is saved; `replyTo` is where the guests' answers go.
+      platform: platformMail.available(env) ? {
+        available: true,
+        active: !safeStr(row.smtpHost).trim(),
+        replyTo: identity.fromEmail,
+      } : { available: false, active: false, replyTo: '' },
     },
     // Booking notifications block (specs/site-booking-notifications.md §4.3). `enabled` defaults ON
     // (only an explicit 0 turns it off). `recipientEmail` is the override; `derivedRecipient` is where
@@ -97,31 +121,8 @@ function shapeResponse(row) {
       sequenceStartDate: row.guestSequenceStartDate || null,
       googleReviewUrl: row.googleReviewUrl || '',
       instagramUrl: row.instagramUrl || '',
-      poolSeasonStart: row.poolSeasonStart || '06-15',
-      poolSeasonEnd: row.poolSeasonEnd || '08-31',
-    },
-    // Weather alerts block (specs/checkin-weather-alerts.md). The key itself is never returned; the
-    // row comes from settingsModel.read() which substitutes the encrypted blob with the boolean flag.
-    weather: {
-      apiKeySet: Boolean(row.meteoFranceApiKeySet),
-    },
-    // Laundry block — weekly bed-linen tracking (specs/weekly-bed-linen-tracking.md). Surfaced
-    // to the client as `weekday: 0..6` (Date.getDay() convention) so the SettingsLaundrySection
-    // Select can map values directly to the WEEKDAY_OPTIONS constant.
-    laundry: {
-      weekday: row.laundryWeekday == null ? 2 : Number(row.laundryWeekday),
-    },
-    // Linen stock block — inventory & shortage tracking
-    // (specs/linen-inventory-shortage-tracking.md §3.1). All six values surfaced as integers,
-    // with 0 = "type not tracked" (the LinenStockPage form binds these directly).
-    linenStock: {
-      bedSingle:   Number(row.bedLinenStockSingle || 0),
-      bedDouble:   Number(row.bedLinenStockDouble || 0),
-      bedBaby:     Number(row.bedLinenStockBaby   || 0),
-      towelLarge:  Number(row.towelStockLarge     || 0),
-      towelMedium: Number(row.towelStockMedium    || 0),
-      towelSmall:  Number(row.towelStockSmall     || 0),
-      towelBathMat: Number(row.towelStockBathMat  || 0),
+      socialLinks: effectiveSocialLinks(row),
+      socialNetworks: publicNetworks(),
     },
     updatedAt: row.updatedAt || null,
     updatedAtLabel: formatUpdatedAtLabel(row.updatedAt),

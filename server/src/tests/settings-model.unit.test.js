@@ -63,7 +63,6 @@ function freshModel() {
 test('settingsModel.read: defaults on a fresh row', () => {
   const { model } = freshModel();
   const row = model.read();
-  assert.equal(row.googleCalendarId, '');
   assert.equal(row.companyName, '');
   assert.equal(row.quoteValidityDays, 30);
   assert.equal(row.companyLogoPath, '');
@@ -93,10 +92,10 @@ test('settingsModel.upsert: subsequent calls preserve untouched columns', () => 
 
 test('settingsModel.upsert: clears a string field when set to ""', () => {
   const { model } = freshModel();
-  model.upsert({ googleCalendarId: 'agenda@group.calendar.google.com' });
-  assert.equal(model.read().googleCalendarId, 'agenda@group.calendar.google.com');
-  model.upsert({ googleCalendarId: '' });
-  assert.equal(model.read().googleCalendarId, '');
+  model.upsert({ companyName: 'Domaine' });
+  assert.equal(model.read().companyName, 'Domaine');
+  model.upsert({ companyName: '' });
+  assert.equal(model.read().companyName, '');
 });
 
 test('settingsModel.updateLogoPath: updates only that column', () => {

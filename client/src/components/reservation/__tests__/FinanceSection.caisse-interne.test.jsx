@@ -1,90 +1,83 @@
-import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ReservationFormProvider } from '../ReservationFormContext';
-import DialogProvider from '../../DialogProvider';
-import FinanceSection from '../FinanceSection';
-import { makeMockContext } from '../mockReservationForm';
 import { vi } from 'vitest';
+import { renderFinance, dueRow, paidRow, editable, ledgerOf } from './ledgerFixtures';
 
-import api from '../../../api';
-
-// specs/cash-complement-and-endofstay-finance.md §3 — end-of-stay complement block + « Caisse interne »
-// toggles. Regression guard so the fiche keeps wiring the right markPayment payloads.
+// specs/cash-complement-and-endofstay-finance.md §3 — the end-of-stay complement and the « Caisse
+// interne » of the complements. Since specs/reservation-payment-ledger.md rule 8 the switch lives in the
+// mark form of the complement rows, and only there (never on the acompte or the solde).
 
 vi.mock('../../../api', () => ({ __esModule: true, default: { markPayment: vi.fn() } }));
 
-function renderFinance(overrides) {
-  const ctx = makeMockContext(overrides);
-  render(
-    <DialogProvider>
-        <ReservationFormProvider value={ctx}>
-          <FinanceSection />
-        </ReservationFormProvider>
-      </DialogProvider>
-  );
-  return ctx;
-}
+const complement = (key, label, amount, extra = {}) => dueRow(key, label, amount, {
+  stateLabel: key === 'complement' ? "À percevoir à l'arrivée" : 'À percevoir au départ',
+  action: { kind: 'mark', label: 'Marquer perçu', cash: true },
+  amountEdit: editable('complement'),
+  detail: { slot: key },
+  ...extra,
+});
 
 beforeEach(() => { vi.clearAllMocks(); });
 
-// ── End-of-stay complement block ────────────────────────────────────────────
-
-test('end-of-stay complement block renders (amount + breakdown) when amount > 0', () => {
+test('end-of-stay complement row renders its amount and, folded, its breakdown', async () => {
+  const user = userEvent.setup();
   renderFinance({
     editingReservationId: 7, reservationId: 7,
     form: {
       endOfStayComplementAmount: 88,
       endOfStayComplementDetail: JSON.stringify([{ label: 'Ménage', amount: 40 }, { label: 'Serviette', amount: 8 }]),
     },
+    ledger: ledgerOf([complement('endOfStayComplement', 'Complément de fin de séjour', 88)]),
   });
   expect(screen.getByText('Complément de fin de séjour')).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Détail' }));
   expect(screen.getByText(/Ménage : 40,00 €/)).toBeInTheDocument();
   expect(screen.getByText(/Serviette : 8,00 €/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Marquer complément payé' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Marquer perçu/ })).toBeInTheDocument();
 });
 
-test('end-of-stay complement block is hidden when amount = 0', () => {
-  renderFinance({ editingReservationId: 7, form: { endOfStayComplementAmount: 0 } });
-  expect(screen.queryByText('Complément de fin de séjour')).not.toBeInTheDocument();
-});
-
-test('end-of-stay « Marquer payé » persists endOfStayComplementPaid + date via markPayment', async () => {
+test('end-of-stay « Marquer perçu » sends endOfStayComplementPaid + date', async () => {
   const user = userEvent.setup();
-  const ctx = renderFinance({ editingReservationId: 7, reservationId: 7, form: { endOfStayComplementAmount: 88 } });
-  await user.click(screen.getByRole('button', { name: 'Marquer complément payé' }));
-  expect(api.markPayment).toHaveBeenCalledWith(7, expect.objectContaining({ endOfStayComplementPaid: true, endOfStayComplementPaidDate: expect.any(String) }));
-  expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ endOfStayComplementPaid: true }));
-});
-
-test('end-of-stay « Caisse interne » persists the flag (implies paid) via markPayment', async () => {
-  const user = userEvent.setup();
-  const ctx = renderFinance({ editingReservationId: 7, reservationId: 7, form: { endOfStayComplementAmount: 88 } });
-  await user.click(screen.getByRole('button', { name: 'Caisse interne' }));
-  expect(api.markPayment).toHaveBeenCalledWith(7, { endOfStayComplementPaidCash: true });
-  expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ endOfStayComplementPaidCash: true, endOfStayComplementPaid: true }));
-});
-
-// ── Arrival complement « Caisse interne » ───────────────────────────────────
-
-test('arrival « Caisse interne » persists complementPaidCash (implies paid) via markPayment', async () => {
-  const user = userEvent.setup();
-  const ctx = renderFinance({
+  const { ctx } = renderFinance({
     editingReservationId: 7, reservationId: 7,
-    pricingQuote: { complementAmount: 50 },
-    form: { complementAmount: 50, complementPaid: false },
+    ledger: ledgerOf([complement('endOfStayComplement', 'Complément de fin de séjour', 88)]),
   });
-  // Only the arrival complement block is present here (no end-of-stay amount) → single « Caisse interne ».
-  await user.click(screen.getByRole('button', { name: 'Caisse interne' }));
-  expect(api.markPayment).toHaveBeenCalledWith(7, { complementPaidCash: true });
-  expect(ctx.updateForm).toHaveBeenCalledWith(expect.objectContaining({ complementPaidCash: true, complementPaid: true }));
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
+  await user.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(
+    expect.objectContaining({ endOfStayComplementPaid: true, endOfStayComplementPaidDate: expect.any(String), expectedAmountCents: 8800 }),
+  );
 });
 
-test('a caisse-interne complement shows the « hors compta » hint', () => {
+test('end-of-stay « Caisse interne » sends the cash flag with the mark', async () => {
+  const user = userEvent.setup();
+  const { ctx } = renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    ledger: ledgerOf([complement('endOfStayComplement', 'Complément de fin de séjour', 88)]),
+  });
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
+  await user.click(screen.getByLabelText('Caisse interne'));
+  await user.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ endOfStayComplementPaid: true, endOfStayComplementPaidCash: true }));
+});
+
+test('arrival « Caisse interne » sends complementPaidCash with the mark', async () => {
+  const user = userEvent.setup();
+  const { ctx } = renderFinance({
+    editingReservationId: 7, reservationId: 7,
+    ledger: ledgerOf([complement('complement', "Complément d'arrivée", 50)]),
+  });
+  await user.click(screen.getByRole('button', { name: /^Marquer perçu/ }));
+  await user.click(screen.getByLabelText('Caisse interne'));
+  await user.click(screen.getByRole('button', { name: 'Valider' }));
+  expect(ctx.markFromLedger).toHaveBeenCalledWith(expect.objectContaining({ complementPaid: true, complementPaidCash: true }));
+});
+
+test('a caisse-interne complement reads its origin on the row (server label)', () => {
   renderFinance({
     editingReservationId: 7,
-    pricingQuote: { complementAmount: 50 },
-    form: { complementAmount: 50, complementPaid: true, complementPaidCash: true },
+    ledger: ledgerOf([paidRow('complement', "Complément d'arrivée", 50, { stateLabel: 'Perçu le 12/10 · caisse interne' })]),
   });
-  expect(screen.getByText(/hors compta/i)).toBeInTheDocument();
+  const row = document.querySelector('[data-row="complement"]');
+  expect(within(row).getByText('Perçu le 12/10 · caisse interne')).toBeInTheDocument();
 });

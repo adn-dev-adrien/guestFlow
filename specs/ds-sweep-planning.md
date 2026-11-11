@@ -78,8 +78,12 @@ business behavior, figure, or calendar geometry**.
 1. **Dashboard** — bar title « Tableau de bord ». The date cluster (prev/next arrows + date picker
    + « Aujourd'hui ») moves to the bar `center` on `sm+`; on `xs` it renders as a compact strip
    directly under the bar (phase-3 tabs pattern — `center` is hidden on xs).
+   > **Superseded 2026-10-28 (dashboard-planning-scroll.md rule 6):** the home's bar is « Tableau de
+   > bord » alone — no date cluster, no phone strip.
 2. **PlanningPage** — bar title « Planning ». Same date-cluster treatment (prev/next + date +
    « Aujourd'hui » in `center`, xs strip under the bar).
+   > **Superseded 2026-10-28 (dashboard-planning-scroll.md rule 22):** the planning's bar carries
+   > « Aujourd'hui » and the plugin buttons as bar actions — no date cluster, no phone strip.
 3. **CalendarPage** — bar title « Calendrier ». `CalendarToolbar`'s controls split: month prev/next
    + « Aujourd'hui » become bar actions; the property `Select` + view toggle (« Vue logements » /
    vue mensuelle) go to `center` (xs: strip under the bar). The cleaning/zones legend stays
@@ -93,6 +97,8 @@ business behavior, figure, or calendar geometry**.
 5b. **Bars never empty on xs** (implemented addition): `PageActionBar` gained a `titleOnXs` prop —
    the title also renders (ellipsized) on xs. All 5 swept pages set it; without it, pages whose
    actions live in the hidden `center` showed a bare white strip on mobile.
+   > 2026-10-19: superseded — on `xs` the page title lives in the top bar and `titleOnXs` is gone
+   > (`specs/shell-and-home-day-first.md` rule 15).
 
 ### 3.2 Scroll structure (§3.6 umbrella — bar visible, page opens at top)
 
@@ -202,6 +208,40 @@ business behavior, figure, or calendar geometry**.
     `1.25`→`1` or `1.5`, `2.5`→`2` or `3`, `0.25`→`0.5`, `0.375`→`0.5`), except intrinsic dense-cell
     geometry where a raw px value is already the idiom.
 
+### 3.12 Today (added 2026-10-18, code review m1)
+
+28. **« Today » is the server's date.** The Dashboard and the Planning read `GET /api/today`
+    (`{ today: 'YYYY-MM-DD' }`, the Europe/Paris date every engine uses, any signed-in role) and load
+    nothing before it is known (the date arrows are gone, dashboard-planning-scroll.md rules 6, 22).
+    Days are counted on the
+    calendar (`utils/isoDay.js`), so a window keeps its length across a clock change. Between midnight
+    and 2 a.m. the pages used to open on the previous day (the browser's UTC date). If the server cannot
+    be asked, the browser's own local date is used.
+29. **« Today » follows midnight while the page stays open** (added 2026-10-18, second review of the
+    code review). `useServerToday` reads `GET /api/today` again each time the page comes back to the
+    foreground (window focus, tab visible again). A Dashboard or Planning left open overnight moves to
+    the new day on return, and « Aujourd'hui » leads to it; a date the operator picked stays picked.
+    > **Amended 2026-10-28 (dashboard-planning-scroll.md rules 7, 23):** no date can be picked any more
+    > — a new server day reloads the home's lists and rebuilds the planning's timeline on the new today.
+
+### 3.13 Planning cards on a phone (added 2026-10-27, spec review)
+
+30. **An icon never wraps alone.** On the Planning cards (arrival, departure row, option / breakfast
+    card) the house icon and the logement's name, and the person icon and the client's name, form one
+    unit that wraps together: a long name breaks inside itself next to its icon instead of leaving the
+    icon alone on a line (seen at 390 px with « Studio Avec Un Nom De Logement Vraiment Très Long »). The
+    platform badge and the alert caption still wrap after it.
+    > **Sans test** — line wrapping is CSS; jsdom computes no layout, so it is checked visually at 390 px.
+
+31. **The resource planning never draws a booking under the wrong resource or week, nor reads « libre » for
+    a week it does not know yet (audit R4, 2026-10-29, review 2026-10-30; reinforces rule 9).** The answer is
+    kept with the `resourceId|week` it belongs to. An answer for a week or a resource already left is dropped,
+    and so is its failure. From the change of resource or week until the answer of the one on screen lands,
+    the grid is dimmed (`aria-busy`), draws no booking and ignores clicks on its slots (same after a failed
+    load, whose error stays above it); a reload of the same week after a save keeps its bookings drawn.
+    Plugin `hourly-resources` 1.3.2.
+    Test: `ResourcePlanningPage.stale-bookings.test.jsx`.
+
 **Edge cases:**
 - No computed figure, occupancy math, drag-and-drop behavior, or calendar geometry changes.
 - `calendar-platform-colors.test.js` guard (no direct `PLATFORM_COLORS[…]` outside
@@ -276,7 +316,7 @@ Dashboard/Planning/Calendar it may be extracted as a small `BarCenterStrip` help
 ### E2E (Playwright)
 - [x] Full suite green — **31 passed** (+1 pre-existing conditional skip). New mobile smoke
   `mobile/planning-mobile.spec.js`: `/planning` at 390px — bar title visible on arrival
-  (titleOnXs), visible date strip, no horizontal page scroll, bar still visible after window
+  (titleOnXs — since 2026-10-19 the top bar's heading, `specs/shell-and-home-day-first.md` rule 15), visible date strip, no horizontal page scroll, bar still visible after window
   scroll. `auth/sidebar-navigation.spec.js` updated for the « Calendrier » retitle (rule 3).
 
 ### Manual UI verification (2026-07-16, Playwright browser)
@@ -291,7 +331,7 @@ Dashboard/Planning/Calendar it may be extracted as a small `BarCenterStrip` help
 
 Presentation-only sweep — no business behavior, figure, or calendar geometry change. Deviations are
 cross-linked in the rules above (5b, 14, 16, 23); additional notes:
-- **`PageActionBar.titleOnXs`** (rule 5b) and **`FormDialog.secondaryAction`** (rule 23) are the
+- **`PageActionBar.titleOnXs`** (rule 5b; removed 2026-10-19, `specs/shell-and-home-day-first.md` rule 15) and **`FormDialog.secondaryAction`** (rule 23) are the
   two generic-library extensions this phase adds (amends §4.2's "no new generic expected").
 - **CumulativeMonthCalendar keeps two micro-indicators as-is** (documented): the 18px in-flight
   spinner beside « Aujourd'hui » (background activity, not a section load) and the per-month

@@ -4,32 +4,50 @@ const settingsController = require('../controllers/settingsController');
 const logoUpload = require('../middleware/multerLogoUpload');
 
 router.get('/', settingsController.getSettings);
-router.put('/', settingsController.updateSettings);
 
-// Priced linen items (Blanchisserie) — specs/arrival-departure-sas.md §3.4.
-router.get('/linen-items', settingsController.getLinenItems);
-router.put('/linen-items', settingsController.updateLinenItems);
+// specs/settings-rationalization.md rule 25 — the one-line state of each page, for the summary.
+const summary = require('../controllers/settingsSummaryController').createSettingsSummaryController({
+  db: require('../database'),
+  settings: () => require('../models/settingsModel').read(),
+  platformAvailable: () => require('../utils/platformMail').available(),
+  plugins: () => require('../controllers/pluginsController').views(),
+  appVersion: () => require('../utils/appVersion').getAppVersion(),
+  twoFactorEnabled: (userId) => require('../models/twoFactorModel').default.isEnabled(userId),
+  today: () => require('../utils/localDate').localIsoDate(),
+  pluginsManageable: () => !require('../utils/pluginGovernance').isOperatorManaged(),
+});
+router.get('/summary', summary.get);
 
-// Repair amounts (« Tarifs facturables ») — specs/extinguisher-seal-and-repair-amounts.md.
-router.get('/repair-amounts', settingsController.getRepairAmounts);
-router.put('/repair-amounts', settingsController.updateRepairAmounts);
+// specs/vat-optional-mode.md §4.3 — the VAT regime and its switch.
+const vatRegime = require('../controllers/vatRegimeController');
+router.get('/vat-regime', vatRegime.getState);
+router.post('/vat-regime/preview', vatRegime.preview);
+router.post('/vat-regime/switch', vatRegime.makeSwitch);
+router.delete('/vat-regime/periods/:id', vatRegime.remove);
+// Async since the sending server can be looked up (specs/settings-rationalization.md rule 28).
+const handle = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 
-router.post('/logo', (req, res) => {
+router.put('/', handle(settingsController.updateSettings));
+
+// specs/settings.md rule 8 — the format and size refusals are ours; any other failure answers a fixed message,
+// never a library's or the disk's text.
+function logoUploadRefusal(err) {
+  if (err.code === 'LOGO_FORMAT') return logoUpload.LOGO_FORMAT_REFUSAL;
+  if (err.code === 'LIMIT_FILE_SIZE') return 'Logo trop volumineux (2 Mo maximum).';
+  console.error('[settings.logo] upload', err && err.code);
+  return 'Fichier non enregistré.';
+}
+
+router.post('/logo', (req, res, next) => {
   logoUpload.single('logo')(req, res, (err) => {
-    if (err) return res.status(400).json({ error: err.message || 'Erreur upload logo.' });
-    return settingsController.uploadLogo(req, res);
+    if (err) return res.status(400).json({ error: logoUploadRefusal(err) });
+    return Promise.resolve(settingsController.uploadLogo(req, res)).catch(next);
   });
 });
 
 router.delete('/logo', settingsController.deleteLogo);
 
 router.post('/smtp-test', settingsController.sendSmtpTest);
-
-// Gate keys (specs/gate-access-sowel-connector.md §3.6 rule 29): the connector's state, read-only.
-// It returns NO secret — both are read from server/.env.local, like the site's key.
-router.get('/gate-connector', require('../controllers/gateConnectorController').settings);
-// The three values the Sowel plugin needs, for an admin to copy (§3.6 rules 29b-29c): admin-only,
-// Cache-Control: no-store, never logged.
-router.get('/gate-connector/secrets', require('../controllers/gateConnectorController').secrets);
+router.post('/smtp-detect', handle(settingsController.detectSmtp));
 
 module.exports = router;

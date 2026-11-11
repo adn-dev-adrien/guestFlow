@@ -9,7 +9,7 @@
  *
  * Rationale: pre-migration, the operator could enter bed counts on a reservation without
  * ticking the bed-linen option — the values then sat in the DB but contributed zero to the
- * laundry aggregation (the SQL in `models/laundryModel.js` requires a flagged option to count).
+ * laundry aggregation (the SQL in the `linen` plugin's `laundryModel.js` requires a flagged option to count).
  * After this migration the DB state matches what the new UI invariant enforces going forward:
  * non-zero bed counts only exist on reservations that include bed linen.
  *

@@ -3,9 +3,16 @@
  *
  *  - Detects dirty state via JSON.stringify deep-equal between `draft` and `saved`.
  *  - Hooks the project-wide `window.__guestflowBeforeNavigate` mechanism
- *    (intercepts internal sidebar/router navigation while dirty).
+ *    (intercepts internal sidebar/router navigation) — ONLY WHILE DIRTY. The slot is a single global:
+ *    the guard takes it when the form becomes dirty and puts the previous handler back when it is clean
+ *    or unmounted, so a clean page, a closed panel or two mounted forms never hold or erase each
+ *    other's guard.
  *  - Adds a `beforeunload` listener so the browser warns on tab close/reload.
- *  - Listens to `popstate` so the user is prompted before back/forward navigation.
+ *  - Holds the `window.__guestflowBeforeBack` slot (unless `guardBack: false`) so the interceptor of
+ *    utils/backGuard.js — installed before the router, because the router's own popstate listener
+ *    would otherwise unmount the form first — prompts before back/forward navigation; the page's own
+ *    entry is put back with ITS state and ITS URL (the URL the browser already moved away from is
+ *    never kept). Both slots re-check that the form is still dirty before blocking anything.
  *
  * Returns:
  *  - `isDirty: boolean`
@@ -25,8 +32,11 @@
  *   <ConfirmDialog open={guardDialogOpen} onClose={dismissGuard} onConfirm={confirmLeave} ... />
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { holdGuardSlot } from '../utils/backGuard';
 
-export default function useDirtyFormGuard({ draft, saved, navigate }) {
+export default function useDirtyFormGuard({
+  draft, saved, navigate, guardBack = true,
+}) {
   const isDirty = useMemo(() => {
     try {
       return JSON.stringify(draft) !== JSON.stringify(saved);
@@ -35,30 +45,25 @@ export default function useDirtyFormGuard({ draft, saved, navigate }) {
     }
   }, [draft, saved]);
 
-  const dirtyRef = useRef(false);
   const pendingNavRef = useRef(null);
+  const dirtyRef = useRef(false);
+  const leavingRef = useRef(false);
   const [guardDialogOpen, setGuardDialogOpen] = useState(false);
 
   useEffect(() => {
     dirtyRef.current = isDirty;
   }, [isDirty]);
 
-  // Project-wide navigation guard (sidebar / router-level).
+  // Sidebar / router-level navigation (clicks): held only while dirty.
   useEffect(() => {
-    const guardHandler = (targetPath) => {
-      if (!dirtyRef.current) return false;
-      if (!targetPath || targetPath === window.location.pathname) return false;
+    if (!isDirty) return undefined;
+    return holdGuardSlot('__guestflowBeforeNavigate', (targetPath) => {
+      if (!dirtyRef.current || !targetPath || targetPath === window.location.pathname) return false;
       pendingNavRef.current = targetPath;
       setGuardDialogOpen(true);
       return true; // signal: navigation blocked
-    };
-    window.__guestflowBeforeNavigate = guardHandler;
-    return () => {
-      if (window.__guestflowBeforeNavigate === guardHandler) {
-        delete window.__guestflowBeforeNavigate;
-      }
-    };
-  }, []);
+    });
+  }, [isDirty]);
 
   // Tab close / reload guard.
   useEffect(() => {
@@ -72,18 +77,18 @@ export default function useDirtyFormGuard({ draft, saved, navigate }) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  // Browser back/forward guard.
+  // Browser back/forward: the interceptor of utils/backGuard.js asks this handler. It answers the page's
+  // own history entry — its state and ITS URL, never the one the browser already moved to — to be put back.
   useEffect(() => {
-    if (!isDirty) return undefined;
-    const handler = () => {
+    if (!isDirty || !guardBack) return undefined;
+    const keep = { state: window.history.state, url: window.location.href };
+    return holdGuardSlot('__guestflowBeforeBack', () => {
+      if (!dirtyRef.current || leavingRef.current) return null;
       pendingNavRef.current = null;
       setGuardDialogOpen(true);
-      // Keep the URL where it was.
-      window.history.pushState(null, '', window.location.href);
-    };
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
-  }, [isDirty]);
+      return keep;
+    });
+  }, [isDirty, guardBack]);
 
   const openGuard = useCallback(() => setGuardDialogOpen(true), []);
 
@@ -97,8 +102,12 @@ export default function useDirtyFormGuard({ draft, saved, navigate }) {
     const dest = pendingNavRef.current;
     pendingNavRef.current = null;
     if (typeof navigate === 'function') {
-      if (dest) navigate(dest);
-      else navigate(-1);
+      if (dest) {
+        navigate(dest);
+      } else {
+        leavingRef.current = true; // the pop this triggers must not be blocked again
+        navigate(-1);
+      }
     }
   }, [navigate]);
 

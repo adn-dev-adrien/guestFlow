@@ -159,6 +159,11 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
 25. `receivedDate` : `YYYY-MM-DD` valide, **ni dans le futur** (400 `RECEIVED_DATE_IN_FUTURE` — on
     n'encaisse pas de l'argent pas encore arrivé), ni antérieure de plus de 5 ans.
 26. `expectedDate` : `YYYY-MM-DD` valide ou vide. Une date future est parfaitement normale ici.
+    *Reading of 2026-11-02 — the date window.* `startDate`, `endDate` and `expectedDate` — manual create and
+    update, and the block of an iCal cancellation approval — lie in [today − 5 years, today + 5 years]; one
+    outside is refused with the French message as `error` and its `field`; a date the pending compensation
+    already stores is kept. Rule 25's lower bound for `receivedDate` is the same `horizonStart` (a 29 February
+    landing on the 28th) (`specs/reservations-backend-mvc.md` rule 13, second reading).
 27. `platform` : chaîne libre non vide, proposée depuis la liste `platforms` existante mais non
     contrainte (une plateforme peut disparaître de la table). `clientLastName` peut être vide → le
     compte auxiliaire retombe sur `CXXXXX` (comportement existant de `buildClientAccount`).
@@ -181,6 +186,21 @@ quoi elle apparaît dans l'aperçu du journal et dans le CSV des ventes du **moi
   donc l'affichage et l'écriture survivent (`propertyId` devient orphelin, jamais joint en dur).
 - **Restauration d'une sauvegarde antérieure à la migration** → la table est recréée vide par le bloc
   idempotent au boot ; aucune indemnité n'est inventée.
+
+29. **Corrigé à la revue du 2026-10-27.** Le verrou de la règle 6 répond avant la validation du corps :
+    un `PUT` sur une indemnité `received` renvoie **409 `COMPENSATION_LOCKED`** quel que soit le corps
+    (sans plateforme, il renvoyait 400 `PLATFORM_REQUIRED`).
+
+30. **A failed load is an error, never a zero (audit R3, 2026-10-29).** When
+    `GET /api/accounting/cancellation-compensations` fails, the card shows an `ErrorAlert`
+    (« Impossible de charger les indemnités. ») with « Réessayer » in place of the two lists: no
+    « Total : 0,00 € », no « Aucune indemnité… ». « Réessayer » reloads the same month.
+
+31. **A slow answer for a month already left never replaces the month on screen (audit R4,
+    2026-10-29).** The card keeps the order of its requests (as the e-mail history does): only the
+    latest answer, success or failure, writes the lists, the totals and the error. Without it, August's
+    53,10 € read 0,00 € under the August heading once September's late answer landed.
+    Test: `CancellationCompensationsSection.stale-month.test.jsx`.
 
 ---
 
@@ -424,6 +444,7 @@ l'échelle de la ligne.
 
 ### Server unit tests (`node --test`) — 48 tests ajoutés, suite à 3055 ✅
 
+- [x] `tests/cancellation-compensation-lock-first.unit.test.js` (2, revue du 2026-10-27) — règle 29 : 409 avant 400 sur une indemnité encaissée ; une indemnité en attente garde sa validation
 - [x] `tests/cancellation-compensations-model.unit.test.js` (11) — create / update pending / verrou
       `received` (update, delete, receive → `COMPENSATION_LOCKED`) / reopen efface montant + date /
       `listReceivedByMonth` borne bien le mois (1er inclus, 1er du suivant exclu) / tri des `pending`

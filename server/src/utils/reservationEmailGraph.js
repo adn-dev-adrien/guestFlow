@@ -8,7 +8,7 @@
  */
 
 const reservationsModel = require('../models/reservationsModel');
-const { loadStayFacts } = require('../models/stayFactsModel');
+const { loadStayFacts, attachResourceSentences } = require('../models/stayFactsModel');
 
 // specs/j2-email-arrival-complement-line.md — the SAME arrival-complement breakdown the SAS shows.
 // Guarded: `getByIdWithDetails` needs the full schema, so on a minimal/legacy DB this returns null
@@ -68,6 +68,7 @@ function loadReservationGraph(database, reservationId) {
     WHERE rr.reservationId = ?
   `).all(id);
   require('./translationResolver').attachEnglishNames(database, { options, resources });
+  attachResourceSentences(database, resources);
   // Custom (free-text) options — needed for the J-1 complement breakdown
   // (specs/j1-complement-to-collect.md §3). `description` is the label, `amount` the value.
   const customOptions = database.prepare(`
@@ -86,7 +87,9 @@ function loadReservationGraph(database, reservationId) {
   const arrivalComplementDetail = loadArrivalComplementDetail(database, id);
   const stayFacts = loadStayFacts(database, reservation);
   const termsVersion = loadTermsVersion(database, id);
-  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail, stayFacts, termsVersion };
+  // specs/payment-schedule-and-cancellation.md rule 61 — the sum a cancellation keeps, the cancellation's own figure.
+  const cancellationKept = require('./cancellationKeptForEmail').cancellationKeptForEmail(database, reservation);
+  return { reservation, client, property, options, resources, customOptions, bedLinenProvidedByDefault, arrivalComplementDetail, stayFacts, termsVersion, cancellationKept };
 }
 
 module.exports = { loadReservationGraph, loadArrivalComplementDetail, loadTermsVersion };

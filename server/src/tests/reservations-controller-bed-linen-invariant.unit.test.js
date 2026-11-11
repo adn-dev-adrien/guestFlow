@@ -1,4 +1,5 @@
 const test = require('node:test');
+const { FAR_YEAR } = require('./farYearFixture');
 const assert = require('node:assert/strict');
 
 // specs/bed-config-in-linen-card.md §3 rule 7 + §7.1 (+ §10 follow-up 2026-06-08).
@@ -43,10 +44,12 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
     listForProperty: () => defaults,
   };
   const pricingMock = {
-    calculateReservationQuote() {
+    // Like the real engine, the quote lines echo the options it was given (rule 12 reads them).
+    calculateReservationQuote(input) {
       return {
         totalPrice: 0, finalPrice: 0, depositAmount: 0, balanceAmount: 0,
-        optionLines: [], resourceLines: [], nightlyBreakdown: [],
+        optionLines: (input.selectedOptions || []).map((o) => ({ optionId: Number(o.optionId), quantity: 1, totalPrice: 0 })),
+        resourceLines: [], nightlyBreakdown: [],
         depositDueDate: null, balanceDueDate: null, nights: 1, error: null,
       };
     },
@@ -80,7 +83,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
 
   return withMocks({
     '../utils/pricing': pricingMock,
-    '../utils/financeValidation': { validateFinanceInputs: () => null, validateClientGrossAmount: () => null },
+    '../utils/financeValidation': { validateFinanceInputs: () => null, validateStayFinance: () => null, validateClientGrossAmount: () => null },
     '../utils/occupancy': { getNightBlocksFromTimes: () => ({}), buildOccupiedDatesFromReservations: () => [] },
     '../utils/reservationHelpers': { computeNextIcalSyncLocked: () => 0, getTodayIsoDate: () => '2026-06-04' },
     '../utils/reservationAudit': { buildAuditSnapshotFromPayload: () => ({}), computeAuditChanges: () => [] },
@@ -88,6 +91,8 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
     '../utils/forceItemContribsCapture': { captureContribsOnFlip: () => null, clearContribsOnUnflip: () => null },
     '../models/establishmentClosuresModel': new Proxy({}, { get: () => () => null }),
     '../models/reservationsModel': new Proxy({}, { get: (_, k) => {
+      // The stay exists: an unknown id is refused 404 first (reservations-backend-mvc rule 26, audit R44-C-L3).
+      if (k === 'getRow') return (id) => ({ id: Number(id), kind: 'reservation' });
       if (k === 'getPropertyIdOf') return () => null;
       if (k === 'getPropertyCapacity') return () => ({ maxGuests: 99, maxBabies: 99, singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
       if (k === 'getPropertyBeds') return () => ({ singleBeds: 99, doubleBeds: 99, babyBeds: 99 });
@@ -95,7 +100,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
       if (k === 'validateAvailability') return () => null;
       if (k === 'insertReservation') return (body) => { captures.inserted = { singleBeds: body.singleBeds, doubleBeds: body.doubleBeds, babyBeds: body.babyBeds }; return 1; };
       if (k === 'updateReservation') return (id, body) => { captures.updated = { id, singleBeds: body.singleBeds, doubleBeds: body.doubleBeds, babyBeds: body.babyBeds }; };
-      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: '2099-09-10' });
+      if (k === 'getAuditSnapshotFromDb') return () => ({ startDate: `${FAR_YEAR}-09-10` });
       if (k === 'getForUpdate') return () => ({ propertyId: 1 });
       if (k === 'getPricingSnapshot') return () => ({ lockedNightlyBreakdown: [], lockedOptionLines: [], lockedResourceLines: [] });
       if (k === 'replaceOptions') return () => null;
@@ -123,7 +128,7 @@ function buildController({ defaults = [], bedLinenFlaggedIds = new Set(), captur
 function basicBody({ singleBeds, doubleBeds, babyBeds, babies = 0, options = [] }) {
   return {
     propertyId: 1, clientId: 1,
-    startDate: '2099-09-10', endDate: '2099-09-12',
+    startDate: `${FAR_YEAR}-09-10`, endDate: `${FAR_YEAR}-09-12`,
     adults: 2, children: 0, teens: 0, babies,
     checkInTime: '15:00', checkOutTime: '10:00',
     singleBeds, doubleBeds, babyBeds,

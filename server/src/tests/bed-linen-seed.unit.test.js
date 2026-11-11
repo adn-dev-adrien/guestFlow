@@ -78,7 +78,7 @@ test('seed PROMOTES an operator-customised option in place (keeps title/price, a
 });
 
 test('seed PROMOTES multiple adopted options if Adrien runs several flagged variants', () => {
-  // Edge case from spec rule 16: nothing forbids carrying the flag on multiple options
+  // Edge case from the spec: nothing forbids carrying the flag on multiple options
   // ("Standard" + "Premium"). All matching rows should be promoted in one pass.
   const db = makeDb();
   db.prepare(

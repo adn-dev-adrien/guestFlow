@@ -57,6 +57,10 @@ the price or the minimum of the rest of the season.
    season default**; when absent, the range **inherits the season-level `minNights`** — itself
    defaulting to 1. An empty min field therefore means **"use the season's minimum"**, never a
    forced 1.
+   *Reading of 2026-11-02 — the date window.* Every range start and end a season write carries (create, update,
+   « assigner des dates ») is a real day in [today − 5 years, today + 5 years], « Dates invalides. » or the
+   window message otherwise; a date one of the stored ranges of that season already has is kept, and a tariff
+   recipe's ranges are always inside the window (`specs/reservations-backend-mvc.md` rule 13, second reading).
 2. The **effective minimum for a night** = `range.minNights` if the covering range defines one, else
    the season's `minNights`, else `1`.
 3. `requiredMinNights` for a stay = the **maximum effective minimum across the nights the stay
@@ -107,6 +111,14 @@ the price or the minimum of the rest of the season.
   supported paint target** and are left untouched by the carve — the app only ever creates
   explicit-range seasons (`create` seeds a full-year *range*), so this is a legacy-data edge only.
 - Zero-night quote (same-day) → `requiredMinNights=1`, not breached (unchanged).
+
+10. **The tariff page fits a phone and the 1280 column** (2026-10-27 audit). Below `sm` the year
+    calendar shows one month with « Mois précédent » / « Mois suivant » (crossing into the previous
+    or next year) — the twelve stacked grids pushed the recipe card and the price grid ~4000 px
+    down. The bar title is « Gestion tarifaire » with the property name as a caption beside it (it
+    read « Gestion tarifaire - La Granja — gîte… », cut, two kinds of dash). The seasons table's
+    floor drops from 980 to 860 px, its two figures align right, and Modifier / Supprimer stack in a
+    narrow column — « Supprimer » was clipped by 36 px at 1280.
 
 ---
 
@@ -253,6 +265,9 @@ existing "Appliquer à un autre logement" + "Nouvelle saison", **plus** new "Aff
 - [ ] Mobile (`xs`): use "Définir un minimum sur une période" + date pickers (no drag).
 - [ ] Regression: season CRUD, cross-season overlap validation, apply-to-another-property (min carried
       over), progressive pricing preview, `PlatformPriceCard` grid, public quote min-nights.
+
+- **2026-10-27 audit (rule 10):** `PropertyPricingSeasonsPage.phone-month.test.jsx` (2) and
+  `PropertyPricingSeasonsPage.title-and-table.test.jsx` (2).
 
 ## 8. Out of scope
 

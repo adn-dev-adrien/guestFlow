@@ -263,9 +263,84 @@ standard).
 - Property whose stored VAT rates were not 10/20 → the migration logs/surfaces the affected reservations
   (rule 4); never silently re-prices.
 
+### Review fixes (2026-10-18, mega review #5)
+
+31. **Latin-1, transliterated.** The CSV stays ISO-8859-1 without BOM (rule 16, the accountant's
+    example file), so every cell is transliterated before encoding: typographic quotes and apostrophes
+    (« ’ », « “ ») → ASCII, dashes → « - », « … » → « ... », ligatures spelled out (« Œ » → « OE »),
+    letters outside Latin-1 stripped of their accent (« ř » → « r », « Ł » → « L »), anything else
+    « ? ». Latin-1 letters (é, ç, Ë) are kept. *Why:* « Zoë D’Œuvre » came out « ZO\xCB D\x19RUVRE » —
+    « ’ », typed by every iPhone, became the control byte 0x19.
+32. **A prorated bucket splits its TTC share at its rate**: TTC × fraction, then HT = TTC ÷ (1 + rate)
+    and VAT = TTC − HT. A whole bucket (fraction 1) keeps its own HT and VAT. *Why:* prorating HT and
+    VAT separately gave 117,28 / 11,72 for 129,00 € at 10 %, a cent off the accountant's own
+    117,27 / 11,73.
+
+### Final review fixes (2026-10-18)
+
+33. **A month already exported keeps its cents.** Rule 32's split applies to payments dated from
+    **1 October 2026** (`SPLIT_TTC_FROM`); an earlier payment keeps HT and VAT prorated separately, as
+    it was exported. *Why:* the final review of 2026-10-18 (N4) re-exported February–October 2026 and
+    found three entries one cent off what the accountant may already have imported — April
+    (Kappa 624,54 / 62,46), July (Sigma 40,34 / 11,23), September (Lima 117,28 / 11,72).
+    Re-exporting a closed month must give the same file. *(2026-10-19: the fixed 1 October cutoff is
+    replaced by rule 35 — production exports October before this version is installed.)*
+34. **A trop-perçu refunded is counted once** (2026-10-18, final review N1; the rule lives in
+    `reservation-refunds.md` rule 36). The solde entry of a paid then reduced stay books the amount
+    received; the refund entry gives back the trop-perçu. Client account net = received − refunded,
+    46710000 never negative for the stay.
+35. **The split starts the month after the version is installed (2026-10-19).** Rule 33's cutoff is
+    no longer a fixed date: on its first start, accounting-export 1.0.5 stores `ttcSplitFrom` = the
+    first day of the next month in `plugin_settings` (migration `ttc_split_from_v1`, written once,
+    never moved by a later start). Payments dated before it keep HT and VAT prorated separately, as
+    every release before exported them; from it, rule 32 applies. Not an operator setting: the
+    Plan comptable page does not show it and an erasure leaves the fallback, **1 November 2026**.
+    *Why:* the second pass of the final review (minor 3) noted that production, which never had the
+    split, may export October before installing this version: a fixed 1 October cutoff would then
+    move October's cents on a re-export.
+    *Reading of 2026-11-09 (verification R35b, finding 2):* the same cutoff guards the closing refund of a
+    stay paid with one method (mixed-method-payments rule 58): accounting-export 1.2.2 stores
+    `stayClosingFrom` = the first day of the next month (migration `stay_closing_from_v1`, written once;
+    erased → 1 December 2026); a refund dated before it keeps its lines.
+
 ---
 
+### Platform penalties (Implemented 2026-10-28)
+
+36. **A platform penalty is its own entry** (`reconciliation-assisted-matching.md` rule 28): dated on the
+    penalty's date, debit the « Pénalités plateformes » account (setting `platformPenaltyAccount`, default
+    `658000` until the accountant confirms it), credit the client's auxiliary account, no VAT, no 70xxx line.
+    The balance entry keeps its commission, or carries the lowered one when the declaration moved the penalty
+    out of the payout's commission. *Why:* a penalty kept on a payout was booked as commission, with
+    deductible VAT, whenever the operator typed the bank amount as the payout.
+
+### VAT regime per reservation (Implemented 2026-10-28)
+
+37. **Each entry is booked under its reservation's VAT regime (2026-10-28, Implemented — [vat-optional-mode.md](vat-optional-mode.md) rule 12g).**
+    The sales rate of every entry (stay buckets, end-of-stay, mid-stay, arrival adjustments, refunds)
+    is the rate of the reservation's VAT period, not the global setting. A « Sans TVA » reservation
+    produces no 4457x line, its revenue lines carry the whole TTC share, its platform commission is
+    booked TTC with no 44566 line whatever `hasVatOnCommission`, and a cancellation compensation is
+    booked at 0 %. A month may mix both kinds of entries; each stays balanced.
+
+### Accounting synthesis (2026-11-05)
+
+38. **The CSV download stamps the last export, and its rows carry their role beside them** ([accounting-synthesis.md](accounting-synthesis.md)
+    rules 3 and 16). A built CSV records `{ at, month }` (server local time) in the plugin's settings store, read by
+    the synthesis's checks strip; a refused download records nothing. Each row the engine writes carries its role
+    and VAT rate as a non-enumerable property (`entryVentilation`), so the synthesis reads the very rows of the
+    CSV: the file's bytes are unchanged (pinned by a golden file).
+
 ## 4. Architecture
+
+> **Moved to plugin `accounting-export` (phase 2, `specs/plugins-phase-2-hosts.md`) — current file map
+> (audit 2026-10-27).** The tables below are the map at implementation time. The code lives in
+> `server/src/plugins/accounting-export/`: `controller.js` (CSV export, commissions) · `accountingModel.js`
+> (read-only DB layer) · `accountingExport.js` (pure engine) · `accountPlan.js` (buckets → accounts) ·
+> `latin1.js` (rule 31) · `platformAccountsController.js` / `platformAccountsModel.js`
+> (`/api/accounting/platform-accounts`) · `settings.js` (account and VAT settings in `plugin_settings`) ·
+> `index.js`. Client `client/src/plugins/accounting-export/`: `AccountingPage.jsx`,
+> `PlatformAccountsPage.jsx`, `PlatformAccountsLink.jsx`, `index.js`.
 
 > **Fat backend, thin frontend.** All journal-line generation, pro-rata splitting, rounding, VAT
 > extraction, account mapping and CSV serialization live on the server. The Comptabilité page only picks a
@@ -406,6 +481,11 @@ requires surfacing, never silent re-pricing. Stored `finalPrice` (TTC) is untouc
 - [x] `client-gross-amount.unit.test.js` (7) — gross >= net, negative/NaN rejection.
 - [x] `reservations-commission.unit.test.js` (7) — commission = gross − net, clamped at 0,
       platform-only.
+- [x] `plugins/accounting-export/tests/accounting-exported-months-frozen.unit.test.js` (3) — rules 33,
+      35: September and October 2026 keep 117,28 / 11,72; from the stored cutoff (fallback 1 November
+      2026) 117,27 / 11,73; the migration stores the first day of next month once.
+- [x] `tests/trop-percu-refund-books.unit.test.js` (1) — rule 34: 465,60 € paid, reduced, 110,40 €
+      refunded → client account 355,20 €, 46710000 7,20 €, « Encaissé » and « Total perçu » 355,20 €.
 
 ### Manual UI verification
 - [ ] Happy path: create accountant → log in → forced password change → see only `/comptabilite` → download

@@ -16,7 +16,9 @@
  *   node scripts/build-changelog.mjs --check-digest X.Y.Z
  *                                                    # exit non-zero unless that section carries a
  *                                                    # written `### Summary` block (the release
- *                                                    # workflow's verify job runs this).
+ *                                                    # workflow's verify job runs this). It also fails when
+ *                                                    # the section's body exceeds the 125,000 characters
+ *                                                    # GitHub accepts in a release body.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,6 +36,11 @@ const CATEGORIES = [
   ['removed', 'Removed'],
   ['migration', 'Migration'],
 ];
+// `detail--<slug>.md` is not a category: its text closes the folded section, after every category, under a `### Détail`
+// heading of its own — the line pointing at the archive of a release too long to publish whole. It has a heading and a
+// bullet because the parser of the release that installs (3.21.0's) glues any other line onto the bullet above it.
+const FOOTER_KEY = 'detail';
+const FOOTER_HEADING = 'Détail';
 const HEADING_BY_KEY = Object.fromEntries(CATEGORIES.map(([k, h]) => [k, h]));
 const KEY_BY_HEADING = Object.fromEntries(CATEGORIES.map(([k, h]) => [h.toLowerCase(), k]));
 
@@ -46,6 +53,10 @@ const DIGEST_PLACEHOLDER = '- TODO — write the operator digest: 1 to 6 short l
 const DIGEST_MAX_BULLETS = 6;
 const DIGEST_MAX_CHARS = 160;
 
+// GitHub refuses a release body above 125,000 characters. The body of a release is the CHANGELOG section
+// extracted by the awk of `.github/workflows/release.yml`; `releaseBodyOf` is that awk, line for line.
+export const RELEASE_BODY_MAX_CHARS = 125000;
+
 function readFragments() {
   if (!fs.existsSync(FRAG_DIR)) return [];
   return fs.readdirSync(FRAG_DIR)
@@ -53,8 +64,8 @@ function readFragments() {
     .sort()
     .map((f) => {
       const key = f.split('--')[0].toLowerCase();
-      if (!HEADING_BY_KEY[key]) {
-        throw new Error(`fragment "${f}" has an unknown category prefix "${key}". Use one of: ${Object.keys(HEADING_BY_KEY).join(', ')}`);
+      if (!HEADING_BY_KEY[key] && key !== FOOTER_KEY) {
+        throw new Error(`fragment "${f}" has an unknown category prefix "${key}". Use one of: ${[...Object.keys(HEADING_BY_KEY), FOOTER_KEY].join(', ')}`);
       }
       return { file: f, key, body: fs.readFileSync(path.join(FRAG_DIR, f), 'utf8').trim() };
     });
@@ -71,6 +82,8 @@ export function assemble(byKey) {
     out.push(bullets.join('\n'));
     out.push('');
   }
+  const footer = (byKey[FOOTER_KEY] || []).filter((b) => b.trim());
+  if (footer.length) out.push(`### ${FOOTER_HEADING}`, footer.map((text) => (/^\s*[-*]\s/.test(text) ? text : `- ${text}`)).join('\n'), '');
   return out.join('\n').trimEnd();
 }
 
@@ -107,6 +120,41 @@ export function sectionFor(text, version) {
   const start = m.index + m[0].length;
   const next = body.slice(start).search(/\n## \[/);
   return next === -1 ? body.slice(start) : body.slice(start, start + next);
+}
+
+/**
+ * The release body of `version` exactly as the workflow's awk extracts it: every line after the one that
+ * starts with `## [version]`, up to the next line starting with `## [`, each followed by a newline. Pure.
+ * → the text, or null when no line opens the section.
+ */
+export function releaseBodyOf(text, version) {
+  const opening = `## [${version}]`;
+  const lines = String(text).split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  let inside = false;
+  let found = false;
+  const out = [];
+  for (const line of lines) {
+    if (!inside) {
+      if (line.startsWith(opening)) { inside = true; found = true; }
+      continue;
+    }
+    if (line.startsWith('## [')) break;
+    out.push(line);
+  }
+  return found ? out.map((l) => `${l}\n`).join('') : null;
+}
+
+/** Judge a release body's size against GitHub's limit → `{ ok, length, max, error }`. Pure. */
+export function checkBodySize(body, max = RELEASE_BODY_MAX_CHARS) {
+  const length = String(body || '').length;
+  if (length <= max) return { ok: true, length, max, error: null };
+  return {
+    ok: false,
+    length,
+    max,
+    error: `the release body is ${length} characters, GitHub accepts at most ${max}. Condense the section and move the full detail to docs/changelog/<version>-detail.md.`,
+  };
 }
 
 /**
@@ -151,18 +199,51 @@ export function checkDigest(sectionBody) {
   return { ok: errors.length === 0, errors, bullets };
 }
 
+// specs/plugins-phase-4-registry.md rule 24 — a bullet `- plugin:<id> <text>` belongs to a plugin. The
+// release section names the plugin; the plugin's own lines, in French, are in its manifest, written
+// in the pull request that bumped it (rule 28) — the release pull request never edits a manifest.
+const PLUGIN_BULLET = /^-\s+plugin:([a-z][a-z0-9-]*)\s*[—–:-]?\s*([\s\S]*)$/;
+
+/**
+ * Name the plugin of each `plugin:<id>` bullet in a {key: bullets[]} map. Pure. → { byKey }
+ * `byKey` keeps every bullet for the core section, a plugin's prefixed as « **Plugin `<id>`** — »;
+ */
+export function extractPluginLines(byKey) {
+  const out = {};
+  for (const [key, bullets] of Object.entries(byKey)) {
+    out[key] = [];
+    for (const raw of bullets) {
+      for (const bullet of String(raw).split(/\n(?=-\s)/)) {
+        const m = bullet.trim().match(PLUGIN_BULLET);
+        if (!m) { out[key].push(bullet); continue; }
+        const text = m[2].replace(/\s*\n\s*/g, ' ').trim();
+        out[key].push(`- **Plugin \`${m[1]}\`** — ${text}`);
+      }
+    }
+  }
+  return { byKey: out };
+}
+
 function mergeByKey(a, b) {
   const out = {};
   for (const [key] of CATEGORIES) {
     const merged = [...(a[key] || []), ...(b[key] || [])];
     if (merged.length) out[key] = merged;
   }
+  const footer = [...(a[FOOTER_KEY] || []), ...(b[FOOTER_KEY] || [])];
+  if (footer.length) out[FOOTER_KEY] = footer;
   return out;
+}
+
+function warnIfTooLong(body, label) {
+  const size = checkBodySize(body);
+  if (!size.ok) process.stderr.write(`WARNING: ${label} is ${size.length} characters, over the ${size.max} GitHub accepts in a release body. Condense it before releasing.\n`);
 }
 
 function previewMode() {
   const block = assemble(fragmentsByKey(readFragments()));
   process.stdout.write(block ? `${block}\n` : 'No pending changelog fragments.\n');
+  if (block) warnIfTooLong(`${block}\n`, 'the pending changelog');
 }
 
 function releaseMode(version, dateArg) {
@@ -178,7 +259,7 @@ function releaseMode(version, dateArg) {
   const bodyEnd = nextHeader === -1 ? text.length : bodyStart + nextHeader;
   const unreleasedBody = text.slice(bodyStart, bodyEnd);
 
-  const merged = mergeByKey(parseUnreleased(unreleasedBody), fragmentsByKey(fragments));
+  const { byKey: merged } = extractPluginLines(mergeByKey(parseUnreleased(unreleasedBody), fragmentsByKey(fragments)));
   const assembled = assemble(merged);
   if (!assembled) throw new Error('Nothing to release (no fragments and empty [Unreleased]).');
 
@@ -189,6 +270,7 @@ function releaseMode(version, dateArg) {
   const newText = `${text.slice(0, m.index)}## [Unreleased]\n\n${versionSection}\n${text.slice(bodyEnd).replace(/^\n+/, '')}`;
 
   fs.writeFileSync(CHANGELOG, newText);
+  warnIfTooLong(releaseBodyOf(newText, version), `the ${version} section`);
   for (const fr of fragments) fs.rmSync(path.join(FRAG_DIR, fr.file));
   process.stdout.write(`Released ${version} (${date}): folded ${fragments.length} fragment(s).\n`);
   process.stdout.write(`Now WRITE the "### ${DIGEST_HEADING}" block — it is the whole of what the operator reads in the update dialog.\n`);
@@ -208,8 +290,13 @@ function checkDigestMode(version) {
     process.stderr.write('\nIt is the whole of what the operator reads before clicking "Installer".\n');
     process.exit(1);
   }
+  const size = checkBodySize(releaseBodyOf(fs.readFileSync(CHANGELOG, 'utf8'), version));
+  if (!size.ok) {
+    process.stderr.write(`The ${version} release body is not publishable:\n  - ${size.error}\n`);
+    process.exit(1);
+  }
   const longest = Math.max(...bullets.map((b) => b.length));
-  process.stdout.write(`✓ ${version} digest: ${bullets.length} line(s), the longest ${longest} characters.\n`);
+  process.stdout.write(`✓ ${version} digest: ${bullets.length} line(s), the longest ${longest} characters; release body ${size.length}/${size.max} characters.\n`);
 }
 
 function main() {

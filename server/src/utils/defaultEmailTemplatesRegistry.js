@@ -32,6 +32,21 @@ const ARRIVAL_REMINDER_1D_BODY_EN = SEQUENCE.J2_BODY_EN;
 const RESERVATION_CONFIRMATION_BODY = SEQUENCE.CONFIRMATION_BODY;
 const RESERVATION_CONFIRMATION_BODY_EN = SEQUENCE.CONFIRMATION_BODY_EN;
 
+// specs/payment-link-lifecycle.md rule 36 — every link a guest receives is valid 36 hours: the e-mail says
+// until when, on the line right after the link. Rule 59 — in a block of its own, guarded by the flag the
+// sender sets with the date: a release that knows neither the token nor the flag (a rollback) drops the line
+// instead of writing « valable jusqu'au . ». Never nested: the renderer is single-level, so in a template
+// whose link sits inside {{#if hasPaymentLink}} the block follows that block's {{/if}}.
+const VALID_UNTIL_SENTENCE = Object.freeze({
+  fr: 'Ce lien est valable jusqu\'au {{paymentLinkValidUntil}}.',
+  en: 'This link is valid until {{paymentLinkValidUntil}}.',
+});
+const VALID_UNTIL_FLAG = 'hasPaymentLinkValidUntil';
+const VALID_UNTIL_BLOCK = Object.freeze({
+  fr: `{{#if ${VALID_UNTIL_FLAG}}}\n${VALID_UNTIL_SENTENCE.fr}{{/if}}`,
+  en: `{{#if ${VALID_UNTIL_FLAG}}}\n${VALID_UNTIL_SENTENCE.en}{{/if}}`,
+});
+
 // Deposit request — ACTION-triggered (sent by paymentsController.sendPaymentRequestEmail when the host
 // clicks « Envoyer la demande d'acompte »). The payment link is injected per-send as {{paymentLink}}
 // (extraContext); like the confirmation it is kept out of the manual queue + the auto cron.
@@ -50,11 +65,11 @@ const DEPOSIT_REQUEST_BODY = [
   '',
   'Acompte à régler maintenant : {{depositAmount}}',
   '',
-  'Payer l\'acompte en ligne : {{paymentLink}}',
+  `Payer l'acompte en ligne : {{paymentLink}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Important : le règlement de l\'acompte bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
   '',
-  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
   'À très bientôt,',
   '{{senderName}}',
@@ -75,11 +90,11 @@ const DEPOSIT_REQUEST_BODY_EN = [
   '',
   'Deposit to pay now: {{depositAmount}}',
   '',
-  'Pay the deposit online: {{paymentLink}}',
+  `Pay the deposit online: {{paymentLink}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'Important: paying the deposit secures your dates. Until it is paid, the dates remain available and may be booked by another guest.',
   '',
-  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
   'See you soon,',
   '{{senderName}}',
@@ -102,9 +117,9 @@ const BALANCE_REQUEST_BODY = [
   '',
   'Solde à régler : {{balanceAmount}} (avant le {{balanceDueDate}})',
   '',
-  'Payer le solde en ligne : {{paymentLink}}',
+  `Payer le solde en ligne : {{paymentLink}}${VALID_UNTIL_BLOCK.fr}`,
   '',
-  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
   'À très bientôt,',
   '{{senderName}}',
@@ -124,9 +139,9 @@ const BALANCE_REQUEST_BODY_EN = [
   '',
   'Balance to pay: {{balanceAmount}} (before {{balanceDueDate}})',
   '',
-  'Pay the balance online: {{paymentLink}}',
+  `Pay the balance online: {{paymentLink}}${VALID_UNTIL_BLOCK.en}`,
   '',
-  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
   'See you soon,',
   '{{senderName}}',
@@ -153,13 +168,13 @@ const DEPOSIT_REMINDER_BODY = [
   '',
   'Acompte à régler : {{depositAmount}}',
   '',
-  '{{#if hasPaymentLink}}Régler l\'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
+  `{{#if hasPaymentLink}}Régler l'acompte en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Sans règlement de votre part, nous serons contraints de remettre vos dates à la vente.',
   '',
   'Si le règlement vient d\'être effectué, merci de ne pas tenir compte de ce message.',
   '',
-  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
   'À très bientôt,',
   '{{senderName}}',
@@ -179,13 +194,13 @@ const DEPOSIT_REMINDER_BODY_EN = [
   '',
   'Deposit to pay: {{depositAmount}}',
   '',
-  '{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to receive your payment link.{{/if}}',
+  `{{#if hasPaymentLink}}Pay the deposit online: {{paymentLink}}{{else}}Contact us to arrange payment.{{/if}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'Without your payment we will have to put your dates back on sale.',
   '',
   'If you have just paid, please disregard this message.',
   '',
-  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
   'See you soon,',
   '{{senderName}}',
@@ -209,13 +224,13 @@ const BALANCE_REMINDER_BODY = [
   '',
   'Solde à régler : {{balanceAmount}}',
   '',
-  '{{#if hasPaymentLink}}Régler le solde en ligne : {{paymentLink}}{{else}}Contactez-nous pour recevoir votre lien de paiement.{{/if}}',
+  '{{#if hasPaymentLink}}Régler le solde en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}',
   '',
   'Sans règlement de votre part d\'ici le {{cancelOnDate}}, votre séjour sera annulé et l\'acompte déjà versé restera acquis à titre d\'indemnité.',
   '',
   'Si le règlement vient d\'être effectué, merci de ne pas tenir compte de ce message.',
   '',
-  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
   'Bien à vous,',
   '{{senderName}}',
@@ -235,25 +250,27 @@ const BALANCE_REMINDER_BODY_EN = [
   '',
   'Balance to pay: {{balanceAmount}}',
   '',
-  '{{#if hasPaymentLink}}Pay the balance online: {{paymentLink}}{{else}}Contact us to receive your payment link.{{/if}}',
+  '{{#if hasPaymentLink}}Pay the balance online: {{paymentLink}}{{else}}Contact us to arrange payment.{{/if}}',
   '',
   'Without your payment by {{cancelOnDate}}, your stay will be cancelled and the deposit already paid will be retained as compensation.',
   '',
   'If you have just paid, please disregard this message.',
   '',
-  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
   'Kind regards,',
   '{{senderName}}',
 ].join('\n');
 
 // specs/payment-schedule-and-cancellation.md §3.7 rule 40 — sent the moment the operator confirms the
-// cancellation. The retained-acompte block only renders when something was actually kept: cancelling
-// a reservation whose acompte never arrived keeps nothing (rule 27).
+// cancellation. The retained block only renders when something was actually kept: cancelling a reservation whose
+// acompte never arrived keeps nothing (rule 27). Rule 61 — it names « la somme », the cancellation's own figure: an
+// acompte, the échéances of a plan, a commission withheld. Rule 63 — it gives no reason: the same notice follows a
+// cancellation for non-payment and one the guest asked for.
 const CANCELLATION_NOTICE_BODY = [
   'Bonjour {{clientFirstName}},',
   '',
-  'Faute de règlement du solde, nous avons le regret de vous informer que votre séjour {{propertyWithArticle}} est annulé.',
+  'Nous avons le regret de vous informer que votre séjour {{propertyWithArticle}} est annulé.',
   '',
   'Séjour annulé :',
   '{{#if hasReservationNumber}}- N° de réservation : {{reservationNumber}}',
@@ -261,20 +278,44 @@ const CANCELLATION_NOTICE_BODY = [
   '- Arrivée  : le {{startDate}}',
   '- Départ   : le {{endDate}}',
   '',
-  '{{#if hasRetainedDeposit}}Conformément à nos conditions, l\'acompte de {{retainedDepositAmount}} déjà versé reste acquis à titre d\'indemnité. Aucune autre somme ne vous sera réclamée.',
+  '{{#if hasRetainedDeposit}}Conformément à nos conditions, la somme de {{retainedDepositAmount}} déjà versée reste acquise à titre d\'indemnité. Aucune autre somme ne vous sera réclamée.',
   '',
   '{{/if}}Vos dates sont désormais remises à la vente.',
   '',
-  'Si cette annulation résulte d\'une erreur ou si vous souhaitez reprogrammer votre séjour, contactez-nous : nous restons à votre disposition au {{companyPhone}}.',
+  'Si cette annulation résulte d\'une erreur ou si vous souhaitez reprogrammer votre séjour, contactez-nous{{#if hasCompanyPhone}} : nous restons à votre disposition au {{companyPhone}}{{/if}}.',
   '',
   'Bien à vous,',
+  '{{senderName}}',
+].join('\n');
+
+// specs/payment-link-lifecycle.md rules 44-45 — the guest whose payment request lost its dates to another stay is told
+// at once, by its one sender (utils/datesTakenNotice.js): warm and short, no link, no amount, nothing to sell.
+const DATES_UNAVAILABLE_NOTICE_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Les dates que nous vous avions proposées {{propertyWithArticle}}, du {{arrivalDateLabel}} au {{departureDateLabel}}, viennent d\'être réservées et ne sont plus disponibles. Le lien de paiement que vous avez reçu ne fonctionne plus, et rien ne vous a été prélevé.',
+  '',
+  'Nous sommes désolés de ne pas avoir pu les garder pour vous. Si d\'autres dates vous conviennent, répondez simplement à ce message.',
+  '',
+  'À bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const DATES_UNAVAILABLE_NOTICE_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'The dates we offered you at {{propertyName}}, from {{arrivalDateLabel}} to {{departureDateLabel}}, have just been booked and are no longer available. The payment link you received no longer works, and nothing has been charged.',
+  '',
+  'We are sorry we could not hold them for you. If other dates suit you, simply reply to this message.',
+  '',
+  'See you soon,',
   '{{senderName}}',
 ].join('\n');
 
 const CANCELLATION_NOTICE_BODY_EN = [
   'Hello {{clientFirstName}},',
   '',
-  'As the balance was not paid, we are sorry to inform you that your stay at {{propertyWithArticle}} has been cancelled.',
+  'We are sorry to inform you that your stay at {{propertyWithArticle}} has been cancelled.',
   '',
   'Cancelled stay:',
   '{{#if hasReservationNumber}}- Reservation no.: {{reservationNumber}}',
@@ -282,11 +323,11 @@ const CANCELLATION_NOTICE_BODY_EN = [
   '- Arrival  : {{startDate}}',
   '- Departure: {{endDate}}',
   '',
-  '{{#if hasRetainedDeposit}}In accordance with our terms, the deposit of {{retainedDepositAmount}} already paid is retained as compensation. No further amount will be claimed.',
+  '{{#if hasRetainedDeposit}}In accordance with our terms, the amount of {{retainedDepositAmount}} already paid is retained as compensation. No further amount will be claimed.',
   '',
   '{{/if}}Your dates are now back on sale.',
   '',
-  'If this cancellation is a mistake, or if you would like to reschedule, please contact us at {{companyPhone}}.',
+  'If this cancellation is a mistake, or if you would like to reschedule, please contact us{{#if hasCompanyPhone}} at {{companyPhone}}{{/if}}.',
   '',
   'Kind regards,',
   '{{senderName}}',
@@ -309,11 +350,11 @@ const FULL_REQUEST_BODY = [
   '{{/if}}',
   'Montant à régler : {{paymentAmount}}',
   '',
-  'Payer en ligne : {{paymentLink}}',
+  `Payer en ligne : {{paymentLink}}${VALID_UNTIL_BLOCK.fr}`,
   '',
   'Important : le règlement bloque vos dates. Tant qu\'il n\'est pas payé, les dates restent disponibles et peuvent être réservées par un autre client.',
   '',
-  'Pour toute question, répondez simplement à cet email ou appelez-nous au {{companyPhone}}.',
+  'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
   '',
   'À très bientôt,',
   '{{senderName}}',
@@ -333,11 +374,44 @@ const FULL_REQUEST_BODY_EN = [
   '{{/if}}',
   'Amount to pay: {{paymentAmount}}',
   '',
-  'Pay online: {{paymentLink}}',
+  `Pay online: {{paymentLink}}${VALID_UNTIL_BLOCK.en}`,
   '',
   'Important: paying secures your dates. Until it is paid, they remain available and may be booked by another guest.',
   '',
-  'For any question, simply reply to this email or call us at {{companyPhone}}.',
+  'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
+  '',
+  'See you soon,',
+  '{{senderName}}',
+].join('\n');
+
+// Installment request — one email per installment of a direct reservation's plan
+// (specs/direct-installments.md rules 18-21). `{{installmentSchedule}}` lists the whole plan; the link,
+// created per installment at its exact amount, is injected per-send like `{{paymentLink}}`.
+const INSTALLMENT_REQUEST_BODY = [
+  'Bonjour {{clientFirstName}},',
+  '',
+  'Comme convenu, voici l\'échéance {{installmentNumber}} sur {{installmentCount}} de votre séjour {{propertyWithArticle}} : {{installmentAmount}}, à régler d\'ici le {{installmentDueDate}}.',
+  '',
+  '{{installmentSchedule}}',
+  '',
+  `{{#if hasPaymentLink}}Payer {{installmentAmount}} en ligne : {{paymentLink}}{{else}}Contactez-nous pour le règlement.{{/if}}${VALID_UNTIL_BLOCK.fr}`,
+  '',
+  'Pour toute question, répondez simplement à cet email{{#if hasCompanyPhone}} ou appelez-nous au {{companyPhone}}{{/if}}.',
+  '',
+  'À très bientôt,',
+  '{{senderName}}',
+].join('\n');
+
+const INSTALLMENT_REQUEST_BODY_EN = [
+  'Hello {{clientFirstName}},',
+  '',
+  'As agreed, here is instalment {{installmentNumber}} of {{installmentCount}} for your stay at {{propertyWithArticle}}: {{installmentAmount}}, due by {{installmentDueDate}}.',
+  '',
+  '{{installmentSchedule}}',
+  '',
+  `{{#if hasPaymentLink}}Pay {{installmentAmount}} online: {{paymentLink}}{{else}}Please contact us to arrange payment.{{/if}}${VALID_UNTIL_BLOCK.en}`,
+  '',
+  'For any question, simply reply to this email{{#if hasCompanyPhone}} or call us at {{companyPhone}}{{/if}}.',
   '',
   'See you soon,',
   '{{senderName}}',
@@ -488,6 +562,30 @@ const DEFAULT_TEMPLATES = Object.freeze([
     sendMode:  'manual',   // rule 11 — a request for money is never sent by a cron
     enabled:   true,
   }),
+  Object.freeze({
+    stableKey: 'installment_request',
+    name:      "Demande de règlement d'une échéance (lien de paiement)",
+    subject:   'Échéance {{installmentNumber}}/{{installmentCount}} de votre séjour {{propertyWithArticle}}',
+    body:      INSTALLMENT_REQUEST_BODY,
+    subjectEn: 'Instalment {{installmentNumber}}/{{installmentCount}} for your stay at {{propertyWithArticle}}',
+    bodyEn:    INSTALLMENT_REQUEST_BODY_EN,
+    anchor:    'installmentDueDate', // never 'start': v3.18.0's queue would list this row for every arriving stay after a rollback
+    dayOffset: 0,          // sentinel — one queue entry per due installment (emailLogModel.listPending)
+    sendMode:  'manual',   // rule 18 — a request for money is never sent by a cron
+    enabled:   true,
+  }),
+  Object.freeze({
+    stableKey: 'dates_unavailable_notice',
+    name:      'Dates plus disponibles',
+    subject:   'Vos dates {{propertyWithArticle}} ne sont plus disponibles',
+    body:      DATES_UNAVAILABLE_NOTICE_BODY,
+    subjectEn: 'Your dates at {{propertyName}} are no longer available',
+    bodyEn:    DATES_UNAVAILABLE_NOTICE_BODY_EN,
+    anchor:    'datesTaken', // never 'start': v3.19.0's queue would offer this row for every arriving stay after a rollback
+    dayOffset: 0,          // sentinel — sent when a stay's link is withdrawn because its dates were taken
+    sendMode:  'manual',   // stored Manual; its sender is the one exception of utils/autoSendPolicy (rule 44)
+    enabled:   true,
+  }),
   // ───────────────────────────────────────────────────────────────────────────────
   // Add new default templates below. One object per template; follow the contract
   // documented at the top of this file. Re-uses any of the variables / flags listed in
@@ -499,19 +597,28 @@ const DEFAULT_TEMPLATES = Object.freeze([
 // Templates sent programmatically (on a payment event) or by an explicit host action — NOT by the
 // date-driven manual queue (emailLogModel.listPending) nor the `auto` cron. Single source of truth so
 // the model's exclusion and the senders stay in sync.
-const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'cancellation_notice']);
+const EVENT_TRIGGERED_STABLE_KEYS = Object.freeze(['reservation_confirmation', 'deposit_request', 'balance_request', 'full_request', 'installment_request', 'cancellation_notice', 'dates_unavailable_notice']);
 
 // Every template that asks a guest for money (specs/payment-schedule-and-cancellation.md §1 amendment,
 // rule 44). None of them may ever carry `sendMode: 'auto'`: a dunning email is a commercial act the
 // server cannot judge — it cannot know the acompte arrived by transfer this morning or that a delay was
 // agreed by phone. A request leaves on an operator click (dashboard card / reservation page); a reminder
 // waits in the manual queue. A new money template joins this list, and the seed test enforces the rule.
-const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder', 'full_request']);
+const PAYMENT_STABLE_KEYS = Object.freeze(['deposit_request', 'deposit_reminder', 'balance_request', 'balance_reminder', 'full_request', 'installment_request']);
+
+// The templates only a plugin can send: without it, the editor does not list them.
+const PLUGIN_OF_TEMPLATE = Object.freeze({
+  deposit_request: 'online-payment', balance_request: 'online-payment', full_request: 'online-payment', installment_request: 'online-payment',
+});
 
 module.exports = {
   DEFAULT_TEMPLATES,
+  PLUGIN_OF_TEMPLATE,
   EVENT_TRIGGERED_STABLE_KEYS,
   PAYMENT_STABLE_KEYS,
+  VALID_UNTIL_SENTENCE,
+  VALID_UNTIL_FLAG,
+  VALID_UNTIL_BLOCK,
   // Exposed verbatim for tests that need the same body string the seed inserts.
   ARRIVAL_REMINDER_7D_BODY,
   ARRIVAL_REMINDER_1D_BODY,

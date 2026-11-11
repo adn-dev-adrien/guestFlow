@@ -106,3 +106,28 @@ test('demoted mid-session → req.user carries the CURRENT roles, not the login 
   // The persisted snapshot is refreshed too, so enforceRoleAccess downstream sees the new roles.
   assert.deepEqual(req.session.user.roles, ['reception']);
 });
+
+// specs/security-auth-encryption.md rule 3 with specs/hosting-h2-account-security.md rule 21 — the
+// support account is never active (no password login); the session its sign-in link opened carries the
+// access id, and supportAudit decides whether that access still holds.
+test('an open support session passes although the support account is inactive', () => {
+  const support = { id: 9, email: 'support@guestflow.invalid', roles: ['admin'], isActive: false, isSupport: true, mustChangePassword: false };
+  const users = fakeUsers({ 9: support });
+  const res = fakeRes();
+  let nextCalled = false;
+  const session = { ...fakeSession({ id: 9 }), supportAccessId: 3 };
+  const req = { session };
+  requireAuth.create(users)(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, true);
+  assert.equal(req.user.id, 9);
+  assert.equal(session.destroyed, false);
+});
+
+test('the inactive support account without an open access is rejected like any deactivated user', () => {
+  const users = fakeUsers({ 9: { id: 9, roles: ['admin'], isActive: false, isSupport: true, mustChangePassword: false } });
+  const res = fakeRes();
+  const session = fakeSession({ id: 9 });
+  requireAuth.create(users)({ session }, res, () => assert.fail('next must not run'));
+  assert.equal(res.statusCode, 401);
+  assert.equal(session.destroyed, true);
+});

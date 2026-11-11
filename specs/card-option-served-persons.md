@@ -100,7 +100,8 @@ planning card and the kitchen prep all follow that number instead of the party s
    (today: « (2 × 4 pers.) »).
 9. Editing the stepper re-prices the line live like any other quantity edit (the same `/quote` preview
    round-trip), and is saved with the fiche. A locked reservation (`isReservationLocked`) disables it
-   like every other field.
+   like every other field. Since 2026-11-03 a numeric echo of the quote wins over the form, a `null` echo
+   keeps it ([non-card-option-served-persons.md](non-card-option-served-persons.md) rule 30).
 10. **Devis parity** — a quote carries the served count exactly like it carries the moments; the
     devis → réservation conversion (and back) copies it verbatim, and the PDF shows the quantity it
     priced ([devis-extras-parity-and-price-lock.md](devis-extras-parity-and-price-lock.md)).
@@ -162,6 +163,18 @@ planning card and the kitchen prep all follow that number instead of the party s
   written with its served count and the money joins the end-of-stay complement.
 - Property capacity not configured (`maxGuests = 0`) → the stepper stops at the party size (rule 3).
 
+### Fixed at the 2026-10-27 spec review
+
+19. **Rule 3's refusal is enforced.** `cardPersons: 0` (or −2, or a non-number) was priced as the
+    whole party with a 200. The preview, the create and the update now answer **400
+    `INVALID_CARD_PERSONS`** « Personnes servies : au moins 1. Pour retirer la prestation, la
+    désactiver. », with the `optionId`, before any pricing. An absent / null / empty count still means
+    the whole party. The SAS intent (rule 12) keeps clamping, as it says.
+    *Reading of 2026-11-03 (audit R21):* the count is a **whole number** (a fraction was floored, or billed
+    2.5 covers on a card line), on the devis create and update as well, and the message says « un nombre
+    entier, au moins 1 ». One guard: `utils/lineInputBounds.js`, see `non-card-option-served-persons.md`
+    rule 34. Tests: `tests/line-input-bounds.unit.test.js`.
+
 ---
 
 ## 4. Architecture
@@ -180,6 +193,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 | `database.js` | `database.js` | T | Idempotent migration: `reservation_options.cardPersons REAL NULL` (§5). |
 | — | `schema.sql` | T | Column added to the reference schema. |
 | `utils/` | `utils/pricing.js` | T | Card branch: `served = clamp(selected.cardPersons ?? persons, 1, maxGuests \|\| persons)`, `billedUnits = moments × served`, and `cardPersons` echoed on the priced line so it round-trips through every writer. `percent_of_stay` + `planningCardAsQuantity` branches untouched. |
+| `utils/` | `utils/lineInputBounds.js` | C | 2026-10-27 (rule 19, moved there on 2026-11-03) — `refuseInvalidServedPersons(selectedOptions)`: the 400 body for a count ≤ 0, called by `reservationsController` (preview, create, update) before pricing. |
 | `utils/` | `utils/sasOptionSale.js` | T | `priceOptionSale` accepts `servedPersons` (+ `maxPersons` for the clamp) and returns `cardPersons`; `buildOptionOffer` exposes `defaultPersons` / `maxPersons` / `selectedPersons`; `defaultBreakfastComposition` keyed on the served count, with the per-person rule exposed for the wizard's pre-fill. |
 | `models/` | `models/bookingLinesModel.js` | T | `insertOptions` writes `cardPersons` (guarded by column presence) and the line readers return it — this single point covers fiche saves, devis, and `copyLineGraph` (devis ↔ réservation conversions). |
 | `models/` | `models/reservationsModel.js` | T | `resolveSasOptionSales` reads `properties.maxGuests` and passes the served count to the pricer; the SAS `writeSoldOptions` upsert writes `cardPersons`; `listSasArrivalOptionLines` returns a `detail` string for the history; `getByIdWithDetails` surfaces `propertyMaxGuests` (the stepper's ceiling, read by the SAS controller). |
@@ -225,7 +239,7 @@ planning card and the kitchen prep all follow that number instead of the party s
 | GET | `/api/reservations/:id/sas?mode=arrival` | — | `sasSales.breakfast` and each `sasSales.catering.options[]` gain `defaultPersons`, `maxPersons`, `selectedPersons`; `sasSales.breakfast.compositionPerPerson = { pastries: 1, bread: 0.5, … }` | The server decides the default and the ceiling. |
 | POST | `/api/reservations/:id/sas/arrival` | `soldOptions: [{ optionId, occurrences: [{date,time}], persons }]` (card option) \| `[{ optionId, units }]` (other) | `{ ok, complementAmount }` | `persons` optional; absent → the party. Clamped server-side. |
 | POST/PUT | `/api/reservations` · `/api/reservations/:id` · `/api/reservations/quote` · devis twins | `selectedOptions[].cardPersons: number \| null` | unchanged | Ignored for non-per-person / non-card options. |
-| GET | `/api/planning/option-cards` | — | `items[].servedPersons: number \| null` | Feeds the « N couverts » chip. |
+| GET | `/api/planning/option-cards` | — | `items[].servedPersons: number \| null` | Feeds the « N couverts » chip. Route removed 2026-10-28: the same items ride in `optionCards` of each day of `GET /api/planning/days` (dashboard-planning-scroll.md rule 10). |
 | GET | `/api/planning/breakfast` · `/api/reservations/:id/sas` (`breakfast.persons`) | — | unchanged shape, value now honours `cardPersons` | Rule 16. |
 
 ---
@@ -308,6 +322,9 @@ asserts the count survives.
 ## 7. Test plan
 
 ### Server unit tests — 30 new
+
+- `card-option-served-persons-refused.unit.test.js` (2, rule 19) — 0 / −2 / non-number refused, absent /
+  positive accepted.
 
 - [x] `tests/pricing-option-planning-card.unit.test.js` (+9) — `cardPersons = 2` on a party of 4 bills
       `moments × 2`; `NULL` bills `moments × party` (no regression); a count equal to the party is stored

@@ -3,6 +3,11 @@ const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
 const devisModel = require('../models/devisModel');
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+/** `YYYY-MM-DD`, `days` after today: the dates of this suite hang on it (specs/server-test-isolation.md rule 6). */
+const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
 // Non-regression guard for the bug where property option defaults (typically the
 // per-property `Linge de lit` / `Linge de toilette` linen options) were silently
@@ -53,7 +58,7 @@ function freshModel() {
   return { model: devisModel.buildModel(db), db };
 }
 
-const BASE = { propertyId: 1, clientId: 1, startDate: '2026-08-10', endDate: '2026-08-12', adults: 2 };
+const BASE = { propertyId: 1, clientId: 1, startDate: inDays(-85), endDate: inDays(-83), adults: 2 };
 
 test('create merges every property default option not present in the payload', () => {
   const { model, db } = freshModel();
@@ -96,7 +101,7 @@ test('create propagates the `offered` flag on default options into reservation_o
 // payload that omits it is corrected rather than obeyed. Still bounded by what the devis carries
 // (specs/reservation-option-immutability.md rule 3).
 
-const UPDATE_BASE = { ...BASE, startDate: '2030-08-10', endDate: '2030-08-12' };
+const UPDATE_BASE = { ...BASE, startDate: inDays(1376), endDate: inDays(1378) };
 
 test('update puts back an offered default the payload dropped', () => {
   const { model, db } = freshModel();

@@ -12,9 +12,14 @@
  */
 
 const db = require('../database');
-const { formatPlatformName, isDirectChannel } = require('../utils/platformNameFormat');
+const {
+  formatPlatformName, isDirectChannel, refreshDirectChannels, refreshChoreFreeChannels, refreshGuestContactChannels,
+} = require('../utils/platformNameFormat');
 const { KNOWN_PLATFORM_COLORS, DEFAULT_PLATFORM_COLOR } = require('../constants/platformColors');
 const { DEFAULT_PAYOUT_DUE_DAYS, normalizePayoutDueDays } = require('../utils/platformPayout');
+const { PLATFORM_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
+const { describeIcalSync } = require('../utils/icalSyncStatus');
+const { defaultMarksStaysClosed } = require('../utils/icalClosedFeed');
 
 const DIRECT_NAME = 'direct';
 
@@ -107,6 +112,19 @@ function createPlatformsModel(database) {
     // model construction and break every platforms-model consumer.
   };
 
+  // The catalogue spelling of a platform typed or sent any way (2026-10-27 spec review,
+  // specs/platforms-and-ical-rework.md rule 15): the existing row or built-in name with the same slug, also when
+  // the input carries the « .com » of the brand (« Booking.com », `BookingCom` → `Booking`); otherwise
+  // the input in its canonical form. `direct` stays `direct`.
+  function canonicalName(input) {
+    const formatted = formatPlatformName(input);
+    if (!formatted || formatted === DIRECT_NAME) return formatted;
+    const slug = platformSlug(formatted);
+    const candidates = [...stmts.listAll.all().map((r) => r.name), ...KNOWN_PLATFORM_NAMES];
+    const bySlug = (s) => candidates.find((n) => platformSlug(n) === s);
+    return bySlug(slug) || (slug.length > 3 && slug.endsWith('com') && bySlug(slug.slice(0, -3))) || formatted;
+  }
+
   return {
     listAll() {
       return stmts.listAll.all();
@@ -148,25 +166,28 @@ function createPlatformsModel(database) {
       stmts.upsert.run(canonical);
       return stmts.findByName.get(canonical) || null;
     },
-    // Re-run the union INSERT OR IGNORE from `ical_sources.platformLabel` +
-    // `reservations.platform` so any platform that appeared since the last boot/upsert lands on
-    // the dedicated config page. Idempotent: existing rows are untouched. Returns the number
-    // of new platforms inserted so the UI can flash a friendly "+N nouvelles plateformes"
-    // toast on the operator's refresh click.
+    canonicalName,
+    // Register, in their catalogue spelling, every platform `ical_sources.platformLabel` and
+    // `reservations.platform` name that no row covers yet (same slug), so a platform that appeared since
+    // the last boot — a reservation, an intake, an import — lands on the « Plateformes » page. Idempotent.
+    // Returns the number of new platforms so the accounting refresh can flash « +N nouvelles plateformes ».
     rescan() {
-      const before = database.prepare('SELECT COUNT(*) AS c FROM platforms').get().c;
-      database.exec(`
-        INSERT OR IGNORE INTO platforms (name)
-        SELECT DISTINCT platformLabel FROM ical_sources
-         WHERE platformLabel IS NOT NULL AND platformLabel != ''
-      `);
-      database.exec(`
-        INSERT OR IGNORE INTO platforms (name)
-        SELECT DISTINCT platform FROM reservations
-         WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
-      `);
-      const after = database.prepare('SELECT COUNT(*) AS c FROM platforms').get().c;
-      return Math.max(0, after - before);
+      const known = new Set(stmts.listAll.all().map((r) => platformSlug(r.name)));
+      const used = database.prepare(`
+        SELECT platformLabel AS name FROM ical_sources WHERE platformLabel IS NOT NULL AND platformLabel != ''
+        UNION
+        SELECT platform AS name FROM reservations WHERE platform IS NOT NULL AND platform != '' AND LOWER(platform) != 'direct'
+      `).all();
+      let inserted = 0;
+      for (const { name } of used) {
+        const canonical = canonicalName(name);
+        const slug = platformSlug(canonical);
+        if (!slug || slug === DIRECT_NAME || known.has(slug)) continue;
+        stmts.upsert.run(canonical);
+        known.add(slug);
+        inserted += 1;
+      }
+      return inserted;
     },
     // Guard against editing the Direct row. The spec says Direct fields are server-side
     // ignored — never written. Returns the unchanged row, mirroring update()'s contract.
@@ -189,14 +210,17 @@ function createPlatformsModel(database) {
         .map((p) => ({ id: p.id, name: p.name, commissionPercent: Number(p.commissionPercent) || 0 }));
     },
 
-    // Set a platform's global commission % (clamped to [0, 99.99]). The Direct row is editable too
+    // Set a platform's global commission %: refused (null, nothing written) outside [0, 99.99], never
+    // clamped (specs/settings-input-guards.md rules 30, 48) — plugins reach this method too.
+    // The Direct row is editable too
     // since specs/tariff-recipes/spec.md §3.6 rule 32: it carries the booking-engine fee (Lodgify 5 %)
     // that the direct displayed price must cover.
     setCommissionPercent(id, commissionPercent) {
       const row = stmts.findById.get(Number(id));
       if (!row) return null;
-      const c = Math.max(0, Math.min(99.99, Number(commissionPercent) || 0));
-      stmts.updateCommissionPercent.run(c, Number(id));
+      const parsed = parseBoundedNumber(commissionPercent, PLATFORM_LIMITS.commissionPercent);
+      if (parsed.error) return null;
+      stmts.updateCommissionPercent.run(parsed.value, Number(id));
       return stmts.findById.get(Number(id));
     },
 
@@ -210,16 +234,22 @@ function createPlatformsModel(database) {
       return resolveColor(name, row && row.color);
     },
 
+    // One-pass resolver for a list of stays: platform name → resolved colour, a single read of the
+    // registry instead of one per row (specs/calendar-property-parity.md rule 3).
+    colorResolver() {
+      const customBySlug = new Map(stmts.listAll.all().map((p) => [platformSlug(p.name), p.color]));
+      return (name) => resolveColor(name, customBySlug.get(platformSlug(name)));
+    },
+
     // Set (or clear) a platform's global colour. Upserts the platform row by canonical name so a
     // never-used built-in can still be recoloured. A colour equal to the built-in brand colour (or
     // empty) clears the override (stored NULL) so the platform tracks the built-in default again.
     setColor(name, hex) {
-      const slug = platformSlug(name);
+      const canonical = canonicalName(name);
+      const slug = platformSlug(canonical);
       if (!slug) return null;
       let row = stmts.listAll.all().find((p) => platformSlug(p.name) === slug);
       if (!row) {
-        const canonical = slug === DIRECT_NAME ? DIRECT_NAME : (formatPlatformName(name) || String(name).trim());
-        if (!canonical) return null;
         stmts.upsert.run(canonical);
         row = stmts.findByName.get(canonical);
         if (!row) return null;
@@ -337,10 +367,76 @@ function createPlatformsModel(database) {
       return { id: row.id, name: row.name, payoutDueDays: value };
     },
 
+    // « Compté comme vente directe » (specs/plugins-phase-p-productisation.md rule 19). Guarded: a
+    // database without the column counts `direct` alone.
+    countsAsDirectIds() {
+      try {
+        return new Set(database.prepare('SELECT id FROM platforms WHERE countsAsDirect = 1').all().map((r) => Number(r.id)));
+      } catch {
+        return new Set();
+      }
+    },
+
+    setCountsAsDirect(id, on) {
+      database.prepare('UPDATE platforms SET countsAsDirect = ? WHERE id = ?').run(on ? 1 : 0, Number(id));
+    },
+
+    /** The cached set `isDirectChannel` reads, re-read after a save. */
+    refreshDirectChannels() {
+      refreshDirectChannels(database);
+    },
+
+    // « Sans corvées de départ » (specs/airbnb-no-checkout-chores.md rule 8). Guarded like
+    // `countsAsDirectIds`: a database without the column has no such channel.
+    choreFreeIds() {
+      try {
+        return new Set(database.prepare('SELECT id FROM platforms WHERE forbidsGuestChores = 1').all().map((r) => Number(r.id)));
+      } catch {
+        return new Set();
+      }
+    },
+
+    setForbidsGuestChores(id, on) {
+      database.prepare('UPDATE platforms SET forbidsGuestChores = ? WHERE id = ?').run(on ? 1 : 0, Number(id));
+    },
+
+    /** The cached set `isChoreFreeChannel` reads, re-read after a save. */
+    refreshChoreFreeChannels() {
+      refreshChoreFreeChannels(database);
+    },
+
+    // « Adresse e-mail relais » and « Où laisser un avis » (specs/platform-settings-relay-and-review.md
+    // rules 1-4). Guarded like `choreFreeIds`: a database without the columns has neither.
+    guestContactById() {
+      try {
+        return new Map(database.prepare('SELECT id, relaysGuestEmail, reviewWhereFr, reviewWhereEn FROM platforms').all()
+          .map((r) => [Number(r.id), r]));
+      } catch {
+        return new Map();
+      }
+    },
+
+    setRelaysGuestEmail(id, on) {
+      database.prepare('UPDATE platforms SET relaysGuestEmail = ? WHERE id = ?').run(on ? 1 : 0, Number(id));
+    },
+
+    setReviewWhere(id, { fr, en }) {
+      const clean = (v) => (String(v ?? '').trim() || null);
+      database.prepare('UPDATE platforms SET reviewWhereFr = ?, reviewWhereEn = ? WHERE id = ?').run(clean(fr), clean(en), Number(id));
+    },
+
+    /** The cached set and map `isRelayChannel` / `platformReviewWhere` read, re-read after a save. */
+    refreshGuestContactChannels() {
+      refreshGuestContactChannels(database);
+    },
+
     // Every per-platform COMMERCIAL setting in one list, for the « Plateformes » settings page
     // (specs/settings-rationalization.md rule 17). A value that does not apply to a channel is null:
     // `direct` has no deposit / tourist-tax / payout notion, and an own channel (Lodgify) no payout.
     listSettings() {
+      const counted = this.countsAsDirectIds();
+      const choreFree = this.choreFreeIds();
+      const contact = this.guestContactById();
       return stmts.listAll.all().map((p) => {
         const isDirect = platformSlug(p.name) === DIRECT_NAME;
         const ownChannel = isDirectChannel(p.name);
@@ -348,6 +444,12 @@ function createPlatformsModel(database) {
           id: p.id,
           name: p.name,
           isDirect,
+          countsAsDirect: isDirect || counted.has(Number(p.id)),
+          // The own channels ask what the operator decides: never a platform rule.
+          forbidsGuestChores: ownChannel ? null : choreFree.has(Number(p.id)),
+          relaysGuestEmail: ownChannel ? null : Number((contact.get(Number(p.id)) || {}).relaysGuestEmail) === 1,
+          reviewWhereFr: ownChannel ? null : ((contact.get(Number(p.id)) || {}).reviewWhereFr || ''),
+          reviewWhereEn: ownChannel ? null : ((contact.get(Number(p.id)) || {}).reviewWhereEn || ''),
           color: resolveColor(p.name, p.color),
           commissionPercent: Number(p.commissionPercent) || 0,
           takesDeposit: isDirect ? null : this.getDepositMode(p.name) === 1,
@@ -405,9 +507,7 @@ function createPlatformsModel(database) {
       // Prepared lazily: this model is constructed on minimal test DBs that have no `ical_sources`
       // table; only this per-property merge actually needs it.
       const sources = database.prepare(`
-        SELECT id AS sourceId, propertyId, name, url, platformKey, platformLabel, platformColor,
-               isActive, collectsTouristTax, touristTaxRemittedByPlatform, disabled,
-               lastSyncAt, lastSyncStatus, lastSyncMessage, lastSyncCounts, lastImportedCount
+        SELECT *, id AS sourceId
           FROM ical_sources
          WHERE propertyId = ?
          ORDER BY id DESC
@@ -452,13 +552,30 @@ function createPlatformsModel(database) {
           platformTakesDeposit: slug === DIRECT_NAME ? 0 : (depositBySlug.get(slug) || 0),
           // specs/platform-payout-due-date.md — days after departure the platform is expected to pay.
           payoutDueDays: payoutBySlug.has(slug) ? payoutBySlug.get(slug) : DEFAULT_PAYOUT_DUE_DAYS,
-          disabled: source ? Number(source.disabled) : 0,
+          // specs/ical-import-hardening.md rule 10 — a boolean: a number `0` rendered as text.
+          disabled: source ? Number(source.disabled) === 1 : false,
+          // Rule 2 — a stopped source (`isActive = 0`) is shown as such and offers no sync.
+          isActive: source ? Number(source.isActive) !== 0 : true,
+          // specs/lodgify-decommission.md §3 rule 16 — the feed marks every stay « CLOSED - Not available ».
+          // No source yet (or a pre-migration row): what a new source would start with.
+          feedMarksStaysClosed: source && source.feedMarksStaysClosed != null
+            ? Number(source.feedMarksStaysClosed) === 1
+            : defaultMarksStaysClosed(slug, name),
           sourceId: source ? source.sourceId : null,
           lastSyncAt: source ? source.lastSyncAt : null,
           lastSyncStatus: source ? source.lastSyncStatus : null,
           lastSyncMessage: source ? source.lastSyncMessage : null,
           // Per-category counts for the visual "État" cell (null when never synced / pre-migration).
           syncCounts: source ? parseSyncCounts(source.lastSyncCounts) : null,
+          // Rule 9 — the line the row prints, ready to render.
+          syncStatus: describeIcalSync({
+            url: source ? source.url : '',
+            isActive: source ? source.isActive : 1,
+            lastSyncAt: source ? source.lastSyncAt : null,
+            lastSyncStatus: source ? source.lastSyncStatus : null,
+            lastSyncMessage: source ? source.lastSyncMessage : null,
+            syncCounts: source ? parseSyncCounts(source.lastSyncCounts) : null,
+          }),
         };
       });
     },

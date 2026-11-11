@@ -114,7 +114,7 @@ test('caisse interne on the stay: settled, nothing left to pay, out of « encais
   assert.equal(isSettled(cashStay), true);
   assert.equal(remainingToPay(cashStay), 0);
   assert.equal(stayDueAtArrival(cashStay).total, 0);
-  // Real money in, but off the books: it never counts as « encaissé » (rule 17).
+  // Real money in, but off the books: it never counts as « encaissé » (dashboard-collection-alert).
   assert.equal(comptaCollected(cashStay), 0);
   assert.equal(comptaCollected({ ...cashStay, balancePaidCash: 0 }), 400);
 });

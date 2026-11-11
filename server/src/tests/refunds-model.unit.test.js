@@ -2,6 +2,7 @@
 // The model against the real schema (header + lines in one transaction, cascades, the two total
 // readings), then the controller against stub deps (caps enforced, register refreshed).
 
+const { todayIso: localTodayIso } = require('../utils/localDate');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -113,7 +114,7 @@ test('listByMonth returns the book-money refunds of the month, caisse interne ex
 function stubbedController(overrides = {}) {
   const { db, model } = freshDb();
   const reservation = {
-    id: 1, finalPrice: 480, touristTaxTotal: 13.2,
+    id: 1, finalPrice: 480, touristTaxTotal: 13.2, balancePaid: 1, balanceAmount: 493.2,
     options: [{ optionId: 7, title: 'Petit-déjeuner', totalPrice: 72, billedUnits: 6, offered: 0 }],
     resources: [],
     ...(overrides.reservation || {}),
@@ -135,7 +136,7 @@ function fakeRes() {
   };
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => localTodayIso();
 
 test('POST creates the refund and hands back the refreshed register', () => {
   const { controller } = stubbedController();

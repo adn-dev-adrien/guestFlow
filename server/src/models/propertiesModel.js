@@ -16,11 +16,26 @@ const {
   grossFromNet,
 } = require('../utils/pricing');
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
-const { isDirectChannel } = require('../utils/platformNameFormat');
+const { rangesWindowMessage } = require('../utils/stayDates');
+const { formatDateNumeric } = require('../utils/dateFr');
+const { isDirectChannel, formatPlatformName } = require('../utils/platformNameFormat');
+const { positiveId } = require('../utils/bodyText');
 const { normalizePlatformKey } = require('../utils/icalParser');
-const { KNOWN_PLATFORM_COLORS } = require('../constants/platformColors');
+const { KNOWN_PLATFORM_COLORS, isBuiltinColor } = require('../constants/platformColors');
+const { textColorFor } = require('../utils/colorContrast');
 const platformsModel = require('./platformsModel');
+const { platformDisplay } = require('../utils/platformDisplay');
 const { saveOptimizedPhoto, removeUploadedFile } = require('../utils/propertyUploads');
+const { publicDocument, removeDocumentFile, downloadUrl, PRIVATE_PREFIX } = require('../utils/propertyDocumentFiles');
+const { answeredFlag, withoutPending } = require('../utils/propertyFacts');
+const { documentFieldsRefusal, documentDisplayName, EMAIL_HOOK_MAX_LENGTH } = require('../utils/propertyValidation');
+const propertyArticle = require('../utils/propertyArticle');
+const { resolvePoolSeason, poolSeasonModeOf } = require('../utils/poolSeason');
+const { PROPERTY_LIMITS, parseBoundedNumber } = require('../utils/inputLimits');
+const {
+  carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, bookingMoneyBlocker, PROPERTY_MONEY_MESSAGE,
+  cautionBlocker, noResourceBookingSql,
+} = require('../utils/deletionGuard');
 
 // Multipart/FormData sends every field as a string, and "false"/"0" are truthy — so booleans must be
 // coerced explicitly to a 0/1 bit for INTEGER columns.
@@ -46,10 +61,19 @@ const EMAIL_FACT_FIELDS = [
   { key: 'emailHookEn', coerce: (v) => String(v == null ? '' : v).trim() },
   { key: 'parkingDistanceMeters', coerce: (v) => Math.max(0, Math.round(Number(v) || 0)) },
   { key: 'hasWifi', coerce: toBit },
-  { key: 'hasFilterCoffeeMaker', coerce: toBit },
+  // specs/guest-email-texts-made-simple.md rules 28 and 34.
+  { key: 'poolSeasonStart', coerce: (v) => String(v == null ? '' : v).trim() },
+  { key: 'poolSeasonEnd', coerce: (v) => String(v == null ? '' : v).trim() },
+  { key: 'cleaningIncluded', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
+  { key: 'towelsProvided', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
+  { key: 'bedLinenProvided', coerce: (v) => { const f = answeredFlag(v); return f == null ? null : Number(f); } },
 ];
+// The form field that answers each pending fact (rule 28).
+const FACT_OF_FIELD = { defaultCautionAmount: 'caution', cleaningIncluded: 'cleaning', towelsProvided: 'towels', bedLinenProvided: 'linen' };
 
-const EMAIL_HOOK_MAX_LENGTH = 300;
+
+// A field a form really sent: present and not empty (a FormData carries an empty input as '').
+const sent = (body, key) => Object.prototype.hasOwnProperty.call(body, key) && body[key] != null && String(body[key]).trim() !== '';
 
 function normalizeNameArticle(value) {
   const v = String(value || '').trim();
@@ -64,18 +88,25 @@ function normalizeExtraGuestUnit(value, fallback = 'per_stay') {
 }
 
 // specs/payment-schedule-and-cancellation.md §3 — the three delays that drive the payment schedule.
-// A blank / non-numeric / negative input falls back to the policy default rather than persisting a
-// value that would produce a nonsensical deadline. 0 is legitimate ("due the same day").
-function dayCountOr(value, fallback) {
-  // Absent (null / undefined / '') means "not provided" — `Number(null)` is 0, which would persist a
-  // same-day deadline on any payload that simply omits the field. A real 0 is kept.
-  if (value === null || value === undefined || value === '') return fallback;
-  const n = Number(value);
-  return Number.isFinite(n) && n >= 0 ? Math.round(n) : fallback;
+// The boundary refuses a bad value (specs/settings-input-guards.md rules 9-12); what is written is the
+// value it accepted, parsed the way it was validated. Only an ABSENT field (null / undefined / '') keeps
+// the stored value — or the policy default on creation — so a partial payload never resets a delay.
+// 0 is legitimate ("due the same day").
+const DELAY_DEFAULTS = { depositDueDays: 7, balanceDaysBefore: 30, cancelAfterBalanceDueDays: 7 };
+// The model holds the same bounds as the boundary (rule 48): a plugin calling it directly cannot store
+// 400 days. A refused value leaves the stored one in place, which is also what an unchanged legacy value
+// sent back means (rule 11).
+function delayOf(body, key, stored) {
+  const fallback = stored == null ? DELAY_DEFAULTS[key] : Number(stored);
+  const raw = body[key];
+  if (raw == null || String(raw).trim() === '') return fallback;
+  const parsed = parseBoundedNumber(raw, PROPERTY_LIMITS[key]);
+  return parsed.error ? fallback : parsed.value;
 }
-const depositDueDaysOf = (body) => dayCountOr(body.depositDueDays, 7);
-const balanceDaysBeforeOf = (body) => dayCountOr(body.balanceDaysBefore, 30);
-const cancelAfterBalanceDueDaysOf = (body) => dayCountOr(body.cancelAfterBalanceDueDays, 7);
+// With the acompte off its delay is hidden and not validated (rule 9): the stored one stays.
+const depositDueDaysOf = (body, stored) => (toBit(body.depositEnabled) ? delayOf(body, 'depositDueDays', stored) : (stored == null ? DELAY_DEFAULTS.depositDueDays : Number(stored)));
+const balanceDaysBeforeOf = (body, stored) => delayOf(body, 'balanceDaysBefore', stored);
+const cancelAfterBalanceDueDaysOf = (body, stored) => delayOf(body, 'cancelAfterBalanceDueDays', stored);
 
 // `pricing_rules.extraGuestTiers` is a JSON TEXT column; a malformed value must degrade to "no
 // tiers" (the single price applies) rather than throw on a page load.
@@ -269,10 +300,34 @@ function createPropertiesModel(database) {
     try { return new Set(database.prepare('PRAGMA table_info(properties)').all().map((c) => c.name)); }
     catch { return new Set(); }
   })();
-  function writeEmailFacts(id, body = {}) {
+  // specs/guest-email-texts-made-simple.md rule 30 — a name that starts with its own article
+  // (« La Bergerie », « Le Fournil », « Les Pins », « L'Oustal ») sets that article, confirmed, whatever
+  // the form sent; the property page and the start assistant agree (2026-10-27 spec review).
+  function applyOwnArticle(id, name) {
+    if (!propertyCols.has('nameArticleConfirmed')) return;
+    const own = propertyArticle.derive(name);
+    if (!own.certain) return;
+    database.prepare('UPDATE properties SET nameArticle = ?, nameArticleConfirmed = 1 WHERE id = ?').run(own.article, Number(id));
+  }
+
+  function writeEmailFacts(id, payload = {}) {
+    // specs/settings-input-guards.md rules 23-24 — the pool mode is mapped to the two stored bounds.
+    const body = { ...payload, ...resolvePoolSeason(payload) };
     for (const { key, coerce } of EMAIL_FACT_FIELDS) {
       if (!propertyCols.has(key) || !Object.prototype.hasOwnProperty.call(body, key)) continue;
       database.prepare(`UPDATE properties SET ${key} = ? WHERE id = ?`).run(coerce(body[key]), Number(id));
+    }
+    // specs/guest-email-texts-made-simple.md rule 6 — an article sent by a form is a confirmed one.
+    if (propertyCols.has('nameArticleConfirmed') && sent(body, 'nameArticle')) {
+      database.prepare('UPDATE properties SET nameArticleConfirmed = 1 WHERE id = ?').run(Number(id));
+    }
+    // Rule 28 — a fact the form sends is answered: its sentences come back in the emails.
+    const answered = Object.keys(FACT_OF_FIELD).filter((field) => sent(body, field)).map((f) => FACT_OF_FIELD[f]);
+    if (propertyCols.has('pendingFacts') && answered.length) {
+      const row = database.prepare('SELECT pendingFacts FROM properties WHERE id = ?').get(Number(id));
+      if (row && row.pendingFacts) {
+        database.prepare('UPDATE properties SET pendingFacts = ? WHERE id = ?').run(withoutPending(row.pendingFacts, answered), Number(id));
+      }
     }
   }
 
@@ -308,6 +363,11 @@ function createPropertiesModel(database) {
       return database.prepare('SELECT * FROM properties ORDER BY name').all();
     },
 
+    // specs/control-plane-plans-and-access.md rule 13 — the rental units the plan quota counts.
+    count() {
+      return database.prepare('SELECT COUNT(*) AS n FROM properties').get().n;
+    },
+
     // J-7 hooks (specs/settings-rationalization.md rule 17c) — edited from the J-7 template dialog,
     // one FR / EN pair per property. Written through writeEmailFacts so no other column moves.
     listEmailHooks() {
@@ -324,7 +384,8 @@ function createPropertiesModel(database) {
       for (const h of hooks) {
         if (!h || !known.has(Number(h.propertyId))) return { error: 'Logement inconnu.', status: 400 };
         for (const key of ['emailHook', 'emailHookEn']) {
-          if (h[key] != null && String(h[key]).length > EMAIL_HOOK_MAX_LENGTH) {
+          if (h[key] != null && typeof h[key] !== 'string') return { error: 'Texte attendu.', status: 400 };
+          if (h[key] != null && h[key].length > EMAIL_HOOK_MAX_LENGTH) {
             return { error: `Une accroche ne dépasse pas ${EMAIL_HOOK_MAX_LENGTH} caractères.`, status: 400 };
           }
         }
@@ -355,7 +416,9 @@ function createPropertiesModel(database) {
       const customColors = {};
       customRows.forEach((row) => {
         const key = normalizePlatformKey(row.platformKey);
-        if (!key || customColors[key]) return;
+        // A per-source colour that is only a built-in default (the pre-2026-10-28 palette included) is not
+        // a choice: it must not mask the current palette.
+        if (!key || customColors[key] || isBuiltinColor(key, row.platformColor)) return;
         customColors[key] = row.platformColor;
       });
 
@@ -364,23 +427,32 @@ function createPropertiesModel(database) {
       // new palette wins. Built-in defaults stay in `knownColors` (the client merges both).
       Object.assign(customColors, platformsModel.create(database).colorMap());
 
-      return { knownColors: KNOWN_PLATFORM_COLORS, customColors };
+      // specs/platform-settings-relay-and-review.md rule 12 — the one name each platform reads as, so a
+      // chip says « Gîtes de France » like the server's own labels, never the stored key.
+      const displayNames = {};
+      for (const p of platformsModel.create(database).listAll()) {
+        const label = platformDisplay(p.name);
+        if (label) displayNames[p.name] = label;
+      }
+
+      // specs/calendar-property-parity.md rule 5 — the text colour each bar carries, so the client
+      // never does contrast math.
+      const textColors = {};
+      for (const [slug, color] of Object.entries({ ...KNOWN_PLATFORM_COLORS, ...customColors })) {
+        if (/^#[0-9a-f]{6}$/i.test(color)) textColors[slug] = textColorFor(color);
+      }
+
+      return { knownColors: KNOWN_PLATFORM_COLORS, customColors, displayNames, textColors };
     },
 
     getByIdWithDetails(id) {
       const property = database.prepare('SELECT * FROM properties WHERE id = ?').get(id);
       if (!property) return null;
+      property.poolSeasonMode = poolSeasonModeOf(property.poolSeasonStart, property.poolSeasonEnd);
 
       if (typeof database.ensureDefaultTimedOptionsForProperty === 'function') {
         database.ensureDefaultTimedOptionsForProperty(Number(id));
       }
-      // Same lazy-seed hook for the catering catalogue (specs/option-categories.md §5.2): the boot
-      // seed links the articles to the properties that existed AT BOOT, so a property created since
-      // would otherwise show no « Boissons » until the next restart. The call is idempotent.
-      if (typeof database.ensureCateringOptions === 'function') {
-        database.ensureCateringOptions(database);
-      }
-
       // specs/tariff-recipes/spec.md §3.4 rules 25bis-25ter — the closures applicable to this
       // property (its own + the global ones), and, per season, the date ranges MINUS those closures.
       // The stored ranges keep their full span: a closure that moves simply re-reveals the days.
@@ -441,9 +513,14 @@ function createPropertiesModel(database) {
           ORDER BY o.title COLLATE NOCASE
         `).all(Number(id), Number(id), Number(id));
       } catch (_) { property.rateInclusions = []; }
+      // specs/plugins-phase-3b-neat.md rule 21 — while no plugin offers the insurance, the property
+      // shows it nowhere, « comprise » included.
+      const { dropInsurance } = require('../utils/insuranceOffer');
+      property.rateInclusions = dropInsurance(database, property.rateInclusions);
 
-      property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id);
-      property.optionIds = database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id).map((r) => r.optionId);
+      property.documents = database.prepare('SELECT * FROM documents WHERE propertyId = ?').all(id).map(publicDocument);
+      property.optionIds = dropInsurance(database, database.prepare('SELECT optionId FROM property_options WHERE propertyId = ?').all(id))
+        .map((r) => r.optionId);
       // Options applicable to this property, each carrying its EFFECTIVE price for THIS property (the
       // per-property override when set, else the base price — specs/per-property-option-prices.md). The
       // reservation fiche consumes `property.options` so the option unit price it displays matches what
@@ -476,7 +553,8 @@ function createPropertiesModel(database) {
       // Availability (« déjà réservée », remaining quantity) still comes from the dedicated endpoint
       // once both stay dates are known; this is the catalogue, not the occupancy.
       try {
-        property.resources = resourcesModel.create(database).list(Number(id));
+        // Without the plugin, nothing sold by the hour (specs/plugins-phase-3c-hourly-resources.md rule 18).
+        property.resources = require('../utils/resourceOffer').hideUnoffered(resourcesModel.create(database).list(Number(id)));
       } catch (_) { property.resources = []; } // resources tables absent in minimal test schemas
       return property;
     },
@@ -513,7 +591,7 @@ function createPropertiesModel(database) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         propertyName(body.name),
-        normalizeNameArticle(body.nameArticle),
+        normalizeNameArticle(sent(body, 'nameArticle') ? body.nameArticle : propertyArticle.derive(body.name).article),
         photo,
         body.maxGuests || 2,
         body.maxBabies || 0,
@@ -532,7 +610,8 @@ function createPropertiesModel(database) {
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
-        body.defaultCautionAmount ?? 500,
+        // A deposit nobody typed is no deposit (specs/guest-email-texts-made-simple.md rule 28).
+        body.defaultCautionAmount ?? 0,
         body.touristTaxPerDayPerPerson ?? 0,
         body.touristTaxMode || 'per_day_per_person',
         body.touristTaxPercentage ?? 0,
@@ -549,7 +628,8 @@ function createPropertiesModel(database) {
       `).run(
         propertyId,
         'Tarif annuel',
-        100,
+        // The start assistant names its price (specs/plugins-phase-p-productisation.md rule 21).
+        body.pricePerNight != null && body.pricePerNight !== '' && Number(body.pricePerNight) >= 0 ? Number(body.pricePerNight) : 100,
         'fixed',
         '[]',
         JSON.stringify([{ startDate: `${currentYear}-01-01`, endDate: `${currentYear}-12-31` }]),
@@ -564,21 +644,27 @@ function createPropertiesModel(database) {
       }
 
       writeEmailFacts(propertyId, body);
+      applyOwnArticle(propertyId, body.name);
 
       return { id: propertyId };
     },
 
-    async update(id, body = {}, photoFile = null) {
-      const existing = database.prepare('SELECT photo, extraGuestPriceUnit, welcomePackCost FROM properties WHERE id = ?').get(id);
+    async update(id, sentBody = {}, photoFile = null) {
+      const existing = database.prepare('SELECT * FROM properties WHERE id = ?').get(id);
+      // specs/settings-input-guards.md rule 61 (audit R25-DB-1 sweep) — a column the save does not send is written as the
+      // stored value sent back: an absent `depositEnabled` used to switch the acompte off, an absent name to blank it.
+      const body = { ...(existing || {}), ...Object.fromEntries(Object.entries(sentBody).filter(([, value]) => value !== undefined)) };
       const newPhoto = photoFile ? await saveOptimizedPhoto(photoFile) : '';
-      const photo = newPhoto || (body.photo || (existing ? existing.photo : ''));
+      const photo = newPhoto || (existing ? existing.photo : '');
 
       database.prepare(`
         UPDATE properties SET name=?, nameArticle=?, photo=?, maxGuests=?, maxBabies=?, basePriceIncludedGuests=?, extraGuestPrice=?, extraGuestPriceUnit=?, welcomePackCost=?, singleBeds=?, doubleBeds=?, depositPercent=?, depositDueDays=?, balanceDaysBefore=?, cancelAfterBalanceDueDays=?, defaultCheckIn=?, defaultCheckOut=?, cleaningHours=?, defaultCautionAmount=?, touristTaxPerDayPerPerson=?, touristTaxMode=?, touristTaxPercentage=?, touristTaxDepartmentPercentage=?, touristTaxFixedAmount=?, depositEnabled=?, updatedAt=datetime('now')
         WHERE id=?
       `).run(
         propertyName(body.name),
-        normalizeNameArticle(body.nameArticle),
+        // specs/guest-email-texts-made-simple.md rule 30 (2026-10-18) — a form that does not send the
+        // article keeps the stored one, and does not confirm it.
+        normalizeNameArticle(sent(sentBody, 'nameArticle') ? sentBody.nameArticle : existing?.nameArticle),
         photo,
         body.maxGuests || 2,
         body.maxBabies || 0,
@@ -594,13 +680,14 @@ function createPropertiesModel(database) {
         body.singleBeds ?? 0,
         body.doubleBeds ?? 0,
         body.depositPercent || 30,
-        depositDueDaysOf(body),
-        balanceDaysBeforeOf(body),
-        cancelAfterBalanceDueDaysOf(body),
+        depositDueDaysOf(body, existing?.depositDueDays),
+        balanceDaysBeforeOf(body, existing?.balanceDaysBefore),
+        cancelAfterBalanceDueDaysOf(body, existing?.cancelAfterBalanceDueDays),
         body.defaultCheckIn || '15:00',
         body.defaultCheckOut || '10:00',
         body.cleaningHours || 3,
-        body.defaultCautionAmount ?? 500,
+        // Rule 28 (2026-10-18) — an absent or empty deposit keeps the stored amount: it never resets.
+        sent(body, 'defaultCautionAmount') ? Number(String(body.defaultCautionAmount).replace(',', '.')) : Number(existing?.defaultCautionAmount ?? 0),
         body.touristTaxPerDayPerPerson ?? 0,
         body.touristTaxMode || 'per_day_per_person',
         body.touristTaxPercentage ?? 0,
@@ -610,13 +697,37 @@ function createPropertiesModel(database) {
         id,
       );
 
-      writeEmailFacts(id, body);
+      writeEmailFacts(id, sentBody);
+      applyOwnArticle(id, sentBody.name);
+      // specs/deposit-blocks-the-dates.md rule 20 — « Solde dû … jours avant » decides which open devis owe one payment:
+      // their columns follow at once, and an acompte link they no longer ask for is withdrawn.
+      require('./devisModel').buildModel(database).restoreSinglePayments({ propertyId: id });
 
       if (newPhoto && existing && existing.photo && existing.photo !== newPhoto) {
         removeUploadedFile(existing.photo);
       }
 
       return { ok: true };
+    },
+
+    // THE delete guard for a property (utils/deletionGuard): the delete cascades every stay and devis.
+    deletionBlocker(id) {
+      const ids = idsOfOwner(database, 'propertyId', id);
+      if (carriesMoney(database, ids)) return PROPERTY_MONEY_MESSAGE;
+      return cautionBlocker(database, ids, 'property') || bookingMoneyBlocker(database, 'propertyId', id) || historyBlocker(database, ids, 'property');
+    },
+
+    // The delete the controller runs after its provider awaits: judged again, in the same transaction.
+    removeGuarded(id) {
+      return database.transaction(() => {
+        const blocker = this.deletionBlocker(id);
+        if (blocker) return { blocker };
+        return this.remove(id);
+      })();
+    },
+
+    rowIdsToDelete(id) {
+      return withConvertedDevis(database, idsOfOwner(database, 'propertyId', id));
     },
 
     remove(id) {
@@ -628,6 +739,7 @@ function createPropertiesModel(database) {
         .all(id)
         .map((r) => r.clientId);
 
+      const documentFiles = database.prepare('SELECT filePath FROM documents WHERE propertyId = ?').all(id);
       database.transaction(() => {
         // Cascades to reservations + children, pricing_rules, documents, property_options,
         // ical_sources, ical_import_events, calendar_notes.
@@ -638,12 +750,13 @@ function createPropertiesModel(database) {
           database.prepare(`
             DELETE FROM clients
             WHERE id IN (${placeholders})
-              AND NOT EXISTS (SELECT 1 FROM reservations WHERE clientId = clients.id)
+              AND NOT EXISTS (SELECT 1 FROM reservations WHERE clientId = clients.id)${noResourceBookingSql(database, 'clients')}
           `).run(...affectedClientIds);
         }
       })();
 
       if (existing.photo) removeUploadedFile(existing.photo);
+      documentFiles.forEach((d) => removeDocumentFile(d.filePath));
       return { ok: true };
     },
 
@@ -678,12 +791,13 @@ function createPropertiesModel(database) {
       // Direct row first (synthesized at 0 % when no `Direct` platform row exists yet).
       const directRow = rows.find((p) => p.isDirect)
         || { id: 'direct', name: 'Direct', commissionPercent: 0, isDirect: true };
-      // The other OWN channels — Lodgify — are the Direct row: its « moteur Lodgify » caption says
-      // so, and its commission IS the engine fee. Listing Lodgify again underneath would ask the
-      // operator to configure the same channel twice, with two rates that must never disagree.
-      // Hidden from this grid only: the platform row itself still carries reservations and their
-      // commissions.
-      const platforms = [directRow, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))].map((p) => {
+      // The other OWN channels — the platforms counted as a direct sale — are the Direct row: its
+      // caption names them (specs/plugins-phase-p-productisation.md rule 19), and its commission IS
+      // their engine fee. Listing them again underneath would ask the operator to configure the same
+      // channel twice, with two rates that must never disagree. Hidden from this grid only: the
+      // platform row itself still carries reservations and their commissions.
+      const directVia = rows.filter((p) => !p.isDirect && isDirectChannel(p.name)).map((p) => formatPlatformName(p.name) || p.name);
+      const platforms = [{ ...directRow, directVia }, ...rows.filter((p) => !p.isDirect && !isDirectChannel(p.name))].map((p) => {
         // specs/tariff-recipe-platform-cleaning-fee.md rules 8–9 — grossed up with the commission read
         // NOW, so editing a platform's commission moves the fee without re-applying the recipe. The
         // direct ménage is a GuestFlow option, never a channel fee.
@@ -738,16 +852,23 @@ function createPropertiesModel(database) {
       return { platforms, seasons };
     },
 
+    pricingRuleRow(propertyId, ruleId) {
+      return database.prepare('SELECT * FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId) || null;
+    },
+
     addPricingRule(propertyId, body = {}) {
+      if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) return { error: 'Logement introuvable.', status: 404 };
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
       const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
+      const datesError = rangesWindowMessage(normalizedDateRanges);
+      if (datesError) return { error: datesError, status: 400 };
       const normalizedProgressiveTiers = pricingMode === 'progressive'
         ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
         : [];
       const conflictingRule = findPricingRuleOverlap(propertyId, normalizedDateRanges);
       if (conflictingRule) {
         return {
-          error: `Chevauchement avec la saison "${conflictingRule.label}" (${conflictingRule.startDate} au ${conflictingRule.endDate}).`,
+          error: `Chevauchement avec la saison "${conflictingRule.label}" (${formatDateNumeric(conflictingRule.startDate)} au ${formatDateNumeric(conflictingRule.endDate)}).`,
           status: 400,
           conflictingRule,
         };
@@ -787,13 +908,17 @@ function createPropertiesModel(database) {
     updatePricingRule(propertyId, ruleId, body = {}) {
       const { label, pricePerNight, pricingMode, progressiveTiers, dateRanges, color, startDate, endDate, minNights } = body;
       const normalizedDateRanges = stripRangeMinEqualToDefault(normalizeDateRanges(dateRanges, startDate, endDate), minNights);
+      // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a range kept as stored is not re-judged.
+      const storedRule = database.prepare('SELECT startDate, endDate, dateRanges FROM pricing_rules WHERE id = ? AND propertyId = ?').get(ruleId, propertyId);
+      const datesError = rangesWindowMessage(normalizedDateRanges, { stored: storedRule ? parseRuleDateRanges(storedRule) : [] });
+      if (datesError) return { error: datesError, status: 400 };
       const normalizedProgressiveTiers = pricingMode === 'progressive'
         ? normalizeProgressiveTiers(Number(pricePerNight || 0), progressiveTiers)
         : [];
       const conflictingRule = findPricingRuleOverlap(propertyId, normalizedDateRanges, ruleId);
       if (conflictingRule) {
         return {
-          error: `Chevauchement avec la saison "${conflictingRule.label}" (${conflictingRule.startDate} au ${conflictingRule.endDate}).`,
+          error: `Chevauchement avec la saison "${conflictingRule.label}" (${formatDateNumeric(conflictingRule.startDate)} au ${formatDateNumeric(conflictingRule.endDate)}).`,
           status: 400,
           conflictingRule,
         };
@@ -902,7 +1027,7 @@ function createPropertiesModel(database) {
           const conflict = findPricingRuleOverlap(targetPropertyId, sourceRule.normalizedDateRanges);
           if (conflict) {
             return {
-              error: `Impossible d'appliquer: chevauchement avec la saison "${conflict.label}" du logement cible (${conflict.startDate} au ${conflict.endDate}).`,
+              error: `Impossible d'appliquer: chevauchement avec la saison "${conflict.label}" du logement cible (${formatDateNumeric(conflict.startDate)} au ${formatDateNumeric(conflict.endDate)}).`,
               status: 409,
               code: 'PRICING_OVERLAP',
               conflictingRule: conflict,
@@ -950,7 +1075,12 @@ function createPropertiesModel(database) {
       const target = body.target || {};
       const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
+      // specs/reservations-backend-mvc.md rule 26 (audit R42-C-L1) — a logement that does not exist is refused first,
+      // never a foreign-key 500 on the new season's INSERT.
+      if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(pid)) return { error: 'Logement non trouvé', status: 404 };
       if (!ISO.test(startDate) || !ISO.test(endDate)) return { error: 'Dates invalides.', status: 400 };
+      const datesError = rangesWindowMessage([{ startDate, endDate }]);
+      if (datesError) return { error: datesError, status: 400 };
       if (startDate > endDate) return { error: 'La date de début doit précéder la date de fin.', status: 400 };
       if (!Number.isFinite(minNights) || minNights < 1) return { error: 'Le minimum de nuits doit être un entier ≥ 1.', status: 400 };
       if (target.mode !== 'existing' && target.mode !== 'new') return { error: 'Cible invalide.', status: 400 };
@@ -1012,16 +1142,40 @@ function createPropertiesModel(database) {
 
     addDocument(propertyId, file, body = {}) {
       if (!file) return { error: 'Fichier requis', status: 400 };
-      const filePath = `/uploads/${file.filename}`;
-      const result = database.prepare(`
-        INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
-      `).run(propertyId, body.type || 'other', sentenceCase(body.name || file.originalname), filePath);
-      return { data: { id: result.lastInsertRowid, filePath } };
+      const dropUpload = () => { if (file.path) { try { require('fs').unlinkSync(file.path); } catch { /* already gone */ } } };
+      // specs/reservations-backend-mvc.md rule 26 (audit R41-DB-L1) — the upload is already on disk: on a logement that
+      // does not exist it is removed and refused, never a foreign-key 500 leaving an orphan private file.
+      if (!database.prepare('SELECT 1 FROM properties WHERE id = ?').get(propertyId)) {
+        dropUpload();
+        return { error: 'Logement non trouvé', status: 404 };
+      }
+      // specs/settings-input-guards.md rule 63 (audit R42-DB-L1 / R42-INJ-L2) — the two text fields are judged before the
+      // row is written, the upload removed on a refusal: a repeated or bracketed field was a 500 or a stored « A,b ».
+      const fieldRefusal = documentFieldsRefusal(body);
+      if (fieldRefusal) {
+        dropUpload();
+        return fieldRefusal;
+      }
+      try {
+        const result = database.prepare(`
+          INSERT INTO documents (propertyId, type, name, filePath) VALUES (?, ?, ?, ?)
+        `).run(propertyId, body.type || 'other', sentenceCase(documentDisplayName(body.name, file.originalname)), `${PRIVATE_PREFIX}${file.filename}`);
+        return { data: { id: result.lastInsertRowid, filePath: downloadUrl(propertyId, result.lastInsertRowid) } };
+      } catch (err) {
+        dropUpload();
+        throw err;
+      }
     },
 
     deleteDocument(propertyId, docId) {
+      const row = database.prepare('SELECT filePath FROM documents WHERE id = ? AND propertyId = ?').get(docId, propertyId);
       database.prepare('DELETE FROM documents WHERE id = ? AND propertyId = ?').run(docId, propertyId);
+      if (row) removeDocumentFile(row.filePath);
       return { data: { ok: true } };
+    },
+
+    getDocument(propertyId, docId) {
+      return database.prepare('SELECT * FROM documents WHERE id = ? AND propertyId = ?').get(docId, propertyId);
     },
 
     // specs/welcome-pack-auto-options.md §3.1 — the property's welcome pack: the options this
@@ -1049,6 +1203,13 @@ function createPropertiesModel(database) {
       } catch (_) {
         return [];
       }
+    },
+
+    // specs/settings-input-guards.md rule 62 — the property and every option of the list exist.
+    optionListTargetsExist(propertyId, optionIds = []) {
+      if (!positiveId(propertyId) || !database.prepare('SELECT 1 FROM properties WHERE id = ?').get(positiveId(propertyId))) return false;
+      const known = database.prepare('SELECT 1 FROM options WHERE id = ?');
+      return optionIds.every((id) => Boolean(known.get(positiveId(id))));
     },
 
     setOptions(propertyId, optionIds = []) {

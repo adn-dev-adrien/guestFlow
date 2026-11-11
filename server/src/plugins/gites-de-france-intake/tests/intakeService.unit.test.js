@@ -6,46 +6,7 @@ const Database = require('better-sqlite3');
 const { buildModel, TABLE_SQL } = require('../intakesModel');
 const { createIntakeService } = require('../intakeService');
 const { BOOKING_MAIL, withTotals } = require('./fixtures');
-
-const PLACEHOLDER = {
-  id: 22308, propertyId: 1, platform: 'GitesDeFrance', kind: 'reservation', sourceType: 'ical', icalSyncLocked: 0, platformGrossAmount: null,
-};
-const CATALOGUE = [
-  { id: 7, title: 'Ménage', autoOptionType: 'cleaning', price: 80, autoEnabled: 0 },
-  { id: 8, title: 'Linge de lit', autoOptionType: 'bed_linen', price: 7, autoEnabled: 0 },
-  { id: 12, title: 'Lit bébé', autoOptionType: 'baby_bed', price: 5, autoEnabled: 1 },
-];
-
-function setup({ reservations = [PLACEHOLDER], mails = [{ messageId: '<m1@gdf07>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }], rate = 10, autoApply = true, updateStatus = 200 } = {}) {
-  const db = new Database(':memory:');
-  db.exec(TABLE_SQL);
-  const intakes = buildModel(db);
-  const calls = { updates: [], clients: [], mailsSent: 0 };
-  const service = createIntakeService({
-    intakes,
-    settings: {
-      mailbox: () => ({ host: 'imap.test', port: 993, user: 'contact@test', password: 'x' }),
-      sender: () => 'resa@gdf07.com',
-      giteNumbers: () => ({ 1: '309700' }),
-      autoApply: () => autoApply,
-    },
-    readMails: async (cfg) => { calls.readWith = cfg; return mails; },
-    findReservations: ({ propertyIds, startDate, endDate }) => reservations
-      .filter((r) => propertyIds.includes(r.propertyId) && startDate === '2026-11-13' && endDate === '2026-11-15'),
-    commissionPercent: () => rate,
-    propertyOptions: () => CATALOGUE,
-    getReservation: (id) => ({ ...reservations.find((r) => r.id === id), options: [
-      { optionId: 8, quantity: 1, offered: 1, inComplement: 0 },
-      { optionId: 12, quantity: 1, offered: 0, inComplement: 1 },
-    ] }),
-    core: {
-      updateReservation: (id, patch, opts) => { calls.updates.push({ id, patch, opts }); return { status: updateStatus, body: updateStatus === 200 ? { ok: true } : { error: 'Refusé' } }; },
-      suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }),
-      findOrCreateClient: (c) => { calls.clients.push(c); return { id: 141, ...c }; },
-    },
-  });
-  return { service, intakes, calls, db };
-}
+const { PLACEHOLDER, setup } = require('./serviceFixtures');
 
 test('rules 1-2: the pass reads the sender of the settings in the mailbox GuestFlow sends from', async () => {
   const { service, calls } = setup();
@@ -121,17 +82,18 @@ test('rule 9: no fiche yet → pending, applied on a later pass once the iCal cr
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 9: a gîte number tied to no property is an error, shown on the dashboard', async () => {
+test('rule 18: a gîte number tied to no property waits (pending), shown on the dashboard after a day with its reason', async () => {
   const db = new Database(':memory:');
   db.exec(TABLE_SQL);
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => ({ 2: '400100' }), autoApply: () => true },
-    readMails: async () => [{ messageId: '<x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }],
+    readMails: async (cfg, h) => { await h.onMail({ messageId: '<x>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }); },
     findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => null,
-    core: {}, now: () => new Date('2026-10-15T10:00:00Z'),
+    core: {}, now: () => new Date('2026-10-16T10:00:00Z'),
   });
-  assert.equal((await service.runPass()).error, 1);
+  assert.equal((await service.runPass()).pending, 1);
+  assert.equal(service.attention()[0].status, 'pending');
   assert.match(service.attention()[0].error, /gîte n°309700/);
 });
 
@@ -142,14 +104,14 @@ test('rule 16: no property tied to a gîte yet → the mailbox is not even read'
   const service = createIntakeService({
     intakes: buildModel(db),
     settings: { mailbox: () => ({ host: 'h', user: 'u', password: 'p' }), sender: () => 's', giteNumbers: () => ({}), autoApply: () => true },
-    readMails: async () => { read = true; return []; },
+    readMails: async () => { read = true; },
   });
   assert.deepEqual(await service.runPass(), { skipped: 'Aucun logement relié à un numéro de gîte' });
   assert.equal(read, false);
 });
 
 test('rule 3: the same Message-ID is read once; a second mail of the same dossier is ignored', async () => {
-  const mails = [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL }];
+  const mails = [{ messageId: '<m1>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL, authenticated: true }];
   const { service, calls, intakes } = setup({ mails });
   await service.runPass();
   await service.runPass();
@@ -159,14 +121,15 @@ test('rule 3: the same Message-ID is read once; a second mail of the same dossie
   assert.equal(calls.updates.length, 1);
 });
 
-test('rule 3: an unreadable booking mail is an error; another mail of the centrale is skipped', async () => {
+test('rule 3: an unreadable booking mail is an error; another mail of the centrale is no intake', async () => {
   const { service, intakes } = setup({ mails: [
     { messageId: '<bad>', receivedAt: '2026-10-14T16:32:00.000Z', text: BOOKING_MAIL.replace('Total net : 534.00', 'Total net : 540.00') },
     { messageId: '<news>', receivedAt: '2026-10-14T16:32:00.000Z', subject: 'Lettre d’information', text: 'Les ateliers 2027 sont ouverts.' },
   ] });
   await service.runPass();
-  assert.equal(intakes.count(), 1);
   assert.equal(intakes.get(1).status, 'error');
+  assert.equal(intakes.get(2).status, 'ignored', 'rule 30: the newsletter is remembered, out of every list');
+  assert.deepEqual(intakes.listOpen(), []);
 });
 
 test('rule 7: a platform rate of 0 → error, nothing written', async () => {

@@ -21,7 +21,8 @@ const emailLogModel = require('../models/emailLogModel');
 const emailTemplatesModel = require('../models/emailTemplatesModel');
 const settingsModel = require('../models/settingsModel');
 const { createEmailService } = require('./emailService');
-const { performAutoEmailPass, isoToday } = require('./emailAutoSendRunner');
+const { performAutoEmailPass } = require('./emailAutoSendRunner');
+const { localIsoDate } = require('./localDate');
 const { anyTemplateAutoSends } = require('./autoSendPolicy');
 const guestEmailSendsModel = require('../models/guestEmailSendsModel');
 const emailPreferencesModel = require('../models/emailPreferencesModel');
@@ -92,7 +93,7 @@ function tick(deps = {}) {
   const now = deps.now || new Date();
   const run = deps.run || runPass;
   if (now.getHours() < 8) return undefined;
-  const today = isoToday(now);
+  const today = localIsoDate(now);
   if (lastRunDate === today) return undefined;
   const previous = lastRunDate;
   // Claim the day's slot up-front so a slow pass can't be started twice by the next tick.

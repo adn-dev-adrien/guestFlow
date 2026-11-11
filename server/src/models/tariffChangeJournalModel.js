@@ -9,6 +9,8 @@
 // `createdAt` is when the row was written — deliberately two columns, because a rollout is often
 // declared after the fact (spec rule 4). Statistics read `occurredAt`.
 
+const { dateWindowMessage } = require('../utils/stayDates');
+
 const KINDS = Object.freeze(['recipe', 'platforms']);
 const SOURCES = Object.freeze(['apply', 'manual', 'backfill']);
 
@@ -88,6 +90,9 @@ function createTariffChangeJournalModel(database) {
       ? database.prepare("SELECT datetime('now') AS now").get().now
       : normalizeOccurredAt(occurredAt);
     if (!when) return { error: "Date d'effet invalide" };
+    // specs/reservations-backend-mvc.md rule 13 (reading of 2026-11-02) — a date the operator declares lies in the window.
+    const outside = source === 'manual' && occurredAt != null ? dateWindowMessage(when.slice(0, 10)) : null;
+    if (outside) return { error: outside };
 
     const info = database.prepare(`
       INSERT INTO tariff_change_events (propertyId, kind, recipeId, recipeVersion, occurredAt, source, note)
@@ -119,7 +124,21 @@ function createTariffChangeJournalModel(database) {
     return database.prepare('DELETE FROM tariff_change_events WHERE id = ?').run(Number(id)).changes > 0;
   }
 
-  return { list, insert, remove, getById, recordRecipeApply };
+  // specs/reservation-payment-ledger.md rule 61 — whether the property's tariff changed AFTER a day
+  // (an event dated later than `isoDay`), so a price check can tell « the tariff the guest saw » from
+  // « today's tariff ». Rule 65: `occurredAt` is UTC for an apply or a backfill, but the wall time
+  // typed in the browser for a manual entry, so only the former is shifted to the local day.
+  function hasEventAfter(propertyId, isoDay) {
+    const row = database.prepare(`
+      SELECT 1 AS found FROM tariff_change_events
+      WHERE propertyId = ?
+        AND (CASE WHEN source = 'manual' THEN date(occurredAt) ELSE date(occurredAt, 'localtime') END) > ?
+      LIMIT 1
+    `).get(Number(propertyId), String(isoDay || '').slice(0, 10));
+    return Boolean(row);
+  }
+
+  return { list, insert, remove, getById, recordRecipeApply, hasEventAfter };
 }
 
 let defaultModel = null;

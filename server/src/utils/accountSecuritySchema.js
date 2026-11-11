@@ -1,0 +1,149 @@
+/**
+ * Tables of the account security (specs/hosting-h2-account-security.md §5). Additive and idempotent:
+ * run by database.js on every boot, and by the unit tests on an in-memory database.
+ *
+ * - `password_reset_tokens` — rules 1–5: only the SHA-256 of a link's token is stored.
+ * - `user_two_factor`, `user_backup_codes` — rules 6–10: the TOTP secret is encrypted at rest; the
+ *   backup codes are stored with the password hash.
+ * - `user_security_events` — the account's history (rule 9): who turned the second step on or off,
+ *   a reset by link, a recovery by the command line.
+ * - `support_access`, `support_access_links`, `support_access_log` — rules 12–17.
+ * - The « Support GuestFlow » user (rule 14): an admin account that is never active and holds a
+ *   password nobody knows. Only an open access lets a signed link open a session with it. It is
+ *   told by `users.isSupportAccount`, never by its email (rule 21).
+ */
+
+const crypto = require('crypto');
+const { hashPassword } = require('./passwordHash');
+const { SUPPORT_USER_EMAIL } = require('./supportAccess');
+
+function applyAccountSecuritySchema(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tokenHash TEXT NOT NULL UNIQUE,
+      expiresAt TEXT NOT NULL,
+      usedAt TEXT,
+      createdAt TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(userId);
+
+    CREATE TABLE IF NOT EXISTS user_two_factor (
+      userId INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      method TEXT,
+      secretEncrypted TEXT,
+      enabledAt TEXT,
+      pendingMethod TEXT,
+      pendingSecretEncrypted TEXT,
+      pendingFailures INTEGER NOT NULL DEFAULT 0,
+      emailCodeHash TEXT,
+      emailCodeExpiresAt TEXT,
+      failedCount INTEGER NOT NULL DEFAULT 0,
+      lockedUntil TEXT,
+      lastTotpStep INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS user_backup_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      codeHash TEXT NOT NULL,
+      usedAt TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_backup_codes_user ON user_backup_codes(userId);
+
+    CREATE TABLE IF NOT EXISTS user_security_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userId INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      at TEXT NOT NULL,
+      event TEXT NOT NULL,
+      actor TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_security_events_user ON user_security_events(userId);
+
+    CREATE TABLE IF NOT EXISTS support_access (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      requestId TEXT NOT NULL UNIQUE,
+      reason TEXT NOT NULL,
+      requestedAt TEXT NOT NULL,
+      decision TEXT,
+      decidedBy INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      decidedAt TEXT,
+      expiresAt TEXT,
+      revokedAt TEXT,
+      revokedBy INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS support_access_links (
+      jti TEXT PRIMARY KEY,
+      accessId INTEGER NOT NULL REFERENCES support_access(id) ON DELETE CASCADE,
+      usedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS support_access_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      accessId INTEGER NOT NULL REFERENCES support_access(id) ON DELETE CASCADE,
+      at TEXT NOT NULL,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      summary TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_support_access_log_access ON support_access_log(accessId);
+  `);
+
+  // Rules 43-44, 54-55 (2026-10-28): the enrolment's start, its sends and the hash of its token, the
+  // re-authentication code apart from the login code, and the hourly count of mails. Nullable or
+  // defaulted: an enrolment begun before the update has no start, which rule 43 reads as expired.
+  const twoFactorCols = db.prepare('PRAGMA table_info(user_two_factor)').all().map((c) => c.name);
+  if (!twoFactorCols.includes('pendingStartedAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingStartedAt TEXT');
+  if (!twoFactorCols.includes('pendingSends')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingSends INTEGER NOT NULL DEFAULT 0');
+  if (!twoFactorCols.includes('lastCodeSentAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN lastCodeSentAt TEXT');
+  if (!twoFactorCols.includes('pendingTokenHash')) db.exec('ALTER TABLE user_two_factor ADD COLUMN pendingTokenHash TEXT');
+  if (!twoFactorCols.includes('actionCodeHash')) db.exec('ALTER TABLE user_two_factor ADD COLUMN actionCodeHash TEXT');
+  if (!twoFactorCols.includes('actionCodeExpiresAt')) db.exec('ALTER TABLE user_two_factor ADD COLUMN actionCodeExpiresAt TEXT');
+  if (!twoFactorCols.includes('mailsSent')) db.exec('ALTER TABLE user_two_factor ADD COLUMN mailsSent INTEGER NOT NULL DEFAULT 0');
+  if (!twoFactorCols.includes('loginMailsSent')) db.exec('ALTER TABLE user_two_factor ADD COLUMN loginMailsSent INTEGER NOT NULL DEFAULT 0');
+  if (!twoFactorCols.includes('loginMailsSince')) db.exec('ALTER TABLE user_two_factor ADD COLUMN loginMailsSince TEXT');
+  if (!twoFactorCols.includes('mailsSince')) db.exec('ALTER TABLE user_two_factor ADD COLUMN mailsSince TEXT');
+
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userCols.includes('twoFactorSnoozedUntil')) db.exec('ALTER TABLE users ADD COLUMN twoFactorSnoozedUntil TEXT');
+
+  // Rule 21: the support account is told by this flag, never by its email. Existing databases mark
+  // the row the first boot created, by the address it was created with.
+  if (!userCols.includes('isSupportAccount')) {
+    // One transaction: a crash between the two never leaves the column without its flagged row.
+    db.transaction(() => {
+      db.exec('ALTER TABLE users ADD COLUMN isSupportAccount INTEGER NOT NULL DEFAULT 0');
+      db.prepare('UPDATE users SET isSupportAccount = 1 WHERE email = ?').run(SUPPORT_USER_EMAIL);
+    })();
+  }
+
+  const support = db.prepare('SELECT id FROM users WHERE isSupportAccount = 1').get();
+  if (!support) {
+    // A password nobody holds, and never active: the account cannot log in with a password.
+    const id = Number(db.prepare(`
+      INSERT INTO users (email, passwordHash, firstName, lastName, mustChangePassword, isActive, isSupportAccount)
+      VALUES (?, ?, 'Support', 'GuestFlow', 0, 0, 1)
+    `).run(SUPPORT_USER_EMAIL, hashPassword(crypto.randomBytes(32).toString('base64'))).lastInsertRowid);
+    db.prepare("INSERT OR IGNORE INTO user_roles (userId, role) VALUES (?, 'admin')").run(id);
+  }
+
+  // specs/self-update-and-releases.md rule 39 (reading of 2026-11-11) — the support account is inert in the database
+  // itself, so a release that predates it (v3.21.0 lists it among the users) cannot reactivate it, give it a password
+  // or unflag it: such a write is refused here, whoever issues it.
+  // Dropped and re-created at every boot, so a later change of its body takes effect.
+  db.exec(`
+    DROP TRIGGER IF EXISTS users_support_account_inert;
+    CREATE TRIGGER users_support_account_inert
+    BEFORE UPDATE ON users
+    WHEN OLD.isSupportAccount = 1
+      AND (NEW.isActive IS NOT OLD.isActive OR NEW.passwordHash IS NOT OLD.passwordHash
+           OR NEW.isSupportAccount IS NOT 1)
+    BEGIN
+      SELECT RAISE(ABORT, 'SUPPORT_ACCOUNT_LOCKED');
+    END
+  `);
+}
+
+module.exports = { applyAccountSecuritySchema };
