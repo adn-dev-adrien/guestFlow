@@ -198,7 +198,6 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    `free`, `offered`) and tagged amounts. Hourly resources add the `hourly` family; shop articles are
    instances of core families. Solio-specific
    behaviour stays in plugins; the core holds the units, the line store and the extension point.
-   > **Pending** — PR A, pass 3
 6. **Arithmetic is unchanged in PR A.** PR A moves code without changing a single rounding: every unit keeps
    the euro arithmetic (`roundMoney`) it has today. Integer cents inside the units is a later, separately
    proved change (Q9).
@@ -226,11 +225,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     lines, hourly resources and shop articles. The fiche, the devis, the SAS (arrival and departure), the iCal /
     platform intakes and the guest-app shop call the same function; no seller has its own arithmetic. A read
     (shop catalogue, slot picker price) is one `priceExtras` call, never a save (D9).
-    > **Pending** — PR A, pass 3
+    > **Pending** — PR B: the SAS, the shop and the iCal / platform intakes call the same function. PR A proves the fiche's engine prices every option and resource line through the Articles head (`articles-head-contract`).
 11. **Catalogue resolution is an input.** The property-merged catalogue (`getApplicableOptions/Resources`,
     `property_option_prices`, `property_resource_prices`, « Facturables » linen prices) is loaded by the
     loader and passed in. The per-property override lookup exists once.
-    > **Pending** — PR A, pass 3
+    > **Pending** — PR A, pass 5: the loader hands the merged catalogue to COMPOSE. PR A proves the per-property override lookup exists once, in the CatalogueProvider (`data-access-ports`).
 12. **A line stores its total.** A priced line carries `quantity`, `unitPrice` (for display) and `total`; the
     stored `total` is authoritative. A sold line is never re-billed as quantity × rounded unit price (D4).
     > **Pending** — PR B
@@ -432,7 +431,6 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     lodging); consumption comes from the stored lines' `allowanceUsed`. `consumeAllowance` serves a request in
     sale order and returns what it used; `releaseAllowance` returns a removed line's share to the pool. Shop,
     SAS and fiche read the same ledger, so « 1 h offerte encore disponible » is the same everywhere.
-    > **Pending** — PR A, pass 3
 42. **What is not a unit.** _(cut examined 2026-11-11.)_
     - **Catalogue resolution** — a DB read, so it lives in the loader; its rule (property override wins) is a
       tested function of the loader.
@@ -467,7 +465,6 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       property) and calls `phaseOf`. **This is the only place anyone asks « has this stay started? »**. The
       loader of COMPOSE, `extraSale.quote/sell`, SETTLEMENT, `saleDetail`, the SAS, the fiche, the guest app
       and the e-mail context receive the phase from it. They only hand over the stay id.
-    > **Pending** — PR A, pass 2
 45. **No other module compares dates to decide a collection moment or a stay phase.** A static test (grep in
     the server suite) fails on `startDate <= today`-style comparisons, `hasGuestArrived` or
     `isArrivalNotMarked` outside `stayClock*`. Today's call sites and the PR that moves each:
@@ -526,7 +523,6 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       exactly as a `per_hour` line today when hourly-resources is off.
     - `describe` gives the fiche, the SAS and the guest app every price label (« 2 × 6,50 € · 2 offerts »,
       « 1 h × 30 € · + 20 € soirée »); no screen composes one.
-    > **Pending** — PR A, pass 3
 48. **Data-access ports (ports & adapters / repository).** No component queries the DB, the clock or a
     plugin: the composer hands them what a port returned. Ports are plain objects of functions:
 
@@ -542,7 +538,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 
     Pure units take values, never ports; ports are called by the composer (pipeline `load*` steps) and the
     sale services only.
-    > **Pending** — PR A, pass 2
+    > **Pending** — PR A, pass 5 (`PaymentLedger.receipts`, with SCHEDULE and SETTLEMENT) and PR B (`StayRepository.stay` / `storedStayPrice`, `SlotAvailabilityProvider`, `PaymentGateway`, `EventPublisher`). PR A proves `StayRepository`, `CatalogueProvider`, `PaymentLedger` (installments, split received, refunds) and `SettingsProvider` over today's reads (`data-access-ports`, `settings-provider`).
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -575,7 +571,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 
     No component reads a property row. In PR A the adapters read exactly today's columns, so every quote is
     byte-identical; a settings UI is out of scope (§8).
-    > **Pending** — PR A, pass 2
+    > **Pending** — PR A, passes 4-5: the PLATFORM PRICE, VAT and SCHEDULE keys, and the article scope of the families (`property_option_prices`) read through the provider. PR A proves NIGHTS, EXTRA GUESTS, TOURIST TAX and STAY CLOCK (`settings-provider`).
 51. **VAT per line, by customer context; TOTALS only aggregates.** _(amended 2026-11-11, second round: VAT
     is the standalone component of rules 61-62; « family » below reads « vatClass ».)_ The VAT step gives every line (the
     accommodation and extra guests being lines of family `accommodation`) a rate from
@@ -631,14 +627,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 56. **No class hierarchy, no DI framework.** Components, families, instances, adapters, steps and ports are CommonJS
     modules exporting plain functions and objects. Wiring is explicit in `pipelines.js` and in plugin
     `register` functions.
-    > **Pending** — PR A, pass 3
 57. **Each new interface has a contract test.** `article-family-contract` runs every registered family (core
     families and `hourly`) through the same cases (validate refuses out-of-bounds, quote is deterministic,
     describe matches quote); `article-fulfilment-contract` runs reserve/confirm/release against the bath
     adapter (overlap refused, heat-up honoured, release frees the slot, confirm inside a rolled-back
     transaction leaves nothing); `pipeline-composition` builds every use case and proves a missing input fails
     at build time.
-    > **Pending** — PR A, pass 3
+    > **Pending** — PR A, pass 5 (`pipeline-composition`) and PR B (`article-fulfilment-contract`). PR A proves `article-family-contract` on the seven core families and `hourly`.
 58. **Q11 resolved:** a new discount typed on the fiche targets « Nuits » by default.
     > **Pending** — PR B
 59. **Q12 resolved:** a stay discount never covers sales added later; a later sale gets its own line discount
@@ -651,7 +646,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     _(amended 2026-11-11, second round:)_ the Articles head, family registry, instance factory and the VAT
     component with its five former copies switched to it: PR A. `AccountingOutput` and its exporters: PR B,
     commit 2. Static duplication guards: introduced in A with allow-lists, strict at the end of C.
-    > **Pending** — PR A, pass 3
+    > **Pending** — PR A, passes 4-5: VAT per (family, rate) group with line allocation, pipeline and `stayQuote`. PR A proves the registry, the core kinds, the ports and the settings provider over today's columns.
 
 
 ### 3.L Second amendment round (owner, 2026-11-11) — VAT component, accounting output, no duplication
