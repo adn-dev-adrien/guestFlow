@@ -35,9 +35,10 @@ test('rule 17 — no gross, no pin: the accommodation stays the tariff\'s (null)
   for (const gross of [null, undefined, '']) assert.equal(resolvePlatformPrice({ gross, platformLines: 5 }).accommodation, null);
 });
 
-test('rule 70 — mode gross carries no commission (it is a stored figure); mode commission gives the display figures', () => {
-  assert.deepEqual(resolvePlatformPrice({ mode: 'gross', gross: 200, commissionRate: 15 }), { accommodation: 200, commission: null, payout: null });
-  assert.deepEqual(resolvePlatformPrice({ mode: 'commission', gross: 200, commissionRate: 15 }), { accommodation: 200, commission: 30, payout: 170 });
+test('rule 70 — the engine never computes a commission from a rate: commission and payout stay null in every mode', () => {
+  for (const mode of ['gross', 'commission']) {
+    assert.deepEqual(resolvePlatformPrice({ mode, gross: 200, commissionRate: 15 }), { accommodation: 200, commission: null, payout: null });
+  }
   assert.deepEqual(resolvePlatformPrice({ mode: 'commission', gross: null, commissionRate: 15 }), { accommodation: null, commission: null, payout: null });
 });
 

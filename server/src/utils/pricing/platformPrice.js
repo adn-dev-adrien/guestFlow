@@ -1,13 +1,13 @@
 /**
  * PLATFORM PRICE — the accommodation a platform stay is priced at (specs/pricing-components.md §3 rules 17, 50, 70).
  *
- * Contract: `resolvePlatformPrice({ mode, gross, commissionRate, extraGuestsInBrut, platformLines, withheldTax })` →
+ * Contract: `resolvePlatformPrice({ gross, extraGuestsInBrut, platformLines, withheldTax })` →
  * `{ accommodation, commission, payout }`. `accommodation` is the engine's gross pin: the platform's gross less the
  * extra guests billed inside it, less the lines sold through the platform (`inComplement = 0` today), less the tourist
  * tax the platform withheld or reverses, floored at 0 and rounded to the cent; `null` without a gross. `platformLines`
  * is a total or a list of line totals; `withheldTax` is a total or the list `[reversed, withheld]`. `commission` and
- * `payout` are `null` in mode `gross` (the commission is a stored figure, read by PLATFORM PAYMENT) and, in mode
- * `commission`, the display figures of a gross and a rate (nothing in the engine reads them).
+ * `payout` are always `null`: the engine never computes a commission from a rate (rule 70), it is a stored figure read
+ * by PLATFORM PAYMENT, whatever the `mode` setting says.
  * `grossFromNet(net, commissionPercent, opts)` is the display-only gross-up the platform grid prints.
  *
  * Pure: no DB, no clock, no settings.
@@ -38,7 +38,7 @@ const sumOf = (value) => (Array.isArray(value)
   : Number(value || 0));
 
 function resolvePlatformPrice({
-  mode = 'gross', gross = null, commissionRate = 0, extraGuestsInBrut = 0, platformLines = 0, withheldTax = 0,
+  gross = null, extraGuestsInBrut = 0, platformLines = 0, withheldTax = 0,
 } = {}) {
   const platformGrossPin = gross == null || gross === '' ? null : roundMoney(Number(gross));
   const extraGuestInBrutSurcharge = Number(extraGuestsInBrut || 0);
@@ -53,9 +53,7 @@ function resolvePlatformPrice({
         - reversedTouristTaxInBrut - withheldTouristTaxInBrut,
     ))
     : null;
-  if (mode !== 'commission' || platformGrossPin == null) return { accommodation: pinnedAccommodation, commission: null, payout: null };
-  const commission = roundMoney(platformGrossPin * Math.max(0, Number(commissionRate || 0)) / 100);
-  return { accommodation: pinnedAccommodation, commission, payout: roundMoney(platformGrossPin - commission) };
+  return { accommodation: pinnedAccommodation, commission: null, payout: null };
 }
 
 // specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('platformPrice', scope).
