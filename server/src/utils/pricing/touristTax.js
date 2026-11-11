@@ -148,6 +148,24 @@ function resolveAddedGuestsTouristTax({ adults, occupants, paidAdults, paidOccup
   return { paidTotal, added: isRoundingNoise ? 0 : added };
 }
 
+// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('touristTax', scope).
+// `cap` and `exemptions` have no value hard-coded today: no cap, no exemption.
+const TOURIST_TAX_MODES = ['per_day_per_person', 'percentage_accommodation', 'percentage_and_fixed'];
+const taxAmount = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
+const settingsSchema = [
+  { key: 'mode', type: 'string', default: 'per_day_per_person', scope: 'property', validate: (value) => (TOURIST_TAX_MODES.includes(value) ? null : 'Choix invalide.') },
+  { key: 'perPersonNight', type: 'number', default: 0, scope: 'property', validate: taxAmount },
+  { key: 'percentage', type: 'number', default: 0, scope: 'property', validate: taxAmount },
+  { key: 'departmentPercentage', type: 'number', default: 0, scope: 'property', validate: taxAmount },
+  { key: 'fixedAmount', type: 'number', default: 0, scope: 'property', validate: taxAmount },
+  { key: 'cap', type: 'number', default: null, scope: 'property', validate: (value) => (value === null || taxAmount(value) === null ? null : 'Un nombre positif ou nul est attendu.') },
+  { key: 'exemptions', type: 'array', default: [], scope: 'property', validate: (value) => (Array.isArray(value) ? null : 'Une liste est attendue.') },
+  {
+    key: 'collector', type: 'object', default: null, scope: 'property',
+    validate: (value) => (value === null || (value && typeof value.chargedByPlatform === 'boolean' && typeof value.remittedByOwner === 'boolean') ? null : 'Collecteur invalide.'),
+  },
+];
+
 module.exports = {
   computeTouristTaxBreakdown,
   NBSP,
@@ -155,4 +173,5 @@ module.exports = {
   frenchEuros,
   frenchPercent,
   resolveAddedGuestsTouristTax,
+  settingsSchema,
 };

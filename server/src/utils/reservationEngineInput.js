@@ -17,74 +17,25 @@
  * Pure read: it touches no state and decides nothing.
  */
 const { scheduleQuoteInputs, frozenTouristTaxInputs } = require('./reservationQuoteContext');
-
-// The two card-option columns, kept out of the SELECT on a schema that predates them.
-function cardColumns(db) {
-  const present = new Set(db.prepare('PRAGMA table_info(reservation_options)').all().map((c) => c.name));
-  return ['cardOccurrences', 'cardPersons', 'cardNights'].filter((name) => present.has(name));
-}
+const { create: createStayRepository } = require('../models/ports/stayRepository');
 
 function buildReservationEngineInput(db, reservation, { refreshTouristTax = false } = {}) {
-  // `cardOccurrences` + `cardPersons` ride with the rest (specs/unscheduled-card-option.md rule 10).
-  // Without them every planning-card line vanished from this replay — scheduled or not — because the
-  // engine rebuilds such a line from its moments. Measured on production before the fix: 635 € of
-  // option lines missing across 13 bookings, and a tourist-tax declaration 9,74 € above what the
-  // fiches themselves say, the taxable base growing as the services dropped out of it.
-  // Selected by name only when present, like every other reader of these two columns
-  // (`bookingLinesModel`): a minimal test schema predates them.
-  const optionColumns = [
-    'optionId', 'quantity',
-    ...cardColumns(db),
-    'COALESCE(inComplement, 0) as inComplement', 'COALESCE(offered, 0) as offered',
-  ];
-  const optionRows = db.prepare(`
-    SELECT ${optionColumns.join(', ')} FROM reservation_options WHERE reservationId = ?
-  `).all(reservation.id);
+  const stays = createStayRepository(db);
+  const optionRows = stays.optionRows(reservation.id);
 
-  const customOptionRows = db.prepare(`
-    SELECT id as customOptionId, description, amount, COALESCE(offered, 0) as offered,
-      COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id
-  `).all(reservation.id);
+  const customOptionRows = stays.customOptionRows(reservation.id);
 
-  // specs/plugins-phase-3c-hourly-resources.md rule 5 — the sessions ride along, so a replay keeps the
-  // hours placed (`scheduledHours`); the amount is the locked snapshot's either way.
-  const hasSessions = db.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions');
-  const resourceRows = db.prepare(`
-    SELECT resourceId, quantity, COALESCE(offered, 0) as offered, COALESCE(inComplement, 0) as inComplement,
-      ${hasSessions ? 'sessions' : 'NULL AS sessions'}
-    FROM reservation_resources WHERE reservationId = ?
-  `).all(reservation.id);
+  const resourceRows = stays.resourceRows(reservation.id);
   const parseSessions = (raw) => {
     try { const parsed = JSON.parse(raw || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
   };
 
   const offeredOptionIds = optionRows.filter((r) => Number(r.offered) === 1).map((r) => Number(r.optionId));
 
-  // Locked snapshots so the engine reproduces the persisted line prices and the tariff the stay was
-  // sold under (no drift from a refreshed unit price or tariff between save and payment).
-  const lockedOptionLines = db.prepare(`
-    SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-      COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_options WHERE reservationId = ?
-  `).all(reservation.id);
-  const lockedResourceLines = db.prepare(`
-    SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-      COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_resources WHERE reservationId = ?
-  `).all(reservation.id);
-  const lockedNightlyBreakdown = db.prepare(`
-    SELECT date, seasonLabel, pricingMode, price
-    FROM reservation_nights WHERE reservationId = ? ORDER BY date
-  `).all(reservation.id);
-  // A row listed with a handful of columns does not carry the snapshot: read it, as the save does.
-  let lockedTariff = null;
-  try {
-    const raw = reservation.tariffSnapshot !== undefined
-      ? reservation.tariffSnapshot
-      : (db.prepare('SELECT tariffSnapshot FROM reservations WHERE id = ?').get(reservation.id) || {}).tariffSnapshot;
-    lockedTariff = raw ? JSON.parse(raw) : null;
-  } catch { lockedTariff = null; }
+  const lockedOptionLines = stays.lockedOptionLines(reservation.id);
+  const lockedResourceLines = stays.lockedResourceLines(reservation.id);
+  const lockedNightlyBreakdown = stays.lockedNightlyBreakdown(reservation.id);
+  const lockedTariff = stays.lockedTariff(reservation);
   const depositDisabled = Number(reservation.depositDisabled || 0) === 1 ? 1 : 0;
 
   return {

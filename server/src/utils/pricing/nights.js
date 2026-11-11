@@ -484,6 +484,14 @@ function hasUnpricedNights(quote) {
   return Array.isArray(quote?.unpricedNights) && quote.unpricedNights.length > 0;
 }
 
+// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('nights', scope).
+const settingsSchema = [
+  {
+    key: 'tariff', type: 'object', default: { rules: [] }, scope: 'property',
+    validate: (value) => (value && typeof value === 'object' && Array.isArray(value.rules) ? null : 'Tarif invalide.'),
+  },
+];
+
 module.exports = {
   parseJsonArray,
   parseIsoDateParts,
@@ -509,4 +517,5 @@ module.exports = {
   effectiveMinNightsForDate,
   calculateBaseStayPrice,
   hasUnpricedNights,
+  settingsSchema,
 };

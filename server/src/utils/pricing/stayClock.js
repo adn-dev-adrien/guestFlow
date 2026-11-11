@@ -74,4 +74,10 @@ function phaseOf({ arrivalDate, departureDate, checkInTime, checkOutTime } = {},
   };
 }
 
-module.exports = { phaseOf, TIME_ZONE };
+// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('stayClock', scope).
+const settingsSchema = [
+  { key: 'defaultCheckIn', type: 'string', default: '15:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },
+  { key: 'defaultCheckOut', type: 'string', default: '10:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },
+];
+
+module.exports = { phaseOf, TIME_ZONE, settingsSchema };

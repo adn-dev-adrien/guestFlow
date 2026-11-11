@@ -23,6 +23,7 @@ const { computePaymentStatus } = require('../utils/paymentStatus');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 const { generateReservationNumber } = require('../utils/reservationNumber');
 const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
+const { create: createCatalogueProvider } = require('./ports/catalogueProvider');
 const { isNamedChannel } = require('../utils/saleChannel');
 const { isCleaningOption } = require('../utils/cleaningOption');
 const { buildCheckoutComplement, END_OF_STAY_CLEANING_LABEL } = require('../utils/checkoutComplement');
@@ -349,6 +350,7 @@ function retireSettledLinksOf(database) {
 }
 
 function createReservationsModel(database) {
+  const catalogue = createCatalogueProvider(database);
   // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
   registerDirectChannelSql(database);
   // Per-reservation breakfast time (specs/breakfast-time.md). Persisted via a dedicated guarded
@@ -2323,11 +2325,7 @@ function createReservationsModel(database) {
       const resolve = (autoOptionType) => {
         const opt = database.prepare('SELECT id, price, priceType FROM options WHERE autoOptionType = ? LIMIT 1').get(autoOptionType);
         if (!opt) return { ...empty, persons };
-        let override;
-        try {
-          override = database.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
-            .get(opt.id, Number(res.propertyId));
-        } catch { override = undefined; }
+        const override = catalogue.optionPriceOverride(opt.id, res.propertyId);
         const unitPrice = Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
         const priceType = opt.priceType || 'per_stay';
         const billedUnits = getTypeMultiplier(priceType, persons, nights);
@@ -2409,11 +2407,7 @@ function createReservationsModel(database) {
     getCleaningPriceForProperty(propertyId) {
       const opt = database.prepare("SELECT id, price FROM options WHERE autoOptionType = 'cleaning' LIMIT 1").get();
       if (!opt) return null;
-      let override;
-      try {
-        override = database.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
-          .get(opt.id, Number(propertyId));
-      } catch { override = undefined; }
+      const override = catalogue.optionPriceOverride(opt.id, propertyId);
       return Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
     },
 
@@ -2440,11 +2434,7 @@ function createReservationsModel(database) {
       if (alreadyTaken) return empty;
       const opt = database.prepare("SELECT id, price, priceType FROM options WHERE autoOptionType = 'bathroom_linen' LIMIT 1").get();
       if (!opt) return empty;
-      let override;
-      try {
-        override = database.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
-          .get(opt.id, Number(reservation.propertyId));
-      } catch { override = undefined; }
+      const override = catalogue.optionPriceOverride(opt.id, reservation.propertyId);
       const unitPrice = Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
       const priceType = opt.priceType || 'per_stay';
       const persons = Number(reservation.adults || 0) + Number(reservation.teens || 0) + Number(reservation.children || 0);
@@ -2500,11 +2490,7 @@ function createReservationsModel(database) {
         if (!optionId || seen.has(optionId) || fiche.has(optionId) || !sellable.has(optionId)) continue;
         const option = readOption.get(optionId);
         if (!option) continue;
-        let override;
-        try {
-          override = database.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
-            .get(optionId, Number(res.propertyId));
-        } catch { override = undefined; }
+        const override = catalogue.optionPriceOverride(optionId, res.propertyId);
         const line = priceOptionSale(option, {
           unitPrice: override ? Number(override.price) : Number(option.price || 0),
           persons,

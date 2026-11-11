@@ -99,8 +99,21 @@ function computeExtraGuestSurcharge({
   };
 }
 
+// specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('extraGuests', scope).
+const nonNegative = (value) => (Number.isFinite(Number(value)) && Number(value) >= 0 ? null : 'Un nombre positif ou nul est attendu.');
+const settingsSchema = [
+  { key: 'includedGuests', type: 'number', default: 0, scope: 'property', validate: nonNegative },
+  { key: 'extraGuestPrice', type: 'number', default: 0, scope: 'property', validate: nonNegative },
+  {
+    key: 'extraGuestPriceUnit', type: 'string', default: 'per_stay', scope: 'property',
+    validate: (value) => (['per_stay', 'per_night'].includes(value) ? null : 'Choix invalide.'),
+  },
+  { key: 'tiers', type: 'array', default: [], scope: 'property', validate: (value) => (Array.isArray(value) ? null : 'Une liste est attendue.') },
+];
+
 module.exports = {
   splitExtraGuestCount,
   extraGuestNightSeason,
   computeExtraGuestSurcharge,
+  settingsSchema,
 };
