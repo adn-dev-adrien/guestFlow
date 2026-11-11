@@ -380,6 +380,11 @@
     "removedBy": "PR C"
   },
   {
+    "file": "utils/pricing/storedLines.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
     "file": "utils/quoteHeadline.js",
     "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
     "removedBy": "PR C"

@@ -1,0 +1,1 @@
+- **Pricing stored lines** (spec `pricing-components.md` rules 2, 72): the four readers of the stored extra-line format (`extraLineKey`, `parseNotes`, `parseDetail`, `settledByKey`) move to `utils/pricing/storedLines.js`; settlement re-exports them and the refunds read them there instead of through the settlement shim. No price moves.

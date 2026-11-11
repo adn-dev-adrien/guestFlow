@@ -8,7 +8,7 @@
  */
 
 const { readComplementPaidSplit } = require('../../complementPaidSplit');
-const { parseDetail, parseNotes, settledByKey } = require('../../midStayExtras');
+const { parseDetail, parseNotes, settledByKey } = require('../storedLines');
 const { parseRemovedLineContribs } = require('../../removedLineContribs');
 const { ACCOMMODATION_KEY, PLAN_BUCKET_LINES, STORED_SPLIT_ROUNDING_TTC, TOURIST_TAX_KEY, billedLineKey, bucketOfKey } = require('./register');
 

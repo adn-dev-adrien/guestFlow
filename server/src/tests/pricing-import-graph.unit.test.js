@@ -18,6 +18,7 @@ const ALLOWED_VIOLATIONS = [];
 // Payments sit at the far end; EXTRAS (articles/) sit between the stay units and the totals.
 const RANK = {
   money: 0,
+  storedLines: 0,
   nights: 1,
   extraGuests: 2,
   touristTax: 2,
@@ -84,8 +85,8 @@ const violationsOf = (file) => {
     if (/(^|\/)models(\/|$)/.test(target) || /(^|\/)database$/.test(target)) found.push(`imports ${spec}`);
     else if (!target.startsWith('..')) {
       if (target.startsWith('refunds/') && !name.startsWith('refunds/')) found.push(`imports ${spec}: no pricing unit imports REFUNDS (rule 72)`);
-      if (name.startsWith('refunds/') && !target.startsWith('refunds/') && !['money', 'platformPayment'].includes(target) && !target.startsWith('vat')) {
-        found.push(`imports ${spec}: REFUNDS may import money, vat and platformPayment only (rule 72)`);
+      if (name.startsWith('refunds/') && !target.startsWith('refunds/') && !['money', 'platformPayment', 'storedLines'].includes(target) && !target.startsWith('vat')) {
+        found.push(`imports ${spec}: REFUNDS may import money, vat, platformPayment and the stored-line parsers only (rule 72)`);
       }
       if (!(target in RANK) && !(name in RANK)) continue;
       if (!(target in RANK)) found.push(`imports ${spec}, a unit without a declared rank`);

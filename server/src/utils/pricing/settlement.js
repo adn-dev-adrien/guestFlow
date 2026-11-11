@@ -20,6 +20,7 @@
 const { parseGroup } = require('../arrivalPaymentGroup');
 const { ADDED_GUESTS_TAX_LABEL } = require('../platformPaidGuests');
 const { roundMoney } = require('./money');
+const { extraLineKey, parseNotes, settledByKey, parseDetail } = require('./storedLines');
 
 /**
  * Prestations vendues EN COURS DE SÉJOUR — specs/mid-stay-extras-to-end-of-stay-complement.md.
@@ -52,24 +53,6 @@ const MID_STAY_SOURCE = 'midStayExtra';
 // complement it could not join.
 const ARRIVAL_COMPLEMENT_EXCESS_KEY = 'arrivalComplementExcess';
 const ARRIVAL_COMPLEMENT_EXCESS_LABEL = "Ajouté après l'encaissement du complément d'arrivée";
-
-/**
- * Stable key of an extra line, shared by the baseline and the current state.
- * Custom lines have no stable id (they are deleted + re-inserted on every save), so they are keyed
- * by their normalised label — two custom lines sharing a label are aggregated on the same key, on
- * both sides of the comparison.
- * @returns {string|null} null when the line is not a billable extra.
- */
-function extraLineKey(line) {
-  if (!line) return null;
-  if (line.isCustom || line.customKey != null || line.customOptionId != null) {
-    const label = String(line.title || line.description || '').trim().toLowerCase().replace(/\s+/g, ' ');
-    return label ? `custom:${label}` : null;
-  }
-  if (line.optionId != null) return `opt:${Number(line.optionId)}`;
-  if (line.resourceId != null) return `res:${Number(line.resourceId)}`;
-  return null;
-}
 
 function lineLabel(line) {
   return String(line.title || line.name || line.description || 'Prestation').trim();
@@ -195,34 +178,6 @@ function buildMidStayLine({ label, unitPrice, amount, key }) {
   };
 }
 
-/**
- * « Notes en séjour » register (specs/mid-stay-notes.md §3.1) — the history of what was actually
- * COLLECTED during the stay. A note exists only once settled; a sale left for check-out simply stays
- * in the end-of-stay remainder.
- */
-function parseNotes(raw) {
-  if (Array.isArray(raw)) return raw;
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch { return []; }
-}
-
-// Σ collected per line key, across every note.
-function settledByKey(notesRaw) {
-  const byKey = {};
-  for (const note of parseNotes(notesRaw)) {
-    for (const line of ((note && note.lines) || [])) {
-      const key = line && (line.key || extraLineKey(line));
-      const amount = round2(line && line.amount);
-      if (!key || amount <= 0) continue;
-      byKey[key] = round2((byKey[key] || 0) + amount);
-    }
-  }
-  return byKey;
-}
-
 function notesTotal(notesRaw) {
   return round2(parseNotes(notesRaw).reduce((s, n) => s + (Number(n && n.total) || 0), 0));
 }
@@ -281,15 +236,6 @@ function resolveMidStaySplit(lines, { baseline, settled, storedLines, notes } = 
   return settled
     ? splitFromStoredLines(storedLines, lines, notes)
     : splitMidStayExtras(lines, baseline, notes);
-}
-
-function parseDetail(raw) {
-  if (Array.isArray(raw)) return raw;
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch { return []; }
 }
 
 // Sum of the end-of-stay detail lines the departure SAS owns (ménage, linge manquant, extincteur,

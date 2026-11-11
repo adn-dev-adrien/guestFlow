@@ -10,7 +10,7 @@
 
 const { comptaCollected } = require('../../reservationSettlement');
 const { cashDepositKeptOf } = require('./cancellation');
-const { parseNotes } = require('../../midStayExtras');
+const { parseNotes } = require('../storedLines');
 const { dateWindowMessage, isRealIsoDay } = require('../../stayDates');
 const { INDEMNITY_BUCKET, OFF_BOOKS_METHOD, REFUND_BUCKETS, SELECTABLE_REFUND_METHODS, isOffBooks, isRequalification, isRetainedDeposit, madeAfterCancellation, nettedByCancellation } = require('./register');
 
