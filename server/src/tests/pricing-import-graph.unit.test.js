@@ -58,6 +58,10 @@ const violationsOf = (file) => {
     const target = path.relative(ROOT, path.resolve(path.dirname(file), spec)).replace(/\.js$/, '');
     if (/(^|\/)models(\/|$)/.test(target) || /(^|\/)database$/.test(target)) found.push(`imports ${spec}`);
     else if (!target.startsWith('..')) {
+      if (target.startsWith('refunds/') && !name.startsWith('refunds/')) found.push(`imports ${spec}: no pricing unit imports REFUNDS (rule 72)`);
+      if (name.startsWith('refunds/') && !target.startsWith('refunds/') && !['money', 'platformPayment'].includes(target) && !target.startsWith('vat')) {
+        found.push(`imports ${spec}: REFUNDS may import money, vat and platformPayment only (rule 72)`);
+      }
       if (!(target in RANK) && !(name in RANK)) continue;
       if (!(target in RANK)) found.push(`imports ${spec}, a unit without a declared rank`);
       else if (name in RANK && RANK[target] >= RANK[name]) found.push(`imports ${spec}, a unit that is not upstream of it`);
@@ -70,7 +74,7 @@ const violationsOf = (file) => {
 };
 
 test('rule 2 — every unit file declares its place in the dependency order', () => {
-  const unranked = unitFiles().map(unitName).filter((name) => !(name in RANK) && !name.startsWith('articles/') && !name.startsWith('vat/'));
+  const unranked = unitFiles().map(unitName).filter((name) => !(name in RANK) && !name.startsWith('articles/') && !name.startsWith('vat/') && !name.startsWith('refunds/'));
   assert.deepEqual(unranked, [], 'declare the rank of a new unit in this test before adding it');
 });
 
