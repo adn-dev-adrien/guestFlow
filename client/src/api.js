@@ -822,6 +822,7 @@ const api = {
   acknowledgeRepairedReservationNumber: (id) => request(`/dashboard/repaired-reservation-numbers/${id}/acknowledge`, { method: 'POST' }),
   // Stays whose dates another stay took, told or not, until « Vu » (specs/payment-link-lifecycle.md rule 43).
   getDatesTakenAlerts: () => request('/dashboard/dates-taken'),
+  getPaymentDeactivations: () => request('/dashboard/payment-deactivations'),
   acknowledgeDatesTaken: (id) => request(`/dashboard/dates-taken/${id}/acknowledge`, { method: 'POST' }),
 
   // Échéances de paiement (specs/payment-schedule-and-cancellation.md §3.4 / §3.5). Rows arrive

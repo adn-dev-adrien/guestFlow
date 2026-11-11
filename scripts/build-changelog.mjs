@@ -36,9 +36,11 @@ const CATEGORIES = [
   ['removed', 'Removed'],
   ['migration', 'Migration'],
 ];
-// `detail--<slug>.md` is not a category: its text closes the folded section, after every category, with no
-// heading of its own — the line pointing at the archive of a release too long to publish whole.
+// `detail--<slug>.md` is not a category: its text closes the folded section, after every category, under a `### Détail`
+// heading of its own — the line pointing at the archive of a release too long to publish whole. It has a heading and a
+// bullet because the parser of the release that installs (3.21.0's) glues any other line onto the bullet above it.
 const FOOTER_KEY = 'detail';
+const FOOTER_HEADING = 'Détail';
 const HEADING_BY_KEY = Object.fromEntries(CATEGORIES.map(([k, h]) => [k, h]));
 const KEY_BY_HEADING = Object.fromEntries(CATEGORIES.map(([k, h]) => [h.toLowerCase(), k]));
 
@@ -81,7 +83,7 @@ export function assemble(byKey) {
     out.push('');
   }
   const footer = (byKey[FOOTER_KEY] || []).filter((b) => b.trim());
-  if (footer.length) out.push(footer.join('\n\n'), '');
+  if (footer.length) out.push(`### ${FOOTER_HEADING}`, footer.map((text) => (/^\s*[-*]\s/.test(text) ? text : `- ${text}`)).join('\n'), '');
   return out.join('\n').trimEnd();
 }
 

@@ -452,9 +452,13 @@ function buildModel(database) {
   // became), whose known validity is over, or whose pre-arrival link lapses at 00:00 Paris on the arrival day (rule 9). It needs a provider id to be deactivated. `stayMissing` tells the orphans.
   function listOwedDeactivations({ now = new Date() } = {}) {
     const nowMs = now.getTime();
+    const hasNumber = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'reservationNumber');
+    const hasWithdrawnAt = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'withdrawnAt');
     return database.prepare(`
-      SELECT l.id, l.reservationId, l.type, l.provider, l.amountCents, l.status, l.cancelReason, l.remoteCancelPendingAt, l.expiresAt,
-             r.id IS NULL AS stayMissing,
+      SELECT l.id, l.reservationId, l.type, l.provider, l.providerLinkId, l.amountCents, l.status, l.cancelReason,
+             l.remoteCancelPendingAt, l.expiresAt, l.createdAt, ${hasWithdrawnAt ? 'l.withdrawnAt' : 'NULL'} AS withdrawnAt,
+             ${hasNumber ? 'r.reservationNumber' : 'NULL'} AS reservationNumber,
+             r.id IS NULL AS stayMissing, r.kind AS stayKind,
              (r.kind IN ('cancelled', 'superseded') OR c.kind IN ('cancelled', 'superseded')) AS stayEnded
         FROM payment_links l
         LEFT JOIN reservations r ON r.id = l.reservationId
@@ -464,9 +468,19 @@ function buildModel(database) {
     `).all().filter((row) => {
       if (row.status !== 'open') return Boolean(row.remoteCancelPendingAt);
       const expiryMs = knownExpiryMs(row.expiresAt);
-      return Boolean(row.stayMissing) || Boolean(row.stayEnded) || (expiryMs != null && expiryMs <= nowMs)
-        || require('../utils/paymentLinkLifecycle').lapsesAtArrival(database, row, now);
-    }).map(({ expiresAt, stayEnded, ...row }) => ({ ...row, stayMissing: Boolean(row.stayMissing) })); // eslint-disable-line no-unused-vars
+      row.why = row.stayMissing ? 'orphan' : row.stayEnded ? (row.stayKind === 'superseded' ? 'superseded' : 'stay-cancelled')
+        : (expiryMs != null && expiryMs <= nowMs) ? 'validity' : null;
+      if (row.why) return true;
+      row.why = 'stay-started';
+      return require('../utils/paymentLinkLifecycle').lapsesAtArrival(database, row, now);
+    }).map(({ expiresAt, stayEnded, stayKind, why, ...row }) => ({ // eslint-disable-line no-unused-vars
+      ...row,
+      stayMissing: Boolean(row.stayMissing),
+      // A stay cancellation writes no reason: it is read off the stay, and only when the stay really is cancelled or set aside.
+      reason: row.status === 'open' ? why
+        : (row.cancelReason || (row.stayMissing ? 'orphan' : (stayEnded ? (stayKind === 'superseded' ? 'superseded' : 'stay-cancelled') : null))),
+      since: row.status === 'open' ? (why === 'validity' ? expiresAt : null) : (row.withdrawnAt || row.remoteCancelPendingAt),
+    }));
   }
 
   // specs/payment-link-lifecycle.md rule 18 — a lapsed link owes its deactivation like a withdrawn one.

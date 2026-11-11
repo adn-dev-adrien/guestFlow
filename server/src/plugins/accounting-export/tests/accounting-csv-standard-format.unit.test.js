@@ -146,15 +146,15 @@ test('uppercased libellé regardless of input casing — matches the accountant\
 test('platform info columns appear on the debit row only — accountant ignores them, Adrien sees them', () => {
   const rows = buildRows([makeEntry({
     platform: 'airbnb',
-    clientGrossAmount: 720, // commission = 720 - 623 = 97 (both integers → bare)
+    clientGrossAmount: 720, // the platform's gross, shown as is: no commission is invented from it
   })]);
   const csv = serializeCsv(CSV_HEADERS, rows, { bom: false });
   const lines = csv.split('\r\n').filter(Boolean);
-  // Debit row carries platform info — integers render bare (`720`, `97`) per the standard format.
+  // Debit row carries platform info — integers render bare (`720`) per the standard format.
   const debitCols = lines[1].split(';');
   assert.equal(debitCols[9], 'airbnb');
   assert.equal(debitCols[10], '720');
-  assert.equal(debitCols[11], '97');
+  assert.equal(debitCols[11], '', 'a commission is only ever the entry\'s own commission line');
   // Credit rows have empty platform info.
   for (let i = 2; i < lines.length; i++) {
     const cols = lines[i].split(';');

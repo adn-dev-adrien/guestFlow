@@ -261,9 +261,7 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
     ? {
         plateforme: entry.platform,
         prixPayéClient: entry.clientGrossAmount == null ? '' : Number(entry.clientGrossAmount),
-        commission: commission ? round2(commission.ttc)
-          : (entry.clientGrossAmount == null ? ''
-              : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice)))),
+        commission: commission ? round2(commission.ttc) : '',
       }
     : { plateforme: '', prixPayéClient: '', commission: '' };
 
@@ -608,9 +606,7 @@ function entryToStructured(entry, plan) {
         // Net (versement) banked by the owner = revenu brut − commission, surfaced so the journal
         // card can show what actually hit the bank (2026-06-22).
         net: round2(Number(entry.encaissementNetTtc)),
-        commission: entry.commission ? round2(entry.commission.ttc)
-          : (entry.clientGrossAmount == null ? null
-              : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice)))),
+        commission: entry.commission ? round2(entry.commission.ttc) : null,
         commissionAccount: entry.commission ? entry.commission.account : null,
         commissionHt: entry.commission ? entry.commission.ht : null,
         commissionVat: entry.commission ? entry.commission.vat : null,

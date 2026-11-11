@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -155,6 +155,10 @@
       "Toujours pour GuestFlow 4 (SDK 2.25)."
     ],
     "1.2.4": [
+      "Comptabilité › Plateformes : « Brut » est le brut de la plateforme enregistré sur la fiche (à défaut, le prix du séjour sans les compléments payés sur place) ; aucune écriture ne change, la colonne « Prix payé client » du CSV suit ce brut et la colonne « Commission » reste vide sur une écriture sans commission (elle affichait 0).",
+      "Toujours pour GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.2.5": [
       "La TVA d’un compartiment est calculée par le composant TVA du cœur ; aucune écriture ne change.",
       "Demande le SDK 2.27 de GuestFlow."
     ]

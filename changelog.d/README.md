@@ -52,7 +52,8 @@ fragments, condense them instead of publishing them whole:
 2. replace them with a few fragments per category, one bullet group per domain, each bullet stating the
    operator-visible change, every `migration` item kept explicit;
 3. add `changelog.d/detail--<slug>.md`: a fragment whose text closes the section, after every category and
-   with no heading of its own. It carries the line pointing to the archive.
+   under a `### Détail` heading of its own, as one bullet. It carries the line pointing to the archive. It is a
+   heading and a bullet because 3.21.0's update dialog parser glues any other line onto the bullet above it.
 
 4.0.0 is the example (`docs/changelog/4.0.0-detail.md`; specs/self-update-and-releases.md rule 56).
 
