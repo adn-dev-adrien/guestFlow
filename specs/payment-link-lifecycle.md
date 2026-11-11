@@ -1221,6 +1221,18 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     the `online-payment` plugin: with the plugin off it leads to « Plugin inactif », accepted because uninstalling or
     deactivating the plugin is already refused while links are owed (plugins-phase-3a-online-payment.md rule 8, the
     pending-deactivation guard of `pluginsModel`), so the state needs the plugin forced off outside the app.
+    **The card lists the links (2026-11-11, second shadow trial)** — « À désactiver depuis Qonto » gave no way to act by hand.
+    `GET /api/dashboard/payment-deactivations` (admin only, the same source as the attention subject) answers one shaped row
+    per link: `kindLabel` (Acompte, Solde, Paiement total, Échéance, Complément), `amountLabel`, `reference` (the provider's
+    link id, what the operator searches for at Qonto), `stayLabel` (« Séjour {n°} », « Séjour n° {id} » when the stay is gone) with
+    `stayUrl` when the stay exists, `reasonLabel` (Séjour supprimé, Séjour annulé, Doublon écarté, Dates prises, Retiré à
+    la main, Perçu autrement, Montant modifié, Validité dépassée, Séjour commencé, Remboursé) and `sinceLabel` (« lien retiré
+    le jj/mm/aaaa », or « fin de validité le jj/mm/aaaa » for a lapsed link or an open one past its validity: never the date the
+    stay went away). `PaymentDeactivationsAlert` draws
+    them under the summary (no guest name, wraps on a phone). **No manual acknowledgement** (« Marquer désactivé chez
+    Qonto »): nothing in this spec lets an operator clear the marker by hand — it is cleared by the provider's answer
+    alone (rule 18) — so the list is read-only. Tests: `payment-deactivations-owed.unit.test.js`,
+    `PaymentDeactivationsAlert.list.test.jsx`.
     **Known gap, accepted:** an `open` link withdrawn only because another stay holds its nights (rule 10, `withdrawLinksOverlapping`)
     is detected by the lifecycle pass alone, which runs while the provider is connected; with the provider disconnected the
     operator sees it in « À traiter » at most about 36 hours late (when its validity ends). Test:

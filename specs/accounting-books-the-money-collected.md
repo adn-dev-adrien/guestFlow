@@ -184,6 +184,28 @@ options and resources appear once, at their real amount, only when they were rea
     held a stored gross keeps none to show (`platformsPreview` renders « — »), and the on-site entries (end-of-stay, mid-stay note, refund, compensation) carry no
     gross by design: nothing the platform collected. accounting-export 1.2.3. Test:
     `accounting-platform-gross-fallback.unit.test.js`.
+    **Reading of 2026-11-11, second shadow trial (Adrien's decision):** « Brut » shows the PLATFORM's gross — what the platform
+    billed the guest — as recorded on the fiche: `platformGrossAmount`, else the older `clientGrossAmount`. The recorded figure
+    is shown first, for any channel, an own channel (`direct`, or a platform counted as a direct sale) included. It is blank
+    only when nothing is recorded AND the channel is in direct mode (read through `isDirectChannel`, never the name). A
+    channel that is not in direct mode with nothing recorded falls back to the stay price WITHOUT the complements paid on
+    site (`finalPrice − complementAmount`, the tourist tax a complement carries, `touristTaxInComplement = 1`, not being part
+    of that price: 22211 = 171,14). Every path of `buildEntry` returns it through `platformBrut(row)`: the books keep reading
+    `effectiveGross`, so no debit or credit moves (on a scrubbed 3.21.0 copy, 2025-01 to 2027-12, the sales CSV keeps every
+    debit and credit; its « Prix payé client » column changes on 41 lines and its « Commission » column on 8, 44 lines in all). « Commission » of the CSV and of the journal
+    card is the entry's own commission line and nothing else: the former fallback `gross − price` is removed, it invented a
+    commission from the platform gross (the complement entry of stay 9: 0 became 16,19). **Resolved 2026-11-11 (Adrien): deferred to the pricing refonte (4.1.0).** 4.0.0 keeps choosing whether to show the platform
+    columns (« Plateforme », « Prix payé client », « Commission ») of the CSV and the journal card by the internal `direct`
+    channel key (`entry.platform !== 'direct'`). On the production data this is correct: Lodgify counts as a direct sale and still
+    shows its real commission. Reading the platform mode (`isDirectChannel`) instead would hide those columns on Lodgify (its
+    rows carry a real commission, and the byte-for-byte golden `vat-regime-golden` shows them). The refonte's accounting output
+    (the `csvJournal` adapter, specs/pricing-components.md) replaces this rule: the columns are shown as soon as an entry
+    carries a commission or a recorded platform gross, whatever the channel. On the copy the other change of the sales
+    CSV in 4.0.0 is « Commission » reading empty instead of 0 on 8 lines that had no commission line (the golden's `lodgify` row
+    follows). Where 3.21.0 showed a stored figure it comes back (5 = 748, 6 = 793,65, 22209 = 315,
+    11 = 1 983,92, 22275 = 720,82, which the previous reading showed as 865,82 with its on-site complements); where 3.21.0
+    showed the computed price, the recorded gross replaces it (#13 943,20 instead of 907,20).
+    accounting-export 1.2.4. Test: `accounting-platform-gross-fallback.unit.test.js`.
 
 ### Money already collected never moves (2026-10-27)
 

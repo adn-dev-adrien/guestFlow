@@ -181,12 +181,12 @@ test('rounding residue: Σ credits is nudged to match debit exactly to the cent'
 test('platform info columns are filled only on the debit row, for non-direct only', () => {
   const platformEntry = makeEntry({
     platform: 'airbnb',
-    clientGrossAmount: 240, // commission = 240 - 200 = 40
+    clientGrossAmount: 240, // the platform's gross: no commission without a commission line
   });
   const rows = entryToRows(platformEntry);
   assert.equal(rows[0][COL.platform], 'airbnb');
   assert.equal(rows[0][COL.gross], 240);
-  assert.equal(rows[0][COL.commission], 40);
+  assert.equal(rows[0][COL.commission], '');
   // Credit rows have empty platform info.
   for (let i = 1; i < rows.length; i++) {
     assert.equal(rows[i][COL.platform], '');
@@ -312,7 +312,13 @@ test('entryToStructured: platform booking → platform name + gross + commission
   const out = entryToStructured(makeEntry({ platform: 'airbnb', clientGrossAmount: 240 }));
   assert.equal(out.platform.platform, 'airbnb');
   assert.equal(out.platform.gross, 240);
-  assert.equal(out.platform.commission, 40);
+  assert.equal(out.platform.commission, null, 'no commission line, no commission');
+});
+
+test('« Commission » is the entry\'s own commission line and nothing else: a gross above the price invents none', () => {
+  const noCommission = makeEntry({ platform: 'airbnb', finalPrice: 200, clientGrossAmount: 216.19, commission: null });
+  assert.equal(entryToRows(noCommission)[0][COL.commission], '');
+  assert.equal(entryToStructured(noCommission).platform.commission, null);
 });
 
 test('buildStructuredEntries: mirrors buildRows entry-for-entry', () => {

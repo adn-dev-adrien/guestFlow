@@ -78,9 +78,41 @@ test('rule 56 — the release workflow extracts the body with the awk the guard 
   assert.match(workflow, /node scripts\/build-changelog\.mjs --check-digest/);
 });
 
-test('rule 56 — a `detail--` fragment closes the folded section, after every category and with no heading', async () => {
+test('rule 56 — a `detail--` fragment closes the folded section, after every category, under a `### Détail` heading', async () => {
   const { assemble } = await load();
   const out = assemble({ added: ['- A.'], migration: ['- M.'], detail: ['Full detail: `docs/changelog/9.9.9-detail.md`.'] });
-  assert.equal(out, '### Added\n- A.\n\n### Migration\n- M.\n\nFull detail: `docs/changelog/9.9.9-detail.md`.');
+  assert.equal(out, '### Added\n- A.\n\n### Migration\n- M.\n\n### Détail\n- Full detail: `docs/changelog/9.9.9-detail.md`.');
   assert.equal(assemble({ fixed: ['- F.'] }), '### Fixed\n- F.');
+});
+
+test('rule 56 — the parser of 3.21.0 (which installs 4.0.0) and the current one render the footer as a section of its own', async () => {
+  const { assemble } = await load();
+  const folded = [
+    '### Summary', '- Un résumé.', '',
+    assemble({ migration: ['- Une migration\n  sur deux lignes.', '- La dernière.'], detail: ['Full detail: `docs/changelog/9.9.9-detail.md`.'] }),
+  ].join('\n');
+  const old = require('./fixtures/releaseClient.v3.21.0.js').parseReleaseNotes(folded);
+  const current = require('../utils/releaseClient').parseReleaseNotes(folded);
+  for (const sections of [old, current]) {
+    assert.deepEqual(sections.map((s) => s.title), ['En bref', 'Migration', 'Détail']);
+    assert.deepEqual(sections[1].items, ['Une migration sur deux lignes.', 'La dernière.']);
+    assert.deepEqual(sections[2].items, ['Full detail: docs/changelog/9.9.9-detail.md.']);
+  }
+});
+
+test('rule 56 — the real folded section of the pending changelog is accepted by the digest check and parsed without gluing', async () => {
+  const { assemble, checkDigest } = await load();
+  const dir = path.join(ROOT, 'changelog.d');
+  const byKey = {};
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.md') && n.toLowerCase() !== 'readme.md').sort()) {
+    (byKey[f.split('--')[0]] ||= []).push(fs.readFileSync(path.join(dir, f), 'utf8').trim());
+  }
+  const section = `### Summary\n- Un résumé.\n\n${assemble(byKey)}`;
+  assert.equal(checkDigest(section).ok, true);
+  const sections = require('./fixtures/releaseClient.v3.21.0.js').parseReleaseNotes(section);
+  if (byKey.detail) {
+    const last = sections[sections.length - 1];
+    assert.equal(last.title, 'Détail');
+    assert.equal(last.items.length, byKey.detail.length, 'the footer stands alone');
+  }
 });
