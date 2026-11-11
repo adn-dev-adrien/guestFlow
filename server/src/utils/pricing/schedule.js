@@ -26,7 +26,7 @@ const { unreceivedOf } = require('../splitReceived');
 const { isDirectChannel } = require('../platformNameFormat');
 const {
   settledByKey, buildMidStayLine, ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
-} = require('../midStayExtras');
+} = require('./settlement');
 
 function planSchedule({
   totals: {

@@ -51,13 +51,12 @@ function withDisplayCount(line, nights) {
   const mornings = line.quantityUnit === 'morning' && line.servedPersons !== undefined;
   return { ...line, displayCount: mornings ? nights : (line.servedPersons ?? line.servedNights ?? line.quantity) };
 }
-const { resolveMidStaySplit, extraLineKey } = require('./midStayExtras');
-const { splitComplementBuckets } = require('./complementBuckets');
+const { resolveMidStaySplit, readInComplement, planSettlement } = require('./pricing/settlement');
 const { checkChangeover } = require('./changeover');
 const { isDirectChannel } = require('./platformNameFormat');
 const { saleChannel } = require('./saleChannel');
 const { quoteHeadline, summaryCascade } = require('./quoteHeadline');
-const { ADDED_GUESTS_TAX_LABEL, isBrutPinned } = require('./platformPaidGuests');
+const { isBrutPinned } = require('./platformPaidGuests');
 const { portionCap, clampPortions } = require('./mealPortions');
 const { computeExtraGuestSurcharge, splitExtraGuestCount, extraGuestNightSeason } = require('./pricing/extraGuests');
 const { getApplicableOptions, getApplicableResources } = require('../models/ports/catalogueProvider');
@@ -1326,20 +1325,9 @@ function calculateReservationQuote({
     && touristTaxTotal > 0
   );
 
-  // Per-item routing (spec force-item-to-complement.md): forced lines + a forced-to-complément
-  // tax don't participate in the pre-arrival deposit/balance split — they live exclusively in
-  // the Complément bucket. Forced lines that are also `offered` contribute 0 in both buckets.
-  const forcedItemsTotal = roundMoney(
-    [...finalOptionLines, ...resourceLines].reduce(
-      (sum, line) => sum + (Number(line.inComplement || 0) ? Number(line.totalPrice || 0) : 0),
-      0,
-    )
-    + extraGuestComplementSurcharge,
-  );
-  // specs/mid-stay-extras-to-end-of-stay-complement.md §3.3 — the mid-stay part leaves BOTH the
-  // pre-arrival split (its unforced share) and the arrival complement (its forced share). Everything
-  // below reduces to the former formulas when nothing was sold mid-stay (`midStay* = 0`).
-  const complementForcedItemsTotal = roundMoney(Math.max(0, forcedItemsTotal - midStayForced));
+  const { forcedItemsTotal, complementForcedItemsTotal } = readInComplement({
+    finalOptionLines, resourceLines, extraGuestComplementSurcharge, midStayForced,
+  });
   const {
     accommodationPreArrival, autoComplementAmount, autoDepositAmount, balanceDueDate, complementCollectedExcess,
     depositDueDate, endOfStayComplementAutoTotal, endOfStayComplementTotal, installmentPlan,
@@ -1378,69 +1366,15 @@ function calculateReservationQuote({
   });
   const platformNetReceivedAmount = netReceived({ preArrivalAmount, totalPlatformCommission });
 
-  // Itemisation LIVE du complément d'arrivée (specs/defer-arrival-complement-to-checkout.md §3.2
-  // rule 7bis) — la carte fusionnée rend la fiche telle qu'elle est en cours d'édition, donc son
-  // détail doit sortir du moteur, pas de la ligne stockée du dernier enregistrement. Même contrat que
-  // `buildArrivalComplementDetail` : chaque ligne « en complément » à sa part ARRIVÉE (la part vendue
-  // en séjour est facturée au départ, on la retire clé par clé), la taxe quand elle est routée ici,
-  // et un reliquat qui referme l'écart avec le montant résolu.
-  const complementDetailLines = [];
-  {
-    const midStayLeft = { ...(midStayExtras.byKey || {}) };
-    for (const line of [...finalOptionLines, ...resourceLines]) {
-      if (!Number(line.inComplement || 0)) continue;
-      if (Number(line.offered || 0) === 1 || line.offered === true) continue;
-      const full = roundMoney(line.totalPrice);
-      if (full <= 0) continue;
-      const key = extraLineKey(line);
-      const moved = key ? Math.min(full, roundMoney(Number(midStayLeft[key] || 0))) : 0;
-      if (moved > 0) midStayLeft[key] = roundMoney(midStayLeft[key] - moved);
-      const amount = roundMoney(full - moved);
-      if (amount <= 0) continue;
-      complementDetailLines.push({
-        kind: line.resourceId != null ? 'resource' : 'option',
-        label: String(line.title || line.name || 'Extra').trim(),
-        qty: Number(line.billedUnits || line.quantity || 1),
-        unitPrice: roundMoney(line.unitPrice),
-        amount,
-      });
-    }
-    if (extraGuestComplementSurcharge > 0) {
-      complementDetailLines.push({
-        kind: 'extraGuests',
-        label: 'Voyageurs ajoutés',
-        qty: extraGuestComplementCount,
-        unitPrice: roundMoney(extraGuestComplementSurcharge / extraGuestComplementCount),
-        amount: extraGuestComplementSurcharge,
-      });
-    }
-    if (taxInComplement > 0) {
-      const isAddition = !isTouristTaxCollectedOnArrival && !isTouristTaxForcedToComplement;
-      complementDetailLines.push({
-        kind: 'tax',
-        label: isAddition ? ADDED_GUESTS_TAX_LABEL : 'Taxe de séjour',
-        qty: 1,
-        unitPrice: roundMoney(taxInComplement),
-        amount: roundMoney(taxInComplement),
-        ...(isAddition ? { addedGuests: true } : {}),
-      });
-    }
-    const listed = roundMoney(complementDetailLines.reduce((sum, l) => sum + l.amount, 0));
-    const rem = roundMoney(resolvedComplementAmount - listed);
-    if (rem > 0.01) {
-      complementDetailLines.push({ kind: 'remainder', label: "Complément d'arrivée", qty: 1, unitPrice: rem, amount: rem });
-    }
-  }
-  // specs/complement-buckets-by-moment.md — the same three amounts, filed under the MOMENT they are
-  // collected rather than the column that stores them: an arrival complement left unsettled once the
-  // guest is in is taken at the door, so it reads under « fin de séjour ». Presentation-only: the
-  // three buckets always sum to the same total.
-  const complementSplit = splitComplementBuckets({
-    complementAmount: resolvedComplementAmount,
-    complementPaid: complementPaid !== undefined ? complementPaid : complementCollected,
-    midStaySettledTotal: midStaySettledAll,
-    endOfStayComplementTotal,
-    deferred: Boolean(complementDeferredToCheckout),
+  const { complementDetailLines, complementSplit } = planSettlement({
+    lines: {
+      finalOptionLines, resourceLines, midStayExtras, extraGuestComplementSurcharge, extraGuestComplementCount,
+    },
+    stayLevel: {
+      resolvedComplementAmount, taxInComplement, isTouristTaxCollectedOnArrival, isTouristTaxForcedToComplement,
+      midStaySettledAll, endOfStayComplementTotal,
+    },
+    receipts: { complementPaid, complementCollected, complementDeferredToCheckout },
   });
 
   // specs/fiche-total-sejour-net-of-commission.md — the displayed « total du séjour » = what the
