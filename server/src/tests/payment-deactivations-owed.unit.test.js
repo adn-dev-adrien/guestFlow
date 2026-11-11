@@ -160,3 +160,34 @@ test('rule 67 — a pre-arrival link lapses at 00:00 Paris on the arrival day: l
   // date-literal-ok: fixed instants around midnight Paris on a fixture arrival day
   assert.ok(!day('2026-11-04T23:30:00Z').includes(complement.id));
 });
+
+test('rule 67 — each row says what the operator needs to find the link by hand: kind, amount, reference, stay, reason, date', () => {
+  const ctx = seed();
+  const id = ctx.owe(922299, 'orphan', { type: 'full', amountCents: 76280, providerLinkId: 'pl_ref_13' });
+  ctx.db.prepare("UPDATE payment_links SET remoteCancelPendingAt = '2026-10-30T10:00:00.000Z' WHERE id = ?").run(id);
+  const lapsed = addLink(ctx.links, ctx.db, ctx.stay, { type: 'deposit', amountCents: 9000, providerLinkId: 'pl_ref_lapsed', expiresAt: new Date('2026-11-01T09:00:00Z') });
+  const [orphan, late] = owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links;
+  assert.equal(orphan.id, id);
+  assert.deepEqual(
+    { kind: orphan.kindLabel, amount: orphan.amountLabel, reference: orphan.reference, stay: orphan.stayLabel, url: orphan.stayUrl, reason: orphan.reasonLabel, since: orphan.sinceLabel, provider: orphan.providerLabel },
+    { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Séjour n° 922299', url: null, reason: 'Séjour supprimé', since: 'le 30/10/2026', provider: 'Qonto' },
+  );
+  assert.equal(late.id, lapsed.id);
+  assert.deepEqual({ kind: late.kindLabel, reason: late.reasonLabel, since: late.sinceLabel, url: late.stayUrl }, { kind: 'Acompte', reason: 'Validité dépassée', since: 'le 01/11/2026', url: `/reservations/${ctx.stay}` });
+});
+
+test('rule 67 — the card\'s list is served at GET /api/dashboard/payment-deactivations, admin only', () => {
+  const router = require('../routes/dashboard');
+  const layer = router.stack.find((l) => l.route && l.route.path === '/payment-deactivations');
+  assert.ok(layer && layer.route.methods.get);
+  const enforceRoleAccess = require('../middleware/enforceRoleAccess');
+  const call = (roles) => {
+    const req = { user: { roles }, method: 'GET', path: '/dashboard/payment-deactivations' };
+    const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json() { return this; } };
+    let passed = false;
+    enforceRoleAccess(req, res, () => { passed = true; });
+    return passed;
+  };
+  assert.equal(call(['reception']), false);
+  assert.equal(call(['admin']), true);
+});

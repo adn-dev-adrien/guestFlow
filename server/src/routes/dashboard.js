@@ -91,6 +91,8 @@ function coreAttentionSources() {
     },
   ];
 }
+// specs/payment-link-lifecycle.md rule 67 — the owed deactivations the home's card lists, one row per link.
+router.get('/payment-deactivations', require('../controllers/paymentDeactivationsAttentionController').handler(require('../models/paymentLinksModel')));
 const attention = require('../controllers/dashboardAttentionController').buildController({ coreSources: coreAttentionSources });
 router.get('/attention', attention.attention);
 

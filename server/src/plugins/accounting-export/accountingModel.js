@@ -82,6 +82,9 @@ function createAccountingModel(database, { settings = createAccountSettings(data
   const addedGuestsTaxCol = hasReservationColumn('touristTaxAddedGuestsAmount')
     ? 'r.touristTaxAddedGuestsAmount'
     : '0 AS touristTaxAddedGuestsAmount';
+  const platformGrossCol = hasReservationColumn('platformGrossAmount')
+    ? 'r.platformGrossAmount'
+    : 'NULL AS platformGrossAmount';
   const surchargeCol = hasReservationColumn('extraGuestComplementSurcharge')
     ? 'r.extraGuestComplementSurcharge'
     : '0 AS extraGuestComplementSurcharge';
@@ -190,7 +193,7 @@ function createAccountingModel(database, { settings = createAccountSettings(data
                r.finalPrice, r.clientGrossAmount, r.platformCommissionAmount, r.acompteCommissionAmount,
                r.totalPrice, r.touristTaxTotal,
                r.touristTaxInComplement,
-               ${addedGuestsTaxCol}, ${surchargeCol}, ${bookedEntryCols},
+               ${addedGuestsTaxCol}, ${surchargeCol}, ${platformGrossCol}, ${bookedEntryCols},
                r.accommodationAcompteContribTtc, r.accommodationSoldeContribTtc,
                r.touristTaxAcompteContribTtc, r.touristTaxSoldeContribTtc,
                ${installmentCols},
@@ -1014,6 +1017,22 @@ function buildArrivalAdjustmentEntries(row, group, vatRate) {
   return out;
 }
 
+// specs/accounting-books-the-money-collected.md rule 12 (reading of 2026-11-11, Adrien) — the « Brut » of Comptabilité ›
+// Plateformes is the PLATFORM's gross: what the platform billed the guest, as recorded on the fiche (`platformGrossAmount`,
+// else the older `clientGrossAmount`). Only when nothing is recorded does it fall back to the stay price WITHOUT the
+// complements paid on site. An own-channel stay (`direct`, or a platform counted as a direct sale) with nothing recorded has
+// none to show. It is a display figure: the books read `effectiveGross`, never this.
+const recordedAmount = (value) => {
+  const n = value === '' || value == null ? NaN : Number(value);
+  return Number.isFinite(n) && n > 0 ? round2(n) : null;
+};
+function platformBrut(row) {
+  const recorded = recordedAmount(row.platformGrossAmount) ?? recordedAmount(row.clientGrossAmount);
+  if (recorded != null) return recorded;
+  if (isDirectChannel(row.platform)) return null;
+  return round2(Math.max(0, nz(row.finalPrice) - nz(row.complementAmount)));
+}
+
 function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   const finalPriceTtc = Number(row.finalPrice || 0);
   const touristTaxTotal = Number(row.touristTaxTotal || 0);
@@ -1210,7 +1229,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
     if (allocated.length === 0 && round2(taxTtc) === 0) return null;
     return {
       ...common,
-      clientGrossAmount: round2(effectiveGross),
+      clientGrossAmount: platformBrut(row),
       fraction: 1,
       buckets: allocated,
     };
@@ -1219,7 +1238,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
   if (paidSplit) {
     return {
       ...common,
-      clientGrossAmount: round2(effectiveGross),
+      clientGrossAmount: platformBrut(row),
       fraction: 1,
       buckets: [
         bucketFromTtc('accommodation', paidSplit.accommodation, vatRate),
@@ -1271,7 +1290,7 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
 
     return {
       ...common,
-      clientGrossAmount: round2(effectiveGross),
+      clientGrossAmount: platformBrut(row),
       fraction: 1,
       buckets,
     };
@@ -1321,9 +1340,8 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
 
   return {
     ...common,
-    // The gross the guest paid, like the three paths above: a stay never loses it to a NULL column. Only an own-channel
-    // stay (`direct`, or a platform counted as a direct sale) that never held one keeps none to show.
-    clientGrossAmount: row.clientGrossAmount == null && isDirectChannel(row.platform) ? null : round2(effectiveGross),
+    // The platform's gross, like the three paths above: a stay never loses it to a NULL column.
+    clientGrossAmount: platformBrut(row),
     fraction,
     buckets,
   };

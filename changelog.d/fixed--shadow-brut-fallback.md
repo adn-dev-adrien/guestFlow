@@ -1,1 +1,1 @@
-- plugin:accounting-export Comptabilité › Plateformes: « Brut » no longer goes blank on a platform stay whose entry is computed from the stored money.
+- plugin:accounting-export Comptabilité › Plateformes: « Brut » is the platform's gross recorded on the fiche (the stay price without the complements paid on site when none is recorded) and no longer goes blank; the books do not change.

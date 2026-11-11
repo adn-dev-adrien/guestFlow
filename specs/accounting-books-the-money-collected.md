@@ -184,6 +184,15 @@ options and resources appear once, at their real amount, only when they were rea
     held a stored gross keeps none to show (`platformsPreview` renders « — »), and the on-site entries (end-of-stay, mid-stay note, refund, compensation) carry no
     gross by design: nothing the platform collected. accounting-export 1.2.3. Test:
     `accounting-platform-gross-fallback.unit.test.js`.
+    **Reading of 2026-11-11, second shadow trial (Adrien's decision):** « Brut » shows the PLATFORM's gross — what the platform
+    billed the guest — as recorded on the fiche: `platformGrossAmount`, else the older `clientGrossAmount`; only when
+    neither is recorded, the stay price WITHOUT the complements paid on site (`finalPrice − complementAmount`); an own-channel
+    stay with nothing recorded shows none (read through `isDirectChannel`). Every path of `buildEntry` returns it through
+    `platformBrut(row)`: the books keep reading `effectiveGross`, so no journal line moves (the sales stream of 2025-01 to
+    2027-12 on a scrubbed 3.21.0 copy is identical before and after: 67 entries). Where 3.21.0 showed a stored figure it comes
+    back (5 = 748, 6 = 793,65, 22209 = 315, 11 = 1 983,92, 22275 = 720,82, which the previous reading showed as 865,82 with its
+    on-site complements); where 3.21.0 showed the computed price, the recorded gross replaces it (#13 943,20 instead of 907,20).
+    accounting-export 1.2.4. Test: `accounting-platform-gross-fallback.unit.test.js`.
 
 ### Money already collected never moves (2026-10-27)
 

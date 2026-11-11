@@ -615,7 +615,10 @@ signed-off releases over HTTPS, when the operator asks for it.
     pending changelog or the folded section is over the limit. The way out is the one taken for 4.0.0: condense the
     fragments into one bullet group per domain and keep the full detail in a committed archive,
     `docs/changelog/<version>-detail.md`, which the section's last line points to (a `changelog.d/detail--<slug>.md`
-    fragment: its text closes the folded section, after every category, with no heading). Every `Migration` item stays
+    fragment: its text closes the folded section, after every category, as the bullet of a `### Détail` heading of its own —
+    the parser of 3.21.0, which renders the notes of the first release it installs, appends any non-bullet line to the
+    previous bullet and cannot be changed; test `release-body-size-guard.unit.test.js` runs that parser, kept verbatim in
+    `tests/fixtures/releaseClient.v3.21.0.js`, on a folded section). Every `Migration` item stays
     explicit in the condensed section. Test: `release-body-size-guard.unit.test.js`.
 
 ---
