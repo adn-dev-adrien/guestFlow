@@ -1,3 +1,3 @@
-- **Guest email texts on one page, in send order**: Paramètres › « Textes des emails » groups the texts email by email (confirmation, deposit and balance, J-7, J-2, day after, November and January, cancellation) with a live preview.
+- **Guest email texts on one page, in send order**: Paramètres › « Textes des emails » groups the texts email by email (confirmation, deposit and balance, J-7, J-2, day after, November and January, cancellation) with a live preview. « M'envoyer un test » sends a test to the operator; J-7 and J-2 gain `{{stayAppUrl}}` (empty while the guest-app plugin is inactive).
 - **Guest emails in text and HTML**: every guest email leaves as text plus a sober HTML part.
 - **Several social links in the thank-you email**: « Réseaux sociaux », up to 8 links.

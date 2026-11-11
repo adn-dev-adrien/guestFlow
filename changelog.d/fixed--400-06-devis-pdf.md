@@ -1,1 +1,1 @@
-- **Quote PDF**: a WEBP or GIF logo no longer stops every devis PDF (the upload takes a PNG or a JPEG), and the « Surcoût voyageurs » row no longer prints the tier detail.
+- **Quote PDF**: the logo upload takes a PNG or a JPEG only (judged on bytes); an unreadable stored logo (WEBP, GIF, damaged) gives the PDF without logo instead of an error; the « Surcoût voyageurs » row no longer prints the tier detail.

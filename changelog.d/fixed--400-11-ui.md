@@ -1,2 +1,1 @@
-- **Phone and keyboard**: touch targets of 44 px, no horizontal scroll on Paramètres, dates can be typed again, no reload loop on a missing page file, and load failures are shown instead of an empty page.
-- **Tests**: server and client suites no longer follow the calendar, the developer's shell or a busy runner, and a suite can no longer report green with tests left unrun.
+- **Phone and keyboard**: touch targets of 44 px, no horizontal scroll on Paramètres, dates can be typed again, no reload loop on a missing page file, load failures show « Réessayer » instead of an empty page.

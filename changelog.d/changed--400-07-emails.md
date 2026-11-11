@@ -1,3 +1,2 @@
-- **Email templates**: an unknown variable is refused at save (« Variable inconnue : {{x}} »); the texts page opens faster and the list of models no longer carries every body.
-- **SMTP**: a login requires STARTTLS; a server without TLS now fails the test instead of sending the password in clear.
-- **Wording**: confirmations, alerts and empty states drop « Veuillez » and « Vous ».
+- **Email templates**: an unknown variable is refused at save (« Variable inconnue : {{x}} »); a template without an English version is never sent to an English-speaking guest (manual send refused « Version anglaise manquante pour ce modèle. », automatic passes skip it, the history says why); amounts share one format (« 1 234,56 € », « €1,234.56 »). The texts page opens faster and the list of models no longer carries every body. Outside production, `GUESTFLOW_MAIL_OUTBOX=<dir>` catches every e-mail.
+- **SMTP**: a login requires STARTTLS; a server without TLS now fails the test (`SMTP_TEST_FAILED`) instead of sending the password in clear; a relay without a login keeps working.

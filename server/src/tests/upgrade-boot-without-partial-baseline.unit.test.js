@@ -1,4 +1,4 @@
-// specs/migrations-baseline.md rule 2bis — a clean upgrade boots without « [schema] baseline applique partiellement »
+// specs/migrations-baseline.md rule 4 — a clean upgrade boots without « [schema] baseline applique partiellement »
 // (shadow trial of 4.0.0 on a 3.21.0 database: `no such column: provider`, payment_links being older than the
 // baseline's index on its provider columns). The boot adds those columns before the baseline pass.
 const test = require('node:test');

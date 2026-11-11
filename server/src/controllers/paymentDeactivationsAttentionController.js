@@ -10,14 +10,14 @@ const paymentProviders = require('../utils/paymentProviders');
 const capitalised = (id) => String(id || '').replace(/^./, (c) => c.toUpperCase());
 
 /** → { links: [{ id, reservationId, type, amountCents, provider, providerLabel, stayMissing, retrying }], retrying } */
-function owedDeactivations(model, providers = paymentProviders) {
+function owedDeactivations(model, providers = paymentProviders, now = new Date()) {
   const live = providers.active();
   const declared = providers.declared();
   const labelOf = (id) => {
     if (declared && declared.id === id) return declared.label;
     return capitalised(id);
   };
-  const links = model.listOwedDeactivations().map((link) => ({
+  const links = model.listOwedDeactivations({ now }).map((link) => ({
     id: link.id,
     reservationId: link.reservationId,
     type: link.type,

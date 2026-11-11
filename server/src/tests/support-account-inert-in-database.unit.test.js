@@ -29,3 +29,13 @@ test('rule 39 — the writes 4.0.0 itself makes on the row stay possible, and or
   db.prepare("UPDATE users SET isActive = 0, email = 'other@example.test' WHERE id = ?").run(id);
   assert.equal(db.prepare('SELECT email FROM users WHERE id = ?').get(id).email, 'other@example.test');
 });
+
+test('rule 39 — the trigger is re-created at every boot: a stale body is replaced', () => {
+  const { applyAccountSecuritySchema } = require('../utils/accountSecuritySchema');
+  db.exec('DROP TRIGGER users_support_account_inert; CREATE TRIGGER users_support_account_inert BEFORE UPDATE ON users BEGIN SELECT 1; END');
+  const row = support();
+  db.prepare('UPDATE users SET isActive = 1 WHERE id = ?').run(row.id);
+  db.prepare('UPDATE users SET isActive = 0 WHERE id = ?').run(row.id);
+  applyAccountSecuritySchema(db);
+  refused('UPDATE users SET isActive = 1 WHERE id = ?', row.id);
+});

@@ -35,18 +35,19 @@ breaking fresh installs, and so a fresh DB reproduces **production exactly**.
    3 one-time data backfills it contained: ical-summary, client-phone, resource-property) **and** the now
    redundant base `CREATE TABLE` block were **removed** (database.js 2185 → 1246 lines). With schema.sql
    run first, any remaining guarded `CREATE IF NOT EXISTS` / `ALTER` in the tail are harmless no-ops.
-2bis. **A clean upgrade replays the baseline whole** (added 2026-11-11, shadow trial of 4.0.0: a 3.21.0 → 4.0.0 first boot
-   logged « baseline applique partiellement (no such column: provider) »). The one table whose older shape lacks a column
-   that `schema.sql` indexes, `payment_links` (`provider`, `providerLinkId`…), is brought to the additive twin-column shape
-   (`migratePaymentLinksToProviders`, idempotent, a no-op on a fresh database) **before** the baseline runs, so the index
-   creates and no warning is logged. The deferred replay at the end of `database.js` stays for any other column a future
-   release adds the same way. Test: `upgrade-boot-without-partial-baseline.unit.test.js`.
 3. **Kept**: all seeds (admin user, app_settings row, school holidays, default options, platforms, repair
    amounts, email templates…), the scattered tail migrations (guarded, now no-ops), and the devis-fusion
    boot logic (self-guarding, harmless on a fresh/clean DB).
 
 Removed data migrations are safe: on prod they already ran; on a fresh DB they are no-ops (no old data),
 and the column defaults / seeds produce the correct initial state.
+
+4. **A clean upgrade replays the baseline whole** (added 2026-11-11, shadow trial of 4.0.0: a 3.21.0 → 4.0.0 first boot
+   logged « baseline applique partiellement (no such column: provider) »). The one table whose older shape lacks a column
+   that `schema.sql` indexes, `payment_links` (`provider`, `providerLinkId`…), is brought to the additive twin-column shape
+   (`migratePaymentLinksToProviders`, idempotent, a no-op on a fresh database) **before** the baseline runs, so the index
+   creates and no warning is logged. The deferred replay at the end of `database.js` stays for any other column a future
+   release adds the same way. Test: `upgrade-boot-without-partial-baseline.unit.test.js`.
 
 ## 4. Verification (the protocol Adrien specified)
 

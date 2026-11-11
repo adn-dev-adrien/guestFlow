@@ -97,3 +97,26 @@ test('rule 67 — the boot warning no longer tells the operator to deactivate by
   assert.ok(!source.includes('to deactivate by hand at the provider'));
   assert.match(source, /payment poll deactivates them while the provider is connected/);
 });
+
+// date-literal-ok: instants around the validity of a fixture link
+const LAPSED_AT = new Date('2026-01-01T00:00:00Z');
+
+test('rule 67 — disconnected, before any lifecycle pass: an open link of a missing, cancelled or set-aside stay, or past its validity, is listed', () => {
+  const ctx = seed();
+  const orphan = addLink(ctx.links, ctx.db, 987654);
+  const lapsed = addLink(ctx.links, ctx.db, ctx.stay, { expiresAt: LAPSED_AT });
+  const cancelledStay = addStay(ctx.db, { kind: 'cancelled', startDate: '2027-08-10', endDate: '2027-08-12' });
+  const ofCancelled = addLink(ctx.links, ctx.db, cancelledStay);
+  const setAside = addStay(ctx.db, { kind: 'superseded', startDate: '2027-09-10', endDate: '2027-09-12' });
+  const ofSetAside = addLink(ctx.links, ctx.db, setAside);
+  const live = addLink(ctx.links, ctx.db, ctx.stay, { type: 'balance' });
+  const noProviderId = addLink(ctx.links, ctx.db, 987655, { providerLinkId: null });
+  const off = { active: () => null, declared: () => null };
+
+  const owed = owedDeactivations(ctx.links, off, NOW);
+  assert.deepEqual(owed.links.map((l) => l.id), [orphan.id, lapsed.id, ofCancelled.id, ofSetAside.id]);
+  assert.ok(!owed.links.some((l) => l.id === live.id || l.id === noProviderId.id), 'a live link, or one with nothing to deactivate, is not owed');
+  assert.equal(owed.links[0].stayMissing, true);
+  assert.equal(owed.retrying, 0);
+  assert.equal(CORE_SUMMARIES['payment-deactivations'](owed).severity, 'urgent');
+});

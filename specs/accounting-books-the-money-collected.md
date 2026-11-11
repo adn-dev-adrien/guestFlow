@@ -179,8 +179,9 @@ options and resources appear once, at their real amount, only when they were rea
     **Reading of 2026-11-11 (shadow trial of 4.0.0):** whichever path books an entry of a platform stay — adjusted
     complement, paid split, contribs, or this stored-money fallback — it carries `clientGrossAmount = round2(effectiveGross)`,
     the gross the guest paid (« Brut » of Comptabilité › Plateformes). The fallback returned the stored column, NULL on a fiche
-    that never held one, and the cell went blank (#13 of Oct-2026 = 907,20; #22298 of Sep-2026 = 259,13 under 3.21.0). A direct
-    stay keeps the stored column (null), and the on-site entries (end-of-stay, mid-stay note, refund, compensation) carry no
+    that never held one, and the cell went blank (#13 of Oct-2026 = 907,20; #22298 of Sep-2026 = 259,13 under 3.21.0). An own-channel
+    stay (`direct`, or a platform counted as a direct sale — read through `isDirectChannel`, never by name) that never
+    held a stored gross keeps none to show (`platformsPreview` renders « — »), and the on-site entries (end-of-stay, mid-stay note, refund, compensation) carry no
     gross by design: nothing the platform collected. accounting-export 1.2.3. Test:
     `accounting-platform-gross-fallback.unit.test.js`.
 

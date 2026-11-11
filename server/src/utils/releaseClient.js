@@ -85,23 +85,33 @@ function parseReleaseNotes(body) {
     sections.push(current);
   };
 
+  // A blank line ends a bullet: the paragraph after it is a note of its own (the `detail--` footer of a section), never
+  // the tail of the last bullet.
+  let continuing = false;
   for (const rawLine of String(body || '').split('\n')) {
     const line = rawLine.trimEnd();
+    if (!line.trim()) { continuing = false; continue; }
     const heading = line.match(/^#{2,4}\s+(.+?)\s*$/);
     if (heading) {
       const key = heading[1].trim().toLowerCase();
       openSection(SECTION_TITLES_FR[key] || stripMarkdown(heading[1]), SECTION_TITLES_FR[key] ? key : null);
+      continuing = false;
       continue;
     }
     const bullet = line.match(/^\s*[-*]\s+(.*)$/);
     if (bullet) {
       if (!current) openSection(null);
       current.items.push(stripMarkdown(bullet[1]));
+      continuing = true;
       continue;
     }
-    if (current && current.items.length && line.trim()) {
+    if (current && current.items.length && continuing) {
       // Continuation of the previous wrapped bullet.
       current.items[current.items.length - 1] += ` ${stripMarkdown(line)}`;
+    } else if (current && current.items.length) {
+      openSection(null);
+      current.items.push(stripMarkdown(line));
+      continuing = true;
     }
   }
 

@@ -55,3 +55,18 @@ test('rule 12 — a stored gross above the price still wins (legacy gross-up era
   const entry = buildEntry(row, 'balance', perLine({ hasContribs: false }), COMMISSION_CONTEXT, ctx);
   assert.equal(entry.clientGrossAmount, 1000);
 });
+
+test('rule 12 — the own-channel test reads the platform\'s mode, not its name: a platform counted as a direct sale keeps no gross, any other carries it', () => {
+  const { setDirectChannels } = require('../../../utils/platformNameFormat');
+  const row = baseRow({ platform: 'Lodgify', balanceAmount: 259.13, finalPrice: 259.13, totalPrice: 259.13, platformCommissionAmount: null });
+  const lines = { optionLines: [], customOptionLines: [], resourceLines: [], hasContribs: false, accommodationTtcCurrent: 259.13, optionsTtc: 0, resourcesTtc: 0, destinations: NO_DESTINATION };
+  try {
+    setDirectChannels([]);
+    assert.equal(buildEntry(row, 'balance', lines, COMMISSION_CONTEXT, ctx).clientGrossAmount, 259.13);
+    setDirectChannels(['Lodgify']);
+    assert.equal(buildEntry(row, 'balance', lines, COMMISSION_CONTEXT, ctx).clientGrossAmount, null);
+    assert.equal(buildEntry({ ...row, clientGrossAmount: 300 }, 'balance', lines, COMMISSION_CONTEXT, ctx).clientGrossAmount, 300);
+  } finally {
+    setDirectChannels([]);
+  }
+});

@@ -403,9 +403,9 @@ const server = serverHandle.listen(...listenArgs, () => {
   require('./controllers/systemController').initOnBoot();
 
   try {
-    const orphans = require('./models/paymentLinksModel').listOrphanOpen();
-    if (orphans.length) {
-      console.warn(`[payments] ${orphans.length} payment link(s) of a missing reservation can still be paid at the provider (links ${orphans.map((l) => `${l.id}->${l.reservationId}`).join(', ')}): the payment poll deactivates them while the provider is connected, and the home's « À traiter » lists them until then.`);
+    const owed = require('./models/paymentLinksModel').listOwedDeactivations();
+    if (owed.length) {
+      console.warn(`[payments] ${owed.length} payment link(s) can still be paid at the provider and should not be: stay missing, cancelled or set aside, validity over, or deactivation owed (links ${owed.map((l) => `${l.id}->${l.reservationId}`).join(', ')}): the payment poll deactivates them while the provider is connected, and the home's « À traiter » lists them until then.`);
     }
   } catch { /* no payment_links table: nothing to report */ }
 
