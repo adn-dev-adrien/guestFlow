@@ -51,3 +51,14 @@ test('a list that cannot be read leaves the summary alone, no error', async () =
   expect(screen.getByText(/À désactiver depuis Qonto/)).toBeInTheDocument();
   expect(screen.queryByText(/Référence/)).toBeNull();
 });
+
+test('a converted devis shows both numbers and opens the stay it became; a devis with a deleted stay has no link', async () => {
+  api.getPaymentDeactivations.mockResolvedValue({ links: [
+    { ...LINKS[1], id: 21, stayLabel: 'Devis 2026-08-001 · séjour 202610001', stayUrl: '/reservations/22310' },
+    { ...LINKS[1], id: 22, stayLabel: 'Devis 2026-09-001', stayUrl: null, reference: 'pl_ref_22' },
+  ] });
+  renderCard();
+  expect(await screen.findByRole('link', { name: 'Devis 2026-08-001 · séjour 202610001' })).toHaveAttribute('href', '/reservations/22310');
+  expect(screen.getByText(/Devis 2026-09-001/)).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Devis 2026-09-001' })).toBeNull();
+});
