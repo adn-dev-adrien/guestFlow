@@ -1,0 +1,1 @@
+- **Pricing schedule takes values, not the port** (spec `pricing-components.md` rules 1, 48): the schedule step reads the money received through the PaymentLedger and hands `planSchedule` the values; the unit no longer touches a port. No price moves.

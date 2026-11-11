@@ -1,6 +1,6 @@
 // specs/pricing-components.md §3 rules 22 and 50 — SCHEDULE alone: the acompte and the solde (percentage, overrides,
 // platform single payment, installment plan, a paid bucket that keeps what it collected), their due dates, the arrival
-// complement and the end-of-stay complement amounts. No DB: the payment ledger port is a plain object.
+// complement and the end-of-stay complement amounts. No DB, no port: the ledger readings are plain values.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { planSchedule, settingsSchema } = require('../utils/pricing/schedule');
@@ -42,11 +42,10 @@ function input(patch = {}) {
       depositPaid: 0, balancePaid: 0, complementPaid: 0, depositAmount: null, balanceAmount: 0, complementAmount: 0,
       existingDepositDueDate: null, paidSoldeCaptured: false, endOfStayComplementSettled: false,
     },
-    paymentLedger: { installments: () => null, splitReceived: () => null },
+    ledger: { splitReceived: null, installmentPlan: null },
   };
   const merged = {};
-  for (const key of Object.keys(base)) merged[key] = key === 'paymentLedger' ? base[key] : { ...base[key], ...(patch[key] || {}) };
-  if (patch.paymentLedger) merged.paymentLedger = patch.paymentLedger;
+  for (const key of Object.keys(base)) merged[key] = { ...base[key], ...(patch[key] || {}) };
   return merged;
 }
 
@@ -125,14 +124,9 @@ test('rule 22 — the operator adjusts the complement last; the engine figure st
   assert.equal(plan.resolvedComplementAmount, 55.5);
 });
 
-test('rule 22 — an installment plan replaces the acompte and the solde and is read through the ledger port', () => {
-  const reads = [];
-  const paymentLedger = {
-    installments: (id) => { reads.push(id); return { scheduled: 1040, paid: 0, allPaid: false }; },
-    splitReceived: () => null,
-  };
-  const plan = planSchedule(input({ policy: { bookingId: 12 }, paymentLedger }));
-  assert.deepEqual(reads, [12]);
+test('rule 22 — an installment plan, handed over as a value, replaces the acompte and the solde', () => {
+  const plan = planSchedule(input({ policy: { bookingId: 12 }, ledger: { installmentPlan: { scheduled: 1040, paid: 0, allPaid: false } } }));
+  assert.equal(plan.installmentPlan.scheduled, 1040);
   assert.equal(plan.resolvedDepositAmount, 0);
   assert.equal(plan.resolvedBalanceAmount, 0);
   assert.equal(plan.planScheduled, 1040);
@@ -140,10 +134,41 @@ test('rule 22 — an installment plan replaces the acompte and the solde and is 
 });
 
 test('rule 22 — no plan is read once a bucket is collected', () => {
-  const paymentLedger = { installments: () => assert.fail('read'), splitReceived: () => null };
-  const plan = planSchedule(input({ receipts: { depositPaid: 1, depositAmount: 300 }, paymentLedger }));
+  const plan = planSchedule(input({ receipts: { depositPaid: 1, depositAmount: 300 } }));
   assert.equal(plan.installmentPlan, null);
   assert.equal(plan.resolvedBalanceAmount, 740);
+});
+
+test('rule 48 — planSchedule takes values, never the port: a ledger whose functions throw is not asked', () => {
+  const trap = () => assert.fail('the unit read the port');
+  const plan = planSchedule({ ...input({ receipts: { balancePaid: 1, balanceAmount: 500 } }), paymentLedger: { installments: trap, splitReceived: trap } });
+  assert.equal(typeof plan.preArrivalAmount, 'number');
+});
+
+test('rule 48 — the schedule step reads the ledger under the conditions the plan always read it, and hands the unit values', () => {
+  const step = require('../utils/pricing/steps/schedule');
+  const reads = [];
+  const ledger = {
+    installments: (id) => { reads.push(['installments', id]); return { scheduled: 1040, paid: 0, allPaid: false }; },
+    splitReceived: (id) => { reads.push(['splitReceived', id]); return null; },
+  };
+  const ctxOf = (patch = {}) => {
+    const base = input(patch);
+    const { settings, ...policy } = base.policy;
+    const { bookingDate, ...rest } = policy;
+    return {
+      ...base.totals, ...rest, ...base.planLines, ...base.overrides, ...base.receipts,
+      settings: { schedule: settings }, paymentLedger: ledger, clock: { bookingDate, existingDepositDueDate: base.receipts.existingDepositDueDate },
+    };
+  };
+  assert.equal(step.apply(ctxOf({ policy: { bookingId: 12 } })).installmentPlan.scheduled, 1040);
+  assert.deepEqual(reads, [['installments', 12]]);
+  reads.length = 0;
+  assert.equal(step.apply(ctxOf({ policy: { bookingId: 12 }, receipts: { depositPaid: 1, depositAmount: 300 } })).installmentPlan, null);
+  assert.deepEqual(reads, [['splitReceived', 12]]);
+  reads.length = 0;
+  assert.equal(step.apply(ctxOf({ policy: { bookingId: 12, platform: 'booking', channel: channelOf('platform') } })).installmentPlan, null);
+  assert.deepEqual(reads, []);
 });
 
 test('rule 22 — the end-of-stay complement is the departure SAS plus what is still due of the mid-stay sales', () => {

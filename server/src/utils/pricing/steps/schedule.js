@@ -6,6 +6,7 @@
  */
 
 const { planSchedule } = require('../schedule');
+const { isDirectChannel } = require('../../platformNameFormat');
 
 const step = {
   id: 'schedule',
@@ -40,6 +41,12 @@ const step = {
     } = ctx;
     const { bookingDate, existingDepositDueDate } = ctx.clock;
 
+    // The two readings of money received go through the PaymentLedger port here, under the conditions the plan has always
+    // read them: a collected bucket has a split to carve out; a direct stay with nothing collected may have an installment
+    // plan (rule 35 of specs/direct-installments.md: a bucket already collected is never zeroed). The unit gets values.
+    const splitReceived = (depositPaid || balancePaid || complementPaid) ? paymentLedger.splitReceived(bookingId) : null;
+    const installmentPlanRead = isDirectChannel(platform) && !depositPaid && !balancePaid ? paymentLedger.installments(bookingId) : null;
+
     // The two due dates are resolved AFTER the amounts (further down), because whether an échéance
     // exists at all depends on them — see the `resolveDepositDueDate` / `resolveBalanceDueDate` call
     // in `planSchedule` (specs/payment-schedule-and-cancellation.md §3.1-§3.2).
@@ -68,7 +75,7 @@ const step = {
         depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount, complementAmount, existingDepositDueDate,
         paidSoldeCaptured, endOfStayComplementSettled,
       },
-      paymentLedger,
+      ledger: { splitReceived, installmentPlan: installmentPlanRead },
     });
 
     return {

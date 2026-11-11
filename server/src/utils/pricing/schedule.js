@@ -1,7 +1,7 @@
 /**
  * SCHEDULE — the stay-level amounts and their dates (specs/pricing-components.md §3 rules 22, 48, 50).
  *
- * Contract: `planSchedule({ totals, policy, planLines, overrides, receipts, paymentLedger })` → the pre-arrival amount,
+ * Contract: `planSchedule({ totals, policy, planLines, overrides, receipts, ledger })` → the pre-arrival amount,
  * the acompte and the solde (percentage, overrides, platform single payment, installment plan, a paid bucket that keeps
  * what it collected), their due dates (`paymentSchedule`), the arrival complement (forced lines, tourist tax, the gap
  * between the stay and what the buckets cover, the excess of a collected one, the operator's adjustment) and the
@@ -14,16 +14,16 @@
  * - `planLines`: what the mid-stay split and the departure SAS carry;
  * - `overrides`: depositAmountOverride, complementAmountOverride;
  * - `receipts`: what is stored as collected (flags and amounts of the three buckets);
- * - `paymentLedger`: the port the two reads of money received go through (`installments(id)`, `splitReceived(id)`).
+ * - `ledger`: the two readings of money received, as values the caller read from the PaymentLedger port under the conditions
+ *   it owns: `{ splitReceived, installmentPlan }` (`null` when the stay has none).
  *
- * Pure but for those two reads; no clock (the dates it judges are inputs). Nothing here is read by a unit upstream.
+ * Pure: no DB, no port, no clock (the dates it judges are inputs). Nothing here is read by a unit upstream.
  */
 const { roundMoney } = require('./money');
 const {
   resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromiseHeld, devisPromiseDueDate, toIsoDay,
 } = require('../paymentSchedule');
 const { unreceivedOf } = require('../splitReceived');
-const { isDirectChannel } = require('../platformNameFormat');
 const {
   settledByKey, buildMidStayLine, ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
 } = require('./settlement');
@@ -46,7 +46,7 @@ function planSchedule({
     depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount, complementAmount, existingDepositDueDate,
     paidSoldeCaptured, endOfStayComplementSettled,
   },
-  paymentLedger,
+  ledger: { splitReceived, installmentPlan },
 }) {
   const isTouristTaxForcedToComplement = Boolean(touristTaxInComplement);
   const taxInComplement = (isTouristTaxCollectedOnArrival || isTouristTaxForcedToComplement)
@@ -226,7 +226,6 @@ function planSchedule({
   // to that before any trop-perçu is left; rule 39 then cancels the reste, then the geste, on the bucket's new amount.
   // Rule 50 (D25 « Une seule somme ») — a settlement over several buckets received one sum for all of them: what a cut may
   // take off a bucket is what its whole pool did not receive, read at the amounts its buckets are worth now.
-  const splitReceived = (depositPaid || balancePaid || complementPaid) ? paymentLedger.splitReceived(bookingId) : null;
   const splitAmountOf = (kind) => {
     if (kind === 'deposit') return resolvedDepositAmount;
     if (kind === 'balance') return resolvedBalanceAmount;
@@ -250,7 +249,6 @@ function planSchedule({
   // save. Read by the saved booking's id; a booking that does not exist yet has no plan, and neither does
   // one on a platform (rule 1: a switch away from the own channels ends the plan with the save).
   // A bucket already collected is never zeroed (rule 35): such a stay keeps its acompte / solde.
-  const installmentPlan = isDirectChannel(platform) && !depositPaid && !balancePaid ? paymentLedger.installments(bookingId) : null;
   if (installmentPlan) {
     resolvedDepositAmount = 0;
     resolvedBalanceAmount = 0;
