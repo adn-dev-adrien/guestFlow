@@ -12,6 +12,9 @@ db.dbPath = dbPath;
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+// Every `db.transaction(fn)()` takes the write lock up front: a read-then-write handler no longer fails with SQLITE_BUSY
+// when another connection commits in between (specs/plugins-phase-3a-online-payment.md rule 29).
+require('./utils/immediateTransactions').makeImmediateByDefault(db);
 
 
 // ---------- SCHEMA (generated baseline — see schema.sql) ----------
