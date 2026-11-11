@@ -1,0 +1,1 @@
+- **Pricing units** (spec `pricing-components.md` rules 1-7, 38, 43, 70): money, platform payment, nights, extra guests and tourist tax move out of `utils/pricing.js` into `utils/pricing/`, code unchanged, no price moves; `check-spec-coverage` accepts a spec delivered over several PRs (`spec-rule-coverage.md` rule 18).
