@@ -171,7 +171,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    | 4 Encaissement | **SCHEDULE** | `schedule.js` | `planSchedule({totals, policy, planLines, overrides, receipts, paymentLedger}) → {resolvedDepositAmount, resolvedBalanceAmount, depositDueDate, balanceDueDate, resolvedComplementAmount, endOfStayComplementTotal, …}` (PR A: the engine's own names; the two money-received reads go through the `paymentLedger` port; PR B: `installments[]`, `today`) |
    | 4 Encaissement | **SETTLEMENT** | `settlement.js` | `readInComplement({finalOptionLines, resourceLines, extraGuestComplementSurcharge, midStayForced})` and `planSettlement({lines, stayLevel, receipts}) → {complementDetailLines, complementSplit}` in PR A, with `resolveMidStaySplit`, `splitComplementBuckets` and `isComplementDeferred` moved in; PR B: `{lines[], stayLevel, overrides, receipts, refunds, started} → {arrival, departure, paid, refundsOwed, lineStatus{}}` |
    | — | **PIPELINE** | `pipeline.js`, `pipelines.js` | `buildPipeline(steps, {initial}) → run(ctx)`; each step `{ id, requires[], provides[], apply(ctx) → ctx }`; use cases `stayQuote`, `ficheSale`, `sasSale`, `shopSale`, `externalSale` (rules 52-54) |
-   | — | **COMPOSE** | `compose.js` | the `stayQuote` pipeline + `shape()` to the 132-key quote (rule 4) |
+   | — | **COMPOSE** | `compose.js` | the `stayQuote` pipeline + `shape()` to the 137-key quote (rule 4) |
    | — | **PORTS** | `models/ports/*.js`, plugin adapters | `StayRepository`, `CatalogueProvider`, `PaymentLedger`, `SlotAvailabilityProvider`, `SettingsProvider`, `PaymentGateway`, `EventPublisher` (rule 48) |
    | — | **FULFILMENT** | `articleFulfilment.js` (registry) + plugin adapters | `{ reserve(draft) → hold, confirm(hold, line, tx), release(hold, reason) }` (rule 49) |
    | — | money helpers | `money.js` | `roundMoney`, `toCents`, `fromCents`, `allocateCents` — not a component (rule 38) |
@@ -906,7 +906,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       - **The platform-booking-intake skill** fills the fiche through the UI, so it uses the fiche save.
       - The SDK is at 2.26.0.
     - **Compatibility guarantee.** Every SDK function above keeps its name, arguments, return shape and
-      semantics. `calculateReservationQuote` keeps its 132-key output (rule 4). The fiche save keeps
+      semantics. `calculateReservationQuote` keeps its 137-key output (rule 4). The fiche save keeps
       accepting today's patch: an adapter maps a line's `inComplement` on a platform stay at intake to
       `collectAt = 'platform'` (0) or `'arrival'` (1), the same derivation as `legacyCollectAt` (§5). No
       plugin is forced to change; no SDK major bump.
