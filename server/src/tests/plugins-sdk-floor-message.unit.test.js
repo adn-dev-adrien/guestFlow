@@ -1,4 +1,4 @@
-// specs/plugins-phase-4-registry.md rule 62 (D24 kept: the code stays SDK_INCOMPATIBLE, fail-closed) — a package whose SDK floor is
+// specs/plugins-phase-4-registry.md rules 62 and 63 (D24 kept: the code stays SDK_INCOMPATIBLE, fail-closed) — a package whose SDK floor is
 // above the running SDK says « update GuestFlow »; a range the SDK is above, or an unreadable one, keeps the generic message.
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -142,6 +142,11 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
      registration, as with the payment provider (3a rule 4) and the post-processor (3b rule 1).
    - A contributor that throws gives `null` and a log line with the plugin id. Pricing never fails
      because of a plugin.
+   - _(Amended 2026-11-11, pricing-components PR A: the plugin also registers the `hourly` article family
+     (`ctx.articleFamily`, SDK 2.27.0, `plugins-phase-1-sdk.md` rule 50), and the contributor is reached through that family:
+     the Articles head asks the family inside the guards of `pluginFamily.js`, which give the same three outcomes —
+     a throw or a `null` answer is « no contribution ». The contributor alias stays wired for `offered` (rule 18) until
+     pricing-components PR C. The member table above is unchanged.)_
 2. **The engine applies it.** `utils/priceLineContributors.js` exposes `contributorFor(priceType)`. It
    returns the contributor only while its plugin is live.
    - In the resource loop of `pricing.js`, a resource whose price type has a live contributor is priced
@@ -161,6 +166,9 @@ This phase moves the fixed behaviour into the plugin; it does not fix it again.
    - `isComplex` and `freeMinutes` on another price type are ignored: it is priced by its type's
      multiplier, with its stock check.
    - In Solio's data this changes nothing (§1).
+   - _(Amended 2026-11-11, pricing-components PR A: the head applies it — only a `per_hour` line takes the hours path, the
+     `hourly` family when the plugin is live and the core hours path (quantity × price after the free minutes) when it
+     is off; owner decision OD1 of pricing-components decides in PR B whether the latter becomes unsellable.)_
 5. **Replays keep the sessions (defect 5).** `reservationEngineInput` passes each stored line's
    `sessions`, so a replay keeps `scheduledHours` and `detail`.
 

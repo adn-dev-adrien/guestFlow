@@ -2,8 +2,8 @@
  * COMPOSE — the `stayQuote` pipeline plus `shape()` to the quote the callers read (specs/pricing-components.md §3 rule 4).
  *
  * Contract: `compose(input)` takes the engine input as the loader completed it (`models/pricingInputModel.js`), runs
- * `stayQuote` and shapes the resulting context into the 132-key quote `calculateReservationQuote` has always returned —
- * or returns the finished result a step halted with (a stay with no night). `shape(ctx)` names keys: every figure is a
+ * `stayQuote` and shapes the resulting context into the 137-key quote `calculateReservationQuote` has always returned —
+ * or, when a step halted the run (a stay with no night), shapes the halted quote itself. `shape(ctx)` names keys: every figure is a
  * step's (rule 51). What it still derives itself is presentation of those figures, moved verbatim from the engine: the
  * rounded accommodation, the in-brut guest count, the original tourist tax, the tariff snapshot (`tariffSnapshot`: the extra
  * guest tiers and nights, the free units granted), the tax base of a platform pin and the headline / summary cascade.
