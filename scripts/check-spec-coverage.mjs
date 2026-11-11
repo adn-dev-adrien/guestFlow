@@ -32,12 +32,15 @@ const RULE_ID = String.raw`\d+(?:bis|ter|quater|[a-z])?`;
 const RULE_LINE = new RegExp(String.raw`^(${RULE_ID})\.\s`, 'i');
 // Une règle déclarée non testable le dit DANS la spec, sous elle. Jamais en silence (règle 5).
 const EXEMPT_LINE = /^\s*>?\s*\*\*Sans test\*\*\s*[—-]?\s*(.*)$/i;
+// Règle 18 — une règle d'une spec « In progress » que la PR courante ne livre pas encore le dit DANS la spec,
+// sous elle : `> **Pending** — PR B`. Ni preuve ni exemption définitive : un report daté.
+const PENDING_LINE = /^\s*>?\s*\*\*Pending\*\*\s*[—-]?\s*(.*)$/i;
 
 /**
  * Les règles de la section « Functional rules » d'une spec, et elles seules : les listes numérotées
  * de l'architecture, du plan de test ou des questions ouvertes ne sont pas des règles (règle 2).
  *
- * @returns {Array<{id: string, exempt: boolean, reason: string}>}
+ * @returns {Array<{id: string, exempt: boolean, reason: string, pending: boolean, pendingReason: string}>}
  */
 export function parseSpecRules(markdown) {
   const rules = [];
@@ -45,13 +48,15 @@ export function parseSpecRules(markdown) {
   for (const line of functionalRuleLines(markdown)) {
     const m = line.match(RULE_LINE);
     if (m) {
-      current = { id: m[1].toLowerCase(), exempt: false, reason: '' };
+      current = { id: m[1].toLowerCase(), exempt: false, reason: '', pending: false, pendingReason: '' };
       rules.push(current);
       continue;
     }
     if (!current) continue;
     const ex = line.match(EXEMPT_LINE);
     if (ex) { current.exempt = true; current.reason = ex[1].trim(); }
+    const pe = line.match(PENDING_LINE);
+    if (pe) { current.pending = true; current.pendingReason = pe[1].trim(); }
   }
   // Un numéro répété ne compte qu'une fois ici ; la barrière le refuse (règle 17).
   const seen = new Set();
@@ -194,11 +199,13 @@ export function buildCoverage(specRules, citations) {
   for (const [name, rules] of specRules) {
     if (rules.length === 0) continue;
     const byRule = cited.get(name) || new Map();
-    const missing = rules.filter((r) => !r.exempt && !byRule.has(r.id)).map((r) => r.id);
+    const isPending = (r) => r.pending && !r.exempt && !byRule.has(r.id);
+    const missing = rules.filter((r) => !r.exempt && !r.pending && !byRule.has(r.id)).map((r) => r.id);
     specs.push({
       name,
       total: rules.length,
       exempt: rules.filter((r) => r.exempt).length,
+      pending: rules.filter(isPending).length,
       covered: rules.filter((r) => r.exempt || byRule.has(r.id)).length,
       missing,
       files: byRule,
@@ -233,7 +240,7 @@ export function buildCoverage(specRules, citations) {
  */
 export function gateVerdict({ addedRules = [], modifiedRules = [], citedAfter = new Set() } = {}) {
   const failures = addedRules
-    .filter((r) => !r.exempt && !citedAfter.has(`${r.spec}:${r.rule}`))
+    .filter((r) => !r.exempt && !r.pending && !citedAfter.has(`${r.spec}:${r.rule}`))
     .map((r) => ({ spec: r.spec, rule: r.rule }));
   const warnings = modifiedRules
     .filter((r) => !citedAfter.has(`${r.spec}:${r.rule}`))
@@ -273,6 +280,35 @@ const isTestFile = (f) => /\.(test|unit\.test|spec)\.[jt]sx?$/.test(f) || /\/tes
 export function isSuperseded(markdown) {
   const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
   return Boolean(status && /superseded/i.test(status[1]));
+}
+
+const statusOf = (markdown) => {
+  const status = String(markdown || '').match(/^\|\s*\*\*Status\*\*\s*\|([^\n]*)$/m);
+  return status ? status[1] : '';
+};
+
+/**
+ * Règle 18 — une spec livrée en plusieurs PR porte un Status « In progress … ». Pour le code elle compte
+ * comme livrée (il peut la citer) ; ses règles que la PR courante ne livre pas encore peuvent porter
+ * `> **Pending** — <PR>`.
+ */
+export function isInProgress(markdown) {
+  return /^\s*in progress\b/i.test(statusOf(markdown));
+}
+
+/**
+ * Règle 18 — `Pending` n'est permis que tant que la spec est « In progress » (ou pas encore livrée) : une spec
+ * `Implemented` qui en garde une ligne a une règle jamais livrée.
+ *
+ * @param {Array<[string, string]>} entries  `[fileName, markdown]`
+ * @returns {Array<{spec: string, rules: string[]}>}
+ */
+export function specsWithStalePending(entries) {
+  return entries
+    .filter(([f, markdown]) => f.endsWith('.md') && !/^(TEMPLATE|README|ROADMAP)/.test(f) && !isSuperseded(markdown))
+    .filter(([, markdown]) => !isInProgress(markdown) && !isUndelivered(markdown))
+    .map(([f, markdown]) => ({ spec: f.replace(/\.md$/, ''), rules: parseSpecRules(markdown).filter((r) => r.pending).map((r) => r.id) }))
+    .filter((s) => s.rules.length > 0);
 }
 
 /** `[[fileName, markdown]]` → Map nom → règles, sans les specs remplacées (règle 13). */
@@ -347,7 +383,7 @@ export function rulesChangedInDiff(diff, specsNow) {
   return {
     addedRules: added
       .filter((r) => isRule(r) && !removedKeys.has(`${r.spec}:${r.rule}`))
-      .map((r) => ({ ...r, exempt: Boolean(ruleOf(r).exempt) })),
+      .map((r) => ({ ...r, exempt: Boolean(ruleOf(r).exempt), ...(ruleOf(r).pending ? { pending: true } : {}) })),
     modifiedRules: modified.filter((r) => isRule(r) && added.some((a) => a.spec === r.spec && a.rule === r.rule)),
   };
 }
@@ -355,6 +391,7 @@ export function rulesChangedInDiff(diff, specsNow) {
 // Règle 14 : une spec pas encore livrée (Status « Draft » ou « Approved ») décrit ce qu'on va
 // construire. Une PR de spec seule doit pouvoir la poser ou l'approuver sans tests décoratifs ; mais
 // rien ne doit passer à travers : voir `specTransitions` et `exemptCitations`.
+// « In progress » (règle 18) n'en fait pas partie : la spec est livrée par morceaux, le code peut la citer.
 const UNDELIVERED = /^\s*(draft|approved)\b/i;
 
 /** Le Status de la spec dit-il « pas encore livrée » (Draft ou Approved) ? */
@@ -401,7 +438,7 @@ export function applyDraftStatus({ addedRules = [], modifiedRules = [] } = {}, {
   const added = addedRules.filter(keep);
   for (const spec of delivered) {
     for (const rule of specsNow.get(spec) || []) {
-      if (!added.some((a) => a.spec === spec && a.rule === rule.id)) added.push({ spec, rule: rule.id, exempt: Boolean(rule.exempt) });
+      if (!added.some((a) => a.spec === spec && a.rule === rule.id)) added.push({ spec, rule: rule.id, exempt: Boolean(rule.exempt), ...(rule.pending ? { pending: true } : {}) });
     }
   }
   return {
@@ -485,14 +522,14 @@ function report({ specName }) {
     if (stale.length) console.log(`  citations orphelines (numéro absent de la spec) : ${stale.sort().join(', ')}`);
     return 0;
   }
-  let total = 0; let covered = 0; let exempt = 0;
-  for (const s of specs) { total += s.total; covered += s.covered; exempt += s.exempt; }
+  let total = 0; let covered = 0; let exempt = 0; let pending = 0;
+  for (const s of specs) { total += s.total; covered += s.covered; exempt += s.exempt; pending += s.pending; }
   console.log('');
   for (const s of specs.filter((x) => x.missing.length > 0)) {
     console.log(`${('specs/' + s.name + '.md').padEnd(62)} ${String(s.covered).padStart(3)}/${String(s.total).padEnd(3)}  manquantes : ${s.missing.join(', ')}`);
   }
   const pct = total ? Math.round((covered / total) * 100) : 0;
-  console.log(`\nTotal : ${total} règles, ${covered} couvertes (${pct} %), ${exempt} déclarées sans test.`);
+  console.log(`\nTotal : ${total} règles, ${covered} couvertes (${pct} %), ${exempt} déclarées sans test${pending ? `, ${pending} en attente (Pending)` : ''}.`);
   if (orphans.length) {
     console.log(`\nCitations orphelines (spec ou règle inexistante) : ${orphans.length}`);
     for (const o of orphans.slice(0, 15)) console.log(`  ${o.file} → specs/${o.spec}.md règle ${o.rule} (${o.why})`);
@@ -507,6 +544,12 @@ function gate(base) {
   if (duplicates.length) {
     for (const d of duplicates) console.error(`✗ specs/${d.spec}.md : numéro(s) porté(s) par plusieurs règles du §3 : ${d.rules.join(', ')}.`);
     console.error('\n  Un numéro de règle est une identité : la règle la plus récente prend le prochain numéro libre, et ses citations la suivent.');
+    return 1;
+  }
+  const stale = specsWithStalePending(fs.readdirSync(dir).map((f) => [f, f.endsWith('.md') ? fs.readFileSync(path.join(dir, f), 'utf8') : '']));
+  if (stale.length) {
+    for (const d of stale) console.error(`✗ specs/${d.spec}.md : règle(s) encore « Pending » (${d.rules.join(', ')}) alors que la spec n'est plus « In progress ».`);
+    console.error('\n  « Pending » ne vaut que tant que la spec est « In progress » : citez la règle par un test, ou déclarez-la « Sans test ».');
     return 1;
   }
   const { addedRules, modifiedRules, exempt, codeCitations } = changedRules(base);
@@ -540,11 +583,12 @@ function gate(base) {
   }
   if (verdict.ok) {
     const declared = addedRules.filter((r) => r.exempt).length;
+    const deferred = addedRules.filter((r) => !r.exempt && r.pending && !citedAfter.has(`${r.spec}:${r.rule}`)).length;
     // Ne pas surestimer : une règle déclarée « sans test » n'est pas une règle prouvée, et le dire
     // autrement rendrait le contrôle rassurant à tort.
     console.log(addedRules.length
-      ? `✓ ${addedRules.length} règle(s) ajoutée(s) : ${addedRules.length - declared} citée(s) par un test`
-        + `${declared ? `, ${declared} déclarée(s) sans test` : ''}.`
+      ? `✓ ${addedRules.length} règle(s) ajoutée(s) : ${addedRules.length - declared - deferred} citée(s) par un test`
+        + `${declared ? `, ${declared} déclarée(s) sans test` : ''}${deferred ? `, ${deferred} en attente (Pending)` : ''}.`
       : '✓ Aucune règle ajoutée par cette PR. (Compare le HEAD commité à --base, par défaut origin/master : sur une branche inte, passer --base origin/inte/plugins.)');
     return 0;
   }

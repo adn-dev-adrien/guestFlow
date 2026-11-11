@@ -148,6 +148,13 @@ no test?** » — and prevent a **new** rule from being delivered without its te
     two rules 16 without a conflict. The gate reads every spec the coverage reads, names the spec and the number, and
     fails. The later rule takes the next free number, and whatever cites it follows. Nine specs held such pairs; renumbered
     the same day. Test: `tests/spec-rule-coverage-duplicates.unit.test.js`.
+18. **A spec delivered over several PRs says so** (added 2026-11-11, pricing refonte PR A). A Status starting with
+    `In progress` counts as delivered for code: rule 14's second lock no longer refuses code that cites it. A rule the
+    current PR does not deliver yet carries, under it, a line `> **Pending** — <PR or reason>`; the gate exempts it from
+    the test-citation requirement, and reports it as pending (`N en attente`), never as proved. `Pending` is allowed
+    only while the spec is `In progress` (or not yet delivered): a spec whose Status is `Implemented`, or any other
+    delivered state, with a `Pending` line left fails the gate, naming the rules. Test:
+    `tests/spec-rule-coverage-in-progress.unit.test.js`.
 
 **Edge cases:**
 
@@ -234,6 +241,7 @@ And for the gate, on a PR:
 - [x] `tests/spec-rule-coverage-orphans.unit.test.js` (3) — rule 16: a new orphan citation in a changed file fails the gate; one already
       there, or in an untouched file, does not.
 - [x] `tests/spec-rule-coverage-duplicates.unit.test.js` (4) — rule 17: a number used twice in §3 is named, a number repeated outside §3 or under another suffix is not, a superseded spec is not read, and no spec of this repository holds one.
+- [x] `tests/spec-rule-coverage-in-progress.unit.test.js` (5) — rule 18: `In progress` is delivered for code, a `Pending` line exempts its rule and is counted apart, and a delivered spec that keeps one fails.
 - [x] `tests/spec-rule-coverage-superseded.unit.test.js` (2) — rule 13: the Status line decides; a
       superseded spec has no rules, neither in the report nor at the gate.
 
