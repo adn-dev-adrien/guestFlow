@@ -42,13 +42,13 @@ test('getClosureDayParts — start, between, reopening, open', () => {
 test('the start day is hatched on its second half: a plain first half masks the hatching', () => {
   const bg = image(cell(10));
   expect(bg).toMatch(/repeating-linear-gradient/);
-  expect(bg).toMatch(/linear-gradient\(135deg, rgb\([^)]*\) 0\S* 50%, transparent 50%\)/);
+  expect(bg).toMatch(/linear-gradient\(135deg, (rgb\([^)]*\)) 0\S*(?:, \1)? 50%, (?:transparent|rgba\(0, 0, 0, 0\)) 50%\)/); // jsdom 31 spells out both stops
 });
 
 test('the reopening day is hatched on its first half: a plain second half masks the hatching', () => {
   const bg = image(cell(13));
   expect(bg).toMatch(/repeating-linear-gradient/);
-  expect(bg).toMatch(/linear-gradient\(135deg, transparent 0(%)? 50%/);
+  expect(bg).toMatch(/linear-gradient\(135deg, (?:transparent|rgba\(0, 0, 0, 0\)) 0\S*(?:, (?:transparent|rgba\(0, 0, 0, 0\)))? 50%/); // jsdom 31 spells out both stops
 });
 
 test('a day between is hatched all day and says « Travaux »', () => {

@@ -98,7 +98,7 @@ test('rules 8, 28 — a past stay is a tint with a stripe and ink text on the lo
   const style = getComputedStyle(container.querySelector('[data-ribbon="r7"]'));
   expect(style.backgroundColor).toBe('rgba(47, 93, 70, 0.14)');
   expect(style.color).toBe('rgb(39, 37, 31)');
-  expect(style.boxShadow).toMatch(/inset 3px 0 0/);
+  expect(style.boxShadow).toMatch(/inset 3px 0 0|3px 0px inset/); // jsdom 30 / 31 serialisations
   expect(style.opacity).not.toBe('0.55');
 });
 
