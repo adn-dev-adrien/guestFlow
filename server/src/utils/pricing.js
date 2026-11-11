@@ -20,6 +20,7 @@ const {
   hasUnpricedNights,
 } = require('./pricing/nights');
 const { clampCommissions, netReceived } = require('./pricing/platformPayment');
+const { resolvePlatformPrice, grossFromNet } = require('./pricing/platformPrice');
 const articles = require('./pricing/articles');
 const { createFreeUnitsLedger, applyFreeUnitsToLine, applyPerHourFreeMinutes } = require('./pricing/allowances');
 
@@ -68,25 +69,6 @@ const { create: createPaymentLedger } = require('../models/ports/paymentLedger')
 const {
   findBabyBedOption, resolveBillableBabyBeds, buildBabyBedSupplementLine, isBabyBedOption,
 } = require('./babyBedSupplement');
-
-// Gross-up a net price by a platform commission % so that, after the platform takes its commission,
-// the owner nets `net`: gross = (net + fixedCost) / (1 − c/100). c is clamped to [0, 99.99]; a value
-// ≥ 100 (would divide by ≤ 0) returns null = "invalid, no price". c ≤ 0 / blank → gross = net.
-// specs/platform-price-from-commission.md §3.3 + specs/tariff-recipes/spec.md §3.6 rules 31-33:
-//  - `fixedCost` is a per-stay cost the displayed price must cover AFTER commission (the direct
-//    channel's welcome pack) — added to the net before the gross-up;
-//  - `rounding: 'euro_up'` (the default) ceils to the whole euro: this is a price to DISPLAY on a
-//    channel's back office, not an amount to bill. 'cents' keeps the historic 2-decimal rounding.
-// Display-only by construction: the two callers are the platform grid and its unit test — no billed
-// amount ever flows through here.
-function grossFromNet(net, commissionPercent, { fixedCost = 0, rounding = 'euro_up' } = {}) {
-  const amount = Number(net || 0) + Math.max(0, Number(fixedCost || 0));
-  const finish = (value) => (rounding === 'cents' ? roundMoney(value) : Math.ceil(roundMoney(value)));
-  let c = Number(commissionPercent);
-  if (!Number.isFinite(c) || c <= 0) return finish(amount);
-  if (c >= 100) return null;
-  return finish(amount / (1 - c / 100));
-}
 
 // Option-driven planning cards (specs/option-planning-card.md §3.4). Parse the per-reservation
 // selected occurrences (the checked moments) into a clean [{ date, time }] array. Accepts a stored
@@ -1251,13 +1233,12 @@ function calculateReservationQuote({
   // platform-brut-excludes-offered-tourist-tax.md, byte-identical. Non-empty → the brut is the
   // guest-paid total and the stated tax comes back out of it, so the revenue and the VAT base are the
   // stay alone. Never our own estimate: that is what made the earlier deduction unreconcilable.
-  const pinnedAccommodation = platformGrossPin != null
-    ? roundMoney(Math.max(
-      0,
-      platformGrossPin - extraGuestInBrutSurcharge - preArrivalOptionsResources
-        - reversedTouristTaxInBrut - withheldTouristTaxInBrut,
-    ))
-    : null;
+  const { accommodation: pinnedAccommodation } = resolvePlatformPrice({
+    gross: platformGrossPin,
+    extraGuestsInBrut: extraGuestInBrutSurcharge,
+    platformLines: preArrivalOptionsResources,
+    withheldTax: [reversedTouristTaxInBrut, withheldTouristTaxInBrut],
+  });
   const accommodationAdjustedPrice = roundMoney(
     pinnedAccommodation != null
       ? pinnedAccommodation

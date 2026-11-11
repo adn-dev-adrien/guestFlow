@@ -13,8 +13,8 @@ const {
   parseRuleDateRanges,
   addDaysToIsoDate,
   normalizeProgressiveTiers,
-  grossFromNet,
 } = require('../utils/pricing');
+const { grossFromNet } = require('../utils/pricing/platformPrice');
 const { normalizeExtraGuestTiers } = require('../utils/extraGuestTiers');
 const { rangesWindowMessage } = require('../utils/stayDates');
 const { formatDateNumeric } = require('../utils/dateFr');
