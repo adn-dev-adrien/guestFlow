@@ -16,6 +16,7 @@ const { settingsSchema: nightsSchema, parseJsonArray } = require('../../utils/pr
 const { settingsSchema: extraGuestsSchema } = require('../../utils/pricing/extraGuests');
 const { settingsSchema: touristTaxSchema } = require('../../utils/pricing/touristTax');
 const { settingsSchema: stayClockSchema } = require('../../utils/pricing/stayClock');
+const { settingsSchema: scheduleSchema } = require('../../utils/pricing/schedule');
 
 const LAYERS = ['article', 'property', 'global'];
 const WIDTH = { global: 0, property: 1, article: 2 };
@@ -76,10 +77,23 @@ const ADAPTERS = {
       return { defaultCheckIn: property.defaultCheckIn, defaultCheckOut: property.defaultCheckOut };
     },
   },
+  schedule: {
+    property(db, scope) {
+      const property = propertyRow(db, scope.propertyId);
+      if (!property) return undefined;
+      return {
+        depositPercent: property.depositPercent,
+        depositEnabled: property.depositEnabled,
+        depositDueDays: property.depositDueDays,
+        balanceDaysBefore: property.balanceDaysBefore,
+        cancelAfterBalanceDueDays: property.cancelAfterBalanceDueDays,
+      };
+    },
+  },
 };
 
 const SCHEMAS = {
-  nights: nightsSchema, extraGuests: extraGuestsSchema, touristTax: touristTaxSchema, stayClock: stayClockSchema,
+  nights: nightsSchema, extraGuests: extraGuestsSchema, touristTax: touristTaxSchema, stayClock: stayClockSchema, schedule: scheduleSchema,
 };
 
 function create(db, { extra = {} } = {}) {
