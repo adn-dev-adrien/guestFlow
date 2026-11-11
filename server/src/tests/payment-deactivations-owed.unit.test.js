@@ -105,8 +105,10 @@ test('rule 67 — disconnected, before any lifecycle pass: an open link of a mis
   const ctx = seed();
   const orphan = addLink(ctx.links, ctx.db, 987654);
   const lapsed = addLink(ctx.links, ctx.db, ctx.stay, { expiresAt: LAPSED_AT });
+  // date-literal-ok: stay nights nothing compares with today
   const cancelledStay = addStay(ctx.db, { kind: 'cancelled', startDate: '2027-08-10', endDate: '2027-08-12' });
   const ofCancelled = addLink(ctx.links, ctx.db, cancelledStay);
+  // date-literal-ok: stay nights nothing compares with today
   const setAside = addStay(ctx.db, { kind: 'superseded', startDate: '2027-09-10', endDate: '2027-09-12' });
   const ofSetAside = addLink(ctx.links, ctx.db, setAside);
   const live = addLink(ctx.links, ctx.db, ctx.stay, { type: 'balance' });
