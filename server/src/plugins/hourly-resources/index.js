@@ -17,6 +17,7 @@ const planningCardsModel = require('./planningCardsModel');
 const { createController } = require('./controller');
 const { buildRouter } = require('./routes');
 const { createHourlyContributor } = require('./pricing');
+const { createHourlyFamily } = require('./hourlyFamily');
 const { createSasStep } = require('./sasStep');
 const { buildCatalogueLines } = require('./catalogueLines');
 const { createScheduler } = require('./scheduler');
@@ -58,7 +59,10 @@ function register(ctx) {
   ctx.jobs.every({ name: 'resource-invoices-watch', intervalMs: 60 * 60 * 1000, bootDelayMs: 5 * 60 * 1000, run: () => invoicing().watch() });
 
   // Rule 11 — the `per_hour` lines of a quote.
-  ctx.priceLineContributor(createHourlyContributor());
+  const hourlyContributor = createHourlyContributor();
+  ctx.priceLineContributor(hourlyContributor);
+  // Rules 5, 47 of the pricing components — the same contributor, wrapped as the `hourly` family of the Articles head.
+  ctx.articleFamily('hourly', createHourlyFamily(hourlyContributor));
   // specs/options-resources-ux.md rule 19 — the evening / external rates and the schedule on the card.
   ctx.resourceCatalogueLines(buildCatalogueLines);
 

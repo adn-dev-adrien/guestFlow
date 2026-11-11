@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.26.0",
+  "sdk": "^2.27.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -127,6 +127,10 @@
     "1.5.2": [
       "Un client Qonto n’est réutilisé que pour le nom et l’adresse avec lesquels il a été créé : une adresse ajoutée ou corrigée sur la fiche client passe sur la facture suivante.",
       "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.5.3": [
+      "Le tarif à l’heure est aussi proposé au calcul des prix comme une famille d’article « hourly » ; aucun prix ne change.",
+      "Demande le SDK 2.27 de GuestFlow."
     ]
   }
 }

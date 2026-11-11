@@ -20,6 +20,13 @@ const {
   hasUnpricedNights,
 } = require('./pricing/nights');
 const { clampCommissions, netReceived } = require('./pricing/platformPayment');
+const articles = require('./pricing/articles');
+const { createFreeUnitsLedger, applyFreeUnitsToLine, applyPerHourFreeMinutes } = require('./pricing/allowances');
+
+const {
+  getTypeMultiplier, computePercentOfStayAmount, resolveServedPersons, resolveNonCardUnits,
+  calculateProgressiveParticipantOptionTotal, normalizeOptionProgressiveTiers, lockedUnitPriceOr,
+} = articles;
 
 // What an option line's `quantity` counts, when the summary has to say it
 // (specs/review-2026-10-18-reservations.md rule 5; review F13:
@@ -81,30 +88,6 @@ function grossFromNet(net, commissionPercent, { fixedCost = 0, rounding = 'euro_
   return finish(amount / (1 - c / 100));
 }
 
-function getTypeMultiplier(priceType, persons, nights) {
-  if (priceType === 'per_person') return persons;
-  if (priceType === 'per_night') return nights;
-  if (priceType === 'per_person_per_night') return persons * nights;
-  return 1;
-}
-
-/**
- * Amount of a `percent_of_stay` option (specs/cancellation-insurance.md §3.1 rules 2-4).
- *
- * `percent` is what `options.price` holds for that price type (4 = 4 %), clamped to 0-100 so a
- * corrupt row can never bill more than the stay itself. `base` is the assiette resolved by the
- * engine (`cancellationInsuranceBase`) — the accommodation only.
- *
- * Single source of truth: the billed line AND the public preview shown beside the Oui/Non choice
- * on the website both go through this function, so they cannot diverge.
- */
-function computePercentOfStayAmount(percent, base) {
-  const pct = Math.max(0, Math.min(100, Number(percent) || 0));
-  const amount = Math.max(0, Number(base) || 0);
-  if (pct <= 0 || amount <= 0) return 0;
-  return roundMoney((amount * pct) / 100);
-}
-
 // Option-driven planning cards (specs/option-planning-card.md §3.4). Parse the per-reservation
 // selected occurrences (the checked moments) into a clean [{ date, time }] array. Accepts a stored
 // JSON string or an array; drops entries without a valid ISO date. The length drives billedUnits.
@@ -117,134 +100,6 @@ function normalizeCardOccurrences(raw) {
     // reservation re-save doesn't reset it. It never affects billedUnits.
     .map((o) => ({ date: String(o?.date || '').slice(0, 10), time: String(o?.time || '').trim(), done: Boolean(o?.done) }))
     .filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.date));
-}
-
-/**
- * How many people a per-person card option serves, and what to store for it
- * (specs/card-option-served-persons.md §3.1). A meal or a breakfast is not always taken by the whole
- * party — the children often skip it — so the operator can lower (or raise, up to the property's
- * capacity) the number of covers of one prestation.
- *
- * `served` is what the money is computed from; `stored` is what goes to
- * `reservation_options.cardPersons`, and it is NULL whenever the number equals the current party:
- * such a line keeps FOLLOWING the party, so editing « adultes / enfants » still re-prices it (rule 4).
- * A deliberately different number is persisted and then stays put.
- *
- * @param {{cardPersons?: number|null, persons?: number, maxGuests?: number}} params
- * @returns {{served: number, stored: number|null}}
- */
-function resolveServedPersons({ cardPersons, persons, maxGuests } = {}) {
-  const party = Math.max(0, Number(persons) || 0);
-  // Never below the party actually staying: everyone present can always be served, whatever the
-  // configured capacity says.
-  const ceiling = Math.max(1, party, Number(maxGuests) > 0 ? Math.floor(Number(maxGuests)) : 0);
-  const wanted = Number(cardPersons);
-  // Absent / unparsable / ≤ 0 → the party. Serving 0 person is not how a prestation is removed, and
-  // neither is unticking its moments (specs/unscheduled-card-option.md rule 5): switch it off.
-  const served = Number.isFinite(wanted) && wanted > 0
-    ? Math.min(Math.max(1, wanted), ceiling)
-    : party;
-  return { served, stored: served === party ? null : served };
-}
-
-/**
- * Billed units of a non-card option (specs/non-card-option-served-persons.md rules 2-5 and 19). What
- * the operator typed is a count of people or of nights and stays that count: it is never derived from
- * the party or the stay again. NULL follows them. `quantity` remains the base of the other dimensions
- * (normally 1); a line that drifted before this rule keeps it and reads as what it bills (rule 18).
- *
- * @param {{priceType: string, quantity: number, persons: number, nights: number,
- *          cardPersons?: number|null, cardNights?: number|null, maxGuests?: number}} params
- * @returns {{billedUnits: number, cardPersons: number|null, cardNights: number|null,
- *            servedPersons?: number, servedNights?: number}}
- */
-function resolveNonCardUnits({
-  priceType, quantity, persons, nights, cardPersons, cardNights, maxGuests,
-}) {
-  if (priceType === 'per_person' || priceType === 'per_person_per_night') {
-    const wanted = Number(cardPersons) > 0 ? Math.floor(Number(cardPersons)) : null;
-    const covers = resolveServedPersons({ cardPersons: wanted, persons, maxGuests });
-    return {
-      billedUnits: roundMoney(quantity * covers.served * (priceType === 'per_person' ? 1 : nights)),
-      cardPersons: covers.stored,
-      cardNights: null,
-      servedPersons: roundMoney(quantity * covers.served),
-    };
-  }
-  if (priceType === 'per_night') {
-    const wanted = Number(cardNights) > 0 ? Math.floor(Number(cardNights)) : null;
-    const counted = wanted != null ? wanted : nights;
-    return {
-      billedUnits: roundMoney(quantity * counted),
-      cardPersons: null,
-      cardNights: counted === nights ? null : counted,
-      servedNights: roundMoney(quantity * counted),
-    };
-  }
-  return {
-    billedUnits: roundMoney(quantity * getTypeMultiplier(priceType, persons, nights)),
-    cardPersons: null,
-    cardNights: null,
-  };
-}
-
-function normalizeOptionProgressiveTiers(rawTiers) {
-  const parsed = parseJsonArray(rawTiers);
-  const byParticipant = new Map();
-
-  parsed.forEach((entry) => {
-    const participantNumber = Math.max(1, Math.floor(Number(entry?.participantNumber || 0)));
-    const unitPrice = Math.max(0, Number(entry?.unitPrice || 0));
-    if (!Number.isFinite(participantNumber) || !Number.isFinite(unitPrice)) return;
-    byParticipant.set(participantNumber, {
-      participantNumber,
-      unitPrice: roundMoney(unitPrice),
-    });
-  });
-
-  return Array.from(byParticipant.values())
-    .sort((a, b) => a.participantNumber - b.participantNumber);
-}
-
-function getProgressiveUnitPriceForParticipant(tiers, participantNumber, fallbackUnitPrice = 0) {
-  const target = Math.max(1, Math.floor(Number(participantNumber || 0)));
-  const normalizedFallback = Math.max(0, Number(fallbackUnitPrice || 0));
-  const normalizedTiers = Array.isArray(tiers) ? tiers : [];
-
-  let resolved = normalizedFallback;
-  for (const tier of normalizedTiers) {
-    if (Number(tier.participantNumber) > target) break;
-    resolved = Math.max(0, Number(tier.unitPrice || 0));
-  }
-
-  return roundMoney(resolved);
-}
-
-function calculateProgressiveParticipantOptionTotal(quantity, tiers, fallbackUnitPrice = 0) {
-  const billedUnits = Math.max(0, Math.floor(Number(quantity || 0)));
-  if (billedUnits <= 0) {
-    return {
-      billedUnits: 0,
-      totalPrice: 0,
-      averageUnitPrice: 0,
-      lastUnitPrice: roundMoney(Math.max(0, Number(fallbackUnitPrice || 0))),
-    };
-  }
-
-  let total = 0;
-  let lastUnitPrice = roundMoney(Math.max(0, Number(fallbackUnitPrice || 0)));
-  for (let index = 1; index <= billedUnits; index += 1) {
-    lastUnitPrice = getProgressiveUnitPriceForParticipant(tiers, index, fallbackUnitPrice);
-    total += lastUnitPrice;
-  }
-
-  const totalPrice = roundMoney(total);
-  return {
-    billedUnits,
-    totalPrice,
-    averageUnitPrice: billedUnits > 0 ? roundMoney(totalPrice / billedUnits) : 0,
-    lastUnitPrice,
-  };
 }
 
 // specs/tourist-tax-included-services-deduction.md rule 3 — the reference value of the services the
@@ -357,229 +212,8 @@ function getLateCheckoutNextNightReferencePrice({ rules, endDate, stayNights }) 
   return roundMoney(extraNightPrice);
 }
 
-function normalizeBilledUnits(value) {
-  const units = Number(value);
-  if (!Number.isFinite(units)) return 0;
-  return Math.max(0, units);
-}
-
-/**
- * The units a line was SOLD at, read from its own snapshot — `null` when the line is new
- * (specs/unscheduled-card-option.md rule 3).
- *
- * A card option sold by the website carries its portions here and nowhere else: its moments are not
- * placed yet, so there is nothing to recompute them from. Anchoring the unscheduled price on this
- * figure is what makes a paid breakfast survive a conversion, a fiche save and every engine replay.
- */
-function soldBilledUnits(lockedLine) {
-  if (!lockedLine) return null;
-  const raw = lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity;
-  const units = normalizeBilledUnits(raw);
-  return units > 0 ? units : null;
-}
-
-function mergeLineWithLockedSnapshot({
-  lockedLine,
-  targetBilledUnits,
-  currentUnitPrice,
-}) {
-  debugResourceLine('merge.locked_snapshot.input', {
-    lockedLine,
-    targetBilledUnits,
-    currentUnitPrice,
-  });
-
-  const resolvedTargetUnits = normalizeBilledUnits(targetBilledUnits);
-  const normalizedCurrentUnitPrice = roundMoney(currentUnitPrice);
-
-  debugResourceLine('merge.locked_snapshot.normalized', {
-    resolvedTargetUnits,
-    normalizedCurrentUnitPrice,
-  });
-
-  if (!lockedLine) {
-    const result = {
-      billedUnits: resolvedTargetUnits,
-      totalPrice: roundMoney(resolvedTargetUnits * normalizedCurrentUnitPrice),
-      unitPrice: normalizedCurrentUnitPrice,
-    };
-    debugResourceLine('merge.locked_snapshot.no_locked_line', { result });
-    return result;
-  }
-
-  const lockedTotal = roundMoney(lockedLine.totalPrice);
-  const lockedUnits = normalizeBilledUnits(
-    lockedLine.billedUnits !== undefined
-      ? lockedLine.billedUnits
-      : lockedLine.quantity
-  );
-  const lockedUnitPrice = lockedUnits > 0
-    ? roundMoney(lockedTotal / lockedUnits)
-    : roundMoney(lockedLine.unitPrice || normalizedCurrentUnitPrice);
-
-  debugResourceLine('merge.locked_snapshot.locked_values', {
-    lockedTotal,
-    lockedUnits,
-    lockedUnitPrice,
-  });
-
-  if (resolvedTargetUnits === lockedUnits) {
-    const result = {
-      billedUnits: lockedUnits,
-      totalPrice: lockedTotal,
-      unitPrice: lockedUnitPrice,
-    };
-    debugResourceLine('merge.locked_snapshot.same_units', { result });
-    return result;
-  }
-
-  if (resolvedTargetUnits > lockedUnits) {
-    const deltaUnits = resolvedTargetUnits - lockedUnits;
-    const mergedTotal = roundMoney(lockedTotal + deltaUnits * normalizedCurrentUnitPrice);
-    const result = {
-      billedUnits: resolvedTargetUnits,
-      totalPrice: mergedTotal,
-      unitPrice: resolvedTargetUnits > 0 ? roundMoney(mergedTotal / resolvedTargetUnits) : normalizedCurrentUnitPrice,
-    };
-    debugResourceLine('merge.locked_snapshot.increase_units', {
-      deltaUnits,
-      mergedTotal,
-      result,
-    });
-    return result;
-  }
-
-  const removedUnits = lockedUnits - resolvedTargetUnits;
-  const reducedTotal = roundMoney(Math.max(0, lockedTotal - removedUnits * lockedUnitPrice));
-  const result = {
-    billedUnits: resolvedTargetUnits,
-    totalPrice: reducedTotal,
-    unitPrice: resolvedTargetUnits > 0 ? roundMoney(reducedTotal / resolvedTargetUnits) : lockedUnitPrice,
-  };
-  debugResourceLine('merge.locked_snapshot.decrease_units', {
-    removedUnits,
-    reducedTotal,
-    result,
-  });
-  return result;
-}
-
-/**
- * A locked line that was "offered" is stored with totalPrice = 0, which would erase its real price
- * (the merge derives unit price from total/units). To keep offering lossless, reconstruct the real
- * total from the stored unit price before merging.
- *
- * If the stored unit price was itself lost (0) — legacy data where an offered line was persisted
- * without its unit price — fall back to `fallbackUnitPrice` (the current catalog/effective unit
- * price the caller already resolved). This makes un-offering re-price from the catalog instead of
- * staying at 0, matching the spec's "offered toggle is lossless" contract
- * (specs/pricing-engine-thin-client.md §14). A genuinely free line (no stored unit AND no catalog
- * price) is still left at 0.
- */
-function reconstructLockedRealTotal(lockedLine, fallbackUnitPrice = 0) {
-  if (!lockedLine) return lockedLine;
-  const total = roundMoney(lockedLine.totalPrice);
-  if (total > 0) return lockedLine;
-  const units = normalizeBilledUnits(
-    lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity
-  );
-  const unit = roundMoney(lockedLine.unitPrice || 0) || roundMoney(fallbackUnitPrice || 0);
-  if (units > 0 && unit > 0) {
-    return { ...lockedLine, totalPrice: roundMoney(units * unit), unitPrice: unit };
-  }
-  return lockedLine;
-}
-
-/**
- * The unit price a line was SOLD at, for the paths that rebuild their billed units from scratch on
- * every save (planning-card occurrences) and therefore cannot go through
- * `mergeLineWithLockedSnapshot`. Falls back to `currentUnitPrice` when the booking carries no
- * snapshot for that line — a fresh quote, or a line added today.
- *
- * The stored `unitPrice` is preferred over `totalPrice / billedUnits`: the total is NET of the free
- * units included in the rate (specs/tariff-recipes/spec.md §3.9 rule 52bis) while `billedUnits` is
- * gross, so the division would deflate the price of an option covered by a welcome pack.
- */
-function lockedUnitPriceOr(lockedLine, currentUnitPrice) {
-  if (!lockedLine) return currentUnitPrice;
-  const stored = roundMoney(lockedLine.unitPrice);
-  if (stored > 0) return stored;
-  const units = normalizeBilledUnits(
-    lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity
-  );
-  const total = roundMoney(lockedLine.totalPrice);
-  if (units > 0 && total > 0) return roundMoney(total / units);
-  return currentUnitPrice;
-}
-
-/**
- * specs/tariff-recipes/spec.md §3.9 rules 52bis and 56 — a sold line stores its
- * total NET of the free units the rate includes, while `billedUnits` is gross. Merging that net total
- * as if it covered every unit derived a deflated unit price, and the free units were then deducted a
- * second time: « Jus 6 € ×3, 1 offert » went 12 → 8 → 5,34 → 3,56 over three saves. The free units are
- * added back at the STORED unit price so the merge works on the gross line, and are deducted once,
- * after it, by `applyFreeUnitsToLine`. A line stored at 0 (offered, or wholly free) is left to
- * `reconstructLockedRealTotal`, which already rebuilds it gross.
- */
-function lockedLineGrossOfFreeUnits(lockedLine, freeUnits) {
-  if (!lockedLine) return lockedLine;
-  const free = Math.max(0, Number(freeUnits || 0));
-  const total = roundMoney(lockedLine.totalPrice);
-  const unit = roundMoney(lockedLine.unitPrice);
-  if (free <= 0 || total <= 0 || unit <= 0) return lockedLine;
-  const units = normalizeBilledUnits(
-    lockedLine.billedUnits !== undefined ? lockedLine.billedUnits : lockedLine.quantity
-  );
-  return { ...lockedLine, totalPrice: roundMoney(total + Math.min(free, units) * unit) };
-}
-
-/**
- * Applies the `offered` flag to a computed (real) line total. The real price is always preserved as
- * `originalTotalPrice`; offering only zeroes the billed `totalPrice`. This is the single place where
- * offering affects money, so toggling offered on/off is always lossless.
- */
 function storedSessionsOf(selected) {
   return Array.isArray(selected?.sessions) && selected.sessions.length > 0 ? { sessions: selected.sessions } : {};
-}
-
-function applyOfferedToLine(realTotal, offered) {
-  const real = roundMoney(realTotal);
-  return {
-    originalTotalPrice: real,
-    totalPrice: offered ? 0 : real,
-    offered: Boolean(offered),
-  };
-}
-
-const isPlainObject = (value) => value != null && typeof value === 'object' && !Array.isArray(value);
-
-// specs/tariff-recipes/spec.md §3.9 rules 52bis-52ter — the first N units of an option are covered
-// by the rate (the direct welcome pack's two breakfasts). The operator orders the FULL quantity and
-// only the units beyond the free ones are billed; `billedUnits` — what the Planning and SAS cards
-// prepare — is deliberately untouched. Own-channel bookings only — `direct` AND `Lodgify`, the
-// booking engine on the operator's own site (rule 53): the pack is the single difference with a
-// commissioned channel, and a platform reservation is priced by its recorded gross.
-function applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice, lockedFreeUnits = null }) {
-  // A sold reservation replays the units it was GRANTED (rule 12bis): raising the pack from 2 to 3
-  // breakfasts must not retroactively widen what an old booking got for free.
-  const granted = lockedFreeUnits != null ? Number(lockedFreeUnits) : Number(option.freeUnits || 0);
-  const freeUnits = isDirectBooking
-    ? Math.min(Math.max(0, granted), billedUnits)
-    : 0;
-  const chargedUnits = roundMoney(Math.max(0, billedUnits - freeUnits));
-  return {
-    freeUnits,
-    freeUnitsAmount: roundMoney(freeUnits * unitPrice),
-    chargedUnits,
-    realTotal: roundMoney(chargedUnits * unitPrice),
-  };
-}
-
-function applyPerHourFreeMinutes(baseUnits, freeMinutes) {
-  const normalizedUnits = normalizeBilledUnits(baseUnits);
-  const normalizedFreeMinutes = Math.max(0, Number(freeMinutes || 0));
-  const freeUnits = roundMoney(normalizedFreeMinutes / 60);
-  return roundMoney(Math.max(0, normalizedUnits - freeUnits));
 }
 
 const DEBUG_RESOURCE_LINES = process.env.DEBUG_RESOURCE_LINES === '1';
@@ -916,40 +550,6 @@ function calculateReservationQuote({
   // specs/plugins-phase-p-productisation.md rule 45 — the one reading of the channel every money
   // decision below shares.
   const channel = saleChannel(platform);
-  // specs/tariff-recipes/spec.md §3 rules 12bis + 66 — the free units of an option are read from two
-  // maps of the tariff snapshot, never one:
-  //   - `grantedFreeUnitsByOption`: what the stay was GRANTED per option (0 included). It survives
-  //     every save, the option removed, its quantity lowered or the stay moved to a platform, so a
-  //     re-added welcome pack is not billed. An option absent from it was never on the stay: it gets
-  //     today's catalogue.
-  //   - `freeUnitsByOption`: what the stored lines were CONSUMED net of at the last save — only the
-  //     add-back of a sold line reads it (rule 56).
-  // A snapshot written before rule 66 only has the consumed map: it stands in for the grant (the best
-  // lower bound we have), an option already on the stay but absent from it was granted nothing, and an
-  // option new to the stay gets the catalogue.
-  const soldGrantMap = lockedTariff && isPlainObject(lockedTariff.grantedFreeUnitsByOption)
-    ? lockedTariff.grantedFreeUnitsByOption
-    : null;
-  const consumedMap = lockedTariff && isPlainObject(lockedTariff.freeUnitsByOption)
-    ? lockedTariff.freeUnitsByOption
-    : {};
-  const grantedFreeUnitsFor = (optionId) => {
-    const key = String(optionId);
-    const live = Math.max(0, Number(optionsById.get(Number(optionId))?.freeUnits || 0));
-    if (!lockedTariff) return live;                       // no snapshot → sold now, at the catalogue
-    if (soldGrantMap) return Object.prototype.hasOwnProperty.call(soldGrantMap, key)
-      ? Math.max(0, Number(soldGrantMap[key] || 0))
-      : live;
-    if (Object.prototype.hasOwnProperty.call(consumedMap, key)) return Math.max(0, Number(consumedMap[key] || 0));
-    return lockedOptionsById.has(Number(optionId)) ? 0 : live;
-  };
-  // What a stored line is net of. A legacy snapshot recorded it at the creation only, for a direct
-  // sale: on a platform save it has nothing to add back.
-  const consumedFreeUnitsFor = (optionId) => {
-    if (!lockedTariff) return 0;
-    const consumed = Math.max(0, Number(consumedMap[String(optionId)] || 0));
-    return soldGrantMap || isDirectBooking ? consumed : 0;
-  };
   const optionsById = new Map(getApplicableOptions(db, propertyId).map((option) => [Number(option.id), option]));
   const resourcesById = new Map(getApplicableResources(db, propertyId).map((resource) => [Number(resource.id), resource]));
   const optionUnitOverrides = lockedOptionUnits || {};
@@ -976,6 +576,9 @@ function calculateReservationQuote({
     (Array.isArray(lockedResourceLines) ? lockedResourceLines : [])
       .map((line) => [Number(line.resourceId), line])
   );
+  const { soldGrantMap, consumedMap, grantedFreeUnitsFor, consumedFreeUnitsFor } = createFreeUnitsLedger({
+    lockedTariff, optionsById, lockedOptionsById, isDirectBooking,
+  });
 
   const mergedNightly = mergeNightlyBreakdownWithLocked(lockedNightlyBreakdown, freshNightlyBreakdown);
   const nightlyBreakdown = mergedNightly.nightlyBreakdown;
@@ -1084,6 +687,15 @@ function calculateReservationQuote({
   // see the function-level comment on `autoOptionsInComplement`).
   const autoInComplementSet = new Set((Array.isArray(autoOptionsInComplement) ? autoOptionsInComplement : []).map(Number));
 
+  const articleStay = {
+    persons, nights, maxGuests: property.maxGuests, isDirectBooking, cancellationInsuranceBase, debug: debugResourceLine,
+  };
+  const freeUnitsLedger = { grantedFreeUnitsFor, consumedFreeUnitsFor };
+  // One price through the Articles head: the families price, the head keeps the sold snapshot, the free units and « offert ».
+  const quoteArticle = (request) => articles.quote({ requests: [request], stayContext: articleStay, allowance: freeUnitsLedger }).lines[0];
+  // « Offert » on an amount fixed upstream (an engine-derived line, a custom line, a plugin-priced hour).
+  const offeredOf = (ref, vatClass, totalPrice, offered) => quoteArticle({ ref, vatClass, priced: { totalPrice }, offered }).offeredFigures;
+
   const optionLines = (Array.isArray(selectedOptions) ? selectedOptions : [])
     .map((selected) => {
       const optionId = Number(selected.optionId);
@@ -1091,6 +703,10 @@ function calculateReservationQuote({
       if (!option) return null;
       const priceType = option.priceType || 'per_stay';
       const locked = lockedOptionsById.get(optionId);
+      const article = articles.makeArticle(option);
+      const request = {
+        article, locked, offered: offeredOptionIdSet.has(optionId), unitOverride: optionUnitOverrides[optionId],
+      };
 
       // Option-driven planning card (specs/option-planning-card.md §3.4): the per-reservation
       // selected occurrences REPLACE the automatic nights/days path and drive the billed quantity:
@@ -1107,90 +723,44 @@ function calculateReservationQuote({
       // operator also ticked « carte planning » on it, the card path must not read its percentage
       // as a euro unit price, nor bill it per scheduled slot
       // (specs/cancellation-insurance.md §3.1 rules 4 + 5bis).
-      const isCancellationInsurance = Number(option.isCancellationInsurance || 0) === 1;
-      if (option.showsPlanningCard && priceType !== 'percent_of_stay' && !isCancellationInsurance) {
+      if (article.family === 'perUnit') {
         const perPerson = String(priceType).includes('per_person');
-        const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
-          ? Number(optionUnitOverrides[optionId])
-          : lockedUnitPriceOr(locked, Number(option.price || 0));
-        // The portions this line was last SOLD at — its own snapshot, not today's catalogue. It
-        // anchors the unscheduled fallback below and tells the fiche when a planning has drifted
-        // away from what the guest paid (specs/unscheduled-card-option.md rules 3 + 9).
-        const sold = soldBilledUnits(locked);
         const occurrences = normalizeCardOccurrences(selected.cardOccurrences);
-
-        if (occurrences.length > 0) {
-          // How many covers on each moment (specs/card-option-served-persons.md §3.1 rule 2): the
-          // party unless the operator said otherwise, capped by the property's capacity.
-          const covers = resolveServedPersons({
-            cardPersons: selected?.cardPersons, persons, maxGuests: property.maxGuests,
-          });
-          const billedUnits = roundMoney(occurrences.length * (perPerson ? covers.served : 1));
-          const free = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: grantedFreeUnitsFor(optionId) });
-          return {
-            optionId,
-            title: option.title,
-            titleEn: option.titleEn || null,
-            quantity: occurrences.length,
-            unitPrice: unitBase,
-            billedUnits,
-            freeUnits: free.freeUnits,
-            freeUnitsAmount: free.freeUnitsAmount,
-            chargedUnits: free.chargedUnits,
-            priceType,
-            cardOccurrences: occurrences,
-            cardPersons: perPerson ? covers.stored : null,
-            // Planning less (or more) than what was sold is the operator's call, but it must not be
-            // silent: the fiche shows « planifié N · vendu M » for as long as the two disagree.
-            ...(sold != null && sold !== billedUnits ? { soldUnits: sold } : {}),
-            ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
-            ...pickContribsAndForce(selected, locked),
-          };
-        }
-
+        const asked = Math.max(0, Number(selected?.quantity || 0));
         // UNSCHEDULED — the option is taken, its moments are not placed yet
         // (specs/unscheduled-card-option.md rules 1, 3, 4). The line is NEVER dropped here: that
         // `return null` is what erased a breakfast the guest had already paid for, on the first save
         // of any reservation born on the website. Same decision as the hourly resources
         // (specs/hourly-resource-quantity-and-sas-scheduling.md rules 1 + 3): the quantity sells the
         // prestation, the arrival SAS places it.
-        const asked = Math.max(0, Number(selected?.quantity || 0));
         // Switching the option OFF is the one and only way to remove it. An empty moment grid means
         // « not planned yet », never « not sold » (supersedes specs/option-planning-card.md §3.4).
-        if (asked <= 0) return null;
-        // PUBLIC/site flow: the visitor's quantity is the intent, counted in PORTIONS for a
-        // per-person option — one breakfast, one cover, never séances to multiply by the party
-        // (specs/site-meal-portions.md rule 1) — and held to what the stay can serve (rule 3).
-        // Everywhere else the line keeps the portions it was sold at, so a replay that carries no
-        // moment reproduces the amount instead of inventing one.
-        const portions = planningCardAsQuantity
-          ? (perPerson
-            ? clampPortions(asked, portionCap({
-              option, persons, nights, checkInTime, checkOutTime, property,
-            }).cap)
-            : { quantity: asked, clampedFrom: null })
-          : { quantity: sold != null ? sold : asked, clampedFrom: null };
-        const qty = portions.quantity;
-        if (qty <= 0) return null;
-        const billedUnits = roundMoney(qty);
-        const unscheduledFree = applyFreeUnitsToLine({ option, isDirectBooking, billedUnits, unitPrice: unitBase, lockedFreeUnits: grantedFreeUnitsFor(optionId) });
+        if (occurrences.length === 0 && asked <= 0) return null;
+        const priced = quoteArticle({
+          ...request,
+          quantity: asked,
+          occurrences,
+          cardPersons: selected?.cardPersons,
+          // PUBLIC/site flow: the visitor's quantity is the intent, counted in PORTIONS for a
+          // per-person option — one breakfast, one cover, never séances to multiply by the party
+          // (specs/site-meal-portions.md rule 1) — and held to what the stay can serve (rule 3).
+          // Everywhere else the line keeps the portions it was sold at, so a replay that carries no
+          // moment reproduces the amount instead of inventing one.
+          portions: (sold) => (planningCardAsQuantity
+            ? (perPerson
+              ? clampPortions(asked, portionCap({
+                option, persons, nights, checkInTime, checkOutTime, property,
+              }).cap)
+              : { quantity: asked, clampedFrom: null })
+            : { quantity: sold != null ? sold : asked, clampedFrom: null }),
+        });
+        if (!priced) return null;
         return {
           optionId,
           title: option.title,
           titleEn: option.titleEn || null,
-          quantity: qty,
-          unitPrice: unitBase,
-          billedUnits,
-          freeUnits: unscheduledFree.freeUnits,
-          freeUnitsAmount: unscheduledFree.freeUnitsAmount,
-          chargedUnits: unscheduledFree.chargedUnits,
-          priceType,
-          cardOccurrences: [], // unscheduled — « à planifier avec l'hôte »
-          toBeScheduled: true,
-          // What the visitor asked for when the cap lowered it, so the quote can tell the drawer
-          // to follow its own number down (null when nothing was held back).
-          clampedFrom: portions.clampedFrom,
-          ...applyOfferedToLine(unscheduledFree.realTotal, offeredOptionIdSet.has(optionId)),
+          ...priced.figures,
+          ...priced.offeredFigures,
           ...pickContribsAndForce(selected, locked),
         };
       }
@@ -1198,124 +768,22 @@ function calculateReservationQuote({
       const quantity = Math.max(0, Number(selected?.quantity || 0));
       if (quantity <= 0) return null;
 
-      if (priceType === 'per_participant_progressive') {
-        const fallbackUnitPrice = Number(option.price || 0);
-        const progressiveTiers = normalizeOptionProgressiveTiers(option.optionProgressiveTiers);
-        const computed = calculateProgressiveParticipantOptionTotal(
-          quantity,
-          progressiveTiers,
-          fallbackUnitPrice
-        );
-        const lockedLine = reconstructLockedRealTotal(locked);
-        const lockedUnits = normalizeBilledUnits(
-          lockedLine?.billedUnits !== undefined
-            ? lockedLine.billedUnits
-            : lockedLine?.quantity
-        );
-        const keepLockedSnapshot = Boolean(
-          lockedLine
-            && Number(lockedLine.totalPrice || 0) > 0
-            && lockedUnits === computed.billedUnits
-        );
-        const realTotal = keepLockedSnapshot ? roundMoney(lockedLine.totalPrice) : computed.totalPrice;
-        const effectiveAverageUnit = computed.billedUnits > 0
-          ? roundMoney(realTotal / computed.billedUnits)
-          : 0;
-
-        return {
-          optionId,
-          title: option.title,
-          titleEn: option.titleEn || null,
-          quantity,
-          unitPrice: effectiveAverageUnit,
-          billedUnits: computed.billedUnits,
-          priceType,
-          optionProgressiveTiers: progressiveTiers,
-          progressiveLastUnitPrice: computed.lastUnitPrice,
-          ...applyOfferedToLine(realTotal, offeredOptionIdSet.has(optionId)),
-          ...pickContribsAndForce(selected, locked),
-        };
-      }
-
-      // `percent_of_stay` (specs/cancellation-insurance.md §3.1 rules 4-5): the unit price IS the
-      // computed amount, and the quantity is forced to 1 — insuring the same stay twice is
-      // meaningless. The line then rejoins the generic path, so the locked snapshot (price freeze
-      // on a sold line), « offert » and the acompte/complément routing all keep working unchanged.
-      //
-      // The SAME clamp holds for the cancellation insurance whatever its price type (rule 5bis):
-      // a `per_night` insurance is quantity 1 × the nights of the stay — it covers the stay, and
-      // half a stay cannot be insured. The type multiplier below does the ×nights.
-      const isPercentOfStay = priceType === 'percent_of_stay';
-      const isStayWideYesNo = isPercentOfStay || isCancellationInsurance;
-      const effectiveQuantity = isStayWideYesNo ? 1 : quantity;
-      // Neat-derived guest price (rule 13): a stay-wide amount, so it bypasses the type multiplier
-      // (a per-night insurance must not bill it × nights).
-      const neatOverride = isCancellationInsurance
-        && cancellationInsurancePriceOverride != null
-        && cancellationInsurancePriceOverride !== ''
-        && Number.isFinite(Number(cancellationInsurancePriceOverride))
-        ? Number(cancellationInsurancePriceOverride)
-        : null;
-      const unitBase = Number.isFinite(Number(optionUnitOverrides[optionId]))
-        ? Number(optionUnitOverrides[optionId])
-        : (neatOverride !== null
-          ? neatOverride
-          : (isPercentOfStay
-            ? computePercentOfStayAmount(option.price, cancellationInsuranceBase)
-            : Number(option.price || 0)));
-      // A SOLD insurance line is frozen whole — units included (rule 13 sub-rule « price lock
-      // unchanged »): a Neat-priced line lives at billedUnits 1, and a recompute path that did not
-      // resolve the override (or a later Neat disconnect) must not re-bill it × nights. Fresh
-      // Neat-priced lines are stay-wide: billedUnits 1.
-      const lockedInsuranceLine = isCancellationInsurance ? reconstructLockedRealTotal(locked, unitBase) : null;
-      const typedUnits = isStayWideYesNo ? null : resolveNonCardUnits({
-        priceType,
-        quantity: effectiveQuantity,
-        persons,
-        nights,
+      // `percent_of_stay` and the cancellation insurance (specs/cancellation-insurance.md §3.1 rules 4-5bis, 13) are
+      // stay-wide: the head forces the quantity to 1 and prices them from the accommodation actually charged.
+      const priced = quoteArticle({
+        ...request,
+        quantity,
         cardPersons: selected?.cardPersons,
         cardNights: selected?.cardNights,
-        maxGuests: property.maxGuests,
+        stayWideAmount: cancellationInsurancePriceOverride,
       });
-      const targetBilledUnits = lockedInsuranceLine
-        ? normalizeBilledUnits(lockedInsuranceLine.billedUnits !== undefined ? lockedInsuranceLine.billedUnits : lockedInsuranceLine.quantity)
-        : (neatOverride !== null
-          ? 1
-          : (typedUnits
-            ? typedUnits.billedUnits
-            : roundMoney(effectiveQuantity * getTypeMultiplier(priceType, persons, nights))));
-      // Only what a snapshot says was deducted is added back: a row stored without one predates the
-      // free units and holds a gross total (rule 56).
-      const soldFreeUnits = consumedFreeUnitsFor(optionId);
-      const merged = mergeLineWithLockedSnapshot({
-        lockedLine: lockedInsuranceLine
-          || reconstructLockedRealTotal(lockedLineGrossOfFreeUnits(locked, soldFreeUnits), unitBase),
-        targetBilledUnits,
-        currentUnitPrice: unitBase,
-      });
-      const free = applyFreeUnitsToLine({
-        option, isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
-        lockedFreeUnits: grantedFreeUnitsFor(optionId),
-      });
+      if (!priced) return null;
       return {
         optionId,
         title: option.title,
         titleEn: option.titleEn || null,
-        quantity: effectiveQuantity,
-        unitPrice: merged.unitPrice,
-        billedUnits: merged.billedUnits,
-        // What the guest does not pay for, and what it is worth — the summary strikes it through.
-        freeUnits: free.freeUnits,
-        freeUnitsAmount: free.freeUnitsAmount,
-        chargedUnits: free.chargedUnits,
-        priceType,
-        ...(typedUnits ? {
-          cardPersons: typedUnits.cardPersons,
-          cardNights: typedUnits.cardNights,
-          ...(typedUnits.servedPersons !== undefined ? { servedPersons: typedUnits.servedPersons } : {}),
-          ...(typedUnits.servedNights !== undefined ? { servedNights: typedUnits.servedNights } : {}),
-        } : {}),
-        ...applyOfferedToLine(free.realTotal, offeredOptionIdSet.has(optionId)),
+        ...priced.figures,
+        ...priced.offeredFigures,
         ...pickContribsAndForce(selected, locked),
       };
     })
@@ -1333,6 +801,7 @@ function calculateReservationQuote({
       const amount = roundMoney(Math.max(0, Number(line?.amount || 0)));
       const offered = Boolean(line?.offered);
       if (!description || amount <= 0) return null;
+      const customOffered = offeredOf(`custom:${line?.customOptionId != null ? Number(line.customOptionId) : index + 1}`, 'options', amount, offered);
       return {
         isCustom: true,
         customOptionId: line?.customOptionId != null ? Number(line.customOptionId) : undefined,
@@ -1343,8 +812,8 @@ function calculateReservationQuote({
         unitPrice: amount,
         billedUnits: 1,
         priceType: 'per_stay',
-        originalTotalPrice: amount,
-        totalPrice: offered ? 0 : amount,
+        originalTotalPrice: customOffered.originalTotalPrice,
+        totalPrice: customOffered.totalPrice,
         // Explicit flag wins; an unflagged custom line defaults to the platform routing (see resolveInComplement).
         inComplement: resolveInComplement(line?.inComplement != null ? line.inComplement : null),
         acompteContribTtc: resolveInComplement(line?.inComplement != null ? line.inComplement : null) ? null : (line?.acompteContribTtc != null ? Number(line.acompteContribTtc) : null),
@@ -1406,7 +875,7 @@ function calculateReservationQuote({
       const forced = forceExtrasToComplement || autoInComplementSet.has(optionId) || Boolean(locked?.inComplement);
       return {
         ...line,
-        ...applyOfferedToLine(line.totalPrice, offeredOptionIdSet.has(optionId)),
+        ...offeredOf(`option:${optionId}`, 'options', line.totalPrice, offeredOptionIdSet.has(optionId)),
         inComplement: forced ? 1 : 0,
         acompteContribTtc: forced ? null : (locked?.acompteContribTtc != null ? Number(locked.acompteContribTtc) : null),
         soldeContribTtc: forced ? null : (locked?.soldeContribTtc != null ? Number(locked.soldeContribTtc) : null),
@@ -1453,7 +922,7 @@ function calculateReservationQuote({
           unitPrice: contributed.unitPrice,
           billedUnits: contributed.billedUnits,
           ...contributed.extra,
-          ...applyOfferedToLine(contributed.totalPrice, hasExplicitOffered ? Boolean(selected?.offered) : false),
+          ...offeredOf(`resource:${resourceId}`, 'resources', contributed.totalPrice, hasExplicitOffered ? Boolean(selected?.offered) : false),
           ...pickContribsAndForce(selected, lockedForLine),
         };
       }
@@ -1494,43 +963,39 @@ function calculateReservationQuote({
         freeMinutes: Number(resource.freeMinutes || 0),
       });
 
-      const baseBilledUnits = usesHourlyQuantity
-        ? roundMoney(quantity)
-        : roundMoney(quantity * getTypeMultiplier(resource.priceType, persons, nights));
-      const targetBilledUnits = usesHourlyQuantity
-        ? applyPerHourFreeMinutes(baseBilledUnits, resource.freeMinutes)
-        : baseBilledUnits;
+      const lockedLine = lockedResourcesById.get(resourceId);
+      const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
+      const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
+
+      // The hours of a `per_hour` resource are the quantity, less the free minutes of the lodging; the others follow the
+      // article's family.
+      const priced = quoteArticle({
+        article: articles.makeArticle(resource, { kind: 'resource' }),
+        quantity,
+        locked: lockedLine,
+        offered,
+        ...(usesHourlyQuantity
+          ? { targetBilledUnits: applyPerHourFreeMinutes(roundMoney(quantity), resource.freeMinutes) }
+          : {}),
+      });
 
       debugResourceLine('pricing.units', {
         resourceId,
         persons,
         nights,
         quantity,
-        baseBilledUnits,
-        targetBilledUnits,
-      });
-
-      const lockedLine = lockedResourcesById.get(resourceId);
-      const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
-      const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
-
-      const merged = mergeLineWithLockedSnapshot({
-        lockedLine: reconstructLockedRealTotal(lockedLine, resource.price),
-        targetBilledUnits,
-        currentUnitPrice: resource.price,
+        billedUnits: priced.figures.billedUnits,
       });
 
       const resultLine = {
         resourceId,
         name: resource.name,
         nameEn: resource.nameEn || null,
-        quantity,
-        unitPrice: merged.unitPrice,
-        billedUnits: merged.billedUnits,
+        ...priced.figures,
         // Without a live plugin, a line keeps the sessions it carries: they still say when the hours
         // sold are used (specs/plugins-phase-3c-hourly-resources.md rule 18).
         ...(contributed ? contributed.extra : storedSessionsOf(selected)),
-        ...applyOfferedToLine(merged.totalPrice, offered),
+        ...priced.offeredFigures,
         ...pickContribsAndForce(selected, lockedLine),
       };
 

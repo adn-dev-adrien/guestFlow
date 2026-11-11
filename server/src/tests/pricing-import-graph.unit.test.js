@@ -22,6 +22,7 @@ const RANK = {
   extraGuests: 2,
   touristTax: 2,
   stayClock: 1,
+  allowances: 3,
   platformPayment: 90,
 };
 const STAY_UNITS = ['nights', 'extraGuests', 'touristTax'];
