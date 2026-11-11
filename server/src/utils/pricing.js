@@ -1,6 +1,6 @@
 const priceLineContributors = require('./priceLineContributors');
 const vatRegimeModel = require('../models/vatRegimeModel');
-const { roundMoney, toCents, fromCents } = require('./pricing/money');
+const { roundMoney, sumMoney, toCents, fromCents } = require('./pricing/money');
 const { computeTouristTaxBreakdown, resolveAddedGuestsTouristTax } = require('./pricing/touristTax');
 const {
   parseJsonArray,
@@ -22,6 +22,7 @@ const {
 const { clampCommissions, netReceived } = require('./pricing/platformPayment');
 const { resolvePlatformPrice, grossFromNet } = require('./pricing/platformPrice');
 const { vatOf } = require('./pricing/vat');
+const { aggregateTotals } = require('./pricing/totals');
 const { allocateDiscount, normalizeDiscountPercent, normalizeCustomPrice } = require('./pricing/discounts');
 const articles = require('./pricing/articles');
 const { createFreeUnitsLedger, applyFreeUnitsToLine, applyPerHourFreeMinutes } = require('./pricing/allowances');
@@ -1246,33 +1247,6 @@ function calculateReservationQuote({
         accommodation: accommodationBaseTotal,
       }).accommodation
   );
-  const finalPrice = roundMoney(accommodationAdjustedPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
-  const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
-  const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
-  const accommodationDeltaAmount = roundMoney(Math.abs(accommodationBaseTotal - accommodationAdjustedPrice));
-  const baseAccommodationAdjustedPrice = roundMoney(
-    pinnedAccommodation != null
-      ? pinnedAccommodation
-      : allocateDiscount({
-        discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
-        accommodation: baseAccommodationPrice,
-      }).accommodation
-  );
-  const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
-    ? 'reduction'
-    : accommodationAdjustedPrice > accommodationBaseTotal
-      ? 'increase'
-      : 'none';
-
-  // Engine price = what the pricing engine computes ignoring any manual override, so the client can
-  // show the engine value alongside an overridden price. `finalPrice` stays the effective amount.
-  const priceOverridden = pinnedAccommodation != null || Number.isFinite(customFinalPrice);
-  const engineAccommodationPrice = allocateDiscount({
-    discount: { percent: normalizedDiscountPercent, target: 'nights' },
-    accommodation: accommodationBaseTotal,
-  }).accommodation;
-  const engineFinalPrice = roundMoney(engineAccommodationPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
-
   // VAT calculations (all prices are TTC - VAT already included). Two global rates: accommodation
   // has its own; options, custom options and resources all use the standard rate.
   const vatPercentageAccommodation = vatRate;
@@ -1302,6 +1276,41 @@ function calculateReservationQuote({
   const totalVatAmount = fromCents(familyVat.totals.vatCents);
   const totalNetPrice = fromCents(familyVat.totals.netCents);
 
+  const totals = aggregateTotals({
+    accommodation: accommodationAdjustedPrice,
+    extraGuestSurcharge,
+    optionsTotal,
+    resourcesTotal,
+    touristTaxTotal,
+    subtotal,
+    vat: familyVat,
+  });
+  const { finalPrice, discountAmount, totalStayPrice } = totals;
+  const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
+  const accommodationDeltaAmount = roundMoney(Math.abs(accommodationBaseTotal - accommodationAdjustedPrice));
+  const baseAccommodationAdjustedPrice = roundMoney(
+    pinnedAccommodation != null
+      ? pinnedAccommodation
+      : allocateDiscount({
+        discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
+        accommodation: baseAccommodationPrice,
+      }).accommodation
+  );
+  const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
+    ? 'reduction'
+    : accommodationAdjustedPrice > accommodationBaseTotal
+      ? 'increase'
+      : 'none';
+
+  // Engine price = what the pricing engine computes ignoring any manual override, so the client can
+  // show the engine value alongside an overridden price. `finalPrice` stays the effective amount.
+  const priceOverridden = pinnedAccommodation != null || Number.isFinite(customFinalPrice);
+  const engineAccommodationPrice = allocateDiscount({
+    discount: { percent: normalizedDiscountPercent, target: 'nights' },
+    accommodation: accommodationBaseTotal,
+  }).accommodation;
+  const engineFinalPrice = sumMoney([engineAccommodationPrice, extraGuestSurcharge, optionsTotal, resourcesTotal]);
+
   // The two due dates are resolved AFTER the amounts (further down), because whether an échéance
   // exists at all depends on them — see the `resolveDepositDueDate` / `resolveBalanceDueDate` call
   // near the end of this function (specs/payment-schedule-and-cancellation.md §3.1-§3.2).
@@ -1309,7 +1318,6 @@ function calculateReservationQuote({
   // The tourist-tax breakdown + platform-mode routing (collectsFromGuest / remitted-by-owner / offered)
   // and the reversed-tax-as-brut handling are resolved earlier, alongside the brut back-solve
   // (specs/platform-payment-tourist-tax-as-option.md). `touristTaxTotal` is final here.
-  const totalStayPrice = roundMoney(finalPrice + touristTaxTotal);
 
   // Tax collected at check-in (→ "Complément à percevoir") ONLY when WE charge the guest directly,
   // i.e. the platform does NOT collect from the guest (case 3, `owner`). Case 1 (platform collects then

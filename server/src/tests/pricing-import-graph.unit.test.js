@@ -25,6 +25,7 @@ const RANK = {
   allowances: 3,
   platformPrice: 4,
   discounts: 4,
+  totals: 6,
   platformPayment: 90,
 };
 const STAY_UNITS = ['nights', 'extraGuests', 'touristTax'];

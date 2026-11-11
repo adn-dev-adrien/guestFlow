@@ -1,7 +1,7 @@
 /**
  * money — the shared money helpers of the pricing units (specs/pricing-components.md §3 rule 38).
  *
- * Contract: `roundMoney(value)` rounds to the cent (half away from zero on the float product, as the engine always
+ * Contract: `sumMoney(values)` adds amounts left to right and rounds once, `roundMoney(value)` rounds to the cent (half away from zero on the float product, as the engine always
  * has), `toCents(euros)` / `fromCents(cents)` convert, `allocateCents(total, weights)` splits an integer number of
  * cents in proportion to weights so that the shares sum to `total` exactly.
  *
@@ -10,6 +10,11 @@
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
+}
+
+// The sum of money amounts, rounded to the cent once, added left to right like the engine's `a + b + c + d`.
+function sumMoney(values) {
+  return roundMoney((values || []).reduce((sum, value) => sum + value, 0));
 }
 
 const toCents = (euros) => Math.round(Number(euros || 0) * 100);
@@ -40,4 +45,4 @@ function allocateCents(totalCents, weights) {
   return shares;
 }
 
-module.exports = { roundMoney, toCents, fromCents, allocateCents };
+module.exports = { roundMoney, sumMoney, toCents, fromCents, allocateCents };

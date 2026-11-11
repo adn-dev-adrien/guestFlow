@@ -5,7 +5,7 @@
  * `{ accommodation }`, the accommodation after the discount. Only the target `nights` is active in PR A and it is
  * today's euro formula bit for bit: `roundMoney(accommodation × (1 − percent / 100))`, or the `customPrice` when one is
  * set (rounded to the cent). The targets `extras` and `all`, and a fixed `amount`, throw `NOT_IN_PR_A` (PR B).
- * `normalizeDiscountPercent` clamps a typed percentage to 0..100; `normalizeCustomPrice` reads a typed manual price
+ * `discountAmountOf({ subtotal, finalPrice })` is what the discounts took off a stay. `normalizeDiscountPercent` clamps a typed percentage to 0..100; `normalizeCustomPrice` reads a typed manual price
  * (`null` when empty).
  *
  * Pure: no DB, no clock, no settings.
@@ -40,8 +40,15 @@ function allocateDiscount({ discount = {}, accommodation = 0 } = {}) {
   };
 }
 
+// What the discounts took off a stay: the subtotal before them less the price after them, never negative.
+function discountAmountOf({ subtotal, finalPrice }) {
+  const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
+  return discountAmount;
+}
+
 module.exports = {
   allocateDiscount,
+  discountAmountOf,
   normalizeDiscountPercent,
   normalizeCustomPrice,
 };
