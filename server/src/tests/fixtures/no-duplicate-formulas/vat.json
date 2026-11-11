@@ -1,5 +1,11 @@
 [
   {
+    "file": "models/financeModel.js",
+    "text": ": round2(Number(quote.totalPrice || 0) / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100))),",
+    "removedBy": "PR B",
+    "reason": "a reader of the VAT split that PR B switches to the vat/ component (finance, tourist tax, devis PDF, accounting export)"
+  },
+  {
     "file": "plugins/accounting-export/accountingExport.js",
     "text": "const ht = split ? round2(ttc / (1 + rate / 100)) : round2((bucket.ht || 0) * fraction);",
     "removedBy": "PR B",

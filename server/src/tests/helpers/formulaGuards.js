@@ -27,12 +27,15 @@ const GUARDS = [
       { re: /\/\s*\(\s*100\s*\+/, probe: 'const share = ttc * (rate / (100 + rate));' },
       { re: /\*\s*\(?\s*\w*[rR]ate\w*\s*\/\s*\(?\s*100/, probe: 'const vat = amount * vatRate / 100;' },
       { re: /\/\s*\(\s*1\s*\+\s*[\w.]*[rR]ate[\w.]*\s*\/\s*100\s*\)/, probe: 'const net = ttc / (1 + vatRate / 100);' },
-      { re: /\/\s*\(\s*1\s*\+[^;]*[rR]ate[^;]*\/\s*100/, probe: 'const net = ttc / (1 + (row.rate || 0) / 100);' },
+      { re: /\/\s*\(\s*1\s*\+[^;]*\/\s*100/, probe: 'const net = ttc / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100));' },
+      { re: /\b1\s*\+\s*\(?[^;]*[pP]ercent[^;]*\/\s*100/, probe: 'const factor = 1 + (vatPercent / 100);' },
       { re: /\b1\s*\+\s*\(?\s*[\w.]*[rR]ate[\w.]*\s*\/\s*100/, probe: 'const factor = 1 + (taxRate / 100);' },
       { re: /[rR]ate[\w.]*\s*\/\s*\(\s*[\w.]*[rR]ate[\w.]*\s*\+\s*100\s*\)/, probe: 'const part = vatRate / (vatRate + 100);' },
       { re: /(?<!\d(px|em|rem)\s*)\/\s*1\.(055|021|1|2)\b(?!\d)/, probe: 'const ht = ttc / 1.2;' },
       { re: /(\w+)\s*-\s*\1\s*\/\s*\(\s*1\s*\+/, probe: 'const vat = amount - amount / (1 + t);' },
     ],
+    // The departmental surcharge of the tourist tax is a percentage on top of the municipal tax, not a VAT.
+    skip: (file, text) => /departmentPercentage/.test(text),
     removedBy: (file) => (file.startsWith('plugins/online-payment/') ? 'PR C' : 'PR B'),
     reason: (file) => (file.startsWith('plugins/online-payment/')
       ? 'the Qonto invoice line keeps its own TTC to HT cut until PR C switches it (lead decision: no Qonto change in PR A)'

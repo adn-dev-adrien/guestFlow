@@ -22,7 +22,7 @@ function hitsOfFiles(files, guard) {
   const out = [];
   for (const [file, source] of Object.entries(files)) {
     if (guard.isHome(file) || (guard.scope && !guard.scope(file))) continue;
-    for (const hit of hitsOfSource(source, guard.patterns)) out.push({ file, text: hit.text, line: hit.line });
+    for (const hit of hitsOfSource(source, guard.patterns)) if (!(guard.skip && guard.skip(file, hit.text))) out.push({ file, text: hit.text, line: hit.line });
   }
   return out;
 }

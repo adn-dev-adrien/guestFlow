@@ -31,6 +31,11 @@ test('vat — a CSS line-height and the sRGB luminance divisor are not VAT', () 
   assert.deepEqual(verdict('vat', { 'utils/colorContrast.js': 'return ((c + 0.055) / 1.055) ** 2.4;\n' }).unlisted, []);
 });
 
+test('vat — the departmental surcharge of the tourist tax is not a VAT, a percentage-shaped VAT divisor is', () => {
+  assert.deepEqual(verdict('vat', { 'utils/touristTaxFreeze.js': 'const m = unitAmount / (1 + (departmentPercentage / 100));\n' }).unlisted, []);
+  assert.equal(verdict('vat', { 'models/financeModel.js': 'const ht = round2(total / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100)));\n' }).unlisted.length, 1);
+});
+
 test('vat — the home may hold the formula, any other file may not', () => {
   const line = 'const net = ttc / (1 + rate / 100);\n';
   assert.deepEqual(verdict('vat', { 'utils/pricing/vat/index.js': line }).unlisted, []);
