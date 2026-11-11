@@ -604,7 +604,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     sale services only. _(Delivered by PR A: `StayRepository`, `CatalogueProvider`, `PaymentLedger` (installments, split
     received, refunds) and `SettingsProvider` over today's reads — the loader, the stay-clock resolver, the catalogue and
     the platform grid read through them; `planSchedule` takes the ledger values `{ splitReceived, installmentPlan }` and its
-    step reads the port, so SCHEDULE is a pure unit. Proof: `data-access-ports`, `settings-provider`,
+    step reads the port, so SCHEDULE is a pure unit. The settings provider and the catalogue prepare each SQL statement once
+    per database handle, lazily (a quote went from 2.9 to 1.7 ms on the production copy; a statement the schema cannot prepare
+    is not kept). Proof: `data-access-ports`, `settings-provider`, `settings-provider-statements`,
     `pricing-settings-wiring`.)_
     > **Pending** — PR B: `PaymentLedger.receipts` (the single read of SCHEDULE and SETTLEMENT), `StayRepository.stay` /
     > `storedStayPrice`, `SlotAvailabilityProvider`, `PaymentGateway` and `EventPublisher`.

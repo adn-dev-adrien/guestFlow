@@ -45,15 +45,26 @@ const articlesSchema = [
   },
 ];
 
+// A statement is prepared once per database handle, on its first use, then reused: a quote reads the same few statements per
+// article. A statement that fails to prepare (a table or column the schema lacks) is not kept, so it is retried as before.
+const STATEMENTS = new WeakMap();
+function prepared(db, sql) {
+  let byHandle = STATEMENTS.get(db);
+  if (!byHandle) { byHandle = new Map(); STATEMENTS.set(db, byHandle); }
+  let statement = byHandle.get(sql);
+  if (!statement) { statement = db.prepare(sql); byHandle.set(sql, statement); }
+  return statement;
+}
+
 // A schema without the table or the column is a schema without the setting: the layer says nothing.
 function rowOrUndefined(db, sql, ...params) {
-  try { return db.prepare(sql).get(...params); } catch { return undefined; }
+  try { return prepared(db, sql).get(...params); } catch { return undefined; }
 }
 
 function propertyRow(db, propertyId) {
   const id = Number(propertyId);
   if (!(id > 0)) return null;
-  return db.prepare('SELECT * FROM properties WHERE id = ?').get(id) || null;
+  return prepared(db, 'SELECT * FROM properties WHERE id = ?').get(id) || null;
 }
 
 const ADAPTERS = {
@@ -61,7 +72,7 @@ const ADAPTERS = {
     property(db, scope) {
       const id = Number(scope.propertyId);
       if (!(id > 0)) return undefined;
-      return { tariff: { rules: db.prepare('SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(id) } };
+      return { tariff: { rules: prepared(db, 'SELECT * FROM pricing_rules WHERE propertyId = ? ORDER BY startDate').all(id) } };
     },
   },
   extraGuests: {
@@ -215,4 +226,4 @@ function create(db, { extra = {} } = {}) {
   return { for: forComponent, validate, schemaOf };
 }
 
-module.exports = { create, SCHEMAS };
+module.exports = { create, prepared, SCHEMAS };

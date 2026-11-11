@@ -13,10 +13,12 @@
  */
 const settingsProvider = require('./settingsProvider');
 
+const { prepared } = settingsProvider;
+
 function getApplicableOptions(db, propertyId) {
   const pid = Number(propertyId);
-  const options = db.prepare('SELECT * FROM options ORDER BY title').all();
-  const propStmt = db.prepare('SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId');
+  const options = prepared(db, 'SELECT * FROM options ORDER BY title').all();
+  const propStmt = prepared(db, 'SELECT propertyId FROM property_options WHERE optionId = ? ORDER BY propertyId');
   const provider = settingsProvider.create(db);
   return options
     .map((option) => {
@@ -40,7 +42,7 @@ function getApplicableOptions(db, propertyId) {
 function getApplicableResources(db, propertyId) {
   let resources;
   try {
-    resources = db.prepare(`
+    resources = prepared(db, `
       SELECT r.*, prp.price as propertyPrice, prp.freeMinutes as propertyFreeMinutes
       FROM resources r
       LEFT JOIN property_resource_prices prp ON prp.resourceId = r.id AND prp.propertyId = ?
@@ -50,13 +52,13 @@ function getApplicableResources(db, propertyId) {
     if (!String(error?.message || '').toLowerCase().includes('no such table: property_resource_prices')) {
       throw error;
     }
-    resources = db.prepare('SELECT * FROM resources ORDER BY name').all();
+    resources = prepared(db, 'SELECT * FROM resources ORDER BY name').all();
   }
   // Applicability from the resource_properties pivot (a resource with no rows = global / all logements).
   let scopedByResource = null; // Map<resourceId, Set<propertyId>>
   try {
     scopedByResource = new Map();
-    for (const row of db.prepare('SELECT resourceId, propertyId FROM resource_properties').all()) {
+    for (const row of prepared(db, 'SELECT resourceId, propertyId FROM resource_properties').all()) {
       if (!scopedByResource.has(row.resourceId)) scopedByResource.set(row.resourceId, new Set());
       scopedByResource.get(row.resourceId).add(Number(row.propertyId));
     }
@@ -84,7 +86,7 @@ function getApplicableResources(db, propertyId) {
 function optionPriceOverride(db, optionId, propertyId) {
   let override;
   try {
-    override = db.prepare('SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
+    override = prepared(db, 'SELECT price FROM property_option_prices WHERE optionId = ? AND propertyId = ?')
       .get(optionId, Number(propertyId));
   } catch { override = undefined; }
   return override;
