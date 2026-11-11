@@ -587,6 +587,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       `pluginFamily.js` (a plugin that throws, or answers null, contributes nothing to the line).
     - `describe` gives the fiche, the SAS and the guest app every price label (« 2 × 6,50 € · 2 offerts »,
       « 1 h × 30 € · + 20 € soirée »); no screen composes one.
+    > **Pending** — PR B: the family is read from the stored `priceType` whatever the kind, so a **resource** stored as
+    > `percent_of_stay` or `per_participant_progressive` (or an option stored as `per_hour`) is priced by that family, where the
+    > tag billed quantity × price (billed units 2 → 1, or 0.25 → 1/0). Not reachable: `resourcesController.PRICE_TYPES` and
+    > `optionValidation.PRICE_TYPES` refuse those types and production holds none. PR B makes `makeArticle` read the family only
+    > within the kind's own price types (any other value reads as `fixed`).
 48. **Data-access ports (ports & adapters / repository).** No component queries the DB, the clock or a
     plugin: the composer hands them what a port returned. Ports are plain objects of functions:
 
