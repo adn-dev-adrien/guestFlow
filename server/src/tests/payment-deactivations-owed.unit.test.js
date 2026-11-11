@@ -173,10 +173,10 @@ test('rule 67 — each row says what the operator needs to find the link by hand
   assert.deepEqual(
     { kind: orphan.kindLabel, amount: orphan.amountLabel, reference: orphan.reference, stay: orphan.stayLabel, url: orphan.stayUrl, reason: orphan.reasonLabel, since: orphan.sinceLabel, provider: orphan.providerLabel },
     // date-literal-ok: fixture dates nothing compares with today
-    { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Séjour n° 922299', url: null, reason: 'Séjour supprimé', since: 'le 30/10/2026', provider: 'Qonto' },
+    { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Séjour n° 922299', url: null, reason: 'Séjour supprimé', since: 'lien retiré le 30/10/2026', provider: 'Qonto' },
   );
   assert.equal(late.id, lapsed.id);
-  assert.deepEqual({ kind: late.kindLabel, reason: late.reasonLabel, since: late.sinceLabel, url: late.stayUrl }, { kind: 'Acompte', reason: 'Validité dépassée', since: 'le 01/11/2026', url: `/reservations/${ctx.stay}` });
+  assert.deepEqual({ kind: late.kindLabel, reason: late.reasonLabel, since: late.sinceLabel, url: late.stayUrl }, { kind: 'Acompte', reason: 'Validité dépassée', since: 'fin de validité le 01/11/2026', url: `/reservations/${ctx.stay}` });
 });
 
 test('rule 67 — the card\'s list is served at GET /api/dashboard/payment-deactivations, admin only', () => {
@@ -193,4 +193,20 @@ test('rule 67 — the card\'s list is served at GET /api/dashboard/payment-deact
   };
   assert.equal(call(['reception']), false);
   assert.equal(call(['admin']), true);
+});
+
+// date-literal-ok: stay nights nothing compares with today
+test('rule 67 — a withdrawn link with no reason is « Séjour annulé » only when the stay really is cancelled, « Retiré » otherwise', () => {
+  const ctx = seed();
+  const onLive = addLink(ctx.links, ctx.db, ctx.stay);
+  ctx.links.cancelIfOpen(onLive.id, { reason: null });
+  ctx.links.cancel(onLive.id, { remotePending: true });
+  // date-literal-ok: stay nights nothing compares with today
+  const cancelledStay = addStay(ctx.db, { kind: 'cancelled', startDate: '2027-08-10', endDate: '2027-08-12' });
+  const onCancelled = addLink(ctx.links, ctx.db, cancelledStay);
+  ctx.links.cancelIfOpen(onCancelled.id, { reason: null });
+  ctx.links.cancel(onCancelled.id, { remotePending: true });
+  const rows = owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links;
+  assert.equal(rows.find((l) => l.id === onLive.id).reasonLabel, 'Retiré');
+  assert.equal(rows.find((l) => l.id === onCancelled.id).reasonLabel, 'Séjour annulé');
 });

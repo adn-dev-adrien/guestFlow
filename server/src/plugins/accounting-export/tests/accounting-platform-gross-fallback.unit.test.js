@@ -125,3 +125,24 @@ test('rule 12 — the gross is display only: the journal lines of an entry do no
   const without = buildEntry({ ...base, platformGrossAmount: '' }, 'balance', lines(), COMMISSION_CONTEXT, ctx);
   assert.deepEqual(accounts(withRecorded), accounts(without));
 });
+
+test('rule 12 — nothing recorded: the tourist tax a complement carries is not subtracted from the price (22211 = 171,14)', () => {
+  const row = baseRow({
+    platform: 'Abracadaroom', finalPrice: 241.14, balanceAmount: 171.14, complementAmount: 75.86, touristTaxTotal: 5.86, touristTaxInComplement: 1,
+    platformGrossAmount: '', clientGrossAmount: null, platformCommissionAmount: null, accommodationSoldeContribTtc: 0,
+  });
+  assert.equal(buildEntry(row, 'balance', lines(), COMMISSION_CONTEXT, ctx).clientGrossAmount, 171.14);
+  assert.equal(buildEntry({ ...row, touristTaxInComplement: 0 }, 'balance', lines(), COMMISSION_CONTEXT, ctx).clientGrossAmount, 165.28, 'a tax not in the complement leaves the complement a pure price');
+});
+
+test('rule 12 — an own-channel stay shows its recorded gross first, and none only when nothing is recorded', () => {
+  const { setDirectChannels } = require('../../../utils/platformNameFormat');
+  const row = baseRow({ platform: 'Lodgify', finalPrice: 300, balanceAmount: 300, platformGrossAmount: 310, clientGrossAmount: null, platformCommissionAmount: null, accommodationSoldeContribTtc: 0 });
+  try {
+    setDirectChannels(['Lodgify']);
+    assert.equal(buildEntry(row, 'balance', lines(), COMMISSION_CONTEXT, ctx).clientGrossAmount, 310);
+    assert.equal(buildEntry({ ...row, platformGrossAmount: '' }, 'balance', lines(), COMMISSION_CONTEXT, ctx).clientGrossAmount, null);
+  } finally {
+    setDirectChannels([]);
+  }
+});

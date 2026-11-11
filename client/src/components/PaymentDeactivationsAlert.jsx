@@ -44,7 +44,7 @@ export default function PaymentDeactivationsAlert({ attention }) {
                 {link.stayUrl ? (
                   <Link component={RouterLink} to={link.stayUrl} color="inherit" underline="always" sx={touchHitArea}>{link.stayLabel}</Link>
                 ) : link.stayLabel}
-                {` · ${link.reasonLabel}${link.sinceLabel ? ` ${link.sinceLabel}` : ''}`}
+                {` · ${link.reasonLabel}${link.sinceLabel ? ` · ${link.sinceLabel}` : ''}`}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', overflowWrap: 'anywhere' }}>
                 {`Référence ${link.providerLabel} : ${link.reference}`}

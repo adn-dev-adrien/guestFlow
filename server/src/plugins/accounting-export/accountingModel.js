@@ -1020,7 +1020,7 @@ function buildArrivalAdjustmentEntries(row, group, vatRate) {
 // specs/accounting-books-the-money-collected.md rule 12 (reading of 2026-11-11, Adrien) — the « Brut » of Comptabilité ›
 // Plateformes is the PLATFORM's gross: what the platform billed the guest, as recorded on the fiche (`platformGrossAmount`,
 // else the older `clientGrossAmount`). Only when nothing is recorded does it fall back to the stay price WITHOUT the
-// complements paid on site. An own-channel stay (`direct`, or a platform counted as a direct sale) with nothing recorded has
+// complements paid on site (the tourist tax a complement carries is not part of that price). An own-channel stay (`direct`, or a platform counted as a direct sale) with nothing recorded has
 // none to show. It is a display figure: the books read `effectiveGross`, never this.
 const recordedAmount = (value) => {
   const n = value === '' || value == null ? NaN : Number(value);
@@ -1030,7 +1030,9 @@ function platformBrut(row) {
   const recorded = recordedAmount(row.platformGrossAmount) ?? recordedAmount(row.clientGrossAmount);
   if (recorded != null) return recorded;
   if (isDirectChannel(row.platform)) return null;
-  return round2(Math.max(0, nz(row.finalPrice) - nz(row.complementAmount)));
+  // `finalPrice` excludes the tourist tax: when the complement carries it, that part is not a price to subtract.
+  const taxInComplement = Number(row.touristTaxInComplement || 0) === 1 ? Math.min(nz(row.touristTaxTotal), nz(row.complementAmount)) : 0;
+  return round2(Math.max(0, nz(row.finalPrice) - (nz(row.complementAmount) - taxInComplement)));
 }
 
 function buildEntry(row, kind, perLineData, commissionContext, taxContext) {

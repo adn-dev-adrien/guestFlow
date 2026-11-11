@@ -17,8 +17,8 @@ import PaymentDeactivationsAlert from '../PaymentDeactivationsAlert';
 
 const attention = { key: 'payment-deactivations', severity: 'urgent', count: 2, title: 'Liens de paiement encore actifs', detail: 'À désactiver depuis Qonto, ou en rétablissant la connexion' };
 const LINKS = [
-  { id: 13, kindLabel: 'Paiement total', amountLabel: '762,80 €', reference: 'pl_ref_13', providerLabel: 'Qonto', stayLabel: 'Séjour n° 22299', stayUrl: null, reasonLabel: 'Séjour supprimé', sinceLabel: 'le 30/10/2026' },
-  { id: 14, kindLabel: 'Acompte', amountLabel: '214,94 €', reference: 'pl_ref_14', providerLabel: 'Qonto', stayLabel: 'Séjour 202604014', stayUrl: '/reservations/14', reasonLabel: 'Validité dépassée', sinceLabel: 'le 01/11/2026' },
+  { id: 13, kindLabel: 'Paiement total', amountLabel: '762,80 €', reference: 'pl_ref_13', providerLabel: 'Qonto', stayLabel: 'Séjour n° 22299', stayUrl: null, reasonLabel: 'Séjour supprimé', sinceLabel: 'lien retiré le 30/10/2026' },
+  { id: 14, kindLabel: 'Acompte', amountLabel: '214,94 €', reference: 'pl_ref_14', providerLabel: 'Qonto', stayLabel: 'Séjour 202604014', stayUrl: '/reservations/14', reasonLabel: 'Validité dépassée', sinceLabel: 'fin de validité le 01/11/2026' },
 ];
 
 const renderCard = () => render(<MemoryRouter><PaymentDeactivationsAlert attention={attention} /></MemoryRouter>);
@@ -30,10 +30,10 @@ test('lists each link with what is needed to find it at the provider, and links 
   renderCard();
   expect(await screen.findByText('Paiement total · 762,80 €')).toBeInTheDocument();
   expect(screen.getByText('Référence Qonto : pl_ref_13')).toBeInTheDocument();
-  expect(screen.getByText(/Séjour n° 22299 · Séjour supprimé le 30\/10\/2026/)).toBeInTheDocument();
+  expect(screen.getByText(/Séjour n° 22299 · Séjour supprimé · lien retiré le 30\/10\/2026/)).toBeInTheDocument();
   expect(screen.getByText('Acompte · 214,94 €')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Séjour 202604014' })).toHaveAttribute('href', '/reservations/14');
-  expect(screen.getByText(/Validité dépassée le 01\/11\/2026/)).toBeInTheDocument();
+  expect(screen.getByText(/Validité dépassée · fin de validité le 01\/11\/2026/)).toBeInTheDocument();
 });
 
 test('the summary words come from the server and the button opens the Paiements en ligne page', async () => {

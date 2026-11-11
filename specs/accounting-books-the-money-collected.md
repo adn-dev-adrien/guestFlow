@@ -185,13 +185,23 @@ options and resources appear once, at their real amount, only when they were rea
     gross by design: nothing the platform collected. accounting-export 1.2.3. Test:
     `accounting-platform-gross-fallback.unit.test.js`.
     **Reading of 2026-11-11, second shadow trial (Adrien's decision):** « Brut » shows the PLATFORM's gross — what the platform
-    billed the guest — as recorded on the fiche: `platformGrossAmount`, else the older `clientGrossAmount`; only when
-    neither is recorded, the stay price WITHOUT the complements paid on site (`finalPrice − complementAmount`); an own-channel
-    stay with nothing recorded shows none (read through `isDirectChannel`). Every path of `buildEntry` returns it through
-    `platformBrut(row)`: the books keep reading `effectiveGross`, so no journal line moves (the sales stream of 2025-01 to
-    2027-12 on a scrubbed 3.21.0 copy is identical before and after: 67 entries). Where 3.21.0 showed a stored figure it comes
-    back (5 = 748, 6 = 793,65, 22209 = 315, 11 = 1 983,92, 22275 = 720,82, which the previous reading showed as 865,82 with its
-    on-site complements); where 3.21.0 showed the computed price, the recorded gross replaces it (#13 943,20 instead of 907,20).
+    billed the guest — as recorded on the fiche: `platformGrossAmount`, else the older `clientGrossAmount`. The recorded figure
+    is shown first, for any channel, an own channel (`direct`, or a platform counted as a direct sale) included. It is blank
+    only when nothing is recorded AND the channel is in direct mode (read through `isDirectChannel`, never the name). A
+    channel that is not in direct mode with nothing recorded falls back to the stay price WITHOUT the complements paid on
+    site (`finalPrice − complementAmount`, the tourist tax a complement carries, `touristTaxInComplement = 1`, not being part
+    of that price: 22211 = 171,14). Every path of `buildEntry` returns it through `platformBrut(row)`: the books keep reading
+    `effectiveGross`, so no debit or credit moves (on a scrubbed 3.21.0 copy, 2025-01 to 2027-12, the sales CSV keeps every
+    debit and credit; only its « Prix payé client » column changes, on 41 lines). « Commission » of the CSV and of the journal
+    card is the entry's own commission line and nothing else: the former fallback `gross − price` is removed, it invented a
+    commission from the platform gross (the complement entry of stay 9: 0 became 16,19). The platform columns (« Plateforme »,
+    « Prix payé client », « Commission ») of the CSV and the card are shown for a channel that is not in direct mode (read
+    through `isDirectChannel`, never the name), and for a channel in direct mode only when the entry carries a platform commission
+    line (its fee is real: Lodgify's rows keep it). On the copy this is the only other change of the sales CSV: « Commission »
+    reads empty instead of 0 on 8 lines that had no commission line, and « Plateforme » empties on 1 own-channel line with
+    nothing to show. Where 3.21.0 showed a stored figure it comes back (5 = 748, 6 = 793,65, 22209 = 315,
+    11 = 1 983,92, 22275 = 720,82, which the previous reading showed as 865,82 with its on-site complements); where 3.21.0
+    showed the computed price, the recorded gross replaces it (#13 943,20 instead of 907,20).
     accounting-export 1.2.4. Test: `accounting-platform-gross-fallback.unit.test.js`.
 
 ### Money already collected never moves (2026-10-27)

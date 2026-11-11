@@ -67,6 +67,8 @@ const {
   planMapper,
 } = require('./accountPlan');
 const { TTC_SPLIT_FALLBACK } = require('./settings');
+const sdk = require('../sdk');
+const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 
 // Header order is fixed and aligned with the accountant's example file. The trailing space
 // after `Mois` is intentional (it's in the example header byte-for-byte) — DO NOT trim it.
@@ -257,13 +259,11 @@ function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
   }
 
   // Platform info columns appear ONLY on the debit (anchor) row to avoid repeating.
-  const platformInfo = (entry.platform && entry.platform !== 'direct')
+  const platformInfo = (entry.platform && (!isDirectChannel(entry.platform) || commission))
     ? {
         plateforme: entry.platform,
         prixPayéClient: entry.clientGrossAmount == null ? '' : Number(entry.clientGrossAmount),
-        commission: commission ? round2(commission.ttc)
-          : (entry.clientGrossAmount == null ? ''
-              : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice)))),
+        commission: commission ? round2(commission.ttc) : '',
       }
     : { plateforme: '', prixPayéClient: '', commission: '' };
 
@@ -600,7 +600,7 @@ function entryToStructured(entry, plan) {
   const isDiscount = entry.direction === 'discount';
   const isTip = entry.direction === 'tip';
   const isPenalty = entry.direction === 'penalty';
-  const platformInfo = (entry.platform && entry.platform !== 'direct' && !isRefund && !isCompensation
+  const platformInfo = (entry.platform && (!isDirectChannel(entry.platform) || entry.commission) && !isRefund && !isCompensation
     && !isDiscount && !isTip && !isPenalty)
     ? {
         platform: entry.platform,
@@ -608,9 +608,7 @@ function entryToStructured(entry, plan) {
         // Net (versement) banked by the owner = revenu brut − commission, surfaced so the journal
         // card can show what actually hit the bank (2026-06-22).
         net: round2(Number(entry.encaissementNetTtc)),
-        commission: entry.commission ? round2(entry.commission.ttc)
-          : (entry.clientGrossAmount == null ? null
-              : Math.max(0, round2(Number(entry.clientGrossAmount) - Number(entry.finalPrice)))),
+        commission: entry.commission ? round2(entry.commission.ttc) : null,
         commissionAccount: entry.commission ? entry.commission.account : null,
         commissionHt: entry.commission ? entry.commission.ht : null,
         commissionVat: entry.commission ? entry.commission.vat : null,

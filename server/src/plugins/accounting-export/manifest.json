@@ -155,7 +155,7 @@
       "Toujours pour GuestFlow 4 (SDK 2.25)."
     ],
     "1.2.4": [
-      "Comptabilité › Plateformes : « Brut » est le brut de la plateforme enregistré sur la fiche (à défaut, le prix du séjour sans les compléments payés sur place) ; aucune écriture ne change.",
+      "Comptabilité › Plateformes : « Brut » est le brut de la plateforme enregistré sur la fiche (à défaut, le prix du séjour sans les compléments payés sur place) ; aucune écriture ne change, la colonne « Prix payé client » du CSV suit ce brut.",
       "Toujours pour GuestFlow 4 (SDK 2.25)."
     ]
   }

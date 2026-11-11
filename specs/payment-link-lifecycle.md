@@ -1226,8 +1226,9 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     per link: `kindLabel` (Acompte, Solde, Paiement total, Échéance, Complément), `amountLabel`, `reference` (the provider's
     link id, what the operator searches for at Qonto), `stayLabel` (« Séjour {n°} », « Séjour n° {id} » when the stay is gone) with
     `stayUrl` when the stay exists, `reasonLabel` (Séjour supprimé, Séjour annulé, Doublon écarté, Dates prises, Retiré à
-    la main, Perçu autrement, Montant modifié, Validité dépassée, Séjour commencé, Remboursé) and `sinceLabel` (« le
-    jj/mm/aaaa »: the withdrawal, or the end of validity of a link not yet withdrawn). `PaymentDeactivationsAlert` draws
+    la main, Perçu autrement, Montant modifié, Validité dépassée, Séjour commencé, Remboursé) and `sinceLabel` (« lien retiré
+    le jj/mm/aaaa », or « fin de validité le jj/mm/aaaa » for a lapsed link or an open one past its validity: never the date the
+    stay went away). `PaymentDeactivationsAlert` draws
     them under the summary (no guest name, wraps on a phone). **No manual acknowledgement** (« Marquer désactivé chez
     Qonto »): nothing in this spec lets an operator clear the marker by hand — it is cleared by the provider's answer
     alone (rule 18) — so the list is read-only. Tests: `payment-deactivations-owed.unit.test.js`,

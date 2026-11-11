@@ -476,7 +476,9 @@ function buildModel(database) {
     }).map(({ expiresAt, stayEnded, stayKind, why, ...row }) => ({ // eslint-disable-line no-unused-vars
       ...row,
       stayMissing: Boolean(row.stayMissing),
-      reason: row.status === 'open' ? why : (row.cancelReason || (row.stayMissing ? 'orphan' : 'stay-cancelled')),
+      // A stay cancellation writes no reason: it is read off the stay, and only when the stay really is cancelled or set aside.
+      reason: row.status === 'open' ? why
+        : (row.cancelReason || (row.stayMissing ? 'orphan' : (stayEnded ? (stayKind === 'superseded' ? 'superseded' : 'stay-cancelled') : null))),
       since: row.status === 'open' ? (why === 'validity' ? expiresAt : null) : (row.withdrawnAt || row.remoteCancelPendingAt),
     }));
   }

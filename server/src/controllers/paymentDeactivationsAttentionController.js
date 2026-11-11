@@ -56,7 +56,10 @@ function owedDeactivations(model, providers = paymentProviders, now = new Date()
       : `Séjour ${link.reservationNumber || `n° ${link.reservationId}`}`,
     stayUrl: link.stayMissing ? null : `/reservations/${Number(link.reservationId)}`,
     reasonLabel: REASON_LABELS[link.reason] || 'Retiré',
-    sinceLabel: frDate(link.since) ? `le ${frDate(link.since)}` : null,
+    // The date is the withdrawal of the link, or the end of its validity: never the date the stay went away.
+    sinceLabel: frDate(link.since)
+      ? `${link.status === 'expired' || link.reason === 'validity' ? 'fin de validité' : 'lien retiré'} le ${frDate(link.since)}`
+      : null,
   }));
   return { links, retrying: links.filter((l) => l.retrying).length };
 }
