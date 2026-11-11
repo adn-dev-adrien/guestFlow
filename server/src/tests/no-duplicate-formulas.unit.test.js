@@ -6,11 +6,14 @@
 // compares the hits with its allow-list, `fixtures/no-duplicate-formulas/<guard>.json`: `[{ file, text, removedBy }]`, one
 // entry per copy still waiting for the PR that removes it. A hit that is not listed fails; a listed copy that is gone fails
 // too (the entry is removed with it). THE LISTS MUST BE EMPTY AT THE END OF PR C.
-// The money, date, hourly, family and exporter guards of rule 66 arrive with the commits that move those formulas.
+// The money, date, hourly, family and exporter guards of rule 66 are declared in `helpers/formulaGuards.js` (patterns, home,
+// scope, and the probe line each must catch); their lists name the PR that empties them.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+
+const { GUARDS } = require('./helpers/formulaGuards');
 
 const SRC = path.join(__dirname, '..');
 const LISTS = path.join(__dirname, 'fixtures', 'no-duplicate-formulas');
@@ -27,11 +30,11 @@ function sources(dir = SRC, out = []) {
 
 const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' ')).replace(/\/\/.*$/gm, '');
 
-function hitsOf(patterns, isHome) {
+function hitsOf(patterns, isHome, scope = () => true) {
   const hits = [];
   for (const file of sources()) {
     const relative = path.relative(SRC, file).split(path.sep).join('/');
-    if (isHome(relative)) continue;
+    if (isHome(relative) || !scope(relative)) continue;
     stripComments(fs.readFileSync(file, 'utf8')).split('\n').forEach((line) => {
       if (patterns.some((pattern) => pattern.test(line))) hits.push({ file: relative, text: line.trim() });
     });
@@ -41,7 +44,7 @@ function hitsOf(patterns, isHome) {
 
 const keyOf = ({ file, text }) => `${file} :: ${text}`;
 
-function guard(name, patterns, isHome) {
+function guard(name, patterns, isHome, scope) {
   const allowed = JSON.parse(fs.readFileSync(path.join(LISTS, `${name}.json`), 'utf8'));
   test(`rule 66 — ${name}: every entry of the allow-list names the copy and the PR that removes it`, () => {
     assert.ok(Array.isArray(allowed));
@@ -51,7 +54,7 @@ function guard(name, patterns, isHome) {
     }
   });
   test(`rule 66 — ${name}: no copy of the formula outside its home but the listed ones`, () => {
-    const hits = hitsOf(patterns, isHome).map(keyOf);
+    const hits = hitsOf(patterns, isHome, scope).map(keyOf);
     const listed = new Set(allowed.map(keyOf));
     assert.deepEqual(hits.filter((hit) => !listed.has(hit)), [], 'a copy of the formula: call its home, do not write it again');
     assert.deepEqual([...listed].filter((entry) => !hits.includes(entry)), [], 'a listed copy is gone: remove its entry');
@@ -80,3 +83,20 @@ guard('refunds', [
   /\b(keptFromGuest|writtenOffBalance):\s*round2\(/, // the figures a cancellation books
   /\brefundOwed\s*:\s*true|\brefundCents\s*:\s*excess/, // a refund owed flag written by a payment
 ], (file) => file.startsWith('utils/pricing/refunds/'));
+
+for (const { name, patterns, isHome, scope } of GUARDS) guard(name, patterns, isHome, scope);
+
+test('rule 66 — each declared guard catches its probe line and spares a clean one', () => {
+  for (const { name, patterns, probe } of GUARDS) {
+    assert.ok(patterns.some((pattern) => pattern.test(probe)), `${name} misses its probe`);
+    assert.ok(!patterns.some((pattern) => pattern.test('const total = amount + other;')), `${name} flags a clean line`);
+  }
+});
+
+test('rule 66 — the date guard\'s allow-list is the rule 45 table of today\'s call sites: every entry belongs to PR B or PR C', () => {
+  const dates = JSON.parse(fs.readFileSync(path.join(LISTS, 'dates.json'), 'utf8'));
+  assert.ok(dates.length > 0);
+  for (const entry of dates) assert.match(entry.removedBy, /^PR (B|C)$/);
+  assert.ok(dates.some((entry) => entry.file === 'utils/arrivalMoment.js' && entry.removedBy === 'PR C'));
+  assert.ok(dates.some((entry) => entry.file === 'models/reservationsModel.js' && entry.removedBy === 'PR B'));
+});

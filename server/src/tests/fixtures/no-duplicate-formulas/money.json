@@ -1,0 +1,467 @@
+[
+  {
+    "file": "controllers/cancellationCompensationsController.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "controllers/installmentsController.js",
+    "text": "const cents = rows.filter((r) => Number(r.paid) !== 1)",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "controllers/paymentsController.js",
+    "text": "const cents = (v) => Math.round(Number(v || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "const cents = (n) => Math.round((Number(n) || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "controllers/refundsController.js",
+    "text": "const cents = (n) => Math.round(Number(n) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "controllers/refundsController.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "controllers/reservationsController.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "models/cancellationCompensationsModel.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "models/platformPenaltiesModel.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "models/refundsModel.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "models/reservationsModel.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "models/touristTaxReportModel.js",
+    "text": "const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "models/vatRegimeSwitchModel.js",
+    "text": "const round2 = (n) => Math.round(Number(n) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/accounting-export/accountingExport.js",
+    "text": "function round2(n) {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/accounting-export/accountingModel.js",
+    "text": "function round2(value) { return Math.round(Number(value || 0) * 100) / 100; }",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/accounting-export/synthesis.js",
+    "text": "const cents = (value) => Math.round((Number(value) || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/accounting-export/synthesis.js",
+    "text": "const roundHalfAway = (x) => Math.sign(x) * Math.round(Math.abs(x));",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/accounting-export/synthesisController.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/airbnb-intake/mailParser.js",
+    "text": "const cents = (amount) => Math.round(Number(String(amount).replace(/ /g, '').replace(',', '.')) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/booking-intake/pageParser.js",
+    "text": "const round2 = (n) => Math.round(n * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/gites-de-france-intake/intakeService.js",
+    "text": "const round2 = (n) => Math.round(n * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/gites-de-france-intake/mailParser.js",
+    "text": "const cents = (n) => Math.round(n * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/google-vacation-rentals/calendar.js",
+    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/hourly-resources/bookingPricing.js",
+    "text": "const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/hourly-resources/catalogueLines.js",
+    "text": "const cents = Math.round(Number(amount || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/hourly-resources/hourlyPricing.js",
+    "text": "function round2(value) {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/hourly-resources/invoicing.js",
+    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/hourly-resources/pricing.js",
+    "text": "const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/hourly-resources/schedulingModel.js",
+    "text": "function round2(v) {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/online-payment/reconciliation/expectedReceipts.js",
+    "text": "const cents = (n) => Math.round((Number(n) || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/online-payment/reconciliation/expectedReceipts.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/online-payment/reconciliation/ficheWriter.js",
+    "text": "const round2 = (n) => Math.round(Number(n) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/tariff-recipes/platformCleaningFee.js",
+    "text": "const round2 = (n) => Math.round(n * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "plugins/tariff-recipes/store.js",
+    "text": "const round2 = (v) => Math.round(v * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/arrivalPaymentAdjustment.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/arrivalPaymentDetail.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/arrivalPaymentGroup.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/arrivalSasPlan.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/bathLinenGhostLine.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/bookingPace.js",
+    "text": "const round2 = (n) => Math.round(n * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/cancellationCompensations.js",
+    "text": "function round2(n) {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/cancellationKeptForEmail.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/cancelReservation.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/checkoutComplement.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/complementAllocation.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/complementPaidSplit.js",
+    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/createdComplementRepair.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/emailMoney.js",
+    "text": "const cents = Math.round(Number(amount || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/endOfStayAdjustment.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/fichePricingNotices.js",
+    "text": "const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/financeCalcs.js",
+    "text": "function round2(value) {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/frozenComplementRepair.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/installmentPaidSplit.js",
+    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/installmentPlan.js",
+    "text": "const cents = Math.round(Number(amountEuros) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/ledgerAmountEdit.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/ledgerLinks.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/legacyNetSoldeRepair.js",
+    "text": "const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/midStayExtrasWindow.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/midStayNotePlan.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/midStayOrderCommit.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/paymentDeadlines.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/paymentSettlementService.js",
+    "text": "const cents = (euroAmount) => Math.round((Number(euroAmount) || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/paymentStatus.js",
+    "text": "function round2(value) {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/paymentTenders.js",
+    "text": "const cents = Number(settlement.shortfallCents) || 0;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/platformPriceCheck.js",
+    "text": "const cents = (value) => Math.round(Number(value || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/platformPayment.js",
+    "text": "const round2 = (n) => Math.round(n * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/cancellation.js",
+    "text": "const cents = (value) => Math.round(Number(value || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/cancellation.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/collected.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/judge.js",
+    "text": "const cents = Math.round(line.amountTtc * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/judge.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/overpayment.js",
+    "text": "const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/refundable.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/refunds/register.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/pricing/settlement.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/quoteHeadline.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/removedLineContribs.js",
+    "text": "const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/reservationLedger.js",
+    "text": "const cents = (n) => Math.round(round2(n) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/reservationSettlement.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/sasOptionSale.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/sasUpsellOptionMigration.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/savePriceGuards.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/stayProfile.js",
+    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/stayProfile.js",
+    "text": "const round2 = (n) => Math.round(n * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/stayTouristTaxInTotal.js",
+    "text": "const round2 = (n) => Math.round(n * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/storedLinkComponents.js",
+    "text": "const cents = (v) => Math.round(Number(v || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/storedMoneySplit.js",
+    "text": "const cents = BUCKETS.map((bucket) => {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/storedMoneySplit.js",
+    "text": "function round2(value) { return Math.round(Number(value || 0) * 100) / 100; }",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/storedSummary.js",
+    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/touristTaxFreeze.js",
+    "text": "function round2(value) {",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/touristTaxReport.js",
+    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
+    "removedBy": "PR C"
+  },
+  {
+    "file": "utils/vatFranchise.js",
+    "text": "const cents = (n) => Math.round((Number(n) || 0) * 100);",
+    "removedBy": "PR C"
+  }
+]

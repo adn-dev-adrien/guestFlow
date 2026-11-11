@@ -1,0 +1,17 @@
+[
+  {
+    "file": "plugins/hourly-resources/bookingPricing.js",
+    "text": "const freeValue = freeApplied > 0 ? priceRange(hhmm(start), hhmm(start + freeApplied), cfg) : 0;",
+    "removedBy": "PR B"
+  },
+  {
+    "file": "plugins/hourly-resources/bookingPricing.js",
+    "text": "const offeredValue = offeredApplied > 0 ? priceRange(hhmm(offeredFrom), hhmm(offeredFrom + offeredApplied), cfg) : 0;",
+    "removedBy": "PR B"
+  },
+  {
+    "file": "plugins/hourly-resources/scheduler.js",
+    "text": "price: priceRange(slot.start, slot.end, rate),",
+    "removedBy": "PR B"
+  }
+]
