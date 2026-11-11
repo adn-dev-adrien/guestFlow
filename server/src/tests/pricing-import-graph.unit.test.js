@@ -29,6 +29,30 @@ const RANK = {
   settlement: 5,
   schedule: 7,
   platformPayment: 90,
+  // The orchestration sits above every unit: a step imports the units it calls, the use cases import the steps.
+  pipeline: 100,
+  'steps/loadStay': 100,
+  'steps/clock': 100,
+  'steps/nights': 100,
+  'steps/extraGuests': 100,
+  'steps/discountLevers': 100,
+  'steps/extras': 100,
+  'steps/midStay': 100,
+  'steps/platformGross': 100,
+  'steps/touristTax': 100,
+  'steps/platformPrice': 100,
+  'steps/discounts': 100,
+  'steps/vat': 100,
+  'steps/totals': 100,
+  'steps/inComplement': 100,
+  'steps/schedule': 100,
+  'steps/platformPayment': 100,
+  'steps/settlement': 100,
+  'steps/netTotals': 100,
+  pipelines: 200,
+  // Reached only through the steps, which sit above them.
+  articles: 40,
+  vat: 40,
 };
 const STAY_UNITS = ['nights', 'extraGuests', 'touristTax'];
 const FORBIDDEN_FOR_STAY_UNITS = [/^articles(\/|$)/, /^allowances$/, /^platformPayment$/, /^settlement$/, /^schedule$/, /^totals$/];
