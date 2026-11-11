@@ -85,7 +85,7 @@ test('empty view and the disconnected state', async () => {
   const { unmount } = renderPage();
   expect(await screen.findByText(/Rien à traiter/)).toBeTruthy();
   unmount();
-  api.getReconciliation.mockRejectedValue(Object.assign(new Error('Qonto n\'est pas connecté.'), { code: 'QONTO_NOT_CONNECTED' }));
+  api.getReconciliation.mockResolvedValue({ connected: false, code: 'QONTO_NOT_CONNECTED', message: 'Qonto n\'est pas connecté.' });
   renderPage();
   expect(await screen.findByText('Qonto n\'est pas connecté')).toBeTruthy();
 });

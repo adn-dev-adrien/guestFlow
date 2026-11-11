@@ -1,1 +1,0 @@
-- **Typing an arrival year over a stored fiche no longer freezes the tab** (`reservations-backend-mvc.md` rule 14). Chromium hands the fiche each digit of a year typed over a complete date (0002, 0020, 0203…); the fiche's occupancy check walked the range night by night and wrote year 2 as « 2-10-31 », so it never ended. It now scans the occupied days and pads the year.

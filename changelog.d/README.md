@@ -13,7 +13,8 @@ changelog.d/<category>--<short-slug>.md
 ```
 
 - `<category>` ∈ `added` | `changed` | `fixed` | `removed` | `migration` (matches the Keep a
-  Changelog sections, plus `migration` for data-affecting DB changes).
+  Changelog sections, plus `migration` for data-affecting DB changes); `detail` is the one other prefix
+  (see « A release too long to publish whole »).
 - `<short-slug>` is a kebab-case hint, ideally unique to the branch (e.g. the feature name). Using a
   branch-unique slug guarantees no filename collision between PRs.
 
@@ -38,6 +39,22 @@ plugin's own lines elsewhere: in the update dialog of the Plugins page, from the
 ```markdown
 - plugin:linen The towel stock is read on the right week.
 ```
+
+### A release too long to publish whole
+
+GitHub refuses a release body above **125,000 characters**, and the body is the `CHANGELOG.md` section.
+`node scripts/build-changelog.mjs --check-digest X.Y.Z` (run by the release workflow's `verify` job) fails
+above that limit, and the preview and `--release` print a warning. When a release carries hundreds of
+fragments, condense them instead of publishing them whole:
+
+1. Fold the fragments as they are into `docs/changelog/X.Y.Z-detail.md` (the committed archive: the
+   output of the preview, with a heading naming the release);
+2. replace them with a few fragments per category, one bullet group per domain, each bullet stating the
+   operator-visible change, every `migration` item kept explicit;
+3. add `changelog.d/detail--<slug>.md`: a fragment whose text closes the section, after every category and
+   with no heading of its own. It carries the line pointing to the archive.
+
+4.0.0 is the example (`docs/changelog/4.0.0-detail.md`; specs/self-update-and-releases.md rule 56).
 
 ## Preview the pending changelog
 

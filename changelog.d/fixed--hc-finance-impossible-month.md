@@ -1,1 +1,0 @@
-- Suivi financier: a month window naming no month (« 2026-13 », « 2027-00 ») is refused with « Ce mois n'appartient pas à l'exercice choisi. » instead of an internal error, on an exercise that does not close in December (specs/stay-profile.md rule 25).

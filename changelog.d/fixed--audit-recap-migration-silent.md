@@ -1,1 +1,0 @@
-- **Email templates keep their « last modified » date across restarts**: the reservation-number recap migration no longer rewrites `updatedAt` of reminders it does not change.

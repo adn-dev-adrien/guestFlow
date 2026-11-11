@@ -126,8 +126,10 @@ test('§4.3 — validation: unknown credit, over-allocation, out of scope, unkno
 
 test('rule 1 — nothing answers without a Qonto connection', () => {
   const { controller } = build({ connected: false });
-  assert.equal(controller.list().status, 409);
-  assert.equal(controller.list().body.code, 'QONTO_NOT_CONNECTED');
+  // The read is a renderable state, not an error status (a 409 is logged by the browser as a console error).
+  assert.equal(controller.list().status, 200);
+  assert.deepEqual(controller.list().body, { connected: false, code: 'QONTO_NOT_CONNECTED', message: 'Qonto n\'est pas connecté.' });
+  assert.equal(controller.linkBatch({ pairs: [], user: USER }).status, 409);
   assert.equal(controller.buildFicheBlock({ id: 1 }), null);
 });
 

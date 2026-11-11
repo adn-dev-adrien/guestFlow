@@ -163,17 +163,6 @@ function buildModel(database) {
     ).all();
   }
 
-  // Links whose reservation row no longer exists and that may still be payable at the provider: open ones,
-  // and cancelled ones whose deactivation is still owed (`remoteCancelPendingAt`), which nobody retries
-  // while the payment plugin is off.
-  function listOrphanOpen() {
-    return database.prepare(`
-      SELECT l.id, l.reservationId, l.type, l.amountCents, l.createdAt, l.status FROM payment_links l
-       WHERE (l.status = 'open' OR (l.status = 'cancelled' AND l.remoteCancelPendingAt IS NOT NULL)) AND NOT EXISTS (SELECT 1 FROM reservations r WHERE r.id = l.reservationId)
-       ORDER BY l.id
-    `).all();
-  }
-
   // specs/payment-link-lifecycle.md rules 7, 17 — the expiry is decided without a provider call (the date
   // is in our record); the link then owes its deactivation, which the retry of rule 18 makes.
   function retireExpired({ now = new Date() } = {}) {
@@ -457,6 +446,29 @@ function buildModel(database) {
       .run(new Date().toISOString(), Number(id));
   }
 
+  // specs/payment-link-lifecycle.md rule 67 — every link still payable at the provider that should not be, whether or
+  // not the provider is connected (the lifecycle pass that sets the marker only runs while it is): a link carrying the
+  // deactivation marker, and an `open` link whose stay is gone, cancelled or set aside (its own row or the stay its devis
+  // became), whose known validity is over, or whose pre-arrival link lapses at 00:00 Paris on the arrival day (rule 9). It needs a provider id to be deactivated. `stayMissing` tells the orphans.
+  function listOwedDeactivations({ now = new Date() } = {}) {
+    const nowMs = now.getTime();
+    return database.prepare(`
+      SELECT l.id, l.reservationId, l.type, l.provider, l.amountCents, l.status, l.cancelReason, l.remoteCancelPendingAt, l.expiresAt,
+             r.id IS NULL AS stayMissing,
+             (r.kind IN ('cancelled', 'superseded') OR c.kind IN ('cancelled', 'superseded')) AS stayEnded
+        FROM payment_links l
+        LEFT JOIN reservations r ON r.id = l.reservationId
+        LEFT JOIN reservations c ON c.id = r.convertedReservationId
+       WHERE l.providerLinkId IS NOT NULL AND l.providerLinkId != '' AND l.status IN ('open', 'cancelled', 'expired')
+       ORDER BY l.id
+    `).all().filter((row) => {
+      if (row.status !== 'open') return Boolean(row.remoteCancelPendingAt);
+      const expiryMs = knownExpiryMs(row.expiresAt);
+      return Boolean(row.stayMissing) || Boolean(row.stayEnded) || (expiryMs != null && expiryMs <= nowMs)
+        || require('../utils/paymentLinkLifecycle').lapsesAtArrival(database, row, now);
+    }).map(({ expiresAt, stayEnded, ...row }) => ({ ...row, stayMissing: Boolean(row.stayMissing) })); // eslint-disable-line no-unused-vars
+  }
+
   // specs/payment-link-lifecycle.md rule 18 — a lapsed link owes its deactivation like a withdrawn one.
   function listRemoteCancelPending() {
     return database.prepare(
@@ -542,7 +554,6 @@ function buildModel(database) {
     create,
     findById,
     listOpen,
-    listOrphanOpen,
     retireExpired,
     lapseIfOpen,
     retireSettled,
@@ -567,6 +578,7 @@ function buildModel(database) {
     claimRemoteCancelPending,
     restoreRemoteCancelPending,
     listRemoteCancelPending,
+    listOwedDeactivations,
     clearRemoteCancelPending,
     holdPaidBesidePlan,
     setLastLook,

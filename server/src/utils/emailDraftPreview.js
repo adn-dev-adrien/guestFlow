@@ -226,6 +226,8 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
 
     let outcome;
     try {
+      // IMMEDIATE: the write lock is taken up front, so a writer holding it makes the preview wait for the busy
+      // timeout; a deferred read-then-write transaction fails at once (SQLITE_BUSY_SNAPSHOT) when that writer commits.
       database.transaction(() => {
         const refusal = applyDraft(template, draft);
         if (refusal) { outcome = { error: 'INVALID_TEXT', status: 422, body: refusal }; throw new Rollback(); }
@@ -260,7 +262,7 @@ function buildDraftPreview({ database, templatesModel, buildPreview }) {
           },
         };
         throw new Rollback();
-      })();
+      }).immediate();
     } catch (err) {
       if (!(err instanceof Rollback)) throw err;
     }

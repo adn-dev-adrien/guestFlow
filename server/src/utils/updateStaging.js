@@ -245,12 +245,15 @@ async function installDependencies({ releaseDir, execFileImpl = execFileAsync })
 
 /**
  * The full staging sequence. `onPhase(phase)` is called before each step so the caller can publish
- * progress. Returns the promoted release directory.
+ * progress. `log(line)` receives one line per step with its result (download, SHA-256, signature,
+ * extraction, dependencies), so the update log says what was done and not only what failed
+ * (specs/self-update-and-releases.md rule 55). Returns the promoted release directory.
  */
 async function stageRelease({
   release,
   paths,
   onPhase = () => {},
+  log = () => {},
   fetchImpl = fetch,
   installImpl = installDependencies,
   releasePublicKey = releasePublicKeyFromEnv(),
@@ -261,45 +264,60 @@ async function stageRelease({
   const tmpArchive = path.join(paths.tmpDir, `${expectedRoot}.tar.gz`);
   const partialDir = path.join(paths.releasesDir, `${version}.partial`);
   const finalDir = path.join(paths.releasesDir, version);
+  const note = (line) => { try { log(line); } catch { /* a log that cannot be written never stops an update */ } };
+  let step = 'préparation';
 
   fs.rmSync(partialDir, { recursive: true, force: true });
   fs.mkdirSync(paths.tmpDir, { recursive: true });
   fs.mkdirSync(paths.releasesDir, { recursive: true });
 
   try {
+    step = 'téléchargement';
     onPhase('downloading');
-    await downloadToFile({ url: release.archive.url, destFile: tmpArchive, fetchImpl });
+    const bytes = await downloadToFile({ url: release.archive.url, destFile: tmpArchive, fetchImpl });
+    note(`téléchargement : OK, ${release.archive.name}, ${bytes} octets`);
 
     onPhase('verifying');
+    step = 'signature';
     const sumsBytes = await fetchBuffer({ url: release.checksums.url, fetchImpl });
-    await assertSumsSigned({
+    const signed = await assertSumsSigned({
       sums: sumsBytes,
       signature: release.checksumsSignature,
       publicKey: releasePublicKey,
       fetchSignature: (asset) => fetchText({ url: asset.url, fetchImpl }),
     });
+    note(signed ? 'signature : OK, SHA256SUMS signé par la clé configurée' : 'signature : non vérifiée, aucune clé de signature configurée');
+    step = 'SHA-256';
     const sums = parseSha256Sums(sumsBytes.toString('utf8'));
     const expected = sums[release.archive.name];
     if (!expected) throw new Error('CHECKSUM_MISSING');
     const actual = await sha256File(tmpArchive);
     if (actual !== expected) throw new Error('CHECKSUM_MISMATCH');
+    note(`SHA-256 : OK, ${actual}`);
 
+    step = 'extraction';
     onPhase('extracting');
     await extractArchive({ archiveFile: tmpArchive, destDir: partialDir, expectedRoot });
     assertReleaseLayout(partialDir, version);
+    note(`extraction : OK, structure de la version ${version} vérifiée`);
 
     // An archive carries code only. Point the new tree at the secrets, uploads and certificates
     // that must survive the swap — before it can ever be booted without them.
     linkPersistentPaths({ releaseDir: partialDir, paths });
 
+    step = 'dépendances (npm ci)';
     onPhase('installing');
     await installImpl({ releaseDir: partialDir });
+    note('dépendances (npm ci) : OK');
 
     // Promote only once everything above succeeded: `releases/<version>` existing means "usable".
+    step = 'mise en place';
     fs.rmSync(finalDir, { recursive: true, force: true });
     fs.renameSync(partialDir, finalDir);
+    note(`mise en place : OK, releases/${version}`);
     return finalDir;
   } catch (err) {
+    note(`${step} : ÉCHEC`);
     fs.rmSync(partialDir, { recursive: true, force: true });
     throw err;
   } finally {

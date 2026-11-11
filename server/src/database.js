@@ -12,6 +12,9 @@ db.dbPath = dbPath;
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+// Every `db.transaction(fn)()` takes the write lock up front: a read-then-write handler no longer fails with SQLITE_BUSY
+// when another connection commits in between (specs/plugins-phase-3a-online-payment.md rule 29).
+require('./utils/immediateTransactions').makeImmediateByDefault(db);
 
 
 // ---------- SCHEMA (generated baseline — see schema.sql) ----------
@@ -37,6 +40,9 @@ db.pragma('foreign_keys = ON');
 // pas pu creer. Si le rejeu echoue encore, l'erreur est reelle et remonte.
 const SCHEMA_SQL = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 let baselineDeferredError = null;
+// The columns schema.sql indexes that an older release's tables lack are added first, so a clean upgrade replays
+// the baseline whole and boots without the partial-baseline warning (payment_links.provider, 3.21.0 -> 4.0.0).
+require('./utils/paymentLinksProviderMigration').migratePaymentLinksToProviders(db);
 try {
   db.exec(SCHEMA_SQL);
 } catch (err) {

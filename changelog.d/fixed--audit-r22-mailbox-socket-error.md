@@ -1,1 +1,0 @@
-- **Mail intakes: an IMAP socket error stays inside the pass** (spec `airbnb-mail-intake.md` rule 36, audit R22 E22-4). A network reset or socket timeout no longer reaches `uncaughtException`; the real cause is logged and the pass rejects as before.

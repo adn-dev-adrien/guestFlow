@@ -256,7 +256,7 @@ No schema change. The existing `app_settings` table (singleton, 15+ columns incl
 #### PageActionBar
 - Title: `Paramètres`
 - Dirty caption: `Modifications non enregistrées`
-- Clean caption: `Dernière mise à jour : DD/MM/YYYY à HH:MM`
+- Clean caption: `Réglages enregistrés le DD/MM/YYYY à HH:MM` (was « Dernière mise à jour : … » until 2026-11-11, which read as the software's update on Système, right above « Système et mises à jour »; every Paramètres page shares the bar, `SettingsFormPage`; test `SettingsFormPage.saved-caption.test.jsx`)
 - Save tooltip: `Enregistrer`
 - Cancel tooltip: `Annuler`
 

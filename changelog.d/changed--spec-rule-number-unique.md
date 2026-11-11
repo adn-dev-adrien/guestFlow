@@ -1,1 +1,0 @@
-- Docs and gate: `check-spec-coverage --changed` fails on a rule number used twice in a spec's §3 (`spec-rule-coverage.md` rule 17); nine specs renumbered, citations repointed.

@@ -132,24 +132,25 @@ export default function ReconciliationPage() {
 
   const openFiche = (item) => navigate(`/reservations/${item.reservation.id}`);
 
-  const hasProposals = Boolean(data && data.bulk && data.bulk.count + data.bulk.toVerify.count > 0);
+  const live = Boolean(data) && data.connected !== false;
+  const hasProposals = Boolean(live && data.bulk && data.bulk.count + data.bulk.toVerify.count > 0);
   const bar = (
     <PageActionBar
       title="Rapprochement bancaire"
-      subtitle={data ? (
+      subtitle={live ? (
         <Typography variant="caption" color={data.lastError ? 'error.main' : 'text.secondary'}>
           {readFailureLabel(data.lastError) || lastReadLabel(data.lastReadAt)}
         </Typography>
       ) : null}
       actionsBefore={[
-        { icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refresh, color: 'info', disabled: reading || !data },
+        { icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refresh, color: 'info', disabled: reading || !live },
         ...(hasProposals ? [{ icon: <DoneAllIcon />, tooltip: 'Tout confirmer', onClick: () => setBulkOpen(true), color: 'success' }] : []),
       ]}
     />
   );
 
   if (loading && !data) return <>{bar}<LoadingState /></>;
-  if (error && error.code === 'QONTO_NOT_CONNECTED') {
+  if (data && data.connected === false) {
     return (
       <>
         {bar}

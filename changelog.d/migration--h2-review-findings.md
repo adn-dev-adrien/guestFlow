@@ -1,1 +1,0 @@
-- `users.isSupportAccount` (default 0) marks the « Support GuestFlow » account, set on the existing row by its address `support@guestflow.invalid`. Additive; no other row changes (specs/hosting-h2-account-security.md rule 21).

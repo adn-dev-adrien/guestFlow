@@ -448,7 +448,9 @@ function createReconciliationController({ db, settings, transactions, model, wri
 
     /** GET /?view=&filter= — a counter is a filter (rule 11); the view's proposals come with their bulk summary (rule 12). */
     list({ view = 'todo', filter } = {}) {
-      if (!connected()) return notConnected();
+      // A read is answered, not refused: the page draws « Qonto n'est pas connecté » from this body, and a browser
+      // logs every 4xx answer as an error in its console (shadow trial of 4.0.0). The writes below still answer 409.
+      if (!connected()) return { status: 200, body: { connected: false, code: notConnected().body.code, message: notConnected().body.error } };
       const pick = VIEWS[view] || VIEWS.todo;
       const data = compute();
       const known = FILTERS.includes(filter) ? filter : null;

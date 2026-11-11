@@ -1,1 +1,0 @@
-- plugin:hourly-resources `resource_bookings_v3` adds `paidVatRate` (the VAT rate frozen at payment, NULL = not subject) and `invoiceMarkPending`; bookings already paid get the rate in force at install, invoiced ones their invoice's rate. Nothing else moves (spec `resource-booking-pricing-and-invoicing.md` rule 35).

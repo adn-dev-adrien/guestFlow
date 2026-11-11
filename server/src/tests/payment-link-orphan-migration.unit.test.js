@@ -81,6 +81,6 @@ test('rule 5 — a withdrawn orphan joins the retry list the first poll pass rea
 });
 
 test('rule 5 — the boot warning still lists the cancelled orphans whose deactivation is owed', () => {
-  const owed = require('../models/paymentLinksModel').buildModel(db).listOrphanOpen();
+  const owed = require('../models/paymentLinksModel').buildModel(db).listOwedDeactivations();
   assert.ok(owed.some((l) => l.status === 'cancelled'));
 });

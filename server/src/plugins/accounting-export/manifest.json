@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -148,6 +148,10 @@
     "1.2.2": [
       "Séjour payé en plusieurs moyens puis remboursé en entier : chaque compte revient à 0, sans centime d'écart ni rabais laissé sur 709.",
       "Séjour payé en un seul moyen puis remboursé en entier : chaque compte revient aussi à 0, à partir du mois qui suit l'installation.",
+      "Toujours pour GuestFlow 4 (SDK 2.25)."
+    ],
+    "1.2.3": [
+      "Comptabilité › Plateformes : la colonne « Brut » ne reste plus vide sur un séjour dont l'écriture se calcule sur l'argent enregistré.",
       "Toujours pour GuestFlow 4 (SDK 2.25)."
     ]
   }

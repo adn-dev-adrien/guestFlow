@@ -350,11 +350,13 @@ async function runUpdate({ model, paths, current, targetVersion, startedAt, logF
       release,
       paths,
       onPhase: (phase) => model.writeStatus({ phase }),
+      log: (line) => appendUpdateLog(logFile, line),
     });
 
     model.writeStatus({ phase: 'backup' });
-    await createPreUpdateBackup({ backupsDir: paths.backupsDir, targetVersion });
+    const backupFile = await createPreUpdateBackup({ backupsDir: paths.backupsDir, targetVersion });
     rotateBackups(paths.backupsDir);
+    appendUpdateLog(logFile, `sauvegarde de la base : OK, ${path.basename(String(backupFile || ''))}`);
 
     const args = buildHelperArgs({
       paths,
@@ -367,6 +369,7 @@ async function runUpdate({ model, paths, current, targetVersion, startedAt, logF
       startedAt,
     });
     model.writeStatus({ phase: 'swapping' });
+    appendUpdateLog(logFile, 'bascule : lancement de l’assistant de mise à jour');
     spawnHelper(args);
     // From here the helper owns the status file. We keep the lock: the restart is imminent, and a
     // second trigger in that window must be refused.

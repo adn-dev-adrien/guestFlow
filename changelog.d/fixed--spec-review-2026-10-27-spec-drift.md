@@ -1,1 +1,0 @@
-- Property page: with the acompte switched off, the « Annulation » helper no longer promises to keep an acompte; it says the cancellation follows the CGV (specs/property-deposit-switch.md rule 14).

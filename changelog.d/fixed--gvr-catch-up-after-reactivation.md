@@ -1,1 +1,0 @@
-- **Google Vacation Rentals catches up when it comes back.** Switched on again or reinstalled, the plugin re-sends every price and availability to Google at once instead of waiting for the nightly full re-send (spec `plugin-removal-resilience.md` rule 17).

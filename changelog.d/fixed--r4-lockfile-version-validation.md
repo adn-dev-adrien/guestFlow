@@ -1,1 +1,0 @@
-- Self-update: the lockfile check now also requires a valid semantic version and a well-formed package name before building the expected tarball path.

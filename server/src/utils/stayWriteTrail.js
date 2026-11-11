@@ -14,6 +14,7 @@
  * the fiche then falls back to the safe stale conflict.
  */
 const { AsyncLocalStorage } = require('node:async_hooks');
+const { makeImmediateByDefault } = require('./immediateTransactions');
 
 const als = new AsyncLocalStorage();
 const UPDATES_STAYS = /\bUPDATE\s+(?:OR\s+\w+\s+)?reservations\b/i;
@@ -21,6 +22,7 @@ const UPDATES_STAYS = /\bUPDATE\s+(?:OR\s+\w+\s+)?reservations\b/i;
 function install(db) {
   if (db.__stayWriteTrail) return;
   db.__stayWriteTrail = true;
+  makeImmediateByDefault(db);
   db.exec(`
     CREATE TEMP TABLE IF NOT EXISTS stay_writes (seq INTEGER PRIMARY KEY, id INTEGER, before TEXT, after TEXT);
     CREATE TEMP TRIGGER IF NOT EXISTS stay_writes_trail AFTER UPDATE OF updatedAt ON main.reservations

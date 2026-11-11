@@ -374,6 +374,14 @@ Other facts the design rests on:
     another connection commits in between, without waiting for the busy timeout (5 s, better-sqlite3's
     default). `recordStayPayment` and the other read-then-write money transactions (installments, refunds,
     cancellation, platform penalties) therefore run `.immediate()`: a concurrent writer makes them wait.
+    **Reading of 2026-11-11 (shadow trial of 4.0.0, E2E flake under load):** the rule is now the default of the application's
+    connection, not a per-site habit: `utils/immediateTransactions.makeImmediateByDefault(db)` (applied when `database.js`
+    opens the connection, and again by `stayWriteTrail.install`) makes every `db.transaction(fn)()` `BEGIN IMMEDIATE`.
+    `.deferred()`, `.immediate()` and `.exclusive()` keep their meaning, and a transaction called inside another stays a
+    savepoint (better-sqlite3 decides on `db.inTransaction`). Reachable read-then-write transactions that were deferred —
+    the timed-options seed of a new property (`ensureDefaultTimedOptionsForProperty`), the property, option, platform and
+    email-text models, the draft preview — wait for a concurrent writer instead of answering 500. Test:
+    `immediate-transactions.unit.test.js`.
 30. **A converted devis's links belong to the stay (2026-10-29, audit R3 P1).** A devis link keeps the devis id
     after the conversion. Every fiche-side lookup reads the links of the stay AND of the devis converted into it
     (`paymentLinksModel.listForStay` / `findOpenForStay`): the fiche's link list, the ledger's links, the reuse of

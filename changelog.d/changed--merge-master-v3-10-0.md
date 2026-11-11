@@ -1,4 +1,0 @@
-- **Booking intake joins the plugin catalogue** (spec `booking-extranet-intake.md` §10, 2026-10-18). Shipped on `master` in v3.10.0 on a minimal engine, « Saisie Booking » now runs on the full plugin engine: its own manifest and package, installed and switched from the Plugins page. The v3.10.0 « Modules » card and its seed batches are gone (spec `plugin-engine-backport.md`, superseded). Plugin SDK 1.1.0: `ctx.core.clients.update`, `ctx.core.reservations.platformCommission` and the `planningDateRange` core module.
-- plugin:gate-access SAS « Portail » step: a « Partager » button sends the access link to the other occupants.
-- plugin:linen The laundry planning refuses a period longer than 750 days; a manual addition with an infinite quantity counts as 0.
-- plugin:hourly-resources The resources planning no longer passes prices, phone numbers or notes to the reception role, and refuses a period longer than 750 days.
