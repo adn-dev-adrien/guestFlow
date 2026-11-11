@@ -21,6 +21,7 @@ const {
 } = require('./pricing/nights');
 const { clampCommissions, netReceived } = require('./pricing/platformPayment');
 const { resolvePlatformPrice, grossFromNet } = require('./pricing/platformPrice');
+const { allocateDiscount, normalizeDiscountPercent, normalizeCustomPrice } = require('./pricing/discounts');
 const articles = require('./pricing/articles');
 const { createFreeUnitsLedger, applyFreeUnitsToLine, applyPerHourFreeMinutes } = require('./pricing/allowances');
 
@@ -619,10 +620,8 @@ function calculateReservationQuote({
 
   // Price levers, normalised HERE rather than beside the totals below: a `percent_of_stay` option
   // (specs/cancellation-insurance.md §3.1) is priced inside the option loop and needs them.
-  const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
-  const customFinalPrice = customPrice === '' || customPrice === null || customPrice === undefined
-    ? null
-    : Number(customPrice);
+  const normalizedDiscountPercent = normalizeDiscountPercent(discountPercent);
+  const customFinalPrice = normalizeCustomPrice(customPrice);
   // Assiette of a `percent_of_stay` option (rule 3): the ACCOMMODATION actually charged — the
   // nights after a discount or a manual override, plus the extra-guest surcharge (a supplement on
   // the nights, not an option). Options, resources, taxe de séjour and caution are excluded.
@@ -633,7 +632,7 @@ function calculateReservationQuote({
   const cancellationInsuranceBase = roundMoney(
     (Number.isFinite(customFinalPrice)
       ? customFinalPrice
-      : roundMoney(totalPrice * (1 - normalizedDiscountPercent / 100)))
+      : allocateDiscount({ discount: { percent: normalizedDiscountPercent, target: 'nights' }, accommodation: totalPrice }).accommodation)
     + extraGuestSurcharge,
   );
 
@@ -1042,11 +1041,10 @@ function calculateReservationQuote({
   // tariff nights after the discount), minus the reference value of the services structurally
   // included in that rate. The platform brut still does not derive it — that back-solve stays
   // removed (rule 6), which is what keeps the tax out of the brut → finalPrice circle.
-  const taxBaseBeforeDeduction = roundMoney(
-    Number.isFinite(customFinalPrice)
-      ? customFinalPrice
-      : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100),
-  );
+  const taxBaseBeforeDeduction = allocateDiscount({
+    discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
+    accommodation: baseAccommodationPrice,
+  }).accommodation;
   // Rule 3 — the deducted value is a PER-STAY FORFAIT: the person factor is the guests the rate
   // includes, never the real party. That is the whole difference with the former rule 48, whose
   // `per_person` linen deductions made the declared base shrink as the party grew. `includedGuests`
@@ -1242,9 +1240,10 @@ function calculateReservationQuote({
   const accommodationAdjustedPrice = roundMoney(
     pinnedAccommodation != null
       ? pinnedAccommodation
-      : (Number.isFinite(customFinalPrice)
-        ? customFinalPrice
-        : accommodationBaseTotal * (1 - normalizedDiscountPercent / 100))
+      : allocateDiscount({
+        discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
+        accommodation: accommodationBaseTotal,
+      }).accommodation
   );
   const finalPrice = roundMoney(accommodationAdjustedPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
   const discountAmount = roundMoney(Math.max(0, subtotal - finalPrice));
@@ -1253,9 +1252,10 @@ function calculateReservationQuote({
   const baseAccommodationAdjustedPrice = roundMoney(
     pinnedAccommodation != null
       ? pinnedAccommodation
-      : (Number.isFinite(customFinalPrice)
-        ? customFinalPrice
-        : baseAccommodationPrice * (1 - normalizedDiscountPercent / 100))
+      : allocateDiscount({
+        discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
+        accommodation: baseAccommodationPrice,
+      }).accommodation
   );
   const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
     ? 'reduction'
@@ -1266,7 +1266,10 @@ function calculateReservationQuote({
   // Engine price = what the pricing engine computes ignoring any manual override, so the client can
   // show the engine value alongside an overridden price. `finalPrice` stays the effective amount.
   const priceOverridden = pinnedAccommodation != null || Number.isFinite(customFinalPrice);
-  const engineAccommodationPrice = roundMoney(accommodationBaseTotal * (1 - normalizedDiscountPercent / 100));
+  const engineAccommodationPrice = allocateDiscount({
+    discount: { percent: normalizedDiscountPercent, target: 'nights' },
+    accommodation: accommodationBaseTotal,
+  }).accommodation;
   const engineFinalPrice = roundMoney(engineAccommodationPrice + extraGuestSurcharge + optionsTotal + resourcesTotal);
 
   // VAT calculations (all prices are TTC - VAT already included). Two global rates: accommodation
