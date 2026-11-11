@@ -1,8 +1,7 @@
 /**
  * Locked snapshots and « offert » of an article line (specs/pricing-components.md §3 rules 13, 14, 47) — the helpers
  * the engine has always used to keep a sold line at what it was sold for, moved unchanged. The head applies them; no
- * family does. `mergeLineWithLockedSnapshot` takes an optional trace function as its second argument (the engine's
- * DEBUG_RESOURCE_LINES logger).
+ * family does.
  *
  * Internal to `articles/`.
  */
@@ -28,20 +27,9 @@ function mergeLineWithLockedSnapshot({
   lockedLine,
   targetBilledUnits,
   currentUnitPrice,
-}, debugResourceLine = () => {}) {
-  debugResourceLine('merge.locked_snapshot.input', {
-    lockedLine,
-    targetBilledUnits,
-    currentUnitPrice,
-  });
-
+}) {
   const resolvedTargetUnits = normalizeBilledUnits(targetBilledUnits);
   const normalizedCurrentUnitPrice = roundMoney(currentUnitPrice);
-
-  debugResourceLine('merge.locked_snapshot.normalized', {
-    resolvedTargetUnits,
-    normalizedCurrentUnitPrice,
-  });
 
   if (!lockedLine) {
     const result = {
@@ -49,7 +37,6 @@ function mergeLineWithLockedSnapshot({
       totalPrice: roundMoney(resolvedTargetUnits * normalizedCurrentUnitPrice),
       unitPrice: normalizedCurrentUnitPrice,
     };
-    debugResourceLine('merge.locked_snapshot.no_locked_line', { result });
     return result;
   }
 
@@ -63,11 +50,6 @@ function mergeLineWithLockedSnapshot({
     ? roundMoney(lockedTotal / lockedUnits)
     : roundMoney(lockedLine.unitPrice || normalizedCurrentUnitPrice);
 
-  debugResourceLine('merge.locked_snapshot.locked_values', {
-    lockedTotal,
-    lockedUnits,
-    lockedUnitPrice,
-  });
 
   if (resolvedTargetUnits === lockedUnits) {
     const result = {
@@ -75,7 +57,6 @@ function mergeLineWithLockedSnapshot({
       totalPrice: lockedTotal,
       unitPrice: lockedUnitPrice,
     };
-    debugResourceLine('merge.locked_snapshot.same_units', { result });
     return result;
   }
 
@@ -87,11 +68,6 @@ function mergeLineWithLockedSnapshot({
       totalPrice: mergedTotal,
       unitPrice: resolvedTargetUnits > 0 ? roundMoney(mergedTotal / resolvedTargetUnits) : normalizedCurrentUnitPrice,
     };
-    debugResourceLine('merge.locked_snapshot.increase_units', {
-      deltaUnits,
-      mergedTotal,
-      result,
-    });
     return result;
   }
 
@@ -102,11 +78,6 @@ function mergeLineWithLockedSnapshot({
     totalPrice: reducedTotal,
     unitPrice: resolvedTargetUnits > 0 ? roundMoney(reducedTotal / resolvedTargetUnits) : lockedUnitPrice,
   };
-  debugResourceLine('merge.locked_snapshot.decrease_units', {
-    removedUnits,
-    reducedTotal,
-    result,
-  });
   return result;
 }
 

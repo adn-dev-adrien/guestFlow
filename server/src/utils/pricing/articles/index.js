@@ -17,12 +17,20 @@
  * A request is `{ article, quantity, locked, offered, ... }`; the modes below are chosen by its family:
  *   perUnit (planning card)   occurrences placed, or portions to place (`portions(sold)`)
  *   perParticipantProgressive tiers + the sold snapshot
+ *   hourly (plugin-owned)     asked inside the safety of `pluginFamily.js`; an unsold line takes the family's amounts, else the
+ *                             hours are billed after the free minutes. The family absent (plugin off): the same hours path
  *   every other family        units from the family, merged with the sold snapshot, then the free units
- *   `priced: { totalPrice }`  an amount fixed upstream (auto line, custom line, plugin-priced hour): « offert » only
+ *   `priced: { totalPrice }`  the head's documented entries, an amount with no per-type formula: « offert » only. They are the
+ *                             operator-typed custom lines, the baby-bed line (formula in `utils/babyBedSupplement.js`) and the
+ *                             early check-in / late check-out options (formula in `pricing/timedOptions.js`)
+ * `families` (the families live at this instant, by id; default `liveFamilies()`) is an input of `quote`: the head reads that
+ * map, never the registry, while it prices.
  * Only customerContext 'hosted' exists in PR A.
  */
 const { roundMoney } = require('../money');
-const { normalizeBilledUnits, consumeAllowance, releaseAllowance } = require('../allowances');
+const {
+  normalizeBilledUnits, consumeAllowance, releaseAllowance, applyPerHourFreeMinutes,
+} = require('../allowances');
 const registry = require('./registry');
 const { makeArticle, familyIdOfPriceType } = require('./makeArticle');
 const {
@@ -30,6 +38,7 @@ const {
 } = require('./lineSnapshot');
 const { resolveServedPersons } = require('./units');
 const kit = require('./familyKit');
+const { contributionOf } = require('./pluginFamily');
 const fixed = require('./families/fixed');
 const perUnit = require('./families/perUnit');
 const perNight = require('./families/perNight');
@@ -78,6 +87,7 @@ function priceMerged(family, article, request, stay, allowance) {
   const { config } = article;
   const isResource = config.kind === 'resource';
   const { locked } = request;
+  if (isResource && request.quantity <= 0) return { line: null };
   const isPercentOfStay = article.family === 'percentOfStay';
   const isStayWideYesNo = isPercentOfStay || config.isCancellationInsurance;
   const effectiveQuantity = isStayWideYesNo ? 1 : request.quantity;
@@ -112,7 +122,7 @@ function priceMerged(family, article, request, stay, allowance) {
       : (lockedInsuranceLine || reconstructLockedRealTotal(lockedLineGrossOfFreeUnits(locked, soldFreeUnits), unitBase)),
     targetBilledUnits,
     currentUnitPrice: unitBase,
-  }, stay.debug);
+  });
   if (isResource) {
     const offeredFigures = applyOfferedToLine(merged.totalPrice, request.offered);
     return {
@@ -169,7 +179,8 @@ function priceCard(family, article, request, stay, allowance) {
   // The portions this line was last SOLD at — its own snapshot, not today's catalogue.
   const sold = soldBilledUnits(locked);
   const occurrences = Array.isArray(request.occurrences) ? request.occurrences : [];
-  let quantity = request.quantity;
+  // The moments placed ARE the quantity: whatever `request.quantity` holds is not read.
+  let quantity = occurrences.length > 0 ? occurrences.length : request.quantity;
   let portions = null;
   if (occurrences.length === 0) {
     portions = request.portions(sold);
@@ -265,11 +276,43 @@ function priceProgressive(family, article, request, stay) {
   };
 }
 
-function priceOne(request, stay, allowance) {
+// The hourly family belongs to a plugin: asked inside the safety of `pluginFamily` (a throwing or malformed answer prices like
+// no plugin). An unsold line takes the family's amounts; otherwise the hours — the declared ones, or the family's when more
+// were contributed on a sold line — are billed after the free minutes of the lodging. Without the family (plugin off) the
+// declared hours are billed at the lodging's rate: the same core path.
+function priceHourly(family, article, request, stay, allowance) {
+  const { config } = article;
+  const sold = Boolean(request.locked);
+  const contributed = family ? contributionOf(family, config, { ...request, ref: article.ref, sold }, stay) : null;
+  if (contributed && !sold && contributed.totalPrice !== undefined) {
+    const offeredFigures = applyOfferedToLine(contributed.totalPrice, request.offered);
+    return {
+      ref: article.ref,
+      family: article.family,
+      article,
+      figures: { quantity: contributed.quantity, unitPrice: contributed.unitPrice, billedUnits: contributed.billedUnits },
+      offeredFigures,
+      components: [],
+      allowanceUsed: 0,
+      taggedAmounts: taggedOf(config, article.ref, offeredFigures.totalPrice),
+      extra: contributed.extra,
+    };
+  }
+  const quantity = contributed
+    ? roundMoney(sold ? Math.max(request.quantity, contributed.quantity) : contributed.quantity)
+    : request.quantity;
+  const result = priceMerged(null, article, {
+    ...request, quantity, targetBilledUnits: applyPerHourFreeMinutes(roundMoney(quantity), config.freeMinutes),
+  }, stay, allowance);
+  return contributed && !result.refusals && result.line !== null ? { ...result, extra: contributed.extra } : result;
+}
+
+function priceOne(request, stay, allowance, families) {
   if (request.priced) return pricedAmount(request);
   const { article } = request;
   // Units already resolved by the caller (the hourly core path): the family is not consulted.
-  const family = request.targetBilledUnits !== undefined ? null : registry.get(article.family);
+  if (article.family === 'hourly') return priceHourly(families.hourly || null, article, request, stay, allowance);
+  const family = request.targetBilledUnits !== undefined ? null : (families[article.family] || null);
   if (!family && request.targetBilledUnits === undefined) {
     return { refusals: [refuse('FAMILY_UNAVAILABLE', `the family "${article.family}" has no live registration`, article.ref)] };
   }
@@ -278,8 +321,13 @@ function priceOne(request, stay, allowance) {
   return priceMerged(family, article, request, stay, allowance);
 }
 
+// The families that are live right now, by id: the input of a quote (the loader resolves it once).
+function liveFamilies() {
+  return Object.freeze(Object.fromEntries(registry.ids().map((id) => [id, registry.get(id)]).filter(([, family]) => family)));
+}
+
 function quote({
-  requests = [], stayContext = {}, customerContext = 'hosted', allowance = null,
+  requests = [], stayContext = {}, customerContext = 'hosted', allowance = null, families = liveFamilies(),
 } = {}) {
   const out = {
     lines: [], taggedAmounts: [], allowanceUsed: 0, refusals: [],
@@ -290,7 +338,7 @@ function quote({
     return out;
   }
   for (const request of requests) {
-    const result = priceOne(request, stayContext, allowance);
+    const result = priceOne(request, stayContext, allowance, families);
     if (result.refusals) {
       out.refusals.push(...result.refusals.map((refusal) => ({ ref: request.article ? request.article.ref : request.ref, ...refusal })));
       out.lines.push(null);
@@ -332,6 +380,7 @@ module.exports = {
   describe,
   makeArticle,
   registerFamily: registry.register,
+  liveFamilies,
   registerCoreFamilies,
   lockedUnitPriceOr,
   getTypeMultiplier,

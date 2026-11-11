@@ -18,6 +18,7 @@ const ALLOWED_VIOLATIONS = [];
 // Payments sit at the far end; EXTRAS (articles/) sit between the stay units and the totals.
 const RANK = {
   money: 0,
+  timedOptions: 3,
   storedLines: 0,
   nights: 1,
   extraGuests: 2,

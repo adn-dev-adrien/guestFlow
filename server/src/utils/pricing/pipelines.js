@@ -32,7 +32,7 @@ const netTotals = require('./steps/netTotals');
  * The flat context the `stayQuote` steps pass along: `input` is the engine input as the loader completed it, each step adds
  * the keys it provides (a key is provided once and never rewritten), listed here by step.
  * loadStay: property, vatRegime, vatRate, rules, optionsById, resourcesById, defaultOfferedOptionIds,
- *     settings, billableBabyBeds, paymentLedger, startDate, endDate, checkInTime, checkOutTime, adults,
+ *     settings, families, billableBabyBeds, paymentLedger, startDate, endDate, checkInTime, checkOutTime, adults,
  *     children, teens, babies, babyBeds, bookingId, discountPercent, customPrice, selectedOptions,
  *     customOptions, selectedResources, depositPaid, balancePaid, complementPaid, depositAmount, balanceAmount,
  *     complementAmount, offeredOptionIds, extraGuestSurchargeOffered, lockedOptionUnits, lockedResourceUnits,

@@ -6,11 +6,10 @@
  * `apply(ctx)` returns a new context and never mutates the one it receives.
  */
 
-const priceLineContributors = require('../../priceLineContributors');
 const { roundMoney } = require('../money');
-const { getRuleNightBaseForDate, getProgressiveExtraNightPrice } = require('../nights');
+const { computeAutoTimedOptionContext, getLateCheckoutNextNightReferencePrice } = require('../timedOptions');
 const articles = require('../articles');
-const { createFreeUnitsLedger, applyPerHourFreeMinutes } = require('../allowances');
+const { createFreeUnitsLedger } = require('../allowances');
 const { portionCap, clampPortions } = require('../../mealPortions');
 const { buildBabyBedSupplementLine, isBabyBedOption } = require('../../babyBedSupplement');
 const { lockedUnitPriceOr } = articles;
@@ -49,113 +48,8 @@ function normalizeCardOccurrences(raw) {
 }
 
 
-function timeToDecimalHour(timeStr, fallback = 0) {
-  const value = String(timeStr || '').trim();
-  const match = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return Number(fallback || 0);
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number(fallback || 0);
-  return hours + minutes / 60;
-}
-
-function computeAutoTimedOptionContext({
-  option,
-  checkInTime,
-  checkOutTime,
-  defaultCheckIn,
-  defaultCheckOut,
-  nightlyBreakdown,
-  lateCheckoutNextNightPrice,
-}) {
-  if (!option || !option.autoOptionType || Number(option.autoEnabled || 0) !== 1) return null;
-
-  const isEarly = option.autoOptionType === 'early_check_in';
-  const isLate = option.autoOptionType === 'late_check_out';
-  if (!isEarly && !isLate) return null;
-
-  const defaultHour = isEarly
-    ? timeToDecimalHour(defaultCheckIn, 15)
-    : timeToDecimalHour(defaultCheckOut, 10);
-  const requestedHour = isEarly
-    ? timeToDecimalHour(checkInTime || defaultCheckIn, defaultHour)
-    : timeToDecimalHour(checkOutTime || defaultCheckOut, defaultHour);
-
-  const needsOption = isEarly ? requestedHour < defaultHour : requestedHour > defaultHour;
-  if (!needsOption) return null;
-
-  const thresholdDefault = isEarly ? '10:00' : '17:00';
-  const thresholdHour = timeToDecimalHour(option.autoFullNightThreshold || thresholdDefault, isEarly ? 10 : 17);
-  const firstNightPrice = Number(nightlyBreakdown?.[0]?.price || 0);
-  const lastStayNightPrice = Number(nightlyBreakdown?.[Math.max(0, (nightlyBreakdown?.length || 1) - 1)]?.price || 0);
-  // Source de calcul: une nuit de référence (jamais le total séjour)
-  // - arrivée anticipée: nuit d'arrivée
-  // - départ tardif: nuit suivant la date de départ (fallback: dernière nuit du séjour)
-  const concernedNightPrice = isEarly
-    ? firstNightPrice
-    : Number(lateCheckoutNextNightPrice || lastStayNightPrice || 0);
-
-  const isFullNight = isEarly ? requestedHour <= thresholdHour : requestedHour >= thresholdHour;
-  const extraHours = isEarly
-    ? Math.max(0, defaultHour - requestedHour)
-    : Math.max(0, requestedHour - defaultHour);
-
-  let totalPrice = Number(option.price || 0);
-  if (String(option.autoPricingMode || 'fixed') === 'proportional') {
-    const proportionalWindowHours = isEarly
-      ? Math.max(0, defaultHour - thresholdHour)
-      : Math.max(0, thresholdHour - defaultHour);
-    const proportionalRatio = proportionalWindowHours > 0
-      ? Math.max(0, Math.min(1, extraHours / proportionalWindowHours))
-      : 0;
-    totalPrice = isFullNight
-      ? concernedNightPrice
-      : concernedNightPrice * proportionalRatio;
-  }
-
-  return {
-    optionId: Number(option.id),
-    title: option.title,
-    titleEn: option.titleEn || null,
-    quantity: 1,
-    unitPrice: roundMoney(totalPrice),
-    billedUnits: 1,
-    priceType: 'per_stay',
-    totalPrice: roundMoney(totalPrice),
-    autoOptionType: option.autoOptionType,
-    autoPricingMode: option.autoPricingMode || 'fixed',
-    autoExtraHours: roundMoney(extraHours),
-    autoFullNightApplied: Boolean(isFullNight),
-  };
-}
-
-function getLateCheckoutNextNightReferencePrice({ rules, endDate, stayNights }) {
-  const { matchedRule, nightlyBase } = getRuleNightBaseForDate(rules, endDate);
-  if ((matchedRule?.pricingMode || 'fixed') !== 'progressive') {
-    return roundMoney(nightlyBase);
-  }
-
-  const extraNightNumber = Math.max(1, Number(stayNights || 0) + 1);
-  const extraNightPrice = extraNightNumber === 1
-    ? nightlyBase
-    : getProgressiveExtraNightPrice(matchedRule, extraNightNumber, nightlyBase);
-
-  return roundMoney(extraNightPrice);
-}
-
 function storedSessionsOf(selected) {
   return Array.isArray(selected?.sessions) && selected.sessions.length > 0 ? { sessions: selected.sessions } : {};
-}
-
-const DEBUG_RESOURCE_LINES = process.env.DEBUG_RESOURCE_LINES === '1';
-
-function debugResourceLine(stage, payload) {
-  if (!DEBUG_RESOURCE_LINES) return;
-  try {
-    console.log(`[pricing.resourceLines] ${stage}`, payload);
-  } catch {
-    // Keep pricing computation resilient even if debug logging fails.
-  }
 }
 
 const step = {
@@ -163,7 +57,7 @@ const step = {
   requires: [
     'autoOptionsInComplement', 'billableBabyBeds', 'cancellationInsuranceBase',
     'cancellationInsurancePriceOverride', 'channel', 'checkInTime', 'checkOutTime', 'customOptions',
-    'defaultOfferedOptionIds', 'endDate', 'isDirectBooking', 'lockedOptionLines', 'lockedOptionUnits',
+    'defaultOfferedOptionIds', 'endDate', 'families', 'isDirectBooking', 'lockedOptionLines', 'lockedOptionUnits',
     'lockedResourceLines', 'lockedResourceUnits', 'lockedTariff', 'nightlyBreakdown', 'nights', 'offeredOptionIds',
     'optionsById', 'persons', 'planningCardAsQuantity', 'resourcesById', 'rules', 'selectedOptions',
     'selectedResources', 'settings', 'startDate',
@@ -176,7 +70,7 @@ const step = {
     const {
       autoOptionsInComplement, billableBabyBeds, cancellationInsuranceBase,
       cancellationInsurancePriceOverride, channel, checkInTime, checkOutTime, customOptions,
-      defaultOfferedOptionIds, endDate, isDirectBooking, lockedOptionLines, lockedOptionUnits,
+      defaultOfferedOptionIds, endDate, families, isDirectBooking, lockedOptionLines, lockedOptionUnits,
       lockedResourceLines, lockedResourceUnits, lockedTariff, nightlyBreakdown, nights, offeredOptionIds,
       optionsById, persons, planningCardAsQuantity, resourcesById, rules, selectedOptions,
       selectedResources, settings, startDate,
@@ -230,11 +124,13 @@ const step = {
     const autoInComplementSet = new Set((Array.isArray(autoOptionsInComplement) ? autoOptionsInComplement : []).map(Number));
 
     const articleStay = {
-      persons, nights, maxGuests: settings.articles.maxGuests, isDirectBooking, cancellationInsuranceBase, debug: debugResourceLine,
+      persons, nights, maxGuests: settings.articles.maxGuests, isDirectBooking, cancellationInsuranceBase,
     };
     const freeUnitsLedger = { grantedFreeUnitsFor, consumedFreeUnitsFor };
     // One price through the Articles head: the families price, the head keeps the sold snapshot, the free units and « offert ».
-    const quoteArticle = (request) => articles.quote({ requests: [request], stayContext: articleStay, allowance: freeUnitsLedger }).lines[0];
+    const quoteArticle = (request) => articles.quote({
+      requests: [request], stayContext: articleStay, allowance: freeUnitsLedger, families,
+    }).lines[0];
     // « Offert » on an amount fixed upstream (an engine-derived line, a custom line, a plugin-priced hour).
     const offeredOf = (ref, vatClass, totalPrice, offered) => quoteArticle({ ref, vatClass, priced: { totalPrice }, offered }).offeredFigures;
 
@@ -434,118 +330,42 @@ const step = {
 
     const resourceLines = (Array.isArray(selectedResources) ? selectedResources : [])
       .map((selected) => {
-        debugResourceLine('input.selected', { selected });
-
         const resourceId = Number(selected.resourceId);
-        const resourceForFlags = resourcesById.get(resourceId);
-        const lockedForLine = lockedResourcesById.get(resourceId);
-
-        // specs/plugins-phase-3c-hourly-resources.md rules 1–3 — a live plugin may price this line (an
-        // hour of nordic bath placed on the evening band). The engine keeps the rest: an UNSOLD line
-        // takes the plugin's amounts; a SOLD one goes through the locked snapshot below with its sold
-        // hours, never fewer, so placing them never re-prices it (hourly-resource-quantity-and-sas-
-        // scheduling.md rules 30–31).
-        const contributed = resourceForFlags
-          ? priceLineContributors.priceLine(resourceForFlags, { selected, sold: Boolean(lockedForLine), startDate, endDate, nights, persons })
-          : null;
-        if (contributed && !lockedForLine && contributed.totalPrice !== undefined) {
-          const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
-          return {
-            resourceId,
-            name: resourceForFlags.name,
-            nameEn: resourceForFlags.nameEn || null,
-            quantity: contributed.quantity,
-            unitPrice: contributed.unitPrice,
-            billedUnits: contributed.billedUnits,
-            ...contributed.extra,
-            ...offeredOf(`resource:${resourceId}`, 'resources', contributed.totalPrice, hasExplicitOffered ? Boolean(selected?.offered) : false),
-            ...pickContribsAndForce(selected, lockedForLine),
-          };
-        }
-
-        const declaredQuantity = Math.max(0, Number(selected?.quantity || 0));
-        const quantity = contributed
-          ? roundMoney(lockedForLine ? Math.max(declaredQuantity, contributed.quantity) : contributed.quantity)
-          : declaredQuantity;
-        debugResourceLine('parsed.quantity', { quantity });
-        if (quantity <= 0) {
-          debugResourceLine('skip.non_positive_quantity', { quantity, selected });
-          return null;
-        }
-
-        debugResourceLine('parsed.resourceId', { resourceId });
         const resource = resourcesById.get(resourceId);
-        if (!resource) {
-          debugResourceLine('skip.resource_not_found', {
-            resourceId,
-            selected,
-            knownResourceIds: Array.from(resourcesById.keys()),
-          });
-          return null;
-        }
-
-        debugResourceLine('pricing.base', {
-          resourceId,
-          resource
-        });
-        
-        // Rule 4 — hours are for `per_hour` only: a slot setting or a free hour left on another price
-        // type no longer turns it into an hourly line.
-        const usesHourlyQuantity = resource.priceType === 'per_hour';
-
-        debugResourceLine('pricing.type_flags', {
-          resourceId,
-          usesHourlyQuantity,
-          freeMinutes: Number(resource.freeMinutes || 0),
-        });
-
+        if (!resource) return null;
         const lockedLine = lockedResourcesById.get(resourceId);
         const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
         const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
 
-        // The hours of a `per_hour` resource are the quantity, less the free minutes of the lodging; the others follow the
-        // article's family.
+        // One line through the Articles head, whatever its family. A `per_hour` line goes to the plugin-owned `hourly`
+        // family (specs/plugins-phase-3c-hourly-resources.md rules 1-3): an UNSOLD line takes its amounts; a SOLD one goes
+        // through the locked snapshot with its sold hours, never fewer, so placing them never re-prices it
+        // (hourly-resource-quantity-and-sas-scheduling.md rules 30-31). The hours are billed after the free minutes of the lodging.
         const priced = quoteArticle({
           article: articles.makeArticle(resource, { kind: 'resource' }),
-          quantity,
+          quantity: Math.max(0, Number(selected?.quantity || 0)),
+          selected,
           locked: lockedLine,
           offered,
-          ...(usesHourlyQuantity
-            ? { targetBilledUnits: applyPerHourFreeMinutes(roundMoney(quantity), resource.freeMinutes) }
-            : {}),
+          startDate,
+          endDate,
         });
+        if (!priced) return null;
 
-        debugResourceLine('pricing.units', {
-          resourceId,
-          persons,
-          nights,
-          quantity,
-          billedUnits: priced.figures.billedUnits,
-        });
-
-        const resultLine = {
+        return {
           resourceId,
           name: resource.name,
           nameEn: resource.nameEn || null,
           ...priced.figures,
           // Without a live plugin, a line keeps the sessions it carries: they still say when the hours
           // sold are used (specs/plugins-phase-3c-hourly-resources.md rule 18).
-          ...(contributed ? contributed.extra : storedSessionsOf(selected)),
+          ...(priced.extra || storedSessionsOf(selected)),
           ...priced.offeredFigures,
           ...pickContribsAndForce(selected, lockedLine),
         };
-
-        debugResourceLine('pricing.output_line', {
-          resourceId,
-          resultLine,
-        });
-
-        return resultLine;
       })
       .filter(Boolean)
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr'));
-
-    debugResourceLine('pricing.output_lines', { resourceLines });
 
     const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
     const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
@@ -562,9 +382,4 @@ module.exports = step;
 module.exports.withQuantityUnit = withQuantityUnit;
 module.exports.withDisplayCount = withDisplayCount;
 module.exports.normalizeCardOccurrences = normalizeCardOccurrences;
-module.exports.timeToDecimalHour = timeToDecimalHour;
-module.exports.computeAutoTimedOptionContext = computeAutoTimedOptionContext;
-module.exports.getLateCheckoutNextNightReferencePrice = getLateCheckoutNextNightReferencePrice;
 module.exports.storedSessionsOf = storedSessionsOf;
-module.exports.DEBUG_RESOURCE_LINES = DEBUG_RESOURCE_LINES;
-module.exports.debugResourceLine = debugResourceLine;

@@ -1,0 +1,91 @@
+// specs/pricing-components.md §3 rules 2 and 43 — TIMED OPTIONS (early check-in, late check-out): the unit's own tests.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { timeToDecimalHour, computeAutoTimedOptionContext, getLateCheckoutNextNightReferencePrice } = require('../utils/pricing/timedOptions');
+
+test('timeToDecimalHour converts half-hour values', () => {
+  assert.equal(timeToDecimalHour('15:30'), 15.5);
+  assert.equal(timeToDecimalHour('08:00'), 8);
+});
+
+test('computeAutoTimedOptionContext computes proportional early check-in hours and price', () => {
+  const line = computeAutoTimedOptionContext({
+    option: {
+      id: 10,
+      title: 'Arrivee anticipee',
+      autoOptionType: 'early_check_in',
+      autoEnabled: 1,
+      autoPricingMode: 'proportional',
+      autoFullNightThreshold: '10:00',
+      price: 0,
+    },
+    checkInTime: '13:00',
+    defaultCheckIn: '15:00',
+    defaultCheckOut: '10:00',
+    nightlyBreakdown: [{ price: 120 }],
+  });
+
+  assert.equal(line.optionId, 10);
+  assert.equal(line.autoExtraHours, 2);
+  assert.equal(line.autoFullNightApplied, false);
+  assert.equal(line.totalPrice, 48);
+});
+
+test('computeAutoTimedOptionContext applies full-night price for late check-out beyond threshold', () => {
+  const line = computeAutoTimedOptionContext({
+    option: {
+      id: 11,
+      title: 'Depart tardif',
+      autoOptionType: 'late_check_out',
+      autoEnabled: 1,
+      autoPricingMode: 'proportional',
+      autoFullNightThreshold: '17:00',
+      price: 0,
+    },
+    checkOutTime: '17:30',
+    defaultCheckIn: '15:00',
+    defaultCheckOut: '10:00',
+    nightlyBreakdown: [{ price: 120 }, { price: 120 }],
+  });
+
+  assert.equal(line.autoExtraHours, 7.5);
+  assert.equal(line.autoFullNightApplied, true);
+  assert.equal(line.totalPrice, 120);
+});
+
+test('computeAutoTimedOptionContext late check-out proportional uses next-night price source', () => {
+  const line = computeAutoTimedOptionContext({
+    option: {
+      id: 12,
+      title: 'Depart tardif',
+      autoOptionType: 'late_check_out',
+      autoEnabled: 1,
+      autoPricingMode: 'proportional',
+      autoFullNightThreshold: '17:00',
+      price: 0,
+    },
+    checkOutTime: '12:00',
+    defaultCheckIn: '15:00',
+    defaultCheckOut: '10:00',
+    nightlyBreakdown: [{ price: 999 }],
+    lateCheckoutNextNightPrice: 120,
+  });
+
+  // 2h / 7h (10:00 -> 17:00) of next-night price (120), never from total stay.
+  assert.equal(line.autoExtraHours, 2);
+  assert.equal(line.autoFullNightApplied, false);
+  assert.equal(line.totalPrice, 34.29);
+});
+
+test('getLateCheckoutNextNightReferencePrice reads the night after departure from the matching rule', () => {
+  const rules = [{ pricingMode: 'fixed', pricePerNight: 120, dateRanges: [], startDate: null, endDate: null }];
+  assert.equal(getLateCheckoutNextNightReferencePrice({ rules, endDate: '2027-07-10', stayNights: 2 }), 120);
+  const progressive = [{ pricingMode: 'progressive', pricePerNight: 100, progressiveTiers: [{ nightNumber: 3, price: 80 }], dateRanges: [], startDate: null, endDate: null }];
+  assert.equal(getLateCheckoutNextNightReferencePrice({ rules: progressive, endDate: '2027-07-10', stayNights: 2 }), 40);
+});
+
+test('computeAutoTimedOptionContext returns null when the option is off or the time is the default one', () => {
+  const option = { id: 1, autoOptionType: 'early_check_in', autoEnabled: 1, price: 10 };
+  assert.equal(computeAutoTimedOptionContext({ option: { ...option, autoEnabled: 0 }, checkInTime: '12:00', defaultCheckIn: '15:00' }), null);
+  assert.equal(computeAutoTimedOptionContext({ option, checkInTime: '15:00', defaultCheckIn: '15:00' }), null);
+});

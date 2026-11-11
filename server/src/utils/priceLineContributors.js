@@ -1,7 +1,9 @@
 /**
  * Price-line contributors (specs/plugins-phase-3c-hourly-resources.md rules 1–4, 18). A plugin
- * declares one with `ctx.priceLineContributor`; the engine asks it, line by line, inside its resource
- * loop, and keeps doing everything else itself: the locked snapshot, « offert », the contributions.
+ * declares one with `ctx.priceLineContributor`. The Articles head reaches it through the plugin's `hourly`
+ * family (specs/pricing-components.md §3 rule 47), inside the safety of `articles/pluginFamily.js`, and keeps doing
+ * everything else itself: the locked snapshot, « offert », the contributions. This module only says which price
+ * types a live plugin owns (`offered`).
  *
  * Contributor contract:
  *   id
@@ -10,12 +12,10 @@
  *                         synchronous, no I/O. Without amounts, the engine prices `quantity` as a
  *                         plain quantity. `null` = price the line as if no plugin were there.
  *
- * `extra` is closed: the engine copies `sessions`, `scheduledHours` and `detail`, nothing else.
+ * `extra` is closed: the head copies `sessions`, `scheduledHours` and `detail`, nothing else.
  */
 
 const registry = require('../plugins/sdk/registry');
-
-const EXTRA_KEYS = ['sessions', 'scheduledHours', 'detail'];
 
 // The contributor of a live plugin for this price type, or null.
 function contributorFor(priceType) {
@@ -34,42 +34,4 @@ function offered(priceType) {
   return !owner || Boolean(contributorFor(priceType));
 }
 
-function closedExtra(extra) {
-  const out = {};
-  for (const key of EXTRA_KEYS) {
-    if (extra && extra[key] !== undefined) out[key] = extra[key];
-  }
-  return out;
-}
-
-const finite = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
-
-/**
- * The contributed line for `resource`, or null when no live contributor prices it. A throwing
- * contributor, or an answer without a finite quantity, is logged and treated as no contribution:
- * pricing never fails because of a plugin (rule 1).
- */
-function priceLine(resource, input, logger = console) {
-  const contributor = contributorFor(resource && resource.priceType);
-  if (!contributor) return null;
-  let answer;
-  try {
-    answer = contributor.priceLine({ ...input, resource });
-  } catch (err) {
-    logger.error(`[priceLineContributors] ${contributor.id} threw on resource ${resource.id}:`, err && err.message);
-    return null;
-  }
-  if (!answer) return null;
-  if (!finite(answer.quantity)) {
-    logger.warn(`[priceLineContributors] ${contributor.id} answered no quantity for resource ${resource.id}`);
-    return null;
-  }
-  const priced = finite(answer.unitPrice) && finite(answer.billedUnits) && finite(answer.totalPrice);
-  return {
-    quantity: answer.quantity,
-    ...(priced ? { unitPrice: answer.unitPrice, billedUnits: answer.billedUnits, totalPrice: answer.totalPrice } : {}),
-    extra: closedExtra(answer.extra),
-  };
-}
-
-module.exports = { contributorFor, offered, priceLine, PLUGIN_PRICE_TYPES };
+module.exports = { contributorFor, offered, PLUGIN_PRICE_TYPES };

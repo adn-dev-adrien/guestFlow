@@ -18,8 +18,13 @@ const { seed } = require('./hourlySchedulingFixture');
 const { createSasStep } = require('../sasStep');
 
 require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
-// The engine prices `per_hour` lines through this plugin's contributor (phase 3c rule 11).
-require('../../sdk/registry').ensure('hourly-resources').priceLineContributor = require('../pricing').createHourlyContributor();
+// The engine prices `per_hour` lines through this plugin's `hourly` family (phase 3c rule 11, pricing components rule 47).
+{
+  const contributor = require('../pricing').createHourlyContributor();
+  const context = require('../../sdk/createContext').createContext('hourly-resources', {});
+  context.priceLineContributor(contributor);
+  context.articleFamily('hourly', require('../hourlyFamily').createHourlyFamily(contributor));
+}
 
 // ── The engine: a sold line is frozen, whatever its sessions say ───────────────────────────────────
 

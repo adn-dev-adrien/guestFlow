@@ -9,6 +9,8 @@
  *                                            (`settings.<nights|extraGuests|touristTax|stayClock|schedule|vat|articles>`,
  *                                            the tourist-tax `collector` of the platform among them): the steps read
  *                                            these, never the property row
+ *   families                                 the article families live at this instant, by id (a plugin-owned one only
+ *                                            while its plugin is live): the Articles head prices with these, not the registry
  *   optionsById, resourcesById               the lodging's catalogue (through the CatalogueProvider port)
  *   defaultOfferedOptionIds                  the options the lodging includes in the night rate
  *   billableBabyBeds                         the cots the stay bills (a stay stored before the supplement bills none)
@@ -20,6 +22,7 @@ const vatRegimeModel = require('./vatRegimeModel');
 const { getApplicableOptions, getApplicableResources } = require('./ports/catalogueProvider');
 const { create: createPaymentLedger } = require('./ports/paymentLedger');
 const settingsProvider = require('./ports/settingsProvider');
+const articles = require('../utils/pricing/articles');
 const { findBabyBedOption, resolveBillableBabyBeds } = require('../utils/babyBedSupplement');
 
 // GLOBAL per-platform tourist-tax mode resolver (specs/per-platform-tourist-tax-three-way.md). The
@@ -119,6 +122,7 @@ function load(input) {
     resourcesById,
     defaultOfferedOptionIds,
     settings,
+    families: articles.liveFamilies(),
     billableBabyBeds,
     paymentLedger: createPaymentLedger(db),
   };

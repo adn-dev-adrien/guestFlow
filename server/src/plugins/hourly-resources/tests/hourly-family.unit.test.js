@@ -37,10 +37,9 @@ test('rule 47 — hourly: a sold line, or hours with no session, are a plain qua
   assert.deepEqual([unplaced.billedUnits, unplaced.extra.detail], [2, 'À planifier']);
 });
 
-test('rule 47 — hourly: a resource the contributor leaves to the engine prices its quantity as it was asked', () => {
+test('rule 47 — hourly: a resource the contributor leaves to the engine is no contribution (the head prices it as without the plugin)', () => {
   const plain = { ...config, resource: { ...resource, showsPlanningCard: 0 } };
-  const priced = family.price(plain, request({ quantity: 3 }));
-  assert.deepEqual([priced.quantity, priced.billedUnits, priced.unitPrice, priced.amounts], [3, 3, 30, []]);
+  assert.equal(family.price(plain, request({ quantity: 3 })), null);
 });
 
 test('rule 47 — hourly: validate refuses a quantity that is not a count; describe prints hours and rate', () => {

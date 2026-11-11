@@ -14,7 +14,7 @@ const step = {
   requires: ['input'],
   provides: [
     'property', 'vatRegime', 'vatRate', 'rules', 'optionsById', 'resourcesById', 'defaultOfferedOptionIds',
-    'settings', 'billableBabyBeds', 'paymentLedger', 'startDate', 'endDate', 'checkInTime', 'checkOutTime',
+    'settings', 'families', 'billableBabyBeds', 'paymentLedger', 'startDate', 'endDate', 'checkInTime', 'checkOutTime',
     'adults', 'children', 'teens', 'babies', 'babyBeds', 'bookingId', 'discountPercent', 'customPrice',
     'selectedOptions', 'customOptions', 'selectedResources', 'depositPaid', 'balancePaid', 'complementPaid',
     'depositAmount', 'balanceAmount', 'complementAmount', 'offeredOptionIds', 'extraGuestSurchargeOffered',
@@ -41,6 +41,7 @@ const step = {
       resourcesById,
       defaultOfferedOptionIds,
       settings,
+      families,
       billableBabyBeds,
       paymentLedger,
       startDate,
@@ -235,7 +236,7 @@ const step = {
       platformPaidAdults, platformPaidGuests, platformPaidOccupants, platformPayoutDueDays,
       platformPenaltyAmount, platformTakesDeposit, platformTouristTaxAmountInput,
       property, quoteKind, refundsTotal, resourcesById, rules, selectedOptions, selectedResources,
-      settings, startDate, storedTouristTaxAddedGuests, storedTouristTaxAddedGuestsAdults, teens,
+      families, settings, startDate, storedTouristTaxAddedGuests, storedTouristTaxAddedGuestsAdults, teens,
       touristTaxInComplement, validUntil, vatRate, vatRegime,
     };
   },

@@ -11,6 +11,7 @@ const { createContext } = require('../../sdk/createContext');
 const { startApi } = require('./guestAppFixtures');
 
 const { createHourlyContributor } = optionalPlugin(() => require('../../hourly-resources/pricing'));
+const { createHourlyFamily } = optionalPlugin(() => require('../../hourly-resources/hourlyFamily'));
 const { createScheduler } = optionalPlugin(() => require('../../hourly-resources/scheduler'));
 
 const db = require('../../../database');
@@ -110,7 +111,10 @@ function livePlugins(api, { card = null } = {}) {
   registry.reset();
   registry.configure({ isActive: () => true, allows: () => true });
   if (createHourlyContributor) {
-    createContext('hourly-resources', {}).priceLineContributor(createHourlyContributor());
+    const context = createContext('hourly-resources', {});
+    const contributor = createHourlyContributor();
+    context.priceLineContributor(contributor);
+    context.articleFamily('hourly', createHourlyFamily(contributor));
     registry.ensure('hourly-resources').resourceScheduler = createScheduler(db);
   }
   if (card) registry.ensure('online-payment').paymentProvider = card.provider;

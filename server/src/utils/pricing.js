@@ -25,7 +25,8 @@ const { applyFreeUnitsToLine } = require('./pricing/allowances');
 const { computeExtraGuestSurcharge, splitExtraGuestCount } = require('./pricing/extraGuests');
 const { getApplicableOptions, getApplicableResources } = require('../models/ports/catalogueProvider');
 const { compose } = require('./pricing/compose');
-const { withQuantityUnit, timeToDecimalHour, computeAutoTimedOptionContext } = require('./pricing/steps/extras');
+const { withQuantityUnit } = require('./pricing/steps/extras');
+const { timeToDecimalHour, computeAutoTimedOptionContext } = require('./pricing/timedOptions');
 
 const {
   getTypeMultiplier, computePercentOfStayAmount, resolveServedPersons, resolveNonCardUnits,

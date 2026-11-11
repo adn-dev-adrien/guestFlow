@@ -4,8 +4,9 @@
  * The family is registered next to the contributor (`ctx.priceLineContributor` stays as the alias the engine reads
  * until PR C): `price` asks the contributor, line by line, and returns what the core families return — `quantity`,
  * `unitPrice`, `billedUnits`, `components`, `allowanceUsed`, tagged amounts (never VAT) — plus the contributor's `extra`
- * (sessions, scheduled hours, detail). An answer without amounts is a plain quantity of hours: the head bills it at the
- * lodging's rate after the free minutes.
+ * (sessions, scheduled hours, detail) and the contributor's `totalPrice`. An answer without amounts is a plain quantity of
+ * hours: the head bills it at the lodging's rate after the free minutes. No answer (`null`) is no contribution: the head
+ * prices the line as if the plugin were not there, and it guards the call itself (a throw, a malformed answer).
  *
  * `config.resource` is the catalogue row of the resource (makeArticle, kind 'resource'); `request` carries
  * `{ quantity, selected, sold, startDate, endDate }`, `ctx` the stay's `{ nights, persons }`.
@@ -39,12 +40,8 @@ function createHourlyFamily(contributor) {
       nights: ctx && ctx.nights,
       persons: ctx && ctx.persons,
     });
+    if (!answer) return null;
     const unitPrice = Number(config.price || 0);
-    if (!answer) {
-      return {
-        quantity: request.quantity, unitPrice, billedUnits: request.quantity, components: [], allowanceUsed: 0, amounts: [], extra: {},
-      };
-    }
     if (answer.totalPrice === undefined) {
       return {
         quantity: answer.quantity, unitPrice, billedUnits: answer.quantity, components: [], allowanceUsed: 0, amounts: [], extra: answer.extra || {},
@@ -54,6 +51,7 @@ function createHourlyFamily(contributor) {
       quantity: answer.quantity,
       unitPrice: answer.unitPrice,
       billedUnits: answer.billedUnits,
+      totalPrice: answer.totalPrice,
       components: [{ kind: 'base', hours: answer.billedUnits, unitPrice: answer.unitPrice }],
       allowanceUsed: Math.max(0, Math.round((answer.quantity - answer.billedUnits) * 60)),
       amounts: [{
