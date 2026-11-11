@@ -12,6 +12,7 @@ const { runLinkLifecycle } = require('../utils/paymentPollRunner');
 const { owedDeactivations } = require('../controllers/paymentDeactivationsAttentionController');
 const { CORE_SUMMARIES, buildAttention } = require('../utils/dashboardAttention');
 
+// date-literal-ok: a fixed instant handed to the poll as its clock
 const NOW = new Date('2026-11-05T10:00:00Z');
 const REASONS = ['orphan', 'dates-taken', 'amount-changed', 'settled', 'superseded', 'operator'];
 

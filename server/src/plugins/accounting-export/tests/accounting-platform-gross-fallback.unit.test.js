@@ -22,6 +22,7 @@ const ctx = { collectedOnArrival: false };
 const baseRow = (overrides = {}) => ({
   id: 1, firstName: 'Test', lastName: 'Gross', propertyName: 'Gîte', platform: 'GitesDeFrance',
   depositAmount: 0, depositPaid: 0, depositPaidDate: null,
+  // date-literal-ok: a stored paid date nothing compares with today
   balanceAmount: 907.2, balancePaid: 1, balancePaidDate: '2026-10-01',
   complementAmount: 0, complementPaid: 0, complementPaidDate: null, endOfStayComplementAmount: 0,
   finalPrice: 907.2, totalPrice: 907.2, touristTaxTotal: 0, touristTaxInComplement: 0,

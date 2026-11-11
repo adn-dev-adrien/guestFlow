@@ -66,6 +66,7 @@ test('rule 56 — the preview and `--release` warn about an over-long result wit
   assert.equal(preview.status, 0);
   assert.match(preview.stderr, /WARNING: the pending changelog is \d+ characters, over the 125000/);
 
+  // date-literal-ok: a date written into a throwaway CHANGELOG fixture
   const released = run(['--release', '4.0.0', '2026-11-11'], { 'CHANGELOG.md': '## [Unreleased]\n\n', 'changelog.d/fixed--huge.md': bullets });
   assert.equal(released.status, 0);
   assert.match(released.stderr, /WARNING: the 4\.0\.0 section is \d+ characters/);
