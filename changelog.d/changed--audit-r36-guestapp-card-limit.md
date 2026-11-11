@@ -1,1 +1,0 @@
-- plugin:guest-app A stay places at most 6 card orders per hour, whatever its sessions or addresses (`GUEST_CARD_ORDER_RATELIMIT_MAX` / `_WINDOW_MS`, rule 57): each card order mints a payment link at the provider. A refused card order spends nothing; the note stays open. +1 server test.

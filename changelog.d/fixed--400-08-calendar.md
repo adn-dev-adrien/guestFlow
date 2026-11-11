@@ -1,0 +1,3 @@
+- **iCal**: a cancelled stay no longer hands its fiche to a new booking on nameless feeds; shared placeholder clients are split; impossible dates and oversized or private-address feeds are refused; approving a date drift is guarded; a stale feed or a stopped source is never applied; the export publishes early check-in and late check-out nights.
+- **Calendars**: the logement calendar shows every stay « Tous » shows; a duplicate is set aside only when its nights sit inside its keeper's.
+- **Planning**: it never stalls on an empty fortnight, loads the past on a fast swipe and reaches « Aujourd'hui »; cleaning alerts land on the right card.

@@ -1,0 +1,2 @@
+- **Bank reconciliation**: a linking dialog, filters on the counters and « Tout confirmer » for the proposals of the view (online-payment plugin 1.4.0).
+- **Payment links**: a plugin provides the payment provider (Qonto is the first); the core keeps what a payment means.

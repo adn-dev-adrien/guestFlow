@@ -1,1 +1,0 @@
-- Recording the solde of an older stay (its acompte recorded before line contributions existed) no longer makes that acompte disappear from the accounting export of its month: the stored-amount split is only written on a stay that already has a contribution; the others keep their usual export.

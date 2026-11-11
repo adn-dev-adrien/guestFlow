@@ -1,7 +1,7 @@
 /**
  * SettingsFormPage — the frame of every Paramètres page that edits settings
  * (specs/settings-rationalization.md rule 4 + §6): sticky PageActionBar with one Save / Cancel for
- * the page, the « unsaved changes » / « last update » subtitle, a single readable column, the
+ * the page, the « unsaved changes » / « Réglages enregistrés le … » subtitle, a single readable column, the
  * load-error alert and the dirty-form guard dialog.
  *
  * Props:
@@ -30,7 +30,7 @@ export default function SettingsFormPage({ title, form, onSave, onCancel, dirty,
     </Typography>
   ) : (form.updatedAtLabel ? (
     <Typography variant="caption" color="text.disabled">
-      Dernière mise à jour : {form.updatedAtLabel}
+      Réglages enregistrés le {form.updatedAtLabel}
     </Typography>
   ) : null);
 

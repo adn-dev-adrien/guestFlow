@@ -1,1 +1,0 @@
-- `dates_unavailable_notice_anchor_v1` moves the `dates_unavailable_notice` email template from the `start` anchor to `datesTaken` (one-shot, writes only when the value differs; copy, offset and `enabled` untouched).

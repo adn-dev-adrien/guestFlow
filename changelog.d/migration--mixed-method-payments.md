@@ -1,1 +1,0 @@
-- **Split payments** (spec `mixed-method-payments.md` §5): new tables `payment_settlements` and `payment_tenders`, and four `reservations` columns (`splitOffBooksAmount`, `splitWaivedAmount`, `splitWaivedCashAmount`, `splitShortfallDue`, default 0). Additive only: existing payments are unchanged.

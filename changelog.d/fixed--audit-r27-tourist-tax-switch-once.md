@@ -1,1 +1,0 @@
-- **Taxe de séjour: the « Liste / Par nuit » switch is drawn once on a tablet** (specs/tourist-tax-report-v2.md §6, audit R27-C1): between 600 and 899 px it showed both in the page bar and under the pickers; the bar now shows it from 900 px only.

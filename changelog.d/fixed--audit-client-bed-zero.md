@@ -1,1 +1,0 @@
-- Bed counts: an explicit 0 (single, double or baby beds) is kept when a reservation is saved instead of being sent as empty.

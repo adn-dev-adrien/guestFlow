@@ -1,0 +1,1 @@
+- plugin:accounting-export Comptabilité › Plateformes: « Brut » no longer goes blank on a platform stay whose entry is computed from the stored money.

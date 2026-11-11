@@ -457,6 +457,19 @@ function buildModel(database) {
       .run(new Date().toISOString(), Number(id));
   }
 
+  // specs/payment-link-lifecycle.md rule 67 — every link still payable at the provider because its
+  // deactivation is owed, whichever path withdrew it (orphan, taken dates, amount changed, settled,
+  // superseded, lapsed...), with whether its stay row is gone. The home's « À traiter » reads it.
+  function listOwedDeactivations() {
+    return database.prepare(`
+      SELECT l.id, l.reservationId, l.type, l.provider, l.amountCents, l.status, l.cancelReason, l.remoteCancelPendingAt,
+             NOT EXISTS (SELECT 1 FROM reservations r WHERE r.id = l.reservationId) AS stayMissing
+        FROM payment_links l
+       WHERE l.status IN ('cancelled', 'expired') AND l.remoteCancelPendingAt IS NOT NULL AND l.providerLinkId IS NOT NULL AND l.providerLinkId != ''
+       ORDER BY l.id
+    `).all().map((row) => ({ ...row, stayMissing: Boolean(row.stayMissing) }));
+  }
+
   // specs/payment-link-lifecycle.md rule 18 — a lapsed link owes its deactivation like a withdrawn one.
   function listRemoteCancelPending() {
     return database.prepare(
@@ -567,6 +580,7 @@ function buildModel(database) {
     claimRemoteCancelPending,
     restoreRemoteCancelPending,
     listRemoteCancelPending,
+    listOwedDeactivations,
     clearRemoteCancelPending,
     holdPaidBesidePlan,
     setLastLook,

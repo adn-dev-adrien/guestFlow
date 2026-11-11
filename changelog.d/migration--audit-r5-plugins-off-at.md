@@ -1,1 +1,0 @@
-- `plugins.off_at` (nullable, idempotent `ADD COLUMN`) stamps a system switch-off; no backfill.

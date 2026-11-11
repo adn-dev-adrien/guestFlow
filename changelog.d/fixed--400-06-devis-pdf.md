@@ -1,0 +1,1 @@
+- **Quote PDF**: a WEBP or GIF logo no longer stops every devis PDF (the upload takes a PNG or a JPEG), and the « Surcoût voyageurs » row no longer prints the tier detail.

@@ -1,0 +1,4 @@
+- **Booking, Airbnb and Gîtes de France intakes join the plugin catalogue** and run on the full plugin engine (master v3.10.0 to v3.21.0 merged, including the Airbnb checkout-chores rules, the platform cleaning fee and the tourist tax of guests added on a reversing platform).
+- **Paramètres › Plateformes**: « E-mails aux voyageurs » per platform (relay address, where the review is asked) and « Compté comme vente directe ».
+- **Public booking form**: names accept letters of any script, hyphen, apostrophes and dot.
+- **Neat insurance** leaves the core and becomes the `neat` plugin.

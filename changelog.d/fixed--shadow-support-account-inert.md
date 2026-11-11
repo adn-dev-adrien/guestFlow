@@ -1,0 +1,1 @@
+- **After a rollback, the dormant support account cannot be reactivated** by the previous release's user screens: the database itself refuses the write.

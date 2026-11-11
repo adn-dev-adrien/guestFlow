@@ -1,3 +1,0 @@
-- Stay note: a number typed on an unsold line now sells that number (it used to sell 1, the stay or the party); typed nights stop at 366.
-- Reservation form: a slow answer can no longer replace a newer one for occupied dates, client search or resource availability; the cots left now follow the dates, moving the dates never silently drops a cot, and a move onto a range with no cot left is refused at save instead of overselling them.
-- Phone: a switch near the screen edge no longer scrolls a dialog sideways nor takes taps meant for the row's text.

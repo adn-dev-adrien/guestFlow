@@ -1,0 +1,2 @@
+- **Plan comptable, one « Comptes » card**: the default commission account and the cancellation-indemnity account join the other accounts.
+- **Tourist tax**: a stay whose tax is frozen at 0 € no longer appears « à déclarer »; « Déclarée » refuses a stay whose platform remits the tax itself.

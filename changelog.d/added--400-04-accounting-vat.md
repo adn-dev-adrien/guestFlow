@@ -1,0 +1,3 @@
+- **« Sans TVA »: a dated VAT regime**: Paramètres › TVA & exercice › « Changer de régime… » switches an installation to or from « Sans TVA · art. 293 B » from a date, the history of regimes is kept, and prices, devis and payment links follow the regime of their date.
+- **Franchise threshold**: under « Sans TVA », a « Seuil de franchise (€) » field (empty by default, the operator types its own) feeds a card in Suivi financier with the turnover collected during the year, its projection to 31 December, a gauge, and a line in « À traiter » from 80 %.
+- **Accounting synthesis** (plugin `accounting-export`): for a month, a quarter, the exercise or a custom window, the revenue, collected, tourist tax and VAT to declare by rate, with the last-year comparison.

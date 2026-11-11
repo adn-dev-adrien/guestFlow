@@ -1,0 +1,5 @@
+- **Payment links expire**: every link minted from this version is valid 36 hours; the payment e-mails state the date until which the link works, and the acompte reminder carries a fresh link.
+- **Paid dates are held**: a reservation holds its nights once it carries money; a payment request whose dates another stay took loses its link, the stay shows on the « Dates prises » card and the guest is told once.
+- **A closure is refused over an open payment request**, and « Retirer le lien » withdraws a link by hand.
+- **Bank reconciliation (Qonto)**: the credits of the Qonto account are read every 8 hours (and on « Actualiser »), matched to the expected payments, confirmed one by one or with « Tout confirmer », with split payments, grouped payouts, automatic confirmation of unambiguous matches, and the bank line shown on « Échéances ».
+- **Platform penalties** can be declared from a reconciliation gap and are booked in the accounting export.

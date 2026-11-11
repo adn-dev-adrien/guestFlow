@@ -1,4 +1,0 @@
-- Options: saving an option keeps the free units each property's row holds (the Lodge welcome pack); a save that would drop a row holding some is refused on its price (audit R24-DB-1, specs/tariff-recipes rule 69).
-- Refunds: « Sans acompte » saved on a paid acompte is refused while book refunds would exceed what stays collected, as an un-tick is (audit R24-DB-2, reservation-refunds rule 52).
-- Complements: an adjustment equal to the engine's figure is written, so the stale amount of an un-ticked complement can be set to 0 (audit R24-DB-3, reservation-payment-ledger rule 67).
-- plugin:sas A re-opened arrival or departure SAS that would take back a payment past a book refund is refused, 409 REFUND_BLOCKS_UNTICK, nothing written (audit R24-DB-2).

@@ -1,2 +1,0 @@
-- plugin:online-payment Declares SDK ^2.21.0, the SDK whose `takeBackRefusal` its 1.5.3 reconciliation undo already reads (audit R24-P2).
-- Test suite: the route census and the catalogue closed-values suite judge only the plugins the tree ships, so every cell of the plugin removal matrix is green again; the SDK core-module contract lists every name a plugin reads, five names added; two added-guests tourist-tax suites no longer fail on set days of the month (audit R24-S1, R24-S2, R24-P1, R24-P2).

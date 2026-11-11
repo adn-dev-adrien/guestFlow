@@ -94,6 +94,21 @@ const CORE_SUMMARIES = {
       : plural(notTold, 'client non prévenu', 'clients non prévenus');
     return { count: rows.length, title: 'Dates prises', detail: `${plural(rows.length, 'séjour', 'séjours')} · ${told}`, severity: 'todo' };
   },
+  // specs/payment-link-lifecycle.md rule 67 — a withdrawn link the provider still lets a guest pay.
+  'payment-deactivations': (payload) => {
+    const links = listOf(payload, 'links');
+    if (!links.length) return null;
+    const labels = [...new Set(links.map((l) => l.providerLabel).filter(Boolean))].join(', ') || 'le prestataire de paiement';
+    const waiting = links.filter((l) => !l.retrying).length;
+    return {
+      count: links.length,
+      title: 'Liens de paiement encore actifs',
+      detail: waiting
+        ? `À désactiver depuis ${labels}, ou en rétablissant la connexion`
+        : `Désactivation en cours chez ${labels}`,
+      severity: waiting ? 'urgent' : 'todo',
+    };
+  },
   'email-readiness': (payload) => {
     const n = Number(payload && payload.soonCount) || 0;
     return n > 0 ? {

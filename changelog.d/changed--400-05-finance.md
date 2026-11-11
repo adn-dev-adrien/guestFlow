@@ -1,0 +1,1 @@
+- **Suivi financier**: the banner is a light card; « revenu moyen / nuit » and RevPAR read the revenue of the period's nights (tourist tax excluded); the tile « Encaissé » is renamed « Déjà payé ».

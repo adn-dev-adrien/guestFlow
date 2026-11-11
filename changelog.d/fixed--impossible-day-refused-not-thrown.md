@@ -1,1 +1,0 @@
-- Finance and VAT regime: a date of the right shape that names no day (month 13, day 32…) in a custom finance window or a VAT regime change date is refused with its usual message instead of failing with a server error.

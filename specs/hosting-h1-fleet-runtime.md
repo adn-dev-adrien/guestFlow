@@ -278,6 +278,10 @@ These are the recommended options, taken under the owner's instruction to run th
     `X-Forwarded-*` before Express reads them (rule 21). `TRUST_PROXY_HOPS` without the secret is
     allowed (a proxy that is the only way in) but is spoofable by anyone who can reach the Node port
     directly: the process now logs a `[security]` warning at boot. Covered by `tests/proxy-trust-config.unit.test.js`.
+    **Reading of 2026-11-11 (shadow trial of 4.0.0):** the warning tells the operator exactly what to do — set
+    `GUESTFLOW_PROXY_SECRET` in the server environment to a long random value (`openssl rand -hex 32`), make the reverse
+    proxy send the same value in the `X-GuestFlow-Proxy` header on every request it forwards, restart — and that, behind a
+    proxy which is the only way in, leaving it unset is a deliberate choice and the warning may stay.
 
 36. **From is encoded by the mail library, never quoted by hand** (audit R2 N1, 2026-10-29). Both the platform sender and the operator SMTP pass `from: { name, address }`; a display name cannot rewrite the From address or the envelope sender. `smtpFromName` and `companyName` are refused above 120 characters or with a control character. Test: `tests/audit-r2-mail-from.unit.test.js`.
 

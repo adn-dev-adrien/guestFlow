@@ -1,0 +1,4 @@
+- **Pay a direct reservation in several times**: the fiche of a direct reservation gets an « Échéancier » of 2 to 12 installments, the first due the day it is created; each installment has its own reminder, payment link and bank match.
+- **One payment, several methods**: a payment recorded by hand (acompte, solde, complement, end of stay, single payment, mid-stay note, installment) can be split across bank, cash and caisse interne, with the settlement shown on the fiche.
+- **Payments as a status ledger on the fiche**: one row per money movement (acompte, solde or « Versement <plateforme> », complements, refunds) with its state, link, undo and detail.
+- **Restore an archived option**: a folded « Archivées » section at the bottom of the options list restores an archived option.

@@ -1,0 +1,3 @@
+- **Email templates**: an unknown variable is refused at save (« Variable inconnue : {{x}} »); the texts page opens faster and the list of models no longer carries every body.
+- **SMTP**: a login requires STARTTLS; a server without TLS now fails the test instead of sending the password in clear.
+- **Wording**: confirmations, alerts and empty states drop « Veuillez » and « Vous ».

@@ -1,1 +1,0 @@
-- Finance: « Tout solder » on a row whose only due is the end-of-stay complement before the check-out is drawn disabled with « Après le départ. » (tooltip, and a caption on a phone) instead of doing nothing in silence; the fiche's merged card of a deferred complement stays open when its end-of-stay part is already settled.

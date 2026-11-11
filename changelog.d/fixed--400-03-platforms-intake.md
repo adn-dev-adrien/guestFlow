@@ -1,0 +1,4 @@
+- **Mail intakes (Airbnb, Gîtes de France, Booking)** no longer trust a forged sender, let a guest's text steer the application, hold every mail of the sender, freeze the server on a hostile mail, or erase the planned moments of a stay; « Appliquer » writes a fiche once.
+- **Website booking**: stay rules, contact-field limits, phone validation, proof of work fetched ahead, payment retries, the read-only key and a form refused for its input no longer lock the visitor out; the booking engine sells no arrival or departure time the house cannot take.
+- **Public API** no longer crashes on a value of the wrong JSON type.
+- **Airbnb, Booking and Abritel**: a Booking event wholly over held nights is created and flagged; a platform price check and date labels are read on the operator's day.

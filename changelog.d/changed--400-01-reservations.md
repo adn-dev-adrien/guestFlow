@@ -1,0 +1,8 @@
+- **The end-of-stay complement is collected after the check-out only**: « Marquer perçu », « Encaisser en une fois », a bank reconciliation and « Tout solder » refuse it before the departure (« Complément de fin de séjour encaissable après le départ. »).
+- **An unlocked fiche keeps its final price**: « Déverrouiller cette fiche » on a started stay accepts only changes that leave the final price and the tourist tax unchanged (platform payout, commissions and penalties stay editable).
+- **Dates are bounded**: a stay, devis, iCal date change, closure or custom finance window more than 5 years ahead or back is refused with a message under the date; a stay lasts at most 366 nights; every internal path validates stay dates.
+- **An acompte or an installment paid with several methods is paid whole** (all on the books or all in the caisse interne): these are the amounts a cancellation keeps.
+- **Recording a payment is checked by the server**: no future date, no 0 € bucket, the amount seen must still be the stored one, a caution is returned only after it was received; an open link whose amount the fiche changes is withdrawn at save.
+- **Clients**: « À venir » opens first, « Passés » and « Sans séjour » (with « Nettoyer les clients ») beside it, rows grouped by when with the platform and the number of stays.
+- **Arrival SAS**: the breakfast offer price is computed by the server; a resource booking's total comes from the server.
+- **Options & ressources** are read by category and edited in a side panel, with search, property filter and category chips.

@@ -1,0 +1,5 @@
+- **Payment links**: a full link charges exactly what its stay owes; a link paid at an outdated amount or after the stay was re-priced alerts the admin; a payment on a link whose stay was deleted alerts the admin; an acompte link can no longer be erased by « Sans acompte »; a platform stay never gets a direct payment link.
+- **Qonto**: one token refresh at a time, bounded requests, a hung request no longer blocks the poll, a new consent subscribes the webhook on the account it names, and a failed webhook check stays shown.
+- **Bank reconciliation** follows the payments ledger for every non-direct platform, refuses unknown stays and credits, and reads a newly picked account from 13 months back.
+- **Split payments** (several methods): price cuts, refunds and cancellations after a split payment no longer leave a reste, a phantom indemnity or a settlement behind.
+- **Held dates**: the first boot after the install, failures while withdrawing a link and a link minted during a withdrawal no longer leave a stay payable.

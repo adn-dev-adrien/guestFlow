@@ -1,0 +1,7 @@
+- **Plugins**: twelve optional features become plugins driven from Paramètres › Plugins; what is not installed disappears from the menus. Plugins ship as signed packages from a registry, can be installed, updated and rolled back from the Plugins page, and declare their dependencies (shown on both sides of a dependency).
+- **A new instance starts neutral**: the start assistant (`/demarrage`) sets company, first property and recommended plugins; neutral seeds replace the former Solio defaults.
+- **Guest app « Mon séjour »** (plugin `guest-app`): one link per stay, a booklet studio, a shop with stock, delivery or pickup, bookable hourly slots, card orders, and a PWA.
+- **Hourly resources** (plugin `hourly-resources`): a booking outside a stay shows its price line by line, offers payment and an invoice issued in Qonto; resource cards show evening and external rates.
+- **Laundry days** (plugin `linen` 1.2.0): several laundry trips a week and a turnaround of 1 to 7 days.
+- **SDK 2.x**: `ctx.onActivate`, price-line contributors, payment providers, invoice issuers, attention subjects; guarded in CI by a census of the mounted routes and by a bundle budget.
+- **A shadow runs like production**: `node scripts/start-shadow.mjs --db <copy> --port <n>` boots a copy of a database on a build.

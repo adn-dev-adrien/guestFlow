@@ -63,6 +63,12 @@ function coreAttentionSources() {
       // The pending list is global; the endpoint only needs a month for the received ones.
       query: () => ({ month: String(today.getMonth() + 1), year: String(today.getFullYear()) }),
     },
+    {
+      key: 'payment-deactivations',
+      rank: 35,
+      handler: require('../controllers/paymentDeactivationsAttentionController').handler(require('../models/paymentLinksModel')),
+      skip: (req) => !userHasRole(req.user, ADMIN),
+    },
     { key: 'repaired-reservation-numbers', rank: 40, handler: controller.repairedReservationNumbers },
     { key: 'dates-taken', rank: 25, handler: controller.datesTaken },
     { key: 'email-readiness', rank: 80, handler: require('./emailReadiness').controller.get },

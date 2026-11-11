@@ -1,0 +1,4 @@
+- **A GuestFlow major no longer switches the plugins off**: a plugin is judged on its SDK range and the floor of its GuestFlow range, so installing 4.0.0 keeps every plugin loaded.
+- **Plugins leave the core one after another**: Météo-France, school holidays, Google Agenda, tariff recipes, Linge, Export comptable, Site WordPress, Arrivée et départ guidés, Paiement en ligne, Neat and hourly resources are plugins with their own settings, tables and versions; nothing changes on screen for an existing installation.
+- **Neutral seeds** for a new database (no catering catalogue, no pool season, neutral guest emails); Paramètres › Intégrations has one tab per plugin.
+- **A hosted customer** no longer sees the plugin lifecycle; the operator sets the modules from the console.

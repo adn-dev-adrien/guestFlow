@@ -1,1 +1,0 @@
-- The VAT rate (Paramètres › TVA & exercice) is now the rate of the regime period in force: changing it recalculates the reservations of that period, not those of an earlier one. With a single period (every installation before its first regime change) nothing moves, to the cent.

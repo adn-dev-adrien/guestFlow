@@ -128,6 +128,20 @@ function applyAccountSecuritySchema(db) {
     `).run(SUPPORT_USER_EMAIL, hashPassword(crypto.randomBytes(32).toString('base64'))).lastInsertRowid);
     db.prepare("INSERT OR IGNORE INTO user_roles (userId, role) VALUES (?, 'admin')").run(id);
   }
+
+  // specs/self-update-and-releases.md rule 39 (reading of 2026-11-11) — the support account is inert in the database
+  // itself, so a release that predates it (v3.21.0 lists it among the users) cannot reactivate it, give it a password
+  // or unflag it: such a write is refused here, whoever issues it.
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS users_support_account_inert
+    BEFORE UPDATE ON users
+    WHEN OLD.isSupportAccount = 1
+      AND (NEW.isActive IS NOT OLD.isActive OR NEW.passwordHash IS NOT OLD.passwordHash
+           OR NEW.isSupportAccount IS NOT 1)
+    BEGIN
+      SELECT RAISE(ABORT, 'SUPPORT_ACCOUNT_LOCKED');
+    END
+  `);
 }
 
 module.exports = { applyAccountSecuritySchema };

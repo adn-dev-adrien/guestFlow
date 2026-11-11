@@ -1200,6 +1200,24 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     badge. `notice.label` gains « envoi incertain » (amber). The card prints `takenBy.label` as a link to the stay that
     took the dates when it has a `url` (44 px hit area on a finger-driven screen), then the detail line.
 
+67. **A link still payable at the provider is never lost from sight** (added 2026-11-11, shadow trial of 4.0.0: the 5
+    orphan links 13, 14, 16, 18 and 20 of rule 5 stayed payable at Qonto, the boot log told the operator to deactivate
+    them « by hand » and nothing reached the home). What was true: with the provider connected, the lifecycle pass
+    (every 15 minutes) and the poll already deactivate every link carrying `remoteCancelPendingAt` — an orphan included,
+    logged `[payments] orphan link #N deactivated at <provider>` — and only a disconnected provider, a plugin that is off
+    or a provider other than the live one leaves them owed. What was wrong: the boot warning's wording, and the absence of
+    any listing. Now: (a) the boot warning reads « … can still be paid at the provider (links …): the payment poll
+    deactivates them while the provider is connected, and the home's « À traiter » lists them until then »; (b) the home's
+    attention subject `payment-deactivations` (rank 35, admin only) reads `GET /api/dashboard/attention`'s source
+    `paymentLinksModel.listOwedDeactivations()` — every `cancelled` or `expired` link with a provider id and the marker,
+    **whichever path withdrew it** (orphan, dates taken, amount changed, settled, superseded, lapsed, operator), with
+    `stayMissing`, `providerLabel` and `retrying` (the live provider is that link's provider). Title « Liens de paiement
+    encore actifs », count = the links; detail « Désactivation en cours chez Qonto » when every one is being retried
+    (severity « À faire »), « À désactiver depuis Qonto, ou en rétablissant la connexion » otherwise (severity « Urgent »);
+    the card (`PaymentDeactivationsAlert`) offers « Ouvrir les paiements en ligne » (`/parametres/paiements`). A link leaves
+    the list when the provider has deactivated it (marker cleared) or found it paid (booked as before). Tests:
+    `payment-deactivations-owed.unit.test.js` (mocked provider only), `dashboard-attention-routes.unit.test.js`.
+
 ---
 
 ## 4. Architecture

@@ -439,7 +439,11 @@ No core table changes (plugin rule 6); the plugin writes to `reservations` only 
 ### 4.3 API contract
 
 All routes: role `admin`, 404 `PLUGIN_INACTIVE` when the plugin is off, 409 `QONTO_NOT_CONNECTED`
-when Qonto is not connected.
+when Qonto is not connected — **except the read** `GET /` (2026-11-11, shadow trial of 4.0.0): it answers 200
+`{ connected: false, code: 'QONTO_NOT_CONNECTED', message: 'Qonto n\'est pas connecté.' }`, a state the page draws
+(« Qonto n'est pas connecté » with « Ouvrir les paiements en ligne ») without a console error, a browser logging every 4xx
+answer. The page's « Actualiser » and subtitle are off in that state; the writes still answer 409. online-payment 1.7.6.
+Test: `reconciliation-controller.unit.test.js`.
 
 | Method | Endpoint | Request body | Response |
 |---|---|---|---|

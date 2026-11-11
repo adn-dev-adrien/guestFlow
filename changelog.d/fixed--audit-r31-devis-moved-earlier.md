@@ -1,2 +1,0 @@
-- A still-valid devis moved to earlier dates no longer asks for payment after the guest's arrival: its validity date is capped at two days before the new start, never before today.
-- After a refused note settlement, « Annuler » no longer removes from the fiche a sale that was already saved.

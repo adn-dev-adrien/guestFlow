@@ -1,1 +1,0 @@
-- plugin:hourly-resources Migration `resource_bookings_v4`: `resource_bookings.qontoClientIdentity TEXT` (nullable). Rows invoiced before keep their Qonto client id but carry no identity, so their Qonto client is not reused: the next invoice of that guest creates one with what his record holds (spec `resource-booking-pricing-and-invoicing.md` rule 50). No data rewritten.

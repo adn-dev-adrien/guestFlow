@@ -12,6 +12,7 @@ import EmailPendingAlert from './EmailPendingAlert';
 import UpdateAvailableAlert from './UpdateAvailableAlert';
 import VatFranchiseAlert from './VatFranchiseAlert';
 import PluginsSwitchedOffAlert from './PluginsSwitchedOffAlert';
+import PaymentDeactivationsAlert from './PaymentDeactivationsAlert';
 import TwoFactorNudgeCard from './TwoFactorNudgeCard';
 
 export const CORE_ATTENTION_SUBJECTS = Object.freeze({
@@ -27,5 +28,6 @@ export const CORE_ATTENTION_SUBJECTS = Object.freeze({
   'update-available': UpdateAvailableAlert,
   'vat-franchise': VatFranchiseAlert,
   'plugins-switched-off': PluginsSwitchedOffAlert,
+  'payment-deactivations': PaymentDeactivationsAlert,
   'two-factor': TwoFactorNudgeCard,
 });

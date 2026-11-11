@@ -1,0 +1,3 @@
+- **Authentication**: login timing no longer reveals whether an account exists, a deactivated or default-password account can no longer read, changing the email asks the password, and a support session cannot change the keypad code, the notification recipient or the IBAN, nor reach a forbidden route.
+- **Uploads and files**: property documents are private; iCal, mail and logo inputs are bounded; a crafted path never reaches the support journal.
+- **Self-update and console**: a release lockfile entry must be spelled exactly as npm fetches it, `release.sh` builds from tracked files only, and the console's lifecycle actions (rename, erase, export, reactivate, invoicing) no longer lose, mis-route or double-send.

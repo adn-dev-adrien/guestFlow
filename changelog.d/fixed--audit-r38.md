@@ -1,3 +1,0 @@
-- The check-in and check-out sas follow the caution rules of the fiche. A caution never received can no longer be marked returned at check-out (409). At check-in, « non reçue » also clears the return.
-- On a cancelled stay, the caution still to give back reads « À rendre », no longer « À rendre au départ ».
-- Each plugin-removal cell now gets 35 minutes, since the server suite has grown.

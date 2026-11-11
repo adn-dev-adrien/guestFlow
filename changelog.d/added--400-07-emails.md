@@ -1,0 +1,3 @@
+- **Guest email texts on one page, in send order**: Paramètres › « Textes des emails » groups the texts email by email (confirmation, deposit and balance, J-7, J-2, day after, November and January, cancellation) with a live preview.
+- **Guest emails in text and HTML**: every guest email leaves as text plus a sober HTML part.
+- **Several social links in the thank-you email**: « Réseaux sociaux », up to 8 links.

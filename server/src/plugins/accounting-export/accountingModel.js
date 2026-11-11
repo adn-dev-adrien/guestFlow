@@ -1320,7 +1320,11 @@ function buildEntry(row, kind, perLineData, commissionContext, taxContext) {
 
   return {
     ...common,
-    clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
+    // The gross the guest paid, like the three paths above: a platform stay never loses it to a NULL column.
+    // A direct stay has none to show.
+    clientGrossAmount: platformIsNonDirect
+      ? round2(effectiveGross)
+      : (row.clientGrossAmount == null ? null : Number(row.clientGrossAmount)),
     fraction,
     buckets,
   };

@@ -1,1 +1,0 @@
-- Booking intake and gate access: the missing public address now points to Paramètres → Système, the page that holds it, instead of « Paramètres › Société » and « Réglages → Système » (booking-intake 1.3.11, gate-access 1.3.3).

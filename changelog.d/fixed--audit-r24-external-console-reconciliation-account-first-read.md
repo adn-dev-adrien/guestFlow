@@ -1,1 +1,0 @@
-- Bank reconciliation: a bank account picked after a first read is read from 13 months before the start date, instead of only from the last read; an account that already has credits stays incremental (`qonto-bank-reconciliation.md` rule 49, online-payment 1.5.5).

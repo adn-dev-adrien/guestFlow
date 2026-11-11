@@ -1,0 +1,2 @@
+- **Guest emails**: a broken variable or condition is refused at save, English emails list the booked options in English, rendering is linear on long inputs, the From name is encoded by the mail library, the EHLO name is the sender's domain, and a rollback never mails « Ce lien est valable jusqu'au . ».
+- **Textes des emails**: the preview always shows the latest draft; the send dialog no longer keeps the previous row's template.

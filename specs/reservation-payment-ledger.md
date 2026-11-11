@@ -285,6 +285,12 @@ decimals is rounded and shown rounded.
     commission into the form, runs `saveThenRun` (they are fiche fields saved by the PUT, as today),
     then PATCHes `balancePaid` / `balancePaidDate`. The PATCH contract is not widened. The
     reconciliation chip (« ✓ cohérent avec le virement » / « écart : … ») moves onto the row.
+    **Reading of 2026-11-11 (shadow trial of 4.0.0):** the chip is the intended behaviour, new in 4.0.0 (3.21.0 had no
+    ledger): it compares the net the stored price expects (`platformNetReceivedAmount`, else pre-arrival minus the
+    commissions) with the stored « Virement reçu », and warns from half a cent. On the copy it fired on three stays — 9
+    (−33,60 €), 22198 (0,36 €), 22298 (0,01 €) — whose stored solde and stored brut differ; it is data, not a defect. The
+    way out is on the row: « Détail » → the statement with « Calculer la commission » while the versement is unpaid, or
+    « Annuler le versement » then retype it once received. No code change.
 27. **The pricing summary keeps the hero figure** (decision 6, « Vous percevez »). The ledger does not
     repeat « Net perçu » as a separate line any more.
 

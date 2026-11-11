@@ -1,0 +1,1 @@
+- **Suivi financier**: a window naming no month or no day is refused with a message; last year is no longer « 0 € » before GuestFlow existed; « Marquer payé » on a late row ticks only what its chips list; « Tout solder » respects the end-of-stay complement; switching KPI tiles quickly no longer crashes the page.
