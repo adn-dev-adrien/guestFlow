@@ -164,12 +164,15 @@ test('rule 67 — a pre-arrival link lapses at 00:00 Paris on the arrival day: l
 test('rule 67 — each row says what the operator needs to find the link by hand: kind, amount, reference, stay, reason, date', () => {
   const ctx = seed();
   const id = ctx.owe(922299, 'orphan', { type: 'full', amountCents: 76280, providerLinkId: 'pl_ref_13' });
+  // date-literal-ok: fixture dates nothing compares with today
   ctx.db.prepare("UPDATE payment_links SET remoteCancelPendingAt = '2026-10-30T10:00:00.000Z' WHERE id = ?").run(id);
+  // date-literal-ok: fixture dates nothing compares with today
   const lapsed = addLink(ctx.links, ctx.db, ctx.stay, { type: 'deposit', amountCents: 9000, providerLinkId: 'pl_ref_lapsed', expiresAt: new Date('2026-11-01T09:00:00Z') });
   const [orphan, late] = owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links;
   assert.equal(orphan.id, id);
   assert.deepEqual(
     { kind: orphan.kindLabel, amount: orphan.amountLabel, reference: orphan.reference, stay: orphan.stayLabel, url: orphan.stayUrl, reason: orphan.reasonLabel, since: orphan.sinceLabel, provider: orphan.providerLabel },
+    // date-literal-ok: fixture dates nothing compares with today
     { kind: 'Paiement total', amount: '762,80\u00a0€', reference: 'pl_ref_13', stay: 'Séjour n° 922299', url: null, reason: 'Séjour supprimé', since: 'le 30/10/2026', provider: 'Qonto' },
   );
   assert.equal(late.id, lapsed.id);

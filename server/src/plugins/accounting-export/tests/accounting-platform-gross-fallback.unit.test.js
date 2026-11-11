@@ -81,6 +81,7 @@ test('rule 12 — entered commission: the balance row shows the recorded platfor
     platformGrossAmount: 720.82, platformCommissionAmount: 147.05, clientGrossAmount: null, accommodationSoldeContribTtc: 0,
   });
   assert.equal(buildEntry(row, 'balance', lines(), COMMISSION_CONTEXT, ctx).clientGrossAmount, 720.82);
+  // date-literal-ok: fixture dates nothing compares with today
   assert.equal(buildEntry({ ...row, complementPaid: 1, complementPaidDate: '2026-08-24' }, 'complement', lines(), COMMISSION_CONTEXT, ctx).clientGrossAmount, 720.82, 'every row of the stay shows the same gross');
 });
 

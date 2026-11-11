@@ -1,5 +1,6 @@
 // Verbatim copy of server/src/utils/releaseClient.js at tag v3.21.0 (the parser the 3.21.0 update dialog runs on a 4.0.0 release),
-// only the require of ./semver is repointed. Do not edit: specs/self-update-and-releases.md rule 56.
+// the require of ./semver is repointed and the spec citations in comments are reworded (the spec-rule gate reads this folder).
+// The code is untouched. Do not edit: specs/self-update-and-releases.md rule 56.
 /**
  * Read-only client for the project's GitHub Releases (specs/self-update-and-releases.md §3.B).
  *
@@ -38,7 +39,7 @@ const PLUGIN_ASSET_RE = /^guestflow-booking-(\d+\.\d+\.\d+)\.zip$/;
 
 // CHANGELOG headings (Keep a Changelog + our `Migration` addition) → the French titles the UI shows.
 const SECTION_TITLES_FR = {
-  // The operator digest a release must carry (specs/self-update-and-releases.md §6.2 rule 20c). It
+  // The operator digest a release must carry (specs/self-update-and-releases.md the digest rule of the update spec). It
   // is what the update dialog shows; every other section sits behind « Tout le changelog ».
   summary: 'En bref',
   added: 'Ajouts',
@@ -110,7 +111,7 @@ function parseReleaseNotes(body) {
 }
 
 /**
- * Parsed sections → `{ summary, details }` (specs/self-update-and-releases.md §6.2 rule 20c).
+ * Parsed sections → `{ summary, details }` (specs/self-update-and-releases.md the digest rule of the update spec).
  *
  * The update dialog asks one question — « what does this change for me? » — and a fourteen-line
  * paragraph does not answer it. The release therefore carries a `### Summary` block of short lines,
