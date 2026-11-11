@@ -18,7 +18,7 @@ const { seed } = require('./hourlySchedulingFixture');
 const { createSasStep } = require('../sasStep');
 
 require('../../sdk/registry').configure({ isActive: () => true, allows: () => true });
-// The engine prices `per_hour` lines through this plugin's `hourly` family (phase 3c rule 11, pricing components rule 47).
+// The engine prices `per_hour` lines through this plugin's `hourly` family (specs/plugins-phase-3c-hourly-resources.md rule 11, specs/pricing-components.md rule 47).
 {
   const contributor = require('../pricing').createHourlyContributor();
   const context = require('../../sdk/createContext').createContext('hourly-resources', {});
