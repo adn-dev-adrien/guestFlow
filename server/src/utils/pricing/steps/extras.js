@@ -277,7 +277,10 @@ const step = {
             unitPrice: lockedUnitPriceOr(lockedOptionsById.get(Number(option.id)), Number(option.price || 0)),
           })
           : computeAutoTimedOptionContext({
-            option,
+            // A fixed auto price is the one the line was sold at (rule 74); a proportional one follows the time and the locked nights.
+            option: String(option.autoPricingMode || 'fixed') === 'fixed' && lockedOptionsById.has(Number(option.id))
+              ? { ...option, price: lockedUnitPriceOr(lockedOptionsById.get(Number(option.id)), Number(option.price || 0)) }
+              : option,
             checkInTime,
             checkOutTime,
             defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',

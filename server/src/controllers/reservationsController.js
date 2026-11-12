@@ -330,6 +330,19 @@ function changeoverErrorPayload(quote) {
 // contribute to the laundry aggregation anyway — the SQL in `laundryModel.js` requires a
 // flagged option). The query is tiny (option list ≤ ~10) so a single `IN` round-trip
 // is fine.
+// Rule 82 — an automatic option the quote bills (the engine derives it from the stay's times) that the stay does not store yet:
+// the save writes the lines, so the line is stored with the price it is billed at.
+function hasUnstoredAutoOption(storedOptionIds, quote) {
+  const stored = new Set(storedOptionIds);
+  return (quote.optionLines || []).some((line) => line.autoOptionType && !line.isCustom && !stored.has(Number(line.optionId)));
+}
+
+// The save writes the extras lines of a stay whose departure is not over (a locked fiche only inside its mid-stay window).
+function stayIsOpenForLines(id, pastReservationLocked, midStayWindow) {
+  const phase = stayClockModel.create(db).phaseForReservation(id, new Date());
+  return Boolean(phase) && phase.phase !== 'after' && (!pastReservationLocked || Boolean(midStayWindow));
+}
+
 function hasBedLinenOption(reservationOptions) {
   if (!Array.isArray(reservationOptions) || reservationOptions.length === 0) return false;
   const ids = reservationOptions
@@ -2200,7 +2213,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // the stay is re-priced under its own price lock, as a pricing input would have done.
   const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax && !req.body.restatePricing
     && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
-    && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
+    && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs)
+    && !(stayIsOpenForLines(id, pastReservationLocked, midStayWindow) && hasUnstoredAutoOption(model.listCarriedOptionIds(id), quote));
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);
   // Adrien, 2026-10-29: a custom line renamed alone saves its text, nothing is re-priced.
   const renamedLines = customTextChangesOf(id, reservationCustomOptions);

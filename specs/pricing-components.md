@@ -1353,6 +1353,21 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     absent value only, never a figure that became `null` (`price-gate-compare`).
     Tests: `price-gate-scopes` (scopes, `--expect`), `price-gate-writes` (the seven write-path cases, to the leaf; a key the
     baseline body did not carry, such as a column added to a row the response spreads, is additive and not judged).
+82. **A line the arrival never priced is no sale of the stay** _(owner, 2026-11-12)_. An automatic option (early check-in, late check-out,
+    cot) is derived by the engine from the stay's own times, then stored as a line when the stay is saved (rules 12, 74). On a stored
+    stay whose lines do not hold it (prod stay 14: created with no times, so priced with none, then only saved once it was locked; the
+    12 other early-arrival stays store theirs), and on a catalogue line stored with no price and not offered (the « fresh » line of
+    synthetic stay 13):
+    - **the arrival baseline carries the line** (`baselineWithDerivedLines`, read by the `midStay` step): once the stay has started
+      (rule 20) the line is not a sale made during the stay, so it never reaches the end-of-stay complement. The stay total is what it
+      always was; stay 14 and synthetic stay 13 are at 0 difference;
+    - **a stay not started** carries the line in its pre-arrival total at its price, except when the operator offered it (the offered
+      path, rule 14);
+    - **the next save stores the line**: a due automatic option the stay does not store is a pricing change on a stay whose lines the
+      save writes (`reservation-save-keeps-pricing` rule 1), so `replaceOptions` writes it with its price;
+    - **a stored fixed price is the sold one** (rule 74): the fixed automatic option is read from its stored `unitPrice`, a catalogue
+      edit never reprices it. A proportional one is a function of the time and of the locked nights, both stored.
+    Test: `pricing-auto-option-stored`.
 
 ## 4. Architecture
 

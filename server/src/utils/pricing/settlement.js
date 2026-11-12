@@ -90,6 +90,19 @@ function prepaidBaseline(lines, settled) {
   return baseline;
 }
 
+/**
+ * Rule 82 — the arrival baseline of a stay whose departure is over, with the automatic options its lines never stored. They are
+ * derived from the stay's own times, so they were never sold during the stay: each is part of what the stay carried at arrival.
+ * No baseline (null) stays null.
+ */
+function baselineWithDerivedLines(baselineRaw, derivedLines) {
+  const parsed = parseBaseline(baselineRaw);
+  if (!parsed) return baselineRaw;
+  const derived = buildExtrasBaseline(derivedLines);
+  const baseline = { ...derived, ...parsed };
+  return JSON.stringify(baseline);
+}
+
 function parseBaseline(raw) {
   if (!raw) return null;
   if (typeof raw === 'object') return raw;
@@ -515,6 +528,7 @@ module.exports = {
   ARRIVAL_COMPLEMENT_EXCESS_LABEL,
   extraLineKey,
   buildExtrasBaseline,
+  baselineWithDerivedLines,
   splitMidStayExtras,
   splitFromStoredLines,
   resolveMidStaySplit,

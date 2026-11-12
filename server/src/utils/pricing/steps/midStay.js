@@ -7,14 +7,14 @@
  */
 
 const { roundMoney } = require('../money');
-const { resolveMidStaySplit } = require('../settlement');
+const { resolveMidStaySplit, baselineWithDerivedLines } = require('../settlement');
 
 const step = {
   id: 'midStay',
   requires: [
     'endOfStayComplementSettled', 'extraGuestSurcharge', 'finalOptionLines', 'frozenMidStayLines',
     'midStaySettledNotes', 'optionsTotal', 'resourceLines', 'resourcesTotal', 'totalPrice', 'clock', 'extrasDiscountCents',
-    'accommodationDiscountShareCents',
+    'accommodationDiscountShareCents', 'bookingId', 'lockedOptionLines',
   ],
   provides: [
     'accommodationBaseTotal', 'midStayExtras', 'midStayForced', 'midStayRemainingTotal', 'midStaySettledTotal',
@@ -24,8 +24,20 @@ const step = {
     const {
       endOfStayComplementSettled, extraGuestSurcharge, finalOptionLines, frozenMidStayLines,
       midStaySettledNotes, optionsTotal, resourceLines, resourcesTotal, totalPrice, extrasDiscountCents,
+      bookingId, lockedOptionLines,
     } = ctx;
-    const { arrivalExtrasBaseline } = ctx.clock;
+    // Rule 82: on a stored stay, a line the arrival never priced is not a sale made during the stay: an automatic option its lines never
+    // stored (derived from the stay's own times) and a catalogue line stored with no price (a fresh one) belong to the arrival.
+    const storedByOption = new Map((Array.isArray(lockedOptionLines) ? lockedOptionLines : []).map((line) => [Number(line.optionId), line]));
+    const unpricedAtArrival = (line) => {
+      if (!line || line.isCustom || line.optionId == null) return false;
+      const stored = storedByOption.get(Number(line.optionId));
+      if (!stored) return Boolean(line.autoOptionType);
+      return Number(stored.totalPrice || 0) <= 0 && Number(stored.offered || 0) !== 1;
+    };
+    const arrivalExtrasBaseline = Number(bookingId || 0) > 0
+      ? baselineWithDerivedLines(ctx.clock.arrivalExtrasBaseline, finalOptionLines.filter(unpricedAtArrival))
+      : ctx.clock.arrivalExtrasBaseline;
 
     // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2-§3.3 — what exceeds the arrival baseline
     // was sold DURING the stay: it belongs to the end-of-stay complement, so it is pulled out of the
