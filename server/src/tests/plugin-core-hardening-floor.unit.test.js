@@ -56,6 +56,8 @@ const HARDENINGS = [
   { feature: 'invoice issuer and sales outside a stay', sdk: '2.25.0', pattern: /coreModule\(\s*['"`](invoiceIssuers|standaloneSales)['"`]|ctx\.(invoiceIssuer|standaloneSales)\(/ },
   // specs/plugins-phase-1-sdk.md rule 50 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head.
   { feature: 'article families', sdk: '2.27.0', pattern: /\bctx\.articleFamily\(/ },
+  { feature: 'article fulfilment', sdk: '2.28.0', pattern: /\bctx\.articleFulfilment\(/ },
+  { feature: 'slot availability', sdk: '2.28.0', pattern: /\bctx\.slotAvailability\(/ },
 ];
 
 function sourceFiles(dir) {
@@ -122,3 +124,8 @@ for (const [id, hits] of relying) {
     assert.ok((m.changelog[m.version] || []).some((line) => /SDK 2\.\d+/.test(line)), `${id} ${m.version} names its SDK`);
   });
 }
+
+test('rule 51: ctx.articleFulfilment and ctx.slotAvailability force the 2.28.0 floor', () => {
+  assert.equal(hardeningsIn("ctx.articleFulfilment('hourly-slot', adapter);")[0].sdk, '2.28.0');
+  assert.equal(hardeningsIn('ctx.slotAvailability(provider);')[0].sdk, '2.28.0');
+});

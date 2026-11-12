@@ -10,6 +10,7 @@ const eventBus = require('./eventBus');
 const { EVENTS, PLUGIN_EMITTABLE } = eventBus;
 const coreServices = require('./coreServices');
 const articles = require('../../utils/pricing/articles');
+const articleFulfilment = require('../../utils/pricing/articleFulfilment');
 
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', 'getPayment', 'getLinkStatus', 'cancelLink'];
@@ -17,6 +18,7 @@ const PROCESSOR_MEMBERS = ['id', 'isReady', 'priceSync', 'priceLive'];
 const CONTRIBUTOR_MEMBERS = ['id', 'priceTypes', 'priceLine'];
 const SAS_COMMIT_MEMBERS = ['step', 'validate', 'complementItems', 'write'];
 const SCHEDULER_MEMBERS = ['slotsForStay', 'validateSessions'];
+const SLOT_AVAILABILITY_MEMBERS = ['slots', 'validate'];
 const ISSUER_MEMBERS = ['id', 'isReady', 'issue', 'findCardBatch', 'attach', 'invoiceStatus'];
 const PUSH_CHANNEL_KEY = /^[a-z][a-z0-9-]{0,39}$/;
 
@@ -151,6 +153,23 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       const other = registry.all().find((r) => r.id !== id && r.resourceScheduler);
       if (other) throw new Error(`${prefix} a resource scheduler is already declared by ${other.id}`);
       record.resourceScheduler = provider;
+    },
+    // SDK 2.28.0 (specs/pricing-components.md rule 49) — the downstream booking an article names (`fulfilment: 'hourly-slot'`):
+    // `{ reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) }`. A fulfilment id is declared once (DUPLICATE_FULFILMENT);
+    // it is asked only while this plugin is live.
+    articleFulfilment(fulfilmentId, adapter) {
+      articleFulfilment.register(fulfilmentId, adapter, { owner: id, isLive: () => registry.isLive(id) });
+      record.articleFulfilments.push(fulfilmentId);
+    },
+    // SDK 2.28.0 (specs/pricing-components.md rule 48) — the SlotAvailabilityProvider: `slots(resourceId, range)` and
+    // `validate(sessions)`, one per instance, handed out as `ctx.core.slotAvailability()`.
+    slotAvailability(provider) {
+      SLOT_AVAILABILITY_MEMBERS.forEach((m) => {
+        if (provider == null || typeof provider[m] !== 'function') throw new Error(`${prefix} slot availability lacks "${m}"`);
+      });
+      const other = registry.all().find((r) => r.id !== id && r.slotAvailability);
+      if (other) throw new Error(`${prefix} a slot availability provider is already declared by ${other.id}`);
+      record.slotAvailability = provider;
     },
     // SDK 2.26.0 (specs/guest-app.md rule 35) — ({ resourceId, from, to }) → [{ date, start, end, reservationId? }]:
     // slots a plugin holds on a resource before they reach the planning (an order awaiting payment). Read by

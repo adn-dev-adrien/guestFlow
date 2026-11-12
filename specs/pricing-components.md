@@ -711,7 +711,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - A fulfilment refusal at `confirm` aborts the sale (`SLOT_TAKEN`), it never leaves a paid line without a
       slot. Side effects that may fail without harm (e-mail, calendar, push) are not fulfilment: they are
       observers (rule 55).
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 5; `article-fulfilment-contract`, `bath-fulfilment-contract`): `utils/pricing/articleFulfilment.js` is the registry (an id belongs to one plugin, a plugin that is off is not
+    > asked, a throwing adapter refuses with `FULFILMENT_FAILED`); a resource sold by the hour on a planning names `hourly-slot` (`config.fulfilment`); hourly-resources declares it
+    > (`bathFulfilment.js`, over the scheduler's occupancy, which already counts the stays' sessions, the outside bookings and the `resourceHolds` of other plugins, the heat-up and the turnover).
+    > `extraSale.quote` lists a slot that is not free in its `refusals`, `extraSale.sell` confirms the booking inside its transaction before the line is written and answers 409 `SLOT_TAKEN`
+    > (diff 10). **Pending** — PR C: the guest app's pending card hold becoming the adapter's `hold` (J-7 code, absent from this branch).
 50. **One settings interface (settings provider).** Every parameterised component exports `settingsSchema` =
     `[{ key, type, default, scope: 'global'|'property'|'article', validate }]` (the shape plugins already use
     for `SETTINGS`), and receives its values only through `SettingsProvider.for(componentId, scope)`, resolved
@@ -812,7 +816,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     _(Delivered by PR A: `article-family-contract` runs the seven core families and `hourly` — the family the head calls
     through `pluginFamily.js`, with the contributor alias kept for `offered` — through the same cases, and
     `pipeline-composition` the use cases.)_
-    > **Pending** — PR B (`article-fulfilment-contract`).
+    > **Delivered by PR B** (pass 5): `article-fulfilment-contract` (the registry and `extraSale`) and, in the plugin, `bath-fulfilment-contract` (overlap refused, heat-up honoured, release, a confirm inside a
+    > rolled-back transaction leaves nothing).
 58. **Q11 resolved:** a new discount typed on the fiche targets « Nuits » by default.
     > **Delivered by PR B** (pass 4, C15): a payload without `discountTarget` reads `nights`; one without it on an update keeps the stored one.
 59. **Q12 resolved:** a stay discount never covers sales added later; a later sale gets its own line discount

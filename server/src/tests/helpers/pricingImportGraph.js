@@ -19,6 +19,8 @@ const RANK = {
   allowances: 3,
   timedOptions: 3,
   articles: 3.5,
+  // The registry of the downstream bookings an article names: it imports nothing, the sale services call it.
+  articleFulfilment: 3.6,
   platformPrice: 4,
   discounts: 4,
   settlement: 5,

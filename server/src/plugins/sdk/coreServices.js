@@ -120,6 +120,12 @@ function resourceScheduler() {
   return record ? record.resourceScheduler : null;
 }
 
+// SDK 2.28.0 (specs/pricing-components.md rule 48) — the slot availability provider a live plugin declared, or null.
+function slotAvailability() {
+  const record = registry().all().find((r) => r.slotAvailability && registry().isLive(r.id));
+  return record ? record.slotAvailability : null;
+}
+
 // SDK 2.26.0 (specs/guest-app.md rule 35) — every slot the live plugins hold on a resource between two dates. A
 // source that fails holds nothing: the planning keeps working, and the commit re-checks the slot anyway.
 function resourceHolds({ resourceId, from, to }) {
@@ -168,6 +174,7 @@ module.exports = Object.freeze({
     sentenceCase: (s) => textFormatters().sentenceCase(s),
   }),
   resourceScheduler,
+  slotAvailability,
   resourceHolds,
   // SDK 2.26.0 (specs/guest-app.md rules 33, 35, 36) — the card payment of a plugin's basket (a guest order): a
   // `complement` link at the basket's exact total, read on demand, withdrawn; its paid effect is `ctx.paymentBasket`'s.

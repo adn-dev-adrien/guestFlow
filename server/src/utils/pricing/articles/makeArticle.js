@@ -62,6 +62,8 @@ function makeArticle(row, { kind = 'option' } = {}) {
     progressiveTiers: row.optionProgressiveTiers == null ? [] : JSON.parse(JSON.stringify(row.optionProgressiveTiers)),
     isCancellationInsurance: Number(row.isCancellationInsurance || 0) === 1,
     showsPlanningCard: Boolean(row.showsPlanningCard),
+    // The downstream booking a sale of this article needs (rule 49): a resource sold by the hour and placed on a planning takes a slot.
+    fulfilment: kind === 'resource' && priceType === 'per_hour' && row.showsPlanningCard ? 'hourly-slot' : null,
   };
   if (kind === 'resource') config.resource = JSON.parse(JSON.stringify(row));
   return deepFreeze({ ref: `${kind}:${config.id}`, family: familyOf(row, kind), config });

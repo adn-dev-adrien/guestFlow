@@ -21,6 +21,8 @@ const { createHourlyFamily } = require('./hourlyFamily');
 const { createSasStep } = require('./sasStep');
 const { buildCatalogueLines } = require('./catalogueLines');
 const { createScheduler } = require('./scheduler');
+const { createSlotAvailability } = require('./slotAvailability');
+const { createBathFulfilment } = require('./bathFulfilment');
 const { createInvoicing } = require('./invoicing');
 const { SETTINGS, standaloneVatRateOf } = require('./settings');
 
@@ -84,6 +86,10 @@ function register(ctx) {
     slotsForStay: (args) => scheduler().slotsForStay(args),
     validateSessions: (args) => scheduler().validateSessions(args),
   });
+  // Rules 48-49 of the pricing components — the planning's availability, and the booking a sale of an hourly resource takes.
+  const slotAvailability = createSlotAvailability(scheduler);
+  ctx.slotAvailability(slotAvailability);
+  ctx.articleFulfilment('hourly-slot', createBathFulfilment({ slotAvailability }));
 
   // Rule 12 — the « Planifier » step of the arrival SAS.
   const sasStep = createSasStep({ scheduling, reservations });

@@ -634,6 +634,19 @@ Optional: a plugin that declares nothing reads « Actif ».
     `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
     records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
     `sdk-v2-plugin-ranges.unit.test.js`.
+51. *(Added 2026-11-12, specs/pricing-components.md rules 10, 27, 31, 44-49, SDK 2.28.0.)* **A plugin sells through the same services as the
+    core, and declares the booking an article needs.** `coreModule('extraSale')` hands out the sale service (`quote`, `sell`,
+    `changeLine`, `saleDetailOf`, `departureSalesOf`), `coreModule('saleDetail')` its read model, `coreModule('articles')` the head's reads
+    (`read` prices one candidate line for a stay with no free unit spent, `unitsPerQuantity` the billed units of one quantity),
+    `coreModule('stayClock')` `phaseForReservation` (has the stay started), `coreModule('catalogue')` the lodging's own price of an option or a
+    resource. `sasOptionSale` keeps its name and its names (the SAS is the first caller of the services above; removing it would be a MAJOR bump).
+    `ctx.articleFulfilment(id, { reserve(draft, ctx), confirm(hold, line, tx), release(hold, reason) })` declares the downstream booking an
+    article names (`config.fulfilment`, today `hourly-slot`): an id belongs to one plugin (`DUPLICATE_FULFILMENT`), it is asked only while that
+    plugin is live, and a refusal at `confirm` — inside the sale transaction, before the line is written — aborts the sale (`SLOT_TAKEN`).
+    `ctx.slotAvailability({ slots(args), validate(args) })` declares the planning's availability, one per instance, handed out as
+    `ctx.core.slotAvailability()`. hourly-resources 1.6.0 and sas 1.10.0 range `^2.28.0`; a plugin calling `ctx.articleFulfilment(` or
+    `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.28.0. Tests:
+    `article-fulfilment-contract`, `bath-fulfilment-contract`, `extra-sale-sas`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

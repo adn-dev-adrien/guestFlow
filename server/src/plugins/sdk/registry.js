@@ -58,6 +58,9 @@ function emptyRecord(id) {
     // specs/guest-app.md rules 28-31, 35 (SDK 2.26.0) — the hourly slots of a stay, and the slots a plugin holds.
     resourceScheduler: null,
     resourceHolds: null,
+    // specs/pricing-components.md rules 48-49 (SDK 2.28.0) — the ids of the fulfilment adapters, and the slot availability provider.
+    articleFulfilments: [],
+    slotAvailability: null,
     // specs/guest-app.md rules 35-36 (SDK 2.26.0) — [{ source, paid }]: what a paid basket link does.
     paymentBaskets: [],
     // specs/plugins-phase-1-sdk.md rule 48, specs/guest-app.md rules 47, 52 (SDK 2.26.0) — [{ key, path, host, handler }]:

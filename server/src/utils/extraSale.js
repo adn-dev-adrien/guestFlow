@@ -21,6 +21,8 @@
  * started takes a payment now (409 `PAYMENT_BEFORE_ARRIVAL`: before the check-in the money is the SAS's arrival complement, taken in
  * one piece); a stay whose departure complement is collected refuses it (« Séjour soldé »). The card link of the online-payment plugin
  * stays that plugin's (the platform card link is separate, rule 29).
+ * A resource line placed on a planning names a fulfilment adapter (rule 49): `quote` lists a slot that is not free in `refusals`, `sell` confirms the
+ * booking inside its transaction and answers 409 `SLOT_TAKEN` when it is gone.
  * Server-side money and labels only; the client renders what it gets.
  */
 const {
@@ -30,6 +32,8 @@ const { toCents } = require('./pricing/money');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 const { buildSaleDetail, departureSection } = require('./saleDetail');
+const fulfilment = require('./pricing/articleFulfilment');
+const { makeArticle } = require('./pricing/articles');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
@@ -69,6 +73,22 @@ function withArrivalRouting(body, stored, lines) {
   const resources = body.resources.map((line) => (stored.resources.some((s) => Number(s.resourceId) === Number(line.resourceId)) ? line : { ...line, inComplement: 1 }));
   return { ...body, options, resources };
 }
+
+// Rule 49 — a resource line placed on a planning names a fulfilment adapter: its draft is the stay, the resource and the sessions asked.
+function fulfilmentDrafts(reservationId, lines, now) {
+  const row = database().prepare('SELECT propertyId, startDate, endDate, checkInTime, checkOutTime FROM reservations WHERE id = ?').get(Number(reservationId));
+  if (!row) return [];
+  const stay = { startDate: row.startDate, endDate: row.endDate, checkInTime: row.checkInTime, checkOutTime: row.checkOutTime };
+  return lines.filter((line) => line.kind === 'resource' && Array.isArray(line.sessions) && line.sessions.length).map((line) => {
+    const resource = database().prepare('SELECT * FROM resources WHERE id = ?').get(line.id);
+    const id = resource ? fulfilment.fulfilmentOf(makeArticle(resource, { kind: 'resource' })) : null;
+    return id ? {
+      fulfilmentId: id, articleRef: `resource:${line.id}`, draft: { resourceId: line.id, propertyId: row.propertyId, stay, sessions: line.sessions, now },
+    } : null;
+  }).filter(Boolean);
+}
+
+const refusalOf = (articleRef, refusal) => ({ articleRef, code: refusal.code, message: refusal.message });
 
 function dryRunFor(reservationId, body) {
   const result = controller().performUpdate(Number(reservationId), structuredClone(body), { dryRun: true });
@@ -121,6 +141,10 @@ function quote(reservationId, requests, { payment = 'later', now = new Date() } 
   const result = pricedRequests(reservationId, parsed.lines, { now });
   if (result.error) return result.error;
   const moment = result.started ? 'departure' : 'arrival';
+  const refusals = fulfilmentDrafts(reservationId, parsed.lines, now)
+    .map(({ fulfilmentId, articleRef, draft }) => ({ articleRef, outcome: fulfilment.reserve(fulfilmentId, draft) }))
+    .filter(({ outcome }) => outcome.refusal)
+    .map(({ articleRef, outcome }) => refusalOf(articleRef, outcome.refusal));
   return {
     status: 200,
     lines: result.priced.map(({ line, totalCents, merged }) => ({
@@ -129,7 +153,7 @@ function quote(reservationId, requests, { payment = 'later', now = new Date() } 
     })),
     buckets: bucketsDelta(result.base, result.after),
     totalCents: centsOf(result.after, 'finalPrice') - centsOf(result.base, 'finalPrice'),
-    refusals: [],
+    refusals,
   };
 }
 
@@ -154,6 +178,15 @@ function sell(reservationId, requests, { source = 'fiche', payment = 'later', ac
       if (acceptedTotalCents != null && Number(acceptedTotalCents) !== total) {
         outcome = refuse(409, 'PRICE_CHANGED', 'Prix modifié — relire le panier.', { totalCents: total });
         throw ROLLBACK;
+      }
+      // Rule 49 — the booking the line needs is confirmed in this transaction, before the line exists: a taken slot refuses the sale.
+      for (const { fulfilmentId, articleRef, draft } of fulfilmentDrafts(id, parsed.lines, now)) {
+        const held = fulfilment.reserve(fulfilmentId, draft);
+        const confirmed = held.refusal ? held : fulfilment.confirm(fulfilmentId, held.hold, draft, null);
+        if (confirmed.refusal) {
+          outcome = refuse(409, confirmed.refusal.code, confirmed.refusal.message, { articleRef });
+          throw ROLLBACK;
+        }
       }
       const before = extraSalesModel().lineIds(id);
       const written = controller().performUpdate(id, result.body);

@@ -62,5 +62,5 @@ test('rule 5 — the plugin declares the `hourly` family next to its price-line 
   assert.match(source, /ctx\.priceLineContributor\(hourlyContributor\)/);
   assert.match(source, /ctx\.articleFamily\('hourly', createHourlyFamily\(hourlyContributor\)\)/);
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
-  assert.equal(manifest.sdk, '^2.27.0');
+  assert.equal(manifest.sdk, '^2.28.0');
 });

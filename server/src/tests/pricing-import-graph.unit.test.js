@@ -74,6 +74,7 @@ const INTERNAL = {
   'articles/units': 'article-family-contract',
   'articles/familyKit': 'article-family-contract',
   'articles/pluginFamily': 'articles-head-plugin-family',
+  articleFulfilment: 'article-fulfilment-contract',
   'vat/index': 'vat-component',
   'vat/settingsSchema': 'vat-component',
 };
