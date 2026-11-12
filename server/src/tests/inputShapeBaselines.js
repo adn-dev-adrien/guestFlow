@@ -144,6 +144,7 @@ async function baselines(app, admin, active) {
     ['PUT', '/api/accounting/platform-accounts', { defaultAccount: '622600', vatRateCommission: 20, cancellationCompensationAccount: '758000', platforms: [] }, { plugin: 'accounting-export' }],
     ['PATCH', `${url.stay}/payment`, { checkInReady: 1, checkInDone: 0, checkOutDone: 0, complementDeferredToCheckout: 0 }],
     ['POST', `${url.stay}/refunds`, { totalTtc: 1, refundDate: dayAt(0), reason: 'Geste', method: 'transfer', lines: [{ key: 'accommodation', amountTtc: 1 }], fromOverpayment: false, overpaymentTtc: 0 }, { ok: [409] }],
+    ['PATCH', `${url.stay}/refund-obligations/999999`, { status: 'settled' }, { ok: [404] }],
     ['PUT', `/api/reservations/${s.planned}/installments`, { dates: plan.map((row, i) => ({ id: row.id, dueDate: dayAt(20 + i) })) }],
     ['PUT', `/api/reservations/${s.planned}/installments`, { amounts: [{ id: plan[0].id, amount: 1 }] }, { ok: [400] }],
     ['PUT', `/api/reservations/${s.planned}/installments`, { count: plan.length }],

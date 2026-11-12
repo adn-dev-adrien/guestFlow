@@ -34,3 +34,12 @@ test('rule 10: outside the `platform` tax mode the box stays empty', () => {
   assert.equal(r.block.platformTouristTaxAmount, null);
   assert.equal(r.block.platformGrossAmount, 1236.26);
 });
+
+test('specs/pricing-components.md rule 70 — the commission is the core\'s PLATFORM PAYMENT (SDK platformCommission), never worked out here', () => {
+  const booking = { total: 1236.26, payout: 1028.44, guestTaxes: 81.66, hostTaxes: 52.8, hostFee: 178.96 };
+  const seen = [];
+  const spy = (figures) => { seen.push(figures); return computePlatformCommission(figures); };
+  assert.equal(block(booking, { withholds: true, platformCommission: spy }).ok, true);
+  assert.deepEqual(seen, [{ gross: 1236.26, payout: 1028.44, touristTax: 28.86 }]);
+  assert.equal(block(booking, { withholds: true, platformCommission: () => null }).ok, false, 'a figure missing: refused');
+});

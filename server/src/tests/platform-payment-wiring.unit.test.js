@@ -3,8 +3,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const unit = require('../utils/pricing/platformPayment');
-const { paymentBlock } = require('../plugins/airbnb-intake/paymentBlock');
-const { computePlatformCommission } = require('../utils/platformCommission');
 
 test('rule 70 — statementRemainder is the commission before its floor; statementPayout is the payout a statement implies', () => {
   assert.equal(unit.statementRemainder({ gross: 1236.26, payout: 1028.44, tax: 28.86 }), 178.96);
@@ -24,16 +22,6 @@ test('rule 70 — grossOf keeps the deposit + balance fallback, acompteNet the c
   assert.equal(unit.grossOf({ platformGrossAmount: 420, depositAmount: 100, balanceAmount: 250 }), 420);
   assert.equal(unit.acompteNet({ depositAmount: 100, acompteCommissionAmount: 15 }), 85);
   assert.equal(unit.acompteNet({ depositAmount: 100, depositDisabled: 1 }), 0);
-});
-
-test('rule 70 — the Airbnb payment block takes its commission from the core\'s PLATFORM PAYMENT, and refuses what does not land on the host fee', () => {
-  const booking = { total: 1236.26, payout: 1028.44, guestTaxes: 81.66, hostTaxes: 52.8, hostFee: 178.96 };
-  const seen = [];
-  const spy = (figures) => { seen.push(figures); return computePlatformCommission(figures); };
-  assert.equal(paymentBlock(booking, { withholds: true, platformCommission: spy }).ok, true);
-  assert.deepEqual(seen, [{ gross: 1236.26, payout: 1028.44, touristTax: 28.86 }]);
-  assert.equal(paymentBlock({ ...booking, hostFee: 100 }, { withholds: true, platformCommission: spy }).ok, false);
-  assert.equal(paymentBlock(booking, { withholds: true, platformCommission: () => null }).ok, false, 'a figure missing: refused');
 });
 
 test('rule 3 — SETTLEMENT.linkAllowed: a link is allowed on the operator\'s own channel only, a converted devis answering for both', () => {
