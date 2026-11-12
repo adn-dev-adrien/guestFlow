@@ -51,8 +51,15 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
 .q b.t{display:block;font:600 1rem/1.35 var(--serif);margin-bottom:6px}
 .q ol{margin:6px 0 0;padding-left:1.2rem}
 .q li{margin:4px 0}
-.q li.reco::marker{color:var(--primary);font-weight:700}
-.reco-label{font-size:.75rem;font-weight:700;color:var(--primary);background:var(--ok-soft);padding:1px 7px;border-radius:999px;margin-left:4px;white-space:nowrap}
+.q p{margin:4px 0 0}
+.q .why{font-size:.86rem;color:var(--mute)}
+.dec-label{font-size:.75rem;font-weight:700;color:var(--primary);background:var(--ok-soft);padding:1px 7px;border-radius:999px;margin-left:4px;white-space:nowrap}
+.dec-label.amend{color:var(--info);background:var(--info-soft)}
+.linkbox{margin-top:12px;border-top:1px dashed var(--line-strong);padding-top:10px}
+.linkbox .hint{font-size:.82rem;color:var(--mute);margin:6px 0 0}
+.linkbox .url{font:500 .82rem ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(60,54,36,.06);border-radius:8px;padding:8px 10px;overflow-wrap:anywhere;margin:8px 0}
+.mockonly{font-size:.78rem;color:var(--mute);border:1px dashed var(--line-strong);border-radius:10px;padding:6px 10px;margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mockonly .btn{min-height:44px}
 
 /* Mock controls */
 .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:8px 0 16px}
@@ -152,12 +159,13 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
 <div class="wrap">
 <header class="read">
   <h1>Mini sas du client extérieur : séance, boissons, reste à payer</h1>
-  <p class="lede">Résumé de la spec <code>specs/outside-booking-sas.md</code> (brouillon, cible 4.1.0), pour décider. La spec en anglais reste la référence ; ce résumé porte le constat, la proposition, ce qu’on ne fait pas, le risque, les décisions en attente et une maquette manipulable.</p>
+  <p class="lede">Résumé de la spec <code>specs/outside-booking-sas.md</code> (approuvée le 12/11, cible 4.1.0). Les neuf arbitrages sont tranchés ; la maquette montre le résultat retenu. La spec en anglais reste la référence ; ce résumé porte le constat, la proposition, ce qu’on ne fait pas, le risque, les décisions prises et une maquette manipulable.</p>
   <div class="meta">
-    <span class="tag warn">Brouillon — à valider</span>
+    <span class="tag ok">Approuvée le 12/11 — 9 décisions prises</span>
     <span class="tag info">Dépend de la refonte des prix, PR C (et donc B)</span>
     <span class="tag">Plugin « Ressources à l’heure »</span>
-    <span class="tag">34 règles · 9 décisions</span>
+    <span class="tag">43 règles</span>
+    <span class="tag info">Livrée dans la PR C de la refonte</span>
   </div>
 </header>
 
@@ -176,7 +184,7 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
 
 <section>
   <h2>Ce qu’on propose — la maquette</h2>
-  <p class="read">Le même état alimente l’écran ordinateur et l’écran téléphone. On peut ajouter une boisson, en offrir une, encaisser une partie et voir le reste changer. Une saisie invalide affiche son refus : un montant au-dessus du dû, une quantité hors limites, un montant vide, ou une ligne déjà payée qu’on veut offrir.</p>
+  <p class="read">Le même état alimente l’écran ordinateur et l’écran téléphone. On peut ajouter une boisson, en offrir une, encaisser une partie et voir le reste changer. Une saisie invalide affiche son refus : un montant au-dessus du dû, une quantité hors limites, un montant vide, ou une ligne déjà payée qu’on veut offrir. Le bloc « Envoyer un lien » est grisé sans e-mail, absent si le paiement en ligne n’est pas connecté, et un lien se retire seul quand le reste change.</p>
   <div class="controls">
     <div class="seg" role="group" aria-label="Situation de départ">
       <button data-act="scenario" data-v="due" aria-pressed="true">Séance à payer</button>
@@ -185,6 +193,10 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
     <div class="seg" role="group" aria-label="Rôle">
       <button data-act="role" data-v="admin" aria-pressed="true">Administrateur</button>
       <button data-act="role" data-v="reception" aria-pressed="false">Accueil</button>
+    </div>
+    <div class="seg" role="group" aria-label="Paiement en ligne">
+      <button data-act="online" data-v="1" aria-pressed="true">Paiement en ligne actif</button>
+      <button data-act="online" data-v="0" aria-pressed="false">Non connecté</button>
     </div>
     <button class="ghost" data-act="reset">Recommencer</button>
     <span class="note">Maquette : en vrai, chaque montant vient du serveur. Ici, une imitation pour juger l’écran.</span>
@@ -205,9 +217,9 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
       <h3>Ce que fait l’écran</h3>
       <ul class="tight">
         <li><b>Sa séance</b> : les lignes du tarif (jour, soirée), le temps offert par 15 min, « Offrir » sur toute la séance.</li>
-        <li><b>À proposer</b> : les articles suggérés pour cette ressource en un geste, puis « Autre article ». Seuls les articles vendables hors séjour, sans notion de nuit ni de personne.</li>
+        <li><b>Proposés à l’arrivée</b> : une étape générique, qui montre les articles suggérés pour le contexte de la vente (ici la ressource) en un geste, puis « Autre article ». Seuls les articles vendables hors séjour, sans notion de nuit ni de personne.</li>
         <li><b>Récapitulatif</b> : total, déjà payé, reste à payer, dont TVA. Le reste vient du composant d’encaissement, jamais de l’écran.</li>
-        <li><b>Paiement</b> : les mêmes moyens que les fiches, la caisse interne, plusieurs paiements possibles ; ce qui manque reste « à percevoir ».</li>
+        <li><b>Paiement</b> : les mêmes moyens que les fiches, la caisse interne, plusieurs paiements possibles ; ce qui manque reste « à percevoir ». « Envoyer un lien » facture le reste par Qonto, si un e-mail est connu.</li>
         <li><b>Facture</b> : proposée une fois le reste à zéro. Une seule facture Qonto pour la séance et les boissons.</li>
       </ul>
     </div>
@@ -219,6 +231,9 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
         <li>Paiements rattachés aux lignes, dans l’ordre de vente. Le reste à payer, le trop-perçu et le remboursement sont calculés chacun une seule fois.</li>
         <li>Journal comptable par la sortie comptable de la refonte : à la date de chaque paiement, hors caisse interne, sans les lignes offertes.</li>
         <li>Le bain, sa chauffe et son heure offerte aux séjours restent dans le plugin. Le cœur ne connaît ni « bain », ni aucune plateforme.</li>
+        <li><b>Étape générique</b> : un fournisseur d’articles suggérés par contexte de vente (ressource, logement), des listes réglées dans Réglages → Articles, un seul composant d’écran. Le plugin de bain apporte seulement la liste de ses ressources.</li>
+        <li><b>Lien de paiement</b> : la machinerie existante (lien Qonto, relevé, retrait). Le montant est le reste calculé par le composant d’encaissement ; payé après la fermeture, il règle la vente.</li>
+        <li><b>Livraison</b> : dans la PR C de la refonte, pas dans une PR à part.</li>
       </ul>
     </div>
   </div>
@@ -229,7 +244,8 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
   <ul class="tight">
     <li>La carte de bain du planning alignée sur la carte d’arrivée (taille du texte, ordre des informations) : déjà faite en 4.0.0.</li>
     <li>La fenêtre « Vente hors séjour » de la page Encaissements : c’est la PR C de la refonte. Cette spec réutilise seulement son service de vente.</li>
-    <li>Un lien de paiement Qonto depuis le mini sas (décision 6).</li>
+    <li>Poser l’étape « Proposés à l’arrivée » dans le sas d’arrivée d’un séjour : suite à faire, la conception ne l’empêche pas.</li>
+    <li>Tout envoi d’e-mail automatique : le lien part seulement sur un clic de l’opérateur.</li>
     <li>Les remises en pourcentage ou en montant sur une ligne : « Offrir » et le temps offert suffisent au comptoir.</li>
     <li>Les pourboires et le stock des boissons.</li>
     <li>Réserver une autre séance ou déplacer le créneau depuis le mini sas : cela se fait toujours depuis la réservation.</li>
@@ -242,11 +258,14 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
     <tr><th>Compter deux fois</th><td>Une séance payée pourrait apparaître à la fois dans les ventes du plugin et dans les ventes hors séjour du cœur (journal, lot CB). Règle 32 : le plugin saute toute séance dont l’argent est sur une vente. Un test le vérifie.</td></tr>
     <tr><th>Deux modèles pendant la transition</th><td>Les séances payées avant la mise à jour gardent leur argent sur la réservation. Celles d’après le mettent sur la vente. Le mini sas lit les deux sans les additionner à la main.</td></tr>
     <tr><th>Comptabilité</th><td>Les boissons demandent un compte de produits que la comptable doit choisir (décision 8). Sans ce compte, l’export qui contient une boisson est refusé, plutôt que de passer en compte faux.</td></tr>
+    <tr><th>PR C plus grosse</th><td>La livraison dans la PR C la grossit (étape générique, lien de paiement, réglages). La refonte permet d’en sortir la vente hors séjour, pas d’y ajouter : sortir cette partie de la PR C sortirait aussi ce mini sas. La spec de la refonte est mise à jour dans la même PR.</td></tr>
+    <tr><th>Lien payé après coup</th><td>Un lien payé alors que la vente a changé (ligne offerte, séance annulée) est enregistré en entier, l’excédent devient un remboursement dû et l’administrateur est alerté : l’argent reçu n’est jamais perdu.</td></tr>
+    <tr><th>Journal des e-mails</th><td>Le journal d’e-mails exige un séjour : l’envoi du lien est donc tracé dans l’historique de la vente, pas dans ce journal.</td></tr>
     <tr><th>Accueil et argent</th><td>L’accueil encaisse déjà au sas des séjours. Ici, il voit l’argent à percevoir, jamais un remboursement, et ne peut pas offrir une ligne déjà payée.</td></tr>
   </table></div>
 
-  <h2>Décisions en attente</h2>
-  <p class="note">La recommandation est en premier. Rien n’est tranché sans Adrien.</p>
+  <h2>Décisions prises le 12/11</h2>
+  <p class="note">Chaque arbitrage montre l’option retenue. Deux d’entre elles (6 et 9) ne suivaient pas la proposition initiale ; la 5 a été complétée.</p>
   <div id="questions"></div>
 </section>
 </div>
@@ -264,14 +283,16 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
   var VAT = 20;
   var S, seq;
 
-  function fresh(scenario, role){
+  function fresh(scenario, role, online){
     seq = 0;
+    if (online === undefined) online = S ? S.online : true;
     S = {
       scenario: scenario || 'due', role: role || 'admin',
       offeredMin: 0, sessionOffered: false,
       extras: [], payments: [], refundOwed: 0,
       payOpen: true, method: 'card', amountText: '', amountTouched: false, keepDue: false,
-      committed: false, confirm: null, qtyRefusal: null, lastAdded: null, invoice: false, flash: null
+      committed: false, confirm: null, qtyRefusal: null, lastAdded: null, invoice: false, flash: null,
+      online: online, email: '', link: null
     };
     if (S.scenario === 'prepaid') S.payments.push({cents: 7000, method: 'card', at: 'réservation'});
   }
@@ -312,6 +333,7 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
   function vatOf(c){ return Math.round(c * VAT / (100 + VAT)); }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
 
+  function validEmail(t){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(t).trim()); }
   function parseAmount(text){
     var t = String(text).trim().replace(/\s| /g, '').replace(',', '.').replace(/€$/, '');
     if (t === '') return {empty: true};
@@ -358,7 +380,7 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
     h.push('</div></div>');
 
     // Extras
-    h.push('<div class="sec"><div class="sec-h"><span>À proposer</span></div><div class="sugg">');
+    h.push('<div class="sec"><div class="sec-h"><span>Proposés à l’arrivée</span></div><div class="sugg">');
     SUGG.forEach(function(k){ h.push('<button data-act="add" data-ref="' + k + '">' + esc(CATALOG[k].label) + '<b>' + eur(CATALOG[k].unit) + '</b></button>'); });
     h.push('</div>');
     if (S.qtyRefusal) h.push('<p class="refusal" role="alert">' + esc(S.qtyRefusal) + '</p>');
@@ -410,6 +432,7 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
         h.push('<div class="alert warn">Le reste reste signalé au planning jusqu’au paiement.</div>');
       }
     }
+    h.push(linkBlock(v, due));
     h.push('</div>');
 
     // Invoice
@@ -422,6 +445,25 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
 
     h.push('</div></div></div>');
     h.push('<div class="sas-foot"><button class="btn" data-act="reset">Annuler</button><button class="btn primary" data-act="commit">' + (S.committed ? 'Enregistrer' : 'Valider l’arrivée') + '</button></div>');
+    return h.join('');
+  }
+  function linkBlock(v, due){
+    if (!S.online || due <= 0) return '';
+    var h = ['<div class="linkbox">'];
+    if (S.link) {
+      h.push('<div class="alert ok" style="margin:0">Lien · ' + eur(S.link.amount) + ' · valable 36 h' + (S.link.emailed ? ' · envoyé à ' + esc(S.email.trim()) : '') + '</div>');
+      h.push('<div class="url">https://paiement.exemple/lien/reste-a-payer</div>');
+      h.push('<div class="acts" style="justify-content:flex-start"><button class="btn" data-act="linkcopy">Copier le lien</button><button class="btn" data-act="linkmail"' + (validEmail(S.email) ? '' : ' disabled') + '>Envoyer par e-mail</button><button class="btn danger" data-act="linkdrop">Retirer le lien</button></div>');
+      h.push('<p class="hint">Rien ne part sans ce clic. Le lien se retire seul si le reste change.</p>');
+      h.push('<div class="mockonly"><span>Maquette</span><button class="btn" data-act="linkpaid">Le client paie le lien</button></div>');
+    } else {
+      var ok = validEmail(S.email), bad = S.email.trim() !== '' && !ok;
+      h.push('<label class="sr" for="mail-' + v + '">E-mail</label><div class="field' + (bad ? ' bad' : '') + '"><span>E-mail</span><input id="mail-' + v + '" data-key="email" type="email" inputmode="email" autocomplete="off" placeholder="client@exemple.fr" value="' + esc(S.email) + '"></div>');
+      if (bad) h.push('<p class="refusal" role="alert">Adresse e-mail non valide.</p>');
+      h.push('<div style="margin-top:10px"><button class="btn" data-act="linkmint"' + (ok ? '' : ' disabled') + '>Envoyer un lien · ' + eur(due) + '</button></div>');
+      if (!ok && !bad) h.push('<p class="hint">Adresse e-mail requise.</p>');
+    }
+    h.push('</div>');
     return h.join('');
   }
   function confirmBox(id){
@@ -442,6 +484,7 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
     document.getElementById('f-phone').innerHTML = renderSas('phone');
     document.getElementById('card-desk').innerHTML = renderCard();
     Array.prototype.forEach.call(document.querySelectorAll('[data-act="scenario"]'), function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === S.scenario)); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-act="online"]'), function(b){ b.setAttribute('aria-pressed', String((b.getAttribute('data-v') === '1') === S.online)); });
     Array.prototype.forEach.call(document.querySelectorAll('[data-act="role"]'), function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === S.role)); });
     if (key && fid) { var el = document.querySelector('#' + fid + ' [data-key="' + key + '"]'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
     S.lastAdded = null;
@@ -452,8 +495,14 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
     S.flash = null;
     switch (name) {
       case 'scenario': fresh(el.getAttribute('data-v'), S.role); break;
+      case 'online': S.online = el.getAttribute('data-v') === '1'; if (!S.online) S.link = null; break;
+      case 'linkmint': if (validEmail(S.email) && remaining() > 0) S.link = {amount: remaining(), emailed: false}; break;
+      case 'linkcopy': S.flash = {kind: 'ok', text: 'Lien copié.'}; break;
+      case 'linkmail': if (S.link && validEmail(S.email)) { S.link.emailed = true; S.flash = {kind: 'ok', text: 'Lien envoyé à ' + S.email.trim() + '.'}; } break;
+      case 'linkdrop': S.link = null; S.flash = {kind: 'warn', text: 'Lien retiré.'}; break;
+      case 'linkpaid': if (S.link) { S.payments.push({cents: S.link.amount, method: 'link'}); S.link = null; S.amountTouched = false; S.flash = {kind: 'ok', text: 'Lien payé : reste réglé.'}; } break;
       case 'role': S.role = el.getAttribute('data-v'); S.confirm = null; break;
-      case 'reset': fresh(S.scenario, S.role); break;
+      case 'reset': fresh(S.scenario, S.role, S.online); break;
       case 'offmin': S.offeredMin = Math.max(0, Math.min(120, S.offeredMin + Number(el.getAttribute('data-d')))); S.amountTouched = false; break;
       case 'add': {
         var ref = el.getAttribute('data-ref'), max = CATALOG[ref].max, open = null;
@@ -506,6 +555,7 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
         break;
       }
     }
+    if (S.link && S.link.amount !== remaining()) { S.link = null; if (!S.flash) S.flash = {kind: 'warn', text: 'Lien retiré : le reste a changé.'}; }
     render();
   }
 
@@ -521,43 +571,23 @@ code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(
   document.addEventListener('input', function(e){
     var el = e.target;
     if (el.getAttribute('data-key') === 'amount') { S.amountText = el.value; S.amountTouched = true; S.flash = null; render(); }
+    if (el.getAttribute('data-key') === 'email') { S.email = el.value; S.flash = null; render(); }
   });
 
   var QS = [
-    ['1. Qu’est-ce qu’une visite, côté vente ?', [
-      ['Une seule vente hors séjour par visite. La séance en est une ligne, la réservation garde le créneau, le planning et l’arrivée. Un seul reste, une seule facture, un seul rattachement des paiements.', 1],
-      ['Deux ventes : la séance garde son argent sur la réservation, une vente hors séjour porte les boissons. Le serveur additionne les deux restes. Deux factures, deux chemins comptables.'],
-      ['Les boissons enregistrées sur la réservation de séance (table du plugin). Écarté d’avance : ce serait un deuxième calcul de prix et de TVA.']]],
-    ['2. Jusqu’à quand le mini sas reste-t-il ouvert ?', [
-      ['Comme le sas d’un séjour : de minuit le jour de la séance jusqu’à 4 h le lendemain, pour une séance du soir clôturée après minuit.', 1],
-      ['Le jour de la séance seulement, comme aujourd’hui.']]],
-    ['3. L’accueil peut-il s’en servir ?', [
-      ['Oui, dans la fenêtre, et il peut rouvrir pour ajouter des boissons pendant la séance. Une ligne payée ne s’offre et ne se retire que par l’administrateur, de même que tout remboursement.', 1],
-      ['Non, administrateur seulement, comme aujourd’hui.'],
-      ['Oui, mais une seule validation, comme le sas d’un séjour : une fois fait, il est verrouillé pour l’accueil.']]],
-    ['4. Quel client pour un extérieur dont on a tapé le nom ?', [
-      ['Le client enregistré si la réservation en nomme un ; sinon « Passage ». Une fiche client n’est rattachée que sur un e-mail identique, ou créée quand « Enregistrer comme client » est coché.', 1],
-      ['La règle de la refonte telle qu’écrite : un nom tapé se rattache à une fiche correspondante ou en crée une. Risque d’homonymes et d’un répertoire rempli de clients de passage.']]],
-    ['5. Quels articles proposer en un geste ?', [
-      ['Une liste par ressource, « Proposés à l’arrivée », dans les réglages du plugin. Les autres articles vendables hors séjour se trouvent par la recherche.', 1],
-      ['Tous les articles vendables hors séjour en pastilles.'],
-      ['Une seule liste pour toutes les ressources.']]],
-    ['6. Un lien de paiement Qonto pour le reste ?', [
-      ['Non dans le mini sas : le terminal CB est au comptoir. Le reste s’encaisse plus tard depuis la réservation.', 1],
-      ['Oui : « Envoyer un lien » pour le reste, si un e-mail est connu et le paiement en ligne actif.']]],
-    ['7. Et si le client ne vient pas ?', [
-      ['« Client absent » annule les lignes non payées et garde l’argent déjà pris. Un remboursement reste une action explicite de l’administrateur.', 1],
-      ['Rien de prévu : la séance reste « À encaisser ».'],
-      ['Remboursement dû automatiquement.']]],
-    ['8. Sur quel compte passent les boissons ?', [
-      ['Un réglage de l’export comptable, vide au départ et obligatoire avant le premier export qui contient une boisson : la comptable choisit le compte.', 1],
-      ['Le même compte que la séance, 70601000.']]],
-    ['9. Dans quelle PR ?', [
-      ['Sa propre PR, juste après la PR C de la refonte, dans la 4.1.0.', 1],
-      ['Dans la PR C, avec la vente hors séjour. La PR C grossit ; la refonte prévoit de pouvoir en sortir la vente hors séjour, pas d’y ajouter.']]]
+    ['1. Qu’est-ce qu’une visite, côté vente ?', 'Une seule vente hors séjour par visite. La séance en est une ligne, la réservation garde le créneau, le planning et l’arrivée. Un seul reste, une seule facture, un seul rattachement des paiements.', ''],
+    ['2. Jusqu’à quand le mini sas reste-t-il ouvert ?', 'Comme le sas d’un séjour : de minuit le jour de la séance jusqu’à 4 h le lendemain.', ''],
+    ['3. L’accueil peut-il s’en servir ?', 'Oui, dans la fenêtre : il ouvre et rouvre pour ajouter des boissons. Une ligne payée ne s’offre et ne se retire que par l’administrateur, de même que tout remboursement.', ''],
+    ['4. Quel client pour un extérieur dont on a tapé le nom ?', '« Passage », sauf si la réservation nomme un client enregistré, si l’e-mail tapé est identique à celui d’une fiche, ou si « Enregistrer comme client » est coché.', ''],
+    ['5. Quels articles proposer en un geste ?', 'Une liste par ressource, « Proposés à l’arrivée ». Mais l’étape est générique : un fournisseur d’articles par contexte de vente, des réglages communs, un seul composant. Le sas d’arrivée d’un séjour pourra la reprendre plus tard (suite à faire, pas dans cette spec).', 'amend'],
+    ['6. Un lien de paiement Qonto pour le reste ?', 'Oui : « Envoyer un lien », si un e-mail est connu et le paiement en ligne actif. Même machinerie que les liens existants ; le montant est le reste calculé par le serveur ; payé après la fermeture, il règle la vente. Aucun e-mail ne part tout seul : le lien est affiché, copié, ou envoyé sur un clic.', 'own'],
+    ['7. Et si le client ne vient pas ?', '« Client absent » annule les lignes non payées et garde l’argent déjà pris. Un remboursement reste une action explicite de l’administrateur.', ''],
+    ['8. Sur quel compte passent les boissons ?', 'Un réglage de l’export comptable, vide au départ, obligatoire avant le premier export qui contient une boisson.', ''],
+    ['9. Dans quelle PR ?', 'Dans la PR C de la refonte, avec la vente hors séjour, pas dans une PR à part. La PR C grossit ; la spec de la refonte est mise à jour dans la même PR.', 'own']
   ];
   document.getElementById('questions').innerHTML = QS.map(function(q){
-    return '<div class="q"><b class="t">' + esc(q[0]) + '</b><ol type="A">' + q[1].map(function(o){ return '<li' + (o[1] ? ' class="reco"' : '') + '>' + esc(o[0]) + (o[1] ? ' <span class="reco-label">Recommandé</span>' : '') + '</li>'; }).join('') + '</ol></div>';
+    var tag = q[2] === 'amend' ? '<span class="dec-label amend">Décidé, complété</span>' : q[2] === 'own' ? '<span class="dec-label amend">Décidé, autre option</span>' : '<span class="dec-label">Décidé</span>';
+    return '<div class="q"><b class="t">' + esc(q[0]) + ' ' + tag + '</b><p>' + esc(q[1]) + '</p></div>';
   }).join('');
 
   fresh('due', 'admin');
