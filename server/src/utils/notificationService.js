@@ -23,6 +23,7 @@ const { buildNotificationDigest } = require('./notificationDigest');
 const { platformDisplay } = require('./platformDisplay');
 const { parisDateTimeLabel } = require('./parisDateTime');
 const { DEACTIVATION_ALERT_AFTER_HOURS } = require('../constants/paymentLinks');
+const { roundMoneyOrZero } = require('./pricing/money');
 
 // The iCal source's own name, else the platform as every page writes it (« GreenGo », « Gîtes de
 // France »), never the stored key (2026-10-27 spec review).
@@ -42,7 +43,7 @@ function oneLine(value) {
 }
 
 function euro(n) {
-  return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;
+  return `${roundMoneyOrZero(n).toFixed(2).replace('.', ',')} €`;
 }
 
 // ISO (YYYY-MM-DD) → DD/MM/YYYY for human-facing notification copy; pass through anything else.

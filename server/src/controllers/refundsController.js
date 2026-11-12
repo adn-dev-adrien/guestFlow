@@ -38,7 +38,8 @@ function nightsBetween(startDate, endDate) {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
+const { toCentsStrict: cents } = require('../utils/pricing/money');
 
 const METHOD_LABELS = { transfer: 'virement', cash: 'espèces', internal: 'caisse interne', card: 'carte', retained: 'indemnité' };
 
@@ -170,7 +171,6 @@ function createRefundsController(deps = {}) {
       // stale tab or a renamed label would otherwise give the same money back twice.
       if (req.body && req.body.fromOverpayment === true) {
         const remaining = storedOverpaymentTtc(id);
-        const cents = (n) => Math.round(Number(n) * 100);
         const asked = validated.refund.lines.filter((l) => !l.lineKey).reduce((sum, l) => sum + l.amountTtc, 0);
         const claimed = Number(req.body.overpaymentTtc);
         if (cents(remaining) <= 0) {

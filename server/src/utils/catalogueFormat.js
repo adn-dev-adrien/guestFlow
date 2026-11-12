@@ -4,6 +4,7 @@
  */
 
 const { emailAmount } = require('./emailMoney');
+const { roundMoneyStrict } = require('./pricing/money');
 
 const EURO_UNITS = Object.freeze({
   per_stay: '/ séjour',
@@ -14,7 +15,7 @@ const EURO_UNITS = Object.freeze({
 });
 
 const euros = (amount) => emailAmount(amount, 'fr');
-const percent = (value) => `${String(Math.round(Number(value) * 100) / 100).replace('.', ',')} %`;
+const percent = (value) => `${String(roundMoneyStrict(value)).replace('.', ',')} %`;
 
 /**
  * « 25 € », or « 25 € – 80 € » when the values differ.

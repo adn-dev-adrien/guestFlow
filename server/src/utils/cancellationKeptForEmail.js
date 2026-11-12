@@ -13,7 +13,7 @@ const { cancellationPreview } = require('./cancelReservation');
 const { givenBackSinceCancelOf } = require('./pricing/refunds/cancellation');
 const { isDirectChannel } = require('./platformNameFormat');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 // Rule 78 — the cancellation's own figure is a column of the stay. An older cancellation is read from its history entry once
 // (the migration copied it), and a stay whose column is empty (a database not yet migrated) still reads the entry.

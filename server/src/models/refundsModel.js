@@ -14,7 +14,7 @@ const db = require('../database');
 const { totals: registerTotals, scopeSql: refundScopeSql, isRetainedDeposit } = require('../utils/refunds');
 const { syncStay: syncAllocations, lineRefsByKey } = require('../utils/paymentAllocationsSync');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
 
 // S3 — what a line is and which revenue bucket it lands on (the same reading the migration backfills).
 function refundLineColumns(line) {

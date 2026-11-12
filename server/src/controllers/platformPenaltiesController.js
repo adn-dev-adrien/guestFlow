@@ -20,8 +20,8 @@ const {
 } = require('../utils/pricing/platformPayment');
 const { isRealIsoDay, dateBeforeHorizon, PAST_HORIZON_MESSAGE } = require('../utils/stayDates');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-const cents = (n) => Math.round((Number(n) || 0) * 100);
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
+const { toCentsOrZero: cents } = require('../utils/pricing/money');
 const present = (v) => v !== '' && v != null && Number.isFinite(Number(v));
 const eur = (n) => `${round2(n).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
 const frDay = (iso) => `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}`;

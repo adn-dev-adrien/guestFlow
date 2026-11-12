@@ -35,7 +35,7 @@ const { taxRidesTheComplement } = require('./touristTaxFreeze');
 const { bucketSharesOf } = require('./paymentTenders');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 // specs/direct-installments.md rule 46 — what the installments of a plan collected, and how the accounting booked
 // each one: its tourist-tax share (rule 39) and its revenue per bucket, installment by installment.

@@ -22,6 +22,7 @@ const { resolveCancelOn } = require('./paymentSchedule');
 const { buildStayContent } = require('./stayContentContext');
 const { resolveEmailIdentity } = require('./emailIdentity');
 const { isPlaceholderClient } = require('./placeholderClient');
+const { roundMoneyOrZero, roundMoneyOrZero: round2c } = require('./pricing/money');
 
 function safeStr(v) {
   return v == null ? '' : String(v);
@@ -280,7 +281,6 @@ function buildContext({ reservation, client, property, options = [], resources =
   // it's COMPLETE (options + resources + tourist-tax-in-complement + a « Complément d'arrivée »
   // remainder) and carries qty/unitPrice/kind. The inline `inComplementItems` list is the fallback for
   // callers that don't provide the detail — topped up with a remainder line so it still sums to the total.
-  const round2c = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const sasDetailLines = Array.isArray(arrivalComplementDetail?.detail) ? arrivalComplementDetail.detail : null;
   const usingSasDetail = sasDetailLines && sasDetailLines.length > 0;
   let noticeLines;
@@ -343,7 +343,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     balanceDueDate: r.balanceDueDate,
     cancelAfterBalanceDueDays: p.cancelAfterBalanceDueDays,
   });
-  const retainedDepositAmount = Math.max(0, Math.round((Number(cancellationKept) || 0) * 100) / 100);
+  const retainedDepositAmount = Math.max(0, roundMoneyOrZero(cancellationKept));
 
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
   // specs/caution-live-from-property.md §3 — caution is live from the property's current
