@@ -1030,5 +1030,10 @@
     "toCents",
     "toCentsOrZero",
     "toCentsStrict"
+  ],
+  "platformPayment": [
+    "acompteNet",
+    "grossOf",
+    "payoutWithPenalty"
   ]
 }

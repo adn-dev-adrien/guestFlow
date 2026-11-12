@@ -9,18 +9,10 @@
 const flag = (v) => Number(v || 0) === 1 || v === true;
 const sdk = require('../../sdk');
 const { toCentsOrZero: cents } = sdk.coreModule('money');
-const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 const { day } = require('./dates');
 
-/**
- * Rule 46 — what a platform that took an acompte already paid out for it: the acompte net of its own
- * commission. Its solde credit is the rest of the payout, so the fiche's payout (the whole stay's net,
- * the figure `computePlatformCommission` reads) is that credit plus this. 0 without a platform acompte.
- */
-function platformAcompteNet(row) {
-  if (flag(row.depositDisabled) || !(Number(row.depositAmount || 0) > 0)) return 0;
-  return Math.max(0, round2(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0)));
-}
+// Rule 46 — what a platform that took an acompte already paid out for it (PLATFORM PAYMENT's `acompteNet`).
+const { acompteNet: platformAcompteNet, grossOf } = sdk.coreModule('platformPayment');
 
 // The ledger rows of the direct buckets, with the stored column of their cash flag and their date.
 const DIRECT_ROWS = {
@@ -85,8 +77,7 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
     const balance = ledger.rows.find((r) => r.key === 'balance');
     if (!balance) return baskets;
     const paid = isPaid(balance);
-    const grossRaw = row.platformGrossAmount != null && row.platformGrossAmount !== ''
-      ? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
+    const grossRaw = grossOf(row);
     const payout = row.platformPayoutAmount != null && row.platformPayoutAmount !== '' && Number(row.platformPayoutAmount) > 0
       ? Number(row.platformPayoutAmount) : null;
     if (!(grossRaw > 0) && payout == null) return baskets;

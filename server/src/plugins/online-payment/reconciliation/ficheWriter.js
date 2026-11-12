@@ -20,6 +20,7 @@ const { day } = require('./dates');
 const { platformAcompteNet } = require('./expectedReceipts');
 const sdk = require('../../sdk');
 const { roundMoneyStrict: round2 } = sdk.coreModule('money');
+const { grossOf, payoutWithPenalty } = sdk.coreModule('platformPayment');
 const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 /**
@@ -78,9 +79,8 @@ function createFicheWriter({ model, applyPaymentMark, computePlatformCommission,
         // Rule 46 — the credit pays the solde only when the platform took an acompte: the payout is the
         // whole stay's net, so the commission is not inflated by the acompte.
         // …and what the platform kept as a penalty (reconciliation-assisted-matching.md rule 25).
-        payout = round2(got / 100 + platformAcompteNet(before) + Math.max(0, Number(before.platformPenaltyAmount || 0)));
-        const gross = before.platformGrossAmount != null && before.platformGrossAmount !== ''
-          ? Number(before.platformGrossAmount) : Number(before.depositAmount || 0) + Number(before.balanceAmount || 0);
+        payout = payoutWithPenalty({ payout: got / 100 + platformAcompteNet(before), penalty: before.platformPenaltyAmount });
+        const gross = grossOf(before);
         commission = computePlatformCommission({
           gross, payout, touristTax: before.platformTouristTaxAmount, acompteCommission: before.acompteCommissionAmount,
         });

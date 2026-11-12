@@ -155,7 +155,7 @@ module.exports = Object.freeze({
     fromPlatform,
     updateBody: storedUpdateBody,
     suggestBeds,
-    platformCommission: (figures) => platformCommission().computePlatformCommission(figures),
+    platformCommission: (figures) => (figures && figures.basis === 'rentOnly' ? platformCommission().commissionOf(figures) : platformCommission().computePlatformCommission(figures)),
     // specs/per-platform-tourist-tax-three-way.md — true in the `platform` mode only: the platform charges
     // the tax and remits it to the commune itself, so its payout leaves it out.
     platformWithholdsTouristTax: (propertyId, platformKey) => pricing().isPlatformCollectingTouristTax(database(), propertyId, platformKey)

@@ -656,6 +656,9 @@ Optional: a plugin that declares nothing reads « Actif ».
     figure moves; the variant is picked by what the copy did with a blank or a non-number, never swapped for `roundMoney`. airbnb-intake, booking-intake,
     gites-de-france-intake, google-calendar, google-vacation-rentals, hourly-resources, online-payment, sas, tariff-recipes, website-booking and
     accounting-export range `^2.29.0`; the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.29.0.
+    `coreModule('stayClock')` also hands out `dayReached(day, today)` / `dayPassed(day, today)` (the day comparisons the intakes and the public form used to write
+    inline), `coreModule('platformPayment')` the reads of what a platform pays out (`acompteNet`, `grossOf`, `payoutWithPenalty`), and
+    `ctx.core.reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` the rent-only commission of Gîtes de France (the statement basis is unchanged).
     Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
 
 **Edge cases:**

@@ -90,6 +90,7 @@ const CORE_MODULES = Object.freeze({
   stayClock: '../../models/stayClockModel', // `phaseForReservation`: has the stay started (rules 44-46)
   // every plugin that rounds an amount or reads cents — the named exact variants of the shared helpers (pricing-components rule 38, SDK 2.29.0)
   money: '../../utils/pricing/money', // `roundMoney` and its exact variants, `toCents`…, the French parsers
+  platformPayment: '../../utils/pricing/platformPayment', // online-payment — what a platform pays out: `acompteNet`, `grossOf`, `payoutWithPenalty` (rule 70)
   // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money

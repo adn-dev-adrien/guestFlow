@@ -1144,7 +1144,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > asks the channel (`saleChannel` / `isNamedChannel`) instead of comparing the platform to `'direct'` by hand; an unmatched
     > platform keeps the legacy default (collects, does not remit), so no figure moves (Q-B18; `platform-payment-wiring`,
     > `tourist-tax-collector-by-id`). PLATFORM PAYMENT now ranks between SCHEDULE and REFUNDS in the import graph.
-    > **Pending** — PR C: the reconciliation helpers. `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted).
+    > **Delivered by PR C** (C12): the reconciliation reads `acompteNet` / `grossOf` / `payoutWithPenalty` (online-payment 1.7.7 through `coreModule('platformPayment')`), the ledger's commission detail `netOfCommission`, and the Gîtes de France intake the rent-only commission through `reservations.platformCommission({ basis: 'rentOnly', rent, netRent })` (gites-de-france-intake 1.4.13); the `platform-payment` allow-list is empty. `grossOf` rounds the sum of deposit and balance and ignores a non-numeric platform gross, where the old inline copy kept the float sum: the two agree to the cent on every stored figure. `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted). Test: `platform-payment-reconciliation-wiring`.
 71. **Automatic platform intakes keep working, behind one versioned port.** _(Code check 2026-11-11.)_
     - **What exists.**
       - **booking-intake** (SDK `^2.15.0`), **airbnb-intake** and **gites-de-france-intake** (`^2.21.0`) write

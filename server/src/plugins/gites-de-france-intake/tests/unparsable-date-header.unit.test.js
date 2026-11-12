@@ -42,7 +42,7 @@ function service(db, Imap, smtp) {
     propertyOptions: () => [],
     getReservation: () => ({ ...PH, options: [] }),
     today: () => '2026-10-15',
-    core: { updateReservation: () => ({ status: 200, clientId: 1, body: { ok: true } }), suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }) },
+    core: { platformCommission: (figures) => require('../../../utils/platformCommission').commissionOf(figures), updateReservation: () => ({ status: 200, clientId: 1, body: { ok: true } }), suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }) },
   });
 }
 
@@ -72,7 +72,7 @@ test('rule 34: a mail that makes the intake step throw is remembered as ignored 
   const insert = model.insert;
   let thrown = false;
   const Throwing = imap(mails);
-  const throwing = createIntakeService({ ...{}, intakes: { ...model, insert: (row) => { if (row.messageId === '<boom@x>' && !thrown) { thrown = true; throw new Error('db busy'); } return insert(row); } }, parserVersion: '1.4.7', now: () => NOW, settings: { mailbox: () => ({ host: 'imap.x', port: 993, user: 'u', password: 'p' }), sender: () => 'resa@gdf07.com', authentication: () => ({ allowedDomains: 'gdf07.com', trustedAuthservId: '' }), giteNumbers: () => ({ 1: '309700' }), autoApply: () => true }, readMails: (cfg, h) => readMailsFrom({ ...cfg, ...h, ImapClient: Throwing, smtpHostOf: () => 'ssl0.ovh.net', now: NOW }), findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => ({ ...PH, options: [] }), today: () => '2026-10-15', core: { updateReservation: () => ({ status: 200, clientId: 1, body: {} }), suggestBeds: () => ({}) } });
+  const throwing = createIntakeService({ ...{}, intakes: { ...model, insert: (row) => { if (row.messageId === '<boom@x>' && !thrown) { thrown = true; throw new Error('db busy'); } return insert(row); } }, parserVersion: '1.4.7', now: () => NOW, settings: { mailbox: () => ({ host: 'imap.x', port: 993, user: 'u', password: 'p' }), sender: () => 'resa@gdf07.com', authentication: () => ({ allowedDomains: 'gdf07.com', trustedAuthservId: '' }), giteNumbers: () => ({ 1: '309700' }), autoApply: () => true }, readMails: (cfg, h) => readMailsFrom({ ...cfg, ...h, ImapClient: Throwing, smtpHostOf: () => 'ssl0.ovh.net', now: NOW }), findReservations: () => [], commissionPercent: () => 10, propertyOptions: () => [], getReservation: () => ({ ...PH, options: [] }), today: () => '2026-10-15', core: { platformCommission: (figures) => require('../../../utils/platformCommission').commissionOf(figures), updateReservation: () => ({ status: 200, clientId: 1, body: {} }), suggestBeds: () => ({}) } });
   await throwing.runPass();
   const row = db.prepare("SELECT status, error FROM gdf_intakes WHERE messageId = '<boom@x>'").get();
   assert.equal(row.status, 'ignored');
@@ -97,7 +97,7 @@ test('rule 34: a verified genuine mail whose insert fails once with SQLITE_BUSY 
     propertyOptions: () => [],
     getReservation: () => ({ ...PH, options: [] }),
     today: () => '2026-10-15',
-    core: { updateReservation: () => ({ status: 200, clientId: 1, body: { ok: true } }), suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }) },
+    core: { platformCommission: (figures) => require('../../../utils/platformCommission').commissionOf(figures), updateReservation: () => ({ status: 200, clientId: 1, body: { ok: true } }), suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }) },
   });
   await build().runPass();
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM gdf_intakes').get().n, 0, 'nothing stored: the mail stays unseen');

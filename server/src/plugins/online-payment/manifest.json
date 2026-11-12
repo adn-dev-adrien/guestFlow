@@ -162,6 +162,7 @@
     ],
     "1.7.7": [
       "Les arrondis en euros et en centimes passent par un calcul commun : aucun montant ne change.",
+      "Le rapprochement bancaire lit les montants d'une plateforme dans le calcul commun du cœur : aucun montant ne change.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }

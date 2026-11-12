@@ -23,6 +23,7 @@ const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
 const { METHODS: TENDER_METHODS, methodLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
 const { roundedToCents: cents } = require('./pricing/money');
+const { netOfCommission } = require('./pricing/platformPayment');
 
 const NBSP = ' ';
 
@@ -428,7 +429,7 @@ function buildLedger({
       const others = otherOpenLinks(links, 'deposit', shown).map((l) => linkDetail(l, { stayYear, due: false, canRequest, canWithdraw, providerLabel, settleContext }));
       if (others.length > 0) detail.otherLinks = others;
       if (isPlatform && acompteCommission > 0) {
-        detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(depositAmount - acompteCommission)}`;
+        detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(netOfCommission({ amount: depositAmount, commission: acompteCommission }))}`;
       }
       let base;
       if (paid.deposit) {

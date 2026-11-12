@@ -68,7 +68,7 @@ function createIntakeService(deps) {
       platformGrossAmount: round2(rent + booking.optionsTotal + booking.touristTax),
       platformTouristTaxAmount: booking.touristTax,
       platformPayoutAmount: booking.totalNet,
-      platformCommissionAmount: round2(rent - booking.netRent),
+      platformCommissionAmount: core.platformCommission({ basis: 'rentOnly', rent, netRent: booking.netRent }),
     };
   }
 
@@ -285,7 +285,7 @@ function createIntakeService(deps) {
       senderUnverified: !intake.senderVerified,
       reason: intake.status === 'proposed' ? intake.error : null,
       netRent: booking.netRent,
-      rentCandidates: rents.map((rent) => ({ rent, commission: round2(rent - booking.netRent) })),
+      rentCandidates: rents.map((rent) => ({ rent, commission: core.platformCommission({ basis: 'rentOnly', rent, netRent: booking.netRent }) })),
       customLines: (booking.supplements || [])
         .filter((s) => !(cleaning && /ménage/i.test(s.label) && Number(cleaning.price) === s.amount))
         .map((s) => ({ label: s.label, amount: s.amount })),

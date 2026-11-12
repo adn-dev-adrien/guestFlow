@@ -48,7 +48,7 @@ async function pass(headers) {
     propertyOptions: () => [],
     getReservation: () => ({ ...PLACEHOLDER, options: [] }),
     today: () => '2026-10-15',
-    core: { updateReservation: (id) => { updates.push(id); return { status: 200, clientId: 1, body: { ok: true } }; }, suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }) },
+    core: { platformCommission: (figures) => require('../../../utils/platformCommission').commissionOf(figures), updateReservation: (id) => { updates.push(id); return { status: 200, clientId: 1, body: { ok: true } }; }, suggestBeds: () => ({ singleBeds: 2, doubleBeds: 4 }) },
   });
   await service.runPass();
   return { row: db.prepare('SELECT status, senderVerified FROM gdf_intakes').get(), updates };
