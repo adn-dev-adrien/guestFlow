@@ -8,6 +8,7 @@
  */
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
+const { syncStay: syncAllocations } = require('../utils/paymentAllocationsSync');
 const { usableNumber } = require('../utils/lineInputBounds');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
@@ -2127,6 +2128,9 @@ function createReservationsModel(database) {
 
     updatePaymentField(sql, ...params) {
       database.prepare(sql).run(...params);
+      // Rule 74 — the id is the last parameter of every payment statement; the allocations follow the write.
+      const id = params[params.length - 1];
+      if (/^\s*UPDATE\s+reservations\b/i.test(sql) && Number.isInteger(Number(id))) syncAllocations(database, id);
     },
 
     remove(reservationId) {

@@ -17,6 +17,7 @@
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const toCents = (n) => Math.round(round2(n) * 100);
 const fmt = (n) => require('./reservationLedger').formatEuros(n);
+const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 
 /**
  * What a link of `type` would be minted for today on this stored row (or engine quote) — the figures
@@ -245,6 +246,7 @@ function bookPaidAfterAmountChange({ database, recordPayment, reservationsModel 
     model.releaseComplementBucket(row.id);
     model.captureArrivalExtrasBaseline(row.id);
     stampComplementPaidSplit(database, row.id);
+    syncAllocations(database, row.id);
     model.addHistoryEntry(row.id, 'update', [{
       field: 'complementPaid', label: "Complément d'arrivée", from: `${fmt(row.complementAmount)} à percevoir`,
       to: `${fmt(paidAmount)} perçus (payé par un lien retiré)`,

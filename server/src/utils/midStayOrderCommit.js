@@ -39,6 +39,7 @@
 const { toUpdateBody } = require('./reservationUpdateBody');
 const { storedMidStayLines, parseNotes } = require('./midStayExtras');
 const { normalizeOccurrences } = require('./cardOccurrences');
+const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
@@ -250,6 +251,7 @@ function settlePaid(id, byKey, { source, ref, amountCents, paidDate, reference }
       ? { ...n, ...(paidDate ? { paidDate } : {}), source: String(source), ref: String(ref), ...(reference ? { reference: String(reference) } : {}) }
       : n));
   db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(notes), id);
+  syncAllocations(db, id);
   return { settledCents: Math.round(round2(note.total) * 100), excessCents: Math.round(left * 100) };
 }
 

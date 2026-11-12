@@ -55,6 +55,13 @@ const silent = console.log;
 console.log = () => {};
 const server = (relative) => require(path.join(root, 'server/src', relative));
 const db = server('database.js');
+// What `index.js` does once the application is up (rules 74 and 78): the nettings and the stay-level allocations.
+{
+  const lines = server('utils/pricingLinesMigration.js');
+  lines.backfillRefundNettings(db);
+  lines.backfillStayLevelAllocations(db);
+  server('utils/paymentAllocationsSync.js').flushDirty(db);
+}
 const { capture, canonical, sha } = server('tests/vatRegimeGoldenCapture.js');
 const { optionalPlugin } = server('plugins/sdk/testing.js');
 const { figuresOfStay, fakeRes, recomputeResourceBookings } = require(path.join(root, 'scripts/price-gate/recompute.js'));

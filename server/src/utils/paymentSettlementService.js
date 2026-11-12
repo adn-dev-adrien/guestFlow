@@ -20,6 +20,7 @@ const { parseGroup, serialiseGroup } = require('./arrivalPaymentGroup');
 const { parseNotes } = require('./midStayExtras');
 const { comptaCollected } = require('./reservationSettlement');
 const { validateCollectionDate } = require('./arrivalPaymentDate');
+const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 
 const BUCKETS = ['deposit', 'balance', 'complement', 'endOfStayComplement'];
 const BUCKET_LABEL = {
@@ -266,6 +267,7 @@ function moveTargetDate(reservationId, settlement, date) {
     db.prepare('UPDATE reservation_installments SET paidDate = ? WHERE id = ? AND reservationId = ?')
       .run(date, Number(settlement.targetKey), Number(reservationId));
   }
+  syncAllocations(db, reservationId);
 }
 
 // What a recorded settlement paid, as `prepare` judges a target.

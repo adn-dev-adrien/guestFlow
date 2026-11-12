@@ -12,8 +12,20 @@
 
 const db = require('../database');
 const { isOffBooks, isRetainedDeposit } = require('../utils/refunds');
+const { syncStay: syncAllocations, lineRefsByKey } = require('../utils/paymentAllocationsSync');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+// S3 — what a line is and which revenue bucket it lands on (the same reading the migration backfills).
+function refundLineColumns(line) {
+  const key = line.lineKey || null;
+  if (line.bucket === 'indemnity') {
+    const revenueBucket = key === 'accommodation' ? 'accommodation' : key === 'touristTax' ? 'touristTax'
+      : key === null ? null : String(key).startsWith('res:') ? 'resources' : 'options';
+    return { source: 'indemnity', revenueBucket };
+  }
+  return { source: key === 'commission' ? 'commission' : 'sale', revenueBucket: line.bucket };
+}
 
 function createRefundsModel(database) {
   // Statements are prepared LAZILY (memoized on first use): several accounting/finance unit tests
@@ -36,27 +48,58 @@ function createRefundsModel(database) {
     WHERE refundId = ?
     ORDER BY id
   `);
-  const insertHeader = () => prep(`
+  // The columns of the refund tables PR B added (rule 72): a minimal test schema predates them.
+  let wide = null;
+  const hasWideSchema = () => {
+    if (wide == null) {
+      const header = new Set(database.prepare('PRAGMA table_info(reservation_refunds)').all().map((c) => c.name));
+      wide = header.has('kind') && header.has('origin') && header.has('amountCents') && header.has('providerRefundRef');
+    }
+    return wide;
+  };
+  const insertHeader = () => (hasWideSchema() ? prep(`
+    INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason, afterCancellation, kind, origin, amountCents, providerRefundRef)
+    VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason,
+            (SELECT CASE WHEN kind = 'cancelled' THEN 1 ELSE 0 END FROM reservations WHERE id = @reservationId),
+            @kind, @origin, @amountCents, @providerRefundRef)
+  `) : prep(`
     INSERT INTO reservation_refunds (reservationId, refundDate, method, totalTtc, reason, afterCancellation)
     VALUES (@reservationId, @refundDate, @method, @totalTtc, @reason,
             (SELECT CASE WHEN kind = 'cancelled' THEN 1 ELSE 0 END FROM reservations WHERE id = @reservationId))
-  `);
-  const insertLine = () => prep(`
+  `));
+  const insertLine = () => (hasWideSchema() ? prep(`
+    INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate, amountCents, source, revenueBucket, lineRef)
+    VALUES (@refundId, @lineKey, @label, @bucket, @quantity, @unitPrice, @amountTtc, @vatRate, @amountCents, @source, @revenueBucket, @lineRef)
+  `) : prep(`
     INSERT INTO reservation_refund_lines (refundId, lineKey, label, bucket, quantity, unitPrice, amountTtc, vatRate)
     VALUES (@refundId, @lineKey, @label, @bucket, @quantity, @unitPrice, @amountTtc, @vatRate)
-  `);
+  `));
 
   let createTx = null;
   function insertRefund(reservationId, refund) {
+    const requalification = isRetainedDeposit(refund.method);
+    const wideHeader = hasWideSchema() ? {
+      kind: requalification ? 'requalification' : 'refund',
+      origin: refund.origin || (requalification ? 'cancellation' : 'operator'),
+      amountCents: Math.round(round2(refund.totalTtc) * 100),
+      providerRefundRef: refund.providerRefundRef || null,
+    } : {};
     const info = insertHeader().run({
       reservationId,
       refundDate: refund.refundDate,
       method: refund.method,
       totalTtc: round2(refund.totalTtc),
       reason: refund.reason || '',
+      ...wideHeader,
     });
     const refundId = Number(info.lastInsertRowid);
+    const refs = hasWideSchema() ? lineRefsByKey(database, reservationId) : null;
     for (const line of refund.lines) {
+      const wideLine = refs ? {
+        amountCents: Math.round(round2(line.amountTtc) * 100),
+        ...refundLineColumns(line),
+        lineRef: (line.lineKey && refs.get(line.lineKey)) || null,
+      } : {};
       insertLine().run({
         refundId,
         lineKey: line.lineKey || null,
@@ -66,8 +109,11 @@ function createRefundsModel(database) {
         unitPrice: line.unitPrice == null ? null : round2(line.unitPrice),
         amountTtc: round2(line.amountTtc),
         vatRate: Number(line.vatRate || 0),
+        ...wideLine,
       });
     }
+    // Rule 74 — the refund is a negative allocation, written with it.
+    syncAllocations(database, reservationId);
     return refundId;
   }
 
@@ -102,6 +148,7 @@ function createRefundsModel(database) {
     remove(reservationId, refundId) {
       const info = prep('DELETE FROM reservation_refunds WHERE id = ? AND reservationId = ?')
         .run(refundId, reservationId);
+      if (info.changes > 0) syncAllocations(database, reservationId);
       return info.changes > 0;
     },
 

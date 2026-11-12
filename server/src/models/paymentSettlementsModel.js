@@ -28,6 +28,7 @@
  */
 
 const { parseParts, reservationAggregates, currentCentsOf } = require('../utils/paymentTenders');
+const { syncStay: syncAllocations } = require('../utils/paymentAllocationsSync');
 const { parseGroup } = require('../utils/arrivalPaymentGroup');
 const { parseNotes } = require('../utils/midStayExtras');
 
@@ -175,6 +176,8 @@ function buildModel(database) {
         }
       }
       if (row) refreshAggregates(reservationId, row, kept);
+      // Rule 74 — the payment allocations follow every write that can move a payment (this `sync` runs after each of them).
+      syncAllocations(database, reservationId);
     })();
     return { removed };
   }

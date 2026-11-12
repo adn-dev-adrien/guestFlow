@@ -5,7 +5,8 @@
  * A payment is split over the lines it covered only where the stay kept that truth:
  *
  *   deposit / balance      the contribs captured at the flip (line columns, the stay's accommodation and tax columns,
- *                          the contribs of paid lines since removed), when they add up to the bucket
+ *                          the contribs of paid lines since removed), when they add up to the bucket or exceed it (a bucket
+ *                          lowered after it was paid: the capture is what the guest paid)
  *   complement             the frozen split (`complementPaidSplit`), when its lines add up to its options and resources
  *   end of stay            the detail lines, when they add up to the amount
  *   mid-stay note          the note's lines, when they add up to its total
@@ -91,7 +92,9 @@ function legacyAllocations({
     if (!paid(kind) || coveredBuckets.has(kind)) continue;
     const held = [...lines, ...removed];
     const described = cents(nz(row[accommodationColumn]) + nz(row[taxColumn]) + held.reduce((sum, line) => sum + nz(line[contribColumn]), 0));
-    if (Math.abs(described - cents(row[BUCKETS[kind].amount])) > TOLERANCE_CENTS) continue;
+    // A bucket lowered after it was paid keeps the contribs it captured: they describe what the guest paid, which is more than
+    // the bucket now says (rule 34). Only a capture SHORT of the bucket is no truth (the stay-level row takes the bucket).
+    if (described < cents(row[BUCKETS[kind].amount]) - TOLERANCE_CENTS) continue;
     const spec = BUCKETS[kind];
     const books = Number(row[spec.cash]) === 1 ? 0 : 1;
     const ref = `bucket:${kind}`;

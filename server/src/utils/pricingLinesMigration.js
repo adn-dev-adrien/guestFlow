@@ -23,11 +23,9 @@
  */
 const { toCents: cents } = require('./pricing/money');
 const { legacyCollectAt } = require('./pricing/legacyCollectAt');
-const { legacyAllocations } = require('./pricing/legacyAllocations');
-const { extraLineKey, parseNotes, parseDetail } = require('./pricing/storedLines');
+const { paymentRowsOfStay, ensureTriggers, lineRefsByKey } = require('./paymentAllocationsSync');
+const { extraLineKey } = require('./pricing/storedLines');
 const { makeArticle } = require('./pricing/articles');
-const { readComplementPaidSplit } = require('./complementPaidSplit');
-const { parseRemovedLineContribs } = require('./removedLineContribs');
 
 const quoted = (name) => `"${name}"`;
 
@@ -264,17 +262,8 @@ function backfillRefundLineRefs(db) {
   const update = db.prepare('UPDATE reservation_refund_lines SET lineRef = ? WHERE id = ? AND lineRef IS NULL');
   const refsOf = new Map();
   const refsFor = (reservationId) => {
-    if (refsOf.has(reservationId)) return refsOf.get(reservationId);
-    const byKey = new Map();
-    const push = (key, ref) => { if (key) byKey.set(key, byKey.has(key) ? null : ref); };
-    for (const row of db.prepare('SELECT lineId, optionId FROM reservation_options WHERE reservationId = ?').all(reservationId)) push(`opt:${row.optionId}`, `line:reservation_options:${row.lineId}`);
-    for (const row of db.prepare('SELECT lineId, resourceId FROM reservation_resources WHERE reservationId = ?').all(reservationId)) push(`res:${row.resourceId}`, `line:reservation_resources:${row.lineId}`);
-    for (const row of db.prepare('SELECT lineId, description FROM reservation_custom_options WHERE reservationId = ?').all(reservationId)) push(extraLineKey({ isCustom: true, description: row.description }), `line:reservation_custom_options:${row.lineId}`);
-    if (hasTable(db, 'reservation_stay_lines')) {
-      for (const row of db.prepare('SELECT id, kind FROM reservation_stay_lines WHERE reservationId = ?').all(reservationId)) push(row.kind, `line:reservation_stay_lines:${row.id}`);
-    }
-    refsOf.set(reservationId, byKey);
-    return byKey;
+    if (!refsOf.has(reservationId)) refsOf.set(reservationId, lineRefsByKey(db, reservationId));
+    return refsOf.get(reservationId);
   };
   let changed = 0;
   for (const line of lines) {
@@ -337,43 +326,13 @@ function backfillObligations(db) {
 function backfillAllocations(db, { stayLevel = false } = {}) {
   if (!hasTable(db, 'payment_allocations') || !hasColumns(db, 'reservations', ['kind'])) return 0;
   const stays = db.prepare("SELECT * FROM reservations WHERE kind IN ('reservation', 'cancelled')").all();
-  const has = (name) => hasTable(db, name);
   const existing = db.prepare("SELECT 1 FROM payment_allocations WHERE documentRef = ? AND paymentRef = ? AND kind = 'payment' LIMIT 1");
   const insert = db.prepare(`INSERT OR IGNORE INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, refundId, books, origin)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'backfill')`);
   let changed = 0;
   for (const stay of stays) {
     const documentRef = `reservation:${stay.id}`;
-    const lines = [
-      ...db.prepare('SELECT lineId, optionId, acompteContribTtc, soldeContribTtc FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)
-        .map((r) => ({ ref: `line:reservation_options:${r.lineId}`, key: `opt:${r.optionId}`, ...r })),
-      ...db.prepare('SELECT lineId, resourceId, acompteContribTtc, soldeContribTtc FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)
-        .map((r) => ({ ref: `line:reservation_resources:${r.lineId}`, key: `res:${r.resourceId}`, ...r })),
-      ...db.prepare('SELECT lineId, description, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)
-        .map((r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), ...r })),
-    ];
-    const stayLines = { accommodation: null, touristTax: null };
-    if (has('reservation_stay_lines')) {
-      for (const row of db.prepare('SELECT id, kind FROM reservation_stay_lines WHERE reservationId = ?').all(stay.id)) stayLines[row.kind] = `line:reservation_stay_lines:${row.id}`;
-    }
-    const rows = legacyAllocations({
-      reservation: stay,
-      lines,
-      stayLines,
-      removed: parseRemovedLineContribs(stay.removedLineContribs),
-      complementSplit: readComplementPaidSplit(stay),
-      endOfStayDetail: parseDetail(stay.endOfStayComplementDetail),
-      notes: parseNotes(stay.midStaySettledNotes),
-      installments: has('reservation_installments')
-        ? db.prepare('SELECT id, paid, paidDate, amountCents, paidSplit FROM reservation_installments WHERE reservationId = ?').all(stay.id).map((r) => ({ ...r, paidSplit: parseJson(r.paidSplit) })) : [],
-      settlements: has('payment_settlements')
-        ? db.prepare('SELECT * FROM payment_settlements WHERE reservationId = ?').all(stay.id).map((s) => ({
-          ...s,
-          parts: parseJson(s.parts) || [],
-          tenders: has('payment_tenders') ? db.prepare('SELECT amountCents, internal FROM payment_tenders WHERE settlementId = ?').all(s.id) : [],
-        })) : [],
-      stayLevel: stayLevel ? { taxRoutedToComplement: taxRoutedToComplement(db, stay) } : null,
-    });
+    const rows = paymentRowsOfStay(db, stay, { stayLevel });
     // A payment already allocated (by an earlier run, or by the application itself) is never written twice.
     const fresh = [...new Set(rows.map((row) => row.paymentRef))].filter((paymentRef) => !existing.get(documentRef, paymentRef));
     for (const row of rows.filter((r) => fresh.includes(r.paymentRef))) {
@@ -382,15 +341,6 @@ function backfillAllocations(db, { stayLevel = false } = {}) {
   }
   if (!stayLevel) changed += backfillRefundAllocations(db);
   return changed;
-}
-
-// Whether the legacy books route the stay's tourist tax to the arrival complement: collected by us on arrival (the platform's
-// own mode says it does not collect the tax) or forced there. Read from the platform's mode, never from its name.
-function taxRoutedToComplement(db, stay) {
-  const { resolveGlobalPlatformTaxRow } = require('../models/pricingInputModel');
-  const mode = resolveGlobalPlatformTaxRow(db, stay.platform);
-  const collectedOnArrival = Number(stay.touristTaxTotal || 0) > 0 && mode != null && Number(mode.c) === 0;
-  return collectedOnArrival || Number(stay.touristTaxInComplement || 0) === 1;
 }
 
 /**
@@ -428,6 +378,7 @@ function runPricingLinesMigration(db) {
   changes.lineIds = numberLines(db);
   changes.columns = addColumns(db);
   if (hasTable(db, 'reservations')) for (const statement of TABLES) db.exec(statement);
+  ensureTriggers(db);
   db.transaction(() => {
     changes.lineColumns = backfillLineColumns(db);
     changes.stayLines = backfillStayLines(db);

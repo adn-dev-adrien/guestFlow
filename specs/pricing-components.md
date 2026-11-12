@@ -1174,6 +1174,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       standalone sale on the « Passage » client.
     > **Delivered by PR B** (commit `feat(db)` stay-level allocations): the backfill of the buckets, notes and installments without
     > per-line truth (`pricing-allocations-backfill` checks Σ allocations = the paid bucket on every stay of the price-gate fixture).
+    > **Delivered by PR B** (commit `feat(db)` live allocations): every path that moves money rebuilds the stay's rows in its own
+    > transaction (`utils/paymentAllocationsSync.js`, the function the backfill runs, reconciled by key so a row keeps its id and
+    > its `origin`), and the refund model writes the PR B columns of a refund with its negative rows. A trigger-fed table
+    > (`payment_allocations_dirty`) marks any stay a statement changed behind the hooks and the reader flushes it first, so a missed
+    > path is late, never wrong (`pricing-allocations-live`). A bucket lowered after it was paid keeps the contribs it captured as
+    > its allocation: they are what the guest paid (rule 34).
     > **Pending** — PR B
 
 ### 3.R Rules added 2026-11-12 (PR B, owner decisions Q16)
