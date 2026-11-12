@@ -91,4 +91,11 @@ const stayQuote = buildPipeline(
   { initial: ['input'] },
 );
 
-module.exports = { stayQuote };
+// The tourist-tax slice of `stayQuote` (rule 3): the steps TOURIST TAX needs, stopping where it has provided. The report of the
+// tax a platform remits itself reads its figures here instead of replaying the whole quote.
+const touristTaxFigure = buildPipeline(
+  [loadStay, clock, nights, extraGuests, discountLevers, extras, midStay, platformGross, touristTax],
+  { initial: ['input'] },
+);
+
+module.exports = { stayQuote, touristTaxFigure };

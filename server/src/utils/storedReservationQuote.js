@@ -14,19 +14,28 @@
  * `buildReservationEngineInput` and NOT through this module: the processor must never re-enter itself.
  */
 const { isDeepStrictEqual } = require('node:util');
-const { calculateReservationQuote } = require('./pricing');
+const { calculateReservationQuote, calculateTouristTaxFigure } = require('./pricing');
 const { buildReservationEngineInput } = require('./reservationEngineInput');
 const quotePostProcessors = require('./quotePostProcessors');
 const { midStayQuoteInputs, resolvePlatformTakesDeposit, resolvePlatformPayoutDueDays } = require('./reservationQuoteContext');
 
-function quoteStoredReservation(db, reservation, overrides = {}) {
-  const engineInput = {
+function storedEngineInput(db, reservation, overrides = {}) {
+  return {
     ...buildReservationEngineInput(db, reservation),
     platformTakesDeposit: resolvePlatformTakesDeposit(reservation.platform),
     platformPayoutDueDays: resolvePlatformPayoutDueDays(reservation.platform),
     ...midStayQuoteInputs(db, reservation.id),
     ...overrides,
   };
+}
+
+// The tax figures a stored stay shows (`touristTaxOriginalTotal`, `platformTouristTaxWithheld`), from the TOURIST TAX slice.
+function touristTaxFigureOfStoredReservation(db, reservation, overrides = {}) {
+  return calculateTouristTaxFigure(storedEngineInput(db, reservation, overrides));
+}
+
+function quoteStoredReservation(db, reservation, overrides = {}) {
+  const engineInput = storedEngineInput(db, reservation, overrides);
   const quote = calculateReservationQuote(engineInput);
   if (!quote || quote.error) return quote;
   return quotePostProcessors.applySync({ engineInput, quote, calculate: calculateReservationQuote });
@@ -105,4 +114,6 @@ function pinStoredPricing(quote, stored) {
   return pinned;
 }
 
-module.exports = { quoteStoredReservation, pricingUnchangedFromStored, pinStoredPricing };
+module.exports = {
+  quoteStoredReservation, touristTaxFigureOfStoredReservation, pricingUnchangedFromStored, pinStoredPricing,
+};

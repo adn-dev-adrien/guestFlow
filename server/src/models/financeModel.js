@@ -9,7 +9,8 @@ const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
 const { getMonthBounds } = require('../utils/financeCalcs');
-const { htOfPortion } = require('../utils/pricing/vat');
+const { htOfPortion, netFirst } = require('../utils/pricing/vat');
+const { personNights, unitFromTotal } = require('../utils/pricing/touristTax');
 
 // The column of the platform penalties (specs/reconciliation-assisted-matching.md rule 27). Named in an
 // explicit column list, so a hand-built reservations table of a unit suite without it still reads 0.
@@ -1263,7 +1264,7 @@ function createFinanceModel(database) {
             // accommodation the guest was charged, HT.
             accommodationAmount: isPercentageMode
               ? round2(Number(quote.touristTaxBaseHt || 0))
-              : round2(Number(quote.totalPrice || 0) / (1 + (Number(quote.vatPercentageAccommodation || 0) / 100))),
+              : netFirst(Number(quote.totalPrice || 0), Number(quote.vatPercentageAccommodation || 0)).net,
             // What the rate covered and therefore left the BASE. Zero outside percentage mode, where
             // there is no base for it to leave: the engine still computes it, it just plays no part.
             includedServicesDeduction: isPercentageMode
@@ -1308,8 +1309,8 @@ function createFinanceModel(database) {
             adults: noGuestAdded ? null : addedAdults,
             children: noGuestAdded ? null : 0,
             nightsCount: declaredNights,
-            adultNights: addedAdults * declaredNights,
-            taxRate: noGuestAdded ? null : round2(addedTax / (addedAdults * nightsCount)),
+            adultNights: personNights(addedAdults, declaredNights),
+            taxRate: noGuestAdded ? null : round2(unitFromTotal(addedTax, nightsCount, addedAdults)),
             taxAmount: declaredTaxAmount,
             refundedTaxNights,
             refundedTaxAmount: round2(addedTax - declaredTaxAmount),

@@ -16,6 +16,8 @@ const {
 } = require("./devisHelpers");
 const { labels } = require("./devisPdfLabels");
 const { isDirectChannel } = require("./platformNameFormat");
+const { netFirst } = require("./pricing/vat");
+const { unitFromTotal } = require("./pricing/touristTax");
 const { readableLogo } = require("./logoImage");
 const { DEFAULT_RATE: DEFAULT_VAT_RATE } = require("../models/vatRegimeModel");
 
@@ -607,7 +609,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
 
     if (showOriginal) {
       const originalHt = rate > 0
-        ? roundMoney(originalTtc / (1 + (rate / 100)))
+        ? netFirst(originalTtc, rate).net
         : roundMoney(originalTtc);
       if (!notSubject) drawStruckAmount(formatCurrency(originalHt), COL_HT, PAGE_W * 0.16 - RIGHT_PAD, lineY);
       drawStruckAmount(formatCurrency(originalTtc), COL_TOTAL, PAGE_W * 0.14 - RIGHT_PAD, lineY);
@@ -873,7 +875,7 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
       // fixed-amount + department tax + capping into a single coherent number.
       const taxUnitAmount = engineBreakdown
         ? Number(quote.touristTaxUnitAmount || 0)
-        : roundMoney(liveTaxTotal / (taxablePersons * taxNights));
+        : roundMoney(unitFromTotal(liveTaxTotal, taxNights, taxablePersons));
       const taxDetail = L.touristTaxBreakdown(taxablePersons, taxNights, formatCurrency(taxUnitAmount));
       doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.italic)
         .text(taxDetail, TOTAL_RX, totY - 4, { width: TOTAL_LW - RIGHT_PAD, align: 'right' });
@@ -1111,7 +1113,7 @@ function resolveDevisDates(full, settings) {
 // HT of one table row: its TTC net of the line's VAT, rounded like the column prints it.
 function rowHt(totalTtc, vatRate) {
   const rate = Number(vatRate || 0);
-  return rate > 0 ? roundMoney(Number(totalTtc || 0) / (1 + (rate / 100))) : roundMoney(Number(totalTtc || 0));
+  return rate > 0 ? netFirst(Number(totalTtc || 0), rate).net : roundMoney(Number(totalTtc || 0));
 }
 
 module.exports = {

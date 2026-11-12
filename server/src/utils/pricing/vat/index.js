@@ -52,6 +52,11 @@ function netFirst(total, rate) {
   return { amount: roundMoney(total - net), net };
 }
 
+// Strategy « TTC from net »: the gross of a net amount at a rate (a frozen HT base read back as the TTC nightly price).
+function ttcFromNet(net, rate) {
+  return roundMoney(net * (1 + rate / 100));
+}
+
 // Strategy « HT share »: the HT of a TTC portion of a stay is the portion times the HT fraction of the stay's whole TTC
 // (the VAT-able price over the VAT-able price plus the tourist tax, the tax bearing no VAT).
 function htOfPortion({
@@ -149,6 +154,7 @@ module.exports = {
   resolveRate,
   splitTtc,
   netFirst,
+  ttcFromNet,
   htOfPortion,
   rateToBasis,
   lineTotalCents,

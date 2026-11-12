@@ -117,7 +117,8 @@ const GUARDS = [
   },
   {
     name: 'families',
-    isHome: (file) => file.startsWith('utils/pricing/articles/'),
+    // The person × night arithmetic of the tourist tax is TOURIST TAX's own (rule 3): its `personNights` and `unitFromTotal`.
+    isHome: (file) => file.startsWith('utils/pricing/articles/') || file === 'utils/pricing/touristTax.js',
     rules: [
       { re: /\bgetTypeMultiplier\b/, probe: 'const multiplier = getTypeMultiplier(priceType, persons, nights);' },
       { re: /\b(persons|guests|nbPersons)\s*\*\s*(nights|nbNights)\b|\b(nights|nbNights)\s*\*\s*(persons|guests|nbPersons)\b/, probe: ['const units = nights * persons;', 'const units = persons * nights;'] },

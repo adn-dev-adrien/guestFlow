@@ -30,7 +30,13 @@ test('rule 52: stayQuote is built and runs loadStay → clock → nights → ext
 
 test('rule 52: every step file is in stayQuote and none builds a sale use case (ficheSale, sasSale, shopSale, externalSale are not in PR A)', () => {
   assert.deepEqual([...stayQuote.steps].sort(), [...stepFiles].sort());
-  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote']);
+  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote', 'touristTaxFigure']);
+});
+
+test('rule 3: the tourist-tax slice is the head of stayQuote up to the TOURIST TAX step, nothing else', () => {
+  const { touristTaxFigure } = require('../utils/pricing/pipelines');
+  const upTo = stayQuote.steps.indexOf('touristTax');
+  assert.deepEqual([...touristTaxFigure.steps], [...stayQuote.steps].slice(0, upTo + 1));
 });
 
 test('rule 52: the QuoteContext typedef names every key a step provides', () => {

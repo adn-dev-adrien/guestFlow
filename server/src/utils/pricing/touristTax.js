@@ -7,7 +7,9 @@
  * The French money / percentage formatters it phrases with are exported for the captions of the same quote.
  * `resolveTaxBase({...})` derives the base the tax is computed on (the accommodation paid, less the services the rate
  * already covers and the extra-guest surcharge of a platform brut); `sumIncludedServicesDeduction(lines)` is the value of
- * those services, from lines whose `units` the caller resolved.
+ * those services, from lines whose `units` the caller resolved. `personNights(persons, nights)` and
+ * `unitFromTotal(total, nights, persons)` are the person × night arithmetic of the tax: every reader of the tax (the
+ * report, the freeze, the finance view, the devis PDF) calls them instead of multiplying again (rule 66).
  *
  * Pure: no DB, no clock, no settings; knows nothing of extras or payments. Whether a platform collects or remits the
  * tax is decided here from the platform's stored mode (`platformCollectsTouristTax`, `touristTaxRemittedByOwner`); the
@@ -16,6 +18,17 @@
 const {
   roundMoney, NBSP, frenchNumber, frenchEuros, frenchPercent,
 } = require('./money');
+const { netFirst, ttcFromNet } = require('./vat');
+
+// The person-nights of a party over a stay.
+function personNights(persons, nights) {
+  return persons * nights;
+}
+
+// The unit amount (per person per night) a tax total comes from.
+function unitFromTotal(total, nights, persons) {
+  return total / (nights * persons);
+}
 
 function computeTouristTaxBreakdown({
   touristTaxMode,
@@ -46,7 +59,6 @@ function computeTouristTaxBreakdown({
 
   const accommodationReferenceTtc = Math.max(0, Number(accommodationAmountTtc || 0));
   const vatRate = Math.max(0, Number(accommodationVatRate || 0));
-  const vatDivisor = 1 + (vatRate / 100);
 
   // `Number(null)` is 0 and passes isFinite, so the null check has to come FIRST: a legacy frozen row
   // carries no base, and reading one as « 0 € » would declare a 0 € tax.
@@ -55,11 +67,9 @@ function computeTouristTaxBreakdown({
     : null;
   const averageNightPriceHt = frozenBaseHt != null
     ? (nightsCount > 0 ? roundMoney(frozenBaseHt / nightsCount) : 0)
-    : (vatDivisor > 0
-      ? roundMoney(roundMoney(nightsCount > 0 ? accommodationReferenceTtc / nightsCount : 0) / vatDivisor)
-      : roundMoney(nightsCount > 0 ? accommodationReferenceTtc / nightsCount : 0));
+    : netFirst(roundMoney(nightsCount > 0 ? accommodationReferenceTtc / nightsCount : 0), vatRate).net;
   const averageNightPriceTtc = frozenBaseHt != null
-    ? roundMoney(averageNightPriceHt * vatDivisor)
+    ? ttcFromNet(averageNightPriceHt, vatRate)
     : (nightsCount > 0 ? roundMoney(accommodationReferenceTtc / nightsCount) : 0);
   const perOccupantNightPriceHt = occupantsCount > 0
     ? roundMoney(averageNightPriceHt / occupantsCount)
@@ -240,6 +250,8 @@ module.exports = {
   sumIncludedServicesDeduction,
   resolveTaxBase,
   computeTouristTaxBreakdown,
+  personNights,
+  unitFromTotal,
   platformCollectsTouristTax,
   touristTaxRemittedByOwner,
   NBSP,

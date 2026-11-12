@@ -5,7 +5,7 @@
 
 const db = require('../database');
 const financeModel = require('./financeModel');
-const { quoteStoredReservation } = require('../utils/storedReservationQuote');
+const { touristTaxFigureOfStoredReservation } = require('../utils/storedReservationQuote');
 const { platformDisplayName } = require('../utils/attributionChannel');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { resolveTaxPeriod, periodChoices } = require('../utils/touristTaxPeriod');
@@ -68,9 +68,9 @@ function createTouristTaxReportModel(database, finance) {
         AND DATE(r.endDate, '-1 day') < ?
     `).all(start, endExclusive);
     return rows.map((r) => {
-      const quote = quoteStoredReservation(database, r) || {};
+      const figure = touristTaxFigureOfStoredReservation(database, r) || {};
       // The figure the fiche shows struck through: what the platform says it withheld, else the engine's estimate.
-      const amount = quote.platformTouristTaxWithheld != null ? quote.platformTouristTaxWithheld : quote.touristTaxOriginalTotal;
+      const amount = figure.platformTouristTaxWithheld != null ? figure.platformTouristTaxWithheld : figure.touristTaxOriginalTotal;
       return platformStayRow({
         reservationId: r.id,
         propertyId: r.propertyId,

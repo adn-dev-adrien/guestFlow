@@ -200,8 +200,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    _(Delivered by PR A: the unit holds the base (`resolveTaxBase`) and the included-services deduction
    (`sumIncludedServicesDeduction`), imports no extras, and runs in the pipeline after `platformGross` and before
    `platformPrice` and `discounts` (rule 52), because the engine computes it from the tariff's gross.)_
-   > **Pending** — PR B: the tourist-tax report and `financeCalcs` calling the unit directly (rule 64, row B), and the
-   > `collector`'s `'direct'` test read through the channel by id (`saleChannel(platform)` / `PlatformRepository`)
+   > **Delivered by PR B** (commit `refactor(tourist-tax)`, 0 diff): the person × night arithmetic is the unit's own
+   > (`personNights`, `unitFromTotal`) and the report, the freeze, the finance view, the devis PDF and
+   > `financeCalcs.computeTouristTaxAmount` call it; the report of the tax a platform remits itself reads its two figures
+   > (`touristTaxOriginalTotal`, `platformTouristTaxWithheld`) from the TOURIST TAX slice of the pipeline
+   > (`pipelines.touristTaxFigure`: the steps up to `touristTax`) instead of replaying the whole quote
+   > (`pricing-tourist-tax-figures` compares the slice with the full quote on every gate stay); `vatDivisor` is retired, the
+   > nightly price goes through `vat.netFirst` and `vat.ttcFromNet`.
+   > **Pending** — PR B: the `collector`'s `'direct'` test read through the channel by id (`saleChannel(platform)` / `PlatformRepository`)
    > instead of the platform name lookup, whose legacy defaults (collects = true, remits = false) differ on an unmatched
    > platform (PLAT O1; the same Pending stands under rule 70).
 4. **The engine becomes a composition.** `calculateReservationQuote(input)` survives as a thin wrapper over
@@ -839,8 +845,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     allow-list of rule 66.)_
     > **Delivered by PR B** (commit `refactor(accounting)`): the rows of `accountingModel.js`, `accountingExport.js`,
     > `synthesis.js`, the hourly sales read (`standaloneSalesByMonth`, a read model of the journal) and the refund entries.
-    > **Pending** — PR B: the tourist-tax report with `financeModel.js` l. 1266 (rule 3). PR C: `expectedReceipts` and
-    > `invoiceIssuer`.
+    > **Delivered by PR B** (commit `refactor(tourist-tax)`): the tourist-tax report and `financeModel.js` l. 1266 (accommodation
+    > net of VAT, through `vat.netFirst`), `devisPdf` ×2. **Pending** — PR C: `expectedReceipts` and `invoiceIssuer`.
 65. **No duplication: every formula exists once.** (owner: « toujours des petits composants simples et
     testables, sans dupliquer aucune logique ni ligne de code ».) A formula, a rate resolution, a rounding
     helper, a date comparison or a price grid has exactly one home; every other place calls it. The refonte
@@ -864,8 +870,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | Deferral of a complement | `isComplementDeferred`, `complementBuckets`, column read | SETTLEMENT | B |
     > **Delivered by PR B** (commit `refactor(accounting)`): the seven accounting-export net-first copies (five in the entry
     > builders, two in the CSV writer) call the VAT component (`netFirst`, `splitTtc`) and leave the `vat` allow-list; the
-    > exporters of `utils/accounting/exporters/` are inside the scope of the `exporters` guard. PR A removed the VAT copies
-    > listed above and the platform gross pin copy.
+    > exporters of `utils/accounting/exporters/` are inside the scope of the `exporters` guard. Commit `refactor(tourist-tax)`
+    > removes `devisPdf` ×2, `financeModel` l. 1266 and `touristTax.vatDivisor` the same way: the `vat` allow-list holds the two
+    > `invoiceIssuer` lines (PR C) and nothing else, and the `families` guard takes `utils/pricing/touristTax.js` as a second
+    > home (the tax's person × night arithmetic). PR A removed the VAT copies listed above and the platform gross pin copy.
     > **Pending** — PR B: merging `vat.netFirst` into `vat.splitTtc`. The two cuts are identical at 2.1, 5.5, 8.5 and 10 %
     > and distinct only at 20 %: the merge moves the 20 %-rated hourly bookings by a cent at most and ships with a listed diff.
 66. **Guards against re-introduction** (`server/src/tests/no-duplicate-formulas.unit.test.js`, static, part of

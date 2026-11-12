@@ -13,7 +13,12 @@
 const { roundMoney } = require('./money');
 const { extraGuestNightSeason } = require('./extraGuests');
 const { quoteHeadline, summaryCascade } = require('../quoteHeadline');
-const { stayQuote } = require('./pipelines');
+const { stayQuote, touristTaxFigure: touristTaxSlice } = require('./pipelines');
+
+// The engine's own estimate of the tax, and the amount the platform stated it withheld (null when none): the two figures the
+// fiche prints and the report of the platform's tax reads.
+const originalTouristTax = (touristTaxBreakdown) => Number(touristTaxBreakdown.touristTaxTotal || 0);
+const withheldTouristTax = ({ withheldTouristTaxEntered, withheldTouristTaxInBrut }) => (withheldTouristTaxEntered ? withheldTouristTaxInBrut : null);
 
 function shape(ctx) {
   const {
@@ -120,7 +125,7 @@ function shape(ctx) {
     balanceDueDate,
     baseAccommodationAdjustedPrice,
     ...touristTaxBreakdown,
-    touristTaxOriginalTotal: Number(touristTaxBreakdown.touristTaxTotal || 0),
+    touristTaxOriginalTotal: originalTouristTax(touristTaxBreakdown),
     touristTaxTotal,
     // specs/tariff-recipes/spec.md §3.2 rule 12bis — the tariff context this quote was built with,
     // ready to be stored on the reservation so a later edit replays it instead of today's recipe.
@@ -240,7 +245,7 @@ function shape(ctx) {
     // null when the box is empty / the mode isn't « collecte ET reverse ». Distinct from
     // `touristTaxOriginalTotal`, which stays the engine's OWN estimate: the fiche displays the
     // withheld one and falls back to the estimate, « Reprendre le calcul » offers the estimate.
-    platformTouristTaxWithheld: withheldTouristTaxEntered ? withheldTouristTaxInBrut : null,
+    platformTouristTaxWithheld: withheldTouristTax({ withheldTouristTaxEntered, withheldTouristTaxInBrut }),
     defaultCheckIn: settings.stayClock.defaultCheckIn || '15:00',
     defaultCheckOut: settings.stayClock.defaultCheckOut || '10:00',
     optionLines: finalOptionLines,
@@ -326,4 +331,14 @@ function compose(input) {
   return shape(ctx);
 }
 
-module.exports = { compose, shape };
+// The two tax figures of a stay, from the TOURIST TAX slice alone (a stay with no night has none: the halted quote carries neither).
+function touristTaxFigure(input) {
+  const ctx = touristTaxSlice({ input });
+  if (ctx.halt) return {};
+  return {
+    touristTaxOriginalTotal: originalTouristTax(ctx.touristTaxBreakdown),
+    platformTouristTaxWithheld: withheldTouristTax(ctx),
+  };
+}
+
+module.exports = { compose, shape, touristTaxFigure };
