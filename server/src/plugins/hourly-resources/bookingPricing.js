@@ -11,7 +11,7 @@
 const sdk = require('../sdk');
 const { priceSessions, priceRange, toMinutes } = require('./hourlyPricing');
 
-const { netFirst } = sdk.coreModule('vat');
+const { splitTtc } = sdk.coreModule('vat');
 
 const OFFER_STEP_MINUTES = 15;
 
@@ -42,7 +42,7 @@ function offeredRefusal(offeredMinutes, { durationMinutes, freeMinutesApplied, p
 function vatOf(total, vat) {
   if (!vat || vat.rate === null || vat.rate === undefined) return null;
   const rate = Number(vat.rate);
-  const { amount, net } = netFirst(total, rate);
+  const { vat: amount, net } = splitTtc(total, rate);
   return { rate, amount, net };
 }
 

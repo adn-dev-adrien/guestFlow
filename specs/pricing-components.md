@@ -927,8 +927,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > removes `devisPdf` ×2, `financeModel` l. 1266 and `touristTax.vatDivisor` the same way: the `vat` allow-list holds the two
     > `invoiceIssuer` lines (PR C) and nothing else, and the `families` guard takes `utils/pricing/touristTax.js` as a second
     > home (the tax's person × night arithmetic). PR A removed the VAT copies listed above and the platform gross pin copy.
-    > **Pending** — PR B: merging `vat.netFirst` into `vat.splitTtc`. The two cuts are identical at 2.1, 5.5, 8.5 and 10 %
-    > and distinct only at 20 %: the merge moves the 20 %-rated hourly bookings by a cent at most and ships with a listed diff.
+    > **Delivered by PR B** (pass 4b; class E4b; `hourly-booking-vat-one-cut`): the hourly bookings cut their VAT with `vat.splitTtc` (the VAT is the
+    > rounded share, the net what is left); the two cuts are identical at 2.1, 5.5, 8.5 and 10 %, and at 20 % the net moves by a cent on the tie
+    > amounts (scope `resourceBookings`, a listed diff). **Kept apart, by the byte-identity of the books:** the accounting output, `legacyBucketSplit`,
+    > the refund journal, `touristTax` and the devis PDF keep `vat.netFirst`. Their platform-commission entries are VAT 20 %, and merging the
+    > cuts would move the commission VAT of the CSV months by a cent (golden `csv/2027-09`): a figure outside every listed class, so it waits for
+    > the owner's call (open question). The TOTALS `vatByRate` / `breakdown` readers: `saleDetail` reads the VAT component's per-rate rows (rule 31).
+    > **Pending** — the VAT per rate printed on the fiche and on the devis PDF (a visible row: mock-up first).
 66. **Guards against re-introduction** (`server/src/tests/no-duplicate-formulas.unit.test.js`, static, part of
     the server suite):
     - VAT: no `/(100 + `, `* rate /`, `/ (1 + … / 100)`, `1 + rate / 100`, `rate / (rate + 100)`, `/ 1.055`-style divisor or
