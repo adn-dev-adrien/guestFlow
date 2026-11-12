@@ -99,8 +99,7 @@ function stepMeta(key, mode) {
   switch (key) {
     case 'intro': return { title: mode === 'arrival' ? 'Arrivée' : 'Départ', Icon: mode === 'arrival' ? MeetingRoomIcon : LogoutIcon };
     case 'portal': return { title: 'Portail', Icon: DialpadIcon };
-    case 'caution':
-    case 'cautionReport': return { title: 'Caution', Icon: SavingsIcon };
+    case 'caution': return { title: 'Caution', Icon: SavingsIcon };
     case 'stayPayment': return { title: 'Séjour', Icon: PaymentsIcon };
     case 'options': return { title: 'Prestations', Icon: RoomServiceIcon };
     case 'breakfast': return { title: 'Petit déjeuner', Icon: FreeBreakfastIcon };
@@ -152,9 +151,10 @@ const neutralAnswerSx = (t) => ({
 // on top and the frequent, reassuring answer (`good`, filled) lands at the bottom, under the thumb — on
 // the right from `sm`. The alternative is neutral; `badTone="error"` is kept for « Dégât / litige » only,
 // as an outlined error button (AA), never black on red.
-function AnswerButtons({ goodLabel, onGood, badLabel, onBad, badTone = 'neutral' }) {
+function AnswerButtons({ goodLabel, onGood, badLabel, onBad, badTone = 'neutral', noLabel, onNo }) {
   return (
     <>
+      {noLabel && <Button variant="outlined" color="error" onClick={onNo}>{noLabel}</Button>}
       {badTone === 'error'
         ? <Button variant="outlined" color="error" onClick={onBad}>{badLabel}</Button>
         : <Button variant="contained" color="inherit" sx={neutralAnswerSx} onClick={onBad}>{badLabel}</Button>}
@@ -267,7 +267,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
   const [stepKey, setStepKey] = useState(null);
 
   // Decisions (in memory until commit)
-  const [caution, setCaution] = useState(null);           // arrival: 'fait' | 'reporte'
+  const [caution, setCaution] = useState(null);           // arrival: 'fait' | 'reporte' | 'aucune'
   const [linenOk, setLinenOk] = useState(null);           // arrival linen verify: true | false
   const [missingBed, setMissingBed] = useState({});       // arrival: { itemId: qty }
   const [cleaningAdded, setCleaningAdded] = useState(false);
@@ -513,7 +513,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         if (!editing) { setOffered(seed); return; }
         const sealToBool = (v) => (v == null ? true : Number(v) === 1);
         if (mode === 'arrival') {
-          setCaution(res.cautionReceived ? 'fait' : null);
+          setCaution(res.cautionReceived ? 'fait' : (Number(res.cautionWaived) === 1 ? 'aucune' : null));
           // Same reconstruction for the stay, but from what THIS SAS recorded (`stayPayment.paid`),
           // never from a payment made elsewhere — specs/collect-stay-payment-at-check-in.md rule 14.
           const stay = d.stayPayment || {};
@@ -621,7 +621,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     const shownPluginSteps = pluginSteps.filter((c) => c.isShown(stepDataFor(c)));
     if (mode === 'arrival') {
       // Arrival caution is hidden as soon as it's received, even in re-edit (specs/sas-hide-settled-steps.md §3).
-      const cautionStep = Number(r.cautionAmount || 0) > 0 && !r.cautionReceived;
+      // A caution answered « Non » stays reachable, so the answer can be changed on a re-edit (rule 31).
+      const cautionStep = (Number(r.cautionAmount || 0) > 0 || Number(r.cautionWaived) === 1) && !r.cautionReceived;
       const hasOptions = (r.options || []).length > 0 || (r.resources || []).length > 0;
       return placePluginSteps([
         'intro',
@@ -650,7 +651,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         (!data.breakfast?.applicable && sales.breakfast?.available && breakfastSold) ? 'breakfast' : null,
         sales.catering?.available ? 'cateringAsk' : null,
         (sales.catering?.available && cateringWanted === true) ? 'cateringItems' : null,
-        (cautionStep && caution === 'reporte') ? 'cautionReport' : null,
         'recap',
       ].filter(Boolean), shownPluginSteps);
     }
@@ -672,7 +672,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       data.extinguisherCheck && extinguisherOk === false ? 'extinguisherItems' : null,
       'recap',
     ].filter(Boolean), shownPluginSteps);
-  }, [data, mode, r, linenOk, caution, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
+  }, [data, mode, r, linenOk, missingAsk, extinguisherOk, pluginSteps, pluginStepData, sasLock,
     breakfastSold, cateringWanted, portalLead]);
 
   const goNext = useCallback(() => {
@@ -885,6 +885,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
           // undefined when the caution step isn't shown → server leaves the marker untouched
           // (specs/reopen-completed-sas.md §6); otherwise faithful set/clear from the answer.
           cautionReceived: activeKeys.includes('caution') ? (caution === 'fait') : undefined,
+          cautionWaived: activeKeys.includes('caution') ? (caution === 'aucune') : undefined,
           // specs/sas-arrival-total-server-side.md rules 4-7 — the draft the preview priced: linen
           // elements by item, kept lines by row, upsells and sales as intent, the offered set. The
           // server prices all of it again; nothing priced here is ever sent.
@@ -1215,13 +1216,13 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         return gateAvailable ? gateSteps(data.portalCode) : <SasKeypadCode portalCode={data.portalCode} />;
       }
       case 'caution':
-      case 'cautionReport':
         return (
           <Stack spacing={1.5}>
-            <Typography variant="body1">Caution à percevoir : <strong>{formatCurrency(r.cautionAmount)}</strong></Typography>
+            <Typography variant="body1">Caution à percevoir : <strong>{formatCurrency(Number(r.cautionAmount || 0) > 0 ? r.cautionAmount : r.propertyDefaultCautionAmount)}</strong></Typography>
             <Typography variant="body2" color="text.secondary">Encaisser la caution (chèque / empreinte) avant de continuer.</Typography>
             {caution === 'fait' && <Chip label="Marquée comme perçue" color="success" sx={{ alignSelf: 'flex-start' }} />}
-            {caution === 'reporte' && stepKey === 'caution' && <Chip label="Reportée — réaffichée à la fin" color="warning" sx={{ alignSelf: 'flex-start' }} />}
+            {caution === 'reporte' && <Chip label="Reportée au départ" color="warning" sx={{ alignSelf: 'flex-start' }} />}
+            {caution === 'aucune' && <Chip label="Aucune caution pour ce séjour" color="error" variant="outlined" sx={{ alignSelf: 'flex-start' }} />}
           </Stack>
         );
       case 'stayPayment':
@@ -1707,11 +1708,12 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               {caution === 'fait' && <Typography variant="body2" color="success.main">Caution marquée comme perçue.</Typography>}
               {/* specs/arrival-departure-sas.md rule 12 — the status shows « non traité » too (2026-10-27). */}
               {caution === 'reporte' && <Typography variant="body2" color="warning.main">Caution non perçue : reportée au départ.</Typography>}
+              {caution === 'aucune' && <Typography variant="body2" color="text.secondary">Aucune caution pour ce séjour.</Typography>}
               {pluginRecapNotes.map((note) => (
                 <Typography key={note} variant="body2" color="warning.main">{note}</Typography>
               ))}
               {!failed && recap.supplementOutsideComplement > 0 && (
-                <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({formatCurrency(recap.supplementOutsideComplement)}) manuellement.</Typography>
+                <Typography variant="body2" color="text.secondary">Ajouté au complément de fin de séjour : {formatCurrency(recap.supplementOutsideComplement)}</Typography>
               )}
               {unifiedPayment ? (
                 <>
@@ -1804,11 +1806,11 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
       case 'intro': return <>{quit}{next('Commencer')}</>;
       case 'portal': return <>{quit}{next()}</>;
       case 'caution':
-      case 'cautionReport':
         return <>{quit}
           <AnswerButtons
             goodLabel="Caution perçue" onGood={() => { setCaution('fait'); goNext(); }}
             badLabel="Reporter au départ" onBad={() => { setCaution('reporte'); goNext(); }}
+            noLabel="Non" onNo={() => { setCaution('aucune'); goNext(); }}
           />
         </>;
       case 'stayPayment': return <>{quit}{next()}</>;

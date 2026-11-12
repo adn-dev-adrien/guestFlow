@@ -348,10 +348,11 @@ function buildContext({ reservation, client, property, options = [], resources =
   const cautionReceivedFlag = Number(r.cautionReceived || 0) === 1;
   // specs/caution-live-from-property.md §3 — caution is live from the property's current
   // defaultCautionAmount until received, then frozen to the collected amount on the reservation.
-  // A caution the owner never stated (specs/guest-email-texts-made-simple.md rule 28) is no caution.
+  // A caution the owner never stated (specs/guest-email-texts-made-simple.md rule 28) is no caution, and neither is one the
+  // check-in answered « Non » (specs/arrival-departure-sas.md rule 31).
   const cautionAmountNum = cautionReceivedFlag
     ? Number(r.cautionAmount || 0)
-    : (pendingFactsOf(p).has('caution') ? 0 : Number(p.defaultCautionAmount || 0));
+    : ((pendingFactsOf(p).has('caution') || Number(r.cautionWaived || 0) === 1) ? 0 : Number(p.defaultCautionAmount || 0));
   const cautionNotBanked = cautionAmountNum > 0 && Number(r.depositPaid || 0) !== 1 && !cautionReceivedFlag;
   // Precise caution signal for the J-1 reminder (specs/j1-arrival-reminder-email.md §3 rule 5):
   // the caution cheque is still owed when an amount is due AND it has not been received yet.

@@ -27,7 +27,7 @@ const DDL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
     propertyId INTEGER, clientId INTEGER, startDate TEXT, endDate TEXT,
     platform TEXT DEFAULT 'direct', finalPrice REAL DEFAULT 0, customPrice REAL,
-    cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0,
+    cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionWaived INTEGER NOT NULL DEFAULT 0,
     complementAmount REAL DEFAULT 0, complementPaid INTEGER DEFAULT 0, complementPaidDate TEXT,
     clientGrossAmount REAL
   );

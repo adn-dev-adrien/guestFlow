@@ -1,4 +1,5 @@
 import { createTheme } from '@mui/material/styles';
+import { dialogTitleClasses } from '@mui/material/DialogTitle';
 // A finger, not a mouse: phones and tablets, whatever their width.
 import { COARSE_POINTER, TOUCH_TARGET, touchHitArea } from './utils/touchHitArea';
 
@@ -199,7 +200,21 @@ const theme = createTheme({
         root: {
           paddingLeft: 16,
           paddingRight: 16,
+          // MUI zeroes the top padding under a title (`.MuiDialogTitle-root + .MuiDialogContent-root`), which clips the
+          // floating label of a first outlined field — half of « Date » in « Nouvelle réservation » — and voids any `pt`
+          // of the content. A floating label overhangs its field by ~9 px: keep that room (2026-11-12, manual trial of 4.0.0).
+          [`.${dialogTitleClasses.root} + &`]: { paddingTop: 12 },
         },
+      },
+    },
+    // A floating label overhangs the top of its outlined field by ~9 px. Whatever precedes a field — a heading, a divider, a
+    // legend, a button — keeps 12 px under it, so the label never touches (nor is drawn over) the line or title above. One
+    // rule for the whole app, not a margin hand-added on each page.
+    MuiCssBaseline: {
+      styleOverrides: {
+        ':is(.MuiTypography-sectionHeader, .MuiTypography-subtitle2, .MuiDivider-root:not(.MuiDivider-vertical), legend, .MuiButtonBase-root[aria-expanded]):has(+ .MuiFormControl-root > .MuiInputLabel-outlined, + * .MuiInputLabel-outlined)': { marginBottom: 12 },
+        // In a Stack the gap already separates the siblings: the margin would add to it (a heading drifting 28 px from its fields).
+        '.MuiStack-root > :is(.MuiTypography-sectionHeader, .MuiTypography-subtitle2, .MuiDivider-root:not(.MuiDivider-vertical), legend, .MuiButtonBase-root[aria-expanded]):has(+ .MuiFormControl-root > .MuiInputLabel-outlined, + * .MuiInputLabel-outlined)': { marginBottom: 4 },
       },
     },
     MuiCard: {

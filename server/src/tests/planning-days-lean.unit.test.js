@@ -11,7 +11,7 @@ const { toArrivalCard, toDepartureRow, toOccupancyRow, CARD_FIELDS, DEPARTURE_FI
 
 const FICHE = {
   id: 7, startDate: '2026-10-28', endDate: '2026-10-30', clientId: 1, firstName: 'Jean', lastName: 'Dupont', propertyName: 'Gite',
-  propertyId: 1, platform: 'Booking', checkInTime: '16:00', checkOutTime: '10:00', checkInReady: 0, checkOutDone: 1, adults: 2,
+  propertyId: 1, platform: 'Booking', checkInTime: '16:00', checkOutTime: '10:00', past: false, checkInReady: 0, checkOutDone: 1, adults: 2,
   departureHandoverNote: 'Clés', departureSasDoneAt: null, arrivalSasDoneAt: null, options: [{ title: 'Linge', billedUnits: 1, quantity: 1, price: 7 }], resources: [],
   // the rest of the fiche
   email: 'j@x.fr', phone: '06', totalPrice: 90, finalPrice: 90, depositAmount: 10, sourceIcalEventUid: 'u', icalOriginalSummary: 'x',
@@ -90,6 +90,8 @@ test('rule 20: GET /reservations?view=occupancy answers occupancy rows; the plai
 test('rule 22: the card and row projections are the same functions the upcoming page uses', () => {
   assert.equal(toArrivalCard(FICHE).id, 7);
   assert.equal(toDepartureRow(FICHE).id, 7);
+  // The departure card names the platform (its tag and its tooltip), as the arrival card does.
+  assert.equal(toDepartureRow(FICHE).platform, 'Booking');
 });
 
 test('rule 20: every field MiniPlanningStrip reads of a stay is in the occupancy row (read from the component)', () => {

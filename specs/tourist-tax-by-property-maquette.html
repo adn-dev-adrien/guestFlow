@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taxe de séjour — par logement (maquette)</title>
+<style>
+:root{--sapin:#2F5D46;--sapin-soft:#E6EFE7;--miel:#C99038;--paper:#F8F5EF;--ink:#27251F;--muted:#6E6A5E;--line:#E7E1D5;--warn:#8F6A1D;--warn-soft:#F6EDD7;--info:#31556E;--info-soft:#E4EDF3;
+  --estiva:#B07F2E;--granja:#2F5D46}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);background:#ECE7DC}
+.intro{max-width:1180px;margin:18px auto 0;padding:0 16px;color:var(--muted);font-size:13px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.intro b{color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.seg button{border:0;background:transparent;padding:7px 12px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:var(--sapin);color:#fff}
+.frame{margin:12px auto 40px;background:var(--paper);border-radius:14px;box-shadow:0 10px 30px rgba(39,37,31,.12);overflow:hidden;transition:max-width .35s cubic-bezier(.2,.8,.2,1)}
+.frame.desk{max-width:1180px}.frame.mob{max-width:390px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border-bottom:1px solid var(--line);padding:14px 20px}
+.bar h1{margin:0;font:600 22px/1.2 "Source Serif 4",Georgia,serif;letter-spacing:-.01em}
+.content{padding:20px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+select{font:inherit;padding:8px 10px;border:1px solid #CFC7B6;border-radius:8px;background:#fff;min-height:40px}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* Par logement */
+.props{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:18px}
+.psec{margin-bottom:22px}.psec .pcard{border-radius:14px 14px 0 0;border-bottom:0}.psec .tcard{border-radius:0 0 14px 14px}
+.pcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.pcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.pcard h3{margin:0 0 2px;font:600 18px/1.2 "Source Serif 4",Georgia,serif;display:flex;justify-content:space-between;align-items:baseline}
+.pcard h3 small{font:500 12px system-ui;color:var(--muted)}
+.big{font-size:30px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin:8px 0 0}
+.big-sub{font-size:13px;color:var(--muted)}
+.prog{height:8px;border-radius:99px;background:#EFEAE0;margin:12px 0 6px;overflow:hidden;display:flex}
+.prog i{display:block;height:100%;background:var(--sapin);transition:width .4s cubic-bezier(.2,.8,.2,1)}
+.prog i.rest{background:var(--miel)}
+.kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.kv div{background:var(--paper);border-radius:10px;padding:8px 10px}
+.kv b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.kv span{font-size:12px;color:var(--muted)}
+.pcard .act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.btn{border:1px solid var(--sapin);color:var(--sapin);background:#fff;border-radius:10px;padding:8px 12px;font:600 13px system-ui;cursor:pointer;min-height:40px}
+.btn.fill{background:var(--sapin);color:#fff}
+.btn:active{transform:scale(.97)}
+.btn[disabled]{opacity:.45;cursor:default}
+.ok{display:inline-flex;align-items:center;gap:6px;color:#3E7D54;font-weight:600;font-size:13px}
+.platnote{font-size:12px;color:var(--info);background:var(--info-soft);border-radius:8px;padding:6px 9px;margin-top:10px}
+
+/* Tableau groupé */
+.tcard{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font-size:12px;color:var(--muted);font-weight:600;text-align:right;padding:10px 12px;border-bottom:1px solid var(--line)}
+th:nth-child(1),th:nth-child(2){text-align:left}
+td{padding:10px 12px;border-bottom:1px solid #F1ECE2;text-align:right;font-size:14px}
+td:nth-child(1),td:nth-child(2){text-align:left}
+tr.grp td{background:var(--paper);font-weight:700;border-bottom:1px solid var(--line);text-align:left}
+tr.grp td .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--c);margin-right:8px;vertical-align:middle}
+tr.sub td{font-weight:700;background:#FBF9F5}
+tr.plat td{color:var(--muted)}
+.chip{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:99px;padding:1px 8px;color:var(--muted);margin-top:3px}
+.when{font-size:12px;color:var(--muted)}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--sapin)}
+
+/* Bandeau bas */
+.dock{position:sticky;bottom:0;margin-top:18px;background:rgba(255,255,255,.86);backdrop-filter:blur(14px) saturate(160%);border:1px solid var(--line);border-radius:16px;padding:14px 18px;display:grid;grid-template-columns:1.2fr 1fr 1fr 1.6fr;gap:16px;align-items:center;box-shadow:0 -6px 20px rgba(39,37,31,.06)}
+.dock .hero b{font-size:32px;letter-spacing:-.02em;color:var(--sapin);font-variant-numeric:tabular-nums;display:block;line-height:1.1}
+.dock .hero span,.dock .m span{font-size:13px;color:var(--muted)}
+.dock .m b{font-size:22px;font-variant-numeric:tabular-nums;display:block;line-height:1.15}
+.dock .facts{display:flex;flex-wrap:wrap;gap:6px}
+.fact{background:var(--paper);border-radius:99px;padding:5px 10px;font-size:13px}
+.fact b{font-variant-numeric:tabular-nums}
+.frame.mob .dock{grid-template-columns:1fr 1fr;gap:12px}
+.frame.mob .dock .hero{grid-column:1/-1}
+.frame.mob .dock .facts{grid-column:1/-1}
+.frame.mob .content{padding:12px}
+.frame.mob .bar h1{font-size:19px}
+.frame.mob table .hide-m{display:none}
+.frame.mob .kv b{font-size:15px}
+.mlist{display:none}
+.frame.mob .tcard table{display:none}
+.frame.mob .mlist{display:block}
+.mrow{display:flex;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid #F1ECE2;align-items:center}
+.mrow .r{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.mgrp{background:var(--paper);padding:10px 14px;font-weight:700;display:flex;justify-content:space-between;border-bottom:1px solid var(--line)}
+.legend{font-size:12px;color:var(--muted);margin:6px 0 0}
+@media (prefers-reduced-motion:reduce){.frame,.prog i{transition:none}}
+</style>
+</head>
+<body>
+<div class="intro">
+  <b>Maquette — Taxe de séjour par logement.</b> Les noms de clients sont fictifs ; les montants viennent d'août et d'octobre 2026 sur la copie de la prod.
+  <span class="seg" id="view"><button aria-pressed="true" data-v="desk">Ordinateur</button><button aria-pressed="false" data-v="mob">Mobile</button></span>
+  <span>Chaque logement : sa carte, puis son tableau. Cochez « Déclarée », ou cliquez sur « Marquer déclaré » pour un logement : les cartes et le bandeau se mettent à jour.</span>
+</div>
+
+<div class="frame desk" id="frame">
+  <div class="bar"><h1>Taxe de séjour</h1><span class="seg"><button aria-pressed="true">Liste</button><button aria-pressed="false">Par nuit</button></span></div>
+  <div class="content">
+    <div class="filters">
+      <span class="seg"><button aria-pressed="true">Mois</button><button aria-pressed="false">Trimestre</button><button aria-pressed="false">Année</button></span>
+      <select id="month"><option value="aug">août 2026</option><option value="oct">octobre 2026</option></select>
+      <select id="prop"><option value="all">Tous les logements</option><option>Estiva</option><option>Granja</option></select>
+    </div>
+
+    <div class="lbl" style="margin-bottom:8px">Par logement · <span id="mlabel"></span></div>
+    <div id="sections"></div>
+    <p class="legend">Les séjours dont la taxe est reversée par la plateforme restent listés en gris : ils ne comptent pas dans le montant à déclarer.</p>
+
+    <div class="dock" id="dock"></div>
+  </div>
+</div>
+
+<script>
+const DATA={
+ aug:{label:'août 2026',stays:[
+  ['Granja','Gîtes de France','01/08','15/08','p',14,2,3,28,0,null],
+  ['Estiva','Direct','02/08','03/08','u',1,2,2,2,2.32,21.09],
+  ['Estiva','Abracadaroom','03/08','05/08','u',2,2,0,4,11.96,54.37],
+  ['Estiva','Direct','05/08','08/08','u',3,5,0,15,21.00,25.45],
+  ['Estiva','Direct','08/08','10/08','u',1,2,2,2,4.22,38.37],
+  ['Estiva','Airbnb','11/08','13/08','p',2,1,4,2,0,null],
+  ['Estiva','Direct','13/08','15/08','u',2,2,3,4,5.96,27.09],
+  ['Estiva','Direct','15/08','16/08','u',1,3,1,3,6.36,38.55],
+  ['Granja','Gîtes de France','17/08','24/08','p',7,6,2,42,0,null],
+  ['Estiva','Abracadaroom','19/08','22/08','u',3,3,2,9,13.05,26.36],
+  ['Estiva','Abracadaroom','24/08','25/08','u',1,2,0,2,7.82,71.09],
+  ['Granja','Gîtes de France','24/08','29/08','p',5,4,6,20,0,null],
+  ['Estiva','Direct','30/08','31/08','u',1,2,2,2,2.98,27.09]]},
+ oct:{label:'octobre 2026',stays:[
+  ['Granja','Airbnb','09/10','11/10','p',2,13,0,26,24.00,null],
+  ['Estiva','Abracadaroom','10/10','11/10','u',1,2,0,2,5.86,53.25],
+  ['Granja','GreenGo','23/10','26/10','p',3,6,3,18,0,null]]}
+};
+const NAMES=['Famille Martin','Léa Bernard','Paul Durand','Famille Petit','Inès Moreau','Hugo Laurent','Famille Simon','Chloé Michel','Famille Lefèvre','Noah Garcia','Emma Roux','Famille David','Lucas Bertrand'];
+const COLORS={Estiva:'var(--estiva)',Granja:'var(--granja)'};
+let state={month:'aug',prop:'all',view:'desk',declared:{}};
+const eur=n=>n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
+function rows(){return DATA[state.month].stays.map((s,i)=>({i,prop:s[0],plat:s[1],from:s[2],to:s[3],plat_remit:s[4]==='p',nights:s[5],taxed:s[6],exempt:s[7],pn:s[8],amount:s[9],price:s[10],name:NAMES[i%NAMES.length]}))
+  .filter(r=>state.prop==='all'||r.prop===state.prop)}
+function key(r){return state.month+':'+r.i}
+function isDecl(r){return !!state.declared[key(r)]}
+function byProp(rs){const m={};rs.forEach(r=>{(m[r.prop]=m[r.prop]||[]).push(r)});return Object.entries(m).sort()}
+function render(){
+  const rs=rows(); document.getElementById('mlabel').textContent=DATA[state.month].label;
+  // cards
+  const cards={};byProp(rs).forEach(([p,list])=>{
+    const ours=list.filter(r=>!r.plat_remit); const total=ours.reduce((a,r)=>a+r.amount,0);
+    const decl=ours.filter(isDecl).reduce((a,r)=>a+r.amount,0); const rest=total-decl;
+    const plat=list.filter(r=>r.plat_remit); const platAmt=plat.reduce((a,r)=>a+r.amount,0);
+    const pn=ours.reduce((a,r)=>a+r.pn,0); const pct=total?decl/total*100:0;
+    cards[p]=`<div class="pcard" style="--c:${COLORS[p]}">
+      <h3>${p}<small>${ours.length} séjour${ours.length>1?'s':''} à déclarer</small></h3>
+      <div class="big">${eur(total)}</div>
+      <div class="big-sub">${rest>0.004?`reste <b style="color:var(--warn)">${eur(rest)}</b> à déclarer`:(total?'<span class="ok">✓ tout est déclaré</span>':'rien à déclarer ce mois-ci')}</div>
+      <div class="prog" title="Déclaré / reste"><i style="width:${pct}%"></i><i class="rest" style="width:${total?100-pct:0}%"></i></div>
+      <div class="kv"><div><b>${pn}</b><span>nuitées taxées</span></div><div><b>${ours.reduce((a,r)=>a+r.taxed,0)}</b><span>pers. taxées</span></div><div><b>${eur(decl)}</b><span>déjà déclaré</span></div></div>
+      ${plat.length?`<div class="platnote">${plat.length} séjour${plat.length>1?'s':''} reversé${plat.length>1?'s':''} par la plateforme (${eur(platAmt)}) — rien à déclarer pour eux.</div>`:''}
+      <div class="act"><button class="btn fill" data-decl="${p}" ${rest>0.004?'':'disabled'}>Marquer ${p} déclaré</button><button class="btn" onclick="alert('Export CSV de ${p} pour la déclaration')">Exporter ${p}</button></div>
+    </div>`});
+  // table
+  let out='';
+  byProp(rs).forEach(([p,list])=>{ let html='',m='';
+    const ours=list.filter(r=>!r.plat_remit), tot=ours.reduce((a,r)=>a+r.amount,0);
+        m+=`<div class="mgrp" style="--c:${COLORS[p]}"><span>${p}</span><span>${eur(tot)}</span></div>`;
+    list.forEach(r=>{
+      const cb=r.plat_remit?'—':`<input type="checkbox" data-k="${key(r)}" ${isDecl(r)?'checked':''} aria-label="Déclarée">`;
+      html+=`<tr class="${r.plat_remit?'plat':''}"><td>${cb}</td><td>${r.name}<div class="when">${r.from} → ${r.to} · ${r.plat}</div>${r.plat_remit?`<span class="chip">reversée par ${r.plat}</span>`:''}</td>
+        <td>${r.nights}</td><td>${r.taxed}</td><td class="hide-m">${r.exempt}</td><td>${r.pn}</td><td class="hide-m">${r.price==null?'—':eur(r.price)}</td><td><b>${r.plat_remit?'<span style="font-weight:400">'+eur(r.amount)+'</span>':eur(r.amount)}</b></td></tr>`;
+      m+=`<div class="mrow" style="${r.plat_remit?'color:var(--muted)':''}"><div style="display:flex;gap:10px;align-items:center">${r.plat_remit?'<span style="width:20px;text-align:center">—</span>':`<input type="checkbox" data-k="${key(r)}" ${isDecl(r)?'checked':''}>`}<div>${r.name}<div class="when">${r.from} → ${r.to} · ${r.plat} · ${r.pn} nuitées</div></div></div><div class="r">${eur(r.amount)}</div></div>`;
+    });
+    html+=`<tr class="sub"><td></td><td>Total ${p}</td><td>${ours.reduce((a,r)=>a+r.nights,0)}</td><td>${ours.reduce((a,r)=>a+r.taxed,0)}</td><td class="hide-m">${ours.reduce((a,r)=>a+r.exempt,0)}</td><td>${ours.reduce((a,r)=>a+r.pn,0)}</td><td class="hide-m"></td><td>${eur(tot)}</td></tr>`;
+    out+=`<section class="psec">${cards[p]}<div class="tcard"><table><thead><tr><th>Déclarée</th><th>Séjour ${p}</th><th>Nuits</th><th>Pers. taxées</th><th class="hide-m">Exonérées</th><th>Nuitées taxées</th><th class="hide-m">Nuit HT / occupant</th><th>Montant</th></tr></thead><tbody>${html}</tbody></table><div class="mlist">${m}</div></div></section>`;
+  });
+  document.getElementById('sections').innerHTML=out;
+  // dock
+  const ours=rs.filter(r=>!r.plat_remit), total=ours.reduce((a,r)=>a+r.amount,0), decl=ours.filter(isDecl).reduce((a,r)=>a+r.amount,0);
+  const plat=rs.filter(r=>r.plat_remit);
+  document.getElementById('dock').innerHTML=`
+    <div class="hero"><span>À reverser · ${DATA[state.month].label}</span><b>${eur(total-decl)}</b><span>sur ${eur(total)} au total</span></div>
+    <div class="m"><span>Déjà déclaré</span><b>${eur(decl)}</b></div>
+    <div class="m"><span>Reversé par les plateformes</span><b>${eur(plat.reduce((a,r)=>a+r.amount,0))}</b><span>${plat.length} séjour${plat.length>1?'s':''}</span></div>
+    <div class="facts">
+      <span class="fact"><b>${ours.length}</b> séjours</span>
+      <span class="fact"><b>${ours.reduce((a,r)=>a+r.taxed+r.exempt,0)}</b> personnes</span>
+      <span class="fact"><b>${ours.reduce((a,r)=>a+r.taxed,0)}</b> taxées · <b>${ours.reduce((a,r)=>a+r.exempt,0)}</b> exonérées</span>
+      <span class="fact"><b>${ours.reduce((a,r)=>a+r.pn,0)}</b> nuitées taxées</span>
+    </div>`;
+}
+document.addEventListener('change',e=>{
+  if(e.target.id==='month'){state.month=e.target.value;render()}
+  else if(e.target.id==='prop'){state.prop=e.target.value;render()}
+  else if(e.target.dataset.k){state.declared[e.target.dataset.k]=e.target.checked;render()}
+});
+document.addEventListener('click',e=>{
+  const p=e.target.dataset&&e.target.dataset.decl; if(p){rows().filter(r=>r.prop===p&&!r.plat_remit).forEach(r=>state.declared[key(r)]=true);render()}
+  const v=e.target.closest('#view button'); if(v){document.querySelectorAll('#view button').forEach(b=>b.setAttribute('aria-pressed',b===v));document.getElementById('frame').className='frame '+v.dataset.v}
+});
+// août : la prod a tout déclaré sauf la dernière semaine, pour montrer un reste
+DATA.aug.stays.forEach((s,i)=>{ if(s[4]==='u'&&i<9) state.declared['aug:'+i]=true; });
+render();
+</script>
+</body>
+</html>
