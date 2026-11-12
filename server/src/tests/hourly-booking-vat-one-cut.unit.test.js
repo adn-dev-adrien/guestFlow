@@ -4,12 +4,15 @@
 process.env.DB_PATH = ':memory:';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { vatOf } = require('../plugins/hourly-resources/bookingPricing');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
+const { vatOf } = optionalPlugin(() => require('../plugins/hourly-resources/bookingPricing'));
 const { splitTtc } = require('../utils/pricing/vat');
 
 const former = (total, rate) => { const net = Math.round((total / (1 + rate / 100)) * 100) / 100; return { amount: Math.round((total - net) * 100) / 100, net }; };
 
-test('rule 65 — the hourly VAT is splitTtc, and the former net-first cut elsewhere than 20 %', () => {
+const SKIP = { skip: skipWithout(['hourly-resources']) };
+
+test('rule 65 — the hourly VAT is splitTtc, and the former net-first cut elsewhere than 20 %', SKIP, () => {
   for (const rate of [2.1, 5.5, 8.5, 10]) {
     for (let cents = 1; cents <= 20000; cents += 7) {
       const total = cents / 100;
@@ -18,7 +21,7 @@ test('rule 65 — the hourly VAT is splitTtc, and the former net-first cut elsew
   }
 });
 
-test('rule 65 (E4b) — at 20 % a tie amount moves by a cent, the sum stays the total; no VAT, no cut', () => {
+test('rule 65 (E4b) — at 20 % a tie amount moves by a cent, the sum stays the total; no VAT, no cut', SKIP, () => {
   const moved = [];
   for (let cents = 1; cents <= 5000; cents += 1) {
     const total = cents / 100;
