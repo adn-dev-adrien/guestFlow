@@ -27,13 +27,13 @@ const step = {
       bookingId, lockedOptionLines,
     } = ctx;
     // Rule 82: on a stored stay, a line the arrival never priced is not a sale made during the stay: an automatic option its lines never
-    // stored (derived from the stay's own times) and a catalogue line stored with no price (a fresh one) belong to the arrival.
+    // stored (derived from the stay's own times) and a catalogue line stored with neither a unit price nor a total (a fresh one; a free unit keeps its unit price) belong to the arrival.
     const storedByOption = new Map((Array.isArray(lockedOptionLines) ? lockedOptionLines : []).map((line) => [Number(line.optionId), line]));
     const unpricedAtArrival = (line) => {
       if (!line || line.isCustom || line.optionId == null) return false;
       const stored = storedByOption.get(Number(line.optionId));
       if (!stored) return Boolean(line.autoOptionType);
-      return Number(stored.totalPrice || 0) <= 0 && Number(stored.offered || 0) !== 1;
+      return Number(stored.totalPrice || 0) <= 0 && Number(stored.unitPrice || 0) <= 0 && Number(stored.offered || 0) !== 1;
     };
     const arrivalExtrasBaseline = Number(bookingId || 0) > 0
       ? baselineWithDerivedLines(ctx.clock.arrivalExtrasBaseline, finalOptionLines.filter(unpricedAtArrival))
