@@ -6,12 +6,30 @@
  * `toCents(euros)` / `fromCents(cents)` convert, `frenchEuros` / `frenchPercent` print « 1 234,56 € » / « 5,00 % » with non-breaking spaces, `allocateCents(total, weights)` splits an integer number of
  * cents in proportion to weights so that the shares sum to `total` exactly.
  *
+ * Named variants (rule 38, PR C): the private copies this file replaced differ from `roundMoney` / `toCents` only in how a
+ * blank or a non-number is read, and each variant reproduces one of them exactly so that no figure moves. `…OrZero` reads a value
+ * that is not a number as 0 (`Number(v) || 0`, so `'12,5'` is 0); `…Strict` converts with `Number(v)` and lets NaN through
+ * (`undefined` and `'12,5'` stay NaN). `roundMoney` / `toCents` read `Number(v || 0)`: `''`, `null`, `undefined` are 0 and `'12,5'` is NaN.
+ *
  * Not a component: it carries no business rule. Pure — no DB, no clock, no settings.
  */
 
 function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
+
+const roundMoneyOrZero = (value) => Math.round((Number(value) || 0) * 100) / 100;
+
+const roundMoneyStrict = (value) => Math.round(Number(value) * 100) / 100;
+
+// The tourist-tax freeze adds the machine epsilon so that 1.005 rounds up like a person would.
+const roundMoneyEpsilon = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+// The public payment payload rounds through the decimal string; it takes a number, as its caller always passed one.
+const roundMoneyFixed = (value) => Number(value.toFixed(2));
+
+// `Math.sign(x) * Math.round(Math.abs(x))`: half away from zero (the synthesis' rounding), unlike `Math.round`'s half toward +∞.
+const roundHalfAway = (x) => Math.sign(x) * Math.round(Math.abs(x));
 
 // The sum of money amounts, rounded to the cent once, added left to right like the engine's `a + b + c + d`.
 function sumMoney(values) {
@@ -21,6 +39,29 @@ function sumMoney(values) {
 const toCents = (euros) => Math.round(Number(euros || 0) * 100);
 
 const fromCents = (cents) => Number(cents || 0) / 100;
+
+const toCentsOrZero = (value) => Math.round((Number(value) || 0) * 100);
+
+const toCentsStrict = (value) => Math.round(Number(value) * 100);
+
+const fromCentsStrict = (cents) => Number(cents) / 100;
+
+// The synthesis' euros: its cents are already rounded half away from zero, the division is the only step left.
+const fromCentsRounded = (cents) => Math.round(cents) / 100;
+
+// A French amount typed or printed as « 1 234,56 » (spaces dropped, comma as the decimal point), to cents / euros.
+const parseFrenchCents = (amount) => Math.round(Number(String(amount).replace(/ /g, '').replace(',', '.')) * 100);
+
+const parseFrenchEuros = (raw) => Math.round(Number(String(raw).replace(/ /g, '').replace(',', '.')) * 100) / 100;
+
+// An integer number of cents from a number or a numeric string; anything else, a blank or a non-finite number is `null`.
+function parseIntegerCents(value) {
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  if (value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n);
+}
 
 /**
  * Largest-remainder allocation (specs/pricing-components.md §3 rule 40): each share is floored to the cent, the cents
@@ -63,6 +104,16 @@ const frenchEuros = (value) => `${frenchNumber(value)}${NBSP}€`;
 
 const frenchPercent = (value) => `${frenchNumber(value)}${NBSP}%`;
 
+// « 1 234,56 € » as the reconciliation tab prints it: the thousands are separated by a plain space, not a non-breaking one.
+const eurosWithSpaces = (cents) => {
+  const n = Math.round(cents) / 100;
+  const sign = n < 0 ? '−' : '';
+  const [int, dec] = Math.abs(n).toFixed(2).split('.');
+  return `${sign}${int.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')},${dec} €`;
+};
+
 module.exports = {
-  roundMoney, sumMoney, toCents, fromCents, allocateCents, NBSP, frenchNumber, frenchEuros, frenchPercent,
+  roundMoney, roundMoneyOrZero, roundMoneyStrict, roundMoneyEpsilon, roundMoneyFixed, roundHalfAway, sumMoney,
+  toCents, toCentsOrZero, toCentsStrict, fromCents, fromCentsStrict, fromCentsRounded, parseFrenchCents, parseFrenchEuros,
+  parseIntegerCents, allocateCents, NBSP, frenchNumber, frenchEuros, frenchPercent, eurosWithSpaces,
 };

@@ -527,6 +527,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     (one largest-remainder allocator for VAT, discounts and the groups); `roundMoney` is `Math.round` on the float
     product, half toward +∞ (`roundMoney(-0.125)` is `-0.12`), as the engine always was. The private copies wait in the
     `money` allow-list of rule 66, PR C.)_
+    _(Delivered by PR C, rule 89 / Q-C5: the copies are replaced by named variants that keep each copy's behaviour exactly, so no
+    figure moves. `roundMoneyOrZero` / `toCentsOrZero` read `Number(v) || 0` (`'12,5'` is 0), `roundMoneyStrict` / `toCentsStrict` /
+    `fromCentsStrict` read `Number(v)` (`undefined` stays NaN), and the class-C copies keep their own arithmetic: `roundMoneyEpsilon`,
+    `roundMoneyFixed`, `roundHalfAway`, `fromCentsRounded`, `parseIntegerCents`, `parseFrenchCents` / `parseFrenchEuros` and
+    `eurosWithSpaces`. `pricing-money-variants.unit.test.js` proves each against its original on 600 000 values and the awkward
+    inputs. A variant is never swapped for `roundMoney` where the two differ, and a display helper (« 1 234,56 € ») is renamed, never
+    swapped for `frenchEuros`, because its bytes differ.)_
 39. **A line discount.** The operator may discount one unpaid line (percent or amount), from the fiche or the
     SAS. It is stored on the line (`discountCents`) and journaled. It is the only discount a shop or SAS sale
     receives. `discountCents` holds the line's OWN discount only: the stay discount's share (rule 40) is derived on every quote
