@@ -20,6 +20,7 @@
 
 const { todayIso } = require('./localDate');
 const { unitFromTotal } = require('./pricing/touristTax');
+const { roundMoneyEpsilon: round2 } = require('./pricing/money');
 
 // Which instalment carries the tax, in SQL — the three-way platform routing of
 // specs/per-platform-tourist-tax-three-way.md. Answered without pricing the stay, because the freeze
@@ -221,10 +222,6 @@ function writeTouristTaxSnapshot(database, reservationId, quote) {
     reservationId,
   );
   return { frozen: freezeDue };
-}
-
-function round2(value) {
-  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
 /**

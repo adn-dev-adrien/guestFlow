@@ -32,7 +32,7 @@ const PLATFORM_COLLECTS_SQL = `(
   )
 )`;
 
-const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
+const { roundMoney: round2 } = require('../utils/pricing/money');
 
 function createTouristTaxReportModel(database, finance) {
   // Rule 51 (review V3R-4) — an iCal key (`booking`) reads as its platform's label (`Booking`), through the same

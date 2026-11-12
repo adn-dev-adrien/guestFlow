@@ -8,9 +8,7 @@
 const { computeTouristTaxBreakdown } = require('./pricing');
 const { personNights } = require('./pricing/touristTax');
 
-function round2(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney: round2 } = require('./pricing/money');
 
 // specs/tourist-tax-report-v2.md rule 27 — a year before 1000 (Date.UTC reads 0-99 as 1900+, 100-999 lose their
 // padding) or a month whose next one leaves four digits names no month a stay can be in: refused, never stretched.

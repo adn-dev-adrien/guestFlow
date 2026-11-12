@@ -1,3 +1,4 @@
+const { roundMoneyStrict, toCents } = require('./pricing/money');
 // Occupancy of the logements (specs/finance-dashboard-redesign.md §3.7 rules 24-25). Pure.
 //
 // Sellable nights = the nights of the period minus those covered by an establishment closure — a
@@ -62,7 +63,7 @@ function nightsSold(stays, from, to) {
  * `byProperty` gives the same figures per logement.
  */
 function stayNights(stays) {
-  const isPriced = (r) => Math.round(Number(r.totalSejour || 0) * 100) !== 0;
+  const isPriced = (r) => toCents(r.totalSejour) !== 0;
   const tally = (list) => {
     const priced = list.filter(isPriced);
     const unpriced = list.filter((r) => !isPriced(r));
@@ -113,8 +114,8 @@ function occupancyOver(properties, stays, closures, from, to, { startOf } = {}) 
 }
 
 // Revenue per night sold and RevPAR (rule 25), on the page's revenue basis.
-const revenuePerNight = (revenue, nights) => (nights > 0 ? Math.round((revenue / nights) * 100) / 100 : null);
-const revPar = (revenue, sellable) => (sellable > 0 ? Math.round((revenue / sellable) * 100) / 100 : null);
+const revenuePerNight = (revenue, nights) => (nights > 0 ? roundMoneyStrict(revenue / nights) : null);
+const revPar = (revenue, sellable) => (sellable > 0 ? roundMoneyStrict(revenue / sellable) : null);
 
 module.exports = {
   sellableNights, nightsSold, nightKeys, stayNights, occupancyOver, rate, revenuePerNight, revPar, addDays,

@@ -9,8 +9,8 @@ const { personNights } = require('./pricing/touristTax');
 
 const DECLARATION_FILTERS = ['all', 'todo', 'done'];
 
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
-const euros = (c) => c / 100;
+const { toCents: cents } = require('./pricing/money');
+const { fromCentsStrict: euros } = require('./pricing/money');
 const count = (value) => Math.max(0, Math.round(Number(value || 0)));
 
 /**
