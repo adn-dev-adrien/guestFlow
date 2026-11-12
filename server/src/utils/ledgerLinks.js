@@ -14,10 +14,10 @@
  * Every dependency is injected; nothing here talks to the network on its own.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-const toCents = (n) => Math.round(round2(n) * 100);
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 const fmt = (n) => require('./reservationLedger').formatEuros(n);
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
+const { roundedToCents: toCents } = require('./pricing/money');
 
 /**
  * What a link of `type` would be minted for today on this stored row (or engine quote) — the figures

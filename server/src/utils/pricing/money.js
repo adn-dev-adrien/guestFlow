@@ -44,6 +44,9 @@ const toCentsOrZero = (value) => Math.round((Number(value) || 0) * 100);
 
 const toCentsStrict = (value) => Math.round(Number(value) * 100);
 
+// The cents of an amount first rounded to the cent (`round2` then `* 100`): a ledger line keeps the cent it displays.
+const roundedToCents = (value) => Math.round(roundMoneyOrZero(value) * 100);
+
 const fromCentsStrict = (cents) => Number(cents) / 100;
 
 // The synthesis' euros: its cents are already rounded half away from zero, the division is the only step left.
@@ -114,6 +117,6 @@ const eurosWithSpaces = (cents) => {
 
 module.exports = {
   roundMoney, roundMoneyOrZero, roundMoneyStrict, roundMoneyEpsilon, roundMoneyFixed, roundHalfAway, sumMoney,
-  toCents, toCentsOrZero, toCentsStrict, fromCents, fromCentsStrict, fromCentsRounded, parseFrenchCents, parseFrenchEuros,
+  toCents, toCentsOrZero, toCentsStrict, roundedToCents, fromCents, fromCentsStrict, fromCentsRounded, parseFrenchCents, parseFrenchEuros,
   parseIntegerCents, allocateCents, NBSP, frenchNumber, frenchEuros, frenchPercent, eurosWithSpaces,
 };

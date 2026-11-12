@@ -19,7 +19,7 @@ const BELOW_PERCENT = -15;
 const ABOVE_PERCENT = 25;
 const MIN_GAP_EUR = 30;
 
-const cents = (value) => Math.round(Number(value || 0) * 100) / 100;
+const { roundMoney: cents } = require('./pricing/money');
 
 // The sale's saved nights, against what today's seasons price for the same dates. They differ when the
 // tariff moved since the sale — or when the sale was priced on the 100 € fallback of a night no season

@@ -7,8 +7,8 @@
  */
 
 const flag = (v) => Number(v || 0) === 1 || v === true;
-const cents = (n) => Math.round((Number(n) || 0) * 100);
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { toCentsOrZero: cents } = require('../../../utils/pricing/money');
+const { roundMoneyOrZero: round2 } = require('../../../utils/pricing/money');
 const { day } = require('./dates');
 
 /**

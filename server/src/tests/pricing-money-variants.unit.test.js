@@ -12,6 +12,7 @@ const original = {
   roundMoneyBare: (n) => Math.round(n * 100) / 100,
   toCentsOrZero: (n) => Math.round((Number(n) || 0) * 100),
   toCentsStrict: (n) => Math.round(Number(n) * 100),
+  roundedToCents: (n) => Math.round(((n2) => Math.round((Number(n2) || 0) * 100) / 100)(n) * 100),
   toCentsBare: (n) => Math.round(n * 100),
   fromCentsStrict: (c) => Number(c) / 100,
   fromCentsBare: (c) => c / 100,
@@ -75,6 +76,7 @@ test('rule 38 — roundMoneyOrZero, roundMoneyStrict and the two cents variants 
   same('toCentsOrZero', money.toCentsOrZero, original.toCentsOrZero);
   same('toCentsStrict', money.toCentsStrict, original.toCentsStrict);
   same('toCentsStrict (bare n * 100)', money.toCentsStrict, original.toCentsBare);
+  same('roundedToCents', money.roundedToCents, original.roundedToCents);
   same('fromCentsStrict', money.fromCentsStrict, original.fromCentsStrict);
   same('fromCentsStrict (bare c / 100)', money.fromCentsStrict, original.fromCentsBare);
 });

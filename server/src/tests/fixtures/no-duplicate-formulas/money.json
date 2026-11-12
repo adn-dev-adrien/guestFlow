@@ -6,12 +6,6 @@
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
   {
-    "file": "controllers/paymentsController.js",
-    "text": "const cents = (v) => Math.round(Number(v || 0) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
     "file": "controllers/platformPenaltiesController.js",
     "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
     "removedBy": "PR C",
@@ -20,12 +14,6 @@
   {
     "file": "controllers/platformPenaltiesController.js",
     "text": "const cents = (n) => Math.round((Number(n) || 0) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "controllers/public/publicPaymentController.js",
-    "text": "totalStayPrice: Number((finalPrice + Number(reservationRow.touristTaxTotal || 0)).toFixed(2)),",
     "removedBy": "PR C",
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
@@ -296,30 +284,6 @@
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
   {
-    "file": "plugins/online-payment/reconciliation/expectedReceipts.js",
-    "text": "const cents = (n) => Math.round((Number(n) || 0) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "plugins/online-payment/reconciliation/expectedReceipts.js",
-    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "plugins/online-payment/reconciliation/ficheWriter.js",
-    "text": "const round2 = (n) => Math.round(Number(n) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "plugins/online-payment/reconciliation/receiptStates.js",
-    "text": "function euros(cents) {",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
     "file": "plugins/sas/controller.js",
     "text": "collectible: Math.round((due[key].due + (ownedOf(key) ? due[key].amount : 0)) * 100) / 100,",
     "removedBy": "PR C",
@@ -470,12 +434,6 @@
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
   {
-    "file": "utils/complementPaidSplit.js",
-    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
     "file": "utils/createdComplementRepair.js",
     "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
     "removedBy": "PR C",
@@ -578,42 +536,6 @@
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
   {
-    "file": "utils/installmentPaidSplit.js",
-    "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/installmentPlan.js",
-    "text": "function euros(cents) {",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/ledgerAmountEdit.js",
-    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/ledgerAmountEdit.js",
-    "text": "const toCents = (n) => Math.round(round2(n) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/ledgerLinks.js",
-    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/ledgerLinks.js",
-    "text": "const toCents = (n) => Math.round(round2(n) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
     "file": "utils/legacyNetSoldeRepair.js",
     "text": "const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;",
     "removedBy": "PR C",
@@ -640,54 +562,6 @@
   {
     "file": "utils/notificationService.js",
     "text": "return `${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',')} €`;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/orphanPaymentLinksMigration.js",
-    "text": "const euros = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',')} €`;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/paymentDeadlines.js",
-    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/paymentSettlementService.js",
-    "text": "const cents = (euroAmount) => Math.round((Number(euroAmount) || 0) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/paymentStatus.js",
-    "text": "function round2(value) {",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/paymentStatus.js",
-    "text": "return Math.round(Number(value || 0) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/paymentTenders.js",
-    "text": "const euros = (cents) => `${(Math.round(Number(cents) || 0) / 100).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/paymentTenders.js",
-    "text": "function toCents(value) {",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/platformPriceCheck.js",
-    "text": "const cents = (value) => Math.round(Number(value || 0) * 100) / 100;",
     "removedBy": "PR C",
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
@@ -734,12 +608,6 @@
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
   {
-    "file": "utils/reservationLedger.js",
-    "text": "const cents = (n) => Math.round(round2(n) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
     "file": "utils/reservationSettlement.js",
     "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
     "removedBy": "PR C",
@@ -770,12 +638,6 @@
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },
   {
-    "file": "utils/splitReceived.js",
-    "text": "const toCents = (euros) => Math.round((Number(euros) || 0) * 100);",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
     "file": "utils/stayProfile.js",
     "text": "const cents = (euros) => Math.round(Number(euros || 0) * 100);",
     "removedBy": "PR C",
@@ -796,12 +658,6 @@
   {
     "file": "utils/stayTouristTaxInTotal.js",
     "text": "const round2 = (n) => Math.round(n * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "utils/storedLinkComponents.js",
-    "text": "const cents = (v) => Math.round(Number(v || 0) * 100);",
     "removedBy": "PR C",
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },

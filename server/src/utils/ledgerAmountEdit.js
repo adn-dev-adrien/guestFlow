@@ -22,8 +22,7 @@
 const { evaluateArithmetic } = require('./moneyExpression');
 const { formatEuros } = require('./reservationLedger');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-const toCents = (n) => Math.round(round2(n) * 100);
+const { roundMoneyOrZero: round2, roundedToCents: toCents } = require('./pricing/money');
 const MAX_PASSES = 8;
 const NEIGHBOURHOOD_CENTS = 3;
 

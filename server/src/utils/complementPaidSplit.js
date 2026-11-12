@@ -22,7 +22,7 @@ const { taxRidesTheComplement } = require('./touristTaxFreeze');
 // The rounding the export absorbs on the last credit of a contrib-driven entry.
 const RESIDUE_TOLERANCE_CENTS = 2;
 
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
+const { toCents: cents } = require('./pricing/money');
 const nz = (value) => (value == null ? 0 : Number(value));
 
 function allLines(db, perLine) {

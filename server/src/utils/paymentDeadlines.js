@@ -38,7 +38,7 @@ const { isDirectChannel, formatPlatformName } = require('./platformNameFormat');
 const { normalizePayoutDueDays } = require('./platformPayout');
 const { addDaysToIsoDate } = require('./devisHelpers');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 const SEVERITY_BY_STATE = {
   unpaid_at_arrival: 'error',

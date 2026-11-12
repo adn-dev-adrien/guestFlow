@@ -1,3 +1,4 @@
+const { toCents: cents } = require('./pricing/money');
 /**
  * VAT basket of a payment link created for a RESERVATION (specs/payment-links-vat.md rule 8).
  *
@@ -15,7 +16,6 @@
  */
 function storedLinkComponents(row, type, { vatRatePercent, taxOnArrival, titles }) {
   if (!row) return null;
-  const cents = (v) => Math.round(Number(v || 0) * 100);
   if (type === 'deposit') return { components: [{ title: titles.deposit, grossCents: cents(row.depositAmount), taxable: true }], vatRatePercent };
   if (type !== 'balance' && type !== 'full') return null;
   // A full payment is the acompte plus the solde (specs/deposit-blocks-the-dates.md rule 18): the tax

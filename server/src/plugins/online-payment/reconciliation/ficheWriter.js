@@ -18,7 +18,7 @@ const BUCKET_FIELDS = {
 
 const { day } = require('./dates');
 const { platformAcompteNet } = require('./expectedReceipts');
-const round2 = (n) => Math.round(Number(n) * 100) / 100;
+const { roundMoneyStrict: round2 } = require('../../../utils/pricing/money');
 const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 /**

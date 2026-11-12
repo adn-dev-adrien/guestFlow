@@ -34,6 +34,7 @@ const { linkAmountCents } = require('../utils/ledgerLinks');
 const paymentRequestService = require('../utils/paymentRequestService');
 const { withdrawPaymentLink } = require('../utils/paymentLinkWithdrawal');
 const { settleWithdrawnPayment } = require('../utils/withdrawnPayments');
+const { toCents: cents } = require('../utils/pricing/money');
 const { LINK_TYPES, LINK_TITLES } = paymentRequestService;
 
 // specs/email-language-fr-en.md rule 12 — the request template this guest would receive has no English
@@ -115,7 +116,6 @@ function resolveAmountCents(id, type, row, quoteOf = runDevisEngineQuote) {
 function resolveVatComponents(id, type, quoteOf = runDevisEngineQuote, storedOf = storedReservationComponents) {
   const quote = quoteOf(id);
   if (!quote) return storedOf(id, type);
-  const cents = (v) => Math.round(Number(v || 0) * 100);
   const vatRatePercent = quote.vatPercentageAccommodation != null ? Number(quote.vatPercentageAccommodation) : 10;
   const taxOnArrival = Boolean(quote.touristTaxCollectedOnArrival) || Boolean(quote.touristTaxInComplement);
   const taxCents = taxOnArrival ? 0 : cents(quote.touristTaxTotal);

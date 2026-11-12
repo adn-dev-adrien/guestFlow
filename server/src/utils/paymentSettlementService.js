@@ -37,7 +37,7 @@ const AMOUNT_COLUMN = {
   endOfStayComplement: 'endOfStayComplementAmount',
 };
 
-const cents = (euroAmount) => Math.round((Number(euroAmount) || 0) * 100);
+const { toCentsOrZero: cents } = require('./pricing/money');
 const isPaid = (row, bucket) => Number(row && row[`${bucket}Paid`] || 0) === 1 || Number(row && row[`${bucket}PaidCash`] || 0) === 1;
 const getRow = (id) => db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
 

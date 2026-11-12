@@ -17,7 +17,7 @@
 const { taxShares } = require('./installmentPlan');
 const { TAX_ON_ARRIVAL_SQL } = require('./touristTaxFreeze');
 
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
+const { toCents: cents } = require('./pricing/money');
 
 function computeInstallmentPaidSplit(db, installmentId) {
   const installment = db.prepare('SELECT id, reservationId, amountCents FROM reservation_installments WHERE id = ?').get(Number(installmentId));

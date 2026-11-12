@@ -22,6 +22,7 @@ const { saleChannel } = require('./saleChannel');
 const { platformDisplay } = require('./platformDisplay');
 const { localIsoDate, localHourMinute } = require('./localDate');
 const { METHODS: TENDER_METHODS, methodLabel, targetFigures, currentCentsOf } = require('./paymentTenders');
+const { roundedToCents: cents } = require('./pricing/money');
 
 const NBSP = ' ';
 
@@ -46,7 +47,6 @@ function shortDate(iso, stayYear) {
   return stayYear && y !== stayYear ? `${day}/${m}/${y}` : `${day}/${m}`;
 }
 
-const cents = (n) => Math.round(round2(n) * 100);
 const flag = (v) => Number(v || 0) === 1 || v === true;
 
 // Edge case « Devis » — the devis does not store an acompte override yet: an edit would be lost.

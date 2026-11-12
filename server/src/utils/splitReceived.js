@@ -23,7 +23,7 @@ const AMOUNT_COLUMN = {
   deposit: 'depositAmount', balance: 'balanceAmount', complement: 'complementAmount', endOfStayComplement: 'endOfStayComplementAmount',
 };
 
-const toCents = (euros) => Math.round((Number(euros) || 0) * 100);
+const { toCentsOrZero: toCents } = require('./pricing/money');
 
 function parseParts(raw) {
   try {
