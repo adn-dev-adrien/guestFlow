@@ -1,7 +1,7 @@
 {
   "id": "website-booking",
   "name": "Réservation depuis le site",
-  "version": "1.8.14",
+  "version": "1.8.15",
   "description": "Le moteur de réservation du site WordPress.",
   "icon": "language",
   "surfaces": [
@@ -13,7 +13,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.26.0",
+  "sdk": "^2.28.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -146,6 +146,10 @@
     "1.8.14": [
       "Les prix et libellés des options et des ressources viennent désormais d’une projection commune de GuestFlow, partagée avec l’application clients : rien ne change sur le site.",
       "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.8.15": [
+      "Le prix d’une assurance annulation à tarif fixe est calculé par le même moteur que les autres prestations.",
+      "Compatible avec GuestFlow 4 (SDK 2.28)."
     ]
   }
 }

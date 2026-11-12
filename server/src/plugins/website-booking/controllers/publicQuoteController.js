@@ -8,9 +8,8 @@
 const sdk = require('../../sdk');
 
 const db = sdk.coreModule('database');
-const {
-  calculateReservationQuote, computePercentOfStayAmount, getTypeMultiplier, roundMoney,
-} = sdk.coreModule('pricing');
+const { calculateReservationQuote, computePercentOfStayAmount } = sdk.coreModule('pricing');
+const articles = sdk.coreModule('articles');
 const { getTodayIsoDate } = sdk.coreModule('reservationHelpers');
 const optionsModel = sdk.coreModule('optionsModel');
 const resourcesModel = sdk.coreModule('resourcesModel');
@@ -87,6 +86,14 @@ function checkResourceApplicability(propertyId, resources) {
  * diverge. A fixed-price insurance (`per_stay`, `per_person`…) is priced through the engine's own
  * multipliers instead.
  */
+// A fixed-price insurance is priced by the Articles head's read, like every other line (pricing-components rules 10, 47).
+function fixedInsuranceAmount(option, engineQuote) {
+  const priced = articles.read({
+    option, persons: Number(engineQuote.persons || 0), nights: Number(engineQuote.nights || 0), request: { quantity: 1 },
+  });
+  return priced ? priced.offeredFigures.totalPrice : 0;
+}
+
 function buildCancellationInsurance(input, engineQuote, insurancePrice, { lang = 'fr', translate = null } = {}) {
   const dynamicPrice = quotePostProcessors.dynamicInsurance();
   const option = optionsModel.getCancellationInsurance(Number(input.propertyId), { dynamicPrice });
@@ -101,8 +108,7 @@ function buildCancellationInsurance(input, engineQuote, insurancePrice, { lang =
       ? Number(insurancePrice)
       : (String(option.priceType) === 'percent_of_stay'
         ? computePercentOfStayAmount(option.price, engineQuote.cancellationInsuranceBase)
-        : roundMoney(Number(option.price || 0)
-          * getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0)))));
+        : fixedInsuranceAmount(option, engineQuote)));
   return toPublicCancellationInsurance(option, {
     amount, selected, dynamicPrice, lang, translate,
   });

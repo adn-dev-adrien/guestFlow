@@ -259,7 +259,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     (shop catalogue, slot picker price) is one `priceExtras` call, never a save (D9).
     > **Delivered by PR B** (pass 5, class E5; `extra-sale-sas`): the SAS prices through the head's read — `articles.read` (one candidate line for a stay, no free unit spent) prices the sold
     > breakfast / catering (`priceOptionSale`) and the catalogue upsells (`priceCatalogueUpsell`: ménage, linge de toilette, the bath-linen offer), to the cent the old multiplier gave
-    > (a 480-case grid); `welcomePack` reads `unitsPerQuantity`. **Pending** — PR B (C22): the iCal / platform intakes. **Pending** — PR C: the shop (J-7 code, absent from this branch). PR A proves the fiche's engine prices every option and resource line through the Articles head (`articles-head-contract`).
+    > (a 480-case grid); `welcomePack` reads `unitsPerQuantity`. The iCal import prices its default options through the engine, whose extras are the head's (`ical-default-options-head`), and the website's fixed insurance through the head's read.
+    > **Pending** — PR C: the shop (J-7 code, absent from this branch). PR A proves the fiche's engine prices every option and resource line through the Articles head (`articles-head-contract`).
 11. **Catalogue resolution is an input.** The property-merged catalogue (`getApplicableOptions/Resources`,
     `property_option_prices`, `property_resource_prices`, « Facturables » linen prices) is loaded by the
     loader and passed in. The per-property override lookup exists once.
@@ -322,7 +323,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     withheld/reversed tax` — exactly today's formula, with "`inComplement = 0`" replaced by "`collectAt =
     'platform'`". **A sale made after the booking is never a platform line**, so it can never shrink the
     accommodation (D1, D3). `grossFromNet` (catalogue) and `platformPriceCheck` call the same unit.
-    > **Pending** — PR B: the `collectAt = 'platform'` declaration replacing `inComplement = 0`, and `platformPriceCheck` calling the unit (its extras sum is not rounded like the pin's). PR A ships PLATFORM PRICE with today's flag (`pricing-platform-price`): the engine's gross pin and `grossFromNet` are one unit.
+    > **Delivered by PR B** (pass 5; `ical-default-options-head`, `platform-intake-port`): the intakes declare the moment of each line they write (`collectAt = 'platform'` or `'arrival'`, rule 71), and
+    > `platformPriceCheck` reads PLATFORM PRICE's `platformLinesTotal` (the declaration, else the flag the intakes derive it from), rounded like the pin's. PR A ships PLATFORM PRICE with today's
+    > flag (`pricing-platform-price`): the engine's gross pin and `grossFromNet` are one unit.
+    > **Pending** — PR C: the engine's pin reading the declaration instead of `inComplement = 0` in its own routing step; both agree on every line an intake wrote, so nothing moves before the lines have a stable identity (rule 13).
 
 ### 3.E STAY CLOCK, SCHEDULE, SETTLEMENT
 
@@ -331,7 +335,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     check-in), `departure` (to pay at check-out). Nothing downstream infers it again.
     > **Delivered by PR B** (pass 4): `extraSale.sell` stamps `source`, `soldAt`, `collectAt`, `collectAtDefault` on the lines it creates
     > (`models/extraSalesModel.stampNewLines`) and `saleDetail` reads them; the lines of a fiche save keep the values the backfill gave.
-    > **Delivered by PR B** (pass 5): the arrival SAS writes them — the lines it rewrites carry `source = 'sas'`, `collectAt` / `collectAtDefault = 'arrival'` and `soldAt` (`stampSasLines`). **Pending** — PR B (C22): the intakes.
+    > **Delivered by PR B** (pass 5): the arrival SAS writes them — the lines it rewrites carry `source = 'sas'`, `collectAt` / `collectAtDefault = 'arrival'` and `soldAt` (`stampSasLines`). The platform intakes write them too: `source = 'intake'` and `platform` / `arrival` (rule 17).
 19. **The default moment of a new line** (`defaultCollectAt`) _(amended 2026-11-11 for rule 20)_:
 
     | Stay state | Paid now (card / Qonto link, terminal or cash at the SAS) | Not paid |
@@ -436,7 +440,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     upsells and departure charges), `intake` (platform / iCal), `devis`. The fiche's ordinary save keeps its
     current path for stay edits and for lines of a stay not yet sold; on a sold stay, an added product goes
     through `extraSale.sell` (owner: « on passe par les mêmes composants et même principe »).
-    > **Delivered by PR B** (pass 4 and 5): the five sources are recognised; `fiche` is written by `extraSale.sell`, `sas` by the arrival SAS's commit. **Pending** — PR B (C22): `intake`.
+    > **Delivered by PR B** (pass 4 and 5): the five sources are recognised; `fiche` is written by `extraSale.sell`, `sas` by the arrival SAS's commit. `intake` by `reservations.fromPlatform` / `update` (rule 71).
 29. **Paying now.** _(amended 2026-11-11 for platform stays.)_ `payment: 'card'` returns a priced basket and
     mints a Qonto link; the line is written `due` with a hold, and the paid effect (`applyPaidEffect` →
     basket) sets `settledCents`. On a platform stay, before or after arrival, this link is **separate from the
@@ -1158,6 +1162,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       `reservations.update` path for an intake patch is implemented on this port internally (adapter), so
       both entries run the same code. The three intake plugins may move to it in PR C, with no behaviour
       change. `coreModuleHistory.json` records 2.28.0 (2.27.0 is `ctx.articleFamily`, PR A).
+      > **Delivered by PR B** (pass 5; `platform-intake-port`): `reservations.fromPlatform(reservationId, intake, { label, client, reuseByEmail })` takes the port's payload as
+      > `toPlatformIntake` shapes it (platform, number, stay, party, beds, money, notes, `lines` with the `collectAt` of each, `includedLines`, `complementLines`, `rest`) for the stay the
+      > iCal import already created (a new stay is never created by an intake): `reservations.update` is `toPlatformIntake` then `fromPlatform`, both run the one save. After it, the lines
+      > the intake wrote that carry no moment are declared (`source = 'intake'`, `collectAt` / `collectAtDefault` = `platform` or `arrival` from the routing flag, `soldAt`), on a platform
+      > channel only. website-booking 1.8.15 prices a fixed insurance through the head. **Pending** — PR C: the started-stay refusal through STAY CLOCK, and the intake plugins moving to the port.
     - **Tests.**
       - Each intake plugin's existing suites stay green, unchanged, at every PR.
       - `platform-intake-port.unit.test.js` (contract and adapter).
@@ -1606,7 +1615,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `price-gate-scopes`, `price-gate-writes` — rule 81: the allowlist scopes, the replay `--expect` list, the refund write-path cases compared to the leaf with what the tag wrote
 - [x] `no-duplicate-formulas`, `formula-guards-mutants`, `pricing-import-graph`, `pricing-import-graph-mutants` — rule 66 static guards with their allow-lists, including the platform-payment guard of rule 70; every guard and the import graph proved on planted copies
 - [x] `pricing-platform-payment` — rule 70: every formula of the table, both commission bases, clamps, net received, acompte net, penalty, cancellation withheld commissions
-- [x] `platform-intake-port`, `platform-intake-replay` — rule 71 (PR A: SDK contract unchanged, adapter, replay of the stored intakes at 0 diff; `fromPlatform` is PR B); booking-intake, airbnb-intake and gites-de-france-intake suites green unchanged
+- [x] `platform-intake-port`, `platform-intake-replay` — rule 71 (PR A: SDK contract unchanged, adapter, replay of the stored intakes at 0 diff; PR B: `fromPlatform`, the moment of each intake line); booking-intake, airbnb-intake and gites-de-france-intake suites green unchanged
 - [x] `article-family-contract` — every registered family, core and `hourly`, through the same cases (rule 57)
 - [ ] `article-fulfilment-contract` — run against the bath adapter: hold, overlap refused, heat-up honoured, confirm in the sale transaction, rollback leaves no booking, release frees the slot (rule 57)
 - [x] `pipeline-composition` — every use case builds; a missing `requires` throws at build; `externalSale` never calls nights, tax, clock or schedule; `stayQuote` output equals the pre-refactor engine (rule 52)

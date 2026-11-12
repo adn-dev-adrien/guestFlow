@@ -22,7 +22,7 @@ const AIRBNB = { platform: 'Airbnb', platformGrossAmount: 400, customOptions: [{
 const GITES = { platform: 'Gites de France', platformGrossAmount: 500, options: [{ optionId: 4, quantity: 1, inComplement: 1 }], customOptions: [], clientId: 12 };
 
 test('rule 71: the SDK surface of reservations.update is unchanged — name, arguments, the neighbours the plugins call', () => {
-  assert.deepEqual(Object.keys(core.reservations).sort(), ['getByIdWithDetails', 'platformCommission', 'platformWithholdsTouristTax', 'suggestBeds', 'update', 'updateBody']);
+  assert.deepEqual(Object.keys(core.reservations).sort(), ['fromPlatform', 'getByIdWithDetails', 'platformCommission', 'platformWithholdsTouristTax', 'suggestBeds', 'update', 'updateBody']);
   assert.equal(typeof core.reservations.update, 'function');
   assert.ok(Object.isFrozen(core.reservations));
 });
@@ -86,4 +86,59 @@ test('rule 71: through the SDK an unknown stay is 404 and a started stay is 409 
   assert.equal(refused.status, 409);
   assert.equal(refused.body.code, 'PAST_RESERVATION');
   assert.notEqual(db.prepare('SELECT adults FROM reservations WHERE id = 50').get().adults, 4);
+});
+
+// ── rule 71, PR B: `reservations.fromPlatform`, and rule 17: the moment of each line is declared ───────────────────────────────────
+const { todayIso } = require('../utils/localDate');
+const { addDaysToIsoDate } = require('../utils/devisHelpers');
+
+function platformStay(platform, id) {
+  const db = require('../database');
+  db.prepare("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Port')").run();
+  db.prepare('UPDATE properties SET maxGuests = 6 WHERE id = 1').run();
+  db.prepare("INSERT OR IGNORE INTO clients (id, firstName, lastName) VALUES (1, 'Guest', 'One')").run();
+  db.prepare("INSERT OR IGNORE INTO pricing_rules (propertyId, label, pricePerNight) VALUES (1, 'Standard', 100)").run();
+  for (const [optionId, title] of [[71, 'Linge'], [72, 'Bois']]) {
+    db.prepare("INSERT OR IGNORE INTO options (id, title, price, priceType) VALUES (?, ?, 20, 'per_stay')").run(optionId, title);
+    db.prepare('INSERT OR IGNORE INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
+  }
+  const start = addDaysToIsoDate(todayIso(), 60 + id);
+  db.prepare("INSERT INTO reservations (id, kind, propertyId, clientId, startDate, endDate, platform, adults, finalPrice, totalPrice) VALUES (?, 'reservation', 1, 1, ?, ?, ?, 2, 300, 300)")
+    .run(id, start, addDaysToIsoDate(start, 3), platform);
+  return db;
+}
+
+test('rule 71 (PR B): fromPlatform saves the port payload as update saves the patch, and update is that same save', () => {
+  const db = platformStay('Booking', 61);
+  const intake = toPlatformIntake({ platform: 'Booking', adults: 3, options: [{ optionId: 71, quantity: 1, inComplement: 0 }, { optionId: 72, quantity: 1, inComplement: 1 }] }, { platform: 'Booking' });
+  const result = core.reservations.fromPlatform(61, intake, { label: 'Booking (mail)' });
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(db.prepare('SELECT adults FROM reservations WHERE id = 61').get().adults, 3);
+  const viaUpdate = core.reservations.update(61, { adults: 2 }, { label: 'Booking (mail)' });
+  assert.equal(viaUpdate.status, 200);
+  assert.equal(db.prepare('SELECT adults FROM reservations WHERE id = 61').get().adults, 2);
+  assert.equal(core.reservations.fromPlatform(987655, intake).status, 404);
+});
+
+test('rule 17: the lines a platform intake wrote carry source intake and a declared moment — platform inside the price, arrival collected by the host', () => {
+  const db = platformStay('Booking', 62);
+  core.reservations.update(62, { options: [{ optionId: 71, quantity: 1, inComplement: 0 }, { optionId: 72, quantity: 1, inComplement: 1 }] });
+  const rows = db.prepare('SELECT optionId, source, collectAt, collectAtDefault, soldAt FROM reservation_options WHERE reservationId = 62 ORDER BY optionId').all();
+  assert.deepEqual(rows.map((r) => [r.optionId, r.source, r.collectAt, r.collectAtDefault]), [[71, 'intake', 'platform', 'platform'], [72, 'intake', 'arrival', 'arrival']]);
+  assert.ok(rows.every((r) => r.soldAt));
+});
+
+test('rule 17: a line sold after the booking is never declared a platform line — a second intake leaves a declared moment alone', () => {
+  const db = platformStay('Booking', 63);
+  core.reservations.update(63, { options: [{ optionId: 71, quantity: 1, inComplement: 0 }] });
+  db.prepare("UPDATE reservation_options SET collectAt = 'departure', source = 'fiche' WHERE reservationId = 63").run();
+  core.reservations.update(63, { adults: 3 });
+  const row = db.prepare('SELECT source, collectAt FROM reservation_options WHERE reservationId = 63').get();
+  assert.deepEqual([row.source, row.collectAt], ['fiche', 'departure']);
+});
+
+test('rule 17: an own-channel stay is no platform sale — its lines are not declared by the intake path', () => {
+  const db = platformStay('direct', 64);
+  core.reservations.update(64, { options: [{ optionId: 71, quantity: 1, inComplement: 0 }] });
+  assert.equal(db.prepare('SELECT collectAt FROM reservation_options WHERE reservationId = 64').get().collectAt, null);
 });

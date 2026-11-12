@@ -1,14 +1,1 @@
-[
-  {
-    "file": "plugins/website-booking/controllers/publicQuoteController.js",
-    "text": "calculateReservationQuote, computePercentOfStayAmount, getTypeMultiplier, roundMoney,",
-    "removedBy": "PR B",
-    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
-  },
-  {
-    "file": "plugins/website-booking/controllers/publicQuoteController.js",
-    "text": "* getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0)))));",
-    "removedBy": "PR B",
-    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
-  }
-]
+[]

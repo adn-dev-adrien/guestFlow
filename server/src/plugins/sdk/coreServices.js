@@ -21,6 +21,7 @@ const clientValidation = lazy('../../utils/clientValidation');
 const registry = lazy('./registry');
 const basketPayments = lazy('../../utils/basketPayments');
 const platformIntakePort = lazy('../../utils/platformIntakePort');
+const extraSalesModel = lazy('../../models/extraSalesModel');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
@@ -53,16 +54,12 @@ function savePlatformIntake(id, intake, label) {
   }
   const body = { ...updateBody().toUpdateBody(current, autoEnabledOptionIds()), ...platformIntakePort().toUpdatePatch(intake) };
   const result = reservationsController().performUpdate(Number(id), body);
-  if (result.status === 200 && label) {
-    reservations().addHistoryEntry(Number(id), 'update', [{ field: 'source', label: 'Origine', from: null, to: String(label) }]);
+  if (result.status === 200) {
+    // Rule 17 — the moment of each line the intake wrote is declared, not guessed later: inside the platform price, or collected on arrival.
+    extraSalesModel().stampIntakeLines(Number(id), current.platform, new Date().toISOString());
+    if (label) reservations().addHistoryEntry(Number(id), 'update', [{ field: 'source', label: 'Origine', from: null, to: String(label) }]);
   }
   return result;
-}
-
-function applyReservationUpdate(id, patch, label) {
-  const current = reservations().getByIdWithDetails(Number(id));
-  const platform = current ? current.platform : undefined;
-  return savePlatformIntake(id, platformIntakePort().toPlatformIntake(patch, { platform }), label);
 }
 
 // specs/plugins-phase-1-sdk.md rule 28 — a plugin's client goes through the same
@@ -73,15 +70,18 @@ function assertValidClient(payload) {
   if (message) throw invalidClient(message);
 }
 
+// SDK 2.28.0 (specs/pricing-components.md rule 71) — `reservations.fromPlatform(id, intake, { label, client, reuseByEmail })`: the
+// platform booking port. `intake` is the port's payload (`utils/platformIntakePort.js`): platform, number, stay, party, beds, money,
+// notes and the lines with the moment each is collected. `update` is the same save fed with a patch.
 // `reuseByEmail: false` — the mail the client comes from is not proven (specs/gites-de-france-mail-intake.md
 // rule 26): an address typed by an unverified sender never attaches a stay to a client who already holds it.
-function updateReservation(id, patch, { label, client, reuseByEmail = true } = {}) {
-  if (!client) return applyReservationUpdate(id, patch, label);
+function fromPlatform(id, intake, { label, client, reuseByEmail = true } = {}) {
+  if (!client) return savePlatformIntake(id, intake, label);
   let result = null;
   try {
     database().transaction(() => {
       const own = findOrCreateClient(client, { reuseByEmail });
-      result = { ...applyReservationUpdate(id, { ...patch, clientId: own.id }, label), clientId: own.id };
+      result = { ...savePlatformIntake(id, { ...intake, rest: { ...(intake && intake.rest), clientId: own.id } }, label), clientId: own.id };
       if (result.status !== 200) throw ROLLBACK;
     })();
   } catch (err) {
@@ -90,6 +90,12 @@ function updateReservation(id, patch, { label, client, reuseByEmail = true } = {
     delete result.clientId;
   }
   return result;
+}
+
+// A patch is read as the port's payload, and saved from it.
+function updateReservation(id, patch, options = {}) {
+  const current = reservations().getByIdWithDetails(Number(id));
+  return fromPlatform(id, platformIntakePort().toPlatformIntake(patch, { platform: current ? current.platform : undefined }), options);
 }
 
 function suggestBeds(propertyId, { adults, children, teens }) {
@@ -146,6 +152,7 @@ module.exports = Object.freeze({
   reservations: Object.freeze({
     getByIdWithDetails: (id) => reservations().getByIdWithDetails(id),
     update: updateReservation,
+    fromPlatform,
     updateBody: storedUpdateBody,
     suggestBeds,
     platformCommission: (figures) => platformCommission().computePlatformCommission(figures),

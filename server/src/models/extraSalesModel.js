@@ -10,6 +10,7 @@
  *   momentRefusal(reservationId, line, to, moments) / moveLine(reservationId, line, to)    rule 37: the 409 or null / the move, journaled by the caller
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
  *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
+ *   stampIntakeLines(reservationId, platform, soldAt)  the lines a platform intake wrote and left without a moment: `platform` or `arrival` (rule 17)
  *   stampSasLines(reservationId, soldAt)         the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18)
  *   openLoweredCents(reservationId)              the open `lineLowered` obligations, in cents
  *   vatClassOf(line, kind)                       the VAT class of a priced line: the article's own, else its family's
@@ -57,6 +58,19 @@ function stampSasLines(reservationId, soldAt) {
   for (const table of ['reservation_options', 'reservation_custom_options']) {
     db.prepare(`UPDATE ${table} SET source = 'sas', collectAt = COALESCE(collectAt, 'arrival'), collectAtDefault = COALESCE(collectAtDefault, 'arrival'),
       soldAt = COALESCE(soldAt, ?) WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`).run(soldAt, Number(reservationId));
+  }
+}
+
+// Rule 17 — what a platform intake wrote and left without a moment is declared now: inside the platform price (`platform`) or collected on
+// arrival (`arrival`), from the routing flag the intake set. A sale made later is never a platform line (its moment is the clock's).
+function stampIntakeLines(reservationId, platform, soldAt) {
+  const { saleChannel } = require('../utils/saleChannel');
+  if (!saleChannel(platform).platformSale) return;
+  const db = database();
+  for (const table of ['reservation_options', 'reservation_custom_options', 'reservation_resources']) {
+    db.prepare(`UPDATE ${table} SET source = 'intake', collectAt = CASE WHEN inComplement = 1 THEN 'arrival' ELSE 'platform' END,
+      collectAtDefault = CASE WHEN inComplement = 1 THEN 'arrival' ELSE 'platform' END, soldAt = COALESCE(soldAt, ?)
+      WHERE reservationId = ? AND collectAt IS NULL`).run(soldAt, Number(reservationId));
   }
 }
 
@@ -164,4 +178,4 @@ function vatClassOf(line, kind) {
   return kind === 'resource' ? 'resources' : 'options';
 }
 
-module.exports = { lineIds, stampNewLines, stampSasLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, openLoweredCents, vatClassOf };
+module.exports = { lineIds, stampNewLines, stampSasLines, stampIntakeLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, openLoweredCents, vatClassOf };

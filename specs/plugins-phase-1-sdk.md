@@ -644,7 +644,8 @@ Optional: a plugin that declares nothing reads « Actif ».
     article names (`config.fulfilment`, today `hourly-slot`): an id belongs to one plugin (`DUPLICATE_FULFILMENT`), it is asked only while that
     plugin is live, and a refusal at `confirm` — inside the sale transaction, before the line is written — aborts the sale (`SLOT_TAKEN`).
     `ctx.slotAvailability({ slots(args), validate(args) })` declares the planning's availability, one per instance, handed out as
-    `ctx.core.slotAvailability()`. Four events join `ctx.events.on` — `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled`,
+    `ctx.core.slotAvailability()`. `ctx.core.reservations.fromPlatform(reservationId, intake, { label, client, reuseByEmail })` is the platform booking port
+    (`update` is the same save fed with a patch). Four events join `ctx.events.on` — `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled`,
     `extraSale.refundOwed` — published after the sale commits (a plugin may not emit them); google-calendar 1.3.0 listens to the first three. hourly-resources 1.6.0, sas 1.10.0
     and google-calendar 1.3.0 range `^2.28.0`; a plugin calling `ctx.articleFulfilment(` or
     `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.28.0. Tests:

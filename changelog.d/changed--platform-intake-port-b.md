@@ -1,0 +1,1 @@
+- **Les prestations d'une réservation plateforme portent leur moment (pricing refonte, PR B)**: ce que la plateforme a inclus dans son prix et ce qui est encaissé à l'arrivée sont enregistrés à l'import, au lieu d'être devinés plus tard.

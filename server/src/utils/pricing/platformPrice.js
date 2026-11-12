@@ -8,6 +8,7 @@
  * is a total or a list of line totals; `withheldTax` is a total or the list `[reversed, withheld]`. `commission` and
  * `payout` are always `null`: the engine never computes a commission from a rate (rule 70), it is a stored figure read
  * by PLATFORM PAYMENT.
+ * `platformLinesTotal(lines)` is that total from the quote's lines (`platformPriceCheck` reads it, not a sum of its own).
  * `grossFromNet(net, commissionPercent, opts)` is the display-only gross-up the platform grid prints.
  *
  * Pure: no DB, no clock, no settings.
@@ -37,6 +38,15 @@ const sumOf = (value) => (Array.isArray(value)
   ? roundMoney(value.reduce((s, amount) => s + Number(amount || 0), 0))
   : Number(value || 0));
 
+// A line is inside the platform price when it is declared so (`collectAt = 'platform'`, rule 17); a line that declares no moment reads the routing
+// flag the intakes write (`inComplement = 0`), which they derive the declaration from, so the two agree on every stored line.
+const isPlatformLine = (line) => (line && line.collectAt ? line.collectAt === 'platform' : !Number((line && line.inComplement) || 0));
+
+/** What the lines inside the platform price add up to, rounded like the pin's (`resolvePlatformPrice`'s `platformLines`). */
+function platformLinesTotal(lines) {
+  return sumOf((lines || []).filter(isPlatformLine).map((line) => Number(line.totalPrice || 0)));
+}
+
 function resolvePlatformPrice({
   gross = null, extraGuestsInBrut = 0, platformLines = 0, withheldTax = 0,
 } = {}) {
@@ -64,4 +74,6 @@ const settingsSchema = [
   },
 ];
 
-module.exports = { resolvePlatformPrice, grossFromNet, settingsSchema };
+module.exports = {
+  resolvePlatformPrice, platformLinesTotal, isPlatformLine, grossFromNet, settingsSchema,
+};

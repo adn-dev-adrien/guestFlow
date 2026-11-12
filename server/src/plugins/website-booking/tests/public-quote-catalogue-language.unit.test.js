@@ -135,9 +135,8 @@ function buildController({ captures, insurance = null, options = [{ id: 7 }] }) 
     '../../utils/pricing': {
       calculateReservationQuote: () => engineQuote(),
       computePercentOfStayAmount: () => 0,
-      getTypeMultiplier: () => 1,
-      roundMoney: (n) => n,
     },
+    '../../utils/pricing/articles': { read: () => ({ offeredFigures: { totalPrice: 0 } }) },
     '../../models/optionsModel': {
       listForProperty: () => options,
       getCancellationInsurance: () => insurance,

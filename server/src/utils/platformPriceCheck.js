@@ -13,6 +13,7 @@
 
 const { isDirectChannel } = require('./platformNameFormat');
 const { matchNightRule, calculateBaseStayPrice } = require('./pricing');
+const { platformLinesTotal } = require('./pricing/platformPrice');
 
 const BELOW_PERCENT = -15;
 const ABOVE_PERCENT = 25;
@@ -66,9 +67,7 @@ function platformPriceCheck({
   if (!channel || !(Number(channel.commissionPercent) < 100)) return null;
 
   // What the brut carries beside the accommodation, at the stay's own price (not collected on arrival).
-  const extrasInBrut = [...(quote.optionLines || []), ...(quote.resourceLines || [])]
-    .filter((line) => !Number(line.inComplement || 0))
-    .reduce((sum, line) => sum + Number(line.totalPrice || 0), 0);
+  const extrasInBrut = platformLinesTotal([...(quote.optionLines || []), ...(quote.resourceLines || [])]);
 
   const seasonsById = new Map((grid.seasons || []).map((s) => [s.ruleId, s]));
   const nights = Array.isArray(quote.nightlyBreakdown) ? quote.nightlyBreakdown : [];
