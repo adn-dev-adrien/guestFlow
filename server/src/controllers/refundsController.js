@@ -15,6 +15,7 @@ const defaultRefundsModel = require('../models/refundsModel');
 const defaultReservationsModel = require('../models/reservationsModel');
 const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
+const { lineAllocationsContext } = require('../models/refundInputModel');
 const {
   buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf,
 } = require('../utils/refunds');
@@ -83,7 +84,8 @@ function createRefundsController(deps = {}) {
     const taxOnArrival = stayDatabase ? taxRidesTheComplement(stayDatabase, reservation) : true;
     // specs/mixed-method-payments.md rule 46 — the buckets paid with several methods, read for their share on each side.
     const splitShares = stayDatabase ? bucketSharesOf(paymentSettlementsModel.buildModel(stayDatabase).listFor(reservationId), reservation) : null;
-    const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash, taxOnArrival, splitShares });
+    const lineAllocations = stayDatabase ? lineAllocationsContext(stayDatabase, reservationId) : null;
+    const lineReading = (cash) => collectedByLine({ reservation, options: reservation.options || [], resources: reservation.resources || [], booked, cash, taxOnArrival, splitShares, lineAllocations });
     // Rule 51 (D15) — a live stay reads it too: its lines answer for what they collected, when its money can be read.
     const liveReadable = booked && (!(Number(reservation.installmentsPaidAmount) > 0) || booked.installments);
     const collected = cancelled || liveReadable ? lineReading(false) : null;

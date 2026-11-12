@@ -23,7 +23,7 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
  * Rule 48 reading of 2026-11-02 (review of PR #926, residual A) — the commissions an avoir requalified (lines keyed
  * `commission`) were withheld by the payment provider, never collected: the indemnity never gives them back.
  */
-function cancelledRefundBudget({ collectedTtc, cashCollectedTtc = 0, refunds = [] }) {
+function budget({ collectedTtc, cashCollectedTtc = 0, refunds = [] }) {
   const givenInCash = (refunds || []).filter((r) => isOffBooks(r.method))
     .flatMap((r) => r.lines || []).filter((l) => !isIndemnityLine(l))
     .reduce((sum, l) => sum + Number(l.amountTtc || 0), 0);
@@ -61,7 +61,7 @@ function cancelledRefundBudget({ collectedTtc, cashCollectedTtc = 0, refunds = [
  * @param {Array}  input.refunds        the refund register (header + lines)
  * @param {number} input.nights         nights of the stay — makes the tourist-tax line refundable
  *                                      PER NIGHT (specs/reservation-refunds.md §3.5 rule 27)
- * @param {object} [input.cancelled]    `cancelledRefundBudget` of a cancelled stay: each line then offers what it
+ * @param {object} [input.cancelled]    `budget` of a cancelled stay: each line then offers what it
  *                                      collected (rule 48) and carries `indemnityTtc`, the part the indemnity holds
  * @param {object} [input.collected]    `collectedByLine(...)` — on a cancelled stay, each line offers at most what IT
  *                                      collected (rule 49 reading of 2026-11-02)
@@ -75,7 +75,7 @@ function cancelledRefundBudget({ collectedTtc, cashCollectedTtc = 0, refunds = [
  *                                      share (rule 51)
  * @param {object} [input.reservation]  on a live stay, the row, for the money it collected after arrival (rule 51)
  */
-function buildRefundableLines({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null, complementCollected = false, goneLines = [], planBuckets = null, reservation = null }) {
+function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resources = [], refunds = [], nights = 0, cancelled = null, collected = null, cashCollected = null, complementCollected = false, goneLines = [], planBuckets = null, reservation = null }) {
   const given = refundedByKey(refunds, (refund) => !isRequalification(refund));
   const fromIndemnity = refundedByKey(refunds, (refund) => !isRequalification(refund), isIndemnityLine);
   const requalified = refundedByKey(refunds, isRequalification, (line) => !isCommissionLine(line));
@@ -305,8 +305,8 @@ function spreadBucketRefund(lines, amountTtc, roomOf = (line) => line.refundable
 }
 
 module.exports = {
-  cancelledRefundBudget,
-  buildRefundableLines,
+  budget,
+  refundable,
   applyLiveCollected,
   capInOrder,
   spreadBucketRefund,

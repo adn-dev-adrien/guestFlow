@@ -6,9 +6,9 @@ const assert = require('node:assert/strict');
 const judge = require('../utils/pricing/refunds/judge');
 const legacy = require('../utils/refunds');
 const guard = require('../utils/refundUntickGuard');
-const { buildRefundableLines } = require('../utils/pricing/refunds/refundable');
+const { refundable } = require('../utils/pricing/refunds/refundable');
 
-const { validateRefundPayload, refundDeletionRefusal, cancellationHadBookMoney, untickRefusal, lastBookPaymentDateOf } = judge;
+const { validateRefundPayload, deletionRefusal, cancellationHadBookMoney, untickRefusal, lastBookPaymentDateOf } = judge;
 
 // date-literal-ok: the day is injected (`today`), nothing here reads the clock
 const TODAY = '2026-08-20';
@@ -20,7 +20,7 @@ const STAY = {
   options: [{ optionId: 7, title: 'Petit-déjeuner', totalPrice: 72, billedUnits: 6, offered: 0 }],
 };
 const context = () => ({
-  refundableLines: buildRefundableLines({ ...STAY, refunds: [] }),
+  refundableLines: refundable({ ...STAY, refunds: [] }),
   finalPrice: 480,
   touristTaxTotal: 13.2,
   alreadyRefundedTotal: 0,
@@ -30,7 +30,7 @@ const context = () => ({
 
 test('rule 72 — the legacy module and the guard re-export the judge', () => {
   assert.equal(legacy.validateRefundPayload, validateRefundPayload);
-  assert.equal(legacy.refundDeletionRefusal, refundDeletionRefusal);
+  assert.equal(legacy.refundDeletionRefusal, deletionRefusal);
   assert.equal(legacy.lastBookPaymentDateOf, lastBookPaymentDateOf);
   assert.equal(typeof guard.untickRefusal, 'function');
 });
@@ -55,11 +55,11 @@ test('rule 72 — the refusals: unknown means, above the line, a future day, no 
 });
 
 test('rule 72 — the avoir cannot be deleted; a refund the cancellation read is refused as netted', () => {
-  assert.deepEqual(refundDeletionRefusal({ id: 2, method: 'retained' }, [{ id: 2, method: 'retained' }], {}), {
+  assert.deepEqual(deletionRefusal({ id: 2, method: 'retained' }, [{ id: 2, method: 'retained' }], {}), {
     code: 'REFUND_RETAINED_AVOIR', error: 'L’indemnité d’annulation ne se supprime pas.',
   });
   const register = [{ id: 1, method: 'transfer' }, { id: 2, method: 'retained' }];
-  assert.equal(refundDeletionRefusal(register[0], register, { kind: 'cancelled', depositPaid: 1, depositAmount: 100 }).code, 'REFUND_NETTED_BY_CANCELLATION');
+  assert.equal(deletionRefusal(register[0], register, { kind: 'cancelled', depositPaid: 1, depositAmount: 100 }).code, 'REFUND_NETTED_BY_CANCELLATION');
 });
 
 test('rule 72 — a cancellation had book money to keep when an acompte, installments or a withheld solde commission were paid', () => {

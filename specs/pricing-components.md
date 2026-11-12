@@ -1153,10 +1153,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > never refused); `overpayment.js` is the one formula of rule 76; `owed.js` holds `owedOnBasket`, `owedOnLinkPayment`,
     > `owedOnDuplicate`, `owedOnLineLowered` (rule 75); `card` is a means with `providerRefundRef` (O-3, no refund API is called); a
     > refund writes its `refund` / `refundDeleted` history entry; the deletion refusal reads `refund_nettings` (rule 78).
-    > **Pending** — PR B: `collected.collectedByLine` reading the allocations by line (the stay-level rows of a legacy stay name no
-    > line, so the per-line caps keep their stored-money reader until the lines carry their rows), the names `refundable.budget` /
-    > `refundable`, `judge.deletionRefusal`, SETTLEMENT's `refundsOwed`, the poste split of the trop-perçu no longer reading the
-    > history, and SCHEDULE's `overCollectedTtc` / `complementCollectedExcess` (quote keys, unchanged by this pass).
+    > **Delivered by PR B** (pass 4): `collected.collectedByLine` takes `lineAllocations` (the payment rows that name a line, and the refs of
+    > the two stay lines): when every payment row of the stay names a line, each line collected what its rows say (books or caisse interne side);
+    > a stay with a stay-level payment row (a bucket with no per-line truth, a settlement) keeps the stored-money reading. 0 figure moved on the gate. The contract names
+    > are `refundable.budget` / `refundable` (formerly `cancelledRefundBudget` / `buildRefundableLines`, still exported by the legacy
+    > `utils/refunds` path under their old names), `judge.deletionRefusal` (formerly `refundDeletionRefusal`), and SETTLEMENT's face
+    > `utils/reservationSettlement` re-exports `refundsOwed` (REFUNDS' `owed`).
+    > **Pending** — PR B: the poste split of the trop-perçu no longer reading the history, and SCHEDULE's `overCollectedTtc` /
+    > `complementCollectedExcess` (quote keys, unchanged by this pass).
     > _(The price gate's refund figures and the synthetic refund stays were delivered by PR A: `price-gate-synthetic`.)_
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)

@@ -16,7 +16,7 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 /**
  * specs/reservation-refunds.md rule 49 reading of 2026-11-02 — what each line of a stay collected, TTC, keyed like
- * `buildRefundableLines`: the paid acompte's and solde's contribs, plus a paid arrival complement's share (the lines
+ * `refundable`: the paid acompte's and solde's contribs, plus a paid arrival complement's share (the lines
  * it collects whole, and the growth of the others). The tax share an older acompte captured was booked on its
  * accommodation, and moves to the tax with the solde (accountingModel's reclass). Without contribs that add up to
  * each paid entry, the accommodation and the tax read `booked` and the extras only the lines paid at arrival (0 while
@@ -25,7 +25,47 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
  * Reading of 2026-11-05 (audit R23 N6) — on the books, a paid end-of-stay complement and the notes held their lines too
  * (`collectedAfterArrival`). The caisse interne's stays on no line (review of PR #929, F4).
  */
-function collectedByLine({ reservation, options = [], resources = [], booked = null, cash = false, taxOnArrival = true, splitShares = null }) {
+function collectedByLine({ reservation, options = [], resources = [], booked = null, cash = false, taxOnArrival = true, splitShares = null, lineAllocations = null }) {
+  const out = collectedFromStoredMoney({ reservation, options, resources, booked, cash, taxOnArrival, splitShares });
+  return lineAllocations ? namedByAllocations(out, { options, resources, cash, lineAllocations }) : out;
+}
+
+// specs/pricing-components.md §3 rules 21, 74 (pass 4): where payment allocations NAME a line, that line collected what they
+// say, when every payment row of the stay names a line; a stay with a stay-level row keeps the stored-money reading above.
+const refOfLine = (line) => {
+  if (line.lineId == null) return null;
+  if (line.isCustom) return `line:reservation_custom_options:${line.lineId}`;
+  return `line:${line.optionId == null && line.resourceId != null ? 'reservation_resources' : 'reservation_options'}:${line.lineId}`;
+};
+function namedByAllocations(stored, { options, resources, cash, lineAllocations }) {
+  const { allocations, stayLineRefs } = lineAllocations;
+  const side = cash ? 0 : 1;
+  const byRef = new Map();
+  for (const a of allocations) {
+    if (a.books === side) byRef.set(a.lineRef, (byRef.get(a.lineRef) || 0) + a.amountCents);
+  }
+  // A paid bucket the stay holds no per-line truth for has a stay-level row (no line): the lines then keep the stored-money
+  // reading, which knows how that bucket was shared; the allocations speak only for a stay whose money is all on lines.
+  if (byRef.size === 0 || allocations.some((a) => a.books === side && !a.lineRef)) return stored;
+  const keyed = new Map();
+  const named = new Set();
+  const take = (key, ref) => {
+    if (!key || !ref || !byRef.has(ref)) return;
+    named.add(key);
+    keyed.set(key, (keyed.get(key) || 0) + byRef.get(ref));
+  };
+  for (const line of [...options, ...resources]) {
+    if (Number(line.offered || 0) !== 1) take(billedLineKey(line), refOfLine(line));
+  }
+  take(ACCOMMODATION_KEY, stayLineRefs.accommodation);
+  take(TOURIST_TAX_KEY, stayLineRefs.touristTax);
+  if (named.size === 0) return stored;
+  const out = { ...(stored || {}) };
+  for (const key of named) out[key] = keyed.get(key) / 100;
+  return out;
+}
+
+function collectedFromStoredMoney({ reservation, options, resources, booked, cash, taxOnArrival, splitShares }) {
   const row = reservation || {};
   const billed = [...options, ...resources].filter((line) => line && Number(line.offered || 0) !== 1);
   const nz = (value) => (value == null ? 0 : Number(value));

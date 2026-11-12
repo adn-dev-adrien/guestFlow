@@ -2,7 +2,7 @@
  * REFUNDS / judge — the refusals and the write judge of the register (rule 72).
  *
  * `validateRefundPayload` (caps per line, per stay, on the cancelled budget; `today` injected), `splitOnIndemnity` (a
- * cancelled stay's refund taken caisse, then sale, then indemnity), `refundDeletionRefusal`, and `untickRefusal` (taking a
+ * cancelled stay's refund taken caisse, then sale, then indemnity), `deletionRefusal`, and `untickRefusal` (taking a
  * mark back must not leave book refunds above what stays collected, rule 52; the projected split is injected by the
  * caller). Moved from `utils/refunds.js` and `utils/refundUntickGuard.js`. Phrases amounts with `money.frenchEuros`.
  * Keeps its own `round2`.
@@ -51,7 +51,7 @@ function caisseKeptMoves(refund, refunds, row) {
   return cashDepositKeptOf(row, without) !== cashDepositKeptOf(row, before);
 }
 
-function refundDeletionRefusal(refund, refunds, reservation, nettedIds = null) {
+function deletionRefusal(refund, refunds, reservation, nettedIds = null) {
   if (!refund) return null;
   if (isRetainedDeposit(refund.method)) return DELETION_REFUSALS.retained;
   const row = reservation || {};
@@ -380,7 +380,7 @@ module.exports = {
   splitOnIndemnity,
   cancellationHadBookMoney,
   caisseKeptMoves,
-  refundDeletionRefusal,
+  deletionRefusal,
   takeBackRefusal,
   untickRefusal,
 };

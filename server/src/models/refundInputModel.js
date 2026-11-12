@@ -66,4 +66,18 @@ function overpaymentContext(db, reservationId, { autoComplementCents = 0, engine
   };
 }
 
-module.exports = { overpaymentContext };
+// What `collectedByLine` reads where allocations name a line (rule 74): the stay's payment rows, and the refs of its
+// two stay lines (the accommodation and the tourist tax carry no row of the three line tables).
+function lineAllocationsContext(db, reservationId) {
+  const allocations = paymentLedger.create(db).allocations(reservationId)
+    .filter((a) => a.kind === 'payment')
+    .map((a) => ({ lineRef: a.lineRef, amountCents: Number(a.amountCents), books: Number(a.books) }));
+  const stayLineRefs = { accommodation: null, touristTax: null };
+  const present = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservation_stay_lines'").get();
+  if (present) {
+    for (const row of db.prepare('SELECT id, kind FROM reservation_stay_lines WHERE reservationId = ?').all(reservationId)) stayLineRefs[row.kind] = `line:reservation_stay_lines:${row.id}`;
+  }
+  return { allocations, stayLineRefs };
+}
+
+module.exports = { overpaymentContext, lineAllocationsContext };

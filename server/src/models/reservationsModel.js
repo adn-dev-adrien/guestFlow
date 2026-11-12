@@ -560,6 +560,9 @@ function createReservationsModel(database) {
     catch { return false; }
   })();
   // specs/plugins-phase-3c-hourly-resources.md rules 6–7 — which plugin line of the SAS a custom row is.
+  const HAS_RCO_LINE_ID = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'lineId'); } catch { return false; }
+  })();
   const HAS_RCO_SAS_LINE_KEY = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'sasLineKey'); } catch { return false; }
   })();
@@ -1012,6 +1015,7 @@ function createReservationsModel(database) {
           COALESCE(rco.inComplement, 0) as inComplement,
           COALESCE(rco.sasArrivalOrigin, 0) as sasArrivalOrigin,
           ${HAS_RCO_SAS_LINE_KEY ? 'rco.sasLineKey' : 'NULL'} as sasLineKey,
+          ${HAS_RCO_LINE_ID ? 'rco.lineId' : 'NULL'} as lineId,
           rco.acompteContribTtc as acompteContribTtc,
           rco.soldeContribTtc as soldeContribTtc,
           1 as isCustom

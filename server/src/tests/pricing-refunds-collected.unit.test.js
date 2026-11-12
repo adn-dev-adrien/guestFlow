@@ -58,3 +58,35 @@ test('rule 72 — collectedAfterArrival adds a settled end of stay and the settl
   const withNote = { ...endOfStay, midStaySettledNotes: JSON.stringify([{ id: 1, paid: true, lines: [{ key: 'opt:7', label: 'Petit-déjeuner', amount: 12 }] }]) };
   assert.deepEqual([...collectedAfterArrival(withNote)], [['opt:7', { label: 'Bain', amount: 24 }]]);
 });
+
+// specs/pricing-components.md §3 rules 21, 74 (pass 4): where allocations name a line, the line collected what they say.
+test('rule 21 — collectedByLine reads the allocations that name a line; a line no allocation names keeps the stored-money reading', () => {
+  const reservation = { depositPaid: 1, depositAmount: 100, finalPrice: 100, accommodationAcompteContribTtc: 70, touristTaxAcompteContribTtc: 0 };
+  const options = [{ optionId: 5, lineId: 11, totalPrice: 30, acompteContribTtc: 30 }, { optionId: 6, lineId: 12, totalPrice: 20, acompteContribTtc: 0 }];
+  const stored = collectedByLine({ reservation, options });
+  const named = collectedByLine({
+    reservation,
+    options,
+    lineAllocations: {
+      allocations: [{ lineRef: 'line:reservation_options:11', amountCents: 2500, books: 1 }, { lineRef: 'line:reservation_options:11', amountCents: 500, books: 0 }],
+      stayLineRefs: { accommodation: null, touristTax: null },
+    },
+  });
+  assert.equal(stored['opt:5'], 30);
+  assert.equal(named['opt:5'], 25, 'the books side of the line, from its allocations');
+  assert.equal(named.accommodation, stored.accommodation, 'no allocation names the accommodation: stored-money reading');
+  const withStayLevel = collectedByLine({
+    reservation,
+    options,
+    lineAllocations: { allocations: [{ lineRef: 'line:reservation_options:11', amountCents: 2500, books: 1 }, { lineRef: null, amountCents: 7500, books: 1 }], stayLineRefs: {} },
+  });
+  assert.deepEqual(withStayLevel, stored, 'a stay-level payment row: the whole stay keeps the stored-money reading');
+  const cash = collectedByLine({ reservation, options, cash: true, lineAllocations: { allocations: [{ lineRef: 'line:reservation_options:11', amountCents: 500, books: 0 }], stayLineRefs: {} } });
+  assert.equal(cash['opt:5'], 5, 'the caisse interne side');
+});
+
+test('rule 21 — collectedByLine with allocations that name no line of the stay is the stored-money reading, unchanged', () => {
+  const reservation = { depositPaid: 1, depositAmount: 50, finalPrice: 50, accommodationAcompteContribTtc: 50 };
+  const none = collectedByLine({ reservation, options: [], lineAllocations: { allocations: [], stayLineRefs: { accommodation: 'line:reservation_stay_lines:1', touristTax: null } } });
+  assert.deepEqual(none, collectedByLine({ reservation, options: [] }));
+});

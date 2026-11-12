@@ -257,4 +257,6 @@ module.exports = {
   bucketStates, isSettled, remainingToPay, platformCommission, platformPenalty, attributionDate, stayDueAtArrival,
   midStayNotesTotal, refundsBook, comptaCollected, arrivalPaymentAdjustment, round2,
   splitAdjustment, splitBooksDeduction,
+  // specs/pricing-components.md §3 rule 72 — SETTLEMENT's face outside the pricing folder re-exports what is owed back (REFUNDS' `owed`).
+  refundsOwed: require('./pricing/refunds/owed'),
 };
