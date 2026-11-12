@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Status** | Approved _(2026-11-12: the owner decided Q1-Q9, §9)_ |
-| **Branch** | none of its own: delivered inside pricing-components **PR C** (its external-sale part, Q9 B). This docs branch carries the spec only |
+| **Branch** | delivered on `feature/pricing-components-c` (pricing-components **PR C**, its external-sale part, Q9 B) |
 | **Created** | 2026-11-12 |
 | **Author** | Adrien |
 | **Related PR** | pricing-components PR C (link once opened) — target `inte/plugins` |
@@ -219,7 +219,7 @@ once on the server by the refonte's components.
 
 28. **VAT of an outside client.** Every line of the document is a `TaggedAmount` with `customerContext =
     'external'` and its article's `vatClass`; the VAT component resolves `vat.rate.<vatClass>.external` (the
-    session: `resources.external` = today's `standaloneVatRate`, moved to the settings provider in PR B; drinks:
+    session: `resources.external` = today's `standaloneVatRate`, read through the settings provider (the adapter over the plugin's setting) — delivered by PR C, it did not move in PR B; drinks:
     `drinks.external`, 20 % in the refonte's use case). VAT is rounded once per (class, rate) group of the document
     and allocated to its lines (refonte rule 62). Franchise mode: no VAT, « TVA non applicable ».
 29. **The rate is frozen on the line at sale** (refonte rule 74), not at payment. A visit opened before a VAT change
@@ -333,9 +333,10 @@ once on the server by the refonte's components.
     `visit_payment_request` (`defaultEmailTemplatesRegistry.js`, seeded FR and EN, `sendMode: 'manual'`, tone of
     `guest-email-tone`: warm, short, never selling; tokens `{{clientFirstName}}` when known, the amount, the link, its
     valid-until label, `{{senderName}}`). It is **not** in `AUTO_SEND_EXCEPTIONS` (lifecycle rule 44): `autoSendPolicy`
-    answers `false` for it, a test asserts it, and the cron and the queue never list it. `email_log.reservationId` is
-    `NOT NULL`, so this send is traced on the document's history instead (« Lien envoyé à {e-mail} », « Lien copié »
-    is not traced) and never written to `email_log`.
+    answers `false` for it, a test asserts it, and the cron and the queue never list it. The send is logged in `email_log` like every other
+    e-mail: **amended 2026-11-12 (lead's call, PR C)** — `email_log.reservationId` becomes nullable and the table gains `saleRef`, in the same
+    migration as `payment_links` (`pricing_sales_v1`, pricing-components rule 86). The document's history also shows « Lien envoyé à {e-mail} »
+    (« Lien copié » is not traced).
 43. **The drinks revenue account is a setting of `accounting-export`** (decided 2026-11-12, Q8 A). The setting
     `drinksRevenueAccount` is empty by default. A journal export (CSV, sales JSON, synthesis) whose period holds a
     line of class `drinks` while the setting is empty is **refused** with 409 `DRINKS_ACCOUNT_REQUIRED` « Compte des
@@ -377,7 +378,7 @@ once on the server by the refonte's components.
 | plugin | `plugins/hourly-resources/planningCardsModel.js` | T | `remainingCents` and the « Reste » state on the card (rule 22) |
 | plugin | `plugins/hourly-resources/index.js` (`suggestionContexts`) | T | declares kind `resource` and lists the resources as contexts (rule 37); **no per-resource article list in the plugin's settings** |
 | plugin | `plugins/hourly-resources/index.js` | T | mounts the visit routes; adds `GET/POST /resource-bookings/:id/visit*` to `ctx.reception` (rule 7) |
-| plugin | `plugins/hourly-resources/migrations.js` | T | `resource_bookings_v5`: `saleRef`, `noShowAt` |
+| plugin | `plugins/hourly-resources/migrations.js` | T | `resource_bookings_v6`: `saleRef`, `noShowAt` |
 
 ### 4.2 Client side (`client/src/`)
 
@@ -450,9 +451,10 @@ check; `CREATE TABLE IF NOT EXISTS`).
 | `standalone_sale_lines` | `catalogueCents` | INTEGER NULL | NULL | value kept for the struck display |
 | `standalone_sale_lines` | `components`, `vatClass`, `family`, `soldAt`, `source`, `cancelledAt` | TEXT | NULL | the rule-74 snapshot (if PR C stores fewer) |
 | — | `standalone_sale_payments` | `id, saleId, paidAt, tendersJson, receivedCents, shortfallCents, shortfallKind, recordedAt, createdBy` | — | one row per payment; `payment_allocations.paymentRef = 'standalone-payment:<id>'` |
-| `resource_bookings` (plugin `resource_bookings_v5`) | `saleRef`, `noShowAt` | TEXT NULL | NULL | rules 34, 27 |
+| `resource_bookings` (plugin `resource_bookings_v6`) | `saleRef`, `noShowAt` | TEXT NULL | NULL | rules 34, 27 |
 | — | `suggested_articles` | `id, contextKind TEXT, contextId TEXT, articleRef TEXT, position INTEGER`, `UNIQUE(contextKind, contextId, articleRef)` | — | rule 37; core table, additive |
 | `standalone_sales` | `customerEmail`, `customerName` | TEXT NULL | NULL | rules 8a, 39 (if PR C does not already store them, refonte rule 53); cleared by the anonymisation |
+| `email_log` | `saleRef` (and `reservationId` nullable) | TEXT NULL | NULL | rule 42, amended 2026-11-12: the link e-mail is logged like every other |
 | `payment_links` | `saleRef` | TEXT NULL | NULL | the document a link bills (rule 40); `reservationId` becomes nullable for those rows. **`reservationId` is `NOT NULL` today** (`database.js`): the table rebuild is done once, in PR C, which already owes a standalone link target (refonte rule 53), and is verified on a copy of production before merge |
 | `standalone_sale_payments` | `source` | TEXT NULL | NULL | `payment-link:<id>` for rule 41 |
 | `email_templates` | `visit_payment_request` | row | seeded FR, EN, `sendMode 'manual'` | rule 42 |
@@ -602,7 +604,7 @@ All nine were decided by the owner on **2026-11-12**. Nothing is open.
   place, numbers kept.
 - **Delivery (Q9 B).** There is no separate « PR D ». The work lands in refonte PR C, in its external-sale part,
   after PR B. Order: PR B → PR C (external sale + this spec). Consequences to handle in that PR, not before:
-  1. `pricing-components.md` PR C row and §8/ordering text gain « mini SAS of an outside visit
+  1. _(done 2026-11-12, commit C0)_ `pricing-components.md` PR C row and §8/ordering text gain « mini SAS of an outside visit
      (`outside-booking-sas.md`), generic `SuggestedArticlesStep`, standalone payment link » and the size estimate is
      revised; rule 53 and the API row `POST /api/standalone-sales` (`paymentLink?`) point at rules 39-41 here.
   2. The `payment_links` standalone target (§5) is one migration shared with the counter dialog's link.

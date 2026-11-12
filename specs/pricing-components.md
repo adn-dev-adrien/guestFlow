@@ -454,6 +454,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > departure complement owes nothing for it (`extra-sale-payment-now`). A stay not started refuses it, 409 `PAYMENT_BEFORE_ARRIVAL` (before
     > the check-in the money is the SAS's arrival complement, taken in one piece); a stay whose departure complement is collected refuses it,
     > 409 `STAY_SETTLED` « Séjour soldé : vente séparée ». The Qonto card link stays the online-payment plugin's (rule 29).
+    > **Amended 2026-11-12 for PR C (owner Q-C3), the shop card path:** unlike the fiche and the SAS, a guest-app card order does **not** write a
+    > `due` line while the payment is pending. The order waits in `guest_orders` (`awaiting_payment`) and only reserves its allowance (rule 26);
+    > the paid effect writes the lines already settled, in one transaction (guest-app rule 35 as amended, rule 85).
 30. **Quote = commit.** `extraSale.quote(...)` runs the same pipeline without writing and returns what `sell`
     would write. A shop, SAS or fiche preview is a quote; a commit re-quotes inside the transaction and
     refuses if the price differs from the accepted one (one comparison, one refusal « Prix modifié — relire le
@@ -739,7 +742,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | EXTRA GUESTS | `includedGuests`, `extraGuestPrice`, `extraGuestPriceUnit`, `tiers` (property) | `basePriceIncludedGuests`, `extraGuestPrice(Unit)`, tier tables |
     | TOURIST TAX | `mode`, `perPersonNight`, `percentage`, `departmentPercentage`, `fixedAmount`, `cap`, `exemptions`, `collector` (property; `collector` per platform) | `touristTax*` property columns, platform tax rows; `cap` / `exemptions` default to the values hard-coded today |
     | PLATFORM PRICE | `commissionRate` (global, per platform; the schema has no `mode` key) | `platforms.commissionPercent`, read by the display grid (`grossFromNet`) only — the engine never computes a commission from a rate (rule 70) |
-    | VAT | the eight rate keys `rate.<vatClass>.<customerContext>` (article; default `null` = the regime's rate; the regime itself stays outside the provider, per sale period) | `vat_periods` through `vatRegimeModel`; every `rate.*.hosted` null = the regime rate; `rate.resources.external` = hourly-resources `standaloneVatRate` (moved in PR B) |
+    | VAT | the eight rate keys `rate.<vatClass>.<customerContext>` (article; default `null` = the regime's rate; the regime itself stays outside the provider, per sale period) | `vat_periods` through `vatRegimeModel`; every `rate.*.hosted` null = the regime rate; `rate.resources.external` reads hourly-resources `standaloneVatRate` through the provider (adapter, no stored copy) — _corrected 2026-11-12: this did **not** move in PR B (`settingsProvider.js` still said « arrives with PR B »); delivered by PR C_ |
     | STAY CLOCK | `defaultCheckIn`, `defaultCheckOut` (property) | `properties.defaultCheckIn/Out` |
     | SCHEDULE | `depositPercent`, `depositEnabled`, `depositDueDays`, `balanceDaysBefore`, `cancelAfterBalanceDueDays` (property) | the same property columns |
     | ARTICLE FAMILIES / instances | `price`, `freeUnits`, `freeMinutes` (article), `maxGuests` (property); per family schema, values per article instance (e.g. `hourly`: grid, `freeMinutes`, evening band) | `property_option_prices`, `property_resource_prices` (a NULL column is no override), `options.price`, `resources.price`, `properties.maxGuests`, plugin settings |
@@ -798,7 +801,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     already are. An optional client name and e-mail; no client fiche is created. Only families that need no stay context are sellable externally (`fixed`, `per_unit`, `hourly`); a
     `per_night` / `per_person*` / `percent_of_stay` article answers `validate` → `NEEDS_STAY`, and the catalogue
     offered to an external sale lists only the articles marked « vendable hors séjour » (`article` setting
-    `sellableExternally`, default false).
+    `sellableExternally`, default false). _Where it lives (2026-11-12): an INTEGER column `sellableExternally` DEFAULT 0 on `options` and `resources`, read by
+    the catalogue provider into `config.sellableExternally` of `makeArticle`._ The payment link of an outside visit: rules 86 and
+    `outside-booking-sas.md` rules 39-41.
     > **Pending** — PR C
 54. **A pipeline per caller, chosen by the caller.** The fiche save of a stay edit uses `stayQuote`; « Ajouter
     un produit » uses `ficheSale`; the SAS `sasSale`; the guest app `shopSale`; the « Vente hors séjour »
@@ -1424,6 +1429,40 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - no backfill: nothing already sold is re-priced, no money moves.
     Test: `hourly-booking-free-hour`.
 
+### 3.S Rules added 2026-11-12 (PR C, owner decisions Q-C1 to Q-C14)
+
+84. **Delivery cadence of PR C** _(rule 80 applied to PR C; owner 2026-11-12)_. One PR C (Q-C12), delivered in passes: docs and schema (0 figure
+    diff), 0-diff moves and guard entries, the core sale path and line identity, the guest app, the outside visit. Each commit runs the fast
+    check (price gate, intake replay, VAT golden, `pricing-*`, `articles-*`, `no-duplicate-formulas`, `check-spec-coverage`); checkpoints run the
+    full suites and the prod replay by value. **No per-PR review for B and C: ONE end review loop** (4.0.0 style) once B, C and the outside-visit
+    SAS are implemented. Rule 69's reference to a per-PR review reads accordingly.
+    > **Sans test** — process rule (delivery cadence); verified by the commit history, not by code.
+85. **The second sale of an article is a second line, for real** _(owner Q-C1 a; completes rule 13)_. `reservation_options` and
+    `reservation_resources` drop the article primary key `(reservationId, optionId|resourceId)`: `lineId` (rule 79) is the key and
+    `(reservationId, optionId)` / `(reservationId, resourceId)` are non-unique indexes. The tables are rebuilt with the rows copied in
+    **rowid order** (about 115 readers rely on the physical order; PR B proved it on the intake replay and the full replay). A session added to an
+    already **paid** line becomes a NEW line (rule 13, Q-C7); on an unpaid line the evening component grows. The readers keyed by
+    `optionId` move to line keys. **Rollback:** the previous release upserts with `ON CONFLICT(reservationId, optionId)` and would throw on
+    the rebuilt tables; this is blocked by the schema floor of `self-update-and-releases.md` (its last rule), not by a shim.
+    > **Pending** — PR C
+86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with
+    `reservationId` nullable and a `saleRef` column (migration `pricing_sales_v1`, rows copied verbatim): the link e-mail of an outside visit is
+    logged in `email_log` like every other e-mail. A link row with a NULL `reservationId` must be invisible to the previous release's poller and
+    mailer; a test runs the 4.0.x code on the migrated database.
+    > **Pending** — PR C
+87. **The guest-app card order** _(owner Q-C3)_: its line appears only once paid; see rule 29 as amended and guest-app rules 35, 85. J-7 rules 68 and 94
+    (refusals) are dropped (owner Q-C4); rule 104 of the guest app routes by the date **and** the check-in time (rule 20).
+    > **Pending** — PR C
+88. **« Vente hors séjour » is a core button** _(owner Q-C9, Q-C11)_: it sits in Suivi financier and is present without the accounting-export
+    plugin. The option / resource catalogue form gets three minimal fields: VAT class, external rate, « Vendable hors séjour ».
+    > **Pending** — PR C
+89. **Technical calls of PR C** _(lead, 2026-11-12)_. Q-C5: named exact money variants in `money.js` (0 diff), class-C sites keep their exact
+    rounding, French parsers go to a `parseFrench*` helper. Q-C6: the `inComplement` readers are retired in the pricing units and new code;
+    legacy readers stay with a documented reason (the SDK patch contract, rule 71). Q-C8: the Qonto invoice keeps `netFirst` (no issued document
+    moves). Q-C10: the SDK aliases `midStayOrderCommit` and `priceLineContributor` stay thin (D24, no SDK major). Q-C13: the intake plugins stay on
+    `reservations.update`. Q-C14: `orderRef` is NULL when a line merges several orders (ambiguous); never invented (rule 36).
+    > **Pending** — PR C
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** Every amount, status, discount share and grouping in this spec is computed
@@ -1631,7 +1670,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `articles-family-<family>` ×7 (+ `hourly-family` in the plugin) — one file per family sub-component: formula, `validate`, `describe`, tagged amounts, no VAT (rule 47)
 - [x] `articles-head-contract` — the head is the only export of `articles/`; dispatch, refusals, allowance coordination, offered, locked snapshots, fulfilment calls; a request for an unregistered family is refused; instances are frozen config (rule 47)
 - [x] `vat-component` — rules 61-62: resolver by (vatClass, customerContext) and regime/franchise; one rounding per group; largest-remainder allocation sums to the group; per-rate output; byte-identical to the five former copies on the golden inputs
-- [ ] `accounting-output-replay` — rule 63: neutral entries from the read models; each exporter reproduces today's CSV, JSON and synthesis byte for byte on every golden month; no exporter imports `vat/` or `articles/`
+- [x] `accounting-output-replay` — rule 63: neutral entries from the read models; each exporter reproduces today's CSV, JSON and synthesis byte for byte on every golden month; no exporter imports `vat/` or `articles/`
 - [x] `pricing-lines-migration`, `pricing-legacy-collect-at`, `pricing-legacy-allocations`, `booking-lines-identity` — rules 36, 74, 79: the line-identity rebuild and its rollback, the sale columns and tables, every backfill idempotent with no amount rewritten, the line save by id
 - [x] `price-gate-scopes`, `price-gate-writes` — rule 81: the allowlist scopes, the replay `--expect` list, the refund write-path cases compared to the leaf with what the tag wrote
 - [x] `no-duplicate-formulas`, `formula-guards-mutants`, `pricing-import-graph`, `pricing-import-graph-mutants` — rule 66 static guards with their allow-lists, including the platform-payment guard of rule 70; every guard and the import graph proved on planted copies
@@ -1651,7 +1690,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `pricing-schedule`, `pricing-settlement` — rules 18-23, 37 (table of rule 19, netting once, moment change journaled, paid frozen)
 - [x] `extra-sale-fiche`, `extra-sale-shop`, `extra-sale-sas` — rules 27-30 per seller; quote = commit; platform card link separate (rule 29) _(PR B: fiche, SAS, payment-now; the shop is PR C)_
 - [x] `sale-detail` — rules 31-32: Σ lines = bucket; same payload for fiche and SAS; the after-check-in section _(PR B)_
-- [ ] `pricing-legacy-collect-at` — §5 backfill derivation
+- [x] `pricing-legacy-collect-at` — §5 backfill derivation
 - [x] Golden fixture unchanged through PR A and B's first commit (no `GOLDEN_UPDATE`), with accounting-export installed
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 
@@ -1757,6 +1796,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
     allocations (Q-B4); `paymentRef` NULL for a legacy refund with no derivable payment (Q-B5); the platform keeps
     refunds rule 38 (Q-B3); `legacyBucketSplit` moves to the core (Q-B23); the J-7 items (`flagBasketRefund`,
     `exactMergedTotals`, `guest_orders`, `deferredCents`) are PR C (Q-B13).
+- **Q17. PR C: line identity, links, guest app, outside visit.** — **Resolved 2026-11-12 (owner):** Q-C1 (a) true lines, with a schema floor in the updater (rule 85); Q-C3 the card order line appears only once paid (rule 87); Q-C4 J-7 rules 68 and 94 dropped; Q-C7 a session added to a paid line is a new line; Q-C9 the sale button is core; Q-C11 three catalogue fields (rule 88). Technical calls Q-C2, Q-C5, Q-C6, Q-C8, Q-C10, Q-C12-Q-C14: rules 86 and 89.
 
 ## 10. Migration plan — three PRs
 
@@ -1767,7 +1807,7 @@ PR, one commit per unit so the replay can be bisected.
 |---|---|---|---|
 | **A — Units, byte-identical** | price-gate fixture captured on `price-gate-baseline` and the gate test (rule 68); `scripts/pricing-replay.mjs` and baseline; extract, one commit each: `money`, NIGHTS, EXTRA GUESTS, TOURIST TAX, EXTRAS host + ALLOWANCES (read-only form of today's free units), STAY CLOCK (`phaseOf` + `stayClockModel`; feeding the phase to COMPOSE in place of `todayIso`/`midStayWindow` is PR B, rule 45), PLATFORM PRICE, DISCOUNTS (target `nights` only active), VAT (per (family, rate) group, every line `hosted`; the line allocation is PR B, rule 51), TOTALS (aggregation only), SCHEDULE, SETTLEMENT (reading `inComplement`); the Articles head, family registry, instance factory and the 7 core families, with `hourly` wrapped from the contributor alias; the VAT component fed by tagged amounts, and the five VAT copies (engine, `accountingModel.bucketFromTtc`, `financeModel.htAmount`, `paymentLinkItems.buildVatItems`, `bookingPricing.vatOf`) switched to it; the ports with core adapters and `SettingsProvider` reading today's columns, each component's `settingsSchema`; `pipeline.js` and `stayQuote`; `calculateReservationQuote` = COMPOSE | also PLATFORM PAYMENT (engine clamp, net received, `computePlatformCommission` re-exported) and the intake adapter behind `reservations.update` (rules 70-71) | price gate green with an **empty** allowlist; intake replay 0 diff; intake plugin suites green; golden + replay **0 diff at every commit** (quotes, links, CSV months, finance); `article-family-contract`, `articles-head-contract`, `vat-component`, `pipeline-composition`, `settings-provider` green | XL — ~5 300 LOC moved or new, ~2 900 LOC of tests (~33 files); 7-9 coder passes; review by commit; A1/A2 split available |
 | **B — Lines, sale service, detail, accounting output** | commit 1: line columns + `discountTarget` + backfill (0 diff). Commit 2: `AccountingOutput`, `legacyBucketSplit` and the `csvJournal` / `salesJson` / `synthesis` exporters replace the accounting-export entry builders; tourist-tax report on TOURIST TAX (0 diff on every export file). Then: the B call sites of rule 45 go through `phaseForReservation` (routing by date and check-in time), and the phase is fed to COMPOSE in place of `todayIso` / `midStayWindow` (listed diff 1); VAT line allocation (rule 51); `extraSale` quote/sell + API; fiche « Ajouter un produit », moment menu, discount targets and line discount; SAS upsells and departure charges through EXTRAS; one HOURLY TARIFF (evening supplement as component, `bookingPricing` on the same grid); `saleDetail` + `SaleDetailList` in fiche and both SAS; platform card link separate; `ficheSale` / `sasSale` pipelines; FULFILMENT port + bath adapter (`SlotAvailabilityProvider`, SAS bath sessions confirmed in the sale transaction); domain events of rule 55 with the calendar observer; `vatRate` / `fulfilmentRef` line columns; external-context VAT keys (`standaloneVatRate` moved); retire `sasOptionSale`, bath-linen offer, `prepaidNetter`, `arrivalPaymentDetail.billableLines`, VAT copies; PLATFORM PAYMENT in penalties, settlement, cancellation and `linkAllowed`; the `PlatformBookingIntake` port (`reservations.fromPlatform`, SDK 2.28.0); iCal default options through the Articles head | price gate green, allowlist entries = the listed diffs only, owner-reviewed; commits 1-2: 0 diff (quotes and every export file); head: **listed diffs only** (below) | XL — ~4 000 LOC + tests; 6-8 passes |
-| **C — « Mon séjour dès le J-7 » rebuilt** | guest app on the `shopSale` pipeline: judge = `extraSale.quote`, commit = `extraSale.sell`, bath card holds = fulfilment holds, e-mail observer; the external sale (`externalSale` pipeline, `standalone_sales`, API, « Vente hors séjour » dialog, journal through `standaloneSales`, Q13); keep UI, slots, stock, e-mail, spec rules on UI/slots/stock/e-mail; move the C call sites of rule 45 to `phaseForReservation` (same semantics, 0 diff on them) and turn on the static single-source test; remove `arrivalMoment.js`; delete `midStayOrderCommit.js` and W1-W12 (`pinOrderGrowth`, `beforeArrival`, `orderGrowth`, `exactMergedTotals`, `keepStay`, `settleOrderNoteBeforeArrival`, `deferredCents`/`PRICE_ROSE`, `heldInStayPrice`, `orderChargeKey`); rewrite `guest-app.md` rules 85, 93-101 as references to this spec, and **add the missing rules 104-106** (cited by the WIP code and tests, absent from `guest-app.md`, which ends at 103) at the end of its §3; retire `inComplement` readers, `priceLineContributor` alias, the `money` copies the replay proves identical; empty the allow-lists of rule 66 so the static guards are strict; intake date checks through STAY CLOCK; reconciliation helpers on PLATFORM PAYMENT; optional intake migration to `fromPlatform` | price gate green (allowlist unchanged unless listed); review-defect tests D1-D9 green; `standalone-sale` green; replay of non-guest-app stays 0 diff vs PR B head | L — −2 000 / +1 300 LOC; 3-4 passes |
+| **C — « Mon séjour dès le J-7 » rebuilt** | _(scope widened 2026-11-12: the mini SAS of an outside visit, `outside-booking-sas.md`; the generic `SuggestedArticlesStep`; the standalone payment link, rules 53 and 86; size XL, about 5 passes; rules 84-89)_ guest app on the `shopSale` pipeline: judge = `extraSale.quote`, commit = `extraSale.sell`, bath card holds = fulfilment holds, e-mail observer; the external sale (`externalSale` pipeline, `standalone_sales`, API, « Vente hors séjour » dialog, journal through `standaloneSales`, Q13); keep UI, slots, stock, e-mail, spec rules on UI/slots/stock/e-mail; move the C call sites of rule 45 to `phaseForReservation` (same semantics, 0 diff on them) and turn on the static single-source test; remove `arrivalMoment.js`; delete `midStayOrderCommit.js` and W1-W12 (`pinOrderGrowth`, `beforeArrival`, `orderGrowth`, `exactMergedTotals`, `keepStay`, `settleOrderNoteBeforeArrival`, `deferredCents`/`PRICE_ROSE`, `heldInStayPrice`, `orderChargeKey`); rewrite `guest-app.md` rules 85, 93-101 as references to this spec, and **add the missing rules 104-106** (cited by the WIP code and tests, absent from `guest-app.md`, which ends at 103) at the end of its §3; retire `inComplement` readers, `priceLineContributor` alias, the `money` copies the replay proves identical; empty the allow-lists of rule 66 so the static guards are strict; intake date checks through STAY CLOCK; reconciliation helpers on PLATFORM PAYMENT; optional intake migration to `fromPlatform` | price gate green (allowlist unchanged unless listed); review-defect tests D1-D9 green; `standalone-sale` green; replay of non-guest-app stays 0 diff vs PR B head | L — −2 000 / +1 300 LOC; 3-4 passes |
 
 The fourth candidate PR (retiring duplicates) is folded into B (SAS and VAT duplicates) and C (guest-app,
 flags, aliases). The accounting output is commit 2 of B (provable at 0 diff before B's behaviour commits). The 2026-11-11 architecture amendments, both rounds, keep the plan at **three PRs**: the interfaces land
