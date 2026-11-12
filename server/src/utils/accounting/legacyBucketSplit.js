@@ -172,7 +172,7 @@ function parsePaidSplit(raw) {
 }
 
 function nz(value) { return value == null ? 0 : Number(value); }
-function round2(value) { return Math.round(Number(value || 0) * 100) / 100; }
+const { roundMoney: round2 } = require('../pricing/money');
 
 // Build a bucket from a TTC contribution: extract HT/VAT using the bucket's rate.
 function bucketFromTtc(name, ttc, ratePercent) {

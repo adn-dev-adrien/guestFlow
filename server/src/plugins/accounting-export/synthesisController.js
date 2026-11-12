@@ -29,7 +29,7 @@ const TAX_WHOLE_MONTHS = 'La taxe de séjour se déclare par mois entiers.';
 // Rule 39 — a window that starts after the server's month has nothing to declare yet.
 const TAX_NOT_YET = 'Mois à venir : rien à déclarer.';
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../../utils/pricing/money');
 const pill = (current, previous) => ({ current: round2(current), previous: round2(previous), change: yoy.change(current, previous) });
 
 /**

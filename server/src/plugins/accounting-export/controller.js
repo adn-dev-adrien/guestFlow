@@ -6,6 +6,7 @@
 
 const sdk = require('../sdk');
 const { csvJournal, salesJson } = require('./accountingExport');
+const { roundMoneyStrict } = require('../../utils/pricing/money');
 
 const { journalEntries } = sdk.coreModule('accountingOutput');
 
@@ -78,7 +79,7 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
           // specs/platform-commission-line.md — the commission is the engine-computed line
           // (operator-entered `platformCommissionAmount`, or the legacy gross−net fallback inside
           // buildEntry). Read it off the entry instead of re-deriving from the gross here.
-          commission: e.commission ? Math.round(Number(e.commission.ttc) * 100) / 100 : null,
+          commission: e.commission ? roundMoneyStrict(e.commission.ttc) : null,
           // specs/single-payment-at-check-in.md §3.3 rule 13 — la collecte à laquelle cette écriture
           // appartient. Le tableau replie les écritures d'un même paiement en UNE ligne : sans ça il
           // affichait deux encaissements pour un seul mouvement bancaire, à rebours de la carte de
@@ -86,7 +87,7 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
           paymentGroup: e.paymentGroup || null,
         }));
       const totalCommission = platformRows.reduce((s, r) => s + (r.commission || 0), 0);
-      return res.json({ rows: platformRows, totalCommission: Math.round(totalCommission * 100) / 100 });
+      return res.json({ rows: platformRows, totalCommission: roundMoneyStrict(totalCommission) });
     },
   };
 }

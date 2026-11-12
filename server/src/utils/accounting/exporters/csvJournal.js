@@ -55,6 +55,7 @@
 const { serializeCsv } = require('../../csv');
 const { toLatin1Text } = require('../latin1');
 const { bookedBucketSplit, netOfTtc, TTC_SPLIT_FALLBACK } = require('../legacyBucketSplit');
+const { roundMoneyOrZero: round2 } = require('../../pricing/money');
 
 // `create({ accountPlan })` — the plugin's account plan: the account numbers a role maps to, shared with the other exporters.
 function createCsvJournal({ accountPlan }) {
@@ -79,10 +80,6 @@ function createCsvJournal({ accountPlan }) {
   // literal `0` per the accountant's expected format.
   const DEBIT_INDEX = 7;
   const CREDIT_INDEX = 8;
-
-  function round2(n) {
-    return Math.round((Number(n) || 0) * 100) / 100;
-  }
 
   // specs/accounting-synthesis.md rule 3 — what each row of the journal IS (its role, and the VAT rate of a
   // revenue or VAT line), carried beside the row and never in it: the CSV cells stay byte-identical, the

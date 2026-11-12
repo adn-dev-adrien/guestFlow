@@ -4,6 +4,7 @@
  * shapes the VAT return, the checks and the collections. Every amount is summed in cents and leaves as
  * euros rounded to the cent; every share is computed here.
  */
+const { toCentsOrZero: cents, fromCentsRounded: euros, roundHalfAway } = require('../../pricing/money');
 
 // `create({ accountPlan, csvJournal, salesJson })` — the account plan and the two exporters whose rows and cards the
 // synthesis reads.
@@ -11,11 +12,6 @@ function createSynthesisExporter({ accountPlan, csvJournal, salesJson }) {
   const { accountLabel, planMapper } = accountPlan;
   const { entryVentilation } = csvJournal;
   const { entryToStructured } = salesJson;
-
-  const cents = (value) => Math.round((Number(value) || 0) * 100);
-  const euros = (c) => Math.round(c) / 100;
-  // Half away from zero, the same for a refund's negative base as for a sale's.
-  const roundHalfAway = (x) => Math.sign(x) * Math.round(Math.abs(x));
 
   const COLLECTION_DIRECTIONS = new Set(['sale', 'compensation', 'tip', 'discount', 'penalty']);
   const MIXED_ACCOUNT_LABEL = 'Produits divers';

@@ -1,3 +1,4 @@
+const { roundMoneyStrict } = require('../../pricing/money');
 /**
  * The sales JSON exporter (specs/pricing-components.md §3 rule 63): the CSV's rows grouped per entry and pre-classified so the
  * Comptabilité page renders the journal as cards. Pure, formatting only. Moved from the accounting-export plugin.
@@ -159,8 +160,8 @@ function createSalesJson({ accountPlan, csvJournal }) {
         entries: structured,
         totals: {
           entriesCount: structured.length,
-          totalDebits: Math.round(totalDebits * 100) / 100,
-          totalCredits: Math.round(totalCredits * 100) / 100,
+          totalDebits: roundMoneyStrict(totalDebits),
+          totalCredits: roundMoneyStrict(totalCredits),
           allBalanced: structured.every((e) => e.balanced),
           // specs/reservation-payment-ledger.md rule 43 — a sale whose credits are all on the
           // tourist-tax account carries no revenue and no VAT: shown, never silently exported.
