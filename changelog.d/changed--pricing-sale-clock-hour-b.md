@@ -1,0 +1,1 @@
+- **A sale on the arrival day follows the check-in hour (pricing refonte, PR B)**: an extra sold on the arrival day before the check-in hour is collected at arrival; from the check-in hour on it is collected at departure. A fixed amount of a stay discount is now kept on the stay.

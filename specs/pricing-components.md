@@ -304,8 +304,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       lines outside the platform price.
     > **Delivered by PR B** (pass 4, C15): the targets `extras` and `all` and the allocation of rule 40 (`pricing-discount-allocation`,
     > `pricing-line-discount`). The engine reads `discountTarget` (stored on the stay, journaled « Réduction sur », default `nights`),
-    > `discountFixedAmount` (euros, an engine input: **no stay-level column stores a fixed amount** — §5 has none, so a fixed stay
-    > amount is not persisted; owner decision pending) and `lineFacts` (per stored line: `discountCents`, `source`, `soldAt`, `lineId`,
+    > `discountFixedAmount` (euros, an engine input, read from `reservations.discountAmountCents`: pass 4b persists a fixed stay amount
+    > beside the target, nullable, written by a save, journaled « Réduction (montant) », read back by the stored-stay replay; on `nights` it
+    > replaces the percent, on `extras` / `all` EXTRAS shares it out, capped at the target) and `lineFacts` (per stored line: `discountCents`, `source`, `soldAt`, `lineId`,
     > `settledCents` = Σ of its allocations). With `extras` / `all` the typed percent is shared out by EXTRAS over the covered lines
     > (`coveredLines`: not offered, not paid, source fiche / devis / intake) and, for `all`, the accommodation; a platform stay
     > keeps the target `nights` (its gross pin wins). A line that gains a discount carries `grossTotalPrice` (the catalogue amount,
@@ -338,6 +339,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | at booking, from the fiche or an intake (stay not yet sold) | — | `plan` (direct) or `platform` (platform stay, when included in the brut) |
     > **Delivered by PR B** (pass 4): the first two rows for a sale through `extraSale` (`payment: 'later'`; a payment taken at once is the
     > SAS's, pass 5): a stay not started takes the line in its arrival complement, a started one routes it to the departure.
+    > **The routing is the stay clock's hour, not the day** (pass 4b; `pricing-collect-at-clock-hour`): on the arrival day, a sale before the
+    > check-in hour is collected at arrival (the new line is routed to the arrival complement, the engine reads no baseline, the save pins none),
+    > from the check-in hour on it is collected at departure. The fiche lock window of rule 45 row C stays the day's (PR C).
 
 20. **"Started" = the arrival date and check-in time have passed, Europe/Paris.** _(amended 2026-11-11,
     owner: « date et heure passées »; amended again the same day: the clock is its own component, rules
@@ -1426,7 +1430,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 | POST | `/api/reservations/:id/extras` | same + `acceptedTotalCents` | `{ saleDetail, paymentLink? }` | 409 `PRICE_CHANGED` if the re-quote differs |
 | PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, discount?:{percent\|amount}, forceOverpayment? }` (`ref` = `option:<lineId>` / `resource:<lineId>` / `custom:<lineId>`) | `{ saleDetail }` | 409 `LINE_PAID`, 409 `OVERPAID` (rule 23); journaled |
 | GET | `/api/reservations/:id/sale-detail` | — | `saleDetail` | also embedded in `GET /sas` and the fiche payload |
-| PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default) | unchanged | rule 16 |
+| PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default); `discountAmountCents` (positive integer, else none; absent keeps the stored one) | unchanged | rule 16 |
 | guest-app | `/public/v1/stay/…/orders` (existing) | unchanged shape | unchanged shape | implementation moves to `extraSale` (PR C) |
 | POST | `/api/standalone-sales/quote` | `{ requests[], payment }` | `{ lines[], vatByRate[], totalCents, refusals[] }` | `externalSale` pipeline, no write (PR C) |
 | POST | `/api/standalone-sales` | same + `acceptedTotalCents`, `customer?:{name, email}` | `{ sale, paymentLink? }` | records `standalone_sales` (PR C) |
@@ -1456,7 +1460,8 @@ Columns added to `reservation_options`, `reservation_resources`, `reservation_cu
 Nothing is rebuilt: the primary key `(reservationId, optionId)` / `(reservationId, resourceId)` stays, so a rolled-back release
 still runs its `INSERT … ON CONFLICT(reservationId, optionId)` (self-update rule 31). `lineRef = line:<table>:<lineId>`.
 
-On `reservations`: `discountTarget` TEXT DEFAULT `'nights'` (every existing row reads as today); `cancellationKeptCents` and
+On `reservations`: `discountTarget` TEXT DEFAULT `'nights'` (every existing row reads as today); `discountAmountCents` INTEGER NULL (the fixed
+amount of the stay discount, rules 16 and 39; NULL = the discount is the percent; no backfill); `cancellationKeptCents` and
 `cancellationIndemnityCents` INTEGER NULL (rule 78; NULL = not cancelled or no `cancel` history entry).
 
 New tables of PR B (created by `utils/pricingLinesMigration.js`, called from `database.js`):

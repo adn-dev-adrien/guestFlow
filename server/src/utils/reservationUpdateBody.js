@@ -43,6 +43,7 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
     totalPrice: r.totalPrice,
     discountPercent: r.discountPercent,
     discountTarget: r.discountTarget,
+    discountAmountCents: r.discountAmountCents,
     finalPrice: r.finalPrice,
     customPrice: r.customPrice,
     extraGuestSurchargeOffered: r.extraGuestSurchargeOffered,

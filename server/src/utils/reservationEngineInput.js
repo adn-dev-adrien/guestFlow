@@ -16,6 +16,7 @@
  *
  * Pure read: it touches no state and decides nothing.
  */
+const { fixedDiscountEuros } = require('./pricing/discounts');
 const { scheduleQuoteInputs, frozenTouristTaxInputs } = require('./reservationQuoteContext');
 const { create: createStayRepository } = require('../models/ports/stayRepository');
 
@@ -55,6 +56,7 @@ function buildReservationEngineInput(db, reservation, { refreshTouristTax = fals
     bookingId: reservation.id,
     discountPercent: reservation.discountPercent,
     discountTarget: reservation.discountTarget,
+    discountFixedAmount: fixedDiscountEuros(reservation.discountAmountCents),
     lineFacts: stays.lineFacts(reservation.id),
     customPrice: reservation.customPrice,
     selectedOptions: optionRows.map((r) => ({

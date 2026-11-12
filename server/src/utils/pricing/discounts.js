@@ -19,6 +19,18 @@
  */
 const { roundMoney, toCents, fromCents, allocateCents } = require('./money');
 
+// Rule 16: the fixed amount of a stay discount is stored in whole cents; anything that is not a positive amount is no amount (NULL).
+function discountAmountCentsOf(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const cents = Math.round(Number(value));
+  return Number.isFinite(cents) && cents > 0 ? cents : null;
+}
+
+function fixedDiscountEuros(value) {
+  const cents = discountAmountCentsOf(value);
+  return cents === null ? null : fromCents(cents);
+}
+
 function normalizeDiscountPercent(discountPercent) {
   const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
   return normalizedDiscountPercent;
@@ -137,6 +149,8 @@ module.exports = {
   coveredLines,
   discountLines,
   discountAmountOf,
+  discountAmountCentsOf,
+  fixedDiscountEuros,
   normalizeDiscountPercent,
   normalizeCustomPrice,
 };

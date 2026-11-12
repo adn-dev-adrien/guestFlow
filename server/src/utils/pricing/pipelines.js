@@ -56,7 +56,7 @@ const netTotals = require('./steps/netTotals');
  *     extraGuestComplementSurcharge, extraGuestCount, extraGuestInBrutSurcharge, extraGuestPriceUnit,
  *     extraGuestSurcharge, extraGuestSurchargeOriginal, extraGuestUnitPrice, includedGuests,
  *     isExtraGuestSurchargeOffered, resolvedPlatformPaidGuests
- * discountLevers: cancellationInsuranceBase, customFinalPrice, normalizedDiscountPercent, typedDiscountPercent
+ * discountLevers: cancellationInsuranceBase, customFinalPrice, nightsFixedAmount, normalizedDiscountPercent, typedDiscountPercent
  * extras: accommodationDiscountShareCents, consumedMap, extrasDiscountCents, finalOptionLines, grantedFreeUnitsFor,
  *     optionsTotal, resourceLines, resourcesTotal, soldGrantMap
  * midStay: accommodationBaseTotal, midStayExtras, midStayForced, midStayRemainingTotal, midStaySettledTotal,

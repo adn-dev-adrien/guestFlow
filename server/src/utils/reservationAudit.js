@@ -11,6 +11,7 @@
  * See specs/reservation-history-granular-diff.md.
  */
 
+const { discountAmountCentsOf } = require('./pricing/discounts');
 const { capitalizeFirst } = require('./textFormatters');
 
 const HISTORY_FIELD_LABELS = {
@@ -34,6 +35,7 @@ const HISTORY_FIELD_LABELS = {
   touristTaxTotal: 'Taxe de séjour',
   discountPercent: 'Réduction (%)',
   discountTarget: 'Réduction sur',
+  discountAmountCents: 'Réduction (montant)',
   finalPrice: 'Prix final',
   depositAmount: 'Acompte',
   // specs/reservation-history-granular-diff.md rule 13 — an acompte typed by hand is a decision, not a
@@ -120,6 +122,7 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     touristTaxTotal: Number(quote.touristTaxTotal || 0),
     discountPercent: Number(payload.discountPercent || 0),
     discountTarget: ['extras', 'all'].includes(payload.discountTarget) ? payload.discountTarget : 'nights',
+    discountAmountCents: discountAmountCentsOf(payload.discountAmountCents),
     finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
     depositAmount: Number(quote.depositAmount || 0),
     // Same rule as the model: a zero acompte carries no deadline (disable-deposit-per-reservation rule 2).
@@ -196,6 +199,7 @@ const HISTORY_FIELD_FORMATS = {
   cautionAmount: 'money',
   discountPercent: 'percent',
   discountTarget: 'discountTarget',
+  discountAmountCents: 'cents',
   cautionReceived: 'boolean',
   cautionReturned: 'boolean',
   extraGuestSurchargeOffered: 'boolean',
@@ -266,6 +270,7 @@ function formatHistoryFieldValue(field, value, context = {}) {
     case 'date': return formatHistoryDateFr(value);
     case 'property': return propertyDisplayName(value, context.propertyNames);
     case 'client': return clientDisplayName(value, context.clientNames);
+    case 'cents': return formatHistoryMoney(Number(value) / 100);
     case 'discountTarget': return DISCOUNT_TARGET_LABELS[String(value)] || String(value);
     case 'cancellationReason': return Object.hasOwn(CANCELLATION_REASON_LABELS, String(value)) ? CANCELLATION_REASON_LABELS[String(value)] : String(value);
     default: return String(value);

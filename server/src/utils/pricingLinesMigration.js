@@ -42,6 +42,7 @@ const LINE_COLUMNS = [
 ];
 const COLUMNS = [
   ['reservations', 'discountTarget', "TEXT NOT NULL DEFAULT 'nights'"],
+  ['reservations', 'discountAmountCents', 'INTEGER'],
   ['reservations', 'cancellationKeptCents', 'INTEGER'],
   ['reservations', 'cancellationIndemnityCents', 'INTEGER'],
   ['options', 'vatClass', 'TEXT'],

@@ -100,6 +100,8 @@ const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
 const { readOnlyRefusal, cautionReturnOnCancelled } = require('../utils/reservationReadOnly');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
 const { dayReached } = require('../utils/pricing/stayClock');
+const stayClockModel = require('../models/stayClockModel');
+const { fixedDiscountEuros } = require('../utils/pricing/discounts');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toOccupancyRow } = require('../utils/upcomingArrivals');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
@@ -1330,6 +1332,7 @@ async function calculatePrice(req, res) {
     bookingId: reservationId > 0 ? reservationId : devisId,
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget,
+    discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
     lineFacts: reservationId > 0 ? stayRepository.lineFacts(reservationId) : {},
     customPrice: req.body.customPrice,
     selectedOptions: req.body.selectedOptions,
@@ -1615,6 +1618,7 @@ function createStay(req, res) {
     babyBeds: effectiveBabyBeds,
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget,
+    discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents),
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
@@ -1961,10 +1965,11 @@ const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà enc
 // specs/mid-stay-extras-on-locked-fiche.md rule 8 — inside the window the routing of every line is
 // the stored one (a mid-stay sale goes to the end-of-stay complement whatever it is), so the payload
 // cannot move it; a line with no stored counterpart falls back to the engine's default.
-function pinStoredRouting(body, routing) {
+function pinStoredRouting(body, routing, newLineInComplement = false) {
   const pin = (line, stored) => {
     const { inComplement, ...rest } = line;
-    return stored === undefined ? rest : { ...rest, inComplement: stored };
+    if (stored !== undefined) return { ...rest, inComplement: stored };
+    return newLineInComplement ? { ...rest, inComplement: 1 } : rest;
   };
   if (Array.isArray(body.options)) {
     body.options = body.options.map((o) => pin(o, routing.options.get(Number(o.optionId))));
@@ -2006,7 +2011,11 @@ function enterMidStayExtrasWindow(id, body, today) {
   // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
   const baseline = model.peekArrivalExtrasBaseline(id);
   const beforeLines = model.readExtraLinesWithQuantity(id);
-  pinStoredRouting(body, model.getStoredRouting(id));
+  // Rules 19, 20, 45: the lock is the day's (row C), the moment of a sale is the stay clock's hour. Before the check-in hour a new
+  // line is collected at arrival: it is routed to the arrival complement, the engine reads no baseline and the write pins none.
+  const phase = stayClockModel.create(db).phaseForReservation(id, new Date());
+  const started = Boolean(phase && phase.started);
+  pinStoredRouting(body, model.getStoredRouting(id), !started);
   body.refreshPricingToCurrent = false;
   // Rule 8 — the bed counts follow the linen line: they move only when the payload brings a bed-linen
   // option that was not sold at arrival; in every other case they stay what is stored.
@@ -2018,7 +2027,7 @@ function enterMidStayExtrasWindow(id, body, today) {
     body.singleBeds = stored.singleBeds;
     body.doubleBeds = stored.doubleBeds;
   }
-  return { baseline, beforeLines };
+  return { baseline, beforeLines, started, engineBaseline: started ? baseline : (model.getArrivalExtrasBaseline(id) || null) };
 }
 
 function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
@@ -2086,7 +2095,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso);
   carryStoredCustomContribs(id, req.body);
   // The window pins the baseline at the write: every pricing of this save reads the one that write will store.
-  const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.baseline } : {};
+  const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.engineBaseline } : {};
 
   const {
     propertyId, clientId, startDate, endDate, adults, children, teens, babies,
@@ -2191,6 +2200,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     bookingId: id,
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget === undefined ? (model.getRow(id) || {}).discountTarget : req.body.discountTarget,
+    discountFixedAmount: fixedDiscountEuros(req.body.discountAmountCents === undefined ? (model.getRow(id) || {}).discountAmountCents : req.body.discountAmountCents),
     // `lineDiscounts` ({ [lineKey]: cents }): a line discount posted by a server caller (the line API) reaches the engine as a line fact.
     lineFacts: withLineDiscounts(stayRepository.lineFacts(id), req.body.lineDiscounts),
     customPrice: req.body.customPrice,
@@ -2519,7 +2529,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // by the time the guest arrived », so an extra added in this very save is detected as mid-stay.
     // After every refusal of the save: a refused or previewed save writes nothing. The engine above read
     // the very baseline this stores (`resolveArrivalExtrasBaseline` synthesizes it).
-    if (midStayWindow) model.captureArrivalExtrasBaseline(id);
+    if (midStayWindow && midStayWindow.started) model.captureArrivalExtrasBaseline(id);
     else model.captureArrivalExtrasBaselineIfDue(id);
     model.updateReservation(id, modelPayload, quote, nightBlocks, nextIcalSyncLocked, { keepPricing });
     if (!keepPricing) writePricedLines();

@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 19, 20, 27, 28, 30, 31, 37, 39, 23 (class E8 with sale-detail) — selling an extra on a stay that
+// specs/pricing-components.md §3 rules 12, 19, 20, 27, 28, 30, 31, 37, 39, 23 (class E8 with sale-detail) — selling an extra on a stay that
 // exists: the quote writes nothing, the sale re-quotes and refuses a changed price, the new line carries its source and moment, a
 // started stay routes it to the departure, the operator moves or discounts an unpaid line, and lowering a paid line is refused
 // until confirmed, then owed back.

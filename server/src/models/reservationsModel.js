@@ -45,6 +45,7 @@ const {
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 const stayClockModel = require('./stayClockModel');
+const { discountAmountCentsOf } = require('../utils/pricing/discounts');
 const { syncStayLines } = require('../utils/pricingLinesMigration');
 const { toCents } = require('../utils/pricing/money');
 const { dayPassed } = require('../utils/pricing/stayClock');
@@ -406,10 +407,16 @@ function createReservationsModel(database) {
   const HAS_DISCOUNT_TARGET = (() => {
     try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'discountTarget'); } catch { return false; }
   })();
+  // Rule 16: a fixed amount of the stay discount, in cents; NULL when the discount is a percent.
   function persistDiscountTarget(reservationId, payload) {
-    if (!HAS_DISCOUNT_TARGET || !payload || payload.discountTarget === undefined) return;
-    const target = ['extras', 'all'].includes(payload.discountTarget) ? payload.discountTarget : 'nights';
-    database.prepare('UPDATE reservations SET discountTarget = ? WHERE id = ?').run(target, reservationId);
+    if (!HAS_DISCOUNT_TARGET || !payload) return;
+    if (payload.discountTarget !== undefined) {
+      const target = ['extras', 'all'].includes(payload.discountTarget) ? payload.discountTarget : 'nights';
+      database.prepare('UPDATE reservations SET discountTarget = ? WHERE id = ?').run(target, reservationId);
+    }
+    if (payload.discountAmountCents !== undefined) {
+      database.prepare('UPDATE reservations SET discountAmountCents = ? WHERE id = ?').run(discountAmountCentsOf(payload.discountAmountCents), reservationId);
+    }
   }
   // Rule 74: « Hébergement » and « Taxe de séjour » follow the quote a save writes; an amendment of an existing line is journaled.
   function persistStayLines(reservationId, quote, { journal = false } = {}) {
@@ -1244,6 +1251,7 @@ function createReservationsModel(database) {
         touristTaxTotal: Number(row.touristTaxTotal || 0),
         discountPercent: Number(row.discountPercent || 0),
         discountTarget: ['extras', 'all'].includes(row.discountTarget) ? row.discountTarget : 'nights',
+        discountAmountCents: discountAmountCentsOf(row.discountAmountCents),
         customPrice: row.customPrice == null ? null : Number(row.customPrice),
         finalPrice: Number(row.finalPrice || 0),
         depositAmount: Number(row.depositAmount || 0),
