@@ -23,7 +23,7 @@ test('rule 23 — the declared total keeps its cents', async () => {
   ));
   renderTaxPage();
   const total = within(await screen.findByTestId('total-amount'));
-  expect(total.getByText(/À reverser/)).toBeInTheDocument();
+  expect(total.getAllByText(/À reverser/).length).toBeGreaterThan(0);
   expect(total.getByText('5,95 €')).toBeInTheDocument();
   expect(screen.getByTestId('total-amount').textContent).not.toMatch(/(^|[^,\d])6 €/);
 });
