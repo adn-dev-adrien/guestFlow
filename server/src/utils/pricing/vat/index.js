@@ -12,7 +12,7 @@
  *   (`money.allocateCents`) for per-line display: `amounts[i] = { ...tagged, rate, vatCents, netCents }`.
  * - Named rounding strategies, each the arithmetic of a reader that existed before this unit and moved here unchanged:
  *   `splitTtc` (engine, accounting buckets: VAT first, net by difference), `netFirst` (hourly bookings: net first, VAT by
- *   difference), `htOfPortion` (finance pages: the HT share of a TTC portion), and the Qonto basket's integer-cent helpers
+ *   difference; `netFirstCents` / `ttcFromNetCents` its twin on the cents of a Qonto invoice line), `htOfPortion` (finance pages: the HT share of a TTC portion), and the Qonto basket's integer-cent helpers
  *   `rateToBasis`, `lineTotalCents`, `htFromTtc`.
  *
  * Pure: no DB, no clock. The caller hands the regime (`vatRegimeModel.forRow`) and, optionally, the settings.
@@ -71,6 +71,13 @@ function htOfPortion({
   const ratio = (finalPrice / (1 + vatRate / 100)) / fullTtc;
   return roundMoney(portion * ratio);
 }
+
+// Strategy « net first, in cents » (the Qonto invoice lines): the HT of a TTC amount in cents, and back. Qonto numbers each line itself,
+// so the invoice issuer starts from the HT a line would have and nudges it by a cent or two until Qonto's own totals add up. Both
+// are the float arithmetic the issuer always used, moved here unchanged (rule 64, Q-C8: no issued document moves); `lineTotalCents`
+// below is the integer-exact twin, which agrees on 10 % and 20 % and may differ by one cent on a half-cent tie at other rates.
+const netFirstCents = (ttcCents, rate) => Math.round(ttcCents / (1 + Number(rate || 0) / 100));
+const ttcFromNetCents = (htCents, rate) => Math.round(htCents * (1 + Number(rate || 0) / 100));
 
 // Rate as integer hundredths-of-a-percent so 10 % → 1000, 8.5 % → 850, 20 % → 2000. Keeps everything
 // in integers: a line total = htCents × (10000 + R) / 10000.
@@ -154,6 +161,8 @@ module.exports = {
   resolveRate,
   splitTtc,
   netFirst,
+  netFirstCents,
+  ttcFromNetCents,
   ttcFromNet,
   htOfPortion,
   rateToBasis,

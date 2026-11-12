@@ -46,7 +46,7 @@ function uuidKey(...parts) {
 // line whose TTC falls between two roundings) gets a « Arrondi de TVA » line of a cent or two; when even that cannot
 // reach it, `null`: the caller refuses before Qonto numbers anything. The money guard of `createClientInvoice` still
 // checks Qonto's own figure.
-const ttcOf = (htCents, rate) => Math.round(htCents * (1 + Number(rate || 0) / 100));
+const { netFirstCents, ttcFromNetCents: ttcOf } = sdk.coreModule('vat');
 const NUDGE = [0, -1, 1, -2, 2, -3, 3];
 const ROUNDING_TITLE = 'Arrondi de TVA';
 
@@ -54,7 +54,7 @@ const ROUNDING_TITLE = 'Arrondi de TVA';
 const keepsSign = (amountCents, ht) => (amountCents > 0 ? ht >= 1 : (amountCents < 0 ? ht <= -1 : ht === 0));
 
 function solveLines(lines, expectedTotalCents) {
-  const bases = lines.map((l) => Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)));
+  const bases = lines.map((l) => netFirstCents(l.amountCents, l.vatRate));
   let best = null;
   const walk = (i, chosen, total, cost) => {
     if (best && cost >= best.cost) return;
@@ -78,7 +78,7 @@ function solveLines(lines, expectedTotalCents) {
 // `noNegative` (the folded fallback, sent after Qonto refused a negative line): the rounding line is positive too.
 function toExcludingVat(lines, expectedTotalCents, { noNegative = false } = {}) {
   if (expectedTotalCents == null || lines.length === 0) {
-    return lines.map((l) => ({ ...l, amountCents: Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)) }));
+    return lines.map((l) => ({ ...l, amountCents: netFirstCents(l.amountCents, l.vatRate) }));
   }
   const solved = solveLines(lines, expectedTotalCents);
   if (solved) return solved;

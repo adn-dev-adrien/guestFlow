@@ -1,14 +1,1 @@
-[
-  {
-    "file": "plugins/online-payment/invoiceIssuer.js",
-    "text": "const bases = lines.map((l) => Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)));",
-    "removedBy": "PR C",
-    "reason": "the Qonto invoice line keeps its own TTC to HT cut until PR C switches it (lead decision: no Qonto change in PR A)"
-  },
-  {
-    "file": "plugins/online-payment/invoiceIssuer.js",
-    "text": "return lines.map((l) => ({ ...l, amountCents: Math.round(l.amountCents / (1 + Number(l.vatRate || 0) / 100)) }));",
-    "removedBy": "PR C",
-    "reason": "the Qonto invoice line keeps its own TTC to HT cut until PR C switches it (lead decision: no Qonto change in PR A)"
-  }
-]
+[]

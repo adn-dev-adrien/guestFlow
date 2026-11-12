@@ -783,11 +783,13 @@
     "htOfPortion",
     "lineTotalCents",
     "netFirst",
+    "netFirstCents",
     "rateToBasis",
     "resolveRate",
     "settingsSchema",
     "splitTtc",
     "ttcFromNet",
+    "ttcFromNetCents",
     "vatOf"
   ],
   "vatRegimeModel": [

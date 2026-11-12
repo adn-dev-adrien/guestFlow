@@ -946,7 +946,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (commit `refactor(accounting)`): the rows of `accountingModel.js`, `accountingExport.js`,
     > `synthesis.js`, the hourly sales read (`standaloneSalesByMonth`, a read model of the journal) and the refund entries.
     > **Delivered by PR B** (commit `refactor(tourist-tax)`): the tourist-tax report and `financeModel.js` l. 1266 (accommodation
-    > net of VAT, through `vat.netFirst`), `devisPdf` ×2. **Pending** — PR C: `expectedReceipts` and `invoiceIssuer`.
+    > net of VAT, through `vat.netFirst`), `devisPdf` ×2. **Delivered by PR C** (C13): `invoiceIssuer` reads the VAT component's `netFirstCents` / `ttcFromNetCents` (the issuer's float arithmetic moved into `vat/` unchanged, Q-C8: no issued document moves; the integer-exact `lineTotalCents` agrees on 10 % and 20 % and is the listed class C-E9 at other rates, not taken), and the `vat` allow-list is empty (`expectedReceipts` was PLATFORM PAYMENT's, C12). Test: `invoice-issuer-vat-one-cut`.
 65. **No duplication: every formula exists once.** (owner: « toujours des petits composants simples et
     testables, sans dupliquer aucune logique ni ligne de code ».) A formula, a rate resolution, a rounding
     helper, a date comparison or a price grid has exactly one home; every other place calls it. The refonte
