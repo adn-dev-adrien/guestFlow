@@ -1,6 +1,6 @@
 // Manual trial of 4.0.0, point 10 (stay 11773) — the fiche's live preview prices a COLLECTED arrival complement the way the
 // save does: frozen at what was collected, so a guest added to a platform stay after the collection is announced in the
-// end-of-stay complement (specs/mid-stay-extras-to-end-of-stay-complement.md rule 20), never folded into the closed
+// end-of-stay complement (specs/mid-stay-extras-to-end-of-stay-complement.md rules 20 and 21), never folded into the closed
 // arrival complement the ledger shows as « Perçu ».
 
 process.env.DB_PATH = ':memory:';

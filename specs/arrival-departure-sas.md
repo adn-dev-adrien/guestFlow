@@ -286,6 +286,7 @@ confirmation — records the caution status and the complement(s) on the reserva
     without the column has nothing to move. Test: `tests/sas-final-price-moves.unit.test.js`.
 33. **Reading of 2026-11-12 (accepted, no code):** a stay answered « Non » (rule 31) whose logement's caution later becomes 0
     still opens the caution page, reading 0,00 € — the answer stays changeable.
+    > **Sans test** — a reading recorded, no behaviour added.
 
 ---
 

@@ -317,6 +317,7 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     with « sur X au total » on one line at the left, « Déclaré » and « Plateformes » stacked at 1 rem at the right — about 80 px
     high, bottom margin `calc(env(safe-area-inset-bottom) + 4px)`; the pills are hidden there (the cards and tables hold the
     detail). From `sm` up the full banner of rule 59.
+    > **Sans test** — layout only, measured headless at 375 / 900 / 1280 px (the banner is 82 px high at 375).
 
 ---
 
