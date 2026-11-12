@@ -1,0 +1,1 @@
+- Test tooling: upgraded `jsdom` to 31 in the client, control-plane client and guest-app apps, and made the tests that depended on jsdom 30 style serialisation or timer flushing accept both.

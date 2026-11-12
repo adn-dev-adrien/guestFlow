@@ -113,7 +113,7 @@ it('rule 10 — the « Hors forfait » group opens without animation under « re
     open();
     fireEvent.click(await screen.findByRole('button', { name: /Hors forfait/ }));
     const list = await screen.findByRole('list', { name: 'Modules hors forfait' });
-    expect(getComputedStyle(list.closest('.MuiCollapse-root')).transitionDuration).toBe('0ms');
+    expect(getComputedStyle(list.closest('.MuiCollapse-root')).transitionDuration).toMatch(/^0(ms|s)$/); // jsdom 30 / 31 serialisations
   } finally {
     window.matchMedia = original;
   }
