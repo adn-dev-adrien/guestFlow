@@ -10,6 +10,7 @@ export { default as FormDialog } from '../../components/FormDialog';
 export { default as ConfirmDialog } from '../../components/ConfirmDialog';
 export { default as LoadingState } from '../../components/LoadingState';
 export { default as ErrorAlert } from '../../components/ErrorAlert';
+export { default as StaySalesSection } from '../../components/StaySalesSection';
 export { default as EmptyState } from '../../components/EmptyState';
 export { default as StatusBadge } from '../../components/StatusBadge';
 // One subject of the home's attention (specs/shell-and-home-day-first.md rules 9, 13) — SDK 1.4.0.

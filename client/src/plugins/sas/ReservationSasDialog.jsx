@@ -50,7 +50,7 @@ import {
   api, getPlatformColor, formatPlatformLabel, ConfirmDialog, OccurrenceGrid, LoadingState, ErrorAlert,
   useToast, SasKeypadCode, formatCurrency, displayDate, displayDateLong, PRICE_TYPE_LABELS,
   sasLockTitle, sasLockMessage, Slot, Contribution, useSlot, WheatIcon, BaguetteIcon, StatusBadge,
-  TenderLines, TENDER_TEXTS,
+  TenderLines, TENDER_TEXTS, StaySalesSection,
 } from '../sdk';
 import OfferableLine from './OfferableLine';
 import buildArrivalDraft from './arrivalDraft';
@@ -58,7 +58,6 @@ import buildDepartureDraft from './departureDraft';
 import useSasRecapPreview from './useSasRecapPreview';
 import placePluginSteps from './placePluginSteps';
 import stepNumbering from './sasStepNumbering';
-import StaySalesSection from '../../components/StaySalesSection';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const EXTRA_GUESTS_OFFER_KEY = 'extraGuests:0';
