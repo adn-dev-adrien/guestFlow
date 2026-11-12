@@ -2,6 +2,7 @@
 // same amounts, tagged amounts without VAT, the free minutes read as the allowance used.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const semver = require('semver');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHourlyContributor } = require('../pricing');
@@ -62,5 +63,5 @@ test('rule 5 — the plugin declares the `hourly` family next to its price-line 
   assert.match(source, /ctx\.priceLineContributor\(hourlyContributor\)/);
   assert.match(source, /ctx\.articleFamily\('hourly', createHourlyFamily\(hourlyContributor\)\)/);
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
-  assert.equal(manifest.sdk, '^2.28.0');
+  assert.ok(semver.gte(semver.minVersion(manifest.sdk), '2.28.0'), 'the range starts at the SDK that has the family');
 });
