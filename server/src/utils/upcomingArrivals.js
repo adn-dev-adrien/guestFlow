@@ -67,7 +67,7 @@ function toArrivalCard(reservation) {
 }
 
 const DEPARTURE_FIELDS = [
-  'id', 'startDate', 'endDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'checkOutTime', 'checkOutDone',
+  'id', 'startDate', 'endDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'platform', 'checkOutTime', 'checkOutDone',
   'departureHandoverNote', 'departureSasDoneAt', 'departureSasLock', 'checkOutStatusEditable',
 ];
 

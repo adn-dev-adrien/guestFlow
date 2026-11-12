@@ -47,6 +47,7 @@ export default function TouristTaxDock({ totals, windowLabel }) {
       }}
     >
       <Box data-testid="total-amount" sx={{ gridRow: { xs: '1 / span 2', sm: 'auto' }, gridColumn: { sm: '1 / -1', md: 'auto' } }}>
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' } }}>{TAX_DOCK.toRemitShort}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>{TAX_DOCK.toRemit(windowLabel)}</Typography>
         <Typography component="b" sx={{ display: 'block', fontSize: { xs: '1.5rem', sm: '2rem' }, lineHeight: 1.1, letterSpacing: '-0.02em', color: 'primary.main', fontWeight: 700, ...TABULAR }}>
           {formatCurrency(t.remainingAmount)}
@@ -58,7 +59,8 @@ export default function TouristTaxDock({ totals, windowLabel }) {
         <Typography component="b" sx={small}>{formatCurrency(t.declaredAmount)}</Typography>
       </Box>
       <Box data-testid="total-platforms" sx={{ display: 'flex', flexDirection: { xs: 'row', sm: 'column' }, gap: { xs: 1, sm: 0 }, alignItems: { xs: 'baseline', sm: 'stretch' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
-        <Typography variant="caption" color="text.secondary">{TAX_DOCK.platforms}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>{TAX_DOCK.platforms}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'block', sm: 'none' }, whiteSpace: 'nowrap' }}>{TAX_DOCK.platformsShort}</Typography>
         <Typography component="b" sx={small}>{formatCurrency(t.platformRemittedAmount)}</Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>{TAX_DOCK.platformStays(t.platformRemittedStaysCount)}</Typography>
       </Box>

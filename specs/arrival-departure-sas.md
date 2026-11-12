@@ -287,6 +287,18 @@ confirmation — records the caution status and the complement(s) on the reserva
 33. **Reading of 2026-11-12 (accepted, no code):** a stay answered « Non » (rule 31) whose logement's caution later becomes 0
     still opens the caution page, reading 0,00 € — the answer stays changeable.
     > **Sans test** — a reading recorded, no behaviour added.
+34. **Reopening a check-in whose complement it collected never bills its sales twice** (2026-11-12, verification of the manual
+    trial of 4.0.0). Walking through a reopened SAS with the same answers re-sent the already-collected breakfast / meal as
+    `sales`; the frozen-complement branch of `commitArrivalSas` wrote the whole of them into the end-of-stay complement
+    (0 → 350 €) and the recap warned « encaisser le supplément (350,00 €) manuellement ». Now that branch (and the plan's
+    `supplementOutsideComplement`) routes to the end-of-stay complement only what a sale bills **beyond what the collected
+    complement already holds for its key** (`collectedHoldByKey`: the stored amount of the SAS-origin row, less what an earlier
+    run already routed to the end-of-stay detail for that key). A fully covered key adds nothing and stays in the arrival
+    baseline; a quantity **raised** adds only the difference; a quantity **lowered** writes nothing negative (the money collected
+    stays collected, no refund is made here); a **new** key is billed in full. The check-out SAS writes no sale, so it has no
+    equivalent branch. Test: `tests/sas-reopen-collected-sale.unit.test.js`.
+    *Rule 32, completed:* the added guests' surcharge counts among the billed lines, so « Offrir » on « Voyageurs ajoutés » (check-in
+    recap or check-out gifts) moves `finalPrice` too (`sas-final-price-moves-departure.unit.test.js`).
 
 ---
 

@@ -90,6 +90,8 @@ test('rule 20: GET /reservations?view=occupancy answers occupancy rows; the plai
 test('rule 22: the card and row projections are the same functions the upcoming page uses', () => {
   assert.equal(toArrivalCard(FICHE).id, 7);
   assert.equal(toDepartureRow(FICHE).id, 7);
+  // The departure card names the platform (its tag and its tooltip), as the arrival card does.
+  assert.equal(toDepartureRow(FICHE).platform, 'Booking');
 });
 
 test('rule 20: every field MiniPlanningStrip reads of a stay is in the occupancy row (read from the component)', () => {

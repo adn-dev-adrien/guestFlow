@@ -776,17 +776,35 @@ function createReservationsModel(database) {
   // stored total keeps describing the stored lines (the fiche's stored summary derives the accommodation from it). Null on a
   // minimal schema without the column, which then has nothing to move (arrival-departure-sas.md rule 32).
   const hasTable = (t) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t));
+  const HAS_EXTRA_GUEST_OFFERED = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'extraGuestSurchargeOffered');
   const billedLinesOf = (reservationId) => {
     if (!database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'finalPrice')) return null;
     let t = Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_options WHERE reservationId = ?').get(reservationId).t || 0);
     if (hasTable('reservation_resources')) t += Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_resources WHERE reservationId = ?').get(reservationId).t || 0);
     if (hasTable('reservation_custom_options')) t += Number(database.prepare('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END), 0) AS t FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).t || 0);
+    // The added guests' surcharge is billed like a line: « Offrir » on it (check-in or check-out) takes it out of the total.
+    if (HAS_EXTRA_GUEST_COMPLEMENT && HAS_EXTRA_GUEST_OFFERED) t += Number(database.prepare('SELECT CASE WHEN COALESCE(extraGuestSurchargeOffered, 0) = 1 THEN 0 ELSE COALESCE(extraGuestComplementSurcharge, 0) END AS t FROM reservations WHERE id = ?').get(reservationId).t || 0);
     return t;
   };
   const moveFinalPriceBy = (reservationId, before) => {
     if (before == null) return;
     const delta = Math.round((billedLinesOf(reservationId) - before) * 100) / 100;
     if (delta !== 0) database.prepare('UPDATE reservations SET finalPrice = ROUND(COALESCE(finalPrice, 0) + ?, 2) WHERE id = ?').run(delta, reservationId);
+  };
+
+  // What a COLLECTED arrival complement already holds, per SAS-sold option (arrival-departure-sas.md rule 34): the stored amount of the
+  // SAS-origin rows, less what an earlier run already routed to the end-of-stay complement for that key. A re-opened check-in that
+  // sends the same sales again must bill only what they add beyond it — never the whole sale a second time.
+  const collectedHoldByKey = (reservationId) => {
+    const held = new Map();
+    if (!HAS_RO_SAS_ARRIVAL_ORIGIN) return held;
+    const detailRow = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
+    const routed = new Map(storedMidStayLines(detailRow && detailRow.endOfStayComplementDetail).map((l) => [l.key || extraLineKey(l), Number(l.amount) || 0]));
+    for (const r of database.prepare('SELECT optionId, totalPrice FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1').all(reservationId)) {
+      const key = extraLineKey({ optionId: r.optionId });
+      if (key) held.set(key, Math.max(0, round2(Number(r.totalPrice || 0) - (routed.get(key) || 0))));
+    }
+    return held;
   };
 
   const model = {
@@ -2703,12 +2721,15 @@ function createReservationsModel(database) {
         // specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the sale would ride the end-of-stay complement, which
         // freezes once collected: one collected outside the departure SAS takes no sale that adds money.
         const priorSold = round2(sasRows.filter((x) => !upsellIds.has(Number(x.optionId))).reduce((s, x) => s + Number(x.totalPrice || 0), 0));
+        // Rule 34 — what the collected complement already holds for a sold key is not a supplement again.
+        const held = collectedHoldByKey(reservationId);
+        const alreadyHeld = round2(soldLines.reduce((sum, l) => sum + Math.min(held.get(extraLineKey({ optionId: l.optionId })) || 0, l.total), 0));
         const saleRaisesCollectedEndOfStay = Boolean(sales)
           && endOfStayCollectedElsewhere(database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId))
           && round2(soldLines.reduce((s, l) => s + l.total, 0)) > priorSold;
         return {
           paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled, saleRaisesCollectedEndOfStay,
-          engineAfter: stored, arrivalComplementTotal: stored, supplementOutsideComplement: addedBilled, adjusted: null,
+          engineAfter: stored, arrivalComplementTotal: stored, supplementOutsideComplement: Math.max(0, round2(addedBilled - alreadyHeld)), adjusted: null,
         };
       }
       const { delta } = planOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
@@ -3513,11 +3534,18 @@ function createReservationsModel(database) {
           model.captureArrivalExtrasBaseline(reservationId);
           // Which SAS-sold options were already routed there, so a re-run that drops one takes its
           // money back out (the keys are read BEFORE the rows are rewritten).
+          const heldBefore = collectedHoldByKey(reservationId);
           const previousSaleKeys = new Set((HAS_RO_SAS_ARRIVAL_ORIGIN
             ? database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1').all(reservationId)
             : []).map((r) => extraLineKey({ optionId: r.optionId })).filter(Boolean));
           writeSoldOptions(sales);
-          midStaySaleKeys = sales.map((l) => extraLineKey({ optionId: l.optionId })).filter(Boolean);
+          // Rule 34 — only what a sale bills BEYOND what the collected complement holds for its key rides the end-of-stay
+          // complement; a covered key adds nothing and stays in the arrival baseline; a lowered quantity writes nothing negative.
+          const beyond = new Map(sales.map((l) => {
+            const k = extraLineKey({ optionId: l.optionId });
+            return [k, Math.max(0, round2(Number(l.totalPrice || 0) - (heldBefore.get(k) || 0)))];
+          }));
+          midStaySaleKeys = sales.map((l) => extraLineKey({ optionId: l.optionId })).filter((k) => k && beyond.get(k) > 0);
           // Merge into the mid-stay lines already stored (a prestation sold on the fiche earlier in
           // the stay keeps its own line verbatim) rather than recomputing the whole split.
           const detailRow = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
@@ -3529,8 +3557,10 @@ function createReservationsModel(database) {
           }
           for (const line of sales) {
             const key = extraLineKey({ optionId: line.optionId });
+            const extra = beyond.get(key);
+            if (!(extra > 0)) { byKey.delete(key); continue; }
             byKey.set(key, buildMidStayLine({
-              label: line.title, unitPrice: line.unitPrice, amount: line.totalPrice, key,
+              label: line.title, unitPrice: line.unitPrice, amount: extra, key,
             }));
           }
           model.syncMidStayComplement(reservationId, [...byKey.values()]);

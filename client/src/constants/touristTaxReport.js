@@ -94,6 +94,8 @@ export const TAX_PROPERTY = {
 export const TAX_DOCK = {
   label: 'Totaux de la sélection',
   toRemit: (window) => `À reverser · ${window}`,
+  toRemitShort: 'À reverser',
+  platformsShort: 'Plateformes',
   ofTotal: (amount) => `sur ${amount} au total`,
   declared: 'Déjà déclaré',
   platforms: 'Reversé par les plateformes',

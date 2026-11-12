@@ -583,3 +583,4 @@ now carries the server's `past` (`stayHasEnded`) on every stay, and the strip dr
 client's stays list (`listReservationsForClient`) carries it too and the page dims by it, comparing no date. The planning's arrival
 and departure cards name the platform in their tooltip, and the departure card shows the platform tag the arrival card has (a
 phone has no hover).
+The lean departure row of the planning (`DEPARTURE_FIELDS`) carries `platform`, which is what its tag and tooltip read.

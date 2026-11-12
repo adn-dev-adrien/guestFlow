@@ -212,7 +212,9 @@ const theme = createTheme({
     // rule for the whole app, not a margin hand-added on each page.
     MuiCssBaseline: {
       styleOverrides: {
-        ':is(.MuiTypography-sectionHeader, .MuiTypography-subtitle2, .MuiDivider-root, legend, .MuiButtonBase-root):has(+ .MuiFormControl-root, + * .MuiInputLabel-outlined)': { marginBottom: 12 },
+        ':is(.MuiTypography-sectionHeader, .MuiTypography-subtitle2, .MuiDivider-root:not(.MuiDivider-vertical), legend, .MuiButtonBase-root[aria-expanded]):has(+ .MuiFormControl-root > .MuiInputLabel-outlined, + * .MuiInputLabel-outlined)': { marginBottom: 12 },
+        // In a Stack the gap already separates the siblings: the margin would add to it (a heading drifting 28 px from its fields).
+        '.MuiStack-root > :is(.MuiTypography-sectionHeader, .MuiTypography-subtitle2, .MuiDivider-root:not(.MuiDivider-vertical), legend, .MuiButtonBase-root[aria-expanded]):has(+ .MuiFormControl-root > .MuiInputLabel-outlined, + * .MuiInputLabel-outlined)': { marginBottom: 4 },
       },
     },
     MuiCard: {

@@ -308,3 +308,7 @@ clipped the first label of a dialog — « Date » of « Nouvelle réservation �
 legend, a button) so the label never touches nor is drawn over the line above. `AdvancedDetails` opens with 12 px of padding for
 the same reason. A hidden (folded) collapse still holds its fields: a detector reading them reports them clipped, which is not
 a defect.
+
+Reading of 2026-11-12 (verification): the baseline rule reaches only a heading, a divider (not a vertical one), a legend or a
+disclosure button (`[aria-expanded]`) directly followed by a field that really carries an outlined label — never a stepper's
+« − » button; inside a Stack the gap already separates the siblings, so the margin drops to 4 px.
