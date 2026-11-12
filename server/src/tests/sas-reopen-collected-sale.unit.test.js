@@ -55,8 +55,9 @@ function makeDb() {
   `);
   db.prepare('INSERT INTO properties (id, defaultCautionAmount, maxGuests) VALUES (7, 500, 6)').run();
   // date-literal-ok: stay days of the fixture, nothing compares them with today
+  const STAY_DAYS = ['2026-08-18', '2026-08-21'];
   db.prepare(`INSERT INTO reservations (id, propertyId, startDate, endDate, checkInTime, checkOutTime, adults, teens, babies, complementAmount)
-              VALUES (1, 7, '2026-08-18', '2026-08-21', '15:00', '10:00', 2, 1, 1, 30)`).run();
+              VALUES (1, 7, ?, ?, '15:00', '10:00', 2, 1, 1, 30)`).run(...STAY_DAYS);
   // date-literal-ok: stay days of the fixture, nothing compares them with today
   for (const date of ['2026-08-18', '2026-08-19', '2026-08-20']) {
     db.prepare('INSERT INTO reservation_nights (reservationId, date) VALUES (1, ?)').run(date);
