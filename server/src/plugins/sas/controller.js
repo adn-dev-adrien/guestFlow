@@ -30,6 +30,7 @@ const optionsModel = sdk.coreModule('optionsModel');
 const repairAmountsModel = sdk.coreModule('repairAmountsModel');
 const sasCommitHooks = sdk.coreModule('sasCommitHooks');
 const { buildSasSaleOffers } = sdk.coreModule('sasOptionSale');
+const extraSale = sdk.coreModule('extraSale');
 const { parseGroup } = sdk.coreModule('arrivalPaymentGroup');
 const { CATERING_CATEGORY } = sdk.coreModule('optionCategoriesMigration');
 const { isReceptionOnly } = sdk.coreModule('roles');
@@ -416,6 +417,8 @@ function getSas(req, res) {
     // catalogue of the property, prices already resolved per property. Arrival only — nothing is sold
     // at check-out. An option the operator booked on the fiche is absent (its step is closed).
     sasSales: saleOffersFor(reservation, { isDeparture }),
+    // Rule 32 — what the stay sold for its departure, apart from the total the arrival collects (reception sees no money).
+    staySales: isReceptionOnly(req.user) ? null : extraSale.departureSalesOf(reservation.id),
     // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the operator
     // decided, so the dialog seeds its state without dividing an amount by a price.
     ...(isDeparture ? { departureSeed: reservationsModel.buildDepartureSeed(reservation.id) } : {}),

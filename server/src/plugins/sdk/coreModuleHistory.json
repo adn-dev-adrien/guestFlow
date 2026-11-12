@@ -270,6 +270,16 @@
         "synthesisExporter"
       ],
       "names": {}
+    },
+    {
+      "version": "2.28.0",
+      "modules": [
+        "extraSale",
+        "saleDetail",
+        "articles",
+        "stayClock"
+      ],
+      "names": {}
     }
   ]
 }

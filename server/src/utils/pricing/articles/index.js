@@ -12,6 +12,9 @@
  *   commit(quoted, tx)       the lines to write (PR A: no fulfilment adapter yet, rule 49 is PR B); a refused quote throws
  *   release(line, reason)    what a removed line gives back to the allowance pool
  *   describe(line)           `{ label, detail }` every screen prints
+ *   read({ option, unitPrice, persons, nights, maxGuests, request })   the price of ONE candidate line for a stay, nothing sold (rule 10):
+ *       `{ figures, offeredFigures }` or null. No free units are spent — a read quotes the line as the catalogue sells it.
+ *   unitsPerQuantity(priceType, persons, nights)   how many billed units one quantity of this price type is on that stay
  *   makeArticle, registerFamily   the factory of rule 47 and the family registry's `register`
  *
  * A request is `{ article, quantity, locked, offered, ... }`; the modes below are chosen by its family:
@@ -362,6 +365,22 @@ function commit(quoted) {
   return quoted.lines.filter(Boolean);
 }
 
+const NO_FREE_UNITS = Object.freeze({ grantedFreeUnitsFor: () => 0, consumedFreeUnitsFor: () => 0 });
+
+function read({
+  option, unitPrice = null, persons, nights, maxGuests = 0, request = {},
+} = {}) {
+  if (!option) return null;
+  const article = makeArticle(unitPrice == null ? option : { ...option, price: unitPrice });
+  const units = Number(request.quantity);
+  const line = quote({
+    requests: [{ article, portions: () => ({ quantity: units, clampedFrom: null }), ...request }],
+    stayContext: { persons, nights, maxGuests, isDirectBooking: true },
+    allowance: NO_FREE_UNITS,
+  }).lines[0];
+  return line ? { figures: line.figures, offeredFigures: line.offeredFigures } : null;
+}
+
 function release(line) {
   const flat = { ...(line.figures || {}), ...(line.offeredFigures || {}) };
   return releaseAllowance(flat);
@@ -375,6 +394,7 @@ function describe(line) {
 
 module.exports = {
   quote,
+  read,
   commit,
   release,
   describe,
@@ -384,6 +404,7 @@ module.exports = {
   registerCoreFamilies,
   lockedUnitPriceOr,
   getTypeMultiplier,
+  unitsPerQuantity: getTypeMultiplier,
   resolveServedPersons,
   resolveNonCardUnits,
   computePercentOfStayAmount: percentOfStay.computePercentOfStayAmount,

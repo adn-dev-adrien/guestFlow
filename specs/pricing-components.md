@@ -257,7 +257,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     lines, hourly resources and shop articles. The fiche, the devis, the SAS (arrival and departure), the iCal /
     platform intakes and the guest-app shop call the same function; no seller has its own arithmetic. A read
     (shop catalogue, slot picker price) is one `priceExtras` call, never a save (D9).
-    > **Pending** — PR B: the SAS, the shop and the iCal / platform intakes call the same function. PR A proves the fiche's engine prices every option and resource line through the Articles head (`articles-head-contract`).
+    > **Delivered by PR B** (pass 5, class E5; `extra-sale-sas`): the SAS prices through the head's read — `articles.read` (one candidate line for a stay, no free unit spent) prices the sold
+    > breakfast / catering (`priceOptionSale`) and the catalogue upsells (`priceCatalogueUpsell`: ménage, linge de toilette, the bath-linen offer), to the cent the old multiplier gave
+    > (a 480-case grid); `welcomePack` reads `unitsPerQuantity`. **Pending** — PR B (C22): the iCal / platform intakes. **Pending** — PR C: the shop (J-7 code, absent from this branch). PR A proves the fiche's engine prices every option and resource line through the Articles head (`articles-head-contract`).
 11. **Catalogue resolution is an input.** The property-merged catalogue (`getApplicableOptions/Resources`,
     `property_option_prices`, `property_resource_prices`, « Facturables » linen prices) is loaded by the
     loader and passed in. The per-property override lookup exists once.
@@ -280,7 +282,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 14. **Offered is a line property.** « Offert » sets the line's amount to 0 with its catalogue value kept for
     display (`applyOfferedToLine`). The three SAS offered mechanisms and `offeredMinutes` become this one.
     > **Delivered by PR B** (pass 4): the line API offers a line through the fiche's own save (`PATCH …/extras/:ref { offered }`).
-    > **Pending** — PR B (pass 5): the SAS mechanisms.
+    > **Pending** — PR C: the three SAS « offert » mechanisms (`cleaningOffered`, `bathLinenOffered`, `offeredExtras`) become the line API's `offered` when the SAS lines get a stable identity: the SAS still
+    > replaces its own lines on a re-run (reopen-completed-sas rule 4), and a line that is deleted and written again has no identity to offer.
 
 ### 3.D TOTALS, PLATFORM PRICE, DISCOUNTS, VAT
 
@@ -328,7 +331,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     check-in), `departure` (to pay at check-out). Nothing downstream infers it again.
     > **Delivered by PR B** (pass 4): `extraSale.sell` stamps `source`, `soldAt`, `collectAt`, `collectAtDefault` on the lines it creates
     > (`models/extraSalesModel.stampNewLines`) and `saleDetail` reads them; the lines of a fiche save keep the values the backfill gave.
-    > **Pending** — PR B (pass 5): the SAS and the intakes write them.
+    > **Delivered by PR B** (pass 5): the arrival SAS writes them — the lines it rewrites carry `source = 'sas'`, `collectAt` / `collectAtDefault = 'arrival'` and `soldAt` (`stampSasLines`). **Pending** — PR B (C22): the intakes.
 19. **The default moment of a new line** (`defaultCollectAt`) _(amended 2026-11-11 for rule 20)_:
 
     | Stay state | Paid now (card / Qonto link, terminal or cash at the SAS) | Not paid |
@@ -399,7 +402,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     extinguisher and plugin items (`sasCommit.complementItems`) are requests to `priceExtras`, written as
     lines with `source = 'sas'` and the moment of rule 19. `planArrivalSas` / `planDepartureSas` become
     SETTLEMENT views over those lines.
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 5, class E5): the SAS's prices are the head's (rule 10), what it writes is a sale of source `sas` collected at arrival (rule 18) and its departure sales read
+    > `saleDetail` (rule 32). `sasOptionSale` stays an SDK module under that name (D24, SDK 2.28.0: its names are unchanged, `extraSale` is the service behind it).
+    > **Pending** — PR C: `planArrivalSas` / `planDepartureSas` as SETTLEMENT views, `sasStep.complementItems` as requests, and the retirement of the replace-and-delta write: the SAS still deletes
+    > and writes its own rows on a re-run (reopen-completed-sas rule 4), which needs the stable line identity of the append rule 13 (PR C) before the plan can be a view over lines.
 26. **Free allowances are consumed by a line and stay with it** (ALLOWANCES unit, rule 41). The free bath
     hour, free units (« 2 offerts ») and included hours are a ledger per stay; a line records the allowance
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
@@ -425,7 +431,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     upsells and departure charges), `intake` (platform / iCal), `devis`. The fiche's ordinary save keeps its
     current path for stay edits and for lines of a stay not yet sold; on a sold stay, an added product goes
     through `extraSale.sell` (owner: « on passe par les mêmes composants et même principe »).
-    > **Delivered by PR B** (pass 4): the five sources are recognised; only `fiche` is written here. **Pending** — PR B (pass 5): `sas`, `intake`.
+    > **Delivered by PR B** (pass 4 and 5): the five sources are recognised; `fiche` is written by `extraSale.sell`, `sas` by the arrival SAS's commit. **Pending** — PR B (C22): `intake`.
 29. **Paying now.** _(amended 2026-11-11 for platform stays.)_ `payment: 'card'` returns a priced basket and
     mints a Qonto link; the line is written `due` with a hold, and the paid effect (`applyPaidEffect` →
     basket) sets `settledCents`. On a platform stay, before or after arrival, this link is **separate from the
@@ -454,11 +460,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     total. The fiche, the SAS arrival recap, the SAS departure recap, the guest-app order view and the
     e-mails render this payload; none of them sums anything (CLAUDE.md §6.0).
     > **Delivered by PR B** (pass 4): `utils/saleDetail.js` (`lines`, `buckets`, `totals`, VAT per line); served by `GET …/sale-detail`.
-    > The SAS recaps, the e-mails and the fiche payload embed it in pass 5.
+    > **Delivered by PR B** (pass 5): the SAS read serves `staySales`, the departure section of rule 32 (`extraSale.departureSalesOf`; reception sees none). The e-mails and the fiche payload keep
+    > their own readers (**Pending** — PR C: they embed the payload when the lines carry a stable identity).
 32. **The SAS arrival shows** the arrival lines due, the stay amounts due at the door, the lines already paid
     (« Déjà payé », not offerable), and — when the SAS runs after check-in time — the departure lines sold
     since (rule 20). **The SAS departure shows** the departure lines, the arrival lines left unpaid (recalled,
     `recalledArrivalAfter`), and the paid lines for the record.
+    > **Delivered by PR B** (pass 5): « Ventes du séjour — au départ » is `staySales` of the SAS payload (title, lines with status, total and what is still due), from `saleDetail`.
 
 ### 3.H Non-regression guarantee
 

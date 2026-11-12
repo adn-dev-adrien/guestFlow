@@ -123,19 +123,7 @@
   },
   {
     "file": "models/reservationsModel.js",
-    "text": "totalPrice: Math.round(unitPrice * billedUnits * 100) / 100,",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "models/reservationsModel.js",
     "text": "return Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  },
-  {
-    "file": "models/reservationsModel.js",
-    "text": "const amount = Math.round(unitPrice * getTypeMultiplier(priceType, persons, nights) * 100) / 100;",
     "removedBy": "PR C",
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
   },

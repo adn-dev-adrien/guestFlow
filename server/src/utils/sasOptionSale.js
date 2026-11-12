@@ -17,7 +17,7 @@
  * (per-property override already applied).
  */
 
-const { getTypeMultiplier, resolveServedPersons, resolveNonCardUnits } = require('./pricing');
+const articles = require('./pricing/articles');
 const { buildCandidateGrid, normalizeOccurrences } = require('./cardOccurrences');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -45,6 +45,9 @@ function servedFromIntent(priceType, { servedPersons, units, nights }) {
   const unitsPerPerson = priceType === 'per_person_per_night' && nights > 0 ? nights : 1;
   return Math.max(1, Math.floor(Number(units) / unitsPerPerson));
 }
+
+// The price of one line is the Articles head's (rule 10): this module resolves the operator's intent into a request, the head prices it.
+const readLine = (option, unitPrice, stay, request) => articles.read({ option, unitPrice, ...stay, request });
 
 /**
  * Price one SAS sale. Returns null when nothing is actually sold (no moment, no unit, no price).
@@ -75,16 +78,18 @@ function priceOptionSale(option, {
     }
     if (wanted.length === 0) return null;
     const perPerson = isPerPerson(option);
-    const covers = resolveServedPersons({ cardPersons: servedPersons, persons: head, maxGuests: maxPersons });
-    const billedUnits = round2(wanted.length * (perPerson ? covers.served : 1));
-    if (!(billedUnits > 0)) return null;
+    const covers = articles.resolveServedPersons({ cardPersons: servedPersons, persons: head, maxGuests: maxPersons });
+    const priced = readLine(option, price, { persons: head, nights, maxGuests: maxPersons }, {
+      quantity: wanted.length, occurrences: wanted, cardPersons: servedPersons,
+    });
+    if (!priced || !(priced.figures.billedUnits > 0)) return null;
     return {
       optionId: Number(option.id),
-      quantity: wanted.length,
+      quantity: priced.figures.quantity,
       unitPrice: price,
-      billedUnits,
+      billedUnits: priced.figures.billedUnits,
       priceType,
-      totalPrice: round2(price * billedUnits),
+      totalPrice: priced.offeredFigures.totalPrice,
       cardOccurrences: wanted,
       cardPersons: perPerson ? covers.stored : null,
       servedPersons: perPerson ? covers.served : null,
@@ -98,23 +103,20 @@ function priceOptionSale(option, {
     if (!perNight && !(head > 0)) return null;
     // Rule 28: units sent that are not a positive number sell nothing, they never fall back to the party.
     if (!perNight && servedPersons == null && units != null && !(Number(units) > 0)) return null;
-    const typed = resolveNonCardUnits({
-      priceType,
+    const priced = readLine(option, price, { persons: head, nights: stayNights, maxGuests: maxPersons }, {
       quantity: 1,
-      persons: head,
-      nights: stayNights,
       cardPersons: perNight ? null : servedFromIntent(priceType, { servedPersons, units, nights: stayNights }),
       cardNights: perNight ? units : null,
-      maxGuests: maxPersons,
     });
-    if (!(typed.billedUnits > 0)) return null;
+    if (!priced || !(priced.figures.billedUnits > 0)) return null;
+    const typed = priced.figures;
     return {
       optionId: Number(option.id),
       quantity: 1,
       unitPrice: price,
       billedUnits: typed.billedUnits,
       priceType,
-      totalPrice: round2(price * typed.billedUnits),
+      totalPrice: priced.offeredFigures.totalPrice,
       cardOccurrences: null,
       cardPersons: typed.cardPersons,
       cardNights: typed.cardNights,
@@ -124,17 +126,35 @@ function priceOptionSale(option, {
 
   const billedUnits = round2(units);
   if (!(billedUnits > 0 && Number.isFinite(billedUnits))) return null;
+  const priced = readLine({ ...option, priceType: 'per_stay' }, price, { persons: head, nights: stayNights, maxGuests: maxPersons }, { quantity: billedUnits });
+  if (!priced) return null;
   return {
     optionId: Number(option.id),
     quantity: billedUnits,
     unitPrice: price,
     billedUnits,
     priceType,
-    totalPrice: round2(price * billedUnits),
+    totalPrice: priced.offeredFigures.totalPrice,
     cardOccurrences: null,
     cardPersons: null,
     servedPersons: null,
   };
+}
+
+/**
+ * The catalogue upsell the check-in offers by intent alone (« Ménage », « Linge de toilette »): one quantity of the option for the
+ * whole party and stay, priced by the head. A price type that counts people or nights is priced as such, any other is one unit.
+ * Returns `{ billedUnits, totalPrice }`, zeros when nothing is sold.
+ */
+function priceCatalogueUpsell(option, { unitPrice, persons, nights, maxPersons } = {}) {
+  const none = { billedUnits: 0, totalPrice: 0 };
+  if (!option) return none;
+  const priceType = option.priceType || 'per_stay';
+  const counted = ['per_person', 'per_night', 'per_person_per_night'].includes(priceType);
+  const priced = readLine(counted ? option : { ...option, priceType: 'per_stay' }, round2(unitPrice), {
+    persons: Math.max(0, Number(persons) || 0), nights: Math.max(0, Number(nights) || 0), maxGuests: maxPersons,
+  }, { quantity: 1 });
+  return priced ? { billedUnits: priced.figures.billedUnits, totalPrice: priced.offeredFigures.totalPrice } : none;
 }
 
 /**
@@ -148,7 +168,7 @@ function buildOptionOffer(option, { unitPrice, persons, nights, stay, sold, maxP
   const head = Math.max(0, Number(persons) || 0);
   const card = isCardOption(option);
   const stayNights = Math.max(0, Number(nights) || 0);
-  const multiplier = getTypeMultiplier(priceType, head, stayNights) || 1;
+  const multiplier = articles.unitsPerQuantity(priceType, head, stayNights) || 1;
   return {
     optionId: Number(option.id),
     title: option.title || 'Prestation',
@@ -310,6 +330,7 @@ module.exports = {
   isCardOption,
   isPerPerson,
   priceOptionSale,
+  priceCatalogueUpsell,
   buildOptionOffer,
   buildSasSaleOffers,
   offeredSaleOptionIds,

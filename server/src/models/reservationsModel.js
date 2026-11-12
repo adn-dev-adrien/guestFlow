@@ -23,7 +23,7 @@ const { LINEN } = require('../constants/plugins');
 const { computePaymentStatus } = require('../utils/paymentStatus');
 const { writeTouristTaxSnapshot } = require('../utils/touristTaxFreeze');
 const { generateReservationNumber } = require('../utils/reservationNumber');
-const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');
+const { isPlatformCollectingTouristTax } = require('../utils/pricing');
 const { create: createCatalogueProvider } = require('./ports/catalogueProvider');
 const { isNamedChannel } = require('../utils/saleChannel');
 const { isCleaningOption } = require('../utils/cleaningOption');
@@ -33,7 +33,9 @@ const {
   buildMidStayLine, parseNotes, nextNoteId, storedMidStayLines, resolveMidStaySplit, MID_STAY_SOURCE,
 } = require('../utils/midStayExtras');
 const { buildEditLock } = require('../utils/midStayExtrasWindow');
-const { priceOptionSale, billablePersons, buildSasSaleOffers, offeredSaleOptionIds } = require('../utils/sasOptionSale');
+const {
+  priceOptionSale, priceCatalogueUpsell, billablePersons, buildSasSaleOffers, offeredSaleOptionIds,
+} = require('../utils/sasOptionSale');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
@@ -2351,7 +2353,7 @@ function createReservationsModel(database) {
     // ── Arrival / Departure SAS (specs/arrival-departure-sas.md §4.1) ──────────────
     // The two catalogue options the ARRIVAL SAS can sell (specs/sas-upsells-activate-catalogue-option.md
     // §3.1): « Ménage » and « Linge de toilette ». Resolves, for each, the option id, the engine price
-    // for THIS reservation (per-property override → `getTypeMultiplier` on the option's own priceType)
+    // for THIS reservation (per-property override → the Articles head, on the option's own priceType)
     // and whether the reservation already carries it — distinguishing a row the SAS itself added
     // (`sasOrigin`, removable by re-running the SAS) from one the operator sold on the fiche.
     // Single source of truth for the SAS payload, the commit and the tests.
@@ -2376,14 +2378,14 @@ function createReservationsModel(database) {
         const override = catalogue.optionPriceOverride(opt.id, res.propertyId);
         const unitPrice = Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
         const priceType = opt.priceType || 'per_stay';
-        const billedUnits = getTypeMultiplier(priceType, persons, nights);
+        const { billedUnits, totalPrice } = priceCatalogueUpsell(opt, { unitPrice, persons, nights });
         const row = linked.find((l) => Number(l.optionId) === Number(opt.id));
         return {
           optionId: opt.id,
           unitPrice,
           priceType,
           billedUnits,
-          totalPrice: Math.round(unitPrice * billedUnits * 100) / 100,
+          totalPrice,
           persons,
           present: Boolean(row),
           sasOrigin: Boolean(row && Number(row.sasArrivalOrigin) === 1),
@@ -2472,7 +2474,7 @@ function createReservationsModel(database) {
 
     // Bath-linen upsell offer for the arrival SAS (specs/sas-bath-linen-upsell.md §3.1). Resolves the
     // « Linge de toilette » option, applies the per-property price override, and prices it PER PERSON
-    // exactly as the reservation engine (getTypeMultiplier on the option's own priceType — `per_person`
+    // exactly as the reservation engine (the Articles head, on the option's own priceType — `per_person`
     // → persons). `persons = adults + teens + children` (babies excluded, like pricing.js). Not offered
     // when the option is missing, already on the reservation, or the computed amount is ≤ 0.
     getBathLinenOfferForReservation(reservation) {
@@ -2487,7 +2489,7 @@ function createReservationsModel(database) {
       const priceType = opt.priceType || 'per_stay';
       const persons = Number(reservation.adults || 0) + Number(reservation.teens || 0) + Number(reservation.children || 0);
       const nights = Array.isArray(reservation.nights) ? reservation.nights.length : 0;
-      const amount = Math.round(unitPrice * getTypeMultiplier(priceType, persons, nights) * 100) / 100;
+      const { totalPrice: amount } = priceCatalogueUpsell(opt, { unitPrice, persons, nights });
       return { available: amount > 0, unitPrice, priceType, persons, nights, amount, label: BATH_LINEN_LABEL };
     },
 
@@ -3696,6 +3698,7 @@ function createReservationsModel(database) {
             : []),
         ].filter((key) => key && !midStayKeySet.has(key));
         model.addKeysToArrivalExtrasBaseline(reservationId, sasKeys);
+        require('./extraSalesModel').stampSasLines(reservationId, new Date().toISOString());
 
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });

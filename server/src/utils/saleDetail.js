@@ -128,4 +128,21 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
   };
 }
 
-module.exports = { buildSaleDetail, SOURCE_LABELS, MOMENT_LABELS };
+// Rule 32 — the SAS shows what a started stay sold for its departure apart from the total it collects at the door:
+// « Ventes du séjour — au départ ». `null` when nothing is due there.
+const DEPARTURE_TITLE = 'Ventes du séjour — au départ';
+function departureSection(detail) {
+  const lines = ((detail && detail.lines) || []).filter((line) => line.collectAt === 'departure' && line.totalCents > 0);
+  if (!lines.length) return null;
+  return {
+    title: DEPARTURE_TITLE,
+    lines: lines.map((line) => ({
+      ref: line.ref, label: line.label, totalCents: line.totalCents, settledCents: line.settledCents, status: line.status, statusLabel: line.statusLabel,
+      sourceLabel: line.sourceLabel,
+    })),
+    totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
+    dueCents: lines.reduce((sum, line) => sum + Math.max(0, line.totalCents - line.settledCents), 0),
+  };
+}
+
+module.exports = { buildSaleDetail, departureSection, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE };

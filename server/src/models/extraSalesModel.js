@@ -10,7 +10,8 @@
  *   momentRefusal(reservationId, line, to, moments) / moveLine(reservationId, line, to)    rule 37: the 409 or null / the move, journaled by the caller
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
  *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
- *  *   vatClassOf(line, kind)                       the VAT class of a priced line: the article's own, else its family's
+ *   stampSasLines(reservationId, soldAt)         the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18)
+ *   vatClassOf(line, kind)                       the VAT class of a priced line: the article's own, else its family's
  */
 const { toCents, roundMoney } = require('../utils/pricing/money');
 const { extraLineKey } = require('../utils/pricing/storedLines');
@@ -47,6 +48,15 @@ function stampNewLines(reservationId, before, { source, collectAt, soldAt }) {
     }
   }
   return added;
+}
+
+// Rule 18 — what the arrival SAS sold is a sale of source `sas`, collected at arrival. A re-run replaces the SAS's own lines (reopen-completed-sas rule 4), so they are stamped again.
+function stampSasLines(reservationId, soldAt) {
+  const db = database();
+  for (const table of ['reservation_options', 'reservation_custom_options']) {
+    db.prepare(`UPDATE ${table} SET source = 'sas', collectAt = COALESCE(collectAt, 'arrival'), collectAtDefault = COALESCE(collectAtDefault, 'arrival'),
+      soldAt = COALESCE(soldAt, ?) WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`).run(soldAt, Number(reservationId));
+  }
 }
 
 function findLine(reservationId, ref) {
@@ -147,4 +157,4 @@ function vatClassOf(line, kind) {
   return kind === 'resource' ? 'resources' : 'options';
 }
 
-module.exports = { lineIds, stampNewLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, vatClassOf };
+module.exports = { lineIds, stampNewLines, stampSasLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, vatClassOf };

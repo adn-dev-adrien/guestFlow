@@ -992,5 +992,23 @@
   ],
   "synthesisExporter": [
     "create"
+  ],
+  "extraSale": [
+    "changeLine",
+    "departureSalesOf",
+    "quote",
+    "saleDetailOf",
+    "sell"
+  ],
+  "saleDetail": [
+    "buildSaleDetail",
+    "departureSection"
+  ],
+  "articles": [
+    "read",
+    "unitsPerQuantity"
+  ],
+  "stayClock": [
+    "phaseForReservation"
   ]
 }

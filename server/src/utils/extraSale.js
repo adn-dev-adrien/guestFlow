@@ -5,6 +5,7 @@
  *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents })  → { status: 200, saleDetail } | { status, body }
  *   changeLine(reservationId, ref, patch, { now, forceOverpayment })  → { status: 200, saleDetail } | { status, body }
  *   saleDetailOf(reservationId, now)  → the payload of rule 31 (utils/saleDetail.js)
+ *   departureSalesOf(reservationId, now)  → the SAS's « Ventes du séjour — au départ » section, or null
  *
  * A request is `{ articleRef: 'option:<id>' | 'resource:<id>', quantity, persons?, mornings?, time?, sessions? }`. A sale is priced and
  * written exactly as the operator's « Enregistrer » writes it: the stored stay rebuilt as the fiche's PUT body, the requested lines added,
@@ -28,7 +29,7 @@ const {
 const { toCents } = require('./pricing/money');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
-const { buildSaleDetail } = require('./saleDetail');
+const { buildSaleDetail, departureSection } = require('./saleDetail');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
@@ -259,4 +260,11 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
   return outcome;
 }
 
-module.exports = { quote, sell, changeLine, saleDetailOf, parseRequests };
+// The SAS's own section of what the stay sold for its departure (rule 32).
+function departureSalesOf(reservationId, now = new Date()) {
+  return departureSection(saleDetailOf(reservationId, now));
+}
+
+module.exports = {
+  quote, sell, changeLine, saleDetailOf, departureSalesOf, parseRequests,
+};

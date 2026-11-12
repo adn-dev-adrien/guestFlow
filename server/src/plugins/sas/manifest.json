@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.9.4",
+  "version": "1.10.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0",
-  "sdk": "^2.24.0",
+  "sdk": "^2.28.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -165,6 +165,11 @@
     "1.9.4": [
       "Le sas lit l’horloge du séjour pour savoir s’il est ouvert à l’accueil : même comportement, une seule source.",
       "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.10.0": [
+      "Les prestations vendues au sas sont des ventes du séjour : elles portent leur origine et leur moment, les prix sont calculés par le même moteur que la fiche.",
+      "Les ventes du séjour dues au départ sont listées à part dans le sas, hors du total encaissé à l’arrivée.",
+      "Compatible avec GuestFlow 4 (SDK 2.28)."
     ]
   }
 }

@@ -117,8 +117,11 @@ const GUARDS = [
   },
   {
     name: 'families',
-    // The person × night arithmetic of the tourist tax is TOURIST TAX's own (rule 3): its `personNights` and `unitFromTotal`.
-    isHome: (file) => file.startsWith('utils/pricing/articles/') || file === 'utils/pricing/touristTax.js',
+    // The person × night arithmetic of the tourist tax is TOURIST TAX's own (rule 3): its `personNights` and `unitFromTotal`, and the
+    // step that feeds them (Q-B11). `utils/pricing.js` only re-exports the head's multiplier under its SDK name (removing it is a
+    // MAJOR bump). `sasUpsellOptionMigration` is a frozen one-shot migration: it never depends on a live quote.
+    isHome: (file) => file.startsWith('utils/pricing/articles/') || file === 'utils/pricing/touristTax.js'
+      || file === 'utils/pricing/steps/touristTax.js' || file === 'utils/pricing.js' || file === 'utils/sasUpsellOptionMigration.js',
     rules: [
       { re: /\bgetTypeMultiplier\b/, probe: 'const multiplier = getTypeMultiplier(priceType, persons, nights);' },
       { re: /\b(persons|guests|nbPersons)\s*\*\s*(nights|nbNights)\b|\b(nights|nbNights)\s*\*\s*(persons|guests|nbPersons)\b/, probe: ['const units = nights * persons;', 'const units = persons * nights;'] },

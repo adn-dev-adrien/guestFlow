@@ -25,7 +25,7 @@ const CORE_MODULES = Object.freeze({
   breakfastModel: '../../models/breakfastModel', // the breakfast page state of the arrival SAS
   optionsModel: '../../models/optionsModel', // the catalogue the arrival SAS may still sell
   sasCommitHooks: '../../utils/sasCommitHooks', // the steps of other plugins, around the core commit (phase 3c rule 6)
-  sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core
+  sasOptionSale: '../../utils/sasOptionSale', // what the check-in may sell, priced by the core — kept under this name over `extraSale` (SDK 2.28.0, pricing-components D24)
   arrivalSasPlan: '../../utils/arrivalSasPlan', // the arithmetic of the arrival plan, shared by preview and commit
   departureSasPlan: '../../utils/departureSasPlan', // the arithmetic of the departure plan, shared by preview and commit
   arrivalPaymentGroup: '../../utils/arrivalPaymentGroup', // the single arrival payment the commit recorded
@@ -82,6 +82,11 @@ const CORE_MODULES = Object.freeze({
   settingsValidation: '../../utils/settingsValidation', // the VAT-rate validator of the account plan
   vat: '../../utils/pricing/vat', // the VAT component: the one place a TTC amount is split (pricing-components rule 61, SDK 2.27.0)
   vatRegimeModel: '../../models/vatRegimeModel', // the VAT rate and regime of each sale: the journal reads them per reservation (vat-optional-mode rule 8, SDK 2.8.0)
+  // sas, hourly-resources, website-booking — one sale service, its read model and the head's price read (pricing-components rules 10, 27, 31, SDK 2.28.0)
+  extraSale: '../../utils/extraSale', // quote / sell / changeLine, the sale detail and the departure section of the SAS
+  saleDetail: '../../utils/saleDetail', // the one read model of what a stay sold (rule 31)
+  articles: '../../utils/pricing/articles', // the Articles head: `read` prices one candidate line, `unitsPerQuantity` its units
+  stayClock: '../../models/stayClockModel', // `phaseForReservation`: has the stay started (rules 44-46)
   // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money

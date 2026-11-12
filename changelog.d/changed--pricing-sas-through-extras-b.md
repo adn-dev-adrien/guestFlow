@@ -1,0 +1,1 @@
+- **The SAS's prices come from the same engine as the fiche (pricing refonte, PR B)**: the breakfast, the catering and the bath-linen and cleaning offers are priced like any other line, and the departure sales appear apart in the SAS. The prices do not change.
