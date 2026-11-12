@@ -1,4 +1,3 @@
-// specs/resource-booking-pricing-and-invoicing.md rule 51.
 // specs/pricing-components.md §3 rules 24, 37 and 83 (class E4, diff 4) — the lodging's free hour is worth the DAY rate on a booking, as on a stay's
 // quantity path; the offered minutes right after it keep the band they fall in. Only a booking whose free hour reaches the evening differs.
 // Rule 83 (owner, 2026-11-12) — the new valuation applies to NEW bookings only: a booking stored before it keeps its stored price and breakdown
@@ -99,3 +98,5 @@ test('rule 83 — moving the party (the lodging) of a stored booking re-prices i
   assert.equal(moved.totalPrice, 70);
   assert.equal(db.prepare('SELECT freeHourAtDayRate AS g FROM resource_bookings WHERE id = ?').get(id).g, 1);
 });
+
+// The same behaviour, as the booking spec states it: specs/resource-booking-pricing-and-invoicing.md rule 51.
