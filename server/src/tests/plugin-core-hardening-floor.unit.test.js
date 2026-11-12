@@ -58,6 +58,7 @@ const HARDENINGS = [
   { feature: 'article families', sdk: '2.27.0', pattern: /\bctx\.articleFamily\(/ },
   { feature: 'article fulfilment', sdk: '2.28.0', pattern: /\bctx\.articleFulfilment\(/ },
   { feature: 'slot availability', sdk: '2.28.0', pattern: /\bctx\.slotAvailability\(/ },
+  { feature: 'sale events', sdk: '2.28.0', pattern: /['"]extraSale\.(sold|lineMoved|lineCancelled|refundOwed)['"]/ },
 ];
 
 function sourceFiles(dir) {

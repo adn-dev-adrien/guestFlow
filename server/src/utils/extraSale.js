@@ -40,6 +40,7 @@ const reservations = () => require('../models/reservationsModel');
 const controller = () => require('../controllers/reservationsController');
 const extraSalesModel = () => require('../models/extraSalesModel');
 const stayClock = () => require('../models/stayClockModel');
+const events = () => require('../models/ports/eventPublisher');
 
 const ROLLBACK = Symbol('extra-sale-rollback');
 const SOURCES = ['fiche', 'shop', 'sas', 'intake', 'devis'];
@@ -165,6 +166,7 @@ function sell(reservationId, requests, { source = 'fiche', payment = 'later', ac
   const db = database();
   const id = Number(reservationId);
   let outcome = null;
+  let soldLines = [];
   try {
     db.transaction(() => {
       if (PAYMENTS[payment] && departureCollected(id)) { outcome = refuse(409, 'STAY_SETTLED', 'Séjour soldé : vente séparée.'); throw ROLLBACK; }
@@ -201,9 +203,17 @@ function sell(reservationId, requests, { source = 'fiche', payment = 'later', ac
         if (paid.error) { outcome = paid.error; throw ROLLBACK; }
       }
       outcome = { status: 200, saleDetail: saleDetailOf(id, now) };
+      soldLines = added.map((line) => ({ label: line.label }));
     })();
   } catch (err) {
     if (err !== ROLLBACK) throw err;
+  }
+  // Rule 55 — after the commit: the guest e-mail, the calendar and the staff push are observers, never part of the sale.
+  if (outcome && outcome.status === 200) {
+    const sold = new Set(soldLines.map((line) => line.label));
+    const lines = outcome.saleDetail.lines.filter((line) => sold.has(line.label))
+      .map((line) => ({ ref: line.ref, label: line.label, totalCents: line.totalCents, collectAt: line.collectAt }));
+    events().publish('extraSale.sold', { reservationId: id, source, lines });
   }
   return outcome;
 }
@@ -261,6 +271,8 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
   if (!touched.length) return refuse(400, 'INVALID_REQUEST', 'Aucun changement demandé.');
   const db = database();
   let outcome = null;
+  let movedTo = null;
+  let owedCents = 0;
   try {
     db.transaction(() => {
       if (wants.collectAt !== undefined) {
@@ -268,6 +280,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         if (refusal) { outcome = refusal; throw ROLLBACK; }
         const moved = model.moveLine(id, line, wants.collectAt);
         if (moved) {
+          movedTo = wants.collectAt;
           const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true });
           if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
           reservations().addHistoryEntry(id, 'update', [{
@@ -280,15 +293,21 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         if (lowered.error) { outcome = lowered.error; throw ROLLBACK; }
         // The fiche's own save judges it (rule 23, O-10): a paid line lowered is refused 409 OVERPAID until `forceOverpayment`, and the
         // confirmed excess opens the `lineLowered` obligation there — one formula, one place.
+        const owedBefore = model.openLoweredCents(id);
         const restated = controller().performUpdate(id, { ...lowered.body, restatePricing: true, forceOverpayment: Boolean(forceOverpayment) });
         if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
         model.storeDiscount(line, lowered.discountCents);
+        owedCents = model.openLoweredCents(id) - owedBefore;
         reservations().addHistoryEntry(id, 'update', [{ field: 'lineLowered', label: line.label, from: null, to: lowered.text }]);
       }
       outcome = { status: 200, saleDetail: saleDetailOf(id, now) };
     })();
   } catch (err) {
     if (err !== ROLLBACK) throw err;
+  }
+  if (outcome && outcome.status === 200) {
+    if (movedTo) events().publish('extraSale.lineMoved', { reservationId: id, ref, from: line.collectAt || null, to: movedTo });
+    if (owedCents > 0) events().publish('extraSale.refundOwed', { reservationId: id, ref, cents: owedCents });
   }
   return outcome;
 }

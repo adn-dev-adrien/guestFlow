@@ -11,6 +11,7 @@
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
  *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
  *   stampSasLines(reservationId, soldAt)         the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18)
+ *   openLoweredCents(reservationId)              the open `lineLowered` obligations, in cents
  *   vatClassOf(line, kind)                       the VAT class of a priced line: the article's own, else its family's
  */
 const { toCents, roundMoney } = require('../utils/pricing/money');
@@ -20,9 +21,9 @@ const { VAT_CLASSES } = require('../utils/pricing/vat/settingsSchema');
 const database = () => require('../database');
 
 const KINDS = {
-  option: { table: 'reservation_options', label: 'SELECT o.title AS label, ro.* FROM reservation_options ro JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ? AND ro.lineId = ?' },
-  resource: { table: 'reservation_resources', label: 'SELECT r.name AS label, rr.* FROM reservation_resources rr JOIN resources r ON r.id = rr.resourceId WHERE rr.reservationId = ? AND rr.lineId = ?' },
-  custom: { table: 'reservation_custom_options', label: 'SELECT rco.description AS label, rco.* FROM reservation_custom_options rco WHERE rco.reservationId = ? AND rco.lineId = ?' },
+  option: { table: 'reservation_options', label: 'SELECT ro.*, o.title AS label FROM reservation_options ro JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ? AND ro.lineId = ?' },
+  resource: { table: 'reservation_resources', label: 'SELECT rr.*, r.name AS label FROM reservation_resources rr JOIN resources r ON r.id = rr.resourceId WHERE rr.reservationId = ? AND rr.lineId = ?' },
+  custom: { table: 'reservation_custom_options', label: 'SELECT rco.*, rco.description AS label FROM reservation_custom_options rco WHERE rco.reservationId = ? AND rco.lineId = ?' },
 };
 
 const MOMENT_TEXT = Object.freeze({ plan: 'à l’acompte et au solde', platform: 'dans le prix plateforme', arrival: 'à payer à l’arrivée', departure: 'à payer au départ' });
@@ -148,6 +149,12 @@ function storeDiscount(line, cents) {
   database().prepare(`UPDATE ${line.table} SET discountCents = ? WHERE lineId = ?`).run(cents, line.lineId);
 }
 
+// What the stay owes back for lowered lines, still open (the sale service compares it before and after a confirmed lowering).
+function openLoweredCents(reservationId) {
+  return Number(database().prepare("SELECT COALESCE(SUM(amountCents), 0) AS cents FROM refund_obligations WHERE reservationId = ? AND origin = 'lineLowered' AND status = 'open'")
+    .get(Number(reservationId)).cents);
+}
+
 function vatClassOf(line, kind) {
   const db = database();
   const own = kind === 'option' && line.optionId != null
@@ -157,4 +164,4 @@ function vatClassOf(line, kind) {
   return kind === 'resource' ? 'resources' : 'options';
 }
 
-module.exports = { lineIds, stampNewLines, stampSasLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, vatClassOf };
+module.exports = { lineIds, stampNewLines, stampSasLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, openLoweredCents, vatClassOf };

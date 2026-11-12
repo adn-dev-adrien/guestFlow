@@ -696,8 +696,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     per database handle, lazily (a quote went from 2.9 to 1.7 ms on the production copy; a statement the schema cannot prepare
     is not kept). Proof: `data-access-ports`, `settings-provider`, `settings-provider-statements`,
     `pricing-settings-wiring`.)_
-    > **Pending** — PR B: `PaymentLedger.receipts` (the single read of SCHEDULE and SETTLEMENT), `StayRepository.stay` /
-    > `storedStayPrice`, `SlotAvailabilityProvider`, `PaymentGateway` and `EventPublisher`.
+    > **Delivered by PR B** (pass 5): `SlotAvailabilityProvider` (declared by hourly-resources through `ctx.slotAvailability`, handed out as `ctx.core.slotAvailability()`) and `EventPublisher`
+    > (`models/ports/eventPublisher.js`, rule 55). **Pending** — PR C: `PaymentLedger.receipts` (the single read of SCHEDULE and SETTLEMENT, which still read `splitReceived` and the stored notes
+    > directly), `StayRepository.stay` / `storedStayPrice` (the sale path of rules 8-9: PR B sells through the fiche's own save, which re-reads the stay), and `PaymentGateway` (the card link is the
+    > online-payment plugin's and stays so until the shop's card order, PR C).
 49. **Articles with a downstream booking (fulfilment port).** An article may name a fulfilment adapter
     (`fulfilment: 'hourly-slot'`). `ArticleFulfilment` is a plain object `{ id, reserve(draft, ctx) → hold
     {id, expiresAt}, confirm(hold, line, tx), release(hold, reason) }`, registered through
@@ -803,7 +805,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     guest e-mail (order confirmation), Google Calendar (bath session), staff push, history mirrors. The money,
     the journal line and the fulfilment `confirm` stay inside the transaction; an observer's failure is logged
     and never undoes a sale.
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 5; `extra-sale-events`): `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled` (published by the fiche's save for the lines it removed) and
+    > `extraSale.refundOwed` are in `EVENTS` and published after the commit through `EventPublisher`; Google Calendar (1.3.0) pushes the stay on the first three. **Pending** — PR C: `standaloneSale.sold`,
+    > and the guest e-mail / staff push observers (the shop's order confirmation, J-7 code absent from this branch).
 56. **No class hierarchy, no DI framework.** Components, families, instances, adapters, steps and ports are CommonJS
     modules exporting plain functions and objects. Wiring is explicit in `pipelines.js` and in plugin
     `register` functions.

@@ -1,0 +1,1 @@
+- **Google Agenda se met à jour quand une prestation est vendue, déplacée ou retirée (pricing refonte, PR B)**: l'événement du séjour ne attend plus la prochaine modification de la fiche.

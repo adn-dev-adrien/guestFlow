@@ -2452,6 +2452,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   };
   // The row, its lines and its history land together: a refused resource (409) must not leave the
   // lines half rewritten (specs/mid-stay-extras-on-locked-fiche.md).
+  let lineIdsBefore = null;
   const writeAll = () => {
     // specs/mid-stay-extras-to-end-of-stay-complement.md §3.1 rule 3 — capture the baseline BEFORE the
     // lines are replaced: the state the reservation had entering this save is exactly « what was sold
@@ -2481,6 +2482,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     const writesExtras = !pastReservationLocked || Boolean(midStayWindow);
     // specs/accounting-books-the-money-collected.md rule 17 (D11) — what the lines hold of the booked entries, before they go.
     const contribLinesBefore = writesExtras ? contribLinesOf(db, id) : null;
+    lineIdsBefore = writesExtras ? require('../models/extraSalesModel').lineIds(id) : null;
     if (writesExtras && reservationOptions) model.replaceOptions(id, quote.optionLines);
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
@@ -2522,6 +2524,16 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
 
   res.json({ ok: true, reservationNumber: model.getReservationNumber(id) });
   if (!silent) emitPluginEvent('reservation.updated', { reservationId: Number(id) });
+  publishCancelledLines(id, lineIdsBefore);
+}
+
+// specs/pricing-components.md rule 55 — the lines a save removed leave as an event, after the commit (an observer, never part of the save).
+function publishCancelledLines(reservationId, before) {
+  if (!before) return;
+  const extraSalesModel = require('../models/extraSalesModel');
+  const after = extraSalesModel.lineIds(reservationId);
+  const refs = [...before].filter((ref) => !after.has(ref));
+  if (refs.length) require('../models/ports/eventPublisher').publish('extraSale.lineCancelled', { reservationId: Number(reservationId), refs });
 }
 
 // specs/reception-sas-today-only.md §3.2 rule 6 — reception may flip the status toggles only on the

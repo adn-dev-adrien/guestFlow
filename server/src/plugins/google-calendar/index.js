@@ -47,6 +47,8 @@ function register(ctx) {
 
   ctx.events.on('reservation.created', ({ reservationId }) => sync.schedulePush(reservationId));
   ctx.events.on('reservation.updated', ({ reservationId }) => sync.schedulePush(reservationId));
+  // specs/pricing-components.md rule 55 — a sale, a moved line or a removed line changes what the event of the stay lists (a bath session).
+  ['extraSale.sold', 'extraSale.lineMoved', 'extraSale.lineCancelled'].forEach((name) => ctx.events.on(name, ({ reservationId }) => sync.schedulePush(reservationId)));
   ctx.events.on('reservation.cancelled', ({ reservationId }) => sync.scheduleDelete(reservationId));
   ctx.events.on('reservation.deleted', ({ reservationId }) => sync.scheduleDelete(reservationId));
   ctx.events.on('ical.imported', () => sync.scheduleReconcile());
