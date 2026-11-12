@@ -1,3 +1,4 @@
+const { roundMoneyStrict } = require('./pricing/money');
 /**
  * Typed counts that no longer match the stay (specs/non-card-option-served-persons.md rules 20-23).
  *
@@ -31,7 +32,7 @@ function displayCountOf(line, stay, { isCard = false, isInsurance = false } = {}
   const quantity = Number(line?.quantity || 0);
   if (isCard || isInsurance) return quantity;
   const count = typedCountOf(line, stay);
-  return Number.isFinite(count) && count > 0 ? Math.round(count * 100) / 100 : quantity;
+  return Number.isFinite(count) && count > 0 ? roundMoneyStrict(count) : quantity;
 }
 
 const unitLabel = (kind, n) => (kind === 'nights'

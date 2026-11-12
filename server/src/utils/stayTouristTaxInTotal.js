@@ -13,7 +13,7 @@
 // total's money, so none of its tax.
 
 const nz = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
-const round2 = (n) => Math.round(n * 100) / 100;
+const { roundMoneyStrict: round2 } = require('./pricing/money');
 
 /**
  * @param {object} r   reservation row (touristTaxTotal, touristTaxAddedGuestsAmount, the tax contribs,

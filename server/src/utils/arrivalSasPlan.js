@@ -6,7 +6,7 @@
  * complement it stores. Nothing here reads or writes the database.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 /**
  * What one catalogue upsell (ménage, linge de toilette) contributes to the SAS-origin option sum

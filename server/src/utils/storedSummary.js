@@ -17,7 +17,7 @@ const { totalCommission: platformTotalCommission } = require('./pricing/platform
 const { displayCountOf } = require('./typedCounts');
 const { isComplementDeferred } = require('./checkoutComplement');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 const flag = (v) => Number(v || 0) === 1;
 
 function safeAll(db, sql, ...params) {

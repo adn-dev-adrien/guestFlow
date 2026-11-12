@@ -14,7 +14,7 @@ const { extraLineKey, parseBaseline } = require('./midStayExtras');
 const { dayReached } = require('./pricing/stayClock');
 
 const EPSILON = 0.001;
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 const ceil2 = (n) => Math.ceil(Math.round(n * 1e6) / 1e4) / 100;
 
 const isEndOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) === 1

@@ -21,7 +21,7 @@ const {
   flag, complementSettled, endOfStaySettled, endOfStaySettledApart, isComplementDeferred, mergedEndOfStayAmount, markCarriesEndOfStay,
 } = require('./pricing/settlement');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 function parseDetail(detail) {
   if (Array.isArray(detail)) return detail;

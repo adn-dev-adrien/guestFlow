@@ -20,7 +20,7 @@
 const articles = require('./pricing/articles');
 const { buildCandidateGrid, normalizeOccurrences } = require('./cardOccurrences');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 // The engine's head count: babies never count (pricing.js).
 function billablePersons(reservation) {

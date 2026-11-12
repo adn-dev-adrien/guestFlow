@@ -11,7 +11,7 @@
 
 const { extraLineKey } = require('./midStayExtras');
 
-const round2 = (value) => Math.round(Number(value || 0) * 100) / 100;
+const { roundMoney: round2 } = require('./pricing/money');
 
 function parseRemovedLineContribs(raw) {
   if (!raw) return [];

@@ -13,7 +13,7 @@ const { parseRemovedLineContribs } = require('./removedLineContribs');
 const { splitTtc } = require('./pricing/vat');
 
 function nz(value) { return value == null ? 0 : Number(value); }
-function round2(value) { return Math.round(Number(value || 0) * 100) / 100; }
+const { roundMoney: round2 } = require('./pricing/money');
 
 // Read the per-line contribs + current totals for one reservation. Used by `buildEntry` to
 // drive the contrib-based per-bucket attribution (spec force-item-to-complement.md §5).

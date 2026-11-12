@@ -1,3 +1,4 @@
+const { roundMoneyStrict } = require('./pricing/money');
 /**
  * Baby-bed supplement rule (specs/baby-bed-supplement.md).
  *
@@ -19,7 +20,7 @@ const AUTO_OPTION_TYPE = 'baby_bed';
 
 function roundTwo(value) {
   const n = Number(value || 0);
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+  return Number.isFinite(n) ? roundMoneyStrict(n) : 0;
 }
 
 /** The catalogue row this feature is driven by — the type alone is not enough, the engine only ever

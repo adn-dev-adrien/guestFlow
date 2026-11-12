@@ -31,9 +31,7 @@ const { readComplementPaidSplit } = require('./complementPaidSplit');
 
 const CONSERVATION_TOLERANCE_EUR = 0.01;
 
-function roundCents(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney: roundCents } = require('./pricing/money');
 
 function computeAccommodationTtc(quote) {
   // Accommodation portion of finalPrice = finalPrice - options - resources (TTC, before tax).

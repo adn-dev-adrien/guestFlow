@@ -19,7 +19,7 @@
 // accounting entry it belongs to (`endOfStayComplement`), so the journal can stamp it without a map.
 const BUCKETS = ['deposit', 'balance', 'complement', 'endOfStayComplement'];
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 /**
  * Build a group, or null when there is nothing to record (no bucket, no money).

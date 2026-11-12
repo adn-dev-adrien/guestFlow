@@ -15,6 +15,7 @@
  */
 
 const registry = require('../plugins/sdk/registry');
+const { roundMoneyStrict } = require('./pricing/money');
 
 function liveHooks() {
   return registry.all()
@@ -61,7 +62,7 @@ function prepare({ reservation, pluginSteps = {}, db = require('../database') })
       writes.push((db) => hook.write(db, reservation, payload));
     }
     for (const item of hook.complementItems(reservation, payload) || []) {
-      const amount = Math.round(Number(item.amount) * 100) / 100;
+      const amount = roundMoneyStrict(item.amount);
       if (!(amount > 0)) continue;
       items.push({ label: String(item.label || '').trim(), amount, sasLineKey: `${pluginId}:${item.key}` });
     }

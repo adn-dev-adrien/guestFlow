@@ -17,7 +17,7 @@
  * Pure: takes the quote `calculateReservationQuote` is about to return, or the stored row's figures.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 function stayGross(q = {}) {
   const tax = q.platformTouristTaxWithheld != null

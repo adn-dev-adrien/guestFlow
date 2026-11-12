@@ -15,8 +15,8 @@
 const COMMISSION_FACTOR_ALERT = 2;
 const COMMISSION_SHARE_ALERT = 0.5;
 
-const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
-const euros = (value) => `${round2(value).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
+const eurosText = (value) => `${round2(value).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
 const percent = (ratio) => `${(Math.round(ratio * 1000) / 10).toFixed(1).replace('.', ',')} %`;
 
 function touristTaxStale({ quote, storedRow }) {
@@ -31,7 +31,7 @@ function touristTaxStale({ quote, storedRow }) {
   const shown = enteredWithheld > 0 ? enteredWithheld : stored;
   return {
     code: 'TOURIST_TAX_STALE',
-    text: `Taxe de séjour à mettre à jour : ${euros(shown)} enregistrés, ${euros(current)} calculés.`,
+    text: `Taxe de séjour à mettre à jour : ${eurosText(shown)} enregistrés, ${eurosText(current)} calculés.`,
     action: 'refreshTouristTax',
   };
 }
@@ -47,7 +47,7 @@ function platformCommissionOdd({ commission, gross, platformLabel, configuredPer
   const against = expected !== null ? `, contre ${percent(expected)} attendus pour ${platformLabel}` : '';
   return {
     code: 'PLATFORM_COMMISSION_ODD',
-    text: `Commission de ${euros(amount)} : ${percent(share)} du séjour${against}.`,
+    text: `Commission de ${eurosText(amount)} : ${percent(share)} du séjour${against}.`,
   };
 }
 

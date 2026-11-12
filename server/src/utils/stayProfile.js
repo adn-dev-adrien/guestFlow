@@ -11,9 +11,9 @@ const { change } = require('./yearOverYear');
 
 const DAY = 86400000;
 const toMs = (iso) => Date.parse(`${iso}T00:00:00Z`);
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
-const euros = (c) => c / 100;
-const round2 = (n) => Math.round(n * 100) / 100;
+const { toCents: cents } = require('./pricing/money');
+const { fromCentsStrict: euros } = require('./pricing/money');
+const { roundMoneyStrict: round2 } = require('./pricing/money');
 const round4 = (n) => Math.round(n * 10000) / 10000;
 
 /** The first bucket whose inclusive `max` the value does not exceed (rules 6-8). */
