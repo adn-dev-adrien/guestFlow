@@ -26,6 +26,7 @@ function seed() {
   db.pragma('foreign_keys = ON');
   hourly.createTables(db);
   hourly.bookingsV2(db);
+  hourly.bookingsV5(db);
   hourly.bookingsV3(db, () => 20);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gite fictif')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Ana', 'Lune'), (2, 'Noé', 'Vent')").run();

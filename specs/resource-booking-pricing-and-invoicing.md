@@ -341,6 +341,14 @@ Rules are numbered once and never renumbered (new rules go at the end).
     invoice creates one. *Why:* a client invoiced once with no address, his address then filled on his record: every
     later invoice went to the first Qonto client, with no address, and only an edit in Qonto by hand fixed it.
 
+### 3.M Pricing refonte (2026-11-12)
+
+51. **The free hour is worth the day rate, for new bookings only** (owner, 2026-11-12; `pricing-components` rules 24, 37 and 83). A booking
+    created, or whose slot or party the operator moves, values the lodging's free minutes at the day rate of the grid (external or guest);
+    a booking stored before keeps the valuation it was sold with (`freeHourAtDayRate` NULL) until the operator moves it. The offered
+    minutes (rule 7) still keep the band they fall in. Edge case: an unpaid booking saved without moving its slot is still priced again
+    (rule 36 reading), with the valuation it already has.
+
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
 - Two card payments of the bath on the same day + a card payment of a stay → one batch; three rows
@@ -433,6 +441,8 @@ Migration `resource_bookings_v3` (2026-11-09): `paidVatRate REAL` (rule 35, NULL
 INTEGER NOT NULL DEFAULT 0` (rule 38).
 Migration `resource_bookings_v4` (2026-11-10): `qontoClientIdentity TEXT` (rule 50, NULL on rows invoiced before: their
 Qonto client is not reused).
+Migration `resource_bookings_v5` (2026-11-12): `freeHourAtDayRate INTEGER` (rule 51: NULL on rows priced before, 1 on rows priced on the
+one hourly grid).
 `clients` is not touched: the Qonto client of a registered guest is read back from his earlier invoiced booking.
 
 **Data impact:** existing rows keep their price (`offeredMinutes = 0`). `paid = 1` rows get

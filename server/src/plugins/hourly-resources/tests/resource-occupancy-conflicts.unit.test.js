@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bookingsV2 } = require('../migrations');
+const { bookingsV2, bookingsV5 } = require('../migrations');
 const Database = require('better-sqlite3');
 
 const resourceBookingsModel = require('../bookingsModel');
@@ -48,6 +48,7 @@ function seed({ resource = {}, sessions = [], kind = 'reservation' } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
   bookingsV2(db);
+  bookingsV5(db);
   db.exec("INSERT OR IGNORE INTO properties (id, name) VALUES (1, 'Ombre')");
   const r = {
     name: 'Bain nordique', quantity: 1, price: 30, turnoverMinutes: 15, minimumUsageMinutes: 60,

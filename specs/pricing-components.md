@@ -404,7 +404,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     disappears (D8).
     > **Delivered by PR B** (pass 5, class E4; `hourly-booking-free-hour`): the hourly grid exists once, in `hourlyPricing.js`: the booking's free hour and offered minutes are `bookingDeductions`, the
     > scheduler's slot price is `slotPrice` (the `hourly` guard's allow-list is empty), and the lodging's own price row is read through the SDK `catalogue` module. The free hour is worth the **day rate**
-    > on a booking, as on a stay's quantity path (diff 4): only a booking whose free hour reaches the evening differs.
+    > on a booking, as on a stay's quantity path (diff 4): only a booking whose free hour reaches the evening differs, and only a **new** one (rule 83).
     > **Pending** — PR C: the evening supplement as a component of the session's line. It needs the line's total to follow the sessions placed after the sale, against the price lock (rule 13): today
     > the `evening:<id>` complement line, billed once and netted by `eveningCredit`, carries the same amount (diff 3), so nothing the guest pays moves.
 25. **The SAS sells through EXTRAS.** Breakfast, catering, bath linen, linen pieces, cleaning, missing items,
@@ -1411,6 +1411,18 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - **a stored fixed price is the sold one** (rule 74): the fixed automatic option is read from its stored `unitPrice`, a catalogue
       edit never reprices it. A proportional one is a function of the time and of the locked nights, both stored.
     Test: `pricing-auto-option-stored`.
+83. **A resource booking sold before the one hourly grid keeps its price** _(owner, 2026-11-12; class E4, rules 24, 37 and 74)_. The free hour
+    of a booking is worth the day rate (rule 24) for a booking **created or re-priced by the operator** after this rule; a booking stored
+    before it (`resource_bookings.freeHourAtDayRate` NULL, migration `resource_bookings_v5`) keeps the stored price and the breakdown it was
+    sold with, its free hour still valued on the band it falls in (prod booking 4, an outside rental 21:00-22:00 with the offered hour,
+    stays at 0 €):
+    - **new booking**: priced on the one grid, `freeHourAtDayRate = 1`;
+    - **the operator moves the slot or the party** (date, start, end, lodging, stay link, offered minutes — the fields of rule 36 of the
+      booking spec) of a stored booking: it is priced on the one grid and flagged `1` for good;
+    - **any other read or save** (the preview of an unmoved draft, the invoice's frozen breakdown, a save of the notes) uses the stored
+      valuation, so the preview, the invoice and the stored total agree;
+    - no backfill: nothing already sold is re-priced, no money moves.
+    Test: `hourly-booking-free-hour`.
 
 ## 4. Architecture
 
@@ -1771,7 +1783,8 @@ with the first code that needs them (rule 60); none needs a PR of its own.
    disappears, the amount is the same. _(PR C: see rule 24; PR B changes nothing the guest pays.)_
 4. Hourly external bookings value the free hour at the day rate, like stays (rule 37 of the hourly spec); today
    `bookingPricing` uses the banded rate. Only bookings with a free evening hour differ.
-   _(Delivered by PR B, pass 5: class E4, scope `resourceBookings`.)_
+   _(Delivered by PR B, pass 5: class E4, scope `resourceBookings`. Owner, 2026-11-12: for **new** bookings only — a stored booking keeps its
+   price and breakdown (rule 83); prod booking 4 stays at 0 €, so the gate shows no `resourceBookings` difference.)_
 5. SAS breakfast / catering / linen priced by EXTRAS: any cent difference against `sasOptionSale` is listed per
    stay.
    _(Delivered by PR B, pass 5: class E5 — the grid of 480 price types × parties shows no cent difference, and the replay of the SAS artefacts none.)_

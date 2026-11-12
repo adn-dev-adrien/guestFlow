@@ -54,8 +54,9 @@ function vatOf(total, vat) {
  * @param {boolean} p.external       no lodging reservation → the external rate pair (rule 6)
  * @param {number} [p.offeredMinutes] already validated by `offeredRefusal`
  * @param {{ rate: number|null }|null} [p.vat] the rate that applies, `rate: null` when the instance has no VAT
+ * @param {boolean} [p.freeHourAtDayRate] false for a booking stored before the one hourly grid: its free hour keeps the band it fell in
  */
-function priceBookingLines({ resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null }) {
+function priceBookingLines({ resource, startTime, endTime, override = null, external, offeredMinutes = 0, vat = null, freeHourAtDayRate = true }) {
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
   const durationMinutes = Math.max(0, end - start);
@@ -104,7 +105,7 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
     const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
     const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, 0);
     if (priced.validSessions.length) {
-      const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied }, cfg);
+      const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate: freeHourAtDayRate }, cfg);
       return finish({
         pricing: 'banded',
         rateGrid: external ? 'external' : 'guest',

@@ -94,10 +94,13 @@ function priceRange(start, end, cfg = {}) {
  * What a booking does not charge (specs/pricing-components.md §3 rules 24, 37-diff 4): the lodging's free minutes are worth the DAY
  * rate — the same value a stay's free hour has on its quantity path — and the offered minutes right after them are worth the band
  * they fall in. `start`/`end` are minutes of the day, `freeApplied`/`offeredApplied` already capped to the duration.
+ * `freeAtDayRate: false` is a booking stored before this rule (rule 74: its price is not re-priced): its free minutes are valued on the band
+ * they fall in.
  */
-function bookingDeductions({ start, freeApplied, offeredApplied }, cfg = {}) {
+function bookingDeductions({ start, freeApplied, offeredApplied, freeAtDayRate = true }, cfg = {}) {
   const norm = normalizeConfig(cfg);
-  const freeValue = freeApplied > 0 ? (norm.dayRate * freeApplied) / 60 : 0;
+  let freeValue = 0;
+  if (freeApplied > 0) freeValue = freeAtDayRate ? (norm.dayRate * freeApplied) / 60 : priceMinutes(start, start + freeApplied, norm);
   const offeredFrom = start + freeApplied;
   const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm) : 0;
   return { freeValue: round2(freeValue), offeredValue: round2(offeredValue) };

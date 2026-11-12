@@ -4,7 +4,7 @@
 // plugin's setting, passed in.
 
 const Database = require('better-sqlite3');
-const { bookingsV2, bookingsV3, bookingsV4 } = require('../migrations');
+const { bookingsV2, bookingsV5, bookingsV3, bookingsV4 } = require('../migrations');
 const bookingsModel = require('../bookingsModel');
 const { FAR_YEAR } = require('../../../tests/farYearFixture');
 
@@ -39,6 +39,7 @@ function seed({ resource = {}, vatRate = 20, now } = {}) {
   const db = new Database(':memory:');
   db.exec(DDL);
   bookingsV2(db);
+  bookingsV5(db);
   bookingsV3(db, () => vatRate);
   bookingsV4(db);
   const r = {

@@ -151,6 +151,7 @@ const PAID_MESSAGE = 'Payée : retirer d’abord le paiement enregistré.';
 // Rule 36 — what moves the price of a booking; anything else (notes, client, address) never reprices a paid one.
 const PRICED_FIELDS = ['date', 'startTime', 'endTime', 'propertyId', 'reservationId', 'offeredMinutes'];
 const sameValue = (a, b) => String(a ?? '') === String(b ?? '');
+const pricedMovedFrom = (existing, next) => PRICED_FIELDS.some((field) => !sameValue(next[field], field === 'offeredMinutes' ? Number(existing.offeredMinutes) || 0 : existing[field]));
 const todayInParis = (now = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(now);
 
 /**
@@ -189,11 +190,14 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
    * the invoice (specs/resource-booking-pricing-and-invoicing.md rules 3-10). Pure read.
    */
   // `frozenVat` (rule 35): the rate a paid booking was sold with — `{ rate }`, `rate: null` when not subject.
-  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null }) {
+  // `stored` (rule 74): the booking's own row, for a read of a booking already sold — a row priced before the one hourly grid keeps its free
+  // hour on the band it fell in; a draft, a new booking or a booking whose slot or party moved is priced on the one grid.
+  function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null, stored = null }) {
     const pid = Number(propertyId || 0);
     const override = pid > 0 ? sdk.coreModule('catalogue').resourcePriceOverride(database, resource.id, pid) || null : null;
     return priceBookingLines({
       resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat: frozenVat || vatFor({ reservationId, date }),
+      freeHourAtDayRate: stored ? Number(stored.freeHourAtDayRate) === 1 : true,
     });
   }
 
@@ -251,6 +255,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     let storedDate;
     let storedTimes;
     let frozenVat = null;
+    let stored = null;
     if (!notSent(bookingId)) {
       const existing = database.prepare('SELECT * FROM resource_bookings WHERE id = ?').get(bookingId);
       if (!existing) return { error: 'Réservation non trouvée', status: 404 };
@@ -259,11 +264,13 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       storedDate = existing.date;
       storedTimes = existing;
       frozenVat = frozenVatOf(existing);
+      const draftPriced = { date, startTime, endTime, propertyId: propertyId || null, reservationId: existing.reservationId, offeredMinutes: Number(offeredMinutes) || 0 };
+      if (!pricedMovedFrom(existing, draftPriced)) stored = existing;
     }
     const refusal = checkBookable({ resource, date, startTime, endTime, excludeId: bookingId || null, storedDate, storedTimes })
       || offeredCheck({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date });
     if (refusal) return refusal;
-    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat });
+    return breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date, frozenVat, stored });
   }
 
   // Rule 15 — what the screen showed is compared with what is stored, never enforced.
@@ -457,7 +464,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const totalPrice = breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes, date }).total;
     const billing = billingOf(payload.billing);
     const result = database.prepare(
-      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)'
+      'INSERT INTO resource_bookings (resourceId, reservationId, clientId, clientName, clientPhone, propertyId, date, startTime, endTime, notes, totalPrice, paid, offeredMinutes, billingStreet, billingPostcode, billingCity, freeHourAtDayRate) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?,?,?,1)'
     ).run(resource.id, reservationId || null, clientId || null, clientName || null, clientPhone || null, propertyId || null, date, startTime, endTime, notes || '', totalPrice, offeredMinutes, billing.street, billing.postcode, billing.city);
     return { ok: true, id: result.lastInsertRowid, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
   }
@@ -489,8 +496,9 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const nextReservationId = reservationId !== undefined ? (reservationId || null) : existing.reservationId;
     const nextOffered = payload.offeredMinutes !== undefined ? payload.offeredMinutes : existing.offeredMinutes;
     const next = { date: newDate, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: Number(nextOffered) || 0 };
-    const pricedMoved = PRICED_FIELDS.some((field) => !sameValue(next[field], field === 'offeredMinutes' ? Number(existing.offeredMinutes) || 0 : existing[field]));
+    const pricedMoved = pricedMovedFrom(existing, next);
     let totalPrice;
+    let freeHourAtDayRate = existing.freeHourAtDayRate ?? null;
     if (isPaid(existing) && !pricedMoved) {
       // Rule 36 — a paid booking whose slot does not move keeps the total its payment covers, whatever the tariff now.
       totalPrice = Number(existing.totalPrice);
@@ -498,7 +506,13 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       const refusal = checkBookable({ resource, date: newDate, startTime: newStart, endTime: newEnd, excludeId: id, storedDate: existing.date, storedTimes: existing })
         || offeredCheck({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate });
       if (refusal) return refusal;
-      totalPrice = breakdownOf({ resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate }).total;
+      // Specs/pricing-components.md §3 rule 74 — only the operator moving the slot or the party puts a booking on the one hourly grid; any other
+      // save of an unpaid booking re-prices it as before (rule 36 reading), its free hour still valued as it was sold.
+      if (pricedMoved) freeHourAtDayRate = 1;
+      totalPrice = breakdownOf({
+        resource, startTime: newStart, endTime: newEnd, propertyId: nextPropertyId, reservationId: nextReservationId, offeredMinutes: nextOffered, date: newDate,
+        stored: { freeHourAtDayRate },
+      }).total;
       // Rule 12 — a recorded payment covers the total it was taken for: a price that moves takes it back.
       if (isPaid(existing) && Math.abs(Number(existing.totalPrice) - totalPrice) >= 0.005) {
         return { error: 'Le prix change : retirer d’abord le paiement enregistré.', status: 409, code: 'BOOKING_PAID' };
@@ -507,7 +521,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     const billing = payload.billing !== undefined ? billingOf(payload.billing) : { street: existing.billingStreet, postcode: existing.billingPostcode, city: existing.billingCity };
 
     database.prepare(
-      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,updatedAt=datetime('now') WHERE id=?"
+      "UPDATE resource_bookings SET reservationId=?,clientId=?,clientName=?,clientPhone=?,propertyId=?,date=?,startTime=?,endTime=?,notes=?,totalPrice=?,offeredMinutes=?,billingStreet=?,billingPostcode=?,billingCity=?,freeHourAtDayRate=?,updatedAt=datetime('now') WHERE id=?"
     ).run(
       reservationId !== undefined ? (reservationId || null) : existing.reservationId,
       clientId !== undefined ? (clientId || null) : existing.clientId,
@@ -519,6 +533,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
       totalPrice,
       Number(nextOffered) || 0,
       billing.street || null, billing.postcode || null, billing.city || null,
+      freeHourAtDayRate,
       id,
     );
     return { ok: true, totalPrice, warning: totalWarning(payload.displayedTotal, totalPrice) };
@@ -630,7 +645,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     // Rule 35 — the lines at the rate frozen with the payment; rule 36 — the stored total is what was paid.
     const breakdown = breakdownOf({
       resource, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, reservationId: row.reservationId,
-      offeredMinutes: row.offeredMinutes, date: row.date, frozenVat: frozenVatOf(row),
+      offeredMinutes: row.offeredMinutes, date: row.date, frozenVat: frozenVatOf(row), stored: row,
     });
     const client = row.clientId ? database.prepare('SELECT * FROM clients WHERE id = ?').get(row.clientId) : null;
     const [first, ...rest] = String(row.clientName || '').trim().split(/\s+/);

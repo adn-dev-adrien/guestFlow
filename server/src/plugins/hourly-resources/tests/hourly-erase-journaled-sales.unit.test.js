@@ -8,7 +8,7 @@ const Database = require('better-sqlite3');
 const registry = require('../../sdk/registry');
 const { createContext } = require('../../sdk/createContext');
 const plugin = require('..');
-const { createTables, bookingsV2 } = require('../migrations');
+const { createTables, bookingsV2, bookingsV5 } = require('../migrations');
 const { FAR_YEAR: Y } = require('../../../tests/farYearFixture');
 
 test.afterEach(() => registry.reset());
@@ -22,6 +22,7 @@ test('rule 21 — journaled sales are announced as leaving the accounting export
   db.prepare("INSERT INTO resources (id, name, priceType) VALUES (2, 'Bain fictif', 'per_hour')").run();
   createTables(db);
   bookingsV2(db);
+  bookingsV5(db);
   const card = JSON.stringify([{ method: 'card', amountCents: 5000, internal: false }]);
   const caisse = JSON.stringify([{ method: 'cash', amountCents: 3000, internal: true }]);
   db.prepare(`INSERT INTO resource_bookings (resourceId, date, startTime, endTime, totalPrice, paid, paidAt, paymentRecordedAt, paymentTenders) VALUES

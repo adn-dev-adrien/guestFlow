@@ -322,7 +322,7 @@ function recomputeResourceBookings(db) {
       const resource = db.prepare('SELECT * FROM resources WHERE id = ?').get(row.resourceId);
       breakdown = resource ? model.breakdownOf({
         resource, startTime: row.startTime, endTime: row.endTime, propertyId: row.propertyId, reservationId: row.reservationId,
-        offeredMinutes: row.offeredMinutes, date: row.date,
+        offeredMinutes: row.offeredMinutes, date: row.date, stored: row,
       }) : null;
     } catch (err) {
       breakdown = { threw: err.message };

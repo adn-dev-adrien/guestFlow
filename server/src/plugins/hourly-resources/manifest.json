@@ -134,7 +134,7 @@
       "Demande le SDK 2.27 de GuestFlow."
     ],
     "1.6.0": [
-      "La première heure offerte par le logement est comptée au tarif de jour, comme sur un séjour, même si elle tombe dans la tranche du soir.",
+      "La première heure offerte par le logement est comptée au tarif de jour, comme sur un séjour, même si elle tombe dans la tranche du soir : pour les nouvelles réservations seulement, une réservation déjà enregistrée garde son prix tant qu’on ne déplace pas son créneau ni son logement.",
       "Le prix propre au logement est lu par le cœur de GuestFlow, un seul endroit pour la grille horaire.",
       "Vendre une heure de bain refuse le créneau déjà pris, au moment même de la vente, avant que la ligne soit écrite.",
       "Compatible avec GuestFlow 4 (SDK 2.28)."

@@ -1,0 +1,1 @@
+- **Migration**: `resource_bookings.freeHourAtDayRate` (NULL = réservation tarifée avant la règle, 1 = grille horaire unique), aucun prix existant n'est modifié.

@@ -2,7 +2,7 @@
 // the create and the update take a real day from today − 5 years to today + 5 years (400, nothing written);
 // an edited booking keeps its stored day whatever it is.
 const test = require('node:test');
-const { bookingsV2 } = require('../migrations');
+const { bookingsV2, bookingsV5 } = require('../migrations');
 const assert = require('node:assert/strict');
 const Database = require('better-sqlite3');
 
@@ -42,6 +42,7 @@ function fresh() {
   const db = new Database(':memory:');
   db.exec(DDL);
   bookingsV2(db);
+  bookingsV5(db);
   const resourceId = Number(db.prepare("INSERT INTO resources (name, price, priceType) VALUES ('Spa', 60, 'per_hour')").run().lastInsertRowid);
   return { db, model: resourceBookingsModel.create(db), resourceId };
 }
