@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -160,6 +160,10 @@
     ],
     "1.9.3": [
       "L’historique de la fiche écrit le paiement unique du sas à la française : montant avec virgule, date jj/mm/aaaa, « complément d’arrivée ».",
+      "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.9.4": [
+      "Le sas lit l’horloge du séjour pour savoir s’il est ouvert à l’accueil : même comportement, une seule source.",
       "Compatible avec GuestFlow 4 (SDK 2.24)."
     ]
   }

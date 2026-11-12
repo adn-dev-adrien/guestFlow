@@ -8,8 +8,6 @@ const Database = require('better-sqlite3');
 const { create: createReservationsModel } = require('../models/reservationsModel');
 const { MID_STAY_SOURCE } = require('../utils/midStayExtras');
 
-const TODAY = '2026-07-11';
-
 // `checkedIn` — specs/arrival-moment-is-the-check-in.md : c'est l'arrivée constatée (check-in ou
 // SAS d'arrivée), et non la date du calendrier, qui ouvre la fenêtre « vendu en cours de séjour ».
 function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
@@ -17,7 +15,7 @@ function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
   db.exec(`
     CREATE TABLE reservations (
       id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
-      clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
+      clientId INTEGER, propertyId INTEGER, checkInTime TEXT, checkOutTime TEXT, startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
       adults INTEGER NOT NULL DEFAULT 0, teens INTEGER NOT NULL DEFAULT 0, children INTEGER NOT NULL DEFAULT 0, babies INTEGER NOT NULL DEFAULT 0,
       cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT,
       cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT,
@@ -86,15 +84,16 @@ test('readExtraLines: options + ressources + lignes personnalisées, une offerte
 });
 
 test('capture — client pas encore arrivé → aucune base (comportement inchangé)', () => {
-  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  const db = makeDb({ startDate: '2099-08-01', checkedIn: false });
   assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1), null);
   assert.equal(baselineOf(db), null);
 });
 
 // specs/arrival-moment-is-the-check-in.md rule 1 — le bug remonté par Adrien : le jour de l'arrivée,
 // avant tout check-in, une option ajoutée à la main partait au complément de fin de séjour.
-test('capture — jour d\'arrivée atteint mais check-in pas fait → toujours aucune base', () => {
-  const db = makeDb({ startDate: TODAY, checkedIn: false });
+test('capture — jour d\'arrivée atteint mais heure du check-in pas passée → toujours aucune base', () => {
+  const db = makeDb({ startDate: new Date().toLocaleDateString('sv-SE'), checkedIn: false });
+  db.prepare("UPDATE reservations SET checkInTime = '23:59' WHERE id = 1").run();
   assert.equal(createReservationsModel(db).captureArrivalExtrasBaselineIfDue(1), null);
   assert.equal(baselineOf(db), null, "rien n'est « vendu en cours de séjour » tant que le client n'est pas là");
 });
@@ -295,14 +294,14 @@ test('resolveArrivalExtrasBaseline — base synthétisée pour l\'aperçu tant q
 });
 
 test('resolveArrivalExtrasBaseline — client pas encore arrivé → aucune base (aperçu inchangé)', () => {
-  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  const db = makeDb({ startDate: '2099-08-01', checkedIn: false });
   assert.equal(createReservationsModel(db).resolveArrivalExtrasBaseline(1), null);
 });
 
 // Le filet de sécurité (rule 2) : un complément d'arrivée déjà encaissé est figé, donc une vente
 // ultérieure doit avoir une base sur laquelle s'appuyer — sans quoi son montant n'atteint aucun bucket.
 test('resolveArrivalExtrasBaseline — complément déjà encaissé → base synthétisée même sans check-in', () => {
-  const db = makeDb({ startDate: '2026-08-01', checkedIn: false });
+  const db = makeDb({ startDate: '2099-08-01', checkedIn: false });
   db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
   assert.deepEqual(JSON.parse(createReservationsModel(db).resolveArrivalExtrasBaseline(1)), { 'opt:9': 12 });
 });

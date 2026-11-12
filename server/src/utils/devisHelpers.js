@@ -2,6 +2,7 @@
  * Pure money / date / format helpers shared by the devis model, controller and PDF service.
  * (Relocated verbatim from the former routes/devis.js so behaviour — incl. PDF output — is unchanged.)
  */
+const { timeToDecimalHour } = require('./pricing/timedOptions');
 
 function roundMoney(v) {
   return Math.round(Number(v || 0) * 100) / 100;
@@ -51,16 +52,6 @@ function isLineOffered(line) {
   const billedUnits = Number(line?.billedUnits || line?.quantity || 0);
   const unitPrice = Number(line?.unitPrice || 0);
   return total === 0 && billedUnits > 0 && unitPrice > 0;
-}
-
-function timeToDecimalHour(timeStr, fallback = 0) {
-  const value = String(timeStr || '').trim();
-  const match = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return Number(fallback || 0);
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return Number(fallback || 0);
-  return hours + minutes / 60;
 }
 
 function formatHoursLabel(hoursValue) {

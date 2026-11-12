@@ -147,8 +147,8 @@ function toReceptionReservationView(reservation, now = new Date()) {
   if (Array.isArray(reservation.resources)) {
     view.resources = reservation.resources.map(receptionResourceLine);
   }
-  view.arrivalSasLock = sasLockReason({ dateIso: reservation.startDate, doneAt: reservation.arrivalSasDoneAt, now });
-  view.departureSasLock = sasLockReason({ dateIso: reservation.endDate, doneAt: reservation.departureSasDoneAt, now });
+  view.arrivalSasLock = sasLockReason({ stay: reservation, side: 'arrival', doneAt: reservation.arrivalSasDoneAt, now });
+  view.departureSasLock = sasLockReason({ stay: reservation, side: 'departure', doneAt: reservation.departureSasDoneAt, now });
   // The toggles follow the DAY window only — a committed SAS still leaves them editable until the
   // window closes (§3.2 rule 6).
   view.checkInStatusEditable = isWithinSasWindow(reservation.startDate, now);

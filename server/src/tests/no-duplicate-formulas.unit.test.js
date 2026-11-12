@@ -63,10 +63,9 @@ test('rule 66 — each pattern of each guard catches its probe line, and no guar
   }
 });
 
-test('rule 66 — the date guard\'s allow-list is the rule 45 table of today\'s call sites: every entry belongs to PR B or PR C', () => {
+test('rule 66 — the date guard\'s allow-list is the rule 45 table of today\'s call sites: no entry waits for PR B any more (pass 4 moved them behind the stay clock)', () => {
   const dates = JSON.parse(fs.readFileSync(path.join(LISTS, 'dates.json'), 'utf8'));
   assert.ok(dates.length > 0);
-  for (const entry of dates) assert.match(entry.removedBy, /^PR (B|C)$/);
+  for (const entry of dates) assert.equal(entry.removedBy, 'PR C');
   assert.ok(dates.some((entry) => entry.file === 'utils/arrivalMoment.js' && entry.removedBy === 'PR C'));
-  assert.ok(dates.some((entry) => entry.file === 'models/reservationsModel.js' && entry.removedBy === 'PR B'));
 });

@@ -1,18 +1,6 @@
 [
   {
     "file": "controllers/reservationsController.js",
-    "text": "const arrivalNotMarked = Number.isInteger(id) && id > 0 && model.isArrivalNotMarked(id);",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "controllers/reservationsController.js",
-    "text": "&& storedRow.startDate <= getTodayIsoDate());",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "controllers/reservationsController.js",
     "text": "const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso)",
     "removedBy": "PR C",
     "reason": "a started-stay refusal that PR C judges with the lists"
@@ -24,18 +12,6 @@
     "reason": "a started-stay refusal that PR C judges with the lists"
   },
   {
-    "file": "controllers/reservationsController.js",
-    "text": "return sasLockReason({ dateIso: row.startDate, doneAt: null, now });",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "controllers/reservationsController.js",
-    "text": "return sasLockReason({ dateIso: row.endDate, doneAt: null, now });",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
     "file": "models/clientsModel.js",
     "text": "if (stay.startDate <= today) return 'inStay';",
     "removedBy": "PR C",
@@ -45,30 +21,6 @@
     "file": "models/clientsModel.js",
     "text": "inStay: clientBucket === 'upcoming' && qualifying.startDate < today,",
     "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "models/reservationsModel.js",
-    "text": "const { hasGuestArrived } = require('../utils/arrivalMoment');",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "models/reservationsModel.js",
-    "text": "return hasGuestArrived(row);",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "models/reservationsModel.js",
-    "text": "if (startDate < today && !options.allowPastDates) {",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "models/reservationsModel.js",
-    "text": "isArrivalNotMarked(reservationId) {",
-    "removedBy": "PR B",
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
   },
   {
@@ -102,18 +54,6 @@
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
   },
   {
-    "file": "plugins/sas/controller.js",
-    "text": "? sasLockReason({ dateIso: reservation.startDate, doneAt: reservation.arrivalSasDoneAt, now })",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "plugins/sas/controller.js",
-    "text": ": sasLockReason({ dateIso: reservation.endDate, doneAt: reservation.departureSasDoneAt, now });",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
     "file": "plugins/website-booking/publicInputValidation.js",
     "text": "if (body.startDate < todayIso) errors.push({ field: 'startDate', issue: 'must not be in the past' });",
     "removedBy": "PR C",
@@ -129,18 +69,6 @@
     "file": "utils/arrivalMoment.js",
     "text": "module.exports = { hasGuestArrived };",
     "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/endOfStayCheckout.js",
-    "text": "function isCheckoutDone(row, { today = todayIso(), sasActive = sasLive() } = {}) {",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/midStayExtrasWindow.js",
-    "text": "const locked = Boolean(row && row.startDate && row.startDate <= today);",
-    "removedBy": "PR B",
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
   },
   {
@@ -165,24 +93,6 @@
     "file": "utils/platformPriceCheck.js",
     "text": "if (!stay.startDate || stay.startDate <= today) return null;",
     "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/receptionView.js",
-    "text": "view.arrivalSasLock = sasLockReason({ dateIso: reservation.startDate, doneAt: reservation.arrivalSasDoneAt, now });",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/receptionView.js",
-    "text": "view.departureSasLock = sasLockReason({ dateIso: reservation.endDate, doneAt: reservation.departureSasDoneAt, now });",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/sasEditWindow.js",
-    "text": "function sasLockReason({ dateIso, doneAt, now }) {",
-    "removedBy": "PR B",
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
   }
 ]

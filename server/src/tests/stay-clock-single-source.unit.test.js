@@ -1,8 +1,8 @@
 // specs/pricing-components.md §3 rule 45 and §7 (`stay-clock-single-source`) — no module but the stay clock decides a stay phase
 // or a collection moment by comparing dates. The scan is the `dates` guard of `no-duplicate-formulas` (`helpers/formulaGuards.js`):
 // today's call sites wait in its allow-list, each with the PR that moves it behind `stayClock*`. Here the list is held to the
-// table of the rule: every listed file is a row of that table, but four that the pattern also meets and the table does not name
-// (a date-window check of an entered date, the intake port's started-stay refusal, the SAS lock reason's own files), listed below.
+// table of the rule: every listed file is a row of that table, but two that the pattern also meets and the table does not name
+// (a date-window check of an entered date, the intake port's started-stay refusal), listed below.
 // The list empties in PR C.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -18,8 +18,6 @@ const table = spec.slice(spec.indexOf('45. **No other module compares dates'), s
 const NOT_IN_THE_TABLE = {
   [plugin('website-booking', 'publicInputValidation.js')]: { pr: 'PR C', why: 'the public form refuses a start date in the past: a date window, not a phase' },
   'utils/platformIntakePort.js': { pr: 'PR C', why: 'the started-stay refusal of the intakes, moved here from the SDK core service; the intake rows of the table move it in C' },
-  'utils/sasEditWindow.js': { pr: 'PR B', why: 'the SAS lock reason that the SAS row of the table calls' },
-  'utils/receptionView.js': { pr: 'PR B', why: 'the reception view reads that same lock reason' },
 };
 
 test('rule 45: the stay clock files are the only home of the date guard', () => {
@@ -43,11 +41,13 @@ test('rule 45: every call site still waiting is a row of the rule\'s table, or o
   }
 });
 
-test('rule 45: the PR that moves each site is the one the table gives (B for the fiche, the mid-stay window, the checkout and the SAS; C for the rest)', () => {
+test('rule 45: the rows of the table that B moves are gone from the allow-list; what is left waits for C', () => {
+  assert.ok(allowed.every((entry) => entry.removedBy === 'PR C'), 'no site waits for PR B');
   const byFile = (file) => allowed.filter((entry) => entry.file === file).map((entry) => entry.removedBy);
-  for (const file of ['utils/midStayExtrasWindow.js', 'models/reservationsModel.js']) assert.ok(byFile(file).every((pr) => pr === 'PR B'), file);
   for (const file of ['utils/paymentDeadlines.js', 'utils/platformPriceCheck.js', 'models/clientsModel.js', 'utils/arrivalMoment.js']) assert.ok(byFile(file).every((pr) => pr === 'PR C'), file);
-  const controller = allowed.filter((entry) => entry.file === 'controllers/reservationsController.js');
-  assert.ok(controller.some((entry) => entry.removedBy === 'PR B') && controller.some((entry) => entry.removedBy === 'PR C'));
+  for (const file of ['utils/midStayExtrasWindow.js', 'models/reservationsModel.js', 'utils/endOfStayCheckout.js', 'utils/sasEditWindow.js', 'utils/receptionView.js', plugin('sas', 'controller.js')]) {
+    assert.deepEqual(byFile(file), [], `${file} reads the stay clock`);
+  }
+  assert.ok(allowed.some((entry) => entry.file === 'controllers/reservationsController.js' && entry.removedBy === 'PR C'));
   for (const intake of ['airbnb-intake', 'booking-intake', 'gites-de-france-intake']) assert.deepEqual(byFile(plugin(intake, 'intakeService.js')), ['PR C']);
 });

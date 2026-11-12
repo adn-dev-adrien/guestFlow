@@ -78,12 +78,12 @@ test('avec la base figée à l\'encaissement, les 30 € partent au complément 
 
 // ── la base est-elle posée au bon moment ? (couche modèle) ──────────────────
 
-function modelDb({ complementPaid = 0, startDate = '2026-10-10', checkedIn = false } = {}) {
+function modelDb({ complementPaid = 0, startDate = '2099-10-10', checkedIn = false, checkInTime = null } = {}) {
   const db = new Database(':memory:');
   db.exec(`
     CREATE TABLE reservations (
       id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
-      startDate TEXT, endDate TEXT,
+      propertyId INTEGER, checkInTime TEXT, checkOutTime TEXT, startDate TEXT, endDate TEXT,
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
       complementPaidCash INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
@@ -95,12 +95,11 @@ function modelDb({ complementPaid = 0, startDate = '2026-10-10', checkedIn = fal
     CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
     CREATE TABLE reservation_custom_options (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER, description TEXT, amount REAL DEFAULT 0, offered INTEGER DEFAULT 0);
   `);
-  db.prepare("INSERT INTO reservations (id, startDate, endDate, complementPaid, checkInDone) VALUES (1, ?, '2026-10-12', ?, ?)")
-    .run(startDate, complementPaid, checkedIn ? 1 : 0);
+  db.prepare("INSERT INTO reservations (id, startDate, endDate, checkInTime, complementPaid, checkInDone) VALUES (1, ?, '2099-10-12', ?, ?, ?)")
+    .run(startDate, checkInTime, complementPaid, checkedIn ? 1 : 0);
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, totalPrice) VALUES (1, 9, 24)').run();
   return db;
 }
-const TODAY = '2026-08-22';
 
 test('séjour à venir, complément NON encaissé → toujours pas de base (comportement inchangé)', () => {
   const model = createReservationsModel(modelDb());
@@ -114,22 +113,26 @@ test('séjour à venir mais complément ENCAISSÉ → la base existe, le bucket 
   assert.deepEqual(JSON.parse(model.captureArrivalExtrasBaselineIfDue(1)), { 'opt:9': 24 });
 });
 
-// specs/arrival-moment-is-the-check-in.md — l'arrivée est un acte de l'opérateur, pas une date : ce
-// qui ouvre la fenêtre « vendu en cours de séjour », c'est le check-in (ou le SAS d'arrivée).
-test('client arrivé → la base existe comme avant, encaissé ou non', () => {
+// specs/pricing-components.md §3 rules 20, 44 (supersedes arrival-moment-is-the-check-in.md for routing): « started » is the
+// check-in time having passed, answered by the stay clock; the arrival mark and the arrival SAS only change the display.
+test('séjour commencé par l\'horloge → la base existe, encaissé ou non', () => {
   const model = createReservationsModel(modelDb({ startDate: '2026-08-01', checkedIn: true }));
   assert.deepEqual(JSON.parse(model.resolveArrivalExtrasBaseline(1)), { 'opt:9': 24 });
 });
 
-// Le bug remonté sur la prod le 2026-08-24 : une option ajoutée à la main le jour de l'arrivée, avant
-// tout check-in, partait au complément de fin de séjour.
-test('jour d\'arrivée atteint mais check-in pas fait → toujours pas de base', () => {
-  const model = createReservationsModel(modelDb({ startDate: TODAY }));
+// Le jour de l'arrivée, avant l'heure du check-in : pas de base (l'option ajoutée à la main part au solde).
+test('jour d\'arrivée atteint mais heure du check-in pas passée → pas de base', () => {
+  const model = createReservationsModel(modelDb({ startDate: new Date().toLocaleDateString('sv-SE'), checkInTime: '23:59' }));
   assert.equal(model.resolveArrivalExtrasBaseline(1), null);
   assert.equal(model.captureArrivalExtrasBaselineIfDue(1), null);
 });
 
-test('SAS d\'arrivée commité (sans la case check-in) → la base existe aussi', () => {
+test('la case check-in cochée AVANT l\'heure du check-in ne pose pas la base (E1, règle 20)', () => {
+  const model = createReservationsModel(modelDb({ checkedIn: true }));
+  assert.equal(model.resolveArrivalExtrasBaseline(1), null);
+});
+
+test('SAS d\'arrivée commité sur un séjour commencé → la base existe', () => {
   const db = modelDb({ startDate: '2026-08-01' });
   db.prepare("UPDATE reservations SET arrivalSasDoneAt = '2026-08-01 16:10:00' WHERE id = 1").run();
   assert.deepEqual(JSON.parse(createReservationsModel(db).resolveArrivalExtrasBaseline(1)), { 'opt:9': 24 });

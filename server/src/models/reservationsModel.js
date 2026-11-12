@@ -44,7 +44,8 @@ const {
 } = require('../utils/departureSasPlan');
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
-const { hasGuestArrived } = require('../utils/arrivalMoment');
+const stayClockModel = require('./stayClockModel');
+const { dayPassed } = require('../utils/pricing/stayClock');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
 const { serialiseGroup, groupCovers, parseGroup, collectibleArrivalBuckets } = require('../utils/arrivalPaymentGroup');
@@ -615,7 +616,10 @@ function createReservationsModel(database) {
   //    ou le SAS d'arrivée —, jamais une date.
   const arrivalExtrasBaselineIsDue = (row) => {
     if (Number(row.complementPaid || 0) === 1 || Number(row.complementPaidCash || 0) === 1) return true;
-    return hasGuestArrived(row);
+    // Rules 20, 44: « started » is the check-in time having passed, answered by the stay clock. The arrival mark and the
+    // arrival SAS no longer route a sale (they only change the display).
+    const phase = stayClockModel.create(database).phaseForReservation(row.id, new Date());
+    return Boolean(phase && phase.started);
   };
 
   // Single write point for « the end-of-stay complement + its register »: the detail, the re-summed
@@ -1513,7 +1517,7 @@ function createReservationsModel(database) {
       const cleaning = property ? (property.cleaningHours ?? 3) : 3;
 
       const today = localTodayIso();
-      if (startDate < today && !options.allowPastDates) {
+      if (dayPassed(startDate, today) && !options.allowPastDates) {
         return { error: 'Impossible de réserver dans le passé.' };
       }
 
@@ -2828,7 +2832,7 @@ function createReservationsModel(database) {
     },
 
     // No baseline, and none due: what is sold now joins the ordinary balance (specs/mid-stay-notes.md rule 23).
-    isArrivalNotMarked(reservationId) {
+    arrivalBaselineNotDue(reservationId) {
       if (!HAS_ARRIVAL_EXTRAS_BASELINE) return false;
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       return Boolean(row) && !row.arrivalExtrasBaseline && !arrivalExtrasBaselineIsDue(row);

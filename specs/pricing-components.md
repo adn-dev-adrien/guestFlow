@@ -339,7 +339,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       silently.
     - Early check-in sold as an option does not move `checkInTime`; the operator edits `checkInTime` when the
       arrival time really changes.
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 4, C13; class E1): the arrival baseline of the extras (`arrivalExtrasBaselineIsDue`, hence the
+    > engine's `arrivalExtrasBaseline` and the fiche's mid-stay note routing) follows `phaseForReservation(...).started`, no longer the
+    > check-in mark or the arrival SAS. The default moment written on a new line is rule 19 (**Pending** — PR B, C14).
 21. **Paid is stored on the line.** A line's `settledCents` is the Σ of its allocations (rule 74), computed, never a
     stored column (Q16 call Q-B6b); `settlementRef` names the payment link, settlement or tender. Every bucket amount — arrival complement, departure complement, solde — is **Σ of the
     due amounts of its lines** (+ the stay-level parts of rule 22). Netting paid money happens in SETTLEMENT
@@ -528,8 +530,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       property) and calls `phaseOf`. **This is the only place anyone asks « has this stay started? »**. The
       loader of COMPOSE, `extraSale.quote/sell`, SETTLEMENT, `saleDetail`, the SAS, the fiche, the guest app
       and the e-mail context receive the phase from it. They only hand over the stay id.
-    > **Pending** — PR B: the loader of COMPOSE and the other consumers receiving the phase (PR A delivers the unit and
-    > the resolver; the engine still reads `todayIso` / `midStayWindow`, rule 45).
+    > **Delivered by PR B** (pass 4, C13): the engine's baseline (`resolveArrivalExtrasBaseline`, read by the quote context) and the
+    > mid-stay note flag (`arrivalBaselineNotDue`) consult the resolver. The calendar answers that are about a day, not an hour, are
+    > pure functions of the unit: `dayReached(day, todayIso)`, `dayPassed(day, todayIso)` (the day strictly before today: the refusal
+    > to book in the past) and `sasWindowState(dateIso, now)` (`future` / `open` / `past` / `unusable`: the reception SAS window D 00:00
+    > → D+1 04:00). `readableTime` (`H:MM`, `HH:MM:SS` → `HH:MM`) is shared with `timeToDecimalHour` of the timed options (Q-B19: 0
+    > production rows hold a seconds time, so no stored price moves).
 45. **No other module compares dates to decide a collection moment or a stay phase.** A static test (grep in
     the server suite) fails on `startDate <= today`-style comparisons, `hasGuestArrived` or
     `isArrivalNotMarked` outside `stayClock*`. Today's call sites and the PR that moves each:
@@ -553,6 +559,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | engine input `todayIso` / `midStayWindow` (`pricing.js` ~l. 1565, set by the controller) | phase fed to the engine | B (`midStayWindow` follows `hasGuestArrived`, the clock follows the check-in time: the first listed diff of PR B; moved from A) |
     | `plugins/website-booking/publicInputValidation.js`, `utils/platformIntakePort.js` (the started-stay refusal of the intakes), `utils/sasEditWindow.js`, `utils/receptionView.js` — _rows added 2026-11-11 by the review of PR A (`stay-clock-single-source`, `NOT_IN_THE_TABLE`)_ | a date window of the public form (a start date in the past); the intake port's refusal; the SAS lock reason and the reception view that read it | C (the form and the port, `arrivalDayReached`), B (the SAS lock reason and the reception view) |
     | `plugins/booking-intake/intakeService.js` l. 159, `plugins/airbnb-intake/intakeService.js` l. 119, `plugins/gites-de-france-intake/intakeService.js` l. 136 (`startDate <= today()`) — _row added 2026-11-11 by the code check of rule 71_ | an intake refuses a started stay (« Séjour commencé : fiche à saisir à la main ») | C (`arrivalDayReached` through the SDK, same semantics; rule 71) |
+
+    _(Delivered by PR B pass 4: every row tagged B is moved — the `dates` allow-list holds only PR C entries. `isArrivalNotMarked` is
+    `arrivalBaselineNotDue` (the response key `arrivalNotMarked` of the preview is unchanged); `sasLockReason({ stay, side, doneAt, now })`
+    takes the stay and the side instead of a date; `isCheckoutDone` and `midStayExtrasWindow` compare through `dayReached`.)_
 
     Slot and service-hour logic (`guest-app/serviceHours.js` `outsideStay`, `shopController` `remainingMornings`)
     asks a different question (is a delivery time inside the stay's opening hours) and keeps its own code; it

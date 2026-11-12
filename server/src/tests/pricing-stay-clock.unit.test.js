@@ -193,3 +193,30 @@ test('rule 44 — an oracle over random stays and instants, the two DST days inc
   }
   assert.ok(compared > 3000);
 });
+
+// specs/pricing-components.md §3 rule 45 (pass 4): the calendar answers and the SAS window of the call sites moved here.
+test('dayReached and dayPassed answer about a calendar day, with the semantics of the comparisons they replace', () => {
+  const { dayReached, dayPassed } = require('../utils/pricing/stayClock');
+  assert.equal(dayReached('2026-08-04', '2026-08-04'), true);
+  assert.equal(dayReached('2026-08-04', '2026-08-03'), false);
+  assert.equal(dayPassed('2026-08-04', '2026-08-04'), false, 'the arrival day itself is not in the past');
+  assert.equal(dayPassed('2026-08-04', '2026-08-05'), true);
+  assert.equal(dayReached('2026-08-04 15:00:00', '2026-08-04T09:00'), true, 'only the day counts');
+});
+
+test('sasWindowState: future before D 00:00, open until D+1 04:00, past after, unusable for a date nobody can read', () => {
+  const { sasWindowState } = require('../utils/pricing/stayClock');
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 3, 23, 59)), 'future');
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 4, 0, 0)), 'open');
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 5, 3, 59)), 'open');
+  assert.equal(sasWindowState('2026-08-04', new Date(2026, 7, 5, 4, 0)), 'past');
+  assert.equal(sasWindowState(null, new Date(2026, 7, 4, 12)), 'unusable');
+});
+
+test('readableTime: H:MM and HH:MM:SS become HH:MM, a non-time is null', () => {
+  const { readableTime } = require('../utils/pricing/stayClock');
+  assert.equal(readableTime('9:00'), '09:00');
+  assert.equal(readableTime('09:00:30'), '09:00');
+  assert.equal(readableTime('24:00'), null);
+  assert.equal(readableTime(''), null);
+});

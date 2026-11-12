@@ -10,19 +10,11 @@
  * Factory `create(db)` (a test drives its own schema) + a default bound to the production database, like
  * settingsModel; the default opens the database on first call, not on require.
  */
-const { phaseOf } = require('../utils/pricing/stayClock');
+const { phaseOf, readableTime } = require('../utils/pricing/stayClock');
 const settingsProvider = require('./ports/settingsProvider');
 
 const FALLBACK_CHECK_IN = '15:00';
 const FALLBACK_CHECK_OUT = '10:00';
-
-// `9:00` and `09:00:00` read as 09:00; anything else that is not a time of day (`abc`, `24:00`, `9h`) is a time nobody
-// entered: the caller falls back to the next source.
-function readableTime(value) {
-  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(value == null ? '' : value).trim());
-  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || (match[3] !== undefined && Number(match[3]) > 59)) return null;
-  return `${match[1].padStart(2, '0')}:${match[2]}`;
-}
 
 function create(db) {
   function phaseInputsFor(id) {

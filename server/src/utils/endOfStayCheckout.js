@@ -11,6 +11,7 @@
  */
 
 const { todayIso } = require('./localDate');
+const { dayReached } = require('./pricing/stayClock');
 
 const END_OF_STAY_BEFORE_CHECKOUT = 'END_OF_STAY_BEFORE_CHECKOUT';
 const END_OF_STAY_BEFORE_CHECKOUT_MESSAGE = 'Complément de fin de séjour encaissable après le départ.';
@@ -22,12 +23,12 @@ function sasLive() {
 }
 
 /** Whether the stay is checked out, so its end-of-stay complement may be collected. */
-function isCheckoutDone(row, { today = todayIso(), sasActive = sasLive() } = {}) {
+const isCheckoutDone = (row, { today = todayIso(), sasActive = sasLive() } = {}) => {
   if (!row) return false;
   if (sasActive) return Boolean(row.departureSasDoneAt);
   const end = String(row.endDate || '').slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(end) && String(today).slice(0, 10) >= end;
-}
+  return /^\d{4}-\d{2}-\d{2}$/.test(end) && dayReached(end, today);
+};
 
 const endOfStaySettled = (row) => Number((row && row.endOfStayComplementPaid) || 0) === 1
   || Number((row && row.endOfStayComplementPaidCash) || 0) === 1;

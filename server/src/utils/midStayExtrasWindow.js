@@ -11,6 +11,7 @@
  */
 
 const { extraLineKey, parseBaseline } = require('./midStayExtras');
+const { dayReached } = require('./pricing/stayClock');
 
 const EPSILON = 0.001;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -25,7 +26,7 @@ const isEndOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) =
  * @returns {{ locked: boolean, extrasEditable: boolean, extrasClosedReason: string|null }}
  */
 function midStayExtrasWindow(row, today) {
-  const locked = Boolean(row && row.startDate && row.startDate <= today);
+  const locked = Boolean(row && row.startDate && dayReached(row.startDate, today));
   if (!locked) return { locked: false, extrasEditable: false, extrasClosedReason: null };
   if (String(row.kind || 'reservation') !== 'reservation') {
     return { locked, extrasEditable: false, extrasClosedReason: null };

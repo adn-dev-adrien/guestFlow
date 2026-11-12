@@ -42,34 +42,34 @@ test('isWithinSasWindow — a datetime value is read on its day part', () => {
 });
 
 test('sasLockReason — inside the window and never committed → editable (null)', () => {
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt: null, now: at(2026, 8, 4, 16) }), null);
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt: null, now: at(2026, 8, 5, 2) }), null);
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 4, 16) }), null);
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 5, 2) }), null);
 });
 
 test('sasLockReason — before the day → future, after the tail → past', () => {
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt: null, now: at(2026, 8, 3, 20) }), 'future');
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt: null, now: at(2026, 8, 5, 9) }), 'past');
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt: null, now: at(2026, 9, 1, 9) }), 'past');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 3, 20) }), 'future');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 8, 5, 9) }), 'past');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt: null, now: at(2026, 9, 1, 9) }), 'past');
 });
 
 test('sasLockReason — « done » wins over every date reason', () => {
   const doneAt = '2026-08-04 15:12:00';
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt, now: at(2026, 8, 4, 16) }), 'done');
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt, now: at(2026, 8, 3, 10) }), 'done');
-  assert.equal(sasLockReason({ dateIso: '2026-08-04', doneAt, now: at(2026, 8, 9, 10) }), 'done');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 4, 16) }), 'done');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 3, 10) }), 'done');
+  assert.equal(sasLockReason({ stay: { startDate: '2026-08-04' }, side: 'arrival', doneAt, now: at(2026, 8, 9, 10) }), 'done');
 });
 
 test('sasLockReason — an unusable date is locked as past, never editable', () => {
-  assert.equal(sasLockReason({ dateIso: null, doneAt: null, now: at(2026, 8, 4, 16) }), 'past');
+  assert.equal(sasLockReason({ stay: { startDate: null }, side: 'arrival', doneAt: null, now: at(2026, 8, 4, 16) }), 'past');
 });
 
 test('sasLockReason — a one-night stay opens each SAS on its own day', () => {
   const stay = { startDate: '2026-08-04', endDate: '2026-08-05' };
   const onArrivalDay = at(2026, 8, 4, 16);
-  assert.equal(sasLockReason({ dateIso: stay.startDate, doneAt: null, now: onArrivalDay }), null);
-  assert.equal(sasLockReason({ dateIso: stay.endDate, doneAt: null, now: onArrivalDay }), 'future');
+  assert.equal(sasLockReason({ stay, side: 'arrival', doneAt: null, now: onArrivalDay }), null);
+  assert.equal(sasLockReason({ stay, side: 'departure', doneAt: null, now: onArrivalDay }), 'future');
 
   const onDepartureDay = at(2026, 8, 5, 10);
-  assert.equal(sasLockReason({ dateIso: stay.startDate, doneAt: null, now: onDepartureDay }), 'past');
-  assert.equal(sasLockReason({ dateIso: stay.endDate, doneAt: null, now: onDepartureDay }), null);
+  assert.equal(sasLockReason({ stay, side: 'arrival', doneAt: null, now: onDepartureDay }), 'past');
+  assert.equal(sasLockReason({ stay, side: 'departure', doneAt: null, now: onDepartureDay }), null);
 });

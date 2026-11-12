@@ -20,6 +20,7 @@
  */
 
 const TIME_ZONE = 'Europe/Paris';
+const SAS_WINDOW_END_HOUR = 4;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -95,10 +96,43 @@ function phaseOf({ arrivalDate, departureDate, checkInTime, checkOutTime } = {},
   };
 }
 
+// `9:00` and `09:00:00` read as 09:00; anything else that is not a time of day (`abc`, `24:00`, `9h`) is a time nobody
+// entered: the caller falls back to the next source (rule 44, the resolver's reading; `timeToDecimalHour` shares it).
+function readableTime(value) {
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(String(value == null ? '' : value).trim());
+  if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || (match[3] !== undefined && Number(match[3]) > 59)) return null;
+  return `${match[1].padStart(2, '0')}:${match[2]}`;
+}
+
+// The calendar answers about a day that is not a stay's own (a date typed on a form, an endDate): `todayIso` is the Paris
+// day the caller injects. Same semantics as the comparisons they replace.
+const dayReached = (day, todayIso) => String(todayIso).slice(0, 10) >= String(day).slice(0, 10);
+const dayPassed = (day, todayIso) => String(todayIso).slice(0, 10) > String(day).slice(0, 10);
+
+// 'YYYY-MM-DD' → local midnight Date, or null when the value isn't a usable ISO day.
+function parseIsoDay(dateIso) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateIso || ''));
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Where `now` stands against the reception window of a SAS dated `dateIso` (specs/reception-sas-today-only.md §3.1): it
+ * opens at D 00:00 and closes at D+1 04:00. 'unusable' for a date nobody can read (fail-closed), 'future', 'open', 'past'.
+ */
+function sasWindowState(dateIso, now) {
+  const start = parseIsoDay(dateIso);
+  if (!start) return 'unusable';
+  if (now < start) return 'future';
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, SAS_WINDOW_END_HOUR);
+  return now < end ? 'open' : 'past';
+}
+
 // specs/pricing-components.md §3 rule 50 — the settings of this unit, read through SettingsProvider.for('stayClock', scope).
 const settingsSchema = [
   { key: 'defaultCheckIn', type: 'string', default: '15:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },
   { key: 'defaultCheckOut', type: 'string', default: '10:00', scope: 'property', validate: (value) => (TIME_PATTERN.test(String(value)) ? null : 'Heure invalide (HH:MM).') },
 ];
 
-module.exports = { phaseOf, TIME_ZONE, settingsSchema };
+module.exports = { phaseOf, TIME_ZONE, SAS_WINDOW_END_HOUR, settingsSchema, readableTime, dayReached, dayPassed, sasWindowState };

@@ -52,8 +52,8 @@ const linenLive = () => registry.isLive('linen');
 function receptionSasLock(req, reservation, mode, now = new Date()) {
   if (!isReceptionOnly(req.user)) return null;
   return mode === 'arrival'
-    ? sasLockReason({ dateIso: reservation.startDate, doneAt: reservation.arrivalSasDoneAt, now })
-    : sasLockReason({ dateIso: reservation.endDate, doneAt: reservation.departureSasDoneAt, now });
+    ? sasLockReason({ stay: reservation, side: 'arrival', doneAt: reservation.arrivalSasDoneAt, now })
+    : sasLockReason({ stay: reservation, side: 'departure', doneAt: reservation.departureSasDoneAt, now });
 }
 
 // specs/arrival-departure-sas.md §3.7 — a SAS commit is a reservation edit like any other and must

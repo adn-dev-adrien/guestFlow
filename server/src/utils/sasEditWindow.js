@@ -10,17 +10,7 @@
  * does this arithmetic, it only renders the resolved reason (fat backend, thin frontend).
  */
 
-// Retune the tolerance here and nowhere else.
-const SAS_WINDOW_END_HOUR = 4;
-
-// 'YYYY-MM-DD' → local midnight Date, or null when the value isn't a usable ISO day.
-function parseIsoDay(dateIso) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateIso || ''));
-  if (!match) return null;
-  const [, y, m, d] = match;
-  const date = new Date(Number(y), Number(m) - 1, Number(d));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
+const { SAS_WINDOW_END_HOUR, sasWindowState } = require('./pricing/stayClock');
 
 /**
  * Is `now` inside the edit window of a SAS dated `dateIso`?
@@ -29,24 +19,21 @@ function parseIsoDay(dateIso) {
  * @returns {boolean} false when the date is missing/unparsable (fail-closed).
  */
 function isWithinSasWindow(dateIso, now) {
-  const start = parseIsoDay(dateIso);
-  if (!start) return false;
-  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, SAS_WINDOW_END_HOUR);
-  return now >= start && now < end;
+  return sasWindowState(dateIso, now) === 'open';
 }
 
 /**
- * Why a reception user cannot edit this SAS — `null` when they can.
+ * Why a reception user cannot edit this SAS — `null` when they can. The window itself is the stay clock's
+ * (`sasWindowState`, rule 45); `stay` is the reservation row and `side` the SAS it is about.
  * `done` wins over the date reasons: a SAS committed today reads « déjà effectué », not « à venir ».
- * @param {{dateIso: string, doneAt: ?string, now: Date}} params
+ * @param {{stay: {startDate: string, endDate: string}, side: 'arrival'|'departure', doneAt: ?string, now: Date}} params
  * @returns {null|'done'|'future'|'past'}
  */
-function sasLockReason({ dateIso, doneAt, now }) {
+function sasLockReason({ stay, side, doneAt, now }) {
   if (doneAt) return 'done';
-  const start = parseIsoDay(dateIso);
-  if (!start) return 'past'; // unusable date → treat as closed, never as editable.
-  if (now < start) return 'future';
-  return isWithinSasWindow(dateIso, now) ? null : 'past';
+  const state = sasWindowState(side === 'arrival' ? stay.startDate : stay.endDate, now);
+  if (state === 'unusable') return 'past'; // unusable date → treat as closed, never as editable.
+  return state === 'open' ? null : state;
 }
 
 module.exports = { SAS_WINDOW_END_HOUR, isWithinSasWindow, sasLockReason };

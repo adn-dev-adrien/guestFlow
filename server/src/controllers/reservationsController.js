@@ -98,6 +98,7 @@ const { carriedOfferedDefaultsToRestore } = require('../utils/propertyDefaultOpt
 const { isReceptionOnly, userHasRole, ADMIN } = require('../constants/roles');
 const { readOnlyRefusal, cautionReturnOnCancelled } = require('../utils/reservationReadOnly');
 const { isWithinSasWindow, sasLockReason } = require('../utils/sasEditWindow');
+const { dayReached } = require('../utils/pricing/stayClock');
 const { isDevisExpired } = require('../utils/devisValidity');
 const { toOccupancyRow } = require('../utils/upcomingArrivals');
 const { toReceptionReservationView, toReceptionReservationList, toReceptionPaymentPatch } = require('../utils/receptionView');
@@ -707,7 +708,7 @@ function previewMidStayNote(req, res) {
   const { opening, current, checkedKeys, reservationId } = req.body || {};
   // specs/mid-stay-notes.md rule 23 (D19): no arrival marked, a sale joins the ordinary balance, so the note says so.
   const id = ['number', 'string'].includes(typeof reservationId) ? Number(reservationId) : NaN;
-  const arrivalNotMarked = Number.isInteger(id) && id > 0 && model.isArrivalNotMarked(id);
+  const arrivalNotMarked = Number.isInteger(id) && id > 0 && model.arrivalBaselineNotDue(id);
   res.json({ ...planMidStayNote({ opening, current, checkedKeys }), arrivalNotMarked });
 }
 
@@ -1479,7 +1480,7 @@ async function calculatePrice(req, res) {
     const edit = req.body.ledgerEdit;
     if (edit && (edit.row === 'deposit' || edit.row === 'balance')) {
       const startedStay = Boolean(storedRow && storedRow.kind === 'reservation' && storedRow.startDate
-        && storedRow.startDate <= getTodayIsoDate());
+        && dayReached(storedRow.startDate, getTodayIsoDate()));
       const unlocked = Boolean(req.body.unlockPast && userHasRole(req.user, ADMIN));
       const pastLocked = startedStay && !unlocked;
       quote.ledgerEdit = evaluateLedgerEdit({
@@ -2578,10 +2579,10 @@ function receptionStatusLock(reservationId, body, now = new Date()) {
   const touchesArrival = body.checkInReady !== undefined || body.checkInDone !== undefined;
   const touchesDeparture = body.checkOutDone !== undefined;
   if (touchesArrival && !isWithinSasWindow(row.startDate, now)) {
-    return sasLockReason({ dateIso: row.startDate, doneAt: null, now });
+    return sasLockReason({ stay: row, side: 'arrival', doneAt: null, now });
   }
   if (touchesDeparture && !isWithinSasWindow(row.endDate, now)) {
-    return sasLockReason({ dateIso: row.endDate, doneAt: null, now });
+    return sasLockReason({ stay: row, side: 'departure', doneAt: null, now });
   }
   return null;
 }
