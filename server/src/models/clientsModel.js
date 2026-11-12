@@ -13,7 +13,7 @@ const {
   carriesMoney, historyBlocker, idsOfOwner, withConvertedDevis, bookingMoneyBlocker, CLIENT_MONEY_MESSAGE,
   cautionBlocker, noResourceBookingSql,
 } = require('../utils/deletionGuard');
-const { todayIso: localTodayIso } = require('../utils/localDate');
+const { todayIso: localTodayIso, localHourMinute, stayHasEnded } = require('../utils/localDate');
 const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
 const { clientWhenLabel, stayDatesLabel } = require('../utils/clientWhenLabel');
@@ -338,13 +338,17 @@ function createModel(database) {
   function listReservationsForClient(clientId) {
     const rows = database.prepare(`
       SELECT r.id, r.clientId, r.propertyId, p.name AS propertyName, r.startDate, r.endDate,
-        r.kind, r.platform, r.finalPrice, r.adults, r.children, r.teens, r.babies
+        r.kind, r.platform, r.finalPrice, r.adults, r.children, r.teens, r.babies, r.checkOutTime
       FROM reservations r
       LEFT JOIN properties p ON p.id = r.propertyId
       WHERE r.kind IN ('reservation', 'cancelled', 'superseded') AND r.clientId = ?
     `).all(Number(clientId));
+    // `past` is the server's judgement (the departure day and hour behind us), the same as the calendars' (rule 3 of
+    // calendar-property-parity.md): the page dims by it, it compares no date.
+    const today = localTodayIso();
+    const nowTime = localHourMinute(new Date());
     return rows
-      .map((r) => ({ ...r, nights: computeNights(r.startDate, r.endDate) }))
+      .map(({ checkOutTime, ...r }) => ({ ...r, nights: computeNights(r.startDate, r.endDate), past: stayHasEnded({ endDate: r.endDate, checkOutTime }, today, nowTime) }))
       .sort(compareByCurrentDate);
   }
 

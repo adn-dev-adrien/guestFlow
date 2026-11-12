@@ -129,6 +129,10 @@
       "Demande le SDK 2.26 de GuestFlow."
     ],
     "1.5.3": [
+      "La carte du planning d’une réservation de ressource hors séjour reprend les tailles et l’ordre de la carte d’arrivée.",
+      "Compatible avec le SDK 2.26.0 de GuestFlow."
+    ],
+    "1.5.4": [
       "Le tarif à l’heure est calculé par la famille d’article « hourly » du calcul des prix ; aucun prix ne change.",
       "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; à 20 %, le net et la TVA peuvent bouger d’un centime, le total ne change pas.",
       "Demande le SDK 2.27 de GuestFlow."

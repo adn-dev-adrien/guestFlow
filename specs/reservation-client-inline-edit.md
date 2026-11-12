@@ -107,3 +107,10 @@ postalCode, city, address, phone, email, notes).
 ## 9. Open questions — resolved 2026-06-11
 - Attaching an existing client after removing the dropdown → **keep a collapsed search** behind a
   « Changer le client » link (operator's choice), so repeat guests don't create duplicates.
+
+## Amendment 2026-11-12 (manual trial of 4.0.0) — real buttons
+
+The two text links under the client's name are **outlined small buttons**, built like « Recentrer » of the mini planning strip
+(`<Button size="small" variant="outlined">`), **right-aligned** on one wrapping line: « Changer le client » (swap icon) and
+« Nouveau client » (person-add icon; it replaces « + Créer un nouveau client », also in the search state). The dialog titles are
+unchanged. On a phone the theme's coarse-pointer rule gives each a 44 px target; the row wraps, never scrolls sideways.

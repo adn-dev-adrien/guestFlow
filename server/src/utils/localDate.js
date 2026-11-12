@@ -24,4 +24,14 @@ function localHourMinute(date) {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-module.exports = { localIsoDate, todayIso, localHourMinute };
+/**
+ * Whether a stay is over: its departure day is behind us, or it is today and the check-out time has passed
+ * (specs/calendar-property-parity.md rule 3). A stay with no check-out time ends at its day's end.
+ */
+function stayHasEnded({ endDate, checkOutTime }, today, nowTime) {
+  if (!endDate) return false;
+  if (endDate !== today) return endDate < today;
+  return /^\d{2}:\d{2}/.test(String(checkOutTime || '')) && String(checkOutTime).slice(0, 5) <= nowTime;
+}
+
+module.exports = { localIsoDate, todayIso, localHourMinute, stayHasEnded };

@@ -191,7 +191,7 @@ code the commit runs, so that what the operator is told to collect is what the b
 ### 3.4 The dialog
 
 15. **The recap renders the preview, nothing else.** Every amount on the recap — each line, « Total »,
-    « Total complément », « Total à percevoir à l'arrivée », the « encaisser le supplément » warning —
+    « Total complément », « Total à percevoir à l'arrivée », the « encaisser le supplément » warning (replaced on 2026-11-12 by « Ajouté au complément de fin de séjour : X € », exactly what the commit adds, arrival-departure-sas.md rules 34-35) —
     is a field of the latest preview response. The client keeps no `round2`, no `reduce` over money,
     no `× price`.
 16. **The sale steps render the preview too.** « 4 petits déjeuners — 32,00 € », each catering row's

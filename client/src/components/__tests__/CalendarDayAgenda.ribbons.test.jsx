@@ -80,7 +80,7 @@ test('a past stay uses the tint with a stripe, ink text; a closure is hatched an
   const past = getComputedStyle(day('2026-12-02').querySelector('[data-ribbon]'));
   expect(past.backgroundColor).toBe('rgba(201, 56, 72, 0.14)');
   expect(past.color).toBe('rgb(39, 37, 31)');
-  expect(past.boxShadow).toMatch(/inset 3px 0 0/);
+  expect(past.boxShadow).toMatch(/inset 3px 0 0|3px 0px inset/); // jsdom 30 / 31 serialisations
 
   const start = day('2026-12-10').querySelector('[data-ribbon]');
   expect(start).toHaveAttribute('data-side', 'right');

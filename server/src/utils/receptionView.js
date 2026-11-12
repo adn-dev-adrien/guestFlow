@@ -53,6 +53,8 @@ const RESERVATION_KEEP = [
   // can reopen pre-filled (specs/reopen-completed-sas.md §2) — they describe the door collection,
   // never the stay's revenue.
   'cautionAmount',
+  'cautionWaived',
+  'propertyDefaultCautionAmount',
   'cautionReceived',
   'cautionReceivedDate',
   'cautionReturned',

@@ -4,6 +4,7 @@ import { DISCOUNT_TARGETS } from '../../constants/extraSale';
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
+import { AMOUNT_FIELD_SX } from '../../utils/amountFieldSx';
 import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
 import MidStayNoteDialog from './MidStayNoteDialog';
@@ -149,7 +150,7 @@ function ArrivalPaymentCard({ payment, busy, error, readOnly, onCommitTotal, onU
             disabled={busy}
             error={Boolean(error)}
             helperText={error || helper}
-            sx={{ maxWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' } }}
+            sx={{ maxWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' }, ...AMOUNT_FIELD_SX }}
           />
         )}
         {/* specs/single-payment-from-the-fiche.md rule 10 — undoing releases exactly the buckets the
@@ -219,7 +220,7 @@ function ComplementDetail({
                 disabled={Boolean(adjustDisabledReason)}
                 size="small"
                 helperText={helper}
-                sx={{ maxWidth: { sm: 280 }, width: '100%' }}
+                sx={{ maxWidth: { sm: 280 }, width: '100%', ...AMOUNT_FIELD_SX }}
               />
             </span>
           </Tooltip>
@@ -1091,7 +1092,7 @@ export default function FinanceSection() {
                         value={form.customPrice}
                         onCommit={(v) => updateForm({ customPrice: v })}
                         fullWidth
-                        sx={{ mt: 1 }}
+                        sx={{ mt: 1, ...AMOUNT_FIELD_SX }}
                         size="small"
                       />
                       {form.customPrice !== '' && accommodationBasePriceDisplay && (
@@ -1113,6 +1114,7 @@ export default function FinanceSection() {
                           onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
                           fullWidth
                           size="small"
+                          sx={AMOUNT_FIELD_SX}
                           slotProps={{ htmlInput: { min: 0, max: 100 } }}
                         />
                         <TextField
@@ -1141,7 +1143,7 @@ export default function FinanceSection() {
 
               {/* specs/single-payment-from-the-fiche.md §3.1 — several buckets still to collect: offer
                   to record them as the ONE payment the guest made. */}
-              {form.arrivalPayment?.collectible && !isReservationLocked && (
+              {form.arrivalPayment?.collectible && !isReservationLocked && fichePristine && (
                 <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     Encaisser en une fois : {formatCurrency(form.arrivalPayment.collectible.total)}

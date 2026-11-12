@@ -34,7 +34,7 @@ const DDL = `
     clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
     checkInTime TEXT DEFAULT '16:00', checkOutTime TEXT DEFAULT '10:00',
     adults INTEGER DEFAULT 2, teens INTEGER DEFAULT 0, children INTEGER DEFAULT 0, babies INTEGER DEFAULT 0,
-    cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT,
+    cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionWaived INTEGER NOT NULL DEFAULT 0, cautionReceivedDate TEXT,
     complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
     complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,
     complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0,

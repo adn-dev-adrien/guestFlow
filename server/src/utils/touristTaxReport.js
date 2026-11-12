@@ -184,6 +184,24 @@ function reportTotals(ours, platform) {
 }
 
 /**
+ * Rule 56 — the totals of each logement of the selection, in logement order: the very `reportTotals` over that
+ * logement's own rows, so the cards and the bar can never disagree, with the logement's id and name.
+ */
+function propertyTotals(ours, platform) {
+  const ids = new Map();
+  for (const row of [...ours, ...platform]) if (!ids.has(row.propertyId)) ids.set(row.propertyId, row.propertyName);
+  return [...ids.entries()]
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([propertyId, propertyName]) => ({
+      propertyId,
+      propertyName,
+      ...reportTotals(ours.filter((r) => r.propertyId === propertyId), platform.filter((r) => r.propertyId === propertyId)),
+      // What « Marquer {logement} déclaré » would tick: the rows of ours not declared yet that can be (the button's state).
+      declarableRowsCount: ours.filter((r) => r.propertyId === propertyId && !r.declared && r.declarable).length,
+    }));
+}
+
+/**
  * @param {{ ourRows: Array<object>, platformRows: Array<object>, declaration: 'all'|'todo'|'done' }} input
  *   `ourRows` already shaped by `ourStayRow`, `platformRows` by `platformStayRow`, both on the selection's logement.
  * @returns {{ stays: Array<object>, nights: Array<object>, totals: object }}
@@ -194,9 +212,9 @@ function buildTouristTaxReport({ ourRows, platformRows, declaration = 'all' }) {
   const stays = (declaration === 'all' ? [...ours, ...platform] : ours).sort(byStayOrder);
   // Rule 16 — the base columns are shown when a row of ours is taxed on a percentage of its price.
   const columns = { percentageBase: ours.some((r) => r.nightPricePerOccupantHt != null) };
-  return { stays, nights: nightRegister(ours), totals: reportTotals(ours, platform), columns };
+  return { stays, nights: nightRegister(ours), totals: reportTotals(ours, platform), byProperty: propertyTotals(ours, platform), columns };
 }
 
 module.exports = {
-  buildTouristTaxReport, ourStayRow, platformStayRow, nightRegister, reportTotals, distribute, declaredOnOf, DECLARATION_FILTERS,
+  buildTouristTaxReport, ourStayRow, platformStayRow, nightRegister, reportTotals, propertyTotals, distribute, declaredOnOf, DECLARATION_FILTERS,
 };

@@ -457,8 +457,10 @@ function buildModel(database) {
     return database.prepare(`
       SELECT l.id, l.reservationId, l.type, l.provider, l.providerLinkId, l.amountCents, l.status, l.cancelReason,
              l.remoteCancelPendingAt, l.expiresAt, l.createdAt, ${hasWithdrawnAt ? 'l.withdrawnAt' : 'NULL'} AS withdrawnAt,
-             ${hasNumber ? 'r.reservationNumber' : 'NULL'} AS reservationNumber,
+             ${hasNumber ? 'r.reservationNumber' : 'NULL'} AS reservationNumber, r.devisNumber, r.convertedReservationId,
+             c.id AS convertedStayId, ${hasNumber ? 'c.reservationNumber' : 'NULL'} AS convertedNumber,
              r.id IS NULL AS stayMissing, r.kind AS stayKind,
+             (CASE WHEN c.id IS NOT NULL AND c.kind IN ('cancelled', 'superseded') THEN c.kind ELSE r.kind END) AS endedKind,
              (r.kind IN ('cancelled', 'superseded') OR c.kind IN ('cancelled', 'superseded')) AS stayEnded
         FROM payment_links l
         LEFT JOIN reservations r ON r.id = l.reservationId
@@ -468,17 +470,17 @@ function buildModel(database) {
     `).all().filter((row) => {
       if (row.status !== 'open') return Boolean(row.remoteCancelPendingAt);
       const expiryMs = knownExpiryMs(row.expiresAt);
-      row.why = row.stayMissing ? 'orphan' : row.stayEnded ? (row.stayKind === 'superseded' ? 'superseded' : 'stay-cancelled')
+      row.why = row.stayMissing ? 'orphan' : row.stayEnded ? (row.endedKind === 'superseded' ? 'superseded' : 'stay-cancelled')
         : (expiryMs != null && expiryMs <= nowMs) ? 'validity' : null;
       if (row.why) return true;
       row.why = 'stay-started';
       return require('../utils/paymentLinkLifecycle').lapsesAtArrival(database, row, now);
-    }).map(({ expiresAt, stayEnded, stayKind, why, ...row }) => ({ // eslint-disable-line no-unused-vars
+    }).map(({ expiresAt, stayEnded, endedKind, why, ...row }) => ({ // eslint-disable-line no-unused-vars
       ...row,
       stayMissing: Boolean(row.stayMissing),
       // A stay cancellation writes no reason: it is read off the stay, and only when the stay really is cancelled or set aside.
       reason: row.status === 'open' ? why
-        : (row.cancelReason || (row.stayMissing ? 'orphan' : (stayEnded ? (stayKind === 'superseded' ? 'superseded' : 'stay-cancelled') : null))),
+        : (row.cancelReason || (row.stayMissing ? 'orphan' : (stayEnded ? (endedKind === 'superseded' ? 'superseded' : 'stay-cancelled') : null))),
       since: row.status === 'open' ? (why === 'validity' ? expiresAt : null) : (row.withdrawnAt || row.remoteCancelPendingAt),
     }));
   }

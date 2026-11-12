@@ -528,6 +528,9 @@ const api = {
   setTouristTaxDeclared: (reservationId, declared, { addedGuests = false } = {}) => request(`/finance/tourist-tax/${reservationId}/declared`, { method: 'PATCH', body: { declared, addedGuests } }),
   // specs/tourist-tax-report-v2.md §4.3 — the report over a month, quarter, year or du / au, by logement and
   // declaration status: `{ period, month | quarter | year | from + to, propertyId, declaration }`.
+  // specs/tourist-tax-report-v2.md rule 57 — « Marquer {logement} déclaré »: ONE call ticks that logement's declarable rows
+  // of the window (the same query as the report, the logement in the path).
+  declareTouristTaxProperty: (propertyId, params = {}) => request(`/finance/tourist-tax/property/${propertyId}/declared?${financeQuery(params)}`, { method: 'POST' }),
   getTouristTaxReport: (params = {}) => request(`/finance/tourist-tax/report?${financeQuery(params)}`),
   // The CSV of the same selection (`view`: 'list' | 'night'), saved under the server's file name. A refusal
   // throws the server's French reason.

@@ -53,4 +53,13 @@ function getReportCsv(req, res) {
   return res.send(touristTaxReportCsv(result.data, view));
 }
 
-module.exports = { getReport, getReportCsv, BAD_VIEW, shapeRefusal };
+// specs/tourist-tax-report-v2.md rule 57 — « Marquer {logement} déclaré »: the logement of the path, the window of the query.
+function declareProperty(req, res) {
+  const refused = shapeRefusal(req.query);
+  if (refused) return res.status(400).json({ error: refused });
+  const result = model.declareProperty({ ...reportParams(req.query), propertyId: req.params.propertyId });
+  if (!result.ok) return res.status(result.status || 400).json({ error: result.error });
+  return res.json({ ok: true, ...result.data });
+}
+
+module.exports = { getReport, declareProperty, getReportCsv, BAD_VIEW, shapeRefusal };

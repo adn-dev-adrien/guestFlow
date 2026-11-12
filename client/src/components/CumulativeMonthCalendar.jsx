@@ -185,7 +185,7 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
               return (
                 <Tooltip
                   key={`${item.key}-${bar.startCol}`}
-                  title={closure ? `${closureBarLabel(item)}` : `${item.label} (${frRange(item.startDate, item.endDate)})`}
+                  title={closure ? `${closureBarLabel(item)}` : `${item.label} — ${item.platformDisplay || formatPlatformLabel(item.platform)}, ${frRange(item.startDate, item.endDate)}`}
                   arrow
                 >
                   <Box

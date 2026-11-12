@@ -190,6 +190,8 @@ async function baselines(app, admin, active) {
     ['PUT', '/api/users/me', { firstName: 'Marie', lastName: 'Martin', email: 'admin@shape.test', companyName: 'Ombre', notes: '' }],
     ['PUT', `/api/users/${reception ? reception.id : 2}`, { firstName: 'Marie', lastName: 'Martin', companyName: '', notes: '', roles: ['reception'] }, sas],
     ['PATCH', `/api/finance/tourist-tax/${s.direct}/declared`, { declared: false }, { ok: [400, 404, 409] }],
+    // The body carries nothing: the logement is in the path and the window in the query (tourist-tax-report-v2.md rule 57).
+    ['POST', `/api/finance/tourist-tax/property/${s.property}/declared?period=month&month=2020-01`, {}, { ok: [200, 400] }],
     ['POST', `/api/dashboard/payment-deadlines/${s.direct}/snooze`, { days: 3, until: dayAt(9), kind: 'balance' }, { ok: [400, 404] }],
     ['POST', `/api/dashboard/payment-deadlines/${s.direct}/remind`, { kind: 'balance' }, { ok: [400, 404, 409] }],
     ['POST', '/api/clients/parse-contact', { address: 'Rue', email: 'a@shape.test', phone: '0600000000' }],

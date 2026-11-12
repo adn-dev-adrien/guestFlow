@@ -191,7 +191,33 @@ function createTouristTaxReportModel(database, finance) {
     };
   }
 
-  return { getReport };
+  /**
+   * Rule 57 — « Marquer {logement} déclaré »: one call ticks every row of that logement the window still has to declare and
+   * can declare (the report's own `declarable` and `remittedBy: 'us'`: never a platform's stay), each through the single
+   * tick of tourist-tax-declared-checkbox.md. All or nothing.
+   * @returns {{ ok: true, data: { declaredCount: number, skippedCount: number } } | { ok: false, status: number, error: string }}
+   */
+  function declareProperty(params = {}) {
+    if (params.propertyId == null || params.propertyId === '') return { ok: false, status: 400, error: MESSAGES.unknownProperty };
+    const read = getReport({ ...params, declaration: 'todo' });
+    if (!read.ok) return read;
+    const rows = read.data.stays.filter((r) => r.remittedBy === 'us' && !r.declared);
+    const due = rows.filter((r) => r.declarable);
+    try {
+      database.transaction(() => {
+        due.forEach((r) => {
+          const done = finance.setTouristTaxDeclared({ reservationId: r.reservationId, declared: true, addedGuests: Boolean(r.addedGuestsRow) });
+          if (!done.ok) throw Object.assign(new Error(done.error), { refusal: done });
+        });
+      })();
+    } catch (e) {
+      if (e.refusal) return { ok: false, status: e.refusal.status || 400, error: e.refusal.error };
+      throw e;
+    }
+    return { ok: true, data: { declaredCount: due.length, skippedCount: rows.length - due.length } };
+  }
+
+  return { getReport, declareProperty };
 }
 
 const defaultModel = createTouristTaxReportModel(db, financeModel);
