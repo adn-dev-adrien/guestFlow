@@ -24,6 +24,7 @@ const { platformDisplay } = require('./platformDisplay');
 const { parisDateTimeLabel } = require('./parisDateTime');
 const { DEACTIVATION_ALERT_AFTER_HOURS } = require('../constants/paymentLinks');
 const { roundMoneyOrZero } = require('./pricing/money');
+const { owedOnDuplicate, duplicatePayment } = require('./pricing/refunds/owed');
 
 // The iCal source's own name, else the platform as every page writes it (« GreenGo », « Gîtes de
 // France »), never the stored key (2026-10-27 spec review).
@@ -487,8 +488,8 @@ function buildNotificationService({
   const PAID_UNAVAILABLE_TITLES = { closed: '⚠️ Paiement reçu sur des dates fermées', taken: '⚠️ Paiement reçu sur des dates déjà prises' };
   // specs/payment-link-lifecycle.md rule 63 (audit R11 M1) — beside an installment plan the payment is not the stay's.
   const PAID_BESIDE_PLAN_TITLE = '⚠️ Paiement à rembourser : échéancier en place';
-  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents = null, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false, installmentPlan = false } = {}) {
-    const amount = eurosFr(doublePaid && duplicateCents != null ? duplicateCents : link.amountCents);
+  function buildPaidAfterCancelEmail(resa, link, publicUrl, { settledOn = null, amountMismatch = null, doublePaid = false, duplicateCents, confirmationSent = true, nightsUnavailable = null, datesTaken = false, takenBy = null, livePayment = false, installmentPlan = false } = {}) {
+    const amount = eurosFr(doublePaid && duplicateCents != null ? owedOnDuplicate({ paidCents: link.amountCents, ...duplicatePayment(duplicateCents) }).owedCents : link.amountCents);
     const owner = String(resa.kind) === 'devis' ? 'le devis' : 'le séjour';
     const ref = resa.devisNumber || `#${Number(resa.id)}`;
     const title = (installmentPlan && PAID_BESIDE_PLAN_TITLE) || PAID_UNAVAILABLE_TITLES[nightsUnavailable]

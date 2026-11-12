@@ -304,8 +304,16 @@ function spreadBucketRefund(lines, amountTtc, roomOf = (line) => line.refundable
   });
 }
 
+// The caisse interne gives back only what the register's lines carry: cash collected on no line (an end-of-stay complement, say) is never promised.
+function capCashToLines(cancelled, refundableLines) {
+  const carried = round2(refundableLines.reduce((sum, line) => sum + Number(line.cashTtc || 0), 0));
+  cancelled.cashLeftTtc = Math.min(cancelled.cashLeftTtc, carried);
+  return cancelled;
+}
+
 module.exports = {
   budget,
+  capCashToLines,
   refundable,
   applyLiveCollected,
   capInOrder,

@@ -424,7 +424,20 @@ function givenBackSinceCancelOf({ row, refunds, withCash }) {
   return round2(fromIndemnity + cashDrop);
 }
 
+/**
+ * What cancelling a stay costs the guest and what it writes off (rule 61): the indemnity booked plus the caisse-interne acompte kept,
+ * and the unpaid solde plus the unpaid installments.
+ * @returns {{ keptFromGuest: number, writtenOffBalance: number }}
+ */
+function cancellationFigures({ row, refunds, indemnityAmount }) {
+  return {
+    keptFromGuest: round2(indemnityAmount + cashDepositKeptOf(row, refunds)),
+    writtenOffBalance: round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount)),
+  };
+}
+
 module.exports = {
+  cancellationFigures,
   buildCancellationRequalification,
   resolveCancellationReason,
   givenBackByBucket,

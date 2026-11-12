@@ -52,4 +52,28 @@ function owedOnLineLowered({ overpaymentCents, alreadyOwedCents = 0 }) {
   return { owedCents: Math.max(0, whole(overpaymentCents) - whole(alreadyOwedCents)) };
 }
 
-module.exports = { owedOnBasket, owedOnLinkPayment, owedOnDuplicate, owedOnLineLowered };
+/**
+ * The part of a second paid link to give back, as the poll and the notifier carry it: `null` when the whole link is owed.
+ * @param {(number|null)} [duplicateCents]
+ */
+const duplicatePayment = (duplicateCents = null) => ({ duplicateCents });
+
+/**
+ * The effect a poll reports when a link is paid a second time: the keys the alert, the register and the notifier read.
+ * @param {(number|null)} duplicateCents  the part owed (`null`: the whole link)
+ * @param {object} [extra]  `{ reservationId, conflict }` where the caller names them
+ */
+const doublePaymentEffect = (duplicateCents, extra = {}) => ({ effect: 'double-payment', duplicateLink: true, ...duplicatePayment(duplicateCents), ...extra });
+
+/** What an acompte link paid, then the full link, leaves to give back: the acompte part only, the rest is the solde. */
+const fullOverDeposit = ({ depositCents, linkCents }) => Math.min(Number(depositCents || 0), Number(linkCents || 0));
+
+/** What a full link brought beyond the solde still owed (rule 41). */
+const duplicateOnSolde = ({ linkCents, balanceCents }) => Math.max(0, linkCents - balanceCents);
+
+/** A basket link its plugin could not honour: the basket flagged « à rembourser », the part flagged when it is only a part. */
+const flagRefundOwed = (basket, partCents) => ({ ...basket, refundOwed: true, ...(partCents ? { refundCents: partCents } : {}) });
+
+module.exports = {
+  owedOnBasket, owedOnLinkPayment, owedOnDuplicate, owedOnLineLowered, duplicatePayment, doublePaymentEffect, fullOverDeposit, duplicateOnSolde, flagRefundOwed,
+};

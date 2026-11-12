@@ -1263,7 +1263,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > through its frozen split and its allocations), the contribs of removed paid lines and the tourist tax on its stay line. A stay whose
     > payments name no line has its excess on the accommodation (class O-7 where a legacy history used to explain it). `droppedSince`,
     > `droppedSinceCollection` and `touristTaxCollectedInComplement` are removed.
-    > **Pending** — PR C: SCHEDULE's `overCollectedTtc` / `complementCollectedExcess` (quote keys of the 137, unchanged by PR B; the `refunds` guard lists them).
+    > **Delivered by PR C** (C14): SCHEDULE's `overCollectedTtc` / `complementCollectedExcess` are computed by `refunds/overpayment.js` `scheduleExcess` (the 137 keys are unchanged;
+    > the import graph lists the one edge from SCHEDULE into REFUNDS). The finance SQL (`financeModel`, `financeDashboardModel`) and `refundsModel` sum the register through
+    > `register.refundsTotalSql` / `refundLinesTotalSql` / `indemnityOfRefundSql` / `stayRefundLinesSumSql`; `refundsController` asks `judge.overpaymentRefusal` and
+    > `refundable.capCashToLines`; `cancelReservation` reads `cancellation.cancellationFigures`; the payment poll and the notifier build the double-payment
+    > effect and the owed amounts through `owed.js` (`doublePaymentEffect`, `duplicatePayment`, `fullOverDeposit`, `duplicateOnSolde`, `flagRefundOwed`, `owedOnLinkPayment`).
+    > The `refunds` allow-list keeps the guest app's three sites and `midStayOrderCommit`'s three (pass 4). Tests: `pricing-refunds-schedule-excess`, `refunds-poller-owed`.
     > _(The price gate's refund figures and the synthetic refund stays were delivered by PR A: `price-gate-synthetic`.)_
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)

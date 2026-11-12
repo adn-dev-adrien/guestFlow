@@ -221,6 +221,27 @@ function scopeSql(scope, reading, column = 'method') {
   return scopeOf(scope).sql[reading](column);
 }
 
+// The SQL read models of the finance pages and of the refunds model sum the register through these fragments, so that the scope of a
+// reading (`scopeSql`) and the shape of a sum live next to the classification (rule 72). Each is a SELECT or a sub-select over
+// `reservation_refunds` (alias `rf`) and `reservation_refund_lines` (alias `rl`).
+
+/** The refunds of the stay `stayColumn` that the reading counts, summed in TTC. */
+const refundsTotalSql = (scope, reading, stayColumn = 'r.id') => `COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
+                 WHERE rf.reservationId = ${stayColumn} AND ${scopeSql(scope, reading, 'rf.method')}), 0)`;
+
+/** The TTC of the lines of the refunds of the stay `stayColumn` that the reading counts, restricted by `lineWhere` (a SQL condition on `rl`). */
+const refundLinesTotalSql = (scope, reading, lineWhere, stayColumn = 'r.id') => `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
+                 JOIN reservation_refunds rf ON rf.id = rl.refundId
+                 WHERE rf.reservationId = ${stayColumn} AND ${lineWhere} AND ${scopeSql(scope, reading, 'rf.method')}), 0)`;
+
+/** What one refund `refundColumn` took from a cancellation indemnity, in TTC (rule 48). */
+const indemnityOfRefundSql = (refundColumn = 'rf.id') => `(SELECT COALESCE(SUM(l.amountTtc), 0) FROM reservation_refund_lines l WHERE l.refundId = ${refundColumn} AND l.bucket = 'indemnity')`;
+
+/** `SELECT … AS total` over the lines of a stay's refunds (`?` is the stay id) that the reading counts, restricted by `lineWhere` (on `l`, with the refund as `r`). */
+const stayRefundLinesSumSql = (lineWhere) => `SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
+        JOIN reservation_refunds r ON r.id = l.refundId
+        WHERE r.reservationId = ? AND ${lineWhere}`;
+
 /**
  * `{ bookCents, withCashCents, freeCents, indemnityCents, byKey, byBucket, touristTax: { cents, nights } }` over a register,
  * for one scope. `freeCents` is the lines with no key (the « Trop-perçu » lines), `byKey` / `byBucket` the cents per line key and
@@ -264,6 +285,10 @@ module.exports = {
   classifyLine,
   totals,
   scopeSql,
+  refundsTotalSql,
+  refundLinesTotalSql,
+  indemnityOfRefundSql,
+  stayRefundLinesSumSql,
   order,
   SCOPES,
   round2,

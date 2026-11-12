@@ -13,7 +13,7 @@
 
 const { isDirectChannel } = require('../../platformNameFormat');
 
-const { roundMoneyOrZero: round2 } = require('../money');
+const { roundMoney, roundMoneyOrZero: round2 } = require('../money');
 
 // specs/mixed-method-payments.md rule 47 (audit R34-M-H1) — a bucket paid with several methods counts what it RECEIVED.
 const receivedOf = (received, bucket) => (received && received[bucket] != null ? Number(received[bucket]) : null);
@@ -213,4 +213,28 @@ function postesLeftOf(collected, currentCents) {
   return Object.fromEntries(Object.entries(left).map(([poste, cents]) => [poste, round2(cents / 100)]));
 }
 
-module.exports = { overpayment, overpaymentLinesOf, currentByPoste, postesLeftOf };
+/**
+ * The money SCHEDULE sees received above what the stay now asks (specs/reservation-refunds.md rules 34 and 38; rule 72 here), in euros — the
+ * keys `overCollectedTtc` and `complementCollectedExcess` of the 137. The one function SCHEDULE calls from REFUNDS (the import graph lists the edge).
+ *   scheduleOverCollectedTtc   what the paid acompte, solde and installments hold beyond the schedule's own total
+ *   complementCollectedExcess  what a collected arrival complement holds beyond what it now asks (never on a platform stay, never on an adjusted amount);
+ *                              with several methods it comes off what the complement did not receive (`unreceivedComplement`, a thunk)
+ *   complementCut              that part, or null when the stay holds no split payment
+ * @returns {{ scheduleOverCollectedTtc: number, complementCollectedExcess: number, complementCut: (number|null), overCollectedTtc: number }}
+ */
+function scheduleExcess({
+  paidOnSchedule, scheduleTotal, complementPaid, complementOverridden, platformSale, complementAmount, rawComplement, unreceivedComplement = null,
+}) {
+  const scheduleOverCollectedTtc = roundMoney(Math.max(0, paidOnSchedule - scheduleTotal));
+  let complementCollectedExcess = complementPaid && !complementOverridden && !platformSale
+    ? roundMoney(Math.max(0, roundMoney(complementAmount) - rawComplement))
+    : 0;
+  let complementCut = null;
+  if (unreceivedComplement && complementCollectedExcess > 0) {
+    complementCut = roundMoney(Math.min(complementCollectedExcess, unreceivedComplement()));
+    complementCollectedExcess = roundMoney(complementCollectedExcess - complementCut);
+  }
+  return { scheduleOverCollectedTtc, complementCollectedExcess, complementCut, overCollectedTtc: roundMoney(scheduleOverCollectedTtc + complementCollectedExcess) };
+}
+
+module.exports = { overpayment, overpaymentLinesOf, currentByPoste, postesLeftOf, scheduleExcess };

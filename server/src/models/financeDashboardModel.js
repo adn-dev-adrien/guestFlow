@@ -6,7 +6,7 @@
 
 const db = require('../database');
 const financeModel = require('./financeModel');
-const { scopeSql: refundScopeSql } = require('../utils/pricing/refunds/register');
+const { scopeSql: refundScopeSql, indemnityOfRefundSql } = require('../utils/pricing/refunds/register');
 const fiscalYearUtil = require('../utils/fiscalYear');
 const { resolveWindow, monthLabel } = require('../utils/financeWindow');
 const occupancy = require('../utils/financeOccupancy');
@@ -447,7 +447,7 @@ function createDashboardModel(database, finance) {
     // specs/reservation-refunds.md rule 48 — what a refund took from a cancellation indemnity, which the franchise
     // turnover subtracts at face value, like the indemnity itself.
     const indemnitySql = withCommission && hasTable('reservation_refund_lines')
-      ? "(SELECT COALESCE(SUM(l.amountTtc), 0) FROM reservation_refund_lines l WHERE l.refundId = rf.id AND l.bucket = 'indemnity')"
+      ? indemnityOfRefundSql('rf.id')
       : '0';
     const refunds = ids.length && hasTable('reservation_refunds')
       ? database.prepare(`SELECT rf.reservationId, rf.refundDate, rf.totalTtc, ${indemnitySql} AS indemnityTtc FROM reservation_refunds rf WHERE ${refundScopeSql('turnover', 'book', 'rf.method')} AND rf.reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)

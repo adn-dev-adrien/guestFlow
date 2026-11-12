@@ -24,7 +24,7 @@
 
 const { withConvertedDevis } = require('./deletionGuard');
 const {
-  buildCancellationRequalification, resolveCancellationReason, givenBackByBucket, keptSignature, cashDepositKeptOf,
+  buildCancellationRequalification, resolveCancellationReason, givenBackByBucket, keptSignature, cashDepositKeptOf, cancellationFigures,
 } = require('./pricing/refunds/cancellation');
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
@@ -266,8 +266,7 @@ function cancellationFiguresOf(deps, row, { today = null, vatRate = 0, reason = 
     indemnityAmount,
     // Rule 61 — what the guest loses: the indemnity booked plus the caisse-interne acompte kept. The cancellation notice
     // states this one, never a formula of its own.
-    keptFromGuest: round2(indemnityAmount + cashDepositKeptOf(row, refunds)),
-    writtenOffBalance: round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount)),
+    ...cancellationFigures({ row, refunds, indemnityAmount }),
   };
 }
 

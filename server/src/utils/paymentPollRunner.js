@@ -26,7 +26,9 @@
  * only records the bucket again, which the recorder ignores; a webhook replay re-runs the same no-ops.
  */
 
-const { owedOnBasket, owedOnDuplicate } = require('./pricing/refunds/owed');
+const {
+  owedOnBasket, owedOnDuplicate, owedOnLinkPayment, duplicatePayment, doublePaymentEffect, fullOverDeposit, duplicateOnSolde, flagRefundOwed,
+} = require('./pricing/refunds/owed');
 const obligations = (database) => require('../models/refundObligationsModel').buildModel(database);
 
 // Money already received: a failed contribs capture never loses it (utils/stayPaymentRecorder).
@@ -99,7 +101,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
       if (second) {
         // Acompte paid, then the full link: only the acompte part is paid twice, the rest is the solde.
         if (second.duplicateCents != null) recordPayment({ reservationId, bucket: 'balance', paidDate });
-        return { effect: 'double-payment', duplicateLink: true, duplicateCents: second.duplicateCents, reservationId, conflict: false };
+        return doublePaymentEffect(second.duplicateCents, { reservationId, conflict: false });
       }
     }
     if (!settledAlready && effect === 'already-converted' && bucketAlreadySettled(convertedRow, link.type)) {
@@ -130,7 +132,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     const second = secondPaidLink(database, link, row.id, isFull);
     if (second) {
       if (second.duplicateCents != null) recordPayment({ reservationId: row.id, bucket: 'balance', paidDate });
-      return { effect: 'double-payment', duplicateLink: true, duplicateCents: second.duplicateCents, reservationId: row.id, conflict: false };
+      return doublePaymentEffect(second.duplicateCents, { reservationId: row.id, conflict: false });
     }
   }
 
@@ -139,7 +141,7 @@ function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate =
     const earlier = database.prepare(
       `SELECT 1 FROM payment_links WHERE reservationId IN (${owners.map(() => '?').join(',')}) AND type IN ('balance', 'full') AND status = 'paid' AND id <> ? LIMIT 1`,
     ).get(...owners, Number(link.id));
-    if (earlier) return { effect: 'double-payment', duplicateLink: true, duplicateCents: null, reservationId: row.id, conflict: false };
+    if (earlier) return doublePaymentEffect(null, { reservationId: row.id, conflict: false });
   }
 
   if (!settledAlready && bucketAlreadySettled(row, link.type)) {
@@ -204,7 +206,7 @@ function settleBasket({ database, link, basket, paidDate, paidAt, stayExists = t
     const owed = owedOnBasket({ paidCents, refundCents: outcome.refundCents, honoured: false, reason: outcome.reason });
     const part = owed.owedCents < paidCents ? owed.owedCents : null;
     database.prepare('UPDATE payment_links SET basketJson = ? WHERE id = ?')
-      .run(JSON.stringify({ ...basket, refundOwed: true, ...(part ? { refundCents: part } : {}) }), Number(link.id));
+      .run(JSON.stringify(flagRefundOwed(basket, part)), Number(link.id));
     // Rule 75 — the register holds it too (the basket's flag and the history are kept in step), once per link.
     if (stayExists && owed.owedCents > 0 && !obligations(database).forLink(link.id, 'basket')) {
       obligations(database).open({ reservationId: Number(link.reservationId), origin: 'basket', paymentLinkId: Number(link.id), amountCents: owed.owedCents, reason: owed.reason });
@@ -268,7 +270,7 @@ function mismatchOf(link, stay, database, paidDay) {
     // Rule 49 — a solde already collected keeps its amount: the acompte lands on top of it.
     const balanceSettled = Number(stay.balancePaid || 0) === 1 || Number(stay.balancePaidCash || 0) === 1;
     const balanceCents = balanceSettled ? storedBalanceCents : Math.max(0, preArrival - receivedCents);
-    const excessCents = receivedCents + balanceCents - preArrival;
+    const { excessCents } = owedOnLinkPayment({ paidCents: receivedCents + balanceCents, expectedCents: preArrival });
     return {
       expectedCents: depositCents, receivedCents, balanceCents,
       ...(balanceSettled ? { balanceSettled: true } : {}),
@@ -304,12 +306,12 @@ function secondPaidLink(database, link, reservationId, isFull) {
   // acompte part is the only duplicate, the surplus is the solde (only while the solde is still open).
   const deposit = others.find((o) => o.type === 'deposit');
   if (isFull && deposit && Number(flags.depositPaid || 0) === 1) {
-    if (Number(flags.balancePaid || 0) === 1) return { duplicateCents: null };
-    return { duplicateCents: Math.min(Number(deposit.amountCents || 0), Number(link.amountCents || 0)) };
+    if (Number(flags.balancePaid || 0) === 1) return duplicatePayment(null);
+    return duplicatePayment(fullOverDeposit({ depositCents: deposit.amountCents, linkCents: link.amountCents }));
   }
-  if (others.some((o) => o.type !== link.type)) return Number(flags.depositPaid || 0) === 1 ? { duplicateCents: null } : null;
+  if (others.some((o) => o.type !== link.type)) return Number(flags.depositPaid || 0) === 1 ? duplicatePayment(null) : null;
   if (!others.some((o) => o.type === link.type)) return null;
-  return Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1) ? { duplicateCents: null } : null;
+  return Number(flags.depositPaid || 0) === 1 && (!isFull || Number(flags.balancePaid || 0) === 1) ? duplicatePayment(null) : null;
 }
 
 // The stay a `full` link pays on when its acompte is already collected and its solde is not. The duplicate is
@@ -326,18 +328,17 @@ function fullAfterDeposit(database, link, paidDay = null) {
   if (Number(stay.depositPaid || 0) !== 1 || Number(stay.balancePaid || 0) === 1 || !(Number(stay.depositAmount || 0) > 0)) return null;
   const linkCents = Number(link.amountCents || 0);
   const expectedCents = linkAmountCents('full', stay);
-  const found = { stayId: stay.id, duplicateCents: 0, mismatch: null, sameDay: acompteIsLinkMoney(database, link, stay, paidDay) };
+  const found = { stayId: stay.id, ...duplicatePayment(0), mismatch: null, sameDay: acompteIsLinkMoney(database, link, stay, paidDay) };
   if (stay.balanceAmount != null && linkCents !== expectedCents) {
     found.mismatch = mismatchOf(link, stay, database, paidDay);
     return found;
   }
   if (found.sameDay) return found;
-  found.duplicateCents = Math.max(0, linkCents - Math.round(Number(stay.balanceAmount || 0) * 100));
-  return found;
+  return { ...found, ...duplicatePayment(duplicateOnSolde({ linkCents, balanceCents: Math.round(Number(stay.balanceAmount || 0) * 100) })) };
 }
 
-function recordRefundOwed(database, reservationId, link, duplicateCents = null) {
-  const { owedCents } = owedOnDuplicate({ paidCents: Number(link.amountCents || 0), duplicateCents });
+function recordRefundOwed(database, reservationId, link, duplicate = null) {
+  const { owedCents } = owedOnDuplicate({ paidCents: Number(link.amountCents || 0), ...duplicatePayment(duplicate) });
   if (owedCents > 0 && !obligations(database).forLink(link.id, 'duplicatePayment')) {
     obligations(database).open({ reservationId: Number(reservationId), origin: 'duplicatePayment', paymentLinkId: Number(link.id), amountCents: owedCents, reason: 'payé deux fois' });
   }
@@ -418,7 +419,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     || (afterDeposit && afterDeposit.sameDay
       ? { effect: 'settled-elsewhere', reservationId: afterDeposit.stayId, conflict: false }
       : afterDeposit
-        ? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }
+        ? doublePaymentEffect(afterDeposit.duplicateCents, { reservationId: afterDeposit.stayId, conflict: false })
         : applyPaidEffect({ database, devisModel, link, checkConflict, paidDate, paidAt, recordPayment }));
   // The link that just paid settles its bucket: every other open link of it is retired now, not at the next poll.
   if (typeof paymentLinksModel.retireSettled === 'function') paymentLinksModel.retireSettled();
@@ -426,7 +427,7 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     // Two live links of one devis both paid: the second money is a refund, kept on the fiche's history.
     if (effect.duplicateLink) {
       recordRefundOwed(database, effect.reservationId, link, effect.duplicateCents);
-      if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...(effect.duplicateCents != null ? { duplicateCents: effect.duplicateCents } : {}) }); } catch { /* best effort */ } }
+      if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...(effect.duplicateCents != null ? duplicatePayment(effect.duplicateCents) : {}) }); } catch { /* best effort */ } }
       return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...effect };
     }
     // The bucket was settled another way. Settled the very day of the payment (or after), it is the same
@@ -798,13 +799,13 @@ async function settleRetiredPaidLink({ paymentLinksModel, notifyPaidAfterCancel,
   if (duplicate) {
     (recordPayment || recordOn(database))({ reservationId: duplicate.stayId, bucket: 'balance', paidDate: paidDay });
     recordRefundOwed(database, duplicate.stayId, link, duplicate.duplicateCents);
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, duplicateCents: duplicate.duplicateCents }); } catch { /* best effort */ } }
-    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', effect: 'double-payment', duplicateLink: true, duplicateCents: duplicate.duplicateCents };
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...duplicatePayment(duplicate.duplicateCents) }); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...doublePaymentEffect(duplicate.duplicateCents) };
   }
   const effect = applyPaidEffect({ database, devisModel, link, paidDate: paidDay, recordPayment: recordPayment || recordOn(database), settledAlready: true });
   if (effect.effect === 'double-payment' && effect.duplicateLink) {
     recordRefundOwed(database, effect.reservationId, link, effect.duplicateCents);
-    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...(effect.duplicateCents != null ? { duplicateCents: effect.duplicateCents } : {}) }); } catch { /* best effort */ } }
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { doublePaid: true, ...(effect.duplicateCents != null ? duplicatePayment(effect.duplicateCents) : {}) }); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid-after-cancel', ...effect };
   }
   if ((effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated') && notifyPaidAfterCancel) {

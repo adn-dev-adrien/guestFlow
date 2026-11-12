@@ -11,7 +11,9 @@
  */
 
 const db = require('../database');
-const { totals: registerTotals, scopeSql: refundScopeSql, isRetainedDeposit } = require('../utils/refunds');
+const {
+  totals: registerTotals, scopeSql: refundScopeSql, stayRefundLinesSumSql, isRetainedDeposit,
+} = require('../utils/refunds');
 const { syncStay: syncAllocations, lineRefsByKey } = require('../utils/paymentAllocationsSync');
 
 const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
@@ -168,9 +170,7 @@ function createRefundsModel(database) {
     // refunds that lower it. A gesture, a sold line's refund and a retained avoir lower nothing (rule 76).
     overpaymentRefundedTtc(reservationId) {
       const wide = hasWideSchema();
-      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
-        JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.lineKey IS NULL AND ${refundScopeSql('given', 'withCash', 'r.method')} ${wide ? "AND r.origin = 'overpayment'" : ''}`).get(reservationId);
+      const row = prep(stayRefundLinesSumSql(`l.lineKey IS NULL AND ${refundScopeSql('given', 'withCash', 'r.method')} ${wide ? "AND r.origin = 'overpayment'" : ''}`)).get(reservationId);
       return round2(row.total);
     },
 
@@ -201,10 +201,8 @@ function createRefundsModel(database) {
     // indemnity share cumulatively, so the shares' HT add up to the compensation's HT to the cent
     // (specs/reservation-refunds.md rule 48).
     indemnityGivenBefore({ reservationId, refundDate, id }) {
-      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
-        JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}
-          AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`).get(reservationId, refundDate, refundDate, id);
+      const row = prep(stayRefundLinesSumSql(`l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}
+          AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`)).get(reservationId, refundDate, refundDate, id);
       return round2(row.total);
     },
 
@@ -217,9 +215,7 @@ function createRefundsModel(database) {
 
     // TTC every refund of a stay took from its cancellation indemnity (rule 48).
     indemnityGivenBack(reservationId) {
-      const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
-        JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}`).get(reservationId);
+      const row = prep(stayRefundLinesSumSql(`l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}`)).get(reservationId);
       return round2(row.total);
     },
 

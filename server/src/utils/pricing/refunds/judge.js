@@ -15,7 +15,7 @@ const { frenchEuros: euros } = require('../money');
 const { dateWindowMessage, isRealIsoDay } = require('../../stayDates');
 const { CARD_METHOD, INDEMNITY_BUCKET, OFF_BOOKS_METHOD, REFUND_BUCKETS, SELECTABLE_REFUND_METHODS, isOffBooks, isRequalification, isRetainedDeposit, madeAfterCancellation, nettedByCancellation } = require('./register');
 
-const { roundMoneyOrZero: round2 } = require('../money');
+const { roundMoneyOrZero: round2, toCentsStrict } = require('../money');
 
 /**
  * Payment-schedule rule 55 reading of 2026-11-02 (review of PR #929, F2) — whether the cancellation had book money to
@@ -92,6 +92,19 @@ function lastBookPaymentDateOf(row, { installments = [], settlements = [] } = {}
 
 function invalid(code, error, status = 400) {
   return { code, error, status };
+}
+
+/**
+ * A refund opened on the trop-perçu (rule 42) cannot exceed what is still over-collected: a double click, a stale tab or a renamed
+ * label would otherwise give the same money back twice. `null` when the refund fits, else the refusal (409).
+ * @param {{ remainingTtc: number, askedTtc: number, claimedTtc: number }} args  the stored trop-perçu, the free lines' total and the amount the client claimed
+ */
+function overpaymentRefusal({ remainingTtc, askedTtc, claimedTtc }) {
+  if (toCentsStrict(remainingTtc) <= 0) return invalid('REFUND_EXCEEDS_OVERPAYMENT', 'Le trop-perçu est déjà remboursé.', 409);
+  if (toCentsStrict(askedTtc) > toCentsStrict(remainingTtc) || (Number.isFinite(claimedTtc) && toCentsStrict(claimedTtc) > toCentsStrict(remainingTtc))) {
+    return invalid('REFUND_EXCEEDS_OVERPAYMENT', `Dépasse le trop-perçu restant (${remainingTtc.toFixed(2).replace('.', ',')} €).`, 409);
+  }
+  return null;
 }
 
 /**
@@ -377,6 +390,7 @@ module.exports = {
   lastBookPaymentDateOf,
   judge,
   validateRefundPayload,
+  overpaymentRefusal,
   splitOnIndemnity,
   cancellationHadBookMoney,
   caisseKeptMoves,

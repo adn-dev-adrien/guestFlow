@@ -20,6 +20,7 @@
  * Pure: no DB, no port, no clock (the dates it judges are inputs). Nothing here is read by a unit upstream.
  */
 const { roundMoney } = require('./money');
+const { scheduleExcess } = require('./refunds/overpayment');
 const {
   resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromiseHeld, devisPromiseDueDate, toIsoDay,
 } = require('../paymentSchedule');
@@ -313,10 +314,6 @@ function planSchedule({
   // keeps a paid bucket's amount, so without this the money received above the new total went unseen.
   const paidOnSchedule = (depositPaid ? resolvedDepositAmount : 0) + (balancePaid ? resolvedBalanceAmount : 0)
     + (installmentPlan ? installmentPlan.paid : 0);
-  const scheduleOverCollectedTtc = roundMoney(Math.max(
-    0,
-    paidOnSchedule - (ownerStayTotal - complementForcedItemsTotal - taxInComplement - midStayTotal),
-  ));
   const rawComplement = roundMoney(complementForcedItemsTotal + taxInComplement + autoGapBetweenDepositAndBalance);
   // Rule 36 — the paid solde of a stay without acompte was kept at what it collected: the gap is owed.
   const noDepositGap = balancePaid && !paidSoldeFollowsStatement && noDepositToShare && Number(balanceAmount) > 0;
@@ -344,16 +341,19 @@ function planSchedule({
   // never an anonymous « Complément d'arrivée » line the total does not include. The operator's own
   // adjustment of the complement is his decision and is not second-guessed. A platform stay has no
   // trop-perçu to give back (reservation-refunds.md rule 38): the excess stays where it is (Adrien, 2026-10-29).
-  let complementCollectedExcess = complementPaid && !complementOverridden && !channel.platformSale
-    ? roundMoney(Math.max(0, roundMoney(complementAmount) - rawComplement))
-    : 0;
-  // Rule 47 — the same for a collected complement paid with several methods: its excess comes off what it did not receive.
-  if (splitReceived && complementCollectedExcess > 0) {
-    const cut = roundMoney(Math.min(complementCollectedExcess, unreceivedOf(splitReceived, 'complement', splitAmountOf)));
-    resolvedComplementAmount = roundMoney(resolvedComplementAmount - cut);
-    complementCollectedExcess = roundMoney(complementCollectedExcess - cut);
-  }
-  const overCollectedTtc = roundMoney(scheduleOverCollectedTtc + complementCollectedExcess);
+  const excess = scheduleExcess({
+    paidOnSchedule,
+    scheduleTotal: ownerStayTotal - complementForcedItemsTotal - taxInComplement - midStayTotal,
+    complementPaid,
+    complementOverridden,
+    platformSale: channel.platformSale,
+    complementAmount,
+    rawComplement,
+    // Rule 47 — the same for a collected complement paid with several methods: its excess comes off what it did not receive.
+    unreceivedComplement: splitReceived ? () => unreceivedOf(splitReceived, 'complement', splitAmountOf) : null,
+  });
+  const { complementCollectedExcess, overCollectedTtc } = excess;
+  if (excess.complementCut !== null) resolvedComplementAmount = roundMoney(resolvedComplementAmount - excess.complementCut);
   // specs/mid-stay-extras-to-end-of-stay-complement.md rule 20 — a collected arrival complement is
   // closed, so what was routed to it since (an extra added on the complement before any arrival
   // baseline existed, a tax or an extra guest added after the collection) is billed at check-out, in

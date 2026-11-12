@@ -5,7 +5,9 @@ const { addDays } = require('../utils/dateDays');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const { isTouristTaxDeclarable, isTouristTaxFrozen } = require('../utils/touristTaxFreeze');
 const { isCheckoutDone } = require('../utils/endOfStayCheckout');
-const { scopeSql: refundScopeSql } = require('../utils/pricing/refunds/register');
+const {
+  scopeSql: refundScopeSql, refundsTotalSql, refundLinesTotalSql,
+} = require('../utils/pricing/refunds/register');
 const db = require('../database');
 const { quoteStoredReservation } = require('../utils/storedReservationQuote');
 const { computePaymentStatus, round2 } = require('../utils/paymentStatus');
@@ -236,10 +238,8 @@ function createFinanceModel(database) {
     } catch { return false; }
   })();
   const REFUND_COLS = hasRefundTables
-    ? `COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
-                 WHERE rf.reservationId = r.id AND ${refundScopeSql('turnover', 'book', 'rf.method')}), 0) AS refundsBookTtc,
-       COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf
-                 WHERE rf.reservationId = r.id AND ${refundScopeSql('turnover', 'withCash', 'rf.method')}), 0) AS refundsWithCashTtc`
+    ? `${refundsTotalSql('turnover', 'book')} AS refundsBookTtc,
+       ${refundsTotalSql('turnover', 'withCash')} AS refundsWithCashTtc`
     : '0 AS refundsBookTtc, 0 AS refundsWithCashTtc';
   // specs/reservation-refunds.md §3.5 — the tourist tax given back to the guest, in euros and in
   // nights. EVERY means counts here (caisse interne included): « hors comptabilité » excludes money
@@ -292,9 +292,7 @@ function createFinanceModel(database) {
   const planOfStay = HAS_PLAN_SQL === '(0)' ? null : database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1');
   const stayHasPlan = (id) => Boolean(planOfStay && planOfStay.get(id));
   const REFUNDED_TAX_COLS = hasRefundTables
-    ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl
-                 JOIN reservation_refunds rf ON rf.id = rl.refundId
-                 WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND ${refundScopeSql('commune', 'withCash', 'rf.method')}), 0) AS refundedTaxAmount,
+    ? `${refundLinesTotalSql('commune', 'withCash', "rl.lineKey = 'touristTax'")} AS refundedTaxAmount,
        COALESCE((SELECT SUM(COALESCE(rl.quantity, 0)) FROM reservation_refund_lines rl
                  JOIN reservation_refunds rf ON rf.id = rl.refundId
                  WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND ${refundScopeSql('commune', 'withCash', 'rf.method')}), 0) AS refundedTaxNights`
@@ -411,8 +409,7 @@ function createFinanceModel(database) {
           ? '(EXISTS (SELECT 1 FROM reservation_installments i WHERE i.reservationId = r.id))'
           : '(0)';
         const refunded = tableExists('reservation_refund_lines') && tableExists('reservation_refunds')
-          ? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId
-                        WHERE rf.reservationId = r.id AND rl.lineKey = 'touristTax' AND ${refundScopeSql('journal', 'book', 'rf.method')}), 0)`
+          ? refundLinesTotalSql('journal', 'book', "rl.lineKey = 'touristTax'")
           : '0';
         // In chunks: SQLite caps the bound parameters of one statement (32 766), a large book must not 500.
         for (let i = 0; i < ids.length; i += TAX_FACTS_CHUNK) {

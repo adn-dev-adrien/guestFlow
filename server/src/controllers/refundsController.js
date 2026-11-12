@@ -17,7 +17,7 @@ const database = require('../database');
 const vatRegimeModel = require('../models/vatRegimeModel');
 const { lineAllocationsContext } = require('../models/refundInputModel');
 const {
-  buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf,
+  buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf, capCashToLines, overpaymentRefusal,
 } = require('../utils/refunds');
 const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
 const { bookedStayBuckets } = require('../utils/cancelReservation');
@@ -39,7 +39,6 @@ function nightsBetween(startDate, endDate) {
 }
 
 const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
-const { toCentsStrict: cents } = require('../utils/pricing/money');
 
 const METHOD_LABELS = { transfer: 'virement', cash: 'espèces', internal: 'caisse interne', card: 'carte', retained: 'indemnité' };
 
@@ -109,12 +108,8 @@ function createRefundsController(deps = {}) {
       complementCollected: Number(reservation.complementPaid) === 1,
       goneLines: cancelled ? collectedLinesGone({ reservation, options: reservation.options || [], resources: reservation.resources || [], collected, cashCollected: cashReading }) : [],
     });
-    // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry:
-    // cash collected on no line of the register (an end-of-stay complement, say) is never promised.
-    if (cancelled) {
-      const carried = round2(refundableLines.reduce((sum, line) => sum + Number(line.cashTtc || 0), 0));
-      cancelled.cashLeftTtc = Math.min(cancelled.cashLeftTtc, carried);
-    }
+    // Rule 48 reading of 2026-11-02 (review of PR #929, F4) — the caisse interne gives back only what its lines carry.
+    if (cancelled) capCashToLines(cancelled, refundableLines);
     return {
       reservation,
       vatRate,
@@ -172,13 +167,8 @@ function createRefundsController(deps = {}) {
       if (req.body && req.body.fromOverpayment === true) {
         const remaining = storedOverpaymentTtc(id);
         const asked = validated.refund.lines.filter((l) => !l.lineKey).reduce((sum, l) => sum + l.amountTtc, 0);
-        const claimed = Number(req.body.overpaymentTtc);
-        if (cents(remaining) <= 0) {
-          return res.status(409).json({ error: 'Le trop-perçu est déjà remboursé.', code: 'REFUND_EXCEEDS_OVERPAYMENT' });
-        }
-        if (cents(asked) > cents(remaining) || (Number.isFinite(claimed) && cents(claimed) > cents(remaining))) {
-          return res.status(409).json({ error: `Dépasse le trop-perçu restant (${remaining.toFixed(2).replace('.', ',')} €).`, code: 'REFUND_EXCEEDS_OVERPAYMENT' });
-        }
+        const refused = overpaymentRefusal({ remainingTtc: remaining, askedTtc: asked, claimedTtc: Number(req.body.overpaymentTtc) });
+        if (refused) return res.status(refused.status).json({ error: refused.error, code: refused.code });
       }
 
       // Owner O-6 — only a refund opened on the trop-perçu lowers it; the origin is what says so.

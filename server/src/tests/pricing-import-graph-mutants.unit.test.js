@@ -82,6 +82,10 @@ test('REFUNDS import money, vat, platformPayment and storedLines only, and no un
   assert.ok(judge('refunds/judge', "require('../settlement');\n").some((f) => f.includes('REFUNDS may import')));
   assert.ok(judge('refunds/judge', "require('../schedule');\n").length > 0);
   assert.ok(judge('totals', "require('./refunds/register');\n").some((f) => f.includes('no pricing unit imports REFUNDS')));
+  // Rule 72 (PR C): SCHEDULE reaches the trop-perçu formula of REFUNDS, and nothing else of it.
+  assert.deepEqual(judge('schedule', "require('./refunds/overpayment');\n"), []);
+  assert.ok(judge('schedule', "require('./refunds/register');\n").some((f) => f.includes('no pricing unit imports REFUNDS')));
+  assert.ok(judge('totals', "require('./refunds/overpayment');\n").some((f) => f.includes('no pricing unit imports REFUNDS')));
 });
 
 test('a pure unit calls no ledger and requires no plugin registry; a step may require the registry', () => {
