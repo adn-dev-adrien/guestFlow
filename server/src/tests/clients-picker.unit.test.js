@@ -161,6 +161,17 @@ test('rule 7 — searchText folds accents and case, carries the phone digits and
   assert.equal(searchText, "elodie lefevre e.lefevre@exemple.fr 06 12 34 56 78 0612345678 l'estiva");
 });
 
+test('rule 7 — a +33 number is searchable in its national form too; another country is left as typed', () => {
+  const { addClient, picker } = makeModel();
+  addClient('Fr', 'X', { phone: '+33 6 12 34 56 78' });
+  addClient('Es', 'X', { phone: '+34 612 345 678' });
+  const text = (lastName) => picker().options.find((o) => o.lastName === lastName).searchText;
+  assert.ok(text('Fr').includes('0612345678'));
+  assert.ok(text('Fr').includes('33612345678'));
+  assert.ok(text('Es').includes('34612345678'));
+  assert.ok(!text('Es').includes('0612345678'));
+});
+
 test('normalizeSearchText — skips empty parts and collapses spaces', () => {
   assert.equal(normalizeSearchText('  Ça ', null, '', undefined, 'VA  bien'), 'ca va bien');
 });

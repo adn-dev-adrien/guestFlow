@@ -6,7 +6,7 @@
 | **Branch** | `feature/resource-booking-client-picker` |
 | **Created** | 2026-11-12 |
 | **Author** | Adrien |
-| **Related PR** | (link once opened) |
+| **Related PR** | [#1040](https://github.com/adn-dev-adrien/guestFlow/pull/1040) |
 | **Plugins** | `hourly-resources` (consumer of a core read) |
 | **Builds on** | [`clients-upcoming-past-directory.md`](clients-upcoming-past-directory.md) (buckets, qualifying stay, labels), [`resource-booking-pricing-and-invoicing.md`](resource-booking-pricing-and-invoicing.md) (the dialog) |
 | **Summary for decision** | [`docs/specs/2026-11-12-resource-booking-client-picker.html`](../docs/specs/2026-11-12-resource-booking-client-picker.html) (interactive mockup, desktop and 390 px) |
@@ -46,8 +46,10 @@ about accents.
    `GET /api/clients/picker?date=YYYY-MM-DD`, already ordered and grouped. The client renders the order
    it receives; it never sorts.
 2. **Reference day.** The groups are computed against the **session's date** (`date` of the dialog),
-   falling back to today when the dialog has no date yet. A bath on 20/12 is for whoever is on site on
-   20/12. _(Decision A of 2026-11-12, §9.)_
+   falling back to today when the date field is empty (the dialog still asks; the server answers for
+   today). A bath on 20/12 is for whoever is on site on 20/12. While a new day is being asked, the
+   previous day's list is not shown, and an answer arriving late for an older day is dropped.
+   _(Decision A of 2026-11-12, §9.)_
 3. **Three groups, in this order** (decision B of 2026-11-12; an empty group is omitted):
    1. `soon` « En séjour ou bientôt » — a real stay covers the reference day (`start ≤ day ≤ end`; the
       arrival day and the departure day both count, a bath can be taken on either), **or** the next
@@ -73,9 +75,11 @@ about accents.
    disappears.
 7. **What a query matches.** The query is split on spaces; an option matches when **every** word is
    found in its `searchText`. `searchText` is built server-side: first name, last name, email, phone
-   (digits only too, so « 0612 » finds « 06 12 34… »), property name of the qualifying stay — lower-cased
-   and accent-stripped. The client applies the same lower-case + accent strip to what is typed, and
-   nothing else.
+   (digits only too, so « 0612 » finds « 06 12 34… »; a `+33` number also in its national form, so
+   « 0612 » finds « +33 6 12 34… » — review of 2026-11-12), property name of the qualifying stay —
+   lower-cased and accent-stripped. The client applies the same lower-case + accent strip to what is
+   typed; a typed word made of digits and separators (« 06.12 ») also matches on its digits, and a word
+   made of separators only (« . ») is ignored.
 8. **No match** → « Aucun client trouvé ». The « Client externe » switch stays where it is, so a
    walk-in guest is one tap away.
 
@@ -93,7 +97,7 @@ about accents.
   who leaves before then is « Passés ». That is the intended reading of rule 2.
 - Name of 60 characters / property name long → the option truncates with an ellipsis on one line per
   row, never wraps the dialog wider.
-- Zero client in the database → « Aucun client » in the list, the switch to « Client externe » works.
+- Zero client in the database → « Aucun client trouvé » in the list, the switch to « Client externe » works.
 
 ---
 
@@ -104,9 +108,9 @@ about accents.
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
 | `routes/` | `clients.js` | T | `GET /clients/picker`, declared before `/:id`. |
-| `controllers/` | `clientsController.js` | T | `picker(req, res)` — validates `date` (ISO day, else today) and returns the model's payload. |
-| `models/` | `clientsModel.js` | T | `picker({ date, today })` — two reads (clients, real stays), group + order + `detail` + `searchText`. Reuses `computeNights`, `stayDatesLabel`, the French collator. |
-| `utils/` | `searchText.js` | C | Pure `normalizeSearchText(str)` — lower-case, NFD accent strip, collapse spaces. Shared by the model; mirrored by one tiny client helper (rule 7). |
+| `controllers/` | `clientsController.js` | T | `picker(req, res)` — hands `req.query.date` to the model and returns its payload (the model judges the day: `isRealIsoDay`, else today). |
+| `models/` | `clientsModel.js` | T | `picker({ date, today })` — two reads (clients, real stays), group + order + `detail` + `searchText`. Reuses `stayDatesLabel`, `addDays`, `compareNames` (French collator), `isRealIsoDay`. |
+| `utils/` | `searchText.js` | C | Pure `normalizeSearchText(...parts)` — joins the non-empty parts, lower-case, NFD accent strip, collapse spaces. Shared by the model; mirrored by one tiny client helper (rule 7). |
 | `database.js` | — | — | (none) |
 
 ### 4.2 Client side (`client/src/`)
@@ -149,8 +153,8 @@ No schema change. Two read queries per call (clients; real stays joined with pro
   `text.secondary`, with the group's count (« En séjour ou bientôt · 2 »).
 - **Empty:** « Aucun client trouvé ».
 - **Responsive:** the dialog is already `fullScreen` on `xs`. On `xs` the list opens below the field
-  and takes the remaining height; options keep 48 px rows (touch). On `md` / `lg` the list is the width
-  of the field, max 8 rows visible then scroll. No horizontal scroll.
+  with MUI's default height (40 % of the viewport, then scroll); options keep 48 px rows (touch). On
+  `md` / `lg` the list is the width of the field, same default height. No horizontal scroll.
 - **Motion:** none added — MUI's default popper.
 - No `PageActionBar` change (dialog only).
 
@@ -164,13 +168,18 @@ No schema change. Two read queries per call (clients; real stays joined with pro
 - in-group order (on site by departure then arrivals, arrival asc, most recent past first then names fr-locale) and tie-break;
 - `detail` with stay / email / phone / nothing; `searchText` accent-stripped with digits-only phone;
 - invalid `date` falls back to today;
-- rule 10: `GET /api/clients` (`model.list()`) stays alphabetical.
+- rule 10: `GET /api/clients` (`model.list()`) stays alphabetical;
+- a `+33` number is searchable in its national form, another country code is not rewritten.
 
 **Client — `client/src/plugins/hourly-resources/__tests__/ResourceBookingDialog.client-picker.test.jsx`** (new):
 - options render under their group headers in server order;
 - « jean dupont » and « dupont jéan » both find « Jean Dupont »; a property name finds its guests;
 - no match shows « Aucun client trouvé »;
-- changing the session date reloads the picker with that date.
+- changing the session date reloads the picker with that date; a late answer for the previous day is
+  dropped (out-of-order promises);
+- an emptied date still asks (the server answers for today);
+- an edited session keeps its client, selected in the open list;
+- a phone typed with separators matches on its digits; a lone separator is ignored.
 - Existing dialog suites: their `api` mocks gain `getClientPicker` (fixtures only, no behaviour change).
 
 **E2E — `e2e/specs/plugins/hourly-resources-client-picker.spec.js`** (new, 2 tests): the past stays are seeded ahead then moved with `setReservationDates` (the API refuses a stay in the past).
@@ -194,8 +203,9 @@ _Resolved 2026-11-12:_
 
 ## 10. Implementation progress
 
-- [x] Server read + unit tests — `clients-picker.unit.test.js`, 12 tests (rule 10 included).
-- [x] `ClientPickerField` + dialog wiring + client tests — `ResourceBookingDialog.client-picker.test.jsx`, 5 tests; the six other dialog suites mock `getClientPicker`.
+- [x] Server read + unit tests — `clients-picker.unit.test.js`, 13 tests (rule 10 included).
+- [x] `ClientPickerField` + dialog wiring + client tests — `ResourceBookingDialog.client-picker.test.jsx`, 7 tests; the six other dialog suites mock `getClientPicker`.
 - [x] SDK 2.27.0, `hourly-resources` 1.6.0.
 - [x] E2E `e2e/specs/plugins/hourly-resources-client-picker.spec.js` (2 tests: order + search at 1280 px, 48 px rows and no horizontal scroll at 390 px); full suite 214/214; server 11 979/11 979; client 3 988/3 988.
 - [x] Changelog fragments
+- [x] Agent review of 2026-11-12: stale-answer guard tested, empty date asks for today, previous list cleared while loading, `+33` national form and phone separators searchable, rule-9 test checks the selected option, spec wording aligned. The E2E timezone remark was a false positive (`playwright.config.js` sets `TZ=Europe/Paris`).

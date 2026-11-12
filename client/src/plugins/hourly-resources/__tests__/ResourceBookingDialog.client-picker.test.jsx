@@ -100,11 +100,26 @@ test('rule 8 — no match says so', async () => {
   expect(await screen.findByText('Aucun client trouvé')).toBeInTheDocument();
 });
 
-test('rule 2 — another session day asks the server again with that day', async () => {
+test('rule 2 — another session day asks again; a late answer for the previous day is dropped', async () => {
+  const pending = {};
+  api.getClientPicker.mockImplementation((day) => new Promise((resolve) => { pending[day] = resolve; }));
+  mount();
+  await waitFor(() => expect(pending['2099-02-13']).toBeDefined());
+  fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2099-03-01' } });
+  await waitFor(() => expect(pending['2099-03-01']).toBeDefined());
+
+  pending['2099-03-01']({ options: [option(3, 'Hugo', 'Perrin', 'En séjour le 01/03 ou bientôt', 'x', 'hugo perrin')] });
+  pending['2099-02-13']({ options: OPTIONS });
+  await openPicker();
+  expect(within(screen.getByRole('listbox')).getByText('En séjour le 01/03 ou bientôt · 1')).toBeInTheDocument();
+  expect(shownNames()).toEqual(['Hugo Perrinx']);
+});
+
+test('rule 2 — an emptied date still asks, and the server answers for today', async () => {
   mount();
   await waitFor(() => expect(api.getClientPicker).toHaveBeenCalledWith('2099-02-13'));
-  fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2099-03-01' } });
-  await waitFor(() => expect(api.getClientPicker).toHaveBeenLastCalledWith('2099-03-01'));
+  fireEvent.change(screen.getByLabelText('Date'), { target: { value: '' } });
+  await waitFor(() => expect(api.getClientPicker).toHaveBeenLastCalledWith(''));
 });
 
 test('rule 9 — an edited session opens with its client selected, even a past one', async () => {
@@ -113,4 +128,21 @@ test('rule 9 — an edited session opens with its client selected, even a past o
   });
   await waitFor(() => expect(api.getClientPicker).toHaveBeenCalledWith('2099-02-13'));
   expect(screen.getByRole('combobox', { name: 'Client *' })).toHaveValue('Paul André');
+  await openPicker();
+  const selected = within(screen.getByRole('listbox')).getByRole('option', { selected: true });
+  expect(selected).toHaveTextContent('Paul André');
+  expect(shownNames()).toHaveLength(4);
+});
+
+test('rule 7 — a phone typed with separators matches on its digits; a lone separator is ignored', async () => {
+  api.getClientPicker.mockResolvedValue({ options: [
+    option(5, 'Ana', 'Ruiz', 'À venir', 'x', 'ana ruiz +33 6 12 34 56 78 33612345678 0612345678'),
+    option(6, 'Bob', 'Lee', 'À venir', 'x', 'bob lee'),
+  ] });
+  mount();
+  const input = await openPicker();
+  fireEvent.change(input, { target: { value: '06.12.34' } });
+  expect(shownNames()).toEqual(['Ana Ruizx']);
+  fireEvent.change(input, { target: { value: 'bob .' } });
+  expect(shownNames()).toEqual(['Bob Leex']);
 });

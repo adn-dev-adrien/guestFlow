@@ -193,10 +193,12 @@ export default function ResourceBookingDialog({
   }, [open]);
 
   // specs/resource-booking-client-picker.md rules 1-2 — the server orders the clients against the
-  // session's day; a new day asks again and the latest answer wins.
+  // session's day (today when the field is empty); a new day asks again, the previous day's groups are
+  // not shown meanwhile, and the latest answer wins.
   useEffect(() => {
-    if (!open || !date) return;
+    if (!open) return;
     let current = true;
+    setClients([]);
     api.getClientPicker(date)
       .then((result) => { if (current) setClients(result.options || []); })
       .catch(() => {});

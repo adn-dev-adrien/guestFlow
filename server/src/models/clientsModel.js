@@ -311,6 +311,9 @@ function createModel(database) {
       if (stay) detail = [propertyName, stayDatesLabel(stay)].filter(Boolean).join(' · ');
       else detail = client.email || client.phone || 'Aucun séjour';
       const phone = client.phone || '';
+      const digits = phone.replace(/\D/g, '');
+      // « +33 6 12… » is typed « 06 12… »: the national form is searchable too (rule 7).
+      const national = digits.startsWith('33') && digits.length === 11 ? `0${digits.slice(2)}` : '';
       return {
         id: client.id,
         firstName: client.firstName || '',
@@ -319,7 +322,7 @@ function createModel(database) {
         groupLabel,
         detail,
         searchText: normalizeSearchText(
-          client.firstName, client.lastName, client.email, phone, phone.replace(/\D/g, ''), propertyName,
+          client.firstName, client.lastName, client.email, phone, digits, national, propertyName,
         ),
       };
     };

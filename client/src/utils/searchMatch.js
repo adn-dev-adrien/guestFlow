@@ -11,8 +11,15 @@ export function normalizeQuery(query) {
     .trim();
 }
 
+// « 06.12 » or « 06-12 » is a phone typed with its separators: the server's text carries the digits.
+const PHONE_FRAGMENT = /^[+\d().-]+$/;
+
 export function matchesSearch(searchText, query) {
-  const words = normalizeQuery(query).split(' ').filter(Boolean);
+  // A word made of separators only (« . », « - ») says nothing and is ignored.
+  const words = normalizeQuery(query).split(' ').filter((word) => !/^[+().-]*$/.test(word));
   const haystack = String(searchText || '');
-  return words.every((word) => haystack.includes(word));
+  return words.every((word) => {
+    if (haystack.includes(word)) return true;
+    return PHONE_FRAGMENT.test(word) && haystack.includes(word.replace(/\D/g, ''));
+  });
 }
