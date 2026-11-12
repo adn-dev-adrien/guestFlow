@@ -17,7 +17,10 @@
 //   synthesis/<year>       the accounting synthesis of the year (`/api/accounting/synthesis`, accounting-export live)
 //
 //   node scripts/pricing-replay.mjs <copy.db> --out before.json
-//   node scripts/pricing-replay.mjs <copy.db> --compare before.json
+//   node scripts/pricing-replay.mjs <copy.db> --compare before.json [--expect expected.json]
+//
+// `--expect` lists the artefact keys that are ALLOWED to move, each with its reason and rule (rule 81): a listed key
+// that did not move fails as stale, an unlisted one that moved fails as a difference.
 //
 // Prints ids, months and hashes only — never a name. The database is opened by the application's own boot, which
 // migrates it: pass a copy, never the original.
@@ -33,7 +36,7 @@ const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
 const dbPath = args[0] && !args[0].startsWith('--') ? args[0] : null;
 if (!dbPath || !fs.existsSync(dbPath)) {
-  console.error('usage: pricing-replay.mjs <copy.db> [--out file] [--compare file]   (pass a COPY of the database)');
+  console.error('usage: pricing-replay.mjs <copy.db> [--out file] [--compare file [--expect file]]   (pass a COPY of the database)');
   process.exit(2);
 }
 if (path.resolve(dbPath).split(path.sep).includes('shadows') && !args.includes('--i-am-a-copy')) {
@@ -172,8 +175,12 @@ if (!against) {
 }
 
 const before = JSON.parse(fs.readFileSync(against, 'utf8'));
-const keys = new Set([...Object.keys(before), ...Object.keys(hashes)]);
-const diffs = [...keys].filter((k) => before[k] !== hashes[k]);
-console.log(`compared ${keys.size} artefacts: ${diffs.length} difference(s)`);
-for (const k of diffs) console.log(`  DIFF ${k}`);
-process.exit(diffs.length ? 1 : 0);
+const expectFile = flag('--expect');
+const expectList = expectFile ? JSON.parse(fs.readFileSync(expectFile, 'utf8')) : [];
+const { classifyReplay } = require(path.join(root, 'scripts/price-gate/replayExpect.js'));
+const verdict = classifyReplay(before, hashes, expectList);
+console.log(`compared ${verdict.compared} artefacts: ${verdict.unexpected.length} difference(s)${expectFile ? `, ${verdict.expected.length} expected` : ''}`);
+for (const k of verdict.unexpected) console.log(`  DIFF ${k}`);
+for (const k of verdict.expected) console.log(`  EXPECTED ${k}`);
+for (const k of verdict.stale) console.log(`  STALE ${k} (listed in --expect but unchanged)`);
+process.exit(verdict.unexpected.length || verdict.stale.length ? 1 : 0);

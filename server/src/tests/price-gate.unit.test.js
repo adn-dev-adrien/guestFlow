@@ -55,14 +55,14 @@ test('rule 68: no price moved on any stay or devis of the production copy', { sk
 });
 
 test('rule 68: no figure of a standalone resource booking moved', { skip: SKIP }, () => {
-  const { differences } = compareFigures(expected.resourceBookings, recomputedBookings, []);
+  const { differences } = compareFigures(expected.resourceBookings, recomputedBookings, allowlist, { scope: 'resourceBookings' });
   const shown = differences.slice(0, 40).map((d) => `  booking ${d.reservationId} ${d.field}: expected ${JSON.stringify(d.expected)}, got ${JSON.stringify(d.actual)}`);
   assert.equal(differences.length, 0, `${differences.length} figure(s) moved\n${shown.join('\n')}`);
   assert.ok(Object.keys(expected.resourceBookings).length > 0, 'the fixture holds resource bookings');
 });
 
 test('rule 70: no figure of the platform price grid of a property moved', { skip: SKIP }, () => {
-  const { differences } = compareFigures(expected.propertyGrids, recomputedGrids, []);
+  const { differences } = compareFigures(expected.propertyGrids, recomputedGrids, allowlist, { scope: 'propertyGrids' });
   const shown = differences.slice(0, 40).map((d) => `  property ${d.reservationId} ${d.field}: expected ${JSON.stringify(d.expected)}, got ${JSON.stringify(d.actual)}`);
   assert.equal(differences.length, 0, `${differences.length} figure(s) moved\n${shown.join('\n')}`);
   assert.ok(Object.keys(expected.propertyGrids).length > 0, 'the fixture holds property grids');
@@ -71,6 +71,10 @@ test('rule 70: no figure of the platform price grid of a property moved', { skip
 test('rule 68: every allowlist entry still matches a difference (a stale entry is removed)', { skip: SKIP }, () => {
   const { unusedEntries } = compareFigures(expected.stays, recomputed, allowlist);
   assert.deepEqual(unusedEntries, []);
+  const bookings = compareFigures(expected.resourceBookings, recomputedBookings, allowlist, { scope: 'resourceBookings' });
+  assert.deepEqual(bookings.unusedEntries, []);
+  const grids = compareFigures(expected.propertyGrids, recomputedGrids, allowlist, { scope: 'propertyGrids' });
+  assert.deepEqual(grids.unusedEntries, []);
 });
 
 test('rule 70: the platform stays carry their commission, net received and payout figures', { skip: SKIP }, () => {

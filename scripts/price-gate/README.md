@@ -12,6 +12,8 @@ to the cent, with the figures captured on the baseline code.
 | `recompute.js` | What the gate runs on a database (shared by the capture and the tests): the stays at their four instants, the resource bookings, the intake replays |
 | `figuresOf.js` | The flat figure set of one stay (quote, schedule, paid, cancellation, platform, refunds), exact |
 | `anonymise.js` | The allow-list copy of the rows a price needs |
+| `writeReplay.js`, `buildWriteReplay.mjs` | The refund WRITE paths (create, refusals, deletion, cancellation avoir, un-tick, D25 pool, end-of-stay, trop-perçu refund) played through the real controllers; `buildWriteReplay.mjs` captures `writes.json` on the tag worktree only (rule 81) |
+| `replayExpect.js` | The `--expect` list of `pricing-replay.mjs`: the artefact keys allowed to move, each with a reason and a rule; a listed key that did not move fails as stale |
 | `move-proof.mjs`, `moveProof.js` | The move proof of PR A (every moved line found verbatim) |
 
 ## Figures per stay
@@ -63,3 +65,17 @@ and four platform stays (`intake-booking-*`, `intake-airbnb-*`) on which the cra
 replayed. The standalone resource bookings (`resource_bookings`, hourly-resources) are figures of their own (`resourceBookings`):
 the stored price, the breakdown the plugin computes and the sale row the journal reads. A new money path with no example in the
 snapshot gets its case here, and the fixture is then captured again on the tag.
+
+## Allowlist scopes and the write replay (PR B, rule 81)
+
+An `allowlist.json` entry carries an optional `scope` (`stays`, the default; `synthetic`; `resourceBookings`; `propertyGrids`;
+`writes`). A comparison reads only the entries of its own scope, so an entry listed for a synthetic stay can never absorb a
+production difference. `writes.json` is captured once, on the tag worktree, with the same procedure as above:
+
+```bash
+cp scripts/price-gate/writeReplay.js scripts/price-gate/buildWriteReplay.mjs "$SCRATCH/gate-base/scripts/price-gate/"
+(cd "$SCRATCH/gate-base" && node scripts/price-gate/buildWriteReplay.mjs --out "<this worktree>/server/src/tests/fixtures/price-gate/writes.json")
+```
+
+`node scripts/pricing-replay.mjs <copy.db> --compare before.json --expect expected.json` accepts a list of
+`{ "key", "reason", "rule" }`: exactly those artefact keys may differ.

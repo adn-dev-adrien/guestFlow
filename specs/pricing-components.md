@@ -1211,7 +1211,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     differences of a run. The write-path replay of D9 (refund create, refusal, requalification, un-tick, deletion,
     D25 pool, end-of-stay refunds) is captured **only** on a worktree of the tag `price-gate-baseline`
     (`scripts/price-gate/buildWriteReplay.mjs`, `fixtures/price-gate/writes.json`), never on the branch under test.
-    > **Pending** — PR B
+    Tests: `price-gate-scopes` (scopes, `--expect`), `price-gate-writes` (the seven write-path cases, to the leaf).
 
 ## 4. Architecture
 
@@ -1380,6 +1380,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `articles-head-contract` — the head is the only export of `articles/`; dispatch, refusals, allowance coordination, offered, locked snapshots, fulfilment calls; a request for an unregistered family is refused; instances are frozen config (rule 47)
 - [x] `vat-component` — rules 61-62: resolver by (vatClass, customerContext) and regime/franchise; one rounding per group; largest-remainder allocation sums to the group; per-rate output; byte-identical to the five former copies on the golden inputs
 - [ ] `accounting-output-replay` — rule 63: neutral entries from the read models; each exporter reproduces today's CSV, JSON and synthesis byte for byte on every golden month; no exporter imports `vat/` or `articles/`
+- [x] `price-gate-scopes`, `price-gate-writes` — rule 81: the allowlist scopes, the replay `--expect` list, the refund write-path cases compared to the leaf with what the tag wrote
 - [x] `no-duplicate-formulas`, `formula-guards-mutants`, `pricing-import-graph`, `pricing-import-graph-mutants` — rule 66 static guards with their allow-lists, including the platform-payment guard of rule 70; every guard and the import graph proved on planted copies
 - [x] `pricing-platform-payment` — rule 70: every formula of the table, both commission bases, clamps, net received, acompte net, penalty, cancellation withheld commissions
 - [x] `platform-intake-port`, `platform-intake-replay` — rule 71 (PR A: SDK contract unchanged, adapter, replay of the stored intakes at 0 diff; `fromPlatform` is PR B); booking-intake, airbnb-intake and gites-de-france-intake suites green unchanged
