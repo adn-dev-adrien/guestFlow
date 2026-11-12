@@ -13,19 +13,23 @@
  *   settlement             what it RECEIVED (due minus the reste or the geste), books and caisse interne apart, on the
  *                          stay as a whole: a settlement names a bucket, not a line (rule 50 pools several buckets)
  *
- * A bucket the stay holds no per-line truth for gets no row here (its stay-level row is the next commit's, through
- * `legacyBucketSplit`). A bucket a live settlement covers is read from the settlement only, never twice. A line the
+ * A bucket the stay holds no per-line truth for gets no row here unless `stayLevel` is given: then it gets its stay-level
+ * rows (`lineRef` NULL, the tourist tax on the stay's tax line where the legacy routing puts it, through
+ * `legacyBucketSplit`), so Σ allocations of a paid bucket is the bucket. A bucket a live settlement covers is read from the
+ * settlement only, never twice. A line the
  * stay no longer holds (a paid line since removed) is money on the stay with no line: `lineRef` NULL.
  * No amount is rewritten (rule 36). Pure: no DB, no clock, no settings.
  *
- *   legacyAllocations({ reservation, lines, stayLines, removed, complementSplit, endOfStayDetail, notes, installments, settlements })
+ *   legacyAllocations({ reservation, lines, stayLines, removed, complementSplit, endOfStayDetail, notes, installments, settlements, stayLevel })
  *     → [{ paymentRef, lineRef, amountCents, at, books }]   `books` 1 = the books, 0 = the caisse interne
  *   `lines`: [{ ref, key, acompteContribTtc, soldeContribTtc }]; `stayLines`: { accommodation, touristTax } refs or null;
- *   `removed`: [{ key, acompteContribTtc, soldeContribTtc }]; `installments`: [{ id, paid, paidDate, paidSplit }];
+ *   `removed`: [{ key, acompteContribTtc, soldeContribTtc }]; `installments`: [{ id, paid, paidDate, amountCents, paidSplit }];
+ *   `stayLevel`: null, or { taxRoutedToComplement } (the legacy routing of the tourist tax, read by the caller);
  *   `settlements`: [{ id, targetKind, targetKey, paidDate, dueCents, shortfallCents, parts: [{ kind }], tenders: [{ amountCents, internal }] }]
  */
 const { toCents: cents } = require('./money');
 const { extraLineKey } = require('./storedLines');
+const { computeTaxTtcForKind } = require('../accounting/legacyBucketSplit');
 
 const TOLERANCE_CENTS = 2;
 const nz = (value) => (value == null ? 0 : Number(value));
@@ -39,6 +43,7 @@ const BUCKETS = {
 
 function legacyAllocations({
   reservation, lines = [], stayLines = {}, removed = [], complementSplit = null, endOfStayDetail = [], notes = [], installments = [], settlements = [],
+  stayLevel = null,
 }) {
   const row = reservation || {};
   const rows = new Map();
@@ -135,7 +140,37 @@ function legacyAllocations({
     for (const line of split.lines || []) add(ref, refOfKey(line.key), line.cents, installment.paidDate, 1);
   }
 
+  if (stayLevel) addStayLevel();
+
   return [...rows.values()];
+
+  // Every paid bucket, settled note and paid installment the rows above do not hold gets its stay-level rows: the tourist tax
+  // where the legacy routing books it, the rest on no line. A plan replaces the deposit and the balance (the accounting reads
+  // none of them), a settlement already holds what it covers.
+  function addStayLevel() {
+    const held = (ref) => [...rows.values()].some((r) => r.paymentRef === ref);
+    const hasPlan = installments.length > 0;
+    for (const kind of ['deposit', 'balance', 'complement', 'endOfStayComplement']) {
+      const spec = BUCKETS[kind];
+      const ref = kind === 'endOfStayComplement' ? 'bucket:endOfStay' : `bucket:${kind}`;
+      const amount = cents(row[spec.amount]);
+      if (!paid(kind) || coveredBuckets.has(kind) || held(ref) || amount <= 0) continue;
+      if (hasPlan && (kind === 'deposit' || kind === 'balance')) continue;
+      const books = Number(row[spec.cash]) === 1 ? 0 : 1;
+      const tax = kind === 'endOfStayComplement' ? 0
+        : Math.min(amount, cents(computeTaxTtcForKind(row, kind, stayLevel.taxRoutedToComplement, amount / 100)));
+      add(ref, stayLines.touristTax, tax, row[spec.date], books);
+      add(ref, null, amount - tax, row[spec.date], books);
+    }
+    for (const note of notes) {
+      if (!note || coveredNotes.has(String(note.id)) || held(`note:${note.id}`)) continue;
+      add(`note:${note.id}`, null, cents(note.total), note.paidDate, Number(note.paidCash) === 1 ? 0 : 1);
+    }
+    for (const installment of installments) {
+      if (Number(installment.paid) !== 1 || coveredInstallments.has(String(installment.id)) || held(`installment:${installment.id}`)) continue;
+      add(`installment:${installment.id}`, null, Number(installment.amountCents || 0), installment.paidDate, 1);
+    }
+  }
 }
 
 module.exports = { legacyAllocations };

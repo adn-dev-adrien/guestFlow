@@ -1164,6 +1164,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       stored contribs / splits / receipts (amounts untouched, rule 36; legacy rows without per-line truth get one
       stay-level allocation through `legacyBucketSplit`), REFUNDS and SETTLEMENT reading allocations. PR C: the
       standalone sale on the « Passage » client.
+    > **Delivered by PR B** (commit `feat(db)` stay-level allocations): the backfill of the buckets, notes and installments without
+    > per-line truth (`pricing-allocations-backfill` checks Σ allocations = the paid bucket on every stay of the price-gate fixture).
     > **Pending** — PR B
 
 ### 3.R Rules added 2026-11-12 (PR B, owner decisions Q16)
@@ -1394,8 +1396,12 @@ nothing, and reads stored data only.
 - `payment_allocations`, **per-line truth only**: the deposit and balance contribs when they add up to the paid entry, the frozen
   complement split, the end-of-stay detail, the mid-stay notes, the installments' frozen splits (each when its lines add up), a live
   settlement from what it *received* (books and caisse interne apart, stay-level), and every refund (not the requalification avoir, not
-  a commission) as a negative row naming no payment. A bucket with no per-line truth gets its stay-level row through
-  `legacyBucketSplit` in a later commit. A payment already allocated is never written twice.
+  a commission) as a negative row naming no payment. A paid bucket (deposit, balance, arrival complement, end-of-stay complement),
+  settled note or paid installment with no per-line truth gets its stay-level rows (`lineRef` NULL) once the application is up
+  (`backfillStayLevelAllocations`, beside the nettings: it needs the platform's tourist-tax mode): the tourist tax goes to the
+  stay's tax line where `computeTaxTtcForKind` of `legacyBucketSplit` books it, the rest to no line, so Σ allocations of a paid
+  bucket is the bucket; a plan replaces the deposit and the balance, a live settlement is read alone. A payment already allocated
+  is never written twice.
 Proof: the price gate and the prod replay by value (added keys ignored, `--compare-values`).
 
 **Data impact:** additive columns only; no amount column changes; `midStaySettledNotes`,

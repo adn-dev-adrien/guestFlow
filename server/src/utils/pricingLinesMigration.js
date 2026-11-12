@@ -334,7 +334,7 @@ function backfillObligations(db) {
 }
 
 // ── PA — the allocations of the per-line truth, and the refunds as negative rows ─────────────────────────────────────
-function backfillAllocations(db) {
+function backfillAllocations(db, { stayLevel = false } = {}) {
   if (!hasTable(db, 'payment_allocations') || !hasColumns(db, 'reservations', ['kind'])) return 0;
   const stays = db.prepare("SELECT * FROM reservations WHERE kind IN ('reservation', 'cancelled')").all();
   const has = (name) => hasTable(db, name);
@@ -365,13 +365,14 @@ function backfillAllocations(db) {
       endOfStayDetail: parseDetail(stay.endOfStayComplementDetail),
       notes: parseNotes(stay.midStaySettledNotes),
       installments: has('reservation_installments')
-        ? db.prepare('SELECT id, paid, paidDate, paidSplit FROM reservation_installments WHERE reservationId = ?').all(stay.id).map((r) => ({ ...r, paidSplit: parseJson(r.paidSplit) })) : [],
+        ? db.prepare('SELECT id, paid, paidDate, amountCents, paidSplit FROM reservation_installments WHERE reservationId = ?').all(stay.id).map((r) => ({ ...r, paidSplit: parseJson(r.paidSplit) })) : [],
       settlements: has('payment_settlements')
         ? db.prepare('SELECT * FROM payment_settlements WHERE reservationId = ?').all(stay.id).map((s) => ({
           ...s,
           parts: parseJson(s.parts) || [],
           tenders: has('payment_tenders') ? db.prepare('SELECT amountCents, internal FROM payment_tenders WHERE settlementId = ?').all(s.id) : [],
         })) : [],
+      stayLevel: stayLevel ? { taxRoutedToComplement: taxRoutedToComplement(db, stay) } : null,
     });
     // A payment already allocated (by an earlier run, or by the application itself) is never written twice.
     const fresh = [...new Set(rows.map((row) => row.paymentRef))].filter((paymentRef) => !existing.get(documentRef, paymentRef));
@@ -379,8 +380,26 @@ function backfillAllocations(db) {
       changed += insert.run(row.paymentRef, documentRef, row.lineRef, row.amountCents, 'payment', row.at, null, row.books).changes;
     }
   }
-  changed += backfillRefundAllocations(db);
+  if (!stayLevel) changed += backfillRefundAllocations(db);
   return changed;
+}
+
+// Whether the legacy books route the stay's tourist tax to the arrival complement: collected by us on arrival (the platform's
+// own mode says it does not collect the tax) or forced there. Read from the platform's mode, never from its name.
+function taxRoutedToComplement(db, stay) {
+  const { resolveGlobalPlatformTaxRow } = require('../models/pricingInputModel');
+  const mode = resolveGlobalPlatformTaxRow(db, stay.platform);
+  const collectedOnArrival = Number(stay.touristTaxTotal || 0) > 0 && mode != null && Number(mode.c) === 0;
+  return collectedOnArrival || Number(stay.touristTaxInComplement || 0) === 1;
+}
+
+/**
+ * The stay-level rows of the paid buckets, notes and installments no per-line truth describes (rule 74). Needs the models for
+ * the tourist-tax routing, so it runs beside `backfillRefundNettings`, once the application is up. Writes nothing already
+ * allocated; a second run changes nothing.
+ */
+function backfillStayLevelAllocations(db) {
+  return backfillAllocations(db, { stayLevel: true });
 }
 
 // A refund is a negative allocation per line, naming no payment when none is derivable (Q-B5). The requalification avoir
@@ -446,4 +465,6 @@ function backfillRefundNettings(db, { force = false } = {}) {
   return changed;
 }
 
-module.exports = { runPricingLinesMigration, backfillRefundNettings, LINE_COLUMNS, LINE_TABLES };
+module.exports = {
+  runPricingLinesMigration, backfillRefundNettings, backfillStayLevelAllocations, LINE_COLUMNS, LINE_TABLES,
+};

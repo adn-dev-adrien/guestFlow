@@ -73,6 +73,7 @@ function loadInputs(db, inputs) {
   const lines = app('utils/pricingLinesMigration.js');
   lines.runPricingLinesMigration(db);
   lines.backfillRefundNettings(db, { force: true });
+  lines.backfillStayLevelAllocations(db);
 }
 
 function ficheOf(id) {

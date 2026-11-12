@@ -167,6 +167,16 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Rule 74 — the stay-level allocation of every paid bucket no per-line truth describes (needs the platform's tax mode).
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const stayLevel = require('./utils/pricingLinesMigration').backfillStayLevelAllocations(db);
+    if (stayLevel > 0) console.log(`[migration:stay-level-allocations] ${stayLevel} allocation(s) recorded`);
+  } catch (err) {
+    logErrorMarker(`Stay-level allocations backfill failed: ${err.message}`);
+  }
+}
+
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.
