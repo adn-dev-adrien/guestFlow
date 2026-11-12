@@ -12,6 +12,8 @@
  *   onReservationClick(id)        — open the reservation fiche.
  *   onCreateReservation(dateStr)  — empty-day click → new reservation prefilled with that date.
  *   initialMonth? / onVisibleMonthChange? — forwarded to the scroller.
+ *   openOnCurrentWeek?            — open (and « Aujourd'hui ») on the week in progress rather than the first
+ *                                   week of the month; on a phone, on the first stay not yet over (Dashboard).
  */
 import React, { useCallback, useMemo, useState } from 'react';
 import { Box, Typography, Button, Stack, Tooltip, Chip, Collapse, useMediaQuery, useTheme } from '@mui/material';
@@ -27,6 +29,15 @@ import useServerToday from '../hooks/useServerToday';
 import { localIsoToday } from '../utils/isoDay';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const CURRENT_WEEK_SELECTOR = "[data-current-week='true']";
+// Sticks under each month title, so the day names stay readable whichever week is in view.
+const WEEKDAY_HEADER = (
+  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', py: 0.5 }}>
+    {WEEKDAYS.map((d) => (
+      <Typography key={d} variant="caption" sx={{ textAlign: 'center', fontWeight: 700, color: 'text.secondary' }}>{d}</Typography>
+    ))}
+  </Box>
+);
 const BAR_H = 22;      // px per lane
 const BAR_VISIBLE_H = 18;
 const HEADER_H = 24;   // px for the day-number band
@@ -52,6 +63,9 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
     [year, month, items, todayStr, isMobile],
   );
   const list = useMemo(() => (isMobile ? monthItems(year, month, items) : []), [year, month, items, isMobile]);
+  // A stay spans two month lists; only the block of today's month marks where « now » starts.
+  const isTodayMonth = todayStr.slice(0, 7) === `${year}-${String(month + 1).padStart(2, '0')}`;
+  const firstCurrentKey = isTodayMonth ? (list.find((it) => it.endDate >= todayStr) || {}).key : undefined;
 
   // Phone = a readable agenda list (one row per stay / closure), grouped by logement.
   if (isMobile) {
@@ -66,6 +80,7 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
             return (
               <Box
                 key={it.key}
+                data-current-week={it.key === firstCurrentKey ? 'true' : undefined}
                 onClick={() => !closure && onReservationClick && onReservationClick(it.reservationId)}
                 sx={{
                   display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1,
@@ -106,18 +121,17 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', my: 0.5 }}>
-        {WEEKDAYS.map((d) => (
-          <Typography key={d} variant="caption" sx={{ textAlign: 'center', fontWeight: 700, color: 'text.secondary' }}>{d}</Typography>
-        ))}
-      </Box>
+    <Box sx={{ mt: 0.5 }}>
       {weeks.map((week, wi) => {
         // A week closed everywhere keeps one line for its label under the stays.
         const globalLabelH = week.globalClosures.length > 0 ? 16 : 0;
         const rowHeight = HEADER_H + Math.max(1, week.laneCount) * BAR_H + globalLabelH + 6;
         return (
-          <Box key={wi} sx={{ position: 'relative', height: rowHeight, mb: 0.5 }}>
+          <Box
+            key={wi}
+            data-current-week={week.days.some((day) => day.isToday) ? 'true' : undefined}
+            sx={{ position: 'relative', height: rowHeight, mb: 0.5 }}
+          >
             <Box sx={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
               {week.days.map((day) => (
                 <Box
@@ -227,7 +241,9 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
   );
 }
 
-export default function CumulativeMonthCalendar({ onReservationClick, onCreateReservation, initialMonth, onVisibleMonthChange }) {
+export default function CumulativeMonthCalendar({
+  onReservationClick, onCreateReservation, initialMonth, onVisibleMonthChange, openOnCurrentWeek = false,
+}) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const serverToday = useServerToday();
@@ -279,6 +295,8 @@ export default function CumulativeMonthCalendar({ onReservationClick, onCreateRe
       cache={cache}
       initialMonth={initialMonth}
       onVisibleMonthChange={onVisibleMonthChange}
+      todaySelector={openOnCurrentWeek ? CURRENT_WEEK_SELECTOR : undefined}
+      stickyHeader={isMobile ? null : WEEKDAY_HEADER}
       toolbarEnd={legendToggle}
       belowToolbar={(
         <Collapse in={legendOpen} unmountOnExit>

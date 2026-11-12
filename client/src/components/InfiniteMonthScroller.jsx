@@ -14,8 +14,10 @@
  *   onVisibleMonthChange?:  ({ year, month }) => void — the month under the sticky title, as the user scrolls.
  *   toolbarEnd?:            ReactNode on the right of the « Aujourd'hui » button (a legend toggle…).
  *   belowToolbar?:          ReactNode between the toolbar and the months (the legend it toggles…).
+ *   stickyHeader?:          ReactNode under each month title, sticking with it (a weekday header…).
  *   todaySelector?:         CSS selector of today's row inside a block: « Aujourd'hui » and the first opening on the
- *                           current month put that row right under the sticky title (a day agenda).
+ *                           current month put that row right under the sticky title (a day agenda, the week in
+ *                           progress). Until the user scrolls, that row stays put while the months load and grow.
  *   minWidth?:              CSS min-width of the blocks, so a narrow screen scrolls sideways instead of squashing them.
  *   sx?:                    extra styles for the scroll container (height…).
  * A change of `cache.scopeKey` keeps the month that was in view.
@@ -33,7 +35,7 @@ function prefersReducedMotion() {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(REDUCED_MOTION).matches;
 }
 
-function MonthBlock({ year, month, entry, onRetry, children }) {
+function MonthBlock({ year, month, entry, onRetry, stickyHeader, children }) {
   const loading = !entry || entry.status === 'loading';
   return (
     <Box data-month-anchor={`${year}-${month}`} sx={{ mb: 2 }}>
@@ -46,6 +48,7 @@ function MonthBlock({ year, month, entry, onRetry, children }) {
         <Typography variant="sectionHeader" sx={{ display: 'block', pb: 0.5, textTransform: 'capitalize' }}>
           {MONTH_NAMES[month]} {year}
         </Typography>
+        {stickyHeader}
         {loading && (
           <Box
             role="progressbar"
@@ -67,7 +70,8 @@ function MonthBlock({ year, month, entry, onRetry, children }) {
 }
 
 export default function InfiniteMonthScroller({
-  cache, renderMonth, initialMonth, onVisibleMonthChange, toolbarEnd = null, belowToolbar = null, todaySelector, minWidth, sx,
+  cache, renderMonth, initialMonth, onVisibleMonthChange, toolbarEnd = null, belowToolbar = null, stickyHeader = null,
+  todaySelector, minWidth, sx,
 }) {
   const { months, scrollRef, handleScroll, focusOnMonth } = useInfiniteMonthScroll('months');
   const { scopeKey, entries, ensure, retry } = cache;
@@ -75,36 +79,58 @@ export default function InfiniteMonthScroller({
   const anchorRef = useRef(null);
   const frameRef = useRef(0);
   const focusFrameRef = useRef(0);
+  // Today's row is awaited: it only exists once its month's data has landed (a phone agenda).
+  const awaitingRowRef = useRef(false);
   const onVisibleRef = useRef(onVisibleMonthChange);
   onVisibleRef.current = onVisibleMonthChange;
 
-  // Puts today's row (when the view has such rows) right under the sticky title of its month.
-  const todayRowTop = useCallback(() => {
+  // Where today's row (when the view has such rows) sits right under the sticky title of its month.
+  const todayRowPlace = useCallback(() => {
     const el = scrollRef.current;
     const row = todaySelector && el ? el.querySelector(todaySelector) : null;
     if (!row) return null;
-    return row.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - STICKY_TITLE_CLEARANCE;
+    const title = row.closest('[data-month-anchor]').firstElementChild;
+    const clearance = Math.max(STICKY_TITLE_CLEARANCE, title.getBoundingClientRect().height + 4);
+    return { scrollTop: row.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop - clearance, clearance };
   }, [scrollRef, todaySelector]);
+  const todayRowTop = useCallback(() => {
+    const place = todayRowPlace();
+    return place ? place.scrollTop : null;
+  }, [todayRowPlace]);
+
+  const pinTodayRow = useCallback(() => {
+    const el = scrollRef.current;
+    const place = todayRowPlace();
+    if (!place || !el) return false;
+    el.scrollTop = Math.max(0, place.scrollTop);
+    // The row, not its month, is what must stay in view: the weeks above it grow as their stays land. The
+    // anchor is where the row belongs, not where it landed: months still empty may cap the scroll for now.
+    anchorRef.current = { selector: todaySelector, top: place.clearance + Math.min(0, place.scrollTop) };
+    return true;
+  }, [scrollRef, todayRowPlace, todaySelector]);
 
   const focus = useCallback((year, month) => {
     anchorRef.current = null;
+    awaitingRowRef.current = false;
     focusOnMonth(year, month);
     cancelAnimationFrame(focusFrameRef.current);
     focusFrameRef.current = requestAnimationFrame(() => {
       const now = new Date();
-      if (year === now.getFullYear() && month === now.getMonth()) {
-        const top = todayRowTop();
-        if (top != null && scrollRef.current) scrollRef.current.scrollTop = Math.max(0, top);
+      if (year === now.getFullYear() && month === now.getMonth() && todaySelector) {
+        if (pinTodayRow()) return;
+        awaitingRowRef.current = true;
       }
       recordAnchor();
     });
-  }, [focusOnMonth, todayRowTop, scrollRef]);
+  }, [focusOnMonth, pinTodayRow, todaySelector]);
 
   // The first block whose bottom is below the sticky title is « the month in view »; its offset is
   // remembered so a block above it that grows once its data lands does not push the view away.
   function recordAnchor() {
     const el = scrollRef.current;
     if (!el) return;
+    // A row anchor outlives the scrolls of its own corrections; only a gesture of the user releases it.
+    if (anchorRef.current && anchorRef.current.selector) return;
     const top = el.getBoundingClientRect().top;
     const blocks = el.querySelectorAll('[data-month-anchor]');
     for (const block of blocks) {
@@ -122,6 +148,14 @@ export default function InfiniteMonthScroller({
       }
     }
   }
+
+  const releaseRow = useCallback(() => {
+    awaitingRowRef.current = false;
+    if (anchorRef.current && anchorRef.current.selector) {
+      anchorRef.current = null;
+      recordAnchor();
+    }
+  }, []);
 
   const onScroll = useCallback(() => {
     handleScroll();
@@ -157,14 +191,18 @@ export default function InfiniteMonthScroller({
   }, [months, scopeKey, ensure]);
 
   useLayoutEffect(() => {
+    if (awaitingRowRef.current && pinTodayRow()) {
+      awaitingRowRef.current = false;
+      return;
+    }
     const el = scrollRef.current;
     const anchor = anchorRef.current;
     if (!el || !anchor) return;
-    const block = el.querySelector(`[data-month-anchor="${anchor.key}"]`);
-    if (!block) return;
-    const drift = (block.getBoundingClientRect().top - el.getBoundingClientRect().top) - anchor.top;
+    const target = el.querySelector(anchor.selector || `[data-month-anchor="${anchor.key}"]`);
+    if (!target) return;
+    const drift = (target.getBoundingClientRect().top - el.getBoundingClientRect().top) - anchor.top;
     if (Math.abs(drift) > 1) el.scrollTop += drift;
-  }, [entries, scrollRef]);
+  }, [entries, scrollRef, pinTodayRow]);
 
   const goToday = useCallback(() => {
     const now = new Date();
@@ -191,6 +229,10 @@ export default function InfiniteMonthScroller({
       <Box
         ref={scrollRef}
         onScroll={onScroll}
+        onWheel={releaseRow}
+        onTouchStart={releaseRow}
+        onPointerDown={releaseRow}
+        onKeyDown={releaseRow}
         sx={{
           overflowY: 'auto', overflowX: { xs: 'visible', sm: 'auto' }, pr: 0.5, overscrollBehavior: 'contain',
           maxHeight: { xs: '74vh', sm: 'calc(100vh - 240px)' },
@@ -201,7 +243,7 @@ export default function InfiniteMonthScroller({
           {months.map(({ year, month }) => {
             const entry = entries[`${year}-${month}`];
             return (
-              <MonthBlock key={`${year}-${month}`} year={year} month={month} entry={entry} onRetry={() => retry(year, month)}>
+              <MonthBlock key={`${year}-${month}`} year={year} month={month} entry={entry} onRetry={() => retry(year, month)} stickyHeader={stickyHeader}>
                 {renderMonth({ year, month, data: entry && entry.status === 'ready' ? entry.data : null, status: entry ? entry.status : 'loading' })}
               </MonthBlock>
             );
