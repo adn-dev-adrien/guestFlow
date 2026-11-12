@@ -5,9 +5,9 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { getPlatformColor } from '../constants/platforms';
+import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
 import { getBlockedNightConflictInfo } from '../utils/reservationConflicts';
-import { BLOCKED_NIGHT_COLOR } from '../utils/calendarVisuals';
+import { BLOCKED_NIGHT_COLOR, barTint } from '../utils/calendarVisuals';
 
 const DAY_START = 8;
 const DAY_END = 21;
@@ -69,19 +69,22 @@ export function buildMiniStripDayGradient({
     return { background: EMPTY_DAY_COLOR, textColor: 'text.primary' };
   }
 
+  // A stay the server says is over keeps the soft tint of the calendars (calendar-property-parity.md rule 8), unless it is the
+  // one being edited.
+  const fillOf = (res, selected) => {
+    if (selected) return selectedReservationColor;
+    const color = getPlatformColor(res.platform);
+    return res.past ? barTint(color) : color;
+  };
+
   if (middleRes && !departureRes && !arrivalRes) {
-    const fullColor = middleIsSelected ? selectedReservationColor : getPlatformColor(middleRes.platform);
-    return { background: fullColor, textColor: '#fff' };
+    return { background: fillOf(middleRes, middleIsSelected), textColor: middleRes.past && !middleIsSelected ? 'text.primary' : '#fff' };
   }
 
   const departPct = departureRes ? hourToPercent(timeToHour(departureRes.checkOutTime || '10:00')) : null;
   const arrivePct = arrivalRes ? hourToPercent(timeToHour(arrivalRes.checkInTime || '15:00')) : null;
-  const departColor = departureRes
-    ? (departureIsSelected ? selectedReservationColor : getPlatformColor(departureRes.platform))
-    : null;
-  const arriveColor = arrivalRes
-    ? (arrivalIsSelected ? selectedReservationColor : getPlatformColor(arrivalRes.platform))
-    : null;
+  const departColor = departureRes ? fillOf(departureRes, departureIsSelected) : null;
+  const arriveColor = arrivalRes ? fillOf(arrivalRes, arrivalIsSelected) : null;
 
   const stops = [];
 
@@ -274,7 +277,7 @@ export default function MiniPlanningStrip({
                   key={day}
                   onClick={() => onDateClick(day)}
                   title={tooltipRes
-                    ? `${tooltipRes.firstName || ''} ${tooltipRes.lastName || ''} (${tooltipRes.platform || 'reservation'})`
+                    ? `${tooltipRes.firstName || ''} ${tooltipRes.lastName || ''} (${formatPlatformLabel(tooltipRes.platform) || 'réservation'})`
                     : (blockedTooltip || 'Disponible')}
                   sx={{
                     borderRadius: 1,

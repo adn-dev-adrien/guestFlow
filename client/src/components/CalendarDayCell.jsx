@@ -5,7 +5,7 @@ import { getClosureDayParts } from '../utils/closureCalendar';
 import { frRange } from '../utils/calendarLayout';
 import {
   formatDate, shiftDate, timeToHour, hourToPercent,
-  getBlockedNightInfo, compactName, closureHatch,
+  getBlockedNightInfo, compactName, closureHatch, barTint,
   CLEANING_COLOR, BLOCKED_NIGHT_COLOR,
 } from '../utils/calendarVisuals';
 import { formatPlatformLabel } from '../constants/platforms';
@@ -55,7 +55,9 @@ export default function CalendarDayCell({
   const dateStr = formatDate(y, m, day);
   const isPast = dateStr < today;
   const isToday = dateStr === today;
-  const opacity = (isPast ? 0.5 : 1) * (outside ? 0.7 : 1);
+  // A stay that is over is drawn in its soft tint (the server's `past`, rule 8); the day's own dimming is for the
+  // cells that carry no stay.
+  const fillOf = (res) => (res.past ? barTint(res.color) : res.color);
 
   // The top band: day number, « férié », the day's note (cut by width, full text on hover), zone dots.
   const renderTopBand = ({ color = 'text.primary', holidayColor = 'error.main', glow = false } = {}) => {
@@ -99,6 +101,7 @@ export default function CalendarDayCell({
   const departureRes = reservations.find((r) => r.endDate === dateStr);
   const arrivalRes = reservations.find((r) => r.startDate === dateStr);
   const midRes = reservations.find((r) => dateStr > r.startDate && dateStr < r.endDate);
+  const opacity = (isPast && !(midRes?.past || departureRes?.past || arrivalRes?.past) ? 0.5 : 1) * (outside ? 0.7 : 1);
   const blockedNightInfo = getBlockedNightInfo(dateStr, reservations);
   const closureDay = getClosureDayParts(dateStr, closures, selectedProp);
 
@@ -118,12 +121,12 @@ export default function CalendarDayCell({
     return (
       <Box data-date={dateStr} onClick={() => onReservationClick(midRes.id)} onContextMenu={(e) => { e.preventDefault(); onOpenNote(dateStr); }} sx={{
         borderRadius: 1, position: 'relative', cursor: 'pointer', overflow: 'hidden',
-        bgcolor: midRes.color, minHeight: 64, height: 64, boxSizing: 'border-box',
+        bgcolor: fillOf(midRes), minHeight: 64, height: 64, boxSizing: 'border-box',
         opacity,
         border: (t) => (isToday ? `3px solid ${t.palette.primary.main}` : 'none'),
         transition: 'border 0.2s',
       }}>
-        {renderTopBand({ color: midRes.textColor, holidayColor: midRes.textColor })}
+        {renderTopBand(midRes.past ? {} : { color: midRes.textColor, holidayColor: midRes.textColor })}
       </Box>
     );
   }
@@ -246,8 +249,8 @@ export default function CalendarDayCell({
   }
 
   // Build gradient stops for the diagonal fill
-  const departColor = departureRes ? departureRes.color : null;
-  const arriveColor = arrivalRes ? arrivalRes.color : null;
+  const departColor = departureRes ? fillOf(departureRes) : null;
+  const arriveColor = arrivalRes ? fillOf(arrivalRes) : null;
   const stops = [];
   const gapColor = inDrag ? dragColor : 'transparent';
 
@@ -358,10 +361,11 @@ export default function CalendarDayCell({
       : departPct))
     : 0;
 
+  const platformOf = (res) => res.platformDisplay || formatPlatformLabel(res.platform);
   const tooltipParts = [];
-  if (departureRes) tooltipParts.push(`Départ: ${departureRes.firstName} ${departureRes.lastName} à ${departureRes.checkOutTime || '10:00'}`);
+  if (departureRes) tooltipParts.push(`Départ: ${departureRes.firstName} ${departureRes.lastName} (${platformOf(departureRes)}) à ${departureRes.checkOutTime || '10:00'}`);
   if (departureRes) tooltipParts.push(`Ménage: ${cleaningHours}h`);
-  if (arrivalRes) tooltipParts.push(`Arrivée: ${arrivalRes.firstName} ${arrivalRes.lastName} à ${arrivalRes.checkInTime || '15:00'}`);
+  if (arrivalRes) tooltipParts.push(`Arrivée: ${arrivalRes.firstName} ${arrivalRes.lastName} (${platformOf(arrivalRes)}) à ${arrivalRes.checkInTime || '15:00'}`);
   if (isEarlyArrivalDay) tooltipParts.push(`Nuit bloquée avant arrivée anticipée de ${arrivalRes.firstName} ${arrivalRes.lastName}`);
   if (blockedNightInfo?.type === 'early-arrival') tooltipParts.push(`Nuit bloquée: arrivée anticipée de ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);
   if (blockedNightInfo?.type === 'late-departure-evening') tooltipParts.push(`Nuit bloquée: départ tardif de ${blockedNightInfo.client.firstName} ${blockedNightInfo.client.lastName}`);

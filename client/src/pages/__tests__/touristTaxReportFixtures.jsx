@@ -15,6 +15,7 @@ export function stayRow(row) {
   const exempt = added ? 0 : (row.children ?? 0);
   return {
     key: `${row.reservationId}${added ? '-added' : ''}`,
+    propertyId: 1,
     propertyName: 'Gîte',
     platformLabel: 'Direct',
     remittedBy: 'us',
@@ -41,7 +42,15 @@ export const TOTALS = {
   allDeclared: false, platformRemittedStaysCount: 0, platformRemittedAmount: 0,
 };
 
+// The report's `byProperty`: one entry per logement of the rows, each carrying the given totals (a fixture, not a sum).
+export function byPropertyOf(stays, totals) {
+  const seen = new Map();
+  stays.forEach((r) => { if (!seen.has(r.propertyId)) seen.set(r.propertyId, r.propertyName); });
+  return [...seen.entries()].map(([propertyId, propertyName]) => ({ propertyId, propertyName, declarableRowsCount: 1, ...totals }));
+}
+
 export function reportOf(rows, over = {}) {
+  const stays = rows.map(stayRow);
   return {
     // date-literal-ok: display-only fixture dates, the page compares none of them with today
     window: { kind: 'month', from: '2026-06-01', to: '2026-06-30', toExclusive: '2026-07-01', label: 'juin 2026', month: '2026-06', coveredTo: '2026-06-30', coveredToExclusive: '2026-07-01', futureExcluded: false },
@@ -56,9 +65,10 @@ export function reportOf(rows, over = {}) {
       years: [{ value: '2026', label: '2026' }],
       defaultMonth: '2026-06',
     },
-    stays: rows.map(stayRow),
+    stays,
     nights: [],
     totals: TOTALS,
+    byProperty: byPropertyOf(stays, over.totals || TOTALS),
     columns: { percentageBase: rows.some((r) => r.nightPricePerOccupantHt != null) },
     ...over,
   };

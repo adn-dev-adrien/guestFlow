@@ -171,7 +171,7 @@ function makeDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
       propertyId INTEGER, startDate TEXT, endDate TEXT, checkInTime TEXT, checkOutTime TEXT,
       adults INTEGER NOT NULL DEFAULT 0, teens INTEGER NOT NULL DEFAULT 0, children INTEGER NOT NULL DEFAULT 0, babies INTEGER NOT NULL DEFAULT 0,
-      cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT,
+      cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionWaived INTEGER NOT NULL DEFAULT 0, cautionReceivedDate TEXT,
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
       complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,
       complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0,
