@@ -65,7 +65,8 @@ const GUARDS = [
   },
   {
     name: 'refunds',
-    isHome: (file) => file.startsWith('utils/pricing/refunds/'),
+    // `settlement.js` hosts `scheduleExcess` only: SCHEDULE's two quote keys read the receipts and no pricing unit may import REFUNDS (rule 72).
+    isHome: (file) => file.startsWith('utils/pricing/refunds/') || file === 'utils/pricing/settlement.js',
     rules: [
       { re: /REFUND_EXCEEDS_\w+/, probe: "throw new Error('REFUND_EXCEEDS_SALE');" },
       { re: /\b(excessCents|duplicateCents)\s*[:=]/, probe: 'const excessCents = paid - due;' },
@@ -75,12 +76,9 @@ const GUARDS = [
       { re: /\b(keptFromGuest|writtenOffBalance):\s*round2\(/, probe: 'keptFromGuest: round2(kept),' },
       { re: /\brefundOwed\s*:\s*true|\brefundCents\s*:\s*excess/, probe: 'return { refundOwed: true };' },
     ],
-    // PR B delivered the trop-perçu, the caps and the postes on the allocations (rules 72-76). What stays is read-model SQL and the SCHEDULE keys
-    // `overCollectedTtc` / `complementCollectedExcess` (unchanged quote keys), whose move into refunds/ waits for the finance pages to read allocations (PR C).
+    // PR B delivered the trop-perçu, the caps and the postes on the allocations (rules 72-76). What stays is read-model SQL (PR C).
     removedBy: () => 'PR C',
-    reason: (file, text, pr) => (/schedule\.js$/.test(file)
-      ? `the SCHEDULE over-collected keys are quote keys of the 137: ${pr || 'PR C'} moves them into refunds/ with the stay-level pool`
-      : `a refund sum or cap outside refunds/: ${pr || 'PR C'} routes the finance pages and the cancellation figures through the component`),
+    reason: (file, text, pr) => `a refund sum or cap outside refunds/: ${pr || 'PR C'} routes the finance pages and the cancellation figures through the component`,
   },
   {
     name: 'money',

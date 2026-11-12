@@ -20,13 +20,12 @@
  * Pure: no DB, no port, no clock (the dates it judges are inputs). Nothing here is read by a unit upstream.
  */
 const { roundMoney } = require('./money');
-const { scheduleExcess } = require('./refunds/overpayment');
 const {
   resolveDepositDueDate, resolveBalanceDueDate, isLastMinuteStay, owesSinglePaymentByValidity, devisPromiseHeld, devisPromiseDueDate, toIsoDay,
 } = require('../paymentSchedule');
 const { unreceivedOf } = require('../splitReceived');
 const {
-  settledByKey, buildMidStayLine, ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
+  settledByKey, buildMidStayLine, scheduleExcess, ARRIVAL_COMPLEMENT_EXCESS_KEY, ARRIVAL_COMPLEMENT_EXCESS_LABEL,
 } = require('./settlement');
 
 function planSchedule({

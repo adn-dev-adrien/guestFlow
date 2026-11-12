@@ -1263,8 +1263,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > through its frozen split and its allocations), the contribs of removed paid lines and the tourist tax on its stay line. A stay whose
     > payments name no line has its excess on the accommodation (class O-7 where a legacy history used to explain it). `droppedSince`,
     > `droppedSinceCollection` and `touristTaxCollectedInComplement` are removed.
-    > **Delivered by PR C** (C14): SCHEDULE's `overCollectedTtc` / `complementCollectedExcess` are computed by `refunds/overpayment.js` `scheduleExcess` (the 137 keys are unchanged;
-    > the import graph lists the one edge from SCHEDULE into REFUNDS). The finance SQL (`financeModel`, `financeDashboardModel`) and `refundsModel` sum the register through
+    > **Delivered by PR C** (C14): SCHEDULE's `overCollectedTtc` / `complementCollectedExcess` are computed by SETTLEMENT's `scheduleExcess` (`settlement.js`; the 137 keys are unchanged;
+    > no pricing unit imports REFUNDS, SCHEDULE included — pass 3 removed the one edge pass 2 had allowed). The finance SQL (`financeModel`, `financeDashboardModel`) and `refundsModel` sum the register through
     > `register.refundsTotalSql` / `refundLinesTotalSql` / `indemnityOfRefundSql` / `stayRefundLinesSumSql`; `refundsController` asks `judge.overpaymentRefusal` and
     > `refundable.capCashToLines`; `cancelReservation` reads `cancellation.cancellationFigures`; the payment poll and the notifier build the double-payment
     > effect and the owed amounts through `owed.js` (`doublePaymentEffect`, `duplicatePayment`, `fullOverDeposit`, `duplicateOnSolde`, `flagRefundOwed`, `owedOnLinkPayment`).

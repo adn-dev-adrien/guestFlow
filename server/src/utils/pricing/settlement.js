@@ -520,7 +520,32 @@ function linkAllowed({ ownChannel, convertedOwnChannel = true }) {
   return ownChannel && convertedOwnChannel ? null : { ...PLATFORM_RESERVATION };
 }
 
+/**
+ * The money SCHEDULE sees received above what the stay now asks (specs/reservation-refunds.md rules 34 and 38; specs/pricing-components.md rule 72), in euros — the
+ * keys `overCollectedTtc` and `complementCollectedExcess` of the 137. What is received beyond the schedule is a reading of the receipts, so it lives in SETTLEMENT; REFUNDS' `overpayment` gives it back.
+ *   scheduleOverCollectedTtc   what the paid acompte, solde and installments hold beyond the schedule's own total
+ *   complementCollectedExcess  what a collected arrival complement holds beyond what it now asks (never on a platform stay, never on an adjusted amount);
+ *                              with several methods it comes off what the complement did not receive (`unreceivedComplement`, a thunk)
+ *   complementCut              that part, or null when the stay holds no split payment
+ * @returns {{ scheduleOverCollectedTtc: number, complementCollectedExcess: number, complementCut: (number|null), overCollectedTtc: number }}
+ */
+function scheduleExcess({
+  paidOnSchedule, scheduleTotal, complementPaid, complementOverridden, platformSale, complementAmount, rawComplement, unreceivedComplement = null,
+}) {
+  const scheduleOverCollectedTtc = roundMoney(Math.max(0, paidOnSchedule - scheduleTotal));
+  let complementCollectedExcess = complementPaid && !complementOverridden && !platformSale
+    ? roundMoney(Math.max(0, roundMoney(complementAmount) - rawComplement))
+    : 0;
+  let complementCut = null;
+  if (unreceivedComplement && complementCollectedExcess > 0) {
+    complementCut = roundMoney(Math.min(complementCollectedExcess, unreceivedComplement()));
+    complementCollectedExcess = roundMoney(complementCollectedExcess - complementCut);
+  }
+  return { scheduleOverCollectedTtc, complementCollectedExcess, complementCut, overCollectedTtc: roundMoney(scheduleOverCollectedTtc + complementCollectedExcess) };
+}
+
 module.exports = {
+  scheduleExcess,
   PLATFORM_RESERVATION,
   linkAllowed,
   MID_STAY_SOURCE,

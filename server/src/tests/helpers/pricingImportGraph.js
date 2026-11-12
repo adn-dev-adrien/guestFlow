@@ -51,9 +51,6 @@ const FORBIDDEN_FOR_STAY_UNITS = [/^articles(\/|$)/, /^allowances$/, /^platformP
 // Rule 2: EXTRAS read NIGHTS (and the money), never the tourist tax or the extra guests.
 const FORBIDDEN_FOR_ARTICLES = [/^touristTax$/, /^extraGuests$/];
 const REFUNDS_MAY_IMPORT = ['money', 'platformPayment', 'storedLines'];
-// SCHEDULE's excess keys (`overCollectedTtc`, `complementCollectedExcess`) are the trop-perçu formula of rule 72 and live in `refunds/overpayment`,
-// which imports nothing downstream of SCHEDULE: the one edge from a pricing unit into REFUNDS.
-const MAY_IMPORT_REFUNDS = { schedule: ['refunds/overpayment'] };
 const FORBIDDEN_CLOSURE = [/(^|\/)models\//, /(^|\/)database$/, /plugins\/sdk\/registry$/, /(^|\/)priceLineContributors$/];
 
 const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -108,7 +105,6 @@ function violationsOf({ file, source, root, readFile }) {
   const found = [];
   const judgeEdge = (spec, target, via) => {
     const label = via ? `${spec} (through ${via})` : spec;
-    if ((MAY_IMPORT_REFUNDS[name] || []).includes(target)) return;
     if (target.startsWith('refunds/') && !name.startsWith('refunds/')) found.push(`imports ${label}: no pricing unit imports REFUNDS (rule 72)`);
     if (name.startsWith('refunds/') && !target.startsWith('refunds/') && !REFUNDS_MAY_IMPORT.includes(target) && !target.startsWith('vat')) {
       found.push(`imports ${label}: REFUNDS may import money, vat, platformPayment and the stored-line parsers only (rule 72)`);

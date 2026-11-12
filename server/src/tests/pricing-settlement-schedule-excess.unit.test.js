@@ -1,8 +1,8 @@
-// specs/pricing-components.md §3 rule 72 — the two excess keys of SCHEDULE (`overCollectedTtc`, `complementCollectedExcess`) are computed by REFUNDS'
+// specs/pricing-components.md §3 rule 72 — the two excess keys of SCHEDULE (`overCollectedTtc`, `complementCollectedExcess`) are computed by SETTLEMENT's
 // `scheduleExcess`: the arithmetic SCHEDULE wrote inline, moved unchanged, on a grid of amounts.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { scheduleExcess } = require('../utils/pricing/refunds/overpayment');
+const { scheduleExcess } = require('../utils/pricing/settlement');
 const { roundMoney } = require('../utils/pricing/money');
 
 // The inline arithmetic of schedule.js before PR C, verbatim.
