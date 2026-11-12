@@ -252,6 +252,7 @@ const api = {
 
   // Clients
   getClients: (q) => request(`/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  getClientPicker: (date) => request(`/clients/picker${date ? `?date=${encodeURIComponent(date)}` : ''}`),
   // specs/clients-upcoming-past-directory.md §4.3 — the Clients page read: the three views with their
   // groups (stay, `whenLabel`, `stayCount` per row), counts, `elsewhere` and `orphanCount`.
   getClientsDirectory: ({ q, view, sort, dir } = {}) => {

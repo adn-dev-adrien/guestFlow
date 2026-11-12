@@ -34,6 +34,12 @@ function createController(model) {
     return res.json(model.directory({ q, view, bucket, sort, dir }));
   }
 
+  // specs/resource-booking-client-picker.md §4.3 — a picker's options against the session's day. A
+  // missing or malformed `date` falls back to today in the model.
+  function picker(req, res) {
+    return res.json(model.picker({ date: (req.query || {}).date }));
+  }
+
   function getOne(req, res) {
     const client = model.findById(req.params.id);
     if (!client) return res.status(404).json({ error: 'Client non trouvé' });
@@ -142,7 +148,7 @@ function createController(model) {
   }
 
   return {
-    list, directory, duplicate, getOne, getDeleteImpact, create, update, remove, parseContact,
+    list, directory, picker, duplicate, getOne, getDeleteImpact, create, update, remove, parseContact,
     cleanupOrphans, cleanupOrphansPreview, cleanupOrphansDelete,
   };
 }
