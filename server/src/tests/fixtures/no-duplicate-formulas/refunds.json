@@ -2,57 +2,57 @@
   {
     "file": "controllers/refundsController.js",
     "text": "cancelled.cashLeftTtc = Math.min(cancelled.cashLeftTtc, carried);",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "controllers/refundsController.js",
     "text": "return res.status(409).json({ error: 'Le trop-perçu est déjà remboursé.', code: 'REFUND_EXCEEDS_OVERPAYMENT' });",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "controllers/refundsController.js",
     "text": "return res.status(409).json({ error: `Dépasse le trop-perçu restant (${remaining.toFixed(2).replace('.', ',')} €).`, code: 'REFUND_EXCEEDS_OVERPAYMENT' });",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "models/financeDashboardModel.js",
     "text": "? \"(SELECT COALESCE(SUM(l.amountTtc), 0) FROM reservation_refund_lines l WHERE l.refundId = rf.id AND l.bucket = 'indemnity')\"",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "models/financeModel.js",
     "text": "? `COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "models/financeModel.js",
     "text": "COALESCE((SELECT SUM(rf.totalTtc) FROM reservation_refunds rf",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "models/financeModel.js",
     "text": "? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "models/financeModel.js",
     "text": "? `COALESCE((SELECT SUM(rl.amountTtc) FROM reservation_refund_lines rl JOIN reservation_refunds rf ON rf.id = rl.refundId",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "models/refundsModel.js",
     "text": "const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l",
     "count": 3,
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "plugins/guest-app/controllers/ordersController.js",
@@ -75,14 +75,14 @@
   {
     "file": "utils/cancelReservation.js",
     "text": "keptFromGuest: round2(indemnityAmount + cashDepositKeptOf(row, refunds)),",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "utils/cancelReservation.js",
     "text": "writtenOffBalance: round2((Number(row.balancePaid) ? 0 : round2(row.balanceAmount)) + round2(row.installmentsUnpaidAmount)),",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "a refund sum or cap outside refunds/: PR C routes the finance pages and the cancellation figures through the component"
   },
   {
     "file": "utils/midStayOrderCommit.js",
@@ -214,25 +214,25 @@
   {
     "file": "utils/pricing/schedule.js",
     "text": "const scheduleOverCollectedTtc = roundMoney(Math.max(",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "the SCHEDULE over-collected keys are quote keys of the 137: PR C moves them into refunds/ with the stay-level pool"
   },
   {
     "file": "utils/pricing/schedule.js",
     "text": "let complementCollectedExcess = complementPaid && !complementOverridden && !channel.platformSale",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "the SCHEDULE over-collected keys are quote keys of the 137: PR C moves them into refunds/ with the stay-level pool"
   },
   {
     "file": "utils/pricing/schedule.js",
     "text": "complementCollectedExcess = roundMoney(complementCollectedExcess - cut);",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "the SCHEDULE over-collected keys are quote keys of the 137: PR C moves them into refunds/ with the stay-level pool"
   },
   {
     "file": "utils/pricing/schedule.js",
     "text": "const overCollectedTtc = roundMoney(scheduleOverCollectedTtc + complementCollectedExcess);",
-    "removedBy": "PR B",
-    "reason": "a refund figure computed outside refunds/ until PR B routes it through the component"
+    "removedBy": "PR C",
+    "reason": "the SCHEDULE over-collected keys are quote keys of the 137: PR C moves them into refunds/ with the stay-level pool"
   }
 ]

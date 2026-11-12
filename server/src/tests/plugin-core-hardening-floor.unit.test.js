@@ -126,6 +126,7 @@ for (const [id, hits] of relying) {
   });
 }
 
+// specs/plugins-phase-1-sdk.md rule 51 (SDK 2.28.0) — declaring a fulfilment adapter or a slot availability provider asks for the 2.28.0 floor.
 test('rule 51: ctx.articleFulfilment and ctx.slotAvailability force the 2.28.0 floor', () => {
   assert.equal(hardeningsIn("ctx.articleFulfilment('hourly-slot', adapter);")[0].sdk, '2.28.0');
   assert.equal(hardeningsIn('ctx.slotAvailability(provider);')[0].sdk, '2.28.0');

@@ -75,8 +75,12 @@ const GUARDS = [
       { re: /\b(keptFromGuest|writtenOffBalance):\s*round2\(/, probe: 'keptFromGuest: round2(kept),' },
       { re: /\brefundOwed\s*:\s*true|\brefundCents\s*:\s*excess/, probe: 'return { refundOwed: true };' },
     ],
-    removedBy: () => 'PR B',
-    reason: (file, text, pr) => `a refund figure computed outside refunds/ until ${pr || 'PR B or PR C'} routes it through the component`,
+    // PR B delivered the trop-perçu, the caps and the postes on the allocations (rules 72-76). What stays is read-model SQL and the SCHEDULE keys
+    // `overCollectedTtc` / `complementCollectedExcess` (unchanged quote keys), whose move into refunds/ waits for the finance pages to read allocations (PR C).
+    removedBy: () => 'PR C',
+    reason: (file, text, pr) => (/schedule\.js$/.test(file)
+      ? `the SCHEDULE over-collected keys are quote keys of the 137: ${pr || 'PR C'} moves them into refunds/ with the stay-level pool`
+      : `a refund sum or cap outside refunds/: ${pr || 'PR C'} routes the finance pages and the cancellation figures through the component`),
   },
   {
     name: 'money',

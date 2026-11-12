@@ -1,3 +1,4 @@
+// specs/pricing-components.md §3 rule 77 — the refund lines are re-rated with the period, as vat-optional-mode rule 16 says; no figure moved in PR B.
 // specs/vat-optional-mode.md rules 3, 14, 15, 16, 18 and 19 — switching the regime: each scope, the
 // bounds and their messages, an identical target refused, one all-or-nothing transaction, a history
 // entry per reservation that changes, the refund lines re-rated, the undo of an unused period, the
