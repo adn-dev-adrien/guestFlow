@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini sas du client extérieur — résumé à valider</title>
+<style>
+:root{
+  --primary:#2F5D46; --primary-dark:#244A38; --honey:#C99038;
+  --paper:#F8F5EF; --card:#FFFFFF; --ink:#27251F; --mute:#6E6A5E;
+  --ok:#3E7D54; --ok-soft:#E6EFE7; --warn:#8F6A1D; --warn-soft:#F6EDD7;
+  --err:#A8433A; --err-soft:#F7E8E5; --info:#31556E; --info-soft:#E4EDF3;
+  --line:rgba(60,54,36,.10); --line-strong:rgba(60,54,36,.18);
+  --shadow:0 3px 16px rgba(60,54,36,.09);
+  --r:14px;
+  --serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif;
+  --sans:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.55 var(--sans)}
+::selection{background:rgba(47,93,70,.18)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+a{color:var(--primary);text-underline-offset:3px}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 24px 80px}
+.read{max-width:900px}
+h1{font:600 2rem/1.15 var(--serif);letter-spacing:-.01em;margin:0 0 .4rem}
+h2{font:600 1.35rem/1.25 var(--serif);margin:2.6rem 0 .8rem}
+h3{font:600 1.05rem/1.3 var(--serif);margin:1.4rem 0 .5rem}
+p{margin:.4rem 0 .8rem;max-width:72ch}
+.lede{color:var(--mute);font-size:1.02rem}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+.tag.ok{background:var(--ok-soft);border-color:transparent;color:#2c5b3c}
+.tag.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.tag.info{background:var(--info-soft);border-color:transparent;color:var(--info)}
+ul.tight{margin:.3rem 0 1rem;padding-left:1.2rem;max-width:72ch}
+ul.tight li{margin:.25rem 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.panel h3{margin-top:0}
+table.facts{width:100%;border-collapse:collapse;font-size:.92rem}
+table.facts th,table.facts td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid var(--line)}
+table.facts th{font-weight:600;color:var(--mute);width:28%}
+.scroll{overflow-x:auto}
+code{font:500 .85em ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(60,54,36,.06);padding:1px 5px;border-radius:5px}
+
+/* Questions */
+.q{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;margin:12px 0}
+.q b.t{display:block;font:600 1rem/1.35 var(--serif);margin-bottom:6px}
+.q ol{margin:6px 0 0;padding-left:1.2rem}
+.q li{margin:4px 0}
+.q li.reco::marker{color:var(--primary);font-weight:700}
+.reco-label{font-size:.75rem;font-weight:700;color:var(--primary);background:var(--ok-soft);padding:1px 7px;border-radius:999px;margin-left:4px;white-space:nowrap}
+
+/* Mock controls */
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:8px 0 16px}
+.seg{display:inline-flex;background:var(--card);border:1px solid var(--line-strong);border-radius:999px;padding:3px}
+.seg button{font:600 .85rem var(--sans);border:0;background:transparent;color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--primary);color:#fff}
+.ghost{font:600 .85rem var(--sans);border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:999px;cursor:pointer;min-height:36px}
+.ghost:active,.seg button:active{transform:scale(.97)}
+.note{font-size:.85rem;color:var(--mute)}
+
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,390px);gap:28px;align-items:start}
+@media (max-width:1100px){.stage{grid-template-columns:1fr}}
+.frame-label{font-size:.8rem;font-weight:600;color:var(--mute);margin:0 0 8px}
+.desk{background:#E9E4DA;border-radius:18px;padding:28px 22px}
+.phone{width:390px;max-width:100%;height:780px;box-sizing:border-box;margin:0 auto;border-radius:44px;background:#1f1d19;padding:12px;box-shadow:0 12px 40px rgba(39,37,31,.22)}
+.phone .screen{height:100%;border-radius:34px;overflow:hidden;background:var(--card);position:relative;display:flex;flex-direction:column}
+
+/* The SAS itself */
+.sas{background:var(--card);color:var(--ink);font-size:15px}
+.desk .sas{border-radius:var(--r);box-shadow:0 10px 36px rgba(60,54,36,.16);max-width:820px;margin:0 auto;overflow:hidden}
+.sas-head{padding:18px 22px 10px}
+.sas-title{font:600 1.25rem/1.2 var(--serif)}
+.sas-sub{font-size:.8rem;color:var(--mute);margin-top:2px}
+.sticky-due{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:baseline;padding:10px 18px;background:var(--card);border-bottom:1px solid var(--line)}
+.sticky-due .lab{font-size:.85rem;color:var(--mute)}
+.sticky-due .fig{font:700 1.35rem var(--sans);font-variant-numeric:tabular-nums}
+.sas-body{padding:6px 22px 18px}
+.phone .sas-body{padding:6px 16px 16px;overflow-y:auto;flex:1}
+.cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px}
+.phone .cols{display:block}
+@media (max-width:720px){.wrap{padding:28px 14px 64px}.desk{padding:14px 10px}.desk .cols{display:block}.sas-head,.sas-body,.sas-foot{padding-left:14px;padding-right:14px}.phone{border-radius:36px;padding:8px}.phone .screen{border-radius:28px}.stage>div{min-width:0}}
+.sec{margin:14px 0}
+.sec-h{font:600 1.02rem/1.3 var(--serif);margin:0 0 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.box{border:1px solid var(--line-strong);border-radius:12px;padding:10px 12px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:7px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .l{min-width:0;flex:1}
+.row .nm{font-weight:500}
+.row .dt{font-size:.8rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.amt{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.struck{text-decoration:line-through;color:#A39E90}
+.zero{font-weight:700;color:var(--ok)}
+.chip{display:inline-flex;align-items:center;font-family:var(--sans);font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.chip.paid{background:var(--ok-soft);color:#2c5b3c}
+.chip.due{background:var(--warn-soft);color:var(--warn)}
+.chip.off{background:var(--info-soft);color:var(--info)}
+.btn{font:600 .82rem var(--sans);border-radius:10px;border:1px solid var(--line-strong);background:var(--card);color:var(--ink);padding:0 12px;min-height:44px;min-width:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:active{transform:scale(.97)}
+.btn.offer{border-color:var(--ok);color:var(--ok)}
+.btn.offer[aria-pressed="true"]{background:var(--ok);color:#fff}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.primary:hover{background:var(--primary-dark)}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.btn.danger{color:var(--err);border-color:rgba(168,67,58,.45)}
+.acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+.stepper button{border:0;background:transparent;width:44px;height:44px;cursor:pointer;display:grid;place-items:center;color:var(--ink)}
+.stepper button:active{background:rgba(60,54,36,.06)}
+.stepper button[disabled]{opacity:.35;cursor:not-allowed}
+.stepper span{min-width:30px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.sugg{display:flex;flex-wrap:wrap;gap:8px}
+.sugg button{font:500 .85rem var(--sans);min-height:44px;padding:0 14px;border-radius:999px;border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums}
+.sugg button:active{transform:scale(.97)}
+.sugg button b{font-weight:600;margin-left:6px;color:var(--mute)}
+.recap .row{border-top:0;padding:4px 0}
+.recap .big .nm{font-weight:600}
+.recap .big .amt{font:700 1.4rem var(--sans);font-variant-numeric:tabular-nums}
+.recap .muted{font-size:.82rem;color:var(--mute)}
+.refusal{font-size:.82rem;color:var(--err);margin:6px 0 0}
+.box.bad{border-color:var(--err)}
+.pay-methods{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.pay-methods button{font:600 .82rem var(--sans);min-height:40px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);background:var(--card);cursor:pointer}
+.pay-methods button[aria-pressed="true"]{background:var(--primary);border-color:var(--primary);color:#fff}
+.field{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);border-radius:10px;padding:0 12px;min-height:46px;background:#fff}
+.field.bad{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.field input{border:0;outline:0;font:600 1rem var(--sans);width:100%;font-variant-numeric:tabular-nums;background:transparent;color:var(--ink)}
+.field span{color:var(--mute)}
+.check{display:flex;gap:8px;align-items:center;font-size:.88rem;margin-top:8px;min-height:36px}
+.check input{width:18px;height:18px;accent-color:var(--primary)}
+.alert{border-radius:10px;padding:10px 12px;font-size:.86rem;margin:8px 0}
+.alert.warn{background:var(--warn-soft);color:#6d5216}
+.alert.ok{background:var(--ok-soft);color:#2c5b3c}
+.alert.err{background:var(--err-soft);color:#7d3029}
+.alert .acts{justify-content:flex-start;margin-top:8px}
+.sas-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--line);background:var(--card)}
+.phone .sas-foot{flex-direction:column;padding:12px 16px 18px}
+.phone .sas-foot .btn{width:100%}
+.cardprev{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;box-shadow:var(--shadow);padding:10px 14px;margin-top:12px;font-size:.88rem}
+.cardprev .time{font-weight:700;font-variant-numeric:tabular-nums}
+.added{animation:rise .15s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.added{animation:none}.btn:active,.ghost:active,.seg button:active,.sugg button:active{transform:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="read">
+  <h1>Mini sas du client extérieur : séance, boissons, reste à payer</h1>
+  <p class="lede">Résumé de la spec <code>specs/outside-booking-sas.md</code> (brouillon, cible 4.1.0), pour décider. La spec en anglais reste la référence ; ce résumé porte le constat, la proposition, ce qu’on ne fait pas, le risque, les décisions en attente et une maquette manipulable.</p>
+  <div class="meta">
+    <span class="tag warn">Brouillon — à valider</span>
+    <span class="tag info">Dépend de la refonte des prix, PR C (et donc B)</span>
+    <span class="tag">Plugin « Ressources à l’heure »</span>
+    <span class="tag">34 règles · 9 décisions</span>
+  </div>
+</header>
+
+<section class="read">
+  <h2>Le constat</h2>
+  <p>Demande du 12/11, après l’essai à la main d’une copie 4.0.0 : pour une réservation de bain nordique par un client extérieur, un mini sas de la prestation, avec des options à proposer à l’accueil (boissons) et un éventuel montant restant à payer.</p>
+  <p><b>Le mini sas existe déjà en partie.</b> Le bouton « Arrivée » d’une séance hors séjour ouvre un écran unique : la séance et son prix, le temps offert par quart d’heure, le paiement et la facture Qonto. Il lui manque trois choses :</p>
+  <ul class="tight">
+    <li><b>Aucune vente en plus.</b> Une boisson pour un client sans séjour n’a aucun chemin dans GuestFlow aujourd’hui.</li>
+    <li><b>Aucun reste.</b> Le paiement se fait en une fois sur le total : un paiement partiel est refusé.</li>
+    <li><b>Réservé à l’administrateur.</b> L’accueil ne peut pas ouvrir cet écran, et il ferme à minuit pile, alors que le sas d’un séjour reste ouvert jusqu’à 4 h.</li>
+  </ul>
+  <p>La refonte des prix a déjà tranché sur quoi tout cela doit reposer : la vente hors séjour (TVA du client extérieur, articles « vendables hors séjour »), le client « Passage », les lignes figées au moment de l’achat, les paiements rattachés aux lignes, un seul « Offert », un seul composant de remboursement et une seule sortie comptable. Cette spec ne crée aucun nouveau calcul : elle assemble ces composants pour une visite.</p>
+  <p class="note">Vérifié : aucune autre spec ne couvre ces ventes en plus ni ce reste. La spec de facturation des séances ne traite que la séance seule, payée en une fois. La refonte prévoit une vente hors séjour au comptoir, sans lien avec une réservation de bain.</p>
+</section>
+
+<section>
+  <h2>Ce qu’on propose — la maquette</h2>
+  <p class="read">Le même état alimente l’écran ordinateur et l’écran téléphone. On peut ajouter une boisson, en offrir une, encaisser une partie et voir le reste changer. Une saisie invalide affiche son refus : un montant au-dessus du dû, une quantité hors limites, un montant vide, ou une ligne déjà payée qu’on veut offrir.</p>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Situation de départ">
+      <button data-act="scenario" data-v="due" aria-pressed="true">Séance à payer</button>
+      <button data-act="scenario" data-v="prepaid" aria-pressed="false">Séance payée à la réservation</button>
+    </div>
+    <div class="seg" role="group" aria-label="Rôle">
+      <button data-act="role" data-v="admin" aria-pressed="true">Administrateur</button>
+      <button data-act="role" data-v="reception" aria-pressed="false">Accueil</button>
+    </div>
+    <button class="ghost" data-act="reset">Recommencer</button>
+    <span class="note">Maquette : en vrai, chaque montant vient du serveur. Ici, une imitation pour juger l’écran.</span>
+  </div>
+  <div class="stage">
+    <div>
+      <p class="frame-label">Ordinateur · fenêtre du planning</p>
+      <div class="desk"><div class="sas" id="f-desk"></div>
+        <div id="card-desk"></div></div>
+    </div>
+    <div>
+      <p class="frame-label">Téléphone · 390 px, plein écran</p>
+      <div class="phone"><div class="screen sas" id="f-phone"></div></div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:22px">
+    <div class="panel">
+      <h3>Ce que fait l’écran</h3>
+      <ul class="tight">
+        <li><b>Sa séance</b> : les lignes du tarif (jour, soirée), le temps offert par 15 min, « Offrir » sur toute la séance.</li>
+        <li><b>À proposer</b> : les articles suggérés pour cette ressource en un geste, puis « Autre article ». Seuls les articles vendables hors séjour, sans notion de nuit ni de personne.</li>
+        <li><b>Récapitulatif</b> : total, déjà payé, reste à payer, dont TVA. Le reste vient du composant d’encaissement, jamais de l’écran.</li>
+        <li><b>Paiement</b> : les mêmes moyens que les fiches, la caisse interne, plusieurs paiements possibles ; ce qui manque reste « à percevoir ».</li>
+        <li><b>Facture</b> : proposée une fois le reste à zéro. Une seule facture Qonto pour la séance et les boissons.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Comment c’est construit</h3>
+      <ul class="tight">
+        <li>Une visite = <b>une vente hors séjour</b> (refonte, PR C) dont la séance est une ligne ; la réservation garde le créneau, le planning et l’arrivée.</li>
+        <li>TVA du client extérieur par le composant TVA : séance au réglage actuel (20 %), boissons à leur classe (20 % dans l’exemple de la refonte).</li>
+        <li>Paiements rattachés aux lignes, dans l’ordre de vente. Le reste à payer, le trop-perçu et le remboursement sont calculés chacun une seule fois.</li>
+        <li>Journal comptable par la sortie comptable de la refonte : à la date de chaque paiement, hors caisse interne, sans les lignes offertes.</li>
+        <li>Le bain, sa chauffe et son heure offerte aux séjours restent dans le plugin. Le cœur ne connaît ni « bain », ni aucune plateforme.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="read">
+  <h2>Ce qu’on ne fait pas</h2>
+  <ul class="tight">
+    <li>La carte de bain du planning alignée sur la carte d’arrivée (taille du texte, ordre des informations) : déjà faite en 4.0.0.</li>
+    <li>La fenêtre « Vente hors séjour » de la page Encaissements : c’est la PR C de la refonte. Cette spec réutilise seulement son service de vente.</li>
+    <li>Un lien de paiement Qonto depuis le mini sas (décision 6).</li>
+    <li>Les remises en pourcentage ou en montant sur une ligne : « Offrir » et le temps offert suffisent au comptoir.</li>
+    <li>Les pourboires et le stock des boissons.</li>
+    <li>Réserver une autre séance ou déplacer le créneau depuis le mini sas : cela se fait toujours depuis la réservation.</li>
+    <li>Déplacer l’argent des séances déjà payées : elles gardent leurs chiffres, et les mois déjà exportés ne bougent pas.</li>
+  </ul>
+
+  <h2>Le risque</h2>
+  <div class="scroll"><table class="facts">
+    <tr><th>Dépendance</th><td>Rien ne peut être livré avant les PR B et C de la refonte. Sans elles, ajouter des boissons voudrait dire un deuxième calcul de prix et de TVA, exactement ce que la refonte supprime.</td></tr>
+    <tr><th>Compter deux fois</th><td>Une séance payée pourrait apparaître à la fois dans les ventes du plugin et dans les ventes hors séjour du cœur (journal, lot CB). Règle 32 : le plugin saute toute séance dont l’argent est sur une vente. Un test le vérifie.</td></tr>
+    <tr><th>Deux modèles pendant la transition</th><td>Les séances payées avant la mise à jour gardent leur argent sur la réservation. Celles d’après le mettent sur la vente. Le mini sas lit les deux sans les additionner à la main.</td></tr>
+    <tr><th>Comptabilité</th><td>Les boissons demandent un compte de produits que la comptable doit choisir (décision 8). Sans ce compte, l’export qui contient une boisson est refusé, plutôt que de passer en compte faux.</td></tr>
+    <tr><th>Accueil et argent</th><td>L’accueil encaisse déjà au sas des séjours. Ici, il voit l’argent à percevoir, jamais un remboursement, et ne peut pas offrir une ligne déjà payée.</td></tr>
+  </table></div>
+
+  <h2>Décisions en attente</h2>
+  <p class="note">La recommandation est en premier. Rien n’est tranché sans Adrien.</p>
+  <div id="questions"></div>
+</section>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var CATALOG = {
+    beer:{label:'Bière locale', unit:650, max:12},
+    lemon:{label:'Limonade artisanale', unit:400, max:12},
+    tea:{label:'Tisane', unit:300, max:12},
+    board:{label:'Planche apéritive', unit:1400, max:4}
+  };
+  var SUGG = ['beer','lemon','tea','board'];
+  var VAT = 20;
+  var S, seq;
+
+  function fresh(scenario, role){
+    seq = 0;
+    S = {
+      scenario: scenario || 'due', role: role || 'admin',
+      offeredMin: 0, sessionOffered: false,
+      extras: [], payments: [], refundOwed: 0,
+      payOpen: true, method: 'card', amountText: '', amountTouched: false, keepDue: false,
+      committed: false, confirm: null, qtyRefusal: null, lastAdded: null, invoice: false, flash: null
+    };
+    if (S.scenario === 'prepaid') S.payments.push({cents: 7000, method: 'card', at: 'réservation'});
+  }
+
+  // Session price as the hourly family would describe it: day 18:00-19:00 at 30 €/h, evening 19:00-20:00 at 40 €/h.
+  function sessionParts(){
+    var day = 3000, eve = 4000, off = 0, m = S.offeredMin;
+    var dayMin = Math.min(m, 60), eveMin = Math.max(0, m - 60);
+    off = Math.round(dayMin * 3000 / 60) + Math.round(eveMin * 4000 / 60);
+    return {day: day, eve: eve, off: off, total: day + eve - off};
+  }
+  function sessionTotal(){ return S.sessionOffered ? 0 : sessionParts().total; }
+  function lineTotal(x){ return x.offered ? 0 : x.qty * CATALOG[x.ref].unit; }
+  function lines(){
+    var out = [{id: 'session', total: sessionTotal(), full: sessionParts().total}];
+    S.extras.forEach(function(x){ out.push({id: x.id, total: lineTotal(x), full: x.qty * CATALOG[x.ref].unit}); });
+    return out;
+  }
+  function paidCents(){ return S.payments.reduce(function(s,p){ return s + p.cents; }, 0); }
+  function totalCents(){ return lines().reduce(function(s,l){ return s + l.total; }, 0); }
+  function remaining(){ return Math.max(0, totalCents() - (paidCents() - S.refundOwed)); }
+  // Allocation in sale order, each line covered whole before the next (rule 19).
+  function allocations(){
+    var left = paidCents(), map = {};
+    lines().forEach(function(l){ var base = l.id === 'session' ? (S.sessionOffered ? (S.sessionAlloc || 0) : l.total) : (S.allocKeep && S.allocKeep[l.id] != null ? S.allocKeep[l.id] : l.total);
+      var a = Math.min(left, base); map[l.id] = a; left -= a; });
+    return map;
+  }
+  function statusOf(id, total){
+    var a = allocations()[id] || 0;
+    var offered = id === 'session' ? S.sessionOffered : (find(id) || {}).offered;
+    if (offered) return 'off';
+    if (total > 0 && a >= total) return 'paid';
+    return 'due';
+  }
+  function find(id){ for (var i = 0; i < S.extras.length; i++) if (S.extras[i].id === id) return S.extras[i]; return null; }
+  function eur(c){ var neg = c < 0; c = Math.abs(c); var s = (c / 100).toFixed(2).replace('.', ','); var parts = s.split(','); parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' '); return (neg ? '−' : '') + parts.join(',') + ' €'; }
+  function vatOf(c){ return Math.round(c * VAT / (100 + VAT)); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(ch){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]; }); }
+
+  function parseAmount(text){
+    var t = String(text).trim().replace(/\s| /g, '').replace(',', '.').replace(/€$/, '');
+    if (t === '') return {empty: true};
+    if (!/^\d+(\.\d{1,2})?$/.test(t)) return {bad: true};
+    return {cents: Math.round(parseFloat(t) * 100)};
+  }
+  function payCheck(){
+    var due = remaining();
+    if (due <= 0) return {none: true};
+    var text = S.amountTouched ? S.amountText : (due / 100).toFixed(2).replace('.', ',');
+    var p = parseAmount(text);
+    if (p.empty || p.bad || p.cents <= 0) return {text: text, error: 'Chaque moyen doit avoir un montant.'};
+    if (p.cents > due) return {text: text, error: 'Les moyens font ' + eur(p.cents) + ' pour ' + eur(due) + ' dus.'};
+    if (p.cents < due && !S.keepDue) return {text: text, short: due - p.cents, error: eur(due - p.cents) + ' ne sont pas couverts : reste à percevoir ?'};
+    return {text: text, cents: p.cents, short: due - p.cents};
+  }
+
+  var ICON_MINUS = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  var ICON_PLUS = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M8 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  function chip(st){ return st === 'paid' ? '<span class="chip paid">Payée</span>' : st === 'off' ? '<span class="chip off">Offerte</span>' : '<span class="chip due">À payer</span>'; }
+
+  function renderSas(v){
+    var sp = sessionParts(), due = remaining(), tot = totalCents(), paid = paidCents() - S.refundOwed;
+    var h = [];
+    h.push('<div class="sas-head"><div class="sas-title">Arrivée · Client #412</div><div class="sas-sub">Bain nordique · jeudi 12 novembre · 18:00 → 20:00 · client sans séjour</div></div>');
+    if (v === 'phone') h.push('<div class="sticky-due"><span class="lab">Reste à payer</span><span class="fig">' + eur(due) + '</span></div>');
+    h.push('<div class="sas-body">');
+    if (S.flash) h.push('<div class="alert ' + S.flash.kind + '">' + esc(S.flash.text) + '</div>');
+    if (S.role === 'reception') h.push('<div class="alert warn">Accueil : encaissement possible jusqu’à 4 h ; une ligne payée ne s’offre pas d’ici.</div>');
+    h.push('<div class="cols"><div>');
+
+    // Session
+    var sst = statusOf('session', sp.total);
+    h.push('<div class="sec"><div class="sec-h"><span>Sa séance</span>' + chip(sst) + '</div><div class="box">');
+    h.push('<div class="row"><div class="l"><div class="nm">Jour · 18:00–19:00</div><div class="dt">1 h × 30,00 €</div></div><div class="amt' + (S.sessionOffered ? ' struck' : '') + '">' + eur(sp.day) + '</div></div>');
+    h.push('<div class="row"><div class="l"><div class="nm">Soirée · 19:00–20:00</div><div class="dt">1 h × 40,00 €</div></div><div class="amt' + (S.sessionOffered ? ' struck' : '') + '">' + eur(sp.eve) + '</div></div>');
+    var paidSession = S.payments.length > 0 && sst === 'paid';
+    h.push('<div class="row"><div class="l"><div class="nm">Temps offert</div><div class="dt">' + (S.offeredMin ? S.offeredMin + ' min · ' + eur(-sp.off) : 'par 15 min') + '</div></div><div class="stepper" role="group" aria-label="Temps offert">' +
+      '<button data-act="offmin" data-d="-15" aria-label="Moins 15 minutes"' + (S.offeredMin <= 0 || paidSession || S.sessionOffered ? ' disabled' : '') + '>' + ICON_MINUS + '</button><span>' + S.offeredMin + '</span>' +
+      '<button data-act="offmin" data-d="15" aria-label="Plus 15 minutes"' + (S.offeredMin >= 120 || paidSession || S.sessionOffered ? ' disabled' : '') + '>' + ICON_PLUS + '</button></div></div>');
+    h.push('<div class="row"><div class="l"><div class="nm">Séance</div></div><div class="acts">' + (S.sessionOffered ? '<span class="amt struck">' + eur(sp.total) + '</span><span class="zero">0 €</span>' : '<span class="amt">' + eur(sp.total) + '</span>') +
+      '<button class="btn offer" data-act="offer" data-id="session" aria-pressed="' + S.sessionOffered + '">' + (S.sessionOffered ? 'Offert' : 'Offrir') + '</button></div></div>');
+    if (S.confirm === 'session') h.push(confirmBox('session'));
+    h.push('</div></div>');
+
+    // Extras
+    h.push('<div class="sec"><div class="sec-h"><span>À proposer</span></div><div class="sugg">');
+    SUGG.forEach(function(k){ h.push('<button data-act="add" data-ref="' + k + '">' + esc(CATALOG[k].label) + '<b>' + eur(CATALOG[k].unit) + '</b></button>'); });
+    h.push('</div>');
+    if (S.qtyRefusal) h.push('<p class="refusal" role="alert">' + esc(S.qtyRefusal) + '</p>');
+    if (S.extras.length) {
+      h.push('<div class="box" style="margin-top:10px">');
+      S.extras.forEach(function(x){
+        var c = CATALOG[x.ref], st = statusOf(x.id, lineTotal(x)), full = x.qty * c.unit, locked = x.committed;
+        h.push('<div class="row' + (S.lastAdded === x.id ? ' added' : '') + '"><div class="l"><div class="nm">' + esc(c.label) + '</div><div class="dt">' + x.qty + ' × ' + eur(c.unit) + ' · TVA\u00a0' + VAT + '\u00a0% ' + chip(st) + '</div></div>');
+        h.push('<div class="acts">');
+        if (!locked) h.push('<div class="stepper" role="group" aria-label="Quantité"><button data-act="qty" data-id="' + x.id + '" data-d="-1" aria-label="Un de moins"' + (x.qty <= 1 ? ' disabled' : '') + '>' + ICON_MINUS + '</button><span>' + x.qty + '</span><button data-act="qty" data-id="' + x.id + '" data-d="1" aria-label="Un de plus">' + ICON_PLUS + '</button></div>');
+        h.push(x.offered ? '<span class="amt struck">' + eur(full) + '</span><span class="zero">0 €</span>' : '<span class="amt">' + eur(full) + '</span>');
+        h.push('<button class="btn offer" data-act="offer" data-id="' + x.id + '" aria-pressed="' + x.offered + '">' + (x.offered ? 'Offert' : 'Offrir') + '</button>');
+        if (st !== 'paid' && !(allocations()[x.id] > 0)) h.push('<button class="btn danger" data-act="remove" data-id="' + x.id + '">Retirer</button>');
+        h.push('</div></div>');
+        if (S.confirm === x.id) h.push(confirmBox(x.id));
+      });
+      h.push('</div>');
+      if (S.committed) h.push('<p class="note" style="margin:6px 0 0">Après l’arrivée, un article ajouté fait une nouvelle ligne, même s’il est déjà là.</p>');
+    }
+    h.push('</div>');
+    h.push('</div><div>');
+
+    // Recap
+    h.push('<div class="sec recap"><div class="sec-h"><span>Récapitulatif</span></div><div class="box">');
+    h.push('<div class="row"><div class="l nm">Total</div><div class="amt">' + eur(tot) + '</div></div>');
+    if (paid > 0) h.push('<div class="row"><div class="l">Déjà payé</div><div class="amt">' + eur(paid) + '</div></div>');
+    if (S.refundOwed > 0 && S.role === 'admin') h.push('<div class="row"><div class="l">À rembourser</div><div class="amt" style="color:var(--err)">' + eur(S.refundOwed) + '</div></div>');
+    h.push('<div class="row big"><div class="l nm">Reste à payer</div><div class="amt">' + eur(due) + '</div></div>');
+    h.push('<div class="row muted"><div class="l">dont TVA ' + VAT + ' %</div><div class="amt">' + eur(vatOf(tot)) + '</div></div>');
+    h.push('</div></div>');
+
+    // Payment
+    var pc = payCheck();
+    h.push('<div class="sec"><div class="sec-h"><span>Paiement</span></div>');
+    if (pc.none) {
+      h.push('<p class="note">' + (tot === 0 ? 'Tout est offert : rien à encaisser.' : 'Rien à encaisser.') + '</p>');
+    } else {
+      h.push('<div class="seg" role="group" aria-label="Encaisser"><button data-act="payopen" data-v="1" aria-pressed="' + S.payOpen + '">Encaisser</button><button data-act="payopen" data-v="0" aria-pressed="' + !S.payOpen + '">Pas maintenant</button></div>');
+      if (S.payOpen) {
+        h.push('<div class="pay-methods" role="group" aria-label="Moyen">');
+        [['card','CB'],['cash','Espèces'],['cheque','Chèque'],['holidayVoucher','Chèques-vacances']].forEach(function(m){ h.push('<button data-act="method" data-v="' + m[0] + '" aria-pressed="' + (S.method === m[0]) + '">' + m[1] + '</button>'); });
+        h.push('</div>');
+        h.push('<label class="sr" for="amt-' + v + '">Montant</label><div class="field' + (pc.error ? ' bad' : '') + '"><input id="amt-' + v + '" data-key="amount" inputmode="decimal" autocomplete="off" value="' + esc(pc.text) + '"><span>€</span></div>');
+        if (S.method === 'cash') h.push('<label class="check"><input type="checkbox" checked disabled> Caisse interne</label>');
+        if (pc.short > 0) h.push('<label class="check"><input type="checkbox" data-act="keepdue"' + (S.keepDue ? ' checked' : '') + '> Reste à percevoir · ' + eur(pc.short) + '</label>');
+        if (pc.error) h.push('<p class="refusal" role="alert">' + esc(pc.error) + '</p>');
+        h.push('<div style="margin-top:10px"><button class="btn primary" data-act="pay"' + (pc.error ? ' disabled' : '') + '>Encaisser ' + (pc.cents ? eur(pc.cents) : '') + '</button></div>');
+      } else {
+        h.push('<div class="alert warn">Le reste reste signalé au planning jusqu’au paiement.</div>');
+      }
+    }
+    h.push('</div>');
+
+    // Invoice
+    h.push('<div class="sec"><div class="sec-h"><span>Facture</span></div>');
+    if (tot === 0) h.push('<p class="note">Rien à facturer.</p>');
+    else if (due > 0) h.push('<p class="note">Facture après le solde.</p>');
+    else if (S.payments.some(function(p){ return p.method === 'cash'; })) h.push('<p class="note">Caisse interne : hors comptabilité.</p>');
+    else h.push('<label class="check"><input type="checkbox" data-act="invoice"' + (S.invoice ? ' checked' : '') + '> Créer la facture dans Qonto · séance et boissons</label>');
+    h.push('</div>');
+
+    h.push('</div></div></div>');
+    h.push('<div class="sas-foot"><button class="btn" data-act="reset">Annuler</button><button class="btn primary" data-act="commit">' + (S.committed ? 'Enregistrer' : 'Valider l’arrivée') + '</button></div>');
+    return h.join('');
+  }
+  function confirmBox(id){
+    var a = allocations()[id] || 0;
+    if (S.role !== 'admin') return '<div class="alert err" role="alert">Remboursement : réservé à l’administrateur.<div class="acts"><button class="btn" data-act="cancelconfirm">Fermer</button></div></div>';
+    return '<div class="alert err" role="alert">Ligne payée : remboursement à confirmer. ' + eur(a) + ' à rembourser.<div class="acts"><button class="btn danger" data-act="confirmrefund" data-id="' + id + '">Offrir et rembourser</button><button class="btn" data-act="cancelconfirm">Garder</button></div></div>';
+  }
+  function renderCard(){
+    var due = remaining();
+    var st = !S.committed ? '<span class="chip due">À encaisser</span>' : due > 0 ? '<span class="chip due">Reste ' + eur(due) + '</span>' : '<span class="chip paid">Payé</span>';
+    return '<div class="cardprev"><span class="time">18:00 → 20:00</span><span>Bain nordique · Client #412</span><span style="margin-left:auto">' + st + '</span></div><p class="note" style="margin:6px 2px 0">Carte du planning, lue au serveur après chaque enregistrement.</p>';
+  }
+
+  function render(){
+    var active = document.activeElement, key = active && active.getAttribute && active.getAttribute('data-key');
+    var frame = active && active.closest && active.closest('.sas'), fid = frame && frame.id, pos = key ? active.selectionStart : null;
+    document.getElementById('f-desk').innerHTML = renderSas('desk');
+    document.getElementById('f-phone').innerHTML = renderSas('phone');
+    document.getElementById('card-desk').innerHTML = renderCard();
+    Array.prototype.forEach.call(document.querySelectorAll('[data-act="scenario"]'), function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === S.scenario)); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-act="role"]'), function(b){ b.setAttribute('aria-pressed', String(b.getAttribute('data-v') === S.role)); });
+    if (key && fid) { var el = document.querySelector('#' + fid + ' [data-key="' + key + '"]'); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
+    S.lastAdded = null;
+  }
+
+  function act(name, el){
+    var id = el.getAttribute('data-id');
+    S.flash = null;
+    switch (name) {
+      case 'scenario': fresh(el.getAttribute('data-v'), S.role); break;
+      case 'role': S.role = el.getAttribute('data-v'); S.confirm = null; break;
+      case 'reset': fresh(S.scenario, S.role); break;
+      case 'offmin': S.offeredMin = Math.max(0, Math.min(120, S.offeredMin + Number(el.getAttribute('data-d')))); S.amountTouched = false; break;
+      case 'add': {
+        var ref = el.getAttribute('data-ref'), max = CATALOG[ref].max, open = null;
+        S.extras.forEach(function(x){ if (x.ref === ref && !x.committed && !x.offered) open = x; });
+        S.qtyRefusal = null;
+        if (open) { if (open.qty >= max) S.qtyRefusal = 'Quantité : 1 à ' + max + '.'; else open.qty += 1; }
+        else { seq += 1; var nx = {id: 'x' + seq, ref: ref, qty: 1, offered: false, committed: false}; S.extras.push(nx); S.lastAdded = nx.id; }
+        S.amountTouched = false; break;
+      }
+      case 'qty': {
+        var x = find(id), d = Number(el.getAttribute('data-d')), mx = CATALOG[x.ref].max;
+        S.qtyRefusal = null;
+        if (x.qty + d > mx) S.qtyRefusal = 'Quantité : 1 à ' + mx + '.'; else x.qty = Math.max(1, x.qty + d);
+        S.amountTouched = false; break;
+      }
+      case 'remove': S.extras = S.extras.filter(function(x){ return x.id !== id; }); S.amountTouched = false; break;
+      case 'offer': {
+        var isSession = id === 'session', line = isSession ? null : find(id), offered = isSession ? S.sessionOffered : line.offered;
+        var alloc = allocations()[id] || 0;
+        if (!offered && alloc > 0) { S.confirm = id; break; }
+        if (offered && (isSession ? S.sessionRefunded : line.refunded)) { S.flash = {kind: 'warn', text: 'Remboursement déjà dû : la ligne reste offerte.'}; break; }
+        if (isSession) S.sessionOffered = !S.sessionOffered; else line.offered = !line.offered;
+        S.amountTouched = false; break;
+      }
+      case 'confirmrefund': {
+        var a = allocations()[id] || 0;
+        S.allocKeep = S.allocKeep || {};
+        if (id === 'session') { S.sessionAlloc = a; S.sessionOffered = true; S.sessionRefunded = true; }
+        else { var ln = find(id); S.allocKeep[id] = a; ln.offered = true; ln.refunded = true; }
+        S.refundOwed += a; S.confirm = null; S.amountTouched = false;
+        S.flash = {kind: 'warn', text: eur(a) + ' à rembourser, par le parcours de remboursement.'};
+        break;
+      }
+      case 'cancelconfirm': S.confirm = null; break;
+      case 'payopen': S.payOpen = el.getAttribute('data-v') === '1'; break;
+      case 'method': S.method = el.getAttribute('data-v'); break;
+      case 'keepdue': S.keepDue = el.checked; break;
+      case 'invoice': S.invoice = el.checked; break;
+      case 'pay': {
+        var pc = payCheck(); if (pc.error || !pc.cents) break;
+        S.payments.push({cents: pc.cents, method: S.method});
+        S.amountTouched = false; S.amountText = ''; S.keepDue = false;
+        S.flash = {kind: 'ok', text: eur(pc.cents) + ' encaissés' + (pc.short ? ' · reste à percevoir ' + eur(pc.short) : '') + '.'};
+        break;
+      }
+      case 'commit': {
+        S.committed = true; S.extras.forEach(function(x){ x.committed = true; }); S.confirm = null;
+        var due = remaining();
+        S.flash = {kind: due > 0 ? 'warn' : 'ok', text: (due > 0 ? 'Arrivée enregistrée · reste ' + eur(due) + ' signalé au planning.' : 'Arrivée enregistrée · tout est réglé.') + (S.invoice && due === 0 ? ' Facture demandée à Qonto.' : '')};
+        break;
+      }
+    }
+    render();
+  }
+
+  document.addEventListener('click', function(e){
+    var el = e.target.closest('[data-act]');
+    if (!el || el.tagName === 'INPUT') return;
+    act(el.getAttribute('data-act'), el);
+  });
+  document.addEventListener('change', function(e){
+    var el = e.target;
+    if (el.tagName === 'INPUT' && el.type === 'checkbox' && el.getAttribute('data-act')) act(el.getAttribute('data-act'), el);
+  });
+  document.addEventListener('input', function(e){
+    var el = e.target;
+    if (el.getAttribute('data-key') === 'amount') { S.amountText = el.value; S.amountTouched = true; S.flash = null; render(); }
+  });
+
+  var QS = [
+    ['1. Qu’est-ce qu’une visite, côté vente ?', [
+      ['Une seule vente hors séjour par visite. La séance en est une ligne, la réservation garde le créneau, le planning et l’arrivée. Un seul reste, une seule facture, un seul rattachement des paiements.', 1],
+      ['Deux ventes : la séance garde son argent sur la réservation, une vente hors séjour porte les boissons. Le serveur additionne les deux restes. Deux factures, deux chemins comptables.'],
+      ['Les boissons enregistrées sur la réservation de séance (table du plugin). Écarté d’avance : ce serait un deuxième calcul de prix et de TVA.']]],
+    ['2. Jusqu’à quand le mini sas reste-t-il ouvert ?', [
+      ['Comme le sas d’un séjour : de minuit le jour de la séance jusqu’à 4 h le lendemain, pour une séance du soir clôturée après minuit.', 1],
+      ['Le jour de la séance seulement, comme aujourd’hui.']]],
+    ['3. L’accueil peut-il s’en servir ?', [
+      ['Oui, dans la fenêtre, et il peut rouvrir pour ajouter des boissons pendant la séance. Une ligne payée ne s’offre et ne se retire que par l’administrateur, de même que tout remboursement.', 1],
+      ['Non, administrateur seulement, comme aujourd’hui.'],
+      ['Oui, mais une seule validation, comme le sas d’un séjour : une fois fait, il est verrouillé pour l’accueil.']]],
+    ['4. Quel client pour un extérieur dont on a tapé le nom ?', [
+      ['Le client enregistré si la réservation en nomme un ; sinon « Passage ». Une fiche client n’est rattachée que sur un e-mail identique, ou créée quand « Enregistrer comme client » est coché.', 1],
+      ['La règle de la refonte telle qu’écrite : un nom tapé se rattache à une fiche correspondante ou en crée une. Risque d’homonymes et d’un répertoire rempli de clients de passage.']]],
+    ['5. Quels articles proposer en un geste ?', [
+      ['Une liste par ressource, « Proposés à l’arrivée », dans les réglages du plugin. Les autres articles vendables hors séjour se trouvent par la recherche.', 1],
+      ['Tous les articles vendables hors séjour en pastilles.'],
+      ['Une seule liste pour toutes les ressources.']]],
+    ['6. Un lien de paiement Qonto pour le reste ?', [
+      ['Non dans le mini sas : le terminal CB est au comptoir. Le reste s’encaisse plus tard depuis la réservation.', 1],
+      ['Oui : « Envoyer un lien » pour le reste, si un e-mail est connu et le paiement en ligne actif.']]],
+    ['7. Et si le client ne vient pas ?', [
+      ['« Client absent » annule les lignes non payées et garde l’argent déjà pris. Un remboursement reste une action explicite de l’administrateur.', 1],
+      ['Rien de prévu : la séance reste « À encaisser ».'],
+      ['Remboursement dû automatiquement.']]],
+    ['8. Sur quel compte passent les boissons ?', [
+      ['Un réglage de l’export comptable, vide au départ et obligatoire avant le premier export qui contient une boisson : la comptable choisit le compte.', 1],
+      ['Le même compte que la séance, 70601000.']]],
+    ['9. Dans quelle PR ?', [
+      ['Sa propre PR, juste après la PR C de la refonte, dans la 4.1.0.', 1],
+      ['Dans la PR C, avec la vente hors séjour. La PR C grossit ; la refonte prévoit de pouvoir en sortir la vente hors séjour, pas d’y ajouter.']]]
+  ];
+  document.getElementById('questions').innerHTML = QS.map(function(q){
+    return '<div class="q"><b class="t">' + esc(q[0]) + '</b><ol type="A">' + q[1].map(function(o){ return '<li' + (o[1] ? ' class="reco"' : '') + '>' + esc(o[0]) + (o[1] ? ' <span class="reco-label">Recommandé</span>' : '') + '</li>'; }).join('') + '</ol></div>';
+  }).join('');
+
+  fresh('due', 'admin');
+  render();
+})();
+</script>
+</body>
+</html>
