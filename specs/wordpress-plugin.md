@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Implemented (code) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). v1.16.0 (2026-10-19, UI/UX review 2026-10-18): refusal field by field (rule 28) and one accent colour (rule 29); the calendar and the sticky bar are in [wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rules 29–33. |
+| **Status** | Implemented (code; rule 36 plugin 1.19.1, 2026-11-12) — pending manual verification on a live WordPress site. v1.3.0 adds the online full-payment flow (booking block `payOnline` + pay/status proxy routes; see §3 rule 6b). v1.15.0 (2026-10-18) derives the settings, makes the engine accessible and retries a failed payment on the same devis (rules 14–24); the review follow-up fixes the payment return on a generic page, the detected booking page and the retry comparison (rules 25–27). v1.16.0 (2026-10-19, UI/UX review 2026-10-18): refusal field by field (rule 28) and one accent colour (rule 29); the calendar and the sticky bar are in [wp-booking-widget-redesign.md](wp-booking-widget-redesign.md) rules 29–33. |
 | **Branch** | `feature/wordpress-plugin` _(user-managed)_ |
 | **Created** | 2026-06-08 |
 | **Author** | Adrien |
@@ -257,9 +257,9 @@ remaining the single source of truth for prices, availability, and validation.
 - API key not configured → blocks show "Réservation temporairement indisponible" and the settings
   page shows a prominent "clé API non configurée" notice; proxy routes return `503` with a generic
   body.
-- Visitor picks blocked dates in the booking block → the live quote still renders (with
-  `available:false` from the API) but the **Submit** button is disabled with an inline message; the
-  server re-checks anyway and would return `409`.
+- Visitor picks blocked dates in the booking block → refused in the calendar, no price shown, submit
+  disabled (rule 36, which replaced the earlier « quote renders with an inline message »); the server
+  re-checks anyway and returns `409`.
 - Quote breaches minimum nights → inline message from the quote's `minNights`/`minNightsBreached`;
   submit disabled. Maximum stay or changeover days → the quote's `stayRefusal`, same treatment (rule 30).
 - Slow/timeout API call → proxy uses a bounded timeout (e.g. 8 s) and surfaces a retry message; reads
@@ -286,6 +286,19 @@ remaining the single source of truth for prices, availability, and validation.
     WordPress plugin does not change and keeps its version. Against a GuestFlow core older than that sentence, the refusal
     carries no `message` and the field reads the plugin's fallback « Champ requis. ». The form has no city nor address field.
     Test: `plugins/website-booking/tests/public-name-charset.unit.test.js`.
+36. **Taken dates are refused in the calendar, never priced** (Adrien, 2026-11-12, plugin 1.19.1). A quote answering
+    `available: false` — dates arriving by a link (rule 19 of [booking-drawer-friction.md](booking-drawer-friction.md)), or nights
+    booked since the calendar loaded — is treated like a minimum-stay breach (rule 30): « Ces dates incluent une nuit
+    indisponible. Choisissez une autre période. » as the calendar's error hint, « Ces dates ne sont plus disponibles. » in the
+    récapitulatif and the bar, no quote kept, no total, every send button disabled; the period stays on screen and the
+    calendar drops its nights and reloads them from GuestFlow, so the taken ones show as taken. A quote refused with a `409`
+    (times the neighbouring stays cannot take, capacity) also puts its sentence in the calendar's error hint. **Why:** on
+    domainesolio.com the drawer's « Suivant » is gated on the calendar's error hint only
+    ([site-booking-drawer.md](site-booking-drawer.md)); the old inline banner left it open, with a price on its bar, on dates
+    that cannot be sold. The server was already the guard and stays it: the booking request re-checks the nights and the
+    times (`409 DATES_UNAVAILABLE` / `STAY_TIMES_UNAVAILABLE`, nothing persisted) and so does the public `pay` before any
+    payment link is minted. Tests: `client/src/__tests__/wordpress-booking-view.taken-dates.test.js`,
+    `server/src/tests/public-payment-pay-taken-nights.unit.test.js`.
 
 ---
 
@@ -490,6 +503,11 @@ respects its container width.
 - [x] Rule 30 (2026-10-27): `client/src/__tests__/wordpress-booking-view.stay-refusal.test.js` (2: the
       real `view.js` prints `stayRefusal` and keeps the request disabled; a quote without it is drawn
       as before); the refusal itself is `plugins/website-booking/tests/public-stay-rules.unit.test.js`.
+- [x] Rule 36 (2026-11-12): `client/src/__tests__/wordpress-booking-view.taken-dates.test.js` (taken dates refused in the
+      calendar with no price and the send disabled, the calendar reloads its nights, a `409` on times reads in the calendar)
+      and `server/src/tests/public-payment-pay-taken-nights.unit.test.js` (the public `pay` on taken nights or clashing
+      times answers `409` without calling the provider nor storing a link). Reproduced first on domainesolio.com
+      (Chromium, `?checkin=24/12/2026&checkout=27/12/2026`): red banner, « Suivant » open, price on the bar.
 
 ### Manual verification
 - [ ] Install the built `.zip` on a WordPress test site; configure base URL + key; "Test connection" =
