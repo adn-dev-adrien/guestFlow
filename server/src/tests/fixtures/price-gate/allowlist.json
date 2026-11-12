@@ -586,5 +586,57 @@
     "class": "O-7",
     "approvedBy": "Adrien",
     "approvedAt": "2026-11-12"
+  },
+  {
+    "scope": "synthetic",
+    "reservationId": 2,
+    "field": "breakdown.vat.amount",
+    "old": 9.37,
+    "corrected": 9.38,
+    "reason": "À 20 %, la TVA d'une location à l'heure est arrondie comme toutes les autres : la TVA est la part arrondie du TTC, le net est le reste. Un centime passe de l'un à l'autre, le total ne change pas.",
+    "rule": "specs/pricing-components.md §3 rule 65 (E4b)",
+    "defect": "E4b",
+    "class": "E4b",
+    "approvedBy": "Adrien",
+    "approvedAt": "2026-11-12"
+  },
+  {
+    "scope": "synthetic",
+    "reservationId": 2,
+    "field": "breakdown.vat.net",
+    "old": 46.88,
+    "corrected": 46.87,
+    "reason": "À 20 %, la TVA d'une location à l'heure est arrondie comme toutes les autres : la TVA est la part arrondie du TTC, le net est le reste. Un centime passe de l'un à l'autre, le total ne change pas.",
+    "rule": "specs/pricing-components.md §3 rule 65 (E4b)",
+    "defect": "E4b",
+    "class": "E4b",
+    "approvedBy": "Adrien",
+    "approvedAt": "2026-11-12"
+  },
+  {
+    "scope": "synthetic",
+    "reservationId": 3,
+    "field": "breakdown.vat.amount",
+    "old": 9.72,
+    "corrected": 9.73,
+    "reason": "À 20 %, la TVA d'une location à l'heure est arrondie comme toutes les autres : la TVA est la part arrondie du TTC, le net est le reste. Un centime passe de l'un à l'autre, le total ne change pas.",
+    "rule": "specs/pricing-components.md §3 rule 65 (E4b)",
+    "defect": "E4b",
+    "class": "E4b",
+    "approvedBy": "Adrien",
+    "approvedAt": "2026-11-12"
+  },
+  {
+    "scope": "synthetic",
+    "reservationId": 3,
+    "field": "breakdown.vat.net",
+    "old": 48.63,
+    "corrected": 48.62,
+    "reason": "À 20 %, la TVA d'une location à l'heure est arrondie comme toutes les autres : la TVA est la part arrondie du TTC, le net est le reste. Un centime passe de l'un à l'autre, le total ne change pas.",
+    "rule": "specs/pricing-components.md §3 rule 65 (E4b)",
+    "defect": "E4b",
+    "class": "E4b",
+    "approvedBy": "Adrien",
+    "approvedAt": "2026-11-12"
   }
 ]
