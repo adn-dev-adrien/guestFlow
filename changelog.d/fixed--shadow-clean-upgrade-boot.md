@@ -1,1 +1,0 @@
-- **A 3.21.0 → 4.0.0 upgrade boots without the « baseline applique partiellement » warning**, and the `TRUST_PROXY_HOPS` warning says exactly what to set (`GUESTFLOW_PROXY_SECRET`, and the `X-GuestFlow-Proxy` header on the proxy).

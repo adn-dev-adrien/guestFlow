@@ -1,1 +1,0 @@
-- **Paramètres: « Réglages enregistrés le … »** replaces « Dernière mise à jour : … », which read as the software's update on Système.

@@ -1,1 +1,0 @@
-- **« Liens de paiement encore actifs » lists each link** (kind, amount, Qonto reference, stay, reason, date) so it can be found and deactivated by hand.
