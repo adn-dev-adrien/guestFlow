@@ -43,7 +43,7 @@
       "Demande le SDK 2.26 de GuestFlow."
     ],
     "1.0.4": [
-      "Prépare « Mon séjour dès le J-7 » : une commande peut être encaissée à l’arrivée ou au départ, et une commande d’un séjour annulé est marquée annulée. Aucune donnée existante n’est modifiée."
+      "Prépare « Mon séjour dès le J-7 » : une commande peut être encaissée à l’arrivée ou au départ, et une commande d’un séjour annulé est marquée annulée. Aucune donnée existante n’est modifiée. Prévu pour le SDK 2.28 de GuestFlow."
     ]
   }
 }
