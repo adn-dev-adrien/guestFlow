@@ -15,11 +15,19 @@
  * moment the clock gave (`collectAt`, `collectAtDefault`, rules 18, 46).
  *
  * Until PR C lifts the one-line-per-article key, a request for an article the stay already sells adds to that line (`merged: true`).
- * Only `payment: 'later'` is written here: a payment taken at once belongs to the SAS (rule 29).
+ * `payment` is `later` (default), or `cash` / `card-terminal` / `card` for a sale collected at once (rule 29): the sale is written, then
+ * settled as one mid-stay note that names its lines (`method`, `source`), so the allocations follow (rule 74). Only a stay that has
+ * started takes a payment now (409 `PAYMENT_BEFORE_ARRIVAL`: before the check-in the money is the SAS's arrival complement, taken in
+ * one piece); a stay whose departure complement is collected refuses it (« Séjour soldé »). The card link of the online-payment plugin
+ * stays that plugin's (the platform card link is separate, rule 29).
  * Server-side money and labels only; the client renders what it gets.
  */
-const { storedBody, optionRows, mergeOrderLines, personsRefusal } = require('./midStayOrderCommit');
+const {
+  storedBody, optionRows, mergeOrderLines, personsRefusal, remainderByKey, deltaOf,
+} = require('./midStayOrderCommit');
 const { toCents } = require('./pricing/money');
+const { parseNotes } = require('./midStayExtras');
+const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 const { buildSaleDetail } = require('./saleDetail');
 
 const database = () => require('../database');
@@ -31,6 +39,7 @@ const stayClock = () => require('../models/stayClockModel');
 const ROLLBACK = Symbol('extra-sale-rollback');
 const SOURCES = ['fiche', 'shop', 'sas', 'intake', 'devis'];
 const MOMENTS = ['plan', 'platform', 'arrival', 'departure'];
+const PAYMENTS = Object.freeze({ later: null, cash: { cash: true }, 'card-terminal': { cash: false }, card: { cash: false } });
 
 const refuse = (status, code, error, extra = {}) => ({ status, body: { error, code, ...extra } });
 
@@ -105,7 +114,7 @@ function pricedRequests(reservationId, lines, { now }) {
 }
 
 function quote(reservationId, requests, { payment = 'later', now = new Date() } = {}) {
-  if (payment !== 'later') return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Le paiement immédiat se prend au SAS.');
+  if (!(payment in PAYMENTS)) return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Mode de paiement inconnu.');
   const parsed = parseRequests(requests);
   if (parsed.error) return parsed.error;
   const result = pricedRequests(reservationId, parsed.lines, { now });
@@ -125,7 +134,7 @@ function quote(reservationId, requests, { payment = 'later', now = new Date() } 
 
 function sell(reservationId, requests, { source = 'fiche', payment = 'later', actor = null, now = new Date(), acceptedTotalCents = null } = {}) {
   if (!SOURCES.includes(source)) return refuse(400, 'INVALID_SOURCE', 'Origine de vente inconnue.');
-  if (payment !== 'later') return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Le paiement immédiat se prend au SAS.');
+  if (!(payment in PAYMENTS)) return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Mode de paiement inconnu.');
   const parsed = parseRequests(requests);
   if (parsed.error) return parsed.error;
   const db = database();
@@ -133,8 +142,13 @@ function sell(reservationId, requests, { source = 'fiche', payment = 'later', ac
   let outcome = null;
   try {
     db.transaction(() => {
+      if (PAYMENTS[payment] && departureCollected(id)) { outcome = refuse(409, 'STAY_SETTLED', 'Séjour soldé : vente séparée.'); throw ROLLBACK; }
       const result = pricedRequests(id, parsed.lines, { now });
       if (result.error) { outcome = result.error; throw ROLLBACK; }
+      if (PAYMENTS[payment] && !result.started) {
+        outcome = refuse(409, 'PAYMENT_BEFORE_ARRIVAL', 'Avant l’arrivée, le paiement se prend au SAS.');
+        throw ROLLBACK;
+      }
       const total = centsOf(result.after, 'finalPrice') - centsOf(result.base, 'finalPrice');
       if (acceptedTotalCents != null && Number(acceptedTotalCents) !== total) {
         outcome = refuse(409, 'PRICE_CHANGED', 'Prix modifié — relire le panier.', { totalCents: total });
@@ -148,12 +162,40 @@ function sell(reservationId, requests, { source = 'fiche', payment = 'later', ac
       reservations().addHistoryEntry(id, 'update', [{
         field: 'extraSale', label: 'Vente', from: null, to: `${added.length ? added.map((line) => line.label).join(', ') : 'Ligne complétée'} — ${source}${actor ? ` (${actor})` : ''}`,
       }]);
+      if (PAYMENTS[payment]) {
+        const paid = settleNow(id, deltaOf(remainderByKey(result.base), remainderByKey(reservations().getRow(id))).byKey, { source, payment, now });
+        if (paid.error) { outcome = paid.error; throw ROLLBACK; }
+      }
       outcome = { status: 200, saleDetail: saleDetailOf(id, now) };
     })();
   } catch (err) {
     if (err !== ROLLBACK) throw err;
   }
   return outcome;
+}
+
+function departureCollected(id) {
+  const row = database().prepare('SELECT endOfStayComplementPaid, endOfStayComplementPaidCash FROM reservations WHERE id = ?').get(id);
+  return Boolean(row) && (Number(row.endOfStayComplementPaid || 0) === 1 || Number(row.endOfStayComplementPaidCash || 0) === 1);
+}
+
+// Rule 29 — the sale collected at once: one settled mid-stay note naming the sale's lines, in the sale's transaction.
+function settleNow(id, byKey, { source, payment, now }) {
+  const items = Object.entries(byKey).map(([key, amount]) => ({ key, amount }));
+  if (!items.length) return {};
+  let note;
+  try {
+    note = reservations().settleMidStayNote(id, { items, cash: PAYMENTS[payment].cash });
+  } catch (err) {
+    if (err.code) return { error: refuse(409, err.code, err.message) };
+    throw err;
+  }
+  const db = database();
+  const notes = parseNotes(db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(id).midStaySettledNotes)
+    .map((n) => (Number(n.id) === Number(note.id) ? { ...n, source, method: payment, soldAt: now.toISOString() } : n));
+  db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(notes), id);
+  syncAllocations(db, id);
+  return {};
 }
 
 function saleDetailOf(reservationId, now = new Date()) {

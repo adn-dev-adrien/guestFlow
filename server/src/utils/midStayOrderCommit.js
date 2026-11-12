@@ -311,4 +311,6 @@ function commitOrder(reservationId, {
   return outcome;
 }
 
-module.exports = { priceOrder, commitOrder, mergeOrderLines, storedBody, optionRows, personsRefusal };
+module.exports = {
+  priceOrder, commitOrder, mergeOrderLines, storedBody, optionRows, personsRefusal, remainderByKey, deltaOf,
+};

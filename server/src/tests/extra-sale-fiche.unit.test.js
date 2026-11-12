@@ -68,9 +68,9 @@ test('rule 30 — the sale refuses a price that is no longer the accepted one, a
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ?').get(id).n, 0);
 });
 
-test('rule 29 — a payment taken at once is not written here', () => {
+test('rule 29 — an unknown payment mode is refused, an article reference that names nothing too', () => {
   const id = stay({ startOffset: 22 });
-  assert.equal(extraSale.sell(id, [{ articleRef: `option:${bath}`, quantity: 1 }], { payment: 'cash' }).body.code, 'PAYMENT_MODE_UNSUPPORTED');
+  assert.equal(extraSale.sell(id, [{ articleRef: `option:${bath}`, quantity: 1 }], { payment: 'cheque' }).body.code, 'PAYMENT_MODE_UNSUPPORTED');
   assert.equal(extraSale.quote(id, [{ articleRef: 'nonsense', quantity: 1 }]).body.code, 'INVALID_REQUEST');
 });
 

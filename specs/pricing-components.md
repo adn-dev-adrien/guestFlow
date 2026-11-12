@@ -432,7 +432,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     platform payment** and the line is outside the platform price (rule 17). `payment: 'cash' |
     'card-terminal'` at the SAS writes `paid` directly with a tender. `payment: 'later'` writes the moment of
     rule 19.
-    > **Delivered by PR B** (pass 4): `payment: 'later'` only; `cash` / `card-terminal` / `card` answer 400 `PAYMENT_MODE_UNSUPPORTED` here (the SAS takes them in pass 5; the card link is the online-payment plugin's, rule 29).
+    > **Delivered by PR B** (pass 4 and pass 5): `payment` is `later`, `cash`, `card-terminal` or `card` (any other value is 400
+    > `PAYMENT_MODE_UNSUPPORTED`). A sale collected at once is written, then settled as one mid-stay note naming its lines (`method`, `source`),
+    > in the sale's transaction: the line reads « Payée », the allocations follow (rule 74; `cash` is off the books, the others on them), the
+    > departure complement owes nothing for it (`extra-sale-payment-now`). A stay not started refuses it, 409 `PAYMENT_BEFORE_ARRIVAL` (before
+    > the check-in the money is the SAS's arrival complement, taken in one piece); a stay whose departure complement is collected refuses it,
+    > 409 `STAY_SETTLED` « Séjour soldé : vente séparée ». The Qonto card link stays the online-payment plugin's (rule 29).
 30. **Quote = commit.** `extraSale.quote(...)` runs the same pipeline without writing and returns what `sell`
     would write. A shop, SAS or fiche preview is a quote; a commit re-quotes inside the transaction and
     refuses if the price differs from the accepted one (one comparison, one refusal « Prix modifié — relire le
