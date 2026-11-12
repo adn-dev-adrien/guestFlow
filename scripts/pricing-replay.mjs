@@ -18,6 +18,8 @@
 //
 //   node scripts/pricing-replay.mjs <copy.db> --out before.json
 //   node scripts/pricing-replay.mjs <copy.db> --compare before.json [--expect expected.json]
+//   node scripts/pricing-replay.mjs <copy.db> --out-values before-values.json     (the values behind the hashes)
+//   node scripts/pricing-replay.mjs <copy.db> --compare-values before-values.json  (added keys ignored)
 //
 // `--expect` lists the artefact keys that are ALLOWED to move, each with its reason and rule (rule 81): a listed key
 // that did not move fails as stale, an unlisted one that moved fails as a difference.
@@ -36,7 +38,7 @@ const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
 const dbPath = args[0] && !args[0].startsWith('--') ? args[0] : null;
 if (!dbPath || !fs.existsSync(dbPath)) {
-  console.error('usage: pricing-replay.mjs <copy.db> [--out file] [--compare file [--expect file]]   (pass a COPY of the database)');
+  console.error('usage: pricing-replay.mjs <copy.db> [--out file] [--out-values file] [--compare file [--expect file]] [--compare-values file]   (pass a COPY of the database)');
   process.exit(2);
 }
 if (path.resolve(dbPath).split(path.sep).includes('shadows') && !args.includes('--i-am-a-copy')) {
@@ -164,6 +166,20 @@ console.log = silent;
 const hashes = Object.fromEntries(Object.entries(captured).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, sha(v)]));
 const out = flag('--out');
 if (out) fs.writeFileSync(out, `${JSON.stringify(hashes, null, 1)}\n`);
+const outValues = flag('--out-values');
+if (outValues) fs.writeFileSync(outValues, `${JSON.stringify(Object.fromEntries(Object.entries(captured).sort(([x], [y]) => x.localeCompare(y))))}\n`);
+
+// A migration that adds a column changes every payload that spreads a whole row (`SELECT *`) in the hashes, not in any
+// figure. `--compare-values` judges the captured VALUES of a baseline taken on the code before the migration, ignoring the
+// keys the current code adds: what is left is a figure that moved (specs/pricing-components.md rule 81).
+const againstValues = flag('--compare-values');
+if (againstValues) {
+  const { valueDifferences } = require(path.join(root, 'scripts/price-gate/replayExpect.js'));
+  const found = valueDifferences(JSON.parse(fs.readFileSync(againstValues, 'utf8')), captured);
+  console.log(`compared ${Object.keys(captured).length} artefacts by value, added keys ignored: ${Object.keys(found).length} difference(s)`);
+  for (const [k, why] of Object.entries(found)) console.log(`  DIFF ${k} ${why}`);
+  process.exit(Object.keys(found).length ? 1 : 0);
+}
 
 const against = flag('--compare');
 if (!against) {

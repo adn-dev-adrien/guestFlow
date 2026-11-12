@@ -79,3 +79,8 @@ cp scripts/price-gate/writeReplay.js scripts/price-gate/buildWriteReplay.mjs "$S
 
 `node scripts/pricing-replay.mjs <copy.db> --compare before.json --expect expected.json` accepts a list of
 `{ "key", "reason", "rule" }`: exactly those artefact keys may differ.
+
+A migration that adds a column changes the hash of every payload that spreads a whole row (`SELECT *`), not any figure. The hashes of
+the replay cannot tell the two apart, so `pricing-replay.mjs` also writes and reads **values**: `--out-values` on the code before the
+migration (the previous commit's worktree), `--compare-values` on the code after, which ignores the object keys the new code
+adds and fails on anything else (a changed value, a removed key, a different number of items).

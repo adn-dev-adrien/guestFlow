@@ -39,4 +39,52 @@ function classifyReplay(before, after, expect = []) {
   };
 }
 
-module.exports = { classifyReplay, expectProblems };
+/**
+ * The first difference between two captured values that is NOT a key added in `after` (an object key `before` did not
+ * hold, at any depth): a column a migration adds to a row a payload spreads (`SELECT *`) moves no figure and is not one.
+ * `null` when `after` equals `before` once its added keys are ignored. Values are the replay's canonical JSON texts, or
+ * plain texts (an `ERROR …` line), compared as such.
+ */
+function nonAdditiveDifference(before, after) {
+  const parse = (text) => { try { return { value: JSON.parse(text) }; } catch { return { text }; } };
+  const walk = (a, b, where) => {
+    if (a === b) return null;
+    if (a && b && typeof a === 'object' && typeof b === 'object' && Array.isArray(a) === Array.isArray(b)) {
+      if (Array.isArray(a)) {
+        if (a.length !== b.length) return `${where}: ${a.length} item(s) became ${b.length}`;
+        for (let i = 0; i < a.length; i += 1) {
+          const found = walk(a[i], b[i], `${where}[${i}]`);
+          if (found) return found;
+        }
+        return null;
+      }
+      for (const key of Object.keys(a)) {
+        if (!(key in b)) return `${where}.${key}: removed`;
+        const found = walk(a[key], b[key], `${where}.${key}`);
+        if (found) return found;
+      }
+      return null;
+    }
+    return `${where}: ${JSON.stringify(a)} became ${JSON.stringify(b)}`;
+  };
+  const x = parse(before);
+  const y = parse(after);
+  if ('text' in x || 'text' in y) return x.text === y.text ? null : 'text differs';
+  return walk(x.value, y.value, '');
+}
+
+/** `{ [key]: first non-additive difference }` for the keys whose values differ beyond added keys; keys on one side only count. */
+function valueDifferences(beforeValues, afterValues) {
+  const out = {};
+  for (const key of new Set([...Object.keys(beforeValues), ...Object.keys(afterValues)])) {
+    if (!(key in beforeValues)) out[key] = 'artefact added';
+    else if (!(key in afterValues)) out[key] = 'artefact removed';
+    else {
+      const found = nonAdditiveDifference(beforeValues[key], afterValues[key]);
+      if (found) out[key] = found;
+    }
+  }
+  return out;
+}
+
+module.exports = { classifyReplay, expectProblems, nonAdditiveDifference, valueDifferences };

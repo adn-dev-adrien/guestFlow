@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { compareFigures, allowlistProblems, SCOPES } = require('./helpers/priceGateCompare');
-const { classifyReplay, expectProblems } = require('../../../scripts/price-gate/replayExpect');
+const { classifyReplay, expectProblems, nonAdditiveDifference, valueDifferences } = require('../../../scripts/price-gate/replayExpect');
 
 const entry = (over = {}) => ({
   reservationId: 7, field: 'total.final', old: 1000, corrected: 999, reason: 'listed', rule: 'rule 3', defect: 'D1', approvedBy: 'Adrien', approvedAt: '2026-11-12', ...over,
@@ -60,4 +60,25 @@ test('rule 81: an incomplete or duplicated expect entry is refused', () => {
   assert.ok(expectProblems([{ key: 'a/1', reason: 'x', rule: 'r' }, { key: 'a/1', reason: 'x', rule: 'r' }]).some((p) => p.includes('twice')));
   assert.ok(expectProblems('nope').length > 0);
   assert.throws(() => classifyReplay({}, {}, [{ key: '' }]), /invalid/);
+});
+
+test('rule 81: a column a migration adds to a row a payload spreads is not a difference by value; a changed, removed or reshaped value is', () => {
+  const before = JSON.stringify({ rows: [{ id: 1, total: 10, nested: { a: 1 } }], n: 2 });
+  assert.equal(nonAdditiveDifference(before, JSON.stringify({ rows: [{ id: 1, total: 10, nested: { a: 1, b: 2 }, discountTarget: 'nights' }], n: 2, extra: [] })), null);
+  assert.match(nonAdditiveDifference(before, JSON.stringify({ rows: [{ id: 1, total: 11, nested: { a: 1 } }], n: 2 })), /\.rows\[0\]\.total: 10 became 11/);
+  assert.match(nonAdditiveDifference(before, JSON.stringify({ rows: [{ id: 1, nested: { a: 1 } }], n: 2 })), /total: removed/);
+  assert.match(nonAdditiveDifference(before, JSON.stringify({ rows: [], n: 2 })), /1 item\(s\) became 0/);
+  assert.match(nonAdditiveDifference(before, JSON.stringify({ rows: [{ id: 1, total: 10, nested: { a: 1 } }], n: [2] })), /n: 2 became \[2\]/);
+  assert.equal(nonAdditiveDifference('ERROR boom', 'ERROR boom'), null);
+  assert.equal(nonAdditiveDifference('ERROR boom', 'ERROR other'), 'text differs');
+});
+
+test('rule 81: the replay by value names every artefact that moved beyond added keys, and one that appeared or vanished', () => {
+  const found = valueDifferences(
+    { 'a/1': JSON.stringify({ x: 1 }), 'a/2': JSON.stringify({ x: 1 }), 'a/3': JSON.stringify({ x: 1 }) },
+    { 'a/1': JSON.stringify({ x: 1, added: 1 }), 'a/2': JSON.stringify({ x: 2 }), 'a/4': JSON.stringify({}) },
+  );
+  assert.deepEqual(Object.keys(found).sort(), ['a/2', 'a/3', 'a/4']);
+  assert.equal(found['a/3'], 'artefact removed');
+  assert.equal(found['a/4'], 'artefact added');
 });
