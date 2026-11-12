@@ -124,7 +124,7 @@ still being removable by re-opening the SAS.
 - No `cleaning` / `bathroom_linen` option in the catalogue, or price ≤ 0 → the step is not offered
   (unchanged) and nothing is written.
 - Option already on the reservation from the booking → page hidden, nothing written (unchanged).
-- Complement already paid → the existing « encaisser le supplément manuellement » warning still applies;
+- Complement already paid → **amended 2026-11-12**: the ménage / linge de toilette row is written (counted for the laundry) and what it bills beyond what the collected complement holds is added to the end-of-stay complement, the recap saying « Ajouté au complément de fin de séjour : X € » ([arrival-departure-sas.md](arrival-departure-sas.md) rules 34-35); the former « encaisser le supplément manuellement » warning is gone;
   the option row is still written (the guest did take it) — same behaviour as the custom line today.
 - Offered option (`offered = 1`) activated at booking → not a SAS row, untouched.
 - A migrated reservation whose fiche is re-saved: the engine re-prices the option at the **current**

@@ -48,7 +48,7 @@ function ZoneDateFields({ zoneKey, form, setField }) {
 
 export default function SchoolHolidayFormFields({ form, setField, validationError }) {
   return (
-    <Stack spacing={2} sx={{ mt: 1 }}>
+    <Stack spacing={2.5} sx={{ mt: 1 }}>
       {validationError ? <Alert severity="error">{validationError}</Alert> : null}
       <TextField label="Nom de la période" value={form.label} onChange={(e) => setField('label', e.target.value)} fullWidth />
       <ZoneDateFields zoneKey="A" form={form} setField={setField} />

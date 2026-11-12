@@ -171,3 +171,32 @@ test('rule 35 — a custom item raised on the re-run bills only the difference',
   assert.equal(eos(db).a, 8);
   assert.equal(supplement(model, raised), 0);
 });
+
+// Rule 34-35, verification of e9ff3569 — the hold is what the collected complement's entry says it holds, not the row as a re-run left
+// it: a sale lowered (or dropped) then put back is never billed a second time.
+function collectedSaleWithEntry() {
+  const { db, model } = collectedSale();
+  const c = Math.round(eos(db).c * 100);
+  db.exec('ALTER TABLE reservations ADD COLUMN complementPaidSplit TEXT');
+  db.prepare('UPDATE reservations SET complementPaidSplit = ? WHERE id = 1').run(JSON.stringify({
+    taxCents: 0, accommodationCents: 0, optionsCents: c, resourcesCents: 0,
+    lines: [{ key: 'opt:6', label: 'Petit déjeuner', bucket: 'options', cents: 4800 }],
+  }));
+  return { db, model };
+}
+
+test('rule 34 — a sale lowered then put back on a collected complement bills nothing: the entry still holds it', () => {
+  const { db, model } = collectedSaleWithEntry();
+  model.commitArrivalSas(1, sale(1));
+  assert.equal(eos(db).a, 0);
+  assert.equal(model.planArrivalSas(1, sale(2), { withExistingLines: false }).supplementOutsideComplement, 0);
+  model.commitArrivalSas(1, sale(2));
+  assert.equal(eos(db).a, 0, 'the 2 mornings were collected with the complement');
+});
+
+test('rule 34 — a sale dropped then put back raised bills only beyond what the entry holds', () => {
+  const { db, model } = collectedSaleWithEntry();
+  model.commitArrivalSas(1, { soldOptions: [] });
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(eos(db).a, 24);
+});

@@ -34,7 +34,7 @@ const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const { priceOptionSale, billablePersons, buildSasSaleOffers, offeredSaleOptionIds } = require('../utils/sasOptionSale');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
-const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
+const { stampComplementPaidSplit, readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const {
@@ -809,6 +809,14 @@ function createReservationsModel(database) {
   // must bill only what they add beyond it — never the whole line a second time.
   const collectedHoldByKey = (reservationId) => {
     const held = new Map();
+    // The collected complement's own entry, stamped at collection, is what it holds per key — it does not move when a re-run
+    // lowers or drops the row, so a line put back is never billed a second time. A legacy row without the entry reads the rows.
+    let split = null;
+    try { split = readComplementPaidSplit(database.prepare('SELECT complementPaidSplit, complementAmount FROM reservations WHERE id = ?').get(reservationId)); } catch { split = null; }
+    if (split && Array.isArray(split.lines)) {
+      for (const l of split.lines) if (l && l.key) held.set(l.key, round2((held.get(l.key) || 0) + Number(l.cents || 0) / 100));
+      return held;
+    }
     const routed = routedByKey(reservationId);
     const hold = (key, total) => { if (key) held.set(key, Math.max(0, round2(Number(total || 0) - (routed.get(key) || 0)))); };
     sasOptionRowsOf(reservationId).forEach((r) => hold(extraLineKey({ optionId: r.optionId }), r.totalPrice));
@@ -854,12 +862,23 @@ function createReservationsModel(database) {
     const routed = routedByKey(reservationId);
     const beyond = new Map();
     let added = 0;
+    // Rule 36 — a SAS-origin line whose money already sits in the end-of-stay complement and which this run lowers or drops.
+    const previous = new Set([
+      ...sasOptionRowsOf(reservationId).map((r) => extraLineKey({ optionId: r.optionId })),
+      ...sasCustomRowsOf(reservationId).map((r) => extraLineKey({ isCustom: true, title: r.description })),
+    ].filter(Boolean));
+    let shrinks = false;
+    previous.forEach((key) => {
+      const line = after.get(key);
+      const over = line ? Math.max(0, round2(line.total - (held.get(key) || 0))) : 0;
+      if ((routed.get(key) || 0) > over + 0.004) shrinks = true;
+    });
     after.forEach((line, key) => {
       const over = Math.max(0, round2(line.total - (held.get(key) || 0)));
       beyond.set(key, over);
       added += Math.max(0, round2(over - (routed.get(key) || 0)));
     });
-    return { beyond, added: round2(added) };
+    return { beyond, added: round2(added), shrinks };
   };
 
   const model = {
@@ -2784,8 +2803,10 @@ function createReservationsModel(database) {
         // freezes once collected: one collected outside the departure SAS takes no run that adds money.
         const saleRaisesCollectedEndOfStay = routing.added > 0
           && endOfStayCollectedElsewhere(database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId));
+        const removesFromCollectedEndOfStay = routing.shrinks
+          && endOfStayCollectedElsewhere(database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId));
         return {
-          paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled, saleRaisesCollectedEndOfStay,
+          paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled, saleRaisesCollectedEndOfStay, removesFromCollectedEndOfStay,
           engineAfter: stored, arrivalComplementTotal: stored, supplementOutsideComplement: routing.added, adjusted: null,
         };
       }
