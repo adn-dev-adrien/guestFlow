@@ -44,6 +44,7 @@
     ],
     "1.0.4": [
       "Un article réglé sur « Tous les logements » dans GuestFlow (le bain nordique partagé, par exemple) se vend désormais dans chaque logement : boutique, tuile Bain nordique et liste du Studio.",
+      "Sur un écran large (ordinateur, tablette), l’accueil sans lien, « Ce code n’est pas reconnu » et « Retrouver mon séjour » occupent toute la largeur : ils étaient réduits à une bande de quelques centimètres à gauche.",
       "Demande le SDK 2.26 de GuestFlow."
     ]
   }
