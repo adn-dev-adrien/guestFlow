@@ -125,3 +125,33 @@ test('rule 48 — PaymentLedger: no plan, no split, refunds read from the stay\'
   assert.equal(typeof ledger.refunds(1).book, 'number');
   assert.equal(ledger.refunds(404).book, 0);
 });
+
+// ── rule 48, PR B: PaymentLedger.allocations / receipts, StayRepository.stay / storedStayPrice ──────────────────────────
+
+test('rule 48 — PaymentLedger.allocations reads the stay\'s rows (flushing a marked stay first); receipts adds the settlements', () => {
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE payment_allocations (id INTEGER PRIMARY KEY, paymentRef TEXT, documentRef TEXT, lineRef TEXT, amountCents INTEGER,
+      kind TEXT, at TEXT, refundId INTEGER, books INTEGER, origin TEXT);
+    INSERT INTO payment_allocations (paymentRef, documentRef, lineRef, amountCents, kind, at, books, origin) VALUES
+      ('bucket:deposit', 'reservation:4', NULL, 5000, 'payment', '2026-01-02', 1, 'live'), ('x', 'reservation:5', NULL, 1, 'payment', NULL, 1, 'live');`);
+  const ledger = paymentLedger.create(db);
+  assert.deepEqual(ledger.allocations(4).map((r) => [r.paymentRef, r.amountCents, r.kind]), [['bucket:deposit', 5000, 'payment']]);
+  assert.deepEqual(ledger.allocations(99), []);
+  assert.equal(paymentLedger.create(new Database(':memory:')).allocations(4).length, 0, 'a schema without the table holds none');
+});
+
+test('rule 48 — StayRepository.storedStayPrice: the stored total in cents, the lodging being what the extras leave', () => {
+  const db = new Database(':memory:');
+  db.exec(`CREATE TABLE reservations (id INTEGER PRIMARY KEY, finalPrice REAL, touristTaxTotal REAL);
+    CREATE TABLE reservation_options (reservationId INTEGER, optionId INTEGER, totalPrice REAL, offered INTEGER, quantity INTEGER, inComplement INTEGER);
+    CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL, offered INTEGER, quantity INTEGER, inComplement INTEGER, sessions TEXT);
+    CREATE TABLE reservation_custom_options (id INTEGER PRIMARY KEY, reservationId INTEGER, description TEXT, amount REAL, offered INTEGER, inComplement INTEGER, sortOrder INTEGER, acompteContribTtc REAL, soldeContribTtc REAL);
+    INSERT INTO reservations VALUES (1, 300.5, 12.2);
+    INSERT INTO reservation_options VALUES (1, 1, 40, 0, 1, 0), (1, 2, 15, 1, 1, 0);
+    INSERT INTO reservation_custom_options (reservationId, description, amount, offered) VALUES (1, 'x', 10.25, 0);`);
+  const stays = stayRepository.create(db);
+  assert.deepEqual(stays.storedStayPrice(1), { totalCents: 31270, accommodationCents: 25025, touristTaxCents: 1220, extrasCents: 5025 });
+  assert.equal(stays.storedStayPrice(2), null);
+  assert.equal(stays.stay(1).row.finalPrice, 300.5);
+  assert.equal(stays.stay(2), null);
+});

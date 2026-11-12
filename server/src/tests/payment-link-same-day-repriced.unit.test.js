@@ -11,7 +11,7 @@ const Database = require('better-sqlite3');
 const paymentLinksModel = require('../models/paymentLinksModel');
 const devisModel = require('../models/devisModel');
 const { processPaidLink, retryPendingCancellations } = require('../utils/paymentPollRunner');
-const { storedOverpaymentOf } = require('../utils/overpayment');
+const { storedOverpaymentTtc } = require('./helpers/storedOverpayment');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const DAY = '2027-03-01';
@@ -53,7 +53,7 @@ function seed({ asDevis = true } = {}) {
     return {
       depositAmount: row.depositAmount, balanceAmount: row.balanceAmount, complementAmount: row.complementAmount,
       depositPaid: row.depositPaid, balancePaid: row.balancePaid,
-      stored: storedOverpaymentOf({ row, captured: {} }),
+      stored: storedOverpaymentTtc(db, rid),
     };
   };
   const refunds = () => db.prepare("SELECT 1 FROM reservation_history WHERE changedFields LIKE '%refundOwed%'").all();

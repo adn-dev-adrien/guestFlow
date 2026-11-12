@@ -188,12 +188,6 @@
   },
   {
     "file": "utils/paymentPollRunner.js",
-    "text": "const amount = require('./reservationLedger').formatEuros(Number(duplicateCents == null ? link.amountCents || 0 : duplicateCents) / 100);",
-    "removedBy": "PR C",
-    "reason": "a refund figure computed outside refunds/ until PR C routes it through the component"
-  },
-  {
-    "file": "utils/paymentPollRunner.js",
     "text": "? { effect: 'double-payment', duplicateLink: true, duplicateCents: afterDeposit.duplicateCents, reservationId: afterDeposit.stayId, conflict: false }",
     "removedBy": "PR C",
     "reason": "a refund figure computed outside refunds/ until PR C routes it through the component"

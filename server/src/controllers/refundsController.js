@@ -19,10 +19,11 @@ const {
   buildRefundableLines, validateRefundPayload, cancelledRefundBudget, collectedByLine, collectedLinesGone, refundDeletionRefusal, lastBookPaymentDateOf,
 } = require('../utils/refunds');
 const { comptaCollected, cashCollected } = require('../utils/reservationSettlement');
-const { bookedStayBuckets, cancellationNettedRefundIds } = require('../utils/cancelReservation');
+const { bookedStayBuckets } = require('../utils/cancelReservation');
 const { taxRidesTheComplement } = require('../utils/touristTaxFreeze');
 const { bucketSharesOf } = require('../utils/paymentTenders');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
+const { frenchEuros } = require('../utils/pricing/money');
 
 function todayIso() {
   return localTodayIso();
@@ -37,6 +38,19 @@ function nightsBetween(startDate, endDate) {
 }
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const METHOD_LABELS = { transfer: 'virement', cash: 'espèces', internal: 'caisse interne', card: 'carte', retained: 'indemnité' };
+
+// S12 — the stay's history says a refund was made or taken back (the amount and the means, never a name).
+function writeRefundHistory(reservationId, eventType, label, refund, verb) {
+  if (!refund) return;
+  const means = METHOD_LABELS[refund.method] || refund.method;
+  require('../models/reservationsModel').addHistoryEntry(Number(reservationId), eventType, [{
+    field: 'refund', label, from: eventType === 'refundDeleted' ? `${frenchEuros(refund.totalTtc)} ${verb} (${means})` : null, to: eventType === 'refund' ? `${frenchEuros(refund.totalTtc)} ${verb} (${means})` : null,
+  }]);
+}
+const recordRefundHistory = (reservationId, refund) => writeRefundHistory(reservationId, 'refund', 'Remboursement', refund, 'remboursés');
+const recordRefundDeletion = (reservationId, refund) => writeRefundHistory(reservationId, 'refundDeleted', 'Remboursement supprimé', refund, 'remboursés');
 
 function createRefundsController(deps = {}) {
   const refundsModel = deps.refundsModel || defaultRefundsModel;
@@ -165,7 +179,13 @@ function createRefundsController(deps = {}) {
         }
       }
 
+      // Owner O-6 — only a refund opened on the trop-perçu lowers it; the origin is what says so.
+      if (req.body && req.body.fromOverpayment === true) validated.refund.origin = 'overpayment';
       const refundId = refundsModel.create(id, validated.refund);
+      recordRefundHistory(id, validated.refund, refundId);
+      if (validated.refund.origin === 'overpayment') {
+        require('../models/refundObligationsModel').settleLoweredBy(id, refundId, Math.round(validated.refund.totalTtc * 100));
+      }
       const refreshed = buildRegister(id);
       return res.status(201).json({
         refund: refundsModel.getById(refundId),
@@ -182,12 +202,12 @@ function createRefundsController(deps = {}) {
       const target = register && register.payload.refunds.find((refund) => Number(refund.id) === refundId);
       const refunds = register && register.payload.refunds;
       // Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — refused only when it moved the avoir.
-      const nettedIds = register && String(register.reservation.kind) === 'cancelled'
-        ? cancellationNettedRefundIds({ database: stayDatabase, reservationsModel, installmentsModel }, id, refunds, register.vatRate) : null;
+      const nettedIds = register && String(register.reservation.kind) === 'cancelled' ? refundsModel.nettedRefundIds(id) : null;
       const refusal = register && refundDeletionRefusal(target, refunds, register.reservation, nettedIds);
       if (refusal) return res.status(409).json(refusal);
       const removed = refundsModel.remove(id, refundId);
       if (!removed) return res.status(404).json({ error: 'Remboursement non trouvé' });
+      recordRefundDeletion(id, target);
       const refreshed = buildRegister(id);
       if (!refreshed) return res.status(404).json({ error: 'Réservation non trouvée' });
       return res.json(refreshed.payload);

@@ -13,7 +13,7 @@ const { cashDepositKeptOf } = require('./cancellation');
 const { parseNotes } = require('../storedLines');
 const { frenchEuros: euros } = require('../money');
 const { dateWindowMessage, isRealIsoDay } = require('../../stayDates');
-const { INDEMNITY_BUCKET, OFF_BOOKS_METHOD, REFUND_BUCKETS, SELECTABLE_REFUND_METHODS, isOffBooks, isRequalification, isRetainedDeposit, madeAfterCancellation, nettedByCancellation } = require('./register');
+const { CARD_METHOD, INDEMNITY_BUCKET, OFF_BOOKS_METHOD, REFUND_BUCKETS, SELECTABLE_REFUND_METHODS, isOffBooks, isRequalification, isRetainedDeposit, madeAfterCancellation, nettedByCancellation } = require('./register');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -244,6 +244,8 @@ function validateRefundPayload(payload, context) {
       reason: String((payload && payload.reason) || '').trim(),
       totalTtc,
       lines,
+      // Owner O-3 — the provider's own reference of a card refund done in its space (no refund API is called).
+      ...(method === CARD_METHOD ? { providerRefundRef: String((payload && payload.providerRefundRef) || '').trim().slice(0, 80) || null } : {}),
     },
   };
 }
@@ -314,29 +316,27 @@ const frenchDay = (iso) => {
 };
 
 /**
- * @param {object} row     the stay as stored
- * @param {object} changes the columns the gesture would write
- * @param {Array}  refunds the stay's register
+ * The one take-back guard (rule 72): a gesture that lowers what the books collected must not leave it under the book refunds
+ * already given back. Both readers of that rule — the un-tick of a mark and the correction of a split payment — judge the same
+ * way, in cents: only a gesture that LOWERED the collected amount is refused (no tolerance left over), and the refusal names the
+ * refunds to delete first, newest first.
+ *
+ * @param {{ beforeCents: number, afterCents: number, refunds: Array }} args  what the books collected before and after the
+ *   gesture, in cents, and the stay's register
  * @returns {{status: number, body: object}|null} the refusal, or null
  */
-function untickRefusal(row, changes, refunds, projectedSplit) {
+function takeBackRefusal({ beforeCents, afterCents, refunds }) {
   const book = (refunds || []).filter((refund) => !isOffBooks(refund.method) && !isRetainedDeposit(refund.method));
   // Nothing refunded on the books: nothing to protect (rule 52 reading « nothing refunded = as before »).
   if (book.length === 0) return null;
-  const before = comptaCollected({ ...row, refundsBookTtc: 0 });
-  // specs/mixed-method-payments.md rules 13, 42 — the split aggregates are read for the state the gesture writes: a
-  // payment taken back takes its settlement with it (only ITS settlements: the other split payments of the stay keep
-  // their deduction), and an amount that moves is read at its new amount (rule 39).
-  const splitAfter = projectedSplit({ ...row, ...changes });
-  const after = comptaCollected({ ...row, ...changes, ...splitAfter, refundsBookTtc: 0 });
-  if (after >= before) return null;
-  let shortfall = round2(book.reduce((sum, refund) => sum + Number(refund.totalTtc || 0), 0) - after);
+  if (afterCents >= beforeCents) return null;
+  let shortfall = book.reduce((sum, refund) => sum + Math.round(Number(refund.totalTtc || 0) * 100), 0) - afterCents;
   if (shortfall <= 0) return null;
   const named = [];
   for (const refund of [...book].sort((a, b) => Number(b.id) - Number(a.id))) {
     if (shortfall <= 0) break;
     named.push(refund);
-    shortfall = round2(shortfall - Number(refund.totalTtc || 0));
+    shortfall -= Math.round(Number(refund.totalTtc || 0) * 100);
   }
   const list = named.map((refund) => `du ${frenchDay(refund.refundDate)} (${euros(refund.totalTtc)})`).join(', ');
   return {
@@ -349,12 +349,38 @@ function untickRefusal(row, changes, refunds, projectedSplit) {
   };
 }
 
+/**
+ * @param {object} row     the stay as stored
+ * @param {object} changes the columns the gesture would write
+ * @param {Array}  refunds the stay's register
+ * @returns {{status: number, body: object}|null} the refusal, or null
+ */
+function untickRefusal(row, changes, refunds, projectedSplit) {
+  // specs/mixed-method-payments.md rules 13, 42 — the split aggregates are read for the state the gesture writes: a
+  // payment taken back takes its settlement with it (only ITS settlements: the other split payments of the stay keep
+  // their deduction), and an amount that moves is read at its new amount (rule 39).
+  const beforeCents = Math.round(comptaCollected({ ...row, refundsBookTtc: 0 }) * 100);
+  const afterCents = Math.round(comptaCollected({ ...row, ...changes, ...projectedSplit({ ...row, ...changes }), refundsBookTtc: 0 }) * 100);
+  return takeBackRefusal({ beforeCents, afterCents, refunds });
+}
+
+/**
+ * The write judge under its contract name: `today` is required (D8) — a judge that reads the clock would answer differently
+ * at midnight and could not be replayed.
+ */
+function judge(request, context, { today }) {
+  if (!today) throw new Error('judge: `today` is required');
+  return validateRefundPayload(request, { ...context, today });
+}
+
 module.exports = {
   lastBookPaymentDateOf,
+  judge,
   validateRefundPayload,
   splitOnIndemnity,
   cancellationHadBookMoney,
   caisseKeptMoves,
   refundDeletionRefusal,
+  takeBackRefusal,
   untickRefusal,
 };

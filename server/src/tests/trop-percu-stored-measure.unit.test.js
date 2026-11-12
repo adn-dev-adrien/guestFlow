@@ -151,7 +151,7 @@ test('rule 12 — the refund of a sold line does not eat into the excess; a free
   const refunds = require('../models/refundsModel');
   refunds.create(id, { refundDate: `${FAR_YEAR}-01-01`, method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
   assert.equal(overpaymentRow(await get(controller, id)).amount, 30);
-  refunds.create(id, { refundDate: `${FAR_YEAR}-01-02`, method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
+  refunds.create(id, { refundDate: `${FAR_YEAR}-01-02`, method: 'transfer', reason: '', origin: 'overpayment', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
   assert.equal(overpaymentRow(await get(controller, id)).amount, 20);
 });
 
@@ -172,7 +172,7 @@ test('rule 14 — the live figure goes down on one refund basis: line refunds an
   const stored = overpaymentRow(await get(controller, id)).amount;
   const refunds = require('../models/refundsModel');
   refunds.create(id, { refundDate: `${FAR_YEAR}-01-01`, method: 'transfer', reason: '', totalTtc: 80, lines: [{ lineKey: 'opt:7', label: 'Ménage', bucket: 'options', quantity: 1, unitPrice: 80, amountTtc: 80, vatRate: 10 }] });
-  refunds.create(id, { refundDate: `${FAR_YEAR}-01-02`, method: 'transfer', reason: '', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
+  refunds.create(id, { refundDate: `${FAR_YEAR}-01-02`, method: 'transfer', reason: '', origin: 'overpayment', totalTtc: 10, lines: [{ lineKey: null, label: 'Trop-perçu', bucket: 'accommodation', quantity: null, unitPrice: null, amountTtc: 10, vatRate: 10 }] });
   const open = stored - 10;
   assert.equal((await preview(controller, id, body({ discountPercent: 10, notes: 'n' }))).overpaymentTtc, open, 'unchanged price: the stored figure');
   assert.equal((await preview(controller, id, body({ discountPercent: 0 }))).overpaymentTtc, 0, 'fully absorbed');

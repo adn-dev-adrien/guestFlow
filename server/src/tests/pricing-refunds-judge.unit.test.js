@@ -95,3 +95,23 @@ test('specs/reservation-refunds.md rule 52 — nothing refunded on the books, or
 test('rule 72 — the last book payment date comes from the paid buckets', () => {
   assert.equal(lastBookPaymentDateOf({ depositPaid: 1, depositPaidDate: '2026-08-01' }, {}), '2026-08-01'); // date-literal-ok: read back as given
 });
+
+// ── rule 72, PR B: one take-back guard, the judge under its contract name ─────────────────────────────────────────────────
+
+test('rule 72 — takeBackRefusal: refused only when the gesture lowered what the books collected below the book refunds', () => {
+  const refunds = [{ id: 4, method: 'transfer', totalTtc: 60, refundDate: '2026-08-10' }, { id: 5, method: 'internal', totalTtc: 99, refundDate: '2026-08-11' }];
+  const refusal = judge.takeBackRefusal({ beforeCents: 10000, afterCents: 3000, refunds });
+  assert.equal(refusal.status, 409);
+  assert.equal(refusal.body.code, 'REFUND_BLOCKS_UNTICK');
+  assert.deepEqual(refusal.body.refundIds, [4]);
+  assert.equal(judge.takeBackRefusal({ beforeCents: 10000, afterCents: 6000, refunds }), null, 'exactly the refunds: nothing missing');
+  assert.equal(judge.takeBackRefusal({ beforeCents: 5900, afterCents: 5900, refunds }), null, 'a gesture that lowered nothing is not refused');
+  assert.equal(judge.takeBackRefusal({ beforeCents: 10000, afterCents: 0, refunds: [{ id: 9, method: 'internal', totalTtc: 5 }] }), null, 'only the caisse interne: off the books');
+});
+
+test('rule 72 — judge: `today` is required, and it is the write judge', () => {
+  assert.throws(() => judge.judge({}, {}, {}), /today/);
+  const direct = validateRefundPayload({ refundDate: TODAY, method: 'transfer', lines: [] }, { refundableLines: [], today: TODAY });
+  const named = judge.judge({ refundDate: TODAY, method: 'transfer', lines: [] }, { refundableLines: [] }, { today: TODAY });
+  assert.deepEqual(named, direct);
+});

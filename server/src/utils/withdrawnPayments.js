@@ -59,6 +59,17 @@ function planHoldsBucketPayment(database, link) {
   return Boolean(database.prepare('SELECT 1 FROM reservation_installments WHERE reservationId = ? LIMIT 1').get(Number(stayId)));
 }
 
+// Rule 75 — the payment the provider refunded is an obligation opened then settled (O-5): the money came in and went back, the
+// books never saw it (no journal entry). A devis never booked is `neverBooked`; a stay's own withdrawn link is `withdrawnLink`.
+function recordRefundedPayment(database, link) {
+  const model = require('../models/refundObligationsModel').buildModel(database);
+  const cents = Number(link.amountCents || 0);
+  if (!model.ready() || !(cents > 0) || model.forLink(link.id, 'withdrawnLink') || model.forLink(link.id, 'neverBooked')) return;
+  const { stayKindOf } = require('./paymentLinkWithdrawal');
+  const origin = stayKindOf(database, link.reservationId) === 'devis' ? 'neverBooked' : 'withdrawnLink';
+  model.openThenSettle({ reservationId: Number(link.reservationId), origin, paymentLinkId: Number(link.id), amountCents: cents, reason: 'lien retiré' }, 'provider');
+}
+
 async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, outcome, bookPaid }) {
   if (!OUTCOMES.has(outcome)) throw { httpStatus: 400, error: 'INVALID_OUTCOME', message: 'Issue invalide (stay/refunded).' };
   const link = paymentLinksModel.findById(Number(linkId));
@@ -73,6 +84,7 @@ async function settleWithdrawnPayment(linkId, { database, paymentLinksModel, out
     const info = database.prepare(`UPDATE payment_links SET cancelReason = ? WHERE id = ? AND ${UNSETTLED_SQL}`)
       .run(LINK_REASONS.REFUNDED, link.id, ...UNSETTLED_REASONS);
     if (Number(info.changes) === 0) throw { httpStatus: 409, error: 'NOTHING_TO_SETTLE', message: 'Aucun paiement à traiter sur ce lien.' };
+    recordRefundedPayment(database, link);
   } else {
     await bookPaid(link, { paid: true, paymentId: link.providerPaymentId, paidAt: link.paidAt });
   }

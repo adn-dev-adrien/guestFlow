@@ -48,6 +48,8 @@ router.get('/:id/history', controller.getHistory);
 router.get('/:id/refunds', refundsController.list);
 router.post('/:id/refunds', stayId, noWriteOnDuplicate, refundsController.create);
 router.delete('/:id/refunds/:refundId', refundsController.remove);
+// Remboursements à faire (specs/pricing-components.md rule 75) : clore une ligne « À rembourser ».
+router.patch('/:id/refund-obligations/:oid', stayId, require('../controllers/refundObligationsController').closeObligation);
 // Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
 // nothing in GuestFlow cancels a stay on its own.
 router.post('/:id/cancel', stayId, noWriteOnDuplicate, cancellationController.cancel);

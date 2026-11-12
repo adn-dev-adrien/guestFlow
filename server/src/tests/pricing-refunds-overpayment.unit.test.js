@@ -1,47 +1,45 @@
-// specs/pricing-components.md §3 rule 72 — REFUNDS / overpayment: the trop-perçu of a stay, live and as stored, and its split
-// by poste. The two netting bases stay different on purpose until PR B (every refund for the live figure, the free « Trop-perçu »
-// lines only for the stored one). The legacy module re-exports the unit. Plain objects, no DB.
+// specs/pricing-components.md §3 rules 72 and 76 — REFUNDS / overpayment: the trop-perçu of a stay (one formula for every stay:
+// Σ allocations − the stay's total − the free lines of origin `overpayment` given back, owner O-6 and O-7), and its split by
+// poste. The legacy module re-exports the unit. Plain objects, no DB.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const overpayment = require('../utils/pricing/refunds/overpayment');
+const overpaymentUnit = require('../utils/pricing/refunds/overpayment');
 const legacy = require('../utils/overpayment');
 
-const {
-  collectedOnSchedule, engineExcessOf, overpaymentOf, storedOverpaymentOf, overpaymentLinesOf, currentByPoste,
-} = overpayment;
+const { overpayment, overpaymentLinesOf, currentByPoste } = overpaymentUnit;
 
 const ROW = { platform: 'direct', depositPaid: 1, depositAmount: 100, balancePaid: 1, balanceAmount: 200 };
+const ctx = (over = {}) => ({ platform: 'direct', paymentsCents: 35000, totalCents: 29000, overpaymentRefundedCents: 0, ...over });
 
 test('rule 72 — the legacy module is the unit', () => {
-  assert.equal(legacy, overpayment);
+  assert.equal(legacy, overpaymentUnit);
 });
 
-test('rule 72 — the schedule collected: a paid bucket at its captured contribs, else its stored amount, a split at what it received', () => {
-  assert.equal(collectedOnSchedule(ROW, { deposit: 100, balance: 250 }), 350);
-  assert.equal(collectedOnSchedule(ROW, {}), 300);
-  assert.equal(collectedOnSchedule(ROW, {}, { deposit: 80, balance: null }), 280);
-  assert.equal(collectedOnSchedule({ ...ROW, balancePaid: 0 }, {}), 100);
+test('rule 76 — collected beyond the stay\'s total, in cents; nothing when the stay is not over-collected', () => {
+  assert.deepEqual(overpayment(ctx()), { cents: 6000, unclampedCents: 6000 });
+  assert.deepEqual(overpayment(ctx({ paymentsCents: 20000 })), { cents: 0, unclampedCents: -9000 });
 });
 
-test('specs/reservation-refunds.md rule 38 — a platform stay has no trop-perçu to give back; a direct one is what was collected beyond what is due', () => {
-  const platform = { ...ROW, platform: 'Booking.com' };
-  assert.equal(engineExcessOf({ row: platform, captured: { balance: 999 } }), 0);
-  assert.equal(overpaymentOf({ row: platform, captured: { balance: 999 } }), 0);
-  assert.equal(engineExcessOf({ row: ROW, captured: { deposit: 100, balance: 250 }, balanceAmount: 200 }), 50);
-  assert.equal(engineExcessOf({ row: ROW, engineOverTtc: 12 }), 12);
+test('specs/reservation-refunds.md rule 38 — a platform stay has no trop-perçu to give back, whatever was collected', () => {
+  assert.deepEqual(overpayment(ctx({ platform: 'Booking.com', paymentsCents: 99900 })), { cents: 0, unclampedCents: 0 });
 });
 
-test('specs/reservation-refunds.md rule 44 — the live trop-perçu is net of every refund given back, whatever the means', () => {
-  assert.equal(overpaymentOf({ row: ROW, captured: { deposit: 100, balance: 250 } }), 50);
-  assert.equal(overpaymentOf({ row: ROW, captured: { deposit: 100, balance: 250 }, refundedTtc: 20 }), 30);
-  assert.equal(overpaymentOf({ row: ROW, captured: { deposit: 100, balance: 250 }, refundedTtc: 80 }), 0);
+test('rule 76 (O-6) — only the free lines of origin `overpayment` given back lower it; the caller reads them, a gesture is not among them', () => {
+  assert.equal(overpayment(ctx({ overpaymentRefundedCents: 500 })).cents, 5500);
+  assert.equal(overpayment(ctx({ overpaymentRefundedCents: 6000 })).cents, 0);
+  assert.equal(overpayment(ctx({ overpaymentRefundedCents: 9000 })).cents, 0);
 });
 
-test('specs/reservation-refunds.md rule 44 — the stored trop-perçu: collected beyond the stored total, net of the free refund lines only', () => {
-  const stored = { ...ROW, finalPrice: 280, touristTaxTotal: 10 };
-  assert.equal(storedOverpaymentOf({ row: stored, captured: { deposit: 100, balance: 250 } }), 60);
-  assert.equal(storedOverpaymentOf({ row: stored, captured: { deposit: 100, balance: 250 }, freeRefundedTtc: 5 }), 55);
-  assert.equal(storedOverpaymentOf({ row: { ...stored, platform: 'Booking.com' }, captured: { balance: 999 } }), 0);
+test('rule 76 — the paid complement the operator adjusted is left out of both sides; the departure\'s own sales are not part of the price', () => {
+  assert.equal(overpayment(ctx({ paymentsCents: 41000, adjustedComplementCents: 6000, autoComplementCents: 4000, totalCents: 33000 })).cents, 6000);
+  assert.equal(overpayment(ctx({ paymentsCents: 34200, departureOwnCents: 3000, totalCents: 28476 })).cents, 2724);
+});
+
+test('rule 76 — the posted fiche: the stored total less the engine drift, never below nothing', () => {
+  assert.equal(overpayment(ctx({ engineDriftCents: 4000 }), { basis: 'asSaved' }).cents, 10000);
+  assert.equal(overpayment(ctx({ engineDriftCents: -4000 }), { basis: 'asSaved' }).cents, 2000);
+  assert.equal(overpayment(ctx({ paymentsCents: 0, totalCents: 0, engineDriftCents: 89800 }), { basis: 'asSaved' }).cents, 0, 'a stay at 0 € that the engine prices higher holds no excess');
+  assert.equal(overpayment(ctx({ engineDriftCents: 4000 })).cents, 6000, 'the stored basis ignores the drift');
 });
 
 test('rule 72 — the postes of a stay: the accommodation is what the sale holds once the options and activities are out', () => {

@@ -15,7 +15,19 @@ const { isDirectChannel } = require('./platformNameFormat');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
+// Rule 78 — the cancellation's own figure is a column of the stay. An older cancellation is read from its history entry once
+// (the migration copied it), and a stay whose column is empty (a database not yet migrated) still reads the entry.
 function storedKeptOf(database, reservationId) {
+  let column = null;
+  try {
+    column = database.prepare('SELECT cancellationKeptCents AS kept FROM reservations WHERE id = ?').get(Number(reservationId));
+  } catch { column = null; }
+  if (column && column.kept != null) {
+    // Whether the figure holds the caisse-interne acompte (rule 61): a cancel entry written before it names none.
+    const withCash = Boolean(database.prepare(`SELECT 1 FROM reservation_history WHERE reservationId = ? AND eventType = 'cancel'
+      AND changedFields LIKE '%"keptFromGuest"%' LIMIT 1`).get(Number(reservationId)));
+    return { kept: Math.max(0, round2(Number(column.kept) / 100)), withCash };
+  }
   const entry = database.prepare(`
     SELECT changedFields FROM reservation_history
      WHERE reservationId = ? AND eventType = 'cancel'

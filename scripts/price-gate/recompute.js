@@ -141,18 +141,25 @@ function refundInputsOf(db, id, row, quote) {
     out.stored = app('controllers/reservationsController.js').storedOverpayment(id);
     if (quote && !quote.error) {
       const model = app('models/reservationsModel.js');
-      const { overpaymentOf, overpaymentLinesOf } = app('utils/overpayment.js');
+      const overpaymentModule = app('utils/overpayment.js');
       const { readSplitReceived } = app('utils/splitReceived.js');
       const received = readSplitReceived(db, id);
-      const overpaymentTtc = overpaymentOf({
-        row,
-        captured: model.capturedScheduleContribs(id),
-        refundedTtc: app('models/refundsModel.js').totalsByReservation(id).withCash,
-        depositAmount: quote.depositAmount,
-        balanceAmount: quote.balanceAmount,
-        engineOverTtc: quote.overCollectedTtc,
-        received,
-      });
+      // The one formula of rule 76 on the branch (the stored stay re-priced is its own posted fiche: no drift); the three-argument
+      // reader of the baseline when the gate runs on the tag.
+      const overpaymentTtc = overpaymentModule.overpayment
+        ? overpaymentModule.overpayment(app('models/refundInputModel.js').overpaymentContext(db, id, {
+          autoComplementCents: Math.round(Number(quote.complementRoutedAmount || 0) * 100),
+        }), { basis: 'asSaved' }).cents / 100
+        : overpaymentModule.overpaymentOf({
+          row,
+          captured: model.capturedScheduleContribs(id),
+          refundedTtc: app('models/refundsModel.js').totalsByReservation(id).withCash,
+          depositAmount: quote.depositAmount,
+          balanceAmount: quote.balanceAmount,
+          engineOverTtc: quote.overCollectedTtc,
+          received,
+        });
+      const { overpaymentLinesOf } = overpaymentModule;
       out.live = {
         overpaymentTtc,
         overpaymentLines: overpaymentLinesOf({ row, capturedByPoste: model.capturedScheduleContribsByPoste(id), quote, overpaymentTtc, received }),

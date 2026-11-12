@@ -77,6 +77,15 @@ function basketRefundCents(link) {
   return Number(link.amountCents || 0);
 }
 
+// The words of the register's rows (rule 75), short and impersonal.
+const OBLIGATION_WORDS = Object.freeze({
+  basket: 'Paiement en ligne à rembourser',
+  duplicatePayment: 'Paiement en double à rembourser',
+  withdrawnLink: 'Paiement sur un lien retiré à rembourser',
+  orderConflict: 'Commande en conflit à rembourser',
+  neverBooked: 'Paiement sans séjour à rembourser',
+});
+
 const NEUTRAL_REFUND = Object.freeze({ refundOne: 'Paiement en ligne à rembourser', refundMany: 'Paiements en ligne à rembourser' });
 const basketSource = (link) => { try { return String(JSON.parse(link.basketJson).source || ''); } catch { return ''; } };
 
@@ -270,7 +279,7 @@ function retainedLabel(refund, r, planRows) {
  * @returns {{ rows: object[], remaining: number, remainingLabel: string, settled: boolean }}
  */
 function buildLedger({
-  row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null,
+  row = null, quote = null, live = {}, links = [], refunds = [], overpayment = null, obligations = null,
   midStayNotes = [], cautionAmount = 0, canRequest = false, installmentPlan = null, today,
   storedAccommodationPreArrival = null, penalties = [], providerLabel = null, nightsUnavailable = false, stayReadOnly = false,
   nettedRefundIds = null, endOfStayCollectible = true, settlements = [],
@@ -646,7 +655,21 @@ function buildLedger({
   }
   // specs/plugins-phase-1-sdk.md rule 47 (guest-app rule 36) — a basket paid by card that its plugin could not honour:
   // the money is on the link, nothing reached the fiche, the operator refunds it from the provider's space.
-  const owedBaskets = (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
+  const owedBaskets = obligations ? [] : (links || []).filter((l) => l.status === 'paid' && basketRefundOwed(l));
+  // Rule 75 — with the register of obligations at hand, each open row is a row of its own with its close action. The lowered
+  // paid line is the trop-perçu row below (the same money, one face), so it has none here.
+  for (const obligation of (obligations || []).filter((o) => o.status === 'open' && o.origin !== 'lineLowered')) {
+    const link = (links || []).find((l) => Number(l.id) === Number(obligation.paymentLinkId));
+    const words = OBLIGATION_WORDS[obligation.origin] || OBLIGATION_WORDS.basket;
+    rows.push({
+      key: `obligation-${obligation.id}`,
+      label: obligation.origin === 'basket' && link ? basketRefundLabel([link]) : words,
+      amount: round2(obligation.amountCents / 100), state: 'due', tone: 'warning', stateLabel: 'À rembourser',
+      action: stored ? { kind: 'closeObligation', label: 'Marquer remboursé', obligationId: obligation.id, confirmTitle: 'Marquer comme remboursé ?', confirmLabel: 'Marquer remboursé' } : null,
+      amountEdit: { editable: false, mode: 'none', min: null, max: null, reason: null },
+      detail: { lines: [`${formatEuros(obligation.amountCents / 100)}${obligation.reason ? ` : ${obligation.reason}` : ''}${link ? `, lien ${link.id}` : ''}`] },
+    });
+  }
   if (owedBaskets.length > 0) {
     rows.push({
       key: 'basketRefunds', label: basketRefundLabel(owedBaskets),

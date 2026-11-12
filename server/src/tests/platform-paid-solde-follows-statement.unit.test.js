@@ -14,7 +14,6 @@ const { addDaysToIsoDate } = require('../utils/devisHelpers');
 // The stays hang on today: a literal date becomes a stay in the past.
 const inDays = (days) => addDaysToIsoDate(todayIso(), days);
 
-const { overpaymentOf } = require('../utils/overpayment');
 
 test('rule 38 — Abracadaroom 600 € paid, corrected to 450 €: solde 450 €, no trop-perçu', () => {
   const db = require('../database');
@@ -43,11 +42,11 @@ test('rule 38 — Abracadaroom 600 € paid, corrected to 450 €: solde 450 €
   assert.equal(db.prepare('SELECT balanceAmount FROM reservations WHERE id = ?').get(id).balanceAmount, 450);
 });
 
-test('rule 38 — overpaymentOf: 0 on a platform row, the excess on a direct one', () => {
-  const row = { balancePaid: 1, balanceAmount: 450 };
-  const captured = { deposit: null, balance: 600 };
-  assert.equal(overpaymentOf({ row: { ...row, platform: 'Abracadaroom' }, captured }), 0);
-  assert.equal(overpaymentOf({ row: { ...row, platform: 'direct' }, captured }), 150);
+test('rule 38 — overpayment: 0 on a platform row, the excess on a direct one', () => {
+  const { overpayment } = require('../utils/pricing/refunds/overpayment');
+  const ctx = { paymentsCents: 60000, totalCents: 45000, overpaymentRefundedCents: 0 };
+  assert.equal(overpayment({ ...ctx, platform: 'Abracadaroom' }).cents, 0);
+  assert.equal(overpayment({ ...ctx, platform: 'direct' }).cents, 15000);
 });
 
 test('rule 38 — the engine keeps a direct paid solde, never a platform one', () => {

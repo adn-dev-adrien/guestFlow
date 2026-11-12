@@ -16,13 +16,17 @@ const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 // stay is cancelled for non-payment and the acompte is kept as an indemnity
 // (specs/payment-schedule-and-cancellation.md §3.6 rule 32). It is never operator-selectable — only
 // the cancellation flow writes it — so it stays out of `SELECTABLE_REFUND_METHODS`.
-const REFUND_METHODS = ['transfer', 'cash', 'internal', 'retained'];
+const REFUND_METHODS = ['transfer', 'cash', 'internal', 'retained', 'card'];
 
-const SELECTABLE_REFUND_METHODS = ['transfer', 'cash', 'internal'];
+// `card` (owner O-3): the guest's card was refunded from the provider's space, by hand; GuestFlow calls no refund API and keeps
+// the provider's reference (`providerRefundRef`) beside the refund. It is book money, like a transfer.
+const SELECTABLE_REFUND_METHODS = ['transfer', 'cash', 'internal', 'card'];
 
 const RETAINED_DEPOSIT_METHOD = 'retained';
 
 const OFF_BOOKS_METHOD = 'internal';
+
+const CARD_METHOD = 'card';
 
 // Revenue/pass-through buckets a refund line can land in. Mirrors the accounting buckets, plus the
 // tourist tax which is a pass-through (no VAT, no revenue account).
@@ -154,12 +158,120 @@ function writtenBeforeAvoir(refunds) {
   };
 }
 
+// ── The contract names (rule 72): classify, totals({scope}), order ────────────────────────────────────────────────────────
+
+/**
+ * What a refund is: `{ kind: 'refund' | 'requalification', book: boolean, offBooks: boolean }`. A `retained` avoir gives
+ * nothing back (the acompte stays, requalified as an indemnity); a caisse-interne refund is off the books.
+ */
+function classify(refund) {
+  const method = String((refund && refund.method) || '');
+  return { kind: method === RETAINED_DEPOSIT_METHOD ? 'requalification' : 'refund', book: method !== OFF_BOOKS_METHOD, offBooks: method === OFF_BOOKS_METHOD };
+}
+
+/** What a refund line is: `{ source: 'sale' | 'indemnity' | 'commission' }` (the caisse is a label of the means, never of the line, D8). */
+function classifyLine(line) {
+  if (isIndemnityLine(line)) return { source: 'indemnity' };
+  if (isCommissionLine(line)) return { source: 'commission' };
+  return { source: 'sale' };
+}
+
+/**
+ * The ONE declared filter of every reader of the register. A scope names which refunds a reading counts, per means:
+ *
+ *   given     the money that went back to the guest — the requalification avoir moves none (the fiche, the caps, the take-back guard)
+ *   journal   the accounting export of a month — the avoir is an entry of the cancellation month, the caisse interne is not in the books
+ *   turnover  the franchise turnover and the « Encaissé » of the finance views — the avoir reverses revenue, the caisse interne is in
+ *             the cash reading only
+ *   commune   the tourist tax owed to the commune — every means: « hors comptabilité » leaves the turnover, never what the commune is owed
+ *
+ * `book` reads the books (the caisse interne out), `withCash` everything the scope counts. `sql` is the same predicate for the
+ * finance queries, so a statement and the JS reading cannot diverge (`pricing-refunds-register` proves the parity on every means).
+ */
+const SCOPES = {
+  given: {
+    book: (m) => m !== RETAINED_DEPOSIT_METHOD && m !== OFF_BOOKS_METHOD,
+    withCash: (m) => m !== RETAINED_DEPOSIT_METHOD,
+    sql: { book: (col) => `${col} <> 'retained' AND ${col} <> 'internal'`, withCash: (col) => `${col} <> 'retained'` },
+  },
+  journal: {
+    book: (m) => m !== OFF_BOOKS_METHOD,
+    withCash: (m) => m !== OFF_BOOKS_METHOD,
+    sql: { book: (col) => `${col} <> 'internal'`, withCash: (col) => `${col} <> 'internal'` },
+  },
+  turnover: {
+    book: (m) => m !== OFF_BOOKS_METHOD,
+    withCash: () => true,
+    sql: { book: (col) => `${col} <> 'internal'`, withCash: () => '1 = 1' },
+  },
+  commune: {
+    book: () => true,
+    withCash: () => true,
+    sql: { book: () => '1 = 1', withCash: () => '1 = 1' },
+  },
+};
+
+const scopeOf = (scope) => {
+  if (!SCOPES[scope]) throw new Error(`refunds.totals: unknown scope « ${scope} »`);
+  return SCOPES[scope];
+};
+
+/** The predicate of a scope's reading (`book` or `withCash`) over the refund's `method` column, for a SQL statement. */
+function scopeSql(scope, reading, column = 'method') {
+  return scopeOf(scope).sql[reading](column);
+}
+
+/**
+ * `{ bookCents, withCashCents, freeCents, indemnityCents, byKey, byBucket, touristTax: { cents, nights } }` over a register,
+ * for one scope. `freeCents` is the lines with no key (the « Trop-perçu » lines), `byKey` / `byBucket` the cents per line key and
+ * per bucket, the tourist tax the cents and the nights given back (rule 27). Amounts are read in cents.
+ */
+function totals(refunds, { scope }) {
+  const rule = scopeOf(scope);
+  const out = { bookCents: 0, withCashCents: 0, freeCents: 0, indemnityCents: 0, byKey: {}, byBucket: {}, touristTax: { cents: 0, nights: 0 } };
+  for (const refund of refunds || []) {
+    const method = String(refund.method || '');
+    const cents = Math.round(Number(refund.totalTtc || 0) * 100);
+    if (rule.withCash(method)) out.withCashCents += cents;
+    if (rule.book(method)) out.bookCents += cents;
+    if (!rule.withCash(method)) continue;
+    for (const line of refund.lines || []) {
+      const amount = Math.round(Number(line.amountTtc || 0) * 100);
+      if (!line.lineKey) out.freeCents += amount;
+      else out.byKey[line.lineKey] = (out.byKey[line.lineKey] || 0) + amount;
+      if (isIndemnityLine(line)) out.indemnityCents += amount;
+      out.byBucket[line.bucket] = (out.byBucket[line.bucket] || 0) + amount;
+      if (line.lineKey === TOURIST_TAX_KEY) {
+        out.touristTax.cents += amount;
+        out.touristTax.nights += Number(line.quantity || 0);
+      }
+    }
+  }
+  return out;
+}
+
+/** The order of the register relative to the cancellation: `{ after(refund), beforeAvoir(refund), netted(refund) }`. */
+function order(refunds, cancelledAt = null, nettedIds = null) {
+  return {
+    after: (refund) => madeAfterCancellation(refund, refunds, cancelledAt),
+    beforeAvoir: writtenBeforeAvoir(refunds),
+    netted: (refund) => nettedByCancellation(refund, refunds, nettedIds),
+  };
+}
+
 module.exports = {
+  classify,
+  classifyLine,
+  totals,
+  scopeSql,
+  order,
+  SCOPES,
   round2,
   REFUND_METHODS,
   SELECTABLE_REFUND_METHODS,
   RETAINED_DEPOSIT_METHOD,
   OFF_BOOKS_METHOD,
+  CARD_METHOD,
   REFUND_BUCKETS,
   INDEMNITY_BUCKET,
   STORED_SPLIT_ROUNDING_TTC,

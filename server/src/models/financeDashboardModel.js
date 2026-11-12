@@ -6,6 +6,7 @@
 
 const db = require('../database');
 const financeModel = require('./financeModel');
+const { scopeSql: refundScopeSql } = require('../utils/pricing/refunds/register');
 const fiscalYearUtil = require('../utils/fiscalYear');
 const { resolveWindow, monthLabel } = require('../utils/financeWindow');
 const occupancy = require('../utils/financeOccupancy');
@@ -449,7 +450,7 @@ function createDashboardModel(database, finance) {
       ? "(SELECT COALESCE(SUM(l.amountTtc), 0) FROM reservation_refund_lines l WHERE l.refundId = rf.id AND l.bucket = 'indemnity')"
       : '0';
     const refunds = ids.length && hasTable('reservation_refunds')
-      ? database.prepare(`SELECT rf.reservationId, rf.refundDate, rf.totalTtc, ${indemnitySql} AS indemnityTtc FROM reservation_refunds rf WHERE rf.method <> 'internal' AND rf.reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)
+      ? database.prepare(`SELECT rf.reservationId, rf.refundDate, rf.totalTtc, ${indemnitySql} AS indemnityTtc FROM reservation_refunds rf WHERE ${refundScopeSql('turnover', 'book', 'rf.method')} AND rf.reservationId IN (${ids.map(() => '?').join(',')})`).all(...ids)
       : [];
     // specs/direct-installments.md rule 45 — a stay paid through a plan has no acompte / solde: each
     // collected installment is a payment of its own, on the day it was received.

@@ -31,6 +31,7 @@ const TODAY = inDays(0);
 function seed({ balancePaid = 1 } = {}) {
   const db = new Database(':memory:');
   db.exec(SCHEMA);
+  require('../utils/pricingLinesMigration').runPricingLinesMigration(db);
   migrateInstallmentsSchema(db);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte Test')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Test')").run();

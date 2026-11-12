@@ -10,9 +10,12 @@
  *   lockedTariff(reservation)  the tariff snapshot the stay was sold under, null when none
  *   phaseInputs(id)            dates and times for the stay clock (models/stayClockModel.js)
  *
- * `stay(id)` / `storedStayPrice(id)` of rule 48 arrive with the sale path (PR B).
+ *   stay(id)                   the stored stay: `{ row, options, customOptions, resources }` (the rows `stayRow` and the line readers return)
+ *   storedStayPrice(id)        the price the stay was sold at, in cents: `{ totalCents, accommodationCents, touristTaxCents, extrasCents }`;
+ *                              the stored total is authoritative, no reader re-prices a stored line (rule 74)
  */
 const stayClockModel = require('../stayClockModel');
+const { toCents } = require('../../utils/pricing/money');
 
 // The two card-option columns, kept out of the SELECT on a schema that predates them.
 function cardColumns(db) {
@@ -104,8 +107,29 @@ function lockedTariff(db, reservation) {
   return lockedTariff;
 }
 
+// Extras the stay holds beyond the lodging: what the options, the activities and the custom lines were sold at (offered lines are 0).
+function extrasCents(db, id) {
+  const sum = (sql) => Number(db.prepare(sql).get(Number(id)).cents || 0);
+  return sum('SELECT COALESCE(SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)), 0) AS cents FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0')
+    + sum('SELECT COALESCE(SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)), 0) AS cents FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0')
+    + sum('SELECT COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) AS cents FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0');
+}
+
+function storedStayPrice(db, id) {
+  const row = stayRow(db, id);
+  if (!row) return null;
+  const totalCents = toCents(row.finalPrice) + toCents(row.touristTaxTotal);
+  const extras = extrasCents(db, id);
+  return { totalCents, accommodationCents: Math.max(0, toCents(row.finalPrice) - extras), touristTaxCents: toCents(row.touristTaxTotal), extrasCents: extras };
+}
+
 function create(db) {
   return {
+    stay: (id) => {
+      const row = stayRow(db, id);
+      return row ? { row, options: optionRows(db, id), customOptions: customOptionRows(db, id), resources: resourceRows(db, id) } : null;
+    },
+    storedStayPrice: (id) => storedStayPrice(db, id),
     stayRow: (id) => stayRow(db, id),
     optionRows: (id) => optionRows(db, id),
     customOptionRows: (id) => customOptionRows(db, id),

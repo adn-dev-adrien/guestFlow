@@ -666,6 +666,10 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 > - Rules 42 and 44 read the trop-perçu as Σ allocations − line totals; only a free line of origin `overpayment`
 >   lowers it (rule 76). History entries `refund` and `refundDeleted` are written (map M-6).
 > - `refund_nettings` records, once at the cancellation, the refunds a requalification avoir netted (rule 78).
+> - Delivered (pass 3): the close action is `PATCH /api/reservations/:id/refund-obligations/:oid`; the refund dialog offers
+>   « Carte » with an optional provider reference (no refund API is called); every reader of the register states its scope
+>   (`given`, `journal`, `turnover`, `commune`) through `refunds.totals` / `scopeSql`; the un-tick and the correction of a split payment
+>   share one guard (`takeBackRefusal`), judged in cents on the amount collected before and after the gesture.
 
 ---
 

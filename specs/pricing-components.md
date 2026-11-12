@@ -356,7 +356,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 23. **Lowering a paid line produces money owed back.** Offering, removing, discounting or reducing a line
     below its `settledCents` is refused by default; with the operator's confirmation it opens a `refund_obligations`
     row (origin `lineLowered`, rule 75) of the line's excess, which is its trop-perçu share (rule 76) (D7, owner O-10, Q16).
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 3): the fiche save lowering a paid line is refused (409 `OVERPAID`) until `forceOverpayment`; the
+    > confirmed excess opens the obligation (`owedOnLineLowered`), a later save that shrinks the excess shrinks it, and a refund
+    > opened on the trop-perçu settles it (`refund-obligations`). The trop-perçu row is the one face of that money in the ledger.
+    > **Pending** — PR B: offering and removing a paid line through the SAS and the line API (rules 12-14).
 24. **One article, one price path.** The evening supplement of an hourly session is a component of the
     session's priced line (rule 5), priced by HOURLY TARIFF whatever the seller. The SAS no longer adds an
     `evening:<id>` complement line computed elsewhere; the `eveningCredit` worked back from stored totals
@@ -1127,9 +1130,18 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       the `midStayExtras` shim, print through `money.frenchEuros`, and require no ledger lazily; the
       import graph forbids a pricing unit to import `refunds/`; the refunds guard of rule 66 ships with its
       allow-list (`fixtures/no-duplicate-formulas/refunds.json`, 43 copies in 40 entries, each with the PR that removes it).
-    > **Pending** — PR B: behaviour and data model (everything listed under « PR B » above), `owed.js` (nothing pure
-    > of it exists in the files PR A moves: the link poller and the guest-app basket write as they compute, PR C),
-    > SETTLEMENT's `refundsOwed`, and the `paymentSettlementService.refundRefusal` merge into the take-back refusal.
+    > **Delivered by PR B** (pass 3): `models/refundInputModel.js` builds the context through the ports (`PaymentLedger.allocations` /
+    > `receipts`, `StayRepository.stay` / `storedStayPrice`); `register.js` gains `classify`, `classifyLine`, `totals(refunds, {scope})`
+    > (`given`, `journal`, `turnover`, `commune`: one declared filter each, `scopeSql` the same predicate for the finance SQL, which now
+    > reads it), `order`; `judge.js` gains `judge` (`today` required) and `takeBackRefusal`, the one guard that merges the un-tick and
+    > the correction of a split payment (judged on the amount collected before and after, in cents: a gesture that lowered nothing is
+    > never refused); `overpayment.js` is the one formula of rule 76; `owed.js` holds `owedOnBasket`, `owedOnLinkPayment`,
+    > `owedOnDuplicate`, `owedOnLineLowered` (rule 75); `card` is a means with `providerRefundRef` (O-3, no refund API is called); a
+    > refund writes its `refund` / `refundDeleted` history entry; the deletion refusal reads `refund_nettings` (rule 78).
+    > **Pending** — PR B: `collected.collectedByLine` reading the allocations by line (the stay-level rows of a legacy stay name no
+    > line, so the per-line caps keep their stored-money reader until the lines carry their rows), the names `refundable.budget` /
+    > `refundable`, `judge.deletionRefusal`, SETTLEMENT's `refundsOwed`, the poste split of the trop-perçu no longer reading the
+    > history, and SCHEDULE's `overCollectedTtc` / `complementCollectedExcess` (quote keys, unchanged by this pass).
     > _(The price gate's refund figures and the synthetic refund stays were delivered by PR A: `price-gate-synthetic`.)_
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)
@@ -1196,7 +1208,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `refund:<id>` (Q-B22). The legacy `basketJson.refundOwed` becomes an open row, a link with
     `cancelReason = 'refunded'` a settled row (`provider`). The `orderConflict` origin is written by the J-7
     code (PR C).
-    > **Pending** — PR B
+    The close action is `PATCH /api/reservations/:id/refund-obligations/:oid` `{ status: 'settled' | 'cancelled' }` (409 on a row
+    already closed, 404 on another stay's); a basket row also clears its link's `refundOwed` flag, and the stay's history says so.
+    The ledger gives the open rows a « Marquer remboursé » action (the server words the row, the client renders it); a
+    `lineLowered` row has none of its own, the « Trop-perçu » row being its face.
+    > **Delivered by PR B** (pass 3): `refund_obligations` written by `settleBasket`, `recordRefundOwed`,
+    > `settleWithdrawnPayment` (opened then settled, `neverBooked` for a devis), the confirmed lowering of a paid line; the close
+    > action and its ledger rows (`refund-obligations`, `pricing-refunds-owed`).
 76. **One trop-perçu formula for every stay** _(owner O-6, O-7 b, Q16)_. The trop-perçu is the Σ of the stay's
     allocations (rule 74) minus its line totals, for every stay: legacy stays read allocations backfilled from the
     stored contribs, splits and settlements, stay-level through `legacyBucketSplit` where no per-line truth exists
@@ -1205,7 +1223,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     a gesture line does not (O-6, conflict C-5; 0 production rows). A platform stay keeps the refunds rule 38 (no
     trop-perçu), its allocations following the D25 pool and the amount received (Q-B3). The stored and the live
     figure are one function of REFUNDS.
-    > **Pending** — PR B
+    The stay's total is its stored price (`finalPrice` + tourist tax, the sum of its lines); what the end-of-stay complement
+    collected for the departure's own sales (SAS-owned detail lines) is no part of it, the paid complement the operator adjusted is left
+    out of both sides, and the live figure of a posted fiche is the stored one plus the drift between the engine's price of the stored
+    stay and of the posted fiche (never below a total of nothing). A bucket lowered after it was paid keeps the contribs it captured as
+    its allocation, so the excess survives the save that lowered it.
+    > **Delivered by PR B** (pass 3): `overpayment(ctx, { basis })`, loaded by `refundInputModel`, read by the 409 `OVERPAID`, the live
+    > quote and the fiche (`refunds-trop-percu-every-stay`, `refund-input-model`, `pricing-refunds-overpayment`). Listed diffs: the
+    > live figure of a stay whose engine price drifted since the sale no longer counts the drift (O-7), a free line without origin
+    > `overpayment` no longer lowers it (O-6).
 77. **A refund line is re-rated with the stay's period** _(owner O-8 a, final 2026-11-12, Q16)_. Refund lines
     store the `vatRate` of their creation, and a VAT regime switch or its undo re-rates them with the stay's
     period, exactly as the code does today (`vatRegimeSwitchModel`, `vat-optional-mode.md` rule 16, unchanged). The
@@ -1220,7 +1246,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     requalification avoir netted, written once at the cancellation and read by the deletion refusal;
     `cancellation_compensations.refundId` names the refund a compensation paired with. Backfills read the
     stored history and amounts only (rule 36).
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 3): `cancelReservation` stores the two figures, writes the nettings and pairs the compensation in
+    > its own transaction; `storedKeptOf` and the deletion refusal read them (`cancellation-stored-figures`).
 79. **Line identity** _(owner O-4, Q16 call Q-B1, as built 2026-11-12)_. Every line row of the three line tables
     (`reservation_options`, `reservation_resources`, `reservation_custom_options`) has a stable `lineId`, numbered from a
     sequence that never gives a number twice (a deleted line's number is not reused), and a line is addressed as

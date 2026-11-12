@@ -11,7 +11,7 @@
  */
 
 const db = require('../database');
-const { isOffBooks, isRetainedDeposit } = require('../utils/refunds');
+const { totals: registerTotals, scopeSql: refundScopeSql, isRetainedDeposit } = require('../utils/refunds');
 const { syncStay: syncAllocations, lineRefsByKey } = require('../utils/paymentAllocationsSync');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -160,23 +160,17 @@ function createRefundsModel(database) {
     totalsByReservation(reservationId) {
       const rows = prep('SELECT method, totalTtc FROM reservation_refunds WHERE reservationId = ?')
         .all(reservationId);
-      let book = 0;
-      let withCash = 0;
-      for (const row of rows) {
-        if (isRetainedDeposit(row.method)) continue;
-        const amount = Number(row.totalTtc || 0);
-        withCash += amount;
-        if (!isOffBooks(row.method)) book += amount;
-      }
-      return { book: round2(book), withCash: round2(withCash) };
+      const given = registerTotals(rows, { scope: 'given' });
+      return { book: given.bookCents / 100, withCash: given.withCashCents / 100 };
     },
 
-    // What was given back through FREE lines (« Trop-perçu », no line key): the only refunds that reduce a
-    // trop-perçu. The refund of a sold line takes its price off the stay as well (a retained avoir counts in none).
-    freeLinesTotal(reservationId) {
+    // What was given back through FREE lines of a refund opened on the trop-perçu (origin `overpayment`, owner O-6): the only
+    // refunds that lower it. A gesture, a sold line's refund and a retained avoir lower nothing (rule 76).
+    overpaymentRefundedTtc(reservationId) {
+      const wide = hasWideSchema();
       const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
         JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.lineKey IS NULL AND r.method != 'retained'`).get(reservationId);
+        WHERE r.reservationId = ? AND l.lineKey IS NULL AND ${refundScopeSql('given', 'withCash', 'r.method')} ${wide ? "AND r.origin = 'overpayment'" : ''}`).get(reservationId);
       return round2(row.total);
     },
 
@@ -191,12 +185,14 @@ function createRefundsModel(database) {
         SELECT reservationId, method, totalTtc FROM reservation_refunds
         WHERE reservationId IN (${placeholders})
       `).all(...list);
+      const byStay = new Map();
       for (const row of rows) {
-        if (isRetainedDeposit(row.method)) continue;
-        const entry = totals[row.reservationId] || (totals[row.reservationId] = { book: 0, withCash: 0 });
-        const amount = Number(row.totalTtc || 0);
-        entry.withCash = round2(entry.withCash + amount);
-        if (!isOffBooks(row.method)) entry.book = round2(entry.book + amount);
+        if (!byStay.has(row.reservationId)) byStay.set(row.reservationId, []);
+        byStay.get(row.reservationId).push(row);
+      }
+      for (const [stayId, refunds] of byStay) {
+        const given = registerTotals(refunds, { scope: 'given' });
+        if (refunds.some((r) => r.method !== 'retained')) totals[stayId] = { book: given.bookCents / 100, withCash: given.withCashCents / 100 };
       }
       return totals;
     },
@@ -207,16 +203,23 @@ function createRefundsModel(database) {
     indemnityGivenBefore({ reservationId, refundDate, id }) {
       const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
         JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'
+        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}
           AND (r.refundDate < ? OR (r.refundDate = ? AND r.id < ?))`).get(reservationId, refundDate, refundDate, id);
       return round2(row.total);
+    },
+
+    // Rule 78 — the refunds the stay's (last) requalification avoir netted, written once at the cancellation; null without an avoir.
+    nettedRefundIds(reservationId) {
+      const avoir = prep("SELECT MAX(id) AS id FROM reservation_refunds WHERE reservationId = ? AND method = 'retained'").get(reservationId);
+      if (!avoir || avoir.id == null) return null;
+      return new Set(prep('SELECT refundId FROM refund_nettings WHERE avoirId = ?').all(avoir.id).map((r) => Number(r.refundId)));
     },
 
     // TTC every refund of a stay took from its cancellation indemnity (rule 48).
     indemnityGivenBack(reservationId) {
       const row = prep(`SELECT COALESCE(SUM(l.amountTtc), 0) AS total FROM reservation_refund_lines l
         JOIN reservation_refunds r ON r.id = l.refundId
-        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND r.method <> 'internal'`).get(reservationId);
+        WHERE r.reservationId = ? AND l.bucket = 'indemnity' AND ${refundScopeSql('journal', 'book', 'r.method')}`).get(reservationId);
       return round2(row.total);
     },
 
@@ -233,7 +236,7 @@ function createRefundsModel(database) {
         JOIN reservations r ON rf.reservationId = r.id
         JOIN clients c ON r.clientId = c.id
         JOIN properties p ON r.propertyId = p.id
-        WHERE rf.method <> 'internal'
+        WHERE ${refundScopeSql('journal', 'book', 'rf.method')}
           -- specs/payment-schedule-and-cancellation.md §3.6 rule 34 — a cancelled stay keeps its
           -- booked money visible: its requalification avoir is precisely an entry of the cancellation
           -- month, so accounting reads both kinds while every operational query keeps its filter.

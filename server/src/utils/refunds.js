@@ -27,6 +27,8 @@ module.exports = {
   ACCOMMODATION_KEY: register.ACCOMMODATION_KEY,
   TOURIST_TAX_KEY: register.TOURIST_TAX_KEY,
   COMMISSION_KEY: register.COMMISSION_KEY,
+  totals: register.totals,
+  scopeSql: register.scopeSql,
   isOffBooks: register.isOffBooks,
   isRetainedDeposit: register.isRetainedDeposit,
   isIndemnityLine: register.isIndemnityLine,

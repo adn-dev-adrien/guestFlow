@@ -213,6 +213,27 @@ function cancellationNettedRefundIds(deps, reservationId, refunds, vatRate = 0) 
   return netted;
 }
 
+// Rule 78 — the refunds the avoir netted (read once, here, from the register as the cancellation leaves it) and the refund the
+// received compensation paired with; both columns are guarded for a schema that predates them.
+function writeCancellationRecords(deps, reservationId, { refundId, compensationId, vatRate }) {
+  const { database, refundsModel } = deps;
+  const present = (table) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+  if (present('refund_nettings')) {
+    const netted = cancellationNettedRefundIds(deps, reservationId, refundsModel.listByReservation(reservationId), vatRate);
+    const insert = database.prepare('INSERT OR IGNORE INTO refund_nettings (avoirId, refundId) VALUES (?, ?)');
+    for (const nettedId of netted || []) insert.run(refundId, nettedId);
+  }
+  if (compensationId != null && database.prepare('PRAGMA table_info(cancellation_compensations)').all().some((c) => c.name === 'refundId')) {
+    database.prepare('UPDATE cancellation_compensations SET refundId = ? WHERE id = ?').run(refundId, compensationId);
+  }
+}
+
+function storeCancellationFigures(database, reservationId, { keptFromGuest, indemnityAmount }) {
+  if (!database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'cancellationKeptCents')) return;
+  database.prepare('UPDATE reservations SET cancellationKeptCents = ?, cancellationIndemnityCents = ? WHERE id = ?')
+    .run(Math.max(0, Math.round(keptFromGuest * 100)), Math.max(0, Math.round(indemnityAmount * 100)), reservationId);
+}
+
 // What a cancellation cannot go through: an unknown stay, one already cancelled, a platform booking.
 function cancellationRefusalOf(row) {
   if (!row) return { error: 'NOT_FOUND', status: 404, message: 'Réservation non trouvée' };
@@ -297,7 +318,10 @@ function cancelReservation(deps, reservationId, { reason = '', cancelledBy = nul
     if (requalification) {
       refundId = refundsModel.create(id, { ...requalification.refund, totalTtc: requalification.requalifiedTtc });
       compensationId = compensationsModel.createReceived(requalification.compensation).id;
+      writeCancellationRecords(deps, id, { refundId, compensationId, vatRate });
     }
+    // Rule 78 — the figures the notice states are stored with the cancellation, not derived from its history.
+    storeCancellationFigures(database, id, { keptFromGuest, indemnityAmount });
     // The links of the devis converted into the stay keep the devis id and stay payable otherwise.
     for (const ownerId of withConvertedDevis(database, [id])) {
       for (const link of paymentLinksModel.listForReservation(ownerId)) {

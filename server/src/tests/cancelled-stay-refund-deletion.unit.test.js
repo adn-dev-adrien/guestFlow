@@ -40,6 +40,7 @@ function seedPaidInFull() {
 function seedStay({ depositAmount, depositPaid, depositDisabled = 0, balanceAmount, balancePaid }) {
   const db = new Database(':memory:');
   db.exec(SCHEMA);
+  require('../utils/pricingLinesMigration').runPricingLinesMigration(db);
   migrateInstallmentsSchema(db);
   db.prepare("INSERT INTO properties (id, name) VALUES (1, 'Gîte Test')").run();
   db.prepare("INSERT INTO clients (id, firstName, lastName) VALUES (1, 'Camille', 'Test')").run();

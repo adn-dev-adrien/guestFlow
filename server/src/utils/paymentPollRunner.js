@@ -26,6 +26,9 @@
  * only records the bucket again, which the recorder ignores; a webhook replay re-runs the same no-ops.
  */
 
+const { owedOnBasket, owedOnDuplicate } = require('./pricing/refunds/owed');
+const obligations = (database) => require('../models/refundObligationsModel').buildModel(database);
+
 // Money already received: a failed contribs capture never loses it (utils/stayPaymentRecorder).
 function recordOn(database) {
   return (payment) => {
@@ -198,9 +201,14 @@ function settleBasket({ database, link, basket, paidDate, paidAt, stayExists = t
   }
   if (outcome.refundOwed) {
     const paidCents = Number(link.amountCents || 0);
-    const part = Number.isInteger(outcome.refundCents) && outcome.refundCents > 0 && outcome.refundCents < paidCents ? outcome.refundCents : null;
+    const owed = owedOnBasket({ paidCents, refundCents: outcome.refundCents, honoured: false, reason: outcome.reason });
+    const part = owed.owedCents < paidCents ? owed.owedCents : null;
     database.prepare('UPDATE payment_links SET basketJson = ? WHERE id = ?')
       .run(JSON.stringify({ ...basket, refundOwed: true, ...(part ? { refundCents: part } : {}) }), Number(link.id));
+    // Rule 75 — the register holds it too (the basket's flag and the history are kept in step), once per link.
+    if (stayExists && owed.owedCents > 0 && !obligations(database).forLink(link.id, 'basket')) {
+      obligations(database).open({ reservationId: Number(link.reservationId), origin: 'basket', paymentLinkId: Number(link.id), amountCents: owed.owedCents, reason: owed.reason });
+    }
     const { formatEuros } = require('./reservationLedger');
     const amount = part ? `${formatEuros(part / 100)} sur ${formatEuros(paidCents / 100)}` : formatEuros(paidCents / 100);
     if (stayExists) {
@@ -329,7 +337,11 @@ function fullAfterDeposit(database, link, paidDay = null) {
 }
 
 function recordRefundOwed(database, reservationId, link, duplicateCents = null) {
-  const amount = require('./reservationLedger').formatEuros(Number(duplicateCents == null ? link.amountCents || 0 : duplicateCents) / 100);
+  const { owedCents } = owedOnDuplicate({ paidCents: Number(link.amountCents || 0), duplicateCents });
+  if (owedCents > 0 && !obligations(database).forLink(link.id, 'duplicatePayment')) {
+    obligations(database).open({ reservationId: Number(reservationId), origin: 'duplicatePayment', paymentLinkId: Number(link.id), amountCents: owedCents, reason: 'payé deux fois' });
+  }
+  const amount = require('./reservationLedger').formatEuros(owedCents / 100);
   database.prepare("INSERT INTO reservation_history (reservationId, eventType, changedFields) VALUES (?, 'update', ?)")
     .run(Number(reservationId), JSON.stringify([{
       field: 'refundOwed', label: 'Remboursement à faire', from: '', to: `${amount} payés deux fois (lien ${link.id}) : à rembourser depuis l’espace du prestataire`,
@@ -938,4 +950,4 @@ async function runPaymentPoll({ database, paymentLinksModel, provider, devisMode
   return { checked, paid: results.filter((r) => r.status === 'paid').length, retired, settled: settled.length, stoppedBy, results };
 }
 
-module.exports = { runPaymentPoll, runLinkLifecycle, runLastLooks, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid, bookDatesTakenPaid, bookLateWithdrawnPaid };
+module.exports = { runPaymentPoll, runLinkLifecycle, runLastLooks, processPaidLink, applyPaidEffect, retryPendingCancellations, bookWithdrawnPaid, bookDatesTakenPaid, bookLateWithdrawnPaid, recordRefundOwed };

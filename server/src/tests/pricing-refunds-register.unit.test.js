@@ -82,3 +82,57 @@ test('rule 38 — the register keeps its own round2: a non-numeric reads 0, wher
   assert.equal(register.round2(0.1 + 0.2), 0.3);
   assert.ok(Number.isNaN(roundMoney('abc')));
 });
+
+// ── rule 72, PR B: the contract names ────────────────────────────────────────────────────────────────────────────────────
+
+test('rule 72 — classify: a retained avoir is a requalification, a caisse-interne refund is off the books', () => {
+  assert.deepEqual(register.classify({ method: 'transfer' }), { kind: 'refund', book: true, offBooks: false });
+  assert.deepEqual(register.classify({ method: 'internal' }), { kind: 'refund', book: false, offBooks: true });
+  assert.deepEqual(register.classify({ method: 'retained' }), { kind: 'requalification', book: true, offBooks: false });
+  assert.deepEqual(register.classifyLine({ bucket: 'indemnity' }), { source: 'indemnity' });
+  assert.deepEqual(register.classifyLine({ lineKey: 'commission', bucket: 'accommodation' }), { source: 'commission' });
+  assert.deepEqual(register.classifyLine({ lineKey: 'opt:1', bucket: 'options' }), { source: 'sale' });
+});
+
+const REGISTER = [
+  { id: 1, method: 'transfer', totalTtc: 100, lines: [{ lineKey: 'opt:1', bucket: 'options', amountTtc: 60 }, { lineKey: null, bucket: 'accommodation', amountTtc: 40 }] },
+  { id: 2, method: 'internal', totalTtc: 20, lines: [{ lineKey: 'touristTax', bucket: 'touristTax', amountTtc: 20, quantity: 5 }] },
+  { id: 3, method: 'retained', totalTtc: 50, lines: [{ lineKey: 'accommodation', bucket: 'indemnity', amountTtc: 50 }] },
+];
+
+test('rule 72 — totals: one declared filter per scope (given, journal, turnover, commune)', () => {
+  const read = (scope) => register.totals(REGISTER, { scope });
+  assert.deepEqual([read('given').bookCents, read('given').withCashCents], [10000, 12000], 'the avoir gave nothing back, the caisse is not book money');
+  assert.deepEqual([read('journal').bookCents, read('journal').withCashCents], [15000, 15000], 'the avoir is a journal entry, the caisse is not');
+  assert.deepEqual([read('turnover').bookCents, read('turnover').withCashCents], [15000, 17000], 'the cash reading adds the caisse interne');
+  assert.deepEqual([read('commune').bookCents, read('commune').withCashCents], [17000, 17000], 'every means is owed to the commune');
+  assert.deepEqual(read('given').touristTax, { cents: 2000, nights: 5 });
+  assert.equal(read('given').freeCents, 4000);
+  assert.equal(read('journal').indemnityCents, 5000);
+  assert.equal(read('given').indemnityCents, 0, 'the avoir is not in the given scope');
+  assert.deepEqual(read('given').byKey, { 'opt:1': 6000, touristTax: 2000 });
+  assert.throws(() => register.totals(REGISTER, { scope: 'everything' }), /unknown scope/);
+});
+
+test('rule 72 — the SQL predicate of a scope is the JS one on every means', () => {
+  const Database = require('better-sqlite3');
+  const sql = new Database(':memory:');
+  for (const scope of Object.keys(register.SCOPES)) {
+    for (const reading of ['book', 'withCash']) {
+      for (const method of ['transfer', 'cash', 'internal', 'retained']) {
+        const inSql = sql.prepare(`SELECT (${register.scopeSql(scope, reading, '?')}) AS keep`).get(...Array(
+          (register.scopeSql(scope, reading, '?').match(/\?/g) || []).length).fill(method)).keep === 1;
+        assert.equal(inSql, register.SCOPES[scope][reading](method), `${scope}.${reading} on ${method}`);
+      }
+    }
+  }
+});
+
+test('rule 72 — order: after the cancellation, before the avoir, netted by it', () => {
+  const refunds = [{ id: 1, method: 'transfer' }, { id: 5, method: 'retained' }, { id: 7, method: 'cash' }];
+  const order = register.order(refunds, '2026-01-01 10:00:00', new Set([1]));
+  assert.equal(order.beforeAvoir(refunds[0]), true);
+  assert.equal(order.beforeAvoir(refunds[2]), false);
+  assert.equal(order.after(refunds[2]), true);
+  assert.equal(order.netted(refunds[0]), true);
+});
