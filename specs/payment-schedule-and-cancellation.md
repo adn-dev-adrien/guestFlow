@@ -757,6 +757,12 @@ acompte is kept as an indemnity, and the books say so correctly.
     who had paid in full was told in writing the stay was cancelled for non-payment. Test:
     `tests/cancellation-notice-neutral-opening.unit.test.js`.
 
+> **Amendment 2026-11-12 — PR B of the pricing refonte** ([pricing-components.md](pricing-components.md) rule 78, owner
+> O-9). The cancellation stores `reservations.cancellationKeptCents` and `cancellationIndemnityCents` and writes the
+> `refund_nettings` rows of the requalification avoir once; the notice reads the stored column (`storedKeptOf`)
+> instead of re-deriving the figure from the history. Backfilled from the `cancel` history entry (`keptFromGuest`,
+> falling back to `retainedDeposit`); no amount column is rewritten. Not renumbered: the rule lives in the spec that
+> delivers it.
 
 ---
 

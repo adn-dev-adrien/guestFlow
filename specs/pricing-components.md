@@ -266,7 +266,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     fiche creates a **new line** with its own price, source, collection moment and status. The fiche and the
     SAS group lines of the same article for display (« Bière locale — 3 : 1 × 6,50 € + 2 × 7,00 € »).
     `exactMergedTotals` disappears.
-    > **Pending** — PR B
+    > **Pending** — PR B: the fiche and the SAS append a new line.
+    > **Pending** — PR C: `exactMergedTotals` and the guest-app shop (J-7 code, absent from this branch).
 14. **Offered is a line property.** « Offert » sets the line's amount to 0 with its catalogue value kept for
     display (`applyOfferedToLine`). The three SAS offered mechanisms and `offeredMinutes` become this one.
     > **Pending** — PR B
@@ -347,8 +348,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     complement amounts, `utils/pricing/settlement.js` the `inComplement` reading, the mid-stay split with its collected
     notes and `splitComplementBuckets`; the platform commission clamp stays a step of the engine after SCHEDULE.)_
 23. **Lowering a paid line produces money owed back.** Offering, removing, discounting or reducing a line
-    below its `settledCents` is refused by default; with the operator's confirmation it writes a refund owed
-    (`reservation_refunds` / `flagBasketRefund` merged to the full amount) (D7).
+    below its `settledCents` is refused by default; with the operator's confirmation it opens a `refund_obligations`
+    row (origin `lineLowered`, rule 75) of the line's excess, which is its trop-perçu share (rule 76) (D7, owner O-10, Q16).
     > **Pending** — PR B
 24. **One article, one price path.** The evening supplement of an hourly session is a component of the
     session's priced line (rule 5), priced by HOURLY TARIFF whatever the seller. The SAS no longer adds an
@@ -365,7 +366,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
     re-prices another standing line (D5). A pending card order reserves its allowance at quote time
     (`deferredCents`/`PRICE_ROSE` disappear).
-    > **Pending** — PR B
+    > **Pending** — PR B: `allowanceUsed` on the lines and the release of a removed line's share.
+    > **Pending** — PR C: a pending card order reserving its allowance, and the end of `deferredCents` / `PRICE_ROSE` (J-7 code, absent from this branch).
 
 ### 3.F Selling an extra — one service for every seller
 
@@ -470,8 +472,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     lodging); consumption comes from the stored lines' `allowanceUsed`. `consumeAllowance` serves a request in
     sale order and returns what it used; `releaseAllowance` returns a removed line's share to the pool. Shop,
     SAS and fiche read the same ledger, so « 1 h offerte encore disponible » is the same everywhere.
-    > **Pending** — PR B: « shop, SAS and fiche read the same ledger » (PR A has the read-only form: the engine's free units
+    > **Pending** — PR B: « SAS and fiche read the same ledger » (PR A has the read-only form: the engine's free units
     > through `createFreeUnitsLedger`, `consumeAllowance` and `releaseAllowance`, proved by `pricing-allowances`).
+    > **Pending** — PR C: the shop reads the same ledger (J-7 code, absent from this branch).
 42. **What is not a unit.** _(cut examined 2026-11-11.)_
     - **Catalogue resolution** — a DB read, so it lives in the loader; its rule (property override wins) is a
       tested function of the loader.
@@ -533,6 +536,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | `utils/paymentDeadlines.js` l. 208 (`arrived = startDate <= today`) | deadline display | C (`arrivalDayReached`) |
     | `utils/platformPriceCheck.js` l. 54 | skips past stays in the price check | C (`arrivalDayReached`) |
     | `models/clientsModel.js` l. 127, 179 (`inStay`) | client list bucket | C (`arrivalDayReached`) |
+    | `models/reservationsModel.js` create path (`startDate < today && !options.allowPastDates`) — _row added 2026-11-12 (Q-B10)_ | the refusal « Impossible de réserver dans le passé » | B (`arrivalDayReached`, same semantics) |
+    | `controllers/reservationsController.js` ledger edit (`startedStay = … storedRow.startDate <= getTodayIsoDate()`) — _row added 2026-11-12 (Q-B10)_ | whether the amount editor of the deposit / balance rows treats the stay as started | B (`arrivalDayReached`, same semantics) |
     | `utils/midStayOrderCommit.js` l. 310-337 (`stayStarted`, `isArrivalNotMarked`, `hasGuestArrived`) | shop routing | C (file deleted) |
     | `plugins/guest-app` shop state / `orderCollection` callers (`index.js` l. 151-172, `shopController.read`) | shop open, J-7 flags | C |
     | `utils/arrivalMoment.js` `hasGuestArrived` | the module itself | C (removed once its last reader moves; « arrivée faite » display reads `checkInDone` / `arrivalSasDoneAt` directly) |
@@ -579,7 +584,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       2026-11-11, PR A review: the sentence « exactly as a `per_hour` line today when hourly-resources is off » was wrong —
       today such a line is **priced**, quantity × price after the free minutes. PR A keeps it so: the head prices a
       `per_hour` article without the plugin by the core hours path; whether it becomes `FAMILY_UNAVAILABLE` is owner
-      decision OD1, taken for PR B, recommendation: stored lines keep the core path, new requests are refused.)_
+      decision OD1, **decided 2026-11-12 (a)**: stored lines keep their core-hours price, new requests are refused;
+      no diff.)_
     - **Head entries.** Besides the families, the head carries the documented `priced: { totalPrice }` entries — an amount
       with no per-type formula, « offert » only: the operator's custom lines, the baby-bed line and the timed options
       (`timedOptions.js`) — and the `per_hour` hours path above. The live families are an input of `quote({ families })`,
@@ -813,7 +819,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | `models/financeModel.js` l. 1266 (`accommodationAmount`: the tourist-tax extraction `totalPrice / (1 + vatPercentageAccommodation / 100)`) | the accommodation net of VAT, for the tourist-tax finance view | VAT component, with the tourist-tax report | B | golden `tourist-tax/*`, `finance/*` |
     | `utils/paymentLinkItems.js` `buildVatItems` | **recomputes** HT per Qonto item | VAT component output | A | golden `link/*` (34 baskets) |
     | `plugins/online-payment/reconciliation/expectedReceipts.js` | the core ledger (`buildLedger`), own `cents`/`round2` | unchanged reader; helpers from `money.js` | C | reconciliation tests |
-    | `utils/cancellationRequalification.js`, refund lines (`reservation_refund_lines.vatRate`) | credit note lines, frozen VAT rate | entries from the read models; frozen rate kept as stored data | B (commit 2) | golden `cancel/*` |
+    | `utils/cancellationRequalification.js`, refund lines (`reservation_refund_lines.vatRate`) | credit note lines, VAT rate stored at creation and re-rated with the stay's period (rule 77) | entries from the read models; the stored rate is the input of the re-rating, as today | B (commit 2) | golden `cancel/*` |
     _(Delivered by PR A: the rows marked A — the hourly bookings' VAT through the VAT component, `financeModel.htAmount`
     through it, the engine replays being the `stayQuote` pipeline through COMPOSE, and `paymentLinkItems.buildVatItems`
     calling the VAT component's integer-cent helpers. The copies that still wait are listed, with their PR, in the `vat`
@@ -872,8 +878,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     against `fixtures/no-duplicate-formulas/*.json`. The comparison is a multiset: a second identical line in a listed file
     fails, and a listed copy that is gone fails. Each entry names the file, the exact line, its count, the PR that removes
     it and why it waits; the lists are regenerated from the tree by `tests/helpers/regenerateFormulaAllowLists.js`.
-    Today: vat 13 lines (B 11, C 2), platform-payment 13 (B 7, C 6), refunds 43 (B 17, C 26), money 172 (C), dates 31 (B 15,
-    C 16; `stay-clock-single-source` holds the list to rule 45's table), hourly 3 (B) and families 23 (B) wait for the Articles
+    Today: vat 13 lines (B 11, C 2), platform-payment 13 (B 7, C 6), refunds 43 lines in 40 entries (B 17, C 26), money 172 (C), dates 31 (B 15,
+    C 16; `stay-clock-single-source` holds the list to rule 45's table), hourly 3 (B) and families 23 lines in 21 entries (B) wait for the Articles
     head to serve every seller, exporters 0. Each guard is proved on synthetic sources with planted copies
     (`formula-guards-mutants`), and the import graph, the head-only rule and the property-read guard likewise.)_
 67. **Read models are the only inputs of outputs.** `saleDetail`, `AccountingOutput`, the finance pages, the
@@ -1074,9 +1080,18 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       `splitHtVat`, `refundedTouristTax`, `refundsTotal` are removed; the price gate (rule 68) gains per stay the
       refundable lines, the collected TTC, the stored and live trop-perçu, the cancellation figures and the
       refund journal rows, plus synthetic stays from the refund test fixtures (the snapshot holds one refund).
-    - **PR B:** behaviour and data-model changes (collected-by-line from `settledCents`, one trop-perçu
-      netting, refund obligations, one take-back guard, explicit finance scopes, stored nettings) and the
-      DB simplification of the map's §4, each in the expected-diff list, after the owner's decisions Q16.
+    - **PR B** (decisions Q16, resolved 2026-11-12, §9; each change below is in the expected-diff list):
+      - collected-by-line reads `payment_allocations` (rule 74), not a stored `settledCents`: a line's settled amount is
+        the Σ of its allocations, computed in one place;
+      - the trop-perçu is Σ allocations − line totals for **every** stay, legacy included (O-7 b), the legacy stays
+        through backfilled allocations (stay-level through `legacyBucketSplit` where no per-line truth exists); only a
+        free line of origin `overpayment` lowers it (O-6); rule 76;
+      - refund obligations (O-2, O-5, O-10), rule 75;
+      - `card` as a means with `providerRefundRef`, no Qonto refund API (O-3);
+      - a refund line points at the precise sale line (`lineRef`, O-4), the legacy `lineKey` kept;
+      - refund VAT is re-rated with the stay's period, as the code does today (O-8 a, rule 77): no change;
+      - cancellation figures and nettings stored (O-9, rule 78);
+      - one take-back guard, explicit finance scopes, the DB simplification of the map's §4.
     - Rule 66 gains a guard: no refund cap / trop-perçu / requalification arithmetic outside `refunds/`.
     - **Delivered by PR A (pass 5):** `register.js`, `collected.js`, `refundable.js`, `judge.js` (with the take-back
       refusal, the projected split injected by the caller), `overpayment.js` and `cancellation.js` hold every pure
@@ -1086,7 +1101,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       REFUNDS import `../storedLines` (the four stored-line parsers, moved there from SETTLEMENT), never `settlement` or
       the `midStayExtras` shim, print through `money.frenchEuros`, and require no ledger lazily; the
       import graph forbids a pricing unit to import `refunds/`; the refunds guard of rule 66 ships with its
-      allow-list (`fixtures/no-duplicate-formulas/refunds.json`, 43 copies, each with the PR that removes it).
+      allow-list (`fixtures/no-duplicate-formulas/refunds.json`, 43 copies in 40 entries, each with the PR that removes it).
     > **Pending** — PR B: behaviour and data model (everything listed under « PR B » above), `owed.js` (nothing pure
     > of it exists in the files PR A moves: the link poller and the guest-app basket write as they compute, PR C),
     > SETTLEMENT's `refundsOwed`, and the `paymentSettlementService.refundRefusal` merge into the take-back refusal.
@@ -1119,14 +1134,83 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - **Payment allocations.** A table `payment_allocations (paymentRef, documentRef, lineRef, amountCents,
       kind: 'payment'|'refund', at)` links each payment to the lines it covers, many to many (a line paid in
       several instalments, a payment covering several lines). A line's `settledCents` (rule 21) is Σ of its
-      allocations; a refund (rule 72) is a negative allocation on named lines and names the payment it gives
-      back. Trop-perçu = Σ allocations − line totals, computed once by REFUNDS.
+      allocations, **computed, never stored** (Q16 call Q-B6b: one source); a refund (rule 72) is a negative
+      allocation (`kind = 'refund'`) on named lines and names the payment it gives back. The refund lines carry **no**
+      `paymentRef` column: the allocation is the single place that names the payment. Trop-perçu = Σ allocations −
+      line totals, computed once by REFUNDS. Each allocation carries a `books` flag (Q-B4): the interior cash
+      (« caisse interne ») moves money that is not in the books, and the finance scopes of D8 / D10 read the flag.
+      A legacy refund with no derivable payment is stored with `paymentRef` NULL (Q-B5). A requalification avoir and
+      a geste / reste write no allocation: they move no money (Q-B6).
     - **Standalone sales** (amends rule 53, owner 2026-11-11): an anonymous sale goes to one shared client
       « Passage »; when a name or e-mail is typed, the sale attaches to the matching client fiche or creates one.
     - **PR:** none in A (0 diff). PR B: the accommodation and tax lines, `payment_allocations`, backfill from
       stored contribs / splits / receipts (amounts untouched, rule 36; legacy rows without per-line truth get one
       stay-level allocation through `legacyBucketSplit`), REFUNDS and SETTLEMENT reading allocations. PR C: the
       standalone sale on the « Passage » client.
+    > **Pending** — PR B
+
+### 3.R Rules added 2026-11-12 (PR B, owner decisions Q16)
+
+75. **Refund obligations — money that must leave, kept in one register** _(owner O-2, O-5, O-10, Q16)_. A table
+    `refund_obligations (id, reservationId, origin, paymentLinkId, lineRef, amountCents, reason, createdAt,
+    status, settledAt, settledBy)` holds every refund owed and not yet paid out. `origin` is one of `basket`,
+    `duplicatePayment`, `withdrawnLink`, `lineLowered`, `orderConflict`, `neverBooked`; `status` is `open`,
+    `settled` or `cancelled`. The register holds money that **left** (or must leave) only: nothing in it is a
+    sale (conflict C-1). The ledger's « À rembourser » rows are its open rows and offer a close action; the link
+    poller (`settleBasket`, `recordRefundOwed`), the withdrawn-link settlement and the lowering of a paid line
+    (rule 23) write it. Money received for a stay that was never booked (O-5) is an obligation opened then
+    settled, with no journal entry; `settledBy` is `provider` when the payment provider refunded it, else
+    `refund:<id>` (Q-B22). The legacy `basketJson.refundOwed` becomes an open row, a link with
+    `cancelReason = 'refunded'` a settled row (`provider`). The `orderConflict` origin is written by the J-7
+    code (PR C).
+    > **Pending** — PR B
+76. **One trop-perçu formula for every stay** _(owner O-6, O-7 b, Q16)_. The trop-perçu is the Σ of the stay's
+    allocations (rule 74) minus its line totals, for every stay: legacy stays read allocations backfilled from the
+    stored contribs, splits and settlements, stay-level through `legacyBucketSplit` where no per-line truth exists
+    (owner choice, **not** the recommended adapter: every legacy figure that moves is listed in
+    `allowlist.json` for the owner's review, rule 68). Only a free refund line of origin `overpayment` lowers it;
+    a gesture line does not (O-6, conflict C-5; 0 production rows). A platform stay keeps the refunds rule 38 (no
+    trop-perçu), its allocations following the D25 pool and the amount received (Q-B3). The stored and the live
+    figure are one function of REFUNDS.
+    > **Pending** — PR B
+77. **A refund line is re-rated with the stay's period** _(owner O-8 a, final 2026-11-12, Q16)_. Refund lines
+    store the `vatRate` of their creation, and a VAT regime switch or its undo re-rates them with the stay's
+    period, exactly as the code does today (`vatRegimeSwitchModel`, `vat-optional-mode.md` rule 16, unchanged). The
+    owner first chose a frozen rate, then reversed it on 2026-11-12 after seeing the residue it leaves on the
+    4457 account: no code change, no figure moves. This amends `reservation-refunds.md` rule 14, the comment of
+    `schema.sql` and the wording « frozen rate kept as stored data » of rule 64 (all « frozen » → « re-rated
+    with the period »).
+    > **Pending** — PR B: a test header cites this rule (`vat-regime-switch`, `vat-regime-undo-scheduled`); the three wordings are delivered, no code changes.
+78. **Cancellation figures are stored** _(owner O-9, Q16)_. `reservations.cancellationKeptCents` and
+    `cancellationIndemnityCents` hold the figures of the cancellation, read by the notice (`storedKeptOf`) instead
+    of being derived from the history. A table `refund_nettings (avoirId, refundId)` records which refunds a
+    requalification avoir netted, written once at the cancellation and read by the deletion refusal;
+    `cancellation_compensations.refundId` names the refund a compensation paired with. Backfills read the
+    stored history and amounts only (rule 36).
+    > **Pending** — PR B
+79. **Line identity** _(owner O-4, Q16 call Q-B1)_. Every line row has a stable integer `id`
+    (`reservation_options`, `reservation_resources` rebuilt with `id INTEGER PRIMARY KEY AUTOINCREMENT`;
+    `reservation_custom_options` already has one). A line is addressed as `lineRef = line:<table>:<id>`. The fiche
+    save **upserts by id** and carries every column across (it deleted and re-inserted the rows, keeping only two
+    SAS columns). The old `(reservationId, optionId)` / `(reservationId, resourceId)` key stays as a UNIQUE index
+    for as long as old code can run: a rollback (self-update rule 31) must still execute its
+    `INSERT … ON CONFLICT(reservationId, optionId)`. A refund line's `lineRef` is backfilled where its legacy
+    `lineKey` matches exactly one current line, NULL otherwise; `lineKey` stays.
+    > **Pending** — PR B
+80. **Delivery cadence of PR B** _(rule 73 applied to PR B)_. Each commit runs the fast check: the price gate, the
+    intake replay, the golden test, the pricing and articles units, the settings provider, the duplication guards
+    and the files of the commit, plus `scripts/check-spec-coverage.mjs`; the move proof for the move commits. Three
+    checkpoints run the full server suite and the full prod replay (after the schema and accounting-output
+    commits, after the behaviour commits, at head); the end-to-end suite runs once at head. The spec status flips
+    to PR B in the last commit only, when no `> **Pending** — PR B` line remains.
+    **Sans test** — a delivery process, not a behaviour: the proof is the commit history and the PR body.
+81. **Price-gate allowlist scopes and the replay `--expect` file** _(Q-B7)_. An `allowlist.json` entry carries a
+    `scope` (`stays` by default, then `synthetic`, `resourceBookings`, `propertyGrids`), so a listed difference
+    is matched in the artefact family it belongs to and an empty list keeps its meaning. `scripts/pricing-replay.mjs
+    --expect <file>` takes a list of artefact keys, each with a reason, and treats exactly those as the expected
+    differences of a run. The write-path replay of D9 (refund create, refusal, requalification, un-tick, deletion,
+    D25 pool, end-of-stay refunds) is captured **only** on a worktree of the tag `price-gate-baseline`
+    (`scripts/price-gate/buildWriteReplay.mjs`, `fixtures/price-gate/writes.json`), never on the branch under test.
     > **Pending** — PR B
 
 ## 4. Architecture
@@ -1388,10 +1472,36 @@ check-in time, a discount target, line moment changes and the tourist tax as its
   (`statement` and `rentOnly`), selected per platform by a setting, so each formula exists once and GdF
   stays byte-identical; the intake replay of rule 71 proves it.
 
-- **Q16. Refunds: data model and behaviour of PR B.** — **Open.** The decisions O-1 to O-11 and the conflicts
-  C-1 to C-5 of `docs/rapports/2026-11-11-refunds-map.md` §4-§5 (refund obligations vs `reservation_refunds`,
-  refund lines keyed by line id, a `card` means, frozen vs re-rated refund VAT, trop-perçu origin, cancellation
-  columns), now read against rule 74's allocations. Put to the owner in one HTML summary before PR B.
+- **Q16. Refunds: data model and behaviour of PR B.** — **Resolved 2026-11-12 (owner).** The decisions O-1 to O-11
+  and the conflicts C-1 to C-5 of `docs/rapports/2026-11-11-refunds-map.md` §4-§5, read against rule 74's allocations,
+  were put to the owner in one HTML summary and answered:
+  - **O-1 (a)** a REFUNDS component of its own (delivered by PR A).
+  - **O-2 (a)** a `refund_obligations` table, status `open` / `settled` / `cancelled`, a close action; the register
+    holds money that left only (C-1). Rule 75.
+  - **O-3 (a)** a `card` means with `providerRefundRef`; no Qonto refund API.
+  - **O-4 (a)** a refund line points at the precise sale line (`lineRef`), the legacy `lineKey` kept (C-2). Rule 79.
+  - **O-5 (a)** money received for a stay never booked: an obligation opened then settled, no journal entry.
+  - **O-6 (a)** only a free line of origin `overpayment` lowers the trop-perçu; the difference is listed (0 production rows).
+  - **O-7 (b)** the **new formula everywhere**: trop-perçu = Σ allocations − line totals for all stays, legacy
+    included, through backfilled allocations; not the recommended adapter, every legacy difference goes to the
+    owner's review in `allowlist.json`. Rule 76.
+  - **O-8 (a), final** refund lines are re-rated with the stay's period, as today (the owner first chose a frozen
+    rate and reversed it on 2026-11-12 after seeing the 4457 residue). `reservation-refunds.md` rule 14, the
+    `schema.sql` comment and rule 64 are reworded; `vat-optional-mode.md` rule 16 is unchanged. Rule 77.
+  - **O-9 (a)** `cancellationKeptCents`, `cancellationIndemnityCents`, `refund_nettings` and the compensation's
+    `refundId` are stored. Rule 78.
+  - **O-10 (a)** lowering, offering or removing a paid line is refused by default; on confirmation an obligation
+    (origin `lineLowered`) of the line's excess is opened. Rule 23.
+  - **O-11 (a)** the three tie strategies stay named.
+  - **OD1 (a)** `per_hour` with hourly-resources off: stored lines keep their core-hours price, new requests are
+    refused; no diff (rule 47).
+  - **S5 against rule 74:** no `paymentRef` column on refund lines; a refund is a negative allocation naming the
+    payment it gives back.
+  - **Technical calls (not product questions):** the line tables are rebuilt with a stable `id` and the save upserts
+    by id (Q-B1, rule 79); no `settledCents` column, the amount is Σ allocations (Q-B6b); a `books` flag on
+    allocations (Q-B4); `paymentRef` NULL for a legacy refund with no derivable payment (Q-B5); the platform keeps
+    refunds rule 38 (Q-B3); `legacyBucketSplit` moves to the core (Q-B23); the J-7 items (`flagBasketRefund`,
+    `exactMergedTotals`, `guest_orders`, `deferredCents`) are PR C (Q-B13).
 
 ## 10. Migration plan — three PRs
 

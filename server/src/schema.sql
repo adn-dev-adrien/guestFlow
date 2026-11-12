@@ -434,8 +434,9 @@ CREATE TABLE IF NOT EXISTS reservation_options (
 
 -- Remboursements (specs/reservation-refunds.md §5). An « avoir »: money returned to the guest AFTER
 -- the sale, at its own date, WITHOUT touching the sale (finalPrice, échéances, paid flags stay
--- verbatim). One header + N lines; `vatRate` is frozen per line at creation so a later settings
--- change never re-prices an avoir already sent to the accountant.
+-- verbatim). One header + N lines; `vatRate` is stored per line at creation so a later settings
+-- change never re-prices an avoir already sent to the accountant; a VAT regime switch re-rates the lines
+-- with the stay's period (vat-optional-mode rule 16, pricing-components rule 77).
 CREATE TABLE IF NOT EXISTS reservation_refunds (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     reservationId INTEGER NOT NULL,

@@ -151,10 +151,14 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     → **400 `REFUND_INVALID_DATE`**.
     *Reading of 2026-11-02 — the date window.* `refundDate` is a real calendar day (`2026-02-30` used to pass the
     regex) and not before today − 5 years, « Date trop ancienne : 5 ans au plus. » (`specs/reservations-backend-mvc.md` rule 13, second reading).
-14. **VAT is frozen at creation.** Each line stores the `vatRate` that applied when it was recorded:
-    the app's single global `vatRate` ([single-vat-rate.md](single-vat-rate.md)) for the three revenue
-    buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings change
-    never re-prices an avoir already issued — same principle as the stored-money accounting path.
+14. **VAT is stored at creation and re-rated with the stay's period.** Each line stores the `vatRate` that applied
+    when it was recorded: the app's single global `vatRate` ([single-vat-rate.md](single-vat-rate.md)) for the
+    three revenue buckets, **0** for the `touristTax` bucket (a pass-through bears no VAT). A later settings
+    change never re-prices an avoir already issued — same principle as the stored-money accounting path. A VAT
+    regime switch and its undo ([vat-optional-mode.md](vat-optional-mode.md) rules 16 and 26) re-rate the refund
+    lines of the stays they move with the stay's period, as the code does (`vatRegimeSwitchModel`).
+    _(Amended 2026-11-12, owner O-8 (a), pricing-components Q16 and rule 77: the word « frozen » was read as
+    « never re-rated », which the code never did and the owner did not want once he saw the 4457 residue.)_
 15. Refunds are available on a **past-locked** reservation
     ([admin-unlock-past-reservations.md](admin-unlock-past-reservations.md)): an early departure is
     discovered *after* the stay by construction, so the past lock must not block them. They are
@@ -649,6 +653,19 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
     message and stays open (`RefundDialog.before-payment`). *Why:* the refund that closes a stay's books (mixed-method-payments
     rules 56, 58) reads the encaissements up to its own date; a split solde paid on the 12th and refunded « on the 9th »
     skipped that encaissement and left 70600000 −10,68 / 70900000 +10,68 open. Test: `reservation-refunds-before-last-payment`.
+
+> **Amendment 2026-11-12 — PR B of the pricing refonte** ([pricing-components.md](pricing-components.md) §9 Q16, rules 72
+> and 75-79; the rules live there, in the spec that delivers them). Not renumbered here: it describes what changes
+> in this spec's rules and data model.
+> - Unpaid refunds live in the `refund_obligations` register (origin, status `open` / `settled` / `cancelled`, a
+>   close action on the « À rembourser » rows); the register holds money that left only (rule 75).
+> - `reservation_refunds` gains `kind` (`refund` / `requalification`), `origin` (`operator` / `cancellation` /
+>   `overpayment`), `amountCents`, `providerRefundRef`; `reservation_refund_lines` gain `amountCents`, `source`,
+>   `revenueBucket`, `vatClass`, `lineRef` (the precise sale line, the legacy `lineKey` kept). The means `card` is
+>   admitted. A refund is a negative `payment_allocations` row naming the payment it gives back.
+> - Rules 42 and 44 read the trop-perçu as Σ allocations − line totals; only a free line of origin `overpayment`
+>   lowers it (rule 76). History entries `refund` and `refundDeleted` are written (map M-6).
+> - `refund_nettings` records, once at the cancellation, the refunds a requalification avoir netted (rule 78).
 
 ---
 

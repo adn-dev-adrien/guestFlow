@@ -59,6 +59,13 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
 - **Re-opened arrival SAS**: `arrivalSasDoneAt` stays set, so the baseline stays pinned — a re-commit
   never re-opens the pre-arrival window.
 
+> **Amendment 2026-11-12 — routing of new sales** ([pricing-components.md](pricing-components.md) rules 19-20 and 45,
+> PR B). Rule 1 above stays true for the arrival baseline; the **routing of a new sale** is decided by STAY CLOCK from
+> the date and the check-in time (« started » = the arrival date reached **and** the check-in time passed,
+> Europe/Paris), and by the `collectAt` the line is written with. A sale between the check-in time and a late
+> check-in mark moves from the arrival to the departure complement; one after an early check-in mark but before the
+> check-in time moves the other way. These are the listed differences 1 of PR B, owner-reviewed in `allowlist.json`.
+
 ---
 
 ## 4. Architecture
