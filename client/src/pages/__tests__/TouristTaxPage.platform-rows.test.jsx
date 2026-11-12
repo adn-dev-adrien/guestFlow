@@ -28,7 +28,7 @@ test('rule 22: the platform row is muted, tagged, and has no box', async () => {
   expect(row).toHaveAttribute('data-remitted-by', 'platform');
   expect(within(row).getByText('reversée par Airbnb')).toBeInTheDocument();
   expect(within(row).queryByRole('checkbox')).toBeNull();
-  expect(within(row).getByText('Gîte · Airbnb')).toBeInTheDocument();
+  expect(within(row).getByText('Airbnb')).toBeInTheDocument();
   expect(screen.getAllByRole('checkbox')).toHaveLength(1);
 });
 

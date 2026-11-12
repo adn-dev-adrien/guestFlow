@@ -10,7 +10,7 @@
  *              toDeclareRowsCount, rowsCount, staysCount, taxedPersons, taxedPersonNights, platformRemittedStaysCount/Amount)
  *   color:     string   the left edge's colour
  *   busy:      boolean  « Marquer … déclaré » is on its way
- *   canDeclare: boolean the server says a row of this logement can be ticked (a declarable one is left)
+ *   (the button is off when `totals.declarableRowsCount` — the server's count of rows it would tick — is 0)
  *   onDeclare, onExport: () => void
  */
 import React from 'react';
@@ -20,14 +20,14 @@ import { TAX_PROPERTY } from '../constants/touristTaxReport';
 
 const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 
-export default function TouristTaxPropertyCard({ totals, color, busy = false, canDeclare = true, onDeclare, onExport }) {
+export default function TouristTaxPropertyCard({ totals, color, busy = false, onDeclare, onExport }) {
   const name = totals.propertyName;
   const total = Number(totals.amount || 0);
   const declared = Number(totals.declaredAmount || 0);
   const pct = total > 0 ? Math.min(100, Math.max(0, (declared / total) * 100)) : 0;
   const remaining = Number(totals.remainingAmount || 0);
   const hasPlatform = Number(totals.platformRemittedStaysCount || 0) > 0;
-  const nothingLeft = totals.allDeclared || totals.toDeclareRowsCount === 0 || !canDeclare;
+  const nothingLeft = totals.allDeclared || totals.toDeclareRowsCount === 0 || !totals.declarableRowsCount;
   return (
     <Box
       component="section"
@@ -59,8 +59,8 @@ export default function TouristTaxPropertyCard({ totals, color, busy = false, ca
       </Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1 }}>
         {[
-          [totals.taxedPersonNights, TAX_PROPERTY.taxedNights],
-          [totals.taxedPersons, TAX_PROPERTY.taxedPersons],
+          [totals.taxedPersonNights, TAX_PROPERTY.taxedNights(totals.taxedPersonNights)],
+          [totals.taxedPersons, TAX_PROPERTY.taxedPersons(totals.taxedPersons)],
           [formatCurrency(declared), TAX_PROPERTY.alreadyDeclared],
         ].map(([value, label]) => (
           <Box key={label} sx={{ bgcolor: 'background.default', borderRadius: 2, px: 1.25, py: 1 }}>

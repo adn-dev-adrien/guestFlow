@@ -1765,7 +1765,6 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Divider />
               <TextField
                 label="Note pour le départ (optionnel)"
-                sx={{ mt: 1 }}
                 value={handoverNote}
                 onChange={(e) => setHandoverNote(e.target.value)}
                 size="small"

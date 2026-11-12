@@ -25,7 +25,7 @@ const ROWS = [
   // date-literal-ok: display-only fixture dates, the page compares none of them with today
   { reservationId: 4, propertyId: 2, propertyName: 'Estiva', reservationName: 'Dan Quatre', startDate: '2026-06-20', endDate: '2026-06-22', adults: 2, nightsCount: 2, taxAmount: 3, remittedBy: 'platform', platformLabel: 'Airbnb', declarable: false, key: '4-platform' },
 ];
-const BLOCK = (propertyId, propertyName, over) => ({ ...TOTALS, propertyId, propertyName, ...over });
+const BLOCK = (propertyId, propertyName, over) => ({ ...TOTALS, propertyId, propertyName, declarableRowsCount: 1, ...over });
 const BY_PROPERTY = [
   BLOCK(1, 'Granja', { staysCount: 1, amount: 4.8, declaredAmount: 0, remainingAmount: 4.8, nights: 2, persons: 2, taxedPersons: 2, taxedPersonNights: 4, toDeclareRowsCount: 1 }),
   BLOCK(2, 'Estiva', {
@@ -53,7 +53,7 @@ test('rule 58: a section for each logement — its card, then its own table with
   const estiva = section('Estiva');
   expect(within(estiva).getByTestId('property-total-2')).toHaveTextContent('9,40 €');
   expect(within(estiva).getByText(/reste/)).toHaveTextContent('2,40 €');
-  expect(within(estiva).getByText(/1 séjour reversé par la plateforme \(3,00 €\)/)).toBeInTheDocument();
+  expect(within(estiva).getByText(/1 séjour dont la plateforme reverse la taxe \(3,00 €\) : rien à déclarer\./)).toBeInTheDocument();
   // one table per logement: each holds only its own stays
   const tables = screen.getAllByRole('table');
   expect(tables).toHaveLength(2);
@@ -78,7 +78,7 @@ test('rule 57: « Marquer {logement} déclaré » is one call for that logement,
 });
 
 test('rule 57: nothing left to declare → the button is off, and « tout est déclaré » is said', async () => {
-  const done = BLOCK(1, 'Granja', { staysCount: 1, amount: 4.8, declaredAmount: 4.8, remainingAmount: 0, allDeclared: true, toDeclareRowsCount: 0 });
+  const done = BLOCK(1, 'Granja', { staysCount: 1, amount: 4.8, declaredAmount: 4.8, remainingAmount: 0, allDeclared: true, toDeclareRowsCount: 0, declarableRowsCount: 0 });
   api.getTouristTaxReport.mockResolvedValue(reportOf([ROWS[0]], { byProperty: [done], totals: { ...TOTALS, amount: 4.8, declaredAmount: 4.8, remainingAmount: 0, allDeclared: true } }));
   renderTaxPage();
   await screen.findByText('Alice Un');

@@ -16,7 +16,7 @@
 
 const SAS_FIELD_LABELS = {
   cautionReceived: 'Caution reçue',
-  cautionWaived: 'Caution non demandée',
+  cautionWaived: 'Aucune caution pour ce séjour',
   cautionReturned: 'Caution restituée',
   cleaningOption: 'Ménage',
   bathLinenOption: 'Linge de toilette',

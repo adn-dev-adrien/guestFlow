@@ -46,7 +46,7 @@ export const TOTALS = {
 export function byPropertyOf(stays, totals) {
   const seen = new Map();
   stays.forEach((r) => { if (!seen.has(r.propertyId)) seen.set(r.propertyId, r.propertyName); });
-  return [...seen.entries()].map(([propertyId, propertyName]) => ({ propertyId, propertyName, ...totals }));
+  return [...seen.entries()].map(([propertyId, propertyName]) => ({ propertyId, propertyName, declarableRowsCount: 1, ...totals }));
 }
 
 export function reportOf(rows, over = {}) {

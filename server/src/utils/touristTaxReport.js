@@ -195,6 +195,8 @@ function propertyTotals(ours, platform) {
       propertyId,
       propertyName,
       ...reportTotals(ours.filter((r) => r.propertyId === propertyId), platform.filter((r) => r.propertyId === propertyId)),
+      // What « Marquer {logement} déclaré » would tick: the rows of ours not declared yet that can be (the button's state).
+      declarableRowsCount: ours.filter((r) => r.propertyId === propertyId && !r.declared && r.declarable).length,
     }));
 }
 

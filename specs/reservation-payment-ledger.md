@@ -1362,3 +1362,7 @@ three rows added to it (R29-DB-2). Stay 12 (a single payment naming both buckets
 An editable (or locked) ledger amount (`LedgerList` `AmountCell`) is drawn as the app's standard outlined field — the same
 border and radius as a small text field, 44 px high — with the amount **centred** in it and the pencil (or lock) out of the
 flow, on the right, so it never pushes the figure off-centre. It was a text button with a dashed underline.
+
+Every editable amount of the fiche (« Prix ajusté », « Réduction (%) », « Montant ajusté (€) », « Total encaissé », the ledger's
+own editor) centres its figure (`utils/amountFieldSx.js`); the ledger's amount field is 40 px high on a mouse like a small text
+field, 44 px on a finger.

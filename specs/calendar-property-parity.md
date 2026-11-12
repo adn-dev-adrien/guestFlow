@@ -577,3 +577,9 @@ All three lots shipped together on `feature/calendar-property-parity` (the migra
 
 Every hover on a stay names its platform: the logement calendar's day cells (« Départ : … (Booking) à 10:00 »), the
 cumulative calendar's bars (« Nom — Plateforme, dates ») and the mini planning strip (the display name, not the stored key).
+
+Reading of 2026-11-12 (verification): the fiche's mini planning strip tints a past stay like the calendars — `GET /api/reservations`
+now carries the server's `past` (`stayHasEnded`) on every stay, and the strip draws `barTint` instead of the solid colour; the
+client's stays list (`listReservationsForClient`) carries it too and the page dims by it, comparing no date. The planning's arrival
+and departure cards name the platform in their tooltip, and the departure card shows the platform tag the arrival card has (a
+phone has no hover).

@@ -29,6 +29,7 @@ import { Box, Button, Typography } from '@mui/material';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import StatusBadge from './StatusBadge';
+import { COARSE_POINTER } from '../utils/touchHitArea';
 
 const amountSx = {
   fontWeight: 600,
@@ -65,7 +66,9 @@ function AmountCell({ row, formatAmount, onAmountClick, readOnly }) {
         // in it: the icon sits out of the flow, so it never pushes the figure off-centre (2026-11-12, manual trial of 4.0.0).
         position: 'relative',
         justifyContent: 'center',
-        minHeight: 44,
+        // The height of a small TextField on a mouse (40 px); a finger gets the 44 px of the theme.
+        minHeight: 40,
+        [COARSE_POINTER]: { minHeight: 44 },
         minWidth: 128,
         px: 3.5,
         borderRadius: 1,

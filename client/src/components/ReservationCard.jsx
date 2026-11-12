@@ -151,6 +151,7 @@ export default function ReservationCard({ reservation, onToggleReady, alertInfo,
   return (
     <Card
       variant="outlined"
+      title={r.platform ? `${r.firstName || ''} ${r.lastName || ''} — ${formatPlatformLabel(r.platform)}`.trim() : undefined}
       onClick={() => onOpenReservation && onOpenReservation(r.id)}
       sx={{
         mb: 1.5,

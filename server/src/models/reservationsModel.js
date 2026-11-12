@@ -7,7 +7,7 @@
  * SQL is moved verbatim from the former routes/reservations.js to preserve behavior exactly.
  */
 
-const { todayIso: localTodayIso } = require('../utils/localDate');
+const { todayIso: localTodayIso, localHourMinute, stayHasEnded } = require('../utils/localDate');
 const { usableNumber } = require('../utils/lineInputBounds');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
@@ -772,6 +772,23 @@ function createReservationsModel(database) {
   };
   const removedOf = (removed, bucket, field) => removed.filter((entry) => entry.bucket === bucket).reduce((sum, entry) => sum + Number(entry[field] || 0), 0);
 
+  // What the stay's lines bill: a run's sales and gifts move `finalPrice` by exactly the difference between two readings, so the
+  // stored total keeps describing the stored lines (the fiche's stored summary derives the accommodation from it). Null on a
+  // minimal schema without the column, which then has nothing to move (arrival-departure-sas.md rule 32).
+  const hasTable = (t) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t));
+  const billedLinesOf = (reservationId) => {
+    if (!database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'finalPrice')) return null;
+    let t = Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_options WHERE reservationId = ?').get(reservationId).t || 0);
+    if (hasTable('reservation_resources')) t += Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_resources WHERE reservationId = ?').get(reservationId).t || 0);
+    if (hasTable('reservation_custom_options')) t += Number(database.prepare('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END), 0) AS t FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).t || 0);
+    return t;
+  };
+  const moveFinalPriceBy = (reservationId, before) => {
+    if (before == null) return;
+    const delta = Math.round((billedLinesOf(reservationId) - before) * 100) / 100;
+    if (delta !== 0) database.prepare('UPDATE reservations SET finalPrice = ROUND(COALESCE(finalPrice, 0) + ?, 2) WHERE id = ?').run(delta, reservationId);
+  };
+
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
     list({ propertyId, clientId, from, to } = {}) {
@@ -799,6 +816,7 @@ function createReservationsModel(database) {
       // The server's calendar day, not UTC's: between midnight and 2 a.m. in Paris the UTC date is
       // still yesterday (specs/upcoming-reservations-cards.md rule 7).
       const today = localTodayIso();
+      const nowTime = localHourMinute(new Date());
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the
         // response (preserves the former route behavior, which stripped them).
@@ -811,6 +829,8 @@ function createReservationsModel(database) {
           customPrice: row.customPrice == null ? '' : Number(row.customPrice),
           clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
           commissionAmount: deriveCommissionAmount(row),
+          // The server's judgement of « over » (calendar-property-parity.md rule 8): the fiche's mini planning tints by it.
+          past: stayHasEnded(row, today, nowTime),
           complementAmount: Number(row.complementAmount || 0),
           complementPaid: Number(row.complementPaid || 0),
           complementPaidDate: row.complementPaidDate || null,
@@ -3299,6 +3319,7 @@ function createReservationsModel(database) {
         const plan = model.planArrivalSas(reservationId, {
           complementItems, cleaningAdded, bathLinenAdded, cleaningOffered, bathLinenOffered, soldOptions, offeredExtras,
         }, { withExistingLines: false });
+        const billedBefore = billedLinesOf(reservationId);
         // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
@@ -3671,6 +3692,8 @@ function createReservationsModel(database) {
         ].filter((key) => key && !midStayKeySet.has(key));
         model.addKeysToArrivalExtrasBaseline(reservationId, sasKeys);
 
+        moveFinalPriceBy(reservationId, billedBefore);
+
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
       const complementAmount = tx();
@@ -3963,7 +3986,9 @@ function createReservationsModel(database) {
         // hands back no refs then). Taken literally an empty set billed back every offered line — and an
         // arrival complement made entirely of gestes commerciaux sums to 0 €, which is exactly the case
         // where it is not recalled.
+        const billedBeforeGifts = billedLinesOf(reservationId);
         applyOfferedComplementExtras(reservationId, plan.offeredRefs);
+        moveFinalPriceBy(reservationId, billedBeforeGifts);
         // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);

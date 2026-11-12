@@ -625,3 +625,7 @@ The planning card of a booking outside a stay (rule 14) takes the check-in card'
 (the resource's name, 12 px bold, icon) and a time pill (13 px bold, clock) on the first row, the Arrivée button at the right;
 then the logement (bold, primary, home icon), the client with the phone, the payment (« Payé » or « À encaisser » with the
 euro icon, 12 px), then « Remise en état … ». Same texts, same actions.
+
+Reading of 2026-11-12 (verification): the booking card's detail block keeps the check-in card's 40 px left gutter, the client's name
+is `body1` 600, and the money line is the check-in card's form (« À encaisser : 30,00 € » / « Payé : 30,00 € », with the booking's
+`totalPrice`).

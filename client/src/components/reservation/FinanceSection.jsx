@@ -3,6 +3,7 @@ import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Bu
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
+import { AMOUNT_FIELD_SX } from '../../utils/amountFieldSx';
 import DateField from '../DateField';
 import StatusBadge from '../StatusBadge';
 import MidStayNoteDialog from './MidStayNoteDialog';
@@ -148,7 +149,7 @@ function ArrivalPaymentCard({ payment, busy, error, readOnly, onCommitTotal, onU
             disabled={busy}
             error={Boolean(error)}
             helperText={error || helper}
-            sx={{ maxWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' } }}
+            sx={{ maxWidth: { sm: 220 }, width: { xs: '100%', sm: 'auto' }, ...AMOUNT_FIELD_SX }}
           />
         )}
         {/* specs/single-payment-from-the-fiche.md rule 10 — undoing releases exactly the buckets the
@@ -218,7 +219,7 @@ function ComplementDetail({
                 disabled={Boolean(adjustDisabledReason)}
                 size="small"
                 helperText={helper}
-                sx={{ maxWidth: { sm: 280 }, width: '100%' }}
+                sx={{ maxWidth: { sm: 280 }, width: '100%', ...AMOUNT_FIELD_SX }}
               />
             </span>
           </Tooltip>
@@ -1079,7 +1080,7 @@ export default function FinanceSection() {
                         value={form.customPrice}
                         onCommit={(v) => updateForm({ customPrice: v })}
                         fullWidth
-                        sx={{ mt: 1 }}
+                        sx={{ mt: 1, ...AMOUNT_FIELD_SX }}
                         size="small"
                       />
                       {form.customPrice !== '' && accommodationBasePriceDisplay && (
@@ -1101,6 +1102,7 @@ export default function FinanceSection() {
                           onChange={(e) => updateForm({ discountPercent: Number(e.target.value), customPrice: '' })}
                           fullWidth
                           size="small"
+                          sx={AMOUNT_FIELD_SX}
                           slotProps={{ htmlInput: { min: 0, max: 100 } }}
                         />
                       </Stack>

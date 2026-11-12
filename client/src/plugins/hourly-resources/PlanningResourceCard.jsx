@@ -10,7 +10,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import PersonIcon from '@mui/icons-material/Person';
 import EuroIcon from '@mui/icons-material/Euro';
-import { api, OptionDayCard, useToast } from '../sdk';
+import { api, OptionDayCard, useToast, formatCurrency } from '../sdk';
 import { localIsoDate } from './localDate';
 
 // « pour demain 09:00 » / « 22:00 → pour demain 06:00 » — the « démarrer » card says what it prepares
@@ -66,34 +66,37 @@ function BookingCard({ booking }) {
             </Button>
           )}
         </Box>
-        {booking.propertyName && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, minWidth: 0, maxWidth: '100%' }}>
-            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2, minWidth: 0 }}>
-              {booking.propertyName}
+        {/* The detail block is indented like the check-in card's, which leaves the checkbox's width at the left. */}
+        <Box sx={{ pl: '40px' }}>
+          {booking.propertyName && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, minWidth: 0, maxWidth: '100%' }}>
+              <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2, minWidth: 0 }}>
+                {booking.propertyName}
+              </Typography>
+            </Box>
+          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+            <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+            <Typography variant="body1" sx={{ fontWeight: 600 }}>{booking.displayName}</Typography>
+            {booking.clientPhone && <Typography variant="body2" color="text.secondary">· {booking.clientPhone}</Typography>}
+          </Box>
+          {(booking.paid || booking.external === true) && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+              <EuroIcon sx={{ fontSize: 16, color: booking.paid ? 'success.main' : 'error.main', flexShrink: 0 }} />
+              <Chip
+                label={`${booking.paid ? 'Payé' : 'À encaisser'}${Number(booking.totalPrice) > 0 ? ` : ${formatCurrency(booking.totalPrice)}` : ''}`}
+                size="small"
+                sx={[softChip(booking.paid ? 'success' : 'error'), { height: 22, fontSize: 12, fontWeight: 700 }]}
+              />
+            </Box>
+          )}
+          {turnover > 0 && (
+            <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 700, mt: 1, display: 'block' }}>
+              Remise en état : +{turnover} min (jusqu'à {toTime(toMinutes(booking.endTime) + turnover)})
             </Typography>
-          </Box>
-        )}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-          <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>{booking.displayName}</Typography>
-          {booking.clientPhone && <Typography variant="body2" color="text.secondary">· {booking.clientPhone}</Typography>}
+          )}
         </Box>
-        {(booking.paid || booking.external === true) && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-            <EuroIcon sx={{ fontSize: 16, color: booking.paid ? 'success.main' : 'error.main', flexShrink: 0 }} />
-            <Chip
-              label={booking.paid ? 'Payé' : 'À encaisser'}
-              size="small"
-              sx={[softChip(booking.paid ? 'success' : 'error'), { height: 22, fontSize: 12, fontWeight: 700 }]}
-            />
-          </Box>
-        )}
-        {turnover > 0 && (
-          <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 700, mt: 1, display: 'block' }}>
-            Remise en état : +{turnover} min (jusqu'à {toTime(toMinutes(booking.endTime) + turnover)})
-          </Typography>
-        )}
       </CardContent>
     </Card>
   );

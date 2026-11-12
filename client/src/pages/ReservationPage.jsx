@@ -4115,11 +4115,11 @@ export default function ReservationPage() {
                       )}
                       <OriginBadge label={form.originLabel} detail={form.originDetail} />
                     </Box>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                      <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => setClientSearchOpen(true)}>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'flex-end', gap: 1 }}>
+                      <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => setClientSearchOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                         Changer le client
                       </Button>
-                      <Button size="small" variant="outlined" startIcon={<PersonAddAltIcon />} onClick={openCreateClient}>
+                      <Button size="small" variant="outlined" startIcon={<PersonAddAltIcon />} onClick={openCreateClient} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                         Nouveau client
                       </Button>
                     </Box>

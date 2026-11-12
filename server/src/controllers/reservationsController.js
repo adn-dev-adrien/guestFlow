@@ -1440,6 +1440,7 @@ async function calculatePrice(req, res) {
     const stored = model.getRow(reservationId);
     if (stored && Number(stored.depositPaid || 0) === 1 && engineInput.depositPaid) engineInput.depositAmount = stored.depositAmount;
     if (stored && Number(stored.balancePaid || 0) === 1 && engineInput.balancePaid) engineInput.balanceAmount = stored.balanceAmount;
+    if (stored && Number(stored.complementPaid || 0) === 1) Object.assign(engineInput, { complementPaid: true, complementAmount: stored.complementAmount });
   }
   if (!gateInsurance(res, engineInput, reservationId > 0 ? reservationId : devisId)) return;
   let quote = calculateReservationQuote(engineInput);

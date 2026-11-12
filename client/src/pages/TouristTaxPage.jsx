@@ -90,6 +90,12 @@ function formatReservationDates(startDate, endDate) {
   return `${start} au ${displayDate(endDate)}`;
 }
 
+// Inside a logement's section the year and the logement are known: « 09/10 → 11/10 ».
+function shortDates(startDate, endDate) {
+  const day = (iso) => displayDate(iso).slice(0, 5);
+  return endDate ? `${day(startDate)} → ${day(endDate)}` : day(startDate);
+}
+
 function formatDeclaredDate(declaredAt) {
   if (!declaredAt || declaredAt === '__pending__') return '';
   return displayDate(String(declaredAt).slice(0, 10));
@@ -104,7 +110,7 @@ function refundedTaxCaption(row) {
   const amount = Number(row.refundedTaxAmount || 0);
   if (nights <= 0 && amount <= 0) return '';
   const nightsPart = nights > 0 ? `${nights} nuit${nights > 1 ? 's' : ''} remboursée${nights > 1 ? 's' : ''}` : 'taxe remboursée';
-  return `dont ${nightsPart} (− ${formatCurrency(amount)})`;
+  return `dont ${nightsPart} (−\u00A0${formatCurrency(amount)})`;
 }
 
 // specs/platform-added-guests-tourist-tax.md rule 12 — a stay can list a second row, its added guests.
@@ -318,7 +324,7 @@ export default function TouristTaxPage() {
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{TAX_PAGE.noGuestAdded}</Typography>
       )}
       {refundedTaxCaption(row) && (
-        <Typography variant="caption" sx={{ display: 'block', color: 'warning.main' }}>{`↳ ${refundedTaxCaption(row)}`}</Typography>
+        <Typography variant="caption" sx={{ display: 'block', whiteSpace: 'nowrap', color: 'warning.main' }}>{`↳ ${refundedTaxCaption(row)}`}</Typography>
       )}
     </>
   );
@@ -367,8 +373,8 @@ export default function TouristTaxPage() {
       </TableCell>
       <TableCell>
         {rowName(row)}
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap' }}>{formatReservationDates(row.startDate, row.endDate)}</Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{`${row.propertyName} · ${row.platformLabel}`}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap' }}>{shortDates(row.startDate, row.endDate)}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{row.platformLabel}</Typography>
         {byPlatform(row) && <Box sx={{ mt: 0.5 }}>{platformTag(row)}</Box>}
         {rowNotes(row)}
       </TableCell>
@@ -417,7 +423,7 @@ export default function TouristTaxPage() {
         <Box sx={{ minWidth: 0 }}>
           <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{rowName(row)}</Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            {`${formatReservationDates(row.startDate, row.endDate)} · ${row.platformLabel} · ${row.nightsCount} nuit${row.nightsCount > 1 ? 's' : ''}`}
+            {`${shortDates(row.startDate, row.endDate)} · ${row.platformLabel} · ${row.nightsCount} nuit${row.nightsCount > 1 ? 's' : ''}`}
             {row.noGuestAdded ? '' : ` · ${row.taxedPersonNights} nuitée${row.taxedPersonNights > 1 ? 's' : ''} taxée${row.taxedPersonNights > 1 ? 's' : ''}`}
           </Typography>
           {byPlatform(row) && <Box sx={{ mt: 0.5 }}>{platformTag(row)}</Box>}
@@ -436,7 +442,6 @@ export default function TouristTaxPage() {
           totals={p}
           color={PROPERTY_COLORS[index % PROPERTY_COLORS.length]}
           busy={declaring === p.propertyId}
-          canDeclare={rows.some((r) => r.remittedBy === 'us' && !r.declared && r.declarable)}
           onDeclare={() => handleDeclareProperty(p)}
           onExport={() => handleExportProperty(p)}
         />

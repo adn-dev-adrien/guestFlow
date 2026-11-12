@@ -304,6 +304,19 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
     nuitées taxées) as compact pills; sticky, translucent and frosted (solid under `prefers-reduced-transparency`); nothing
     animates in it, and the card's bar transition stops under `prefers-reduced-motion`. It reads `totals` as given.
     Tests: `TouristTaxPage.by-property.test.jsx`, `TouristTaxPage.totals-bar.test.jsx`.
+60. **Reading of the sections and the banner** (2026-11-12, verification of the manual trial). `byProperty` also carries
+    `declarableRowsCount` (the rows of ours not declared yet that can be: what « Marquer {logement} déclaré » would tick), and
+    the card's button reads it — React derives nothing. Inside a logement's section a row drops the logement from its caption and
+    shows its dates as « jj/mm → jj/mm »; « (− 4,22 €) » never wraps. The platform note reads « {n} séjour(s) dont la
+    plateforme reverse la taxe ({montant}) : rien à déclarer. ». Counts read in the singular for one (« 1 nuitée taxée », « 1
+    personne », « 1 pers. taxée »); the numbers of the « taxées · exonérées » pill are bold. With nothing taxed the banner says
+    « rien à déclarer sur cette période », not « sur 0,00 € au total ». The export of one logement names it:
+    `taxe-de-sejour-{logement}-{du}_{au}.csv` (`csvFileName`, slug of the logement's name). Tests: `tourist-tax-by-property.unit.test.js`,
+    `TouristTaxDock.readings.test.jsx`.
+61. **The banner on a phone is a strip, not a panel** (same date): below `sm` it is a two-column grid — « À reverser » (1.5 rem)
+    with « sur X au total » on one line at the left, « Déclaré » and « Plateformes » stacked at 1 rem at the right — about 80 px
+    high, bottom margin `calc(env(safe-area-inset-bottom) + 4px)`; the pills are hidden there (the cards and tables hold the
+    detail). From `sm` up the full banner of rule 59.
 
 ---
 

@@ -10,6 +10,7 @@ const {
 } = require('./moneyLedgerFixture');
 const reportController = require('../controllers/touristTaxReportController');
 const { propertyTotals } = require('../utils/touristTaxReport');
+const { csvFileName } = require('../utils/touristTaxReportCsv');
 
 const pad2 = (n) => String(n).padStart(2, '0');
 let slot = 40;
@@ -89,4 +90,21 @@ test('rule 57 — a platform that remits the tax itself is never ticked, and an 
   assert.equal(db.prepare('SELECT touristTaxDeclaredAt AS a FROM reservations WHERE id = ?').get(remitted.id).a, null);
   const refused = declare('99999', { period: 'month', month });
   assert.equal(refused.statusCode, 400);
+});
+
+test('rule 56 — declarableRowsCount is what « Marquer {logement} déclaré » would tick, read by the server', () => {
+  const row = (propertyId, reservationId, declared, declarable) => ({
+    reservationId, propertyId, propertyName: `P${propertyId}`, nightsCount: 1, persons: 1, taxedPersons: 1, exemptPersons: 0,
+    taxedPersonNights: 1, exemptPersonNights: 0, taxAmount: 1, declared, declarable,
+  });
+  const [a, b] = propertyTotals([row(1, 1, false, true), row(1, 2, false, false), row(1, 3, true, true), row(2, 4, false, false)], []);
+  assert.equal(a.declarableRowsCount, 1);
+  assert.equal(b.declarableRowsCount, 0);
+});
+
+test('rule 60 — the export of one logement carries its slug in the file name', () => {
+  // date-literal-ok: a file name built from the window's dates, nothing compares them with today
+  const report = { window: { from: '2026-10-01', to: '2026-10-31' }, filters: { propertyId: 2 }, properties: [{ id: 2, name: 'L\'Estiva' }] };
+  assert.equal(csvFileName(report, 'list'), 'taxe-de-sejour-l-estiva-2026-10-01_2026-10-31.csv');
+  assert.equal(csvFileName({ ...report, filters: { propertyId: null } }, 'list'), 'taxe-de-sejour-2026-10-01_2026-10-31.csv');
 });

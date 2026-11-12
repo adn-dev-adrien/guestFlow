@@ -275,8 +275,17 @@ confirmation — records the caution status and the complement(s) on the reserva
     stays); it is refused as an invalid tick when not a boolean (rule 72 of the ledger spec), ignored while a caution is held,
     and **cleared whenever a caution is received** (SAS « Caution perçue » or the fiche). A reopened SAS shows the page again
     pre-answered « Non » (the property amount is served as `propertyDefaultCautionAmount`, also for reception) so the answer
-    can be changed. The history says « Caution non demandée : non → oui ». Pinned by `tests/sas-caution-waived.unit.test.js` and
+    can be changed. The history says « Aucune caution pour ce séjour : non → oui ». Pinned by `tests/sas-caution-waived.unit.test.js` and
     `ReservationSasDialog.caution-answers.test.jsx`.
+32. **A run's sales and gifts move `finalPrice`** (2026-11-12, verification of the manual trial of 4.0.0). `commitArrivalSas`
+    never updated the stored `finalPrice`, so after a breakfast or a meal sold at the door the fiche fell to the stored summary
+    with a wrong « Prix hébergement » (stay 22308: 217,80 € instead of 504,00 €) and the refund dialog (`utils/refunds.js`)
+    reused it. The commit (and the check-out's gifts, `offeredArrivalExtras`) now reads what the stay's lines bill (options,
+    resources, non-offered custom lines) before and after its writes, inside the same transaction, and moves `finalPrice` by
+    the difference (`billedLinesOf` / `moveFinalPriceBy`); a run that sells and gives nothing moves nothing; a minimal schema
+    without the column has nothing to move. Test: `tests/sas-final-price-moves.unit.test.js`.
+33. **Reading of 2026-11-12 (accepted, no code):** a stay answered « Non » (rule 31) whose logement's caution later becomes 0
+    still opens the caution page, reading 0,00 € — the answer stays changeable.
 
 ---
 
