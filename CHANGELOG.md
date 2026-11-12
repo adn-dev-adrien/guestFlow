@@ -4,6 +4,15 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-11-12
+
+### Summary
+- La reconnexion à Qonto (Réglages → Paiements) fonctionne de nouveau ; elle échouait depuis la 4.0.0.
+- Après l'installation, reconnecter Qonto une fois pour activer les factures des réservations hors séjour.
+
+### Fixed
+- Reconnecting Qonto from Réglages → Paiements failed since 4.0.0 with « Échec de la connexion Qonto »: the consent asked the scope `client_invoice.read`, which Qonto does not know — the read scope is `client_invoices.read`. The control plane's billing scopes carried the same typo.
+
 ## [4.0.0] - 2026-11-12
 
 ### Summary
