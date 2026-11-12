@@ -9,6 +9,7 @@ const clientsModel = require('../models/clientsModel');
 const clientsController = require('../controllers/clientsController');
 const { normalizeSearchText } = require('../utils/searchText');
 
+// date-literal-ok: the model receives `today` as a parameter; nothing here reads the real clock.
 const TODAY = '2026-11-12';
 const shift = (days, from = TODAY) => {
   const d = new Date(`${from}T00:00:00Z`);
@@ -167,8 +168,10 @@ test('normalizeSearchText — skips empty parts and collapses spaces', () => {
 test('controller — GET /clients/picker hands the date to the model', () => {
   let received;
   const controller = clientsController.buildController({ picker: (p) => { received = p; return { options: [] }; } });
-  const body = controller.picker({ query: { date: '2026-12-20' } }, { json: (b) => b });
-  assert.deepEqual(received, { date: '2026-12-20' });
+  // date-literal-ok: an opaque string handed through to a stub model.
+  const day = '2026-12-20';
+  const body = controller.picker({ query: { date: day } }, { json: (b) => b });
+  assert.deepEqual(received, { date: day });
   assert.deepEqual(body, { options: [] });
 });
 
