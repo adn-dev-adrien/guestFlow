@@ -334,7 +334,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 5; `ical-default-options-head`, `platform-intake-port`): the intakes declare the moment of each line they write (`collectAt = 'platform'` or `'arrival'`, rule 71), and
     > `platformPriceCheck` reads PLATFORM PRICE's `platformLinesTotal` (the declaration, else the flag the intakes derive it from), rounded like the pin's. PR A ships PLATFORM PRICE with today's
     > flag (`pricing-platform-price`): the engine's gross pin and `grossFromNet` are one unit.
-    > **Pending** — PR C: the engine's pin reading the declaration instead of `inComplement = 0` in its own routing step; both agree on every line an intake wrote, so nothing moves before the lines have a stable identity (rule 13).
+    > **Delivered by PR C** (C20): the `platformGross` step reads PLATFORM PRICE's `isPlatformLine` (the declaration, else the `inComplement` flag) for the lines the back-solve excludes; the gate moves nothing. Test: `pricing-platform-price-declared`.
 
 ### 3.E STAY CLOCK, SCHEDULE, SETTLEMENT
 
