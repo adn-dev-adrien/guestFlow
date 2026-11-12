@@ -54,8 +54,8 @@ function makeDb() {
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0, maxGuests INTEGER DEFAULT 0);
   `);
   db.prepare('INSERT INTO properties (id, defaultCautionAmount, maxGuests) VALUES (7, 500, 6)').run();
-  db.prepare(`INSERT INTO reservations (id, propertyId, startDate, endDate, checkInTime, checkOutTime, adults, teens, babies, complementAmount)
   // date-literal-ok: stay days of the fixture, nothing compares them with today
+  db.prepare(`INSERT INTO reservations (id, propertyId, startDate, endDate, checkInTime, checkOutTime, adults, teens, babies, complementAmount)
               VALUES (1, 7, '2026-08-18', '2026-08-21', '15:00', '10:00', 2, 1, 1, 30)`).run();
   // date-literal-ok: stay days of the fixture, nothing compares them with today
   for (const date of ['2026-08-18', '2026-08-19', '2026-08-20']) {
