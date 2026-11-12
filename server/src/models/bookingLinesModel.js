@@ -134,7 +134,8 @@ function createBookingLinesModel(database) {
           unitPrice: Number(opt.unitPrice || 0),
           billedUnits: Number(opt.billedUnits || 0),
           priceType: opt.priceType || 'per_stay',
-          totalPrice: opt.totalPrice || 0,
+          // A line keeps its catalogue amount: a discount (rules 39, 40) is a fact beside it, never a lower stored total.
+          totalPrice: opt.grossTotalPrice ?? opt.totalPrice ?? 0,
           offered: opt.offered ? 1 : 0,
           inComplement: forced,
           acompteContribTtc: forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
@@ -206,7 +207,7 @@ function createBookingLinesModel(database) {
           ...kept,
           reservationId: bookingId,
           description,
-          amount: Number(line.originalTotalPrice || line.totalPrice || 0),
+          amount: Number(line.originalTotalPrice || line.grossTotalPrice || line.totalPrice || 0),
           offered: line.offered ? 1 : 0,
           sortOrder,
           inComplement: forced,
@@ -241,7 +242,8 @@ function createBookingLinesModel(database) {
       // its catalogue price. The line was then stored `offered = 1` WITH its price, so the devis PDF
       // printed it unmarked and subtracted it from the accommodation row. The fallback now only covers
       // a caller that supplies no total at all.
-      const suppliedTotal = rr.totalPrice == null || rr.totalPrice === '' ? null : Number(rr.totalPrice);
+      const grossTotal = rr.grossTotalPrice ?? rr.totalPrice;
+      const suppliedTotal = grossTotal == null || grossTotal === '' ? null : Number(grossTotal);
       const billedTotal = suppliedTotal != null ? suppliedTotal : Number(unitPrice) * Number(qty);
       insertResource({
         ...(carried || {}),

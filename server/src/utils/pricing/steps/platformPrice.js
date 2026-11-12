@@ -14,12 +14,14 @@ const step = {
   requires: [
     'accommodationBaseTotal', 'customFinalPrice', 'extraGuestInBrutSurcharge', 'normalizedDiscountPercent',
     'platformGrossPin', 'preArrivalOptionsResources', 'reversedTouristTaxInBrut', 'withheldTouristTaxInBrut',
+    'accommodationDiscountShareCents',
   ],
   provides: ['accommodationAdjustedPrice', 'pinnedAccommodation'],
   apply(ctx) {
     const {
       accommodationBaseTotal, customFinalPrice, extraGuestInBrutSurcharge, normalizedDiscountPercent,
       platformGrossPin, preArrivalOptionsResources, reversedTouristTaxInBrut, withheldTouristTaxInBrut,
+      accommodationDiscountShareCents,
     } = ctx;
 
     // « Offered » case (platform collects the tax AND remits it to the commune itself): what the brut
@@ -41,7 +43,7 @@ const step = {
         : allocateDiscount({
           discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
           accommodation: accommodationBaseTotal,
-        }).accommodation
+        }).accommodation - accommodationDiscountShareCents / 100
     );
 
     return { ...ctx, accommodationAdjustedPrice, pinnedAccommodation };

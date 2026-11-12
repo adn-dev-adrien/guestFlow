@@ -46,7 +46,8 @@ const netTotals = require('./steps/netTotals');
  *     planningCardAsQuantity, endOfStaySasAmount, endOfStaySasAmountAuto, endOfStayComplementSettled,
  *     frozenMidStayLines, midStaySettledNotes, refundsTotal, platformPenaltyAmount, arrivalPaymentReduction,
  *     arrivalPaymentTip, complementDeferredToCheckout, complementCollected, quoteKind, validUntil,
- *     devisPromise, cancellationInsurancePriceOverride, channel, isDirectBooking, persons
+ *     devisPromise, cancellationInsurancePriceOverride, channel, isDirectBooking, persons, discountTarget,
+ *     discountFixedAmount, lineFacts
  * clock: clock
  * nights: baseAccommodationPrice, changeover, freshUnpricedNights, maxNightsBreached, maxNightsRules,
  *     mergedNightly, minNightsBreached, minNightsRules, nightlyBreakdown, nights, requiredMaxNights,
@@ -55,9 +56,9 @@ const netTotals = require('./steps/netTotals');
  *     extraGuestComplementSurcharge, extraGuestCount, extraGuestInBrutSurcharge, extraGuestPriceUnit,
  *     extraGuestSurcharge, extraGuestSurchargeOriginal, extraGuestUnitPrice, includedGuests,
  *     isExtraGuestSurchargeOffered, resolvedPlatformPaidGuests
- * discountLevers: cancellationInsuranceBase, customFinalPrice, normalizedDiscountPercent
- * extras: consumedMap, finalOptionLines, grantedFreeUnitsFor, optionsTotal, resourceLines, resourcesTotal,
- *     soldGrantMap
+ * discountLevers: cancellationInsuranceBase, customFinalPrice, normalizedDiscountPercent, typedDiscountPercent
+ * extras: accommodationDiscountShareCents, consumedMap, extrasDiscountCents, finalOptionLines, grantedFreeUnitsFor,
+ *     optionsTotal, resourceLines, resourcesTotal, soldGrantMap
  * midStay: accommodationBaseTotal, midStayExtras, midStayForced, midStayRemainingTotal, midStaySettledTotal,
  *     midStayTotal, midStayUnforced, subtotal
  * platformGross: platformGrossPin, preArrivalOptionsResources

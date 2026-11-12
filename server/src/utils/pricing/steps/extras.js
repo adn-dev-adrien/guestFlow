@@ -12,6 +12,8 @@ const articles = require('../articles');
 const { createFreeUnitsLedger } = require('../allowances');
 const { portionCap, clampPortions } = require('../../mealPortions');
 const { buildBabyBedSupplementLine, isBabyBedOption } = require('../../babyBedSupplement');
+const { discountLines } = require('../discounts');
+const { extraLineKey } = require('../storedLines');
 const { lockedUnitPriceOr } = articles;
 
 // What an option line's `quantity` counts, when the summary has to say it
@@ -60,11 +62,11 @@ const step = {
     'defaultOfferedOptionIds', 'endDate', 'families', 'isDirectBooking', 'lockedOptionLines', 'lockedOptionUnits',
     'lockedResourceLines', 'lockedResourceUnits', 'lockedTariff', 'nightlyBreakdown', 'nights', 'offeredOptionIds',
     'optionsById', 'persons', 'planningCardAsQuantity', 'resourcesById', 'rules', 'selectedOptions',
-    'selectedResources', 'settings', 'startDate',
+    'selectedResources', 'settings', 'startDate', 'typedDiscountPercent', 'discountTarget', 'discountFixedAmount', 'lineFacts', 'totalPrice', 'platform',
   ],
   provides: [
-    'consumedMap', 'finalOptionLines', 'grantedFreeUnitsFor', 'optionsTotal', 'resourceLines', 'resourcesTotal',
-    'soldGrantMap',
+    'accommodationDiscountShareCents', 'consumedMap', 'extrasDiscountCents', 'finalOptionLines', 'grantedFreeUnitsFor', 'optionsTotal',
+    'resourceLines', 'resourcesTotal', 'soldGrantMap',
   ],
   apply(ctx) {
     const {
@@ -73,7 +75,7 @@ const step = {
       defaultOfferedOptionIds, endDate, families, isDirectBooking, lockedOptionLines, lockedOptionUnits,
       lockedResourceLines, lockedResourceUnits, lockedTariff, nightlyBreakdown, nights, offeredOptionIds,
       optionsById, persons, planningCardAsQuantity, resourcesById, rules, selectedOptions,
-      selectedResources, settings, startDate,
+      selectedResources, settings, startDate, typedDiscountPercent, discountTarget, discountFixedAmount, lineFacts, totalPrice, platform,
     } = ctx;
 
     const optionUnitOverrides = lockedOptionUnits || {};
@@ -367,13 +369,27 @@ const step = {
       .filter(Boolean)
       .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr'));
 
-    const optionsTotal = roundMoney(finalOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
-    const resourcesTotal = roundMoney(resourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
+    // Rules 16, 39, 40: a line's own discount, then the stay discount aimed at the extras (or at everything) shared out in cents.
+    // A platform stay's gross pin supersedes the stay discount (rule 16): it keeps the target `nights`' own behaviour.
+    const stayTarget = isDirectBooking ? discountTarget : 'nights';
+    const discounted = discountLines({
+      discount: { target: stayTarget, percent: typedDiscountPercent, amount: discountFixedAmount },
+      accommodation: totalPrice,
+      lines: [...finalOptionLines, ...resourceLines],
+      facts: lineFacts,
+      keyOf: extraLineKey,
+    });
+    const discountedOptionLines = discounted.lines.slice(0, finalOptionLines.length);
+    const discountedResourceLines = discounted.lines.slice(finalOptionLines.length);
+
+    const optionsTotal = roundMoney(discountedOptionLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
+    const resourcesTotal = roundMoney(discountedResourceLines.reduce((sum, line) => sum + Number(line.totalPrice || 0), 0));
 
     return {
       ...ctx,
-      consumedMap, finalOptionLines, grantedFreeUnitsFor, optionsTotal, resourceLines, resourcesTotal,
-      soldGrantMap,
+      accommodationDiscountShareCents: discounted.accommodationShareCents,
+      consumedMap, extrasDiscountCents: discounted.extrasDiscountCents, finalOptionLines: discountedOptionLines, grantedFreeUnitsFor,
+      optionsTotal, resourceLines: discountedResourceLines, resourcesTotal, soldGrantMap,
     };
   },
 };

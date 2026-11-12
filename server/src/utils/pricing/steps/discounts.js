@@ -13,6 +13,7 @@ const step = {
   requires: [
     'accommodationAdjustedPrice', 'accommodationBaseTotal', 'baseAccommodationPrice', 'customFinalPrice',
     'extraGuestSurcharge', 'normalizedDiscountPercent', 'optionsTotal', 'pinnedAccommodation', 'resourcesTotal',
+    'accommodationDiscountShareCents',
   ],
   provides: [
     'accommodationDeltaAmount', 'accommodationDeltaType', 'accommodationDiscountAmount',
@@ -22,6 +23,7 @@ const step = {
     const {
       accommodationAdjustedPrice, accommodationBaseTotal, baseAccommodationPrice, customFinalPrice,
       extraGuestSurcharge, normalizedDiscountPercent, optionsTotal, pinnedAccommodation, resourcesTotal,
+      accommodationDiscountShareCents,
     } = ctx;
 
     const accommodationDiscountAmount = roundMoney(Math.max(0, accommodationBaseTotal - accommodationAdjustedPrice));
@@ -32,7 +34,7 @@ const step = {
         : allocateDiscount({
           discount: { percent: normalizedDiscountPercent, customPrice: customFinalPrice, target: 'nights' },
           accommodation: baseAccommodationPrice,
-        }).accommodation
+        }).accommodation - accommodationDiscountShareCents / 100
     );
     const accommodationDeltaType = accommodationAdjustedPrice < accommodationBaseTotal
       ? 'reduction'
@@ -46,7 +48,7 @@ const step = {
     const engineAccommodationPrice = allocateDiscount({
       discount: { percent: normalizedDiscountPercent, target: 'nights' },
       accommodation: accommodationBaseTotal,
-    }).accommodation;
+    }).accommodation - accommodationDiscountShareCents / 100;
     const engineFinalPrice = sumMoney([engineAccommodationPrice, extraGuestSurcharge, optionsTotal, resourcesTotal]);
 
     return {

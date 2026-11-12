@@ -298,7 +298,16 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       operator uses rule 23 instead).
     - On a platform stay the gross pin supersedes the stay discount (today's rule): DISCOUNTS applies only to
       lines outside the platform price.
-    > **Pending** — PR B: the targets `extras` and `all`, a fixed `amount` and the allocation of rule 40. PR A ships DISCOUNTS with the target `nights` only, the euro formula of every stay today (`pricing-discounts`); the other targets throw `NOT_IN_PR_A`.
+    > **Delivered by PR B** (pass 4, C15): the targets `extras` and `all` and the allocation of rule 40 (`pricing-discount-allocation`,
+    > `pricing-line-discount`). The engine reads `discountTarget` (stored on the stay, journaled « Réduction sur », default `nights`),
+    > `discountFixedAmount` (euros, an engine input: **no stay-level column stores a fixed amount** — §5 has none, so a fixed stay
+    > amount is not persisted; owner decision pending) and `lineFacts` (per stored line: `discountCents`, `source`, `soldAt`, `lineId`,
+    > `settledCents` = Σ of its allocations). With `extras` / `all` the typed percent is shared out by EXTRAS over the covered lines
+    > (`coveredLines`: not offered, not paid, source fiche / devis / intake) and, for `all`, the accommodation; a platform stay
+    > keeps the target `nights` (its gross pin wins). A line that gains a discount carries `grossTotalPrice` (the catalogue amount,
+    > what is stored: a discount never lowers a stored total), `discountCents` (its own, rule 39) and `stayDiscountShareCents`;
+    > its `totalPrice` is what is due. A quote with no such discount carries no new key on its lines. `discountAmount` counts the
+    > extras' discount. The tourist-tax base and the cancellation-insurance base still follow the `nights` discount only.
 17. **"Inside the platform price" is a declared line fact, not a routing guess.** A line is either part of
     the platform gross (`collectAt = 'platform'`, set by the intake or the operator at booking time) or not.
     PLATFORM PRICE back-solves the accommodation as `brut − extra guests in brut − Σ platform lines −
@@ -468,8 +477,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `money` allow-list of rule 66, PR C.)_
 39. **A line discount.** The operator may discount one unpaid line (percent or amount), from the fiche or the
     SAS. It is stored on the line (`discountCents`) and journaled. It is the only discount a shop or SAS sale
-    receives.
-    > **Pending** — PR B
+    receives. `discountCents` holds the line's OWN discount only: the stay discount's share (rule 40) is derived on every quote
+    (`stayDiscountShareCents`), never stored, so a later change of the stay discount cannot leave a stale share on a line.
+    > **Delivered by PR B** (pass 4, C15): the engine applies a stored line discount (capped at the line, never below 0).
+    > **Pending** — PR B (C17): the operator's way to set it, `PATCH /api/reservations/:id/lines/:ref`.
 40. **Discount allocation and rounding.** DISCOUNTS works in cents. For a percent `p` on a target set: the
     discount `D = round(Σ target × p / 100)` (half up, to the cent). For a fixed amount, `D = min(amount, Σ
     target)`. `D` is split over the target items in proportion to their amount; each share is floored to the
@@ -477,8 +488,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     first, then lines by `soldAt`, then id). So Σ shares = `D` exactly and no line goes below 0. VAT is split
     after the shares (each line's net amount). Target `nights` keeps rule 16's euro formula so stored stays do
     not move. _(Delivered by PR A: `money.allocateCents` is the one largest-remainder allocator, used by VAT and the
-    group rates, with signed weights; DISCOUNTS' allocation over lines is PR B.)_
-    > **Pending** — PR B
+    group rates, with signed weights.)_
+    > **Delivered by PR B** (pass 4, C15): `discounts.allocateDiscount` / `discountLines`; the VAT of a discounted line is split from
+    > its net amount (C16).
 41. **ALLOWANCES is its own unit.** Grants come from the catalogue (free minutes per stay, free units per
     lodging); consumption comes from the stored lines' `allowanceUsed`. `consumeAllowance` serves a request in
     sale order and returns what it used; `releaseAllowance` returns a removed line's share to the pool. Shop,
@@ -756,10 +768,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `pipeline-composition` the use cases.)_
     > **Pending** — PR B (`article-fulfilment-contract`).
 58. **Q11 resolved:** a new discount typed on the fiche targets « Nuits » by default.
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 4, C15): a payload without `discountTarget` reads `nights`; one without it on an update keeps the stored one.
 59. **Q12 resolved:** a stay discount never covers sales added later; a later sale gets its own line discount
     (rule 39).
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 4, C15): `coveredLines` takes only `source` fiche / devis / intake; a shop or SAS line, a paid line and an
+    > offered line keep their price.
 60. **Where each interface lands.** Registry, core kinds, ports, settings provider (reading today's columns),
     VAT per (family, rate) group with line allocation, pipeline and `stayQuote`: PR A (0 diff). Fulfilment
     port and bath adapter, domain events, the `ficheSale` / `sasSale` pipelines, external-context VAT keys:

@@ -33,6 +33,7 @@ const HISTORY_FIELD_LABELS = {
   touristTaxRate: 'Taux taxe de séjour',
   touristTaxTotal: 'Taxe de séjour',
   discountPercent: 'Réduction (%)',
+  discountTarget: 'Réduction sur',
   finalPrice: 'Prix final',
   depositAmount: 'Acompte',
   // specs/reservation-history-granular-diff.md rule 13 — an acompte typed by hand is a decision, not a
@@ -118,6 +119,7 @@ function buildAuditSnapshotFromPayload(payload, quote) {
     touristTaxRate: Number(quote.touristTaxRate || 0),
     touristTaxTotal: Number(quote.touristTaxTotal || 0),
     discountPercent: Number(payload.discountPercent || 0),
+    discountTarget: ['extras', 'all'].includes(payload.discountTarget) ? payload.discountTarget : 'nights',
     finalPrice: quote.finalPrice == null ? null : Number(quote.finalPrice),
     depositAmount: Number(quote.depositAmount || 0),
     // Same rule as the model: a zero acompte carries no deadline (disable-deposit-per-reservation rule 2).
@@ -193,6 +195,7 @@ const HISTORY_FIELD_FORMATS = {
   balanceAmount: 'money',
   cautionAmount: 'money',
   discountPercent: 'percent',
+  discountTarget: 'discountTarget',
   cautionReceived: 'boolean',
   cautionReturned: 'boolean',
   extraGuestSurchargeOffered: 'boolean',
@@ -210,6 +213,9 @@ const HISTORY_FIELD_FORMATS = {
 // specs/payment-schedule-and-cancellation.md rule 23 reading of 2026-11-10 (audits R45-RES-L1, R45-DB-L1) — a cancel
 // confirmed with an empty « Motif » stores the derived key; it reads French, the stored row untouched. Only the whole
 // value is matched, so a reason the operator typed reads as typed.
+// Rule 16: what a stay discount is aimed at, as the history reads it.
+const DISCOUNT_TARGET_LABELS = Object.freeze({ nights: 'Nuits', extras: 'Prestations', all: 'Tout le séjour' });
+
 const CANCELLATION_REASON_LABELS = Object.freeze({
   unpaid_deposit: 'Acompte impayé',
   unpaid_balance: 'Solde impayé',
@@ -260,6 +266,7 @@ function formatHistoryFieldValue(field, value, context = {}) {
     case 'date': return formatHistoryDateFr(value);
     case 'property': return propertyDisplayName(value, context.propertyNames);
     case 'client': return clientDisplayName(value, context.clientNames);
+    case 'discountTarget': return DISCOUNT_TARGET_LABELS[String(value)] || String(value);
     case 'cancellationReason': return Object.hasOwn(CANCELLATION_REASON_LABELS, String(value)) ? CANCELLATION_REASON_LABELS[String(value)] : String(value);
     default: return String(value);
   }

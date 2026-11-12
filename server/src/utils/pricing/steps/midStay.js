@@ -13,7 +13,8 @@ const step = {
   id: 'midStay',
   requires: [
     'endOfStayComplementSettled', 'extraGuestSurcharge', 'finalOptionLines', 'frozenMidStayLines',
-    'midStaySettledNotes', 'optionsTotal', 'resourceLines', 'resourcesTotal', 'totalPrice', 'clock',
+    'midStaySettledNotes', 'optionsTotal', 'resourceLines', 'resourcesTotal', 'totalPrice', 'clock', 'extrasDiscountCents',
+    'accommodationDiscountShareCents',
   ],
   provides: [
     'accommodationBaseTotal', 'midStayExtras', 'midStayForced', 'midStayRemainingTotal', 'midStaySettledTotal',
@@ -22,7 +23,7 @@ const step = {
   apply(ctx) {
     const {
       endOfStayComplementSettled, extraGuestSurcharge, finalOptionLines, frozenMidStayLines,
-      midStaySettledNotes, optionsTotal, resourceLines, resourcesTotal, totalPrice,
+      midStaySettledNotes, optionsTotal, resourceLines, resourcesTotal, totalPrice, extrasDiscountCents,
     } = ctx;
     const { arrivalExtrasBaseline } = ctx.clock;
 
@@ -45,7 +46,8 @@ const step = {
     const midStaySettledTotal = roundMoney(midStayExtras.settledTotal);
     const midStayRemainingTotal = roundMoney(midStayExtras.remainingTotal);
     const accommodationBaseTotal = roundMoney(Number(totalPrice || 0));
-    const subtotal = roundMoney(accommodationBaseTotal + extraGuestSurcharge + optionsTotal + resourcesTotal);
+    // The subtotal is what the stay would cost before any discount: the extras' discount (rules 39, 40) comes back in.
+    const subtotal = roundMoney(accommodationBaseTotal + extraGuestSurcharge + optionsTotal + resourcesTotal + extrasDiscountCents / 100);
 
     return {
       ...ctx,

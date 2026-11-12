@@ -400,6 +400,15 @@ function createReservationsModel(database) {
       reservationId,
     );
   }
+  // Rules 16, 58: the target of the stay discount, written beside the percent. Absent from the payload → what is stored stays.
+  const HAS_DISCOUNT_TARGET = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'discountTarget'); } catch { return false; }
+  })();
+  function persistDiscountTarget(reservationId, payload) {
+    if (!HAS_DISCOUNT_TARGET || !payload || payload.discountTarget === undefined) return;
+    const target = ['extras', 'all'].includes(payload.discountTarget) ? payload.discountTarget : 'nights';
+    database.prepare('UPDATE reservations SET discountTarget = ? WHERE id = ?').run(target, reservationId);
+  }
   function persistBreakfastTime(reservationId, payload) {
     if (!HAS_RESERVATION_BREAKFAST_TIME || !payload || payload.breakfastTime === undefined) return;
     const raw = String(payload.breakfastTime || '').trim();
@@ -1220,6 +1229,7 @@ function createReservationsModel(database) {
         touristTaxRate: Number(row.touristTaxRate || 0),
         touristTaxTotal: Number(row.touristTaxTotal || 0),
         discountPercent: Number(row.discountPercent || 0),
+        discountTarget: ['extras', 'all'].includes(row.discountTarget) ? row.discountTarget : 'nights',
         customPrice: row.customPrice == null ? null : Number(row.customPrice),
         finalPrice: Number(row.finalPrice || 0),
         depositAmount: Number(row.depositAmount || 0),
@@ -1736,6 +1746,7 @@ function createReservationsModel(database) {
         Number(quote.complementAmount || 0),
       );
       persistBreakfastTime(result.lastInsertRowid, payload);
+      persistDiscountTarget(result.lastInsertRowid, payload);
       persistExtraGuestComplement(result.lastInsertRowid, quote);
       persistReservationNumber(result.lastInsertRowid, payload);
       persistEmailLanguage(result.lastInsertRowid, payload);
@@ -2062,6 +2073,7 @@ function createReservationsModel(database) {
         reservationId,
       );
       persistBreakfastTime(reservationId, payload);
+      persistDiscountTarget(reservationId, payload);
       if (!keepPricing) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
       persistReservationNumber(reservationId, payload);
       persistEmailLanguage(reservationId, payload);

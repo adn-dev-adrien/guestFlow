@@ -1,5 +1,6 @@
 // specs/pricing-components.md §3 rules 16 and 40 — DISCOUNTS alone: the target `nights` is today's euro formula bit for
-// bit (percent or manual price), every other target and a fixed amount throw NOT_IN_PR_A (PR B), and the unit equals the
+// bit (percent or manual price), the targets `extras` and `all` and a fixed amount are PR B's (`pricing-discount-allocation`), an
+// unknown target throws, and the unit equals the
 // engine's accommodation on every stay of the price gate's fixture (skipped without the fixture).
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -38,10 +39,8 @@ test('rule 16 — the percent is clamped to 0..100 like the engine\'s typed leve
   assert.equal(normalizeCustomPrice('12.5'), 12.5);
 });
 
-test('rule 16 — the targets extras and all, and a fixed amount, are PR B: NOT_IN_PR_A', () => {
-  for (const discount of [{ percent: 10, target: 'extras' }, { percent: 10, target: 'all' }, { amount: 20, target: 'nights' }]) {
-    assert.throws(() => allocateDiscount({ discount, accommodation: 100, lines: [] }), (error) => error.code === 'NOT_IN_PR_A');
-  }
+test('rule 16 — an unknown target is refused', () => {
+  assert.throws(() => allocateDiscount({ discount: { percent: 10, target: 'rooms' }, accommodation: 100 }), (error) => error.code === 'DISCOUNT_TARGET_UNKNOWN');
 });
 
 const DIR = process.env.PRICE_GATE_FIXTURE_DIR || path.join(__dirname, 'fixtures', 'price-gate');

@@ -29,7 +29,7 @@ const step = {
     'endOfStayComplementSettled', 'frozenMidStayLines', 'midStaySettledNotes', 'refundsTotal',
     'platformPenaltyAmount', 'arrivalPaymentReduction', 'arrivalPaymentTip', 'complementDeferredToCheckout',
     'complementCollected', 'quoteKind', 'validUntil', 'devisPromise', 'cancellationInsurancePriceOverride',
-    'channel', 'isDirectBooking', 'persons',
+    'channel', 'isDirectBooking', 'persons', 'discountTarget', 'discountFixedAmount', 'lineFacts',
   ],
   apply(ctx) {
     const {
@@ -211,6 +211,12 @@ const step = {
       cancellationInsurancePriceOverride = null,
     } = ctx.input;
 
+    // Rules 16, 39, 58: the target of the stay discount (the stored default reads « Nuits »), a fixed amount in euros and the
+    // facts of the stored lines (`{ [lineKey]: { discountCents, source, settledCents, soldAt, lineId } }`).
+    const discountTarget = ['extras', 'all'].includes(ctx.input.discountTarget) ? ctx.input.discountTarget : 'nights';
+    const discountFixedAmount = ctx.input.discountFixedAmount == null || ctx.input.discountFixedAmount === '' ? null : Number(ctx.input.discountFixedAmount);
+    const lineFacts = ctx.input.lineFacts || {};
+
     const persons = (Number(adults || 1) || 1) + (Number(children || 0) || 0) + (Number(teens || 0) || 0);
     // Resolved here (the fuller platform routing lives further down) because the option lines above
     // need it for the included-units rule (specs/tariff-recipes/spec.md §3.9 rule 52bis).
@@ -237,7 +243,7 @@ const step = {
       platformPenaltyAmount, platformTakesDeposit, platformTouristTaxAmountInput,
       property, quoteKind, refundsTotal, resourcesById, rules, selectedOptions, selectedResources,
       families, settings, startDate, storedTouristTaxAddedGuests, storedTouristTaxAddedGuestsAdults, teens,
-      touristTaxInComplement, validUntil, vatRate, vatRegime,
+      touristTaxInComplement, validUntil, vatRate, vatRegime, discountTarget, discountFixedAmount, lineFacts,
     };
   },
 };

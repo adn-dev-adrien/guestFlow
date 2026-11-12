@@ -7,6 +7,7 @@ const { platformDisplay } = require('../utils/platformDisplay');
 
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
+const stayRepository = require('../models/ports/stayRepository').create(db);
 const { calculateReservationQuote } = require('../utils/pricing');
 const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
@@ -1328,6 +1329,8 @@ async function calculatePrice(req, res) {
     // lock (an expired devis still keeps its cots free), so this preview shows what the save stores.
     bookingId: reservationId > 0 ? reservationId : devisId,
     discountPercent: req.body.discountPercent,
+    discountTarget: req.body.discountTarget,
+    lineFacts: reservationId > 0 ? stayRepository.lineFacts(reservationId) : {},
     customPrice: req.body.customPrice,
     selectedOptions: req.body.selectedOptions,
     customOptions: req.body.customOptions,
@@ -1611,6 +1614,7 @@ function createStay(req, res) {
     // never be grandfathered and every cot is billed.
     babyBeds: effectiveBabyBeds,
     discountPercent: req.body.discountPercent,
+    discountTarget: req.body.discountTarget,
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
@@ -2179,6 +2183,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // which is exactly what decides the exemption: a reservation sold with cots keeps them free.
     bookingId: id,
     discountPercent: req.body.discountPercent,
+    discountTarget: req.body.discountTarget === undefined ? (model.getRow(id) || {}).discountTarget : req.body.discountTarget,
+    lineFacts: stayRepository.lineFacts(id),
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,

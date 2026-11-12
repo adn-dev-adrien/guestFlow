@@ -9,6 +9,8 @@
  *   lockedOptionLines(id) / lockedResourceLines(id) / lockedNightlyBreakdown(id)   the sold snapshots
  *   lockedTariff(reservation)  the tariff snapshot the stay was sold under, null when none
  *   phaseInputs(id)            dates and times for the stay clock (models/stayClockModel.js)
+ *   lineFacts(id)              `{ [lineKey]: { discountCents, source, soldAt, lineId, settledCents } }` of the stored lines (rules 21, 39), `{}` on a schema
+ *                              that predates the line columns; `settledCents` is the Σ of the line's allocations, never a stored column
  *
  *   stay(id)                   the stored stay: `{ row, options, customOptions, resources }` (the rows `stayRow` and the line readers return)
  *   storedStayPrice(id)        the price the stay was sold at, in cents: `{ totalCents, accommodationCents, touristTaxCents, extrasCents }`;
@@ -16,6 +18,7 @@
  */
 const stayClockModel = require('../stayClockModel');
 const { toCents } = require('../../utils/pricing/money');
+const { extraLineKey } = require('../../utils/pricing/storedLines');
 
 // The two card-option columns, kept out of the SELECT on a schema that predates them.
 function cardColumns(db) {
@@ -123,8 +126,38 @@ function storedStayPrice(db, id) {
   return { totalCents, accommodationCents: Math.max(0, toCents(row.finalPrice) - extras), touristTaxCents: toCents(row.touristTaxTotal), extrasCents: extras };
 }
 
+const LINE_TABLES = [
+  { table: 'reservation_options', key: (r) => `opt:${r.optionId}`, extra: 'optionId' },
+  { table: 'reservation_resources', key: (r) => `res:${r.resourceId}`, extra: 'resourceId' },
+  { table: 'reservation_custom_options', key: (r) => extraLineKey({ isCustom: true, description: r.description }), extra: 'description' },
+];
+
+function lineFacts(db, id) {
+  const facts = {};
+  const hasAllocations = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'payment_allocations'").get());
+  const settled = new Map();
+  if (hasAllocations) {
+    for (const r of db.prepare("SELECT lineRef, SUM(amountCents) AS cents FROM payment_allocations WHERE documentRef = ? AND lineRef IS NOT NULL GROUP BY lineRef").all(`reservation:${id}`)) settled.set(r.lineRef, r.cents);
+  }
+  for (const { table, key, extra } of LINE_TABLES) {
+    const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+    if (!columns.has('lineId')) continue;
+    const pick = ['lineId', extra, ...['discountCents', 'source', 'soldAt'].filter((c) => columns.has(c))];
+    for (const r of db.prepare(`SELECT ${pick.join(', ')} FROM ${table} WHERE reservationId = ?`).all(Number(id))) {
+      const k = key(r);
+      if (k in facts) continue;
+      facts[k] = {
+        lineId: r.lineId, discountCents: Number(r.discountCents || 0), source: r.source || 'fiche', soldAt: r.soldAt || '',
+        settledCents: Math.max(0, Number(settled.get(`line:${table}:${r.lineId}`) || 0)),
+      };
+    }
+  }
+  return facts;
+}
+
 function create(db) {
   return {
+    lineFacts: (id) => lineFacts(db, id),
     stay: (id) => {
       const row = stayRow(db, id);
       return row ? { row, options: optionRows(db, id), customOptions: customOptionRows(db, id), resources: resourceRows(db, id) } : null;

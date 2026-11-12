@@ -42,6 +42,7 @@ function toUpdateBody(reservation, autoEnabledOptionIds = new Set()) {
       .map((o) => Number(o.optionId)),
     totalPrice: r.totalPrice,
     discountPercent: r.discountPercent,
+    discountTarget: r.discountTarget,
     finalPrice: r.finalPrice,
     customPrice: r.customPrice,
     extraGuestSurchargeOffered: r.extraGuestSurchargeOffered,

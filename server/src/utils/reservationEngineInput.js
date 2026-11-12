@@ -54,6 +54,8 @@ function buildReservationEngineInput(db, reservation, { refreshTouristTax = fals
     babyBeds: reservation.babyBeds,
     bookingId: reservation.id,
     discountPercent: reservation.discountPercent,
+    discountTarget: reservation.discountTarget,
+    lineFacts: stays.lineFacts(reservation.id),
     customPrice: reservation.customPrice,
     selectedOptions: optionRows.map((r) => ({
       optionId: r.optionId,
