@@ -6,7 +6,8 @@
 
 const toCents = (n) => Math.round(Number(n) * 100);
 
-function paymentBlock(booking, { withholds }) {
+// `platformCommission` is the core's PLATFORM PAYMENT (SDK `reservations.platformCommission`): the commission is never worked out here.
+function paymentBlock(booking, { withholds, platformCommission }) {
   const gross = toCents(booking.total);
   const payout = toCents(booking.payout);
   const kept = toCents(booking.guestTaxes) - toCents(booking.hostTaxes);
@@ -15,7 +16,8 @@ function paymentBlock(booking, { withholds }) {
   if (!withholds) {
     return { ok: true, block: { platformGrossAmount: gross / 100, platformTouristTaxAmount: null, platformPayoutAmount: payout / 100 }, taxLeftEmpty: true };
   }
-  if (gross - payout - kept !== toCents(booking.hostFee)) {
+  const commission = platformCommission({ gross: gross / 100, payout: payout / 100, touristTax: kept / 100 });
+  if (commission == null || toCents(commission) !== toCents(booking.hostFee)) {
     return { ok: false, error: 'La commission ne retombe pas sur les frais de service Airbnb' };
   }
   return { ok: true, block: { platformGrossAmount: gross / 100, platformTouristTaxAmount: kept / 100, platformPayoutAmount: payout / 100 }, taxLeftEmpty: false };

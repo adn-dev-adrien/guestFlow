@@ -23,6 +23,7 @@ const { getApplicableOptions, getApplicableResources } = require('./ports/catalo
 const { create: createPaymentLedger } = require('./ports/paymentLedger');
 const settingsProvider = require('./ports/settingsProvider');
 const articles = require('../utils/pricing/articles');
+const { isNamedChannel } = require('../utils/saleChannel');
 const { findBabyBedOption, resolveBillableBabyBeds } = require('../utils/babyBedSupplement');
 
 // GLOBAL per-platform tourist-tax mode resolver (specs/per-platform-tourist-tax-three-way.md). The
@@ -35,7 +36,7 @@ const { findBabyBedOption, resolveBillableBabyBeds } = require('../utils/babyBed
 // to recover the canonical `platformLabel`, then match `platforms.name`. The `propertyId` argument is
 // kept for call-site compatibility but ignored — the mode is global.
 function resolveGlobalPlatformTaxRow(db, platform) {
-  if (!platform || platform === 'direct') return null;
+  if (!isNamedChannel(platform)) return null;
   const needle = String(platform).toLowerCase();
   try {
     let row = db.prepare(

@@ -24,11 +24,12 @@ const RANK = {
   settlement: 5,
   totals: 6,
   schedule: 7,
+  // PLATFORM PAYMENT is read by SETTLEMENT's `remainingToPay` (through `reservationSettlement`) and by REFUNDS (withheld commissions).
+  platformPayment: 7.5,
   refunds: 8,
   // The backfill derivations of PR B read stored shapes only: after the units they describe.
   legacyCollectAt: 9,
   legacyAllocations: 9,
-  platformPayment: 90,
   // The orchestration sits above every unit: a step imports the units it calls, the use cases import the steps.
   pipeline: 100,
   pipelines: 200,

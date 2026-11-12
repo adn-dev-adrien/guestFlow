@@ -85,6 +85,7 @@ function gateInsurance(res, engineInput, bookingId) {
 const refundsModel = require('../models/refundsModel');
 const { overpayment, overpaymentLinesOf } = require('../utils/overpayment');
 const { owedOnLineLowered } = require('../utils/pricing/refunds/owed');
+const { grossOf } = require('../utils/pricing/platformPayment');
 const refundObligations = require('../models/refundObligationsModel');
 const { overpaymentContext } = require('../models/refundInputModel');
 const { readSplitReceived } = require('../utils/splitReceived');
@@ -2746,8 +2747,7 @@ function paymentMarkRefusal(row, body, today) {
       return { status: 400, body: { error: field === 'platformPayoutAmount' ? 'Virement reçu : montant requis.' : 'Commission invalide.', code: 'INVALID_AMOUNT', field } };
     }
     if (field === 'platformCommissionAmount') {
-      const gross = row.platformGrossAmount != null && row.platformGrossAmount !== ''
-        ? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);
+      const gross = grossOf(row);
       if (n > round2(gross) + 0.004) {
         return { status: 400, body: { error: `La commission dépasse le montant facturé (${formatEurosFr(gross)}).`, code: 'INVALID_AMOUNT', field } };
       }

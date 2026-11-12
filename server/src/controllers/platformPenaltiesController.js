@@ -15,6 +15,9 @@
 
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { computePlatformCommission } = require('../utils/platformCommission');
+const {
+  acompteNet: acompteNetOf, grossOf, statementRemainder, statementPayout, bankReceived,
+} = require('../utils/pricing/platformPayment');
 const { isRealIsoDay, dateBeforeHorizon, PAST_HORIZON_MESSAGE } = require('../utils/stayDates');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -30,11 +33,6 @@ const REASON_MAX = 120;
 
 const fail = (status, code, message, field = null) => ({ status, body: { error: message, code, ...(field ? { field } : {}) } });
 
-/** What the acompte the platform already paid out is worth net of its commission (rule 46 of the reconciliation). */
-const acompteNetOf = (row) => (Number(row.depositDisabled || 0) === 1 || !(Number(row.depositAmount || 0) > 0)
-  ? 0 : Math.max(0, round2(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0))));
-
-const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
 
 function buildController({ database, penaltiesModel, reservationsModel, todayOf, emit = () => {} }) {
   const stay = (id) => database.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
@@ -97,20 +95,20 @@ function buildController({ database, penaltiesModel, reservationsModel, todayOf,
     const newPayout = adjusts && payout != null && amountCents > 0 ? round2(payout + amountCents / 100) : payout;
     let newCommission = commission;
     if (adjusts && newPayout != null && amountCents > 0) {
-      const raw = round2(gross - newPayout - tax - acompteCommission);
+      const raw = statementRemainder({ gross, payout: newPayout, tax, acompteCommission });
       if (raw < 0) {
         errors.push({ code: 'COMMISSION_NEGATIVE', field: 'amount', message: 'Le versement du relevé dépasserait le total facturé : la commission deviendrait négative.' });
       } else newCommission = computePlatformCommission({ gross, payout: newPayout, touristTax: row.platformTouristTaxAmount, acompteCommission });
     }
 
     // Rule 26 — the penalties together cannot exceed what the platform pays out for the solde.
-    const statementPayout = payoutRecorded ? newPayout : round2(gross - (commission || 0) - acompteCommission - tax);
-    const cap = Math.max(0, round2(statementPayout - acompteNet));
+    const statedPayout = payoutRecorded ? newPayout : statementPayout({ gross, commission, acompteCommission, tax });
+    const cap = Math.max(0, round2(statedPayout - acompteNet));
     if (amountCents > 0 && existingCents + amountCents > cents(cap)) {
       errors.push({ code: 'PENALTY_EXCEEDS_PAYOUT', field: 'amount', message: `Les pénalités dépassent le versement de la plateforme (${eur(cap)}).` });
     }
 
-    const bankAmount = (statementPayout2, penalties) => (statementPayout2 == null ? null : round2(statementPayout2 - acompteNet - penalties));
+    const bankAmount = (payoutAfter, penalties) => bankReceived({ payout: payoutAfter, acompteNet, penalties });
     const penaltiesBefore = existingCents / 100;
     const penaltiesAfter = (existingCents + (amountCents > 0 ? amountCents : 0)) / 100;
     const before = { payout, commission, netReceived: bankAmount(payout, penaltiesBefore) };

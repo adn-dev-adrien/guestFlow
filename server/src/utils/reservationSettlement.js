@@ -14,6 +14,7 @@
 
 const { parseNotes } = require('./midStayExtras');
 const { parseGroup } = require('./arrivalPaymentGroup');
+const { netOfCommission } = require('./pricing/platformPayment');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -111,8 +112,8 @@ function remainingToPay(r) {
   const acompteComm = Number(r.acompteCommissionAmount || 0);
   const soldeComm = Number(r.platformCommissionAmount || 0);
   const deposit = (!r.depositDisabled && !r.depositPaid && !r.depositPaidCash)
-    ? Number(r.depositAmount || 0) - acompteComm : 0;
-  const balance = (!r.balancePaid && !r.balancePaidCash) ? Number(r.balanceAmount || 0) - soldeComm - platformPenalty(r) : 0;
+    ? netOfCommission({ amount: r.depositAmount, commission: acompteComm }) : 0;
+  const balance = (!r.balancePaid && !r.balancePaidCash) ? netOfCommission({ amount: r.balanceAmount, commission: soldeComm, penalty: platformPenalty(r) }) : 0;
   const complement = (!r.complementPaid && !r.complementPaidCash) ? Number(r.complementAmount || 0) : 0;
   const endOfStay = (!r.endOfStayComplementPaid && !r.endOfStayComplementPaidCash) ? Number(r.endOfStayComplementAmount || 0) : 0;
   // Reservation-payment-ledger rule 73 (audit R42-M-L1) — a cancellation writes the unpaid installments off (« Solde

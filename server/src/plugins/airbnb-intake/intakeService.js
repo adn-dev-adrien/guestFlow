@@ -81,7 +81,9 @@ function createIntakeService(deps) {
       }
     }
 
-    const payment = paymentBlock(booking, { withholds: core.withholdsTouristTax(reservation.propertyId, reservation.platform) });
+    const payment = paymentBlock(booking, {
+      withholds: core.withholdsTouristTax(reservation.propertyId, reservation.platform), platformCommission: core.platformCommission,
+    });
     if (!payment.ok) return { error: payment.error };
     const commission = core.platformCommission({
       gross: payment.block.platformGrossAmount,

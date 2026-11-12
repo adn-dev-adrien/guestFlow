@@ -13,6 +13,7 @@ const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
 const { splitTtc } = require('./pricing/vat');
+const { totalCommission: platformTotalCommission } = require('./pricing/platformPayment');
 const { displayCountOf } = require('./typedCounts');
 const { isComplementDeferred } = require('./checkoutComplement');
 
@@ -142,7 +143,7 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
   const isPlatform = channel.namedChannel;
   const acompteCommission = isPlatform ? round2(row.acompteCommissionAmount) : 0;
   const soldeCommission = isPlatform ? round2(row.platformCommissionAmount) : 0;
-  const totalCommission = round2(acompteCommission + soldeCommission);
+  const totalCommission = platformTotalCommission(acompteCommission, soldeCommission);
   // With an installment plan the pre-arrival money is the plan's, not the (zeroed) acompte and solde.
   const preArrival = round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)
     + Number(row.installmentsPaidAmount || 0) + Number(row.installmentsUnpaidAmount || 0));

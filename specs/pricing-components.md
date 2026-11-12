@@ -207,9 +207,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
    > (`pipelines.touristTaxFigure`: the steps up to `touristTax`) instead of replaying the whole quote
    > (`pricing-tourist-tax-figures` compares the slice with the full quote on every gate stay); `vatDivisor` is retired, the
    > nightly price goes through `vat.netFirst` and `vat.ttcFromNet`.
-   > **Pending** — PR B: the `collector`'s `'direct'` test read through the channel by id (`saleChannel(platform)` / `PlatformRepository`)
-   > instead of the platform name lookup, whose legacy defaults (collects = true, remits = false) differ on an unmatched
-   > platform (PLAT O1; the same Pending stands under rule 70).
+   > **Delivered by PR B** (pass 3, with rule 70): the `collector`'s `'direct'` test asks the channel (`isNamedChannel`) instead of
+   > comparing the platform to the word by hand; the legacy defaults on an unmatched platform (collects = true, remits = false) are
+   > kept, so no figure moves (D1 lists none: Q-B18).
 4. **The engine becomes a composition.** `calculateReservationQuote(input)` survives as a thin wrapper over
    COMPOSE. Its output stays byte-identical (rules 33-36) for as long as callers read it. _(Delivered by PR A:
    `calculateReservationQuote` is `pricingInputModel.load` then `compose` (`utils/pricing/compose.js`: `stayQuote` plus
@@ -1033,9 +1033,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       `linkAllowed`); C (reconciliation helpers). Rule 66 gains a guard: no `gross - payout` /
       `depositAmount - acompteCommission` expression outside `platformPayment.js` (delivered, with the other forms of the
       table: rule 66).
-    > **Pending** — PR B: the tourist-tax `collector`'s `'direct'` test read through the channel by id (rule 3, PLAT O1);
-    > the helpers wired into penalties, cancellation, `remainingToPay` and `linkAllowed` (B), the reconciliation helpers (C).
-    > `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted).
+    > **Delivered by PR B** (pass 3): the unit gains `statementRemainder`, `statementPayout`, `bankReceived`, `totalCommission`,
+    > `netOfCommission`; the penalties controller, the stored summary, the payment mark's gross fallback and `remainingToPay` call
+    > it, SETTLEMENT's `linkAllowed` judges `platformStayRefusal` (which only reads the rows), and the Airbnb intake's payment block
+    > takes its commission from the core (SDK `reservations.platformCommission`; airbnb-intake 1.1.11). The tourist-tax `collector`
+    > asks the channel (`saleChannel` / `isNamedChannel`) instead of comparing the platform to `'direct'` by hand; an unmatched
+    > platform keeps the legacy default (collects, does not remit), so no figure moves (Q-B18; `platform-payment-wiring`,
+    > `tourist-tax-collector-by-id`). PLATFORM PAYMENT now ranks between SCHEDULE and REFUNDS in the import graph.
+    > **Pending** — PR C: the reconciliation helpers. `pricingNoticesOf` keeps judging unclamped commissions (a cosmetic warning, accepted).
 71. **Automatic platform intakes keep working, behind one versioned port.** _(Code check 2026-11-11.)_
     - **What exists.**
       - **booking-intake** (SDK `^2.15.0`), **airbnb-intake** and **gites-de-france-intake** (`^2.21.0`) write

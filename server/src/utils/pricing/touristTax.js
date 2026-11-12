@@ -19,6 +19,7 @@ const {
   roundMoney, NBSP, frenchNumber, frenchEuros, frenchPercent,
 } = require('./money');
 const { netFirst, ttcFromNet } = require('./vat');
+const { isNamedChannel } = require('../saleChannel');
 
 // The person-nights of a party over a stay.
 function personNights(persons, nights) {
@@ -174,7 +175,7 @@ const settingsSchema = [
 //                     (legacy "non-direct = platform collects" safe fallback).
 // `row` is `{ c, r }` of the platform's stored mode, read by the loader.
 function platformCollectsTouristTax(platformKey, row) {
-  if (!platformKey || platformKey === 'direct') return false;
+  if (!isNamedChannel(platformKey)) return false;
   if (!row) return true; // legacy default: non-direct platforms are assumed to collect.
   return Number(row.c) !== 0;
 }
@@ -186,7 +187,7 @@ function platformCollectsTouristTax(platformKey, row) {
 //                     platform reverses it to us, OR we collect at arrival). Missing platform row →
 //                     false (legacy "platform handles everything", hidden from the page).
 function touristTaxRemittedByOwner(platformKey, row) {
-  if (!platformKey || platformKey === 'direct') return true;
+  if (!isNamedChannel(platformKey)) return true;
   if (!row) return false; // legacy default: ad-hoc non-direct platforms are assumed to remit themselves.
   return Number(row.r) === 0;
 }

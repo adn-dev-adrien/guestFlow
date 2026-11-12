@@ -483,7 +483,18 @@ function planSettlement({
 }
 
 
+// A platform stay never carries a direct payment (payment-link-lifecycle rule 57, audit R9-M1): the platform collects the stay, so a
+// link would ask the guest to pay twice. `ownChannel` is the stay's own channel (`saleChannel`); a devis converted into a stay answers
+// for both. Pure: the caller reads the rows.
+const PLATFORM_RESERVATION = Object.freeze({ httpStatus: 409, error: 'PLATFORM_RESERVATION', message: 'Réservation plateforme : aucun lien de paiement.' });
+
+function linkAllowed({ ownChannel, convertedOwnChannel = true }) {
+  return ownChannel && convertedOwnChannel ? null : { ...PLATFORM_RESERVATION };
+}
+
 module.exports = {
+  PLATFORM_RESERVATION,
+  linkAllowed,
   MID_STAY_SOURCE,
   ARRIVAL_COMPLEMENT_EXCESS_KEY,
   ARRIVAL_COMPLEMENT_EXCESS_LABEL,

@@ -3,7 +3,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { paymentBlock } = require('../paymentBlock');
+const { paymentBlock: block } = require('../paymentBlock');
+const { computePlatformCommission } = require('../../../utils/platformCommission');
+
+// The core's PLATFORM PAYMENT, as the SDK hands it to the plugin.
+const paymentBlock = (booking, options) => block(booking, { platformCommission: computePlatformCommission, ...options });
 
 const LOUIS = { total: 1236.26, payout: 1028.44, guestTaxes: 81.66, hostTaxes: 52.8, hostFee: 178.96 };
 const NICOLAS = { total: 868.87, payout: 704.22, guestTaxes: 63.87, hostTaxes: 24, hostFee: 124.78 };

@@ -1,6 +1,7 @@
 /**
  * A platform stay never carries a direct payment (specs/payment-link-lifecycle.md rule 57, audit R9-M1): the
- * platform collects the stay, so a link would ask the guest to pay twice.
+ * platform collects the stay, so a link would ask the guest to pay twice. The judgement is SETTLEMENT's `linkAllowed`
+ * (specs/pricing-components.md §3 rule 3); this module only reads the rows it needs.
  *
  *   platformStayRefusal(database, stayId) → { httpStatus: 409, error: 'PLATFORM_RESERVATION', message } | null
  *
@@ -9,8 +10,7 @@
  */
 
 const { isDirectChannel } = require('./platformNameFormat');
-
-const PLATFORM_RESERVATION = Object.freeze({ httpStatus: 409, error: 'PLATFORM_RESERVATION', message: 'Réservation plateforme : aucun lien de paiement.' });
+const { linkAllowed, PLATFORM_RESERVATION } = require('./pricing/settlement');
 
 function platformStayRefusal(database, stayId) {
   const row = database.prepare('SELECT platform, convertedReservationId FROM reservations WHERE id = ?').get(Number(stayId));
@@ -18,8 +18,7 @@ function platformStayRefusal(database, stayId) {
   const stay = row.convertedReservationId
     ? database.prepare('SELECT platform FROM reservations WHERE id = ?').get(Number(row.convertedReservationId))
     : null;
-  const platformOwned = !isDirectChannel(row.platform) || Boolean(stay && !isDirectChannel(stay.platform));
-  return platformOwned ? { ...PLATFORM_RESERVATION } : null;
+  return linkAllowed({ ownChannel: isDirectChannel(row.platform), convertedOwnChannel: !stay || isDirectChannel(stay.platform) });
 }
 
 module.exports = { platformStayRefusal, PLATFORM_RESERVATION };

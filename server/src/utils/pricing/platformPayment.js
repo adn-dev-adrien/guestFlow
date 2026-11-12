@@ -111,6 +111,21 @@ const acompteNet = (row) => (Number(row.depositDisabled || 0) === 1 || !(Number(
 
 const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : roundSafe(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));
 
+/** What the platform's statement leaves unexplained once its payout, the tourist tax it withheld and the acompte commission are out (negative when the figures disagree). */
+const statementRemainder = ({ gross, payout, tax = 0, acompteCommission = 0 }) => roundSafe(Number(gross) - Number(payout) - Number(tax) - Number(acompteCommission));
+
+/** The payout a statement implies from its gross and its commissions (no payout recorded yet). */
+const statementPayout = ({ gross, commission = 0, acompteCommission = 0, tax = 0 }) => roundSafe(Number(gross) - Number(commission || 0) - Number(acompteCommission) - Number(tax));
+
+/** What reaches the bank for the solde: the payout less the acompte already paid out and the penalties the platform kept (null without a payout). */
+const bankReceived = ({ payout, acompteNet: paidOut = 0, penalties = 0 }) => (payout == null ? null : roundSafe(Number(payout) - Number(paidOut) - Number(penalties)));
+
+/** What a still-unpaid échéance will actually bring in: its amount less the commission the platform takes on it and the penalty it keeps. */
+const netOfCommission = ({ amount, commission = 0, penalty = 0 }) => Number(amount || 0) - Number(commission || 0) - Number(penalty || 0);
+
+/** The two per-échéance commissions together. */
+const totalCommission = (acompte, solde) => roundSafe(Number(acompte) + Number(solde));
+
 /** The payout the platform made, penalty it kept included. */
 const payoutWithPenalty = ({ payout, penalty }) => roundSafe(Number(payout || 0) + Math.max(0, Number(penalty || 0)));
 
@@ -124,4 +139,5 @@ function withheldOnCancellation(row) {
 
 module.exports = {
   computePlatformCommission, commissionOf, clampCommissions, netReceived, acompteNet, grossOf, payoutWithPenalty, withheldOnCancellation,
+  statementRemainder, statementPayout, bankReceived, totalCommission, netOfCommission,
 };
