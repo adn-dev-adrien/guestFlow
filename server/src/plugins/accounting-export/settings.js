@@ -5,7 +5,10 @@
  * that is missing or empty reads the shipped defaults — the values erasure goes back to (rule 22).
  */
 
+const sdk = require('../sdk');
 const { DEFAULT_COMMISSION_ACCOUNT, DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, PLAN_DEFAULTS } = require('./accountPlan');
+
+const { TTC_SPLIT_FALLBACK } = sdk.coreModule('legacyBucketSplit');
 
 const PLUGIN_ID = 'accounting-export';
 
@@ -102,7 +105,6 @@ function createAccountSettings(database) {
 // that brought the split. Without it (an erased store), the first month no release before could have
 // exported.
 const TTC_SPLIT_KEY = 'ttcSplitFrom';
-const TTC_SPLIT_FALLBACK = '2026-11-01';
 
 // The first day of the month after `date`, as YYYY-MM-DD in local time.
 function firstOfNextMonth(date = new Date()) {

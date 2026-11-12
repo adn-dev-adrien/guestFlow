@@ -62,9 +62,9 @@ test('every plugin calls only core modules and names that exist at the floor of 
   assert.deepEqual(late, []);
 });
 
-test('the audit case: accounting-export reaches installmentPlan, so it declares SDK 2.5 at least', { skip: skipWithout(['accounting-export']) }, () => {
-  assert.match(pluginSources('accounting-export'), /coreModule\('installmentPlan'\)/);
-  assert.ok(semver.gte(semver.minVersion(readSourceManifest('accounting-export').sdk), '2.5.0'));
+test('the audit case: accounting-export reaches paymentSettlementsModel (SDK 2.24.0), so it declares SDK 2.24 at least', { skip: skipWithout(['accounting-export']) }, () => {
+  assert.match(pluginSources('accounting-export'), /coreModule\('paymentSettlementsModel'\)/);
+  assert.ok(semver.gte(semver.minVersion(readSourceManifest('accounting-export').sdk), '2.24.0'));
 });
 
 // specs/plugins-phase-1-sdk.md rule 37 — `coreModule('stayDates')` ships with SDK 2.20.0, hands the stay's own guard

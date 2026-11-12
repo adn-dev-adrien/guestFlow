@@ -805,7 +805,20 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - Legacy rows without per-line contributions are read through **one** legacy read-model adapter
       (`legacyBucketSplit`), which keeps today's `computeBucketTtcsFromContribs` / `grossRatio` derivation in a
       single place and emits the same tagged amounts, so old months export byte-identically.
-    > **Pending** — PR B
+    > **Delivered by PR B** (commit `refactor(accounting)`, 0 output diff): `utils/accounting/accountingOutput.js` builds the
+    > entries and `journalEntries` assembles the month's stream from the read models (`accountingModel.js` keeps the SQL and
+    > the settings); the refund entries are `utils/pricing/refunds/journal.js`; `legacyBucketSplit.js` holds the legacy
+    > derivation (the stored contributions, the tourist-tax routing, the gross-up of a platform stay, the booked split of a
+    > bucket); `exporters/csvJournal.js`, `salesJson.js` and `synthesis.js` format, sum cents and map roles through the
+    > plugin's account plan, and the CSV file is built by `csvJournal.export` (latin-1, same name and bytes). The plugin
+    > keeps its routes, account plan, settings, platform accounts and `controller.js`, and reaches the core through six SDK
+    > modules (`accountingOutput`, `legacyBucketSplit`, `refundJournal`, `csvJournal`, `salesJson`, `synthesisExporter`).
+    > `accounting-output-replay` pins the CSV bytes, the sales JSON and the synthesis of every month of the golden database;
+    > `accounting-legacy-bucket-split` and `pricing-refunds-journal` cover the units without the plugin.
+    > **Pending** — PR B: the neutral `JournalEntry` role shape and the read models fed with the sale lines and their VAT
+    > output (rule 61) and `storedStayPrice`: the entries keep today's shape (buckets, `taxTtc`, `commission`) until the
+    > line allocation of rule 51 lands, and `addSaleLegs` / `closeStayBooks` still read the CSV journal's ventilation of an
+    > entry.
 64. **Today's accounting reads, and where each moves.**
 
     | Reader today | What it reads / recomputes | Moves to | PR | Proof |
@@ -824,9 +837,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     through it, the engine replays being the `stayQuote` pipeline through COMPOSE, and `paymentLinkItems.buildVatItems`
     calling the VAT component's integer-cent helpers. The copies that still wait are listed, with their PR, in the `vat`
     allow-list of rule 66.)_
-    > **Pending** — PR B: the rows marked B (the accounting-export entry builders and exporters, `AccountingOutput`, the
-    > tourist-tax report with `financeModel.js` l. 1266, the hourly read model, the refund entries); PR C:
-    > `expectedReceipts` and `invoiceIssuer`.
+    > **Delivered by PR B** (commit `refactor(accounting)`): the rows of `accountingModel.js`, `accountingExport.js`,
+    > `synthesis.js`, the hourly sales read (`standaloneSalesByMonth`, a read model of the journal) and the refund entries.
+    > **Pending** — PR B: the tourist-tax report with `financeModel.js` l. 1266 (rule 3). PR C: `expectedReceipts` and
+    > `invoiceIssuer`.
 65. **No duplication: every formula exists once.** (owner: « toujours des petits composants simples et
     testables, sans dupliquer aucune logique ni ligne de code ».) A formula, a rate resolution, a rounding
     helper, a date comparison or a price grid has exactly one home; every other place calls it. The refonte
@@ -848,7 +862,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | Platform commission and payout | `utils/platformCommission.computePlatformCommission`, inline copy in `controllers/platformPenaltiesController.js` (`gross − payout − tax − acompteCommission`), `acompteNetOf` there and `platformAcompteNet` in `reconciliation/expectedReceipts.js`, `grossOf` there and in `reconciliation/ficheWriter.js`, engine `clampCommission` / `platformNetReceivedAmount`, `reservationSettlement.platformCommission` | PLATFORM PAYMENT (rule 70) | A (engine, `computePlatformCommission`), B (penalties, cancellation, settlement), C (reconciliation helpers) |
     | Largest-remainder allocation | `cancelReservation` (l. 155-162), DISCOUNTS (rule 40), VAT (rule 62) | `money.allocateCents` (signed weights) | A |
     | Deferral of a complement | `isComplementDeferred`, `complementBuckets`, column read | SETTLEMENT | B |
-    > **Pending** — PR B: the remaining accounting-export net-first copies leave with the accounting output (commit 2: `no-duplicate-formulas` allow-list `vat`). PR A removed the VAT copies listed above and the platform gross pin copy.
+    > **Delivered by PR B** (commit `refactor(accounting)`): the seven accounting-export net-first copies (five in the entry
+    > builders, two in the CSV writer) call the VAT component (`netFirst`, `splitTtc`) and leave the `vat` allow-list; the
+    > exporters of `utils/accounting/exporters/` are inside the scope of the `exporters` guard. PR A removed the VAT copies
+    > listed above and the platform gross pin copy.
     > **Pending** — PR B: merging `vat.netFirst` into `vat.splitTtc`. The two cuts are identical at 2.1, 5.5, 8.5 and 10 %
     > and distinct only at 20 %: the merge moves the 20 %-rated hourly bookings by a cent at most and ships with a listed diff.
 66. **Guards against re-introduction** (`server/src/tests/no-duplicate-formulas.unit.test.js`, static, part of
@@ -1274,7 +1291,8 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `utils/` | `midStayOrderCommit.js` | **removed** (PR C) | replaced by `extraSale` |
 | `utils/` | `sasOptionSale.js`, `complementPaidSplit.js` (`prepaidNetter`), `arrivalPaymentDetail.js`, `paymentLinkItems.js` | T → removed / thinned (PR B) | read `saleDetail`, SETTLEMENT and VAT instead of re-deriving |
 | `utils/` | `financeCalcs.js`, `touristTaxReportModel` | T (PR B) | call TOURIST TAX directly |
-| `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js`, `synthesis.js`, `controller.js` | T (PR B) | entry builders replaced by `AccountingOutput`; the plugin keeps routes, account plan, platform accounts and settings |
+| `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js`, `synthesis.js`, `controller.js` | T (PR B) | entry builders replaced by `AccountingOutput`; the plugin keeps routes, account plan, platform accounts and settings (delivered: `accountingModel.js` is the read model, the other three bind the core exporters to the account plan) |
+| `utils/pricing/refunds/` | `journal.js` | C (PR B) | the avoir, requalification, indemnity-share and closing entries of a refund (rules 63-64) |
 | `plugins/sdk/` | `createContext.js`, `registry.js`, `coreModules.json` | T | `ctx.articleFamily`, `ctx.articleFulfilment`, `ctx.slotAvailability`; SDK exposes `extraSale`, `saleDetail`, `stayClock` instead of `midStayOrderCommit` |
 | `plugins/hourly-resources/` | `pricing.js`, `hourlyPricing.js`, `scheduler.js`, `schedulingModel.js`, `sasStep.js`, `bookingPricing.js` | T | one HOURLY TARIFF registered as the `hourly` family; `scheduler`/`schedulingModel` read it; `sasStep.complementItems` → requests; `bookingPricing` VAT → VAT unit |
 | `plugins/hourly-resources/` | `slotAvailability.js`, `bathFulfilment.js` | C (PR B) | `SlotAvailabilityProvider` and the `hourly-slot` FULFILMENT adapter (rules 48-49) |

@@ -5,10 +5,9 @@
  */
 
 const sdk = require('../sdk');
-const { buildRows, buildStructuredEntries, CSV_HEADERS } = require('./accountingExport');
-const { toLatin1Text } = require('./latin1');
+const { csvJournal, salesJson } = require('./accountingExport');
 
-const { serializeCsv } = sdk.coreModule('csv');
+const { journalEntries } = sdk.coreModule('accountingOutput');
 
 function parseMonthYear(query) {
   const month = Number(query.month);
@@ -18,31 +17,12 @@ function parseMonthYear(query) {
   return { month, year };
 }
 
-// Sales + refunds + cancellation compensations of the month, in one chronological stream. Neither a
-// refund nor a compensation is an encaissement, but both belong to the same journal at their own
-// date (specs/reservation-refunds.md §3.4 rule 21, specs/cancellation-compensation.md §3.3 rule 15).
-// Building the stream here means the CSV and the JSON preview can never drift apart.
+// Sales + refunds + cancellation compensations of the month, in one chronological stream (the core's `journalEntries`):
+// the CSV and the JSON preview can never drift apart.
 function monthEntries(accountingModel, params) {
-  const sales = accountingModel.encaissementsByMonth(params);
-  const refunds = accountingModel.refundsByMonth ? accountingModel.refundsByMonth(params) : [];
-  const compensations = accountingModel.compensationsByMonth ? accountingModel.compensationsByMonth(params) : [];
-  const penalties = accountingModel.platformPenaltiesByMonth ? accountingModel.platformPenaltiesByMonth(params) : [];
-  // specs/resource-booking-pricing-and-invoicing.md rule 21 — the sales made outside any stay.
-  const standalone = accountingModel.standaloneSalesByMonth ? accountingModel.standaloneSalesByMonth(params) : [];
-  return [...sales, ...refunds, ...compensations, ...penalties, ...standalone]
-    .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
+  return journalEntries(params, accountingModel);
 }
 
-const TOURIST_TAX_ACCOUNT = '46710000';
-function taxOnlyEntries(structured) {
-  return structured
-    .filter((e) => e.direction === 'sale')
-    .filter((e) => {
-      const credits = (e.lines || []).filter((l) => Number(l.credit) > 0);
-      return credits.length > 0 && credits.every((l) => String(l.compte) === TOURIST_TAX_ACCOUNT);
-    })
-    .map((e) => ({ reservationId: e.reservationId, kind: e.kind, libelle: e.libelle, paidDate: e.paidDate, amount: e.encaissementTtc }));
-}
 
 // `plan()` — the account plan of the export (specs/plugins-phase-p-productisation.md rule 27); none
 // means the defaults.
@@ -53,20 +33,11 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = monthEntries(accountingModel, params);
-      const rows = buildRows(entries, plan());
-      // ISO-8859-1 (latin1) without BOM — the « Format standard (CSV) », byte-for-byte the
-      // accountant's example file. French accounting software (Sage/EBP/Cegid) defaults to
-      // latin1 and chokes on the UTF-8 BOM, so we drop it via `{ bom: false }` and re-encode
-      // the string into a latin1 Buffer, once every cell's characters outside latin1 (’, Œ, …) have
-      // been transliterated (rule 31) — before the quoting, which a « ” » → « " » must go through.
-      const latin1Rows = rows.map((row) => row.map((cell) => (typeof cell === 'string' ? toLatin1Text(cell) : cell)));
-      const csv = serializeCsv(CSV_HEADERS, latin1Rows, { bom: false });
-      const buffer = Buffer.from(csv, 'latin1');
-      const mm = String(params.month).padStart(2, '0');
-      onCsvExported(`${params.year}-${mm}`, req);
-      res.setHeader('Content-Type', 'text/csv; charset=ISO-8859-1');
-      res.setHeader('Content-Disposition', `attachment; filename="ventes-${params.year}-${mm}.csv"`);
-      return res.send(buffer);
+      const file = csvJournal.export(entries, { plan: plan(), period: params });
+      onCsvExported(`${params.year}-${String(params.month).padStart(2, '0')}`, req);
+      res.setHeader('Content-Type', file.contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+      return res.send(file.body);
     },
 
     // JSON mirror of the CSV — same encaissements, same lines, but grouped per entry and pre-classified
@@ -76,21 +47,7 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = monthEntries(accountingModel, params);
-      const structured = buildStructuredEntries(entries, plan());
-      const totalDebits = structured.reduce((s, e) => s + e.sumDebits, 0);
-      const totalCredits = structured.reduce((s, e) => s + e.sumCredits, 0);
-      return res.json({
-        entries: structured,
-        totals: {
-          entriesCount: structured.length,
-          totalDebits: Math.round(totalDebits * 100) / 100,
-          totalCredits: Math.round(totalCredits * 100) / 100,
-          allBalanced: structured.every((e) => e.balanced),
-          // specs/reservation-payment-ledger.md rule 43 — a sale whose credits are all on the
-          // tourist-tax account carries no revenue and no VAT: shown, never silently exported.
-          taxOnlyEntries: taxOnlyEntries(structured),
-        },
-      });
+      return res.json(salesJson.export(entries, { plan: plan() }).body);
     },
 
     // JSON preview of the platform commissions in the month — drives the AccountingPage table.
@@ -137,5 +94,5 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
 module.exports = {
   create: createAccountingController,
   monthEntries,
-  __test: { parseMonthYear, monthEntries, taxOnlyEntries },
+  __test: { parseMonthYear, monthEntries, taxOnlyEntries: salesJson.__test.taxOnlyEntries },
 };

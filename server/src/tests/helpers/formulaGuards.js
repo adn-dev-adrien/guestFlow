@@ -127,7 +127,7 @@ const GUARDS = [
   {
     name: 'exporters',
     isHome: () => false,
-    scope: (file) => file.startsWith(`${plugin('accounting-export')}/`) && !file.includes('/tests/'),
+    scope: (file) => (file.startsWith(`${plugin('accounting-export')}/`) || file.startsWith('utils/accounting/exporters/')) && !file.includes('/tests/'),
     rules: [
       { re: /require\(\s*['"][^'"]*\/vat(\/[^'"]*)?['"]\s*\)/, probe: "const { vatOf } = require('../../utils/pricing/vat');" },
       { re: /require\(\s*['"][^'"]*\/articles(\/[^'"]*)?['"]\s*\)/, probe: "const articles = require('../../utils/pricing/articles');" },

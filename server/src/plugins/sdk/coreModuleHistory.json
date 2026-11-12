@@ -261,7 +261,13 @@
     {
       "version": "2.27.0",
       "modules": [
-        "vat"
+        "vat",
+        "accountingOutput",
+        "legacyBucketSplit",
+        "refundJournal",
+        "csvJournal",
+        "salesJson",
+        "synthesisExporter"
       ],
       "names": {}
     }

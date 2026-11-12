@@ -951,5 +951,45 @@
   ],
   "standaloneSales": [
     "list"
+  ],
+  "accountingOutput": [
+    "buildCompensationEntry",
+    "buildPenaltyEntry",
+    "buildStandaloneEntry",
+    "create",
+    "journalEntries",
+    "resolveCommissionConfig"
+  ],
+  "legacyBucketSplit": [
+    "CONTRIB_RESIDUE_TOLERANCE_TTC",
+    "TTC_SPLIT_FALLBACK",
+    "bookedBucketSplit",
+    "bucketFromTtc",
+    "computeBucketTtcsFromContribs",
+    "computeTaxTtcForKind",
+    "legacyGrossUp",
+    "netOfTtc",
+    "nz",
+    "parseComplementPaidSplit",
+    "parsePaidSplit",
+    "round2",
+    "soldeCaptureMatches"
+  ],
+  "refundJournal": [
+    "adjustedBucketSplit",
+    "buildRefundEntry",
+    "closeStayBooks",
+    "earlierSplits",
+    "indemnityShare",
+    "isAdjustedLine"
+  ],
+  "csvJournal": [
+    "create"
+  ],
+  "salesJson": [
+    "create"
+  ],
+  "synthesisExporter": [
+    "create"
   ]
 }

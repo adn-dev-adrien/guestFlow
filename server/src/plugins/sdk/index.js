@@ -139,6 +139,14 @@ const CORE_MODULES = Object.freeze({
   // (specs/resource-booking-pricing-and-invoicing.md rules 1, 14, 20-21, SDK 2.25.0)
   invoiceIssuers: '../../utils/invoiceIssuers',
   standaloneSales: '../../utils/standaloneSales',
+  // accounting-export — the journal is the core's AccountingOutput; the plugin keeps its routes, account plan and settings
+  // (specs/pricing-components.md rule 63, SDK 2.27.0)
+  accountingOutput: '../../utils/accounting/accountingOutput', // the journal entries of a period, built from the read models (pricing-components rule 63, SDK 2.27.0)
+  legacyBucketSplit: '../../utils/accounting/legacyBucketSplit', // the legacy derivation of the buckets an entry books from stored money (rule 63)
+  refundJournal: '../../utils/pricing/refunds/journal', // the avoir, requalification and closing entries of a refund (rules 63-64)
+  csvJournal: '../../utils/accounting/exporters/csvJournal', // the CSV journal exporter (rule 63)
+  salesJson: '../../utils/accounting/exporters/salesJson', // the sales JSON exporter (rule 63)
+  synthesisExporter: '../../utils/accounting/exporters/synthesis', // the synthesis exporter: VAT return, checks, collections (rule 63)
 });
 
 function coreModule(name) {
