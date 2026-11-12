@@ -122,3 +122,52 @@ test('a new key on the re-run is billed in full, beside the covered one', () => 
   assert.equal(r.a, 17);
   assert.deepEqual(JSON.parse(r.d).map((l) => l.label), ['Planche S']);
 });
+
+// Rule 35 — what the recap announces is exactly what the commit adds to the end-of-stay complement, for sales, ménage / linge
+// de toilette and custom items alike.
+const supplement = (model, input) => model.planArrivalSas(1, input, { withExistingLines: false }).supplementOutsideComplement;
+
+test('rule 35 — a raised sale is announced once: the unchanged run after it announces nothing', () => {
+  const { db, model } = collectedSale();
+  assert.equal(supplement(model, sale(3)), 24);
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(supplement(model, sale(3)), 0, 'already routed to the end-of-stay complement');
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(eos(db).a, 24);
+});
+
+test('rule 35 — a custom item collected with the complement and sent again is announced as nothing and billed as nothing', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const input = { ...sale(2), complementItems: [{ label: 'Taie d\'oreiller', amount: 12 }] };
+  model.commitArrivalSas(1, input);
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  assert.equal(supplement(model, input), 0);
+  model.commitArrivalSas(1, input);
+  assert.equal(eos(db).a, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options WHERE reservationId = 1').get().n, 1);
+});
+
+test('rule 35 — a custom item added on a collected complement is written and billed at check-out: announced = recorded', () => {
+  const { db, model } = collectedSale();
+  const input = { ...sale(2), complementItems: [{ label: 'Taie d\'oreiller', amount: 12 }] };
+  assert.equal(supplement(model, input), 12);
+  model.commitArrivalSas(1, input);
+  assert.equal(eos(db).a, 12);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options WHERE reservationId = 1').get().n, 1);
+  assert.equal(supplement(model, input), 0, 'sent again: nothing more');
+  model.commitArrivalSas(1, { ...sale(2), complementItems: [] });
+  assert.equal(eos(db).a, 0, 'dropped on a re-run: its money goes back out');
+});
+
+test('rule 35 — a custom item raised on the re-run bills only the difference', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { ...sale(2), complementItems: [{ label: 'Taie', amount: 12 }] });
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  const raised = { ...sale(2), complementItems: [{ label: 'Taie', amount: 20 }] };
+  assert.equal(supplement(model, raised), 8);
+  model.commitArrivalSas(1, raised);
+  assert.equal(eos(db).a, 8);
+  assert.equal(supplement(model, raised), 0);
+});

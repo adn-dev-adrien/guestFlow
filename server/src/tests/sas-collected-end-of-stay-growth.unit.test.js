@@ -160,7 +160,7 @@ test('arrival SAS sale on a collected complement with the end of stay open: bill
 // specs/sas-breakfast-and-catering-upsell.md rule 17, reading of 2026-11-06 (audit R26 LOW 2, accepted, the reviewer's A6/A7):
 // « what this SAS had sold » reads the sasArrivalOrigin options present. A re-opened SAS dropping the sale deletes it while
 // the collected end of stay still bills it; the same sale put back is then refused. Pinned as accepted, 0 €.
-test('R26 LOW 2 accepted: a sale dropped on a re-opened arrival SAS, then put back, is refused while the end of stay is collected', SAS, async () => {
+test('R26 LOW 2 (reading of 2026-11-12, arrival-departure-sas.md rule 35): a sale dropped on a re-opened arrival SAS, then put back, adds nothing the collected end of stay does not already hold: accepted', SAS, async () => {
   const stay = started(fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] }));
   pay(stay.id, S, C);
   assert.equal(arrival(stay.id, SALE).statusCode, 200);
@@ -169,5 +169,7 @@ test('R26 LOW 2 accepted: a sale dropped on a re-opened arrival SAS, then put ba
   assert.equal(arrival(stay.id, { soldOptions: [] }).statusCode, 200);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ? AND optionId = ?').get(stay.id, MEAL).n, 0);
   assert.equal(rowOf(stay.id).endOfStayComplementAmount, 17);
-  assert.equal(arrival(stay.id, SALE).body.code, CODE);
+  // Put back: the collected end-of-stay complement still holds its 17 €, so the run adds nothing and is not refused.
+  assert.equal(arrival(stay.id, SALE).statusCode, 200);
+  assert.equal(rowOf(stay.id).endOfStayComplementAmount, 17);
 });

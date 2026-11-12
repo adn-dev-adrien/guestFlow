@@ -23,7 +23,7 @@ function makeDb() {
       complementAmountOverride REAL, endOfStayComplementAmountOverride REAL,
       endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
       endOfStayComplementPaidDate TEXT, endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
-      arrivalSasDoneAt TEXT, departureSasDoneAt TEXT,
+      arrivalSasDoneAt TEXT, departureSasDoneAt TEXT, arrivalExtrasBaseline TEXT, midStaySettledNotes TEXT,
       checkInReady INTEGER DEFAULT 0, checkInDone INTEGER DEFAULT 0, checkOutDone INTEGER DEFAULT 0,
       extinguisherSealOkAtArrival INTEGER, extinguisherSealOkAtDeparture INTEGER,
       breakfastTime TEXT,
@@ -54,6 +54,7 @@ function makeDb() {
     CREATE TABLE linen_priced_items (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, category TEXT NOT NULL DEFAULT 'bed', sortOrder INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE repair_amounts (id INTEGER PRIMARY KEY AUTOINCREMENT, repairKey TEXT, label TEXT NOT NULL, price REAL NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0);
+    CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0, inComplement INTEGER DEFAULT 0);
   `);
   // specs/caution-live-from-property.md §3 — commitArrivalSas freezes the property's caution on receipt.
   db.prepare('INSERT INTO properties (id, defaultCautionAmount) VALUES (7, 500)').run();
@@ -181,15 +182,16 @@ test('commitArrivalSas re-commit: preserves non-SAS complement lines + caution u
   assert.deepEqual(remaining.map((x) => x.description), ['Extra manuel']);
 });
 
-test('commitArrivalSas: a paid complement is fully frozen — amount unchanged + no lines written', () => {
-  // specs/reopen-completed-sas.md §4.3 — a settled complement is left untouched (no insert / no
-  // re-compute), so a re-opened SAS can't alter a paid complement.
+test('commitArrivalSas: a paid complement is frozen — amount unchanged, a new item is written and billed at check-out', () => {
+  // specs/reopen-completed-sas.md §4.3 — a settled complement is left untouched (no re-compute), so a re-opened SAS can't
+  // alter a paid complement; what the run adds rides the end-of-stay complement (arrival-departure-sas.md rule 35).
   const db = makeDb();
   db.prepare('UPDATE reservations SET complementPaid = 1, complementAmount = 30 WHERE id = 1').run();
   const model = createReservationsModel(db);
   const newComplement = model.commitArrivalSas(1, { complementItems: [{ label: 'Drap-housse', amount: 12 }] });
   assert.equal(newComplement, 30); // frozen
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options WHERE reservationId = 1').get().n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options WHERE reservationId = 1').get().n, 1);
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount AS a FROM reservations WHERE id = 1').get().a, 12);
 });
 
 test('commitArrivalSas: ignores zero/blank items', () => {
@@ -817,14 +819,28 @@ test('commitArrivalSas: linen elements still ride the custom lines', () => {
   assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 75); // 30 + 40 + 5
 });
 
-test('commitArrivalSas: a PAID complement freezes the upsell writes', () => {
+test('commitArrivalSas: on a PAID complement the upsell is written (it is counted) and billed at check-out, the complement stays frozen', () => {
   const db = makeDb();
   const optId = seedCleaning(db, 40);
   db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
   const model = createReservationsModel(db);
   model.commitArrivalSas(1, { cleaningAdded: true });
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId).n, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(optId).n, 1);
   assert.equal(db.prepare('SELECT complementAmount a FROM reservations WHERE id = 1').get().a, 30);
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount a FROM reservations WHERE id = 1').get().a, 40);
+});
+
+test('rule 35 — on a PAID complement the linge de toilette is announced as exactly what the commit adds to the end-of-stay complement', () => {
+  const db = makeDb();
+  const bathId = seedBathLinenOption(db, 8);
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  const model = createReservationsModel(db);
+  const plan = model.planArrivalSas(1, { bathLinenAdded: true }, { withExistingLines: false });
+  assert.equal(plan.supplementOutsideComplement, 24);
+  model.commitArrivalSas(1, { bathLinenAdded: true });
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM reservation_options WHERE reservationId = 1 AND optionId = ?').get(bathId).n, 1, 'counted for the laundry');
+  assert.equal(db.prepare('SELECT endOfStayComplementAmount a FROM reservations WHERE id = 1').get().a, 24);
+  assert.equal(model.planArrivalSas(1, { bathLinenAdded: true }, { withExistingLines: false }).supplementOutsideComplement, 0, 'sent again: nothing more');
 });
 
 test('getSasUpsellOptions: resolves both offers, their engine price and where the row comes from', () => {

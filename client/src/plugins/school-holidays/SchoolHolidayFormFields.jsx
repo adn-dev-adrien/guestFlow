@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Grid, TextField, Alert } from '@mui/material';
+import { Stack, Typography, Grid, TextField, Alert } from '@mui/material';
 import { ZONE_COLORS } from './zoneColors';
 
 function ZoneDateFields({ zoneKey, form, setField }) {
@@ -48,12 +48,12 @@ function ZoneDateFields({ zoneKey, form, setField }) {
 
 export default function SchoolHolidayFormFields({ form, setField, validationError }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+    <Stack spacing={2} sx={{ mt: 1 }}>
       {validationError ? <Alert severity="error">{validationError}</Alert> : null}
       <TextField label="Nom de la période" value={form.label} onChange={(e) => setField('label', e.target.value)} fullWidth />
       <ZoneDateFields zoneKey="A" form={form} setField={setField} />
       <ZoneDateFields zoneKey="B" form={form} setField={setField} />
       <ZoneDateFields zoneKey="C" form={form} setField={setField} />
-    </Box>
+    </Stack>
   );
 }

@@ -1713,7 +1713,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
                 <Typography key={note} variant="body2" color="warning.main">{note}</Typography>
               ))}
               {!failed && recap.supplementOutsideComplement > 0 && (
-                <Typography variant="body2" color="warning.main">⚠ Le complément était déjà marqué payé : encaisser le supplément ({formatCurrency(recap.supplementOutsideComplement)}) manuellement.</Typography>
+                <Typography variant="body2" color="text.secondary">Ajouté au complément de fin de séjour : {formatCurrency(recap.supplementOutsideComplement)}</Typography>
               )}
               {unifiedPayment ? (
                 <>

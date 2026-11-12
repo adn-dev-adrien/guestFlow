@@ -299,6 +299,24 @@ confirmation — records the caution status and the complement(s) on the reserva
     equivalent branch. Test: `tests/sas-reopen-collected-sale.unit.test.js`.
     *Rule 32, completed:* the added guests' surcharge counts among the billed lines, so « Offrir » on « Voyageurs ajoutés » (check-in
     recap or check-out gifts) moves `finalPrice` too (`sas-final-price-moves-departure.unit.test.js`).
+35. **On a collected arrival complement, everything the run adds rides the end-of-stay complement, and the recap says exactly that
+    amount** (2026-11-12, final verification of the manual trial of 4.0.0; completes rule 34). Two defects remained on a collected
+    complement: (a) the recap re-announced money already routed to the end-of-stay complement (52 €, 100 €; on stay 22308, 35 € already
+    collected) on every unchanged re-run; (b) it announced the linge de toilette (80 €), the ménage and the custom items (linen
+    pieces, a plugin's evening supplement) which the commit dropped — nothing billed, booked or counted for the laundry. Decision:
+    route them **exactly like the sales**. `commitArrivalSas` writes their rows (the towels are counted for the laundry), and per key
+    (`opt:<id>` or `custom:<label>`) only what the line bills **beyond what the collected complement holds** goes to the
+    end-of-stay complement (`collectedHoldByKey`: the stored amount of the SAS-origin rows, options and custom lines, less what the
+    end-of-stay detail already carries for the key); `finalPrice` moves by the lines' difference (rule 32), so the stored summary
+    stays true. The plan's `supplementOutsideComplement` is the same computation (`sasLinesAfter` → `frozenRouting`): **the
+    announced amount equals what this commit adds to the end-of-stay complement** — an unchanged re-run announces nothing, a raised
+    line announces only the difference, a lowered or dropped line announces nothing (and takes its routed money back out). The
+    recap line no longer asks to collect by hand: « Ajouté au complément de fin de séjour : X € ». It supersedes the « encaisser le
+    supplément manuellement » warning of `sas-arrival-total-server-side.md`, `sas-upsells-activate-catalogue-option.md` and
+    `sas-bath-linen-upsell.md`. A run that adds money to an end-of-stay complement collected elsewhere is still refused (rule 17 of
+    `sas-breakfast-and-catering-upsell.md`); a sale put back after being dropped, the collected end of stay still holding its amount,
+    adds nothing and is accepted (reading of R26 LOW 2). Tests: `tests/sas-reopen-collected-sale.unit.test.js` (rule 35),
+    `tests/sas-commit.unit.test.js` (frozen item, ménage and linge de toilette), `ReservationSasDialog.collected-supplement.test.jsx`.
 
 ---
 
