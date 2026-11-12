@@ -1195,8 +1195,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > are `refundable.budget` / `refundable` (formerly `cancelledRefundBudget` / `buildRefundableLines`, still exported by the legacy
     > `utils/refunds` path under their old names), `judge.deletionRefusal` (formerly `refundDeletionRefusal`), and SETTLEMENT's face
     > `utils/reservationSettlement` re-exports `refundsOwed` (REFUNDS' `owed`).
-    > **Pending** — PR B: the poste split of the trop-perçu no longer reading the history, and SCHEDULE's `overCollectedTtc` /
-    > `complementCollectedExcess` (quote keys, unchanged by this pass).
+    > **Delivered by PR B** (pass 4b): the poste split of the trop-perçu reads no audit log. `postesLeftOf` (pure, `refunds/overpayment.js`) and
+    > `postesLeft` (`models/refundInputModel.js`) take each line against what the payments naming it collected (schedule scope; the complement
+    > through its frozen split and its allocations), the contribs of removed paid lines and the tourist tax on its stay line. A stay whose
+    > payments name no line has its excess on the accommodation (class O-7 where a legacy history used to explain it). `droppedSince`,
+    > `droppedSinceCollection` and `touristTaxCollectedInComplement` are removed.
+    > **Pending** — PR B: SCHEDULE's `overCollectedTtc` / `complementCollectedExcess` (quote keys, unchanged by this pass).
     > _(The price gate's refund figures and the synthetic refund stays were delivered by PR A: `price-gate-synthetic`.)_
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)

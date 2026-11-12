@@ -173,6 +173,10 @@ changed something the price depends on; money collected beyond the total is repo
     en trop », never an « encaissés / dus » pair that contradicts the amount. Limit: a stay whose history was
     lost falls back on the accommodation; the correction of an adjusted complement (rule 12) uses today's
     engine for the complement it routes on its own, no stamp of that amount exists.
+    > **Amended 2026-11-12** (pricing-components rules 74 and 76, PR B pass 4b): the audit log is no longer read. What left the stay is, per
+    > line, what the payments naming it collected beyond what it now costs (the quote's line before a save, the stored line after), plus the
+    > contribs of paid lines since removed (`removedLineContribs`) and the tourist tax on its stay line; a stay whose payments name no line
+    > falls back on the accommodation. `postesLeft` (`models/refundInputModel.js`) is the one reader.
 16. **No trop-perçu on a platform stay, live preview included (audit R3 N1, 2026-10-29).** The engine excess the
     live ledger compares (`engineExcessOf`) carries the same `isDirectChannel` guard as `overpaymentOf` and
     `storedOverpaymentOf` (reservation-refunds rule 38): a Gîtes de France or Airbnb stay whose solde is paid and
@@ -187,6 +191,8 @@ changed something the price depends on; money collected beyond the total is repo
     the schedule share already covers on that poste, whatever the way it was split (leftover hints or captured
     contribs). A solde option removed in the window is thus not counted twice, and a drop that belongs to the
     complement is never cut. A paid complement with no paid date reads no history.
+    > **Amended 2026-11-12** (rules 74 and 76): the complement's lost lines are the lines of its frozen split (and the allocations that name a
+    > line) the stay no longer carries; the tourist tax it collected is its stamp, else the allocation on the stay's tax line. No signature is parsed.
 18. **The complement's history window reads only the complement's lines (audit R4 N5, 2026-10-29).** `droppedSince`
     filters the signature parts by their `cN` flag (`reservationAudit.js` `getOptionsSignature` /
     `getResourcesSignature`): the complement window (`complementLeftOf`) counts the `c1` lines only, the schedule
@@ -194,6 +200,8 @@ changed something the price depends on; money collected beyond the total is repo
     option dropped from an unpaid or already refunded solde therefore no longer takes the excess of a removed complement
     activity (X1, X2). A signature written before the flag existed carries none: its lines count in both windows, which
     is why rule 17's overflow correction stays.
+    > **Amended 2026-11-12** (rules 74 and 76): the two scopes are read from the payments themselves — `bucket:complement` (and a settlement
+    > of the complement alone) against every other payment — so they cannot overlap; `droppedSince` and the `cN` flag reading are gone.
 
 19. **A priced save keeps what each custom line collected (audit R21-M1, 2026-11-03).** A save that re-prices the stay
     deletes and rewrites the custom lines, and neither the fiche nor `toUpdateBody` posts their contribs, so they came

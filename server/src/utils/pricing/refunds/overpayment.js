@@ -100,7 +100,7 @@ function overpaymentLinesOf({ row = {}, capturedByPoste = {}, quote = {}, overpa
     const rest = round2(total - complementExcess);
     const lines = rest > 0 ? scheduleLines({ row, capturedByPoste: byPoste, quote, total: rest, leftover }) : [];
     let remaining = complementExcess;
-    // The history window of the complement overlaps the schedule's: the hints can add up to more than the
+    // The stored-versus-live comparison of the complement overlaps the lines it named: the hints can add up to more than the
     // complement lost. Only that overflow is taken back, from the postes the schedule share already covers
     // (whatever the way it was split), so a drop that really belongs to the complement is never cut.
     let overflow = Math.max(0, round2(['touristTax', 'options', 'resources'].reduce((t, k) => t + Number(complementLeft[k] || 0), 0) - complementExcess));
@@ -188,4 +188,29 @@ function scheduleLines({ row, capturedByPoste, quote, total, leftover = {} }) {
     .map(({ bucket, label, amountTtc, collectedTtc, dueTtc }) => ({ bucket, label, amountTtc, collectedTtc, dueTtc }));
 }
 
-module.exports = { overpayment, overpaymentLinesOf, currentByPoste };
+/**
+ * What left the stay since its money was collected, per poste, from the LINES and what the payments named on them (rule 74): a line
+ * that collected more than it now costs — lowered, offered, removed — has that much in excess on its poste (the options, the
+ * resources; the tourist tax on its stay line). No audit log is read: a removed paid line is in the stay's removed-line contribs,
+ * a collected complement's lines in its frozen split.
+ *
+ * @param {Array<{ key: string, poste: 'options'|'resources'|'touristTax', collectedCents: number }>} collected  one entry per line
+ *   (several entries on a key add up)
+ * @param {Map<string, number>} currentCents  what each key costs now (a missing key costs nothing)
+ * @returns {{ options: number, resources: number, touristTax: number }} euros
+ */
+function postesLeftOf(collected, currentCents) {
+  const byKey = new Map();
+  for (const entry of collected || []) {
+    const held = byKey.get(entry.key) || { poste: entry.poste, collectedCents: 0 };
+    held.collectedCents += Number(entry.collectedCents || 0);
+    byKey.set(entry.key, held);
+  }
+  const left = { options: 0, resources: 0, touristTax: 0 };
+  for (const [key, { poste, collectedCents }] of byKey) {
+    left[poste] += Math.max(0, collectedCents - Number((currentCents && currentCents.get(key)) || 0));
+  }
+  return Object.fromEntries(Object.entries(left).map(([poste, cents]) => [poste, round2(cents / 100)]));
+}
+
+module.exports = { overpayment, overpaymentLinesOf, currentByPoste, postesLeftOf };

@@ -1,4 +1,5 @@
-// specs/reservation-save-keeps-pricing.md rules 8-11 — round 2 of the money audit (C, D, E, F): the trop-perçu
+// specs/pricing-components.md §3 rules 74 and 76 — the poste split of an excess reads the lines and the payments that name them.
+// specs/reservation-save-keeps-pricing.md rules 8-11 and 15 — round 2 of the money audit (C, D, E, F): the trop-perçu
 // of a stored stay is measured against the STORED price and what was collected, so a confirmed one survives a
 // reload (#22306: 2 301,60 paid, then -10 % = 176,30) and engine drift is never one (#14); the live ledger
 // reports the change relative to the stored figure; the 409 carries the refund means; the detail line of a
@@ -40,6 +41,15 @@ async function stay(extra = {}) {
 const get = (controller, id) => new Promise((resolve) => {
   controller.getById({ params: { id: String(id) }, user: { role: 'admin', roles: ['admin'] } }, { status() { return this; }, json: resolve });
 });
+// The balance paid the way a tick does it: its contribs captured per line, so the payment allocations name the lines (rule 74).
+function payBalanceNamingLines(db, id) {
+  const stay = db.prepare('SELECT finalPrice, touristTaxTotal FROM reservations WHERE id = ?').get(id);
+  const customs = db.prepare('SELECT id, amount FROM reservation_custom_options WHERE reservationId = ?').all(id);
+  const onLines = customs.reduce((sum, line) => sum + line.amount, 0);
+  for (const line of customs) db.prepare('UPDATE reservation_custom_options SET acompteContribTtc = 0, soldeContribTtc = ? WHERE id = ?').run(line.amount, line.id);
+  db.prepare(`UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal, accommodationAcompteContribTtc = 0,
+    accommodationSoldeContribTtc = ?, touristTaxAcompteContribTtc = 0, touristTaxSoldeContribTtc = ? WHERE id = ?`).run(stay.finalPrice - onLines, stay.touristTaxTotal, id);
+}
 const overpaymentRow = (fiche) => fiche.ledger.rows.find((r) => r.key === 'overpayment');
 const preview = (controller, id, body) => new Promise((resolve) => {
   controller.calculatePrice({ body: { ...body, reservationId: id, selectedOptions: [], customOptions: [], selectedResources: [] }, user: { role: 'admin' } }, { status() { return this; }, json: resolve });
@@ -180,31 +190,26 @@ test('rule 14 — the live figure goes down on one refund basis: line refunds an
   assert.ok(half > 0 && half < open, `partly absorbed: ${half}`);
 });
 
-test('rule 15 — with no captured split the excess is split by what left since the collection: a removed prestation on the options, a fallen tax on the tax', async () => {
+test('rule 15 — the excess is split by what the lines collected beyond what they now cost: a removed prestation on the options, a fallen tax on the tax', async () => {
   const { db, controller, id, body } = await stay({ customOptions: [{ customKey: 'a', description: 'Panier', amount: 80, offered: false }] });
-  db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  payBalanceNamingLines(db, id);
   const refused = controller.performUpdate(id, body({ customOptions: [] }));
   assert.equal(refused.status, 409, JSON.stringify(refused.body));
   assert.deepEqual(refused.body.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['options', 80]], 'on the 409');
   assert.equal(controller.performUpdate(id, body({ customOptions: [], forceOverpayment: true })).status, 200);
   const row = overpaymentRow(await get(controller, id));
   assert.deepEqual(row.refundPrefill.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['options', 80]], 'after the reload');
-  for (const line of row.detail.lines) assert.match(line, /^[^:]+ : [\d\s.,  ]+€ encaissés en trop$/);
+  for (const line of row.detail.lines) assert.match(line, /^[^:]+ : [\d\s.,  ]+€ encaissés(, [\d\s.,  ]+€ dus| en trop)$/);
 
   const taxed = await stay();
-  taxed.db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(taxed.id);
+  payBalanceNamingLines(taxed.db, taxed.id);
   assert.equal(taxed.controller.performUpdate(taxed.id, taxed.body({ adults: 1, forceOverpayment: true })).status, 200);
   const taxRow = overpaymentRow(await get(taxed.controller, taxed.id));
   assert.deepEqual(taxRow.refundPrefill.overpaymentLines.map((l) => [l.bucket, l.amountTtc]), [['touristTax', 3]]);
 });
 
 // ── Closing the poste notes (rule 15) ────────────────────────────────────────────────────────────────────
-const setHistoryDates = (db, id, dates) => {
-  const rows = db.prepare('SELECT id FROM reservation_history WHERE reservationId = ? ORDER BY id').all(id);
-  rows.forEach((r, i) => db.prepare('UPDATE reservation_history SET createdAt = ? WHERE id = ?').run(dates[i] || dates[dates.length - 1], r.id));
-};
-
-test('rule 15 — the window starts at the first money collected (a paid installment): a drop before it is not the excess', async () => {
+test('rule 15 — a line dropped before any money was collected is not the excess (a paid installment names no line)', async () => {
   const { db, controller, id, body } = await stay({ customOptions: [{ customKey: 'a', description: 'Panier', amount: 80, offered: false }] });
   assert.equal(controller.performUpdate(id, body({ customOptions: [] })).status, 200); // option removed, nothing collected yet
   const total = price(db, id);
@@ -213,14 +218,13 @@ test('rule 15 — the window starts at the first money collected (a paid install
   const insert = db.prepare(`INSERT INTO reservation_installments (reservationId, number, dueDate, amountCents, paid, paidDate) VALUES (?, ?, '${FAR_YEAR}-01-01', ?, 1, '${FAR_YEAR}-01-01')`);
   insert.run(id, 1, Math.floor(cents / 2)); insert.run(id, 2, cents - Math.floor(cents / 2));
   assert.equal(controller.performUpdate(id, body({ customOptions: [], discountPercent: 10, forceOverpayment: true })).status, 200); // after the payment
-  setHistoryDates(db, id, [`${FAR_YEAR - 1}-12-01 10:00:00`, `${FAR_YEAR - 1}-12-01 10:00:00`, `${FAR_YEAR}-02-01 10:00:00`]);
   const row = overpaymentRow(await get(controller, id));
   assert.deepEqual(row.refundPrefill.overpaymentLines.map((l) => l.bucket), ['accommodation'], 'the 80 € dropped before the first payment is not the excess');
 });
 
-test('rule 15 — an option removed then re-added inside the window nets to nothing', async () => {
+test('rule 15 — an option removed then re-added nets to nothing', async () => {
   const { db, controller, id, body } = await stay({ customOptions: [{ customKey: 'a', description: 'Panier', amount: 80, offered: false }] });
-  db.prepare('UPDATE reservations SET balancePaid = 1, balanceAmount = finalPrice + touristTaxTotal WHERE id = ?').run(id);
+  payBalanceNamingLines(db, id);
   assert.equal(controller.performUpdate(id, body({ customOptions: [], forceOverpayment: true })).status, 200);
   assert.equal(controller.performUpdate(id, body({ forceOverpayment: true })).status, 200); // back to the Panier
   const paid = db.prepare('SELECT finalPrice FROM reservations WHERE id = ?').get(id).finalPrice;

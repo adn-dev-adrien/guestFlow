@@ -368,7 +368,8 @@ without losing anything today's page shows.
     `bookedOn` and `cancelledOn` (`financeModel.getPaceStays`, live rows, manually cancelled rows and the
     `booking_pace_cancellations` ledger of an approved iCal cancellation alike), the history window of a
     collected complement or schedule (`reservationsController`: an edit counts from the Paris day the money
-    was collected, so the tourist tax a legacy complement collected and the lines it lost are found), the
+    was collected, so the tourist tax a legacy complement collected and the lines it lost are found — _amended 2026-11-12: the poste split
+    reads the lines and the allocations that name them, no history window_), the
     earliest date of the arrival payment (`bookedAt`, view and refusal,
     `specs/single-payment-from-the-fiche.md`) and the Clients line « Créé le … »
     (`utils/clientWhenLabel`). Added 2026-10-30 (audit R9): the booking date the platform price check
@@ -664,7 +665,7 @@ par mois » and « Taux d'occupation » side by side.
 ### Server unit tests (one file per subject)
 - [x] `tests/utc-timestamp-local-day.unit.test.js` (5, 2026-10-30) — rule 50: « Créé le » on the Paris day, the pace's `bookedOn`, an iCal (ledger) and a manual cancellation at 23:30Z booked and cancelled on their Paris days, the arrival payment refused before the Paris booking day and its earliest date on the fiche
 - [x] `tests/utc-timestamp-paris-day-labels.unit.test.js` (4, 2026-10-30) — rule 50: the price check's booking day, « Demandée le » and « Déjà envoyé le » stamped 23:30 UTC read on their Paris day
-- [x] `tests/complement-history-paris-day.unit.test.js` (2, 2026-10-30) — rule 50: an edit at 00:30 Paris on the collection day counts in the complement history window (option dropped, tourist tax of a legacy complement)
+- [x] `tests/complement-history-paris-day.unit.test.js` (2, 2026-10-30) — rule 50: no history window any more (pricing-components rules 74, 76) — the complement's lost option and the tax a legacy complement collected are read from its split and its allocations
 - [x] `tests/finance-late-installments.unit.test.js` (3, spec review 2026-10-27) — rule 49; client `FinancePage.settle-late-installment.test.jsx` (1)
 - [x] `finance-window.unit.test.js` (4) — rules 1-2: the three window kinds, refusals.
 - [x] `finance-custom-window-cap.unit.test.js` (4) — rule 51: 750-day cap, 9999 refused at once, the weekly curve ends on the window's last day.

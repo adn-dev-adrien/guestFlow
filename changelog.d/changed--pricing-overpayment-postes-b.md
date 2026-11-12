@@ -1,0 +1,1 @@
+- **Trop-perçu split by poste without the history (pricing refonte, PR B)**: the poste of an excess (options, activities, tourist tax, accommodation) is read from the lines and the payments that name them, no longer from the edit log. A stay whose payments name no line is refunded on the accommodation.

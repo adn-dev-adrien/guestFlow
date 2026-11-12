@@ -88,7 +88,7 @@ const { overpayment, overpaymentLinesOf } = require('../utils/overpayment');
 const { owedOnLineLowered } = require('../utils/pricing/refunds/owed');
 const { grossOf } = require('../utils/pricing/platformPayment');
 const refundObligations = require('../models/refundObligationsModel');
-const { overpaymentContext } = require('../models/refundInputModel');
+const { overpaymentContext, postesLeft } = require('../models/refundInputModel');
 const { readSplitReceived } = require('../utils/splitReceived');
 const { firstSessionConflict, conflictError: sessionConflictError, sessionKey } = require('../utils/resourceSessionConflicts');
 const resourceOtherUsesModel = require('../models/resourceOtherUsesModel');
@@ -520,39 +520,15 @@ function complementLeftOf(reservationId, quote, row = model.getRow(reservationId
   for (const line of model.buildArrivalComplementDetail(reservationId).detail || []) if (key[line.kind]) stored[key[line.kind]] += Number(line.amount || 0);
   for (const line of quote.complementDetailLines || []) if (key[line.kind]) live[key[line.kind]] += Number(line.amount || 0);
   const left = Object.fromEntries(Object.keys(stored).map((poste) => [poste, round2(Math.max(0, stored[poste] - live[poste]))]));
-  // After the save the stored lines no longer carry what it removed: the options and the activities a
-  // collected complement lost are read from the history since it was collected.
-  const complementPaidDate = String(row && row.complementPaidDate || '').slice(0, 10);
-  if (Number(row && row.complementPaid || 0) === 1 && complementPaidDate) {
-    const dropped = droppedSince(reservationId, complementPaidDate, 'complement');
-    left.options = Math.max(left.options, round2(dropped.options));
-    left.resources = Math.max(left.resources, round2(dropped.resources));
+  // Rule 74: what the complement collected on a line beyond what the stay now carries on it, read from the lines it named and
+  // its frozen split (a line the save took out is in the split, not in the stored lines any more).
+  if (Number(row && row.complementPaid || 0) === 1) {
+    const collected = postesLeft(db, reservationId, { scope: 'complement', quote });
+    left.options = Math.max(left.options, collected.options);
+    left.resources = Math.max(left.resources, collected.resources);
+    if (Boolean(quote.touristTaxInComplement || quote.touristTaxCollectedOnArrival)) left.touristTax = Math.max(left.touristTax, collected.touristTax);
   }
-  // Once the save has run, the stored lines already carry the lower tax: what the complement collected
-  // is read from the history (the value the tax had before its first change since the collection).
-  const routed = Boolean(quote.touristTaxInComplement || quote.touristTaxCollectedOnArrival);
-  const collected = routed ? touristTaxCollectedInComplement(reservationId, row) : null;
-  if (collected != null) left.touristTax = Math.max(left.touristTax, round2(Math.max(0, collected - Number(quote.touristTaxTotal || 0))));
   return left;
-}
-
-// The tourist tax a collected complement held: the amount stamped when it was collected; for a row collected
-// before the stamp, the amount the tax had before its first change since (null when it never changed).
-function touristTaxCollectedInComplement(reservationId, row) {
-  if (!row || Number(row.complementPaid || 0) !== 1) return null;
-  // Stamped in the statement that collected it (`complementCollectedTax`); the history only serves the rows
-  // collected before the stamp existed.
-  if (row.complementCollectedTax != null) return Number(row.complementCollectedTax);
-  const paidDate = String(row.complementPaidDate || '').slice(0, 10);
-  const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
-  for (const entry of entries) {
-    if (paidDate && bookingDayOf(entry.createdAt) < paidDate) continue;
-    let changes = [];
-    try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
-    const taxChange = changes.find((c) => c && c.field === 'touristTaxTotal');
-    if (taxChange && Number.isFinite(Number(taxChange.from))) return Number(taxChange.from);
-  }
-  return null;
 }
 
 // The means a refund of this excess defaults to. Money a complement took « caisse interne » is off the books:
@@ -577,72 +553,11 @@ function overpaymentResultOf(reservationId, row, quote, overpaymentTtc, { stored
   };
 }
 
-// What left the stay since its money was collected, per poste: the stored lines against the quote's (before
-// a save writes them) and the history (after it has), the larger of the two. The tax a fall of
-// `touristTaxTotal` took out, the options and resources a removal or a reduction took out.
+// What left the stay since its money was collected, per poste (rule 74): each line against what the payments named on it, the
+// quote being the stay as a save would store it. A stored stay is read against its own lines only: today's engine may price a
+// line differently without any edit, which is no excess.
 function leftOfStayOf(reservationId, row, quote, { storedOnly = false } = {}) {
-  const sum = (lines) => (lines || []).filter((l) => !Number(l.offered || 0)).reduce((t, l) => t + Number(l.totalPrice || 0), 0);
-  const storedOptions = db.prepare('SELECT totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(Number(reservationId));
-  const storedResources = db.prepare('SELECT totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(Number(reservationId));
-  const storedCustom = db.prepare('SELECT amount AS totalPrice, offered FROM reservation_custom_options WHERE reservationId = ?').all(Number(reservationId));
-  const live = {
-    options: Math.max(0, sum(storedOptions) + sum(storedCustom) - sum(quote.optionLines)),
-    resources: Math.max(0, sum(storedResources) - sum(quote.resourceLines)),
-    touristTax: Math.max(0, Number(row.touristTaxTotal || 0) - Number(quote.touristTaxTotal || 0)),
-  };
-  const history = droppedSinceCollection(reservationId, row);
-  // A stored stay is read against its own history only: today's engine may price a line differently without
-  // any edit, which is no excess.
-  return Object.fromEntries(Object.keys(live).map((poste) => [poste, round2(storedOnly ? history[poste] : Math.max(live[poste], history[poste]))]));
-}
-
-// The NET drops the history recorded since the first money was actually collected (an acompte or a solde paid
-// date, or the first paid installment): the tourist tax, the options and the resources (their signatures carry
-// each line's total). Increases inside the window are netted, so a line removed then restored counts for nothing.
-function droppedSinceCollection(reservationId, row) {
-  const dates = [row.depositPaid && row.depositPaidDate, row.balancePaid && row.balancePaidDate].filter(Boolean).map((d) => String(d).slice(0, 10));
-  try {
-    const first = db.prepare('SELECT MIN(paidDate) AS d FROM reservation_installments WHERE reservationId = ? AND paid = 1 AND paidDate IS NOT NULL').get(Number(reservationId));
-    if (first && first.d) dates.push(String(first.d).slice(0, 10));
-  } catch { /* no installments table */ }
-  return droppedSince(reservationId, dates.sort()[0] || '', 'schedule');
-}
-
-// `scope` narrows the drops to the lines of one window: 'complement' keeps the lines that sat in the arrival
-// complement (`:c1` in the signatures), 'schedule' the others (`:c0`). A signature written before the flag
-// existed carries none: its lines count in both, and the overflow correction of `overpaymentLinesOf` trims
-// the overlap.
-function droppedSince(reservationId, since, scope = null) {
-  const lines = (field, signature) => new Map(String(signature || '').split('|').filter(Boolean).map((part) => {
-    const seg = part.split(':');
-    const flag = String(seg[field === 'resourcesSignature' ? 4 : 3] || '');
-    return [Number(seg[0]), { total: Number(seg[2]) || 0, flag: flag === 'c0' || flag === 'c1' ? flag : null }];
-  }));
-  const inScope = (flag) => scope == null || flag == null || flag === (scope === 'complement' ? 'c1' : 'c0');
-  const drop = (field, from, to) => {
-    const before = lines(field, from);
-    const after = lines(field, to);
-    let total = 0;
-    for (const id of new Set([...before.keys(), ...after.keys()])) {
-      const line = before.get(id) || after.get(id);
-      if (inScope(line.flag)) total += ((before.get(id) || {}).total || 0) - ((after.get(id) || {}).total || 0);
-    }
-    return total;
-  };
-  const net = { options: 0, resources: 0, touristTax: 0 };
-  const entries = db.prepare("SELECT changedFields, createdAt FROM reservation_history WHERE reservationId = ? AND eventType = 'update' ORDER BY id").all(Number(reservationId));
-  for (const entry of entries) {
-    if (since && bookingDayOf(entry.createdAt) < since) continue;
-    let changes = [];
-    try { changes = JSON.parse(entry.changedFields || '[]'); } catch { changes = []; }
-    for (const change of changes) {
-      if (!change) continue;
-      if (change.field === 'touristTaxTotal') net.touristTax += Number(change.from || 0) - Number(change.to || 0);
-      if (change.field === 'optionsSignature') net.options += drop('optionsSignature', change.from, change.to);
-      if (change.field === 'resourcesSignature') net.resources += drop('resourcesSignature', change.from, change.to);
-    }
-  }
-  return Object.fromEntries(Object.entries(net).map(([poste, value]) => [poste, Math.max(0, value)]));
+  return postesLeft(db, reservationId, { scope: 'schedule', quote: storedOnly ? null : quote });
 }
 
 // Rule 23 — what the operator confirmed owing back when a paid line went down is held in the register of obligations, at the
