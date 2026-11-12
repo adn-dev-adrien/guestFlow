@@ -205,23 +205,59 @@ function backfillLineColumns(db) {
 }
 
 // ── L3 — the accommodation and tourist-tax lines of a stay ──────────────────────────────────────────────────────────
+function stayLineTotals(db, stay) {
+  const extras = db.prepare(`SELECT
+      COALESCE((SELECT SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)) FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0)
+    + COALESCE((SELECT SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)) FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0)
+    + COALESCE((SELECT SUM(CAST(ROUND(amount * 100) AS INTEGER)) FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0) AS total`);
+  // The line is what the stay stored for the lodging: the final price less the extras it also holds (rule 74).
+  return {
+    accommodation: Math.max(0, cents(stay.finalPrice) - Number(extras.get(stay.id, stay.id, stay.id).total || 0)),
+    touristTax: cents(stay.touristTaxTotal),
+  };
+}
+
 function backfillStayLines(db) {
   if (!hasTable(db, 'reservation_stay_lines') || !LINE_TABLES.every((table) => hasTable(db, table))) return 0;
   const stays = db.prepare(`SELECT * FROM reservations r
     WHERE NOT EXISTS (SELECT 1 FROM reservation_stay_lines s WHERE s.reservationId = r.id AND s.kind = 'accommodation')`).all();
   const insert = db.prepare('INSERT OR IGNORE INTO reservation_stay_lines (reservationId, kind, label, totalCents, vatClass, soldAt) VALUES (?, ?, ?, ?, ?, ?)');
-  const extras = db.prepare(`SELECT
-      COALESCE((SELECT SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)) FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0)
-    + COALESCE((SELECT SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)) FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0)
-    + COALESCE((SELECT SUM(CAST(ROUND(amount * 100) AS INTEGER)) FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0) AS total`);
   let changed = 0;
   for (const stay of stays) {
-    // The line is what the stay stored for the lodging: the final price less the extras it also holds (rule 74).
-    const accommodation = Math.max(0, cents(stay.finalPrice) - Number(extras.get(stay.id, stay.id, stay.id).total || 0));
-    changed += insert.run(stay.id, 'accommodation', 'Hébergement', accommodation, 'accommodation', stay.createdAt || null).changes;
-    if (cents(stay.touristTaxTotal) > 0) changed += insert.run(stay.id, 'touristTax', 'Taxe de séjour', cents(stay.touristTaxTotal), 'outOfScope', stay.createdAt || null).changes;
+    const totals = stayLineTotals(db, stay);
+    changed += insert.run(stay.id, 'accommodation', 'Hébergement', totals.accommodation, 'accommodation', stay.createdAt || null).changes;
+    if (totals.touristTax > 0) changed += insert.run(stay.id, 'touristTax', 'Taxe de séjour', totals.touristTax, 'outOfScope', stay.createdAt || null).changes;
   }
   return changed;
+}
+
+/**
+ * Live writer of the two stay lines (rule 74): a stay created or saved after the migration keeps « Hébergement » and « Taxe de
+ * séjour » current. A line that exists and whose total moved is amended (`amendedAt`); the answer lists each change so the caller can
+ * journal it: `[{ kind, label, fromCents, toCents }]`. `totals` (`{ accommodation, touristTax }` in cents) lets a save hand over the quote it is writing,
+ * the extras being stored after the stay row. A tourist-tax line is created when the tax appears and kept at 0 when it falls.
+ */
+function syncStayLines(db, reservationId, { now = new Date(), totals: given = null } = {}) {
+  if (!hasTable(db, 'reservation_stay_lines')) return [];
+  const stay = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId));
+  if (!stay) return [];
+  const totals = given || stayLineTotals(db, stay);
+  const at = now.toISOString();
+  const read = db.prepare('SELECT id, totalCents FROM reservation_stay_lines WHERE reservationId = ? AND kind = ?');
+  const changes = [];
+  for (const [kind, label, vatClass] of [['accommodation', 'Hébergement', 'accommodation'], ['touristTax', 'Taxe de séjour', 'outOfScope']]) {
+    const total = totals[kind];
+    const held = read.get(stay.id, kind);
+    if (!held) {
+      if (kind === 'touristTax' && total <= 0) continue;
+      db.prepare('INSERT INTO reservation_stay_lines (reservationId, kind, label, totalCents, vatClass, soldAt) VALUES (?, ?, ?, ?, ?, ?)').run(stay.id, kind, label, total, vatClass, at);
+      changes.push({ kind, label, fromCents: null, toCents: total });
+    } else if (held.totalCents !== total) {
+      db.prepare('UPDATE reservation_stay_lines SET totalCents = ?, amendedAt = ? WHERE id = ?').run(total, at, held.id);
+      changes.push({ kind, label, fromCents: held.totalCents, toCents: total });
+    }
+  }
+  return changes;
 }
 
 // ── S1-S5, S7, S8 — the refund columns ──────────────────────────────────────────────────────────────────────────────
@@ -417,5 +453,5 @@ function backfillRefundNettings(db, { force = false } = {}) {
 }
 
 module.exports = {
-  runPricingLinesMigration, backfillRefundNettings, backfillStayLevelAllocations, LINE_COLUMNS, LINE_TABLES,
+  runPricingLinesMigration, backfillRefundNettings, backfillStayLevelAllocations, syncStayLines, LINE_COLUMNS, LINE_TABLES,
 };

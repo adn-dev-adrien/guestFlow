@@ -9,7 +9,7 @@
  *   lockedOptionLines(id) / lockedResourceLines(id) / lockedNightlyBreakdown(id)   the sold snapshots
  *   lockedTariff(reservation)  the tariff snapshot the stay was sold under, null when none
  *   phaseInputs(id)            dates and times for the stay clock (models/stayClockModel.js)
- *   lineFacts(id)              `{ [lineKey]: { discountCents, source, soldAt, lineId, settledCents } }` of the stored lines (rules 21, 39), `{}` on a schema
+ *   lineFacts(id)              `{ [lineKey]: { discountCents, source, soldAt, lineId, table, collectAt, collectAtDefault, settledCents, paidAt } }` of the stored lines (rules 21, 39), `{}` on a schema
  *                              that predates the line columns; `settledCents` is the Σ of the line's allocations, never a stored column
  *
  *   stay(id)                   the stored stay: `{ row, options, customOptions, resources }` (the rows `stayRow` and the line readers return)
@@ -127,28 +127,33 @@ function storedStayPrice(db, id) {
 }
 
 const LINE_TABLES = [
-  { table: 'reservation_options', key: (r) => `opt:${r.optionId}`, extra: 'optionId' },
-  { table: 'reservation_resources', key: (r) => `res:${r.resourceId}`, extra: 'resourceId' },
-  { table: 'reservation_custom_options', key: (r) => extraLineKey({ isCustom: true, description: r.description }), extra: 'description' },
+  { table: 'reservation_options', short: 'option', key: (r) => `opt:${r.optionId}`, extra: 'optionId' },
+  { table: 'reservation_resources', short: 'resource', key: (r) => `res:${r.resourceId}`, extra: 'resourceId' },
+  { table: 'reservation_custom_options', short: 'custom', key: (r) => extraLineKey({ isCustom: true, description: r.description }), extra: 'description' },
 ];
 
 function lineFacts(db, id) {
   const facts = {};
   const hasAllocations = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'payment_allocations'").get());
   const settled = new Map();
+  const paidAt = new Map();
   if (hasAllocations) {
-    for (const r of db.prepare("SELECT lineRef, SUM(amountCents) AS cents FROM payment_allocations WHERE documentRef = ? AND lineRef IS NOT NULL GROUP BY lineRef").all(`reservation:${id}`)) settled.set(r.lineRef, r.cents);
+    for (const r of db.prepare("SELECT lineRef, SUM(amountCents) AS cents, MAX(CASE WHEN kind = 'payment' THEN at END) AS paidAt FROM payment_allocations WHERE documentRef = ? AND lineRef IS NOT NULL GROUP BY lineRef").all(`reservation:${id}`)) {
+      settled.set(r.lineRef, r.cents);
+      paidAt.set(r.lineRef, r.paidAt);
+    }
   }
-  for (const { table, key, extra } of LINE_TABLES) {
+  for (const { table, short, key, extra } of LINE_TABLES) {
     const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
     if (!columns.has('lineId')) continue;
-    const pick = ['lineId', extra, ...['discountCents', 'source', 'soldAt'].filter((c) => columns.has(c))];
+    const pick = ['lineId', extra, ...['discountCents', 'source', 'soldAt', 'collectAt', 'collectAtDefault'].filter((c) => columns.has(c))];
     for (const r of db.prepare(`SELECT ${pick.join(', ')} FROM ${table} WHERE reservationId = ?`).all(Number(id))) {
       const k = key(r);
       if (k in facts) continue;
       facts[k] = {
-        lineId: r.lineId, discountCents: Number(r.discountCents || 0), source: r.source || 'fiche', soldAt: r.soldAt || '',
-        settledCents: Math.max(0, Number(settled.get(`line:${table}:${r.lineId}`) || 0)),
+        lineId: r.lineId, table: short, discountCents: Number(r.discountCents || 0), source: r.source || 'fiche', soldAt: r.soldAt || '',
+        collectAt: r.collectAt || null, collectAtDefault: r.collectAtDefault || null,
+        settledCents: Math.max(0, Number(settled.get(`line:${table}:${r.lineId}`) || 0)), paidAt: paidAt.get(`line:${table}:${r.lineId}`) || null,
       };
     }
   }

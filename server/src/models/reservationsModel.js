@@ -45,6 +45,7 @@ const {
 const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAllocation } = require('../utils/complementAllocation');
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 const stayClockModel = require('./stayClockModel');
+const { syncStayLines } = require('../utils/pricingLinesMigration');
 const { dayPassed } = require('../utils/pricing/stayClock');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
@@ -408,6 +409,18 @@ function createReservationsModel(database) {
     if (!HAS_DISCOUNT_TARGET || !payload || payload.discountTarget === undefined) return;
     const target = ['extras', 'all'].includes(payload.discountTarget) ? payload.discountTarget : 'nights';
     database.prepare('UPDATE reservations SET discountTarget = ? WHERE id = ?').run(target, reservationId);
+  }
+  // Rule 74: « Hébergement » and « Taxe de séjour » follow the quote a save writes; an amendment of an existing line is journaled.
+  function persistStayLines(reservationId, quote, { journal = false } = {}) {
+    const euros = (value) => Math.round(Number(value || 0) * 100);
+    const accommodation = Math.max(0, euros(quote.finalPrice) - euros(quote.optionsTotal) - euros(quote.resourcesTotal));
+    const changes = syncStayLines(database, reservationId, { totals: { accommodation, touristTax: euros(quote.touristTaxTotal) } });
+    if (!journal) return;
+    const text = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
+    const amended = changes.filter((change) => change.fromCents != null);
+    if (amended.length) {
+      model.addHistoryEntry(reservationId, 'update', amended.map((change) => ({ field: `stayLine:${change.kind}`, label: change.label, from: text(change.fromCents), to: text(change.toCents) })));
+    }
   }
   function persistBreakfastTime(reservationId, payload) {
     if (!HAS_RESERVATION_BREAKFAST_TIME || !payload || payload.breakfastTime === undefined) return;
@@ -1749,6 +1762,7 @@ function createReservationsModel(database) {
       persistDiscountTarget(result.lastInsertRowid, payload);
       persistExtraGuestComplement(result.lastInsertRowid, quote);
       persistReservationNumber(result.lastInsertRowid, payload);
+      persistStayLines(result.lastInsertRowid, quote);
       persistEmailLanguage(result.lastInsertRowid, payload);
       persistComplementOverrides(result.lastInsertRowid, { complementAmountOverride, endOfStayComplementAmountOverride });
       // specs/tourist-tax-matches-the-office-calculation.md rule 12 — the base and divisor behind the
@@ -2076,6 +2090,7 @@ function createReservationsModel(database) {
       persistDiscountTarget(reservationId, payload);
       if (!keepPricing) persistExtraGuestComplement(reservationId, quote, { complementPaid: Boolean(complementPaid) });
       persistReservationNumber(reservationId, payload);
+      if (!keepPricing) persistStayLines(reservationId, quote, { journal: true });
       persistEmailLanguage(reservationId, payload);
       persistComplementOverrides(reservationId, { complementAmountOverride, endOfStayComplementAmountOverride });
       // Rule 12 — written AFTER the payment flags above, so a save that collects the instalment

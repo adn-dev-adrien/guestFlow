@@ -1947,6 +1947,13 @@ function performUpdate(reservationId, body, { unlockPast = false, dryRun = false
   return preview;
 }
 
+function withLineDiscounts(facts, discounts) {
+  if (!discounts || typeof discounts !== 'object') return facts;
+  const out = { ...facts };
+  for (const [key, cents] of Object.entries(discounts)) out[key] = { ...(out[key] || {}), discountCents: Math.max(0, Math.round(Number(cents) || 0)) };
+  return out;
+}
+
 const ARRIVAL_LINE_RENAME_MESSAGE = 'Une prestation ne peut plus être renommée une fois le séjour commencé.';
 const ARRIVAL_EXTRAS_FROZEN_MESSAGE = 'Une prestation vendue à l\'arrivée ne peut être ni retirée ni réduite.';
 const MID_STAY_EXTRAS_CLOSED_MESSAGE = 'Complément de fin de séjour déjà encaissé : décocher « payé » d’abord.';
@@ -2184,7 +2191,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     bookingId: id,
     discountPercent: req.body.discountPercent,
     discountTarget: req.body.discountTarget === undefined ? (model.getRow(id) || {}).discountTarget : req.body.discountTarget,
-    lineFacts: stayRepository.lineFacts(id),
+    // `lineDiscounts` ({ [lineKey]: cents }): a line discount posted by a server caller (the line API) reaches the engine as a line fact.
+    lineFacts: withLineDiscounts(stayRepository.lineFacts(id), req.body.lineDiscounts),
     customPrice: req.body.customPrice,
     selectedOptions: reservationOptions,
     customOptions: reservationCustomOptions,
@@ -2263,7 +2271,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // it was priced: money, lines, nights, snapshots and history stay put.
   // Reading of 2026-11-05 (audit R24-DB-3): a new complement adjustment is a pricing input even when the engine lands on the
   // same figure, so the correction of reservation-payment-ledger rule 67 is written, not pinned back to the stale amount.
-  const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax
+  // `restatePricing`: a server caller changed a stored line fact the payload cannot carry (a line discount, the moment of a line) —
+  // the stay is re-priced under its own price lock, as a pricing input would have done.
+  const keepPricing = Boolean(existingReservation) && !refreshPricingToCurrent && !req.body.refreshTouristTax && !req.body.restatePricing
     && !complementOverrideMoved(req.body.complementAmountOverride, storedPaymentForQuote.complementAmountOverride)
     && pricingUnchangedFromStored(db, storedPaymentForQuote, quote, windowEngineInputs);
   if (keepPricing) quote = pinStoredPricing(quote, storedPaymentForQuote);

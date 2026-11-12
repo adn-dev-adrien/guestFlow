@@ -48,6 +48,12 @@ router.get('/:id/history', controller.getHistory);
 router.get('/:id/refunds', refundsController.list);
 router.post('/:id/refunds', stayId, noWriteOnDuplicate, refundsController.create);
 router.delete('/:id/refunds/:refundId', refundsController.remove);
+// Vente d'un produit sur un séjour existant (specs/pricing-components.md §4.3, rules 27-31, 37, 39).
+const extraSalesController = require('../controllers/extraSalesController');
+router.get('/:id/sale-detail', stayId, extraSalesController.saleDetail);
+router.post('/:id/extras/quote', stayId, notDevis, noWriteOnClosedStay, notReception(extraSalesController.quote));
+router.post('/:id/extras', stayId, notDevis, noWriteOnClosedStay, notReception(extraSalesController.sell));
+router.patch('/:id/extras/:ref', stayId, notDevis, noWriteOnClosedStay, notReception(extraSalesController.patchLine));
 // Remboursements à faire (specs/pricing-components.md rule 75) : clore une ligne « À rembourser ».
 router.patch('/:id/refund-obligations/:oid', stayId, require('../controllers/refundObligationsController').closeObligation);
 // Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
