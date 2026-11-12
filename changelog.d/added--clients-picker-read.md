@@ -1,0 +1,1 @@
+- **`GET /api/clients/picker?date=`** — the clients of a picker grouped and ordered against a day, with the line under each name and the text to search in; the generic `ClientPickerField` renders it and is exported to plugins (plugin SDK 2.27.0). +11 server tests, +5 client tests.
