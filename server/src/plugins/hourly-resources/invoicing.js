@@ -8,7 +8,7 @@
 const sdk = require('../sdk');
 
 const ATTACH_WINDOW_DAYS = 7;
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
+const { toCents: cents } = sdk.coreModule('money');
 const dayMs = 86400000;
 
 /**

@@ -14,7 +14,7 @@ const sdk = require('../sdk');
 
 const isEmailLine = (line) => sdk.coreModule('settingsValidation').validateEmail(line) === null;
 
-const round2 = (n) => Math.round(n * 100) / 100;
+const { roundMoneyStrict: round2 } = sdk.coreModule('money');
 const strip = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const fail = (code, message) => ({ ok: false, code, message });

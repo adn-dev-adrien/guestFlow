@@ -19,6 +19,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const sdk = require('../sdk');
+const { roundMoneyStrict: round2 } = sdk.coreModule('money');
 
 const VALID_PRICING_MODES = ['fixed', 'progressive'];
 const VALID_ANCHOR_TYPES = ['fixed_dates', 'nth_weekday_of_month', 'last_full_week_of_month', 'between'];
@@ -51,7 +53,6 @@ function isWeekday(v) {
  */
 function tiersFromDiscountTable(pricePerNight, table) {
   const base = Number(pricePerNight);
-  const round2 = (v) => Math.round(v * 100) / 100;
   const totalAt = (nights, discountPct) => round2(base * nights * (1 - Number(discountPct) / 100));
   const sorted = [...table].sort((a, b) => a.nights - b.nights);
   const byNight = new Map(sorted.map((row) => [Number(row.nights), Number(row.discountPct)]));
@@ -201,7 +202,7 @@ function validateRecipe(json) {
     if (mode === 'progressive') {
       if (hasTiers) progressiveTiers = s.progressiveTiers;
       // The single night-2 tier the engine's carry-forward extends to every later night.
-      else if (hasRatio) progressiveTiers = [{ nightNumber: 2, extraNightPrice: Math.round(Number(s.pricePerNight) * Number(s.extraNightRatio) * 100) / 100 }];
+      else if (hasRatio) progressiveTiers = [{ nightNumber: 2, extraNightPrice: round2(Number(s.pricePerNight) * Number(s.extraNightRatio)) }];
       else if (hasTable) progressiveTiers = tiersFromDiscountTable(s.pricePerNight, seasonTable);
     }
     // The sugar is consumed here — dropped from the resolved season so a resolved recipe

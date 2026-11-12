@@ -281,6 +281,13 @@
         "catalogue"
       ],
       "names": {}
+    },
+    {
+      "version": "2.29.0",
+      "modules": [
+        "money"
+      ],
+      "names": {}
     }
   ]
 }

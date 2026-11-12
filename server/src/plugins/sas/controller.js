@@ -19,6 +19,7 @@ const { wholePiecesMessage, soldOptionsMessage, breakfastCountsMessage } = requi
 const {
   sasFlagsRefusal, ARRIVAL_FLAGS, ARRIVAL_LINES, DEPARTURE_FLAGS, DEPARTURE_LINES,
 } = require('./sasFlags');
+const { roundMoneyStrict } = sdk.coreModule('money');
 
 // The money stays in the core (specs/plugins-phase-2-hosts.md §1): the SAS commit, the settlement and
 // the reception view are core modules this controller calls, never copies.
@@ -170,7 +171,7 @@ function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
   const withCollectible = (key) => ({
     ...due[key],
     owned: ownedOf(key),
-    collectible: Math.round((due[key].due + (ownedOf(key) ? due[key].amount : 0)) * 100) / 100,
+    collectible: roundMoneyStrict(due[key].due + (ownedOf(key) ? due[key].amount : 0)),
   });
   const deposit = withCollectible('deposit');
   const balance = withCollectible('balance');
@@ -186,7 +187,7 @@ function buildStayPayment(reservation, { isDeparture, receptionOnly }) {
     // an alert »). A platform SAS that settled the stay on an earlier run still gets the step, so
     // its own (mistaken) collection stays visible and undoable.
     applicable: (isDirectChannel(reservation.platform) && due.total > 0) || settledHere.length > 0,
-    total: Math.round((deposit.collectible + balance.collectible + installments.due) * 100) / 100,
+    total: roundMoneyStrict(deposit.collectible + balance.collectible + installments.due),
     deposit,
     balance,
     installments,

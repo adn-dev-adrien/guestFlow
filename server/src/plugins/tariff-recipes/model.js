@@ -19,6 +19,7 @@
 const { buildHorizonPlan, materializeClosures } = require('./seasonPlan');
 const { resolvePlatformCleaningFees, diffPlatformCleaningFees } = require('./platformCleaningFee');
 const sdk = require('../sdk');
+const { roundMoneyStrict } = sdk.coreModule('money');
 // An operator warning writes a day as the screens do (audit R43 « noted »): `2027-10-04` → `04/10/2027`.
 const frDay = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || ''); };
 
@@ -27,7 +28,7 @@ const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 function roundOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+  return Number.isFinite(n) ? roundMoneyStrict(n) : null;
 }
 
 // specs/tariff-recipes/spec.md §3 rule 64 — what the recipe's `extraGuest` block asks of the property.

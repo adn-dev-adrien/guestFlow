@@ -14,7 +14,8 @@ const { rentCandidates } = require('./rentFromNet');
 const isGitesDeFrance = (platform) => /gites?defrance/.test(String(platform || '').normalize('NFD')
   .replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, ''));
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
-const round2 = (n) => Math.round(n * 100) / 100;
+const sdk = require('../sdk');
+const { roundMoneyStrict: round2 } = sdk.coreModule('money');
 const CONTACT_KEPT = 'E-mail ou téléphone déjà renseigné sur la fiche';
 const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 

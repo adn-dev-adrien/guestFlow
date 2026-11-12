@@ -14,9 +14,8 @@ function toMinutes(time) {
   return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
 }
 
-function round2(value) {
-  return Math.round((Number(value) || 0) * 100) / 100;
-}
+const sdk = require('../sdk');
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
 /**
  * cfg: { dayRate, eveningRate, eveningStart ('HH:MM' | null), slotMinutes = 30 }.

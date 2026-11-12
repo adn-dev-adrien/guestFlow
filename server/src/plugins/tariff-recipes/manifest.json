@@ -1,7 +1,7 @@
 {
   "id": "tariff-recipes",
   "name": "Recettes tarifaires",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "description": "Génère les saisons et les prix à partir d’une recette.",
   "icon": "trending-up",
   "surfaces": [
@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.5.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -65,6 +65,10 @@
     "1.4.5": [
       "Les avertissements de la recette écrivent les dates au format JJ/MM/AAAA.",
       "Compatible avec GuestFlow 4 (SDK 2.5)."
+    ],
+    "1.4.6": [
+      "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
 }

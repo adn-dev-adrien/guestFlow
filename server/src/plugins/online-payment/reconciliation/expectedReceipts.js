@@ -7,8 +7,9 @@
  */
 
 const flag = (v) => Number(v || 0) === 1 || v === true;
-const { toCentsOrZero: cents } = require('../../../utils/pricing/money');
-const { roundMoneyOrZero: round2 } = require('../../../utils/pricing/money');
+const sdk = require('../../sdk');
+const { toCentsOrZero: cents } = sdk.coreModule('money');
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 const { day } = require('./dates');
 
 /**
@@ -179,7 +180,6 @@ function receiptsOfReservation(row, { buildLedger, parseGroup, links, installmen
 
 // The stay's split payments, read through the core's model (specs/mixed-method-payments.md rule 28).
 function settlementsReader(db) {
-  const sdk = require('../../sdk');
   const model = sdk.coreModule('paymentSettlementsModel').buildModel(db);
   const { settlementFigures } = sdk.coreModule('paymentTenders');
   return { settlementsOf: (reservationId) => model.listFor(reservationId), settlementFigures };

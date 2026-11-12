@@ -15,8 +15,8 @@ const { splitTtc } = sdk.coreModule('vat');
 
 const OFFER_STEP_MINUTES = 15;
 
-const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
-const euros = (value) => `${round2(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
+const eurosText = (value) => `${round2(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function duration(minutes) {
   if (minutes < 60) return `${minutes} min`;
@@ -75,7 +75,7 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
     const lines = priced.bands.map((b) => ({
       key: `band:${b.band}:${b.from}`,
       label: `${BAND_LABELS[b.band] || b.band} · ${b.from}–${b.to}`,
-      detail: `${duration(b.minutes)} × ${euros(b.rate)}`,
+      detail: `${duration(b.minutes)} × ${eurosText(b.rate)}`,
       amount: b.amount,
     }));
     if (priced.freeMinutesApplied > 0) {

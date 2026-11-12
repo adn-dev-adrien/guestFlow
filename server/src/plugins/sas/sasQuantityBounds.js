@@ -1,3 +1,5 @@
+const sdk = require('../sdk');
+const { roundMoneyStrict } = sdk.coreModule('money');
 /**
  * What the SAS counts and sells, judged before planning so the preview and the commit answer alike:
  * refused, never clamped (specs/sas-departure-recap-server-side.md rule 29,
@@ -51,7 +53,7 @@ function wholePiecesMessage(lines) {
  */
 function soldOptionsMessage(sales, priceTypeOf, storedLines) {
   const soldHere = (storedLines || []).filter((line) => Number(line.sasArrivalOrigin || 0) === 1);
-  const storedUnits = new Map(soldHere.map((line) => [Number(line.optionId), Math.round(Number(line.billedUnits) * 100) / 100]));
+  const storedUnits = new Map(soldHere.map((line) => [Number(line.optionId), roundMoneyStrict(line.billedUnits)]));
   const storedPersons = new Map(soldHere.map((line) => [Number(line.optionId), line.cardPersons == null ? undefined : Number(line.cardPersons)]));
   for (const sale of Array.isArray(sales) ? sales : []) {
     const persons = readNumber(sale?.persons);

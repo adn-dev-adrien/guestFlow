@@ -88,6 +88,8 @@ const CORE_MODULES = Object.freeze({
   articles: '../../utils/pricing/articles', // the Articles head: `read` prices one candidate line, `unitsPerQuantity` its units
   catalogue: '../../models/ports/catalogueProvider', // the lodging's own price of an option or a resource (hourly-resources: the booking's price row)
   stayClock: '../../models/stayClockModel', // `phaseForReservation`: has the stay started (rules 44-46)
+  // every plugin that rounds an amount or reads cents — the named exact variants of the shared helpers (pricing-components rule 38, SDK 2.29.0)
+  money: '../../utils/pricing/money', // `roundMoney` and its exact variants, `toCents`…, the French parsers
   // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id
   paymentPollRunner: '../../utils/paymentPollRunner', // the paid effect and the poll pass, core money

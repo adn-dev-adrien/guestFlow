@@ -11,7 +11,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.9.0",
-  "sdk": "^2.28.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -171,7 +171,8 @@
       "Le sas lit l’horloge du séjour pour savoir s’il est ouvert à l’accueil : même comportement, une seule source.",
       "Les prestations vendues au sas sont des ventes du séjour : elles portent leur origine et leur moment, les prix sont calculés par le même moteur que la fiche.",
       "Les ventes du séjour dues au départ sont listées à part dans le sas, hors du total encaissé à l’arrivée.",
-      "Compatible avec GuestFlow 4 (SDK 2.28)."
+      "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
 }

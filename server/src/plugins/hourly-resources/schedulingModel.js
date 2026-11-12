@@ -35,9 +35,8 @@ function eachDate(startDate, endDate) {
   return out;
 }
 
-function round2(v) {
-  return Math.round((Number(v) || 0) * 100) / 100;
-}
+const sdk = require('../sdk');
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 
 function createModel(database) {
   const resources = resourcesModel.create(database);

@@ -13,7 +13,8 @@
 const { priceSessions, toMinutes } = require('./hourlyPricing');
 
 const schedulable = (resource) => Number(resource.showsPlanningCard || 0) === 1;
-const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const sdk = require('../sdk');
+const { roundMoneyOrZero: round2 } = sdk.coreModule('money');
 const hours = (value) => `${String(round2(value)).replace('.', ',')} h`;
 
 // What the summary says under the line: nothing once every hour sold sits on a slot.

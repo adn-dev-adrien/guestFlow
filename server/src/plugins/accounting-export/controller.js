@@ -6,7 +6,7 @@
 
 const sdk = require('../sdk');
 const { csvJournal, salesJson } = require('./accountingExport');
-const { roundMoneyStrict } = require('../../utils/pricing/money');
+const { roundMoneyStrict } = sdk.coreModule('money');
 
 const { journalEntries } = sdk.coreModule('accountingOutput');
 

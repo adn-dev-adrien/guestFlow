@@ -14,7 +14,7 @@ const EURO_UNITS = Object.freeze({
   per_hour: '/ h',
 });
 
-const euros = (amount) => emailAmount(amount, 'fr');
+const eurosText = (amount) => emailAmount(amount, 'fr');
 const percent = (value) => `${String(roundMoneyStrict(value)).replace('.', ',')} %`;
 
 /**
@@ -40,5 +40,5 @@ function propertiesPhrase(propertyIds, properties) {
 }
 
 module.exports = {
-  EURO_UNITS, euros, percent, range, propertiesPhrase,
+  EURO_UNITS, euros: eurosText, percent, range, propertiesPhrase,
 };

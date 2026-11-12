@@ -4,7 +4,8 @@
  * Airbnb keeps — the rest is handed to the host — and the commission is then Airbnb's host fee exactly.
  */
 
-const toCents = (n) => Math.round(Number(n) * 100);
+const sdk = require('../sdk');
+const { toCentsStrict: toCents } = sdk.coreModule('money');
 
 // `platformCommission` is the core's PLATFORM PAYMENT (SDK `reservations.platformCommission`): the commission is never worked out here.
 function paymentBlock(booking, { withholds, platformCommission }) {

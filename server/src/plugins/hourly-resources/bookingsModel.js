@@ -68,9 +68,7 @@ function shapeRefusal(payload, stored = null) {
   return null;
 }
 
-function roundMoney(value) {
-  return Math.round(Number(value || 0) * 100) / 100;
-}
+const { roundMoney } = sdk.coreModule('money');
 
 function parseTenders(raw) {
   try {

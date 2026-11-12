@@ -650,6 +650,13 @@ Optional: a plugin that declares nothing reads « Actif ».
     and google-calendar 1.3.0 range `^2.28.0`; a plugin calling `ctx.articleFulfilment(` or
     `ctx.slotAvailability(` asks for it (the hardening floor list holds both); `coreModuleHistory.json` records 2.28.0. Tests:
     `article-fulfilment-contract`, `bath-fulfilment-contract`, `extra-sale-sas`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
+52. *(Added 2026-11-12, specs/pricing-components.md rule 38, SDK 2.29.0.)* **A plugin rounds through the shared money helpers.** `coreModule('money')`
+    hands out the exact variants of `money.js`: `roundMoney`, `roundMoneyOrZero`, `roundMoneyStrict`, `toCents`, `toCentsOrZero`, `toCentsStrict`,
+    `fromCentsStrict`, `parseFrenchCents`, `parseFrenchEuros` and `eurosWithSpaces`. Each reproduces one of the private copies the plugins held, so no
+    figure moves; the variant is picked by what the copy did with a blank or a non-number, never swapped for `roundMoney`. airbnb-intake, booking-intake,
+    gites-de-france-intake, google-calendar, google-vacation-rentals, hourly-resources, online-payment, sas, tariff-recipes, website-booking and
+    accounting-export range `^2.29.0`; the hardening floor list holds the module (`shared money helpers`), `coreModuleHistory.json` records 2.29.0.
+    Tests: `pricing-money-variants`, `plugin-core-hardening-floor`, `plugins-sdk-core-module-floor`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

@@ -58,6 +58,8 @@ const HARDENINGS = [
   { feature: 'article families', sdk: '2.27.0', pattern: /\bctx\.articleFamily\(/ },
   { feature: 'article fulfilment', sdk: '2.28.0', pattern: /\bctx\.articleFulfilment\(/ },
   { feature: 'slot availability', sdk: '2.28.0', pattern: /\bctx\.slotAvailability\(/ },
+  // specs/plugins-phase-1-sdk.md rule 52 (specs/pricing-components.md rule 38) — the shared money helpers.
+  { feature: 'shared money helpers', sdk: '2.29.0', pattern: /coreModule\(\s*['"`]money['"`]/ },
   { feature: 'sale events', sdk: '2.28.0', pattern: /['"]extraSale\.(sold|lineMoved|lineCancelled|refundOwed)['"]/ },
 ];
 

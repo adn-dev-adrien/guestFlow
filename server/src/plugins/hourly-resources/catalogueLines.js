@@ -4,7 +4,7 @@
  * footer that sums the schedule up. A resource not sold by the hour gets nothing. Pure.
  */
 
-const euros = (amount) => {
+const eurosText = (amount) => {
   const cents = Math.round(Number(amount || 0) * 100);
   const whole = String(Math.floor(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202F');
   const rest = cents % 100;
@@ -19,7 +19,7 @@ function durationLabel(minutes) {
   return rest ? `${Math.floor(total / 60)} h ${String(rest).padStart(2, '0')}` : `${total / 60} h`;
 }
 
-const hourly = (amount) => `${euros(amount)} / h`;
+const hourly = (amount) => `${eurosText(amount)} / h`;
 
 function eveningLine(resource) {
   if (!resource.hourlyEveningStart || !(Number(resource.hourlyEveningRate) > 0)) return null;

@@ -1,3 +1,5 @@
+const sdk = require('../sdk');
+const { parseFrenchEuros: money, toCentsStrict: cents } = sdk.coreModule('money');
 /**
  * The Gîtes de France « nouvelle réservation » mail → a structured booking (specs/gites-de-france-mail-intake.md
  * rules 4–6, 23). Pure. Field by field: every value is read on the line its label opens (the « picto »
@@ -24,10 +26,6 @@ function validStay(startIso, endIso) {
   const valid = (iso) => { const d = new Date(`${iso}T00:00:00Z`); return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso; };
   if (!valid(startIso) || !valid(endIso) || endIso <= startIso) return false;
   return (Date.parse(`${endIso}T00:00:00Z`) - Date.parse(`${startIso}T00:00:00Z`)) / 86400000 <= MAX_NIGHTS;
-}
-
-function money(raw) {
-  return Math.round(Number(String(raw).replace(/[  ]/g, '').replace(',', '.')) * 100) / 100;
 }
 
 function isoDate(ddmmyyyy) {
@@ -168,7 +166,6 @@ function parseGitesDeFranceMail(text) {
     touristTax: money(taxLine[1]),
   };
 
-  const cents = (n) => Math.round(n * 100);
   if (cents(booking.netRent) + cents(booking.optionsTotal) !== cents(booking.totalNet)) {
     return fail(`Location nette ${booking.netRent} € + options ${booking.optionsTotal} € ≠ total net ${booking.totalNet} €`);
   }

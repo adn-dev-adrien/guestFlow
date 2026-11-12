@@ -13,7 +13,8 @@
 
 const { addDays, lengthsFor, partySizes, itineraryKey } = require('./itineraries');
 
-const cents = (euros) => Math.round(Number(euros || 0) * 100);
+const sdk = require('../sdk');
+const { toCents: cents } = sdk.coreModule('money');
 const nextTurn = () => new Promise((resolve) => { setImmediate(resolve); });
 
 /**

@@ -12,7 +12,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.26.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -161,7 +161,8 @@
       "Demande le SDK 2.26 de GuestFlow."
     ],
     "1.7.7": [
-      "Les arrondis en euros et en centimes passent par un calcul commun : aucun montant ne change."
+      "Les arrondis en euros et en centimes passent par un calcul commun : aucun montant ne change.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
 }

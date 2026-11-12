@@ -10,7 +10,8 @@ const MS_DAY = 24 * 60 * 60 * 1000;
 const { day } = require('./dates');
 const daysUntil = (from, to) => Math.round((Date.parse(`${day(to)}T00:00:00Z`) - Date.parse(`${day(from)}T00:00:00Z`)) / MS_DAY);
 
-const { eurosWithSpaces: euros } = require('../../../utils/pricing/money');
+const sdk = require('../../sdk');
+const { eurosWithSpaces: euros } = sdk.coreModule('money');
 const shortDate = (iso) => { const d = day(iso); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : ''; };
 
 const TONES = {

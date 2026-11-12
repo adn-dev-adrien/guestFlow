@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.28.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -141,8 +141,9 @@
       "La première heure offerte par le logement est comptée au tarif de jour, comme sur un séjour, même si elle tombe dans la tranche du soir : pour les nouvelles réservations seulement, une réservation déjà enregistrée garde son prix tant qu’on ne déplace pas son créneau ni son logement.",
       "Le prix propre au logement est lu par le cœur de GuestFlow, un seul endroit pour la grille horaire.",
       "Vendre une heure de bain refuse le créneau déjà pris, au moment même de la vente, avant que la ligne soit écrite.",
-      "Compatible avec GuestFlow 4 (SDK 2.28).",
-      "Une réservation de ressource garde la trace de la vente hors séjour dont elle fait partie et de l’absence du client (colonnes ajoutées, vides pour l’existant)."
+      "Une réservation de ressource garde la trace de la vente hors séjour dont elle fait partie et de l’absence du client (colonnes ajoutées, vides pour l’existant).",
+      "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
 }

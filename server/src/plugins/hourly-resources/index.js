@@ -29,7 +29,7 @@ const { SETTINGS, standaloneVatRateOf } = require('./settings');
 const id = 'hourly-resources';
 
 const plural = (n, one, many) => (n > 1 ? `${n} ${many}` : `1 ${one}`);
-const euros = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const eurosText = (amount) => `${Number(amount).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function register(ctx) {
   // specs/resource-booking-pricing-and-invoicing.md rule 5 (A1) — « TVA des ventes hors séjour ».
@@ -117,14 +117,14 @@ function register(ctx) {
         const unledgered = paidRows.filter((row) => !onTheBooks(row));
         if (sold.length > 0) {
           lines.push({
-            label: `${plural(sold.length, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(sum(sold))} encaissés, retirés de l’export comptable`,
+            label: `${plural(sold.length, 'réservation hors séjour', 'réservations hors séjour')}, ${eurosText(sum(sold))} encaissés, retirés de l’export comptable`,
             count: sold.length,
             warning: true,
           });
         }
         if (unledgered.length > 0) {
           lines.push({
-            label: `${plural(unledgered.length, 'réservation hors séjour', 'réservations hors séjour')}, ${euros(sum(unledgered))} encaissés, absents de la compta`,
+            label: `${plural(unledgered.length, 'réservation hors séjour', 'réservations hors séjour')}, ${eurosText(sum(unledgered))} encaissés, absents de la compta`,
             count: unledgered.length,
             warning: true,
           });

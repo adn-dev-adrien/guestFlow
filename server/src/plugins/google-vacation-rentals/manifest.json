@@ -1,7 +1,7 @@
 {
   "id": "google-vacation-rentals",
   "name": "Google Vacation Rentals",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Envoie à Google les prix du site et les disponibilités de chaque logement.",
   "icon": "travel-explore",
   "surfaces": [
@@ -14,7 +14,7 @@
     }
   ],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.11.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version : prix des séjours, disponibilités et restrictions calculés par le moteur du site, en simulation tant que Google n’a pas ouvert le compte (SDK 2.4)."
@@ -41,6 +41,10 @@
     "1.0.6": [
       "Réglages : un logement écrit avec des zéros en tête (« 01 ») est refusé et ne compte pas pour le mode Envoi.",
       "Compatible avec GuestFlow 4 (SDK 2.11)."
+    ],
+    "1.0.7": [
+      "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
 }

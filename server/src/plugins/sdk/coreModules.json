@@ -1016,5 +1016,17 @@
     "getApplicableResources",
     "optionPriceOverride",
     "resourcePriceOverride"
+  ],
+  "money": [
+    "eurosWithSpaces",
+    "fromCentsStrict",
+    "parseFrenchCents",
+    "parseFrenchEuros",
+    "roundMoney",
+    "roundMoneyOrZero",
+    "roundMoneyStrict",
+    "toCents",
+    "toCentsOrZero",
+    "toCentsStrict"
   ]
 }
