@@ -4,9 +4,7 @@
  */
 const { timeToDecimalHour } = require('./pricing/timedOptions');
 
-function roundMoney(v) {
-  return Math.round(Number(v || 0) * 100) / 100;
-}
+const { roundMoney } = require('./pricing/money');
 
 function formatDateFR(dateStr) {
   if (!dateStr) return '';

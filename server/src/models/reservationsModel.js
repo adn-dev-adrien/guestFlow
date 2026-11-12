@@ -71,7 +71,8 @@ const { carriesMoney, cautionBlocker, withConvertedDevis, MONEY_MESSAGE } = requ
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
+const { roundMoneyStrict, roundMoneyOrZero: num, roundMoneyStrict: r2 } = require('../utils/pricing/money');
 
 // specs/platform-per-echeance-commission.md rule 3 — a commission is clamped to its échéance (net cash
 // ≥ 0). The engine clamps it (`quote.<field>`), so the stored figure is the engine's whenever it gave
@@ -140,7 +141,7 @@ function deriveCommissionAmount(row) {
   const gross = Number(row.clientGrossAmount);
   if (!Number.isFinite(gross)) return null;
   const net = Number(row.finalPrice || 0);
-  return Math.max(0, Math.round((gross - net) * 100) / 100);
+  return Math.max(0, roundMoneyStrict(gross - net));
 }
 
 // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement from a
@@ -156,7 +157,6 @@ function deriveCommissionAmount(row) {
 // Les extras d'une réservation détaillée, dans la forme que `midStayExtras` sait découper
 // (`readExtraLines` fait le même travail depuis SQL ; ici la réservation est déjà chargée).
 function readExtraLinesFromDetailed(r) {
-  const num = (v) => Math.round((Number(v) || 0) * 100) / 100;
   return [
     ...(r.options || []).map((o) => (Number(o.isCustom || 0) === 1
       ? {
@@ -258,7 +258,6 @@ function complementTaxIsAddition(r, tax) {
 
 function arrivalComplementDetailFromReservation(r, { includeOffered = false } = {}) {
   if (!r) return { amount: 0, paid: 0, detail: [] };
-  const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const lines = [];
   // specs/mid-stay-extras-to-end-of-stay-complement.md §3.2 — une ligne « en complément » peut avoir
   // déjà quitté le complément d'ARRIVÉE : la part vendue en cours de séjour est facturée en fin de
@@ -830,7 +829,7 @@ function createReservationsModel(database) {
   };
   const moveFinalPriceBy = (reservationId, before) => {
     if (before == null) return;
-    const delta = Math.round((billedLinesOf(reservationId) - before) * 100) / 100;
+    const delta = roundMoneyStrict(billedLinesOf(reservationId) - before);
     if (delta !== 0) database.prepare('UPDATE reservations SET finalPrice = ROUND(COALESCE(finalPrice, 0) + ?, 2) WHERE id = ?').run(delta, reservationId);
   };
 
@@ -1491,7 +1490,7 @@ function createReservationsModel(database) {
       lines.push(...removedContribsOf(reservationId));
       const sum = (values) => (values.every((v) => v == null)
         ? null
-        : Math.round(values.reduce((acc, v) => acc + Number(v || 0), 0) * 100) / 100);
+        : roundMoneyStrict(values.reduce((acc, v) => acc + Number(v || 0), 0)));
       return {
         deposit: sum([row.aa, row.ta, ...lines.map((l) => l.a)]),
         balance: sum([row.asol, row.tsol, ...lines.map((l) => l.s)]),
@@ -1521,7 +1520,6 @@ function createReservationsModel(database) {
         }
       }
       for (const removed of removedContribsOf(reservationId)) lines[removed.bucket === 'resources' ? 'resources' : 'options'].push(removed);
-      const r2 = (v) => Math.round(v * 100) / 100;
       const sumOf = (list, key) => r2(list.reduce((sum, l) => sum + Number(l[key] || 0), 0));
       const bucket = (accommodation, tax, key) => {
         const values = [accommodation, tax, ...lines.options.map((l) => l[key]), ...lines.resources.map((l) => l[key])];
@@ -2011,7 +2009,7 @@ function createReservationsModel(database) {
         }
 
         const buckets = collectible.map((b) => b.bucket);
-        const total = Math.round(collectible.reduce((sum, b) => sum + b.amount, 0) * 100) / 100;
+        const total = roundMoneyStrict(collectible.reduce((sum, b) => sum + b.amount, 0));
         // A group of one is not a group: a lone bucket settled here is an ordinary payment, and the
         // fiche must not announce a « paiement unique » that groups nothing.
         const json = serialiseGroup({ at: date, cash, total, buckets });
@@ -2490,7 +2488,7 @@ function createReservationsModel(database) {
         const opt = database.prepare('SELECT id, price, priceType FROM options WHERE autoOptionType = ? LIMIT 1').get(autoOptionType);
         if (!opt) return { ...empty, persons };
         const override = catalogue.optionPriceOverride(opt.id, res.propertyId);
-        const unitPrice = Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
+        const unitPrice = roundMoneyStrict(override ? Number(override.price) : Number(opt.price || 0));
         const priceType = opt.priceType || 'per_stay';
         const { billedUnits, totalPrice } = priceCatalogueUpsell(opt, { unitPrice, persons, nights });
         const row = linked.find((l) => Number(l.optionId) === Number(opt.id));
@@ -2572,7 +2570,7 @@ function createReservationsModel(database) {
       const opt = database.prepare("SELECT id, price FROM options WHERE autoOptionType = 'cleaning' LIMIT 1").get();
       if (!opt) return null;
       const override = catalogue.optionPriceOverride(opt.id, propertyId);
-      return Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
+      return roundMoneyStrict(override ? Number(override.price) : Number(opt.price || 0));
     },
 
     // specs/sas-bath-linen-ghost-line.md — erase a `arrivalBathLinen` billing line wherever it is still
@@ -2599,7 +2597,7 @@ function createReservationsModel(database) {
       const opt = database.prepare("SELECT id, price, priceType FROM options WHERE autoOptionType = 'bathroom_linen' LIMIT 1").get();
       if (!opt) return empty;
       const override = catalogue.optionPriceOverride(opt.id, reservation.propertyId);
-      const unitPrice = Math.round((override ? Number(override.price) : Number(opt.price || 0)) * 100) / 100;
+      const unitPrice = roundMoneyStrict(override ? Number(override.price) : Number(opt.price || 0));
       const priceType = opt.priceType || 'per_stay';
       const persons = Number(reservation.adults || 0) + Number(reservation.teens || 0) + Number(reservation.children || 0);
       const nights = Array.isArray(reservation.nights) ? reservation.nights.length : 0;
@@ -3598,7 +3596,7 @@ function createReservationsModel(database) {
             const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
             let sort = Number(maxSort) + 1;
             for (const it of items) {
-              const values = [reservationId, String(it.label).trim(), Math.round(Number(it.amount) * 100) / 100, it.offered ? 1 : 0, sort];
+              const values = [reservationId, String(it.label).trim(), roundMoneyStrict(it.amount), it.offered ? 1 : 0, sort];
               const inserted = insert.run(...values, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
               const qty = Math.round(Number(it.qty) || 1);
               if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);

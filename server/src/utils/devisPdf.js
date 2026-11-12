@@ -20,6 +20,7 @@ const { netFirst } = require("./pricing/vat");
 const { unitFromTotal } = require("./pricing/touristTax");
 const { readableLogo } = require("./logoImage");
 const { DEFAULT_RATE: DEFAULT_VAT_RATE } = require("../models/vatRegimeModel");
+const { roundMoneyStrict } = require('./pricing/money');
 
 // specs/ui-review-2026-10-19-operations.md rule 17 — the « Maison » tokens of client/src/theme.js:
 // fir green, ink, warm paper, honey and the success soft fill. No navy left.
@@ -147,7 +148,7 @@ function printable(value) {
 // into the next row.
 function formatQuantity(qty, language) {
   if (typeof qty !== 'number' || !Number.isFinite(qty)) return String(qty == null ? '' : qty);
-  const text = String(Math.round(qty * 100) / 100);
+  const text = String(roundMoneyStrict(qty));
   return language === 'en' ? text : text.replace('.', ',');
 }
 

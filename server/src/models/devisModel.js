@@ -51,6 +51,7 @@ const quotePostProcessors = require('../utils/quotePostProcessors');
 const insuranceOffer = require('../utils/insuranceOffer');
 const resourceOffer = require('../utils/resourceOffer');
 const { provenComplementAmount } = require('../utils/createdComplementRepair');
+const { roundMoneyStrict } = require('../utils/pricing/money');
 
 /**
  * Now, in UTC, as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -319,7 +320,7 @@ function createModel(database) {
   // ---- audit / history ----
   function normalizeDevisHistoryValue(value) {
     if (value === undefined || value === null || value === '') return null;
-    if (typeof value === 'number') return Math.round(value * 100) / 100;
+    if (typeof value === 'number') return roundMoneyStrict(value);
     return value;
   }
 

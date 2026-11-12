@@ -54,6 +54,7 @@ const insuranceOffer = require('../utils/insuranceOffer');
 const { bookingDayOf } = require('../utils/vatRegime');
 const resourceOffer = require('../utils/resourceOffer');
 const { reservationBlocks } = require('../utils/pluginReservationBlocks');
+const { roundMoneyStrict, toCentsStrict } = require('../utils/pricing/money');
 
 // specs/plugins-phase-3b-neat.md rule 5 — while no plugin offers the cancellation insurance, a booking
 // keeps the line it carries exactly as stored and cannot gain one. Applies the gate to the engine
@@ -720,7 +721,7 @@ function occupiedDates(req, res) {
   res.json(merged);
 }
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
 
 /**
  * The arrival single payment, ready to render (specs/single-payment-at-check-in.md §3.4 rule 16):
@@ -776,7 +777,7 @@ function buildArrivalPaymentView(row) {
   if (collectible.length < 2) return null;
   return {
     collectible: {
-      total: Math.round(collectible.reduce((sum, b) => sum + b.amount, 0) * 100) / 100,
+      total: roundMoneyStrict(collectible.reduce((sum, b) => sum + b.amount, 0)),
       buckets: collectible,
       // The earliest date the operator may pick — the collection cannot predate the booking.
       bookedAt: bookingDayOf(row.createdAt),
@@ -1386,7 +1387,7 @@ async function calculatePrice(req, res) {
     // Rule 45 — whether today's quote differs from the stored money (amounts or due dates): the fiche
     // then shows the stored summary, never live lines next to stored totals.
     if (storedRow && storedRow.kind !== 'devis') {
-      const c = (v) => Math.round(round2(v) * 100);
+      const c = (v) => toCentsStrict(round2(v));
       quote.storedDrift = ['finalPrice', 'touristTaxTotal', 'depositAmount', 'balanceAmount', 'complementAmount']
         .some((f) => c(quote[f]) !== c(storedRow[f]))
         || String(quote.depositDueDate || '') !== String(storedRow.depositDueDate || '')

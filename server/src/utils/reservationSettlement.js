@@ -16,7 +16,7 @@ const { parseNotes } = require('./midStayExtras');
 const { parseGroup } = require('./arrivalPaymentGroup');
 const { netOfCommission } = require('./pricing/platformPayment');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 // Operator-entered platform commission (acompte + solde), ≥ 0. 0 on direct bookings (NULL columns).
 function platformCommission(r) {

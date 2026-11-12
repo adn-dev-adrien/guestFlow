@@ -13,6 +13,7 @@
 
 const { discountAmountCentsOf } = require('./pricing/discounts');
 const { capitalizeFirst } = require('./textFormatters');
+const { roundMoney, roundMoneyStrict } = require('./pricing/money');
 
 const HISTORY_FIELD_LABELS = {
   propertyId: 'Logement',
@@ -63,7 +64,7 @@ const HISTORY_FIELD_LABELS = {
 
 function normalizeHistoryValue(value) {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value === 'number') return Math.round(value * 100) / 100;
+  if (typeof value === 'number') return roundMoneyStrict(value);
   return value;
 }
 
@@ -161,7 +162,7 @@ function buildAuditSnapshotFromPayload(payload, quote) {
 }
 
 function formatHistoryMoney(amount) {
-  const value = Math.round(Number(amount || 0) * 100) / 100;
+  const value = roundMoney(amount);
   const text = Number.isInteger(value) ? String(value) : value.toFixed(2).replace('.', ',');
   return `${text} €`;
 }
@@ -238,7 +239,7 @@ const SIGNATURE_GROUPS = {
 };
 
 function formatHistoryNumber(value) {
-  const rounded = Math.round(Number(value || 0) * 100) / 100;
+  const rounded = roundMoney(value);
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2).replace('.', ',');
 }
 
