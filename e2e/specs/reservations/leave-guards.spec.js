@@ -128,7 +128,7 @@ for (const size of SIZES) {
 
     test('rule 42 — the « Retour » arrow of a settings page asks when dirty', async ({ page }) => {
       await page.goto('/settings/etablissement');
-      const field = page.locator('main input[type="text"], main input:not([type])').first();
+      const field = page.getByLabel('Raison sociale');
       await expect(field).toBeEditable({ timeout: 15_000 });
       await field.fill(`${await field.inputValue()} x`);
       await page.getByRole('button', { name: 'Retour' }).click();
