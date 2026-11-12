@@ -18,7 +18,7 @@ const { eachDate } = require('./schedulingModel');
 const {
   buildDays, validateBlock, toAbsMinutes, minutesToTime, MINUTES_PER_DAY,
 } = require('./availability');
-const { normalizeConfig, priceRange, toMinutes } = require('./hourlyPricing');
+const { normalizeConfig, slotPrice, toMinutes } = require('./hourlyPricing');
 
 const resourcesModel = sdk.coreModule('resourcesModel');
 const { toParisIso } = sdk.coreModule('stayWindow');
@@ -88,7 +88,7 @@ function createScheduler(database) {
           start: slot.start,
           end: slot.end,
           state: slot.state === 'free' && toMinutes(slot.end) > eveningFrom ? 'evening' : slot.state,
-          price: priceRange(slot.start, slot.end, rate),
+          price: slotPrice(slot.start, slot.end, rate),
         })),
       })),
     };

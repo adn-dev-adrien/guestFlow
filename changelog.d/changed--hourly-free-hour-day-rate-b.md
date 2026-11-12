@@ -1,0 +1,1 @@
+- **La première heure offerte d'une location à l'heure est comptée au tarif de jour (pricing refonte, PR B)**: sur une réservation de ressource dont l'heure offerte tombe dans la tranche du soir, la remise vaut le tarif de jour, comme sur un séjour.

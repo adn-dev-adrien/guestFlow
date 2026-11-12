@@ -58,7 +58,7 @@ function createBookingLinesModel(database) {
   // `lineId`, and the sale columns of rule 74. Read before the DELETE, by article.
   const WRITTEN = {
     reservation_options: ['reservationId', 'optionId', 'quantity', 'unitPrice', 'billedUnits', 'priceType', 'totalPrice', 'offered', 'inComplement',
-      'acompteContribTtc', 'soldeContribTtc', 'cardOccurrences', 'cardPersons', 'cardNights', 'sasArrivalOrigin'],
+      'acompteContribTtc', 'soldeContribTtc', 'cardOccurrences', 'cardPersons', 'cardNights', 'sasArrivalOrigin', 'allowanceUsed'],
     reservation_resources: ['reservationId', 'resourceId', 'quantity', 'unitPrice', 'billedUnits', 'priceType', 'totalPrice', 'offered', 'inComplement',
       'acompteContribTtc', 'soldeContribTtc', 'sessions'],
   };
@@ -88,6 +88,10 @@ function createBookingLinesModel(database) {
   // Client-visibility flag on the options catalog (specs/laundry-bath-mat.md §3 rule 11).
   const HAS_OPTION_DISPLAY_TO_CLIENT = hasColumn('options', 'displayToClient');
 
+  // Rule 26 — the free units a line consumed stay with it (`{ freeUnits, amount }`), NULL when it used none.
+  const allowanceUsedOf = (line) => (Number(line.freeUnits) > 0
+    ? JSON.stringify({ freeUnits: Number(line.freeUnits), amount: Number(line.freeUnitsAmount || 0) })
+    : null);
   const serializeCardOccurrences = (line) => (
     Array.isArray(line.cardOccurrences) && line.cardOccurrences.length > 0
       ? JSON.stringify(line.cardOccurrences)
@@ -140,6 +144,7 @@ function createBookingLinesModel(database) {
           inComplement: forced,
           acompteContribTtc: forced ? null : (opt.acompteContribTtc != null ? Number(opt.acompteContribTtc) : null),
           soldeContribTtc: forced ? null : (opt.soldeContribTtc != null ? Number(opt.soldeContribTtc) : null),
+          allowanceUsed: allowanceUsedOf(opt),
           ...(HAS_CARD_OCCURRENCES ? { cardOccurrences: serializeCardOccurrences(opt) } : {}),
           // How many covers each moment of a per-person card option serves
           // (specs/card-option-served-persons.md §3.1). NULL = the whole party; the engine resolves it

@@ -277,7 +277,8 @@
         "extraSale",
         "saleDetail",
         "articles",
-        "stayClock"
+        "stayClock",
+        "catalogue"
       ],
       "names": {}
     }

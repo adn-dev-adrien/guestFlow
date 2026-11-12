@@ -50,7 +50,7 @@ const numbers = (db) => Object.fromEntries(db.prepare('SELECT optionId, lineId F
 test('rule 79: a save keeps the number of an article it still sells, and every column the writer does not know', () => {
   const { db, store } = build();
   store.replaceOptions(1, [opt(1, 10), opt(2, 20)]);
-  db.prepare("UPDATE reservation_options SET collectAt = 'departure', soldAt = '2026-01-01', articleRef = 'option:1', label = 'A', discountCents = 150, allowanceUsed = '{\"minutes\":30}', vatRate = 5.5 WHERE optionId = 1").run();
+  db.prepare("UPDATE reservation_options SET collectAt = 'departure', soldAt = '2026-01-01', articleRef = 'option:1', label = 'A', discountCents = 150, vatRate = 5.5 WHERE optionId = 1").run();
   const [first, second] = options(db);
   store.replaceOptions(1, [opt(1, 12, { quantity: 2, billedUnits: 2 }), opt(2, 20)]);
   const [after1, after2] = options(db);

@@ -86,6 +86,7 @@ const CORE_MODULES = Object.freeze({
   extraSale: '../../utils/extraSale', // quote / sell / changeLine, the sale detail and the departure section of the SAS
   saleDetail: '../../utils/saleDetail', // the one read model of what a stay sold (rule 31)
   articles: '../../utils/pricing/articles', // the Articles head: `read` prices one candidate line, `unitsPerQuantity` its units
+  catalogue: '../../models/ports/catalogueProvider', // the lodging's own price of an option or a resource (hourly-resources: the booking's price row)
   stayClock: '../../models/stayClockModel', // `phaseForReservation`: has the stay started (rules 44-46)
   // online-payment — the provider hands the core what it reads; the core records it (phase 3a rule 4)
   paymentLinksModel: '../../models/paymentLinksModel', // the webhook finds its link by provider id

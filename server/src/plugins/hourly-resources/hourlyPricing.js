@@ -91,6 +91,24 @@ function priceRange(start, end, cfg = {}) {
 }
 
 /**
+ * What a booking does not charge (specs/pricing-components.md §3 rules 24, 37-diff 4): the lodging's free minutes are worth the DAY
+ * rate — the same value a stay's free hour has on its quantity path — and the offered minutes right after them are worth the band
+ * they fall in. `start`/`end` are minutes of the day, `freeApplied`/`offeredApplied` already capped to the duration.
+ */
+function bookingDeductions({ start, freeApplied, offeredApplied }, cfg = {}) {
+  const norm = normalizeConfig(cfg);
+  const freeValue = freeApplied > 0 ? (norm.dayRate * freeApplied) / 60 : 0;
+  const offeredFrom = start + freeApplied;
+  const offeredValue = offeredApplied > 0 ? priceMinutes(offeredFrom, offeredFrom + offeredApplied, norm) : 0;
+  return { freeValue: round2(freeValue), offeredValue: round2(offeredValue) };
+}
+
+/** The gross price of one slot of the grid (the free-slots picker and the SAS preview print it). */
+function slotPrice(start, end, cfg = {}) {
+  return priceRange(start, end, cfg);
+}
+
+/**
  * Validate a session against the resource window/granularity.
  * cfg adds: openTime, closeTime ('HH:MM'), minMinutes. Returns true when billable.
  */
@@ -184,4 +202,6 @@ function eveningSupplement(blocks, cfg = {}) {
   return round2(total);
 }
 
-module.exports = { toMinutes, priceRange, priceSessions, isValidSession, normalizeConfig, eveningSupplement };
+module.exports = {
+  toMinutes, priceRange, slotPrice, bookingDeductions, priceSessions, isValidSession, normalizeConfig, eveningSupplement,
+};

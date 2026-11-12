@@ -191,9 +191,7 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
   // `frozenVat` (rule 35): the rate a paid booking was sold with — `{ rate }`, `rate: null` when not subject.
   function breakdownOf({ resource, startTime, endTime, propertyId, reservationId, offeredMinutes = 0, date, frozenVat = null }) {
     const pid = Number(propertyId || 0);
-    const override = pid > 0
-      ? database.prepare('SELECT price, freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?').get(pid, Number(resource.id))
-      : null;
+    const override = pid > 0 ? sdk.coreModule('catalogue').resourcePriceOverride(database, resource.id, pid) || null : null;
     return priceBookingLines({
       resource, startTime, endTime, override, external: !reservationId, offeredMinutes: Number(offeredMinutes) || 0, vat: frozenVat || vatFor({ reservationId, date }),
     });

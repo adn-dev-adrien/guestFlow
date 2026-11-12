@@ -4,12 +4,12 @@
  * Contract (plain functions over today's queries; `create(db)` binds them to a database):
  *   applicableOptions(propertyId)            the options sold at that lodging, each at its effective price and free units
  *   applicableResources(propertyId)          the resources of that lodging, each at its effective price and free minutes
+ *   resourcePriceOverride(resourceId, propertyId) the lodging's own `property_resource_prices` row `{ price, freeMinutes }`, undefined when none
  *   optionPriceOverride(optionId, propertyId) the lodging's own `property_option_prices` row `{ price }`, undefined when none
  *
  * The per-property override of an option exists once: in the SettingsProvider's `articles` adapter, which every price,
  * free unit and free minute here is read through. The resources query keeps its `property_resource_prices` join for the
- * shape of the rows it returns. The resource override read of the hourly-resources booking model (a plugin file) is a
- * different table and stays in the plugin.
+ * shape of the rows it returns. `resourcePriceOverride` is the hourly booking's read of its own price row (SDK 2.28.0).
  */
 const settingsProvider = require('./settingsProvider');
 
@@ -92,12 +92,25 @@ function optionPriceOverride(db, optionId, propertyId) {
   return override;
 }
 
+// The lodging's own price row of a resource `{ price, freeMinutes }`, undefined when none (the hourly booking prices with it).
+function resourcePriceOverride(db, resourceId, propertyId) {
+  let override;
+  try {
+    override = prepared(db, 'SELECT price, freeMinutes FROM property_resource_prices WHERE propertyId = ? AND resourceId = ?')
+      .get(Number(propertyId), Number(resourceId));
+  } catch { override = undefined; }
+  return override;
+}
+
 function create(db) {
   return {
     applicableOptions: (propertyId) => getApplicableOptions(db, propertyId),
     applicableResources: (propertyId) => getApplicableResources(db, propertyId),
     optionPriceOverride: (optionId, propertyId) => optionPriceOverride(db, optionId, propertyId),
+    resourcePriceOverride: (resourceId, propertyId) => resourcePriceOverride(db, resourceId, propertyId),
   };
 }
 
-module.exports = { create, getApplicableOptions, getApplicableResources, optionPriceOverride };
+module.exports = {
+  create, getApplicableOptions, getApplicableResources, optionPriceOverride, resourcePriceOverride,
+};

@@ -397,7 +397,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     session's priced line (rule 5), priced by HOURLY TARIFF whatever the seller. The SAS no longer adds an
     `evening:<id>` complement line computed elsewhere; the `eveningCredit` worked back from stored totals
     disappears (D8).
-    > **Pending** — PR B
+    > **Delivered by PR B** (pass 5, class E4; `hourly-booking-free-hour`): the hourly grid exists once, in `hourlyPricing.js`: the booking's free hour and offered minutes are `bookingDeductions`, the
+    > scheduler's slot price is `slotPrice` (the `hourly` guard's allow-list is empty), and the lodging's own price row is read through the SDK `catalogue` module. The free hour is worth the **day rate**
+    > on a booking, as on a stay's quantity path (diff 4): only a booking whose free hour reaches the evening differs.
+    > **Pending** — PR C: the evening supplement as a component of the session's line. It needs the line's total to follow the sessions placed after the sale, against the price lock (rule 13): today
+    > the `evening:<id>` complement line, billed once and netted by `eveningCredit`, carries the same amount (diff 3), so nothing the guest pays moves.
 25. **The SAS sells through EXTRAS.** Breakfast, catering, bath linen, linen pieces, cleaning, missing items,
     extinguisher and plugin items (`sasCommit.complementItems`) are requests to `priceExtras`, written as
     lines with `source = 'sas'` and the moment of rule 19. `planArrivalSas` / `planDepartureSas` become
@@ -411,7 +415,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
     re-prices another standing line (D5). A pending card order reserves its allowance at quote time
     (`deferredCents`/`PRICE_ROSE` disappear).
-    > **Pending** — PR B: `allowanceUsed` on the lines and the release of a removed line's share.
+    > **Delivered by PR B** (pass 5; `pricing-allowance-ledger`): a catalogue option line stores `allowanceUsed` (`{ freeUnits, amount }`, NULL when it used none). A removed line gives its units back to
+    > the pool for the next sale, and no standing line is re-priced (the lock, D5).
     > **Pending** — PR C: a pending card order reserving its allowance, and the end of `deferredCents` / `PRICE_ROSE` (J-7 code, absent from this branch).
 
 ### 3.F Selling an extra — one service for every seller
@@ -534,7 +539,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     lodging); consumption comes from the stored lines' `allowanceUsed`. `consumeAllowance` serves a request in
     sale order and returns what it used; `releaseAllowance` returns a removed line's share to the pool. Shop,
     SAS and fiche read the same ledger, so « 1 h offerte encore disponible » is the same everywhere.
-    > **Pending** — PR B: « SAS and fiche read the same ledger » (PR A has the read-only form: the engine's free units
+    > **Pending** — PR C: « SAS and fiche read the same ledger ». The SAS reads the head's price with no free unit spent (a read, rule 10), so a sold option keeps today's amount; spending the stay's units
+    > there needs the SAS lines to be written by `extraSale` (rule 25, PR C). (PR B has the stored form: `allowanceUsed`; PR A the read-only form: the engine's free units
     > through `createFreeUnitsLedger`, `consumeAllowance` and `releaseAllowance`, proved by `pricing-allowances`).
     > **Pending** — PR C: the shop reads the same ledger (J-7 code, absent from this branch).
 42. **What is not a unit.** _(cut examined 2026-11-11.)_
@@ -1738,6 +1744,7 @@ with the first code that needs them (rule 60); none needs a PR of its own.
    disappears, the amount is the same.
 4. Hourly external bookings value the free hour at the day rate, like stays (rule 37 of the hourly spec); today
    `bookingPricing` uses the banded rate. Only bookings with a free evening hour differ.
+   _(Delivered by PR B, pass 5: class E4, scope `resourceBookings`.)_
 5. SAS breakfast / catering / linen priced by EXTRAS: any cent difference against `sasOptionSale` is listed per
    stay.
 6. Discount targets « Articles » / « Tout » and line discounts are new: no stored stay changes, new ones carry

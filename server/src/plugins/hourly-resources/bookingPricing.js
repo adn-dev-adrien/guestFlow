@@ -9,14 +9,13 @@
  */
 
 const sdk = require('../sdk');
-const { priceSessions, priceRange, toMinutes } = require('./hourlyPricing');
+const { priceSessions, bookingDeductions, toMinutes } = require('./hourlyPricing');
 
 const { splitTtc } = sdk.coreModule('vat');
 
 const OFFER_STEP_MINUTES = 15;
 
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
-const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const euros = (value) => `${round2(value).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function duration(minutes) {
@@ -105,9 +104,7 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
     const cfg = { dayRate, eveningRate, eveningStart: resource.hourlyEveningStart, slotMinutes: resource.slotDuration };
     const priced = priceSessions([{ date: '2000-01-01', start: startTime, end: endTime }], cfg, 0);
     if (priced.validSessions.length) {
-      const freeValue = freeApplied > 0 ? priceRange(hhmm(start), hhmm(start + freeApplied), cfg) : 0;
-      const offeredFrom = start + freeApplied;
-      const offeredValue = offeredApplied > 0 ? priceRange(hhmm(offeredFrom), hhmm(offeredFrom + offeredApplied), cfg) : 0;
+      const { freeValue, offeredValue } = bookingDeductions({ start, freeApplied, offeredApplied }, cfg);
       return finish({
         pricing: 'banded',
         rateGrid: external ? 'external' : 'guest',
@@ -116,8 +113,8 @@ function priceBookingLines({ resource, startTime, endTime, override = null, exte
         billedMinutes: durationMinutes - freeApplied - offeredApplied,
         grossTotal: priced.grossPrice,
         bands: priced.bands,
-        freeValue: round2(freeValue),
-        offeredValue: round2(offeredValue),
+        freeValue,
+        offeredValue,
       });
     }
     // off-grid range → the flat computation below.
