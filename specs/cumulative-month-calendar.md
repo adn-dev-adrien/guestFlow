@@ -96,15 +96,23 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
     The Dashboard passes `openOnCurrentWeek`: on load **and on « Aujourd'hui »** the week row holding today
     sits right under the sticky month title (the past weeks of the month stay one scroll up). On a phone
     — an agenda list, no week rows — the row is the **first stay or closure of the current month not yet
-    over** (`endDate ≥ today`, so today's departures count); a month with none opens on its title. Only
-    the block of today's month marks that row: a stay crossing a month boundary is listed in both months.
+    over** (a stay's departure today still counts; a closure's `endDate` is its first open day, so one
+    ending today is over); a month with none opens on its title. Only the block of today's month marks
+    that row: a week crossing a month boundary is drawn in both months' grids (on the 1st of December the
+    week 30/11 → 06/12 closes « Novembre » too), a stay crossing it is listed in both agendas. « Today » is
+    the server's day, the one the row is marked with — the scroller aims at that month, not the device's.
     The row is **held in place while the months load** — the weeks above it grow lane by lane as their
-    stays land, and on a phone the row only exists once its month has loaded — until the first gesture of
-    the user (wheel, touch, pointer, key) hands the scroll back. The Calendrier page keeps rule 7
+    stays land, and on a phone the row only exists once its month has loaded — until **a scroll moves it**,
+    whatever its cause (wheel, touch, scrollbar, a bar brought into view by Tab): the scroller compares the
+    row with where its own last write left it. A scroll the view causes itself (a month added above keeps
+    the view still, rule 11) does not move the row and keeps it. If today's month loads with no row to
+    show, the wait ends there: a row drawn later never pulls the view. The Calendrier page keeps rule 7
     (opens on the current month): it was not part of the request.
 14. **The day names stick under the month title** (added 2026-11-12, with rule 13). Lun → Dim is part of
     each month's sticky header on the desktop grid, so a view that opens mid-month — or any scroll inside
-    a month — still names its columns. Both calendars (Dashboard and Calendrier « Tous ») get it.
+    a month — still names its columns. Both calendars (Dashboard and Calendrier « Tous ») get it. The
+    clearance under that header is measured (title + day names), never assumed, both to place today's row
+    and to tell which month is « in view ».
 
 ## 4. Architecture
 | Layer | File | Responsibility |
@@ -114,7 +122,7 @@ buttons), with a **sticky month label** and an « Aujourd'hui » shortcut.
 | pages | `CalendarPage.js` | Replace `SyncedPropertyMiniCalendars` (no-property branch) with `CumulativeMonthCalendar` (props: `onReservationClick`, `onCreateReservation`). |
 | pages | `Dashboard.js` | Replace its `SyncedPropertyMiniCalendars` overview with the **same** `CumulativeMonthCalendar` (callbacks with origin `'/'`). Since 2026-11-12 passes `openOnCurrentWeek` (rule 13). |
 | components | `CumulativeMonthCalendar.jsx` | 2026-11-12: marks the current week row (`data-current-week`; on a phone the first agenda row of today's month not yet over), `openOnCurrentWeek` prop forwards that selector as the scroller's `todaySelector`, the weekday header moves into the scroller's `stickyHeader` (rules 13-14). |
-| components | `InfiniteMonthScroller.jsx` | 2026-11-12: `stickyHeader` slot under each month title; the today-row clearance is measured on that sticky header (never below the former 48 px); the today row is anchored where it belongs (not where a not-yet-grown scroller capped it), awaited when it only appears with its month's data, and held until the user's first gesture (rule 13). |
+| components | `InfiniteMonthScroller.jsx` | 2026-11-12: `stickyHeader` slot under each month title; the today-row clearance is measured on that sticky header (never below the former 48 px); the today row is anchored where it belongs (not where a not-yet-grown scroller capped it), awaited when it only appears with its month's data (until today's month has loaded), and held until a scroll moves it; optional `today` prop (the server's day) picks the current month; the « month in view » threshold uses the same measured header (rules 13-14). |
 
 No server change (reuses `GET /reservations?from&to` + `GET /establishment-closures?from&to`).
 
@@ -150,12 +158,14 @@ endDate`).
   month where it was on screen. (`hooks/__tests__/useInfiniteMonthScroll.prepend-anchor.test.jsx`.)
   Browser, 390 px `/calendar`: the current month's label sits at the top of the list and its first stay
   right under it (was hidden under the label).
-- [x] Rules 13-14 (2026-11-12): the row stays pinned while the current month and the one above it load; a
-  row that only appears with its month's data is reached; a wheel releases it
-  (`components/__tests__/InfiniteMonthScroller.today-row-pin.test.jsx`, 3 tests). Only the week holding
-  today is marked; the day names sit once per month inside the sticky title; on a phone only today's
-  month marks its first stay not yet over (`components/__tests__/CumulativeMonthCalendar.current-week.test.jsx`,
-  3 tests). Browser on a copy of the dev base, 12/11/2026: Dashboard 1280 px opens on the 9-15 November
+- [x] Rules 13-14 (2026-11-12, completed after the PR review): under a 70 px sticky header the row stays
+  pinned while the current month and the one above it load; a scroll event the view causes itself keeps
+  it; a row that only appears with its month's data is reached; a scroll that moves the row releases it;
+  « Aujourd'hui » puts it back; today's month loaded without a row ends the wait
+  (`components/__tests__/InfiniteMonthScroller.today-row-pin.test.jsx`, 6 tests). Only the week holding
+  today is marked, and on 1 December only in « Décembre »; the day names sit once per month inside the
+  sticky title; on a phone only today's month marks its first stay not yet over, and a closure ending today
+  is over (`components/__tests__/CumulativeMonthCalendar.current-week.test.jsx`, 5 tests). Browser on a copy of the dev base, 12/11/2026: Dashboard 1280 px opens on the 9-15 November
   row under « Novembre 2026 / Lun … Dim »; 390 px opens on November's first running row; a wheel then
   « Aujourd'hui » returns to the week; Calendrier « Tous » still opens on the month.
 - [ ] _(superseded)_ a stay within one week → one segment on the right

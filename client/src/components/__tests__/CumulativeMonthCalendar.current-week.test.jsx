@@ -6,14 +6,13 @@ import { render, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 
-const media = vi.hoisted(() => ({ mobile: false }));
+const media = vi.hoisted(() => ({ mobile: false, today: '2026-07-16' }));
 vi.mock('@mui/material', async (importOriginal) => {
   const actual = await importOriginal();
   return { ...actual, useMediaQuery: () => media.mobile };
 });
 vi.mock('../../api', () => ({ default: { getCalendar: vi.fn() } }));
-// date-literal-ok: the clock is pinned to this same day by vi.setSystemTime below.
-vi.mock('../../hooks/useServerToday', () => ({ default: () => '2026-07-16' }));
+vi.mock('../../hooks/useServerToday', () => ({ default: () => media.today }));
 import api from '../../api';
 import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
 
@@ -22,12 +21,18 @@ const stay = (id, startDate, endDate, extra = {}) => ({
   platform: 'Airbnb', platformDisplay: 'Airbnb', color: '#C93848', textColor: '#FFFFFF', past: false, ...extra,
 });
 
+// The server's today and the device clock are pinned to the same day: the dates below are that day's.
+function setToday(iso) {
+  media.today = iso;
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(`${iso}T12:00:00`));
+}
+
 describe('CumulativeMonthCalendar — current week', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     media.mobile = false;
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-07-16T12:00:00'));
+    setToday('2026-07-16');
   });
   afterEach(() => { vi.useRealTimers(); });
 
@@ -43,6 +48,30 @@ describe('CumulativeMonthCalendar — current week', () => {
     expect(marked).toHaveLength(1);
     expect(marked[0].querySelector('[data-date="2026-07-16"]')).not.toBeNull();
     expect(marked[0].querySelector('[data-date="2026-07-13"]')).not.toBeNull();
+  });
+
+  it('rule 13 — on the 1st of a month, the week drawn at the end of the month before is not the one marked', async () => {
+    setToday('2026-12-01');
+    api.getCalendar.mockResolvedValue({ stays: [], closures: [] });
+    const { container } = renderCal({ openOnCurrentWeek: true });
+    await waitFor(() => expect(container.querySelector('[data-month-anchor="2026-11"]')).not.toBeNull());
+    expect(container.querySelector('[data-month-anchor="2026-10"] [data-date="2026-12-01"]')).not.toBeNull();
+    const marked = container.querySelectorAll("[data-current-week='true']");
+    expect(marked).toHaveLength(1);
+    expect(marked[0].closest('[data-month-anchor]').getAttribute('data-month-anchor')).toBe('2026-11');
+  });
+
+  it('rule 13 — on a phone, a closure ending today is over: its endDate is the first open day', async () => {
+    media.mobile = true;
+    api.getCalendar.mockResolvedValue({
+      stays: [stay(5, '2026-07-20', '2026-07-22')],
+      closures: [{ id: 9, propertyId: 1, propertyName: 'Gite', global: false, label: 'Travaux', startDate: '2026-07-01', endDate: '2026-07-16' }],
+    });
+    const { container } = renderCal({ openOnCurrentWeek: true });
+    await waitFor(() => expect(container.textContent).toMatch(/Client 5/));
+    const marked = container.querySelectorAll("[data-current-week='true']");
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveTextContent('Client 5');
   });
 
   it('rule 14 — the day names sit inside each month\'s sticky title, once per month', async () => {

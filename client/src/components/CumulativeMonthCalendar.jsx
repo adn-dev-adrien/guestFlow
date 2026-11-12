@@ -65,7 +65,9 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
   const list = useMemo(() => (isMobile ? monthItems(year, month, items) : []), [year, month, items, isMobile]);
   // A stay spans two month lists; only the block of today's month marks where « now » starts.
   const isTodayMonth = todayStr.slice(0, 7) === `${year}-${String(month + 1).padStart(2, '0')}`;
-  const firstCurrentKey = isTodayMonth ? (list.find((it) => it.endDate >= todayStr) || {}).key : undefined;
+  // A closure's endDate is its first open day; a stay's is its departure, which still counts today.
+  const notOver = (it) => (it.kind === 'closure' ? it.endDate > todayStr : it.endDate >= todayStr);
+  const firstCurrentKey = isTodayMonth ? (list.find(notOver) || {}).key : undefined;
 
   // Phone = a readable agenda list (one row per stay / closure), grouped by logement.
   if (isMobile) {
@@ -129,7 +131,8 @@ function MonthBlock({ year, month, data, todayStr, isMobile, onReservationClick,
         return (
           <Box
             key={wi}
-            data-current-week={week.days.some((day) => day.isToday) ? 'true' : undefined}
+            // A week across two months is drawn in both: only the block of today's month marks it.
+            data-current-week={week.days.some((day) => day.isToday && day.inMonth) ? 'true' : undefined}
             sx={{ position: 'relative', height: rowHeight, mb: 0.5 }}
           >
             <Box sx={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
@@ -296,6 +299,7 @@ export default function CumulativeMonthCalendar({
       initialMonth={initialMonth}
       onVisibleMonthChange={onVisibleMonthChange}
       todaySelector={openOnCurrentWeek ? CURRENT_WEEK_SELECTOR : undefined}
+      today={todayStr}
       stickyHeader={isMobile ? null : WEEKDAY_HEADER}
       toolbarEnd={legendToggle}
       belowToolbar={(
