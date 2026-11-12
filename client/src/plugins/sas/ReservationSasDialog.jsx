@@ -58,6 +58,7 @@ import buildDepartureDraft from './departureDraft';
 import useSasRecapPreview from './useSasRecapPreview';
 import placePluginSteps from './placePluginSteps';
 import stepNumbering from './sasStepNumbering';
+import StaySalesSection from '../../components/StaySalesSection';
 
 const round2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const EXTRA_GUESTS_OFFER_KEY = 'extraGuests:0';
@@ -1622,6 +1623,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Typography variant="sectionHeader">
                 {stayStep ? 'Récapitulatif — à percevoir' : 'Récapitulatif — complément à percevoir'}
               </Typography>
+              <StaySalesSection section={data?.staySales} />
               {stayStep && !unifiedPayment && (
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...previewDim }}>Séjour : {shown(stayDue)}</Typography>

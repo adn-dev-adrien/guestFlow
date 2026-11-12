@@ -1591,6 +1591,9 @@ check-in time, a discount target, line moment changes and the tourist tax as its
   after check-in time, « Ventes du séjour — au départ » with « Percevoir maintenant » and « Passer à
   l'arrivée ». **SAS départ:** « À percevoir au départ » (departure lines + recalled unpaid arrival lines)
   and « Déjà payé ». Same `SaleDetailList`, same wording.
+  _(Delivered by PR B, pass 5: the arrival SAS recap opens with `StaySalesSection`, the server's `staySales` block — « Ventes du séjour — au départ », its lines with their status and what is
+  still due, nothing summed on the client; it wraps long labels on `xs`. Skills loaded for it: `apple-design`, `impeccable`. **Pending** — PR C: « Percevoir maintenant » / « Passer à l'arrivée » on those
+  lines, « Déjà payé » and the departure SAS section: they need the SAS to write its lines through `extraSale` (rule 25).)_
 - Copy (French, impersonal, short): « Payée par carte le {date} », « À payer à l'arrivée », « À payer au
   départ », « Comprise dans le prix plateforme », « Dans l'acompte et le solde », « Offerte », « Remise
   −{x} € », « Fiche », « Boutique », « SAS », « Séjour soldé : vente séparée », « Prix modifié — relire le
