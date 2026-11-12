@@ -53,7 +53,7 @@ function makeDb() {
       balancePaidCash INTEGER NOT NULL DEFAULT 0, balancePaidAtArrival INTEGER NOT NULL DEFAULT 0,
       accommodationAcompteContribTtc REAL, accommodationSoldeContribTtc REAL,
       touristTaxAcompteContribTtc REAL, touristTaxSoldeContribTtc REAL,
-      cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT,
+      cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionWaived INTEGER NOT NULL DEFAULT 0, cautionReceivedDate TEXT,
       cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT,
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
       complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,

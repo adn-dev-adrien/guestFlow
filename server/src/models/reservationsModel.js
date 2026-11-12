@@ -117,9 +117,11 @@ function midStayError(code, message) {
 // property's current `defaultCautionAmount` until the caution is received, then FROZEN to the amount
 // actually collected (stored in `reservations.cautionAmount`, frozen at receipt). Expects a row carrying
 // `cautionReceived`, `cautionAmount` and `propertyDefaultCautionAmount`.
+// specs/arrival-departure-sas.md rule 31 — a stay whose check-in answered « Non » takes no caution: 0 until one is received.
 function resolveEffectiveCaution(row) {
   if (!row) return 0;
   if (Number(row.cautionReceived || 0) === 1) return Number(row.cautionAmount || 0);
+  if (Number(row.cautionWaived || 0) === 1) return 0;
   return Number(row.propertyDefaultCautionAmount || 0);
 }
 
@@ -3248,7 +3250,7 @@ function createReservationsModel(database) {
     },
 
     commitArrivalSas(reservationId, {
-      cautionReceived, complementItems = [],
+      cautionReceived, cautionWaived, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
       breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
@@ -3343,7 +3345,7 @@ function createReservationsModel(database) {
             // reservation at the moment of receipt, so the collected amount never moves afterwards.
             // specs/reservation-payment-ledger.md rule 71 (audit R39-DB-L1) — only on that flip: a caution already
             // received is never received again (rule 38), so a stale SAS tab leaves its amount and dates alone.
-            database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime('now') WHERE id = ? AND COALESCE(cautionReceived, 0) = 0")
+            database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), cautionWaived = 0, updatedAt = datetime('now') WHERE id = ? AND COALESCE(cautionReceived, 0) = 0")
               .run(today, reservationId);
           } else {
             // specs/reservation-payment-ledger.md rule 14 (audit R38-DB-L1) — as on the PATCH, undoing the receipt
@@ -3351,6 +3353,12 @@ function createReservationsModel(database) {
             database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, cautionReturned = 0, cautionReturnedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
           }
+        }
+
+        // « Non » on the caution page (arrival-departure-sas.md rule 31): only while no caution is held.
+        if (cautionWaived !== undefined) {
+          database.prepare("UPDATE reservations SET cautionWaived = ?, updatedAt = datetime('now') WHERE id = ? AND COALESCE(cautionReceived, 0) = 0")
+            .run(cautionWaived ? 1 : 0, reservationId);
         }
 
         for (const write of pluginWrites) write(database);

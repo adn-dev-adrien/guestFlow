@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -127,6 +127,10 @@
     "1.5.2": [
       "Un client Qonto n’est réutilisé que pour le nom et l’adresse avec lesquels il a été créé : une adresse ajoutée ou corrigée sur la fiche client passe sur la facture suivante.",
       "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.5.3": [
+      "La carte du planning d’une réservation de ressource hors séjour reprend les tailles et l’ordre de la carte d’arrivée.",
+      "Compatible avec le SDK 2.26.0 de GuestFlow."
     ]
   }
 }

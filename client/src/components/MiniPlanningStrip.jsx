@@ -5,7 +5,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { getPlatformColor } from '../constants/platforms';
+import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
 import { getBlockedNightConflictInfo } from '../utils/reservationConflicts';
 import { BLOCKED_NIGHT_COLOR } from '../utils/calendarVisuals';
 
@@ -274,7 +274,7 @@ export default function MiniPlanningStrip({
                   key={day}
                   onClick={() => onDateClick(day)}
                   title={tooltipRes
-                    ? `${tooltipRes.firstName || ''} ${tooltipRes.lastName || ''} (${tooltipRes.platform || 'reservation'})`
+                    ? `${tooltipRes.firstName || ''} ${tooltipRes.lastName || ''} (${formatPlatformLabel(tooltipRes.platform) || 'réservation'})`
                     : (blockedTooltip || 'Disponible')}
                   sx={{
                     borderRadius: 1,

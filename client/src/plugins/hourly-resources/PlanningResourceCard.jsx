@@ -4,9 +4,12 @@ import React, { useState } from 'react';
 import {
   Box, Card, CardContent, Chip, Typography, Button,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import { useNavigate } from 'react-router';
 import Inventory2Icon from '@mui/icons-material/Inventory2';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import HomeWorkIcon from '@mui/icons-material/HomeWork';
+import PersonIcon from '@mui/icons-material/Person';
+import EuroIcon from '@mui/icons-material/Euro';
 import { api, OptionDayCard, useToast } from '../sdk';
 import { localIsoDate } from './localDate';
 
@@ -25,37 +28,67 @@ const toMinutes = (time) => {
 };
 const toTime = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 
+// The planning's check-in card is the model (components/ReservationCard.jsx): a badge and a time pill on the first
+// row, then the logement, the client, what is to collect, the note. The same sizes, the same order, for what this
+// card knows.
+const softChip = (status) => (t) => ({
+  bgcolor: t.palette[status].soft,
+  color: t.palette[status].text,
+  '& .MuiChip-icon': { color: 'inherit' },
+});
+
 function BookingCard({ booking }) {
   const navigate = useNavigate();
   const turnover = Number(booking.turnoverMinutes || 0);
   // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day.
   const canArrive = booking.external === true && !booking.arrived && booking.date === localIsoDate();
+  const tone = booking.paid ? 'success' : 'info';
   return (
-    <Card variant="outlined" sx={(t) => ({ mb: 1.5, borderRadius: 2, borderColor: 'info.light', bgcolor: alpha(t.palette.info.main, 0.04) })}>
+    <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 2, borderColor: 'divider' }}>
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Inventory2Icon sx={{ fontSize: 16, color: 'info.main' }} />
-          <Typography variant="caption" sx={{ fontWeight: 700, color: 'info.dark' }}>
-            {booking.resourceName || 'Ressource'}
-          </Typography>
-          {booking.paid && <Chip label="Payé" size="small" color="success" sx={{ height: 18, fontSize: 10 }} />}
-          {booking.external === true && !booking.paid && <Chip label="À encaisser" size="small" color="warning" variant="outlined" sx={{ height: 18, fontSize: 10 }} />}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+          <Chip
+            icon={<Inventory2Icon sx={{ fontSize: 18 }} />}
+            label={(booking.resourceName || 'Ressource').toUpperCase()}
+            size="small"
+            sx={[softChip(tone), { height: 26, fontSize: 12, fontWeight: 800, px: 0.5, '& .MuiChip-icon': { ml: 1, mr: -0.25 } }]}
+          />
+          <Chip
+            icon={<AccessTimeIcon sx={{ fontSize: 16 }} />}
+            label={`${booking.startTime}–${booking.endTime}`}
+            size="small"
+            sx={[softChip(tone), { height: 22, fontSize: 13, fontWeight: 800, borderRadius: 1.5, '& .MuiChip-icon': { ml: 0.5, mr: -0.25 } }]}
+          />
+          <Box sx={{ flexGrow: 1 }} />
           {canArrive && (
-            <Button size="small" variant="outlined" onClick={() => navigate(`/resource-planning?arrival=${booking.id}`)} sx={{ ml: 'auto', minHeight: 44 }}>
+            <Button size="small" variant="outlined" onClick={() => navigate(`/resource-planning?arrival=${booking.id}`)} sx={{ minHeight: 44 }}>
               Arrivée
             </Button>
           )}
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <Chip
-            label={`${booking.startTime}–${booking.endTime}`}
-            size="small"
-            sx={{ height: 22, fontSize: 11, fontWeight: 700, bgcolor: booking.paid ? 'success.light' : 'info.light' }}
-          />
+        {booking.propertyName && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, minWidth: 0, maxWidth: '100%' }}>
+            <HomeWorkIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'primary.main', lineHeight: 1.2, minWidth: 0 }}>
+              {booking.propertyName}
+            </Typography>
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+          <PersonIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
           <Typography variant="body2" sx={{ fontWeight: 600 }}>{booking.displayName}</Typography>
-          {booking.propertyName && <Typography variant="caption" color="text.secondary">· {booking.propertyName}</Typography>}
-          {booking.clientPhone && <Typography variant="caption" color="text.secondary">· {booking.clientPhone}</Typography>}
+          {booking.clientPhone && <Typography variant="body2" color="text.secondary">· {booking.clientPhone}</Typography>}
         </Box>
+        {(booking.paid || booking.external === true) && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+            <EuroIcon sx={{ fontSize: 16, color: booking.paid ? 'success.main' : 'error.main', flexShrink: 0 }} />
+            <Chip
+              label={booking.paid ? 'Payé' : 'À encaisser'}
+              size="small"
+              sx={[softChip(booking.paid ? 'success' : 'error'), { height: 22, fontSize: 12, fontWeight: 700 }]}
+            />
+          </Box>
+        )}
         {turnover > 0 && (
           <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 700, mt: 1, display: 'block' }}>
             Remise en état : +{turnover} min (jusqu'à {toTime(toMinutes(booking.endTime) + turnover)})

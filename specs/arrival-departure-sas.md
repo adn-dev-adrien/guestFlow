@@ -120,12 +120,12 @@ confirmation — records the caution status and the complement(s) on the reserva
     §3.2. Both steps write **catalogue options** (`inComplement = 1`, `sasArrivalOrigin = 1`, with their
     `cardOccurrences`), settled on the recap with the rest of the complement — or routed to the end-of-stay
     complement when the arrival complement is already collected (§3.4 there).
-11. **Caution reportée (only if rule 6 = « Reporté »).** Re-shows the caution page once more before the recap.
+11. **Caution reportée (only if rule 6 = « Reporté »).** ~~Re-shows the caution page once more before the recap.~~ **Removed 2026-11-12** (manual trial of 4.0.0: the page came back just before the summary after the operator had deferred it): the caution is asked once, on its own page; a deferral goes straight on, the recap says « Caution non perçue : reportée au départ. » (rule 31).
 12. **Récapitulatif (always).** Shows the **arrival complement to collect** = **existing `complementAmount`**
     (before the SAS) **+** the items added during the SAS (linen elements, cleaning, bath linen, breakfast and
     catering sold at check-in), **with the full detail
     line by line**. Also shows the caution status (Fait / non traité) — after « Reporter au départ »
-    the recap reads « Caution non perçue : reportée au départ. » (it showed nothing until the
+    the recap reads « Caution non perçue : reportée au départ. », and after « Non » « Aucune caution pour ce séjour. » (it showed nothing until the
     2026-10-27 spec review; `ReservationSasDialog.caution-deferred.test.jsx`). When the cleaning is included, shows the
     client reminder « vaisselle faite et rangée, poubelles vidées » (moved here from the hidden ménage page,
     specs/sas-hide-settled-steps.md §3), except on an Airbnb stay (specs/airbnb-no-checkout-chores.md). Buttons **Valider et terminer** (commit) / **Quitter**.
@@ -262,6 +262,21 @@ confirmation — records the caution status and the complement(s) on the reserva
     instead of dividing the amount by a price that may have changed. Existing SAS rows are backfilled
     once (`sas_custom_line_quantity_v1`) when their amount is an exact multiple of the priced item of
     the same label. Pinned by `tests/sas-custom-line-quantity.unit.test.js`.
+31. **« Non » on the caution page: no caution is taken for this stay** (2026-11-12, manual trial of 4.0.0; rule numbers
+    are identities, added at the end). The caution page answers three ways, in this order in the footer: « Non » (outlined
+    error), « Reporter au départ » (neutral), « Caution perçue » (filled, last). « Non » is stored as a marker,
+    `reservations.cautionWaived` (0/1, additive migration), not as an amount: the caution stays live from the property until
+    received ([caution-live-from-property.md](caution-live-from-property.md)), and `resolveEffectiveCaution` reads **0** while
+    the marker is set and no caution is held. That one function feeds every reader — the fiche's ledger (the existing
+    `caution` row « Sans objet », reservation-payment-ledger rule 74, built from the same effective amount in the
+    controller's `ledgerFor`), the planning card and the home (no « Caution à percevoir »), the guest e-mails (no
+    `cautionNotReceived`), and the departure SAS, whose « Retour caution » step needs a caution received, so it never
+    appears. The commit takes `cautionWaived` (tri-state like `cautionReceived`: undefined = the page was not shown, the marker
+    stays); it is refused as an invalid tick when not a boolean (rule 72 of the ledger spec), ignored while a caution is held,
+    and **cleared whenever a caution is received** (SAS « Caution perçue » or the fiche). A reopened SAS shows the page again
+    pre-answered « Non » (the property amount is served as `propertyDefaultCautionAmount`, also for reception) so the answer
+    can be changed. The history says « Caution non demandée : non → oui ». Pinned by `tests/sas-caution-waived.unit.test.js` and
+    `ReservationSasDialog.caution-answers.test.jsx`.
 
 ---
 
@@ -335,6 +350,7 @@ confirmation — records the caution status and the complement(s) on the reserva
 - **`reservations` new columns** (idempotent ADD COLUMN, default 0/null): `endOfStayComplementAmount REAL
   NOT NULL DEFAULT 0`, `endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0`, `endOfStayComplementPaidDate
   TEXT`, `endOfStayComplementDetail TEXT` (JSON/text breakdown for display).
+- **`reservations.cautionWaived INTEGER NOT NULL DEFAULT 0`** (2026-11-12, rule 31) — « Non » on the caution page.
 - **`reservations` SAS-done markers** (idempotent ADD COLUMN, default null): `arrivalSasDoneAt TEXT`,
   `departureSasDoneAt TEXT` — set / refreshed to `datetime('now')` by the respective commit; drive the
   green-✓ state of the planning SAS buttons. The button stays clickable so a finished SAS can be
@@ -491,3 +507,8 @@ Resolved during scoping (2026-06-12):
   no other extras.
 - **Portal code** → a **single global** `portalCode` in Réglages (per « dans les settings »). If the gîtes
   ever need distinct gate codes, move it to a per-property field (small change) — flag if so.
+
+## Amendment 2026-11-12 (manual trial of 4.0.0) — a focused note field clears what is above it
+
+The note field of the check-in recap sits one step lower under the divider (`mt: 1`): its shrunk label overhangs the
+field's top by half a line, and a focused field draws its label and outline on top of the line or title just above it.

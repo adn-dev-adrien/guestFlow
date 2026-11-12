@@ -5,7 +5,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   Box, Typography, Stack, Checkbox, Tooltip, Chip, TableRow, TableCell, TextField, MenuItem, Alert,
+  Table, TableHead, TableBody, TableContainer, useMediaQuery,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PageActionBar from '../components/PageActionBar';
 import PeriodSelector from '../components/PeriodSelector';
@@ -14,14 +16,15 @@ import ResponsiveTable from '../components/ResponsiveTable';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
 import Panel from '../components/Panel';
-import StickyTotalsBar from '../components/StickyTotalsBar';
+import TouristTaxDock from '../components/TouristTaxDock';
+import TouristTaxPropertyCard from '../components/TouristTaxPropertyCard';
 import { useToast } from '../components/DialogProvider';
 import useServerToday from '../hooks/useServerToday';
 import api from '../api';
 import { withFrom } from '../utils/navigation';
 import { displayDate, formatCurrency } from '../utils/formatters';
 import { localIsoToday } from '../utils/isoDay';
-import { TAX_PAGE, TAX_COLUMNS, TAX_TOTALS } from '../constants/touristTaxReport';
+import { TAX_PAGE, TAX_COLUMNS, TAX_PROPERTY } from '../constants/touristTaxReport';
 
 const TABULAR = { fontVariantNumeric: 'tabular-nums' };
 const MONEY = { ...TABULAR, whiteSpace: 'nowrap' };
@@ -109,24 +112,8 @@ const rowName = (row) => `${row.reservationName || 'Réservation'}${row.addedGue
 const byPlatform = (row) => row.remittedBy === 'platform';
 const dash = (row, value) => (row.noGuestAdded ? '—' : value);
 
-function totalsItems(t) {
-  return [
-    { key: 'stays', label: TAX_TOTALS.stays, value: String(t.staysCount), caption: t.platformRemittedStaysCount ? TAX_TOTALS.platformStays(t.platformRemittedStaysCount) : '', compact: true },
-    { key: 'persons', label: TAX_TOTALS.persons, value: String(t.persons) },
-    { key: 'taxed', label: TAX_TOTALS.taxedExempt, value: `${t.taxedPersons} · ${t.exemptPersons}`, caption: TAX_TOTALS.minorsExempt },
-    { key: 'nights', label: TAX_TOTALS.nights, value: String(t.nights) },
-    { key: 'personNights', label: TAX_TOTALS.taxedNights, value: String(t.taxedPersonNights), caption: TAX_TOTALS.exemptNights(t.exemptPersonNights) },
-    { key: 'declared', label: TAX_TOTALS.declared, value: formatCurrency(t.declaredAmount), caption: t.platformRemittedAmount ? TAX_TOTALS.platformAmount(formatCurrency(t.platformRemittedAmount)) : '' },
-    {
-      key: 'amount',
-      label: TAX_TOTALS.toRemit,
-      value: formatCurrency(t.amount),
-      caption: t.allDeclared ? TAX_TOTALS.allDeclared : (t.rowsCount ? TAX_TOTALS.remaining(formatCurrency(t.remainingAmount)) : ''),
-      main: true,
-      compact: true,
-    },
-  ];
-}
+// The edge colour of each logement's section, by its place in the report (palette paths).
+const PROPERTY_COLORS = ['primary.main', 'chart.upcoming', 'info.main', 'warning.main'];
 
 export default function TouristTaxPage() {
   const navigate = useNavigate();
@@ -149,6 +136,10 @@ export default function TouristTaxPage() {
   const keepRefusal = useRef(false);
   const readSeq = useRef(0);
   const pendingTicks = useRef(0);
+  const theme = useTheme();
+  // Below `lg` the content next to the drawer is narrower than the table: a list of rows, never a scroller.
+  const compact = useMediaQuery(theme.breakpoints.down('lg'));
+  const [declaring, setDeclaring] = useState(null);
   const waitingForDay = query.period === 'month' && !query.month;
 
   // Rule 32 — the month a month selection opens on is judged from the server's day, once it is known.
@@ -211,6 +202,30 @@ export default function TouristTaxPage() {
     }
     pendingTicks.current -= 1;
     if (pendingTicks.current === 0) refresh(shownQuery());
+  };
+
+  // Rule 57 — « Marquer {logement} déclaré »: one call for the logement's declarable rows, then the report is read again.
+  const handleDeclareProperty = async (property) => {
+    const forQuery = shownQuery();
+    const { propertyId: _all, ...window } = paramsOf(forQuery);
+    setDeclaring(property.propertyId);
+    readSeq.current += 1;
+    try {
+      await api.declareTouristTaxProperty(property.propertyId, window);
+    } catch (e) {
+      showError(e.message || TAX_PROPERTY.declareError);
+    }
+    setDeclaring(null);
+    refresh(shownQuery());
+  };
+
+  const handleExportProperty = async (property) => {
+    const shown = lastGood.current ? lastGood.current.query : query;
+    try {
+      await api.downloadTouristTaxReportCsv({ ...paramsOf(shown), propertyId: String(property.propertyId) }, 'list');
+    } catch (e) {
+      showError(e.message || TAX_PAGE.exportError);
+    }
   };
 
   useEffect(() => {
@@ -313,98 +328,155 @@ export default function TouristTaxPage() {
   // While a selection loads, the pickers keep the options of the last report read (their values stay offered).
   const known = data || (lastGood.current && lastGood.current.data);
 
-  const listTable = data && (
-    <ResponsiveTable
-      items={data.stays}
-      getKey={(row) => row.key}
-      minWidth={base ? 860 : 700}
-      cardsBelowWidth={base ? 860 : 700}
-      cardsWhenOverflow
-      emptyText={TAX_PAGE.emptyList}
-      head={(
-        <>
-          <TableRow sx={{ '& th': { borderBottom: 0, pb: 0 } }}>
-            <TableCell colSpan={3} />
-            <TableCell sx={GROUP} align="center" colSpan={3}>{TAX_COLUMNS.personsLong}</TableCell>
-            <TableCell sx={GROUP} align="center" colSpan={2}>{TAX_COLUMNS.personNights}</TableCell>
-            <TableCell colSpan={base ? 3 : 1} />
-          </TableRow>
-          <TableRow>
-            <TableCell sx={HEAD} align="center" padding="checkbox">{TAX_COLUMNS.declared}</TableCell>
-            <TableCell sx={HEAD}>{TAX_COLUMNS.stay}</TableCell>
-            <TableCell sx={HEAD} align="right">{TAX_COLUMNS.nights}</TableCell>
-            <TableCell sx={HEAD} align="right">{TAX_COLUMNS.persons}</TableCell>
-            <TableCell sx={HEAD} align="right">{TAX_COLUMNS.taxed}</TableCell>
-            <TableCell sx={HEAD} align="right">{TAX_COLUMNS.exempt}</TableCell>
-            <TableCell sx={HEAD} align="right" aria-label={TAX_COLUMNS.taxedNights}>{TAX_COLUMNS.taxed}</TableCell>
-            <TableCell sx={HEAD} align="right" aria-label={TAX_COLUMNS.exemptNights}>{TAX_COLUMNS.exempt}</TableCell>
-            {/* specs/tourist-tax-included-services-deduction.md rule 15 — the base the commune's percentage form asks for. */}
-            {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.nightPrice}</TableCell>}
-            {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.accommodation}</TableCell>}
-            <TableCell sx={HEAD} align="right">{TAX_COLUMNS.amount}</TableCell>
-          </TableRow>
-        </>
+  // Rule 58 — one table per logement, ending with its « Total … » row; below `lg` a list of rows (as the mock).
+  const stayHead = (name) => (
+    <>
+      <TableRow sx={{ '& th': { borderBottom: 0, pb: 0 } }}>
+        <TableCell colSpan={3} />
+        <TableCell sx={GROUP} align="center" colSpan={3}>{TAX_COLUMNS.personsLong}</TableCell>
+        <TableCell sx={GROUP} align="center" colSpan={2}>{TAX_COLUMNS.personNights}</TableCell>
+        <TableCell colSpan={base ? 3 : 1} />
+      </TableRow>
+      <TableRow>
+        <TableCell sx={HEAD} align="center" padding="checkbox">{TAX_COLUMNS.declared}</TableCell>
+        <TableCell sx={HEAD}>{TAX_PROPERTY.stay(name)}</TableCell>
+        <TableCell sx={HEAD} align="right">{TAX_COLUMNS.nights}</TableCell>
+        <TableCell sx={HEAD} align="right">{TAX_COLUMNS.persons}</TableCell>
+        <TableCell sx={HEAD} align="right">{TAX_COLUMNS.taxed}</TableCell>
+        <TableCell sx={HEAD} align="right">{TAX_COLUMNS.exempt}</TableCell>
+        <TableCell sx={HEAD} align="right" aria-label={TAX_COLUMNS.taxedNights}>{TAX_COLUMNS.taxed}</TableCell>
+        <TableCell sx={HEAD} align="right" aria-label={TAX_COLUMNS.exemptNights}>{TAX_COLUMNS.exempt}</TableCell>
+        {/* specs/tourist-tax-included-services-deduction.md rule 15 — the base the commune's percentage form asks for. */}
+        {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.nightPrice}</TableCell>}
+        {base && <TableCell sx={{ ...HEAD, whiteSpace: 'normal', maxWidth: 84 }} align="right">{TAX_COLUMNS.accommodation}</TableCell>}
+        <TableCell sx={HEAD} align="right">{TAX_COLUMNS.amount}</TableCell>
+      </TableRow>
+    </>
+  );
+
+  const stayRowOf = (row) => (
+    <TableRow
+      key={row.key}
+      hover
+      data-remitted-by={row.remittedBy}
+      onClick={() => openStay(row)}
+      sx={{ cursor: 'pointer', ...(byPlatform(row) ? { '& td': { color: 'text.secondary' }, bgcolor: 'action.hover' } : {}) }}
+    >
+      <TableCell padding="checkbox" align="center" onClick={(e) => e.stopPropagation()} sx={{ cursor: 'default' }}>
+        {declaredCell(row)}
+      </TableCell>
+      <TableCell>
+        {rowName(row)}
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap' }}>{formatReservationDates(row.startDate, row.endDate)}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{`${row.propertyName} · ${row.platformLabel}`}</Typography>
+        {byPlatform(row) && <Box sx={{ mt: 0.5 }}>{platformTag(row)}</Box>}
+        {rowNotes(row)}
+      </TableCell>
+      <TableCell align="right" sx={TABULAR}>{row.nightsCount}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{dash(row, row.persons)}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{dash(row, row.taxedPersons)}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{dash(row, row.exemptPersons)}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{dash(row, row.taxedPersonNights)}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{dash(row, row.exemptPersonNights)}</TableCell>
+      {base && (
+        <TableCell align="right" sx={MONEY}>{row.nightPricePerOccupantHt == null ? '—' : formatCurrency(row.nightPricePerOccupantHt)}</TableCell>
       )}
-      renderRow={(row) => (
-        <TableRow
-          key={row.key}
-          hover
-          data-remitted-by={row.remittedBy}
-          onClick={() => openStay(row)}
-          sx={{ cursor: 'pointer', ...(byPlatform(row) ? { '& td': { color: 'text.secondary' }, bgcolor: 'action.hover' } : {}) }}
-        >
-          <TableCell padding="checkbox" align="center" onClick={(e) => e.stopPropagation()} sx={{ cursor: 'default' }}>
-            {declaredCell(row)}
-          </TableCell>
-          <TableCell>
-            {rowName(row)}
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap' }}>{formatReservationDates(row.startDate, row.endDate)}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{`${row.propertyName} · ${row.platformLabel}`}</Typography>
-            {byPlatform(row) && <Box sx={{ mt: 0.5 }}>{platformTag(row)}</Box>}
-            {rowNotes(row)}
-          </TableCell>
-          <TableCell align="right" sx={TABULAR}>{row.nightsCount}</TableCell>
-          <TableCell align="right" sx={TABULAR}>{dash(row, row.persons)}</TableCell>
-          <TableCell align="right" sx={TABULAR}>{dash(row, row.taxedPersons)}</TableCell>
-          <TableCell align="right" sx={TABULAR}>{dash(row, row.exemptPersons)}</TableCell>
-          <TableCell align="right" sx={TABULAR}>{dash(row, row.taxedPersonNights)}</TableCell>
-          <TableCell align="right" sx={TABULAR}>{dash(row, row.exemptPersonNights)}</TableCell>
-          {base && (
-            <TableCell align="right" sx={MONEY}>{row.nightPricePerOccupantHt == null ? '—' : formatCurrency(row.nightPricePerOccupantHt)}</TableCell>
-          )}
-          {base && <TableCell align="right" sx={MONEY}>{row.accommodationAmount == null ? '—' : formatCurrency(row.accommodationAmount)}</TableCell>}
-          <TableCell align="right" sx={{ ...MONEY, fontWeight: 600 }}>{formatCurrency(row.taxAmount)}</TableCell>
-        </TableRow>
-      )}
-      renderMobileCard={(row) => (
-        <Stack onClick={() => openStay(row)} data-remitted-by={row.remittedBy} sx={{ cursor: 'pointer', gap: 0.5, ...(byPlatform(row) ? { color: 'text.secondary' } : {}) }}>
-          {/* Rule 22 (review V1-4) — a platform's tag sits beside the name when both fit, else wraps under it whole; it is
-              cut only when it is wider than the card itself. */}
-          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: byPlatform(row) ? 'wrap' : 'nowrap' }}>
-            <Box data-card-name="" sx={{ minWidth: 0, flex: '1 1 auto' }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{rowName(row)}</Typography>
-              <Typography variant="caption" color="text.secondary">{`${row.propertyName} · ${row.platformLabel}`}</Typography>
-            </Box>
-            <Box onClick={(e) => e.stopPropagation()} sx={{ flex: '0 1 auto', minWidth: 0, maxWidth: '100%', display: 'flex', justifyContent: 'flex-end' }}>{byPlatform(row) ? platformTag(row) : declaredCell(row)}</Box>
-          </Stack>
-          {rowNotes(row)}
-          <Typography variant="caption" color="text.secondary">
-            {formatReservationDates(row.startDate, row.endDate)} · {row.nightsCount} nuit{row.nightsCount > 1 ? 's' : ''}
-            {row.noGuestAdded ? '' : ` · ${row.taxedPersons} taxée${row.taxedPersons > 1 ? 's' : ''} · ${row.exemptPersons} exonérée${row.exemptPersons > 1 ? 's' : ''}`}
+      {base && <TableCell align="right" sx={MONEY}>{row.accommodationAmount == null ? '—' : formatCurrency(row.accommodationAmount)}</TableCell>}
+      <TableCell align="right" sx={{ ...MONEY, fontWeight: byPlatform(row) ? 400 : 600 }}>{formatCurrency(row.taxAmount)}</TableCell>
+    </TableRow>
+  );
+
+  const totalRowOf = (p) => (
+    <TableRow key="total" data-property-total={p.propertyId} sx={{ bgcolor: 'background.default', '& td': { fontWeight: 700 } }}>
+      <TableCell />
+      <TableCell>{TAX_PROPERTY.total(p.propertyName)}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{p.nights}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{p.persons}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{p.taxedPersons}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{p.exemptPersons}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{p.taxedPersonNights}</TableCell>
+      <TableCell align="right" sx={TABULAR}>{p.exemptPersonNights}</TableCell>
+      {base && <TableCell />}
+      {base && <TableCell />}
+      <TableCell align="right" sx={MONEY}>{formatCurrency(p.amount)}</TableCell>
+    </TableRow>
+  );
+
+  const stayListItem = (row) => (
+    <Box
+      key={row.key}
+      role="button"
+      tabIndex={0}
+      onClick={() => openStay(row)}
+      onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) openStay(row); }}
+      data-remitted-by={row.remittedBy}
+      sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1.25, px: 1.75, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', cursor: 'pointer', ...(byPlatform(row) ? { color: 'text.secondary' } : {}) }}
+    >
+      <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'center', minWidth: 0 }}>
+        <Box onClick={(e) => e.stopPropagation()} sx={{ flexShrink: 0, minWidth: 44, display: 'flex', justifyContent: 'center' }}>{declaredCell(row)}</Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{rowName(row)}</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            {`${formatReservationDates(row.startDate, row.endDate)} · ${row.platformLabel} · ${row.nightsCount} nuit${row.nightsCount > 1 ? 's' : ''}`}
+            {row.noGuestAdded ? '' : ` · ${row.taxedPersonNights} nuitée${row.taxedPersonNights > 1 ? 's' : ''} taxée${row.taxedPersonNights > 1 ? 's' : ''}`}
           </Typography>
-          {row.nightPricePerOccupantHt != null && (
-            <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-              <Typography variant="caption" color="text.secondary">{TAX_COLUMNS.nightPrice}</Typography>
-              <Typography variant="body2" sx={TABULAR}>{formatCurrency(row.nightPricePerOccupantHt)}</Typography>
-            </Stack>
+          {byPlatform(row) && <Box sx={{ mt: 0.5 }}>{platformTag(row)}</Box>}
+          {rowNotes(row)}
+        </Box>
+      </Box>
+      <Typography variant="body2" sx={{ ...MONEY, fontWeight: 700, flexShrink: 0 }}>{formatCurrency(row.taxAmount)}</Typography>
+    </Box>
+  );
+
+  const propertySection = (p, index) => {
+    const rows = data.stays.filter((r) => String(r.propertyId) === String(p.propertyId));
+    return (
+      <Box component="section" key={p.propertyId} sx={{ mb: 2.75 }}>
+        <TouristTaxPropertyCard
+          totals={p}
+          color={PROPERTY_COLORS[index % PROPERTY_COLORS.length]}
+          busy={declaring === p.propertyId}
+          canDeclare={rows.some((r) => r.remittedBy === 'us' && !r.declared && r.declarable)}
+          onDeclare={() => handleDeclareProperty(p)}
+          onExport={() => handleExportProperty(p)}
+        />
+        <Box sx={{ bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', borderRadius: '0 0 14px 14px', overflow: 'hidden' }}>
+          {compact ? (
+            <>
+              {rows.map(stayListItem)}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', px: 1.75, py: 1.25, bgcolor: 'background.default', fontWeight: 700 }}>
+                <span>{TAX_PROPERTY.total(p.propertyName)}</span>
+                <Box component="span" sx={MONEY}>{formatCurrency(p.amount)}</Box>
+              </Box>
+            </>
+          ) : (
+            <TableContainer>
+              <Table size="small" sx={{ minWidth: base ? 860 : 700, ...DENSE }}>
+                <TableHead>{stayHead(p.propertyName)}</TableHead>
+                <TableBody>{rows.map(stayRowOf)}{totalRowOf(p)}</TableBody>
+              </Table>
+            </TableContainer>
           )}
-          <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-            <Typography variant="caption" color="text.secondary">{TAX_COLUMNS.amount}</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 600, ...TABULAR }}>{formatCurrency(row.taxAmount)}</Typography>
-          </Stack>
-        </Stack>
-      )}
-    />
+        </Box>
+      </Box>
+    );
+  };
+
+  const listSections = data && (
+    data.byProperty.length === 0
+      ? <Typography color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>{TAX_PAGE.emptyList}</Typography>
+      : (
+        <>
+          <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
+            {`${TAX_PROPERTY.byProperty} · ${data.window.label}`}
+          </Typography>
+          {data.window.futureExcluded && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PAGE.futureExcluded}</Typography>
+          )}
+          {data.byProperty.map(propertySection)}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PROPERTY.legend}</Typography>
+        </>
+      )
   );
 
   const nightTable = data && (
@@ -491,19 +563,19 @@ export default function TouristTaxPage() {
         {!data && !loadError && <LoadingState label={TAX_PAGE.loading} />}
         {data && (
           <>
-            <Panel
-              label={`${view === 'list' ? TAX_PAGE.listPanel : TAX_PAGE.nightPanel} · ${data.window.label}`}
-            >
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.75, mb: 1 }}>{TAX_PAGE.source}</Typography>
-              {data.window.futureExcluded && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PAGE.futureExcluded}</Typography>
-              )}
-              {view === 'night' && data.columns?.nightsOutsideWindow && (
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PAGE.nightsOutside}</Typography>
-              )}
-              <Box sx={DENSE}>{view === 'list' ? listTable : nightTable}</Box>
-            </Panel>
-            <StickyTotalsBar items={totalsItems(data.totals)} label={TAX_TOTALS.barLabel} moreLabel={TAX_TOTALS.more} lessLabel={TAX_TOTALS.less} />
+            {view === 'list' ? listSections : (
+              <Panel label={`${TAX_PAGE.nightPanel} · ${data.window.label}`}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.75, mb: 1 }}>{TAX_PAGE.source}</Typography>
+                {data.window.futureExcluded && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PAGE.futureExcluded}</Typography>
+                )}
+                {data.columns?.nightsOutsideWindow && (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>{TAX_PAGE.nightsOutside}</Typography>
+                )}
+                <Box sx={DENSE}>{nightTable}</Box>
+              </Panel>
+            )}
+            <TouristTaxDock totals={data.totals} windowLabel={data.window.label} />
           </>
         )}
       </Box>

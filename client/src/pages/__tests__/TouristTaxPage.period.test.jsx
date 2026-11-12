@@ -37,7 +37,7 @@ test('rule 17: the page opens on the previous month, as a month', async () => {
   const d = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
   expect(first).toEqual({ period: 'month', month: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, propertyId: '', declaration: '' });
   expect(screen.getByRole('button', { name: 'Mois' })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByText(/Séjours · juin 2026/)).toBeInTheDocument();
+  expect(screen.getByText(/Par logement · juin 2026/)).toBeInTheDocument();
 });
 
 test('rule 17: a quarter and a year are picked from the server options', async () => {
@@ -96,7 +96,7 @@ test('rule 19: a selection the server refuses keeps the last result and says why
   await pick('Mois', 'juillet 2026');
   expect(await screen.findByRole('alert')).toHaveTextContent('Les mois futurs ne sont pas autorisés.');
   expect(screen.getByText('Jean Dupont')).toBeInTheDocument();
-  expect(within(screen.getByTestId('sticky-totals-bar')).getByText('4,80 €')).toBeInTheDocument();
+  expect(within(screen.getByTestId('total-amount')).getByText('4,80 €')).toBeInTheDocument();
 });
 
 test('a first read that fails offers a retry', async () => {

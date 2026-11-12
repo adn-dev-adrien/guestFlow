@@ -1118,7 +1118,7 @@ export default function FinanceSection() {
 
               {/* specs/single-payment-from-the-fiche.md §3.1 — several buckets still to collect: offer
                   to record them as the ONE payment the guest made. */}
-              {form.arrivalPayment?.collectible && !isReservationLocked && (
+              {form.arrivalPayment?.collectible && !isReservationLocked && fichePristine && (
                 <Box sx={{ px: { xs: 1.5, sm: 2 }, py: 1.5, mb: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     Encaisser en une fois : {formatCurrency(form.arrivalPayment.collectible.total)}

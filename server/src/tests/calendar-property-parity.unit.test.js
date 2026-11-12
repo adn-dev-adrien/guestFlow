@@ -107,12 +107,20 @@ test('rule 3 — platformDisplay, colour and text colour come from the server, c
   assert.equal(byId[15].textColor, '#27251F', 'ink on a light custom colour');
 });
 
-test('rule 3 — past is relative to the server day: a stay leaving today is past', () => {
-  const run = (today) => Object.fromEntries(calendarModel.listRange({ from: FROM, to: TO, today }).stays.map((s) => [s.id, s.past]));
+test('rule 3 — past is relative to the server day and the check-out time: a stay leaving today is past once its check-out hour has gone', () => {
+  const run = (today, nowTime = '12:00') => Object.fromEntries(calendarModel.listRange({ from: FROM, to: TO, today, nowTime }).stays.map((s) => [s.id, s.past]));
   assert.equal(run(TODAY)[10], true);
   assert.equal(run(TODAY)[13], false);
-  assert.equal(run('2026-11-05')[13], true, 'endDate <= today');
+  assert.equal(run('2026-11-06')[13], true, 'endDate < today');
   assert.equal(run('2026-11-04')[13], false);
+  const leavingToday = calendarModel.listRange({ from: FROM, to: TO, today: '2026-11-05', nowTime: '00:00' }).stays.find((s) => s.endDate === '2026-11-05');
+  if (leavingToday) {
+    const at = (nowTime) => calendarModel.listRange({ from: FROM, to: TO, today: '2026-11-05', nowTime }).stays.find((s) => s.id === leavingToday.id).past;
+    const out = (leavingToday.checkOutTime || '').slice(0, 5);
+    assert.equal(at('00:00'), false, 'before the check-out hour');
+    assert.equal(at(out), true, 'at the check-out hour');
+    assert.equal(at('23:59'), true, 'after it');
+  }
 });
 
 test('rule 3 — a closure arrives with global, propertyName and label, and the reopening day keeps it in range', () => {

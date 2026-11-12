@@ -149,7 +149,7 @@ function ledgerFor({ row, quote = null, live = {}, propertyId = null, overpaymen
   if (!(row && Number(row.cautionReceived || 0) === 1)) {
     const pid = Number(propertyId || (row && row.propertyId) || 0);
     const prop = pid ? db.prepare('SELECT defaultCautionAmount FROM properties WHERE id = ?').get(pid) : null;
-    cautionAmount = Number(prop && prop.defaultCautionAmount) || 0;
+    cautionAmount = Number(row && row.cautionWaived) === 1 ? 0 : (Number(prop && prop.defaultCautionAmount) || 0);
   }
   return buildLedger({
     row,
@@ -3140,7 +3140,7 @@ function updatePaymentCore(req, res) {
     const date = cautionReceivedDate || (cautionReceived ? localTodayIso() : null);
     if (cautionReceived) {
       // specs/caution-live-from-property.md §3 rule 2 — freeze the live property caution on receipt.
-      model.updatePaymentField('UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = ?, cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime(\'now\') WHERE id = ?', date, id);
+      model.updatePaymentField('UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = ?, cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), cautionWaived = 0, updatedAt = datetime(\'now\') WHERE id = ?', date, id);
     } else {
       // specs/reservation-payment-ledger.md rule 14 — undoing the receipt undoes the return too: a
       // caution never received cannot have been given back.

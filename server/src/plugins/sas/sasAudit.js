@@ -16,6 +16,7 @@
 
 const SAS_FIELD_LABELS = {
   cautionReceived: 'Caution reçue',
+  cautionWaived: 'Caution non demandée',
   cautionReturned: 'Caution restituée',
   cleaningOption: 'Ménage',
   bathLinenOption: 'Linge de toilette',
@@ -97,6 +98,7 @@ function buildSasSnapshot(row, extras = {}) {
   const r = row || {};
   return {
     cautionReceived: yesNo(r.cautionReceived),
+    cautionWaived: yesNo(r.cautionWaived),
     cautionReturned: yesNo(r.cautionReturned),
     cleaningOption: takenOrNot(extras.cleaningPresent),
     bathLinenOption: takenOrNot(extras.bathLinenPresent),

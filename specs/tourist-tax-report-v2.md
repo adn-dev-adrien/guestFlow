@@ -271,6 +271,39 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
 - A platform stay with an ad-hoc platform that has no `platforms` row → « the platform remits » (the three-way
   spec's default), so it is counted apart.
 - A cancelled stay (`kind ≠ 'reservation'`) is in neither list.
+56. **The tax is declared per logement: the report carries each logement's totals** (2026-11-12, manual trial of 4.0.0;
+    approved mock: [`tourist-tax-by-property-maquette.html`](tourist-tax-by-property-maquette.html), its names fictitious).
+    The payload gains `byProperty`: one entry per logement of the selection (ours and the platforms' stays), in logement
+    order, each `{ propertyId, propertyName, …reportTotals }` — the very totals of rule 11 computed over that logement's rows
+    (`amount`, `declaredAmount`, `remainingAmount`, `allDeclared`, `toDeclareRowsCount`, `staysCount`, `nights`, `persons`,
+    `taxedPersons`, `exemptPersons`, `taxedPersonNights`, `exemptPersonNights`, `platformRemittedStaysCount`,
+    `platformRemittedAmount`), so the cards and the bar can never disagree and the client sums nothing
+    (`propertyTotals`, `utils/touristTaxReport.js`). The declaration filter and the « Logement » filter apply first.
+57. **« Marquer {logement} déclaré » is ONE server call.** `POST /api/finance/tourist-tax/property/:propertyId/declared`
+    with the window of the selection as query (`period`, `month` | `quarter` | `year` | `from` + `to`): the server reads the
+    report of that logement still « à déclarer » and ticks, in one transaction, every row of ours that is `declarable` — each
+    through the single tick of [tourist-tax-declared-checkbox.md](tourist-tax-declared-checkbox.md) (rules 8-10, the added
+    guests' row with `addedGuests`), so the same refusals apply. A platform-remitted stay is never ticked; a row not
+    declarable yet is skipped. Answers `{ ok, declaredCount, skippedCount }`; a refusal rolls everything back (400 « Logement
+    inconnu. » for an unknown or missing logement, the report's own refusals for a bad window). Repeated: `declaredCount: 0`.
+    Test: `tests/tourist-tax-by-property.unit.test.js`.
+58. **« Liste » is a section per logement** (`TouristTaxPage`, `TouristTaxPropertyCard`). For each logement of `byProperty`:
+    the card (coloured left edge, the total to declare in large type, « reste … à déclarer » or « ✓ tout est déclaré », a
+    declared / remaining bar, tiles « nuitées taxées », « pers. taxées », « déjà déclaré », a note « N séjour(s) reversé(s) par
+    la plateforme (… €) » for the stays the platform remits, the buttons « Marquer {logement} déclaré » — off when nothing
+    declarable is left — and « Exporter {logement} », the existing CSV filtered by `propertyId`), then directly below it that
+    logement's OWN table of stays (never one grouped table), ending with a « Total {logement} » row read from its `byProperty`
+    entry. A platform-remitted stay stays listed, greyed, with no tick, and counts for nothing. The « Logement » filter keeps
+    working: one section is shown. « Par nuit » keeps its register.
+    **Mobile:** the sections stack; below `lg` (1200 px, the table not fitting next to the drawer) each table becomes a list of rows (tick, name, « dates · plateforme · nuits ·
+    nuitées taxées », the amount on one line) ending with the « Total {logement} » line; the buttons stack full width; every
+    target is ≥ 44 px; no sideways scroll.
+59. **The bottom banner is redesigned** (`TouristTaxDock`, replacing `StickyTotalsBar` on this page): « À reverser · {période} »
+    in large type = what remains (`remainingAmount`) with « sur … au total » (or « tout est déclaré »), « Déjà déclaré »,
+    « Reversé par les plateformes » with its stays count, and the secondary counts (séjours, personnes, taxées · exonérées,
+    nuitées taxées) as compact pills; sticky, translucent and frosted (solid under `prefers-reduced-transparency`); nothing
+    animates in it, and the card's bar transition stops under `prefers-reduced-motion`. It reads `totals` as given.
+    Tests: `TouristTaxPage.by-property.test.jsx`, `TouristTaxPage.totals-bar.test.jsx`.
 
 ---
 
@@ -314,6 +347,8 @@ declared and what remains, and, apart, what the platforms remit themselves. The 
 | **Specific (kept feature-local)** | — | The tables are compositions of `ResponsiveTable`. |
 
 ### 4.3 API contract
+
+> **2026-11-12 (rules 56-59):** the report adds `byProperty`; `POST /api/finance/tourist-tax/property/:propertyId/declared?<window>` ticks one logement's declarable rows (rule 57). `GET .../report.csv` with `propertyId` is « Exporter {logement} ».
 
 | Method | Endpoint | Query | Response | Notes |
 |---|---|---|---|---|

@@ -119,7 +119,8 @@ next to the field.
    - acompte off for the property, or a last-minute stay
      ([deposit-blocks-the-dates.md](deposit-blocks-the-dates.md) rules 4-6) — « Sans objet · paiement
      en une fois »;
-   - caution of a property with no caution — « Sans objet ».
+   - caution of a property with no caution — « Sans objet »; likewise a stay whose check-in answered « Non »
+     (`cautionWaived`, arrival-departure-sas.md rule 31, 2026-11-12): the effective caution is 0, the same row.
 7. **The ledger shown is the stored one; the live one only while the fiche is edited.** Opening a
    fiche shows the ledger of `GET /api/reservations/:id`, built from the stored row: the « Reste à
    percevoir » and the reconciliation chip are then exactly those of Finance (`remainingToPay`, the
@@ -1356,3 +1357,8 @@ filing it at the end of stay); their ledger and summary are byte-identical to f6
 three rows added to it (R29-DB-2). Stay 12 (a single payment naming both buckets) keeps one merged paid card; 22281,
 22226, 22275 and 22280 unchanged. Nothing was written.
 
+## Amendment 2026-11-12 (manual trial of 4.0.0) — the editable amount reads as a field
+
+An editable (or locked) ledger amount (`LedgerList` `AmountCell`) is drawn as the app's standard outlined field — the same
+border and radius as a small text field, 44 px high — with the amount **centred** in it and the pencil (or lock) out of the
+flow, on the right, so it never pushes the figure off-centre. It was a text button with a dashed underline.

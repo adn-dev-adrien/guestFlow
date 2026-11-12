@@ -597,7 +597,7 @@ function commitArrival(req, res) {
   const draft = normaliseArrivalDraft(req, reservation);
   if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
   const {
-    cautionReceived,
+    cautionReceived, cautionWaived,
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
@@ -678,6 +678,7 @@ function commitArrival(req, res) {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
+    cautionWaived: cautionWaived === undefined ? undefined : Boolean(cautionWaived),
     ...draft.input,
     breakfastTime,
     breakfastCoffee,

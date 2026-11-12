@@ -51,7 +51,8 @@ function AmountCell({ row, formatAmount, onAmountClick, readOnly }) {
   const locked = !edit.editable;
   return (
     <Button
-      variant="text"
+      variant="outlined"
+      color="inherit"
       data-ledger-amount=""
       onClick={() => onAmountClick(row)}
       aria-label={`${locked ? 'Montant figé' : 'Modifier le montant'} : ${row.label}, ${text}`}
@@ -60,16 +61,21 @@ function AmountCell({ row, formatAmount, onAmountClick, readOnly }) {
         : <EditOutlinedIcon sx={{ fontSize: '0.9rem !important', color: 'text.secondary' }} />}
       sx={{
         ...amountSx,
-        color: 'text.primary',
+        // The standard outlined field of the app (same border, radius and height as a small TextField), the amount centred
+        // in it: the icon sits out of the flow, so it never pushes the figure off-centre (2026-11-12, manual trial of 4.0.0).
+        position: 'relative',
+        justifyContent: 'center',
         minHeight: 44,
-        minWidth: 0,
-        px: 0.5,
+        minWidth: 128,
+        px: 3.5,
         borderRadius: 1,
+        borderColor: 'rgba(0, 0, 0, 0.23)',
+        borderStyle: locked ? 'dotted' : 'solid',
+        color: 'text.primary',
         textTransform: 'none',
         fontSize: 'inherit',
-        borderBottom: '1px dashed',
-        borderBottomStyle: locked ? 'dotted' : 'dashed',
-        borderColor: locked ? 'divider' : 'text.disabled',
+        '& .MuiButton-endIcon': { position: 'absolute', right: 10, m: 0 },
+        '&:hover': { borderColor: 'text.primary', bgcolor: 'transparent' },
         '&:active': { transform: 'scale(0.97)' },
         transition: 'transform 100ms ease-out',
       }}

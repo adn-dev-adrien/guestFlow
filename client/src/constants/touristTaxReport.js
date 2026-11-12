@@ -70,3 +70,37 @@ export const TAX_TOTALS = {
   remaining: (amount) => `reste ${amount}`,
   allDeclared: 'tout est déclaré',
 };
+
+// specs/tourist-tax-report-v2.md rules 56-58 — the per-logement sections and the redesigned bottom banner.
+export const TAX_PROPERTY = {
+  declareError: 'Impossible de marquer ce logement déclaré.',
+  stays: (n) => `${n} séjour${n > 1 ? 's' : ''} à déclarer`,
+  remaining: (amount) => `reste ${amount} à déclarer`,
+  allDeclared: '✓ tout est déclaré',
+  nothing: 'rien à déclarer sur cette période',
+  progress: 'Déclaré / reste',
+  taxedNights: 'nuitées taxées',
+  taxedPersons: 'pers. taxées',
+  alreadyDeclared: 'déjà déclaré',
+  platformNote: (n, amount) => `${n} séjour${n > 1 ? 's' : ''} reversé${n > 1 ? 's' : ''} par la plateforme (${amount}) — rien à déclarer pour ${n > 1 ? 'eux' : 'lui'}.`,
+  declare: (name) => `Marquer ${name} déclaré`,
+  export: (name) => `Exporter ${name}`,
+  stay: (name) => `Séjour ${name}`,
+  total: (name) => `Total ${name}`,
+  legend: 'Les séjours dont la taxe est reversée par la plateforme restent listés en gris : ils ne comptent pas dans le montant à déclarer.',
+  byProperty: 'Par logement',
+};
+
+export const TAX_DOCK = {
+  label: 'Totaux de la sélection',
+  toRemit: (window) => `À reverser · ${window}`,
+  ofTotal: (amount) => `sur ${amount} au total`,
+  declared: 'Déjà déclaré',
+  platforms: 'Reversé par les plateformes',
+  platformStays: (n) => `${n} séjour${n > 1 ? 's' : ''}`,
+  stays: (n) => (n > 1 ? 'séjours' : 'séjour'),
+  persons: (n) => (n > 1 ? 'personnes' : 'personne'),
+  taxedExempt: (t, e) => `${t} taxée${t > 1 ? 's' : ''} · ${e} exonérée${e > 1 ? 's' : ''}`,
+  taxedNights: 'nuitées taxées',
+  allDeclared: 'tout est déclaré',
+};
