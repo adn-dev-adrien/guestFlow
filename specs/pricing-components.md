@@ -367,8 +367,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     due amounts of its lines** (+ the stay-level parts of rule 22). Netting paid money happens in SETTLEMENT
     only; the fiche detail, the collected split, the SAS recaps and the accounting basis all read it (D6).
     > **Delivered by PR B** (pass 4): `settledCents` is read, never stored (`stayRepository.lineFacts`: Σ of the line's allocations) and
-    > `saleDetail` says « Payée le jj/mm ». **Pending** — PR B (pass 5): the arrival detail and the collected split net of card-paid lines
-    > (class E8: `arrivalPaymentDetail.billableLines`, `complementPaidSplit.prepaidNetter`) — not moved in pass 4.
+    > `saleDetail` says « Payée le jj/mm ». **Delivered by PR B** (pass 4b; class E8; `pricing-settlement-prepaid-card`): a card-paid line is a line a
+    > settled note names. SETTLEMENT nets it whether or not the stay has an arrival baseline: with none (the arrival day before the check-in hour,
+    > rule 19) the baseline is each line's total less what the notes collected on it, so the line leaves the arrival complement and the pre-arrival
+    > split as a sale of the stay does. The arrival detail (`arrivalPaymentDetail`, from the complement's itemisation), the collected split
+    > (`complementPaidSplit.contribSplit`, from the mid-stay split) and the SAS recaps read that one split: no netting copy of their own. A stay
+    > that has a baseline reads as before; the gate and the production copy hold no such note (0 figure moved).
 22. **Stay-level amounts keep their rules, in SCHEDULE.** Deposit % on the accommodation, solde, installment
     plans (`installmentPlan`, `installmentSync`), due dates (`paymentSchedule`), platform single payment, tax
     routing (`touristTaxInComplement`), extra-guest complement, overrides (`depositAmountOverride`,

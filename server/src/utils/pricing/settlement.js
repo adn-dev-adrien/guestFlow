@@ -75,6 +75,21 @@ function buildExtrasBaseline(lines) {
   return baseline;
 }
 
+/**
+ * Rules 21, 31 (class E8) — a stay with no arrival baseline yet (its check-in hour is not reached: rule 19 sends a new sale to the
+ * arrival) whose settled notes name lines: what a note collected is money the guest already paid, so it leaves the arrival
+ * complement and the pre-arrival split exactly as a sale of the stay does. The baseline is then what each such line carried
+ * before the note: its total less what the notes collected on it. Null when no note names a line.
+ */
+function prepaidBaseline(lines, settled) {
+  if (!Object.keys(settled).length) return null;
+  const baseline = buildExtrasBaseline(lines);
+  const named = Object.keys(settled).filter((key) => baseline[key] > 0);
+  if (!named.length) return null;
+  for (const key of named) baseline[key] = round2(Math.max(0, baseline[key] - settled[key]));
+  return baseline;
+}
+
 function parseBaseline(raw) {
   if (!raw) return null;
   if (typeof raw === 'object') return raw;
@@ -100,8 +115,8 @@ function parseBaseline(raw) {
  *          `total`/`forced`/`unforced`/`byKey` cover the whole mid-stay (remainder + settled).
  */
 function splitMidStayExtras(lines, baselineRaw, notesRaw) {
-  const baseline = parseBaseline(baselineRaw);
   const settled = settledByKey(notesRaw);
+  const baseline = parseBaseline(baselineRaw) || prepaidBaseline(lines, settled);
   const empty = {
     total: 0, forced: 0, unforced: 0, byKey: {}, remainingTotal: 0, settledTotal: 0, lines: [],
   };

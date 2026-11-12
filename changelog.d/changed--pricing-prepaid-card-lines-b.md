@@ -1,0 +1,1 @@
+- **A card-paid sale is not asked again at arrival (pricing refonte, PR B)**: on a stay whose arrival has not been reached, a prestation already paid by card leaves the arrival complement and the amount to collect, like any sale of the stay.
