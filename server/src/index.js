@@ -157,6 +157,16 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// specs/pricing-components.md rule 78 — once, after the models can load: the refunds each requalification avoir netted.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const nettings = require('./utils/pricingLinesMigration').backfillRefundNettings(db);
+    if (nettings > 0) console.log(`[migration:refund-nettings] ${nettings} netting(s) recorded`);
+  } catch (err) {
+    logErrorMarker(`Refund nettings backfill failed: ${err.message}`);
+  }
+}
+
 // VAPID keypair for Web Push (specs/pwa-push-notifications.md). Auto-generated + persisted to
 // server/.env.local on first boot; the private key configures web-push, the public key is exposed
 // to the client for the push subscription. Never logged.

@@ -25,6 +25,9 @@ const RANK = {
   totals: 6,
   schedule: 7,
   refunds: 8,
+  // The backfill derivations of PR B read stored shapes only: after the units they describe.
+  legacyCollectAt: 9,
+  legacyAllocations: 9,
   platformPayment: 90,
   // The orchestration sits above every unit: a step imports the units it calls, the use cases import the steps.
   pipeline: 100,

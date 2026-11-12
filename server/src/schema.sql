@@ -419,6 +419,9 @@ CREATE TABLE IF NOT EXISTS reservation_nights (
     FOREIGN KEY (reservationId) REFERENCES reservations(id) ON DELETE CASCADE
   );
 
+-- The three line tables (reservation_options, reservation_resources, reservation_custom_options) carry more than is declared
+-- here: `utils/pricingLinesMigration.js` adds a stable `lineId` (rule 79) and the sale columns of rule 74 at boot
+-- (specs/pricing-components.md). The primary key below stays.
 CREATE TABLE IF NOT EXISTS reservation_options (
     reservationId INTEGER NOT NULL,
     optionId INTEGER NOT NULL,

@@ -3,7 +3,7 @@
  * AND the real copy) and by the tests that replay the committed fixture, so both sides execute the same
  * steps (specs/pricing-components.md §3 rule 68):
  *
- *   loadInputs(db, inputs)        the anonymised rows into a database `database.js` has just migrated
+ *   loadInputs(db, inputs)        the anonymised rows into a database `database.js` has just migrated, then its backfills
  *   recomputeStays(db)            { [reservationId]: figures } through the current code path
  *   replayIntakes(db, intakes)    each stored intake of Booking / Airbnb replayed on its stay (rule 71)
  *
@@ -68,6 +68,11 @@ function loadInputs(db, inputs) {
   })();
   // `isDirectChannel` reads a set cached at boot, when this database still held the seeded platforms.
   app('utils/platformNameFormat.js').refreshDirectChannels(db);
+  // The boot migrated an EMPTY database: the backfills of the stored columns run again on the rows just loaded, as the
+  // boot of a real database runs them (specs/pricing-components.md rule 36).
+  const lines = app('utils/pricingLinesMigration.js');
+  lines.runPricingLinesMigration(db);
+  lines.backfillRefundNettings(db, { force: true });
 }
 
 function ficheOf(id) {

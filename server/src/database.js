@@ -2992,6 +2992,11 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
 // ---------- VAT REGIME PERIODS (specs/vat-optional-mode.md rule 22) ----------
 require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
 
+// ---------- PRICING LINES (specs/pricing-components.md rules 74-79, PR B) ----------
+// Line ids, the sale columns of the lines, the refund columns and tables, the allocations: additions and backfills from stored
+// data, no amount rewritten, a second boot changes nothing. The nettings that need the models run later (`index.js`).
+require('./utils/pricingLinesMigration').runPricingLinesMigration(db);
+
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur
 // une base existante, les migrations gardees ci-dessus ont depuis ajoute les colonnes

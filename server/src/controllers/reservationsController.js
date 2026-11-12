@@ -384,7 +384,7 @@ function checkBabyBeds({ propertyId, startDate, endDate, children, babies, babyB
 }
 
 // Insert quote resource lines with per-resource availability. Returns { error, status } or null.
-function insertResourceLines(reservationId, quote, { propertyId, startDate, endDate, excludeId }) {
+function insertResourceLines(reservationId, quote, { propertyId, startDate, endDate, excludeId, carried = null }) {
   for (const rr of quote.resourceLines || []) {
     const resource = model.getResourceById(rr.resourceId);
     if (!resource) return { status: 400, body: { error: `Ressource introuvable (id=${rr.resourceId})` } };
@@ -399,7 +399,7 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
     const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
     const qty = Number(rr.quantity) || 1;
     const priceType = rr.priceType || resource.priceType || 'per_stay';
-    model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType);
+    model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType, carried && carried.get(Number(rr.resourceId)));
   }
   return null;
 }
@@ -2565,8 +2565,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     if (writesExtras && reservationOptions) model.replaceOptions(id, quote.optionLines);
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
-      model.deleteCustomOptions(id);
-      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels);
+      const carriedCustomLines = model.deleteCustomOptions(id);
+      if (reservationCustomOptions) model.insertCustomOptions(id, quote.optionLines, sasOriginLabels, carriedCustomLines);
     }
     if (!pastReservationLocked) model.replaceNights(id, quote.nightlyBreakdown);
     // specs/tariff-recipes/spec.md §3 rule 62 — the tariff snapshot follows the nights it describes:
@@ -2577,8 +2577,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     if (writesExtras) model.refreshTariffSnapshot(id, quote.tariffSnapshot);
 
     if (writesExtras && reservationResources) {
-      model.deleteResources(id);
-      const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id });
+      const carried = model.deleteResources(id);
+      const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id, carried });
       if (resourceError) throw new CreationRefused(resourceError);
     }
 

@@ -2098,15 +2098,15 @@ function createReservationsModel(database) {
     },
 
     deleteCustomOptions(reservationId) {
-      bookingLines.deleteCustomOptions(reservationId);
+      return bookingLines.deleteCustomOptions(reservationId);
     },
 
     sasOriginCustomLabels(reservationId) {
       return bookingLines.sasOriginCustomLabels(reservationId);
     },
 
-    insertCustomOptions(reservationId, optionLines, sasOriginLabels = []) {
-      bookingLines.insertCustomOptions(reservationId, optionLines, sasOriginLabels);
+    insertCustomOptions(reservationId, optionLines, sasOriginLabels = [], carried = []) {
+      bookingLines.insertCustomOptions(reservationId, optionLines, sasOriginLabels, carried);
     },
 
     replaceNights(reservationId, nightlyBreakdown) {
@@ -2118,11 +2118,11 @@ function createReservationsModel(database) {
     },
 
     deleteResources(reservationId) {
-      bookingLines.deleteResources(reservationId);
+      return bookingLines.deleteResources(reservationId);
     },
 
-    insertResourceLine(reservationId, rr, unitPrice, qty, priceType) {
-      bookingLines.insertResourceLine(reservationId, rr, unitPrice, qty, priceType);
+    insertResourceLine(reservationId, rr, unitPrice, qty, priceType, carried = null) {
+      bookingLines.insertResourceLine(reservationId, rr, unitPrice, qty, priceType, carried);
     },
 
     updatePaymentField(sql, ...params) {

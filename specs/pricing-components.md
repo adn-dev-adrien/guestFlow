@@ -334,8 +334,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     - Early check-in sold as an option does not move `checkInTime`; the operator edits `checkInTime` when the
       arrival time really changes.
     > **Pending** — PR B
-21. **Paid is stored on the line.** A line carries `settledCents` and `settlementRef` (payment link,
-    settlement, tender). Every bucket amount — arrival complement, departure complement, solde — is **Σ of the
+21. **Paid is stored on the line.** A line's `settledCents` is the Σ of its allocations (rule 74), computed, never a
+    stored column (Q16 call Q-B6b); `settlementRef` names the payment link, settlement or tender. Every bucket amount — arrival complement, departure complement, solde — is **Σ of the
     due amounts of its lines** (+ the stay-level parts of rule 22). Netting paid money happens in SETTLEMENT
     only; the fiche detail, the collected split, the SAS recaps and the accounting basis all read it (D6).
     > **Pending** — PR B
@@ -432,8 +432,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     approved by the owner; any unlisted diff blocks. The replay runs on every commit of PR A, not only on the
     PR head.
 36. **Stored data is never rewritten to make a replay pass.** Backfills (§5) add columns derived from what is
-    stored; they never change an amount column.
-    > **Pending** — PR B
+    stored; they never change an amount column. Tests: `pricing-lines-migration` (a second run changes nothing, amounts hashed
+    before and after), `pricing-legacy-collect-at`, `pricing-legacy-allocations`, and the prod replay by value.
 
 ### 3.I Rules added 2026-11-11
 
@@ -1188,15 +1188,22 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `cancellation_compensations.refundId` names the refund a compensation paired with. Backfills read the
     stored history and amounts only (rule 36).
     > **Pending** — PR B
-79. **Line identity** _(owner O-4, Q16 call Q-B1)_. Every line row has a stable integer `id`
-    (`reservation_options`, `reservation_resources` rebuilt with `id INTEGER PRIMARY KEY AUTOINCREMENT`;
-    `reservation_custom_options` already has one). A line is addressed as `lineRef = line:<table>:<id>`. The fiche
-    save **upserts by id** and carries every column across (it deleted and re-inserted the rows, keeping only two
-    SAS columns). The old `(reservationId, optionId)` / `(reservationId, resourceId)` key stays as a UNIQUE index
-    for as long as old code can run: a rollback (self-update rule 31) must still execute its
-    `INSERT … ON CONFLICT(reservationId, optionId)`. A refund line's `lineRef` is backfilled where its legacy
-    `lineKey` matches exactly one current line, NULL otherwise; `lineKey` stays.
-    > **Pending** — PR B
+79. **Line identity** _(owner O-4, Q16 call Q-B1, as built 2026-11-12)_. Every line row of the three line tables
+    (`reservation_options`, `reservation_resources`, `reservation_custom_options`) has a stable `lineId`, numbered from a
+    sequence that never gives a number twice (a deleted line's number is not reused), and a line is addressed as
+    `lineRef = line:<table>:<lineId>`. A fiche save keeps it: it stays a DELETE + INSERT in the engine's order, but each
+    line sold again is written with the `lineId` and every column the writer does not know (the sale columns of rule 74,
+    the SAS marker), read from the row it replaces: by article for a catalogue line, by text for a custom line.
+    **Why not a rebuilt table with an `id` primary key and an upsert** (the Q-B1 call): that `id` is the row's rowid, so
+    rows would come back in creation order, and the ~115 readers that select lines without sorting (e-mails, the stored
+    split, the SAS payloads) would stop returning them in the engine's order after an article is added. The intake replay
+    showed it (a line moved from third to fourth); a separate `lineId` keeps the physical order, adds a column instead of
+    rebuilding two tables, and leaves the primary key `(reservationId, optionId)` in place, so a rolled-back release runs
+    unchanged (self-update rule 31) and its rows are numbered by the trigger. Rule 13 (a second line of the same article)
+    will have to drop that key: a trade-off for the commit that writes it, reported then. A refund line's `lineRef` is
+    backfilled where its legacy `lineKey` matches exactly one current line, NULL otherwise; `lineKey` stays.
+    Tests: `booking-lines-identity` (the save keeps the number and every column, writes what the old one wrote, in the same
+    order), `pricing-lines-migration` (the numbering, the sequence, the previous release's writers).
 80. **Delivery cadence of PR B** _(rule 73 applied to PR B)_. Each commit runs the fast check: the price gate, the
     intake replay, the golden test, the pricing and articles units, the settings provider, the duplication guards
     and the files of the commit, plus `scripts/check-spec-coverage.mjs`; the move proof for the move commits. Three
@@ -1211,7 +1218,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     differences of a run. The write-path replay of D9 (refund create, refusal, requalification, un-tick, deletion,
     D25 pool, end-of-stay refunds) is captured **only** on a worktree of the tag `price-gate-baseline`
     (`scripts/price-gate/buildWriteReplay.mjs`, `fixtures/price-gate/writes.json`), never on the branch under test.
-    Tests: `price-gate-scopes` (scopes, `--expect`), `price-gate-writes` (the seven write-path cases, to the leaf).
+    A migration that adds a column changes the hash of every payload that spreads a whole row without moving a figure:
+    `pricing-replay.mjs --out-values` / `--compare-values` judge the captured values, ignoring the keys the new code adds.
+    Tests: `price-gate-scopes` (scopes, `--expect`), `price-gate-writes` (the seven write-path cases, to the leaf; a key the
+    baseline body did not carry, such as a column added to a row the response spreads, is additive and not judged).
 
 ## 4. Architecture
 
@@ -1315,13 +1325,32 @@ Columns added to `reservation_options`, `reservation_resources`, `reservation_cu
 | `collectAt` | TEXT | NULL | `plan` \| `platform` \| `arrival` \| `departure`; NULL = legacy, derived by `legacyCollectAt` |
 | `collectAtDefault` | TEXT | NULL | the moment STAY CLOCK gave when the line was written (rule 46); equals `collectAt` unless the operator changed it |
 | `soldAt` | TEXT | NULL | when the line was sold (allocation and allowance order) |
-| `settledCents` | INTEGER | 0 | money collected for this line |
-| `settlementRef` | TEXT | NULL | `link:<id>` \| `settlement:<id>` \| `note:<key>` |
+| `settlementRef` | TEXT | NULL | `link:<id>` \| `settlement:<id>` \| `note:<key>`; what a line settled is Σ of its `payment_allocations` (rule 74), not a column |
 | `discountCents` | INTEGER | 0 | the line's share of a stay discount (rule 40) or its own line discount (rule 39) |
 | `allowanceUsed` | TEXT (JSON) | NULL | free units / minutes this line consumed |
-| `orderRef` | TEXT | NULL | guest-app `order:<id>:<line>` (replaces `orderChargeKey` and description matching) |
+| `orderRef` | TEXT | NULL | guest-app `order:<id>:<line>` (replaces `orderChargeKey` and description matching); not backfilled in PR B (J-7 code, PR C) |
+| `articleRef`, `family`, `label` | TEXT | NULL | the snapshot of what was sold (rule 74): `option:<id>` / `resource:<id>` / `custom:<id>`, the family of the line's own stored price type (NULL for a custom line), the title at sale time |
+| `vatRate`, `vatClass` | REAL, TEXT | NULL | the rate the VAT step gave and its class (rule 51); NULL = the stay's regime rate and the family's class |
+| `fulfilmentRef` | TEXT | NULL | `hourly-slot:<hold id>` (rule 49) |
+| `components` | TEXT (JSON) | NULL | the parts of the price (base / evening / free) |
 
-On `reservations`: `discountTarget` TEXT DEFAULT `'nights'` (every existing row reads as today).
+**Line identity (rule 79).** The three line tables get `lineId INTEGER` (unique index; numbered from `line_id_sequence` by an
+`AFTER INSERT` trigger, so a row inserted by the previous release is numbered too; the rows already there take their rowid).
+Nothing is rebuilt: the primary key `(reservationId, optionId)` / `(reservationId, resourceId)` stays, so a rolled-back release
+still runs its `INSERT … ON CONFLICT(reservationId, optionId)` (self-update rule 31). `lineRef = line:<table>:<lineId>`.
+
+On `reservations`: `discountTarget` TEXT DEFAULT `'nights'` (every existing row reads as today); `cancellationKeptCents` and
+`cancellationIndemnityCents` INTEGER NULL (rule 78; NULL = not cancelled or no `cancel` history entry).
+
+New tables of PR B (created by `utils/pricingLinesMigration.js`, called from `database.js`):
+`reservation_stay_lines` (`id, reservationId, kind 'accommodation'|'touristTax', label « Hébergement » / « Taxe de séjour »,
+totalCents, vatClass, vatRate NULL, components NULL, soldAt, amendedAt NULL`, unique per stay and kind);
+`refund_obligations` (rule 75); `refund_nettings (avoirId, refundId)` (rule 78); `payment_allocations (id, paymentRef,
+documentRef 'reservation:<id>', lineRef NULL = stay-level, amountCents signed, kind 'payment'|'refund', at, refundId NULL,
+books, origin 'backfill'|'live')` with a unique index on `(paymentRef, documentRef, lineRef, kind, refundId)` (rule 74).
+New columns on `reservation_refunds` (`kind`, `amountCents`, `origin`, `providerRefundRef`), `reservation_refund_lines`
+(`amountCents`, `source`, `revenueBucket`, `lineRef`, `vatClass`; no `paymentRef`), `cancellation_compensations.refundId`,
+and the catalogue `options.vatClass`, `resources.vatClass`.
 
 On the three line tables (PR B): `vatRate` REAL NULL (the rate the VAT step gave, rule 51; NULL on legacy lines = the stay's regime rate) and `fulfilmentRef` TEXT NULL (`hourly-slot:<hold id>`, rule 49).
 
@@ -1332,13 +1361,24 @@ New tables (PR C, rule 53, Q13): `standalone_sales` (`id`, `soldAt`, `customerNa
 `inComplement` stays (read by legacy code and the export) and is written in sync: `inComplement = collectAt
 in ('arrival','departure')` until PR C retires its readers.
 
-**Backfill (first commit of PR B), idempotent, amounts untouched:** `legacyCollectAt(line, reservation)`
-reproduces today's routing: `inComplement = 1` → `arrival`, or `departure` when above
-`arrivalExtrasBaseline` (mid-stay rule); `inComplement = 0` → `platform` on a platform sale, `plan` otherwise.
-`settledCents` from `complementPaid`/`complementPaidSplit`, `endOfStayComplementPaid`, `midStaySettledNotes`
-keys. Guest-app `orderChargeKey` → `orderRef`. `discountCents` stays 0 (stored discounts are `nights`). Runs
-only where `collectAt IS NULL`. Proof: the replay with SETTLEMENT reading the new columns equals the replay
-reading the legacy derivation.
+**Backfill (first commit of PR B), idempotent, amounts untouched:** each runs `WHERE <new> IS NULL` or `NOT EXISTS`, so a second boot changes
+nothing, and reads stored data only.
+- `legacyCollectAt` reproduces today's routing: `inComplement = 1` → `arrival`, or `departure` when the line is above
+  `arrivalExtrasBaseline` (mid-stay rule); `inComplement = 0` → `platform` on a platform sale (the platform's own mode,
+  never its name), `plan` otherwise. `collectAtDefault = collectAt`; `soldAt` = the stay's creation (a custom line's own).
+- `reservation_stay_lines`: the accommodation line is the stored final price less the extras it also holds; the tax line is the stored
+  tourist tax when above zero. Components stay NULL (no stored column splits the extra guests, Q-B16).
+- Refund columns: `kind`, `origin`, `amountCents` from `method` and the stored amounts; `source` / `revenueBucket` per the refunds map §4
+  S3; `lineRef` where `lineKey` names exactly one current line (`accommodation` and `touristTax` the stay lines); the compensation's
+  `refundId` by stay, date and amount; the cancellation figures from the `cancel` history entry (`keptFromGuest`, else
+  `retainedDeposit`); the nettings of each avoir by `cancellationNettedRefundIds`, once the models can load (`index.js`).
+- `refund_obligations`: `basketJson.refundOwed` → open (`refundCents` or the link amount), `cancelReason = 'refunded'` → settled by `provider`.
+- `payment_allocations`, **per-line truth only**: the deposit and balance contribs when they add up to the paid entry, the frozen
+  complement split, the end-of-stay detail, the mid-stay notes, the installments' frozen splits (each when its lines add up), a live
+  settlement from what it *received* (books and caisse interne apart, stay-level), and every refund (not the requalification avoir, not
+  a commission) as a negative row naming no payment. A bucket with no per-line truth gets its stay-level row through
+  `legacyBucketSplit` in a later commit. A payment already allocated is never written twice.
+Proof: the price gate and the prod replay by value (added keys ignored, `--compare-values`).
 
 **Data impact:** additive columns only; no amount column changes; `midStaySettledNotes`,
 `complementPaidSplit`, `arrivalExtrasBaseline` stay readable for history and the export.
@@ -1380,6 +1420,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `articles-head-contract` — the head is the only export of `articles/`; dispatch, refusals, allowance coordination, offered, locked snapshots, fulfilment calls; a request for an unregistered family is refused; instances are frozen config (rule 47)
 - [x] `vat-component` — rules 61-62: resolver by (vatClass, customerContext) and regime/franchise; one rounding per group; largest-remainder allocation sums to the group; per-rate output; byte-identical to the five former copies on the golden inputs
 - [ ] `accounting-output-replay` — rule 63: neutral entries from the read models; each exporter reproduces today's CSV, JSON and synthesis byte for byte on every golden month; no exporter imports `vat/` or `articles/`
+- [x] `pricing-lines-migration`, `pricing-legacy-collect-at`, `pricing-legacy-allocations`, `booking-lines-identity` — rules 36, 74, 79: the line-identity rebuild and its rollback, the sale columns and tables, every backfill idempotent with no amount rewritten, the line save by id
 - [x] `price-gate-scopes`, `price-gate-writes` — rule 81: the allowlist scopes, the replay `--expect` list, the refund write-path cases compared to the leaf with what the tag wrote
 - [x] `no-duplicate-formulas`, `formula-guards-mutants`, `pricing-import-graph`, `pricing-import-graph-mutants` — rule 66 static guards with their allow-lists, including the platform-payment guard of rule 70; every guard and the import graph proved on planted copies
 - [x] `pricing-platform-payment` — rule 70: every formula of the table, both commission bases, clamps, net received, acompte net, penalty, cancellation withheld commissions
@@ -1498,8 +1539,9 @@ check-in time, a discount target, line moment changes and the tourist tax as its
     refused; no diff (rule 47).
   - **S5 against rule 74:** no `paymentRef` column on refund lines; a refund is a negative allocation naming the
     payment it gives back.
-  - **Technical calls (not product questions):** the line tables are rebuilt with a stable `id` and the save upserts
-    by id (Q-B1, rule 79); no `settledCents` column, the amount is Σ allocations (Q-B6b); a `books` flag on
+  - **Technical calls (not product questions):** the lines get a stable `lineId` carried across the save instead of a rebuilt
+    table with an upserting save (Q-B1 as built, rule 79: a rowid-alias `id` would change the order the readers get); no
+    `settledCents` column, the amount is Σ allocations (Q-B6b); a `books` flag on
     allocations (Q-B4); `paymentRef` NULL for a legacy refund with no derivable payment (Q-B5); the platform keeps
     refunds rule 38 (Q-B3); `legacyBucketSplit` moves to the core (Q-B23); the J-7 items (`flagBasketRefund`,
     `exactMergedTotals`, `guest_orders`, `deferredCents`) are PR C (Q-B13).

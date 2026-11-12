@@ -36,7 +36,11 @@ const VOLATILE = new Set(['createdAt', 'updatedAt', 'cancelledAt', 'vatRegime', 
   'touristTaxAddedGuestsDeclaredAt', 'touristTaxDeclaredWithAddedAmount',
   'complementPaidSplit', 'removedLineContribs', 'availableTtc', 'sharedBucketTtc',
   // Additive, no VAT, and `declarable` reads today (specs/tourist-tax-declared-checkbox.md rule 8).
-  'declarable', 'touristTaxInComplementLockedReason']);
+  'declarable', 'touristTaxInComplementLockedReason',
+  // The columns of PR B of the pricing refonte (specs/pricing-components.md §5) that a payload spreading a whole row now
+  // carries: they hold no VAT and no figure of today. Only names no existing payload uses.
+  'discountTarget', 'cancellationKeptCents', 'cancellationIndemnityCents', 'lineId', 'collectAt', 'collectAtDefault', 'soldAt',
+  'settlementRef', 'discountCents', 'allowanceUsed', 'orderRef', 'articleRef', 'fulfilmentRef']);
 
 function canonical(value) {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -205,7 +209,9 @@ async function capture(db, { years = [2025, 2026, 2027, 2028] } = {}) {
         await cancel({ params: { id: r.id }, body: {}, user: { id: 1 } }, res);
         const refunds = db.prepare('SELECT id FROM reservation_refunds WHERE reservationId = ? ORDER BY id').all(r.id)
           .map((h) => require('../models/refundsModel').getById(h.id));
-        const comps = db.prepare('SELECT * FROM cancellation_compensations WHERE reservationId = ? ORDER BY id').all(r.id);
+        // `refundId` (specs/pricing-components.md rule 78) is the column PR B adds to the row; `refunds` below already says which avoir it mirrors.
+        const comps = db.prepare('SELECT * FROM cancellation_compensations WHERE reservationId = ? ORDER BY id').all(r.id)
+          .map(({ refundId, ...row }) => row); // eslint-disable-line no-unused-vars
         return { status: res.statusCode, body: res.body, refunds, comps };
       } finally {
         db.exec('ROLLBACK');
