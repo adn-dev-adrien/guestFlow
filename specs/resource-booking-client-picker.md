@@ -163,7 +163,8 @@ No schema change. Two read queries per call (clients; real stays joined with pro
 - devis-only and cancelled-only clients land at the end of `past`, after the real past stays;
 - in-group order (on site by departure then arrivals, arrival asc, most recent past first then names fr-locale) and tie-break;
 - `detail` with stay / email / phone / nothing; `searchText` accent-stripped with digits-only phone;
-- invalid `date` falls back to today.
+- invalid `date` falls back to today;
+- rule 10: `GET /api/clients` (`model.list()`) stays alphabetical.
 
 **Client — `client/src/plugins/hourly-resources/__tests__/ResourceBookingDialog.client-picker.test.jsx`** (new):
 - options render under their group headers in server order;
@@ -193,7 +194,7 @@ _Resolved 2026-11-12:_
 
 ## 10. Implementation progress
 
-- [x] Server read + unit tests — `clients-picker.unit.test.js`, 11 tests.
+- [x] Server read + unit tests — `clients-picker.unit.test.js`, 12 tests (rule 10 included).
 - [x] `ClientPickerField` + dialog wiring + client tests — `ResourceBookingDialog.client-picker.test.jsx`, 5 tests; the six other dialog suites mock `getClientPicker`.
 - [x] SDK 2.27.0, `hourly-resources` 1.6.0.
 - [x] E2E `e2e/specs/plugins/hourly-resources-client-picker.spec.js` (2 tests: order + search at 1280 px, 48 px rows and no horizontal scroll at 390 px); full suite 214/214; server 11 979/11 979; client 3 988/3 988.
