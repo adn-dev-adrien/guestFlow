@@ -1,3 +1,4 @@
+// specs/resource-booking-pricing-and-invoicing.md rule 51.
 // specs/pricing-components.md §3 rules 24, 37 and 83 (class E4, diff 4) — the lodging's free hour is worth the DAY rate on a booking, as on a stay's
 // quantity path; the offered minutes right after it keep the band they fall in. Only a booking whose free hour reaches the evening differs.
 // Rule 83 (owner, 2026-11-12) — the new valuation applies to NEW bookings only: a booking stored before it keeps its stored price and breakdown
