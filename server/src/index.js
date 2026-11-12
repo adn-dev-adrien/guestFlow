@@ -167,6 +167,16 @@ if (process.env.SKIP_MIGRATIONS !== 'true') {
   }
 }
 
+// Rule 36 — once the guest app's table exists: the order each line came from, where a line names exactly one.
+if (process.env.SKIP_MIGRATIONS !== 'true') {
+  try {
+    const orderRefs = require('./utils/pricingSalesMigration').backfillOrderRefsOnce(db);
+    if (orderRefs > 0) console.log(`[migration:order-refs] ${orderRefs} line(s) linked to their order`);
+  } catch (err) {
+    logErrorMarker(`Order refs backfill failed: ${err.message}`);
+  }
+}
+
 // Rule 74 — the stay-level allocation of every paid bucket no per-line truth describes (needs the platform's tax mode).
 if (process.env.SKIP_MIGRATIONS !== 'true') {
   try {

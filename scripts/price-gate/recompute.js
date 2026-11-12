@@ -74,6 +74,9 @@ function loadInputs(db, inputs) {
   lines.runPricingLinesMigration(db);
   lines.backfillRefundNettings(db, { force: true });
   lines.backfillStayLevelAllocations(db);
+  const sales = app('utils/pricingSalesMigration.js');
+  sales.runPricingSalesMigration(db);
+  sales.backfillOrderRefsOnce(db);
 }
 
 function ficheOf(id) {

@@ -421,7 +421,9 @@ CREATE TABLE IF NOT EXISTS reservation_nights (
 
 -- The three line tables (reservation_options, reservation_resources, reservation_custom_options) carry more than is declared
 -- here: `utils/pricingLinesMigration.js` adds a stable `lineId` (rule 79) and the sale columns of rule 74 at boot
--- (specs/pricing-components.md). The primary key below stays.
+-- (specs/pricing-components.md). The primary key declared below is the shape of a fresh baseline only: at boot
+-- `utils/pricingSalesMigration.js` rebuilds the two catalogue line tables WITHOUT it (rule 85, `lineId` is the key, the article an index) and
+-- raises the schema floor (self-update rule 57).
 CREATE TABLE IF NOT EXISTS reservation_options (
     reservationId INTEGER NOT NULL,
     optionId INTEGER NOT NULL,

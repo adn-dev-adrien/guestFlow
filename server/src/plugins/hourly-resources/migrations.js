@@ -186,6 +186,19 @@ function bookingsV5(db) {
   });
 }
 
+// specs/outside-booking-sas.md rules 27, 34: the sale document an outside visit belongs to, and the no-show mark.
+const BOOKING_COLUMNS_V6 = [
+  ['saleRef', 'TEXT'],
+  ['noShowAt', 'TEXT'],
+];
+
+function bookingsV6(db) {
+  if (!hasTable(db, 'resource_bookings')) return;
+  BOOKING_COLUMNS_V6.forEach(([column, type]) => {
+    if (!hasColumn(db, 'resource_bookings', column)) db.exec(`ALTER TABLE resource_bookings ADD COLUMN ${column} ${type}`);
+  });
+}
+
 /** @param {(db, row: { reservationId, date }) => number|null} rateOf the rate in force for a booking (rule 5) */
 function migrationsFor(rateOf) {
   return [
@@ -195,9 +208,10 @@ function migrationsFor(rateOf) {
     { name: 'resource_bookings_v3', up: (db) => bookingsV3(db, rateOf) },
     { name: 'resource_bookings_v4', up: bookingsV4 },
     { name: 'resource_bookings_v5', up: bookingsV5 },
+    { name: 'resource_bookings_v6', up: bookingsV6 },
   ];
 }
 
 module.exports = {
-  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, bookingsV2, bookingsV3, bookingsV4, bookingsV5, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
+  migrationsFor, BOOKING_COLUMNS_V2, BOOKING_COLUMNS_V3, BOOKING_COLUMNS_V4, BOOKING_COLUMNS_V5, BOOKING_COLUMNS_V6, bookingsV2, bookingsV3, bookingsV4, bookingsV5, bookingsV6, createTables, hasColumn, tagEveningSupplements, resetHourlyColumns, countHourlySettings, hasTable, SUPPLEMENT_SUFFIX,
 };

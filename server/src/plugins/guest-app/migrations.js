@@ -164,8 +164,64 @@ const TABLES = Object.freeze([
   'guest_booklet_versions', 'guest_media', 'guest_orders',
 ]);
 
+// Rule 66 — where an order is collected: the arrival complement (taken before the arrival is marked) or the departure
+// one. Every earlier order was collected at the departure or by card.
+const addCollectAt = (db) => {
+  if (db.prepare('PRAGMA table_info(guest_orders)').all().some((c) => c.name === 'collectAt')) return;
+  db.exec("ALTER TABLE guest_orders ADD COLUMN collectAt TEXT NOT NULL DEFAULT 'departure' CHECK (collectAt IN ('arrival', 'departure'))");
+};
+
+// Rules 72, 87 — an order of a cancelled stay (or emptied at the arrival SAS) is `cancelled`; its amendments are its own
+// history. The status CHECK cannot be altered in place, so the table is rebuilt in the migration's transaction, rows
+// copied, indexes recreated. Idempotent: a table that already holds the new status is left alone.
+const rebuildOrdersWithCancelled = (db) => {
+  const stored = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'guest_orders'").get();
+  if (!stored || String(stored.sql).includes("'cancelled'")) return;
+  const columns = db.prepare('PRAGMA table_info(guest_orders)').all().map((c) => c.name);
+  const copied = columns.join(', ');
+  db.exec(`
+    CREATE TABLE guest_orders_v3 (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      reservationId INTEGER NOT NULL,
+      sessionId     INTEGER,
+      payment       TEXT NOT NULL CHECK (payment IN ('card', 'note', 'none')),
+      status        TEXT NOT NULL CHECK (status IN ('awaiting_payment', 'confirmed', 'paid', 'delivered', 'expired', 'paid_conflict', 'abandoned', 'cancelled')),
+      linesJson     TEXT NOT NULL,
+      total         REAL NOT NULL DEFAULT 0,
+      deliverAt     TEXT,
+      deliverMoved  INTEGER NOT NULL DEFAULT 0,
+      fulfilment    TEXT NOT NULL DEFAULT 'delivery' CHECK (fulfilment IN ('delivery', 'pickup')),
+      pickupPlace   TEXT,
+      heldUntil     TEXT,
+      paymentLinkId INTEGER,
+      paymentUrl    TEXT,
+      createdAt     TEXT NOT NULL,
+      confirmedAt   TEXT,
+      paidAt        TEXT,
+      closedAt      TEXT,
+      deliveredAt   TEXT,
+      deliveredBy   INTEGER,
+      deferredCents INTEGER NOT NULL DEFAULT 0,
+      clientKey     TEXT,
+      collectAt     TEXT NOT NULL DEFAULT 'departure' CHECK (collectAt IN ('arrival', 'departure')),
+      cancelledAt   TEXT,
+      cancelReason  TEXT,
+      amendmentsJson TEXT
+    );
+    INSERT INTO guest_orders_v3 (${copied}) SELECT ${copied} FROM guest_orders;
+    DROP TABLE guest_orders;
+    ALTER TABLE guest_orders_v3 RENAME TO guest_orders;
+    CREATE INDEX IF NOT EXISTS idx_guest_orders_reservation ON guest_orders(reservationId);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_guest_orders_client_key ON guest_orders(sessionId, clientKey) WHERE clientKey IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_guest_orders_held ON guest_orders(heldUntil);
+    CREATE INDEX IF NOT EXISTS idx_guest_orders_status ON guest_orders(status, deliverAt);
+  `);
+};
+
 const MIGRATIONS = Object.freeze([
   { name: 'guest_app_tables_v1', up: (db) => db.exec(TABLES_SQL) },
+  { name: 'guest_app_orders_collect_at_v2', up: addCollectAt },
+  { name: 'guest_app_orders_status_v3', up: rebuildOrdersWithCancelled },
 ]);
 
 module.exports = { MIGRATIONS, TABLES };

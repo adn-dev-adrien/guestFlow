@@ -1444,12 +1444,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     already **paid** line becomes a NEW line (rule 13, Q-C7); on an unpaid line the evening component grows. The readers keyed by
     `optionId` move to line keys. **Rollback:** the previous release upserts with `ON CONFLICT(reservationId, optionId)` and would throw on
     the rebuilt tables; this is blocked by the schema floor of `self-update-and-releases.md` (its last rule), not by a shim.
-    > **Pending** — PR C
+    > **Delivered by PR C** (C1, schema): the rebuild of `reservation_options` / `reservation_resources` without the article key (`utils/pricingSalesMigration.js`, `pricing_sales_true_lines_v1`), the schema floor `4.1.0` raised in the same transaction; proof `pricing-sales-migration` (rows, rowids and order identical, twice = 0) and `pricing-sales-migration-rollback`. **Pending** — PR C: the writers that append a second line and the readers keyed by `optionId` (C19).
 86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with
     `reservationId` nullable and a `saleRef` column (migration `pricing_sales_v1`, rows copied verbatim): the link e-mail of an outside visit is
     logged in `email_log` like every other e-mail. A link row with a NULL `reservationId` must be invisible to the previous release's poller and
     mailer; a test runs the 4.0.x code on the migrated database.
-    > **Pending** — PR C
+    > **Delivered by PR C** (C1, schema): `payment_links` and `email_log` rebuilt (`pricing_sales_links_v1`, `pricing_sales_email_log_v1`), proven by `pricing-sales-migration` and `pricing-sales-migration-rollback`. **Pending** — PR C: the standalone link writer and the visit e-mail sender.
 87. **The guest-app card order** _(owner Q-C3)_: its line appears only once paid; see rule 29 as amended and guest-app rules 35, 85. J-7 rules 68 and 94
     (refusals) are dropped (owner Q-C4); rule 104 of the guest app routes by the date **and** the check-in time (rule 20).
     > **Pending** — PR C

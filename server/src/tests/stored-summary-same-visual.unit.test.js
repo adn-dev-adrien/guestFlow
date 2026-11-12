@@ -21,7 +21,9 @@ function stored(id) {
 }
 
 function addLines(id) {
-  db.prepare(`INSERT OR REPLACE INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
+  // The article is no longer the line's key (pricing-components rule 85): the fixture replaces the rows it re-sells itself.
+  db.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId IN (20, 21)').run(id);
+  db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
     VALUES (?, 20, 1, 70, 1, 'per_stay', 70, 1, 0), (?, 21, 2, 9, 6, 'per_person', 54, 0, 1)`).run(id, id);
   db.prepare("INSERT INTO reservation_custom_options (reservationId, description, amount, offered, inComplement) VALUES (?, 'Bouquet', 25, 0, 0)").run(id);
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
@@ -112,7 +114,8 @@ test('rule 51 — the nightly detail is compared with the saved price of the nig
 
 test('rule 51 — a line that is not offered keeps its saved price, a free (0 €) one included', () => {
   const id = createStay();
-  db.prepare(`INSERT OR REPLACE INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
+  db.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = 21').run(id);
+  db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
     VALUES (?, 21, 2, 9, 6, 'per_person', 0, 0, 0)`).run(id);
   db.prepare(`INSERT INTO reservation_resources (reservationId, resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement)
     VALUES (?, 30, 1, 60, 1, 'per_stay', 0, 0, 0)`).run(id);

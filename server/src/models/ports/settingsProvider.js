@@ -129,8 +129,16 @@ const ADAPTERS = {
       };
     },
   },
-  // No layer supplies a rate in PR A: the regime's rate answers (`rate.resources.external` arrives with PR B).
-  vat: {},
+  // `vat.rate.resources.external` is the hourly-resources plugin's « TVA des ventes hors séjour », read where the plugin stores it
+  // (an adapter, no copy; 20 % when the plugin is installed and the setting never saved). Every other rate: the regime answers.
+  vat: {
+    global(db) {
+      const stored = rowOrUndefined(db, "SELECT value FROM plugin_settings WHERE plugin_id = 'hourly-resources' AND key = 'standaloneVatRate'");
+      const text = stored ? String(stored.value ?? '').trim().replace(',', '.') : '';
+      if (/^\d{1,3}(\.\d{1,2})?$/.test(text) && Number(text) <= 100) return { 'vat.rate.resources.external': Number(text) };
+      return rowOrUndefined(db, "SELECT 1 AS present FROM plugins WHERE id = 'hourly-resources'") ? { 'vat.rate.resources.external': 20 } : undefined;
+    },
+  },
   platformPrice: {
     global(db, scope) {
       if (!scope.platform) return undefined;

@@ -3555,15 +3555,23 @@ function createReservationsModel(database) {
           const occColumn = HAS_RO_CARD_OCCURRENCES;
           const perColumn = HAS_RO_CARD_PERSONS;
           const nightsColumn = HAS_RO_CARD_NIGHTS;
-          const upsert = database.prepare(`
+          // Update-then-insert, not ON CONFLICT: the article is no longer a key of the line tables (rule 85), so there is no conflict target.
+          const insert = database.prepare(`
             INSERT INTO reservation_options
               (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin${occColumn ? ', cardOccurrences' : ''}${perColumn ? ', cardPersons' : ''}${nightsColumn ? ', cardNights' : ''})
             VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, 1${occColumn ? ', ?' : ''}${perColumn ? ', ?' : ''}${nightsColumn ? ', ?' : ''})
-            ON CONFLICT(reservationId, optionId) DO UPDATE SET
-              quantity = excluded.quantity, unitPrice = excluded.unitPrice, billedUnits = excluded.billedUnits,
-              priceType = excluded.priceType, totalPrice = excluded.totalPrice,
-              inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = excluded.cardOccurrences' : ''}${perColumn ? ', cardPersons = excluded.cardPersons' : ''}${nightsColumn ? ', cardNights = excluded.cardNights' : ''}
           `);
+          const update = database.prepare(`
+            UPDATE reservation_options SET
+              quantity = ?, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
+              inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = ?' : ''}${perColumn ? ', cardPersons = ?' : ''}${nightsColumn ? ', cardNights = ?' : ''}
+            WHERE reservationId = ? AND optionId = ?
+          `);
+          const upsert = {
+            run: (reservationIdParam, optionIdParam, ...rest) => {
+              if (update.run(...rest, reservationIdParam, optionIdParam).changes === 0) insert.run(reservationIdParam, optionIdParam, ...rest);
+            },
+          };
           for (const l of lines) {
             const params = [reservationId, l.optionId, l.quantity, l.unitPrice, l.billedUnits, l.priceType, l.totalPrice];
             if (occColumn) params.push(l.cardOccurrences && l.cardOccurrences.length ? JSON.stringify(l.cardOccurrences) : null);
@@ -3613,18 +3621,21 @@ function createReservationsModel(database) {
           if (offer.present && !offer.sasOrigin) return;
           if (wanted) {
             if (offer.totalPrice <= 0) return;
-            database.prepare(`
-              INSERT INTO reservation_options
-                (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin)
-              VALUES (?, ?, 1, ?, ?, ?, ?, ?, 1, 1)
-              ON CONFLICT(reservationId, optionId) DO UPDATE SET
-                quantity = 1, unitPrice = excluded.unitPrice, billedUnits = excluded.billedUnits,
-                priceType = excluded.priceType, totalPrice = excluded.totalPrice,
-                offered = excluded.offered, inComplement = 1, sasArrivalOrigin = 1
-            `).run(
-              reservationId, offer.optionId, offer.unitPrice, offer.billedUnits, offer.priceType,
-              offered ? 0 : offer.totalPrice, offered ? 1 : 0,
-            );
+            const upsellTotal = offered ? 0 : offer.totalPrice;
+            const upsellOffered = offered ? 1 : 0;
+            const updated = database.prepare(`
+              UPDATE reservation_options SET
+                quantity = 1, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
+                offered = ?, inComplement = 1, sasArrivalOrigin = 1
+              WHERE reservationId = ? AND optionId = ?
+            `).run(offer.unitPrice, offer.billedUnits, offer.priceType, upsellTotal, upsellOffered, reservationId, offer.optionId).changes;
+            if (updated === 0) {
+              database.prepare(`
+                INSERT INTO reservation_options
+                  (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin)
+                VALUES (?, ?, 1, ?, ?, ?, ?, ?, 1, 1)
+              `).run(reservationId, offer.optionId, offer.unitPrice, offer.billedUnits, offer.priceType, upsellTotal, upsellOffered);
+            }
           } else if (offer.sasOrigin) {
             database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
               .run(reservationId, offer.optionId);

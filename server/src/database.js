@@ -3002,6 +3002,8 @@ require('./utils/vatRegimeMigration').runVatRegimeMigration(db);
 // Line ids, the sale columns of the lines, the refund columns and tables, the allocations: additions and backfills from stored
 // data, no amount rewritten, a second boot changes nothing. The nettings that need the models run later (`index.js`).
 require('./utils/pricingLinesMigration').runPricingLinesMigration(db);
+// PR C: the outside-sale tables, the payment link and e-mail log targets, the true lines (and the schema floor), see pricingSalesMigration.js.
+require('./utils/pricingSalesMigration').runPricingSalesMigration(db);
 
 // ---------- REJEU DU BASELINE ----------
 // Voir la note en tete de fichier : quand la premiere passe de schema.sql s'est interrompue sur

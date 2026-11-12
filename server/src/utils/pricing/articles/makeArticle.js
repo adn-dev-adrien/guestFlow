@@ -62,6 +62,8 @@ function makeArticle(row, { kind = 'option' } = {}) {
     progressiveTiers: row.optionProgressiveTiers == null ? [] : JSON.parse(JSON.stringify(row.optionProgressiveTiers)),
     isCancellationInsurance: Number(row.isCancellationInsurance || 0) === 1,
     showsPlanningCard: Boolean(row.showsPlanningCard),
+    // Offered to a sale with no reservation (rule 53); stored on the catalogue row, default false.
+    sellableExternally: Number(row.sellableExternally || 0) === 1,
     // The downstream booking a sale of this article needs (rule 49): a resource sold by the hour and placed on a planning takes a slot.
     fulfilment: kind === 'resource' && priceType === 'per_hour' && row.showsPlanningCard ? 'hourly-slot' : null,
   };
