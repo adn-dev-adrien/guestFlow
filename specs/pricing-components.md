@@ -872,7 +872,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     against `fixtures/no-duplicate-formulas/*.json`. The comparison is a multiset: a second identical line in a listed file
     fails, and a listed copy that is gone fails. Each entry names the file, the exact line, its count, the PR that removes
     it and why it waits; the lists are regenerated from the tree by `tests/helpers/regenerateFormulaAllowLists.js`.
-    Today: vat 13 lines (B 11, C 2), platform-payment 13 (B 7, C 6), refunds 43 (B 17, C 26), money 172 (C), dates 31 (B 15,
+    Today: vat 13 lines (B 11, C 2), platform-payment 13 (B 7, C 6), refunds 43 (B 17, C 26), money 173 (C), dates 31 (B 15,
     C 16; `stay-clock-single-source` holds the list to rule 45's table), hourly 3 (B) and families 23 (B) wait for the Articles
     head to serve every seller, exporters 0. Each guard is proved on synthetic sources with planted copies
     (`formula-guards-mutants`), and the import graph, the head-only rule and the property-read guard likewise.)_

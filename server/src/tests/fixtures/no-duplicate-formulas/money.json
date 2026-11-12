@@ -98,6 +98,12 @@
   },
   {
     "file": "models/reservationsModel.js",
+    "text": "const delta = Math.round((billedLinesOf(reservationId) - before) * 100) / 100;",
+    "removedBy": "PR C",
+    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
+  },
+  {
+    "file": "models/reservationsModel.js",
     "text": ": Math.round(values.reduce((acc, v) => acc + Number(v || 0), 0) * 100) / 100);",
     "removedBy": "PR C",
     "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
