@@ -56,7 +56,8 @@ console.log = () => {};
 const server = (relative) => require(path.join(root, 'server/src', relative));
 const db = server('database.js');
 // What `index.js` does once the application is up (rules 74 and 78): the nettings and the stay-level allocations.
-{
+// A tree that predates them (the baseline run on `inte/plugins`) has neither module: nothing to do there.
+if (fs.existsSync(path.join(root, 'server/src/utils/pricingLinesMigration.js'))) {
   const lines = server('utils/pricingLinesMigration.js');
   lines.backfillRefundNettings(db);
   lines.backfillStayLevelAllocations(db);
