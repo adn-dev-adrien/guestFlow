@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 42 — the visit payment request template: seeded French and English, stored manual, event-triggered,
+// the outside-visit spec (outside-booking-sas) rule 42 — the visit payment request template: seeded French and English, stored manual, event-triggered,
 // a money template (never auto), not an exception of autoSendPolicy, listed by no date-driven queue.
 const test = require('node:test');
 const assert = require('node:assert/strict');

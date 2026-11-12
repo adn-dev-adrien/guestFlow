@@ -1,6 +1,6 @@
 /**
  * PRICING SALES — the stored columns and tables that PR C of the pricing refonte reads
- * (specs/pricing-components.md §3 rules 53, 74, 85, 86, §5; specs/outside-booking-sas.md rules 39-42; owner decisions Q-C1, Q-C2).
+ * (specs/pricing-components.md §3 rules 53, 74, 85, 86, §5; the outside-visit spec (outside-booking-sas) rules 39-42; owner decisions Q-C1, Q-C2).
  *
  * Everything here ADDS or REBUILDS a table with the same rows. No amount column is rewritten (rule 36); every backfill reads
  * stored data only and is guarded, so a second run changes nothing. `runPricingSalesMigration(db)` returns what it changed.

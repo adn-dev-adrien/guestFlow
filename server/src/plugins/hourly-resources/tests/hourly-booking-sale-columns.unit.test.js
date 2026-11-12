@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rules 27 and 34 — migration `resource_bookings_v6`: `saleRef` and `noShowAt`, additive, NULL on every booking
+// the outside-visit spec (outside-booking-sas) rules 27 and 34 — migration `resource_bookings_v6`: `saleRef` and `noShowAt`, additive, NULL on every booking
 // stored before, a second run changes nothing.
 const test = require('node:test');
 const assert = require('node:assert/strict');

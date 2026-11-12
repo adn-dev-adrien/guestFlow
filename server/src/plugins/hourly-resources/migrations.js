@@ -186,7 +186,7 @@ function bookingsV5(db) {
   });
 }
 
-// specs/outside-booking-sas.md rules 27, 34: the sale document an outside visit belongs to, and the no-show mark.
+// the outside-visit spec (outside-booking-sas) rules 27, 34: the sale document an outside visit belongs to, and the no-show mark.
 const BOOKING_COLUMNS_V6 = [
   ['saleRef', 'TEXT'],
   ['noShowAt', 'TEXT'],
