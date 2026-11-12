@@ -12,6 +12,7 @@ vi.mock('@mui/material', async (importOriginal) => {
   return { ...actual, useMediaQuery: () => media.mobile };
 });
 vi.mock('../../api', () => ({ default: { getCalendar: vi.fn() } }));
+// date-literal-ok: the clock is pinned to this same day by vi.setSystemTime below.
 vi.mock('../../hooks/useServerToday', () => ({ default: () => '2026-07-16' }));
 import api from '../../api';
 import CumulativeMonthCalendar from '../CumulativeMonthCalendar';
