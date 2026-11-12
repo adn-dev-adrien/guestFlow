@@ -532,6 +532,17 @@ export default function FinanceSection() {
       setRefundDialogOpen(row.refundPrefill || { overpaymentTtc: refundOverpaymentTtc, overpaymentLines: refundOverpaymentLines });
       return;
     }
+    if (action.kind === 'closeObligation') {
+      const ok = await confirm({ title: action.confirmTitle, message: `${row.label} : ${formatCurrency(row.amount)}`, confirmLabel: action.confirmLabel, cancelLabel: 'Annuler' });
+      if (!ok) return;
+      try {
+        await api.closeRefundObligation(editingReservationId, action.obligationId, 'settled');
+        await reloadReservationFinance();
+      } catch (err) {
+        showError(err?.message || 'Clôture impossible.');
+      }
+      return;
+    }
     if (action.kind === 'deleteRefund') {
       const ok = await confirm({ title: 'Supprimer ce remboursement ?', message: 'L\'avoir correspondant sera supprimé.', confirmColor: 'error' });
       if (ok) await deleteRefund(action.refundId);

@@ -1217,6 +1217,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     already closed, 404 on another stay's); a basket row also clears its link's `refundOwed` flag, and the stay's history says so.
     The ledger gives the open rows a « Marquer remboursé » action (the server words the row, the client renders it); a
     `lineLowered` row has none of its own, the « Trop-perçu » row being its face.
+    > **Delivered by PR B** (pass 3, UI): `FinanceSection` renders the server's `closeObligation` action (confirm, `PATCH`, re-read; Vitest `FinanceSection.obligation`), `RefundDialog` offers « Carte » with the provider reference (`RefundDialog.card-means`); checked in headless Chromium at 390 and 1280 px (no horizontal scroll, 44 px button, row gone after closing).
     > **Delivered by PR B** (pass 3): `refund_obligations` written by `settleBasket`, `recordRefundOwed`,
     > `settleWithdrawnPayment` (opened then settled, `neverBooked` for a devis), the confirmed lowering of a paid line; the close
     > action and its ledger rows (`refund-obligations`, `pricing-refunds-owed`).

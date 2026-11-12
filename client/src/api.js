@@ -492,6 +492,7 @@ const api = {
   // Remboursements (specs/reservation-refunds.md §4.3). The register also rides the reservation
   // payload, so the fiche only calls these two on a mutation.
   createReservationRefund: (id, data) => request(`/reservations/${id}/refunds`, { method: 'POST', body: data }),
+  closeRefundObligation: (id, obligationId, status) => request(`/reservations/${id}/refund-obligations/${obligationId}`, { method: 'PATCH', body: { status } }),
   deleteReservationRefund: (id, refundId) => request(`/reservations/${id}/refunds/${refundId}`, { method: 'DELETE' }),
   getOccupiedDates: (propertyId, from, to, excludeReservationId) => {
     const params = new URLSearchParams();

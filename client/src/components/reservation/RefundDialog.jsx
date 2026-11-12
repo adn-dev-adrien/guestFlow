@@ -50,6 +50,7 @@ import { evaluateArithmetic } from '../../utils/arithmetic';
 const METHODS = [
   { value: 'transfer', label: 'Virement' },
   { value: 'cash', label: 'Espèces' },
+  { value: 'card', label: 'Carte' },
   { value: 'internal', label: 'Caisse interne', caption: 'hors comptabilité' },
 ];
 
@@ -88,6 +89,7 @@ export default function RefundDialog({
   const [freeLines, setFreeLines] = useState([]);
   const [refundDate, setRefundDate] = useState(todayIso());
   const [method, setMethod] = useState('transfer');
+  const [providerRefundRef, setProviderRefundRef] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -177,6 +179,7 @@ export default function RefundDialog({
         refundDate,
         method,
         reason: reason.trim(),
+        ...(method === 'card' && providerRefundRef.trim() ? { providerRefundRef: providerRefundRef.trim() } : {}),
         // Opened on a trop-perçu: the server caps the refund at what is still over-collected (rule 42).
         ...(overpaymentTtc > 0 ? { fromOverpayment: true, overpaymentTtc } : {}),
         lines: [
@@ -370,6 +373,17 @@ export default function RefundDialog({
                 ))}
               </RadioGroup>
             </FormControl>
+            {method === 'card' && (
+              <TextField
+                label="Référence du remboursement"
+                value={providerRefundRef}
+                onChange={(e) => setProviderRefundRef(e.target.value)}
+                size="small"
+                helperText="Celle de l’espace du prestataire de paiement"
+                slotProps={{ htmlInput: { maxLength: 80 } }}
+                sx={{ width: { xs: '100%', sm: 320 } }}
+              />
+            )}
           </Box>
 
           <TextField
