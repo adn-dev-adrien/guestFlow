@@ -158,7 +158,7 @@ test('arrival SAS sale on a collected complement with the end of stay open: bill
 });
 
 // specs/sas-breakfast-and-catering-upsell.md rule 17, reading of 2026-11-06 (audit R26 LOW 2), completed 2026-11-12
-// (arrival-departure-sas.md rule 36): a re-opened arrival SAS that would DROP or LOWER a sale whose money sits in the collected
+// (specs/arrival-departure-sas.md rule 36): a re-opened arrival SAS that would DROP or LOWER a sale whose money sits in the collected
 // end-of-stay complement is refused too (the collected money would stay with nothing behind it); the sale put back is therefore
 // unreachable.
 const REFUSAL = 'Complément de fin de séjour déjà encaissé : le décocher sur la fiche avant de retirer une prestation.';
@@ -171,7 +171,7 @@ async function collectedSale() {
   return stay;
 }
 
-test('R26 LOW 2 (rule 36): a sale dropped on a re-opened arrival SAS while the end of stay is collected is refused, nothing written', SAS, async () => {
+test('R26 LOW 2 (specs/arrival-departure-sas.md rule 36): a sale dropped on a re-opened arrival SAS while the end of stay is collected is refused, nothing written', SAS, async () => {
   const stay = await collectedSale();
   const before = rowOf(stay.id);
   const preview = arrivalPreview(stay.id, { soldOptions: [] });
@@ -185,7 +185,7 @@ test('R26 LOW 2 (rule 36): a sale dropped on a re-opened arrival SAS while the e
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ? AND optionId = ?').get(stay.id, MEAL).n, 1);
 });
 
-test('R26 LOW 2 (rule 36): a sale LOWERED on a re-opened arrival SAS while the end of stay is collected is refused, nothing written', SAS, async () => {
+test('R26 LOW 2 (specs/arrival-departure-sas.md rule 36): a sale LOWERED on a re-opened arrival SAS while the end of stay is collected is refused, nothing written', SAS, async () => {
   const stay = started(fiche(NO_ACOMPTE, 'direct', { customOptions: [forced(20)] }));
   pay(stay.id, S, C);
   const TWO = { soldOptions: [{ optionId: MEAL, units: 2 }] };
@@ -199,7 +199,7 @@ test('R26 LOW 2 (rule 36): a sale LOWERED on a re-opened arrival SAS while the e
   assert.deepEqual(rowOf(stay.id), before);
 });
 
-test('rule 36: the same sale sent again on that collected end of stay is not a removal: it passes', SAS, async () => {
+test('specs/arrival-departure-sas.md rule 36: the same sale sent again on that collected end of stay is not a removal: it passes', SAS, async () => {
   const stay = await collectedSale();
   assert.equal(arrival(stay.id, SALE).statusCode, 200);
   assert.equal(rowOf(stay.id).endOfStayComplementAmount, 17);
