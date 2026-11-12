@@ -105,6 +105,7 @@ test('a caution already held is never waived', () => {
 });
 
 test('the ledger reads « Caution · Sans objet » for a stay whose caution is 0, with no action', () => {
+  // date-literal-ok: a stay of a ledger fixture, the ledger is not asked about today
   const ledger = buildLedger({ row: { id: 1, kind: 'reservation', platform: 'direct', startDate: '2026-12-01', endDate: '2026-12-03', cautionReceived: 0, cautionReturned: 0 }, cautionAmount: 0 });
   const caution = ledger.rows.find((r) => r.key === 'caution');
   assert.equal(caution.stateLabel, 'Sans objet');

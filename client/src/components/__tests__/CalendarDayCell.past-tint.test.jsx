@@ -13,6 +13,7 @@ const handlers = {
   onOpenNote: vi.fn(), onOpenNewReservation: vi.fn(), onDevisClick: vi.fn(),
 };
 const stay = (over) => ({
+  // date-literal-ok: `today` is an injected prop
   id: 1, startDate: '2026-11-06', endDate: '2026-11-08', checkInTime: '12:00', checkOutTime: '10:00',
   firstName: 'A', lastName: 'B', platform: 'Booking', platformDisplay: 'Booking', color: '#1B3F8B', textColor: '#FFFFFF', past: true, ...over,
 });
@@ -22,6 +23,7 @@ function cell(day, reservations) {
     <ThemeProvider theme={theme}>
       <CalendarDayCell
         day={day} y={2026} m={10} reservations={reservations} devisList={[]} closures={[]} selectedProp={1}
+        // date-literal-ok: `today` is an injected prop
         publicHolidays={new Set()} today="2026-11-12" cleaningHours={3} inDrag={false} isDragging={false} {...handlers}
       />
     </ThemeProvider>,
@@ -35,6 +37,7 @@ test('a mid-stay day of a past stay is the 14 % tint at full opacity, not the so
 });
 
 test('a mid-stay day of a stay still to come keeps its solid colour', () => {
+  // date-literal-ok: `today` is an injected prop
   const el = cell(7, [stay({ past: false, startDate: '2026-11-06', endDate: '2026-11-20' })]);
   expect(getComputedStyle(el).backgroundColor).toBe('rgb(27, 63, 139)');
 });

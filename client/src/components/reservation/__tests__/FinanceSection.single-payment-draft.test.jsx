@@ -16,6 +16,7 @@ const COLLECTIBLE = {
   collectible: {
     total: 847.8,
     buckets: [{ bucket: 'balance', label: 'solde', amount: 584 }, { bucket: 'complement', label: 'complément', amount: 263.8 }],
+    // date-literal-ok: display-only fixture date
     bookedAt: '2026-11-12',
   },
 };

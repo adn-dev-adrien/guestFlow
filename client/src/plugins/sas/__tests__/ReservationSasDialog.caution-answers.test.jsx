@@ -67,6 +67,7 @@ test('« Non » is a red answer, says no caution is taken, and is sent as the wa
 
 test('a stay already answered « Non » reopens on that answer, with the property amount shown', async () => {
   api.getReservationSas.mockResolvedValue(payload({
+    // date-literal-ok: fixture field, nothing compares it with today
     cautionAmount: 0, cautionWaived: 1, propertyDefaultCautionAmount: 500, arrivalSasDoneAt: '2026-11-10 10:00:00',
   }));
   renderDialog({ mode: 'arrival' });

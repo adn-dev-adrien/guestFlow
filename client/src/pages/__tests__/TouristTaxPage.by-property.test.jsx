@@ -16,9 +16,13 @@ import api from '../../api';
 
 // date-literal-ok: display-only fixture dates, the page compares none of them with today
 const ROWS = [
+  // date-literal-ok: display-only fixture dates, the page compares none of them with today
   { reservationId: 1, propertyId: 1, propertyName: 'Granja', reservationName: 'Alice Un', startDate: '2026-06-02', endDate: '2026-06-04', adults: 2, nightsCount: 2, taxAmount: 4.8 },
+  // date-literal-ok: display-only fixture dates, the page compares none of them with today
   { reservationId: 2, propertyId: 2, propertyName: 'Estiva', reservationName: 'Bob Deux', startDate: '2026-06-10', endDate: '2026-06-11', adults: 2, nightsCount: 1, taxAmount: 2.4 },
+  // date-literal-ok: display-only fixture dates, the page compares none of them with today
   { reservationId: 3, propertyId: 2, propertyName: 'Estiva', reservationName: 'Cléo Trois', startDate: '2026-06-12', endDate: '2026-06-14', adults: 3, nightsCount: 2, taxAmount: 7, touristTaxDeclaredAt: '2026-07-01 10:00:00' },
+  // date-literal-ok: display-only fixture dates, the page compares none of them with today
   { reservationId: 4, propertyId: 2, propertyName: 'Estiva', reservationName: 'Dan Quatre', startDate: '2026-06-20', endDate: '2026-06-22', adults: 2, nightsCount: 2, taxAmount: 3, remittedBy: 'platform', platformLabel: 'Airbnb', declarable: false, key: '4-platform' },
 ];
 const BLOCK = (propertyId, propertyName, over) => ({ ...TOTALS, propertyId, propertyName, ...over });

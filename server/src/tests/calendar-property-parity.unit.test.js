@@ -111,10 +111,13 @@ test('rule 3 — past is relative to the server day and the check-out time: a st
   const run = (today, nowTime = '12:00') => Object.fromEntries(calendarModel.listRange({ from: FROM, to: TO, today, nowTime }).stays.map((s) => [s.id, s.past]));
   assert.equal(run(TODAY)[10], true);
   assert.equal(run(TODAY)[13], false);
+  // date-literal-ok: the day is injected, nothing reads the clock
   assert.equal(run('2026-11-06')[13], true, 'endDate < today');
   assert.equal(run('2026-11-04')[13], false);
+  // date-literal-ok: the day is injected, nothing reads the clock
   const leavingToday = calendarModel.listRange({ from: FROM, to: TO, today: '2026-11-05', nowTime: '00:00' }).stays.find((s) => s.endDate === '2026-11-05');
   if (leavingToday) {
+    // date-literal-ok: the day is injected, nothing reads the clock
     const at = (nowTime) => calendarModel.listRange({ from: FROM, to: TO, today: '2026-11-05', nowTime }).stays.find((s) => s.id === leavingToday.id).past;
     const out = (leavingToday.checkOutTime || '').slice(0, 5);
     assert.equal(at('00:00'), false, 'before the check-out hour');
