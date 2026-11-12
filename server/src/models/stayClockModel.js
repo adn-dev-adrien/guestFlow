@@ -10,7 +10,7 @@
  * Factory `create(db)` (a test drives its own schema) + a default bound to the production database, like
  * settingsModel; the default opens the database on first call, not on require.
  */
-const { phaseOf, readableTime } = require('../utils/pricing/stayClock');
+const { phaseOf, readableTime, dayReached, dayPassed } = require('../utils/pricing/stayClock');
 const settingsProvider = require('./ports/settingsProvider');
 
 const FALLBACK_CHECK_IN = '15:00';
@@ -47,4 +47,6 @@ module.exports = {
   create,
   phaseForReservation: (id, now) => productionModel().phaseForReservation(id, now),
   phaseInputsFor: (id) => productionModel().phaseInputsFor(id),
+  dayReached,
+  dayPassed,
 };

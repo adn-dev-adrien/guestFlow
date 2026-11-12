@@ -18,6 +18,7 @@ const db = require('../database');
 const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/textFormatters');
 const { clientWhenLabel, stayDatesLabel } = require('../utils/clientWhenLabel');
 const { storedEmail } = require('../utils/emailAddress');
+const { dayReached, dayPassed } = require('../utils/pricing/stayClock');
 
 const MS_PER_DAY = 86400000;
 
@@ -124,7 +125,7 @@ function createModel(database) {
   }
 
   function upcomingGroupKey(stay, today) {
-    if (stay.startDate <= today) return 'inStay';
+    if (dayReached(stay.startDate, today)) return 'inStay';
     if (stay.startDate <= addDays(today, 7)) return 'next7';
     if (stay.startDate <= addDays(today, 30)) return 'next30';
     return 'later';
@@ -176,7 +177,7 @@ function createModel(database) {
           platform: qualifying.platform || '',
           datesLabel: stayDatesLabel(qualifying),
         },
-        inStay: clientBucket === 'upcoming' && qualifying.startDate < today,
+        inStay: clientBucket === 'upcoming' && dayPassed(qualifying.startDate, today),
         stayCount: stays.length,
         hasDevis: Boolean(latestDevis),
         whenLabel: clientWhenLabel(clientBucket, qualifying, latestDevis, client.createdAt, today),

@@ -150,6 +150,7 @@
     "1.8.15": [
       "Le prix d’une assurance annulation à tarif fixe est calculé par le même moteur que les autres prestations.",
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
+      "Le refus d'une arrivée dans le passé lit l'horloge du séjour du cœur : même résultat qu'avant.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }

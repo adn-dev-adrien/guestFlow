@@ -349,7 +349,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > SAS's, pass 5): a stay not started takes the line in its arrival complement, a started one routes it to the departure.
     > **The routing is the stay clock's hour, not the day** (pass 4b; `pricing-collect-at-clock-hour`): on the arrival day, a sale before the
     > check-in hour is collected at arrival (the new line is routed to the arrival complement, the engine reads no baseline, the save pins none),
-    > from the check-in hour on it is collected at departure. The fiche lock window of rule 45 row C stays the day's (PR C).
+    > from the check-in hour on it is collected at departure. The fiche lock window of rule 45 row C stays the day's, and **PR C reads it through the stay clock's `dayReached`** (`pastReservationLocked`, the started refusal of a raise): the same day comparison, no hour.
 
 20. **"Started" = the arrival date and check-in time have passed, Europe/Paris.** _(amended 2026-11-11,
     owner: « date et heure passées »; amended again the same day: the clock is its own component, rules
@@ -358,8 +358,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     CLOCK only, through `phaseForReservation` (rule 44), for the guest app, the e-mails, the SAS and the fiche.
     - **The arrival mark and the arrival SAS do not change the moment of a new sale.** They change only the
       display: once either is done, the arrival section of the fiche reads « Arrivée faite » and the SAS
-      arrival is shown as committed. `arrivalMoment.hasGuestArrived` keeps its other readers (headings of an
-      unsettled complement) until PR C reviews them; it no longer routes a sale.
+      arrival is shown as committed. `arrivalMoment.hasGuestArrived` no longer routes a sale and has no reader left: **PR C deletes the module** (the display reads `checkInDone` / `arrivalSasDoneAt`).
     - **Sale after check-in time while the arrival SAS is still open** (guest late, SAS not yet done): the
       line is `departure` « À payer au départ ». The open SAS arrival shows it in its own section « Ventes du
       séjour — au départ », not in the total to collect. The operator may collect it there (paid now, rule
@@ -618,21 +617,22 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     | `models/reservationsModel.js` `arrivalExtrasBaselineIsDue` (~l. 618, `hasGuestArrived`) | when the arrival baseline is laid, so a sale goes to arrival or end of stay | B |
     | `models/reservationsModel.js` `isArrivalNotMarked` (l. 2846), `controllers/reservationsController.js` l. 751 (`planMidStayNote … arrivalNotMarked`) | mid-stay note routing on the fiche | B |
     | `controllers/reservationsController.js` `enterMidStayExtrasWindow` (l. 2039) + `utils/midStayExtrasWindow.js` l. 28 (`startDate <= today`) | the mid-stay extras window of a save | B |
-    | `controllers/reservationsController.js` l. 2173 (`pastReservationLocked`) and l. 2368 (`started` for a raise on a collected stay) | fiche lock; refusal of a raise | C (`arrivalDayReached`, same semantics) |
+    | `controllers/reservationsController.js` l. 2173 (`pastReservationLocked`) and l. 2368 (`started` for a raise on a collected stay) | fiche lock; refusal of a raise | C — **delivered by PR C** (`dayReached`) (`arrivalDayReached`, same semantics) |
     | `utils/endOfStayCheckout.js` `isCheckoutDone` (l. 25) | end-of-stay collection allowed | B (`phase === 'after'` or `departureDayReached`, same semantics) |
     | `plugins/sas/controller.js` l. 55 (`sasLockReason({ dateIso: startDate })`) | whether the arrival SAS may open | B |
-    | `utils/paymentDeadlines.js` l. 208 (`arrived = startDate <= today`) | deadline display | C (`arrivalDayReached`) |
-    | `utils/platformPriceCheck.js` l. 54 | skips past stays in the price check | C (`arrivalDayReached`) |
-    | `models/clientsModel.js` l. 127, 179 (`inStay`) | client list bucket | C (`arrivalDayReached`) |
+    | `utils/paymentDeadlines.js` l. 208 (`arrived = startDate <= today`) | deadline display | C — **delivered by PR C** (`dayReached`, same semantics as `arrivalDayReached`) |
+    | `utils/platformPriceCheck.js` l. 54 | skips past stays in the price check | C — **delivered by PR C** (`dayReached`, same semantics as `arrivalDayReached`) |
+    | `models/clientsModel.js` l. 127, 179 (`inStay`) | client list bucket | C — **delivered by PR C** (`dayReached`, same semantics as `arrivalDayReached`) |
     | `models/reservationsModel.js` create path (`startDate < today && !options.allowPastDates`) — _row added 2026-11-12 (Q-B10)_ | the refusal « Impossible de réserver dans le passé » | B (`arrivalDayReached`, same semantics) |
     | `controllers/reservationsController.js` ledger edit (`startedStay = … storedRow.startDate <= getTodayIsoDate()`) — _row added 2026-11-12 (Q-B10)_ | whether the amount editor of the deposit / balance rows treats the stay as started | B (`arrivalDayReached`, same semantics) |
     | `utils/midStayOrderCommit.js` l. 310-337 (`stayStarted`, `isArrivalNotMarked`, `hasGuestArrived`) | shop routing | C (file deleted) |
     | `plugins/guest-app` shop state / `orderCollection` callers (`index.js` l. 151-172, `shopController.read`) | shop open, J-7 flags | C |
-    | `utils/arrivalMoment.js` `hasGuestArrived` | the module itself | C (removed once its last reader moves; « arrivée faite » display reads `checkInDone` / `arrivalSasDoneAt` directly) |
+    | `utils/arrivalMoment.js` `hasGuestArrived` | the module itself | C — **delivered by PR C**: deleted (no reader left; « arrivée faite » display reads `checkInDone` / `arrivalSasDoneAt` directly) |
     | engine input `todayIso` / `midStayWindow` (`pricing.js` ~l. 1565, set by the controller) | phase fed to the engine | B (`midStayWindow` follows `hasGuestArrived`, the clock follows the check-in time: the first listed diff of PR B; moved from A) |
     | `plugins/website-booking/publicInputValidation.js`, `utils/platformIntakePort.js` (the started-stay refusal of the intakes), `utils/sasEditWindow.js`, `utils/receptionView.js` — _rows added 2026-11-11 by the review of PR A (`stay-clock-single-source`, `NOT_IN_THE_TABLE`)_ | a date window of the public form (a start date in the past); the intake port's refusal; the SAS lock reason and the reception view that read it | C (the form and the port, `arrivalDayReached`), B (the SAS lock reason and the reception view) |
-    | `plugins/booking-intake/intakeService.js` l. 159, `plugins/airbnb-intake/intakeService.js` l. 119, `plugins/gites-de-france-intake/intakeService.js` l. 136 (`startDate <= today()`) — _row added 2026-11-11 by the code check of rule 71_ | an intake refuses a started stay (« Séjour commencé : fiche à saisir à la main ») | C (`arrivalDayReached` through the SDK, same semantics; rule 71) |
+    | `plugins/booking-intake/intakeService.js` l. 159, `plugins/airbnb-intake/intakeService.js` l. 119, `plugins/gites-de-france-intake/intakeService.js` l. 136 (`startDate <= today()`) — _row added 2026-11-11 by the code check of rule 71_ | an intake refuses a started stay (« Séjour commencé : fiche à saisir à la main ») | C — **delivered by PR C** (`dayReached` through `coreModule('stayClock')`, same semantics; rule 71) |
 
+    _(Delivered by PR C (C11): every row tagged C is moved but the guest app's (`stockModel`, `sellable`, the shop state), which wait for the J-7 rebuild; the stay clock exports `dayReached` / `dayPassed` (the day comparisons, SDK `stayClock` names since 2.29.0) and `arrivalMoment.js` is deleted. Test: `stay-clock-c-rows`.)_
     _(Delivered by PR B pass 4: every row tagged B is moved — the `dates` allow-list holds only PR C entries. `isArrivalNotMarked` is
     `arrivalBaselineNotDue` (the response key `arrivalNotMarked` of the preview is unchanged); `sasLockReason({ stay, side, doneAt, now })`
     takes the stay and the side instead of a date; `isCheckoutDone` and `midStayExtrasWindow` compare through `dayReached`.)_
@@ -1183,7 +1183,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       > `toPlatformIntake` shapes it (platform, number, stay, party, beds, money, notes, `lines` with the `collectAt` of each, `includedLines`, `complementLines`, `rest`) for the stay the
       > iCal import already created (a new stay is never created by an intake): `reservations.update` is `toPlatformIntake` then `fromPlatform`, both run the one save. After it, the lines
       > the intake wrote that carry no moment are declared (`source = 'intake'`, `collectAt` / `collectAtDefault` = `platform` or `arrival` from the routing flag, `soldAt`), on a platform
-      > channel only. website-booking 1.8.15 prices a fixed insurance through the head. **Pending** — PR C: the started-stay refusal through STAY CLOCK, and the intake plugins moving to the port.
+      > channel only. website-booking 1.8.15 prices a fixed insurance through the head. **Delivered by PR C** (C11): the started-stay refusal reads STAY CLOCK `dayReached` (the port's `isIntakeOnStartedStay`, and the three intake services through `coreModule('stayClock')`, SDK 2.29.0; booking-intake 1.3.16, gites-de-france-intake 1.4.13). **Pending** — PR C: the intake plugins moving to the port (Q-C13: they stay on `reservations.update`).
     - **Tests.**
       - Each intake plugin's existing suites stay green, unchanged, at every PR.
       - `platform-intake-port.unit.test.js` (contract and adapter).

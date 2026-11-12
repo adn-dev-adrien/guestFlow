@@ -12,6 +12,9 @@
  */
 
 const { parseBookingPage } = require('./pageParser');
+const sdk = require('../sdk');
+
+const { dayReached } = sdk.coreModule('stayClock');
 
 const pad = (n) => String(n).padStart(2, '0');
 const frDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -156,7 +159,7 @@ function createIntakeService(deps) {
     }
     const reservation = getReservation(rows[0].id);
     const withFiche = { ...base, reservationId: reservation.id };
-    if (String(reservation.startDate) <= today()) return refuse(withFiche, 'Séjour commencé : fiche à saisir à la main', 'PAST_RESERVATION');
+    if (dayReached(reservation.startDate, today())) return refuse(withFiche, 'Séjour commencé : fiche à saisir à la main', 'PAST_RESERVATION');
 
     if (isUntouched(reservation)) {
       const done = write(booking, reservation);

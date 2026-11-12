@@ -11,6 +11,9 @@
 const { parseAirbnbMail, isBookingMail } = require('./mailParser');
 const { paymentBlock } = require('./paymentBlock');
 const { listingIdOf } = require('./listings');
+const sdk = require('../sdk');
+
+const { dayReached } = sdk.coreModule('stayClock');
 
 const isAirbnb = (platform) => /airbnb/.test(String(platform || '').toLowerCase().replace(/[^a-z]/g, ''));
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
@@ -118,7 +121,7 @@ function createIntakeService(deps) {
   function apply(intake, reservation) {
     // Rule 18 — the core refuses a started stay (PAST_RESERVATION); asking first keeps fullPatch from
     // creating a client record that no fiche would ever point to.
-    if (String(intake.parsed.startDate) <= today()) {
+    if (dayReached(intake.parsed.startDate, today())) {
       const error = 'Séjour commencé : fiche à saisir à la main';
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });
       return { status: 'error', error };

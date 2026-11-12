@@ -77,7 +77,7 @@ Nothing counts as « sold during the stay » before the guest has actually arriv
 
 | Layer | File | T/C | Responsibility in this change |
 |---|---|---|---|
-| `utils/` | `arrivalMoment.js` | C | `hasGuestArrived(row)` — check-in box or arrival SAS. Its own module because « is the guest here? » is asked from more than one layer and was answered differently in each; one place makes divergence impossible. |
+| `utils/` | `arrivalMoment.js` | C (deleted by PR C: no reader left, the display reads `checkInDone` / `arrivalSasDoneAt`) | `hasGuestArrived(row)` — check-in box or arrival SAS. Its own module because « is the guest here? » is asked from more than one layer and was answered differently in each; one place makes divergence impossible. |
 | `models/` | `reservationsModel.js` | T | `arrivalExtrasBaselineIsDue`: its calendar branch becomes `hasGuestArrived(row)`; the collected-complement branch (PR #486) is untouched. `resolveArrivalExtrasBaseline` / `captureArrivalExtrasBaselineIfDue` lose their now-dead `todayIso` parameter and read the whole row, so a minimal test schema without the check-in columns degrades to « not arrived » instead of failing the query. |
 | `controllers/` | `reservationsController.js` | T | The three call sites drop the date argument. |
 | `database.js` | `database.js` | T | The idempotent baseline cleanup of rule 3. |

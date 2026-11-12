@@ -15,7 +15,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { GUARDS } = require('./helpers/formulaGuards');
+const { GUARDS, plugin } = require('./helpers/formulaGuards');
 const { hitsOfFiles, judge, keyOf } = require('./helpers/formulaScan');
 
 const SRC = path.join(__dirname, '..');
@@ -63,9 +63,10 @@ test('rule 66 — each pattern of each guard catches its probe line, and no guar
   }
 });
 
-test('rule 66 — the date guard\'s allow-list is the rule 45 table of today\'s call sites: no entry waits for PR B any more (pass 4 moved them behind the stay clock)', () => {
+test('rule 66 — the date guard\'s allow-list holds only the guest app\'s sites, which PR C moves with the J-7 rebuild (every other site reads the stay clock)', () => {
   const dates = JSON.parse(fs.readFileSync(path.join(LISTS, 'dates.json'), 'utf8'));
-  assert.ok(dates.length > 0);
-  for (const entry of dates) assert.equal(entry.removedBy, 'PR C');
-  assert.ok(dates.some((entry) => entry.file === 'utils/arrivalMoment.js' && entry.removedBy === 'PR C'));
+  for (const entry of dates) {
+    assert.equal(entry.removedBy, 'PR C');
+    assert.ok(entry.file.startsWith(`${plugin('guest-app')}/`), `${entry.file} still compares dates outside the stay clock`);
+  }
 });

@@ -15,6 +15,7 @@ const isGitesDeFrance = (platform) => /gites?defrance/.test(String(platform || '
   .replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, ''));
 const isCleaning = (o) => o.autoOptionType === 'cleaning' || /ménage/i.test(String(o.title || ''));
 const sdk = require('../sdk');
+const { dayReached } = sdk.coreModule('stayClock');
 const { roundMoneyStrict: round2 } = sdk.coreModule('money');
 const CONTACT_KEPT = 'E-mail ou téléphone déjà renseigné sur la fiche';
 const frDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
@@ -134,7 +135,7 @@ function createIntakeService(deps) {
     if (chosen != null && !candidates.includes(chosen)) return { status: 'error', error: 'Loyer hors des valeurs possibles' };
     // The core refuses a started stay (PAST_RESERVATION); asking first keeps stayPatch from creating
     // a client record that no fiche would ever point to.
-    if (String(booking.startDate) <= today()) {
+    if (dayReached(booking.startDate, today())) {
       const error = 'Séjour commencé : fiche à saisir à la main';
       intakes.setStatus(intake.id, { status: 'error', reservationId: reservation.id, error });
       return { status: 'error', error };

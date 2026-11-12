@@ -14,6 +14,7 @@
 const { isDirectChannel } = require('./platformNameFormat');
 const { matchNightRule, calculateBaseStayPrice } = require('./pricing');
 const { platformLinesTotal } = require('./pricing/platformPrice');
+const { dayReached } = require('./pricing/stayClock');
 
 const BELOW_PERCENT = -15;
 const ABOVE_PERCENT = 25;
@@ -52,7 +53,7 @@ function platformPriceCheck({
   quote, stay, nightsReplayed, loadContext, today,
 }) {
   if (!quote || !stay || stay.kind !== 'reservation') return null;
-  if (!stay.startDate || stay.startDate <= today) return null;
+  if (!stay.startDate || dayReached(stay.startDate, today)) return null;
   if (!stay.platform || isDirectChannel(stay.platform)) return null;
   if (quote.platformGrossAmount == null || !(Number(quote.platformGrossAmount) > 0)) return null;
   if (Array.isArray(quote.unpricedNights) && quote.unpricedNights.length > 0) return null;

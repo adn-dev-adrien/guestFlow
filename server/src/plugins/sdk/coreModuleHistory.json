@@ -287,7 +287,12 @@
       "modules": [
         "money"
       ],
-      "names": {}
+      "names": {
+        "stayClock": [
+          "dayReached",
+          "dayPassed"
+        ]
+      }
     }
   ]
 }

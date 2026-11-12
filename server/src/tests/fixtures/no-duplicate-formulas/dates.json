@@ -1,47 +1,5 @@
 [
   {
-    "file": "controllers/reservationsController.js",
-    "text": "const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso)",
-    "removedBy": "PR C",
-    "reason": "a started-stay refusal that PR C judges with the lists"
-  },
-  {
-    "file": "controllers/reservationsController.js",
-    "text": "const started = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);",
-    "removedBy": "PR C",
-    "reason": "a started-stay refusal that PR C judges with the lists"
-  },
-  {
-    "file": "models/clientsModel.js",
-    "text": "if (stay.startDate <= today) return 'inStay';",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "models/clientsModel.js",
-    "text": "inStay: clientBucket === 'upcoming' && qualifying.startDate < today,",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "plugins/airbnb-intake/intakeService.js",
-    "text": "if (String(intake.parsed.startDate) <= today()) {",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "plugins/booking-intake/intakeService.js",
-    "text": "if (String(reservation.startDate) <= today()) return refuse(withFiche, 'Séjour commencé : fiche à saisir à la main', 'PAST_RESERVATION');",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "plugins/gites-de-france-intake/intakeService.js",
-    "text": "if (String(booking.startDate) <= today()) {",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
     "file": "plugins/guest-app/models/stockModel.js",
     "text": "if (!stay || stay.kind !== 'reservation' || String(stay.startDate) > today) return target;",
     "removedBy": "PR C",
@@ -50,48 +8,6 @@
   {
     "file": "plugins/guest-app/sellable.js",
     "text": "const first = addDays(startDate, 1) > fromToday ? addDays(startDate, 1) : fromToday;",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "plugins/website-booking/publicInputValidation.js",
-    "text": "if (body.startDate < todayIso) errors.push({ field: 'startDate', issue: 'must not be in the past' });",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/arrivalMoment.js",
-    "text": "function hasGuestArrived(reservation) {",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/arrivalMoment.js",
-    "text": "module.exports = { hasGuestArrived };",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/paymentDeadlines.js",
-    "text": "const arrived = Boolean(startDate) && startDate <= today;",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/paymentDeadlines.js",
-    "text": "const state = toIsoDay(first.startDate) <= today ? 'unpaid_at_arrival' : 'installment_overdue';",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/platformIntakePort.js",
-    "text": "return String(startDate) <= today;",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/platformPriceCheck.js",
-    "text": "if (!stay.startDate || stay.startDate <= today) return null;",
     "removedBy": "PR C",
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
   }

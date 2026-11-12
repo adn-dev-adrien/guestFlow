@@ -2072,7 +2072,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
   // `pastReservationLocked` gates the 14-field allowlist below. An admin drops it for this request
   // only, after « Déverrouiller cette fiche » (specs/settings-rationalization.md rule 17a).
-  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso)
+  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && dayReached(beforeAuditSnapshot.startDate, todayIso))
     && !pastUnlocked;
 
   const existingReservation = model.getForUpdate(id);
@@ -2270,7 +2270,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // Reading of 2026-11-06 (audit R26 MEDIUM 1) — a started, still locked fiche too, below: its price adjustments
   // (discount, final price) are allowed fields. There only the part of the rise no unpaid bucket takes on is refused
   // (reading of 2026-11-06, audit R26 finding 1): a checked-out stay with its solde open claims the rise on it.
-  const started = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
+  const started = Boolean(beforeAuditSnapshot?.startDate && dayReached(beforeAuditSnapshot.startDate, todayIso));
   const endOfStayCollected = Number(storedPaymentForQuote.endOfStayComplementPaid || 0) === 1 || Number(storedPaymentForQuote.endOfStayComplementPaidCash || 0) === 1;
   const raisesCollectedStay = endOfStayCollected
     && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0));

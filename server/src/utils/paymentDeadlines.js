@@ -37,6 +37,7 @@ const { resolveCancelOn, daysBetween, toIsoDay } = require('./paymentSchedule');
 const { isDirectChannel, formatPlatformName } = require('./platformNameFormat');
 const { normalizePayoutDueDays } = require('./platformPayout');
 const { addDaysToIsoDate } = require('./devisHelpers');
+const { dayReached } = require('./pricing/stayClock');
 
 const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
@@ -205,7 +206,7 @@ function buildPaymentDeadlineRow(row = {}, today) {
     && Boolean(balanceDueDate) && balanceDueDate <= today;
 
   const startDate = toIsoDay(row.startDate);
-  const arrived = Boolean(startDate) && startDate <= today;
+  const arrived = Boolean(startDate) && dayReached(startDate, today);
   const cancelOn = resolveCancelOn({
     balanceDueDate,
     cancelAfterBalanceDueDays: row.cancelAfterBalanceDueDays,
@@ -290,7 +291,7 @@ function buildInstallmentDeadlineRows(rows = [], today) {
     const dueDate = toIsoDay(first.dueDate);
     const totalDue = round2(late.reduce((sum, r) => sum + Number(r.amountCents) / 100, 0));
     // Rule 36 — the guest is at the door and the plan is not paid: the same red state as acompte / solde.
-    const state = toIsoDay(first.startDate) <= today ? 'unpaid_at_arrival' : 'installment_overdue';
+    const state = dayReached(toIsoDay(first.startDate), today) ? 'unpaid_at_arrival' : 'installment_overdue';
     return {
       reservationId: Number(first.reservationId),
       reservationNumber: first.reservationNumber || null,

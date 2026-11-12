@@ -1009,7 +1009,9 @@
     "unitsPerQuantity"
   ],
   "stayClock": [
-    "phaseForReservation"
+    "phaseForReservation",
+    "dayReached",
+    "dayPassed"
   ],
   "catalogue": [
     "getApplicableOptions",

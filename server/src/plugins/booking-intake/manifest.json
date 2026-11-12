@@ -98,6 +98,7 @@
     ],
     "1.3.16": [
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
+      "Un séjour déjà commencé est refusé d'après l'horloge du séjour du cœur : même résultat qu'avant.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
