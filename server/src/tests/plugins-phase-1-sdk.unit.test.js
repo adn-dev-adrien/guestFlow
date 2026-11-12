@@ -422,9 +422,11 @@ test('rule 9: Google subscribes to the five events it used to be called for', { 
   boot(db, { installed: [] });
   // reservation.paid (phase 3a) changes nothing in a calendar event, nor does a price
   // (pricing.changed, specs/google-vacation-rentals-feed.md rule 12), nor a platform penalty
-  // (platform-penalty.changed, specs/reconciliation-assisted-matching.md rule 34).
+  // (platform-penalty.changed, specs/reconciliation-assisted-matching.md rule 34), nor a refund owed
+  // (extraSale.refundOwed, specs/pricing-components.md rule 55): it moves money, not a session. A sale, a moved line and a removed
+  // line do change what the event lists (a bath session): the three other sale events are subscribed.
   assert.deepEqual([...registry.get('google-calendar').handlers.keys()].sort(),
-    eventBus.EVENTS.filter((e) => e !== 'reservation.paid' && e !== 'pricing.changed' && e !== 'platform-penalty.changed').sort());
+    eventBus.EVENTS.filter((e) => !['reservation.paid', 'pricing.changed', 'platform-penalty.changed', 'extraSale.refundOwed'].includes(e)).sort());
 });
 
 // ---------- email variables (rule 10) ----------
