@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 // cannot hold (« ’ » typed by every iPhone, « Œ »), and a prorated bucket splits its TTC share at its
 // rate (mega review #5, M3: « Zoë D’Œuvre » came out « ZO\xCB D\x19RUVRE »; m4: 117,28 / 11,72 where
 // the accountant's own check gives 117,27 / 11,73).
-const { toLatin1Text } = require('../latin1');
+const { toLatin1Text } = require('../../../utils/accounting/latin1');
 const { create: createAccountingController } = require('../controller');
 const { buildRows } = require('../accountingExport');
 

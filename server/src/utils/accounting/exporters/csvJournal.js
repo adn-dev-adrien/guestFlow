@@ -59,7 +59,7 @@ const { bookedBucketSplit, netOfTtc, TTC_SPLIT_FALLBACK } = require('../legacyBu
 // `create({ accountPlan })` — the plugin's account plan: the account numbers a role maps to, shared with the other exporters.
 function createCsvJournal({ accountPlan }) {
   const {
-    BUCKET_TO_ACCOUNT, vatAccountForRate, buildClientAccount, PASS_THROUGH_ACCOUNTS, SALES_JOURNAL_CODE, DISCOUNT_ACCOUNT,
+    BUCKET_TO_ACCOUNT, REVENUE_ACCOUNTS, vatAccountForRate, buildClientAccount, PASS_THROUGH_ACCOUNTS, SALES_JOURNAL_CODE, DISCOUNT_ACCOUNT,
     DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT, TIP_ACCOUNT, PLATFORM_PENALTY_ACCOUNT, planMapper,
   } = accountPlan;
 
