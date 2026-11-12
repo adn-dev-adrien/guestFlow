@@ -86,7 +86,10 @@ flags follow the checkbox faithfully. A SAS never reverts to "not done".
      3. If the complement **is already paid** → it is **frozen**: the existing complement rows
         and `complementAmount` are left untouched (no delete, no re-insert). The operator cannot
         alter a settled complement from the SAS (out of scope §8). Non-financial fields still
-        update.
+        update. **Amended 2026-11-12** ([arrival-departure-sas.md](arrival-departure-sas.md) rules 34-36): the complement
+        itself stays frozen, but what the run sells or adds (sales, ménage, linge de toilette, custom items) is written and its
+        part beyond what the collected complement holds rides the end-of-stay complement; removing such a line while that
+        end of stay is collected is refused.
      - **First commit** has no tagged rows → behaves exactly as before this spec (pure insert).
    - **Departure end-of-stay complement.** Already overwrite-based (`endOfStayComplementAmount`
      + `endOfStayComplementDetail` are `SET`) → re-commit simply overwrites. No change needed.
@@ -164,8 +167,9 @@ No new generic component (this is a behavioral change to existing wizard + two p
 - [ ] `commitArrivalSas` re-commit **replaces** the complement: two commits with different
   missing-linen sets leave exactly the second set's `sasArrivalOrigin` rows; `complementAmount`
   equals the second set's sum (not the cumulated sum). First commit unchanged vs. legacy.
-- [ ] `commitArrivalSas` with `complementPaid = 1` → complement rows + amount frozen (no delete /
-  no re-insert / no amount change); non-financial fields still updated.
+- [ ] `commitArrivalSas` with `complementPaid = 1` → the **complement amount** frozen (no amount change); non-financial fields
+  still updated; the run's sales / upsells / custom items are routed to the end-of-stay complement beyond-hold (amended 2026-11-12,
+  `sas-reopen-collected-sale.unit.test.js`, `sas-commit.unit.test.js`).
 - [ ] `commitArrivalSas` caution: tick sets `cautionReceived=1` + date; **untick clears**
   `cautionReceived=0` + date NULL; re-tick preserves the original date via COALESCE.
 - [ ] `commitDepartureSas` caution returned: symmetric set / clear.

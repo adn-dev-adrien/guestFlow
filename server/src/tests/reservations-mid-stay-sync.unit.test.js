@@ -19,7 +19,7 @@ function makeDb({ startDate = '2026-07-10', checkedIn = true } = {}) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
       clientId INTEGER, propertyId INTEGER, startDate TEXT, endDate TEXT, platform TEXT DEFAULT 'direct',
       adults INTEGER NOT NULL DEFAULT 0, teens INTEGER NOT NULL DEFAULT 0, children INTEGER NOT NULL DEFAULT 0, babies INTEGER NOT NULL DEFAULT 0,
-      cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionReceivedDate TEXT,
+      cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionWaived INTEGER NOT NULL DEFAULT 0, cautionReceivedDate TEXT,
       cautionReturned INTEGER DEFAULT 0, cautionReturnedDate TEXT,
       complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
       complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,

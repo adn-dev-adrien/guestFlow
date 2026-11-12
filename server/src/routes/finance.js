@@ -15,6 +15,7 @@ router.get('/vat-franchise', ctrl.getVatFranchise);
 router.get('/tourist-tax', ctrl.touristTax);
 router.get('/tourist-tax/report', touristTaxReport.getReport);
 router.get('/tourist-tax/report.csv', touristTaxReport.getReportCsv);
+router.post('/tourist-tax/property/:propertyId/declared', touristTaxReport.declareProperty);
 router.patch('/tourist-tax/:reservationId/declared', ctrl.setTouristTaxDeclared);
 
 module.exports = router;

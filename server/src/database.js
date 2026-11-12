@@ -69,6 +69,12 @@ for (const column of ['complementPaidSplit', 'removedLineContribs']) {
   }
 }
 
+// specs/arrival-departure-sas.md rule 31 — « Non » on the check-in's caution page: no caution is taken for this stay. A
+// marker, not an amount: the caution stays live from the property until received (specs/caution-live-from-property.md),
+// and the effective amount reads 0 while the marker is set. Additive, 0 = the caution is asked as before.
+if (!db.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'cautionWaived')) {
+  db.exec('ALTER TABLE reservations ADD COLUMN cautionWaived INTEGER NOT NULL DEFAULT 0');
+}
 
 // ---------- CALENDAR NOTES ----------
 db.exec(`
