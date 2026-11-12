@@ -682,6 +682,10 @@ const api = {
 
   // Cancellation compensations (specs/cancellation-compensation.md §4.3). The month filters only the
   // received ones — a pending compensation has no accounting date, so it is always returned.
+  getSaleDetail: (reservationId) => request(`/reservations/${reservationId}/sale-detail`),
+  quoteExtraSale: (reservationId, payload) => request(`/reservations/${reservationId}/extras/quote`, { method: 'POST', body: payload }),
+  sellExtra: (reservationId, payload) => request(`/reservations/${reservationId}/extras`, { method: 'POST', body: payload }),
+  patchExtraLine: (reservationId, ref, payload) => request(`/reservations/${reservationId}/extras/${encodeURIComponent(ref)}`, { method: 'PATCH', body: payload }),
   getCancellationCompensations: (month, year) => request(`/accounting/cancellation-compensations?month=${month}&year=${year}`),
   createCancellationCompensation: (payload) => request('/accounting/cancellation-compensations', { method: 'POST', body: payload }),
   updateCancellationCompensation: (id, payload) => request(`/accounting/cancellation-compensations/${id}`, { method: 'PUT', body: payload }),

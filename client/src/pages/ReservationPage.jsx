@@ -40,6 +40,7 @@ import { ReservationFormProvider } from '../components/reservation/ReservationFo
 import StaySection from '../components/reservation/StaySection';
 import GuestsBedsSection from '../components/reservation/GuestsBedsSection';
 import ExtrasSection from '../components/reservation/ExtrasSection';
+import ExtraSalesPanel from '../components/ExtraSalesPanel';
 import FinanceSection from '../components/reservation/FinanceSection';
 import { isLinkAlreadyPaid } from '../constants/paymentLinks';
 import Slot from '../plugins/sdk/Slot';
@@ -491,7 +492,7 @@ export default function ReservationPage() {
     kind: 'reservation', supersededByReservationId: null, supersededByReservationNumber: null,
     singleBeds: '', doubleBeds: '', babyBeds: '',
     extraGuestSurchargeOffered: false,
-    totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, finalPrice: 0, customPrice: '',
+    totalPrice: 0, touristTaxRate: 0, touristTaxTotal: 0, discountPercent: 0, discountTarget: 'nights', finalPrice: 0, customPrice: '',
     depositAmount: 0, depositDueDate: '', balanceAmount: 0, balanceDueDate: '',
     // Manual deposit override (specs/editable-deposit-amount.md). '' = automatic (percentage);
     // a number freezes the deposit and lets the solde absorb tariff changes.
@@ -613,6 +614,7 @@ export default function ReservationPage() {
     babyBeds: Number(form.babyBeds || 0),
     extraGuestSurchargeOffered: Boolean(form.extraGuestSurchargeOffered),
     discountPercent: Number(form.discountPercent || 0),
+    discountTarget: form.discountTarget,
     customPrice: form.customPrice === '' ? '' : Number(form.customPrice),
     // specs/platform-commission-line.md — recompute when the platform commission changes (it drives the
     // « net perçu » line + the solde).
@@ -679,7 +681,7 @@ export default function ReservationPage() {
     // specs/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.discountTarget, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
   // The clean baseline of the unsaved-changes guard, derived in the render that needs it — never in an effect,
   // which would leave a render comparing the quoted form with no baseline (a flash of « modified »).
   // For an existing record it is the form AS LOADED, with what the quote writes into it once the quote is
@@ -1008,6 +1010,7 @@ export default function ReservationPage() {
             touristTaxRate: res.touristTaxRate || 0,
             touristTaxTotal: res.touristTaxTotal || 0,
             discountPercent: res.discountPercent || 0,
+            discountTarget: res.discountTarget || 'nights',
             finalPrice: importedBlankPrice ? '' : res.finalPrice || 0,
             customPrice: importedBlankPrice ? '' : parseCustomPrice(res.customPrice),
             depositAmount: res.depositAmount || 0,
@@ -1517,6 +1520,7 @@ export default function ReservationPage() {
           babyBeds: Number(form.babyBeds || 0),
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
           discountPercent: form.discountPercent,
+          discountTarget: form.discountTarget,
           customPrice: form.customPrice,
           platformCommissionAmount: form.platformCommissionAmount, // specs/platform-commission-line.md (solde commission)
           acompteCommissionAmount: form.acompteCommissionAmount, // specs/platform-per-echeance-commission.md (acompte commission)
@@ -2355,6 +2359,7 @@ export default function ReservationPage() {
         babyBeds: Number(form.babyBeds || 0),
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
+        discountTarget: form.discountTarget,
         depositPaid: form.depositPaid,
         balancePaid: form.balancePaid,
         complementPaid: form.complementPaid,
@@ -2518,6 +2523,7 @@ export default function ReservationPage() {
         babyBeds: Number(form.babyBeds || 0),
         extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
         discountPercent: form.discountPercent,
+        discountTarget: form.discountTarget,
         customPrice: form.customPrice,
         depositPaid: form.depositPaid,
         balancePaid: form.balancePaid,
@@ -2631,6 +2637,7 @@ export default function ReservationPage() {
           touristTaxRate: quote.touristTaxRate || 0,
           touristTaxTotal: quote.touristTaxTotal || 0,
           discountPercent: form.discountPercent,
+          discountTarget: form.discountTarget,
           finalPrice: quote.finalPrice,
           customPrice: form.customPrice,
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
@@ -2725,6 +2732,7 @@ export default function ReservationPage() {
         refreshTouristTax,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
+          discountTarget: form.discountTarget,
           finalPrice: quote.finalPrice,
           customPrice: form.customPrice,
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
@@ -2816,6 +2824,7 @@ export default function ReservationPage() {
         refreshTouristTax,
           totalPrice: quote.totalPrice,
           discountPercent: form.discountPercent,
+          discountTarget: form.discountTarget,
           finalPrice: quote.finalPrice,
           customPrice: form.customPrice,
           extraGuestSurchargeOffered: form.extraGuestSurchargeOffered,
@@ -4163,6 +4172,15 @@ export default function ReservationPage() {
           </Card>
 
           {hasExtrasSection && <ExtrasSection />}
+
+          {editingReservationId && (
+            <ExtraSalesPanel
+              reservationId={editingReservationId}
+              articles={propertyOptions
+                .filter((option) => Number(option.autoEnabled || 0) !== 1)
+                .map((option) => ({ articleRef: `option:${option.id}`, label: option.title }))}
+            />
+          )}
 
           <FinanceSection />
 

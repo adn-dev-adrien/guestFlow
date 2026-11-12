@@ -214,7 +214,7 @@ const HISTORY_FIELD_FORMATS = {
 // confirmed with an empty « Motif » stores the derived key; it reads French, the stored row untouched. Only the whole
 // value is matched, so a reason the operator typed reads as typed.
 // Rule 16: what a stay discount is aimed at, as the history reads it.
-const DISCOUNT_TARGET_LABELS = Object.freeze({ nights: 'Nuits', extras: 'Prestations', all: 'Tout le séjour' });
+const DISCOUNT_TARGET_LABELS = Object.freeze({ nights: 'Nuits', extras: 'Articles', all: 'Tout' });
 
 const CANCELLATION_REASON_LABELS = Object.freeze({
   unpaid_deposit: 'Acompte impayé',

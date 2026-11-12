@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, IconButton } from '@mui/material';
+import { Box, Card, CardContent, Typography, Stack, Divider, Grid, TextField, Button, Switch, FormControlLabel, Tooltip, IconButton, MenuItem } from '@mui/material';
+import { DISCOUNT_TARGETS } from '../../constants/extraSale';
 import { alpha } from '@mui/material/styles';
 import api from '../../api';
 import ArithmeticTextField from '../ArithmeticTextField';
@@ -1114,6 +1115,17 @@ export default function FinanceSection() {
                           size="small"
                           slotProps={{ htmlInput: { min: 0, max: 100 } }}
                         />
+                        <TextField
+                          select
+                          label="Réduction sur"
+                          value={form.discountTarget || 'nights'}
+                          onChange={(e) => updateForm({ discountTarget: e.target.value })}
+                          fullWidth
+                          size="small"
+                          helperText="Les ventes ajoutées plus tard ne sont pas couvertes."
+                        >
+                          {DISCOUNT_TARGETS.map((target) => <MenuItem key={target.value} value={target.value}>{target.label}</MenuItem>)}
+                        </TextField>
                       </Stack>
                     </CardContent>
                   </Card>

@@ -1416,6 +1416,8 @@ All of it is plain CommonJS functions and objects (rule 56).
 **Component reuse:** consumed `FormDialog`, `StatusBadge`, `PageActionBar`, `ConfirmDialog`; created
 `SaleDetailList` (three screens and the guest app read the same payload); nothing specific.
 
+**Delivered by PR B** (pass 4, skills `apple-design` and `impeccable` loaded): `components/SaleDetailList.jsx` (the payload as a list, a « moment » menu on an unpaid line, 44 px targets, stacked on `xs`), `components/AddProductDialog.jsx` (`FormDialog`: product, quantity, the server's price and moment, sells at the accepted price), `components/ExtraSalesPanel.jsx` (« Ventes du séjour » on a saved stay), and the « Réduction sur » selector (Nuits / Articles / Tout) of the finance card. The client computes nothing. Vitest: `SaleDetailList.moment`, `AddProductDialog.quote`; Playwright `e2e/specs/reservations/extra-sale.spec.js` at 390 and 1280 px.
+
 ### 4.3 API contract
 
 | Method | Endpoint | Request | Response | Notes |
