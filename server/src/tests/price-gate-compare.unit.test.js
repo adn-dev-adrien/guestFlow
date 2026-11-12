@@ -80,3 +80,11 @@ test('rule 68: no rounding slack — 12.345 and 12.35, 0.3 and 0.1 + 0.2, 0 and 
   const { differences } = compareFigures({ 1: { a: 12.345, b: 0.3, c: 0, d: Number.NaN, e: 1.005 } }, { 1: { a: 12.35, b: 0.1 + 0.2, c: -0, d: Number.NaN, e: 1.005 } });
   assert.deepEqual(differences.map((d) => d.field), ['a', 'b', 'c']);
 });
+
+test('rule 68: an entry with removed: true approves a figure that disappeared, never one that became null', () => {
+  const entry = { reservationId: 1, field: 'a', old: 5, corrected: null, removed: true, reason: 'r', rule: 'r', defect: 'd', approvedBy: 'Adrien', approvedAt: '2026-11-12' };
+  assert.deepEqual(compareFigures({ 1: { a: 5 } }, { 1: {} }, [entry]).differences, []);
+  assert.deepEqual(compareFigures({ 1: { a: 5 } }, { 1: { a: null } }, [entry]).differences.map((d) => d.field), ['a']);
+  const plain = { ...entry, removed: undefined };
+  assert.deepEqual(compareFigures({ 1: { a: 5 } }, { 1: {} }, [plain]).differences.map((d) => d.field), ['a']);
+});

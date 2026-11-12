@@ -1286,6 +1286,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     (`scripts/price-gate/buildWriteReplay.mjs`, `fixtures/price-gate/writes.json`), never on the branch under test.
     A migration that adds a column changes the hash of every payload that spreads a whole row without moving a figure:
     `pricing-replay.mjs --out-values` / `--compare-values` judge the captured values, ignoring the keys the new code adds.
+    A figure that no longer exists is approved with `removed: true` and `corrected: null`: such an entry matches an
+    absent value only, never a figure that became `null` (`price-gate-compare`).
     Tests: `price-gate-scopes` (scopes, `--expect`), `price-gate-writes` (the seven write-path cases, to the leaf; a key the
     baseline body did not carry, such as a column added to a row the response spreads, is additive and not judged).
 

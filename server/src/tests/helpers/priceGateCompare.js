@@ -9,7 +9,9 @@
  * The only exception is the versioned allowlist (`fixtures/price-gate/allowlist.json`): an entry
  * `{ reservationId, field, old, corrected, reason, rule, defect, approvedBy, approvedAt }` removes ONE
  * difference — the one on that stay and that field whose expected value is exactly `old` and whose actual
- * value is exactly `corrected`. Any other value on that field still fails.
+ * value is exactly `corrected`. Any other value on that field still fails. JSON cannot write `undefined`, so a
+ * figure that no longer exists is approved with `removed: true` and `corrected: null`; that entry matches only an
+ * absent actual value, never a real `null`.
  *
  * An entry may carry a `scope` (rule 81): `stays` (the default, so an existing entry keeps its meaning),
  * `synthetic`, `resourceBookings`, `propertyGrids` or `writes` (the refund write-path replay). `compareFigures(expected, actual, allowlist, { scope })`
@@ -77,7 +79,9 @@ function compareFigures(expected, actual, fullAllowlist = [], { scope = DEFAULT_
       && Number(entry.reservationId) === difference.reservationId
       && entry.field === difference.field
       && isDeepStrictEqual(entry.old, difference.expected)
-      && isDeepStrictEqual(entry.corrected, difference.actual));
+      && (entry.removed === true
+        ? entry.corrected === null && difference.actual === undefined
+        : isDeepStrictEqual(entry.corrected, difference.actual)));
     if (index === -1) {
       differences.push(difference);
     } else {
