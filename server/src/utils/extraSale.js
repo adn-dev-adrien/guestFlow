@@ -65,13 +65,13 @@ function dryRunFor(reservationId, body) {
   return result.status === 200 ? result : { refused: { status: result.status, body: result.body } };
 }
 
-const cents = (row, field) => toCents(row && row[field]);
+const centsOf = (row, field) => toCents(row && row[field]);
 
 function bucketsDelta(before, after) {
   return {
-    plan: cents(after, 'depositAmount') + cents(after, 'balanceAmount') - cents(before, 'depositAmount') - cents(before, 'balanceAmount'),
-    arrival: cents(after, 'complementAmount') - cents(before, 'complementAmount'),
-    departure: cents(after, 'endOfStayComplementAmount') - cents(before, 'endOfStayComplementAmount'),
+    plan: centsOf(after, 'depositAmount') + centsOf(after, 'balanceAmount') - centsOf(before, 'depositAmount') - centsOf(before, 'balanceAmount'),
+    arrival: centsOf(after, 'complementAmount') - centsOf(before, 'complementAmount'),
+    departure: centsOf(after, 'endOfStayComplementAmount') - centsOf(before, 'endOfStayComplementAmount'),
   };
 }
 
@@ -96,7 +96,7 @@ function pricedRequests(reservationId, lines, { now }) {
     priced.push({
       line,
       merged: stored[line.kind === 'resource' ? 'resources' : 'options'].some((s) => Number(s.optionId ?? s.resourceId) === Number(line.id)),
-      totalCents: cents(next.row, 'finalPrice') - cents(previous, 'finalPrice'),
+      totalCents: centsOf(next.row, 'finalPrice') - centsOf(previous, 'finalPrice'),
     });
     previous = next.row;
   }
@@ -118,7 +118,7 @@ function quote(reservationId, requests, { payment = 'later', now = new Date() } 
       momentLabel: moment === 'departure' ? 'À payer au départ' : 'À payer à l’arrivée',
     })),
     buckets: bucketsDelta(result.base, result.after),
-    totalCents: cents(result.after, 'finalPrice') - cents(result.base, 'finalPrice'),
+    totalCents: centsOf(result.after, 'finalPrice') - centsOf(result.base, 'finalPrice'),
     refusals: [],
   };
 }
@@ -135,7 +135,7 @@ function sell(reservationId, requests, { source = 'fiche', payment = 'later', ac
     db.transaction(() => {
       const result = pricedRequests(id, parsed.lines, { now });
       if (result.error) { outcome = result.error; throw ROLLBACK; }
-      const total = cents(result.after, 'finalPrice') - cents(result.base, 'finalPrice');
+      const total = centsOf(result.after, 'finalPrice') - centsOf(result.base, 'finalPrice');
       if (acceptedTotalCents != null && Number(acceptedTotalCents) !== total) {
         outcome = refuse(409, 'PRICE_CHANGED', 'Prix modifié — relire le panier.', { totalCents: total });
         throw ROLLBACK;

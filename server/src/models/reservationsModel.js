@@ -46,6 +46,7 @@ const { splitComplementByPoste, allocateComplementAdjustment, parseComplementAll
 const { buildOperationalCollection } = require('../utils/operationalCollection');
 const stayClockModel = require('./stayClockModel');
 const { syncStayLines } = require('../utils/pricingLinesMigration');
+const { toCents } = require('../utils/pricing/money');
 const { dayPassed } = require('../utils/pricing/stayClock');
 const { bucketStates } = require('../utils/reservationSettlement');
 const { resolveStayPayment } = require('../utils/stayPayment');
@@ -412,7 +413,7 @@ function createReservationsModel(database) {
   }
   // Rule 74: « Hébergement » and « Taxe de séjour » follow the quote a save writes; an amendment of an existing line is journaled.
   function persistStayLines(reservationId, quote, { journal = false } = {}) {
-    const euros = (value) => Math.round(Number(value || 0) * 100);
+    const euros = toCents;
     const accommodation = Math.max(0, euros(quote.finalPrice) - euros(quote.optionsTotal) - euros(quote.resourcesTotal));
     const changes = syncStayLines(database, reservationId, { totals: { accommodation, touristTax: euros(quote.touristTaxTotal) } });
     if (!journal) return;

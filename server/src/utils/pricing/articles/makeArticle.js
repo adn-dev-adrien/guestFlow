@@ -6,7 +6,8 @@
  *   per_stay, free → fixed · per_person → perPerson · per_night → perNight · per_person_per_night → perPersonPerNight
  *   percent_of_stay → percentOfStay · per_participant_progressive → perParticipantProgressive · per_hour → hourly
  * An option with a planning card (not an insurance, not a percentage) is counted in moments: family perUnit.
- * An unknown price type reads as `fixed`, like the engine's type multiplier always did.
+ * An unknown price type reads as `fixed`, like the engine's type multiplier always did, and so does a price type of the OTHER kind
+ * (a resource stored `percent_of_stay`, an option stored `per_hour`: the catalogue forms refuse them, rule 47 reading of L6).
  *
  * Pure: no DB, no clock, no settings.
  */
@@ -19,6 +20,11 @@ const FAMILY_OF_PRICE_TYPE = Object.freeze({
   percent_of_stay: 'percentOfStay',
   per_participant_progressive: 'perParticipantProgressive',
   per_hour: 'hourly',
+});
+
+const PRICE_TYPES_OF_KIND = Object.freeze({
+  option: ['per_stay', 'free', 'per_person', 'per_night', 'per_person_per_night', 'percent_of_stay', 'per_participant_progressive'],
+  resource: ['per_stay', 'free', 'per_person', 'per_night', 'per_person_per_night', 'per_hour'],
 });
 
 const VAT_CLASS = Object.freeze({ option: 'options', resource: 'resources' });
@@ -38,7 +44,7 @@ function familyOf(row, kind) {
   const priceType = row.priceType || 'per_stay';
   const isInsurance = Number(row.isCancellationInsurance || 0) === 1;
   if (kind === 'option' && row.showsPlanningCard && priceType !== 'percent_of_stay' && !isInsurance) return 'perUnit';
-  return familyIdOfPriceType(priceType);
+  return PRICE_TYPES_OF_KIND[kind].includes(priceType) ? familyIdOfPriceType(priceType) : 'fixed';
 }
 
 function makeArticle(row, { kind = 'option' } = {}) {

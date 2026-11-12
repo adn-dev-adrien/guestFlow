@@ -12,7 +12,7 @@
  *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
  *  *   vatClassOf(line, kind)                       the VAT class of a priced line: the article's own, else its family's
  */
-const { toCents } = require('../utils/pricing/money');
+const { toCents, roundMoney } = require('../utils/pricing/money');
 const { extraLineKey } = require('../utils/pricing/storedLines');
 const { VAT_CLASSES } = require('../utils/pricing/vat/settingsSchema');
 
@@ -87,8 +87,8 @@ function moveLine(reservationId, line, to) {
   // Stored, or laid now from the lines as they stand (a stay not started yet has none).
   const baseline = JSON.parse(reservations.peekArrivalExtrasBaseline(Number(reservationId)) || '{}');
   const total = line.totalCents / 100;
-  if (to === 'departure') baseline[line.key] = Math.max(0, Math.round(((baseline[line.key] || 0) - total) * 100) / 100);
-  else if (to === 'arrival') baseline[line.key] = Math.round(((baseline[line.key] || 0) + total) * 100) / 100;
+  if (to === 'departure') baseline[line.key] = Math.max(0, roundMoney((baseline[line.key] || 0) - total));
+  else if (to === 'arrival') baseline[line.key] = roundMoney((baseline[line.key] || 0) + total);
   db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(reservationId));
   const was = line.collectAt || 'arrival';
   db.prepare(`UPDATE ${line.table} SET collectAt = ? WHERE lineId = ?`).run(to, line.lineId);

@@ -628,6 +628,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       catalogue row that the `hourly` family hands to its grid. The catalogue
       provider builds one instance per catalogue article (property overrides applied); an instance has no code.
       Adding a new article is a catalogue row; adding a new way of pricing is a family.
+    - **Delivered by PR B** (pass 4, L6): `makeArticle` reads the family only within the kind's own price types (an option's: `per_stay`, `free`, `per_person`, `per_night`, `per_person_per_night`, `percent_of_stay`, `per_participant_progressive`; a resource's: `per_stay`, `free`, `per_person`, `per_night`, `per_person_per_night`, `per_hour`), else `fixed`: a wrong-kind legacy type no longer prices by the other kind's family (the catalogue forms refuse them; production has none). The `per_hour` request without the plugin is refused as `FAMILY_UNAVAILABLE` by the head (OD1), already.
     - Today's `priceType` values map to families: each to its namesake, `per_stay` and `free` to `fixed`, an unknown type to `fixed` (today's engine default); `per_unit` is the family of the planning-card options (placed moments or portions), which is what the engine's card path computes _(precised 2026-11-11, PR A)_. A family id is registered once (`DUPLICATE_FAMILY`
       at boot); an instance whose family has no live registration is not sellable (`FAMILY_UNAVAILABLE`). _(Corrected
       2026-11-11, PR A review: the sentence « exactly as a `per_hour` line today when hourly-resources is off » was wrong —
@@ -1421,7 +1422,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 |---|---|---|---|---|
 | POST | `/api/reservations/:id/extras/quote` | `{ requests:[{ articleRef, quantity, persons?, mornings?, sessions?, offered? }], payment: 'later'\|'card'\|'cash' }` | `{ lines:[…priced, collectAt, status], buckets:{ arrival, departure, plan }, totalCents, refusals:[] }` | no write |
 | POST | `/api/reservations/:id/extras` | same + `acceptedTotalCents` | `{ saleDetail, paymentLink? }` | 409 `PRICE_CHANGED` if the re-quote differs |
-| PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, quantity?, discount?:{percent\|amount} }` | `{ saleDetail }` | 409 `LINE_PAID`; refund confirmation flow of rule 23; journaled |
+| PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, discount?:{percent\|amount}, forceOverpayment? }` (`ref` = `option:<lineId>` / `resource:<lineId>` / `custom:<lineId>`) | `{ saleDetail }` | 409 `LINE_PAID`, 409 `OVERPAID` (rule 23); journaled |
 | GET | `/api/reservations/:id/sale-detail` | — | `saleDetail` | also embedded in `GET /sas` and the fiche payload |
 | PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default) | unchanged | rule 16 |
 | guest-app | `/public/v1/stay/…/orders` (existing) | unchanged shape | unchanged shape | implementation moves to `extraSale` (PR C) |

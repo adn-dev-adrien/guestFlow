@@ -131,9 +131,10 @@ test('rule 47 — instances are frozen configuration, with the ref and the famil
 test('rule 47 — makeArticle maps today\'s price types one to one to families', () => {
   const expected = {
     per_stay: 'fixed', free: 'fixed', per_person: 'perPerson', per_night: 'perNight', per_person_per_night: 'perPersonPerNight',
-    percent_of_stay: 'percentOfStay', per_participant_progressive: 'perParticipantProgressive', per_hour: 'hourly',
+    percent_of_stay: 'percentOfStay', per_participant_progressive: 'perParticipantProgressive',
   };
   for (const [priceType, family] of Object.entries(expected)) assert.equal(article(optionRow({ priceType })).family, family, priceType);
+  assert.equal(articles.makeArticle({ id: 3, name: 'Spa', priceType: 'per_hour' }, { kind: 'resource' }).family, 'hourly', 'per_hour is a resource price type (L6)');
   assert.equal(article(optionRow({ priceType: undefined })).family, 'fixed');
 });
 

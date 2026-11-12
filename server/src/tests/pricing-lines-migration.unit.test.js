@@ -169,8 +169,8 @@ test('rules 37 and 74: every line gets its moment, its snapshot of what was sold
   // Stay 10 is direct with a baseline: `opt:2` (35) is above its 20 → departure, the spa and the tisane are not in it at all; the breakfast is a planning card.
   assert.deepEqual(option(10, 2), { collectAt: 'departure', collectAtDefault: 'departure', soldAt: '2026-01-05 10:00:00', articleRef: 'option:2', family: 'fixed', label: 'Bois', source: 'fiche', discountCents: 0 });
   assert.deepEqual(option(10, 1), { collectAt: 'plan', collectAtDefault: 'plan', soldAt: '2026-01-05 10:00:00', articleRef: 'option:1', family: 'perUnit', label: 'Petit-déjeuner', source: 'fiche', discountCents: 0 });
-  // Stay 11 is a platform sale, outside the complement: inside the platform's price. `per_hour` reads as the hourly family.
-  assert.deepEqual(option(11, 3), { collectAt: 'platform', collectAtDefault: 'platform', soldAt: '2026-02-05 10:00:00', articleRef: 'option:3', family: 'hourly', label: 'Bain', source: 'fiche', discountCents: 0 });
+  // Stay 11 is a platform sale, outside the complement: inside the platform's price. an option stored `per_hour` (a resource price type, rule 47 reading of L6) reads as `fixed`.
+  assert.deepEqual(option(11, 3), { collectAt: 'platform', collectAtDefault: 'platform', soldAt: '2026-02-05 10:00:00', articleRef: 'option:3', family: 'fixed', label: 'Bain', source: 'fiche', discountCents: 0 });
   assert.deepEqual(db.prepare('SELECT collectAt, articleRef, family, label FROM reservation_resources WHERE reservationId = 10').get(), { collectAt: 'departure', articleRef: 'resource:5', family: 'fixed', label: 'Spa' });
   const custom = db.prepare('SELECT lineId, collectAt, soldAt, articleRef, family, label FROM reservation_custom_options WHERE reservationId = 10').get();
   assert.deepEqual(custom, { lineId: custom.lineId, collectAt: 'departure', soldAt: '2026-01-07 09:00:00', articleRef: `custom:${custom.lineId}`, family: null, label: 'Tisane' });
