@@ -12,7 +12,7 @@ const { parseDetail, parseNotes, settledByKey } = require('../storedLines');
 const { parseRemovedLineContribs } = require('../../removedLineContribs');
 const { ACCOMMODATION_KEY, PLAN_BUCKET_LINES, STORED_SPLIT_ROUNDING_TTC, TOURIST_TAX_KEY, billedLineKey, bucketOfKey } = require('./register');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../money');
 
 /**
  * specs/reservation-refunds.md rule 49 reading of 2026-11-02 — what each line of a stay collected, TTC, keyed like

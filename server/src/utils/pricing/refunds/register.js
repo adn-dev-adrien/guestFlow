@@ -8,7 +8,7 @@
 
 const { extraLineKey } = require('../storedLines');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../money');
 
 // Means of refund. `transfer` + `cash` are book money; `internal` (caisse interne) stays off the
 // books, exactly like the cash complements (specs/cash-complement-and-endofstay-finance.md).

@@ -9,7 +9,7 @@
  * and these parsers, rule 72) read the stored format through one module. Pure: no DB, no clock, no settings; imports nothing.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./money');
 
 /**
  * Stable key of an extra line, shared by the baseline and the current state.

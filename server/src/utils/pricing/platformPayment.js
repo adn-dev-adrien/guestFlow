@@ -24,10 +24,10 @@ const { roundMoney } = require('./money');
  * Rounded to the cent and never negative. Pure.
  */
 
-const round2 = (n) => Math.round(n * 100) / 100;
+const { roundMoneyStrict: round2 } = require('./money');
 // The four helpers below stand for copies that read a stored row, where a column can be NULL, '' or text: a figure that is not a
 // number counts as 0 (`round2` above is the commission formula's own, kept as it was).
-const roundSafe = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: roundSafe } = require('./money');
 const asNumber = (v) => (v === '' || v == null ? 0 : Number(v));
 
 function computePlatformCommission({ gross, payout, touristTax = 0, acompteCommission = 0 }) {

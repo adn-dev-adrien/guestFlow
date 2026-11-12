@@ -21,7 +21,7 @@
 const { isOffBooks, isRetainedDeposit, isIndemnityLine, madeAfterCancellation, COMMISSION_KEY } = require('./register');
 const { cashCollected } = require('../../reservationSettlement');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../money');
 
 const BUCKET_LABELS = {
   accommodation: 'Hébergement',
@@ -136,7 +136,6 @@ function soldeLine(bucket, vatRate) {
 function netOfEarlierRefunds(lines, givenBack, saleCollected) {
   const given = givenBack || {};
   const sale = saleCollected || {};
-  const cents = (value) => Math.round(Number(value || 0) * 100);
   const work = lines.map((line) => ({ line, cents: cents(line.amountTtc) }));
   const excess = {};
   const spare = {};
@@ -197,7 +196,6 @@ function spreadCents(cents, weights) {
  * actually requalified (TTC).
  */
 function withCommissions(lines, withheld, vatRate, soldeHeld) {
-  const cents = (value) => Math.round(Number(value || 0) * 100);
   const work = lines.map((line) => ({ ...line }));
   const commission = {};
   const deposit = work.filter((line) => line.origin === 'deposit' && REVENUE_BUCKETS.includes(line.bucket) && cents(line.amountTtc) > 0);
@@ -244,7 +242,6 @@ function withCommissions(lines, withheld, vatRate, soldeHeld) {
  */
 function soldeHeldOf(gross, requalified, givenBack, solde) {
   if (!solde) return null;
-  const cents = (value) => Math.round(Number(value || 0) * 100);
   const sumOf = (lines, bucket) => lines.filter((line) => line.bucket === bucket).reduce((total, line) => total + cents(line.amountTtc), 0);
   const given = givenBack || {};
   return Object.fromEntries(REVENUE_BUCKETS.map((bucket) => [bucket, Math.min(cents(solde[bucket]),
@@ -387,7 +384,7 @@ function givenBackByBucket(refunds) {
   return given;
 }
 
-const cents = (value) => Math.round(Number(value || 0) * 100);
+const { toCents: cents } = require('../money');
 
 const lineSignature = (line) => JSON.stringify([line.lineKey || null, line.bucket, String(line.label || ''),
   line.quantity == null ? null : Number(line.quantity), line.unitPrice == null ? null : cents(line.unitPrice),

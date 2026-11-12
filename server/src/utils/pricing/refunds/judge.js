@@ -15,7 +15,7 @@ const { frenchEuros: euros } = require('../money');
 const { dateWindowMessage, isRealIsoDay } = require('../../stayDates');
 const { CARD_METHOD, INDEMNITY_BUCKET, OFF_BOOKS_METHOD, REFUND_BUCKETS, SELECTABLE_REFUND_METHODS, isOffBooks, isRequalification, isRetainedDeposit, madeAfterCancellation, nettedByCancellation } = require('./register');
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../money');
 
 /**
  * Payment-schedule rule 55 reading of 2026-11-02 (review of PR #929, F2) — whether the cancellation had book money to

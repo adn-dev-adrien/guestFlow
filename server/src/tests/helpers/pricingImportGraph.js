@@ -9,7 +9,7 @@ const path = require('node:path');
 // EXTRAS (articles/) sit above the allowances and below the platform price. A file of `articles/`, `vat/` or `refunds/`
 // takes its folder's rank; imports inside the same folder are free.
 const RANK = {
-  money: 0,
+  money: -1, // below every unit: storedLines (rank 0) rounds through it
   storedLines: 0,
   nights: 1,
   stayClock: 1,

@@ -13,7 +13,7 @@
 
 const { isDirectChannel } = require('../../platformNameFormat');
 
-const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('../money');
 
 // specs/mixed-method-payments.md rule 47 (audit R34-M-H1) — a bucket paid with several methods counts what it RECEIVED.
 const receivedOf = (received, bucket) => (received && received[bucket] != null ? Number(received[bucket]) : null);

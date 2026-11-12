@@ -40,7 +40,7 @@ const { extraLineKey, parseNotes, settledByKey, parseDetail } = require('./store
  *   accountingModel.js    keeps the mid-stay part out of the `complement` journal entry.
  */
 
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const { roundMoneyOrZero: round2 } = require('./money');
 
 // Tag carried by the end-of-stay detail lines this module owns. The departure SAS re-sends every
 // `source`-tagged line verbatim (specs/sas-bath-linen-upsell.md §3.3), so tagging is what makes a
