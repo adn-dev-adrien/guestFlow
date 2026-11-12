@@ -130,7 +130,7 @@
     ],
     "1.5.3": [
       "Le tarif à l’heure est calculé par la famille d’article « hourly » du calcul des prix ; aucun prix ne change.",
-      "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; aucun montant ne change.",
+      "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; à 20 %, le net et la TVA peuvent bouger d’un centime, le total ne change pas.",
       "Demande le SDK 2.27 de GuestFlow."
     ]
   }
