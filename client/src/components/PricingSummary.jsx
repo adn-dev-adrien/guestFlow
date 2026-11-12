@@ -230,14 +230,9 @@ export default function PricingSummary({
   const optionsTotal = Number(quote?.optionsTotal || 0);
   const resourcesTotal = Number(quote?.resourcesTotal || 0);
   const discountAmount = Number(quote?.discountAmount || 0);
-  // Single global VAT rate (specs/single-vat-rate.md §4.2). The engine still ships three
-  // separate `vatPercentage*` keys for backward compatibility — they all carry the same
-  // value, so we read one and ignore the others.
-  const vatRate = Number(quote?.vatPercentageAccommodation ?? quote?.vatPercentageOptions ?? quote?.vatPercentageResources ?? 10);
-  // Per-bucket HT/VAT amounts were dropped from the UI when the dual rate collapsed
-  // (specs/single-vat-rate.md §6.2) — only the aggregated `totalNetPrice` and
-  // `totalVatAmount` are still shown.
-  const totalVatAmount = Number(quote?.totalVatAmount || 0);
+  // specs/pricing-components.md §3 rule 15 — one VAT line per rate, ready to render from the server
+  // (`vatByRate: [{ rate, label, base, vat }]`); a « Sans TVA » stay gets none.
+  const vatByRate = Array.isArray(quote?.vatByRate) ? quote.vatByRate : [];
   const totalNetPrice = Number(quote?.totalNetPrice || 0);
   // « Sans TVA » (specs/vat-optional-mode.md rule 12a): the server's mention replaces the VAT lines.
   const vatMention = quote?.vatRegime?.regime === 'not_subject' ? quote.vatRegime.legalMentionText : null;
@@ -863,9 +858,8 @@ export default function PricingSummary({
             </Box>
           </>
 
-          {/* TVA — single global rate (specs/single-vat-rate.md §6.2). Collapsed from the former
-              per-bucket breakdown since accommodation / options / resources all share the
-              same rate now. Total HT + TVA on two lines under the séjour total. */}
+          {/* TVA — « Total HT » then one line per rate with its base (specs/pricing-components.md §3 rule 15);
+              no « Total TVA » line. */}
           <Divider />
           {vatMention ? (
             <Typography variant="caption" color="text.secondary" data-testid="vat-mention">{vatMention}</Typography>
@@ -875,10 +869,19 @@ export default function PricingSummary({
                 <Typography variant="caption" color="text.secondary">Total HT</Typography>
                 <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalNetPrice)}</Typography>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="caption" color="text.secondary">TVA {vatRate}%</Typography>
-                <Typography variant="caption" sx={{ fontWeight: 500 }}>{formatCurrency(totalVatAmount)}</Typography>
-              </Box>
+              {vatByRate.map((row) => (
+                <Box
+                  key={row.rate}
+                  data-testid="vat-rate-line"
+                  sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1 }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {row.label}
+                    <Box component="span" sx={{ opacity: 0.8 }}>{` sur ${formatCurrency(row.base)}`}</Box>
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}>{formatCurrency(row.vat)}</Typography>
+                </Box>
+              ))}
             </Box>
           )}
 

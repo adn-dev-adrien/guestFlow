@@ -122,6 +122,7 @@ const { platformPriceCheck } = require('../utils/platformPriceCheck');
 const { touristTaxStale, platformCommissionOdd } = require('../utils/fichePricingNotices');
 const { isDirectChannel } = require('../utils/platformNameFormat');
 const { buildStoredSummary } = require('../utils/storedSummary');
+const { vatByRateOf } = require('../utils/vatRecap');
 const propertiesModel = require('../models/propertiesModel');
 const { getDefaultModel: getTariffJournal } = require('../models/tariffChangeJournalModel');
 const { evaluateLedgerEdit } = require('../utils/ledgerAmountEdit');
@@ -1343,6 +1344,8 @@ async function calculatePrice(req, res) {
   // call out and warms the cache the save then reads, so the fiche announces what the save will bill.
   quote = await quotePostProcessors.applyLive({ engineInput, quote, calculate: calculateReservationQuote });
   if (quote.error) return res.status(quote.status || 400).json({ error: quote.error });
+  // specs/pricing-components.md §3 rule 15 — the fiche prints one VAT line per rate, ready to render.
+  quote.vatByRate = vatByRateOf(quote);
   // specs/devis-pdf-and-tourist-tax-fixes.md §3.2 rule 7 reading R32-RES-M1 — the validity date the save will write,
   // for the fiche's « Valide jusqu'au » chip while the edit is unsaved.
   if (!(reservationId > 0) && engineInput.kind === 'devis') quote.validUntil = engineInput.validUntil || null;

@@ -13,6 +13,7 @@ const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
 const { splitTtc } = require('./pricing/vat');
+const { vatByRateOfSingleRate } = require('./vatRecap');
 const { totalCommission: platformTotalCommission } = require('./pricing/platformPayment');
 const { displayCountOf } = require('./typedCounts');
 const { isComplementDeferred } = require('./checkoutComplement');
@@ -193,6 +194,9 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
     vatPercentageAccommodation: vatRate,
     totalVatAmount,
     totalNetPrice: round2(Number(row.finalPrice || 0) - totalVatAmount),
+    vatByRate: vatByRateOfSingleRate({
+      regime: vatRegime, rate: vatRate, net: round2(Number(row.finalPrice || 0) - totalVatAmount), vat: totalVatAmount,
+    }),
     depositDueDate: row.depositDueDate || null,
     balanceDueDate: row.balanceDueDate || null,
     finalPrice: round2(row.finalPrice),

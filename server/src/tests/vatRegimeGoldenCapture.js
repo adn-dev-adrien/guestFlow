@@ -21,7 +21,9 @@ const { optionalPlugin } = require('../plugins/sdk/testing');
 // tourist-tax case and the cascade. Rule 23 compares the money figures that already existed.
 const STORED_SUMMARY_ADDED = ['nights', 'nightlyBreakdown', 'optionLines', 'resourceLines', 'discountAmount', 'vatPercentageAccommodation',
   'touristTaxInComplement', 'touristTaxOfferedByPlatform', 'touristTaxCollectedOnArrival', 'touristTaxReversedByPlatform', 'platformSale',
-  'midStaySettledTotal', 'midStayRemainingTotal', 'complementSplit', 'refundsTotal', 'summaryCascade'];
+  'midStaySettledTotal', 'midStayRemainingTotal', 'complementSplit', 'refundsTotal', 'summaryCascade',
+  // specs/pricing-components.md §3 rule 15 — the VAT per rate the fiche prints; the totals it adds up are in the compared keys.
+  'vatByRate'];
 
 function withoutStoredLines(summary) {
   if (!summary) return summary;

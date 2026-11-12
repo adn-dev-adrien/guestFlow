@@ -295,7 +295,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     and the breakdown the fiche, the devis PDF and the SAS render. TOTALS holds no formula of its own.
     _(Delivered by PR A: `aggregateTotals` returns `finalPrice`, `discountAmount`, `totalStayPrice`, `vatByRate` (the VAT
     component's rows as they came) and `breakdown`; no reader reads the last two yet.)_
-    > **Delivered by PR B** (pass 4): `saleDetail` reads the VAT component's per-rate rows. **Pending** — PR C: the fiche and the devis PDF printing the VAT per rate (a visible row: mock-up first, D12).
+    > **Delivered by PR B** (pass 4): `saleDetail` reads the VAT component's per-rate rows.
+    > **Delivered by PR C** (C24, decision D12, class C-E8; mock `docs/rapports/2026-11-12-m1-tva-par-taux.html`): the fiche and the devis PDF print the VAT per rate.
+    > `utils/vatRecap.js` adds the three family figures the VAT component already cut (rounded once per group, rule 62) into `vatByRate: [{ rate, label, base, vat, ttc }]`,
+    > ascending by rate, so the rows add up to `totalVatAmount` to the cent; a « Sans TVA » stay gets `[]`. It rides on the live `POST /api/reservations/calculate-price` answer
+    > and on the stored summary (one row from its two totals), never inside `calculateReservationQuote`, whose key set is fingerprinted (rule 4). The fiche's finance card prints
+    > « Total HT », then one « TVA x % sur <base> » line per rate and **no** « Total TVA » line. The devis PDF prints a « Récapitulatif TVA » table (rate, net base, VAT, gross, then a
+    > total row) under the totals, the same template for one rate or several, plus « La taxe de séjour n'est pas soumise à la TVA. » when the quote carries tourist tax; the « Sans TVA » devis keeps its
+    > legal mention and prints no table. The table can push the payment terms of a one-page devis onto a second page. Golden `pdf/201` and `pdf/202` of `vat-regime-golden` move (C-E8); a PDF whose quote does not reconcile with its printed rows falls back to one row cut from those rows. Tests: `devis-pdf-vat-by-rate.unit.test.js`, `PricingSummary.vat-by-rate.test.jsx`.
 16. **Discounts apply to nights and extras.** _(amended 2026-11-11, owner overrides the earlier default.)_
     A discount is `{ percent | amount | customPrice, target }` with `target ∈ nights | extras | all`:
     - `nights` — today's behaviour, bit for bit: `accommodationAdjusted = roundMoney(accommodationBase × (1 −

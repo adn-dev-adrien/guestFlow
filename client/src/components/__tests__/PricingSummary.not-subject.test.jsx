@@ -24,9 +24,9 @@ const renderLive = (quote) => render(
 );
 
 test('rule 12 (a): a live quote under VAT keeps « Total HT » and « TVA x % »', () => {
-  renderLive({ ...QUOTE, vatPercentageAccommodation: 10, totalNetPrice: 181.82, totalVatAmount: 18.18, vatRegime: { regime: 'subject', rate: 10 } });
+  renderLive({ ...QUOTE, vatPercentageAccommodation: 10, totalNetPrice: 181.82, totalVatAmount: 18.18, vatByRate: [{ rate: 10, label: 'TVA 10 %', base: 181.82, vat: 18.18 }], vatRegime: { regime: 'subject', rate: 10 } });
   expect(screen.getByText('Total HT')).toBeInTheDocument();
-  expect(screen.getByText('TVA 10%')).toBeInTheDocument();
+  expect(screen.getByText('TVA 10 %')).toBeInTheDocument();
   expect(screen.queryByTestId('vat-mention')).not.toBeInTheDocument();
 });
 
@@ -51,10 +51,10 @@ test('rule 12 (a): the stored summary does the same, and keeps its figures', () 
 });
 
 test('rule 12 (a): the stored summary under VAT keeps its HT and VAT rows', () => {
-  renderStored({ ...QUOTE, vatPercentageAccommodation: 10, totalVatAmount: 18.18, totalNetPrice: 181.82, vatRegime: { regime: 'subject', rate: 10 },
+  renderStored({ ...QUOTE, vatPercentageAccommodation: 10, totalVatAmount: 18.18, totalNetPrice: 181.82, vatByRate: [{ rate: 10, label: 'TVA 10 %', base: 181.82, vat: 18.18 }], vatRegime: { regime: 'subject', rate: 10 },
     summaryCascade: { grossTotal: 200, offeredTaxDeduction: 0, onSiteTotal: 0, commissionBase: 200 } });
   expect(screen.getByText('Total HT')).toBeInTheDocument();
-  expect(screen.getByText('TVA 10%')).toBeInTheDocument();
+  expect(screen.getByText('TVA 10 %')).toBeInTheDocument();
 });
 
 const FORMAT = { amount: (n) => `${n} €`, date: (d) => d, percent: (n) => `${n}` };

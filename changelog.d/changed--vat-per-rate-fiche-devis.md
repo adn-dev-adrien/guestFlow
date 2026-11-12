@@ -1,0 +1,1 @@
+- **VAT per rate**: the reservation card prints one VAT line per rate with its base, and the devis PDF gains a « Récapitulatif TVA » table (rate, net base, VAT, gross); a « Sans TVA » stay keeps its legal mention and prints no VAT line.

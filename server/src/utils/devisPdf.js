@@ -6,6 +6,7 @@
 
 const { todayIso: localTodayIso } = require('./localDate');
 const { bookingDayOf } = require('./vatRegime');
+const { vatByRateOf, vatByRateOfSingleRate } = require('./vatRecap');
 const { computeValidUntil } = require('./devisValidity');
 const path = require("path");
 const fs = require("fs");
@@ -897,6 +898,39 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
     totY += doc.heightOfString(legalMention, { width: mentionWidth }) + 4;
   }
   totY = Math.max(totY, bankBottomY);
+
+  // specs/pricing-components.md §3 rule 15 — « Récapitulatif TVA »: one row per rate, the same template for one rate or several.
+  // A « Sans TVA » stay prints none: its legal mention above is the whole VAT statement.
+  if (!notSubject) {
+    const recapRows = quote && quoteReconciles
+      ? vatByRateOf(quote)
+      : vatByRateOfSingleRate({ regime: full.vatRegime, rate: vatRate, net: subtotalHt, vat: roundMoney(subtotalTtc - subtotalHt) });
+    if (recapRows.length > 0) {
+      const RECAP_W = PAGE_W * 0.7;
+      const cols = [0, 0.16, 0.46, 0.73].map((f) => LEFT + RECAP_W * f);
+      const colW = [0.16, 0.30, 0.27, 0.27].map((f) => RECAP_W * f);
+      const touristTaxNote = liveTaxTotal > 0;
+      totY = checkBreak(totY + 6, 40 + recapRows.length * 14 + (touristTaxNote ? 14 : 0));
+      doc.fontSize(9).fillColor(TEXT_DARK).font(F.bold).text(L.vatRecapHeading, LEFT, totY);
+      totY += 14;
+      const drawRecapRow = (cells, bold, border) => {
+        doc.fontSize(8.5).fillColor(bold ? TEXT_DARK : TEXT_LIGHT).font(bold ? F.bold : F.regular);
+        cells.forEach((cell, i) => doc.text(cell, cols[i] + 3, totY, { width: colW[i] - RIGHT_PAD, align: i === 0 ? 'left' : 'right' }));
+        totY += 13;
+        if (border) doc.moveTo(LEFT, totY - 2).lineTo(LEFT + RECAP_W, totY - 2).strokeColor(MID_GRAY).lineWidth(0.5).stroke();
+      };
+      drawRecapRow([L.vatRecapRate, L.vatRecapBase, L.vatRecapVat, L.vatRecapTtc], true, true);
+      for (const row of recapRows) {
+        drawRecapRow([`${String(row.rate).replace('.', ',')} %`, formatCurrency(row.base), formatCurrency(row.vat), formatCurrency(row.ttc)], false, false);
+      }
+      const sum = (key) => roundMoney(recapRows.reduce((total, row) => total + row[key], 0));
+      drawRecapRow([L.vatRecapTotal, formatCurrency(sum('base')), formatCurrency(sum('vat')), formatCurrency(sum('ttc'))], true, false);
+      if (touristTaxNote) {
+        doc.fontSize(8).fillColor(TEXT_LIGHT).font(F.italic).text(L.vatRecapTouristTax, LEFT, totY, { width: RECAP_W });
+        totY += 14;
+      }
+    }
+  }
 
   // ── Payment schedule ──────────────────────────────────────────────────────
   totY = checkBreak(totY, 60);
