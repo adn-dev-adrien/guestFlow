@@ -197,7 +197,7 @@ Rule added 2026-11-03 (audit R21-A1):
 17. **Une vente sur un complément d'arrivée encaissé est refusée quand le complément de fin de séjour l'est aussi.** Une telle
     vente part en fin de séjour (règle 13), qui ne bouge plus une fois encaissée ([mid-stay-extras-to-end-of-stay-complement.md](mid-stay-extras-to-end-of-stay-complement.md)
     règle 18) : l'option s'écrivait, préparée et planifiée, et n'était facturée nulle part. Complément de fin de séjour
-    encaissé (CB ou caisse interne) sans que le SAS départ l'ait encaissé, `soldOptions` dont le total dépasse ce que ce
+    encaissé (CB ou caisse interne), y compris par le SAS départ (amendé le 2026-11-12, arrival-departure-sas règle 36), `soldOptions` dont le total dépasse ce que ce
     SAS avait déjà vendu : aperçu et validation répondent **409 `END_OF_STAY_ALREADY_COLLECTED`** « Complément de fin de
     séjour déjà encaissé : le décocher sur la fiche avant de vendre une prestation. », rien n'est écrit. Sans vente, une
     vente qui ne monte pas, ou une fin de séjour ouverte, le SAS passe comme avant. Même refus que le SAS départ

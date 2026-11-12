@@ -322,13 +322,14 @@ confirmation — records the caution status and the complement(s) on the reserva
     complement holds per key from its own entry (`complementPaidSplit.lines`, cents per `extraLineKey`, stamped at collection and
     immutable), the SAS-origin rows less the routed money only as the fallback for a legacy row without the entry — so a sale
     lowered or dropped on a reopen and then put back is never billed again (trapper meal on stay 22308: +25 €, not +275 €). (b)
-    When the end-of-stay complement is collected outside the departure SAS, a run that would make the end-of-stay money of a
+    When the end-of-stay complement is collected — wherever it was collected, the departure SAS included (for the check-in, an
+    end-of-stay complement collected at the departure SAS is just as frozen) — a run that would make the end-of-stay money of a
     SAS-origin key shrink (a line dropped or lowered whose money sits in it) is refused, preview and commit, with the family of
     rule 17 of `sas-breakfast-and-catering-upsell.md` — 409 `END_OF_STAY_ALREADY_COLLECTED`, « Complément de fin de séjour déjà
     encaissé : le décocher sur la fiche avant de retirer une prestation. », nothing written (`finalPrice` included); the dialog
     prints it like the rule-17 refusal. The sale put back after a drop is therefore unreachable. Tests:
     `tests/sas-reopen-collected-sale.unit.test.js` (raised / lowered, put back), `tests/sas-collected-end-of-stay-growth.unit.test.js`
-    (drop and lower refused, same sale passes).
+    (drop and lower refused, same sale passes; growth and shrink refused when collected at the departure SAS).
 
 ---
 

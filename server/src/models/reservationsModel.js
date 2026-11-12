@@ -2801,10 +2801,12 @@ function createReservationsModel(database) {
         }));
         // specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the lines ride the end-of-stay complement, which
         // freezes once collected: one collected outside the departure SAS takes no run that adds money.
-        const saleRaisesCollectedEndOfStay = routing.added > 0
-          && endOfStayCollectedElsewhere(database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId));
-        const removesFromCollectedEndOfStay = routing.shrinks
-          && endOfStayCollectedElsewhere(database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId));
+        // For the CHECK-IN, an end-of-stay complement collected by the departure SAS is just as closed: its amount is frozen, so
+        // a line routed there would be billed nowhere and one taken out would leave finalPrice below what was collected.
+        const eosRow = database.prepare('SELECT endOfStayComplementPaid, endOfStayComplementPaidCash FROM reservations WHERE id = ?').get(reservationId) || {};
+        const endOfStayCollected = Number(eosRow.endOfStayComplementPaid || 0) === 1 || Number(eosRow.endOfStayComplementPaidCash || 0) === 1;
+        const saleRaisesCollectedEndOfStay = routing.added > 0 && endOfStayCollected;
+        const removesFromCollectedEndOfStay = routing.shrinks && endOfStayCollected;
         return {
           paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled, saleRaisesCollectedEndOfStay, removesFromCollectedEndOfStay,
           engineAfter: stored, arrivalComplementTotal: stored, supplementOutsideComplement: routing.added, adjusted: null,

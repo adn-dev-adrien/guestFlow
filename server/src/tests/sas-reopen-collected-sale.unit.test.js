@@ -200,3 +200,16 @@ test('rule 34 — a sale dropped then put back raised bills only beyond what the
   model.commitArrivalSas(1, sale(3));
   assert.equal(eos(db).a, 24);
 });
+
+// Rule 36, verification of 4f93c0e8 — an end-of-stay complement collected BY THE DEPARTURE SAS is frozen too: a reopened check-in
+// may neither route new money into it (billed nowhere) nor take a routed line out of it (finalPrice below what was collected).
+test('rule 36 — an end of stay collected at the departure SAS refuses growth and shrink from a reopened check-in', () => {
+  const { db, model } = collectedSale();
+  model.commitArrivalSas(1, sale(3));
+  db.exec('ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidAtDeparture INTEGER NOT NULL DEFAULT 0');
+  db.prepare('UPDATE reservations SET endOfStayComplementPaid = 1, endOfStayComplementPaidAtDeparture = 1 WHERE id = 1').run();
+  const grow = model.planArrivalSas(1, { soldOptions: [{ optionId: 6, occurrences: MORNINGS(3) }, { optionId: 27, units: 1 }] }, { withExistingLines: false });
+  assert.equal(grow.saleRaisesCollectedEndOfStay, true);
+  assert.equal(model.planArrivalSas(1, sale(2), { withExistingLines: false }).removesFromCollectedEndOfStay, true);
+  assert.equal(model.planArrivalSas(1, sale(3), { withExistingLines: false }).removesFromCollectedEndOfStay, false, 'the same answers pass');
+});
