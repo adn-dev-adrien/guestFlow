@@ -6,6 +6,7 @@ import { render, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../theme';
 
+// date-literal-ok: replaced in beforeEach by setToday(), which pins the clock to the same day.
 const media = vi.hoisted(() => ({ mobile: false, today: '2026-07-16' }));
 vi.mock('@mui/material', async (importOriginal) => {
   const actual = await importOriginal();
