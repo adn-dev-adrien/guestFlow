@@ -533,7 +533,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `roundMoneyFixed`, `roundHalfAway`, `fromCentsRounded`, `parseIntegerCents`, `parseFrenchCents` / `parseFrenchEuros` and
     `eurosWithSpaces`. `pricing-money-variants.unit.test.js` proves each against its original on 600 000 values and the awkward
     inputs. A variant is never swapped for `roundMoney` where the two differ, and a display helper (« 1 234,56 € ») is renamed, never
-    swapped for `frenchEuros`, because its bytes differ.)_
+    swapped for `frenchEuros`, because its bytes differ. Every private copy of the server and of the plugins (a plugin reaches the variants through
+    `coreModule('money')`, SDK 2.29.0) is replaced; the `money` allow-list holds only `midStayOrderCommit`, deleted with the J-7 rebuild.)_
 39. **A line discount.** The operator may discount one unpaid line (percent or amount), from the fiche or the
     SAS. It is stored on the line (`discountCents`) and journaled. It is the only discount a shop or SAS sale
     receives. `discountCents` holds the line's OWN discount only: the stay discount's share (rule 40) is derived on every quote
