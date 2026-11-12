@@ -1,0 +1,1 @@
+- Reconnecting Qonto from Réglages → Paiements failed since 4.0.0 with « Échec de la connexion Qonto »: the consent asked the scope `client_invoice.read`, which Qonto does not know — the read scope is `client_invoices.read`. The control plane's billing scopes carried the same typo.
