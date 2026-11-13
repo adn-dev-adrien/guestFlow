@@ -229,7 +229,11 @@ is pushed every order.
     whose target is not available to the session (module off, item not sold here, a shop or bath target for a
     visitor or a pre-arrival session) is not rendered. Reading of 2026-11-10 (audit R36-INJ-L1): the wifi join QR
     escapes every character the `WIFI:` scheme reserves — backslash, `;`, `,`, `:` and `"` — so a password with a
-    backslash joins as typed.
+    backslash joins as typed. Reading of 2026-11-13: the join QR is scanned by **another** phone, and the 68 px
+    thumbnail did not catch. The server draws it at 600 px with a one-module margin; the ticket shows it at
+    104 px with « Toucher pour agrandir », and a tap opens it full screen on white with the network's name and
+    « Scanner avec l'appareil photo d'un autre téléphone » — closed by a tap anywhere, « Fermer » or Escape, the
+    sheet underneath kept (mock-up: `specs/guest-app-wifi-qr-maquette.html`, variant B).
 19. **Languages.** Every text field has FR and EN. The app language is the guest's `clients.emailLanguage`
     for a stay session, else the browser's (`fr` default), switchable from the app bar. A missing EN text
     falls back to FR, flagged in the studio (« 3 textes non traduits »). Reading of 2026-11-10 (audit R36-C-L1): the
@@ -1041,7 +1045,7 @@ mock-ups load them from Google Fonts only because they are static files).
 | `PaymentChoice` | Two large selectable cards with icon, title, one-line explanation; the selected one gets a sapin border and check. |
 | `OrderTimeline` | Status as a vertical 3-step line: Reçue → En préparation → Livrée (or Payée / Sur votre note), times in `figure`. |
 | `TabBar` / `NavRail` | 4 entries max (rule 11bis decides which); active = filled icon + sapin label + 2 px ocre bar on top. |
-| `BlockRenderer` | One renderer per booklet block; `steps` as a vertical timeline with lichen numerals, `wifi` as a ticket with a perforated edge, `callout` as a soft panel with a left icon, `contact` as a row with « Appeler » / « WhatsApp » buttons, `place` with a static map tile + « Itinéraire ». |
+| `BlockRenderer` | One renderer per booklet block; `steps` as a vertical timeline with lichen numerals, `wifi` as a ticket with a perforated edge (104 px QR, a tap opens it full screen, rule 18), `callout` as a soft panel with a left icon, `contact` as a row with « Appeler » / « WhatsApp » buttons, `place` with a static map tile + « Itinéraire ». |
 
 States, for every list: skeletons in the final layout (no spinner on a blank page), `EmptyState` with an
 illustration-free icon + one sentence + one action, `ErrorAlert` with « Réessayer », offline banner
@@ -1215,7 +1219,8 @@ le nom et le numéro. »
   the generic route unable to write it, a stored own host ignored at boot, the loader never handing GuestFlow's host to
   a web app; the erase naming the booklet pages and photos and deleting the photo files, only once the erase has
   committed (a rolled-back erase keeps them, R36b N5)
-- [x] `…/guest-app-wifi-qr.unit.test.js` (1) — rule 18 reading: the join text read back as typed, backslash included
+- [x] `…/guest-app-wifi-qr.unit.test.js` (2) — rule 18 readings: the join text read back as typed, backslash included;
+  the join QR is a 600 px PNG (2026-11-13)
 - [x] `…/guest-app-delivery-dst.unit.test.js` (2) — rule 41 reading: the next two Paris clock changes, computed from
   today: the first time the lead away, no wall time that does not exist, the times in their real order
 
@@ -1230,6 +1235,8 @@ le nom et le numéro. »
 - [x] `CartPage.payment-choice.test.jsx` (6) — rules 25, 32, 33, 37quater, 41bis: note / card choice and the button's
   server total, card off → note stated, 0 € → « Réserver », a line lowered to the stock left, pickup question, the order
 - [x] `BlockRenderer.blocks.test.jsx` (10) — rules 11ter, 18, 49: every block type, wifi copy / « Pas de wifi », targets
+- [x] `WifiBlock.enlarge.test.jsx` (2) — rule 18 reading of 2026-11-13: a tap on the QR opens it full screen with the
+  network's name, « Fermer » closes it; no QR, nothing to enlarge
 - [x] `AppShell.night.test.jsx` (4) — §6.1, rules 19, 53: day / server night / device dark, the guest's choice kept, EN
 - [x] `session.reexchange.test.jsx` (5) — rules 1, 4, 9, 22: the stay link kept, a dead session reopened once, a stale
   link forgotten, the poster's visitor fallback, « Application indisponible »

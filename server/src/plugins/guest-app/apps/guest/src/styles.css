@@ -276,7 +276,7 @@ summary::-webkit-details-marker{display:none}
 .blocks p{margin:0}
 .blocks h2{font-size:20px}
 .btext{display:grid;gap:10px;font-size:16px}
-.wifi{position:relative;border:1px solid var(--line);border-radius:4px;background:var(--card);display:grid;grid-template-columns:minmax(0,1fr) 68px;gap:12px;padding:15px 20px;align-items:center}
+.wifi{position:relative;border:1px solid var(--line);border-radius:4px;background:var(--card);display:grid;grid-template-columns:minmax(0,1fr) 104px;gap:12px;padding:15px 20px;align-items:center}
 .wifi::before,.wifi::after{content:"";position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--paper);border:1px solid var(--line);transform:translateY(-50%)}
 .wifi::before{left:-9px} .wifi::after{right:-9px}
 .wifi small{display:block;font:700 10.5px var(--body);letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft)}
@@ -442,7 +442,14 @@ summary::-webkit-details-marker{display:none}
 .callout .ct{display:grid;gap:3px}
 .callout .ct b{font-weight:700}
 .bstep .sph{margin-top:8px;aspect-ratio:3/2;border-radius:4px}
-.wifi img.qrimg{width:68px;height:68px;border:4px solid #fff;outline:1px solid var(--line);image-rendering:pixelated}
+.wifi .qrthumb{border:0;background:none;padding:0;display:grid;justify-items:center;gap:4px;cursor:zoom-in;color:var(--ink-soft);font:600 11px/1.25 var(--body);text-align:center;transition:transform .1s ease-out}
+.wifi .qrthumb:active{transform:scale(.96)}
+.wifi img.qrimg{width:104px;height:104px;padding:4px;background:#fff;border-radius:4px;outline:1px solid var(--line);image-rendering:pixelated}
+.qrfull{position:absolute;inset:0;z-index:60;background:#fff;color:#22271F;display:grid;place-items:center;align-content:center;gap:14px;padding:calc(24px + var(--sat)) 24px calc(24px + var(--sab));animation:pop .26s var(--ease-out);outline:0}
+.qrfull img{width:min(100%,62vh,420px);height:auto;image-rendering:pixelated}
+.qrfull b{font:400 22px/1.2 var(--display);color:#2E3B2A;text-align:center;word-break:break-all}
+.qrfull span{font-size:14px;color:#5C6153;text-align:center}
+.qrfull .qrfull-close{position:absolute;top:calc(10px + var(--sat));right:10px;color:#22271F}
 .bimg{margin:0;display:grid;gap:6px}
 .bimg img{width:100%;height:auto;border-radius:4px;display:block;background:var(--chip)}
 .bimg figcaption{font-size:12.5px;color:var(--ink-soft)}

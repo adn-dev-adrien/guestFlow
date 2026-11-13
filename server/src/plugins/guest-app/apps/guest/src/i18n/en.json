@@ -44,6 +44,8 @@
  "wifi.network": "Network",
  "wifi.password": "Password",
  "wifi.qr": "QR code to join the Wi-Fi",
+ "wifi.enlarge": "Tap to enlarge",
+ "wifi.scan": "Scan with another phone’s camera",
  "wifi.title": "Wi-Fi",
  "contacts.title": "Emergency & contacts",
  "booklet.title": "The guide",
