@@ -49,7 +49,8 @@ function newlyOfferedAmount(storedLines, quoteLines) {
 function dropExplainedByOffer(stored, quote, { storedLines, quoteLines }) {
   const drop = round2(Number(stored.finalPrice || 0) - Number(quote.finalPrice || 0));
   if (drop <= 0 || Number(stored.discountPercent || 0) !== Number(quote.discountPercent || 0)) return false;
-  return Math.abs(drop - newlyOfferedAmount(storedLines, quoteLines)) <= 0.01;
+  const offered = newlyOfferedAmount(storedLines, quoteLines);
+  return offered > 0 && drop === offered;
 }
 
 function unlockedPriceRefusal(stored, quote, lines = {}) {
