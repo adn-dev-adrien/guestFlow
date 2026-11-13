@@ -20,6 +20,7 @@ const pricing = lazy('../../utils/pricing');
 const clientValidation = lazy('../../utils/clientValidation');
 const registry = lazy('./registry');
 const basketPayments = lazy('../../utils/basketPayments');
+const platformIntakePort = lazy('../../utils/platformIntakePort');
 
 // specs/gites-de-france-mail-intake.md §4.1 — a plugin changes a reservation the way the operator's
 // « Enregistrer » does: the stored state rebuilt as the fiche's PUT body, the patch on top, then the very
@@ -42,18 +43,26 @@ function storedUpdateBody(id) {
   return updateBody().toUpdateBody(current, autoEnabledOptionIds());
 }
 
-function applyReservationUpdate(id, patch, label) {
+// specs/pricing-components.md rule 71 — the patch of an intake is read as the payload of the platform booking port
+// (`utils/platformIntakePort.js`) and saved from it; the future `reservations.fromPlatform` calls the same save.
+function savePlatformIntake(id, intake, label) {
   const current = reservations().getByIdWithDetails(Number(id));
   if (!current || current.kind !== 'reservation') return { status: 404, body: { error: 'Réservation introuvable' } };
-  if (String(current.startDate) <= reservationHelpers().getTodayIsoDate()) {
+  if (platformIntakePort().isIntakeOnStartedStay(current.startDate, reservationHelpers().getTodayIsoDate())) {
     return { status: 409, body: { error: 'Séjour commencé ou passé', code: 'PAST_RESERVATION' } };
   }
-  const body = { ...updateBody().toUpdateBody(current, autoEnabledOptionIds()), ...patch };
+  const body = { ...updateBody().toUpdateBody(current, autoEnabledOptionIds()), ...platformIntakePort().toUpdatePatch(intake) };
   const result = reservationsController().performUpdate(Number(id), body);
   if (result.status === 200 && label) {
     reservations().addHistoryEntry(Number(id), 'update', [{ field: 'source', label: 'Origine', from: null, to: String(label) }]);
   }
   return result;
+}
+
+function applyReservationUpdate(id, patch, label) {
+  const current = reservations().getByIdWithDetails(Number(id));
+  const platform = current ? current.platform : undefined;
+  return savePlatformIntake(id, platformIntakePort().toPlatformIntake(patch, { platform }), label);
 }
 
 // specs/plugins-phase-1-sdk.md rule 28 — a plugin's client goes through the same

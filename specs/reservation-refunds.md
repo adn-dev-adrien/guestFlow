@@ -666,7 +666,7 @@ and the monthly accounting export carries a **reversed journal entry (avoir)** d
 | `models/` | `reservationsModel.js` | T | `getById` joins the refund register + totals into the payload consumed by the fiche |
 | `controllers/` | `accountingController.js` | T | Merges encaissement + refund entries, sorted by date, for both `sales.csv` and `sales` |
 | `controllers/` | `reservationsController.js` | T | Feeds `refundsTotal` into the quote inputs (like `midStayQuoteInputs`) and exposes `refundableLines` on `GET /:id` |
-| `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount), `splitHtVat(...)`, `refundedTouristTax(refunds)` → `{ amount, nights }` |
+| `utils/` | `refunds.js` | C | **Pure**: `buildRefundableLines(...)` (incl. the per-night tourist-tax line), `validateRefundPayload(...)` (derives the quantity from the amount) _(`refundedTouristTax` was removed on 2026-11-11 by pricing-components PR A: nothing read it; the tourist-tax declaration reads the refunded nights per line)_ |
 | `utils/` | `refunds.js` | T | Rule 49 readings of 2026-11-05 (R23) — `PLAN_BUCKET_LINES`, `collectedAfterArrival`, both read by `collectedByLine` and `collectedLinesGone`; rule 51 — `applyLiveCollected` (`availableTtc`, `sharedBucketTtc`), the line check of `validateRefundPayload` |
 | `utils/` | `cancelReservation.js` | T | Rule 49 reading (N5) — `bookedStayBuckets().installments` also returns `options` and `resources` |
 | `utils/` | `refundUntickGuard.js` | C | Rule 52 — `untickRefusal(row, changes, refunds)`: pure, shared by the PATCH, the arrival undo and `takeBackRefusal` |
@@ -912,7 +912,7 @@ like « Nouvelle note », not a page-level one).
 - [x] `tests/finance-refunds.unit.test.js` (moteur) — `sejourNetTotal` net of refunds, every other quote figure
       byte-identical to the no-refund run (rule 17).
 - [x] `tests/tourist-tax-refund-declaration.unit.test.js` — per-night refundable line, server-derived
-      quantity, `refundedTouristTax` across means, night + adult-nights + amount deducted from the row,
+      quantity, the refunded nights across means, night + adult-nights + amount deducted from the row,
       the per-property recap and the totals, caisse interne included, a fully-refunded stay leaving the
       declaration, a sub-night refund changing nothing, `net + retiré = brut` (rules 27–33).
 - [x] `tests/reception-role-allowlist.unit.test.js` (existing drift test) — still red-flags the new

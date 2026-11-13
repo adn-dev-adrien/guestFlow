@@ -1,6 +1,7 @@
 /**
  * Small pure helpers for the reservations domain (no DB access).
  */
+const { allocateDiscount } = require('./pricing/discounts');
 
 function parseJsonArray(raw) {
   if (!raw) return [];
@@ -44,8 +45,7 @@ function inferCustomAccommodationPrice({
   const options = Number(optionsTotal || 0);
   const resources = Number(resourcesTotal || 0);
   const subtotal = roundMoney(baseTotal + options + resources);
-  const normalizedDiscountPercent = Math.max(0, Math.min(100, Number(discountPercent || 0)));
-  const discountedFinal = roundMoney(subtotal * (1 - normalizedDiscountPercent / 100));
+  const discountedFinal = allocateDiscount({ discount: { percent: discountPercent, target: 'nights' }, accommodation: subtotal }).accommodation;
 
   if (Math.abs(storedFinal - discountedFinal) < 0.01) return '';
 

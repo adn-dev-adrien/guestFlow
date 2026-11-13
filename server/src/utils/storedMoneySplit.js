@@ -10,6 +10,7 @@
 
 const { resolveMidStaySplit, storedMidStayLines, extraLineKey } = require('./midStayExtras');
 const { parseRemovedLineContribs } = require('./removedLineContribs');
+const { splitTtc } = require('./pricing/vat');
 
 function nz(value) { return value == null ? 0 : Number(value); }
 function round2(value) { return Math.round(Number(value || 0) * 100) / 100; }
@@ -157,7 +158,7 @@ function storedMoneyBucketTtcs(collected, revenueTtc, ratePercent) {
   const cents = BUCKETS.map((bucket) => {
     const ttc = nz(collected[bucket]);
     if (ttc <= 0) return 0;
-    const vat = round2(ttc * (rate / (100 + rate)));
+    const { vat } = splitTtc(ttc, rate);
     return Math.round(round2((round2(ttc - vat) + vat) * fraction) * 100);
   });
   const largest = cents.indexOf(Math.max(...cents));

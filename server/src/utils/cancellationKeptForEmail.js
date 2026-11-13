@@ -9,8 +9,8 @@
  *   - anything else (a devis, a platform booking the cancel refuses): 0.
  */
 
-const { cancellationPreview, cashDepositKeptOf } = require('./cancelReservation');
-const { isOffBooks, isIndemnityLine, madeAfterCancellation } = require('./refunds');
+const { cancellationPreview } = require('./cancelReservation');
+const { givenBackSinceCancelOf } = require('./pricing/refunds/cancellation');
 const { isDirectChannel } = require('./platformNameFormat');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -40,14 +40,7 @@ function givenBackSinceCancel(database, reservationId, { withCash }) {
   const row = require('../models/reservationsModel').create(database).getForCancellation(Number(reservationId));
   if (!row) return 0;
   const refunds = require('../models/refundsModel').createModel(database).listByReservation(Number(reservationId));
-  const after = refunds.filter((refund) => madeAfterCancellation(refund, refunds, row.cancelledAt));
-  if (after.length === 0) return 0;
-  const fromIndemnity = after.filter((refund) => !isOffBooks(refund.method))
-    .flatMap((refund) => refund.lines || []).filter(isIndemnityLine)
-    .reduce((total, line) => total + Number(line.amountTtc || 0), 0);
-  const before = refunds.filter((refund) => !after.includes(refund));
-  const cashDrop = !withCash ? 0 : Math.max(0, round2(cashDepositKeptOf(row, before) - cashDepositKeptOf(row, refunds)));
-  return round2(fromIndemnity + cashDrop);
+  return givenBackSinceCancelOf({ row, refunds, withCash });
 }
 
 function cancelledKeptOf(database, reservationId) {

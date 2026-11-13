@@ -15,6 +15,7 @@ const { arrivalPaymentAdjustment } = require('./reservationSettlement');
 const { getTodayIsoDate } = require('./reservationHelpers');
 const { isTouristTaxFrozen } = require('./touristTaxFreeze');
 const { DEFAULT_PAYOUT_DUE_DAYS } = require('./platformPayout');
+const { create: createStayRepository } = require('../models/ports/stayRepository');
 
 // specs/mid-stay-extras-to-end-of-stay-complement.md — everything the engine needs to keep the
 // prestations sold DURING the stay out of the pre-arrival / arrival-complement buckets: the arrival
@@ -22,7 +23,7 @@ const { DEFAULT_PAYOUT_DUE_DAYS } = require('./platformPayout');
 // is collected) the frozen mid-stay lines. All zeroed for a reservation-less quote (devis, public).
 function midStayQuoteInputs(db, reservationId) {
   if (!reservationId || reservationId <= 0) return {};
-  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId));
+  const row = createStayRepository(db).stayRow(reservationId);
   if (!row) return {};
   const model = require('../models/reservationsModel');
   const refundsModel = require('../models/refundsModel');
@@ -67,7 +68,7 @@ function scheduleQuoteInputs(db, bookingId, { editedStartDate, newDevis = false 
     if (!newDevis) return fallback;
     return { ...fallback, kind: 'devis', validUntil: editedDevisValidUntil(db, {}, editedStartDate) || null };
   }
-  const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(bookingId));
+  const row = createStayRepository(db).stayRow(bookingId);
   if (!row) return fallback;
   return {
     bookingDate: row.createdAt || fallback.bookingDate,
@@ -130,7 +131,7 @@ function resolvePlatformPayoutDueDays(platform) {
 function frozenTouristTaxInputs(db, reservationId, refreshTouristTax) {
   let frozen = null;
   if (Number(reservationId) > 0 && !refreshTouristTax) {
-    const stored = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(reservationId));
+    const stored = createStayRepository(db).stayRow(reservationId);
     if (stored && isTouristTaxFrozen(db, stored)) frozen = stored;
   }
   return {

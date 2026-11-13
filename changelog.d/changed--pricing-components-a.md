@@ -1,0 +1,1 @@
+- **Pricing internals**: the parameters of every unit come through one settings provider (article, then property, then global, then the engine's default); a package that needs a newer SDK now says « Nécessite une version plus récente de GuestFlow. ».

@@ -42,6 +42,8 @@ function emptyRecord(id) {
     reservationBlocks: [],
     // specs/plugins-phase-3c-hourly-resources.md rules 1, 6.
     priceLineContributor: null,
+    // specs/pricing-components.md rules 5, 47 (SDK 2.27.0) — the ids of the article families the plugin declared.
+    articleFamilies: [],
     sasCommits: [],
     // specs/options-resources-ux.md rule 19 (SDK 2.8.0) — (resource, { properties }) → { lines?, footer? } | null.
     resourceCatalogueLines: null,

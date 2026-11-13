@@ -9,6 +9,7 @@ const eventBus = require('./eventBus');
 
 const { EVENTS, PLUGIN_EMITTABLE } = eventBus;
 const coreServices = require('./coreServices');
+const articles = require('../../utils/pricing/articles');
 
 const METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
 const PROVIDER_MEMBERS = ['id', 'label', 'errorCode', 'isReady', 'createLink', 'getPayment', 'getLinkStatus', 'cancelLink'];
@@ -130,6 +131,14 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
         if (other) throw new Error(`${prefix} the "${type}" lines are already priced by ${other.id}`);
       });
       record.priceLineContributor = contributor;
+    },
+    // SDK 2.27.0 (specs/pricing-components.md rules 5, 47) — a pricing family for the Articles head:
+    // `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
+    // `ctx.priceLineContributor` stays as the alias of the hourly one. A family id is declared once
+    // (DUPLICATE_FAMILY); it prices only while this plugin is live (FAMILY_UNAVAILABLE otherwise).
+    articleFamily(familyId, family) {
+      articles.registerFamily(familyId, family, { owner: id, isLive: () => registry.isLive(id) });
+      record.articleFamilies.push(familyId);
     },
     // SDK 2.26.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
     // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and

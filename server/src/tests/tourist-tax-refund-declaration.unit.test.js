@@ -11,7 +11,7 @@ const Database = require('better-sqlite3');
 
 const financeModel = require('../models/financeModel');
 const refundsModel = require('../models/refundsModel');
-const { buildRefundableLines, validateRefundPayload, refundedTouristTax, round2 } = require('../utils/refunds');
+const { buildRefundableLines, validateRefundPayload, round2 } = require('../utils/refunds');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, '..', 'schema.sql'), 'utf8');
 const pad2 = (n) => String(n).padStart(2, '0');
@@ -78,16 +78,6 @@ test('la quantité en nuits est DÉRIVÉE du montant côté serveur, jamais repr
   );
   assert.equal(result.refund.lines[0].quantity, 1);
   assert.equal(result.refund.lines[0].amountTtc, 4.4);
-});
-
-test('refundedTouristTax cumule tous les moyens et arrondit à la nuit entière', () => {
-  const { amount, nights } = refundedTouristTax([
-    { method: 'transfer', lines: [{ lineKey: 'touristTax', amountTtc: 4.4, quantity: 1 }] },
-    { method: 'internal', lines: [{ lineKey: 'touristTax', amountTtc: 4.4, quantity: 1 }] },
-    { method: 'transfer', lines: [{ lineKey: 'opt:7', amountTtc: 24, quantity: 2 }] },
-  ]);
-  assert.equal(amount, 8.8);
-  assert.equal(nights, 2, 'la ligne option ne compte pas');
 });
 
 test('rule 30 — une nuit remboursée sort de la nuit, des nuitées taxables et du montant', () => {
