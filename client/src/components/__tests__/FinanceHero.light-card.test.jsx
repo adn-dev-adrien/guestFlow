@@ -36,7 +36,9 @@ test('rule 52 — a white card with a divider border and a fir rule on top', () 
   renderHero();
   const card = getComputedStyle(screen.getByRole('region', { name: "Chiffre d'affaires" }));
   expect(card.backgroundColor).toBe(rgb(theme.palette.background.paper));
-  expect(card.boxShadow.toLowerCase()).toContain(`inset 0 3px 0 ${theme.palette.primary.main}`.toLowerCase());
+  const fir = theme.palette.primary.main;
+  // jsdom 30 keeps « inset 0 3px 0 #hex », jsdom 31 serialises « rgb(r, g, b) 0px 3px inset ».
+  expect([`inset 0 3px 0 ${fir}`.toLowerCase(), `${rgb(fir)} 0px 3px inset`]).toContain(card.boxShadow.toLowerCase());
   expect(card.color).toBe(rgb(theme.palette.text.primary));
 });
 
