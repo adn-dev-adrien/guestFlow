@@ -812,6 +812,18 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     }
     if (refused) showError(refused.message || 'Cette vente ne peut pas être perçue maintenant.');
   };
+  // Mock M3 — « Offrir » on a line already paid: the line API judges it (409 OVERPAID until confirmed, the excess is then owed back from the fiche). The
+  // refusal goes back to the section, which asks; once offered the SAS payload and the recap are read again.
+  const offerPaidSale = async (ref, force) => {
+    await api.patchExtraLine(reservationId, ref, { offered: true, forceOverpayment: Boolean(force) });
+    try {
+      const fresh = await api.getReservationSas(reservationId, mode);
+      setData((held) => ({ ...held, staySales: fresh?.staySales ?? null }));
+      preview.retry();
+    } catch (err) {
+      showError(err?.message || 'Lecture du sas impossible.');
+    }
+  };
   // specs/mixed-method-payments.md rule 45 — reception never splits; the departure lines only count where the recap has
   // something to collect (audit R34-C-M1).
   const canSplitPayment = data ? data.canSplitPayment !== false : false;
@@ -1078,7 +1090,8 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
         )}
         {/* specs/mid-stay-notes.md §3.5 rule 20 — read-only reminder: these prestations were
             already collected during the stay, they are NOT part of the total to collect here. */}
-        {recap.midStaySettled > 0 && (
+        {data?.staySales && <StaySalesSection section={data.staySales} onOffer={sasLock ? null : offerPaidSale} />}
+        {recap.midStaySettled > 0 && !data?.staySales?.lines?.length && (
           <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', fontVariantNumeric: 'tabular-nums' }}>
             Déjà réglé en séjour : {shown(recap.midStaySettled)}
           </Typography>
@@ -1645,7 +1658,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Typography variant="sectionHeader">
                 {stayStep ? 'Récapitulatif — à percevoir' : 'Récapitulatif — complément à percevoir'}
               </Typography>
-              <StaySalesSection section={data?.staySales} onCollectNow={mode === 'arrival' && !sasLock ? collectSalesNow : null} />
+              <StaySalesSection section={data?.staySales} onCollectNow={mode === 'arrival' && !sasLock ? collectSalesNow : null} onOffer={sasLock ? null : offerPaidSale} />
               {stayStep && !unifiedPayment && (
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...previewDim }}>Séjour : {shown(stayDue)}</Typography>

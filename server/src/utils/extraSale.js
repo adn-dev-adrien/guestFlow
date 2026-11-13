@@ -5,7 +5,8 @@
  *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents })  → { status: 200, saleDetail } | { status, body }
  *   changeLine(reservationId, ref, patch, { now, forceOverpayment })  → { status: 200, saleDetail } | { status, body }
  *   saleDetailOf(reservationId, now)  → the payload of rule 31 (utils/saleDetail.js)
- *   departureSalesOf(reservationId, now)  → the SAS's « Ventes du séjour — au départ » section, or null
+ *   departureSalesOf(reservationId, now)  → the arrival SAS's « Ventes du séjour — au départ » section, or null
+ *   paidSalesOf(reservationId, now)       → the departure SAS's « Déjà payé » section (the lines already collected), or null
  *
  * A request is `{ articleRef: 'option:<id>' | 'resource:<id>', quantity, persons?, mornings?, time?, sessions? }`. A sale is priced and
  * written exactly as the operator's « Enregistrer » writes it: the stored stay rebuilt as the fiche's PUT body, the requested lines added,
@@ -32,7 +33,9 @@ const {
 const { toCents } = require('./pricing/money');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
-const { buildSaleDetail, departureSection, partsText } = require('./saleDetail');
+const {
+  buildSaleDetail, departureSection, paidSection, partsText, PAID_TITLE,
+} = require('./saleDetail');
 const fulfilment = require('./pricing/articleFulfilment');
 const { makeArticle } = require('./pricing/articles');
 const { nextLineId } = require('./lineRowTarget');
@@ -341,11 +344,22 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
   return outcome;
 }
 
+// What the stay still owes back for lines the operator lowered after they were paid (rule 23), carried by the SAS sections so the SAS announces
+// the figure and the fiche pays it (mock M3).
+const withRefundOwed = (section, reservationId) => (section ? { ...section, refundOwedCents: extraSalesModel().openLoweredCents(Number(reservationId)) } : section);
+
 // The SAS's own section of what the stay sold for its departure (rule 32).
 function departureSalesOf(reservationId, now = new Date()) {
-  return departureSection(saleDetailOf(reservationId, now));
+  return withRefundOwed(departureSection(saleDetailOf(reservationId, now)), reservationId);
+}
+
+// The departure SAS's section of what the stay already collected on its sold lines (rule 32).
+function paidSalesOf(reservationId, now = new Date()) {
+  const owed = extraSalesModel().openLoweredCents(Number(reservationId));
+  const section = paidSection(saleDetailOf(reservationId, now)) || (owed > 0 ? { title: PAID_TITLE, lines: [], groups: [], totalCents: 0, dueCents: 0 } : null);
+  return withRefundOwed(section, reservationId);
 }
 
 module.exports = {
-  quote, sell, changeLine, saleDetailOf, departureSalesOf, parseRequests,
+  quote, sell, changeLine, saleDetailOf, departureSalesOf, paidSalesOf, parseRequests,
 };

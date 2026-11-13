@@ -496,7 +496,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > « Tout percevoir maintenant » heads the section: the dialog moves the lines to the arrival with the line API (`PATCH …/extras/:ref { collectAt: 'arrival' }`, the server refuses a moment that is no longer possible and the
     > dialog shows its message), then reads the SAS payload and the recap again without leaving the page. The paid lines fold under « Déjà payé · n ligne(s) » and offer nothing. A line a reopened SAS appended
     > carries « Ajoutée à la réouverture » (`staySales.lines[].addedOnReopen`). `StaySalesSection` takes an optional `onCollectNow(refs)`; without it the section stays a read-only list.
-    > **Pending** — PR C: the departure SAS section « À percevoir au départ » with the recalled arrival lines per the mock, and the « Offrir → remboursement » confirmation inside the SAS: they need the SAS plan as a view over the lines.
+    > **Delivered by PR C** (C25, departure side): the departure SAS payload serves `staySales` as the « Déjà payé » section (`extraSale.paidSalesOf`: the lines already collected, whatever their moment; reception gets none) and the arrival
+    > one keeps its departure section; both carry `refundOwedCents` (the open `lineLowered` obligations). A paid line offers « Offrir » (`StaySalesSection` `onOffer(ref, force)`): the dialog sends `PATCH …/extras/:ref { offered: true }`;
+    > a 409 `OVERPAID` opens « Ligne déjà payée : l’offrir rend X au client » with the server's `overpaymentTtc`, « Offrir · X à rembourser » asks again with `forceOverpayment`, and the section then announces « À rembourser (depuis la fiche) : X ».
+    > A stay not over-paid takes the offer at once (the money stays credited to the stay, rule 23). Proof `sas-paid-sales-section`, `StaySalesSection.offer-paid`, `ReservationSasDialog.departure-paid-sales`.
+    > **Pending** — PR C: the departure recap's due lines (« À percevoir au départ », the recalled arrival lines) are still the plan's own lines from the stored end-of-stay detail, not `saleDetail` lines: that needs `planDepartureSas` as a view over the lines (rule 25, Pending).
 
 ### 3.H Non-regression guarantee
 

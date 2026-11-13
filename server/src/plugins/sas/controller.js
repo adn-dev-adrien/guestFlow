@@ -420,7 +420,7 @@ function getSas(req, res) {
     // at check-out. An option the operator booked on the fiche is absent (its step is closed).
     sasSales: saleOffersFor(reservation, { isDeparture }),
     // Rule 32 — what the stay sold for its departure, apart from the total the arrival collects (reception sees no money).
-    staySales: isReceptionOnly(req.user) ? null : extraSale.departureSalesOf(reservation.id),
+    staySales: isReceptionOnly(req.user) ? null : (isDeparture ? extraSale.paidSalesOf(reservation.id) : extraSale.departureSalesOf(reservation.id)),
     // specs/sas-departure-recap-server-side.md rule 12 — what the stored detail says the operator
     // decided, so the dialog seeds its state without dividing an amount by a price.
     ...(isDeparture ? { departureSeed: reservationsModel.buildDepartureSeed(reservation.id) } : {}),

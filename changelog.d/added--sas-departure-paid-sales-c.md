@@ -1,0 +1,1 @@
+- Sas de départ : les ventes déjà payées se listent sous « Déjà payé » et peuvent être offertes ; si le séjour est alors trop perçu, une confirmation annonce le montant à rembourser (« Offrir · 13,00 € à rembourser ») et le sas rappelle « À rembourser (depuis la fiche) » (specs/pricing-components.md, règles 14, 23 et 32).

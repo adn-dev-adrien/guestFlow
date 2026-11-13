@@ -198,4 +198,22 @@ function departureSection(detail) {
   };
 }
 
-module.exports = { buildSaleDetail, departureSection, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE };
+// Rule 32 — what the stay already collected on its sold lines (« Déjà payé »), whatever their moment: the departure SAS lists them so the
+// operator may still offer one (rule 14; the fiche's save then asks to confirm what is owed back, rule 23).
+const PAID_TITLE = 'Déjà payé';
+function paidSection(detail) {
+  const lines = ((detail && detail.lines) || []).filter((line) => ['option', 'resource', 'custom'].includes(line.kind) && line.status === 'paid' && line.totalCents > 0);
+  if (!lines.length) return null;
+  return {
+    title: PAID_TITLE,
+    lines: lines.map((line) => ({
+      ref: line.ref, label: line.label, totalCents: line.totalCents, settledCents: line.settledCents, status: line.status, statusLabel: line.statusLabel,
+      sourceLabel: line.sourceLabel, offered: line.offered, groupLabel: line.groupLabel, block: 'paid', addedOnReopen: line.addedOnReopen,
+    })),
+    groups: groupsOf(lines).map((group) => ({ ...group, block: 'paid' })),
+    totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
+    dueCents: 0,
+  };
+}
+
+module.exports = { buildSaleDetail, departureSection, paidSection, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE, PAID_TITLE };
