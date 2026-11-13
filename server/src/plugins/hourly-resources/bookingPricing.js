@@ -13,8 +13,6 @@ const { priceSessions, bookingDeductions, toMinutes } = require('./hourlyPricing
 
 const { splitTtc } = sdk.coreModule('vat');
 
-const { netFirst } = sdk.coreModule('vat');
-
 const OFFER_STEP_MINUTES = 15;
 
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;

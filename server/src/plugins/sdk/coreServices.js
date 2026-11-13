@@ -62,12 +62,6 @@ function savePlatformIntake(id, intake, label) {
   return result;
 }
 
-function applyReservationUpdate(id, patch, label) {
-  const current = reservations().getByIdWithDetails(Number(id));
-  const platform = current ? current.platform : undefined;
-  return savePlatformIntake(id, platformIntakePort().toPlatformIntake(patch, { platform }), label);
-}
-
 // specs/plugins-phase-1-sdk.md rule 28 — a plugin's client goes through the same
 // validation as the client dialog: one e-mail address, a phone number of a sane shape.
 const invalidClient = (message) => Object.assign(new Error(message), { code: 'INVALID_CLIENT' });
