@@ -15,6 +15,7 @@ const { isOptionalText, isClockTime, positiveId } = require('../utils/bodyText')
 const { numberRefused, nonNegative, wholeFrom } = require('../utils/lineInputBounds');
 const { buildResourceItems } = require('../utils/resourceCatalogueView');
 const { resourceCatalogueContributors } = require('../utils/resourceCatalogueContributors');
+const externalFields = require('../utils/externalArticleFields');
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 const HOURLY_RATES = ['hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
@@ -161,7 +162,7 @@ function createController(model, {
 
   // Rule 21 — the editor's own checks, authoritative here.
   function validationRefused(body, res, stored = null) {
-    const details = validateResourcePayload(body, stored, properties().map((p) => p.id));
+    const details = validateResourcePayload(body, stored, properties().map((p) => p.id)).concat(externalFields.validate(body, { kind: 'resource', stored }));
     if (details.length === 0) return false;
     res.status(422).json({ error: 'VALIDATION_FAILED', details });
     return true;
@@ -173,7 +174,9 @@ function createController(model, {
     if (error) return res.status(400).json({ error });
     const sentence = sentenceError(req.body);
     if (sentence) return res.status(422).json(sentence);
-    return res.json({ id: model.insert(req.body) });
+    const id = model.insert(req.body);
+    externalFields.persist('resource', id, req.body);
+    return res.json({ id });
   }
 
   function update(req, res) {
@@ -185,6 +188,7 @@ function createController(model, {
     const sentence = sentenceError(req.body);
     if (sentence) return res.status(422).json(sentence);
     model.update(req.params.id, req.body);
+    externalFields.persist('resource', req.params.id, req.body);
     return res.json({ ok: true });
   }
 

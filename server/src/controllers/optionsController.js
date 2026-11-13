@@ -4,6 +4,7 @@ const model = require('../models/optionsModel');
 const propertiesModel = require('../models/propertiesModel');
 const { insuranceOffered, dynamicInsurance } = require('../utils/quotePostProcessors');
 const { validateOptionPayload, cleanOptionText } = require('../utils/optionValidation');
+const externalFields = require('../utils/externalArticleFields');
 const { scopePayload, withStoredScope } = require('../utils/optionPayloadScope');
 const { buildCatalogueView, buildArchivedItems } = require('../utils/optionCatalogueView');
 const { emitPricingChanged } = require('../utils/pricingChanged');
@@ -52,7 +53,7 @@ function validationRefused(req, res, stored = null) {
   req.body = cleanOptionText(req.body, stored);
   const details = validateOptionPayload(scopePayload(withStoredScope(req.body, stored)), {
     knownPropertyIds: propertiesModel.list().map((p) => p.id), stored, storedFreeUnits: stored?.propertyFreeUnits || {},
-  });
+  }).concat(externalFields.validate(req.body, { kind: 'option', stored }));
   if (details.length === 0) return false;
   res.status(422).json({ error: 'VALIDATION_FAILED', details });
   return true;
@@ -61,7 +62,9 @@ function validationRefused(req, res, stored = null) {
 function create(req, res) {
   if (insuranceFlagRefused(req, res)) return undefined;
   if (validationRefused(req, res)) return undefined;
-  return res.json(model.create(req.body));
+  const created = model.create(req.body);
+  if (created && created.id != null) externalFields.persist('option', created.id, req.body);
+  return res.json(created);
 }
 
 function update(req, res) {
@@ -71,6 +74,7 @@ function update(req, res) {
   if (insuranceFlagRefused(req, res)) return undefined;
   if (validationRefused(req, res, stored)) return undefined;
   const result = model.update(req.params.id, req.body);
+  externalFields.persist('option', req.params.id, req.body);
   // A default option of a property is part of its website quote (specs/google-vacation-rentals-feed.md
   // rule 12): the shared catalogue moves every property.
   emitPricingChanged(null, 'options');

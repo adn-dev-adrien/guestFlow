@@ -60,6 +60,8 @@ const HARDENINGS = [
   { feature: 'slot availability', sdk: '2.28.0', pattern: /\bctx\.slotAvailability\(/ },
   // specs/plugins-phase-1-sdk.md rule 52 (specs/pricing-components.md rule 38) — the shared money helpers.
   { feature: 'shared money helpers', sdk: '2.29.0', pattern: /coreModule\(\s*['"`]money['"`]/ },
+  // specs/outside-booking-sas.md rules 36-37 (SDK 2.30.0) — the generic suggested-articles lists and their sale contexts.
+  { feature: 'suggestion contexts and the sale with no stay', sdk: '2.30.0', pattern: /\bctx\.suggestionContexts\(|coreModule\(\s*['"`](suggestedArticles|standaloneSale|standaloneSaleLinks)['"`]/ },
   { feature: 'sale events', sdk: '2.28.0', pattern: /['"]extraSale\.(sold|lineMoved|lineCancelled|refundOwed)['"]/ },
 ];
 

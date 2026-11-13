@@ -215,6 +215,18 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
     },
+    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (specs/outside-booking-sas.md rule 37, SDK 2.30.0): `kind` names it
+    // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
+    // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
+    suggestionContexts({ kind, label, list } = {}) {
+      if (!/^[a-z][a-zA-Z0-9-]{0,39}$/.test(String(kind || ''))) throw new Error(`${prefix} a suggestion context needs a kind like "resource"`);
+      if (kind === 'property') throw new Error(`${prefix} the "property" suggestion context is the core's`);
+      if (typeof label !== 'string' || !label.trim()) throw new Error(`${prefix} suggestion context "${kind}" needs a label`);
+      if (typeof list !== 'function') throw new Error(`${prefix} suggestion context "${kind}" needs a list function`);
+      const other = registry.all().find((r) => r.id !== id && (r.suggestionContexts || []).some((c) => c.kind === kind));
+      if (other) throw new Error(`${prefix} the suggestion context "${kind}" is already declared by ${other.id}`);
+      record.suggestionContexts.push({ kind, label, list });
+    },
     // ({ from, to }) → [sale] — what the plugin sold outside any stay, for the journal and the card batch
     // (specs/resource-booking-pricing-and-invoicing.md rules 20-21). Synchronous, reads the plugin's own tables.
     standaloneSales(list) {

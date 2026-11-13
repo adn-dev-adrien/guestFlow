@@ -1631,7 +1631,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Pending** — PR C
 88. **« Vente hors séjour » is a core button** _(owner Q-C9, Q-C11)_: it sits in Suivi financier and is present without the accounting-export
     plugin. The option / resource catalogue form gets three minimal fields: VAT class, external rate, « Vendable hors séjour ».
-    > **Pending** — PR C
+    > **Delivered by PR C** (C36, `catalogue-sellable-externally`): the server side of the three catalogue fields — `sellableExternally`, `vatClass` and `externalVatRate` (the one rate of the class, `vat_external_rates`) are validated
+    > and written by the option and the resource controllers (`utils/externalArticleFields.js`; 422 `NEEDS_STAY`, 422 `EXTERNAL_RATE_REQUIRED`), `GET /api/standalone-sales/vat-rates` lists the class rates. **Pending** — PR C: the button in Suivi
+    > financier and the form fields (client, C38-C39).
 89. **Technical calls of PR C** _(lead, 2026-11-12)_. Q-C5: named exact money variants in `money.js` (0 diff), class-C sites keep their exact
     rounding, French parsers go to a `parseFrench*` helper. Q-C6: the `inComplement` readers are retired in the pricing units and new code;
     legacy readers stay with a documented reason (the SDK patch contract, rule 71). Q-C8: the Qonto invoice keeps `netFirst` (no issued document

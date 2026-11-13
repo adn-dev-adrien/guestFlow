@@ -88,6 +88,7 @@ const CORE_MODULES = Object.freeze({
   extraSale: '../../utils/extraSale', // quote / sell / changeLine, the sale detail and the departure section of the SAS
   saleDetail: '../../utils/saleDetail', // the one read model of what a stay sold (rule 31); `buildDocumentDetail` is its form for a standalone document (SDK 2.30.0)
   standaloneSaleLinks: '../../utils/standaloneSaleLinks', // the payment link of a standalone sale's reste: linkOf / mint / withdraw / emailLink (outside-booking-sas rules 39-42, SDK 2.30.0)
+  suggestedArticles: '../../utils/suggestedArticles', // the articles suggested for a sale context: resolve / kinds / save (outside-booking-sas rules 35-38, SDK 2.30.0; plugins declare contexts with `ctx.suggestionContexts`)
   standaloneSale: '../../utils/standaloneSale', // the sale of an article with no stay: quote / sell / offerLine / removeLine / pay / cancel (pricing-components rules 53, 74, SDK 2.30.0)
   articles: '../../utils/pricing/articles', // the Articles head: `read` prices one candidate line, `unitsPerQuantity` its units
   catalogue: '../../models/ports/catalogueProvider', // the lodging's own price of an option or a resource (hourly-resources: the booking's price row)

@@ -1019,6 +1019,12 @@
     "removeLine",
     "sell"
   ],
+  "suggestedArticles": [
+    "kinds",
+    "resolve",
+    "save",
+    "settingsView"
+  ],
   "standaloneSaleLinks": [
     "emailLink",
     "linkOf",

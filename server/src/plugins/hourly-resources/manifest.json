@@ -14,7 +14,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.29.0",
+  "sdk": "^2.30.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -163,7 +163,8 @@
     ],
     "1.6.5": [
       "Une séance dont l'argent est sur une vente hors séjour du cœur n'est plus comptée deux fois dans le journal ni dans le lot de cartes.",
-      "Compatible avec GuestFlow 4 (SDK 2.30)."
+      "Les ressources à l'heure sont les contextes « Proposés à l'arrivée » des ventes hors séjour (Réglages → Articles).",
+      "Demande le SDK 2.30 de GuestFlow."
     ]
   }
 }

@@ -57,6 +57,15 @@ function register(ctx) {
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
+  // The outside-visit spec rule 37 — the resources sold by the hour are the contexts of the generic « Proposés à l'arrivée » lists (kind `resource`); the lists
+  // themselves are the core's `suggested_articles` rows, never a setting of this plugin.
+  ctx.suggestionContexts({
+    kind: 'resource',
+    label: 'Ressources à l’heure',
+    list: () => (hasTable(ctx.db, 'resources')
+      ? ctx.db.prepare("SELECT id, name AS label FROM resources WHERE priceType = 'per_hour' AND showsPlanningCard = 1 ORDER BY name, id").all()
+      : []),
+  });
   // Rules 18, A2 — the attachments still to join, the invoices cancelled by hand in Qonto.
   ctx.jobs.every({ name: 'resource-invoices-watch', intervalMs: 60 * 60 * 1000, bootDelayMs: 5 * 60 * 1000, run: () => invoicing().watch() });
 

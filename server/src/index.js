@@ -292,6 +292,8 @@ app.use('/api/finance', require('./routes/finance'));
 app.use('/api/public-holidays', require('./routes/publicHolidays'));
 app.use('/api/calendar-notes', require('./routes/calendarNotes'));
 app.use('/api/ical', require('./routes/ical'));
+app.use('/api/suggested-articles', require('./routes/suggestedArticles').resolved);
+app.use('/api/settings/suggested-articles', require('./routes/suggestedArticles').settings);
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/push', require('./routes/push'));
 app.use('/api/payments', require('./middleware/stayVersionsTrail').stayVersionsTrail());
