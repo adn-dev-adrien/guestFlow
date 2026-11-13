@@ -32,7 +32,7 @@
  */
 const {
   storedBody, optionRows, mergeOrderLines, personsRefusal, remainderByKey, deltaOf,
-} = require('./midStayOrderCommit');
+} = require('./stayOrderLines');
 const { toCents } = require('./pricing/money');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');

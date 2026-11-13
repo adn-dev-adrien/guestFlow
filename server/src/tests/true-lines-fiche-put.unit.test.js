@@ -7,7 +7,7 @@ const {
   db, bath, stayWithTwoSales, rowsOf,
 } = require('./trueLinesFixture');
 const controller = require('../controllers/reservationsController');
-const { storedBody } = require('../utils/midStayOrderCommit');
+const { storedBody } = require('../utils/stayOrderLines');
 
 const bathRows = (id) => rowsOf(id).filter((r) => r.optionId === bath);
 // The two bath lines of a stay (the line numbers are global to the database).

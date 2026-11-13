@@ -182,7 +182,7 @@ function moveLine(reservationId, line, to) {
 
 function lowerLine(reservationId, line, wants) {
   const db = database();
-  const { storedBody } = require('../utils/midStayOrderCommit');
+  const { storedBody } = require('../utils/stayOrderLines');
   const body = storedBody(reservationId);
   if (!body) return { error: { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } } };
   let text = '';

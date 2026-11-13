@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — rules 65-107 are delivered by pass 4 of pricing-components PR C (the removal of `midStayOrderCommit` is C30, still open); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
+| **Status** | In progress — rules 65-107 are delivered by pass 4 of pricing-components PR C (`midStayOrderCommit` was removed by C30, 2026-11-13); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
 | **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `inte/plugins` |
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
@@ -1135,7 +1135,7 @@ plugins only through the functions they export to other plugins (no direct table
 | `utils/` | `basketPayments.js` | C | `ctx.core.payments`: mint, read on demand and withdraw a basket's link (rules 33, 35) |
 | `models/paymentLinksModel.js` · `utils/ledgerLinks.js` · `utils/reservationLedger.js` | — | T | `basketJson` read and written; a basket link is no bucket's link (stale, settled, the complement row); the ledger row of a basket to refund, in the owner's words (« Commande client à rembourser », else the core's neutral « Paiement en ligne à rembourser », rule 36) |
 | `utils/paymentPollRunner.js` | — | T | `applyPaidEffect` `complement` branch → the basket owner's `paid` (`ctx.paymentBasket`) |
-| `utils/` | `midStayOrderCommit.js` | C | **Core, generic**: commits a plugin's order lines (options + resource sessions) as mid-stay extras, records a card payment as a settled note `{ source, ref }`, the history entry in the caller's words — one transaction (rules 30, 34, 35). The guest app names its orders « Commande client #N » |
+| `utils/` | `midStayOrderCommit.js` | C → removed (C30) | **Removed 2026-11-13**: `extraSale` + `utils/stayOrderLines.js` carry it; `coreModule('midStayOrderCommit')` stays a thin SDK alias (`plugins/sdk/midStayOrderCommit.js`). Was: commits a plugin's order lines (options + resource sessions) as mid-stay extras, records a card payment as a settled note `{ source, ref }`, the history entry in the caller's words — one transaction (rules 30, 34, 35). The guest app names its orders « Commande client #N » |
 | `utils/` | `stayWindow.js` | C | The stay window, moved from `gate-access/window.js` (rule 2) |
 | `plugins/sdk/index.js` | — | T | Add `stayWindow`, `encryption` (SDK 2.26.0), `midStayOrderCommit`, `pricing` free-units helper, `midStayExtrasWindow` to `CORE_MODULES` (one reviewed line each) |
 | `index.js` | — | T | `pluginLoader.mountWebApps(app)` before the favicon and the client: the plugin serves its guest app on the guest host and its studio at `/studio`, only while it is live |
@@ -1571,7 +1571,7 @@ le nom et le numéro. »
 - [x] `…/guest-app-orders-admin.unit.test.js` (8) — rules 11, 38, 43, 45 (staff-prepared lines only on the card, « À préparer » ages out): the list, « Marquer livrée », planning cards, reception
 - [x] `tests/payment-complement-link.unit.test.js` (9) — a part owed back (`refundCents`), a basket paid after its stay was cancelled, `ensurePaymentLink` / `applyPaidEffect` complement
   branch, refusal without basket, 30 min, no arrival lapse, « à rembourser », `ctx.paymentBasket`
-- [x] `tests/mid-stay-order-commit.unit.test.js` (12) — the pending lines priced first, a breakfast line kept, rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
+- [x] `tests/mid-stay-order-alias.unit.test.js` (renamed from `mid-stay-order-commit`, C30; the pending-lines test was dropped 2026-11-13) — a breakfast line kept, rules 24, 25, 27bis, 30, 34, 35: the core commit and its pricing
 - [x] `…/guest-app-stock.unit.test.js` (13) — rules 37bis-37quater (a per-person article counts its people): restock sets the count with its history line and
   is what the cellar holds now, « En rupture », no stock for the bath or the breakfast, holds of an unpaid card order
   released on expiry / abandon and counted once paid, a site line counted on the arrival day and not before, a line

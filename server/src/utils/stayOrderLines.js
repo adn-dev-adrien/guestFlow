@@ -1,50 +1,32 @@
 /**
- * A plugin's order lands on the fiche as mid-stay extras (specs/plugins-phase-1-sdk.md rule 47; first used by
- * specs/guest-app.md rules 24, 30, 34, 35). The money and the reservation write stay core: an order is priced and
- * written exactly as the operator's « Enregistrer » on a locked fiche writes a mid-stay extra
- * (specs/mid-stay-extras-on-locked-fiche.md rules 1, 9) — the stored state rebuilt as the fiche's PUT body, the
- * order's lines added to it, then `performUpdate`. The window, the arrival floors (`ARRIVAL_EXTRAS_FROZEN`), the
- * closed window (`MID_STAY_EXTRAS_CLOSED`), the session conflicts and the engine are the fiche's own.
+ * The lines an order or a sale adds to a stay, as the fiche's PUT body carries them (specs/pricing-components.md §3.F, rules 13, 85; the removal
+ * of `midStayOrderCommit`, C30). `extraSale` prices and writes through them; nothing here writes.
  *
- *   priceOrder(reservationId, lines) → { status: 200, byKey, total } | { status, body }
- *   commitOrder(reservationId, { source, ref, history, lines, paid?, within? }) → { status: 200, byKey, total, settledCents } | { status, body }
+ *   storedBody(reservationId)            → the fiche's PUT body for the stored stay, or null when it is not a live reservation
+ *   optionRows(db, lines)                → the catalogue rows (`id`, `priceType`) of the option lines
+ *   mergeOrderLines(body, lines, rows, nextLineId?) → the body with the lines appended
+ *   personsRefusal(body, lines, rows)    → 409 `ORDER_PERSONS_EXCEEDED` `{ status, body }`, or null
+ *   remainderByKey(row) / deltaOf(before, after) → what a save added to the end-of-stay complement per line key
  *
- * `lines` — the order's lines, already judged by the plugin (what is sold, the slots, the mornings):
+ * `lines` — already judged by the seller (what is sold, the slots, the mornings):
  *   { kind: 'option', id, quantity }                       a unit, or one more person on a per-person option
  *   { kind: 'breakfast', id, mornings: [date], time, persons }   the mornings and hour of the breakfast line
  *   { kind: 'resource', id, quantity?, sessions?: [{ date, start, end }] }
- * `byKey` — what the order adds to the end-of-stay complement per line key (`opt:<id>`, `res:<id>`): the engine's
- * answer for the stay with the order minus its answer for the stay without it, so free units, free minutes, the
- * stay's price lock and per-lodging prices all apply as they do on the fiche. A 0 € line adds nothing.
  *
- * The caller names its order: `source` (its basket source, `[a-z][a-zA-Z0-9-]*`) and `ref` (its own id) mark the
- * settled note of a paid order; `history: { field, label, text }` is the stay's history entry, written in the
- * caller's words.
- *
- * Persons (rule 47 reading of 2026-11-10, audit R36-M-H1): the engine serves a per-person line at most
+ * Persons (plugins-phase-1-sdk.md rule 47 reading of 2026-11-10, audit R36-M-H1): the engine serves a per-person line at most
  * max(1, party, the lodging's capacity) persons, so persons ordered beyond what is left would be delivered and never
  * billed. Such an order is refused before anything is priced: 409 `ORDER_PERSONS_EXCEEDED` with `{ key, left }` —
  * a per-person option whose persons (the stay's line and this one) exceed the ceiling, and a
  * breakfast asking more persons than its line already serves (that line keeps its persons, guest-app rule 27bis).
- *
- * `paid` — `{ amountCents, paidDate, reference }` for a card order: the order's sale is collected at once, as a
- * settled mid-stay note (specs/mid-stay-notes.md rule 1) carrying the order and the provider's reference, so the
- * end-of-stay complement owes nothing for it and the books take it on the payment day. `within(result)` runs in
- * the same transaction, after the write: the plugin's own order row moves with the fiche, or neither does.
  */
 
 const { toUpdateBody } = require('./reservationUpdateBody');
-const { storedMidStayLines, parseNotes } = require('./midStayExtras');
+const { storedMidStayLines } = require('./midStayExtras');
 const { normalizeOccurrences } = require('./cardOccurrences');
-const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
-const { nextLineId } = require('./lineRowTarget');
+const { roundMoneyOrZero: round2 } = require('./pricing/money');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
-const controller = () => require('../controllers/reservationsController');
-
-const ROLLBACK = Symbol('mid-stay-order-rollback');
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const minutesOf = (time) => {
   const [h, m] = String(time || '').split(':').map(Number);
@@ -207,121 +189,6 @@ function deltaOf(before, after) {
   return { byKey, total };
 }
 
-const refusal = (result) => ({ status: result.status, body: result.body });
-
-const numbered = () => (table) => nextLineId(database(), table);
-
-// The plugins read what an order added per ARTICLE (`opt:<id>`, `res:<id>`): the amounts of the lines the order appended are added up under it.
-function perArticle(byKey, body) {
-  const articleOf = new Map();
-  for (const line of body.options || []) if (line.lineId != null) articleOf.set(`line:reservation_options:${Number(line.lineId)}`, `opt:${Number(line.optionId)}`);
-  for (const line of body.resources || []) if (line.lineId != null) articleOf.set(`line:reservation_resources:${Number(line.lineId)}`, `res:${Number(line.resourceId)}`);
-  const out = {};
-  for (const [key, amount] of Object.entries(byKey)) out[articleOf.get(key) || key] = round2((out[articleOf.get(key) || key] || 0) + amount);
-  return out;
-}
-
-/** Rule 24 — the order priced by the fiche's own engine, nothing written. */
-function priceOrder(reservationId, lines) {
-  const id = Number(reservationId);
-  const stored = storedBody(id);
-  if (!stored) return { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
-  const rows = optionRows(database(), lines);
-  const body = stored;
-  const persons = personsRefusal(body, lines, rows);
-  if (persons) return persons;
-  const save = controller().performUpdate;
-  const base = save(id, structuredClone(body), { dryRun: true });
-  if (base.status !== 200) return refusal(base);
-  const sent = mergeOrderLines(body, lines, rows, numbered());
-  const next = save(id, sent, { dryRun: true });
-  if (next.status !== 200) return refusal(next);
-  const added = deltaOf(remainderByKey(base.row), remainderByKey(next.row));
-  return { status: 200, byKey: perArticle(added.byKey, sent), total: added.total };
-}
-
-/**
- * Rule 35 — the card's money collects the order's sale at once: one settled note, its amounts taken from the
- * remainder the order just added, up to what was paid. What the order added beyond the payment stays on the
- * end-of-stay complement; what the payment brought beyond the sale is returned as `excessCents`.
- */
-function settlePaid(id, byKey, { source, ref, amountCents, paidDate, reference }) {
-  let left = round2(Number(amountCents || 0) / 100);
-  const items = [];
-  Object.entries(byKey).forEach(([key, amount]) => {
-    const take = round2(Math.min(amount, left));
-    if (take <= 0) return;
-    items.push({ key, amount: take });
-    left = round2(left - take);
-  });
-  if (!items.length) return { settledCents: 0, excessCents: Math.round(left * 100) };
-  const note = reservations().settleMidStayNote(id, { items, cash: false });
-  const db = database();
-  const notes = parseNotes(db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(id).midStaySettledNotes)
-    .map((n) => (Number(n.id) === Number(note.id)
-      ? { ...n, ...(paidDate ? { paidDate } : {}), source: String(source), ref: String(ref), ...(reference ? { reference: String(reference) } : {}) }
-      : n));
-  db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(notes), id);
-  syncAllocations(db, id);
-  return { settledCents: Math.round(round2(note.total) * 100), excessCents: Math.round(left * 100) };
-}
-
-const SOURCE = /^[a-z][a-zA-Z0-9-]{0,39}$/;
-
-function namingError({ source, ref, history }) {
-  if (!SOURCE.test(String(source || ''))) return 'commitOrder needs the caller\'s source';
-  if (ref === undefined || ref === null || String(ref) === '') return 'commitOrder needs the order\'s ref';
-  if (!history || typeof history !== 'object' || !history.field || !history.label || !history.text) return 'commitOrder needs a history entry { field, label, text }';
-  return null;
-}
-
-/** The order written on the fiche, its history entry and its payment, in one transaction. */
-function commitOrder(reservationId, {
-  source, ref, history, lines, paid = null, within = null,
-} = {}) {
-  const error = namingError({ source, ref, history });
-  if (error) throw new Error(error);
-  const id = Number(reservationId);
-  const db = database();
-  let outcome = null;
-  try {
-    db.transaction(() => {
-      const body = storedBody(id);
-      if (!body) {
-        outcome = { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
-        throw ROLLBACK;
-      }
-      const rows = optionRows(db, lines);
-      const persons = personsRefusal(body, lines, rows);
-      if (persons) {
-        outcome = persons;
-        throw ROLLBACK;
-      }
-      const save = controller().performUpdate;
-      const base = save(id, structuredClone(body), { dryRun: true });
-      if (base.status !== 200) {
-        outcome = refusal(base);
-        throw ROLLBACK;
-      }
-      const written = save(id, mergeOrderLines(body, lines, rows, numbered()));
-      if (written.status !== 200) {
-        outcome = refusal(written);
-        throw ROLLBACK;
-      }
-      const priced = deltaOf(remainderByKey(base.row), remainderByKey(reservations().getRow(id)));
-      reservations().addHistoryEntry(id, 'update', [{
-        field: String(history.field), label: String(history.label), from: null, to: String(history.text),
-      }]);
-      const money = paid ? settlePaid(id, priced.byKey, { source, ref, ...paid }) : { settledCents: 0, excessCents: 0 };
-      outcome = { status: 200, ...priced, ...money };
-      if (typeof within === 'function') within(outcome);
-    })();
-  } catch (err) {
-    if (err !== ROLLBACK) throw err;
-  }
-  return outcome;
-}
-
 module.exports = {
-  priceOrder, commitOrder, mergeOrderLines, storedBody, optionRows, personsRefusal, remainderByKey, deltaOf,
+  mergeOrderLines, storedBody, optionRows, personsRefusal, remainderByKey, deltaOf,
 };

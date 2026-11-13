@@ -1,5 +1,5 @@
 // specs/plugins-phase-1-sdk.md rule 47 (first used by specs/guest-app.md rules 24, 30, 34, 35) — the core commit of a
-// plugin's order as mid-stay extras (`utils/midStayOrderCommit.js`): the order's lines added to the stored fiche and
+// plugin's order as mid-stay extras (`coreModule('midStayOrderCommit')`, the thin SDK alias over `extraSale`, C30): the order's lines added to the stored fiche and
 // written by the operator's own save on a locked fiche, priced by the same engine, in one transaction with the plugin's
 // order row, in the caller's own words; a card order's money settled as a mid-stay note marked with its source and ref.
 //
@@ -13,7 +13,7 @@ require('./hourlyResourcesFixture').liveHourlyResources();
 const { skipWithout } = require('../plugins/sdk/testing');
 
 const db = require('../database');
-const { priceOrder, commitOrder, mergeOrderLines } = require('../utils/midStayOrderCommit');
+const { priceOrder, commitOrder, mergeOrderLines } = require('../plugins/sdk/midStayOrderCommit');
 
 /** How a plugin names its order: a basket source, its own ref, the history entry in its own words. */
 const named = (ref) => ({ source: 'shopOrder', ref, history: { field: 'shopOrder', label: 'Commande boutique', text: `Commande boutique #${ref}` } });
@@ -139,7 +139,7 @@ test('rule 35: a paid order is collected at once — a settled note with the ord
   });
   assert.equal(result.status, 200);
   assert.equal(result.settledCents, 1200);
-  assert.equal(result.excessCents, 0);
+  assert.equal(result.overpaidCents, 0);
   assert.deepEqual(midStay(id), []);
   const [note] = JSON.parse(money(id).midStaySettledNotes);
   assert.deepEqual([note.total, note.paidCash, note.source, note.ref, note.reference, note.paidDate], [12, 0, 'shopOrder', '7', 'pay_1', isoPlus(0)]);

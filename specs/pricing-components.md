@@ -607,7 +607,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `eurosWithSpaces`. `pricing-money-variants.unit.test.js` proves each against its original on 600 000 values and the awkward
     inputs. A variant is never swapped for `roundMoney` where the two differ, and a display helper (« 1 234,56 € ») is renamed, never
     swapped for `frenchEuros`, because its bytes differ. Every private copy of the server and of the plugins (a plugin reaches the variants through
-    `coreModule('money')`, SDK 2.29.0) is replaced; the `money` allow-list holds only `midStayOrderCommit`, deleted with the J-7 rebuild.)_
+    `coreModule('money')`, SDK 2.29.0) is replaced; the `money` allow-list is empty since C30 deleted `midStayOrderCommit`, 2026-11-13.)_
 39. **A line discount.** The operator may discount one unpaid line (percent or amount), from the fiche or the
     SAS. It is stored on the line (`discountCents`) and journaled. It is the only discount a shop or SAS sale
     receives. `discountCents` holds the line's OWN discount only: the stay discount's share (rule 40) is derived on every quote
@@ -1346,7 +1346,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `register.refundsTotalSql` / `refundLinesTotalSql` / `indemnityOfRefundSql` / `stayRefundLinesSumSql`; `refundsController` asks `judge.overpaymentRefusal` and
     > `refundable.capCashToLines`; `cancelReservation` reads `cancellation.cancellationFigures`; the payment poll and the notifier build the double-payment
     > effect and the owed amounts through `owed.js` (`doublePaymentEffect`, `duplicatePayment`, `fullOverDeposit`, `duplicateOnSolde`, `flagRefundOwed`, `owedOnLinkPayment`).
-    > The `refunds` allow-list keeps the guest app's three sites and `midStayOrderCommit`'s three (pass 4). Tests: `pricing-refunds-schedule-excess`, `refunds-poller-owed`.
+    > The `refunds` allow-list keeps the guest app's three sites; `midStayOrderCommit`'s three went with the file (C30, 2026-11-13). Tests: `pricing-refunds-schedule-excess`, `refunds-poller-owed`.
     > _(The price gate's refund figures and the synthetic refund stays were delivered by PR A: `price-gate-synthetic`.)_
 
 ### 3.P Delivery cadence of PR A (owner, 2026-11-11)
@@ -1806,7 +1806,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `controllers/` | `extraSalesController.js` | C | the endpoints of §4.3 |
 | `models/` | `reservationsModel.js` | T | `planArrivalSas`/`planDepartureSas`/`commit*Sas` delegate pricing to `extraSale` and buckets to SETTLEMENT; `settleOrderNoteBeforeArrival`, `keepStay` removed |
 | `utils/` | `storedReservationQuote.js` | T | `pinOrderGrowth` removed; `storedStayPrice` added |
-| `utils/` | `midStayOrderCommit.js` | **removed** (PR C) | replaced by `extraSale` |
+| `utils/` | `midStayOrderCommit.js` | **removed** (PR C, C30 done 2026-11-13) | replaced by `extraSale`; the line merge, persons ceiling and remainder delta moved to `utils/stayOrderLines.js`; `coreModule('midStayOrderCommit')` is a thin alias (`plugins/sdk/midStayOrderCommit.js`: `priceOrder` → `extraSale.quote`, `commitOrder` → `extraSale.sell`, `mergeOrderLines`; Q-C10) |
 | `utils/` | `sasOptionSale.js`, `complementPaidSplit.js` (`prepaidNetter`), `arrivalPaymentDetail.js`, `paymentLinkItems.js` | T → removed / thinned (PR B) | read `saleDetail`, SETTLEMENT and VAT instead of re-deriving |
 | `utils/` | `financeCalcs.js`, `touristTaxReportModel` | T (PR B) | call TOURIST TAX directly |
 | `plugins/accounting-export/` | `accountingModel.js`, `accountingExport.js`, `synthesis.js`, `controller.js` | T (PR B) | entry builders replaced by `AccountingOutput`; the plugin keeps routes, account plan, platform accounts and settings (delivered: `accountingModel.js` is the read model, the other three bind the core exporters to the account plan) |

@@ -7,7 +7,7 @@ require('./hourlyResourcesFixture').liveHourlyResources();
 const { db, stayWithTwoSales } = require('./trueLinesFixture');
 const { splitPaidLineSessions } = require('../utils/paidLineSessions');
 const controller = require('../controllers/reservationsController');
-const { storedBody } = require('../utils/midStayOrderCommit');
+const { storedBody } = require('../utils/stayOrderLines');
 
 const resourceId = Number(db.prepare("INSERT INTO resources (name, priceType, price, showsPlanningCard, quantity, propertyId) VALUES ('Bain', 'per_hour', 40, 1, 1, 9301)").run().lastInsertRowid);
 db.prepare('INSERT INTO resource_properties (resourceId, propertyId) VALUES (?, 9301)').run(resourceId);

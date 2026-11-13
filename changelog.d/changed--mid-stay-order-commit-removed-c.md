@@ -1,0 +1,1 @@
+- Le dernier module de commande de l'ancienne boutique est supprimé : toutes les ventes (fiche, sas, boutique) passent par le service de vente unique. Rien ne change pour l'équipe ni pour les clients.

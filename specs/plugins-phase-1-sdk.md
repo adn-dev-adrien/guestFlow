@@ -579,14 +579,14 @@ Optional: a plugin that declares nothing reads « Actif ».
     (`labels: { refundOne, refundMany }`, the guest app's « Commande client à rembourser »), else the core's neutral
     « Paiement en ligne à rembourser »; with no live owner the payment is `basket-unallocated` and the admin is
     alerted. The provider sees the origin `basket`. `midStayOrderCommit` prices an order by the
-    fiche's own save played without writing (`priceOrder(reservationId, lines, { pending? })`: the caller's promised,
-    unwritten lines — a card order awaiting payment — take their allowances first) and writes it as mid-stay extras through `performUpdate`, a
+    fiche's own save played without writing (`priceOrder(reservationId, lines)`; its `pending` option was removed on 2026-11-13, an unpaid card order
+    reserves nothing, guest-app rule 108) and writes it as mid-stay extras through `performUpdate`, a
     card order's money as a settled mid-stay note `{ source, ref }`, in one transaction with the plugin's own step
     (`commitOrder(reservationId, { source, ref, history: { field, label, text }, lines, paid?, within? })` — the
     caller names its order and writes the history entry in its own words; an order not named is refused before
     anything is written). A row of
     `plugin-core-hardening-floor.unit.test.js` makes a plugin calling them floor at `^2.26.0`. Tests:
-    `payment-complement-link.unit.test.js`, `mid-stay-order-commit.unit.test.js`, `guest-app-order-card`,
+    `payment-complement-link.unit.test.js`, `mid-stay-order-alias.unit.test.js` (the module is a thin alias over `extraSale` since C30, 2026-11-13; `commitOrder` answers `overpaidCents`, formerly `excessCents`), `guest-app-order-card`,
     `guest-app-order-note`. Reading of 2026-11-10 (audit R36-M-H1): the engine serves a per-person line at most
     max(1, party, the lodging's capacity) persons, so persons ordered beyond it were written and never billed. Both
     calls refuse such an order before anything is priced or written — `{ status: 409, body: { code:

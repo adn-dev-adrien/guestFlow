@@ -67,7 +67,7 @@ test('rule 90.3 — a re-run sets the component, never adds to it; sessions back
 test('rule 90.3 — the fiche’s next save keeps the evening the component put on the line (the price lock), the hours do not move', () => {
   const id = stay();
   model.commitArrivalSas(id, evening(20));
-  const { storedBody } = require('../utils/midStayOrderCommit');
+  const { storedBody } = require('../utils/stayOrderLines');
   const saved = require('../controllers/reservationsController').performUpdate(id, storedBody(id));
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
   const row = db.prepare('SELECT totalPrice, quantity, billedUnits FROM reservation_resources WHERE reservationId = ? ORDER BY lineId LIMIT 1').get(id);
@@ -94,7 +94,7 @@ test('rule 90.3 — a session line sold into the stay’s plan is not the arriva
 test('rule 90.3 — the line holding only an evening is kept by the fiche’s next save (the engine keeps a zero-hour line with an evening)', () => {
   const id = stay({ inComplement: 0 });
   model.commitArrivalSas(id, evening(20));
-  const { storedBody } = require('../utils/midStayOrderCommit');
+  const { storedBody } = require('../utils/stayOrderLines');
   const saved = require('../controllers/reservationsController').performUpdate(id, storedBody(id));
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
   assert.deepEqual(eveningLines(id), [[0, 20, 1, [{ kind: 'evening', cents: 2000 }]]]);

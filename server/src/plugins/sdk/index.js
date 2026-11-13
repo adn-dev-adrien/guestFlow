@@ -129,7 +129,7 @@ const CORE_MODULES = Object.freeze({
   // guest-app — the booklet photos live under the instance's uploads, served by `/uploads` (specs/guest-app.md §5)
   instancePaths: '../../utils/instancePaths',
   // guest-app — a plugin's order written on the fiche as mid-stay extras, priced by its engine (specs/plugins-phase-1-sdk.md rule 47)
-  midStayOrderCommit: '../../utils/midStayOrderCommit',
+  midStayOrderCommit: './midStayOrderCommit', // kept thin over `extraSale` (SDK 2.26.0 names, pricing-components D24)
   // guest-app — its own session cookie is Secure exactly when the core's is (`HTTPS_ENABLED`, specs/guest-app.md rule 4)
   securityConfig: '../../utils/securityConfig',
   // guest-app — the studio re-reads its admin like every `/api` route does (specs/guest-app.md rule 47)

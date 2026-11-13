@@ -1,8 +1,1 @@
-[
-  {
-    "file": "utils/midStayOrderCommit.js",
-    "text": "const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;",
-    "removedBy": "PR C",
-    "reason": "a private rounding or cents helper: rule 38, PR C merges the copies once the replay proves each tie rule"
-  }
-]
+[]

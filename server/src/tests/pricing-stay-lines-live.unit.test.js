@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 
 const db = require('../database');
 const controller = require('../controllers/reservationsController');
-const { storedBody } = require('../utils/midStayOrderCommit');
+const { storedBody } = require('../utils/stayOrderLines');
 const { syncStayLines } = require('../utils/pricingLinesMigration');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');

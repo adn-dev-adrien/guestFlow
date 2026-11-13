@@ -9,7 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const db = require('../database');
-const { priceOrder, commitOrder } = require('../utils/midStayOrderCommit');
+const { priceOrder, commitOrder } = require('../plugins/sdk/midStayOrderCommit');
 
 const named = (ref) => ({ source: 'shopOrder', ref, history: { field: 'shopOrder', label: 'Commande boutique', text: `Commande boutique #${ref}` } });
 

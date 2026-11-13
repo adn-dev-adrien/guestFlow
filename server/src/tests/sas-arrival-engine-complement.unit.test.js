@@ -62,7 +62,7 @@ test('rule 90.1 — the plan and the commit agree on a stay with a line of its o
 
 test('rule 90.1 — the stay’s shape is not the SAS’s to judge: a stay below its lodging’s minimum still checks in', () => {
   const id = stay();
-  const { storedBody } = require('../utils/midStayOrderCommit');
+  const { storedBody } = require('../utils/stayOrderLines');
   const fiche = require('../controllers/reservationsController').performUpdate(id, storedBody(id), { dryRun: true });
   assert.equal(fiche.body.code, 'MIN_NIGHTS', 'the fiche’s save refuses this stay');
   assert.equal(model.commitArrivalSas(id, draft(id, [{ itemId: PILLOW, qty: 1 }])), 5);
