@@ -63,14 +63,20 @@ async function login() {
 }
 
 const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+// « La Granja », « Granja » and « granja » are the same lodging: the leading article is optional (Adrien's GuestFlow
+// names them « Granja » and « Estiva », 2026-11-12).
+const lodgingKey = (s) => norm(s).replace(/^(la|le|les|l) /, '');
 
 async function lodgingIds() {
   const { lodgings } = await call('GET', '/api/guest-app/studio/lodgings');
   const ids = {};
   for (const [key, name] of Object.entries(LODGINGS)) {
     if (args[key]) { ids[key] = Number(args[key]); continue; }
-    const found = lodgings.filter((l) => norm(l.name) === norm(name));
-    if (found.length !== 1) throw new Error(`Logement « ${name} » introuvable dans GuestFlow (${lodgings.map((l) => l.name).join(', ')}) : passez --${key} ID.`);
+    const found = lodgings.filter((l) => lodgingKey(l.name) === lodgingKey(name));
+    if (found.length !== 1) {
+      const list = lodgings.map((l) => `${l.name} = ${l.propertyId}`).join(', ');
+      throw new Error(`Logement « ${name} » ${found.length ? 'trouvé plusieurs fois' : 'introuvable'} dans GuestFlow (${list}) : passez --${key} ID.`);
+    }
     ids[key] = found[0].propertyId;
   }
   return ids;

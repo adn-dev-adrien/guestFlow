@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { addOption, addResource, addStay, freshDb, sell } = require('./guestAppFixtures');
+const { addOption, addResource, addStay, freshDb, livePlugins, sell } = require('./guestAppFixtures');
 const { remainingMornings, sellabilityOf, shopItems, stayConsumption } = require('../sellable');
 const createItemsModel = require('../models/itemsModel');
 const createStayLinesModel = require('../models/stayLinesModel');
@@ -89,10 +89,12 @@ test('rule 23: archived, unlinked, unsold and non-sellable items are absent', ()
   addOption(db, { id: 5, title: 'Ménage quotidien', priceType: 'per_night' });
   addResource(db, { id: 6, name: 'Bain nordique' });
   addResource(db, { id: 7, name: 'Bois', priceType: 'per_stay', lodgings: [] });
+  addResource(db, { id: 8, name: 'Bois de L’Estiva', priceType: 'per_stay', lodgings: [2] });
   [1, 2, 3, 5].forEach((id) => sell(db, 'option', id));
   sell(db, 'option', 4, { sold: 0 });
-  [6, 7].forEach((id) => sell(db, 'resource', id));
-  assert.deepEqual(ids(soldFor(db, stay)), ['option:1', 'resource:6'], 'a resource linked to no lodging is not sold, even though the engine reads it as global');
+  [6, 7, 8].forEach((id) => sell(db, 'resource', id));
+  assert.deepEqual(ids(soldFor(db, stay)).sort(), ['option:1', 'resource:6', 'resource:7'],
+    'a resource with no lodging row is « Tous les logements » in GuestFlow: sold in every lodging; one linked to another lodging is not');
 });
 
 test('rule 23 edge: without the plugin that prices hours, an hourly resource is not sold', () => {
@@ -232,4 +234,20 @@ test('rule 25: a 0 € item is limited per stay to its maxQuantity, across the o
   order(db, stay, 'awaiting_payment', [{ kind: 'option', id: 1, quantity: 5 }]);
   assert.equal(find(soldFor(db, stay), 'option', 1).includedLeft, 0);
   assert.equal(find(soldFor(db, stay), 'option', 2).includedLeft, null, 'a paid item has no allowance');
+});
+
+// specs/guest-app.md rule 11bis (2026-11-12) — the bath tile's prerequisite counts a « Tous les logements » bath too.
+test('rule 11bis: a sold hourly resource for « Tous les logements » counts in every lodging', () => {
+  const db = freshDb();
+  addResource(db, { id: 6, name: 'Bain nordique', lodgings: [] });
+  addResource(db, { id: 7, name: 'Sauna', lodgings: [2] });
+  [6, 7].forEach((id) => sell(db, 'resource', id));
+  const teardown = livePlugins();
+  try {
+    const lodgings = require('../models/lodgingsModel')(db);
+    assert.equal(lodgings.soldCounts(1).soldHourlyResources, 1, 'La Granja: the bath, not the sauna of L’Estiva');
+    assert.equal(lodgings.soldCounts(2).soldHourlyResources, 2);
+  } finally {
+    teardown();
+  }
 });
