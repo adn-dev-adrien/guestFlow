@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -143,7 +143,9 @@
       "Vendre une heure de bain refuse le créneau déjà pris, au moment même de la vente, avant que la ligne soit écrite.",
       "Une réservation de ressource garde la trace de la vente hors séjour dont elle fait partie et de l’absence du client (colonnes ajoutées, vides pour l’existant).",
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
-      "Compatible avec GuestFlow 4 (SDK 2.29).",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.6.1": [
       "Une séance cochée au planning reste sur la ligne qui la porte quand une ressource a été vendue plusieurs fois."
     ]
   }

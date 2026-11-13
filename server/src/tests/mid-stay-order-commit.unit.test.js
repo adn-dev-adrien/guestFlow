@@ -50,7 +50,7 @@ function seedStay({ endOfStayPaid = 0, start = -1 } = {}) {
 const money = (id) => db.prepare('SELECT depositAmount, balanceAmount, complementAmount, endOfStayComplementAmount, endOfStayComplementDetail, midStaySettledNotes FROM reservations WHERE id = ?').get(id);
 const midStay = (id) => JSON.parse(money(id).endOfStayComplementDetail || '[]').filter((l) => l.source === 'midStayExtra');
 
-test('rules 13, 85: mergeOrderLines appends a line of its own for every unit and resource line, never adding to the stay’s line of the item', () => {
+test('specs/pricing-components.md rules 13, 85: mergeOrderLines appends a line of its own for every unit and resource line, never adding to the stay’s line of the item', () => {
   const body = { adults: 2, teens: 0, children: 1, options: [{ optionId: 9, quantity: 2 }, { optionId: 7, quantity: 1, cardPersons: null }], resources: [{ resourceId: 3, quantity: 1, sessions: [{ date: '2099-07-07', start: '18:00', end: '19:00' }] }] };
   const rows = new Map([[7, { priceType: 'per_person' }], [9, { priceType: 'per_stay' }]]);
   let next = 100;
