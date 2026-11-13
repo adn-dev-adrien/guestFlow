@@ -1,14 +1,1 @@
-[
-  {
-    "file": "plugins/guest-app/models/stockModel.js",
-    "text": "if (!stay || stay.kind !== 'reservation' || String(stay.startDate) > today) return target;",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "plugins/guest-app/sellable.js",
-    "text": "const first = addDays(startDate, 1) > fromToday ? addDays(startDate, 1) : fromToday;",
-    "removedBy": "PR C",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  }
-]
+[]

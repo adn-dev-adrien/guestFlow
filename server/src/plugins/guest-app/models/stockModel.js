@@ -17,7 +17,10 @@
 const HOURLY = 'per_hour';
 const BREAKFAST = 'breakfast';
 
+const sdk = require('../../sdk');
 const { parisDate } = require('../currentStay');
+
+const { dayReached } = sdk.coreModule('stayClock');
 const keyOf = (kind, id) => `${kind}:${Number(id)}`;
 
 function parseLines(text) {
@@ -97,7 +100,7 @@ function createStockModel(db) {
   function targetFor(reservationId, today, keys) {
     const target = new Map();
     const stay = db.prepare('SELECT kind, startDate FROM reservations WHERE id = ?').get(Number(reservationId));
-    if (!stay || stay.kind !== 'reservation' || String(stay.startDate) > today) return target;
+    if (!stay || stay.kind !== 'reservation' || !dayReached(stay.startDate, today)) return target;
     // A per-person option is one line of the people it serves (`cardPersons`, else the party): its units are those people,
     // as an order line's quantity counts them (`orderLineUnits`).
     db.prepare(`

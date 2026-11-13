@@ -1,4 +1,5 @@
 // specs/guest-app.md rule 35 and rule 108 (reading of 2026-11-13, owner) — an unpaid card order does not exist: it reserves nothing (no offered unit, no
+// specs/pricing-components.md rule 87 (owner Q-C3): the guest-app card order's line appears only once paid.
 // price, no person counted against a later order, no slot), the staff sees nothing of it and is told nothing until it is paid; a second order — card or note —
 // is accepted meanwhile; each card order is sold at the price of the moment it is paid, and a payment the sale cannot honour (offered hour spent, so it
 // would cost more than was paid) is kept as an open `orderConflict` refund obligation. A note order is recorded at once.

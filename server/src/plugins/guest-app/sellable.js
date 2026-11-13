@@ -9,6 +9,7 @@ const sdk = require('../sdk');
 
 const { applyFreeUnitsToLine, roundMoney } = sdk.coreModule('pricing');
 const { isClientVisibleOption } = sdk.coreModule('optionVisibility');
+const { dayPassed } = sdk.coreModule('stayClock');
 
 const HOURLY = 'per_hour';
 
@@ -105,7 +106,8 @@ const addDays = (ymd, days) => {
  */
 function remainingMornings({ startDate, endDate, today, time, serviceTime }) {
   const fromToday = String(time) < String(serviceTime || DEFAULT_BREAKFAST_TIME) ? today : addDays(today, 1);
-  const first = addDays(startDate, 1) > fromToday ? addDays(startDate, 1) : fromToday;
+  const afterArrival = addDays(startDate, 1);
+  const first = dayPassed(fromToday, afterArrival) ? afterArrival : fromToday;
   const mornings = [];
   for (let date = first; date <= endDate; date = addDays(date, 1)) mornings.push(date);
   return mornings;
