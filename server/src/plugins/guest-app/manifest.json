@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -57,6 +57,10 @@
     ],
     "1.0.7": [
       "Sur la fiche d’une réservation, la carte « Lien Mon séjour » indique pourquoi il n’y a pas de lien (séjour annulé, logement hors application, adresse de l’application manquante) au lieu de disparaître.",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.0.8": [
+      "Aucun changement visible : la boutique ouvre toujours dès le jour d’arrivée, même si la fiche de la réservation ne se verrouille plus qu’à l’heure d’arrivée.",
       "Demande le SDK 2.26 de GuestFlow."
     ]
   }

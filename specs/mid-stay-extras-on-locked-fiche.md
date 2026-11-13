@@ -44,7 +44,7 @@ arrival stays frozen, and everything else on the fiche stays locked.
 ### 3.1 The window
 
 1. A reservation is **open for mid-stay extras** when all of these hold:
-   - it is locked (`startDate ≤ today`, no « Déverrouiller » on this request);
+   - it is locked (the stay has started — `hasStayStarted`, [lock-at-arrival-time-and-arrival-complement-lines.md](lock-at-arrival-time-and-arrival-complement-lines.md) rule 1, reading of 2026-11-13: the arrival time, no longer midnight; no « Déverrouiller » on this request);
    - its end-of-stay complement is **not collected** (`endOfStayComplementPaid = 0` and
      `endOfStayComplementPaidCash = 0`);
    - it is a real reservation (`kind = 'reservation'`) and is not cancelled.

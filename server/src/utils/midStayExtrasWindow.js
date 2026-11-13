@@ -4,13 +4,14 @@
  * From its check-in date a reservation is locked, yet extras are routinely sold to a guest who is
  * already on site. This module owns the pure rules of that door: when it is open (rule 1), which
  * lines sold at arrival cannot move (rules 6 and 13) and which saves break that (rule 6).
- * No DB, no clock: the callers pass the row, the lines and today's date.
+ * No DB, no clock: the callers pass the row, the lines, today's date and the time of day.
  *
  * Lines are keyed like the arrival baseline (`extraLineKey`): `opt:<id>`, `res:<id>`,
  * `custom:<label>`. Several lines on one key are aggregated on both sides of every comparison.
  */
 
 const { extraLineKey, parseBaseline } = require('./midStayExtras');
+const { hasStayStarted } = require('./arrivalMoment');
 
 const EPSILON = 0.001;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -20,12 +21,12 @@ const isEndOfStayCollected = (row) => Number(row.endOfStayComplementPaid || 0) =
   || Number(row.endOfStayComplementPaidCash || 0) === 1;
 
 /**
- * Rule 1 — a reservation is open for mid-stay extras when it is locked (`startDate <= today`), is a
+ * Rule 1 — a reservation is open for mid-stay extras when it is locked (`hasStayStarted`), is a
  * live reservation, and its end-of-stay complement has not been collected.
  * @returns {{ locked: boolean, extrasEditable: boolean, extrasClosedReason: string|null }}
  */
-function midStayExtrasWindow(row, today) {
-  const locked = Boolean(row && row.startDate && row.startDate <= today);
+function midStayExtrasWindow(row, today, nowTime) {
+  const locked = hasStayStarted(row, today, nowTime);
   if (!locked) return { locked: false, extrasEditable: false, extrasClosedReason: null };
   if (String(row.kind || 'reservation') !== 'reservation') {
     return { locked, extrasEditable: false, extrasClosedReason: null };
@@ -36,8 +37,8 @@ function midStayExtrasWindow(row, today) {
   return { locked, extrasEditable: true, extrasClosedReason: null };
 }
 
-function isMidStayExtrasWindowOpen(row, today) {
-  return midStayExtrasWindow(row, today).extrasEditable;
+function isMidStayExtrasWindowOpen(row, today, nowTime) {
+  return midStayExtrasWindow(row, today, nowTime).extrasEditable;
 }
 
 // Per key: units, billed amount, and whether every line of the key is offered.
@@ -175,8 +176,8 @@ function withLockedOccurrences(floors, beforeLines) {
 }
 
 /** Read-side payload of rule 13. */
-function buildEditLock(row, today, baselineRaw, beforeLines) {
-  const window = midStayExtrasWindow(row, today);
+function buildEditLock(row, today, baselineRaw, beforeLines, nowTime) {
+  const window = midStayExtrasWindow(row, today, nowTime);
   const arrivalLines = window.extrasEditable ? withLockedOccurrences(arrivalLineFloors(baselineRaw, beforeLines), beforeLines) : {};
   return {
     ...window,

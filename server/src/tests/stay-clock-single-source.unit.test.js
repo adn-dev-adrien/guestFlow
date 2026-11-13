@@ -48,6 +48,8 @@ test('rule 45: the PR that moves each site is the one the table gives (B for the
   for (const file of ['utils/midStayExtrasWindow.js', 'models/reservationsModel.js']) assert.ok(byFile(file).every((pr) => pr === 'PR B'), file);
   for (const file of ['utils/paymentDeadlines.js', 'utils/platformPriceCheck.js', 'models/clientsModel.js', 'utils/arrivalMoment.js']) assert.ok(byFile(file).every((pr) => pr === 'PR C'), file);
   const controller = allowed.filter((entry) => entry.file === 'controllers/reservationsController.js');
-  assert.ok(controller.some((entry) => entry.removedBy === 'PR B') && controller.some((entry) => entry.removedBy === 'PR C'));
+  // The fiche's own lock sites already call `hasStayStarted` (specs/lock-at-arrival-time-and-arrival-complement-lines.md):
+  // none may be left, or it must wait for B or C.
+  assert.ok(controller.every((entry) => ['PR B', 'PR C'].includes(entry.removedBy)));
   for (const intake of ['airbnb-intake', 'booking-intake', 'gites-de-france-intake']) assert.deepEqual(byFile(plugin(intake, 'intakeService.js')), ['PR C']);
 });

@@ -5,7 +5,8 @@
  */
 const { platformDisplay } = require('../utils/platformDisplay');
 
-const { todayIso: localTodayIso } = require('../utils/localDate');
+const { todayIso: localTodayIso, localNow } = require('../utils/localDate');
+const { hasStayStarted } = require('../utils/arrivalMoment');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { lineInputRefusal } = require('../utils/lineInputBounds');
@@ -1188,7 +1189,10 @@ function getById(req, res) {
     frozenResources: resourceOffer.frozenResources(db, reservation.id),
     // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the lock decided by the server: the fiche
     // renders it and derives nothing (CLAUDE.md §6.0).
-    editLock: model.getEditLock(Number(req.params.id), { today: getTodayIsoDate() }),
+    // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — what the arrival complement
+    // contains, line by line, for the « Détail » of its row.
+    arrivalComplementLines: model.arrivalComplementDetailOf(reservation).detail,
+    editLock: model.getEditLock(Number(req.params.id), localNow()),
     // specs/payment-link-lifecycle.md rule 48 — an unpaid stay whose nights another stay holds: « Dates prises ».
     datesTaken: datesTakenMarker(db, { ...model.getRow(reservation.id) }),
     // Rule 46, reading of 2026-11-01 (review of #915) — null while « Transformer en devis » can be tried.
@@ -1520,8 +1524,9 @@ async function calculatePrice(req, res) {
     // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
     const edit = req.body.ledgerEdit;
     if (edit && (edit.row === 'deposit' || edit.row === 'balance')) {
-      const startedStay = Boolean(storedRow && storedRow.kind === 'reservation' && storedRow.startDate
-        && storedRow.startDate <= getTodayIsoDate());
+      const now = localNow();
+      const startedStay = Boolean(storedRow && storedRow.kind === 'reservation'
+        && hasStayStarted(storedRow, now.today, now.nowTime));
       const unlocked = Boolean(req.body.unlockPast && userHasRole(req.user, ADMIN));
       const pastLocked = startedStay && !unlocked;
       quote.ledgerEdit = evaluateLedgerEdit({
@@ -2029,8 +2034,8 @@ function carryStoredCustomContribs(id, body) {
 // locked and its end-of-stay complement is not collected. Pins everything rule 8 keeps locked
 // (routing, tariff refresh, the bed counts of a linen sold at arrival) and returns the state the
 // arrival floors are checked against; null when the window is closed or the fiche is unlocked.
-function enterMidStayExtrasWindow(id, body, today) {
-  if (!midStayExtrasWindow(model.getRow(id), today).extrasEditable) return null;
+function enterMidStayExtrasWindow(id, body, today, nowTime) {
+  if (!midStayExtrasWindow(model.getRow(id), today, nowTime).extrasEditable) return null;
   // The fiche is locked, so the stay has started whether or not the check-in was marked: pin what it
   // carries now as « sold at arrival » (rule 10), unconditionally.
   // Read, not written: the baseline is stored by the write itself, after every refusal of the save.
@@ -2112,8 +2117,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const numberError = reservationNumberOverrideError(req.body.reservationNumber, id);
   if (numberError) return res.status(400).json(numberError);
 
-  const todayIso = getTodayIsoDate();
-  const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso);
+  const { today: todayIso, nowTime } = localNow();
+  const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso, nowTime);
   carryStoredCustomContribs(id, req.body);
   // The window pins the baseline at the write: every pricing of this save reads the one that write will store.
   const windowEngineInputs = midStayWindow ? { arrivalExtrasBaseline: midStayWindow.baseline } : {};
@@ -2163,8 +2168,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const beforeAuditSnapshot = model.getAuditSnapshotFromDb(id);
   // `pastReservationLocked` gates the 14-field allowlist below. An admin drops it for this request
   // only, after « Déverrouiller cette fiche » (specs/settings-rationalization.md rule 17a).
-  const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso)
-    && !pastUnlocked;
+  const pastReservationLocked = hasStayStarted(model.getRow(id), todayIso, nowTime) && !pastUnlocked;
 
   const existingReservation = model.getForUpdate(id);
   const canReuseLockedPricing = !refreshPricingToCurrent
@@ -2354,7 +2358,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // Reading of 2026-11-06 (audit R26 MEDIUM 1) — a started, still locked fiche too, below: its price adjustments
   // (discount, final price) are allowed fields. There only the part of the rise no unpaid bucket takes on is refused
   // (reading of 2026-11-06, audit R26 finding 1): a checked-out stay with its solde open claims the rise on it.
-  const started = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);
+  const started = hasStayStarted(storedPaymentForQuote, todayIso, nowTime);
   const endOfStayCollected = Number(storedPaymentForQuote.endOfStayComplementPaid || 0) === 1 || Number(storedPaymentForQuote.endOfStayComplementPaidCash || 0) === 1;
   const raisesCollectedStay = endOfStayCollected
     && round2(Number(quote.finalPrice || 0) + Number(quote.touristTaxTotal || 0)) > round2(Number(storedPaymentForQuote.finalPrice || 0) + Number(storedPaymentForQuote.touristTaxTotal || 0));
@@ -2403,7 +2407,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
       .filter((change) => !allowedLockedFields.has(change.field));
     if (!midStayWindow) customTextChanges.forEach(() => forbiddenChanges.push({ field: 'optionsSignature' }));
     const extrasFields = new Set(['optionsSignature', 'resourcesSignature']);
-    const collected = midStayExtrasWindow(storedPaymentForQuote, todayIso).extrasClosedReason === 'endOfStayCollected';
+    const collected = midStayExtrasWindow(storedPaymentForQuote, todayIso, nowTime).extrasClosedReason === 'endOfStayCollected';
     if (collected && forbiddenChanges.length > 0 && forbiddenChanges.every((change) => extrasFields.has(change.field))
       && extrasContentChanged(model.readExtraLinesWithQuantity(id), [...(quote.optionLines || []), ...(quote.resourceLines || [])])) {
       return res.status(400).json({ error: MID_STAY_EXTRAS_CLOSED_MESSAGE, code: 'MID_STAY_EXTRAS_CLOSED' });

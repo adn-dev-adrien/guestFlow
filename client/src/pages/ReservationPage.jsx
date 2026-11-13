@@ -1061,6 +1061,8 @@ export default function ReservationPage() {
             // specs/single-payment-at-check-in.md §3.4 — the single payment made at the door, already
             // shaped by the server (amount, means, buckets covered). `null` when there was none.
             arrivalPayment: res.arrivalPayment || null,
+            // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — what the arrival complement contains.
+            arrivalComplementLines: res.arrivalComplementLines || [],
             // specs/defer-arrival-complement-to-checkout.md §3.2 — « En fin de séjour » at check-in:
             // the fiche then shows ONE complement, built server-side (amount + lines + paid state).
             complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
@@ -3090,6 +3092,7 @@ export default function ReservationPage() {
       endOfStayComplementDetail: res.endOfStayComplementDetail || null,
       midStaySettledNotes: res.midStaySettledNotes || null,
       arrivalPayment: res.arrivalPayment || null,
+      arrivalComplementLines: res.arrivalComplementLines || [],
       checkoutComplement: res.checkoutComplement || null,
       complementDeferredToCheckout: Boolean(res.complementDeferredToCheckout),
       // specs/reservation-payment-ledger.md — the caution is written by the PATCH only (rule 13), and

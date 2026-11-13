@@ -7,24 +7,6 @@
   },
   {
     "file": "controllers/reservationsController.js",
-    "text": "&& storedRow.startDate <= getTodayIsoDate());",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "controllers/reservationsController.js",
-    "text": "const pastReservationLocked = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso)",
-    "removedBy": "PR C",
-    "reason": "a started-stay refusal that PR C judges with the lists"
-  },
-  {
-    "file": "controllers/reservationsController.js",
-    "text": "const started = Boolean(beforeAuditSnapshot?.startDate && beforeAuditSnapshot.startDate <= todayIso);",
-    "removedBy": "PR C",
-    "reason": "a started-stay refusal that PR C judges with the lists"
-  },
-  {
-    "file": "controllers/reservationsController.js",
     "text": "return sasLockReason({ dateIso: row.startDate, doneAt: null, now });",
     "removedBy": "PR B",
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
@@ -127,19 +109,19 @@
   },
   {
     "file": "utils/arrivalMoment.js",
-    "text": "module.exports = { hasGuestArrived };",
+    "text": "if (hasGuestArrived(row)) return true;",
+    "removedBy": "PR C",
+    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
+  },
+  {
+    "file": "utils/arrivalMoment.js",
+    "text": "module.exports = { hasGuestArrived, hasStayStarted };",
     "removedBy": "PR C",
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
   },
   {
     "file": "utils/endOfStayCheckout.js",
     "text": "function isCheckoutDone(row, { today = todayIso(), sasActive = sasLive() } = {}) {",
-    "removedBy": "PR B",
-    "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
-  },
-  {
-    "file": "utils/midStayExtrasWindow.js",
-    "text": "const locked = Boolean(row && row.startDate && row.startDate <= today);",
     "removedBy": "PR B",
     "reason": "a call site of rule 45's table: the decision moves behind the stay clock in the PR named here"
   },

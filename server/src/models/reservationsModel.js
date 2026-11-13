@@ -2828,6 +2828,11 @@ function createReservationsModel(database) {
     // sasArrivalOrigin=1. Re-openable SAS: a re-commit REPLACES the SAS-origin complement lines
     // instead of appending (complementAmount adjusted by new − previous SAS sum), so it never
     // double-charges (specs/reopen-completed-sas.md §4). A paid complement stays frozen.
+    // Same itemisation from a reservation the caller already loaded (`getByIdWithDetails` shape).
+    arrivalComplementDetailOf(reservation, options = {}) {
+      return arrivalComplementDetailFromReservation(reservation, options);
+    },
+
     // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement so
     // the departure SAS can recall it line-by-line.
     buildArrivalComplementDetail(reservationId, options = {}) {
@@ -2880,14 +2885,14 @@ function createReservationsModel(database) {
 
     // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the ready-to-render lock of a fiche: is it
     // locked, may its extras still be edited, and the floor of every line sold at arrival.
-    getEditLock(reservationId, { today }) {
+    getEditLock(reservationId, { today, nowTime }) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       const lines = model.readExtraLinesWithQuantity(reservationId);
       // A locked fiche has started: with no baseline captured yet, what it carries now IS what was sold
       // at arrival, exactly what the next save will pin.
       const baseline = model.getArrivalExtrasBaseline(reservationId) || JSON.stringify(buildExtrasBaseline(lines));
-      return buildEditLock(row, today, baseline, lines);
+      return buildEditLock(row, today, baseline, lines, nowTime);
     },
 
     // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count
