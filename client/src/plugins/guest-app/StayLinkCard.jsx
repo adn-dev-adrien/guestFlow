@@ -3,13 +3,13 @@
  * guest app, its QR and how long it is valid, « Copier le lien » and « Régénérer le lien » (confirmed first — the old
  * link and every phone that opened it stop at once). The link is created by the server on first need.
  *
- * When the server refuses the link (409: stay over or cancelled, lodging outside the app, no guest host set) the card
- * stays and states the server's reason instead of vanishing. Nothing is rendered for a new fiche or an unknown
- * stay (404 / any other failure).
+ * When the server refuses the link (409: cancelled stay, lodging outside the app, no guest host set) the card stays
+ * and states the server's reason instead of vanishing. Nothing is rendered for a new fiche, an unknown stay, a devis
+ * (code NOT_A_STAY) or any other failure.
  *
  * Props (slot `reservation.cards`): reservationId, cardSx, contentSx
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, Box, Button, Card, CardContent, Stack, Typography,
 } from '@mui/material';
@@ -26,19 +26,25 @@ export default function StayLinkCard({ reservationId, cardSx, contentSx }) {
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState(null);
   const [copied, setCopied] = useState(false);
+  const stale = useRef(false);
 
   const load = useCallback(async () => {
+    setLink(null);
     setReason(null);
-    if (!reservationId) { setLink(null); return; }
+    if (!reservationId) return;
     try {
-      setLink(await guestAppApi.getStayLink(reservationId));
+      const fetched = await guestAppApi.getStayLink(reservationId);
+      if (!stale.current) setLink(fetched);
     } catch (err) {
-      setLink(null);
-      if (err.status === 409 && (err.message || err.error)) setReason(err.message || err.error);
+      if (!stale.current && err.status === 409 && err.code !== 'NOT_A_STAY' && err.message) setReason(err.message);
     }
   }, [reservationId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    stale.current = false;
+    load();
+    return () => { stale.current = true; };
+  }, [load]);
 
   if (!link && !reason) return null;
 

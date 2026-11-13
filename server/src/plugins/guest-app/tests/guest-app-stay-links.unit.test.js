@@ -85,6 +85,11 @@ test('rules 9, 11quater: a cancelled stay or a lodging off has no link, and its 
   const cancelled = await call('GET', LINK(id));
   assert.equal(cancelled.status, 409);
   assert.match(cancelled.body.error, /réservation en cours/);
+  assert.equal(cancelled.body.code, undefined);
+  db.prepare("UPDATE reservations SET kind = 'devis' WHERE id = ?").run(id);
+  const devis = await call('GET', LINK(id));
+  assert.equal(devis.status, 409);
+  assert.equal(devis.body.code, 'NOT_A_STAY');
   db.prepare("UPDATE reservations SET kind = 'reservation' WHERE id = ?").run(id);
   await call('PUT', '/api/guest-app/lodgings/1', { enabled: false });
   const off = await call('GET', LINK(id));

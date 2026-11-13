@@ -43,6 +43,13 @@ test('rule 9bis (c): a refused link keeps the card and states the server reason'
   expect(screen.queryByRole('button', { name: 'Copier le lien' })).not.toBeInTheDocument();
 });
 
+test('a devis (409 NOT_A_STAY) → no card', async () => {
+  guestAppApi.getStayLink.mockRejectedValue(Object.assign(new Error('x'), { status: 409, code: 'NOT_A_STAY' }));
+  const { container } = renderCard();
+  await waitFor(() => expect(guestAppApi.getStayLink).toHaveBeenCalled());
+  expect(container).toBeEmptyDOMElement();
+});
+
 test('an unknown stay (404) or a network failure → no card', async () => {
   guestAppApi.getStayLink.mockRejectedValue(Object.assign(new Error('x'), { status: 404 }));
   const { container } = renderCard();
