@@ -146,7 +146,8 @@
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ],
     "1.6.1": [
-      "Une séance cochée au planning reste sur la ligne qui la porte quand une ressource a été vendue plusieurs fois."
+      "Une séance cochée au planning reste sur la ligne qui la porte quand une ressource a été vendue plusieurs fois.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
 }
