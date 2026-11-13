@@ -280,6 +280,15 @@ function saleDetailOf(reservationId, now = new Date()) {
   });
 }
 
+// The fiche's save refuses a lowered arrival line with the wording of a removal; a move says it is a move that is refused.
+const MOVE_REFUSED = 'Cette ligne ne peut pas changer de moment : elle a été vendue à l’arrivée.';
+function moveRefusal(restated) {
+  const body = restated.body || {};
+  return body.code === 'ARRIVAL_EXTRAS_FROZEN'
+    ? { status: 409, body: { ...body, error: MOVE_REFUSED, code: 'MOMENT_NOT_AVAILABLE' } }
+    : { status: restated.status, body };
+}
+
 // Rules 37, 39, 23 — what the operator changes on one stored line. The line is addressed by `ref` (`option:<lineId>`, `resource:<lineId>`, `custom:<lineId>`).
 function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpayment = false } = {}) {
   const id = Number(reservationId);
@@ -302,7 +311,7 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
         if (moved) {
           movedTo = wants.collectAt;
           const restated = controller().performUpdate(id, { ...storedBody(id), restatePricing: true });
-          if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
+          if (restated.status !== 200) { outcome = moveRefusal(restated); throw ROLLBACK; }
           reservations().addHistoryEntry(id, 'update', [{
             field: 'lineMoment', label: line.label, from: moved.fromLabel, to: moved.toLabel,
           }]);

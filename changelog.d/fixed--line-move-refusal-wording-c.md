@@ -1,0 +1,1 @@
+- Sas : une ligne qui ne peut pas changer de moment le dit comme un déplacement (« Cette ligne ne peut pas changer de moment : elle a été vendue à l’arrivée. »), et non plus avec le message d'un retrait (specs/pricing-components.md, règle 37).

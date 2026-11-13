@@ -534,6 +534,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 4): `PATCH …/extras/:ref { collectAt }` moves an unpaid line between `arrival` and `departure` by the stay's
     > extras baseline, both values journaled (« à payer au départ (opérateur) » ← « à payer à l’arrivée (horloge) »); `plan` and `platform`
     > are not offered, and a moment already collected is refused (409 `MOMENT_NOT_AVAILABLE`).
+    > **Delivered by PR C** (C21 follow-up): moving one line moves that line only — proof `extra-sale-move-isolation` (two and three lines, a baseline already stored,
+    > a line sold before the stay started). A move the fiche's save refuses as a lowered arrival line is answered as a move (409 `MOMENT_NOT_AVAILABLE`,
+    > « Cette ligne ne peut pas changer de moment : elle a été vendue à l’arrivée. »), never with the wording of a removal.
 38. **Money helpers are shared, not a component.** `money.js` holds `roundMoney`, `toCents`, `fromCents` and
     `allocateCents`. It carries no business rule, so it is not a component; it is a unit because about twenty
     files redefine `round2` / `cents`, and two definitions that differ are a silent drift. PR A moves the
