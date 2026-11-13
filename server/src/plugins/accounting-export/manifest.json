@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.27.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
