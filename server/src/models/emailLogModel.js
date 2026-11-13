@@ -44,16 +44,17 @@ const CURRENT_ROW_SQL = (log) => `date(max(r.startDate, COALESCE(date(${log}.sen
 function buildModel(database) {
   // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
   registerDirectChannelSql(database);
-  const SELECT_COLS = 'id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, occurrenceKey';
+  const HAS_SALE_REF = database.prepare('PRAGMA table_info(email_log)').all().some((c) => c.name === 'saleRef');
+  const SELECT_COLS = `id, templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, occurrenceKey${HAS_SALE_REF ? ', saleRef' : ''}`;
 
   // Resolve "today" to a UTC ISO date (matches SQLite's date('now')); injectable for tests.
   const resolveToday = (today) => (today ? String(today) : localTodayIso());
 
   const insertStmt = database.prepare(`
     INSERT INTO email_log
-      (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, occurrenceKey)
+      (templateId, reservationId, sentAt, status, channel, errorMessage, renderedSubject, renderedBody, recipientEmail, occurrenceKey${HAS_SALE_REF ? ', saleRef' : ''})
     VALUES
-      (@templateId, @reservationId, datetime('now'), @status, @channel, @errorMessage, @renderedSubject, @renderedBody, @recipientEmail, @occurrenceKey)
+      (@templateId, @reservationId, datetime('now'), @status, @channel, @errorMessage, @renderedSubject, @renderedBody, @recipientEmail, @occurrenceKey${HAS_SALE_REF ? ', @saleRef' : ''})
   `);
 
   // The cron + pending list both need to know "has this (template, reservation) pair already
@@ -78,7 +79,7 @@ function buildModel(database) {
   function insert(payload) {
     const params = {
       templateId:      payload.templateId == null ? null : Number(payload.templateId),
-      reservationId:   Number(payload.reservationId),
+      reservationId:   payload.reservationId == null ? null : Number(payload.reservationId),
       status:          String(payload.status || ''),
       channel:         payload.channel === 'manual' ? 'manual' : 'smtp',
       errorMessage:    String(payload.errorMessage || ''),
@@ -86,6 +87,7 @@ function buildModel(database) {
       renderedBody:    String(payload.renderedBody || ''),
       recipientEmail:  String(payload.recipientEmail || ''),
       occurrenceKey:   String(payload.occurrenceKey || ''),
+      ...(HAS_SALE_REF ? { saleRef: payload.saleRef == null ? null : String(payload.saleRef) } : {}),
     };
     const info = insertStmt.run(params);
     return database.prepare(`SELECT ${SELECT_COLS} FROM email_log WHERE id = ?`).get(info.lastInsertRowid);

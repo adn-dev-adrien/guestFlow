@@ -1625,7 +1625,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `reservationId` nullable and a `saleRef` column (migration `pricing_sales_v1`, rows copied verbatim): the link e-mail of an outside visit is
     logged in `email_log` like every other e-mail. A link row with a NULL `reservationId` must be invisible to the previous release's poller and
     mailer; a test runs the 4.0.x code on the migrated database.
-    > **Delivered by PR C** (C1, schema): `payment_links` and `email_log` rebuilt (`pricing_sales_links_v1`, `pricing_sales_email_log_v1`), proven by `pricing-sales-migration` and `pricing-sales-migration-rollback`. **Pending** — PR C: the standalone link writer and the visit e-mail sender.
+    > **Delivered by PR C** (C1, schema): `payment_links` and `email_log` rebuilt (`pricing_sales_links_v1`, `pricing_sales_email_log_v1`), proven by `pricing-sales-migration` and `pricing-sales-migration-rollback`. **Delivered by PR C** (C35, `standalone-sale-payment-link`, `visit-payment-request-template`): `utils/standaloneSaleLinks.js` mints, reuses and withdraws the link of a document through the payment provider, writes `saleRef` on `payment_links` (the model reads and writes the column; `reservationId` stays NULL), settles a paid link through `applyPaidEffect` and sends the manual e-mail logged in `email_log` with `saleRef`; `payment-link-lifecycle.md` rule 68.
 87. **The guest-app card order** _(owner Q-C3)_: its line appears only once paid; see rule 29 as amended and guest-app rules 35, 85. J-7 rules 68 and 94
     (refusals) are dropped (owner Q-C4); rule 104 of the guest app routes by the date **and** the check-in time (rule 20).
     > **Pending** — PR C

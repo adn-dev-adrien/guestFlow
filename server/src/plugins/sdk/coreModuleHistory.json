@@ -308,7 +308,8 @@
     {
       "version": "2.30.0",
       "modules": [
-        "standaloneSale"
+        "standaloneSale",
+        "standaloneSaleLinks"
       ],
       "names": {
         "saleDetail": [

@@ -627,8 +627,38 @@ function buildNotificationService({
     return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
   }
 
+  // specs/outside-booking-sas.md rule 41 — a link of an outside sale paid beyond what its document asks: booked in full, the surplus owed back.
+  const STANDALONE_REFUND_TITLE = 'Paiement à rembourser sur une vente hors séjour';
+  function buildStandaloneRefundEmail(link, { surplusCents = 0, cancelled = false } = {}) {
+    const surplus = eurosFr(surplusCents);
+    const subject = `${STANDALONE_REFUND_TITLE} — ${surplus}`;
+    const lines = [
+      cancelled
+        ? 'Un client a payé un lien de paiement dont la vente hors séjour a été annulée depuis.'
+        : 'Un client a payé un lien de paiement pour un montant supérieur à ce que sa vente hors séjour demande aujourd’hui.',
+      'Le paiement est enregistré en entier sur la vente ; l’excédent est un remboursement dû.',
+      'Action requise : rembourser l’excédent depuis votre espace du prestataire de paiement.',
+      '',
+      `Vente : ${oneLine(link.saleRef)}`,
+      `Lien : #${Number(link.id)}`,
+      `Montant payé : ${eurosFr(link.amountCents)}`,
+      `Excédent à rembourser : ${surplus}`,
+      `Identifiant du paiement : ${oneLine(link.providerPaymentId)}`,
+    ];
+    return { subject, text: lines.join('\n') };
+  }
+
+  async function notifyStandaloneRefund(link, options) {
+    const email = buildStandaloneRefundEmail(link, options.standaloneSale);
+    await pushNewReservation({ title: STANDALONE_REFUND_TITLE, body: email.subject.slice(`${STANDALONE_REFUND_TITLE} — `.length) });
+    const ctx = resolveContext();
+    if (ctx.skip) return { sent: false, skipped: ctx.skip };
+    return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
+  }
+
   async function notifyPaidAfterCancel(link, options = {}) {
     try {
+      if (link.saleRef) return await notifyStandaloneRefund(link, options);
       const resa = options.orphan ? null : loadReservation(link.reservationId);
       if (!resa) return await notifyOrphanPaid(link, options);
       const { subject } = buildPaidAfterCancelEmail(resa, link, '', options);
@@ -713,7 +743,7 @@ function buildNotificationService({
     }
   }
 
-  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
+  return { notifyNewSiteDevis, flushDueDigests, notifyNewIcalReservation, notifyBookingConflict, notifyPaidAfterCancel, notifyDeactivationStuck, notifyPaymentInFlight, __test: { buildDevisEmail, buildSiteDigestEmail, buildReservationEmail, buildConflictEmail, buildPaidAfterCancelEmail, buildOrphanPaidEmail, buildStandaloneRefundEmail, buildDeactivationStuckEmail, buildPaymentInFlightEmail } };
 }
 
 const defaultService = buildNotificationService();

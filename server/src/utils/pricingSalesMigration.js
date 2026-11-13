@@ -5,7 +5,7 @@
  * Everything here ADDS or REBUILDS a table with the same rows. No amount column is rewritten (rule 36); every backfill reads
  * stored data only and is guarded, so a second run changes nothing. `runPricingSalesMigration(db)` returns what it changed.
  *
- *   T1-T3 `standalone_sales`, `standalone_sale_lines`, `standalone_sale_payments`: the sale of an article with no reservation.
+ *   T1-T3 `standalone_sales`, `standalone_sale_lines`, `standalone_sale_payments`, `standalone_sale_history`: the sale of an article with no reservation.
  *   T4    `payment_links` rebuilt: `reservationId` nullable, `saleRef` (the link of a sale bills the sale).
  *   T5    `email_log` rebuilt: `reservationId` nullable, `saleRef` (the link e-mail is logged like every other).
  *   T6    `suggested_articles`.        T7  `options.sellableExternally`, `resources.sellableExternally`, `vatClass` on both,
@@ -93,6 +93,16 @@ const TABLES = [
     FOREIGN KEY (saleId) REFERENCES standalone_sales(id) ON DELETE CASCADE
   )`,
   'CREATE INDEX IF NOT EXISTS idx_standalone_sale_payments_sale ON standalone_sale_payments(saleId)',
+  // What was done on a document, in words (outside-visit spec rule 23): « Bière locale ×2 ajoutée », « 12,00 € encaissés : CB ».
+  `CREATE TABLE IF NOT EXISTS standalone_sale_history (
+    id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    saleId INTEGER NOT NULL,
+    at     TEXT NOT NULL,
+    text   TEXT NOT NULL,
+    actor  TEXT,
+    FOREIGN KEY (saleId) REFERENCES standalone_sales(id) ON DELETE CASCADE
+  )`,
+  'CREATE INDEX IF NOT EXISTS idx_standalone_sale_history_sale ON standalone_sale_history(saleId)',
   // The external VAT rate of a class, set from the catalogue (owner Q-C11): `vat.rate.<class>.external` of the VAT component.
   `CREATE TABLE IF NOT EXISTS vat_external_rates (
     vatClass TEXT PRIMARY KEY,

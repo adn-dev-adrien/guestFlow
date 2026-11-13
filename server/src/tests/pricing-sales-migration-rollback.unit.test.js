@@ -60,3 +60,16 @@ test('rule 85: the previous release\'s plain writers (delete then insert, no ups
   const row = db.prepare('SELECT * FROM reservation_options WHERE reservationId = 10').get();
   assert.ok(row.lineId > 0 && row.source === 'fiche');
 });
+
+test('rule 86: the previous lifecycle pass would take an open sale link for an orphan stay — the schema floor keeps that release off this database, and the current pass guards it', () => {
+  const db = migratedWithAStandaloneSale();
+  db.prepare("INSERT INTO payment_links (reservationId, saleRef, type, amountCents, status, basketJson) VALUES (NULL, 'standalone:8', 'complement', 500, 'open', ?)")
+    .run(JSON.stringify({ source: 'standalone-sale', ref: 'standalone:8' }));
+  const previous = db.prepare(`SELECT l.id FROM payment_links l LEFT JOIN reservations r ON r.id = l.reservationId
+    WHERE l.status = 'open' AND (r.id IS NULL OR r.kind IN ('cancelled', 'superseded')) ORDER BY l.id`).all();
+  assert.ok(previous.length > 0, 'the previous statement lists it as an orphan');
+  assert.equal(isBelowSchemaFloor(db, '4.0.1'), true, 'so that release is refused on this database');
+  const current = db.prepare(`SELECT l.id FROM payment_links l LEFT JOIN reservations r ON r.id = l.reservationId
+    WHERE l.status = 'open' AND l.saleRef IS NULL AND (r.id IS NULL OR r.kind IN ('cancelled', 'superseded')) ORDER BY l.id`).all();
+  assert.deepEqual(current, [], 'the current pass leaves it');
+});

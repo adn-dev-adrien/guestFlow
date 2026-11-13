@@ -12,6 +12,7 @@
  *   setExternalRate(vatClass, rate)
  *   insertSale(fields) / insertLine(saleId, fields) / updateSale(id, fields) / updateLine(id, fields) / bumpVersion(id)
  *   findSale(id) / linesOf(saleId) / findLine(saleId, lineId) / byOrigin(originRef)
+ *   addHistory(saleId, text, actor) / historyOf(saleId)   the words of what was done on the document (outside-visit spec rule 23)
  *   documentRef(id) / lineRef(lineId)  the names the allocations use
  */
 const database = () => require('../database');
@@ -95,9 +96,14 @@ const bumpVersion = (id) => database().prepare('UPDATE standalone_sales SET vers
 const findSale = (id) => database().prepare('SELECT * FROM standalone_sales WHERE id = ?').get(Number(id)) || null;
 const linesOf = (saleId) => database().prepare('SELECT * FROM standalone_sale_lines WHERE saleId = ? ORDER BY id').all(Number(saleId));
 const findLine = (saleId, lineId) => database().prepare('SELECT * FROM standalone_sale_lines WHERE saleId = ? AND id = ?').get(Number(saleId), Number(lineId)) || null;
+function addHistory(saleId, text, actor = null) {
+  database().prepare('INSERT INTO standalone_sale_history (saleId, at, text, actor) VALUES (?, ?, ?, ?)').run(Number(saleId), new Date().toISOString(), String(text), actor);
+}
+const historyOf = (saleId) => database().prepare('SELECT at, text, actor FROM standalone_sale_history WHERE saleId = ? ORDER BY id').all(Number(saleId));
+
 const byOrigin = (originRef) => database().prepare('SELECT * FROM standalone_sales WHERE originRef = ? ORDER BY id').all(String(originRef));
 
 module.exports = {
   documentRef, lineRef, passageClientId, clientsByEmail, clientById, createClient, catalogueRow, externalRates, setExternalRate,
-  insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin,
+  insertSale, updateSale, insertLine, updateLine, bumpVersion, findSale, linesOf, findLine, byOrigin, addHistory, historyOf,
 };

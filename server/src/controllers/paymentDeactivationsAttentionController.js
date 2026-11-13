@@ -33,6 +33,7 @@ const frDate = (value) => {
 // numbers; a row that is gone, or a devis whose stay is gone, has nothing to open. Never a raw row id behind « Séjour n° »
 // for a devis (that id answers 404 on /reservations/:id).
 function subjectOf(link) {
+  if (link.saleRef) return { label: 'Vente hors séjour', url: null };
   const id = Number(link.reservationId);
   const fiche = (number, fallback) => `Fiche n° ${number || fallback}`;
   if (link.stayMissing) return { label: `Fiche n° ${id}`, url: null };

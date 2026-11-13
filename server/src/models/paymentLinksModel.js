@@ -32,6 +32,7 @@
  *                                           paid: 'deactivation' | 'lastLook' owed (lapsed or `dates-taken`), 'open' with
  *                                           `openToo`, else null (rule 63)
  *   findOpenForInstallment(installmentId)   → the current open link of that installment, or undefined
+ *   listForSale(saleRef) / findOpenForSale(saleRef) → the links of an outside sale's document, and its open one (specs/outside-booking-sas.md rule 40)
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
@@ -115,15 +116,17 @@ function buildModel(database) {
   // specs/guest-app.md rule 35 — the basket a `complement` link bills (a guest order). A schema without the column
   // (a unit suite's own table) has no basket link.
   const HAS_BASKET = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'basketJson');
+  // specs/pricing-components.md rule 86 — the document a link of an outside sale bills (`saleRef`, `reservationId` then NULL).
+  const HAS_SALE_REF = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'saleRef');
   const SELECT_COLS = `id, reservationId, type, provider, providerLinkId, url, amountCents, currency,
-    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId${HAS_BASKET ? ', basketJson' : ''}`;
+    status, providerPaymentId, createdAt, paidAt, expiresAt, lastPolledAt, remoteCancelPendingAt, cancelReason, installmentId${HAS_BASKET ? ', basketJson' : ''}${HAS_SALE_REF ? ', saleRef' : ''}`;
 
   // A basket link is written whole, its basket in the same statement: no reader ever sees it as a bucket's link.
   const insertStmt = database.prepare(`
     INSERT INTO payment_links
-      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, createdAt, expiresAt, installmentId${HAS_BASKET ? ', basketJson' : ''})
+      (reservationId, type, provider, providerLinkId, url, amountCents, currency, status, createdAt, expiresAt, installmentId${HAS_BASKET ? ', basketJson' : ''}${HAS_SALE_REF ? ', saleRef' : ''})
     VALUES
-      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, COALESCE(@createdAt, datetime('now')), @expiresAt, @installmentId${HAS_BASKET ? ', @basketJson' : ''})
+      (@reservationId, @type, @provider, @providerLinkId, @url, @amountCents, @currency, @status, COALESCE(@createdAt, datetime('now')), @expiresAt, @installmentId${HAS_BASKET ? ', @basketJson' : ''}${HAS_SALE_REF ? ', @saleRef' : ''})
   `);
 
   function findById(id) {
@@ -141,7 +144,7 @@ function buildModel(database) {
     const status = payload.status ? String(payload.status) : 'open';
     if (!VALID_STATUSES.has(status)) throw new Error(`Invalid payment link status: ${status}`);
     const info = insertStmt.run({
-      reservationId: Number(payload.reservationId),
+      reservationId: payload.reservationId == null ? null : Number(payload.reservationId),
       type,
       provider: String(payload.provider || 'qonto'),
       providerLinkId: payload.providerLinkId == null ? null : String(payload.providerLinkId),
@@ -153,6 +156,7 @@ function buildModel(database) {
       expiresAt: payload.expiresAt == null ? null : String(payload.expiresAt),
       installmentId: payload.installmentId == null ? null : Number(payload.installmentId),
       ...(HAS_BASKET ? { basketJson: payload.basket == null ? null : JSON.stringify(payload.basket) } : {}),
+      ...(HAS_SALE_REF ? { saleRef: payload.saleRef == null ? null : String(payload.saleRef) } : {}),
     });
     return findById(info.lastInsertRowid);
   }
@@ -375,6 +379,17 @@ function buildModel(database) {
     return ownersOf(id).map((owner) => findOpenForReservation(owner, type)).filter(Boolean).sort((a, b) => b.id - a.id)[0];
   }
 
+  // The links of an outside sale's document (`standalone:<id>`), newest first, and its open one (at most one, rule 40 of the outside-visit spec).
+  function listForSale(saleRef) {
+    if (!HAS_SALE_REF) return [];
+    return database.prepare(`SELECT ${SELECT_COLS} FROM payment_links WHERE saleRef = ? ORDER BY id DESC`).all(String(saleRef));
+  }
+
+  function findOpenForSale(saleRef) {
+    if (!HAS_SALE_REF) return undefined;
+    return database.prepare(`SELECT ${SELECT_COLS} FROM payment_links WHERE saleRef = ? AND status = 'open' ORDER BY id DESC LIMIT 1`).get(String(saleRef));
+  }
+
   function findOpenForInstallment(installmentId) {
     return database.prepare(
       `SELECT ${SELECT_COLS} FROM payment_links WHERE type = 'installment' AND installmentId = ? AND status = 'open' ORDER BY id DESC LIMIT 1`
@@ -454,12 +469,14 @@ function buildModel(database) {
     const nowMs = now.getTime();
     const hasNumber = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'reservationNumber');
     const hasWithdrawnAt = database.prepare('PRAGMA table_info(payment_links)').all().some((c) => c.name === 'withdrawnAt');
+    // A link of an outside sale bills a document: its empty stay is no orphan (pricing-components rule 86).
+    const ofSale = HAS_SALE_REF ? 'l.saleRef IS NOT NULL' : '0';
     return database.prepare(`
-      SELECT l.id, l.reservationId, l.type, l.provider, l.providerLinkId, l.amountCents, l.status, l.cancelReason,
+      SELECT l.id, l.reservationId, ${HAS_SALE_REF ? 'l.saleRef' : 'NULL'} AS saleRef, l.type, l.provider, l.providerLinkId, l.amountCents, l.status, l.cancelReason,
              l.remoteCancelPendingAt, l.expiresAt, l.createdAt, ${hasWithdrawnAt ? 'l.withdrawnAt' : 'NULL'} AS withdrawnAt,
              ${hasNumber ? 'r.reservationNumber' : 'NULL'} AS reservationNumber, r.devisNumber, r.convertedReservationId,
              c.id AS convertedStayId, ${hasNumber ? 'c.reservationNumber' : 'NULL'} AS convertedNumber,
-             r.id IS NULL AS stayMissing, r.kind AS stayKind,
+             (r.id IS NULL AND NOT (${ofSale})) AS stayMissing, r.kind AS stayKind,
              (CASE WHEN c.id IS NOT NULL AND c.kind IN ('cancelled', 'superseded') THEN c.kind ELSE r.kind END) AS endedKind,
              (r.kind IN ('cancelled', 'superseded') OR c.kind IN ('cancelled', 'superseded')) AS stayEnded
         FROM payment_links l
@@ -586,6 +603,8 @@ function buildModel(database) {
     liveLinkReasonForStay,
     findOpenForStay,
     findOpenForInstallment,
+    listForSale,
+    findOpenForSale,
     findByProviderLinkId,
     markPaid,
     updateStatus,

@@ -49,6 +49,8 @@ const { unavailableNights } = require('./closedStayDates');
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
 function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, paidAt = null, recordPayment = recordOn(database), settledAlready = false }) {
+  // specs/outside-booking-sas.md rule 41 — a link that bills an outside sale settles that document, never a stay.
+  if (link.saleRef) return require('./standaloneSaleLinks').settlePaidLink({ link, paidDate, paidAt });
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(link.reservationId);
   // specs/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket,
   // whatever became of the stay: a cancelled or deleted stay is the owner's to refuse (its order flagged, the money
@@ -381,7 +383,7 @@ function bookIfAmountChanged({ database, link, paidDate, recordPayment }) {
   return booked.effect === 'double-payment' ? null : { ...booked, amountMismatch };
 }
 
-const stayIsMissing = (database, link) => Boolean(database) && !database.prepare('SELECT 1 FROM reservations WHERE id = ?').get(Number(link.reservationId));
+const stayIsMissing = (database, link) => Boolean(database) && !link.saleRef && !database.prepare('SELECT 1 FROM reservations WHERE id = ?').get(Number(link.reservationId));
 const orphanAlert = (pay, paidAt) => ({ orphan: true, paidAt: paidAt || (pay && pay.paidAt) || null, providerPaymentId: (pay && pay.paymentId) || null });
 
 // A paid link confirms the stay (→ confirmation email) for the deposit (use case 1) and full-payment
@@ -450,6 +452,12 @@ async function processPaidLink({ database, devisModel, paymentLinksModel, link, 
     if (effect.conflict && notifyConflict) { try { await notifyConflict(effect.reservationId); } catch { /* best effort */ } }
     return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
   }
+  // Rule 41 of the outside-visit spec — money received beyond what the document asks (a line offered or removed since, a cancelled document) is booked in full,
+  // owed back, and the admin is told.
+  if (effect.effect === 'standalone-sale-refund-owed') {
+    if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link, { standaloneSale: { surplusCents: effect.surplusCents, cancelled: effect.cancelled } }); } catch { /* best effort */ } }
+    return { id: link.id, reservationId: link.reservationId, type: link.type, status: 'paid', ...effect };
+  }
   if (effect.effect === 'reservation-cancelled' || effect.effect === 'installment-unallocated' || effect.effect === 'installment-double-payment'
     || effect.effect === 'basket-unallocated') {
     if (notifyPaidAfterCancel) { try { await notifyPaidAfterCancel(link); } catch { /* best effort */ } }
@@ -513,6 +521,11 @@ async function retryPendingCancellationsOnce({ only = null, paymentLinksModel, p
       // specs/payment-link-lifecycle.md rule 3 — checked before every reason's branch: with no stay row
       // there is nothing to settle, book or convert, whatever the link was withdrawn for.
       const orphan = stayIsMissing(database, link);
+      // A link of an outside sale withdrawn then paid anyway is booked on its document, in full (outside-visit rule 41).
+      if (pay.paid && link.saleRef) {
+        results.push(await processPaidLink({ database, devisModel, paymentLinksModel, link, paidPayment: pay, notifyPaidAfterCancel, retiredReason: link.cancelReason }));
+        continue;
+      }
       if (pay.paid && orphan) {
         const paidAt = pay.paidAt || new Date().toISOString();
         paymentLinksModel.clearRemoteCancelPending(link.id, { providerPaymentId: pay.paymentId || null, paidAt });

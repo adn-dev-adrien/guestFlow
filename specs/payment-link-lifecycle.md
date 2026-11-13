@@ -1246,6 +1246,12 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `payment-deactivations-owed.unit.test.js` (the converted-devis branch, the arrival-day lapse). A link leaves
     the list when the provider has deactivated it (marker cleared) or found it paid (booked as before). Tests:
     `payment-deactivations-owed.unit.test.js` (mocked provider only), `dashboard-attention-routes.unit.test.js`.
+68. **A link may bill an outside sale's document** (added 2026-11-13, pricing-components PR C; `outside-booking-sas.md` rules 39-42). A link row with a `saleRef` (`standalone:<id>`) and no
+    `reservationId` is the link of a document, not of a stay: it is a `complement` link with the explicit basket `{ source: 'standalone-sale', ref: <saleRef> }`, valid 36 hours (rule 6, from the row's
+    creation), reused only when it bills the document's current reste and has 24 hours left (rule 8, reason `amount-changed` or `validity` when replaced), withdrawn by hand (rule 42) or with the
+    cancelled document. Its empty stay is no orphan: the lifecycle pass (rules 12, 13) and the home's list (rule 67) leave it alone while it is valid, and list it as « Vente hors séjour » once
+    withdrawn and owed a deactivation. A paid link settles the document through the poll's paid effect, **in full**, whatever the document became (lapsed, withdrawn then paid, a line offered
+    meanwhile): what no line asks any more is a refund owed (REFUNDS) and the admin is told. Test: `standalone-sale-payment-link.unit.test.js`.
 
 ---
 

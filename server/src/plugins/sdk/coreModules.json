@@ -1015,8 +1015,15 @@
     "offerLine",
     "pay",
     "quote",
+    "receive",
     "removeLine",
     "sell"
+  ],
+  "standaloneSaleLinks": [
+    "emailLink",
+    "linkOf",
+    "mint",
+    "withdraw"
   ],
   "articles": [
     "read",

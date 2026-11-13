@@ -23,7 +23,7 @@ const { externalSale } = require('./pricing/pipelines');
 const { allocateDocumentPayment } = require('./pricing/settlement');
 const articles = require('./pricing/articles');
 const { buildDocumentDetail } = require('./saleDetail');
-const { validateSettlement } = require('./paymentTenders');
+const { validateSettlement, methodLabel, euros } = require('./paymentTenders');
 const { todayIso } = require('./localDate');
 const settingsProvider = require('../models/ports/settingsProvider');
 const vatRegimeModel = require('../models/vatRegimeModel');
@@ -153,7 +153,7 @@ const refusalList = (ctx, own) => [...own, ...ctx.refusals.map((r) => ({ article
 function detailOf(ctx, sale, client) {
   const lines = ctx.lines.map((line, index) => (line.ref ? line : { ...line, ref: `draft:${index}`, id: null }));
   const settled = ctx.settlement.lines.map((line, index) => ({ ...line, ref: lines[index].ref }));
-  return buildDocumentDetail({
+  const detail = buildDocumentDetail({
     sale: sale || {
       id: null, status: 'due', version: 0, soldAt: null, originRef: null, customerName: null, customerEmail: null,
     },
@@ -162,6 +162,7 @@ function detailOf(ctx, sale, client) {
     settlement: { ...ctx.settlement, lines: settled },
     vatByRate: ctx.vatByRate,
   });
+  return { ...detail, history: sale ? sales.historyOf(sale.id) : [] };
 }
 
 function quote(request = {}) {
@@ -212,7 +213,39 @@ function takePayment(saleId, { tenders, shortfall, paidAt, source = null, actor 
   const paymentId = payments.record({
     saleId, paidAt: day, tenders: checked.lines, receivedCents: checked.receivedCents, shortfallCents: checked.shortfallCents, shortfallKind: checked.shortfallKind, source, createdBy: actor, allocations: filed,
   });
+  const words = checked.lines.map((line) => `${methodLabel(line.method)}${line.internal ? ' (caisse interne)' : ''}`).join(', ');
+  sales.addHistory(saleId, `${euros(checked.receivedCents)} encaissés : ${words}`, actor);
   return { paymentId, receivedCents: checked.receivedCents };
+}
+
+/**
+ * Money that arrived for the document through a channel that does not go by the tenders (a payment link, outside-visit spec rule 41): booked in full, filed on the lines
+ * by SETTLEMENT in sale order, whatever the document became meanwhile. What no line asks any more is filed on no line and is owed back (`surplusCents`).
+ */
+function receive(saleId, {
+  method, amountCents, paidAt, source = null,
+}) {
+  const db = database();
+  let outcome = null;
+  db.transaction(() => {
+    const { stored, allocations } = storedOf(saleId);
+    const ctx = price({ requests: [], stored, allocations });
+    const day = /^\d{4}-\d{2}-\d{2}$/.test(String(paidAt || '')) ? paidAt : todayIso();
+    const walk = allocateDocumentPayment({ lines: ctx.lines.map((line, index) => ({ ...line, ref: line.ref || `draft:${index}` })), allocations, amountCents });
+    const paymentId = payments.record({
+      saleId,
+      paidAt: day,
+      tenders: [{ method, amountCents, internal: false }],
+      receivedCents: amountCents,
+      source,
+      allocations: walk.map((row) => ({ ...row, internal: false })),
+    });
+    sales.addHistory(saleId, `${euros(amountCents)} encaissés : ${methodLabel(method)}`);
+    refreshInPlace(saleId);
+    sales.bumpVersion(saleId);
+    outcome = { paymentId, surplusCents: walk.filter((row) => row.lineRef == null).reduce((sum, row) => sum + row.amountCents, 0) };
+  })();
+  return outcome;
 }
 
 function sell(request = {}, { actor = null, now = new Date() } = {}) {
@@ -272,6 +305,8 @@ function sell(request = {}, { actor = null, now = new Date() } = {}) {
         });
       }
       if (existing) sales.bumpVersion(saleId);
+      else sales.addHistory(saleId, 'Vente enregistrée', actor);
+      for (const added of ctx.lines.filter((l) => l.isNew)) sales.addHistory(saleId, `${added.label} ×${added.quantity} ${added.offered ? 'offerte' : 'ajoutée'}`, actor);
       refreshInPlace(saleId);
       if (body.payment) {
         const taken = takePayment(saleId, { ...body.payment, actor });
@@ -349,6 +384,7 @@ function offerLine(saleId, lineId, { offered = true, confirmRefund = false, vers
     if (refusal) return refusal;
     const catalogue = row.catalogueCents == null ? row.totalCents : row.catalogueCents;
     sales.updateLine(row.id, { offered: offered ? 1 : 0, totalCents: offered ? 0 : catalogue, catalogueCents: catalogue });
+    sales.addHistory(saleId, `${row.label} ${offered ? 'offerte' : 'à nouveau payante'}`);
     return null;
   });
 }
@@ -358,6 +394,7 @@ function removeLine(saleId, lineId, { confirmRefund = false, version } = {}) {
     const { row, refusal } = lineOf(saleId, lineId, { confirmRefund });
     if (refusal) return refusal;
     sales.updateLine(row.id, { cancelledAt: new Date().toISOString() });
+    sales.addHistory(saleId, `${row.label} retirée`);
     return null;
   });
 }
@@ -378,10 +415,18 @@ function cancel(saleId) {
     const at = new Date().toISOString();
     for (const row of sales.linesOf(saleId)) if (!row.cancelledAt) sales.updateLine(row.id, { cancelledAt: at });
     sales.updateSale(saleId, { status: 'cancelled', cancelledAt: at });
+    sales.addHistory(saleId, 'Vente annulée');
+    // The open link of the document is withdrawn with it; a payment that still arrives on it is booked in full and owed back (rule 41).
+    const links = require('../models/paymentLinksModel');
+    const open = links.findOpenForSale && links.findOpenForSale(sales.documentRef(saleId));
+    if (open) {
+      links.cancelIfOpen(open.id, { reason: require('../constants/paymentLinks').LINK_REASONS.OPERATOR, endsAt: new Date() });
+      if (open.providerLinkId) links.cancel(open.id, { remotePending: true });
+    }
     return null;
   });
 }
 
 module.exports = {
-  quote, sell, offerLine, removeLine, pay, cancel, documentOf, takePayment, MAX_QUANTITY,
+  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, takePayment, MAX_QUANTITY,
 };
