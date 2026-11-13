@@ -4,6 +4,29 @@ All notable changes to GuestFlow are documented in this file. Format: [Keep a Ch
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-13
+
+### Summary
+- Site : des dates déjà réservées sont refusées dans le calendrier, sans prix ni « Suivant » ; mettez l’extension WordPress à jour en 1.19.1.
+- Tableau de bord : le calendrier s’ouvre sur la semaine en cours, avec les jours de la semaine fixés sous le titre du mois.
+- Séance de bain nordique : la liste des clients est triée par séjour (sur place, à venir, passés) et se filtre en tapant.
+- Appli séjour : une ressource « Tous les logements » (le bain) est de nouveau vendue dans chaque logement ; l’écran d’entrée n’est plus étroit sur Mac.
+
+### Added
+- **`GET /api/clients/picker?date=`** — the clients of a picker grouped and ordered against a day, with the line under each name and the text to search in; the generic `ClientPickerField` renders it and is exported to plugins (plugin SDK 2.27.0). +13 server tests, +7 client tests, +2 E2E tests.
+
+### Changed
+- **Dashboard calendar opens on the current week** — on load and on « Aujourd'hui » the week holding
+  today sits right under the month title instead of the month's first week (on a phone: the first stay of
+  the month not yet over), and stays there while the months load. The day names (Lun → Dim) now stick
+  under each month title on both cumulative calendars. (`specs/cumulative-month-calendar.md` rules 13-14)
+- **Plugin `hourly-resources`** — **Resource session — client picker ordered by stay and searchable** (spec `resource-booking-client-picker.md`, 2026-11-12). The « Client enregistré » list of a session opens on the clients on site or arriving within 7 days of the session's date, then the other upcoming clients, then the past ones (clients without a stay last); each line shows the property and the dates, and typing matches every word against first name, last name, email, phone and property, accents ignored. Plugin 1.6.0.
+
+### Fixed
+- **Plugin `guest-app`** — A resource set to « Tous les logements » in GuestFlow (no lodging row — choosing every lodging collapses to it) is now linked to every lodging, like the pricing engine reads it: sold in each lodging's shop, counted for the bath tile, listed by `/api/guest-app/items?propertyId=` (so the booklet import finds the bath). It was excluded everywhere, so a bath shared by both lodgings could not be sold. +2 server tests, 1 updated.
+- **Plugin `guest-app`** — From 900 px wide, the screens without navigation (entry, « Ce code n'est pas reconnu », « Retrouver mon séjour ») were squeezed into the 84 px column kept for the navigation rail: on a Mac, the app looked a few pixels wide. Their shell is now one column at every width (spec rule 51). +3 guest-app tests.
+- **WordPress plugin 1.19.1 — taken dates are refused in the calendar** (spec `wordpress-plugin.md` rule 36, 2026-11-12). Dates already booked (arriving by a link, or booked since the page loaded) showed a red banner while the site drawer's « Suivant » stayed open with a price on its bar; the booking engine now refuses them in the calendar like a too-short stay — no total, every send disabled, the taken nights reloaded — and a `409` on times reads there too. GuestFlow already refused such a request and its payment link server-side; a new test pins that the public `pay` on taken nights mints no link.
+
 ## [4.0.1] - 2026-11-12
 
 ### Summary

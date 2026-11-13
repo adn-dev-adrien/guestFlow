@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.5",
+  "version": "1.2.7",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -10,7 +10,7 @@
   ],
   "requires": [],
   "guestflow": ">=3.18.0",
-  "sdk": "^2.29.0",
+  "sdk": "^2.27.0",
   "changelog": {
     "1.0.0": [
       "Première version publiée en paquet."
@@ -160,7 +160,13 @@
     ],
     "1.2.5": [
       "La TVA d’un compartiment est calculée par le composant TVA du cœur ; aucune écriture ne change.",
+      "Demande le SDK 2.27 de GuestFlow."
+    ],
+    "1.2.6": [
       "Le journal, ses écritures et ses trois exports (CSV, JSON, synthèse) viennent du cœur ; le plugin garde ses routes, son plan comptable et ses réglages, aucune écriture ne change.",
+      "Compatible avec GuestFlow 4 (SDK 2.28)."
+    ],
+    "1.2.7": [
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]

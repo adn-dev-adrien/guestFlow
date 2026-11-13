@@ -47,7 +47,7 @@ describe('CumulativeMonthCalendar — solid bars and closures', () => {
     const style = getComputedStyle(container.querySelector('[data-bar="r1"]'));
     expect(style.backgroundColor).toBe('rgba(201, 56, 72, 0.14)');
     expect(style.color).toBe('rgb(39, 37, 31)');
-    expect(style.boxShadow).toMatch(/inset 3px 0 0/);
+    expect(style.boxShadow).toMatch(/inset 3px 0 0|3px 0px inset/); // jsdom 30 / 31 serialisations
     expect(style.opacity).not.toBe('0.65');
   });
 
