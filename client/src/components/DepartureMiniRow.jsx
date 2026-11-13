@@ -37,6 +37,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import ChecklistIcon from '@mui/icons-material/Checklist';
 import { softChipSx } from './StatusBadge';
+import { getPlatformColor, formatPlatformLabel } from '../constants/platforms';
 import { sasLockTooltip, statusLockTooltip } from '../constants/receptionSasLock';
 
 const DEPARTURE_BG = grey[100]; // #F5F5F5 — quieter than the arrival peach on purpose.
@@ -86,6 +87,7 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
   return (
     <Card
       variant="outlined"
+      title={reservation.platform ? `${reservation.firstName || ''} ${reservation.lastName || ''} — ${formatPlatformLabel(reservation.platform)}`.trim() : undefined}
       onClick={() => onOpenReservation && onOpenReservation(reservation.id)}
       sx={{
         mb: 1.5,
@@ -165,6 +167,18 @@ export default function DepartureMiniRow({ reservation, onToggleDone, alertInfo,
                 {reservation.propertyName}
               </Typography>
             </Box>
+            {/* The platform on the departure card too, as on the arrival's: a phone has no hover to ask it. */}
+            {reservation.platform && (
+              <Box
+                component="span"
+                sx={{
+                  px: 1, py: 0.5, border: '1.5px solid', borderColor: getPlatformColor(reservation.platform), color: getPlatformColor(reservation.platform),
+                  borderRadius: 1, fontSize: 14, fontWeight: 800, lineHeight: 1.4, whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                {formatPlatformLabel(reservation.platform)}
+              </Box>
+            )}
             {alertInfo?.explanation && (
               <Typography
                 variant="caption"

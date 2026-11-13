@@ -304,3 +304,11 @@ everything this feature needs.
 - **Q1 — should « Annuler ce paiement » also exist for a group made by the SAS?** As written, yes: the
   group is the same object whoever made it. Worth confirming that undoing a check-in's payment from
   the fiche is wanted, rather than only from the SAS.
+
+## Amendment 2026-11-12 (manual trial of 4.0.0) — never a stale total
+
+« Encaisser en une fois » adds up the STORED buckets (the server's `arrivalPayment.collectible`). While the fiche holds an
+unsaved change (a guest added, whose nights change the complement the ledger rows show live), the block would announce a
+total the ledger no longer says (shadow: 847,80 € above a complement row reading 333,80 €). It is therefore withdrawn while
+the fiche is not pristine and comes back once saved or cancelled. Test: `FinanceSection.single-payment-draft.test.jsx`.
+Not reproduced on the copy: the reported mix of a stale complement tile with a fresh « Encaisser » prefill (see the PR).

@@ -30,7 +30,7 @@ export default function AdvancedDetails({ label = 'Avancé', defaultOpen = false
         {label}
       </Button>
       <Collapse in={open} id={id}>
-        <Box sx={{ pt: 1 }}>{children}</Box>
+        <Box sx={{ pt: 1.5 }}>{children}</Box>
       </Collapse>
     </Box>
   );

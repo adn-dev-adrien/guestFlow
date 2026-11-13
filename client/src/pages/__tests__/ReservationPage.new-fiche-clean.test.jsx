@@ -112,7 +112,7 @@ test('a real edit is an edit: Back asks', async () => {
 test('a new client typed on the fiche is an edit: Save enabled, Back and reload ask', async () => {
   await openNewFiche();
   api.findDuplicateClient.mockResolvedValue(null);
-  fireEvent.click(screen.getAllByText('+ Créer un nouveau client')[0]);
+  fireEvent.click(screen.getAllByText('Nouveau client')[0]);
   fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
   fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
@@ -130,7 +130,7 @@ test('a new client typed on the fiche is an edit: Save enabled, Back and reload 
 test('a client typed on one fiche does not follow the page to the next fiche it loads', async () => {
   await openNewFiche();
   api.findDuplicateClient.mockResolvedValue(null);
-  fireEvent.click(screen.getAllByText('+ Créer un nouveau client')[0]);
+  fireEvent.click(screen.getAllByText('Nouveau client')[0]);
   fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
   fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));

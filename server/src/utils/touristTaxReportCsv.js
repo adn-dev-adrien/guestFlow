@@ -68,9 +68,14 @@ function nightCsv(report) {
 }
 
 /** `taxe-de-sejour-<du>_<au>[-par-nuit].csv`: the days the file covers, so a window cut at the current month ends there (rule 30). */
+// Rule 60 (2026-11-12) — an export filtered on one logement (« Exporter {logement} ») carries the logement's slug.
+const slugOf = (name) => String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 function csvFileName(report, view) {
   const to = report.window.coveredTo || report.window.to;
-  return `taxe-de-sejour-${report.window.from}_${to}${view === 'night' ? '-par-nuit' : ''}.csv`;
+  const id = report.filters && report.filters.propertyId;
+  const property = id != null && Array.isArray(report.properties) ? report.properties.find((p) => Number(p.id) === Number(id)) : null;
+  const slug = property ? slugOf(property.name) : '';
+  return `taxe-de-sejour${slug ? `-${slug}` : ''}-${report.window.from}_${to}${view === 'night' ? '-par-nuit' : ''}.csv`;
 }
 
 function touristTaxReportCsv(report, view = 'list') {

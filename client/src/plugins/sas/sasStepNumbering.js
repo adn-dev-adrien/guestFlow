@@ -3,7 +3,7 @@
  *
  * The total counts the QUESTIONS of the run, which the reservation's data decides before the first
  * page. A page that an answer opens (missing linen, missing towels, extinguisher charges, the mornings
- * and the composition of a breakfast sold at the door, the catering catalogue, the caution reminder)
+ * and the composition of a breakfast sold at the door, the catering catalogue)
  * carries the number of the question that opened it — so the total never grows when an upsell is
  * accepted, the reason the header once dropped its total (specs/review-2026-10-18-reservations.md
  * rule 3).
@@ -11,7 +11,7 @@
 
 // Pages only an answer opens.
 const OPENED_BY_AN_ANSWER = new Set([
-  'linenItems', 'missingItems', 'extinguisherItems', 'breakfastMornings', 'cateringItems', 'cautionReport',
+  'linenItems', 'missingItems', 'extinguisherItems', 'breakfastMornings', 'cateringItems',
 ]);
 
 function isOpenedByAnswer(key, index, keys) {

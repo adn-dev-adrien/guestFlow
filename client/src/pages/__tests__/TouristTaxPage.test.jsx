@@ -66,9 +66,10 @@ function renderPage() {
 
 test('« Dates réservation » shows arrival → departure (a 1-night stay is not collapsed onto one day)', async () => {
   renderPage();
-  expect(await screen.findByText('20/06/2026 au 21/06/2026')).toBeInTheDocument();
+  // Inside a logement's section the year is known: « jj/mm → jj/mm » (tourist-tax-report-v2.md rule 58).
+  expect(await screen.findByText('20/06 → 21/06')).toBeInTheDocument();
   // Regression guard: it must NOT show the old « au 20/06/2026 » (last-night minus one day).
-  expect(screen.queryByText('20/06/2026 au 20/06/2026')).not.toBeInTheDocument();
+  expect(screen.queryByText('20/06 → 20/06')).not.toBeInTheDocument();
 });
 
 test('« Déclarée » checkbox reflects touristTaxDeclaredAt and toggling PATCHes without navigating', async () => {
