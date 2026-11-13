@@ -355,6 +355,12 @@ one place.
       (`utils/savePriceGuards.unlockedPriceRefusal`, judged after N4's not-started refusal, before the other save guards).
       The ledger's solde editor, which reaches a solde by moving the accommodation price, refuses the same way
       (reservation-payment-ledger rule 18 reading).
+    - **Reading of 2026-11-13 (Adrien): offering a line is allowed.** Offering an option, a resource or a free line on an
+      unlocked fiche lowers the final price by what that line billed; the save is accepted and the engine's recalculated
+      price is written. The drop must equal, to the cent, the stored amount of the lines newly offered by the save, with the
+      discount and the tourist tax unchanged — any other move (a line added in the same save, a discount, a night) stays
+      refused 409 `UNLOCKED_PRICE_CHANGED` (`savePriceGuards.unlockedPriceRefusal`, `storedLines` / `quoteLines`).
+      Test: `tests/unlocked-fiche-offered-option.unit.test.js` (2).
     - **What the unlock still allows,** as long as both figures stay put: the platform payment block (expected payout
       `platformPayoutAmount`, commissions `platformCommissionAmount` / `acompteCommissionAmount`, the platform's tax
       `platformTouristTaxAmount`, the brut when it lands on the same final price), the penalties (their own route, never

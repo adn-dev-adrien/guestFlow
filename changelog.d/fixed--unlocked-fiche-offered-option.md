@@ -1,0 +1,1 @@
+- Fiche déverrouillée : offrir une option n'est plus refusé sous prétexte que le prix final doit rester le même ; le prix est recalculé en déduisant ce qui est offert.
