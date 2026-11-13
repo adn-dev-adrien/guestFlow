@@ -1,0 +1,1 @@
+- Sas d'arrivée : une prestation vendue au sas profite des unités offertes que le séjour n'a pas encore consommées (« 2 offerts »), comme sur la fiche ; la ligne garde ce qu'elle a consommé, et une vente suivante sur la fiche ne la remet plus en cause (specs/pricing-components.md, règles 26 et 41).

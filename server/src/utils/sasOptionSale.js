@@ -47,22 +47,28 @@ function servedFromIntent(priceType, { servedPersons, units, nights }) {
 }
 
 // The price of one line is the Articles head's (rule 10): this module resolves the operator's intent into a request, the head prices it.
-const readLine = (option, unitPrice, stay, request) => articles.read({ option, unitPrice, ...stay, request });
+const readLine = (option, unitPrice, stay, request, freeUnits = 0) => articles.read({ option, unitPrice, ...stay, request, freeUnits });
+
+// Rule 41 — the free units the sale spent, carried only when it spent some (the row stores them as `allowanceUsed`).
+const spentOf = (priced) => (Number(priced.figures.freeUnits) > 0
+  ? { freeUnits: Number(priced.figures.freeUnits), freeUnitsAmount: Number(priced.figures.freeUnitsAmount) || 0 }
+  : {});
 
 /**
  * Price one SAS sale. Returns null when nothing is actually sold (no moment, no unit, no price).
  *
  * @param {object} option  catalogue row (`priceType`, `showsPlanningCard`, card config…)
- * @param {object} ctx     { unitPrice, persons, nights, stay, occurrences, units, servedPersons, maxPersons }
+ * @param {object} ctx     { unitPrice, persons, nights, stay, occurrences, units, servedPersons, maxPersons, freeUnits }
  *        `stay` ({ startDate, endDate, checkInTime, checkOutTime }) restricts the accepted moments to
  *        the candidate grid — the wizard can only sell moments the guest can actually attend.
  *        `servedPersons` is how many covers each moment serves (specs/card-option-served-persons.md
  *        §3.3): absent → the whole party, and it is clamped to `maxPersons` (the property capacity).
+ *        `freeUnits` is the stay's grant left for the article (specs/pricing-components.md rule 41): the sale spends it as the engine does.
  * @returns {{optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, cardOccurrences,
- *            cardPersons}|null}
+ *            cardPersons, freeUnits, freeUnitsAmount}|null}
  */
 function priceOptionSale(option, {
-  unitPrice, persons, nights, stay, occurrences, units, servedPersons, maxPersons,
+  unitPrice, persons, nights, stay, occurrences, units, servedPersons, maxPersons, freeUnits = 0,
 } = {}) {
   if (!option) return null;
   const price = round2(unitPrice != null ? unitPrice : option.price);
@@ -81,7 +87,7 @@ function priceOptionSale(option, {
     const covers = articles.resolveServedPersons({ cardPersons: servedPersons, persons: head, maxGuests: maxPersons });
     const priced = readLine(option, price, { persons: head, nights, maxGuests: maxPersons }, {
       quantity: wanted.length, occurrences: wanted, cardPersons: servedPersons,
-    });
+    }, freeUnits);
     if (!priced || !(priced.figures.billedUnits > 0)) return null;
     return {
       optionId: Number(option.id),
@@ -93,6 +99,7 @@ function priceOptionSale(option, {
       cardOccurrences: wanted,
       cardPersons: perPerson ? covers.stored : null,
       servedPersons: perPerson ? covers.served : null,
+      ...spentOf(priced),
     };
   }
 
@@ -107,7 +114,7 @@ function priceOptionSale(option, {
       quantity: 1,
       cardPersons: perNight ? null : servedFromIntent(priceType, { servedPersons, units, nights: stayNights }),
       cardNights: perNight ? units : null,
-    });
+    }, freeUnits);
     if (!priced || !(priced.figures.billedUnits > 0)) return null;
     const typed = priced.figures;
     return {
@@ -121,12 +128,13 @@ function priceOptionSale(option, {
       cardPersons: typed.cardPersons,
       cardNights: typed.cardNights,
       servedPersons: typed.servedPersons != null ? typed.servedPersons : null,
+      ...spentOf(priced),
     };
   }
 
   const billedUnits = round2(units);
   if (!(billedUnits > 0 && Number.isFinite(billedUnits))) return null;
-  const priced = readLine({ ...option, priceType: 'per_stay' }, price, { persons: head, nights: stayNights, maxGuests: maxPersons }, { quantity: billedUnits });
+  const priced = readLine({ ...option, priceType: 'per_stay' }, price, { persons: head, nights: stayNights, maxGuests: maxPersons }, { quantity: billedUnits }, freeUnits);
   if (!priced) return null;
   return {
     optionId: Number(option.id),
@@ -138,6 +146,7 @@ function priceOptionSale(option, {
     cardOccurrences: null,
     cardPersons: null,
     servedPersons: null,
+    ...spentOf(priced),
   };
 }
 

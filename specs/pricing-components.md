@@ -594,10 +594,12 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     lodging); consumption comes from the stored lines' `allowanceUsed`. `consumeAllowance` serves a request in
     sale order and returns what it used; `releaseAllowance` returns a removed line's share to the pool. Shop,
     SAS and fiche read the same ledger, so « 1 h offerte encore disponible » is the same everywhere.
-    > **Pending** — PR C: « SAS and fiche read the same ledger ». The SAS reads the head's price with no free unit spent (a read, rule 10), so a sold option keeps today's amount; spending the stay's units
-    > there needs the SAS lines to be written by `extraSale` (rule 25, PR C). (PR B has the stored form: `allowanceUsed`; PR A the read-only form: the engine's free units
-    > through `createFreeUnitsLedger`, `consumeAllowance` and `releaseAllowance`, proved by `pricing-allowances`).
-    > _Pass 3f:_ the SAS prices its sales with `priceOptionSale` and writes rows straight, so no free unit is spent there; spending the stay's units needs the same write path as rule 25 (Pending), because only a sale priced by the fiche's engine records `allowanceUsed`.
+    > **Delivered by PR C** (pass 3g, class C-E4): « SAS and fiche read the same ledger » for the options. The arrival SAS prices a sale through the head with the stay's grant
+    > left for the article (`articles.read({ freeUnits })`: the tariff snapshot's grant, else the lodging's catalogue, own-channel stays only — `sasFreeUnitsGrant`), and its line
+    > stores what it consumed (`allowanceUsed`). The engine reads a line's stored `allowanceUsed` before the snapshot's per-article `freeUnitsByOption` (`soldFreeUnitsOf`), so a
+    > line written outside the engine is never discounted a second time; a line stored without it keeps the snapshot's reading (every line of a 4.1 database: 0 diff).
+    > Before, the SAS billed the free units and the next fiche save that re-priced the stay (a later sale) took them off the SAS line silently. Proof `sas-allowance-spent`
+    > (the free units spent, two saves after, a later fiche sale finds the grant spent, a reopened SAS, a platform stay).
     > **Pending** — PR C: the shop reads the same ledger (J-7 code, absent from this branch).
 42. **What is not a unit.** _(cut examined 2026-11-11.)_
     - **Catalogue resolution** — a DB read, so it lives in the loader; its rule (property override wins) is a

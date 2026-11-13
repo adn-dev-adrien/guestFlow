@@ -402,9 +402,14 @@ function createBookingLinesModel(database) {
       ].join(', ');
       const lockedOptionLines = database.prepare(`
         SELECT ${OPTION_COLUMNS.has('lineId') ? 'lineId, ' : ''}optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-          ${routingSelect(OPTION_COLUMNS)}
+          ${routingSelect(OPTION_COLUMNS)}${OPTION_COLUMNS.has('allowanceUsed') ? ', allowanceUsed' : ''}
         FROM reservation_options WHERE reservationId = ?
-      `).all(bookingId);
+      `).all(bookingId)
+        // Rule 41 — what a line consumed is the line's own stored fact; a line stored without it keeps the snapshot's reading.
+        .map((line) => {
+          if (line.allowanceUsed == null) { const { allowanceUsed, ...rest } = line; return rest; }
+          return line;
+        });
       const lockedResourceLines = database.prepare(`
         SELECT ${RESOURCE_COLUMNS.has('lineId') ? 'lineId, ' : ''}resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
           ${routingSelect(RESOURCE_COLUMNS)}

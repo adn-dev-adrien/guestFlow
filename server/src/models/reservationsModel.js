@@ -12,7 +12,8 @@ const { syncStay: syncAllocations } = require('../utils/paymentAllocationsSync')
 const { usableNumber } = require('../utils/lineInputBounds');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
-const { formatPlatformName, registerDirectChannelSql, isChoreFreeChannel } = require('../utils/platformNameFormat');
+const { formatPlatformName, registerDirectChannelSql, isChoreFreeChannel, isDirectChannel } = require('../utils/platformNameFormat');
+const { createFreeUnitsLedger } = require('../utils/pricing/allowances');
 const { originDisplay, platformDisplayName } = require('../utils/attributionChannel');
 const { formatTimeShort, formatDateNumeric } = require('../utils/dateFr');
 const { timeToHour, addIsoDays, EARLY_CHECKIN_BLOCK_HOUR, LATE_CHECKOUT_BLOCK_HOUR } = require('../utils/occupancy');
@@ -373,6 +374,21 @@ function retireSettledLinksOf(database) {
 
 function createReservationsModel(database) {
   const catalogue = createCatalogueProvider(database);
+  // specs/pricing-components.md rule 41 — the free units an arrival SAS sale may spend: the grant the stay was sold with (its tariff
+  // snapshot), else the lodging's catalogue, on an own-channel stay only — the very grant the fiche's engine reads. The SAS sells an
+  // article no fiche line holds (its own earlier line is replaced), so the whole grant is left for it.
+  const sasFreeUnitsGrant = (reservationId, res) => {
+    if (!Number(res.hasPlatform) || !isDirectChannel(res.platform)) return () => 0;
+    const snapshot = bookingLines.getPricingSnapshot(reservationId) || {};
+    const lockedOptionsById = new Map((snapshot.lockedOptionLines || []).filter((l) => l && l.optionId != null).map((l) => [Number(l.optionId), l]));
+    const ledger = createFreeUnitsLedger({
+      lockedTariff: snapshot.lockedTariff || null,
+      optionsById: new Map(catalogue.applicableOptions(res.propertyId).map((o) => [Number(o.id), o])),
+      lockedOptionsById,
+      isDirectBooking: true,
+    });
+    return (optionId) => ledger.grantedFreeUnitsFor(optionId);
+  };
   // The own channels, read at query time (specs/plugins-phase-p-productisation.md rule 19).
   registerDirectChannelSql(database);
   // Per-reservation breakfast time (specs/breakfast-time.md). Persisted via a dedicated guarded
@@ -579,6 +595,10 @@ function createReservationsModel(database) {
   const bookingLines = bookingLinesModel.buildModel(database);
   // « This option row was added by the arrival SAS » (specs/sas-upsells-activate-catalogue-option.md
   // §3.2 rule 5). Guarded so minimal test schemas without the column simply behave as legacy.
+  const HAS_RESERVATION_PLATFORM = (() => {
+    try { return database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'platform'); }
+    catch { return false; }
+  })();
   const HAS_RO_SAS_ARRIVAL_ORIGIN = (() => {
     try { return database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'sasArrivalOrigin'); }
     catch { return false; }
@@ -2662,7 +2682,7 @@ function createReservationsModel(database) {
     resolveSasOptionSales(reservationId, sales) {
       if (!Array.isArray(sales) || sales.length === 0) return [];
       const res = database.prepare(`
-        SELECT reservations.id AS id, propertyId, adults, teens, children, startDate, endDate,
+        SELECT reservations.id AS id, propertyId, ${HAS_RESERVATION_PLATFORM ? 'platform' : 'NULL AS platform'}, ${HAS_RESERVATION_PLATFORM ? 1 : 0} AS hasPlatform, adults, teens, children, startDate, endDate,
                ${HAS_RESERVATION_CHECK_TIMES ? 'checkInTime, checkOutTime,' : "'15:00' AS checkInTime, '10:00' AS checkOutTime,"}
                ${HAS_PROPERTY_MAX_GUESTS ? 'COALESCE(p.maxGuests, 0)' : '0'} AS maxGuests,
                (SELECT COUNT(*) FROM reservation_nights rn WHERE rn.reservationId = reservations.id) AS nights
@@ -2691,6 +2711,7 @@ function createReservationsModel(database) {
       }));
       for (const line of held) if (Number(line.sasArrivalOrigin) === 1) sellable.add(Number(line.optionId));
       const readOption = database.prepare('SELECT * FROM options WHERE id = ?');
+      const grantOf = sasFreeUnitsGrant(reservationId, res);
       const out = [];
       const seen = new Set();
       for (const sale of sales) {
@@ -2709,6 +2730,7 @@ function createReservationsModel(database) {
           // How many covers each moment serves (specs/card-option-served-persons.md §3.3 rule 12).
           servedPersons: sale?.persons,
           maxPersons: Number(res.maxGuests) || 0,
+          freeUnits: grantOf(optionId),
         });
         if (!line) continue;
         seen.add(optionId);
@@ -3641,6 +3663,10 @@ function createReservationsModel(database) {
               if (update.run(...rest, reservationIdParam, optionIdParam).changes === 0) insert.run(reservationIdParam, optionIdParam, ...rest);
             },
           };
+          // Rule 26 — the free units the sale spent stay with its line (`{ freeUnits, amount }`, NULL when none), as the fiche's writer stores them.
+          const hasAllowanceUsed = database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'allowanceUsed');
+          const storeAllowance = hasAllowanceUsed ? database.prepare(`UPDATE reservation_options SET allowanceUsed = ?
+            WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}`) : null;
           for (const l of lines) {
             const params = [reservationId, l.optionId, l.quantity, l.unitPrice, l.billedUnits, l.priceType, l.totalPrice];
             if (occColumn) params.push(l.cardOccurrences && l.cardOccurrences.length ? JSON.stringify(l.cardOccurrences) : null);
@@ -3649,6 +3675,9 @@ function createReservationsModel(database) {
             if (perColumn) params.push(l.cardPersons != null ? Number(l.cardPersons) : null);
             if (nightsColumn) params.push(l.cardNights != null ? Number(l.cardNights) : null);
             upsert.run(...params);
+            if (storeAllowance) {
+              storeAllowance.run(Number(l.freeUnits) > 0 ? JSON.stringify({ freeUnits: Number(l.freeUnits), amount: Number(l.freeUnitsAmount || 0) }) : null, reservationId, l.optionId);
+            }
           }
         };
         // Keys the frozen branch must NOT fold into the arrival baseline (they are mid-stay sales).

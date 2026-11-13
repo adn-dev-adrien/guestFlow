@@ -12,8 +12,9 @@
  *   commit(quoted, tx)       the lines to write (PR A: no fulfilment adapter yet, rule 49 is PR B); a refused quote throws
  *   release(line, reason)    what a removed line gives back to the allowance pool
  *   describe(line)           `{ label, detail }` every screen prints
- *   read({ option, unitPrice, persons, nights, maxGuests, request })   the price of ONE candidate line for a stay, nothing sold (rule 10):
- *       `{ figures, offeredFigures }` or null. No free units are spent — a read quotes the line as the catalogue sells it.
+ *   read({ option, unitPrice, persons, nights, maxGuests, request, freeUnits })   the price of ONE candidate line for a stay, nothing sold (rule 10):
+ *       `{ figures, offeredFigures }` or null. No free units are spent — a read quotes the line as the catalogue sells it — unless the caller
+ *       names the stay's grant left for that article (`freeUnits`, rule 41): the line is then priced net of it, as the engine prices it.
  *   unitsPerQuantity(priceType, persons, nights)   how many billed units one quantity of this price type is on that stay
  *   makeArticle, registerFamily   the factory of rule 47 and the family registry's `register`
  *
@@ -73,12 +74,24 @@ function grantedFor(allowance, config) {
   return allowance && allowance.grantedFreeUnitsFor ? allowance.grantedFreeUnitsFor(config.id) : config.freeUnits;
 }
 
+// The free units a stored line says it consumed (`allowanceUsed`, rule 26), or null when it stored none.
+function storedFreeUnitsOf(locked) {
+  if (!locked || locked.allowanceUsed == null) return null;
+  try {
+    const parsed = typeof locked.allowanceUsed === 'string' ? JSON.parse(locked.allowanceUsed) : locked.allowanceUsed;
+    const units = Number(parsed && parsed.freeUnits);
+    return Number.isFinite(units) && units >= 0 ? units : null;
+  } catch { return null; }
+}
+
 // What a stored line is net of: the article's consumed units, shared out over its lines in order and never beyond a line's own units.
+// A line that stored what it consumed (rule 41: a SAS sale, written outside the engine) is net of exactly that.
 function soldFreeUnitsOf(allowance, config, locked) {
   if (!allowance || !allowance.consumedFreeUnitsFor) return 0;
   if (!allowance.consumedLeftFor) return allowance.consumedFreeUnitsFor(config.id);
   const units = locked ? normalizeBilledUnits(locked.billedUnits !== undefined ? locked.billedUnits : locked.quantity) : 0;
-  const share = Math.min(allowance.consumedLeftFor(config.id), units);
+  const stored = storedFreeUnitsOf(locked);
+  const share = stored != null ? Math.min(stored, units) : Math.min(allowance.consumedLeftFor(config.id), units);
   if (locked && share > 0 && Number(locked.totalPrice) > 0 && Number(locked.unitPrice) > 0) allowance.takeConsumed(config.id, share);
   return share;
 }
@@ -382,7 +395,7 @@ function commit(quoted) {
 const NO_FREE_UNITS = Object.freeze({ grantedFreeUnitsFor: () => 0, consumedFreeUnitsFor: () => 0 });
 
 function read({
-  option, unitPrice = null, persons, nights, maxGuests = 0, request = {},
+  option, unitPrice = null, persons, nights, maxGuests = 0, request = {}, freeUnits = 0,
 } = {}) {
   if (!option) return null;
   const article = makeArticle(unitPrice == null ? option : { ...option, price: unitPrice });
@@ -390,7 +403,7 @@ function read({
   const line = quote({
     requests: [{ article, portions: () => ({ quantity: units, clampedFrom: null }), ...request }],
     stayContext: { persons, nights, maxGuests, isDirectBooking: true },
-    allowance: NO_FREE_UNITS,
+    allowance: Number(freeUnits) > 0 ? { grantedFreeUnitsFor: () => Number(freeUnits), consumedFreeUnitsFor: () => 0 } : NO_FREE_UNITS,
   }).lines[0];
   return line ? { figures: line.figures, offeredFigures: line.offeredFigures } : null;
 }
