@@ -55,7 +55,7 @@ test('an inline contribution stays under « Horaires », a section one comes las
   ];
   renderPanel();
   await screen.findByText('Bloc horaire');
-  expect(chips()).toEqual(['Général', 'Prix', 'Horaires', 'Mails', 'Boutique du plugin']);
+  expect(chips()).toEqual(['Général', 'Prix', 'Vente hors séjour', 'Horaires', 'Mails', 'Boutique du plugin']);
   expect(screen.getByRole('button', { name: 'Modifier resource 4' })).toBeInTheDocument();
 });
 

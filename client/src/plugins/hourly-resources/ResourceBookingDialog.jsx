@@ -341,6 +341,8 @@ export default function ResourceBookingDialog({
     }
   }
   const takeBackPayment = () => act(() => api.clearResourceBookingPayment(booking.id));
+  // specs/outside-booking-sas.md rule 27 — « Client absent »: the visit closes without arrival; the server judges the day and the role.
+  const markNoShow = () => act(() => api.markResourceNoShow(booking.id).then((res) => res.booking));
   const issueLater = () => act(() => api.issueResourceBookingInvoice(booking.id, booking.external && !booking.clientId ? { billing } : {}));
   const attachInvoice = () => act(() => api.attachResourceBookingInvoice(booking.id));
   const pickTransaction = (transactionId) => act(() => api.attachResourceBookingInvoice(booking.id, { transactionId }));
@@ -652,7 +654,7 @@ export default function ResourceBookingDialog({
                   ) : (price && price.total > 0 && (
                     <BookingPaymentFields
                       error={paymentError}
-                      dueCents={Math.round(Number(price.total) * 100)}
+                      dueCents={booking?.visit ? booking.visit.remainingCents : Math.round(Number(price.total) * 100)}
                       value={payment}
                       onChange={(next) => {
                         setPayment(next);
@@ -664,6 +666,7 @@ export default function ResourceBookingDialog({
               )}
             </Box>
 
+            {booking?.noShow && <Alert severity="info">Client absent : la visite est close.</Alert>}
             {actionError && <Alert severity="error">{actionError}</Alert>}
             {(payNow || booking?.invoice || invoiceOutcome || invoiceLater) && (
               <Box sx={{ display: 'grid', gap: 1.25 }}>
@@ -702,7 +705,10 @@ export default function ResourceBookingDialog({
                 Supprimer
               </Button>
             )}
-            {booking && booking.external && onArrival && (booking.arrived || booking.date === localIsoDate()) && (
+            {booking && booking.external && !booking.arrived && !booking.noShow && booking.date <= localIsoDate() && (
+              <Button color="warning" onClick={() => setConfirming('noshow')} disabled={saving} sx={{ minHeight: 44 }}>Client absent</Button>
+            )}
+            {booking && booking.external && onArrival && !booking.noShow && (booking.arrived || booking.date === localIsoDate()) && (
               <Button onClick={() => onArrival(booking)} disabled={saving} sx={{ minHeight: 44 }}>
                 {booking.arrived ? "Voir l'arrivée" : 'Arrivée'}
               </Button>
@@ -721,13 +727,17 @@ export default function ResourceBookingDialog({
           const what = confirming;
           setConfirming(null);
           if (what === 'delete') onDelete(booking.id);
+          else if (what === 'noshow') markNoShow();
           else takeBackPayment();
         }}
-        title={confirming === 'delete' ? 'Supprimer la réservation ?' : 'Retirer le paiement ?'}
-        message={confirming === 'delete'
-          ? 'La réservation quitte le planning.'
-          : `${formatCurrency(Number(booking?.totalPrice || 0))} ne seront plus comptés comme encaissés.`}
-        confirmLabel={confirming === 'delete' ? 'Supprimer' : 'Retirer'}
+        title={{ delete: 'Supprimer la réservation ?', noshow: 'Client absent ?', payment: 'Retirer le paiement ?' }[confirming] || ''}
+        message={{
+          delete: 'La réservation quitte le planning.',
+          noshow: 'Les lignes non payées sont annulées. Les paiements déjà pris restent enregistrés.',
+          payment: `${formatCurrency(Number(booking?.totalPrice || 0))} ne seront plus comptés comme encaissés.`,
+        }[confirming] || ''}
+        confirmLabel={{ delete: 'Supprimer', noshow: 'Confirmer', payment: 'Retirer' }[confirming] || 'Confirmer'}
+        confirmColor={confirming === 'noshow' ? 'warning' : 'error'}
       />
     </Dialog>
   );

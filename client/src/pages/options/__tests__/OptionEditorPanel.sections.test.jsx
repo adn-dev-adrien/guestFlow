@@ -26,16 +26,16 @@ test('rule 13: an existing option opens under its name with the sections in orde
   renderEditor();
   expect(await screen.findByRole('heading', { name: 'Ménage' })).toBeInTheDocument();
   expect(api.getOption).toHaveBeenCalledWith(7);
-  expect(chips()).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité']);
+  expect(chips()).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité', 'Vente hors séjour']);
   const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-  expect(headings).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité']);
+  expect(headings).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité', 'Vente hors séjour']);
 });
 
 test('rule 13: a system (auto) option has no Planning section', async () => {
   api.getOption.mockResolvedValue(storedOption({ title: 'Départ tardif', autoOptionType: 'late_check_out' }));
   renderEditor();
   await screen.findByRole('heading', { name: 'Départ tardif' });
-  expect(chips()).toEqual(['Général', 'Logements et prix', 'Visibilité']);
+  expect(chips()).toEqual(['Général', 'Logements et prix', 'Visibilité', 'Vente hors séjour']);
 });
 
 test('rule 12: a new option opens empty, with every property proposed and the active category filled in', async () => {

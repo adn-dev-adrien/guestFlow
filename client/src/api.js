@@ -425,7 +425,33 @@ const api = {
   // specs/resource-booking-pricing-and-invoicing.md §4.3 — payment, arrival and Qonto invoice of a booking.
   recordResourceBookingPayment: (id, body) => request(`/resource-bookings/${id}/payment`, { method: 'POST', body }),
   clearResourceBookingPayment: (id) => request(`/resource-bookings/${id}/payment`, { method: 'DELETE' }),
-  recordResourceBookingArrival: (id, body) => request(`/resource-bookings/${id}/arrival`, { method: 'POST', body }),
+  // specs/outside-booking-sas.md §4.3 — the mini SAS of an outside visit: one payload, a quote that writes nothing, one commit, explicit actions on stored lines.
+  getResourceVisit: (id) => request(`/resource-bookings/${id}/visit`),
+  searchResourceVisitArticles: (id, q = '') => request(`/resource-bookings/${id}/visit/articles?q=${encodeURIComponent(q)}`),
+  quoteResourceVisit: (id, body, { signal } = {}) => request(`/resource-bookings/${id}/visit/quote`, {
+    method: 'POST', body, signal, readOnly: true,
+  }),
+  commitResourceVisit: (id, body) => request(`/resource-bookings/${id}/visit`, { method: 'POST', body }),
+  payResourceVisit: (id, body) => request(`/resource-bookings/${id}/visit/payment`, { method: 'POST', body }),
+  patchResourceVisitLine: (id, lineId, body) => request(`/resource-bookings/${id}/visit/lines/${lineId}`, { method: 'PATCH', body }),
+  markResourceNoShow: (id) => request(`/resource-bookings/${id}/no-show`, { method: 'POST' }),
+  mintVisitPaymentLink: (id, body = {}) => request(`/resource-bookings/${id}/visit/payment-link`, { method: 'POST', body }),
+  withdrawVisitPaymentLink: (id, linkId) => request(`/resource-bookings/${id}/visit/payment-link/${linkId}`, { method: 'DELETE' }),
+  emailVisitPaymentLink: (id, linkId) => request(`/resource-bookings/${id}/visit/payment-link/${linkId}/email`, { method: 'POST' }),
+  // « Vente hors séjour » (specs/pricing-components.md rules 53, 74): the counter's quote, sale, day list and link.
+  getStandaloneSales: (day) => request(`/standalone-sales${day ? `?day=${day}` : ''}`),
+  getStandaloneVatRates: () => request('/standalone-sales/vat-rates'),
+  quoteStandaloneSale: (body, { signal } = {}) => request('/standalone-sales/quote', {
+    method: 'POST', body, signal, readOnly: true,
+  }),
+  sellStandaloneSale: (body) => request('/standalone-sales', { method: 'POST', body }),
+  mintStandaloneSaleLink: (id, body = {}) => request(`/standalone-sales/${id}/payment-link`, { method: 'POST', body }),
+  withdrawStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}`, { method: 'DELETE' }),
+  emailStandaloneSaleLink: (id, linkId) => request(`/standalone-sales/${id}/payment-link/${linkId}/email`, { method: 'POST' }),
+  // specs/outside-booking-sas.md rules 36-37 — the « Proposés à l'arrivée » lists and the articles that can join them.
+  getSuggestedArticlesSettings: () => request('/settings/suggested-articles'),
+  saveSuggestedArticles: (kind, id, articleRefs) => request(`/settings/suggested-articles/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, { method: 'PUT', body: { articleRefs } }),
+  getSuggestedArticlesCatalogue: ({ customerContext = 'external', q = '' } = {}) => request(`/suggested-articles/catalogue?customerContext=${customerContext}&q=${encodeURIComponent(q)}`),
   issueResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice`, { method: 'POST', body }),
   attachResourceBookingInvoice: (id, body = {}) => request(`/resource-bookings/${id}/invoice/attach`, { method: 'POST', body }),
 

@@ -40,14 +40,14 @@ beforeEach(() => {
 test('without a live contribution the editor has no plugin section', async () => {
   renderEditor();
   await screen.findByRole('heading', { name: 'Ménage' });
-  expect(chips()).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité']);
+  expect(chips()).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité', 'Vente hors séjour']);
 });
 
 test('a contribution with a section is drawn last, with its chip, and receives the option id', async () => {
   slots.list = [contribution];
   renderEditor();
   await screen.findByRole('heading', { name: 'Ménage' });
-  expect(chips()).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité', 'Boutique du plugin']);
+  expect(chips()).toEqual(['Général', 'Logements et prix', 'Planning', 'Visibilité', 'Vente hors séjour', 'Boutique du plugin']);
   const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
   expect(headings[headings.length - 1]).toBe('Boutique du plugin');
   expect(await screen.findByText('Article 7')).toBeInTheDocument();

@@ -1,0 +1,1 @@
+- **Ancienne arrivée d'une réservation de ressource** (`POST /api/resource-bookings/:id/arrival`, plugin Ressources à l'heure 1.7.0). L'écran d'arrivée passe par les routes de la visite (`/visit`) ; l'ancienne route n'a plus d'appelant et disparaît avec sa fonction serveur.

@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Box, Button, Card, CardContent, Grid, MenuItem, TextField, Typography } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
+import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import PageActionBar from '../components/PageActionBar';
 import LoadingState from '../components/LoadingState';
 import ErrorAlert from '../components/ErrorAlert';
@@ -24,6 +25,8 @@ import TrendChart from '../components/TrendChart';
 import { comparisonPill, rateOneDecimal, perNightAmount } from '../utils/comparisonPill';
 import { TILE_DEFINITIONS, HERO_DEFINITIONS } from '../constants/financeDefinitions';
 import FinanceDataChecksCard from '../components/FinanceDataChecksCard';
+import StandaloneSaleDialog from '../components/StandaloneSaleDialog';
+import StandaloneSalesTodayCard from '../components/StandaloneSalesTodayCard';
 import { seriesColor } from '../utils/chartColors';
 import { formatCurrencyRounded, plural } from '../utils/formatters';
 import api from '../api';
@@ -141,6 +144,9 @@ export default function FinancePage() {
   useEffect(() => { loadDetail(); }, [loadDetail]);
 
   const [paceRefresh, setPaceRefresh] = useState(0);
+  // « Vente hors séjour » (specs/pricing-components.md rule 53): the counter dialog and the day's list it refreshes.
+  const [saleOpen, setSaleOpen] = useState(false);
+  const [salesReload, setSalesReload] = useState(0);
   const refreshAll = async () => {
     setPaceRefresh((n) => n + 1);
     await Promise.all([loadDashboard(), loadDetail(), loadFranchise()]);
@@ -215,7 +221,10 @@ export default function FinancePage() {
     <Box>
       <PageActionBar
         title="Suivi financier"
-        actionsBefore={[{ icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' }]}
+        actionsBefore={[
+          { icon: <PointOfSaleIcon />, tooltip: 'Vente hors séjour', onClick: () => setSaleOpen(true), color: 'success' },
+          { icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' },
+        ]}
       />
       <Box sx={{ p: { xs: 1.5, sm: 3 }, maxWidth: 1240, mx: 'auto' }}>
         {loadError && <ErrorAlert message={loadError} onRetry={loadDashboard} sx={{ mb: 2 }} />}
@@ -427,12 +436,16 @@ export default function FinancePage() {
                 <BookingPaceCard propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
               <Grid size={12}>
+                <StandaloneSalesTodayCard refreshKey={paceRefresh} reloadKey={salesReload} onNewSale={() => setSaleOpen(true)} />
+              </Grid>
+              <Grid size={12}>
                 <FinanceDataChecksCard fiscalYear={d.fiscalYear.key} propertyId={params.propertyId} refreshKey={paceRefresh} />
               </Grid>
             </Grid>
           </>
         )}
       </Box>
+      <StandaloneSaleDialog open={saleOpen} onClose={() => setSaleOpen(false)} onSold={() => setSalesReload((n) => n + 1)} />
     </Box>
   );
 }

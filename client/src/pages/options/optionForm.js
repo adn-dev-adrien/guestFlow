@@ -6,6 +6,7 @@
  */
 import { FIELD } from '../../constants/optionsResourcesTexts';
 import { normalizeProgressiveTiers } from './OptionSpecialSections';
+import { EXTERNAL_FIELDS, emptyExternalSale, externalSaleFromItem, externalSalePayload } from './externalSaleForm';
 
 const toText = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
 
@@ -59,6 +60,7 @@ export function emptyOptionForm({ propertyIds = [], category = '' } = {}) {
     isCancellationInsurance: false,
     autoOptionType: null,
     autoEnabled: 0,
+    ...emptyExternalSale,
   };
 }
 
@@ -96,6 +98,7 @@ export function formFromOption(item) {
     cardRepeat: item.cardRepeat === 'multiple_per_day' || item.cardRepeat === 'daily' ? 'multiple_per_day' : 'once_per_day',
     planningCardTimes: Array.isArray(item.planningCardTimes) && item.planningCardTimes.length > 0 ? item.planningCardTimes : ['09:00'],
     alwaysVisible: Boolean(item.alwaysVisible),
+    ...externalSaleFromItem(item),
   };
 }
 
@@ -144,6 +147,7 @@ export function optionPayload(form) {
     category: form.category || '',
     alwaysVisible: Boolean(form.alwaysVisible),
     isCancellationInsurance: Boolean(form.isCancellationInsurance),
+    ...externalSalePayload(form),
   };
 }
 
@@ -170,5 +174,6 @@ export function validateOptionForm(form) {
 /** The section a field belongs to, for the chips of the panel. */
 export function sectionOfField(field) {
   if (field === 'title') return 'general';
+  if (EXTERNAL_FIELDS.includes(field)) return 'external';
   return 'prices';
 }

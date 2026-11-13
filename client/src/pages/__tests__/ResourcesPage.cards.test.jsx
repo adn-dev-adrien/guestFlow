@@ -104,7 +104,7 @@ test('rule 20: a card opens the editor with Général, Prix and Mails; the quant
   expect(await screen.findByRole('heading', { name: 'Bain nordique', level: 2 })).toBeInTheDocument();
   expect(api.getResource).toHaveBeenCalledWith(2);
   const nav = screen.getByRole('navigation', { name: 'Sections' });
-  expect(nav.textContent).toBe('GénéralPrixMails');
+  expect(nav.textContent).toBe('GénéralPrixVente hors séjourMails');
   expect(screen.getByLabelText('En service')).toHaveValue('1');
 });
 
@@ -124,7 +124,7 @@ test('rule 20: a plugin that has fields for the resource gets its own « Horaire
   renderPage();
   await user.click(await screen.findByRole('button', { name: 'Bain nordique' }));
   expect(await screen.findByText('champs horaires')).toBeInTheDocument();
-  expect(screen.getByRole('navigation', { name: 'Sections' }).textContent).toBe('GénéralPrixHorairesMails');
+  expect(screen.getByRole('navigation', { name: 'Sections' }).textContent).toBe('GénéralPrixVente hors séjourHorairesMails');
 });
 
 test('rule 20: saving sends the payload and toasts', async () => {

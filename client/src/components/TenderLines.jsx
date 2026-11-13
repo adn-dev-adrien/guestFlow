@@ -22,6 +22,8 @@
  *   whole:           boolean — the amount is paid whole, no shortfall choice (rule 44: the acompte, an installment);
  *                    a cash line then starts on the books
  *   noCaisse:        boolean — no « Caisse interne » switch (rule 44: an installment)
+ *   shortfallKinds:  ['due', 'waived'] — which choices the shortfall block offers; the outside visit passes ['due'] (« Geste commercial » is an offered line there,
+ *                    specs/outside-booking-sas.md rule 17). The server refuses the others whatever the screen shows.
  *
  * An untyped last line left at 0 (the others cover the amount) is not a line: it is not sent and blocks nothing.
  */
@@ -34,6 +36,7 @@ import { formatAmountInput, formatCurrency } from '../utils/formatters';
 import { TENDER_METHODS, TENDER_TEXTS as T } from '../constants/tenderMethods';
 
 const MAX_LINES = 4;
+const DEFAULT_SHORTFALL_KINDS = ['due', 'waived'];
 const toCents = (text) => {
   const value = evaluateArithmetic(text);
   return value == null ? null : Math.round(value * 100);
@@ -72,7 +75,7 @@ export function tenderFigures(lines, dueCents) {
 
 export default function TenderLines({
   dueCents, methods, initialTenders = null, initialShortfallKind = null, single = false, onChange, disabled = false, autoFocus = false,
-  whole = false, noCaisse = false,
+  whole = false, noCaisse = false, shortfallKinds = DEFAULT_SHORTFALL_KINDS,
 }) {
   const list = methods && methods.length ? methods : TENDER_METHODS;
   const labelOf = (value) => (list.find((m) => m.value === value) || { label: value }).label;
@@ -238,11 +241,11 @@ export default function TenderLines({
           }}
         >
           <Typography variant="body2" sx={{ fontWeight: 600, color: 'warning.text' }}>{T.shortTitle(euros(gapCents))}</Typography>
-          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: '1fr', '@container (min-width: 520px)': { gridTemplateColumns: '1fr 1fr' } }}>
+          <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: '1fr', '@container (min-width: 520px)': { gridTemplateColumns: shortfallKinds.length > 1 ? '1fr 1fr' : '1fr' } }}>
             {[
               { kind: 'due', title: T.dueTitle, help: T.dueHelp(euros(gapCents)) },
               { kind: 'waived', title: T.waivedTitle, help: T.waivedHelp(euros(gapCents)) },
-            ].map((choice) => {
+            ].filter((choice) => shortfallKinds.includes(choice.kind)).map((choice) => {
               const on = shortKind === choice.kind;
               return (
                 <ButtonBase

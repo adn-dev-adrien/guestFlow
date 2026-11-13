@@ -37,12 +37,17 @@ const softChip = (status) => (t) => ({
   '& .MuiChip-icon': { color: 'inherit' },
 });
 
+// specs/outside-booking-sas.md rule 22 — the chip reads the server's `cardState` (« À encaisser », « Reste 13,00 € », « Payé », « Absent »).
+const CARD_TONES = { paid: 'success', toCollect: 'error', remaining: 'warning', absent: 'info' };
+const showsTotal = (state) => state === 'paid' || state === 'toCollect';
+
 function BookingCard({ booking }) {
   const navigate = useNavigate();
   const turnover = Number(booking.turnoverMinutes || 0);
   // specs/resource-booking-pricing-and-invoicing.md rule 28 — a guest with no stay arrives from his card, on his day.
-  const canArrive = booking.external === true && !booking.arrived && booking.date === localIsoDate();
-  const tone = booking.paid ? 'success' : 'info';
+  const canArrive = booking.external === true && !booking.arrived && !booking.noShowAt && booking.date === localIsoDate();
+  const { cardState } = booking;
+  const tone = cardState && cardState.state === 'paid' ? 'success' : 'info';
   return (
     <Card variant="outlined" sx={{ mb: 1.5, borderRadius: 2, borderColor: 'divider' }}>
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, '&:last-child': { pb: { xs: 1.5, sm: 2 } } }}>
@@ -81,13 +86,13 @@ function BookingCard({ booking }) {
             <Typography variant="body1" sx={{ fontWeight: 600 }}>{booking.displayName}</Typography>
             {booking.clientPhone && <Typography variant="body2" color="text.secondary">· {booking.clientPhone}</Typography>}
           </Box>
-          {(booking.paid || booking.external === true) && (
+          {cardState && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-              <EuroIcon sx={{ fontSize: 16, color: booking.paid ? 'success.main' : 'error.main', flexShrink: 0 }} />
+              <EuroIcon sx={{ fontSize: 16, color: `${CARD_TONES[cardState.state]}.main`, flexShrink: 0 }} />
               <Chip
-                label={`${booking.paid ? 'Payé' : 'À encaisser'}${Number(booking.totalPrice) > 0 ? ` : ${formatCurrency(booking.totalPrice)}` : ''}`}
+                label={`${cardState.label}${showsTotal(cardState.state) && Number(booking.totalPrice) > 0 ? ` : ${formatCurrency(booking.totalPrice)}` : ''}`}
                 size="small"
-                sx={[softChip(booking.paid ? 'success' : 'error'), { height: 22, fontSize: 12, fontWeight: 700 }]}
+                sx={[softChip(CARD_TONES[cardState.state]), { height: 22, fontSize: 12, fontWeight: 700 }]}
               />
             </Box>
           )}

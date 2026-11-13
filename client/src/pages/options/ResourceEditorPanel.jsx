@@ -19,6 +19,8 @@ import SidePanel, { SidePanelSection } from '../../components/SidePanel';
 import LoadingState from '../../components/LoadingState';
 import ErrorAlert from '../../components/ErrorAlert';
 import PropertiesMultiSelect from '../../components/PropertiesMultiSelect';
+import ExternalSaleFields from '../../components/ExternalSaleFields';
+import useExternalVatRates from '../../hooks/useExternalVatRates';
 import TokenTextField from '../../components/TokenTextField';
 import { useToast } from '../../components/DialogProvider';
 import { usePlugin } from '../../hooks/usePlugins';
@@ -30,10 +32,11 @@ import {
   emptyResource, formFromResource, toResourcePayload, validateResourceForm, withScope,
 } from './resourceForm';
 import { isBlank } from './optionForm';
+import { EXTERNAL_FIELDS } from './externalSaleForm';
 
 const HOURLY_FIELDS = ['closeTime', 'hourlyEveningRate', 'hourlyExternalDayRate', 'hourlyExternalEveningRate'];
 const SECTION_OF = { name: 'general', quantity: 'general', price: 'prices' };
-const sectionOf = (field) => SECTION_OF[field] || (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices');
+const sectionOf = (field) => SECTION_OF[field] || (EXTERNAL_FIELDS.includes(field) ? 'external' : (HOURLY_FIELDS.includes(field) ? 'hours' : 'prices'));
 
 function PropertyPriceLines({ form, setForm, properties, errors }) {
   const hourly = form.priceType === 'per_hour';
@@ -128,6 +131,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
     setFormState(typeof next === 'function' ? next(form) : next);
   };
   const clientErrors = useMemo(() => (form ? validateResourceForm(form) : {}), [form]);
+  const vatClasses = useExternalVatRates(open);
   const plugins = usePluginFields('resources.fields', form);
   const coreDirty = Boolean(form) && JSON.stringify(form) !== saved;
   const dirty = coreDirty || plugins.dirty;
@@ -172,6 +176,7 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
   const sections = form ? [
     { id: 'general', label: 'Général', hasError: hasError('general') },
     { id: 'prices', label: 'Prix', hasError: hasError('prices') },
+    { id: 'external', label: 'Vente hors séjour', hasError: hasError('external') },
     ...(contributions.length > 0 ? [{ id: 'hours', label: 'Horaires', hasError: hasError('hours') }] : []),
     { id: 'mails', label: 'Mails' },
     ...plugins.sections.map((c) => ({ id: `plugin-${c.pluginId}-${c.key}`, label: c.section.title })),
@@ -251,6 +256,16 @@ export default function ResourceEditorPanel({ open, resourceId, properties, onCl
             )}
           </Box>
           {form.priceType !== 'free' && <PropertyPriceLines form={form} setForm={setForm} properties={properties} errors={errors} />}
+        </SidePanelSection>
+
+        <SidePanelSection id="external" title="Vente hors séjour">
+          <ExternalSaleFields
+            value={form}
+            onChange={(patch) => setForm({ ...form, ...patch })}
+            classes={vatClasses}
+            defaultClass="resources"
+            errors={errors}
+          />
         </SidePanelSection>
 
         {contributions.length > 0 && (

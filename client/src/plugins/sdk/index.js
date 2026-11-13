@@ -74,3 +74,6 @@ export { TENDER_TEXTS } from '../../constants/tenderMethods';
 export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';
 // hourly-resources — the client picker ordered by stay (specs/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
 export { default as ClientPickerField } from '../../components/ClientPickerField';
+// hourly-resources — the generic « Proposés à l'arrivée » step and the payment-link block (specs/outside-booking-sas.md rules 35, 39-42) — SDK 2.30.0.
+export { default as SuggestedArticlesStep } from '../../components/SuggestedArticlesStep';
+export { default as SalePaymentLink } from '../../components/SalePaymentLink';
