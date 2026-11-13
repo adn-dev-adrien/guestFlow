@@ -65,12 +65,26 @@ function createBookingLinesModel(database) {
   WRITTEN.reservation_custom_options = ['id', 'reservationId', 'description', 'amount', 'offered', 'sortOrder', 'createdAt', 'updatedAt', 'inComplement',
     'acompteContribTtc', 'soldeContribTtc', 'sasArrivalOrigin', 'sasLineKey', 'quantity'];
   const carriedColumns = (table, present) => [...present].filter((name) => !WRITTEN[table].includes(name));
+  // Rule 85: an article may be stored on several lines. `get(article)` hands out the carried columns of ONE stored line per call, in the
+  // order the lines were numbered, so each line of a save takes the identity of a different stored line (never two the same `lineId`);
+  // `get(article, lineId)` asks for the line a posted line names. An article with one stored line answers once, as it always did.
+  class CarriedLines extends Map {
+    get(article, lineId) {
+      const queue = super.get(article);
+      if (!queue || queue.length === 0) return undefined;
+      const at = lineId == null ? -1 : queue.findIndex((entry) => entry.lineId === Number(lineId));
+      return queue.splice(at >= 0 ? at : 0, 1)[0].columns;
+    }
+  }
   const carriedByArticle = (table, present, articleColumn, bookingId) => {
     const carried = carriedColumns(table, present);
-    const byArticle = new Map();
+    const byArticle = new CarriedLines();
     if (carried.length === 0) return byArticle;
-    for (const row of database.prepare(`SELECT ${articleColumn}, ${carried.join(', ')} FROM ${table} WHERE reservationId = ?`).all(bookingId)) {
-      byArticle.set(Number(row[articleColumn]), Object.fromEntries(carried.map((name) => [name, row[name]])));
+    const ordered = present.has('lineId') ? ' ORDER BY lineId' : '';
+    for (const row of database.prepare(`SELECT ${articleColumn}, ${carried.join(', ')} FROM ${table} WHERE reservationId = ?${ordered}`).all(bookingId)) {
+      const article = Number(row[articleColumn]);
+      if (!Map.prototype.has.call(byArticle, article)) Map.prototype.set.call(byArticle, article, []);
+      Map.prototype.get.call(byArticle, article).push({ lineId: row.lineId == null ? null : Number(row.lineId), columns: Object.fromEntries(carried.map((name) => [name, row[name]])) });
     }
     return byArticle;
   };
@@ -131,7 +145,7 @@ function createBookingLinesModel(database) {
       for (const opt of (optionLines || []).filter((line) => !line.isCustom && !internalLinenIds.has(Number(line.optionId)))) {
         const forced = opt.inComplement ? 1 : 0;
         insertOption({
-          ...(carried.get(Number(opt.optionId)) || {}),
+          ...(carried.get(Number(opt.optionId), opt.lineId) || {}),
           reservationId: bookingId,
           optionId: opt.optionId,
           quantity: opt.quantity || 1,
@@ -272,7 +286,7 @@ function createBookingLinesModel(database) {
     replaceResources(bookingId, resourceLines) {
       const carried = model.deleteResources(bookingId);
       for (const line of resourceLines || []) {
-        model.insertResourceLine(bookingId, line, Number(line.unitPrice || 0), Number(line.quantity || 1), line.priceType, carried.get(Number(line.resourceId)));
+        model.insertResourceLine(bookingId, line, Number(line.unitPrice || 0), Number(line.quantity || 1), line.priceType, carried.get(Number(line.resourceId), line.lineId));
       }
     },
 
@@ -327,13 +341,13 @@ function createBookingLinesModel(database) {
       const options = {};
       if (HAS_CARD_OCCURRENCES) {
         for (const row of database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?').all(bookingId)) {
-          options[Number(row.optionId)] = datesOf(row.cardOccurrences);
+          options[Number(row.optionId)] = [...(options[Number(row.optionId)] || []), ...datesOf(row.cardOccurrences)];
         }
       }
       const resources = {};
       if (HAS_RESOURCE_SESSIONS) {
         for (const row of database.prepare('SELECT resourceId, sessions FROM reservation_resources WHERE reservationId = ?').all(bookingId)) {
-          resources[Number(row.resourceId)] = parseJsonArray(row.sessions).map((item) => String((item && item.date) || ''));
+          resources[Number(row.resourceId)] = [...(resources[Number(row.resourceId)] || []), ...parseJsonArray(row.sessions).map((item) => String((item && item.date) || ''))];
         }
       }
       return { options, resources };
@@ -346,7 +360,11 @@ function createBookingLinesModel(database) {
       const columns = [HAS_CARD_PERSONS ? 'cardPersons' : 'NULL AS cardPersons', HAS_CARD_NIGHTS ? 'cardNights' : 'NULL AS cardNights'];
       const counts = {};
       for (const row of database.prepare(`SELECT optionId, ${columns.join(', ')} FROM reservation_options WHERE reservationId = ?`).all(bookingId)) {
-        counts[Number(row.optionId)] = { cardPersons: row.cardPersons, cardNights: row.cardNights };
+        // Rule 85: a stay may store several lines of one article; a count any of them stores is not re-judged (`others` only when there are several).
+        const entry = { cardPersons: row.cardPersons, cardNights: row.cardNights };
+        const held = counts[Number(row.optionId)];
+        if (held) held.others = [...(held.others || []), entry];
+        else counts[Number(row.optionId)] = entry;
       }
       return counts;
     },

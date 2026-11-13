@@ -52,10 +52,19 @@ function createSasStep({ scheduling, reservations }) {
         if (!byResource.has(key)) byResource.set(key, []);
         byResource.get(key).push({ date: block.date, start: block.start, end: block.end });
       }
-      const writeSessions = db.prepare('UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?');
+      // Rule 85: the picker shows the resource's sessions whatever the number of lines that sold it, and replaces them as a whole: the
+      // resource's first line takes the new set, a later line of it is emptied (its hours live in the set now), never written twice.
+      const hasLineId = db.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'lineId');
+      const writeFirst = db.prepare(hasLineId
+        ? 'UPDATE reservation_resources SET sessions = ? WHERE lineId = (SELECT MIN(lineId) FROM reservation_resources WHERE reservationId = ? AND resourceId = ?)'
+        : 'UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?');
+      const emptyOthers = hasLineId
+        ? db.prepare(`UPDATE reservation_resources SET sessions = '[]' WHERE reservationId = ? AND resourceId = ? AND sessions IS NOT NULL AND TRIM(sessions) NOT IN ('', '[]')
+            AND lineId <> (SELECT MIN(lineId) FROM reservation_resources WHERE reservationId = ? AND resourceId = ?)`) : null;
       for (const [resourceId, sessions] of byResource) {
         sessions.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.start).localeCompare(String(b.start)));
-        writeSessions.run(JSON.stringify(sessions), Number(reservation.id), resourceId);
+        writeFirst.run(JSON.stringify(sessions), Number(reservation.id), resourceId);
+        if (emptyOthers) emptyOthers.run(Number(reservation.id), resourceId, Number(reservation.id), resourceId);
       }
     },
   };

@@ -61,7 +61,7 @@ function createModel(database) {
       `).all(Number(reservation.id));
     } catch { return []; }
 
-    return rows.map((row) => {
+    const perLine = rows.map((row) => {
       const resource = resources.list(Number(reservation.propertyId))
         .find((r) => Number(r.id) === Number(row.resourceId));
       if (!resource) return null;
@@ -89,6 +89,20 @@ function createModel(database) {
         eveningCredit,
       };
     }).filter(Boolean);
+    // Rule 85: a stay may hold several lines of one resource. The step speaks per resource: the hours sold and placed and the evening
+    // credit of every line add up, and the sessions of every line are the resource's sessions.
+    const byResource = new Map();
+    for (const entry of perLine) {
+      const held = byResource.get(Number(entry.resource.id));
+      if (!held) { byResource.set(Number(entry.resource.id), entry); continue; }
+      const hoursSold = round2(held.hoursSold + entry.hoursSold);
+      const hoursPlaced = round2(held.hoursPlaced + entry.hoursPlaced);
+      byResource.set(Number(entry.resource.id), {
+        ...held, sessions: [...held.sessions, ...entry.sessions], hoursSold, hoursPlaced,
+        hoursRemaining: Math.max(0, round2(hoursSold - hoursPlaced)), eveningCredit: round2(held.eveningCredit + entry.eveningCredit),
+      });
+    }
+    return [...byResource.values()];
   }
 
   const supplementLabel = (entry) => `${entry.resource.name} — supplément soirée`;

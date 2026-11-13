@@ -63,12 +63,11 @@ function buildModel(database, { holds = liveHolds } = {}) {
       return Number(row && row.turnoverMinutes) || 0;
     },
 
-    // The sessions this stay already has on the resource, as stored.
+    // The sessions this stay already has on the resource, as stored — those of every line that sold it (rule 85).
     storedSessions({ reservationId, resourceId }) {
       if (!reservationId || !hasColumn('reservation_resources', 'sessions')) return [];
-      const row = database.prepare('SELECT sessions FROM reservation_resources WHERE reservationId = ? AND resourceId = ?')
-        .get(Number(reservationId), Number(resourceId));
-      return parseSessions(row && row.sessions);
+      return database.prepare('SELECT sessions FROM reservation_resources WHERE reservationId = ? AND resourceId = ?')
+        .all(Number(reservationId), Number(resourceId)).flatMap((row) => parseSessions(row.sessions));
     },
   };
 }

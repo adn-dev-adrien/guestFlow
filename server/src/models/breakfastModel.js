@@ -54,12 +54,17 @@ function isoMin(a, b) { return a < b ? a : b; }
 
 // Parse the breakfast option's stored cardOccurrences (JSON array of { date, time, done }) into a
 // clean [{ date, time }] list (valid ISO dates only), time-sorted. Empty when none/invalid.
+// ASCII record separator: never inside a JSON document.
+const LINE_SEPARATOR = '\x1e';
 function parseBreakfastOccurrences(raw) {
   if (typeof raw !== 'string' || !raw.trim()) return [];
-  let list;
-  try { list = JSON.parse(raw); } catch { return []; }
-  if (!Array.isArray(list)) return [];
-  return list
+  // Rule 85: the occurrences of EVERY line of the breakfast option, one JSON array per line, joined by the record separator.
+  const lists = raw.split(LINE_SEPARATOR).flatMap((piece) => {
+    let list;
+    try { list = JSON.parse(piece); } catch { return []; }
+    return Array.isArray(list) ? list : [];
+  });
+  return lists
     .map((o) => ({ date: String(o?.date || '').slice(0, 10), time: formatTimeShort(o?.time) || '', done: Boolean(o?.done) }))
     .filter((o) => /^\d{4}-\d{2}-\d{2}$/.test(o.date))
     .sort((a, b) => (a.time || '').localeCompare(b.time || '') || a.date.localeCompare(b.date));
@@ -76,9 +81,9 @@ function buildModel(database) {
     catch { return false; }
   })();
   const occSelect = HAS_CARD_OCCURRENCES
-    ? `, (SELECT ro3.cardOccurrences FROM reservation_options ro3 JOIN options o3 ON o3.id = ro3.optionId
+    ? `, (SELECT group_concat(ro3.cardOccurrences, char(30)) FROM reservation_options ro3 JOIN options o3 ON o3.id = ro3.optionId
          WHERE ro3.reservationId = res.id AND o3.autoOptionType = 'breakfast'
-           AND ro3.cardOccurrences IS NOT NULL AND TRIM(ro3.cardOccurrences) != '' LIMIT 1) AS breakfastCardOccurrences`
+           AND ro3.cardOccurrences IS NOT NULL AND TRIM(ro3.cardOccurrences) != '') AS breakfastCardOccurrences`
     : ', NULL AS breakfastCardOccurrences';
 
   // Is the breakfast option occurrence-driven? Decides how `quantity` must be read (see the head

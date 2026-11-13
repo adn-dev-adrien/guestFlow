@@ -79,8 +79,8 @@ function refuseInvalidServedPersons(lines, stored = {}) {
     for (const { field, code, error, valid } of TYPED_COUNTS) {
       const count = readNumber(line?.[field]);
       if (count === undefined || valid(count)) continue;
-      const kept = stored[Number(line.optionId)]?.[field];
-      if (kept != null && Number(kept) === count) continue;
+      const heldBy = stored[Number(line.optionId)];
+      if ([heldBy, ...((heldBy && heldBy.others) || [])].some((entry) => entry?.[field] != null && Number(entry[field]) === count)) continue;
       return { error, code, optionId: line.optionId ?? null };
     }
   }

@@ -130,7 +130,7 @@ label + the client + the property. Clicking the card opens the reservation fiche
     pill), dims, and shows a **« Fait » badge** next to the time — mirroring the arrival « Prêt » / departure
     « Effectué » chips.
 13. The toggle persists immediately via **`POST /api/planning/option-cards/done`**
-    `{ reservationId, optionId, date, time, done }` (optimistic on the client, reverts on failure). `done`
+    `{ reservationId, optionId, lineId?, date, time, done }` (optimistic on the client, reverts on failure). `lineId` (pricing-components rule 85) names the stored line when the stay holds several lines of one article: each line is its own card with its own moments, and a tick lands on that line; without it, on the first line that holds the moment. `done`
     is **orthogonal to billing** (never changes `billedUnits`) and **survives a reservation re-save** (the
     pricing engine preserves it through `cardOccurrences`).
 

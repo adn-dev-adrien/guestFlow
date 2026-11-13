@@ -30,12 +30,17 @@ function buildModel(database) {
   const THERMAL_SELECT = HAS_THERMAL
     ? 'rs.heatUpMinutes AS heatUpMinutes, rs.heatRetentionMinutes AS heatRetentionMinutes,'
     : '0 AS heatUpMinutes, 0 AS heatRetentionMinutes,';
+  const HAS_LINE_ID = (() => {
+    try { return database.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'lineId'); }
+    catch { return false; }
+  })();
   const stmt = (() => {
     try {
       return database.prepare(`
         SELECT
           rr.reservationId AS reservationId,
           rr.resourceId AS resourceId,
+          ${HAS_LINE_ID ? 'rr.lineId' : 'NULL'} AS lineId,
           rr.sessions AS sessions,
           rs.name AS name,
           ${THERMAL_SELECT}
@@ -133,28 +138,33 @@ function buildModel(database) {
   // Toggle one session's « préparé » flag, matched by (reservationId, resourceId, date, start).
   // `kind: 'ignition'` ticks the « démarrer » task instead of the session's own « préparé » — two
   // distinct gestures on the same session (specs/resource-ignition-task.md §3 rule 6).
-  function setSessionDone({ reservationId, resourceId, date, start, done, kind } = {}) {
+  function setSessionDone({ reservationId, resourceId, lineId, date, start, done, kind } = {}) {
     const field = kind === 'ignition' ? 'ignitionDone' : 'done';
     if (!HAS_SESSIONS) return { error: 'NO_COLUMN' };
-    const row = database.prepare('SELECT sessions FROM reservation_resources WHERE reservationId = ? AND resourceId = ?')
-      .get(Number(reservationId), Number(resourceId));
-    if (!row) return { error: 'NOT_FOUND' };
-    let list;
-    try { list = JSON.parse(row.sessions || '[]'); } catch { list = []; }
-    if (!Array.isArray(list)) list = [];
+    // Rule 85: with a `lineId` the tick lands on that line; without one, on the first line of the resource that holds the session.
+    const byLine = HAS_LINE_ID && lineId != null;
+    const rows = database.prepare(`SELECT ${HAS_LINE_ID ? 'lineId, ' : ''}sessions FROM reservation_resources WHERE reservationId = ? AND resourceId = ?${byLine ? ' AND lineId = ?' : ''}${HAS_LINE_ID ? ' ORDER BY lineId' : ''}`)
+      .all(...[Number(reservationId), Number(resourceId), ...(byLine ? [Number(lineId)] : [])]);
+    if (rows.length === 0) return { error: 'NOT_FOUND' };
     const wantStart = formatTimeShort(start) || String(start || '');
-    let matched = false;
-    const next = list.map((s) => {
-      if (!matched && String(s?.date || '') === String(date) && (formatTimeShort(s?.start) || String(s?.start || '')) === wantStart) {
-        matched = true;
-        return { ...s, [field]: Boolean(done) };
-      }
-      return s;
-    });
-    if (!matched) return { error: 'SESSION_NOT_FOUND' };
-    database.prepare('UPDATE reservation_resources SET sessions = ? WHERE reservationId = ? AND resourceId = ?')
-      .run(JSON.stringify(next), Number(reservationId), Number(resourceId));
-    return { ok: true, done: Boolean(done) };
+    for (const row of rows) {
+      let list;
+      try { list = JSON.parse(row.sessions || '[]'); } catch { list = []; }
+      if (!Array.isArray(list)) list = [];
+      let matched = false;
+      const next = list.map((s) => {
+        if (!matched && String(s?.date || '') === String(date) && (formatTimeShort(s?.start) || String(s?.start || '')) === wantStart) {
+          matched = true;
+          return { ...s, [field]: Boolean(done) };
+        }
+        return s;
+      });
+      if (!matched) continue;
+      database.prepare(`UPDATE reservation_resources SET sessions = ? WHERE ${row.lineId != null ? 'lineId = ?' : 'reservationId = ? AND resourceId = ?'}`)
+        .run(JSON.stringify(next), ...(row.lineId != null ? [row.lineId] : [Number(reservationId), Number(resourceId)]));
+      return { ok: true, done: Boolean(done) };
+    }
+    return { error: 'SESSION_NOT_FOUND' };
   }
 
   return {
@@ -188,6 +198,8 @@ function buildModel(database) {
         const base = {
           reservationId: r.reservationId,
           resourceId: r.resourceId,
+          // Rule 85: a stay may hold two lines of one resource, each with sessions of its own.
+          lineId: r.lineId == null ? null : Number(r.lineId),
           name: r.name || 'Ressource',
           clientName,
           propertyName: r.propertyName || '',

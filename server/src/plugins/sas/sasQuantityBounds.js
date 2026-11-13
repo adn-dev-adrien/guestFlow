@@ -53,14 +53,20 @@ function wholePiecesMessage(lines) {
  */
 function soldOptionsMessage(sales, priceTypeOf, storedLines) {
   const soldHere = (storedLines || []).filter((line) => Number(line.sasArrivalOrigin || 0) === 1);
-  const storedUnits = new Map(soldHere.map((line) => [Number(line.optionId), roundMoneyStrict(line.billedUnits)]));
-  const storedPersons = new Map(soldHere.map((line) => [Number(line.optionId), line.cardPersons == null ? undefined : Number(line.cardPersons)]));
+  // Rule 85: an article may be stored on several lines; what any of them stores is not re-judged.
+  const heldBy = (read) => {
+    const held = new Map();
+    for (const line of soldHere) held.set(Number(line.optionId), [...(held.get(Number(line.optionId)) || []), read(line)]);
+    return { has: (id, value) => (held.get(id) || []).includes(value) };
+  };
+  const storedUnits = heldBy((line) => roundMoneyStrict(line.billedUnits));
+  const storedPersons = heldBy((line) => (line.cardPersons == null ? undefined : Number(line.cardPersons)));
   for (const sale of Array.isArray(sales) ? sales : []) {
     const persons = readNumber(sale?.persons);
-    if (persons !== undefined && persons !== storedPersons.get(Number(sale.optionId))
+    if (persons !== undefined && !storedPersons.has(Number(sale.optionId), persons)
       && !(Number.isSafeInteger(persons) && persons >= 1 && persons <= MAX_COUNT)) return PERSONS_MESSAGE;
     const units = readNumber(sale?.units);
-    if (units === undefined || units === storedUnits.get(Number(sale.optionId))) continue;
+    if (units === undefined || storedUnits.has(Number(sale.optionId), units)) continue;
     if (!(Number.isFinite(units) && units >= 0 && units <= MAX_COUNT)) return UNITS_MESSAGE;
     const perNight = units > 0 && priceTypeOf(Number(sale.optionId)) === 'per_night';
     if (perNight && !(Number.isSafeInteger(units) && units <= MAX_NIGHTS)) return NIGHTS_MESSAGE;

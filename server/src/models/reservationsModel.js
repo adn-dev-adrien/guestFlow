@@ -70,6 +70,8 @@ const establishmentClosuresModel = require('./establishmentClosuresModel');
 const { carriesMoney, cautionBlocker, withConvertedDevis, MONEY_MESSAGE } = require('../utils/deletionGuard');
 const { buildHistoryNameContext } = require('./historyNamesModel');
 const { dropBathLinenGhost } = require('../utils/bathLinenGhostLine');
+const { hasLineId, articleRowWhere } = require('../utils/lineRowTarget');
+const { keyLines } = require('../utils/pricing/lineKeys');
 
 const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
 const { roundMoneyStrict, roundMoneyOrZero: num, roundMoneyStrict: r2 } = require('../utils/pricing/money');
@@ -156,7 +158,15 @@ function deriveCommissionAmount(row) {
 // the billed-lines-only view.
 // Les extras d'une réservation détaillée, dans la forme que `midStayExtras` sait découper
 // (`readExtraLines` fait le même travail depuis SQL ; ici la réservation est déjà chargée).
+// Rule 85: the `lineKey` a later sale of an article carries (the article's first line keeps the legacy key, so it has none).
+function laterLineKeys(table, rows) {
+  const stored = (rows || []).filter((row) => Number(row.isCustom || 0) !== 1 && row.lineId != null);
+  return new Map(keyLines(table, stored).filter((entry) => entry.key.startsWith('line:')).map((entry) => [entry.row, entry.key]));
+}
+
 function readExtraLinesFromDetailed(r) {
+  const optionKeys = laterLineKeys('reservation_options', r.options);
+  const resourceKeys = laterLineKeys('reservation_resources', r.resources);
   return [
     ...(r.options || []).map((o) => (Number(o.isCustom || 0) === 1
       ? {
@@ -166,11 +176,13 @@ function readExtraLinesFromDetailed(r) {
       }
       : {
         optionId: Number(o.optionId),
+        ...(optionKeys.has(o) ? { lineKey: optionKeys.get(o) } : {}),
         totalPrice: Number(o.offered || 0) === 1 ? 0 : num(o.totalPrice),
         offered: Number(o.offered || 0), inComplement: Number(o.inComplement || 0),
       })),
     ...(r.resources || []).map((res) => ({
       resourceId: Number(res.resourceId),
+      ...(resourceKeys.has(res) ? { lineKey: resourceKeys.get(res) } : {}),
       totalPrice: Number(res.offered || 0) === 1 ? 0 : num(res.totalPrice),
       offered: Number(res.offered || 0), inComplement: Number(res.inComplement || 0),
     })),
@@ -283,6 +295,8 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
   // J-2 email render the same « label : qté × prix = total » lines as the SAS recap, and localise the
   // system labels (tax / remainder) per language. Existing consumers reading `label`/`amount` are
   // unaffected. `qty` mirrors the SAS: billedUnits, else quantity, else 1.
+  const optionKeys = laterLineKeys('reservation_options', r.options);
+  const resourceKeys = laterLineKeys('reservation_resources', r.resources);
   for (const o of (r.options || [])) {
     if (Number(o.inComplement || 0) !== 1) continue;
     const offered = Number(o.offered || 0) === 1;
@@ -292,7 +306,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
       ? (o.originalTotalPrice != null ? o.originalTotalPrice : o.totalPrice)
       : (o.totalPrice != null ? o.totalPrice : o.originalTotalPrice));
     const real = offered ? full : withoutMidStay(
-      isCustom ? { isCustom: true, title: o.description || o.title } : { optionId: Number(o.optionId) },
+      isCustom ? { isCustom: true, title: o.description || o.title } : { optionId: Number(o.optionId), ...(optionKeys.has(o) ? { lineKey: optionKeys.get(o) } : {}) },
       full,
     );
     if (real <= 0) continue;
@@ -311,7 +325,7 @@ function arrivalComplementDetailFromReservation(r, { includeOffered = false } = 
     const full = round2(offered
       ? (res.originalTotalPrice != null ? res.originalTotalPrice : res.totalPrice)
       : (res.totalPrice != null ? res.totalPrice : res.originalTotalPrice));
-    const real = offered ? full : withoutMidStay({ resourceId: Number(res.resourceId) }, full);
+    const real = offered ? full : withoutMidStay({ resourceId: Number(res.resourceId), ...(resourceKeys.has(res) ? { lineKey: resourceKeys.get(res) } : {}) }, full);
     if (real <= 0) continue;
     lines.push({
       kind: 'resource', label: String(res.name || 'Ressource').trim(),
@@ -447,23 +461,27 @@ function createReservationsModel(database) {
   // every occurrence of the stay; clearing it puts them back on the option default. Guarded: no
   // `cardOccurrences` column, no breakfast option, or no stored occurrence → no-op.
   function applyBreakfastTimeToOccurrences(reservationId, timeOrNull) {
-    let optionRow;
+    let optionRows;
     try {
-      optionRow = database.prepare(`
-        SELECT ro.optionId AS optionId, ro.cardOccurrences AS cardOccurrences, o.breakfastTime AS optionTime
+      // Rule 85: every line of the breakfast option carries moments of its own, and the hour of the stay applies to all of them.
+      optionRows = database.prepare(`
+        SELECT ${hasLineId(database, 'reservation_options') ? 'ro.lineId AS lineId, ' : ''}ro.optionId AS optionId, ro.cardOccurrences AS cardOccurrences, o.breakfastTime AS optionTime
           FROM reservation_options ro JOIN options o ON o.id = ro.optionId
          WHERE ro.reservationId = ? AND o.autoOptionType = 'breakfast'
-         ORDER BY ro.optionId LIMIT 1
-      `).get(reservationId);
+         ORDER BY ro.optionId${hasLineId(database, 'reservation_options') ? ', ro.lineId' : ''}
+      `).all(reservationId);
     } catch { return; } // minimal test schema without cardOccurrences / autoOptionType
-    if (!optionRow || !optionRow.cardOccurrences) return;
-    let occurrences = [];
-    try { occurrences = JSON.parse(optionRow.cardOccurrences) || []; } catch { return; }
-    if (!Array.isArray(occurrences) || occurrences.length === 0) return;
-    const nextTime = timeOrNull || formatTimeShort(optionRow.optionTime) || '09:00';
-    const next = occurrences.map((occ) => ({ ...occ, time: nextTime }));
-    database.prepare('UPDATE reservation_options SET cardOccurrences = ? WHERE reservationId = ? AND optionId = ?')
-      .run(JSON.stringify(next), reservationId, optionRow.optionId);
+    // Only the first breakfast option (by id), as before: the second sale of THAT option is another line of it, not another option.
+    for (const optionRow of optionRows.filter((row) => row.optionId === optionRows[0].optionId)) {
+      if (!optionRow.cardOccurrences) continue;
+      let occurrences = [];
+      try { occurrences = JSON.parse(optionRow.cardOccurrences) || []; } catch { continue; }
+      if (!Array.isArray(occurrences) || occurrences.length === 0) continue;
+      const nextTime = timeOrNull || formatTimeShort(optionRow.optionTime) || '09:00';
+      const next = occurrences.map((occ) => ({ ...occ, time: nextTime }));
+      database.prepare(`UPDATE reservation_options SET cardOccurrences = ? WHERE ${optionRow.lineId != null ? 'lineId = ?' : 'reservationId = ? AND optionId = ?'}`)
+        .run(JSON.stringify(next), ...(optionRow.lineId != null ? [optionRow.lineId] : [reservationId, optionRow.optionId]));
+    }
   }
   // Per-reservation email language (specs/email-language-fr-en.md). Guarded; 'en' or 'fr' (default), only
   // written when the payload carries it. Absent column (minimal test schema) → no-op.
@@ -720,7 +738,7 @@ function createReservationsModel(database) {
 
     const sasOriginCol = HAS_RO_SAS_ARRIVAL_ORIGIN ? 'COALESCE(ro.sasArrivalOrigin, 0)' : '0';
     const options = database.prepare(`
-      SELECT ro.optionId, COALESCE(ro.offered, 0) AS offered, ${sasOriginCol} AS sasArrivalOrigin,
+      SELECT ${hasLineId(database, 'reservation_options') ? 'ro.lineId, ' : ''}ro.optionId, COALESCE(ro.offered, 0) AS offered, ${sasOriginCol} AS sasArrivalOrigin,
              COALESCE(
                NULLIF(ro.totalPrice, 0),
                NULLIF(round(COALESCE(ro.unitPrice, 0) * COALESCE(ro.billedUnits, ro.quantity, 0), 2), 0),
@@ -729,17 +747,18 @@ function createReservationsModel(database) {
         FROM reservation_options ro JOIN options o ON ro.optionId = o.id
        WHERE ro.reservationId = ? AND COALESCE(ro.inComplement, 0) = 1
     `).all(reservationId);
-    const setOption = database.prepare('UPDATE reservation_options SET offered = ?, totalPrice = ? WHERE reservationId = ? AND optionId = ?');
+    // Rule 85: each line is repriced on ITS own row (a second sale of the article is another row with its own amount).
+    const setOption = database.prepare(`UPDATE reservation_options SET offered = ?, totalPrice = ? WHERE ${hasLineId(database, 'reservation_options') ? 'lineId = ?' : 'reservationId = ? AND optionId = ?'}`);
     for (const o of options) {
       if (skipSasOrigin && Number(o.sasArrivalOrigin) === 1) continue;
       const real = round2(o.realPrice);
       const want = wanted.has(`option:${Number(o.optionId)}`);
       if (!move(Number(o.offered) === 1, want, real)) continue;
-      writes.push(() => setOption.run(want ? 1 : 0, want ? 0 : real, reservationId, o.optionId));
+      writes.push(() => setOption.run(want ? 1 : 0, want ? 0 : real, ...(o.lineId != null ? [o.lineId] : [reservationId, o.optionId])));
     }
 
     const resources = !HAS_RESOURCE_TABLES ? [] : database.prepare(`
-      SELECT rr.resourceId, COALESCE(rr.offered, 0) AS offered,
+      SELECT ${hasLineId(database, 'reservation_resources') ? 'rr.lineId, ' : ''}rr.resourceId, COALESCE(rr.offered, 0) AS offered,
              COALESCE(
                NULLIF(rr.totalPrice, 0),
                NULLIF(round(COALESCE(rr.unitPrice, 0) * COALESCE(rr.billedUnits, rr.quantity, 0), 2), 0),
@@ -748,12 +767,12 @@ function createReservationsModel(database) {
         FROM reservation_resources rr JOIN resources rs ON rr.resourceId = rs.id
        WHERE rr.reservationId = ? AND COALESCE(rr.inComplement, 0) = 1
     `).all(reservationId);
-    const setResource = database.prepare('UPDATE reservation_resources SET offered = ?, totalPrice = ? WHERE reservationId = ? AND resourceId = ?');
+    const setResource = database.prepare(`UPDATE reservation_resources SET offered = ?, totalPrice = ? WHERE ${hasLineId(database, 'reservation_resources') ? 'lineId = ?' : 'reservationId = ? AND resourceId = ?'}`);
     for (const res of resources) {
       const real = round2(res.realPrice);
       const want = wanted.has(`resource:${Number(res.resourceId)}`);
       if (!move(Number(res.offered) === 1, want, real)) continue;
-      writes.push(() => setResource.run(want ? 1 : 0, want ? 0 : real, reservationId, res.resourceId));
+      writes.push(() => setResource.run(want ? 1 : 0, want ? 0 : real, ...(res.lineId != null ? [res.lineId] : [reservationId, res.resourceId])));
     }
 
     // A custom line keeps its `amount` whatever happens — the read layer already resolves an offered
@@ -838,9 +857,16 @@ function createReservationsModel(database) {
     const detailRow = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
     return new Map(storedMidStayLines(detailRow && detailRow.endOfStayComplementDetail).map((l) => [l.key || extraLineKey(l), Number(l.amount) || 0]));
   };
-  const sasOptionRowsOf = (reservationId) => (HAS_RO_SAS_ARRIVAL_ORIGIN
-    ? database.prepare('SELECT ro.optionId, ro.totalPrice, ro.unitPrice, o.title FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ? AND COALESCE(ro.sasArrivalOrigin, 0) = 1').all(reservationId)
-    : []);
+  // Rule 85: the SAS-written option lines with the key the engine gives them — `opt:<id>` when it is the article's first line, its
+  // `lineRef` when it is a later one — so the routing of the end-of-stay detail finds them under the key it was written with.
+  const sasOptionRowsOf = (reservationId) => {
+    if (!HAS_RO_SAS_ARRIVAL_ORIGIN) return [];
+    const rows = database.prepare(`SELECT ${hasLineId(database, 'reservation_options') ? 'ro.lineId, ' : ''}ro.optionId, ro.totalPrice, ro.unitPrice, COALESCE(ro.sasArrivalOrigin, 0) AS sasArrivalOrigin, o.title
+      FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ?`).all(reservationId);
+    return keyLines('reservation_options', rows).filter(({ row }) => Number(row.sasArrivalOrigin) === 1).map(({ row, key }) => ({ ...row, key }));
+  };
+  // The key a run's write gives an article it sells: the SAS line it already has, else the article's first line (the writer takes it over).
+  const sasKeyOf = (rows, optionId) => (rows.find((r) => Number(r.optionId) === Number(optionId)) || { key: extraLineKey({ optionId }) }).key;
   const sasCustomRowsOf = (reservationId) => database.prepare(
     'SELECT description, SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END) AS total FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1 GROUP BY lower(trim(description))',
   ).all(reservationId);
@@ -860,7 +886,7 @@ function createReservationsModel(database) {
     }
     const routed = routedByKey(reservationId);
     const hold = (key, total) => { if (key) held.set(key, Math.max(0, round2(Number(total || 0) - (routed.get(key) || 0)))); };
-    sasOptionRowsOf(reservationId).forEach((r) => hold(extraLineKey({ optionId: r.optionId }), r.totalPrice));
+    sasOptionRowsOf(reservationId).forEach((r) => hold(r.key, r.totalPrice));
     sasCustomRowsOf(reservationId).forEach((r) => hold(extraLineKey({ isCustom: true, title: r.description }), r.total));
     return held;
   };
@@ -869,20 +895,20 @@ function createReservationsModel(database) {
   const sasLinesAfter = (reservationId, { upsells, intents, sales, items }) => {
     const rows = sasOptionRowsOf(reservationId);
     const after = new Map();
-    rows.forEach((r) => after.set(extraLineKey({ optionId: r.optionId }), { label: r.title || 'Prestation', unitPrice: round2(r.unitPrice), total: round2(r.totalPrice) }));
+    rows.forEach((r) => after.set(r.key, { label: r.title || 'Prestation', unitPrice: round2(r.unitPrice), total: round2(r.totalPrice) }));
     const decisions = [['cleaning', 'Ménage'], ['bathLinen', BATH_LINEN_LABEL]].map(([name, label]) => {
       const offer = upsells[name];
       const stored = offer && offer.optionId != null ? rows.find((r) => Number(r.optionId) === Number(offer.optionId)) || null : null;
       return { offer, label, outcome: upsellOutcome({ offer, stored, wanted: intents[name].wanted, offered: intents[name].offered }) };
     });
-    const upsellKeys = new Set(decisions.filter((d) => d.offer && d.offer.optionId != null).map((d) => extraLineKey({ optionId: d.offer.optionId })));
+    const upsellKeys = new Set(decisions.filter((d) => d.offer && d.offer.optionId != null).map((d) => sasKeyOf(rows, d.offer.optionId)));
     if (sales) {
       [...after.keys()].filter((k) => !upsellKeys.has(k)).forEach((k) => after.delete(k));
-      sales.forEach((l) => after.set(extraLineKey({ optionId: l.optionId }), { label: l.title, unitPrice: round2(l.unitPrice), total: round2(l.totalPrice) }));
+      sales.forEach((l) => after.set(sasKeyOf(rows, l.optionId), { label: l.title, unitPrice: round2(l.unitPrice), total: round2(l.totalPrice) }));
     }
     for (const { offer, label, outcome } of decisions) {
       if (!offer || offer.optionId == null) continue;
-      const key = extraLineKey({ optionId: offer.optionId });
+      const key = sasKeyOf(rows, offer.optionId);
       if (outcome.action === 'write') after.set(key, { label, unitPrice: round2(offer.unitPrice), total: outcome.total });
       else if (outcome.action === 'delete') after.delete(key);
     }
@@ -905,7 +931,7 @@ function createReservationsModel(database) {
     let added = 0;
     // Rule 36 — a SAS-origin line whose money already sits in the end-of-stay complement and which this run lowers or drops.
     const previous = new Set([
-      ...sasOptionRowsOf(reservationId).map((r) => extraLineKey({ optionId: r.optionId })),
+      ...sasOptionRowsOf(reservationId).map((r) => r.key),
       ...sasCustomRowsOf(reservationId).map((r) => extraLineKey({ isCustom: true, title: r.description })),
     ].filter(Boolean));
     let shrinks = false;
@@ -2491,7 +2517,7 @@ function createReservationsModel(database) {
         const unitPrice = roundMoneyStrict(override ? Number(override.price) : Number(opt.price || 0));
         const priceType = opt.priceType || 'per_stay';
         const { billedUnits, totalPrice } = priceCatalogueUpsell(opt, { unitPrice, persons, nights });
-        const row = linked.find((l) => Number(l.optionId) === Number(opt.id));
+        const rows = linked.filter((l) => Number(l.optionId) === Number(opt.id));
         return {
           optionId: opt.id,
           unitPrice,
@@ -2499,8 +2525,8 @@ function createReservationsModel(database) {
           billedUnits,
           totalPrice,
           persons,
-          present: Boolean(row),
-          sasOrigin: Boolean(row && Number(row.sasArrivalOrigin) === 1),
+          present: rows.length > 0,
+          sasOrigin: rows.some((row) => Number(row.sasArrivalOrigin) === 1),
         };
       };
       return { cleaning: resolve('cleaning'), bathLinen: resolve('bathroom_linen') };
@@ -2892,12 +2918,17 @@ function createReservationsModel(database) {
 
     // Extra lines in the shape `midStayExtras` keys them by (custom lines carry their label).
     readExtraLines(reservationId) {
-      const options = database.prepare('SELECT optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?').all(reservationId);
-      const resources = database.prepare('SELECT resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?').all(reservationId);
+      const lineId = (table) => (hasLineId(database, table) ? 'lineId, ' : '');
+      const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?`).all(reservationId);
+      const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
       const customs = database.prepare('SELECT id, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+      // Rule 85: a later sale of an article is a line of its own (`lineId` + `lineKey`); the article's first line keeps the legacy key.
+      const identified = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => ({
+        ...make(row), ...(row.lineId != null ? { lineId: Number(row.lineId) } : {}), ...(key.startsWith('line:') ? { lineKey: key } : {}),
+      }));
       return [
-        ...options.map((o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0) })),
-        ...resources.map((r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0) })),
+        ...identified('reservation_options', options, (o) => ({ optionId: Number(o.optionId), totalPrice: Number(o.totalPrice || 0), offered: Number(o.offered || 0) })),
+        ...identified('reservation_resources', resources, (r) => ({ resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0), offered: Number(r.offered || 0) })),
         // A custom line stores its ORIGINAL amount; an offered one is worth 0 like in the engine.
         ...customs.map((c) => ({
           isCustom: true,
@@ -2941,40 +2972,51 @@ function createReservationsModel(database) {
     // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count
     // (specs/mid-stay-extras-on-locked-fiche.md rules 6 and 13). A custom line is one unit.
     readExtraLinesWithQuantity(reservationId) {
-      const quantities = (table, idColumn) => new Map(
-        database.prepare(`SELECT ${idColumn} AS id, quantity FROM ${table} WHERE reservationId = ?`)
-          .all(reservationId).map((row) => [Number(row.id), Number(row.quantity || 0)]),
-      );
+      // Rule 85: the units of each stored LINE (`lineId`), the article's first line when a schema predates it.
+      const quantities = (table, idColumn) => {
+        const byLine = hasLineId(database, table);
+        const units = new Map();
+        for (const row of database.prepare(`SELECT ${byLine ? 'lineId, ' : ''}${idColumn} AS id, quantity FROM ${table} WHERE reservationId = ?`).all(reservationId)) {
+          const key = byLine ? `line:${row.lineId}` : `article:${row.id}`;
+          units.set(key, Number(row.quantity || 0));
+        }
+        return { units, byLine, get: (line, id) => units.get(line.lineId != null && byLine ? `line:${line.lineId}` : `article:${id}`) };
+      };
       const optionUnits = quantities('reservation_options', 'optionId');
       // What the fiche's field shows for a non-card line, so a floor can speak its unit
       // (specs/non-card-option-served-persons.md rule 17). No count for any other price type.
       const stay = database.prepare('SELECT startDate, endDate FROM reservations WHERE id = ?').get(reservationId);
+      const optionLid = hasLineId(database, 'reservation_options') ? 'ro.lineId, ' : '';
+      const lineSlot = (row) => (row.lineId != null ? `line:${row.lineId}` : `article:${row.optionId}`);
       const optionCounts = new Map(database.prepare(`
-        SELECT ro.optionId, ro.billedUnits, ro.priceType FROM reservation_options ro
+        SELECT ${optionLid}ro.optionId, ro.billedUnits, ro.priceType FROM reservation_options ro
         JOIN options o ON o.id = ro.optionId
         WHERE ro.reservationId = ? AND COALESCE(o.showsPlanningCard, 0) = 0
-      `).all(reservationId).map((row) => [Number(row.optionId), typedCountOf(row, stay)]));
+      `).all(reservationId).map((row) => [lineSlot(row), typedCountOf(row, stay)]));
       // specs/non-card-option-served-persons.md rule 37 (audit R22-6, 2026-11-05) — an offered planning-card line bills
       // 0 €: only the persons it stored can say what was sold. NULL follows the party and is never compared.
       for (const row of database.prepare(`
-        SELECT ro.optionId, ro.cardPersons FROM reservation_options ro
+        SELECT ${optionLid}ro.optionId, ro.cardPersons FROM reservation_options ro
         JOIN options o ON o.id = ro.optionId
         WHERE ro.reservationId = ? AND COALESCE(o.showsPlanningCard, 0) = 1 AND COALESCE(ro.offered, 0) = 1 AND ro.cardPersons IS NOT NULL
-      `).all(reservationId)) optionCounts.set(Number(row.optionId), Number(row.cardPersons));
-      const optionOccurrences = new Map(database.prepare('SELECT optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?')
+      `).all(reservationId)) optionCounts.set(lineSlot(row), Number(row.cardPersons));
+      const optionOccurrences = new Map(database.prepare(`SELECT ${optionLid.replace(/ro\./g, '')}optionId, cardOccurrences FROM reservation_options WHERE reservationId = ?`)
         .all(reservationId).map((row) => {
           let list = [];
           try { list = row.cardOccurrences ? JSON.parse(row.cardOccurrences) : []; } catch { list = []; }
-          return [Number(row.optionId), (Array.isArray(list) ? list : []).map((o) => ({ date: o.date, time: o.time }))];
+          return [lineSlot(row), (Array.isArray(list) ? list : []).map((o) => ({ date: o.date, time: o.time }))];
         }));
       const resourceUnits = quantities('reservation_resources', 'resourceId');
       const hourlyResources = new Set(database.prepare(
         "SELECT id FROM resources WHERE priceType = 'per_hour' OR COALESCE(isComplex, 0) = 1",
       ).all().map((row) => Number(row.id)));
       return model.readExtraLines(reservationId).map((line) => {
-        if (line.optionId != null) return { ...line, quantity: optionUnits.get(line.optionId), occurrences: optionOccurrences.get(line.optionId), typedCount: optionCounts.get(line.optionId) };
+        if (line.optionId != null) {
+          const slot = lineSlot(line);
+          return { ...line, quantity: optionUnits.get(line, line.optionId), occurrences: optionOccurrences.get(slot), typedCount: optionCounts.get(slot) };
+        }
         if (line.resourceId != null) {
-          return { ...line, quantity: resourceUnits.get(line.resourceId), hourly: hourlyResources.has(line.resourceId) };
+          return { ...line, quantity: resourceUnits.get(line, line.resourceId), hourly: hourlyResources.has(line.resourceId) };
         }
         return { ...line, quantity: 1 };
       });
@@ -3563,7 +3605,7 @@ function createReservationsModel(database) {
             UPDATE reservation_options SET
               quantity = ?, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
               inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = ?' : ''}${perColumn ? ', cardPersons = ?' : ''}${nightsColumn ? ', cardNights = ?' : ''}
-            WHERE reservationId = ? AND optionId = ?
+            WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}
           `);
           const upsert = {
             run: (reservationIdParam, optionIdParam, ...rest) => {
@@ -3625,7 +3667,7 @@ function createReservationsModel(database) {
               UPDATE reservation_options SET
                 quantity = 1, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
                 offered = ?, inComplement = 1, sasArrivalOrigin = 1
-              WHERE reservationId = ? AND optionId = ?
+              WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}
             `).run(offer.unitPrice, offer.billedUnits, offer.priceType, upsellTotal, upsellOffered, reservationId, offer.optionId).changes;
             if (updated === 0) {
               database.prepare(`
@@ -3666,7 +3708,7 @@ function createReservationsModel(database) {
           // Which SAS-origin lines were already there, so a re-run that drops one takes its money back out (the keys are
           // read BEFORE the rows are rewritten).
           const previousKeys = new Set([
-            ...sasOptionRowsOf(reservationId).map((r) => extraLineKey({ optionId: r.optionId })),
+            ...sasOptionRowsOf(reservationId).map((r) => r.key),
             ...sasCustomRowsOf(reservationId).map((r) => extraLineKey({ isCustom: true, title: r.description })),
           ].filter(Boolean));
           const after = sasLinesAfter(reservationId, {
@@ -3843,11 +3885,7 @@ function createReservationsModel(database) {
           ...database.prepare('SELECT description FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1')
             .all(reservationId)
             .map((r) => extraLineKey({ isCustom: true, title: r.description })),
-          ...(HAS_RO_SAS_ARRIVAL_ORIGIN
-            ? database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
-              .all(reservationId)
-              .map((r) => extraLineKey({ optionId: r.optionId }))
-            : []),
+          ...sasOptionRowsOf(reservationId).map((r) => r.key),
         ].filter((key) => key && !midStayKeySet.has(key));
         model.addKeysToArrivalExtrasBaseline(reservationId, sasKeys);
         require('./extraSalesModel').stampSasLines(reservationId, new Date().toISOString());

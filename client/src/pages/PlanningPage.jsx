@@ -189,7 +189,7 @@ export default function PlanningPage() {
   // flip the matching occurrence in state, persist, revert on failure.
   const handleToggleOptionCardDone = useCallback(async (item, nextDone) => {
     if (!item) return;
-    const matches = (it) => it.reservationId === item.reservationId && it.optionId === item.optionId
+    const matches = (it) => it.reservationId === item.reservationId && it.optionId === item.optionId && it.lineId === item.lineId
       && it.date === item.date && it.time === item.time;
     const apply = (value) => mapDays((day) => (day.date !== item.date || !day.optionCards ? day : {
       ...day, optionCards: { ...day.optionCards, items: day.optionCards.items.map((it) => (matches(it) ? { ...it, done: value } : it)) },
@@ -197,7 +197,7 @@ export default function PlanningPage() {
     apply(nextDone);
     try {
       await api.setPlanningOptionCardDone({
-        reservationId: item.reservationId, optionId: item.optionId, date: item.date, time: item.time, done: nextDone,
+        reservationId: item.reservationId, optionId: item.optionId, lineId: item.lineId ?? undefined, date: item.date, time: item.time, done: nextDone,
       });
     } catch {
       apply(!nextDone); // revert
@@ -360,7 +360,7 @@ export default function PlanningPage() {
     });
     // Option / meal cards (item.time; null → time-less → bottom).
     (day.optionCards?.items || []).forEach((i) => entries.push({
-      key: `opt-${i.reservationId}-${i.optionId}-${i.time || ''}`,
+      key: `opt-${i.reservationId}-${i.optionId}-${i.lineId ?? ''}-${i.time || ''}`,
       time: i.time,
       node: (
         <OptionDayCard

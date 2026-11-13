@@ -202,13 +202,14 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     // A tick reads as INVALID_PAYMENT_FLAG does: `Boolean("false")` ticked the card.
     if (!Number.isInteger(reservationId) || reservationId <= 0
       || !Number.isInteger(resourceId) || resourceId <= 0
+      || (body.lineId != null && !(Number.isInteger(wholeNumber(body.lineId)) && wholeNumber(body.lineId) > 0))
       || !isIsoDate(date)
       || (start !== null && typeof start !== 'string')
       || (body.done !== undefined && ![true, false, 1, 0].includes(body.done))) {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'Données invalides.' });
     }
     const result = planningCards().setSessionDone({
-      reservationId, resourceId, date, start: start || '', done: Boolean(body.done),
+      reservationId, resourceId, lineId: body.lineId == null ? undefined : wholeNumber(body.lineId), date, start: start || '', done: Boolean(body.done),
       kind: body.kind === 'ignition' ? 'ignition' : 'session',
     });
     if (result && result.error) {

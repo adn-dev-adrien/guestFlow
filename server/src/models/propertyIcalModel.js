@@ -43,6 +43,7 @@ const { removeOrphanIcalPlaceholders, removeOrphanIcalImportClients } = require(
 // entirely inside a closure is the closure's own echo and is skipped (counted in the sync result); a
 // partial overlap or a known stay moved onto a closure is imported and flagged in conflict.
 const establishmentClosuresModel = require('./establishmentClosuresModel');
+const { hasLineId } = require('../utils/lineRowTarget');
 
 // specs/ical-import-hardening.md rule 4 — a platform that accepts the connection and never answers
 // used to hold the sync for Node's 5-minute default, and every source queued behind it.
@@ -565,10 +566,12 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
             INSERT INTO reservation_options (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `);
-          const listReservationOptionRows = database.prepare('SELECT optionId, offered FROM reservation_options WHERE reservationId = ?');
+          // Rule 85: each stored line is repriced on its own row, never the article's rows together.
+          const optionRowsHaveLineId = hasLineId(database, 'reservation_options');
+          const listReservationOptionRows = database.prepare(`SELECT ${optionRowsHaveLineId ? 'lineId, ' : ''}optionId, offered FROM reservation_options WHERE reservationId = ?`);
           const updateReservationOptionAmount = database.prepare(`
             UPDATE reservation_options SET quantity = ?, unitPrice = ?, billedUnits = ?, totalPrice = ?
-            WHERE reservationId = ? AND optionId = ?
+            WHERE ${optionRowsHaveLineId ? 'lineId = ?' : 'reservationId = ? AND optionId = ?'}
           `);
           const isInternalLinen = (d) => hasDisplayToClient
             && Number(d.displayToClient) === 0
@@ -620,7 +623,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
           repriceReservationDefaultOptions = (reservationId, propertyId, stay) => {
             const rows = listReservationOptionRows.all(reservationId);
             if (rows.length === 0) return;
-            const pricedById = priceOptionLinesById(propertyId, stay, rows);
+            const pricedById = priceOptionLinesById(propertyId, stay, rows.filter((r, i) => rows.findIndex((o) => o.optionId === r.optionId) === i));
             for (const r of rows) {
               const line = pricedById.get(Number(r.optionId));
               if (!line) continue; // no priced line (engine unavailable / option unlinked) → leave the row as-is
@@ -629,8 +632,7 @@ function createPropertyIcalModel(database, { fetchTimeoutMs = FETCH_TIMEOUT_MS, 
                 Number(line.unitPrice || 0),
                 Number(line.billedUnits || 0),
                 Number(line.totalPrice || 0),
-                reservationId,
-                r.optionId,
+                ...(r.lineId != null ? [r.lineId] : [reservationId, r.optionId]),
               );
             }
           };

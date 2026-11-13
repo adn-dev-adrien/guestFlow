@@ -1485,7 +1485,19 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     (totals, finance, devis). Everything else keyed by `optionId` / `resourceId` — a writer that updates ONE row, a `Map(article → row)` — is a
     **line** reader and addresses its row by `lineId`; for a stay holding two rows of one article each writer touches exactly the intended row and
     each reader returns every row (proof `true-lines-duplicate-rows`).
-    > **Delivered by PR C** (pass 3c): the key scheme, the resolver and the line readers/writers above. **Pending** — appending (the fiche-save merge and the sale writer append a second line instead of merging), a later slice.
+    **Writers and readers moved (pass 3c).** *Engine and stored keys:* the extras step reads the snapshot of the line it prices (`lineId`) and the
+    article's first line for a request that names none; `midStay`, `stayRepository` (`optionRows`, locked lines, `lineFacts`), `storedLineContribs`,
+    `forceItemContribsCapture` (capture, stored split), `paymentAllocationsSync`, `refundInputModel`, `removedLineContribs`, `extraSalesModel.findLine`
+    and the SAS-origin keys of `reservationsModel` key a row with `keyLines`; the refund buckets read the table of a key with `isResourceKey`; the
+    client `arrivalLineKey.js` mirrors the key. *Single-row writers* address their row by `lineId` (or by `utils/lineRowTarget.js` when only the
+    article is known: the first line, the SAS-written one for the arrival SAS): the breakfast hour, « offert » on the complement, the SAS upsell and
+    sale update, the planning card and hourly session ticks (optional `lineId` in the body), the iCal reprice, the SAS « Planifier » write (the
+    resource's first line takes the replaced set, a later line is emptied), and the fiche save (`CarriedLines`: each saved line takes the identity of a
+    different stored line, never two the same `lineId`). *Readers that union or add up the lines of one article:* the breakfast card, the stored dates and
+    typed counts (a value any line stores is not re-judged), the stored SAS units and persons, the sessions and hours of a resource.
+    *Still the article's first line, by design until the appending slice:* the guest shop order merge (`midStayOrderCommit`), the SAS `offeredExtras`
+    refs (`{ kind, id }` = every line of the article), and the display grouping of the lines in the e-mail payloads (rule 13).
+    > **Delivered by PR C** (pass 3c): the key scheme, the resolver and the line readers/writers above; proof `true-lines-duplicate-rows`. **Pending** — appending (the fiche-save merge and the sale writer append a second line instead of merging), a later slice.
 86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with
     `reservationId` nullable and a `saleRef` column (migration `pricing_sales_v1`, rows copied verbatim): the link e-mail of an outside visit is
     logged in `email_log` like every other e-mail. A link row with a NULL `reservationId` must be invisible to the previous release's poller and
