@@ -1667,8 +1667,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > paymentAllocationsSync, complementDataRepairs, midStayOrderCommit, checkoutComplement, refunds/collected, refundInputModel, the
     > controller's three, the model's nine) go through `endOfStayChargesOf(row)`. That is one change with the byte-identical replay as its
     > proof; it was not started in pass 3h.
-    > **Pending** — PR C: 3's line of its own as a resource line holding only an evening component (needs the engine to keep a zero-hour
-    > line); 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
+    > **Delivered by PR C** (pass 3i, 3's line of its own): the engine keeps a resource line with no hours that holds an evening component
+    > (`articles/index.js`, `eveningOnlyLine`: it bills that component; the locks of the save and of the stored quote carry `components`),
+    > so no save loses its amount. On a complement not yet collected, the evening beyond the session line (a session line paid, offered, or
+    > sold into the plan) is that line: a resource line of the resource with no hours, `components` `[{ kind: 'evening', cents }]`, routed
+    > to the arrival complement (`inComplement = 1`, `collectAt = 'arrival'`, source `sas`), set (never added) by every run and deleted at
+    > 0 €; the session line is the resource's first line WITH hours. A collected complement keeps #1032's routing of the SAS's `evening:<id>`
+    > line (its hold is per SAS key), and the legacy guard is unchanged. Proof: `sas-evening-component`.
+    > **Pending** — PR C: 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
     > fields): they write the same rows today, and the engine reads them back; 2. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
     > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
 
@@ -1924,7 +1930,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] Golden fixture unchanged through PR A and B's first commit (no `GOLDEN_UPDATE`), with accounting-export installed
 - [x] `pricing-line-keys`, `true-lines-duplicate-rows` — rule 85: the resolver (first line keeps the legacy key, later lines `line:<table>:<lineId>`), and a database holding two rows of one article on one stay: the engine prices each from its own snapshot, every writer touches exactly the intended row, every reader returns every row _(PR C, pass 3c)_
 - [x] `sas-arrival-engine-complement` — rule 90.1: the plan is the commit rolled back (nothing written, same figure), the engine's complement over a stored figure no line explains, a re-run never bills twice, a stay below its minimum still checks in, the adjustment re-applied over the engine figure _(PR C, pass 3h)_
-- [x] `sas-evening-component` — rule 90.3: the evening as the open session line's component (plan = commit, components sum to the total, set not added, shrinks to 0, kept by the next fiche save), a plan line's evening on a line of its own, the legacy `evening:` guard (billed once), a collected complement bills only what the line does not already carry _(PR C, pass 3h)_
+- [x] `sas-evening-component` — rule 90.3: the evening as the open session line's component (plan = commit, components sum to the total, set not added, shrinks to 0, kept by the next fiche save), a plan line's evening on a line of its own, the legacy `evening:` guard (billed once), a collected complement bills only what the line does not already carry; the evening beyond a session line that is not the arrival's as a resource line with no hours, kept by the fiche's next save, set by a re-run and gone at 0 € _(PR C, passes 3h, 3i)_
 - [x] `sale-detail-arrival-lines` — rule 91: the tax part, the added guests and « Complément d'arrivée » as arrival lines, the e-mail lines (units × unit price, order, nothing offered nor at 0 €), the e-mail read from the sale detail equal to the stored breakdown _(PR C, pass 3i)_
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 

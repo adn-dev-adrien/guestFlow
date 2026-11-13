@@ -1118,7 +1118,11 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
   const eveningCentsOf = (raw) => parseComponents(raw).filter((c) => c && c.kind === 'evening').reduce((sum, c) => sum + (Number(c.cents) || 0), 0);
   const sessionLineOf = (reservationId, resourceId) => (HAS_RR_COMPONENTS && HAS_RCO_LINE_ID ? database.prepare(`SELECT lineId, quantity, unitPrice, billedUnits,
       totalPrice, offered, COALESCE(inComplement, 0) AS inComplement, settlementRef, components FROM reservation_resources
-      WHERE reservationId = ? AND resourceId = ? ORDER BY lineId LIMIT 1`).get(reservationId, resourceId) || null : null);
+      WHERE reservationId = ? AND resourceId = ? AND COALESCE(quantity, 0) > 0 ORDER BY lineId LIMIT 1`).get(reservationId, resourceId) || null : null);
+  // The resource's line that holds only an evening (no hours, written by the SAS), when the stay has one.
+  const eveningLineOf = (reservationId, resourceId) => (HAS_RR_COMPONENTS && HAS_RCO_LINE_ID ? database.prepare(`SELECT lineId, components FROM reservation_resources
+      WHERE reservationId = ? AND resourceId = ? AND COALESCE(billedUnits, 0) = 0 AND components LIKE '%"evening"%' ORDER BY lineId DESC LIMIT 1`)
+    .get(reservationId, resourceId) || null : null);
   const holdsLegacyLine = (reservationId, sasLineKey) => Boolean(HAS_RCO_SAS_LINE_KEY && database.prepare(
     'SELECT 1 FROM reservation_custom_options WHERE reservationId = ? AND sasLineKey = ?',
   ).get(reservationId, sasLineKey));
@@ -1133,13 +1137,21 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       if (!host || holdsLegacyLine(reservationId, item.sasLineKey)) { if (item.amount > 0) lines.push(item); continue; }
       const hostOpen = open && Number(host.inComplement) === 1 && Number(host.offered || 0) !== 1 && !host.settlementRef;
       if (hostOpen) { hosted.push({ ...item, lineId: Number(host.lineId) }); continue; }
-      const beyond = round2(item.amount - eveningCentsOf(host.components) / 100);
+      const beyond = Math.max(0, round2(item.amount - eveningCentsOf(host.components) / 100));
+      // Rule 90.3 — on a complement not yet collected the evening beyond the session line is a line of the resource holding only that
+      // component (set, never added; gone at 0 €). A collected complement keeps #1032's routing of the SAS line.
+      if (open) {
+        const own = eveningLineOf(reservationId, Number(component.resourceId));
+        if (own || beyond > 0) hosted.push({ ...item, amount: beyond, lineId: own ? Number(own.lineId) : null, eveningOnly: true, resourceId: Number(component.resourceId) });
+        continue;
+      }
       if (beyond > 0) lines.push({ ...item, amount: beyond });
     }
     return { lines, hosted };
   };
   // The session line's components: its sold hours, the free minutes they netted, the evening of the placed sessions; the total is their sum.
-  const writeEveningComponent = (reservationId, { lineId, amount }) => {
+  const writeEveningComponent = (reservationId, { lineId, amount, eveningOnly, resourceId }) => {
+    if (eveningOnly) { writeEveningLine(reservationId, { lineId, amount, resourceId }); return; }
     const row = database.prepare('SELECT unitPrice, billedUnits, totalPrice, components FROM reservation_resources WHERE reservationId = ? AND lineId = ?').get(reservationId, lineId);
     if (!row) return;
     const evening = Math.round(Number(amount || 0) * 100);
@@ -1157,6 +1169,29 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     ];
     database.prepare('UPDATE reservation_resources SET totalPrice = ?, components = ? WHERE reservationId = ? AND lineId = ?')
       .run((net + evening) / 100, JSON.stringify(components), reservationId, lineId);
+  };
+  // Rule 90.3 — the line that holds only an evening: no hours, its total its evening component, collected at the arrival; deleted at 0 €.
+  const writeEveningLine = (reservationId, { lineId, amount, resourceId }) => {
+    const cents = Math.round(Number(amount || 0) * 100);
+    if (lineId != null && cents <= 0) {
+      database.prepare('DELETE FROM reservation_resources WHERE reservationId = ? AND lineId = ?').run(reservationId, lineId);
+      return;
+    }
+    const components = JSON.stringify([{ kind: 'evening', cents }]);
+    if (lineId != null) {
+      database.prepare('UPDATE reservation_resources SET totalPrice = ?, components = ? WHERE reservationId = ? AND lineId = ?').run(cents / 100, components, reservationId, lineId);
+      return;
+    }
+    if (cents <= 0) return;
+    const has = new Set(database.prepare('PRAGMA table_info(reservation_resources)').all().map((c) => c.name));
+    const values = {
+      reservationId, resourceId, quantity: 0, unitPrice: 0, billedUnits: 0, priceType: 'per_hour', totalPrice: cents / 100, offered: 0, inComplement: 1, components,
+      ...(has.has('source') ? { source: 'sas' } : {}),
+      ...(has.has('collectAt') ? { collectAt: 'arrival', collectAtDefault: 'arrival' } : {}),
+      ...(has.has('soldAt') ? { soldAt: localTodayIso() } : {}),
+    };
+    const names = Object.keys(values);
+    database.prepare(`INSERT INTO reservation_resources (${names.join(', ')}) VALUES (${names.map(() => '?').join(', ')})`).run(...names.map((n) => values[n]));
   };
   // Rule 90.1 — the arrival SAS's write on a complement not yet collected: the pre-existing lines' « Offrir », the SAS-origin rows replaced,
   // then the complement the ENGINE gives the stay those rows make (the fiche's save, played and rolled back), the operator's adjustment
@@ -3027,6 +3062,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         const hostsEvening = x.refKind === 'resource' && hosted.some((c) => c.lineId === Number(x.lineId));
         const real = round2((storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice))
           - (hostsEvening ? eveningCentsOf(x.components) / 100 : 0));
+        if (hostsEvening && real <= 0) continue;
         const key = x.refKind === 'custom' ? `custom:${Number(x.refId)}` : lineRefKey(x.refKind, x.refId, x.lineId, recapFirst[x.refKind]);
         const offered = isOffered(key, storedOffered);
         lines.push({

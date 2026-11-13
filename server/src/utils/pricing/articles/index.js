@@ -109,13 +109,35 @@ function pricedAmount(request) {
   };
 }
 
+// Rule 90.3 — a resource line sold with no hours that holds an evening component (the evening the placed sessions add once the session line
+// is paid or not the arrival's) bills that component: it is kept, never dropped like an empty line, so no save loses its amount.
+function eveningOnlyLine(article, request) {
+  const { locked } = request;
+  if (!locked || Number(locked.billedUnits || 0) > 0) return null;
+  let components = [];
+  try { components = typeof locked.components === 'string' ? JSON.parse(locked.components) : (locked.components || []); } catch { components = []; }
+  const eveningCents = (Array.isArray(components) ? components : []).filter((c) => c && c.kind === 'evening').reduce((sum, c) => sum + (Number(c.cents) || 0), 0);
+  if (!(eveningCents > 0)) return null;
+  const offeredFigures = applyOfferedToLine(eveningCents / 100, request.offered);
+  return {
+    ref: article.ref,
+    family: article.family,
+    article,
+    figures: { quantity: 0, unitPrice: Number(locked.unitPrice || 0), billedUnits: 0 },
+    offeredFigures,
+    components: [],
+    allowanceUsed: 0,
+    taggedAmounts: taggedOf(article.config, article.ref, offeredFigures.totalPrice),
+  };
+}
+
 // Options with a planning card, resources and every simple price type: units from the family, merged with the sold
 // snapshot (rule 13), then the free units (rule 41) and « offert » (rule 14).
 function priceMerged(family, article, request, stay, allowance) {
   const { config } = article;
   const isResource = config.kind === 'resource';
   const { locked } = request;
-  if (isResource && request.quantity <= 0) return { line: null };
+  if (isResource && request.quantity <= 0) return eveningOnlyLine(article, request) || { line: null };
   const isPercentOfStay = article.family === 'percentOfStay';
   const isStayWideYesNo = isPercentOfStay || config.isCancellationInsurance;
   const effectiveQuantity = isStayWideYesNo ? 1 : request.quantity;

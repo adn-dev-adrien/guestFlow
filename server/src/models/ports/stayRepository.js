@@ -96,9 +96,11 @@ function lockedOptionLines(db, id) {
 }
 
 function lockedResourceLines(db, id) {
+  // Rule 90.3 — the components say what a line with no hours bills (its evening).
+  const components = db.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'components') ? ', components' : '';
   const lockedResourceLines = db.prepare(`
     SELECT ${[...lineIdColumn(db, 'reservation_resources'), 'resourceId'].join(', ')}, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-      COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
+      COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc${components}
     FROM reservation_resources WHERE reservationId = ?
   `).all(id);
   return lockedResourceLines;

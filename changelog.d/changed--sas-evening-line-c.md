@@ -1,0 +1,1 @@
+- Supplément soirée d'un bain dont la ligne de séances n'est pas celle du complément d'arrivée (déjà payée, offerte ou vendue avec le séjour) : il devient une ligne de la ressource sans heures, perçue à l'arrivée, que l'enregistrement suivant de la fiche conserve (specs/pricing-components.md, règle 90.3).

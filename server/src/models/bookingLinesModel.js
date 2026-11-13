@@ -414,7 +414,7 @@ function createBookingLinesModel(database) {
         });
       const lockedResourceLines = database.prepare(`
         SELECT ${RESOURCE_COLUMNS.has('lineId') ? 'lineId, ' : ''}resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-          ${routingSelect(RESOURCE_COLUMNS)}
+          ${routingSelect(RESOURCE_COLUMNS)}${RESOURCE_COLUMNS.has('components') ? ', components' : ''}
         FROM reservation_resources WHERE reservationId = ?
       `).all(bookingId);
       // The property-level tariff the booking was sold under (tariff-recipes rule 12bis). NULL for a row

@@ -35,7 +35,7 @@ function stay({ inComplement = 1, legacy = 0, ...columns } = {}) {
   return id;
 }
 const evening = (amount) => ({ complementItems: [{ label: 'Bain nordique — supplément soirée', amount, sasLineKey: KEY, component: { kind: 'evening', resourceId: BATH } }] });
-const sessionLine = (id) => db.prepare('SELECT totalPrice, components FROM reservation_resources WHERE reservationId = ? ORDER BY lineId LIMIT 1').get(id);
+const sessionLine = (id) => db.prepare('SELECT totalPrice, components FROM reservation_resources WHERE reservationId = ? AND quantity > 0 ORDER BY lineId LIMIT 1').get(id);
 const eveningOf = (id) => (JSON.parse(sessionLine(id).components || '[]').find((c) => c.kind === 'evening') || { cents: 0 }).cents;
 const customs = (id) => db.prepare('SELECT description, amount, sasLineKey FROM reservation_custom_options WHERE reservationId = ? ORDER BY id').all(id);
 
@@ -75,11 +75,40 @@ test('rule 90.3 — the fiche’s next save keeps the evening the component put 
   assert.equal(db.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(id).complementAmount, 80);
 });
 
-test('rule 90.3 — a session line sold into the stay’s plan is not the arrival’s: the evening rides a line of its own, collected at the arrival', () => {
+const eveningLines = (id) => db.prepare(`SELECT quantity, billedUnits, totalPrice, inComplement, components FROM reservation_resources
+  WHERE reservationId = ? AND COALESCE(billedUnits, 0) = 0 ORDER BY lineId`).all(id)
+  .map((row) => [row.billedUnits, row.totalPrice, row.inComplement, JSON.parse(row.components)]);
+
+test('rule 90.3 — a session line sold into the stay’s plan is not the arrival’s: the evening is a line of the resource holding only it, collected at the arrival', () => {
   const id = stay({ inComplement: 0 });
+  const plan = model.planArrivalSas(id, evening(20));
+  assert.equal(plan.arrivalComplementTotal, 20);
+  assert.deepEqual(plan.lines.filter((l) => l.group === 'plugin').map((l) => [l.label, l.real]), [['Bain nordique — supplément soirée', 20]]);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_resources WHERE reservationId = ?').get(id).n, 1, 'the plan writes nothing');
   assert.equal(model.commitArrivalSas(id, evening(20)), 20);
   assert.equal(sessionLine(id).components, null);
-  assert.deepEqual(customs(id).map((c) => [c.amount, c.sasLineKey]), [[20, KEY]]);
+  assert.deepEqual(customs(id), [], 'no SAS custom line');
+  assert.deepEqual(eveningLines(id), [[0, 20, 1, [{ kind: 'evening', cents: 2000 }]]]);
+});
+
+test('rule 90.3 — the line holding only an evening is kept by the fiche’s next save (the engine keeps a zero-hour line with an evening)', () => {
+  const id = stay({ inComplement: 0 });
+  model.commitArrivalSas(id, evening(20));
+  const { storedBody } = require('../utils/midStayOrderCommit');
+  const saved = require('../controllers/reservationsController').performUpdate(id, storedBody(id));
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.deepEqual(eveningLines(id), [[0, 20, 1, [{ kind: 'evening', cents: 2000 }]]]);
+  assert.equal(db.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(id).complementAmount, 20);
+});
+
+test('rule 90.3 — a re-run sets the evening line, never adds to it, and a 0 € evening removes it', () => {
+  const id = stay({ inComplement: 0 });
+  model.commitArrivalSas(id, evening(20));
+  assert.equal(model.planArrivalSas(id, evening(20)).arrivalComplementTotal, 20);
+  assert.equal(model.commitArrivalSas(id, evening(35)), 35);
+  assert.deepEqual(eveningLines(id).map((line) => line[1]), [35]);
+  assert.equal(model.commitArrivalSas(id, evening(0)), 0);
+  assert.deepEqual(eveningLines(id), []);
 });
 
 test('rule 90.3 — guard: a stay holding a stored evening line keeps it, its session line gets no component, the evening is billed once', () => {
