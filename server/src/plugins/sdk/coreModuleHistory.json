@@ -286,11 +286,14 @@
       "version": "2.29.0",
       "modules": [
         "money",
-        "platformPayment"
+        "platformPayment",
+        "refundObligationsModel",
+        "basketRefundOutcome"
       ],
       "names": {
         "extraSale": [
-          "paidSalesOf"
+          "paidSalesOf",
+          "collectionOf"
         ],
         "stayClock": [
           "dayReached",

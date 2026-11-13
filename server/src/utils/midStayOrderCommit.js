@@ -110,14 +110,25 @@ function withOption(body, line, row, nextLineId) {
   const quantity = Number(line.quantity);
   // A per-person option counts the people it serves (specs/non-card-option-served-persons.md rule 12).
   // A new sale is billed whatever the article's other lines are: « offert » is the line's own (it never follows the article's set).
-  if (row && String(row.priceType) === 'per_person') options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity: 1, cardPersons: quantity, offered: false }));
-  else options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity, offered: false }));
+  const own = line.noFreeUnits ? { noFreeUnits: true } : {};
+  if (row && String(row.priceType) === 'per_person') options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity: 1, cardPersons: quantity, offered: false, ...own }));
+  else options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity, offered: false, ...own }));
   return { ...body, options };
 }
 
 function withResource(body, line, nextLineId) {
   const sessions = Array.isArray(line.sessions) ? line.sessions.map((s) => ({ date: s.date, start: s.start, end: s.end })) : [];
   const added = sessions.length ? sessionsHours(sessions) : Number(line.quantity || 0);
+  // Guest-app rule 82 — hours the stay already holds and has not placed are placed first: the sessions join that line, which sells nothing more.
+  if (line.placeOnHeld) {
+    const index = body.resources.findIndex((r) => Number(r.resourceId) === Number(line.id)
+      && round2(Number(r.quantity || 0) - sessionsHours(r.sessions || [])) >= added);
+    if (index >= 0) {
+      const resources = body.resources.slice();
+      resources[index] = { ...resources[index], sessions: [...(resources[index].sessions || []), ...sessions] };
+      return { ...body, resources };
+    }
+  }
   return { ...body, resources: [...body.resources, appendedLine(nextLineId, { resourceId: Number(line.id), quantity: added, offered: false, inComplement: 0, sessions })] };
 }
 

@@ -109,7 +109,8 @@ const EXEMPT = {
     'POST /api/reservations/:id/sas/departure/preview',
     'PUT /api/plugins/:id/settings',
   ],
-  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin, guest-app-studio-lodgings and guest-app-fulfilment (the studio settings, judged together; « Synchroniser », which reads no body).': [
+  'Judged by its own suites: guest-app-input-shape (public guest routes, generic 404 by design; service hours, delivery times; the studio\'s pages, blocks and photos), guest-app-lodging-config, guest-app-items, guest-app-service-hours, guest-app-booklet, guest-app-block-validation, guest-app-media, guest-app-qr, guest-app-stay-links, guest-app-shop-quote (the order and quote input shapes), guest-app-order-card, guest-app-orders-admin, guest-app-arrival-orders (the amend input shape), guest-app-studio-lodgings and guest-app-fulfilment (the studio settings, judged together; « Synchroniser », which reads no body).': [
+    'POST /api/guest-app/orders/:id/amend',
     'POST /api/guest-app/orders/:id/delivered',
     'DELETE /api/guest-app/studio/blocks/:id',
     'DELETE /api/guest-app/studio/pages/:id',

@@ -37,11 +37,13 @@ function freshDb() {
 function addStay(db, over = {}) {
   const row = {
     propertyId: 1, clientId: 1, startDate: '2099-07-06', endDate: '2099-07-09', checkInTime: '16:00', checkOutTime: '10:00',
-    kind: 'reservation', reservationNumber: 'R-99-001', adults: 2, children: 1, teens: 0, babies: 0, platform: 'direct', ...over,
+    kind: 'reservation', reservationNumber: 'R-99-001', adults: 2, children: 1, teens: 0, babies: 0, platform: 'direct', checkInDone: 1, ...over,
   };
+  // `checkInDone` defaults to the arrival marked: the shop and the orders of a stay session read where the core collects
+  // an order (specs/guest-app.md rule 67); the suites of the pre-arrival orders mark it off.
   return db.prepare(`
-    INSERT INTO reservations (propertyId, clientId, startDate, endDate, checkInTime, checkOutTime, kind, reservationNumber, adults, children, teens, babies, platform)
-    VALUES (@propertyId, @clientId, @startDate, @endDate, @checkInTime, @checkOutTime, @kind, @reservationNumber, @adults, @children, @teens, @babies, @platform)
+    INSERT INTO reservations (propertyId, clientId, startDate, endDate, checkInTime, checkOutTime, kind, reservationNumber, adults, children, teens, babies, platform, checkInDone)
+    VALUES (@propertyId, @clientId, @startDate, @endDate, @checkInTime, @checkOutTime, @kind, @reservationNumber, @adults, @children, @teens, @babies, @platform, @checkInDone)
   `).run(row).lastInsertRowid;
 }
 
@@ -50,13 +52,23 @@ const passThrough = (req, res, next) => next();
 // No suite reaches the network: Soliomap's feed answers what the suite hands it, nothing by default.
 const NO_FEED = Object.freeze({ activities: async () => null });
 
+/**
+ * The core's sale, for a suite on its own database: where an order is collected (rule 67) is the core's reading
+ * of the stay, which this database does not hold. `collection` is moved by the test; the order suites hand the real one.
+ */
+function fakeCommit(collection = 'departure') {
+  const commit = { collection, collectionOf: () => commit.collection };
+  return commit;
+}
+
 /** The plugin's real routers on an in-memory database, with a clock the test moves. */
 async function startApi(db, {
-  soliomapUrl = 'https://soliomap.example.test', limiters = {}, soliomapFeed = NO_FEED, uploadsDir = null, guestHost = null, ...more
+  soliomapUrl = 'https://soliomap.example.test', limiters = {}, soliomapFeed = NO_FEED, uploadsDir = null, guestHost = null, commit = fakeCommit(), ...more
 } = {}) {
   const clock = { now: paris('2099-07-07', '12:00') };
   const api = buildGuestApi({
     ...more,
+    sale: () => commit,
     db: () => db,
     soliomapUrl: () => soliomapUrl,
     soliomapFeed,
@@ -71,6 +83,9 @@ async function startApi(db, {
   });
   const app = express();
   app.use(express.json());
+  // The operator's session, when a suite plays a role: `staff.user = { roles: ['reception'] }` before the call.
+  const staff = { user: null };
+  app.use((req, res, next) => { if (staff.user) req.user = staff.user; next(); });
   app.use('/public/v1/guest', api.publicRouter);
   app.use('/api/guest-app', api.adminRouter);
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
@@ -88,7 +103,7 @@ async function startApi(db, {
     return { status: res.status, body: await res.json(), setCookie, headers: res.headers };
   }
 
-  return { app, api, base, call, clock, cookies, close: () => new Promise((resolve) => { server.close(resolve); }) };
+  return { app, api, base, call, clock, commit, cookies, staff, close: () => new Promise((resolve) => { server.close(resolve); }) };
 }
 
 /** A lodging in the app, its code read straight from the table. */
@@ -170,5 +185,5 @@ function livePlugins({ hourly = true, payment = null, scheduler = null } = {}) {
 }
 
 module.exports = {
-  addOption, addResource, addStay, enable, freshDb, livePlugins, openService, latestStayToken, openStay, paris, sell, startApi, stayToken,
+  addOption, addResource, addStay, enable, fakeCommit, freshDb, livePlugins, openService, latestStayToken, openStay, paris, sell, startApi, stayToken,
 };

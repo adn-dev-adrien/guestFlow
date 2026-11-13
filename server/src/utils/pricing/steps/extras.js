@@ -170,7 +170,7 @@ const step = {
         const locked = selected.lineId != null ? lockedOptionsByLine.get(Number(selected.lineId)) : lockedOptionsById.get(optionId);
         const article = articles.makeArticle(option);
         const request = {
-          article, locked, offered: isOfferedLine(selected, optionId),
+          article, locked, offered: isOfferedLine(selected, optionId), ...(selected.noFreeUnits ? { noFreeUnits: true } : {}),
           unitOverride: optionUnitOverrides[identity.lineKey] !== undefined ? optionUnitOverrides[identity.lineKey] : optionUnitOverrides[optionId],
         };
 

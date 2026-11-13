@@ -129,7 +129,7 @@ withCard('rule 36: a payment confirmed after expiry still commits the order when
 
 withCard('rule 35: a `deliverAt` earlier than payment + lead moves to the next delivery time, and the order says so', async ({ call, card, clock }) => {
   const slots = await call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: WOOD }] });
-  const first = slots.body.data.days[0].slots[0].at;
+  const first = slots.body.data.days.filter((d) => d.available)[0].times[0].at;
   const { orderId } = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: WOOD, quantity: 1 }], deliverAt: first, payment: 'card' })).body.data;
   assert.equal(orderRow(orderId).deliverAt, new Date(first).toISOString());
   clock.now = new Date(clock.now.getTime() + 40 * 60 * 1000);

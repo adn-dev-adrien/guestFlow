@@ -13,8 +13,10 @@
 //   3. deletes the neutral starter pages, creates the booklet's pages (shared pages once, placed in both lodgings),
 //      their blocks (lodging-only blocks restricted with « Pour ce logement seulement »), sets the page order;
 //   4. publishes both lodgings.
-// First of all, the J-2 e-mail gets its « Mon séjour » paragraph (French and English), unless the link is already
-// there; this step runs even when the booklet was imported before.
+// First of all, the J-7 and J-2 e-mails get their « Mon séjour » paragraph (French and English), unless the link is
+// already there; this step runs even when the booklet was imported before. It writes `body` and `bodyEn` only: the
+// subject, `enabled` and `sendMode` of a template are never touched (every template stays manual unless the operator
+// chose otherwise).
 // --dry-run checks the login, the lodgings and the booklets, and prints the plan without writing anything.
 
 import { readFile } from 'node:fs/promises';
@@ -31,7 +33,9 @@ const args = Object.fromEntries(argv.slice(2).reduce((out, arg, i, all) => {
 }, []));
 const BASE = String(args.base || '').replace(/\/+$/, '');
 const DRY = Boolean(args['dry-run']);
-if (!BASE || !args.email) {
+// Imported by a suite (it only reads the e-mail paragraphs), the script stays quiet; run as a command it needs its arguments.
+const RUN_AS_COMMAND = argv[1] === fileURLToPath(import.meta.url);
+if (RUN_AS_COMMAND && (!BASE || !args.email)) {
   console.error('Usage : node specs/guest-app-livret/import.mjs --base https://… --email admin@… [--dry-run] [--granja ID] [--estiva ID]');
   exit(2);
 }
@@ -90,48 +94,70 @@ async function bathItem(propertyId) {
   return bath ? { kind: 'item', itemKind: 'resource', itemId: bath.id } : null;
 }
 
-// The J-2 e-mail's « Mon séjour » paragraph (Adrien, 2026-11-09: J-2 only). Written under `hasStayApp`, so it shows
-// only when the stay really has its link; placed before the « call us » line, else before the sign-off.
-const J2_KEY = 'arrival_reminder_1d';
-const J2_PARAGRAPH = {
-  body: '{{#if hasStayApp}}Tout votre séjour tient dans « Mon séjour » : le portail, le livret, la boutique et le bain. Gardez ce lien sous la main : {{stayAppUrl}}\n\n{{/if}}',
-  bodyEn: '{{#if hasStayApp}}Your whole stay fits in “Mon séjour”: the gate, the booklet, the shop and the bath. Keep this link handy: {{stayAppUrl}}\n\n{{/if}}',
-};
-const J2_ANCHORS = {
-  body: ['{{#if hasCompanyPhone}}Un imprévu', 'Bonne route'],
-  bodyEn: ['{{#if hasCompanyPhone}}Something unexpected', 'Safe travels'],
-};
+// The reminder e-mails' « Mon séjour » paragraph, placed before the « question » line (J-7, specs/guest-app.md rule 70 as amended
+// 2026-11-10: no app name, nothing about paying, two short sentences) or the « call us » line / the sign-off (J-2, 2026-11-09).
+// J-7: two flat blocks (the renderer's conditionals do not nest) — `hasStayAppBath` (orders can be taken and the stay holds the
+// bath or an offered session) and `hasStayAppShopOnly` (orders without the bath), both computed by the server: the sentence never
+// promises what the link does not give. J-2: under `hasStayApp`.
+const EMAILS = [
+  {
+    key: 'arrival_reminder_7d',
+    label: 'J-7',
+    paragraph: {
+      body: '{{#if hasStayAppBath}}Vous pouvez déjà commander ce que vous aimeriez trouver à votre arrivée, et programmer votre séance de bain nordique : {{stayAppUrl}}\n\n{{/if}}{{#if hasStayAppShopOnly}}Vous pouvez déjà commander ce que vous aimeriez trouver à votre arrivée : {{stayAppUrl}}\n\n{{/if}}',
+      bodyEn: '{{#if hasStayAppBath}}You can already order anything you would like to find on arrival, and book your nordic bath session: {{stayAppUrl}}\n\n{{/if}}{{#if hasStayAppShopOnly}}You can already order anything you would like to find on arrival: {{stayAppUrl}}\n\n{{/if}}',
+    },
+    // At the anchor itself, never at its line start: in the J-7 that line opens with the `{{/if}}` of the previous block.
+    anchors: { body: ['Une question'], bodyEn: ['Any question'] },
+    atAnchor: true,
+  },
+  {
+    key: 'arrival_reminder_1d',
+    label: 'J-2',
+    paragraph: {
+      body: '{{#if hasStayApp}}Tout votre séjour tient dans « Mon séjour » : le portail, le livret, la boutique et le bain. Gardez ce lien sous la main : {{stayAppUrl}}\n\n{{/if}}',
+      bodyEn: '{{#if hasStayApp}}Your whole stay fits in “Mon séjour”: the gate, the booklet, the shop and the bath. Keep this link handy: {{stayAppUrl}}\n\n{{/if}}',
+    },
+    anchors: { body: ['{{#if hasCompanyPhone}}Un imprévu', 'Bonne route'], bodyEn: ['{{#if hasCompanyPhone}}Something unexpected', 'Safe travels'] },
+    atAnchor: false,
+  },
+];
 
-/** → the J-2 template's new { body, bodyEn }, null when the link is already there; throws when no anchor is found. */
-function withStayAppParagraph(template) {
+/** → the template's new { body, bodyEn }, null when the link is already there; throws when no anchor is found. */
+function withStayAppParagraph(template, email) {
   if (`${template.body || ''}${template.bodyEn || ''}`.includes('{{stayAppUrl}}')) return null;
   const out = {};
   for (const field of ['body', 'bodyEn']) {
     const text = template[field];
     if (!text) continue;
-    const anchor = J2_ANCHORS[field].find((a) => text.includes(a));
-    if (!anchor) throw new Error(`E-mail J-2 (${field === 'body' ? 'français' : 'anglais'}) : je ne trouve ni « ${J2_ANCHORS[field].join(' » ni « ')} ». Ajoutez le paragraphe à la main dans Paramètres › E-mails.`);
-    const at = text.lastIndexOf('\n', text.indexOf(anchor)) + 1;
-    out[field] = `${text.slice(0, at)}${J2_PARAGRAPH[field]}${text.slice(at)}`;
+    const anchor = email.anchors[field].find((a) => text.includes(a));
+    if (!anchor) throw new Error(`E-mail ${email.label} (${field === 'body' ? 'français' : 'anglais'}) : je ne trouve ni « ${email.anchors[field].join(' » ni « ')} ». Ajoutez le paragraphe à la main dans Paramètres › E-mails.`);
+    const at = email.atAnchor ? text.indexOf(anchor) : text.lastIndexOf('\n', text.indexOf(anchor)) + 1;
+    out[field] = `${text.slice(0, at)}${email.paragraph[field]}${text.slice(at)}`;
   }
   return out;
 }
 
-async function emailJ2() {
+async function stayAppEmails() {
   const rows = await call('GET', '/api/email-templates');
-  const j2 = (Array.isArray(rows) ? rows : []).find((r) => r.stableKey === J2_KEY);
-  if (!j2) { console.warn('⚠ E-mail J-2 introuvable : paragraphe « Mon séjour » non ajouté.'); return; }
-  const template = await call('GET', `/api/email-templates/${j2.id}`);
-  const next = withStayAppParagraph(template);
-  if (!next) { console.log('✓ E-mail J-2 : le lien « Mon séjour » y est déjà.'); return; }
-  if (DRY) { console.log('E-mail J-2 : le paragraphe « Mon séjour » sera ajouté.'); return; }
-  await call('PUT', `/api/email-templates/${j2.id}`, next);
-  console.log('✓ E-mail J-2 : paragraphe « Mon séjour » ajouté (français et anglais).');
+  for (const email of EMAILS) {
+    const row = (Array.isArray(rows) ? rows : []).find((r) => r.stableKey === email.key);
+    if (!row) { console.warn(`⚠ E-mail ${email.label} introuvable : paragraphe « Mon séjour » non ajouté.`); continue; }
+    const template = await call('GET', `/api/email-templates/${row.id}`);
+    const next = withStayAppParagraph(template, email);
+    if (!next) { console.log(`✓ E-mail ${email.label} : le lien « Mon séjour » y est déjà.`); continue; }
+    if (DRY) { console.log(`E-mail ${email.label} : le paragraphe « Mon séjour » sera ajouté.`); continue; }
+    // `body` and `bodyEn` only: subject, enabled and sendMode stay as the operator set them.
+    await call('PUT', `/api/email-templates/${row.id}`, next);
+    console.log(`✓ E-mail ${email.label} : paragraphe « Mon séjour » ajouté (français et anglais).`);
+  }
 }
+
+export { withStayAppParagraph, EMAILS };
 
 async function main() {
   await login();
-  await emailJ2();
+  await stayAppEmails();
   const ids = await lodgingIds();
   console.log(`✓ Logements : ${Object.entries(LODGINGS).map(([k, n]) => `${n} #${ids[k]}`).join(', ')}.`);
 
@@ -193,4 +219,4 @@ async function main() {
   }
 }
 
-main().catch((err) => { console.error(`✗ ${err.message}`); exit(1); });
+if (RUN_AS_COMMAND) main().catch((err) => { console.error(`✗ ${err.message}`); exit(1); });

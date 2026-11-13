@@ -997,6 +997,7 @@
   ],
   "extraSale": [
     "changeLine",
+    "collectionOf",
     "departureSalesOf",
     "paidSalesOf",
     "quote",
@@ -1038,5 +1039,13 @@
     "acompteNet",
     "grossOf",
     "payoutWithPenalty"
+  ],
+  "refundObligationsModel": [
+    "open"
+  ],
+  "basketRefundOutcome": [
+    "notHonoured",
+    "overpaidBy",
+    "partlyOwed"
   ]
 }

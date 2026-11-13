@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.0.8",
+  "version": "1.1.0",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -10,12 +10,13 @@
     "La page « Commandes clients » et ses cartes du planning",
     "L’API publique de l’application clients",
     "L’étape « Mon séjour » du sas d’arrivée",
+    "L’étape « Commandes Mon séjour » du sas d’arrivée",
     "La variable d’e-mail « Lien Mon séjour »",
     "Le Studio du livret (/studio)"
   ],
   "requires": [],
   "guestflow": ">=3.10.0",
-  "sdk": "^2.26.0",
+  "sdk": "^2.29.0",
   "changelog": {
     "1.0.0": [
       "Première version : réglages par logement, code QR de chaque logement (livret seul), lien « Mon séjour » propre à chaque séjour (sas d’arrivée, e-mails, fiche), sessions de séjour, page d’accueil, catalogue de la boutique, créneaux des ressources à l’heure lus dans le planning, horaires du service et heures de livraison, livret d’accueil par logement (pages partagées, publication, recherche, photos), suggestion Soliomap, affiche du code QR, commandes du séjour (sur la note, à 0 € ou par carte, inscrites sur la fiche), commandes clients côté équipe, stock par article (épuisé, alertes), commandes livrées ou à retirer, portail du séjour, Studio lu en direct depuis GuestFlow, manifeste d’installation et service de l’application clients et du Studio, l’application clients « Mon séjour » (téléphone, tablette, ordinateur, hors ligne pour le livret), le Studio du livret et, dans GuestFlow, la section « Application clients » des options et ressources, la page « Commandes clients », la carte du planning et le lien « Mon séjour » de la fiche.",
@@ -60,6 +61,17 @@
     ],
     "1.0.8": [
       "Une commande de la boutique forme sa propre ligne du séjour ; les lignes déjà commandées gardent leur prix.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.1.0": [
+      "« Mon séjour » s’ouvre dès J-7 : la boutique, le bain nordique et « Mes commandes » sont utilisables avant l’arrivée, avec le lien du séjour.",
+      "Les jours et heures proposés pour une commande sont ceux du séjour, pendant la présence des clients et hors des heures de fermeture de la boutique ; un horaire hors séjour est refusé.",
+      "Le bain nordique se réserve depuis l’application selon les horaires du bain, la chauffe comptée depuis maintenant et les autres réservations ; l’heure offerte vaut le tarif de jour et le supplément de soirée fait partie du prix de la séance ; un créneau non proposé est refusé. Les heures déjà sur le séjour se programment d’abord, sans être refacturées.",
+      "Une commande ajoute ses propres lignes au séjour, sans jamais en recalculer le prix. Un article offert commandé à nouveau est facturé comme une ligne à part ; une boisson offerte est déjà en place à l’arrivée : toute commande de l’application est facturée dès la première.",
+      "Le paiement par carte est possible dès J-7, en premier choix et présélectionné ; « Régler à l’arrivée » reste proposé. La ligne d’une commande payée par carte n’apparaît qu’une fois le paiement reçu, et n’est jamais réencaissée à l’arrivée. Une seule commande attend son paiement à la fois.",
+      "Le sas d’arrivée liste, dans une étape repliable, les commandes de l’application prises avant l’arrivée ; une commande non payée s’y modifie (quantité, article, séance, commande entière), une commande payée reste en lecture.",
+      "Un séjour annulé annule ses commandes ; une commande payée par carte est signalée à rembourser dans le registre des remboursements.",
+      "Les e-mails J-7 et J-2 savent si le séjour a une boutique et un bain à programmer, pour ne promettre que ce que le lien donne.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }

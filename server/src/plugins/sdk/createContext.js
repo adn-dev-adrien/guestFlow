@@ -144,7 +144,8 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
     },
     // SDK 2.26.0 (specs/guest-app.md rules 28-31) — the slots of an hourly resource for a stay, read from the
     // resource planning by the plugin that owns it: `slotsForStay(args)` → `{ days }` | null and
-    // `validateSessions(args)` → `{ results }` | null. One per instance; the core hands it out as
+    // `validateSessions(args)` → `{ results }` | null, and optionally `orderSupplement(args)` → the evening supplement of sessions an order
+    // places on hours the stay already holds (guest-app rule 82). One per instance; the core hands it out as
     // `ctx.core.resourceScheduler()`, so a plugin never requires another.
     resourceScheduler(provider) {
       SCHEDULER_MEMBERS.forEach((m) => {

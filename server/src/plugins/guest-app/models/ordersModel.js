@@ -4,7 +4,8 @@
  *
  * Statuses: `awaiting_payment` (card, holding its slots until `heldUntil`) → `paid` | `expired` | `abandoned` |
  * `paid_conflict`; a late payment moves `expired` / `abandoned` on to `paid` or `paid_conflict`; `confirmed` (note or
- * 0 €) and `paid` → `delivered`. Every move is conditional on the status it leaves, so a webhook, the order page's
+ * 0 €) and `paid` → `delivered`; an order of a cancelled stay, or one emptied at the arrival SAS, is `cancelled`
+ * (rules 72, 87). Every move is conditional on the status it leaves, so a webhook, the order page's
  * read and the expiry pass can race without a double move.
  */
 
@@ -53,17 +54,63 @@ function createOrdersModel(db) {
     /** Rule 33 — a new order: `lines` is the priced snapshot (sessions, mornings and amounts included). */
     create({
       reservationId, sessionId, payment, status, lines, total, deliverAt = null, heldUntil = null, fulfilment = 'delivery', pickupPlace = null,
-      clientKey = null, now,
+      clientKey = null, collectAt = 'departure', now,
     }) {
       const at = now.toISOString();
       // Rule 41bis — the mode and the place are the order's own: a later change of the setting rewrites no order.
       const info = db.prepare(`
-        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, fulfilment, pickupPlace, createdAt, confirmedAt, clientKey)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO guest_orders (reservationId, sessionId, payment, status, linesJson, total, deliverAt, heldUntil, fulfilment, pickupPlace, createdAt, confirmedAt, clientKey, collectAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(Number(reservationId), sessionId == null ? null : Number(sessionId), payment, status, JSON.stringify(lines), Number(total),
         deliverAt, heldUntil, fulfilment === 'pickup' ? 'pickup' : 'delivery', fulfilment === 'pickup' ? pickupPlace : null, at, status === 'confirmed' ? at : null,
-        clientKey || null);
+        clientKey || null, collectAt === 'arrival' ? 'arrival' : 'departure');
       return findById(info.lastInsertRowid);
+    },
+
+    /** Rule 66 — the core says where the order it just wrote is collected. */
+    setCollectAt(id, collectAt) {
+      db.prepare('UPDATE guest_orders SET collectAt = ? WHERE id = ?').run(collectAt === 'arrival' ? 'arrival' : 'departure', Number(id));
+    },
+
+    /**
+     * Rules 71, 87 — the stay's orders taken before the arrival, which the arrival SAS names: on the note (unpaid, to collect)
+     * or paid by card (read-only), standing and not cancelled; oldest first.
+     */
+    atArrivalFor(reservationId) {
+      return db.prepare("SELECT * FROM guest_orders WHERE reservationId = ? AND collectAt = 'arrival' AND status IN ('confirmed', 'paid', 'delivered') ORDER BY id")
+        .all(Number(reservationId)).map(toOrder);
+    },
+
+    /**
+     * Rule 72 — a stay cancelled, superseded or deleted cancels its orders: every one not already `expired`, `abandoned` or
+     * `cancelled`. → the orders it moved, as they were (their payment, lines and status before).
+     */
+    cancelForStay(reservationId, { now, reason = 'stay' }) {
+      const rows = db.prepare("SELECT * FROM guest_orders WHERE reservationId = ? AND status IN ('awaiting_payment', 'confirmed', 'paid', 'delivered', 'paid_conflict')")
+        .all(Number(reservationId)).map(toOrder);
+      const moved = rows.filter((order) => move(order.id, [order.status], 'cancelled', {
+        cancelledAt: now.toISOString(), cancelReason: reason, heldUntil: null, closedAt: now.toISOString(),
+      }));
+      return moved;
+    },
+
+    /**
+     * Rule 87 — an unpaid order changed at the arrival SAS: its snapshot and total rewritten, its amendment journaled; an
+     * order left with no line is `cancelled` (`cancelReason = 'sas'`). Only an order still on the note and standing moves.
+     */
+    amend(id, { lines, total, entry, now }) {
+      const order = findById(id);
+      if (!order || !['note', 'none'].includes(order.payment) || !['confirmed', 'delivered'].includes(order.status)) return null;
+      const journal = (() => { try { const list = JSON.parse(order.amendmentsJson || '[]'); return Array.isArray(list) ? list : []; } catch { return []; } })();
+      journal.push(entry);
+      const emptied = !lines.length;
+      db.prepare(`UPDATE guest_orders SET linesJson = ?, total = ?, amendmentsJson = ?,
+                         status = CASE WHEN ? THEN 'cancelled' ELSE status END,
+                         cancelledAt = CASE WHEN ? THEN ? ELSE cancelledAt END,
+                         cancelReason = CASE WHEN ? THEN 'sas' ELSE cancelReason END
+                   WHERE id = ?`)
+        .run(JSON.stringify(lines), Number(total), JSON.stringify(journal), emptied ? 1 : 0, emptied ? 1 : 0, now.toISOString(), emptied ? 1 : 0, Number(id));
+      return findById(id);
     },
 
     /** §4.3 — the order a session already created under this `Idempotency-Key`, or null. */
@@ -124,6 +171,8 @@ function createOrdersModel(db) {
       if (!all) {
         where.push(`o.status IN (${TO_PREPARE.map(() => '?').join(', ')})`);
         params.push(...TO_PREPARE);
+        // Rule 72 — an order of a cancelled, superseded or deleted stay is no longer prepared.
+        where.push("r.kind = 'reservation'");
         if (today) {
           where.push('r.endDate >= ?');
           params.push(today);
@@ -142,9 +191,11 @@ function createOrdersModel(db) {
 
     /** Rule 43 — the orders that stand, delivered between two instants (the planning's days). */
     deliveriesBetween(fromIso, toIso) {
+      // Rule 72 — a cancelled stay's orders leave the planning.
       return db.prepare(`
-        SELECT * FROM guest_orders WHERE deliverAt >= ? AND deliverAt < ? AND status IN ('confirmed', 'paid', 'delivered')
-         ORDER BY deliverAt, id
+        SELECT o.* FROM guest_orders o JOIN reservations r ON r.id = o.reservationId
+         WHERE o.deliverAt >= ? AND o.deliverAt < ? AND o.status IN ('confirmed', 'paid', 'delivered') AND r.kind = 'reservation'
+         ORDER BY o.deliverAt, o.id
       `).all(fromIso, toIso).map(toOrder);
     },
 

@@ -38,7 +38,7 @@ function withShop(name, fn, { settings = {}, card = false, skip = false } = {}) 
 
 const firstSlot = async (call, lines) => {
   const data = (await call('POST', '/public/v1/guest/shop/delivery-slots', { lines })).body.data;
-  return { data, at: data.days[0].slots[0].at };
+  return { data, at: data.days.filter((d) => d.available)[0].times[0].at };
 };
 
 withShop('rule 41bis: « À retirer » needs its place to save; the mode and the place are one setting for every lodging', async ({ call, store }) => {

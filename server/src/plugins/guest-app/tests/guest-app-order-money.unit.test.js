@@ -13,7 +13,6 @@ const {
 } = fx;
 const { buildLedger } = require('../../../utils/reservationLedger');
 const paymentLinksModel = require('../../../models/paymentLinksModel');
-const realCommit = require('../../../utils/midStayOrderCommit');
 
 const BATH = addBath({ id: 76, freeMinutes: { 1: 60 } });
 sell('resource', BATH);
@@ -53,7 +52,7 @@ async function pay(call, card, orderId) {
   return (await call('GET', `/public/v1/guest/orders/${orderId}`)).body.data;
 }
 
-withCard('rules 25, 35: a card order awaiting payment holds its free hour — a note order meanwhile pays its hour, and the card order paid is billed what it was quoted', async ({ stayId, call, card }) => {
+withCard('rules 25, 35: a card order awaiting payment holds its free hour — a second order waits for it, and the card order paid is billed what it was quoted; the next order pays its hour', async ({ stayId, call, card }) => {
   const a = await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'resource', id: BATH, sessions: [slot('10:00', '11:00'), slot('14:00', '15:00')] }], payment: 'card' });
   assert.equal(a.status, 200, JSON.stringify(a.body));
   const orderA = a.body.data.orderId;
@@ -64,14 +63,18 @@ withCard('rules 25, 35: a card order awaiting payment holds its free hour — a 
   const lineB = [{ kind: 'resource', id: BATH, sessions: [slot('17:00', '18:00')] }];
   const quoteB = await call('POST', '/public/v1/guest/orders/quote', { lines: lineB });
   assert.equal(quoteB.body.data.total, 30, 'the free hour is the pending order’s, as the shop says');
-  const b = await call('POST', '/public/v1/guest/orders', { lines: lineB, payment: 'note' });
-  assert.equal(b.status, 200, JSON.stringify(b.body));
-  assert.equal(orderRow(b.body.data.orderId).total, 30);
+  const waiting = await call('POST', '/public/v1/guest/orders', { lines: lineB, payment: 'note' });
+  assert.equal(waiting.status, 409, 'pricing-components rule 26: nothing else takes the allowance the pending order reserves');
+  assert.equal(waiting.body.error.code, 'CARD_ORDER_PENDING');
   const page = await pay(call, card, orderA);
   assert.equal(page.status, 'paid');
   const note = notesOf(stayId).find((n) => n.source === 'guestOrder' && n.ref === String(orderA));
   assert.equal(note.total, 30, 'the card collected what it was quoted');
-  assert.equal(bathOwed(stayId), 30, 'the end-of-stay owes the note order’s 30 €, nothing more');
+  assert.equal(bathOwed(stayId), 0, 'the card order owes nothing at the end of the stay');
+  const b = await call('POST', '/public/v1/guest/orders', { lines: lineB, payment: 'note' });
+  assert.equal(b.status, 200, JSON.stringify(b.body));
+  assert.equal(orderRow(b.body.data.orderId).total, 30, 'the free hour went to the card order');
+  assert.equal(bathOwed(stayId), 30, 'the end-of-stay owes the second order’s 30 €, nothing more');
   assert.equal(JSON.parse(linkOf(orderA).basketJson).refundOwed, undefined);
 }, { skip: !hasHourly });
 
@@ -179,7 +182,8 @@ withCard('rule 35: one card order waits for its payment at a time — a second i
   assert.match(second.body.error.message, /attend déjà son paiement/);
   assert.equal(card.created.length, 1, 'no second link');
   const note = await postKeyed(ctx, 'wait-note-0001', { ...paid, payment: 'note' });
-  assert.equal(note.status, 200, 'the note stays open meanwhile');
+  assert.equal(note.status, 409, 'the allowance and the slots it reserves are kept for it (pricing-components rule 26)');
+  assert.equal(note.body.error.code, 'CARD_ORDER_PENDING');
   assert.equal((await call('POST', `/public/v1/guest/orders/${first.body.data.orderId}/abandon`)).status, 200);
   const spent = await postKeyed(ctx, 'wait-card-0001', paid);
   assert.equal(spent.status, 409);
@@ -199,21 +203,12 @@ withCard('rule 35: a hold that has lapsed holds nothing, even before the expiry 
   assert.equal((await call('POST', '/public/v1/guest/orders/quote', { lines: lines('16:00', '17:00') })).body.data.total, 0, 'lapsed: the free hour is free again');
 }, { skip: !hasHourly });
 
-withCard('rule 33: the link bills exactly the quoted total — what the engine raised beside the order’s lines is one more line of the basket', async ({ call, card }) => {
+withCard('rule 33: the link bills exactly the quoted total — the order’s own lines, nothing the sale raised beside them (pricing-components rules 8, 9)', async ({ call, card }) => {
   const id = cider(6);
   const { orderId } = (await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id, quantity: 1 }], payment: 'card' })).body.data;
-  assert.equal(orderRow(orderId).total, 8);
-  assert.equal(linkOf(orderId).amountCents, 800);
-  assert.equal(card.created[0].amountCents, 800);
-}, {
-  // The engine raises a percentage of the stay beside the order's own line (an insurance, say): 2 € more.
-  commit: {
-    ...realCommit,
-    priceOrder: (...args) => {
-      const priced = realCommit.priceOrder(...args);
-      return priced.status === 200 ? { ...priced, byKey: { ...priced.byKey, 'opt:999': 2 }, total: priced.total + 2 } : priced;
-    },
-  },
+  assert.equal(orderRow(orderId).total, 6);
+  assert.equal(linkOf(orderId).amountCents, 600);
+  assert.equal(card.created[0].amountCents, 600);
 });
 
 withCard('rule 25: a 0 € order never needs a link, whatever payment the cart asked', async ({ call, card }) => {

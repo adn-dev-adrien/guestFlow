@@ -218,10 +218,17 @@ const rebuildOrdersWithCancelled = (db) => {
   `);
 };
 
+// Rule 107 — « offert déjà en place à l'arrivée »: NULL follows the article's class (drinks: on), 1 / 0 is the operator's word.
+const addOfferedInPlace = (db) => {
+  if (db.prepare('PRAGMA table_info(guest_app_items)').all().some((c) => c.name === 'offeredInPlace')) return;
+  db.exec('ALTER TABLE guest_app_items ADD COLUMN offeredInPlace INTEGER CHECK (offeredInPlace IN (0, 1))');
+};
+
 const MIGRATIONS = Object.freeze([
   { name: 'guest_app_tables_v1', up: (db) => db.exec(TABLES_SQL) },
   { name: 'guest_app_orders_collect_at_v2', up: addCollectAt },
   { name: 'guest_app_orders_status_v3', up: rebuildOrdersWithCancelled },
+  { name: 'guest_app_items_offered_in_place_v4', up: addOfferedInPlace },
 ]);
 
 module.exports = { MIGRATIONS, TABLES };

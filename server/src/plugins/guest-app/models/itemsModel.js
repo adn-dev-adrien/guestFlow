@@ -11,7 +11,7 @@ const sdk = require('../../sdk');
 const { getApplicableOptions, getApplicableResources } = sdk.coreModule('pricing');
 
 const DEFAULTS = Object.freeze({
-  sold: 0, mediaId: null, shortDescriptionFr: null, shortDescriptionEn: null, maxQuantity: 10, needsStaff: 0, leadMinutes: 30, sortOrder: null,
+  sold: 0, mediaId: null, shortDescriptionFr: null, shortDescriptionEn: null, maxQuantity: 10, needsStaff: 0, leadMinutes: 30, sortOrder: null, offeredInPlace: null,
   stockTracked: 0, stockQuantity: null, stockSetAt: null, stockSetBy: null, stockSetQuantity: null, stockAlertBelow: null, soldOut: 0, stockLowPushedAt: null, stockOutPushedAt: null,
 });
 const COLUMNS = Object.keys(DEFAULTS);

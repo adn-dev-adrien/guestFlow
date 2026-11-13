@@ -37,7 +37,7 @@ withApi('rule 22: every option and resource is listed with its plugin row merged
   assert.deepEqual(cidre, {
     kind: 'option', id: 1, title: 'Cidre', priceType: 'per_stay', category: 'Boissons', archived: false,
     sellable: { ok: true, reason: null }, sold: true, mediaId: null, shortDescriptionFr: null, shortDescriptionEn: null,
-    maxQuantity: 4, needsStaff: false, leadMinutes: 30,
+    maxQuantity: 4, needsStaff: false, leadMinutes: 30, offeredInPlace: null,
     stockable: true,
     stock: {
       tracked: false, quantity: null, quantityLabel: null, held: 0, heldLabel: null, left: null, alertBelow: null, soldOut: false, out: false, restockLine: null,

@@ -97,16 +97,16 @@ withShop('rule 25: free units and free minutes left read as sentences, in both l
   assert.equal(item(used, 'option', 1).freeLeftLabel, '2 offerts — déjà utilisés');
 });
 
-withShop('rule 25: an option offered by default that the stay carries reads « Déjà inclus » and is not orderable', async ({ db, api, call }) => {
+withShop('rules 25, 107: an option offered by default that the stay carries is ordered again, at its price — as a line of its own', async ({ db, api, call }) => {
   const stay = addStay(db);
   addOption(db, { id: 1, title: 'Bouteille de bienvenue', price: 15 });
   sell(db, 'option', 1);
   db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 1, 1)').run();
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, billedUnits, offered) VALUES (?, 1, 1, 1, 1)').run(stay);
   const welcome = item(await shopOf(call, await scan(api, db, call)), 'option', 1);
-  assert.equal(welcome.included, true);
-  assert.equal(welcome.priceLabel, 'Inclus');
-  assert.equal(welcome.unavailableReason, 'Déjà inclus dans votre séjour');
+  assert.equal(welcome.included, undefined);
+  assert.match(welcome.priceLabel, /^15/);
+  assert.equal(welcome.unavailableReason, undefined);
   assert.equal(welcome.includedLeft, undefined);
 });
 
@@ -171,7 +171,7 @@ withShop('rule 23 edge: hourly-resources inactive → the hourly resource is abs
   assert.deepEqual(itemsOf(shop).map((i) => i.id), [7]);
 }, { hourly: false });
 
-withShop('rule 27: open during the stay; read-only before it; closed once the complement is collected', async ({ db, api, call, clock }) => {
+withShop('rules 27, 65, 104: open while the core collects an order — before the arrival (card or note), during the stay; shut once the end-of-stay complement is collected (rule 68 dropped, Q-C4)', async ({ db, api, call, clock, commit }) => {
   const stay = addStay(db, { platform: 'Otaexample' });
   addOption(db, { id: 1, title: 'Cidre' });
   sell(db, 'option', 1);
@@ -179,42 +179,43 @@ withShop('rule 27: open during the stay; read-only before it; closed once the co
   clock.now = paris('2099-07-03', '12:00');
   const lookup = await call('POST', '/public/v1/guest/sessions/lookup', { lastName: 'Le Goff-Durand', reservationNumber: 'R-99-001' });
   assert.equal(lookup.body.data.mode, 'preArrival');
-  const before = await shopOf(call, lookup.setCookie.split(';')[0]);
-  assert.equal(before.open, false);
-  assert.equal(before.closedReason, 'Disponible pendant votre séjour');
-  assert.equal(before.canPayNote, false);
-  assert.equal(itemsOf(before).length, 1, 'the catalogue is shown, read-only');
+  const cookie = lookup.setCookie.split(';')[0];
+  commit.collection = 'arrival';
+  const before = await shopOf(call, cookie);
+  assert.deepEqual([before.open, before.orderCollection, before.canPayNote, before.noteLabel], [true, 'arrival', true, 'Régler à l’arrivée']);
+  assert.equal(before.preArrivalBanner, 'À partir de votre arrivée, le lun. 6 juil.');
+  assert.equal((await shopOf(call, cookie, '?lang=en')).noteLabel, 'Pay on arrival');
+  commit.collection = 'departure';
   clock.now = paris('2099-07-07', '12:00');
-  const cookie = await scan(api, db, call);
-  const during = await shopOf(call, cookie);
-  assert.equal(during.open, true);
-  assert.equal(during.closedReason, undefined);
-  assert.equal(during.canPayNote, true);
+  const during = await shopOf(call, await scan(api, db, call));
+  assert.deepEqual([during.open, during.closedReason, during.canPayNote, during.noteLabel, during.preArrivalBanner], [true, undefined, true, 'Ajouter à ma note', undefined]);
+  commit.collection = 'closed';
   db.prepare('UPDATE reservations SET endOfStayComplementPaid = 1 WHERE id = ?').run(stay);
-  const after = await shopOf(call, cookie);
+  const after = await shopOf(call, await scan(api, db, call));
   assert.equal(after.open, false);
   assert.equal(after.closedReason, 'La boutique est fermée. Bon retour chez vous !');
-  assert.equal((await shopOf(call, cookie, '?lang=en')).closedReason, 'The shop is closed. Safe travels home!');
+  assert.equal((await shopOf(call, await scan(api, db, call), '?lang=en')).closedReason, 'The shop is closed. Safe travels home!');
 });
 
-withShop('rule 27, §4.3: a pre-arrival guest reads the catalogue only — slots, delivery times and orders are a stay session’s', async ({ db, api, call, clock }) => {
+withShop('rules 65, 67: a pre-arrival session reaches the delivery times, the quote and the order — card or note — while ordering is open; the visitor still has none', async ({ db, api, call, clock, commit }) => {
   addStay(db);
   addOption(db, { id: 1, title: 'Cidre' });
   sell(db, 'option', 1);
   enable(api, db, 1);
+  commit.collection = 'arrival';
   clock.now = paris('2099-07-03', '12:00');
   const cookie = (await call('POST', '/public/v1/guest/sessions', { stayToken: latestStayToken(db) })).setCookie.split(';')[0];
   const as = (method, url, body) => call(method, url, body, { cookie });
-  assert.equal((await as('GET', '/public/v1/guest/shop')).status, 200, 'the catalogue, read-only');
+  assert.equal((await as('GET', '/public/v1/guest/shop')).status, 200);
+  assert.equal((await as('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: 1 }] })).status, 200);
+  assert.equal((await as('GET', '/public/v1/guest/orders')).status, 200);
+  const visitor = (await call('POST', '/public/v1/guest/sessions', { lodgingCode: enable(api, db, 2) }, { cookie: null })).setCookie.split(';')[0];
   const refused = [
-    await as('GET', '/public/v1/guest/shop/resources/6/slots'),
-    await as('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: 1 }] }),
-    await as('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'option', id: 1, quantity: 1 }] }),
-    await as('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: 1, quantity: 1 }], payment: 'note' }),
-    await as('GET', '/public/v1/guest/orders/1'),
-    await as('POST', '/public/v1/guest/orders/1/abandon'),
+    await call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: 1 }] }, { cookie: visitor }),
+    await call('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'option', id: 1, quantity: 1 }] }, { cookie: visitor }),
+    await call('GET', '/public/v1/guest/orders/1', null, { cookie: visitor }),
   ];
-  assert.deepEqual(refused.map((r) => [r.status, r.body.error && r.body.error.code]), Array(6).fill([403, 'STAY_REQUIRED']));
+  assert.ok(refused.every((r) => r.status === 403 || r.status === 404), 'a visitor reaches no order');
 });
 
 withShop('rules 11bis, 27: the shop module off answers 404 MODULE_OFF; a visitor has no shop; no session is 401', async ({ db, api, call }) => {

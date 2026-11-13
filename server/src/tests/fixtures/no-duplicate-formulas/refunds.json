@@ -1,23 +1,5 @@
 [
   {
-    "file": "plugins/guest-app/controllers/ordersController.js",
-    "text": "if (!order || Number(order.reservationId) !== Number(reservationId)) return { refundOwed: true, reason: 'commande introuvable' };",
-    "removedBy": "PR C",
-    "reason": "a refund figure computed outside refunds/ until PR C routes it through the component"
-  },
-  {
-    "file": "plugins/guest-app/controllers/ordersController.js",
-    "text": "outcome = { refundOwed: true, reason };",
-    "removedBy": "PR C",
-    "reason": "a refund figure computed outside refunds/ until PR C routes it through the component"
-  },
-  {
-    "file": "plugins/guest-app/controllers/ordersController.js",
-    "text": "effect: 'guest-order-paid', refundOwed: true, refundCents: excess,",
-    "removedBy": "PR C",
-    "reason": "a refund figure computed outside refunds/ until PR C routes it through the component"
-  },
-  {
     "file": "utils/midStayOrderCommit.js",
     "text": "if (!items.length) return { settledCents: 0, excessCents: Math.round(left * 100) };",
     "removedBy": "PR C",

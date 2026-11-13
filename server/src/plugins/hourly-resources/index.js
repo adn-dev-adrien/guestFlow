@@ -85,6 +85,7 @@ function register(ctx) {
   ctx.resourceScheduler({
     slotsForStay: (args) => scheduler().slotsForStay(args),
     validateSessions: (args) => scheduler().validateSessions(args),
+    orderSupplement: (args) => scheduler().orderSupplement(args),
   });
   // Rules 48-49 of the pricing components — the planning's availability, and the booking a sale of an hourly resource takes.
   const slotAvailability = createSlotAvailability(scheduler);

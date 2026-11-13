@@ -16,7 +16,7 @@ const { toPublicOption, toPublicResource } = sdk.coreModule('publicCatalogProjec
 
 const KINDS = Object.freeze(['option', 'resource']);
 const FIELDS = Object.freeze([
-  'sold', 'mediaId', 'shortDescriptionFr', 'shortDescriptionEn', 'maxQuantity', 'needsStaff', 'leadMinutes',
+  'sold', 'mediaId', 'shortDescriptionFr', 'shortDescriptionEn', 'maxQuantity', 'needsStaff', 'leadMinutes', 'offeredInPlace',
   'stockTracked', 'stockQuantity', 'stockAlertBelow', 'soldOut',
 ]);
 const STOCK_FIELDS = Object.freeze(['stockTracked', 'stockQuantity', 'stockAlertBelow', 'soldOut']);
@@ -39,6 +39,7 @@ function itemInputError(body) {
   if (body.maxQuantity !== undefined && !isIntegerIn(body.maxQuantity, QUANTITY)) return `La quantité maximale est un entier de ${QUANTITY.min} à ${QUANTITY.max}.`;
   if (body.needsStaff !== undefined && typeof body.needsStaff !== 'boolean') return 'Préciser si l’article est préparé par l’équipe.';
   if (body.leadMinutes !== undefined && !isIntegerIn(body.leadMinutes, LEAD_MINUTES)) return `Le délai de préparation est un nombre entier de minutes, de ${LEAD_MINUTES.min} à ${LEAD_MINUTES.max}.`;
+  if (body.offeredInPlace !== undefined && body.offeredInPlace !== null && typeof body.offeredInPlace !== 'boolean') return 'Préciser si l’offert est déjà en place à l’arrivée.';
   if (body.stockTracked !== undefined && typeof body.stockTracked !== 'boolean') return 'Préciser si le stock est suivi.';
   if (body.stockQuantity !== undefined && !isIntegerIn(body.stockQuantity, STOCK)) return `La quantité en stock est un entier de ${STOCK.min} à ${STOCK.max}.`;
   if (body.stockAlertBelow !== undefined && body.stockAlertBelow !== null && !isIntegerIn(body.stockAlertBelow, STOCK)) return 'Le seuil d’alerte est un entier positif.';
@@ -65,6 +66,7 @@ function toPatch(kind, body) {
   if (body.maxQuantity !== undefined) patch.maxQuantity = body.maxQuantity;
   if (body.needsStaff !== undefined) patch.needsStaff = kind === 'option' && body.needsStaff ? 1 : 0;
   if (body.leadMinutes !== undefined) patch.leadMinutes = body.leadMinutes;
+  if (body.offeredInPlace !== undefined) patch.offeredInPlace = body.offeredInPlace === null ? null : (body.offeredInPlace ? 1 : 0);
   if (body.stockTracked !== undefined) patch.stockTracked = body.stockTracked ? 1 : 0;
   if (body.stockAlertBelow !== undefined) patch.stockAlertBelow = body.stockAlertBelow;
   if (body.soldOut !== undefined) patch.soldOut = body.soldOut ? 1 : 0;
@@ -85,6 +87,7 @@ const toView = ({ kind, core, item }, stockState = null) => ({
   maxQuantity: Number(item.maxQuantity),
   needsStaff: kind === 'option' && Number(item.needsStaff) === 1,
   leadMinutes: Number(item.leadMinutes),
+  offeredInPlace: item.offeredInPlace === null || item.offeredInPlace === undefined ? null : Number(item.offeredInPlace) === 1,
   stockable: !stockRefusal(kind, core),
   stock: adminStockView(item, stockState),
 });

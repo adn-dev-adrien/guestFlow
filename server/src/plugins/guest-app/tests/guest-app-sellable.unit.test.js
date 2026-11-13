@@ -178,7 +178,7 @@ test('rule 25: an order already on the fiche is not counted twice, a dead one no
   assert.deepEqual(find(soldFor(db, stay), 'resource', 6).freeMinutes, { granted: 60, left: 60 });
 });
 
-test('rule 25: an option offered by default that the stay already carries is « déjà inclus »', () => {
+test('rules 25, 107: an option offered by default that the stay already carries is sold again, as a line of its own, billed', () => {
   const db = freshDb();
   const carried = addStay(db);
   const other = addStay(db, { reservationNumber: 'R-99-002' });
@@ -186,8 +186,10 @@ test('rule 25: an option offered by default that the stay already carries is « 
   sell(db, 'option', 1);
   db.prepare('INSERT INTO property_option_defaults (propertyId, optionId, offered) VALUES (1, 1, 1)').run();
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, billedUnits, offered) VALUES (?, 1, 1, 1, 1)').run(carried);
-  assert.equal(find(soldFor(db, carried), 'option', 1).alreadyIncluded, true);
-  assert.equal(find(soldFor(db, other), 'option', 1).alreadyIncluded, false, 'a stay without it can buy it');
+  const again = find(soldFor(db, carried), 'option', 1);
+  assert.equal(again.included, false, 'the offered article is ordered again at its price (owner, 2026-11-13)');
+  assert.equal(again.alreadyIncluded, undefined);
+  assert.equal(find(soldFor(db, other), 'option', 1).included, false, 'a stay without it can buy it');
 });
 
 test('rule 27bis: the seeded breakfast sells despite its per-person-night price; another such option does not', () => {
@@ -205,7 +207,7 @@ test('rule 27bis: the breakfast is its own kind; already on the stay as offered 
     VALUES (?, 1, 1, 6, 1, ?)`).run(offered, JSON.stringify([{ date: '2099-07-07', time: '08:30' }]));
   const included = find(soldFor(db, offered), 'breakfast', 1);
   assert.equal(included.included, true);
-  assert.equal(included.alreadyIncluded, false, 'never « déjà inclus — not sold again »: the guest picks mornings');
+  assert.equal(included.alreadyIncluded, undefined, 'never « déjà inclus — not sold again »: the guest picks mornings');
   const paid = find(soldFor(db, without), 'breakfast', 1);
   assert.equal(paid.included, false);
   assert.equal(paid.row.price, 12);

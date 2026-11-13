@@ -21,7 +21,7 @@ async function withStaff(name, fn) {
     const stayId = seedStay();
     const ctx = await openOrdering(stayId);
     try {
-      const nextDelivery = async () => (await ctx.call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: WOOD }] })).body.data.days.find((day) => day.slots.length >= 2).slots; // late in the evening today may offer one slot only
+      const nextDelivery = async () => (await ctx.call('POST', '/public/v1/guest/shop/delivery-slots', { lines: [{ kind: 'option', id: WOOD }] })).body.data.days.find((day) => day.times.length >= 2).times; // late in the evening today may offer one time only
       await fn({ stayId, nextDelivery, ...ctx });
     } finally {
       await ctx.close();

@@ -1,0 +1,2 @@
+- Un article offert commandé à nouveau dans l'application est facturé comme une ligne à part. Une boisson offerte est déjà en place à l'arrivée : toute commande de l'application est facturée dès la première, l'offert n'est jamais consommé par une commande (réglage « offert déjà en place à l'arrivée » par article, activé par défaut pour la classe boissons).
+- Une seule commande attend son paiement par carte à la fois : l'offert et les créneaux qu'elle réserve lui restent acquis le temps de son paiement.

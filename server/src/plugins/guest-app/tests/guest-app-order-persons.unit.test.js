@@ -91,7 +91,7 @@ test('rule 55: the persons of a card order awaiting its payment are taken; a car
     assert.equal(card.created.length, 1);
     const note = await call('POST', ORDERS, { ...perPerson(402, 3), payment: 'note' });
     assert.equal(note.status, 409);
-    assert.equal(note.body.error.message, '2 personnes au plus pour « Planche apéritive ».');
+    assert.equal(note.body.error.code, 'CARD_ORDER_PENDING', 'the persons the pending order holds are kept for it (pricing-components rule 26)');
     assert.equal(optionLine(stay, 402), undefined, 'nothing on the fiche');
   }, { card });
   const other = seedStay({ propertyId: 1, adults: 2 });

@@ -10,11 +10,41 @@ const COLUMNS = `
   c.firstName AS clientFirstName, c.lastName AS clientLastName, c.emailLanguage AS clientLanguage
 `;
 
+const { roundMoney } = require('../../sdk').coreModule('money');
+
 function createStaysModel(db) {
   return {
     byId(id) {
       return db.prepare(`SELECT ${COLUMNS} FROM reservations r LEFT JOIN clients c ON c.id = r.clientId WHERE r.id = ?`)
         .get(Number(id)) || null;
+    },
+
+    /** Rule 87 — the reception amends only the arrival SAS of the day that was never committed. */
+    arrivalRow(id) {
+      return db.prepare('SELECT arrivalSasDoneAt FROM reservations WHERE id = ?').get(Number(id)) || null;
+    },
+
+    /** Rule 87 — the arrival is marked (the guests are in): an order is no longer the SAS's to change. */
+    arrivalMarked(id) {
+      const row = db.prepare('SELECT checkInDone, arrivalSasDoneAt FROM reservations WHERE id = ?').get(Number(id));
+      return Boolean(row) && (Number(row.checkInDone || 0) === 1 || Boolean(row.arrivalSasDoneAt));
+    },
+
+    /**
+     * Rule 76 — where the stay's arrival complement stands, from its stored markers alone (no amount enters the
+     * plugin; `SELECT *` because a minimal schema may predate a marker): `collected` (paid, in cash or not), `deferred` to the departure, else `open`.
+     */
+    arrivalComplementState(id) {
+      const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
+      if (!row) return null;
+      if (Number(row.complementPaid) === 1 || Number(row.complementPaidCash) === 1) return 'collected';
+      return Number(row.complementDeferredToCheckout) === 1 ? 'deferred' : 'open';
+    },
+
+    /** Rule 71 — what the arrival complement now asks (net of the orders paid by card), to tell a lowered fiche from the orders' snapshots. */
+    arrivalComplementAmount(id) {
+      const row = db.prepare('SELECT * FROM reservations WHERE id = ?').get(Number(id));
+      return row ? roundMoney(row.complementAmount) : 0;
     },
 
     /** Rule 6 — every live reservation carrying the number: two stays may share one, the name tells them apart. */

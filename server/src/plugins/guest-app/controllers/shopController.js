@@ -22,10 +22,10 @@ const {
 
 const publicHttp = sdk.coreModule('publicHttp');
 const { toPublicOption, toPublicResource, hoursLabel, isOfferedPlural } = sdk.coreModule('publicCatalogProjection');
-const { midStayExtrasWindow } = sdk.coreModule('midStayExtrasWindow');
 const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 const { isOffered } = sdk.coreModule('resourceOffer');
 const paymentProviders = sdk.coreModule('paymentProviders');
+const { roundMoney } = sdk.coreModule('money');
 const { groupOptionsByCategory } = sdk.coreModule('optionGrouping');
 const { isRealIsoDay } = sdk.coreModule('stayDates');
 
@@ -40,9 +40,16 @@ const MAX_LINES = 20;
 const LABELS = Object.freeze({
   fr: Object.freeze({
     included: 'Inclus',
+    stayIncluded: 'Compris dans votre séjour',
+    offered: 'Offert',
+    eveningRate: 'tarif soirée',
+    eveningExtra: (price) => `+ ${price} soirée`,
+    bathClosed: 'Fermé',
+    bathFull: 'Complet',
+    includedHours: (hours) => `${hours} comprise${hours === '1 h' ? '' : 's'} dans votre séjour, à programmer`,
     perPersonPerMorning: 'par personne et par matin',
-    alreadyIncluded: 'Déjà inclus dans votre séjour',
-    preArrival: 'Disponible pendant votre séjour',
+    payOnArrival: 'Régler à l’arrivée',
+    addToBill: 'Ajouter à ma note',
     closed: 'La boutique est fermée. Bon retour chez vous !',
     noDeliveryLeft: 'Plus disponible pour votre séjour',
     wellness: WELLNESS,
@@ -57,9 +64,16 @@ const LABELS = Object.freeze({
   }),
   en: Object.freeze({
     included: 'Included',
+    stayIncluded: 'Included in your stay',
+    offered: 'Free',
+    eveningRate: 'evening rate',
+    eveningExtra: (price) => `+ ${price} evening`,
+    bathClosed: 'Closed',
+    bathFull: 'Full',
+    includedHours: (hours) => `${hours} included in your stay, to schedule`,
     perPersonPerMorning: 'per person per morning',
-    alreadyIncluded: 'Already included in your stay',
-    preArrival: 'Available during your stay',
+    payOnArrival: 'Pay on arrival',
+    addToBill: 'Add to my bill',
     closed: 'The shop is closed. Safe travels home!',
     noDeliveryLeft: 'No longer available for your stay',
     wellness: 'Wellness',
@@ -91,11 +105,12 @@ function priceLabel(amount, lang) {
 
 const unitsText = (n, lang) => String(n).replace('.', lang === 'fr' ? ',' : '.');
 
-/** Rule 27 — open exactly while the stay takes mid-stay extras; a pre-arrival session reads it only. */
-function shopState(mode, window, today) {
-  const state = midStayExtrasWindow(window, today);
-  if (mode === 'stay' && state.extrasEditable) return { open: true, closedReason: null };
-  return { open: false, closedReason: state.extrasClosedReason === 'endOfStayCollected' ? 'closed' : 'preArrival' };
+/**
+ * Rules 27, 65, 104 — the shop is open while the core takes the stay's orders: `arrival` (the stay clock has not reached the
+ * arrival) or `departure`; `closed` once the end-of-stay complement is collected or when the stay is not a live reservation.
+ */
+function shopState(collection) {
+  return collection === 'arrival' || collection === 'departure' ? { open: true, closedReason: null } : { open: false, closedReason: 'closed' };
 }
 
 function freeLeftLabel(sold, L, lang) {
@@ -146,15 +161,16 @@ function deliveryLinesError(body) {
 }
 
 function buildShopController({
-  items, stayLines, orders, serviceHours, stock, scheduler, translator, now,
+  items, stayLines, orders, serviceHours, stock, scheduler, translator, now, orderCollection,
   fulfilment = () => ({ mode: 'delivery', place: null }),
 }) {
+  /** Rule 67 — where the core collects an order of this stay: the shop's and the orders' one reading. */
+  const collectionOf = (stay) => orderCollection(stay.id, now());
+
   /**
-   * Rules 25, 42 — why an item cannot be ordered: already in the stay, or staff-prepared with no delivery time
-   * left before the check-out.
+   * Rules 25, 42 — why an item cannot be ordered: staff-prepared with no delivery time left before the check-out.
    */
   function unavailableReason(sold, { L, stay, schedule, at }) {
-    if (sold.alreadyIncluded) return L.alreadyIncluded;
     if (isStaffItem(sold) && !deliveryTimes({ now: at, stay, leadMinutes: sold.item.leadMinutes, schedule }).length) return L.noDeliveryLeft;
     return null;
   }
@@ -164,7 +180,7 @@ function buildShopController({
     const { lang, translate, L, mediaPaths } = context;
     const { kind, row, item } = sold;
     const projected = kind === 'resource' ? toPublicResource(row, lang, translate) : toPublicOption(row, lang, translate);
-    const included = sold.included || sold.alreadyIncluded;
+    const included = sold.included;
     const shortDescription = (lang === 'en' && item.shortDescriptionEn) || item.shortDescriptionFr || null;
     const mediaPath = item.mediaId ? mediaPaths.get(Number(item.mediaId)) : null;
     const freeLabel = included ? null : freeLeftLabel(sold, L, lang);
@@ -183,7 +199,7 @@ function buildShopController({
       // Rule 27bis — the breakfast is shown « par personne et par matin », whatever its catalogue unit says.
       priceUnitLabel: included ? null : (kind === BREAKFAST ? L.perPersonPerMorning : projected.priceUnitLabel),
       ...(included ? { included: true } : {}),
-      ...(sold.includedLeft !== null && !sold.alreadyIncluded ? { includedLeft: sold.includedLeft } : {}),
+      ...(sold.includedLeft !== null ? { includedLeft: sold.includedLeft } : {}),
       ...(freeLabel ? { freeLeftLabel: freeLabel } : {}),
       maxQuantity: Number(item.maxQuantity),
       needsStaff: kind !== 'resource' && Number(item.needsStaff) === 1,
@@ -259,18 +275,23 @@ function buildShopController({
   const scheduleOf = (lodging, at) => serviceHours().scheduleFor(lodging.propertyId, { from: parisDate(at) });
 
   function read(req, res) {
-    const { stay, lodging, mode } = req.guest;
+    const { stay, lodging } = req.guest;
     const lang = languageOf(req, stay);
     const L = LABELS[lang];
     const { sold, extras, catalogue } = soldFor(req.guest);
     const at = now();
     const today = parisDate(at);
-    const state = shopState(mode, extras.window, today);
+    const collection = collectionOf(stay);
+    const state = shopState(collection);
     const schedule = scheduleOf(lodging, at);
+    const { arrivalLabel, ...service } = serviceState({ now: at, stay, schedule, lang });
     return publicHttp.ok(res, {
       open: state.open,
       ...(state.closedReason ? { closedReason: L[state.closedReason] } : {}),
-      service: serviceState({ now: at, stay, schedule, lang }),
+      orderCollection: collection,
+      noteLabel: collection === 'arrival' ? L.payOnArrival : L.addToBill,
+      service,
+      ...(arrivalLabel ? { preArrivalBanner: arrivalLabel } : {}),
       canPayCard: state.open && Boolean(paymentProviders.active()),
       canPayNote: state.open,
       categories: categoriesOf(sold, {
@@ -280,10 +301,53 @@ function buildShopController({
     });
   }
 
+  const minutesOf = (time) => {
+    const [h, m] = String(time || '').split(':').map(Number);
+    return h * 60 + m;
+  };
+
   /**
-   * Rules 28-31 — the slots the guest can book on an hourly resource of the shop, by day: only `free` and
-   * `evening` ones (§6.4), days without one left out. A slot that needs the resource lit from cold is
-   * bookable only when its ignition falls in the service hours.
+   * Rule 82 — the hours the stay already holds on a resource and has not placed on a slot: sold at booking or offered,
+   * `quantity` minus the hours of its sessions. These hours are placed first, at no charge.
+   */
+  function includedHoursLeft(extras, resourceId) {
+    const line = (extras.resourceLines || []).find((l) => Number(l.resourceId) === Number(resourceId));
+    if (!line) return 0;
+    const placed = (Array.isArray(line.sessions) ? line.sessions : [])
+      .reduce((sum, x) => sum + Math.max(0, minutesOf(x.end) - minutesOf(x.start)), 0) / 60;
+    return Math.max(0, roundMoney(Number(line.quantity || 0) - placed));
+  }
+
+  /**
+   * Rule 84 — what one slot costs this stay, now, picked alone: the hours of the stay first, then the free minutes, then the
+   * lodging's price; the evening supplement is named where it applies. Several picks are priced by the quote.
+   */
+  function slotPriceLabel(slot, { sold, hoursLeft, L, lang }) {
+    const minutes = minutesOf(slot.end) - minutesOf(slot.start);
+    const extra = slot.supplement > 0 ? ` · ${L.eveningExtra(priceLabel(slot.supplement, lang))}` : '';
+    if (sold.included) return L.included;
+    if (hoursLeft * 60 >= minutes) return `${L.stayIncluded}${extra}`;
+    const freeLeft = sold.freeMinutes ? sold.freeMinutes.left : 0;
+    if (freeLeft >= minutes) return `${L.offered}${extra}`;
+    return slot.band === 'evening' ? `${priceLabel(slot.price, lang)} · ${L.eveningRate}` : priceLabel(slot.price, lang);
+  }
+
+  /** Rule 78 — the bath's opening as the thin bar of a day: `[{ from, to, open }]`, closed hours greyed. */
+  function openingBands(day, opening) {
+    if (day.closed) return [{ from: '00:00', to: '24:00', open: false }];
+    return [
+      { from: '00:00', to: opening.from, open: false },
+      { from: opening.from, to: opening.to, open: true },
+      { from: opening.to, to: '24:00', open: false },
+    ].filter((band) => minutesOf(band.from) < (band.to === '24:00' ? 1440 : minutesOf(band.to)));
+  }
+
+  /**
+   * Rules 28-31, 78-80, 82, 84 — the slots the guest can book on an hourly resource, by day: EVERY day of the stay (a day
+   * with no bookable slot is `available: false` with its reason), none outside it; only `free` and `evening` slots are
+   * drawn (§6.4). The scheduler judges the stay's presence, the bath's own hours, the other uses of the bath and the
+   * heat-up counted from now (`heatFrom`); a slot that needs the resource lit from cold is bookable only when its ignition
+   * falls in the service hours.
    */
   function slots(req, res) {
     const { stay, lodging } = req.guest;
@@ -294,28 +358,43 @@ function buildShopController({
     const lang = languageOf(req, stay);
     const L = LABELS[lang];
     const at = now();
-    const sold = soldFor(req.guest).sold.find((s) => s.kind === 'resource' && s.hourly && Number(s.row.id) === resourceId);
+    const { sold: items, extras } = soldFor(req.guest);
+    const sold = items.find((s) => s.kind === 'resource' && s.hourly && Number(s.row.id) === resourceId);
+    // Rule 102 — a shop that does not take orders offers no slot: the picker reads the same judge as the shop's own state.
+    const state = shopState(collectionOf(stay));
+    if (sold && !state.open) return publicHttp.ok(res, { open: false, closedReason: L[state.closedReason], days: [] });
     const found = sold && scheduler().slotsForStay({
-      resourceId, propertyId: lodging.propertyId, stay, now: at, canIgnite: ignitionInHours(scheduleOf(lodging, at)),
+      resourceId, propertyId: lodging.propertyId, stay, now: at, heatFrom: at, canIgnite: ignitionInHours(scheduleOf(lodging, at)),
     });
     if (!found) return fail(res, refusal(404, 'ITEM_NOT_FOUND', 'itemNotFound'));
     const freeLabel = sold.included ? null : freeLeftLabel(sold, L, lang);
+    const hoursLeft = includedHoursLeft(extras, resourceId);
+    const opening = found.opening || { from: '00:00', to: '24:00' };
     return publicHttp.ok(res, {
+      open: true,
       freeMinutesLeft: sold.freeMinutes ? sold.freeMinutes.left : 0,
       ...(freeLabel ? { freeLabel } : {}),
+      includedHoursLeft: hoursLeft,
+      ...(hoursLeft > 0 ? { includedLabel: L.includedHours(hoursLabel(Math.round(hoursLeft * 60))) } : {}),
       days: found.days
         .filter((day) => (from === undefined || day.date >= from) && (to === undefined || day.date <= to))
-        .map((day) => ({
-          date: day.date,
-          label: morningLabel(day.date, lang),
-          slots: day.slots.filter((slot) => BOOKABLE.has(slot.state)).map((slot) => ({
-            start: slot.start,
-            end: slot.end,
-            state: slot.state,
-            priceLabel: sold.included ? L.included : priceLabel(slot.price, lang),
-          })),
-        }))
-        .filter((day) => day.slots.length),
+        .map((day) => {
+          const bookable = day.slots.filter((slot) => BOOKABLE.has(slot.state));
+          return {
+            date: day.date,
+            label: morningLabel(day.date, lang),
+            available: bookable.length > 0,
+            ...(bookable.length ? {} : { reasonLabel: day.closed || day.slots.every((slot) => ['closed', 'past'].includes(slot.state)) ? L.bathClosed : L.bathFull }),
+            openingBands: openingBands(day, opening),
+            slots: bookable.map((slot) => ({
+              start: slot.start,
+              end: slot.end,
+              state: slot.state,
+              band: slot.band,
+              priceLabel: slotPriceLabel(slot, { sold, hoursLeft, L, lang }),
+            })),
+          };
+        }),
     });
   }
 
@@ -359,14 +438,14 @@ function buildShopController({
    */
   function firstBathSlotToday(guest, at) {
     if (!scheduler()) return null;
-    const { stay, lodging, mode } = guest;
+    const { stay, lodging } = guest;
     const today = parisDate(at);
-    const { sold, extras } = soldFor(guest);
-    if (!shopState(mode, extras.window, today).open) return null;
+    const { sold } = soldFor(guest);
+    if (!shopState(collectionOf(stay)).open) return null;
     const canIgnite = ignitionInHours(scheduleOf(lodging, at));
     const starts = sold.filter((s) => s.kind === 'resource' && s.hourly).flatMap((s) => {
       const found = scheduler().slotsForStay({
-        resourceId: Number(s.row.id), propertyId: lodging.propertyId, stay, now: at, canIgnite,
+        resourceId: Number(s.row.id), propertyId: lodging.propertyId, stay, now: at, heatFrom: at, canIgnite,
       });
       const day = found && found.days.find((d) => d.date === today);
       return day ? day.slots.filter((slot) => BOOKABLE.has(slot.state)).map((slot) => slot.start) : [];
@@ -375,7 +454,7 @@ function buildShopController({
   }
 
   return {
-    read, slots, deliverySlots, soldKeysOf, soldFor, scheduleOf, firstBathSlotToday,
+    read, slots, deliverySlots, soldKeysOf, soldFor, scheduleOf, firstBathSlotToday, collectionOf, includedHoursLeft,
   };
 }
 

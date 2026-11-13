@@ -116,6 +116,15 @@ function remainingMornings({ startDate, endDate, today, time, serviceTime }) {
 }
 
 /**
+ * Rule 107 — whether an app order of this article takes none of the stay's free units: the offered units are already in place
+ * at the arrival (the fridge's drinks), so the allowance is consumed there, never by an order. The operator's word wins; the
+ * default follows the article's class — on for drinks.
+ */
+const offeredInPlaceOf = (row, item) => (item.offeredInPlace === null || item.offeredInPlace === undefined
+  ? String(row.vatClass || '') === 'drinks'
+  : Number(item.offeredInPlace) === 1);
+
+/**
  * Rule 25 — an option's free units, granted once per stay to an own-channel booking: what the stay was
  * granted (its tariff snapshot, else today's catalogue) and what is left once the stay's units took theirs.
  */
@@ -146,8 +155,8 @@ function resourceFreeMinutes(row, consumed) {
  *  offeredDefaultIds: the options the lodging offers by default
  *  stay: { isDirectBooking, grantedFreeUnitsByOption, optionLines, optionUnits, resourceMinutes, orderedUnits }
  *  hourlyOffered(resource): whether something prices the hours (the `hourly-resources` plugin)
- * → [{ kind ('option' | 'breakfast' | 'resource'), row, item, included, alreadyIncluded, includedLeft,
- *      freeUnits, freeMinutes, hourly }]
+ * → [{ kind ('option' | 'breakfast' | 'resource'), row, item, included, includedLeft,
+ *      freeUnits, freeMinutes, hourly, noFreeUnits }]
  * A 0 € item is limited per stay to its `maxQuantity`, across the orders that stand: `includedLeft`.
  */
 function shopItems({ options = [], resources = [], items, linkedResourceIds, offeredDefaultIds, stay, hourlyOffered }) {
@@ -162,19 +171,21 @@ function shopItems({ options = [], resources = [], items, linkedResourceIds, off
     if (!item) return;
     const breakfast = row.autoOptionType === BREAKFAST;
     const carried = stay.optionUnits.has(Number(row.id));
-    const alreadyIncluded = carried && (offeredDefaultIds.has(Number(row.id))
-      || (breakfast && (stay.optionLines || []).some((line) => Number(line.optionId) === Number(row.id) && Number(line.offered) === 1)));
-    // Rule 27bis — a breakfast the stay already has is still ordered, to choose its mornings and hour.
-    const included = Number(row.price || 0) === 0 || (breakfast && alreadyIncluded);
+    // Rule 27bis — a breakfast the stay already has offered is still ordered, to choose its mornings and hour. Any other article the
+    // stay carries offered is ordered again as a line of its own, billed (rules 13, 107).
+    const breakfastOffered = breakfast && carried && (offeredDefaultIds.has(Number(row.id))
+      || (stay.optionLines || []).some((line) => Number(line.optionId) === Number(row.id) && Number(line.offered) === 1));
+    const included = Number(row.price || 0) === 0 || breakfastOffered;
     const consumed = stay.optionUnits.get(Number(row.id)) || 0;
+    const inPlace = !breakfast && offeredInPlaceOf(row, item);
     sold.push({
       kind: breakfast ? BREAKFAST : 'option',
       row,
       item,
       included,
-      alreadyIncluded: alreadyIncluded && !breakfast,
       includedLeft: included ? includedLeft('option', row.id, item) : null,
-      freeUnits: included ? null : optionFreeUnits(row, { ...stay, consumed }),
+      freeUnits: included || inPlace ? null : optionFreeUnits(row, { ...stay, consumed }),
+      noFreeUnits: inPlace,
       freeMinutes: null,
       hourly: false,
     });
@@ -191,7 +202,6 @@ function shopItems({ options = [], resources = [], items, linkedResourceIds, off
       row,
       item,
       included,
-      alreadyIncluded: false,
       includedLeft: included ? includedLeft('resource', row.id, item) : null,
       freeUnits: null,
       freeMinutes: hourly && !included ? resourceFreeMinutes(row, stay.resourceMinutes.get(Number(row.id)) || 0) : null,

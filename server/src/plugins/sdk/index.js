@@ -74,6 +74,8 @@ const CORE_MODULES = Object.freeze({
   // accounting-export
   platformsModel: '../../models/platformsModel', // the journal's commission config; the account plan writes its two columns (rule 20)
   refundsModel: '../../models/refundsModel', // refunds by month, mirrored as avoirs in the journal
+  basketRefundOutcome: '../../utils/pricing/refunds/basketOutcome', // guest-app — what a basket tells the poller: not honoured, partly owed (pricing-components rule 75, SDK 2.29.0)
+  refundObligationsModel: '../../models/refundObligationsModel', // guest-app — a cancelled stay's paid order is owed back: one open row per payment (pricing-components rule 75, SDK 2.29.0)
   cancellationCompensationsModel: '../../models/cancellationCompensationsModel', // compensations received by month, booked in the journal
   midStayExtras: '../../utils/midStayExtras', // the mid-stay share of a complement, kept out of its entry
   storedMoneySplit: '../../utils/storedMoneySplit', // accounting-export — the stored-money split, shared with the cancellation (payment-schedule rule 55)

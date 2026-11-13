@@ -19,6 +19,7 @@ function createBathFulfilment({ slotAvailability }) {
   const judge = (draft) => {
     const verdict = slotAvailability.validate({
       resourceId: draft.resourceId, propertyId: draft.propertyId, stay: draft.stay, sessions: draft.sessions || [], now: draft.now,
+      ...(draft.heatFrom ? { heatFrom: draft.heatFrom } : {}),
     });
     if (!verdict) return { ok: true, unmanaged: true };
     return verdict.ok ? { ok: true } : { ok: false, results: verdict.results };

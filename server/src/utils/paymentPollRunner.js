@@ -204,12 +204,14 @@ function settleBasket({ database, link, basket, paidDate, paidAt, stayExists = t
   if (outcome.refundOwed) {
     const paidCents = Number(link.amountCents || 0);
     const owed = owedOnBasket({ paidCents, refundCents: outcome.refundCents, honoured: false, reason: outcome.reason });
+    // Rule 75 — a plugin that sold the basket and could no longer honour it says so: `orderConflict`; any other basket is `basket`.
+    const origin = outcome.origin === 'orderConflict' ? 'orderConflict' : 'basket';
     const part = owed.owedCents < paidCents ? owed.owedCents : null;
     database.prepare('UPDATE payment_links SET basketJson = ? WHERE id = ?')
       .run(JSON.stringify(flagRefundOwed(basket, part)), Number(link.id));
     // Rule 75 — the register holds it too (the basket's flag and the history are kept in step), once per link.
-    if (stayExists && owed.owedCents > 0 && !obligations(database).forLink(link.id, 'basket')) {
-      obligations(database).open({ reservationId: Number(link.reservationId), origin: 'basket', paymentLinkId: Number(link.id), amountCents: owed.owedCents, reason: owed.reason });
+    if (stayExists && owed.owedCents > 0 && !obligations(database).forLink(link.id, origin)) {
+      obligations(database).open({ reservationId: Number(link.reservationId), origin, paymentLinkId: Number(link.id), amountCents: owed.owedCents, reason: owed.reason });
     }
     const { formatEuros } = require('./reservationLedger');
     const amount = part ? `${formatEuros(part / 100)} sur ${formatEuros(paidCents / 100)}` : formatEuros(paidCents / 100);

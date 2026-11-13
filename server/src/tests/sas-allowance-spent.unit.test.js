@@ -48,7 +48,7 @@ test('rule 41 — the fiche sells the article again: the grant is already spent,
   sellAtSas(id, 3);
   const sold = extraSale.sell(id, [{ articleRef: `option:${BASKET}`, quantity: 1 }]);
   assert.equal(sold.status, 200);
-  assert.deepEqual(lines(id).map((l) => [l.totalPrice, l.allowanceUsed && JSON.parse(l.allowanceUsed).freeUnits]), [[8, 2], [8, null]]);
+  assert.deepEqual(lines(id).map((l) => [l.totalPrice, l.allowanceUsed && JSON.parse(l.allowanceUsed).freeUnits]), [[8, 2], [8, 0]]);  // rule 26: a line sold after the stay was sold stores what it consumed, 0 included
   assert.equal(complement(id), 16);
 });
 

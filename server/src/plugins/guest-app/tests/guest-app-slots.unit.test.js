@@ -61,9 +61,14 @@ if (requirePlugins(['hourly-resources'])) {
     });
   }
 
+  const euros = (n) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n);
+  const PRICE30 = euros(30);
+  const PRICE50 = euros(50);
   const startsOn = (body, date) => ((body.data.days.find((d) => d.date === date) || {}).slots || []).map((s) => s.start);
 
-  withSlots('rule 28, §6.4: only the bookable slots are listed, by day, days without one left out', async ({ db, get }) => {
+  // Amended 2026-11-10 (rules 77-78, 84): every day of the stay is listed (a day with no bookable slot greyed, with its reason),
+  // each slot carries its band and the price this stay pays for it.
+  withSlots('rule 28, §6.4: only the bookable slots are drawn, by day; every day of the stay is listed, the empty ones greyed', async ({ db, get }) => {
     const stay = addStay(db);
     addStay(db, { propertyId: 2, reservationNumber: 'R-99-002' });
     addBath(db);
@@ -71,16 +76,19 @@ if (requirePlugins(['hourly-resources'])) {
     db.prepare("INSERT INTO resource_bookings (resourceId, date, startTime, endTime, clientName) VALUES (?, '2099-07-08', '12:00', '13:00', 'Voisin')").run(BATH);
     const res = await get();
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body.data.days.map((d) => d.date), ['2099-07-07', '2099-07-08'], 'arrival day past, departure day after the check-out');
+    assert.deepEqual(res.body.data.days.map((d) => d.date), ['2099-07-06', '2099-07-07', '2099-07-08', '2099-07-09'], 'the stay\'s days, none outside');
+    assert.deepEqual(res.body.data.days.map((d) => [d.available, d.reasonLabel]), [[false, 'Fermé'], [true, undefined], [true, undefined], [false, 'Fermé']],
+      'arrival day past, departure day after the check-out: greyed with their reason');
     assert.deepEqual(startsOn(res.body, '2099-07-07'), ['12:00', '13:00', '14:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'], 'another stay’s 15:00 is not shown');
     assert.ok(!startsOn(res.body, '2099-07-08').includes('12:00'), 'an outside booking is not shown');
-    const day = res.body.data.days[0];
+    const day = res.body.data.days[1];
     assert.equal(day.label, 'mar. 7 juil.');
-    assert.deepEqual(day.slots[0], { start: '12:00', end: '13:00', state: 'free', priceLabel: '30 €' });
-    assert.deepEqual(day.slots.find((s) => s.start === '20:00'), { start: '20:00', end: '21:00', state: 'evening', priceLabel: '50 €' });
+    assert.deepEqual(day.openingBands, [{ from: '00:00', to: '11:00', open: false }, { from: '11:00', to: '22:00', open: true }, { from: '22:00', to: '24:00', open: false }]);
+    assert.deepEqual(day.slots[0], { start: '12:00', end: '13:00', state: 'free', band: 'day', priceLabel: PRICE30 });
+    assert.deepEqual(day.slots.find((s) => s.start === '20:00'), { start: '20:00', end: '21:00', state: 'evening', band: 'evening', priceLabel: `${PRICE50} · tarif soirée` });
     assert.ok(res.body.data.days.every((d) => d.slots.every((s) => ['free', 'evening'].includes(s.state))));
     const en = await get('?lang=en');
-    assert.equal(en.body.data.days[0].slots[0].priceLabel, '€30');
+    assert.equal(en.body.data.days[1].slots[0].priceLabel, '€30');
     assert.deepEqual((await get('?from=2099-07-08&to=2099-07-08')).body.data.days.map((d) => d.date), ['2099-07-08']);
   });
 

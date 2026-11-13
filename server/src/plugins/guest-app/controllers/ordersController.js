@@ -1,24 +1,24 @@
 /**
  * Orders (specs/guest-app.md rules 25, 29-38quater, 41-44): the quote, the order, its card payment, its follow-up.
  *
- * Every amount is the core engine's (`midStayOrderCommit.priceOrder`, the fiche's own save played without writing):
- * the quote, the order and the line written on the fiche cannot disagree (rule 24). What the plugin judges is what
- * only it knows — what the lodging's shop sells, the 0 € allowance of the stay, the hourly slots read from the
- * resource planning (rule 29), the breakfast mornings and the delivery times of the service hours (rules 27bis, 41).
+ * Every amount is the core's own sale service (`extraSale.quote` plays the sale without writing it, `extraSale.sell` writes it,
+ * `pricing-components.md` rules 27-30): the quote, the order and the lines written on the fiche cannot disagree (rule 24). What
+ * the plugin judges is what only it knows — what the lodging's shop sells, the 0 € allowance of the stay, the hourly slots read
+ * from the resource planning (rule 29), the breakfast mornings and the delivery times of the service hours (rules 27bis, 41).
  *
  *   POST /orders/quote    { lines, deliverAt? }                     → the priced lines, the total
  *   POST /orders          { lines, deliverAt?, payment, returnPath? } → note / 0 €: on the fiche at once; card: a link
  *                         (`Idempotency-Key` header: a replay within the session answers the first order again)
  *   GET  /orders · /orders/:id · POST /orders/:id/abandon
  *
- * `paid(event)` is the order's side of a paid card link (`ctx.paymentBasket`): committed when its slots are still
- * free, else `paid_conflict` and the money flagged for a refund (rules 35-36).
+ * `paid(event)` is the order's side of a paid card link (`ctx.paymentBasket`): its lines are sold, already paid, when its slots are
+ * still free and its price has not risen, else `paid_conflict` and a refund obligation of origin `orderConflict` (rules 35-36, 85).
  */
 
 const sdk = require('../../sdk');
 const { parisDate } = require('../currentStay');
 const { remainingMornings } = require('../sellable');
-const { deliveryTimes, ignitionInHours } = require('../serviceHours');
+const { deliveryTimes, ignitionInHours, outsideStay } = require('../serviceHours');
 const { languageOf } = require('../language');
 const { fail: failGuest, refusal } = require('../refusals');
 const { isStaffItem, shopState } = require('./shopController');
@@ -29,6 +29,7 @@ const publicHttp = sdk.coreModule('publicHttp');
 const { isRealIsoDay } = sdk.coreModule('stayDates');
 const { toParisIso, wallClockToDate } = sdk.coreModule('stayWindow');
 const paymentProviders = sdk.coreModule('paymentProviders');
+const { notHonoured, partlyOwed } = sdk.coreModule('basketRefundOutcome');
 
 const MAX_LINES = 20;
 const MAX_SESSIONS = 20;
@@ -38,20 +39,18 @@ const HOLD_MS = 30 * 60 * 1000;
 const REFRESH_MS = 10 * 1000;
 // §4.3 — a double tap sends the same key twice: the second answers the first order.
 const CLIENT_KEY = /^[A-Za-z0-9._:-]{8,100}$/;
-const PRICE_ROSE = Symbol('guest-order-price-rose');
 // Rules 34-35, 46 — the guest app's basket source, and the words the fiche's history and ledger use for its orders.
 const ORDER_SOURCE = 'guestOrder';
+const ORDER_SALE_SOURCE = 'shop';
 const ORDER_REFUND_LABELS = Object.freeze({ refundOne: 'Commande client à rembourser', refundMany: 'Commandes clients à rembourser' });
-const orderNaming = (orderId, { paid = false } = {}) => ({
-  source: ORDER_SOURCE,
-  ref: Number(orderId),
-  history: { field: ORDER_SOURCE, label: 'Commande client', text: `Commande client #${Number(orderId)}${paid ? ' — payée par carte' : ''}` },
+const historyOf = (orderId, { paid = false } = {}) => ({
+  field: ORDER_SOURCE, label: 'Commande client', from: null, to: `Commande client #${Number(orderId)}${paid ? ' — payée par carte' : ''}`,
 });
 const KINDS = Object.freeze(['option', 'breakfast', 'resource']);
 const PAYMENTS = Object.freeze(['card', 'note', 'none']);
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-// Rule 30 — a session the planning no longer lets the guest book; `SLOT_TAKEN` and the picker reloads.
-const SLOT_REASONS = new Set(['taken', 'past', 'heating', 'staff', 'closed', 'duration']);
+// Rules 30, 80 — a session the picker would not offer: `taken` is `SLOT_TAKEN`, every other reason `SLOT_UNAVAILABLE`.
+const SLOT_REASONS = new Set(['taken', 'past', 'outside', 'heating', 'staff', 'closed', 'duration']);
 
 const invalid = (key, params) => refusal(400, 'INVALID_INPUT', key, params);
 const limit = (key, params) => refusal(400, 'ORDER_LIMIT', key, params);
@@ -112,7 +111,7 @@ const sessionsHours = (sessions) => sessions.reduce((sum, s) => sum + Math.max(0
 
 
 function buildOrdersController({
-  db, orders, stays, lodgings, shop, scheduler, serviceHours, commit, payments, push, maxOrderTotal, guestHost, now,
+  db, orders, stays, lodgings, shop, scheduler, serviceHours, sale, payments, push, maxOrderTotal, guestHost, now,
   stock, alertStock = () => {}, fulfilment = () => ({ mode: 'delivery', place: null }), translator = null,
 }) {
   /**
@@ -143,7 +142,7 @@ function buildOrdersController({
   function judge(guest, body, at, lang) {
     const { stay, lodging } = guest;
     const T = labels.textOf(lang);
-    const { sold } = shop.soldFor(guest);
+    const { sold, extras } = shop.soldFor(guest);
     const party = Math.max(1, Number(stay.adults || 0) + Number(stay.teens || 0) + Number(stay.children || 0));
     const today = parisDate(at);
     const clock = (toParisIso(at) || '').slice(11, 16);
@@ -155,7 +154,6 @@ function buildOrdersController({
         kind: asked.kind, id: Number(asked.id), title: item ? (item.row.title || item.row.name) : null, shownTitle: item ? shownTitleOf(item, lang) : null,
       };
       if (!item) return { ...base, asked, unavailable: true, unavailableReason: T.unavailable };
-      if (item.alreadyIncluded) return { ...base, asked, item, unavailable: true, unavailableReason: T.alreadyIncluded };
       const maxQuantity = Number(item.item.maxQuantity);
       if (asked.kind === 'breakfast') {
         if (asked.persons > party) throw invalid('personsOverParty');
@@ -177,16 +175,21 @@ function buildOrdersController({
       if (item.hourly) {
         if (!asked.sessions) throw invalid('chooseSlot');
         const verdict = scheduler() && scheduler().validateSessions({
-          resourceId: Number(asked.id), propertyId: lodging.propertyId, stay, sessions: asked.sessions, now: at, canIgnite,
+          resourceId: Number(asked.id), propertyId: lodging.propertyId, stay, sessions: asked.sessions, now: at, heatFrom: at, canIgnite,
         });
         if (!verdict) return { ...base, asked, item, unavailable: true, unavailableReason: T.unavailable };
+        // A start before the check-in is not « passé »: it lies outside the stay (a crafted request, the day before).
+        const checkIn = `${stay.startDate}T${stay.checkInTime || '15:00'}`;
+        const reasonOf = (r) => (r.reason === 'past' && `${r.date}T${r.start}` < checkIn ? 'outside' : r.reason);
         const sessions = verdict.results.map((r) => ({
-          date: r.date, start: r.start, end: r.end, ...(r.ok ? {} : { unavailable: true, reason: r.reason, reasonLabel: T.slot[r.reason] || T.unavailable }),
+          date: r.date, start: r.start, end: r.end, ...(r.ok ? {} : { unavailable: true, reason: reasonOf(r), reasonLabel: T.slot[reasonOf(r)] || T.unavailable }),
         }));
         const kept = sessions.filter((s) => !s.unavailable).map(({ date, start, end }) => ({ date, start, end }));
         const hours = sessionsHours(kept);
         if (item.included && hours > Number(item.includedLeft || 0)) return { ...base, asked, item, sessions, unavailable: true, unavailableReason: T.allowanceUsed };
-        return { ...base, asked, item, sessions, kept, ...(kept.length ? {} : { unavailable: true, unavailableReason: sessions[0].reasonLabel }) };
+        return {
+          ...base, asked, item, sessions, kept, heldHours: shop.includedHoursLeft(extras, asked.id), ...(kept.length ? {} : { unavailable: true, unavailableReason: sessions[0].reasonLabel }),
+        };
       }
       if (asked.sessions) throw invalid('notOnSlot');
       if (asked.quantity > maxQuantity) throw limit('maxQuantity', { max: maxQuantity, title: base.shownTitle });
@@ -215,11 +218,35 @@ function buildOrdersController({
   }
 
   /** The lines the engine prices and the fiche receives: the available part of each judged line. */
-  const commitLines = (judged) => judged.filter((l) => !l.unavailable).map((l) => {
+  const commitLines = (judged, propertyId) => judged.filter((l) => !l.unavailable).map((l) => {
     if (l.kind === 'breakfast') return { kind: 'breakfast', id: l.id, mornings: l.mornings, time: l.time, persons: l.persons };
-    if (l.kept) return { kind: 'resource', id: l.id, sessions: l.kept };
-    return { kind: l.kind, id: l.id, quantity: l.quantity };
+    if (l.kept) return { kind: 'resource', id: l.id, title: l.title, sessions: l.kept, heldHours: l.heldHours, propertyId };
+    return { kind: l.kind, id: l.id, quantity: l.quantity, ...(l.item && l.item.noFreeUnits ? { noFreeUnits: true } : {}) };
   });
+
+  /**
+   * The sale service's requests of a line: an article, its quantity (the hours of a bath), what the line names. A bath line whose
+   * sessions fall inside hours the stay already holds is two requests (rule 82): the hours placed first, which sell nothing, and the sessions
+   * beyond, sold; its evening supplement, when it owes one, is a third.
+   */
+  const requestsOf = (line) => {
+    if (line.kind === 'breakfast') return [{ articleRef: `option:${line.id}`, quantity: line.mornings.length, mornings: line.mornings, time: line.time, persons: line.persons }];
+    if (line.kind !== 'resource') return [{ articleRef: `option:${line.id}`, quantity: line.quantity, ...(line.noFreeUnits ? { noFreeUnits: true } : {}) }];
+    const ordered = line.sessions.slice().sort((a, b) => `${a.date}T${a.start}`.localeCompare(`${b.date}T${b.start}`));
+    let room = Math.max(0, Number(line.heldHours || 0));
+    const placed = [];
+    const rest = [];
+    ordered.forEach((s) => {
+      const hours = sessionsHours([s]);
+      if (hours <= room + 1e-9) { placed.push(s); room -= hours; } else rest.push(s);
+    });
+    const out = [];
+    if (placed.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(placed), sessions: placed, placeOnHeld: true });
+    if (rest.length) out.push({ articleRef: `resource:${line.id}`, quantity: sessionsHours(rest), sessions: rest });
+    // Rules 81-83 — the evening the offered or held hours owe, a line of the stay of its own (pricing-components rules 13, 25), decided once at the quote.
+    if (Number(line.supplement) > 0) out.push({ articleRef: 'custom', label: `${line.title} — supplément soirée`, amount: Number(line.supplement), quantity: 1 });
+    return out;
+  };
 
   /**
    * A core refusal of the fiche's save, in the words of the guest app. Persons beyond what the stay can still be
@@ -228,8 +255,9 @@ function buildOrdersController({
   function engineRefusal(result, judged = null) {
     const body = result.body || {};
     const code = body.code;
-    if (code === 'MID_STAY_EXTRAS_CLOSED') return SHOP_CLOSED;
-    if (code === 'RESOURCE_SLOT_TAKEN' || code === 'SESSIONS_OVERLAP') return refusal(409, 'SLOT_TAKEN', 'slotJustTaken');
+    if (code === 'MID_STAY_EXTRAS_CLOSED' || code === 'STAY_SETTLED') return SHOP_CLOSED;
+    if (code === 'PRICE_CHANGED') return refusal(409, 'PRICE_CHANGED', 'priceChanged');
+    if (code === 'RESOURCE_SLOT_TAKEN' || code === 'SESSIONS_OVERLAP' || code === 'SLOT_TAKEN') return refusal(409, 'SLOT_TAKEN', 'slotJustTaken');
     if (code === 'ORDER_PERSONS_EXCEEDED') {
       const line = ((judged && judged.lines) || []).find((l) => keyOf(l) === body.key);
       const left = Math.max(0, Number(body.left) || 0);
@@ -241,20 +269,49 @@ function buildOrdersController({
   }
 
   /**
-   * Rules 24, 25, 35 — the judged lines priced by the core engine, after the stay's card orders awaiting payment:
-   * those hold the free units and minutes they were quoted with. → `{ lines, total }` or a refusal.
+   * Rules 24, 25 — the judged lines priced by the core's sale service, nothing written: the allowances a pending card order
+   * reserves are kept for it by the guard of `create` (one order waits for its payment at a time). → `{ lines, byKey, total }`
+   * or a refusal; `byKey` is what the sale adds per article (`opt:<id>`, `res:<id>`), in euros.
    */
-  function price(stay, judged) {
-    const lines = commitLines(judged.lines);
+  function price(stay, judged, at) {
+    const lines = commitLines(judged.lines, stay.propertyId);
     if (!lines.length) return { lines: [], byKey: {}, total: 0 };
-    const pending = orders().pendingLines(stay.id, { at: now() }).map(cartLineOf);
-    let priced = commit.priceOrder(stay.id, lines, { pending });
-    // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is. The persons a
-    // pending order holds stay held (rule 55).
-    const personsRefused = priced.body && priced.body.code === 'ORDER_PERSONS_EXCEEDED';
-    if (priced.status !== 200 && pending.length && !personsRefused) priced = commit.priceOrder(stay.id, lines);
+    const pending = orders().pendingLines(stay.id, { at }).map(saleLineOf);
+    let priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE, pending });
+    // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is.
+    if (priced.status !== 200 && pending.length && !(priced.body && priced.body.code === 'ORDER_PERSONS_EXCEEDED')) {
+      priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
+    }
     if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
-    return { lines, byKey: priced.byKey, total: priced.total };
+    const taken = (priced.refusals || []).find((r) => r.code === 'SLOT_TAKEN');
+    if (taken) return { refusal: refusal(409, 'SLOT_TAKEN', 'slotJustTaken') };
+    const keyed = (quoted) => {
+      const owners = lines.flatMap((line) => requestsOf(line).map(() => keyOf(line)));
+      const byKey = {};
+      quoted.lines.forEach((answered, index) => {
+        byKey[owners[index]] = Math.round(((byKey[owners[index]] || 0) * 100 + answered.totalCents)) / 100;
+      });
+      return byKey;
+    };
+    let byKey = keyed(priced);
+    // Rules 81-83 — the evening supplement of the bath's sessions, decided once from what the line gains: the free minutes and the held hours are valued at
+    // the day rate, so an offered evening hour owes the difference; the quote and the sale carry it as a line of their own.
+    const provider = scheduler();
+    const supplemented = provider && typeof provider.orderSupplement === 'function' ? lines.filter((l) => l.kind === 'resource') : [];
+    supplemented.forEach((line) => {
+      const covered = Number(line.heldHours || 0) + (judged.lines.find((j) => j.kind === 'resource' && j.id === line.id).item.freeMinutes || { left: 0 }).left / 60;
+      const gainHours = Math.max(0, sessionsHours(line.sessions) - covered);
+      line.supplement = provider.orderSupplement({
+        resourceId: line.id, propertyId: stay.propertyId, sessions: line.sessions, lineGain: { amount: byKey[keyOf(line)] || 0, hours: gainHours },
+      });
+      judged.lines.find((j) => j.kind === 'resource' && j.id === line.id).supplement = line.supplement;
+    });
+    if (supplemented.some((line) => line.supplement > 0)) {
+      priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE, pending });
+      if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
+      byKey = keyed(priced);
+    }
+    return { lines, byKey, total: priced.totalCents / 100 };
   }
 
   /** Rule 32 — a priced line ready to render; the snapshot an order stores is the same object. */
@@ -294,9 +351,12 @@ function buildOrdersController({
   const unbilledLine = (judged, byKey) => judged.lines.find((l) => !l.unavailable && l.kind !== 'breakfast'
     && billable(l) && !(Number(byKey[keyOf(l)]) > 0));
 
-  function quoteOf(guest, body, at, lang) {
+  function quoteOf(guest, body, at, lang, { early = null } = {}) {
     const judged = judge(guest, body, at, lang);
-    const priced = price(guest.stay, judged);
+    // Rule 80 — a session the picker would not offer is refused before anything is priced.
+    const crafted = early ? early(judged) : null;
+    if (crafted) return { refusal: crafted };
+    const priced = price(guest.stay, judged, at);
     if (priced.refusal) return { refusal: priced.refusal };
     const unbilled = unbilledLine(judged, priced.byKey);
     if (unbilled) return { refusal: refusal(409, 'ITEM_UNAVAILABLE', 'itemNotBillable', { title: unbilled.shownTitle }) };
@@ -330,8 +390,8 @@ function buildOrdersController({
 
   const SHOP_CLOSED = Object.freeze(refusal(409, 'SHOP_CLOSED', 'shopClosed'));
 
-  /** Rule 27 — orders are taken exactly while the fiche takes mid-stay extras, by a stay session. */
-  const shopOpen = (guest, at) => shopState(guest.mode, shop.soldFor(guest).extras.window, parisDate(at)).open;
+  /** Rules 27, 65, 104 — orders are taken while the stay clock says they are collected at the arrival or the departure. */
+  const shopOpen = (guest) => shopState(shop.collectionOf(guest.stay)).open;
 
   /** `POST /orders/quote` — rule 32: the cart's total is always this answer. */
   const quote = guarded((req, res) => {
@@ -339,7 +399,7 @@ function buildOrdersController({
     if (error) return fail(res, error);
     const lang = languageOf(req, req.guest.stay);
     const at = now();
-    if (!shopOpen(req.guest, at)) return fail(res, SHOP_CLOSED);
+    if (!shopOpen(req.guest)) return fail(res, SHOP_CLOSED);
     const out = quoteOf(req.guest, req.body, at, lang);
     if (out.refusal) return fail(res, out.refusal);
     return publicHttp.ok(res, out.quote);
@@ -350,10 +410,10 @@ function buildOrdersController({
     return lodging ? lodging.name : '';
   };
 
-  /** Rule 44 — « Commandes clients »: every confirmed or paid order, to the staff who subscribed. Best effort. */
+  /** Rule 44 — « Commandes clients »: the staff who subscribed are told of an order sold (the `extraSale.sold` observer) or of a paid one that could not be honoured. Best effort. */
   function notifyStaff(order, { conflict = false, refundCents = 0 } = {}) {
     const stay = stays().byId(order.reservationId) || {};
-    const text = labels.pushText(order, { lodging: lodgingName(stay.propertyId), firstName: stay.clientFirstName });
+    const text = labels.pushText(order, { lodging: lodgingName(stay.propertyId), firstName: stay.clientFirstName, now: now() });
     const refund = refundCents > 0 ? `${text} — trop-perçu de ${labels.priceLabel(refundCents / 100)} à rembourser` : text;
     const body = conflict ? `${text} — payée, mais créneau, article ou prix plus disponible : à rembourser` : refund;
     Promise.resolve()
@@ -368,6 +428,8 @@ function buildOrdersController({
     kept.title = l.title;
     if (kept.sessions) kept.sessions = l.kept.map(({ date, start, end }) => ({ date, start, end }));
     if (l.item && isStaffItem(l.item)) kept.needsStaff = true;
+    if (l.item && l.item.noFreeUnits) kept.noFreeUnits = true;
+    if (l.supplement) kept.supplement = l.supplement;
     return kept;
   });
 
@@ -388,7 +450,17 @@ function buildOrdersController({
 
   const isUniqueClash = (err) => Boolean(err && err.code === 'SQLITE_CONSTRAINT_UNIQUE');
 
-  /** `POST /orders` — rules 30, 33-37. */
+  /**
+   * Rule 80 — a session the slot picker would not offer is refused first, before any pricing, nothing written: `SLOT_TAKEN` when
+   * another use of the bath holds it, `SLOT_UNAVAILABLE` for every other reason (closed, past, heating, staff, off the grid).
+   */
+  function craftedSession(judged) {
+    const bad = judged.lines.flatMap((l) => (l.sessions || []).filter((x) => x.unavailable && SLOT_REASONS.has(x.reason)));
+    if (!bad.length) return null;
+    return bad.some((x) => x.reason === 'taken') ? refusal(409, 'SLOT_TAKEN', 'slotGone') : refusal(409, 'SLOT_UNAVAILABLE', 'slotUnavailable');
+  }
+
+  /** `POST /orders` — rules 30, 33-37, 80. */
   const create = guarded(async (req, res) => {
     const error = orderInputError(req.body, { withPayment: true });
     if (error) return fail(res, error);
@@ -401,8 +473,8 @@ function buildOrdersController({
     const { stay } = req.guest;
     const lang = languageOf(req, stay);
     const at = now();
-    if (!shopOpen(req.guest, at)) return fail(res, SHOP_CLOSED);
-    const out = quoteOf(req.guest, req.body, at, lang);
+    if (!shopOpen(req.guest)) return fail(res, SHOP_CLOSED);
+    const out = quoteOf(req.guest, req.body, at, lang, { early: craftedSession });
     if (out.refusal) return fail(res, out.refusal);
     const { judged, priced, quote: answer } = out;
     const gone = judged.lines.filter((l) => l.unavailable || (l.sessions || []).some((s) => s.unavailable) || l.unavailableMornings);
@@ -412,12 +484,7 @@ function buildOrdersController({
         itemKey: `${short.kind}:${short.id}`, left: short.outOfStock.left, quote: answer,
       });
     }
-    if (gone.length) {
-      const slot = gone.some((l) => (l.sessions || []).some((s) => s.unavailable && SLOT_REASONS.has(s.reason)));
-      return fail(res, slot
-        ? refusal(409, 'SLOT_TAKEN', 'slotGone')
-        : refusal(409, 'ITEM_UNAVAILABLE', 'itemGone'), { quote: answer });
-    }
+    if (gone.length) return fail(res, refusal(409, 'ITEM_UNAVAILABLE', 'itemGone'), { quote: answer });
     if (judged.needsDelivery && !judged.deliverAt) {
       return fail(res, req.body.deliverAt
         ? refusal(409, 'DELIVERY_TIME_UNAVAILABLE', 'deliveryGone')
@@ -431,48 +498,49 @@ function buildOrdersController({
     const mode = fulfilment();
     const delivery = { fulfilment: mode.mode, pickupPlace: mode.place };
 
-    // Rules 25, 34 — a note or 0 € order: confirmed and written on the fiche in one transaction.
+    // Rule 35 — one order waits for its card payment at a time: it holds the allowance and the slots it was quoted with, and no other
+    // order of the stay is priced meanwhile (pricing-components rule 26).
+    if (orders().livePendingCard(stay.id, { at })) return fail(res, refusal(409, 'CARD_ORDER_PENDING', 'cardPending'));
+
+    // Rules 25, 34 — a note or 0 € order: confirmed and sold on the fiche in one transaction, its lines appended (rules 8, 9, 13).
     if (free || req.body.payment === 'note') {
-      let refused = null;
       let order = null;
       let moved = [];
+      let written = null;
       try {
-        db().transaction(() => {
-          order = orders().create({
-            reservationId: stay.id, sessionId, payment: free ? 'none' : 'note', status: 'confirmed',
-            lines, total: priced.total, deliverAt: judged.deliverAt, ...delivery, clientKey, now: at,
-          });
-          const written = commit.commitOrder(stay.id, { ...orderNaming(order.id), lines: priced.lines });
-          if (!written || written.status !== 200) {
-            refused = engineRefusal(written || { body: {} }, judged);
-            throw refused;
-          }
-          // Rule 35 — quoted after a card order awaiting payment, it adds less to the fiche than its quote: that order adds the rest.
-          orders().setDeferred(order.id, Math.round(priced.total * 100) - Math.round(Number(written.total || 0) * 100));
-          moved = countStock(stay.id, at);
-        })();
+        written = sale().sell(stay.id, priced.lines.flatMap(requestsOf), {
+          source: ORDER_SALE_SOURCE,
+          now: at,
+          acceptedTotalCents: Math.round(priced.total * 100),
+          orderRef: () => {
+            order = orders().create({
+              reservationId: stay.id, sessionId, payment: free ? 'none' : 'note', status: 'confirmed',
+              lines, total: priced.total, deliverAt: judged.deliverAt, ...delivery, clientKey, collectAt: shop.collectionOf(stay), now: at,
+            });
+            return `order:${order.id}`;
+          },
+          history: () => historyOf(order.id),
+          within: (result) => {
+            orders().setCollectAt(order.id, result.collectAt);
+            moved = countStock(stay.id, at);
+          },
+        });
       } catch (err) {
         if (clientKey && isUniqueClash(err)) return replay(res, orders().findByClientKey(sessionId, clientKey));
-        if (err !== refused) throw err;
-        return fail(res, refused);
+        throw err;
       }
+      if (written.status !== 200) return fail(res, engineRefusal(written, judged), { quote: answer });
       alertStock(moved);
-      notifyStaff(order);
       return publicHttp.ok(res, { orderId: order.id, status: 'confirmed' });
     }
 
     // Rule 33 — « Payer maintenant »: the order holds its slots while its link lives (rule 35).
-    // Rule 35 — one card order waits for its payment at a time: a second one would be priced after the first's
-    // allowances, then committed before it if paid first (review of 2026-11-09).
-    if (orders().livePendingCard(stay.id, { at })) {
-      return fail(res, refusal(409, 'CARD_ORDER_PENDING', 'cardPending'));
-    }
     if (!paymentProviders.active()) return fail(res, refusal(409, 'CARD_UNAVAILABLE', 'cardToNote'));
     let order;
     try {
       order = orders().create({
         reservationId: stay.id, sessionId, payment: 'card', status: 'awaiting_payment',
-        lines, total: priced.total, deliverAt: judged.deliverAt, heldUntil: new Date(at.getTime() + HOLD_MS).toISOString(), ...delivery, clientKey, now: at,
+        lines, total: priced.total, deliverAt: judged.deliverAt, heldUntil: new Date(at.getTime() + HOLD_MS).toISOString(), ...delivery, clientKey, collectAt: shop.collectionOf(stay), now: at,
       });
     } catch (err) {
       if (clientKey && isUniqueClash(err)) return replay(res, orders().findByClientKey(sessionId, clientKey));
@@ -486,7 +554,7 @@ function buildOrdersController({
         source: ORDER_SOURCE,
         ref: order.id,
         title: `Commande #${order.id}`,
-        lines: basketLines(lines, priced.total),
+        lines: basketLines(lines),
       }, { redirectUrl: host ? `https://${host}/commande/${order.id}` : null });
       orders().setPaymentLink(order.id, link.linkId, link.url);
       return publicHttp.ok(res, { orderId: order.id, paymentUrl: link.url });
@@ -496,15 +564,8 @@ function buildOrdersController({
     }
   });
 
-  /**
-   * Rule 33 — the link bills exactly the quoted total: the order's own lines, and what the engine raised beside them
-   * (a percentage of the stay, such as an insurance) as one more line.
-   */
-  function basketLines(lines, total) {
-    const own = lines.filter((l) => l.total > 0).map((l) => ({ title: l.title, amountCents: Math.round(l.total * 100) }));
-    const rest = Math.round(total * 100) - own.reduce((sum, l) => sum + l.amountCents, 0);
-    return rest > 0 ? [...own, { title: 'Ajustement du séjour lié à la commande', amountCents: rest }] : own;
-  }
+  /** Rule 33 — the link bills exactly the quoted total: the order's own lines (a sale adds nothing beside them, pricing-components rules 8, 9). */
+  const basketLines = (lines) => lines.filter((l) => l.total > 0).map((l) => ({ title: l.title, amountCents: Math.round(l.total * 100) }));
 
   /** Rules 38, 41ter — what a guest reads of an order. */
   function orderView(order, { lang, resourceLines = null }) {
@@ -512,10 +573,13 @@ function buildOrdersController({
     const chip = labels.deliveryChip(order, lang);
     const stay = stays().byId(order.reservationId) || {};
     const promised = labels.promiseOf(order, { lodging: lodgingName(stay.propertyId), now: now(), lang });
+    const arrival = order.collectAt === 'arrival' ? stays().arrivalComplementState(order.reservationId) : null;
     const notices = [];
     if (order.status === 'awaiting_payment') notices.push(T.awaitingCard);
     if (order.status === 'paid_conflict') notices.push(T.conflict);
     if (order.deliverMoved && ['paid', 'confirmed'].includes(order.status)) notices.push(order.deliverAt ? T.moved(labels.momentLabel(order.deliverAt, lang)) : T.movedNone);
+    // Rule 73 — a stay moved under its order: the time is no longer inside the dates, the team replans it.
+    if (['paid', 'confirmed'].includes(order.status) && outsideStay(order, stay)) notices.push(T.reviewTime);
     // Edge case — the planning is the truth: a session of the order the operator moved or removed.
     if (resourceLines && ['confirmed', 'paid', 'delivered'].includes(order.status)) {
       const placed = new Set(resourceLines.flatMap((l) => (l.sessions || []).map((s) => `${l.resourceId}|${s.date}|${s.start}|${s.end}`)));
@@ -531,7 +595,10 @@ function buildOrdersController({
       totalLabel: labels.priceLabel(order.total, lang),
       payment: order.payment,
       status: order.status,
-      statusLabel: labels.statusLabel(order, lang),
+      statusLabel: labels.statusLabel(order, lang, { arrival }),
+      collectAt: order.collectAt === 'arrival' ? 'arrival' : 'departure',
+      // Rules 76, 87 — an order the team changed at the arrival says so, with its new lines and total above.
+      ...(order.amendmentsJson && order.amendmentsJson !== '[]' ? { amendedLabel: T.amended } : {}),
       ...(chip ? { deliveryLabel: chip } : {}),
       fulfilment: order.fulfilment === 'pickup' ? 'pickup' : 'delivery',
       promise: promised.promise,
@@ -627,13 +694,23 @@ function buildOrdersController({
     const canIgnite = ignitionInHours(shop.scheduleOf(lodging, at));
     return order.lines.filter((l) => l.kind === 'resource' && Array.isArray(l.sessions) && l.sessions.length).every((line) => {
       const verdict = scheduler() && scheduler().validateSessions({
-        resourceId: Number(line.id), propertyId: stay.propertyId, stay, sessions: line.sessions, now: at, canIgnite,
+        resourceId: Number(line.id), propertyId: stay.propertyId, stay, sessions: line.sessions, now: at, heatFrom: at, canIgnite,
       });
       return Boolean(verdict && verdict.ok);
     });
   }
 
-  const commitLinesOf = (order) => order.lines.map(cartLineOf);
+  // The sale lines of a stored order: its snapshot, with the flag of an article whose offered units are already in place (rule 107).
+  const saleLineOf = (line) => ({ ...cartLineOf(line), ...(line.noFreeUnits ? { noFreeUnits: true } : {}), ...(line.supplement ? { supplement: line.supplement } : {}) });
+  // Rule 82 — the hours the stay holds are read again at payment: they may have been placed meanwhile.
+  const saleLinesOf = (order) => {
+    const stay = stays().byId(order.reservationId);
+    const { extras } = shop.soldFor({ stay, lodging: { propertyId: stay.propertyId } });
+    return order.lines.map((line) => ({
+      ...saleLineOf(line),
+      ...(line.kind === 'resource' ? { title: line.title, heldHours: shop.includedHoursLeft(extras, line.id), propertyId: stay.propertyId } : {}),
+    }));
+  };
 
   /** Rule 37quater — a late payment whose units went meanwhile is a conflict, like a taken slot. Its own holds are lifted. */
   function unitsStillLeft(order, at) {
@@ -645,15 +722,14 @@ function buildOrdersController({
   }
 
   /**
-   * Rules 35-36 — the order's side of its paid link, run by the core inside the payment's effect. Committed with
-   * its payment recorded on the ledger when its slots are still free (on time, or late after its expiry), else
-   * `paid_conflict`: nothing reaches the fiche and the core flags the money « à rembourser ». The fiche is never
-   * billed beyond the payment: an order that now costs more (beyond what the orders committed while it awaited its
-   * payment left to it) is a conflict; one that costs less has the gap flagged « à rembourser » (`refundCents`).
+   * Rules 35-36, 85 — the order's side of its paid link, run by the core inside the payment's effect. Its lines are sold on the
+   * fiche already paid (`extraSale.sell` with the card money, written once, never collected again) when its slots are still free and
+   * its price has not risen; else `paid_conflict`, nothing reaches the fiche and the money opens a refund obligation of origin
+   * `orderConflict` (rule 75). A sale that now costs less than was paid leaves the gap owed back (`refundCents`).
    */
   function paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId }) {
     const order = orders().findById(ref);
-    if (!order || Number(order.reservationId) !== Number(reservationId)) return { refundOwed: true, reason: 'commande introuvable' };
+    if (!order || Number(order.reservationId) !== Number(reservationId)) return notHonoured('commande introuvable');
     if (['paid', 'delivered', 'paid_conflict', 'confirmed'].includes(order.status)) return { effect: 'guest-order-already-settled' };
     const at = now();
     const stay = stays().byId(order.reservationId);
@@ -665,7 +741,7 @@ function buildOrdersController({
       db().prepare('UPDATE guest_orders SET heldUntil = NULL WHERE id = ?').run(order.id);
       const conflict = (reason = 'créneau ou article plus disponible, commande non honorée') => {
         orders().markPaidConflict(order.id, { now: at, paidAt });
-        outcome = { refundOwed: true, reason };
+        outcome = notHonoured(reason);
       };
       // Rule 35 — abandoned, its lines went back to the cart: a payment landing now is never committed.
       if (order.status === 'abandoned') return conflict('commande abandonnée avant le paiement, commande non honorée');
@@ -673,42 +749,40 @@ function buildOrdersController({
       const late = order.status !== 'awaiting_payment';
       if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || (late && !unitsStillLeft(order, at))) return conflict();
       const delivery = deliveryAfterPayment(order, stay, at);
-      let written;
-      try {
-        written = commit.commitOrder(order.reservationId, {
-          ...orderNaming(order.id, { paid: true }),
-          lines: commitLinesOf(order),
-          paid: { amountCents: paidCents, paidDate, reference: providerPaymentId },
-          within: (result) => {
-            const gap = Math.round(Number(result.total || 0) * 100) - paidCents;
-            if (gap > 0) {
-              const deferred = orders().deferredFor(order);
-              if (deferred.available < gap) throw PRICE_ROSE;
-              deferred.take(gap);
-            }
-            orders().markPaid(order.id, { now: at, paidAt, deliverAt: delivery.deliverAt, deliverMoved: delivery.moved });
-          },
-        });
-      } catch (err) {
-        if (err !== PRICE_ROSE) throw err;
-        return conflict('prix de la commande augmenté avant le paiement, commande non honorée');
-      }
-      if (!written || written.status !== 200) return conflict();
-      moved = countStock(order.reservationId, at);
-      const excess = Number(written.excessCents) || 0;
-      outcome = excess > 0
-        ? {
-          effect: 'guest-order-paid', refundOwed: true, refundCents: excess,
-          reason: `commande facturée ${labels.priceLabel((paidCents - excess) / 100)} au lieu de ${labels.priceLabel(paidCents / 100)}`,
-        }
-        : { effect: 'guest-order-paid' };
+      const written = sale().sell(order.reservationId, saleLinesOf(order).flatMap(requestsOf), {
+        source: ORDER_SALE_SOURCE,
+        now: at,
+        orderRef: `order:${order.id}`,
+        history: historyOf(order.id, { paid: true }),
+        paid: {
+          amountCents: paidCents, paidDate, reference: providerPaymentId, ref: String(order.id), source: ORDER_SOURCE,
+        },
+        within: (result) => {
+          orders().setCollectAt(order.id, result.collectAt);
+          orders().markPaid(order.id, { now: at, paidAt, deliverAt: delivery.deliverAt, deliverMoved: delivery.moved });
+          moved = countStock(order.reservationId, at);
+          outcome = result.overpaidCents > 0
+            ? partlyOwed('guest-order-paid', result.overpaidCents, `commande facturée ${labels.priceLabel((paidCents - result.overpaidCents) / 100)} au lieu de ${labels.priceLabel(paidCents / 100)}`)
+            : { effect: 'guest-order-paid' };
+        },
+      });
+      if (written.status !== 200) conflict(written.body && written.body.code === 'PRICE_ROSE' ? 'prix de la commande augmenté avant le paiement, commande non honorée' : undefined);
       return null;
     })();
     alertStock(moved);
     const after = orders().findById(order.id);
-    const conflicted = after.status === 'paid_conflict';
-    notifyStaff(after, { conflict: conflicted, refundCents: conflicted ? 0 : Number(outcome.refundCents) || 0 });
+    if (after.status === 'paid_conflict') notifyStaff(after, { conflict: true });
     return outcome;
+  }
+
+  /**
+   * Rule 55 (pricing-components) — the observer of `extraSale.sold`: a sale of source `shop` that names one of this plugin's orders tells the
+   * staff of it. A sale of another source, or one that names no order, is none of its business.
+   */
+  function orderSold({ source, orderRef } = {}) {
+    const match = source === ORDER_SALE_SOURCE ? /^order:(\d+)$/.exec(String(orderRef || '')) : null;
+    const order = match ? orders().findById(Number(match[1])) : null;
+    if (order) notifyStaff(order);
   }
 
   /** Rule 36 — every minute: an order unpaid 30 minutes on expires and its slots go back to the planning. */
@@ -717,7 +791,7 @@ function buildOrdersController({
   }
 
   return {
-    quote, create, list, read: guarded(read), abandon: guarded(abandon), paid, expireDue, orderView,
+    quote, create, list, read: guarded(read), abandon: guarded(abandon), paid, expireDue, orderView, orderSold,
   };
 }
 

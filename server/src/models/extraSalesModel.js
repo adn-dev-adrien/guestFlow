@@ -5,7 +5,8 @@
  * and the stay's extras baseline; it prices nothing and decides no refusal other than the ones about a stored line.
  *
  *   lineIds(reservationId)                       the Set of `<kind>:<lineId>` the stay holds
- *   stampNewLines(reservationId, before, sale)   writes source / moment / date on the lines that were not in `before` → [{ label }]
+ *   stampNewLines(reservationId, before, sale)   writes source / moment / date (and the order it belongs to) on the lines that were not in `before` → [{ label }]
+ *   keyOfLine / writeCardNote                    the key a line is named by in the notes; the settled note of a card-paid sale before the arrival
  *   findLine(reservationId, ref)                 `ref` = `option:<lineId>` | `resource:<lineId>` | `custom:<lineId>` → the stored line or null
  *   momentRefusal(reservationId, line, to, moments) / moveLine(reservationId, line, to)    rule 37: the 409 or null / the move, journaled by the caller
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
@@ -42,13 +43,19 @@ function lineIds(reservationId) {
   return ids;
 }
 
-function stampNewLines(reservationId, before, { source, collectAt, soldAt }) {
+function stampNewLines(reservationId, before, {
+  source, collectAt, soldAt, orderRef = null, noAllowance = new Set(),
+}) {
   const db = database();
   const added = [];
   for (const [kind, { table, label }] of Object.entries(KINDS)) {
     for (const row of db.prepare(`SELECT lineId FROM ${table} WHERE reservationId = ?`).all(Number(reservationId))) {
       if (before.has(`${kind}:${row.lineId}`)) continue;
       db.prepare(`UPDATE ${table} SET source = ?, collectAt = ?, collectAtDefault = ?, soldAt = ? WHERE lineId = ?`).run(source, collectAt, collectAt, soldAt, row.lineId);
+      if (orderRef) db.prepare(`UPDATE ${table} SET orderRef = ? WHERE lineId = ?`).run(`${orderRef}:${added.length + 1}`, row.lineId);
+      // Rule 26 — a line sold after the stay was sold keeps what it consumed and no more: one that took none stores it, so removing an earlier line, which gives
+      // its units back for FUTURE sales, never lets a standing line take them at the next save (D5). A line sold with its units already in place (rule 92) is the same case.
+      if (kind === 'option' || noAllowance.has(Number(row.lineId))) db.prepare(`UPDATE ${table} SET allowanceUsed = COALESCE(allowanceUsed, ?) WHERE lineId = ?`).run(JSON.stringify({ freeUnits: 0, amount: 0 }), row.lineId);
       const named = db.prepare(label).get(Number(reservationId), row.lineId);
       added.push({ kind, lineId: row.lineId, label: named ? String(named.label) : '' });
     }
@@ -94,6 +101,29 @@ function storedLineKey(db, table, reservationId, lineId) {
   const rows = db.prepare(`SELECT lineId, ${field} FROM ${table} WHERE reservationId = ?`).all(reservationId);
   const entry = keyLines(table, rows).find((e) => Number(e.row.lineId) === lineId);
   return entry ? entry.key : null;
+}
+
+// The key a stored line is named by in the stay's notes and allocations: the article's legacy key for its first line, `line:<table>:<id>` for a later one (rule 85).
+function keyOfLine(reservationId, kind, lineId) {
+  return storedLineKey(database(), KINDS[kind].table, Number(reservationId), Number(lineId));
+}
+
+// Rule 29 (shop card path) — a settled note before the arrival: the lines the arrival complement carries, paid by the card, named by key. The note is the
+// register's own (`parseNotes`, `nextNoteId`); the engine reads it net (rules 21, 31) and the allocations follow it (rule 74).
+function writeCardNote(reservationId, { items }) {
+  const db = database();
+  const { parseNotes, nextNoteId, buildMidStayLine } = require('../utils/midStayExtras');
+  const row = db.prepare('SELECT midStaySettledNotes FROM reservations WHERE id = ?').get(Number(reservationId));
+  const lines = items.map((item) => {
+    const { source, ...line } = buildMidStayLine({ label: item.label, unitPrice: item.amount, amount: item.amount, key: item.key });
+    return line;
+  });
+  const notes = parseNotes(row && row.midStaySettledNotes);
+  const note = {
+    id: nextNoteId(notes), paidDate: require('../utils/localDate').todayIso(), paidCash: 0, total: roundMoney(lines.reduce((sum, line) => sum + Number(line.amount || 0), 0)), lines,
+  };
+  db.prepare("UPDATE reservations SET midStaySettledNotes = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify([...notes, note]), Number(reservationId));
+  return note;
 }
 
 function findLine(reservationId, ref) {
@@ -232,5 +262,5 @@ function vatClassOf(line, kind) {
 
 module.exports = {
   lineIds, stampNewLines, stampSasLines, stampIntakeLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, openLoweredCents, vatClassOf,
-  withoutLine, stampCustomQuantities,
+  withoutLine, stampCustomQuantities, keyOfLine, writeCardNote,
 };

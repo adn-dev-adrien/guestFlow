@@ -1,0 +1,1 @@
+- Une commande payée par carte d'un séjour annulé est due au client : elle ouvre une ligne du registre des remboursements (origine « commande non honorée »), une seule par paiement, au lieu d'un indicateur sur le lien de paiement.

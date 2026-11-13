@@ -452,7 +452,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     (`deferredCents`/`PRICE_ROSE` disappear).
     > **Delivered by PR B** (pass 5; `pricing-allowance-ledger`): a catalogue option line stores `allowanceUsed` (`{ freeUnits, amount }`, NULL when it used none). A removed line gives its units back to
     > the pool for the next sale, and no standing line is re-priced (the lock, D5).
-    > **Pending** — PR C: a pending card order reserving its allowance, and the end of `deferredCents` / `PRICE_ROSE` (J-7 code, absent from this branch).
+    > **Delivered by PR C** (pass 4, C27-C28): a line sold through `extraSale` stores what it consumed, **0 included** (`allowanceUsed = {freeUnits: 0, amount: 0}`),
+    > so removing an earlier line — which gives its units back for FUTURE sales — never lets a standing line take them at the next save (D5,
+    > `guest-order-allowance-stays`). A card order awaiting its payment holds its allowance (the app takes no other order of the stay meanwhile) and a
+    > reader's quote prices after it (`pending`, rule 92); `deferredCents` and `PRICE_ROSE` are gone, a paid order that can no longer be honoured opens
+    > an `orderConflict` obligation (rule 75, `guest-order-conflict-obligation`).
 
 ### 3.F Selling an extra — one service for every seller
 
@@ -1735,6 +1739,23 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > split, so switching the baskets would change what an issued link names before the sale detail can say which part of a line an
     > instalment collects.
     > **Delivered by PR C** (pass 3i). Proof: `sale-detail-arrival-lines`, `pricing-legacy-collect-at`, `pricing-lines-migration`.
+
+92. **A sale can say its units are already in place** _(pass 4, 2026-11-13; owner answers of the day; completes rules 26 and 41)_. A request of
+    `extraSale.quote` / `sell` for an article may carry `noFreeUnits: true`: its line takes none of the article's free units, whatever the
+    stay was granted, and stores that it consumed none (`allowanceUsed = {freeUnits: 0}`), so no later save grants it one. It is what a
+    seller sends for an article whose offered units the stay already holds before the sale (the guest app's drinks: the offered bottles are
+    in the fridge at the arrival, guest-app rule 107). A sale of an article **offered by the stay** (default offer, welcome pack) is a line
+    of its own, billed at the catalogue (rule 13), never a refusal; the free units still granted and not consumed cover a first sale of an
+    article that has no such flag (rule 26 unchanged).
+    A request for a resource with sessions may carry `placeOnHeld: true`: the sessions join the stay's line of that resource that holds hours
+    not yet placed (`quantity` − the hours of its sessions) and sell nothing; with no such line the request is an ordinary sale. A sale
+    that waits for a card payment (guest-app rule 35 as amended) holds the allowance it was quoted with by the seller's serialisation (one
+    such sale at a time per stay) and `quote` accepts `pending` — the lines of that waiting order — to price a reader's view after it;
+    `sell` takes `paid: { amountCents, … }` for a card sale paid before the arrival (rule 29 as amended): the lines are written already
+    settled by one note, never above what was paid, 409 `PRICE_ROSE` when the price rose beyond the payment, and `orderRef`, `history`
+    and `within` (called inside the transaction, after the write) for a seller that keeps its own row.
+    > **Delivered by PR C** (pass 4, C27-C28). Proof: `extra-sale-order-seller` (this rule), `guest-order-offered-in-place` (guest-app rule 107),
+    > `guest-order-card-hold`.
 
 ## 4. Architecture
 

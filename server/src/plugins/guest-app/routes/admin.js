@@ -18,6 +18,7 @@ function buildAdminRouter({
   router.get('/stock', items.stockList);
   router.get('/orders', orders.list);
   router.post('/orders/:id/delivered', orders.delivered);
+  router.post('/orders/:id/amend', orders.amend);
   router.get('/planning/order-cards', orders.planningCards);
   router.get('/service-hours', serviceHours.read);
   router.put('/service-hours', serviceHours.write);

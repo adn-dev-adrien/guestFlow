@@ -186,8 +186,11 @@ function priceMerged(family, article, request, stay, allowance) {
       taggedAmounts: taggedOf(config, article.ref, offeredFigures.totalPrice),
     };
   }
+  // A sale that declares its units already in place (guest-app rule 107: an offered drink is in the fridge) takes no free unit, and a line that stored
+  // that it consumed none (`allowanceUsed.freeUnits = 0`) keeps taking none whenever the stay is saved again (rule 26).
+  const noneStored = locked && storedFreeUnitsOf(locked) === 0;
   const free = consumeAllowance({
-    granted: grantedFor(allowance, config), isDirect: stay.isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
+    granted: request.noFreeUnits || noneStored ? 0 : grantedFor(allowance, config), isDirect: stay.isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
   });
   if (allowance && allowance.takeFreeUnits) allowance.takeFreeUnits(config.id, free.used);
   const typed = priced ? priced.typed : null;
