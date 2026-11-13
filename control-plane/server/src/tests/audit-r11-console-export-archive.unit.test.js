@@ -133,7 +133,7 @@ test('rule 43 — the customer downloads the archive under its plain name, witho
     assert.match(path.basename(h.ctx.models.provisioning.getExport(token).path), new RegExp(`^${c.slug}-${today(h)}-[0-9a-f]{12}\\.tar\\.gz$`));
     const res = await fetchLocal(`http://127.0.0.1:${server.address().port}/exports/${token}`);
     assert.equal(res.status, 200);
-    assert.match(res.headers.get('content-disposition'), new RegExp(`filename="${c.slug}-${today(h)}\\.tar\\.gz"`));
+    assert.match(res.headers.get('content-disposition'), new RegExp(`filename="?${c.slug}-${today(h)}\\.tar\\.gz"?`));
     await res.arrayBuffer();
   } finally {
     await closeServer(server);

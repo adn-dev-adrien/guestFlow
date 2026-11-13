@@ -11,6 +11,7 @@ const client = { id: 1, lastName: 'Martin', firstName: 'Léa', email: 'lea@examp
 test('rule 37 — the e-mail is a mailto link and the phone has a call button', () => {
   render(<ClientDirectoryRow client={client} onOpen={() => {}} />);
   expect(screen.getByRole('link', { name: 'lea@example.com' })).toHaveAttribute('href', 'mailto:lea@example.com');
-  const call = screen.getAllByRole('link').find((a) => a.getAttribute('href') === 'tel:+33612345678' && a.classList.contains('MuiIconButton-root'));
+  // hidden: the call button is display:none from `md` up unless the pointer is coarse; jsdom 31 evaluates that media query.
+  const call = screen.getAllByRole('link', { hidden: true }).find((a) => a.getAttribute('href') === 'tel:+33612345678' && a.classList.contains('MuiIconButton-root'));
   expect(call).toBeTruthy();
 });
