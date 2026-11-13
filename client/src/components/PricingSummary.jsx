@@ -463,7 +463,8 @@ export default function PricingSummary({
                   ? ` · ${quantity} matin${quantity > 1 ? 's' : ''}`
                   : (quantity > 1 ? ` ×${quantity}` : '');
                 const baseLabel = `${so.title || opt?.title || '—'}${quantitySuffix}`;
-                const baseKey = so.optionId || so.customKey || `custom_${index}`;
+                // A later sale of an article (rule 85) is a row of its own, named by its line; « Offert » is changed from « Ventes du séjour » for it.
+                const baseKey = so.lineKey || so.optionId || so.customKey || `custom_${index}`;
 
                 // Single callback unifies regular / auto / custom — the page knows which channel
                 // to update; the summary just signals "the user clicked compl. on THIS line".
@@ -581,21 +582,21 @@ export default function PricingSummary({
                 if (split.kind === 'forced') {
                   return (
                     <Box key={baseKey}>
-                      {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'on', withOfferedToggle: true })}
+                      {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'on', withOfferedToggle: !so.lineKey })}
                     </Box>
                   );
                 }
                 if (split.kind === 'split') {
                   return (
                     <Stack key={baseKey} spacing={0.5}>
-                      {renderRow({ label: baseLabel, amount: split.snapshot, chip: null, withOfferedToggle: true })}
+                      {renderRow({ label: baseLabel, amount: split.snapshot, chip: null, withOfferedToggle: !so.lineKey })}
                       {renderRow({ label: baseLabel, amount: split.delta, chip: hideChipForPlatform ? null : 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
                 return (
                   <Box key={baseKey}>
-                    {renderRow({ label: baseLabel, amount: total, chip: (isOffered || hideChipForPlatform) ? null : 'off', withOfferedToggle: true })}
+                    {renderRow({ label: baseLabel, amount: total, chip: (isOffered || hideChipForPlatform) ? null : 'off', withOfferedToggle: !so.lineKey })}
                   </Box>
                 );
               })}
@@ -693,17 +694,17 @@ export default function PricingSummary({
                 // editable — including on platform reservations (specs/force-extras-complement-on-platform.md
                 // §3 rule 1bis): the operator can pull a resource back out of Complément.
                 if (split.kind === 'forced') {
-                  return <Box key={sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: true })}</Box>;
+                  return <Box key={sr.lineKey || sr.resourceId}>{renderRow({ amount: split.delta, chip: 'on', withOfferedToggle: !sr.lineKey })}</Box>;
                 }
                 if (split.kind === 'split') {
                   return (
-                    <Stack key={sr.resourceId} spacing={0.5}>
-                      {renderRow({ amount: split.snapshot, chip: null, withOfferedToggle: true })}
+                    <Stack key={sr.lineKey || sr.resourceId} spacing={0.5}>
+                      {renderRow({ amount: split.snapshot, chip: null, withOfferedToggle: !sr.lineKey })}
                       {renderRow({ amount: split.delta, chip: 'readonly', withOfferedToggle: false })}
                     </Stack>
                   );
                 }
-                return <Box key={sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: isOffered ? null : 'off', withOfferedToggle: true })}</Box>;
+                return <Box key={sr.lineKey || sr.resourceId}>{renderRow({ amount: displayedOriginalTotal, chip: isOffered ? null : 'off', withOfferedToggle: !sr.lineKey })}</Box>;
               })}
             </>
           )}

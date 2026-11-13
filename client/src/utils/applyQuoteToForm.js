@@ -29,8 +29,9 @@ const typedCountFromEcho = (column, line, prevLine) => {
 function applyQuoteToForm(prev, quote, opts = {}) {
   const { preserveBlankPrice = false } = opts;
   void preserveBlankPrice; // kept in the signature for callers that pass it through
+  // The form edits an article's first line (rule 85): a later line of a resource keeps its own figures in the quote.
   const resourceLinesById = new Map(
-    (quote.resourceLines || []).map((line) => [Number(line.resourceId), line])
+    (quote.resourceLines || []).filter((line) => !line.lineKey).map((line) => [Number(line.resourceId), line])
   );
 
   // Preserve user-manually-set customPrice: if prev.customPrice is not empty, keep it.
@@ -54,7 +55,8 @@ function applyQuoteToForm(prev, quote, opts = {}) {
     // `applyQuoteToForm.unit.test.js`). `prev.selectedOptions[i].inComplement` is the source
     // of truth — the user's local click is what matters; the engine value is only consulted
     // when the line wasn't in `prev` (initial load).
-    selectedOptions: (quote.optionLines || []).filter((line) => !line.isCustom).map((line) => {
+    // A later sale of an article (rule 85, a line that carries its `lineKey`) is not an option of the form: the form carries it as it is.
+    selectedOptions: (quote.optionLines || []).filter((line) => !line.isCustom && !line.lineKey).map((line) => {
       const prevLine = (prev.selectedOptions || []).find(
         (s) => Number(s.optionId) === Number(line.optionId)
       );

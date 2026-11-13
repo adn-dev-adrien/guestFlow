@@ -310,3 +310,32 @@ describe('applyQuoteToForm — engine tourist tax always wins over the stale for
     expect(next.touristTaxRate).toBe(0);
   });
 });
+
+describe('specs/pricing-components.md §3 rule 85 — a later sale of an article is not an option of the form', () => {
+  test('the quote answers a later line (lineKey) of an article: the form keeps its single entry, the first line', () => {
+    const prev = { ...basePrev, selectedOptions: [{ optionId: 10, quantity: 1, inComplement: false }] };
+    const next = applyQuoteToForm(prev, {
+      ...baseQuote,
+      optionLines: [
+        { optionId: 10, quantity: 1, totalPrice: 50, offered: 0, inComplement: 0 },
+        { optionId: 10, quantity: 2, totalPrice: 90, offered: 0, inComplement: 0, lineId: 9, lineKey: 'line:reservation_options:9' },
+      ],
+    });
+    expect(next.selectedOptions).toHaveLength(1);
+    expect(next.selectedOptions[0].totalPrice).toBe(50);
+  });
+
+  test('a later line of a resource never overwrites the figures of the first one', () => {
+    const prev = { ...basePrev, selectedResources: [{ resourceId: 4, quantity: 1, sessions: [] }] };
+    const next = applyQuoteToForm(prev, {
+      ...baseQuote,
+      resourceLines: [
+        { resourceId: 4, quantity: 1, unitPrice: 40, totalPrice: 40 },
+        { resourceId: 4, quantity: 1, unitPrice: 40, totalPrice: 40, lineId: 8, lineKey: 'line:reservation_resources:8' },
+        { resourceId: 4, quantity: 3, unitPrice: 45, totalPrice: 135, lineId: 9, lineKey: 'line:reservation_resources:9' },
+      ],
+    });
+    expect(next.selectedResources).toHaveLength(1);
+    expect(next.selectedResources[0].totalPrice).toBe(40);
+  });
+});

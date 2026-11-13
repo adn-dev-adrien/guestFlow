@@ -53,3 +53,11 @@ test('a price that moved is shown as the server worded it', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Ajouter' }));
   expect(await screen.findByText('Prix modifié — relire le panier.')).toBeInTheDocument();
 });
+
+test('a second sale of an article says it is a new line and what the stay already holds, as the server wrote it', async () => {
+  api.quoteExtraSale.mockResolvedValue({ totalCents: 1300, lines: [{ momentLabel: 'À payer au départ', merged: false, note: 'Déjà vendu sur ce séjour : 1 × 6,50 €. Ces lignes gardent leur prix.' }] });
+  render(<AddProductDialog open onClose={() => {}} reservationId={12} articles={articles} onSold={() => {}} />);
+  await pick();
+  expect(await screen.findByText('Nouvelle ligne')).toBeInTheDocument();
+  expect(screen.getByText(/Ces lignes gardent leur prix/)).toBeInTheDocument();
+});

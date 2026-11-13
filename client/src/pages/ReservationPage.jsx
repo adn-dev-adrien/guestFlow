@@ -71,7 +71,7 @@ import useLatestRequest from '../hooks/useLatestRequest';
 import { localIsoToday } from '../utils/isoDay';
 import { applyWelcomePack, releaseWelcomePackLine } from '../utils/welcomePackApply';
 import {
-  hydrateSelectedOptions, hydrateCustomOptions, hydrateSelectedResources,
+  hydrateSelectedOptions, hydrateCustomOptions, hydrateSelectedResources, hydrateLaterLines,
   hydrateOfferedOptionIds, frozenUnitPrices,
 } from '../utils/bookingFormHydration';
 import {
@@ -507,7 +507,7 @@ export default function ReservationPage() {
     complementAdjustment: null,
     depositDisabled: false, // per-reservation opt-out (specs/disable-deposit-per-reservation.md)
     cautionAmount: 0, cautionReceived: false, cautionReceivedDate: '', cautionReturned: false, cautionReturnedDate: '',
-    notes: '', selectedOptions: [], customOptions: [], selectedResources: [], checkInTime: '15:00', checkOutTime: '10:00',
+    notes: '', selectedOptions: [], customOptions: [], selectedResources: [], laterOptions: [], laterResources: [], checkInTime: '15:00', checkOutTime: '10:00',
     // Desired breakfast time (specs/breakfast-time.md); '' = use the breakfast option's default.
     breakfastTime: '',
     startDate: '', endDate: '', propertyId: null,
@@ -660,7 +660,9 @@ export default function ReservationPage() {
         if (item.typedAtNights != null) line.typedAtNights = item.typedAtNights;
         return line;
       })
-      .sort((a, b) => a.optionId - b.optionId),
+      .sort((a, b) => a.optionId - b.optionId)
+      // The later lines of an article (rule 85) ride as they are, each naming its own stored line.
+      .concat(form.laterOptions || []),
     customOptions: (form.customOptions || [])
       .map((line, index) => ({
         customKey: String(line.customKey || `custom_${index + 1}`),
@@ -673,7 +675,8 @@ export default function ReservationPage() {
       .sort((a, b) => a.customKey.localeCompare(b.customKey)),
     selectedResources: (form.selectedResources || [])
       .map((item) => ({ resourceId: Number(item.resourceId), quantity: Number(item.quantity || 0), offered: Boolean(item.offered), inComplement: item.inComplement == null ? null : (item.inComplement ? 1 : 0), sessions: Array.isArray(item.sessions) ? item.sessions : [] }))
-      .sort((a, b) => a.resourceId - b.resourceId),
+      .sort((a, b) => a.resourceId - b.resourceId)
+      .concat(form.laterResources || []),
     offeredOptionIds: Array.from(offeredOptionIds).map(Number).sort((a, b) => a - b),
     platform: form.platform,
     touristTaxInComplement: form.touristTaxInComplement ? 1 : 0,
@@ -683,7 +686,7 @@ export default function ReservationPage() {
     // specs/tourist-tax-matches-the-office-calculation.md — `refreshTouristTax` MUST be a dependency:
     // « Recalculer » flips it (via `touristTaxRefreshRequested`), and without it here the memo
     // stays stale, the live-preview effect never re-fires, and the tax only recomputes after a save.
-  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.discountTarget, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
+  }), [selectedProp, form.startDate, form.endDate, form.checkInTime, form.checkOutTime, form.adults, form.children, form.teens, form.babies, form.babyBeds, form.extraGuestSurchargeOffered, form.discountPercent, form.discountTarget, form.customPrice, form.depositPaid, form.balancePaid, form.depositAmount, form.balanceAmount, form.depositAmountOverride, form.complementAmountOverride, form.selectedOptions, form.laterOptions, form.laterResources, form.customOptions, form.selectedResources, propertyOptions, offeredOptionIds, form.platform, form.depositDisabled, form.touristTaxInComplement, form.autoOptionsInComplement, form.platformCommissionAmount, form.acompteCommissionAmount, form.platformGrossAmount, form.platformTouristTaxAmount, refreshTouristTax]);
   // The clean baseline of the unsaved-changes guard, derived in the render that needs it — never in an effect,
   // which would leave a render comparing the quoted form with no baseline (a flash of « modified »).
   // For an existing record it is the form AS LOADED, with what the quote writes into it once the quote is
@@ -1032,6 +1035,7 @@ export default function ReservationPage() {
             // where current totalPrice > acompteContribTtc + soldeContribTtc. Shared with the devis
             // branch below — one mapper, so neither can drift again.
             selectedOptions: hydrateSelectedOptions(res.options, res, catalogueOptions, buildCardGridFromStored),
+            ...hydrateLaterLines(res.options, res.resources),
             customOptions: hydrateCustomOptions(res.options),
             selectedResources: hydrateSelectedResources(res.resources),
             checkInTime: res.checkInTime || '15:00',
@@ -2088,7 +2092,8 @@ export default function ReservationPage() {
         if (item.typedAtParty != null) line.typedAtParty = item.typedAtParty;
         if (item.typedAtNights != null) line.typedAtNights = item.typedAtNights;
         return line;
-      });
+      })
+      .concat(form.laterOptions || []);
   };
 
   const buildCustomOptionsPayload = () => {
@@ -2115,7 +2120,8 @@ export default function ReservationPage() {
         // Hourly-scheduled sessions (specs/resource-hourly-scheduling.md) — drive the server pricer.
         sessions: Array.isArray(item.sessions) ? item.sessions : [],
       }))
-      .filter((item) => Number(item.quantity || 0) > 0 || (Array.isArray(item.sessions) && item.sessions.length > 0));
+      .filter((item) => Number(item.quantity || 0) > 0 || (Array.isArray(item.sessions) && item.sessions.length > 0))
+      .concat(form.laterResources || []);
   };
 
   // ==================== CLIENT CREATE / EDIT ====================

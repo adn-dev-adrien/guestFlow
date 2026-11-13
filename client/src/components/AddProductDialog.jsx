@@ -74,7 +74,8 @@ export default function AddProductDialog({ open, onClose, reservationId, article
           <Stack spacing={0.5} aria-live="polite">
             <Typography variant="h6" sx={{ fontVariantNumeric: 'tabular-nums' }}>{euros(quote.totalCents)}</Typography>
             <Typography variant="body2" color="text.secondary">{quote.lines[0] && quote.lines[0].momentLabel}</Typography>
-            {quote.lines[0] && quote.lines[0].merged && <Typography variant="caption" color="text.secondary">Déjà vendu sur ce séjour : la quantité s’ajoute à la ligne.</Typography>}
+            {quote.lines[0] && !quote.lines[0].merged && <Typography variant="caption" color="text.secondary">Nouvelle ligne</Typography>}
+            {quote.lines[0] && quote.lines[0].note && <Typography variant="caption" color="text.secondary">{quote.lines[0].note}</Typography>}
           </Stack>
         )}
         {error && <Alert severity="error">{error}</Alert>}

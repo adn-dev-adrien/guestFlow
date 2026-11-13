@@ -1522,6 +1522,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     stored line `laterLine` (the article's first line is `false`); the quote of « Ajouter un produit » says in `lines[].note` what the stay already holds
     (« Déjà vendu sur ce séjour : 1 × 6,50 € + 2 × 7,00 €. Ces lignes gardent leur prix. »); each line of a group carries its `groupLabel` (« 2 × 7,00 € »,
     « 1 séance »), the server's words.
+    *Screens (mock `docs/rapports/2026-11-13-m6-deuxieme-ligne.html`, owner « Toutes les recommandations »):* « Ventes du séjour » (`SaleDetailList`) shows an
+    article sold on several lines under the server's title and total, each line below it with its source, its status and its moment menu; an offered line stays
+    in its group with its catalogue amount struck through beside 0 €; the SAS departure section (`StaySalesSection`) groups per block, « À percevoir » and
+    « Déjà payé »; « Ajouter un produit » says « Nouvelle ligne » and prints the server's note. On a phone the rows stack and the titles wrap (checked at 390 and
+    1280 px). The fiche **form** edits an article's first line only: the later lines (`laterLine`) ride in `form.laterOptions` / `form.laterResources` as wire
+    lines that name their `lineId` and their own `offered`, are sent back with every quote and save, never enter the offered set or the frozen unit prices,
+    and are not rebuilt from the quote (`applyQuoteToForm` skips a line that carries a `lineKey`); « Résumé tarifaire » keys a later row by its line and offers
+    no « Offert » switch on it (that is done from « Ventes du séjour »). The hourly planning card ticks a session on its own line (`lineId` sent).
     > **Delivered by PR C** (slice d): the appending writers and the readers above; proof `true-lines-append-extra-sale`, `true-lines-fiche-put`,
     > `true-lines-sas-offer-one-line`, `true-lines-hourly-paid-session`, `true-lines-free-units-ledger`, `true-lines-email-grouping`, `true-lines-sale-detail-groups`.
 86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with

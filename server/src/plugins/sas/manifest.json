@@ -172,7 +172,8 @@
       "Les prestations vendues au sas sont des ventes du séjour : elles portent leur origine et leur moment, les prix sont calculés par le même moteur que la fiche.",
       "Les ventes du séjour dues au départ sont listées à part dans le sas, hors du total encaissé à l’arrivée.",
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
-      "Compatible avec GuestFlow 4 (SDK 2.29)."
+      "Compatible avec GuestFlow 4 (SDK 2.29).",
+      "Offrir une prestation vise une seule ligne quand un article a été vendu plusieurs fois ; le récapitulatif regroupe ces lignes sous un seul titre."
     ]
   }
 }
