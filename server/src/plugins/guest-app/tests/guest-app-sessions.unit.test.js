@@ -202,7 +202,7 @@ withApi('rule 5: the visitor mode carries no personal data and no stay module', 
 
 const LOOKUP = { lastName: 'le goff durand', reservationNumber: 'R-99-001' };
 
-// D28 — the lookup opens a platform stay carrying the platform's own number; core-made numbers: guest-app-lookup-core-numbers.
+// Rule 54 — every live stay opens by its number, a direct one's included: guest-app-lookup-core-numbers.
 const OTA = { platform: 'Otaexample' };
 
 withApi('rule 6: name + number from J-7 → pre-arrival, without the gate', async ({ call, db, clock }) => {

@@ -10,7 +10,6 @@
 const sdk = require('../sdk');
 
 const { computeWindow, toParisIso, wallClockToDate } = sdk.coreModule('stayWindow');
-const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 
 const PRE_ARRIVAL_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -74,19 +73,6 @@ function resolveLookup(stay, now) {
   return null;
 }
 
-// The exact shape of a number the core generates (`utils/reservationNumber.js`): `20YY`, the month, a 3-digit
-// per-month counter, or the older `AAAA-MM-###` form. Nothing wider: a 10-digit platform number whose digits 5-6 read
-// as a month is the platform's own (audit R36b N1); the suite pins this shape to the core's generator.
-const CORE_NUMBER = /^20\d{2}(?:(0[1-9]|1[0-2])\d{3}|-(0[1-9]|1[0-2])-\d{3})$/;
-
-/**
- * D28, rules 6 and 54 — the lookup never opens a stay whose number the core made, sequential and guessable: an
- * own-channel stay (the platform's mode, never its name), or a platform stay still carrying the core's number.
- */
-function lookupAllowed(stay) {
-  return Boolean(stay) && !isDirectChannel(stay.platform) && !CORE_NUMBER.test(String(stay.reservationNumber || '').trim());
-}
-
 /**
  * Re-derived on every request (rule 9 and the « dates changed » edge case): the session lives only as long
  * as its stay's window, read from the live reservation. → { mode, window, expiresAt } or null when it is
@@ -96,7 +82,6 @@ function lookupAllowed(stay) {
 function deriveSession(session, stay, now) {
   if (!isLiveStay(stay) || Number(stay.propertyId) !== Number(session.propertyId)) return null;
   if (session.origin === 'lookup') {
-    if (!lookupAllowed(stay)) return null;
     const resolved = resolveLookup(stay, now);
     return resolved && { mode: resolved.mode, window: resolved.window, expiresAt: resolved.window.end };
   }
@@ -112,7 +97,6 @@ module.exports = {
   daysBetween,
   deriveSession,
   isLiveStay,
-  lookupAllowed,
   openingToday,
   parisDate,
   preArrivalOpensAt,

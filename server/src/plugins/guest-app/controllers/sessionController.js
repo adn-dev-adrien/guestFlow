@@ -8,7 +8,7 @@ const QRCode = require('qrcode');
 const sdk = require('../../sdk');
 const registry = require('../../sdk/registry');
 const {
-  lookupAllowed, openingToday, preArrivalOpensAt, resolveLink, resolveLookup,
+  openingToday, preArrivalOpensAt, resolveLink, resolveLookup,
 } = require('../currentStay');
 const { nameMatches } = require('../nameMatch');
 const { shownModules, tilesOf } = require('../modules');
@@ -148,8 +148,8 @@ function buildSessionController({
   }
 
   // POST /sessions/lookup — rules 6, 7, 11quater, 54. Every failure is the one generic 404, and the name is
-  // compared even when no stay carries that number. Two stays sharing a number are each tried against the name. A
-  // number the core made opens nothing (D28): it answers like an unknown stay.
+  // compared even when no stay carries that number. Two stays sharing a number are each tried against the name. Every
+  // live stay can be found, a direct one by its GuestFlow number included (Adrien, 2026-11-12, D28 reversed).
   function lookup(req, res) {
     const { lastName, reservationNumber } = req.body || {};
     const candidates = isText(lastName) && isText(reservationNumber)
@@ -159,7 +159,7 @@ function buildSessionController({
     const found = (candidates.length ? candidates : [null]).map((stay) => {
       const nameOk = nameMatches(lastName, [stay ? stay.clientLastName : '']);
       const lodging = stay && lodgings().findEnabled(stay.propertyId);
-      const resolved = stay && nameOk && lodging && lookupAllowed(stay) ? resolveLookup(stay, at) : null;
+      const resolved = stay && nameOk && lodging ? resolveLookup(stay, at) : null;
       return resolved ? { stay, lodging, resolved } : null;
     }).find(Boolean);
     if (!found) return fail(res, refusal(404, 'STAY_NOT_FOUND', 'stayNotFound'));

@@ -88,7 +88,7 @@ is pushed every order.
    phase reuses its session; two devices have two sessions on the same stay.
 5. **Visitor mode.** The lodging's booklet, Soliomap and the wifi; « Bienvenue à La Granja » without any personal
    data; no gate, no shop, no orders. A visitor session (`reservationId` NULL) lasts 24 h.
-6. **Fallback, from anywhere: name + reservation number — a platform's number only.** `/retrouver` asks the last name
+6. **Fallback, from anywhere: name + reservation number.** `/retrouver` asks the last name
    and the reservation number (`reservations.reservationNumber`, which carries the platform's number for OTA stays
    filled by the intake skills) and opens the same session as the stay link would (pre-arrival or stay), from **J-7
    00:00** until the window's end. One generic error for every failure (« Nous n'avons pas trouvé ce séjour. Vérifiez
@@ -96,7 +96,9 @@ is pushed every order.
    each tried against the name (review of 2026-11-09). **Amended 2026-11-10 (D28, audit R36 A36-1):** the rule assumed
    every number was a platform's; a direct stay's is the core's sequential `AAAAMM###`, so a surname walked through a
    month of them and held the gate key and the note. The lookup never opens a stay whose number the core made — rule
-   54; the stay link stays the capability of direct guests.
+   54; the stay link stays the capability of direct guests. **Reversed 2026-11-12 (Adrien):** « même pour un séjour
+   direct le numéro de réservation doit fonctionner » — every live stay opens with its number, the core's included
+   (rule 54).
 7. **Name matching** (the fallback only). Normalised on both sides: NFD, accents stripped, lower-case, every
    non-letter removed (`Le Goff-Durand` = `legoffdurand`). Compared to the reservation's client `lastName`.
 8. **Data minimisation.** A session reads only: the guest's first name, lodging name, arrival / departure
@@ -560,22 +562,14 @@ is pushed every order.
 53. **Look & feel** — §6: the Domaine Solio identity of the site and the gate app (Marcellus + Karla,
     sapin / ocre / paper, square-cut, photo-led), the night register at night, one orchestrated motion per
     screen, WCAG AA in both registers, 44 px touch targets.
-54. **The lookup opens a platform's number only** (D28, Claude under Adrien's standing « refuse first » order,
-    2026-11-10; audit R36 A36-1). « Retrouver mon séjour » never opens a stay whose number the core generated
-    (sequential, guessable): a stay sold on an own channel — judged by the platform's mode (`isDirectChannel`: `direct`
-    and every platform « Compté comme vente directe »), never by its name — and a platform stay still carrying the
-    core's `AAAAMM###` (or older `AAAA-MM-###`) number answer the one generic 404 `STAY_NOT_FOUND`, as an unknown stay
-    does; a lookup session already open on such a stay dies on its next request. « Régénérer le lien » (SAS and
-    fiche) also ends every lookup session of that stay: the operator's one way to close a stay to everyone. The stay
-    link stays the capability of direct guests (rule 2).
-    **Amended 2026-11-10 (audit R36b N1):** the shape is the core's exact one, `20YY` + month + a 3-digit counter
-    (`^20\d{2}(?:(0[1-9]|1[0-2])\d{3}|-(0[1-9]|1[0-2])-\d{3})$`), pinned to `utils/reservationNumber.js` by the suite. The
-    first shape (`\d{4}-?MM-?\d{3,}`) took any 10-digit Booking number whose digits 5-6 read 01-12 for the core's (3 of
-    10 on the production copy): those guests read « Nous n'avons pas trouvé ce séjour ». A month's 1000th core number
-    (4-digit counter) is not recognised by its shape; a direct stay is refused by its mode all the same.
-    **D28 scope (2026-11-10, round 36b):** a platform's number (Booking, Airbnb, Gîtes de France…) is the platform's
-    own; how guessable it is — Gîtes de France's 4-5 digits included — is the platform's matter, with the surname as the
-    second factor and the per-IP limit of rule 6. Nothing more is refused for it.
+54. **The lookup opens every live stay by its number, a direct one's included** (Adrien, 2026-11-12, reversing D28 of
+    2026-11-10). A stay sold on an own channel opens with the number GuestFlow gave it (`AAAAMM###`, or the older
+    `AAAA-MM-###`), like a platform's stay with the platform's number. **Risk accepted by Adrien:** a core number is
+    sequential, so whoever knows a guest's surname can try the month's numbers; what stands in the way is the surname
+    (rule 7) and the per-IP limit of rule 6 (5 attempts / 15 min), nothing else. « Régénérer le lien » (SAS and fiche)
+    still ends every lookup session of that stay: the operator's one way to close a stay to everyone.
+    *History:* D28 (2026-11-10, audit R36 A36-1) refused every own-channel stay and every core-shaped number (amended in
+    round 36b to the core's exact shape); Adrien reversed it on 2026-11-12 after a direct guest could not open the app.
 55. **Never more persons than the stay can still be served, never a priced article at 0 €** (audit R36-M-H1). The
     engine serves a per-person line at most max(1, party, the lodging's capacity) persons
     (`pricing.resolveServedPersons`): an order whose persons exceed what is left of it is refused before anything is
@@ -1191,12 +1185,11 @@ le nom et le numéro. »
 - [x] `…/guest-app-home.unit.test.js` — rules 10-11
 - [x] `…/guest-app-suggestion.unit.test.js` (9) — rule 15bis: 14 h cut-off, eve of departure, `visibleFrom`, nearest
   then soonest, multi-day label with the real end date, feed down or slow → no card, visitor → none
-- [x] `…/guest-app-lookup-core-numbers.unit.test.js` (7) — rules 6, 54 (D28): a direct stay's sequential numbers walked
-  with the right surname open nothing, a platform counted as a direct sale refused by its mode, a platform stay still
-  carrying the core's number refused and its own number opening it, an open lookup session dying once the stay becomes
-  an own-channel sale, « Régénérer le lien » ending that stay's lookup sessions only; genuine 10-digit platform numbers
-  (digits 5-6 between 01 and 12) opening their stay, and the refused shape pinned to the core's generator for every
-  month, both forms, nothing wider (R36b N1)
+- [x] `…/guest-app-lookup-core-numbers.unit.test.js` (6) — rules 6, 54 (2026-11-12, D28 reversed): a direct stay opens
+  with its core number in both forms, another surname or number opens nothing, a platform counted as a direct sale
+  opens, an open lookup session survives the stay becoming an own-channel sale, « Régénérer le lien » ending that
+  stay's lookup sessions only; genuine 10-digit platform numbers
+  (digits 5-6 between 01 and 12) opening their stay (R36b N1)
 - [x] `…/guest-app-order-free-units.unit.test.js` (2) — rules 25, 55 (R36b N4): a priced option's free unit confirmed at
   0 € and the next unit billed; the bath's free hour confirmed at 0 € and the next hour billed
 - [x] `…/guest-app-order-persons.unit.test.js` (6) + `tests/mid-stay-order-persons.unit.test.js` (2) — rule 55 and
@@ -1375,7 +1368,7 @@ Points the rules left open, decided in code and recorded here:
 - A link session keeps its phase; the app exchanges the link again when it ends (rule 4). A lookup session moves
   from pre-arrival to stay by itself, having no link to exchange.
 - A visitor session opened by a link before D-7 lasts 24 h at most and ends at D-7 00:00.
-- Regenerating kills every session opened from the link, visitor ones included; since D28 (2026-11-10, rule 54) the
+- Regenerating kills every session opened from the link, visitor ones included; since 2026-11-10 (rule 54) the
   stay's lookup sessions die with it.
 - The poster's visitor `/me` no longer carries `opensAt` / `openingLine` (rule 3); the pre-arrival `/me` does.
 - `stayToken` wins when a request sends both `stayToken` and `lodgingCode`.
