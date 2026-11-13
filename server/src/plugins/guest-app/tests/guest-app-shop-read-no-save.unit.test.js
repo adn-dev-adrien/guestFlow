@@ -1,6 +1,6 @@
 // specs/guest-app.md rules 24, 27 and specs/pricing-components.md rule 10 (review defect D9, L20) — reading the shop is reading: `GET /shop`, the slots and the delivery times run no save
 // of the stay (no history entry, no bucket rewritten); only the quote plays one, in a transaction that is rolled back.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const {
   addBath, addOption, db, hasHourly, isoPlus, openOrdering, seedStay, sell,
 } = fx;
-const controller = require('../controllers/reservationsController');
+const controller = require('../../../controllers/reservationsController');
 
 const CIDER = addOption({ id: 3901, title: 'Cidre lecture', price: 6 });
 sell('option', CIDER);

@@ -1,7 +1,7 @@
-// specs/guest-app.md rules 35, 85 and specs/pricing-components.md rules 26, 29, 49 (owner Q-C3) — a card order awaiting its payment writes NO line on the fiche
+// specs/guest-app.md rules 35, 85, 97 (the note line stores the quantity sold) and specs/pricing-components.md rules 26, 29, 49 (owner Q-C3) — a card order awaiting its payment writes NO line on the fiche
 // (nothing the guest has not paid), holds its slot on the planning through the plugin's hold until its 30 minutes lapse, and reserves what it was
 // quoted with (a second order waits, the shop reads the free hour as taken); paid, its lines are written already settled, tagged with the order.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -9,9 +9,9 @@ const assert = require('node:assert/strict');
 const {
   addBath, addOption, db, fakeProvider, hasHourly, isoPlus, notesOf, openOrdering, optionLine, seedStay, sell,
 } = fx;
-const { processPaidLink } = require('../utils/paymentPollRunner');
-const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
-const paymentLinksModel = require('../models/paymentLinksModel');
+const { processPaidLink } = require('../../../utils/paymentPollRunner');
+const { buildPaymentEffectDeps } = require('../../../utils/paymentEffectDeps');
+const paymentLinksModel = require('../../../models/paymentLinksModel');
 
 const CIDER = addOption({ id: 3501, title: 'Cidre carte', price: 6 });
 const BATH = addBath({ id: 351, freeMinutes: {} });
@@ -42,6 +42,7 @@ test('rules 29, 85 — a card order awaiting payment writes no line; paid, its l
     const line = optionLine(stayId, CIDER);
     assert.deepEqual([line.source, line.orderRef, line.totalPrice], ['shop', `order:${orderId}:1`, 12]);
     assert.deepEqual(notesOf(stayId).map((n) => [n.total, n.ref]), [[12, String(orderId)]]);
+    assert.equal(notesOf(stayId)[0].lines[0].qty, 2, 'rule 97');
     assert.equal(row(orderId).status, 'paid');
   });
 });

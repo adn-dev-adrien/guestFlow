@@ -1,7 +1,7 @@
 // specs/guest-app.md rule 107 and specs/pricing-components.md rules 13, 26, 92 (owner answers 2026-11-13) — an article the stay offers and an order asks again
 // is billed as a line of its own; the offered units of a DRINK are already in the fridge at the arrival, so the first app order of one is billed — the
 // offered allowance is consumed there, never by an app order. An article that is not in place keeps today's rule (rule 25): its free units cover a first order.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

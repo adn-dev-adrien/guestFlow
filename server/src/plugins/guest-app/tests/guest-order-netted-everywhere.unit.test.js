@@ -1,6 +1,6 @@
 // specs/guest-app.md rules 85, 106 and specs/pricing-components.md rules 21, 31 (review defect D6, M5) — a card-paid order is netted wherever the arrival complement is read: the
 // engine's quote, the sale detail's arrival bucket, the SAS step's « à percevoir »; a note order beside it keeps the complement for itself alone.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,11 +8,11 @@ const assert = require('node:assert/strict');
 const {
   addOption, db, fakeProvider, openOrdering, seedStay, sell,
 } = fx;
-const { processPaidLink } = require('../utils/paymentPollRunner');
-const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
-const paymentLinksModel = require('../models/paymentLinksModel');
-const { quoteStoredReservation } = require('../utils/storedReservationQuote');
-const extraSale = require('../utils/extraSale');
+const { processPaidLink } = require('../../../utils/paymentPollRunner');
+const { buildPaymentEffectDeps } = require('../../../utils/paymentEffectDeps');
+const paymentLinksModel = require('../../../models/paymentLinksModel');
+const { quoteStoredReservation } = require('../../../utils/storedReservationQuote');
+const extraSale = require('../../../utils/extraSale');
 
 const CIDER = addOption({ id: 3871, title: 'Cidre net', price: 6 });
 sell('option', CIDER);

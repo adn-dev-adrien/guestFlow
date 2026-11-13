@@ -1,6 +1,6 @@
 // specs/guest-app.md rule 96 and specs/pricing-components.md rules 12, 13 (review defect D4, MEDIUM 3) — an order for an article the stay already holds at an older
 // price is a line of its own at the catalogue price of the day; the line already sold keeps its price (nothing is merged, nothing drifts).
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

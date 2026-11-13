@@ -1,6 +1,6 @@
 // specs/guest-app.md rule 85 and specs/pricing-components.md rules 23, 75 (review defect D7, M6 / M7) — the line of a card-paid order is the provider's money: the operator
 // can offer it only through the fiche's confirmation, and the excess it leaves is a refund obligation (`lineLowered`), never a silent credit.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,10 +8,10 @@ const assert = require('node:assert/strict');
 const {
   addOption, db, fakeProvider, openOrdering, seedStay, sell,
 } = fx;
-const { processPaidLink } = require('../utils/paymentPollRunner');
-const { buildPaymentEffectDeps } = require('../utils/paymentEffectDeps');
-const paymentLinksModel = require('../models/paymentLinksModel');
-const extraSale = require('../utils/extraSale');
+const { processPaidLink } = require('../../../utils/paymentPollRunner');
+const { buildPaymentEffectDeps } = require('../../../utils/paymentEffectDeps');
+const paymentLinksModel = require('../../../models/paymentLinksModel');
+const extraSale = require('../../../utils/extraSale');
 
 const CIDER = addOption({ id: 3881, title: 'Cidre payé', price: 6 });
 sell('option', CIDER);

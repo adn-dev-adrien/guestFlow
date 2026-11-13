@@ -1,6 +1,6 @@
-// specs/guest-app.md rule 93 and specs/pricing-components.md rules 8, 9 (review defect D1, HIGH 1 / HIGH 2) — an order adds its own lines and nothing else: the nights, the
+// specs/guest-app.md rules 93, 95 and 101, specs/pricing-components.md rules 8, 9 (review defect D1, HIGH 1 / HIGH 2) — an order adds its own lines and nothing else: the nights, the
 // tourist tax, the stored price and the other lines of the stay stay as they were sold, even when the engine of today would price the stay otherwise.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

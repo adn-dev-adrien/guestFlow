@@ -1,6 +1,6 @@
 // specs/guest-app.md rule 87 and specs/pricing-components.md rules 25, 26 (review defect D5, H2 — no test existed) — the free units a line consumed stay with it: removing an unpaid
 // order line gives them back for the NEXT sale and re-prices no other standing line.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const {
   addOption, db, openOrdering, seedStay, sell,
 } = fx;
-const extraSale = require('../utils/extraSale');
+const extraSale = require('../../../utils/extraSale');
 
 const CIDER = addOption({ id: 3861, title: 'Cidre allocation', price: 5 });
 db.prepare('INSERT OR REPLACE INTO property_option_prices (propertyId, optionId, price, freeUnits) VALUES (1, ?, 5, 2)').run(CIDER);

@@ -74,7 +74,7 @@ test('rules 26, 92 — a reader\'s quote after a waiting order prices after that
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ?').get(id).n, 0);
 });
 
-test('rules 20, 104 — where a sale taken now is collected: the arrival before the clock reaches it, the departure after, closed once collected', () => {
+test('rule 20 and guest-app rule 104 — where a sale taken now is collected: the arrival before the clock reaches it, the departure after, closed once collected', () => {
   const ahead = stay(5);
   assert.equal(extraSale.collectionOf(ahead, new Date()), 'arrival');
   const started = stay(-1);

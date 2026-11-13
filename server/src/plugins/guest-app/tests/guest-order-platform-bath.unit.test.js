@@ -1,7 +1,7 @@
 // specs/guest-app.md rules 98, 105 and specs/pricing-components.md rules 17, 49 (review defect D3, M1 and M2-M4) — on a stay a platform sold, the free hour and the paid hours of the bath are
 // ordered from J-7 exactly as on a direct stay: the money grows by the order's own amount, the line is outside the platform price (a sale of the shop, collected at
 // the arrival), and what the platform price already contains is a line fact, never a platform name.
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

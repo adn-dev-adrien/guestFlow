@@ -1,6 +1,6 @@
 // specs/guest-app.md rule 104 and specs/pricing-components.md rules 20, 44 (review defect D2, H1) — an order is routed by the stay clock: the arrival date AND the
 // check-in time. On the arrival day before the check-in hour it is collected at the arrival; from the hour, at the departure — never by « startDate < today ».
-const fx = require('../plugins/guest-app/tests/guestOrderFixtures');
+const fx = require('./guestOrderFixtures');
 
 const test = require('node:test');
 const assert = require('node:assert/strict');

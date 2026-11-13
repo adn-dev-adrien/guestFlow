@@ -1041,7 +1041,8 @@
     "payoutWithPenalty"
   ],
   "refundObligationsModel": [
-    "open"
+    "open",
+    "openFor"
   ],
   "basketRefundOutcome": [
     "notHonoured",

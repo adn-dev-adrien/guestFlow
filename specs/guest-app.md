@@ -989,6 +989,7 @@ arrival.** Everything below is judged by the server; the apps render what it off
 99. **`exactMergedTotals` is the order commit's own switch** (fifth pass). Superseded: the switch is not ported (`pricing-components.md`
     rules 12 and 13).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
+    > **Sans test** — superseded rule (pricing-components rules 12, 13): the switch it described does not exist, nothing to prove.
 100. **The arrival note of a card order, and the SAS list, state the TRUE unit price** (fifth pass). Reference rule:
     `pricing-components.md` rules 12 and 31 (the line stores its total; `saleDetail` is the one read model).
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).

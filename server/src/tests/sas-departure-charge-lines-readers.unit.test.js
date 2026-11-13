@@ -11,6 +11,8 @@ const ROOT = path.join(__dirname, '..');
 const GUARDS = [
   /notDepartureCharge\(/, /\$\{own\}/, /sasArrivalOrigin, 0\) = 1/, /sasArrivalOrigin = 1/, /inComplement, 0\) = 1/, /sasLineKey = \?/, /lineId = \?/,
   /sasLineKey LIKE '\$\{DEPARTURE_LINE_PREFIX\}%'/,
+  // A line an app order sold carries its `orderRef`; a departure line never does (guest-app rule 82).
+  /orderRef LIKE 'order:%'/,
 ];
 // Statements that read no line of the sale, each with its reason.
 const ALLOWED = new Map([
@@ -18,7 +20,6 @@ const ALLOWED = new Map([
   ['models/reservationsModel.js|DELETE FROM reservation_custom_options WHERE id = ?', 'deletes a row the arrival SAS rewrite read with sasArrivalOrigin = 1'],
   ['utils/departureChargeLines.js|SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options', 'the departure lines\' own writer'],
   ['utils/departureChargeLines.js|DELETE FROM reservation_custom_options WHERE id = ?', 'the departure lines\' own writer'],
-  ['plugins/hourly-resources/schedulingModel.js|SELECT amount FROM reservation_custom_options','reads the lines an app order sold (`orderRef` set): a departure line never carries one'],
   ['utils/sasUpsellOptionMigration.js|DELETE FROM reservation_custom_options WHERE id = ?', 'deletes a row the migration read with sasArrivalOrigin = 1'],
 ]);
 
