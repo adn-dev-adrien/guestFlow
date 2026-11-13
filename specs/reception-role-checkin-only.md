@@ -191,7 +191,9 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     reception-reachable endpoint that still leaked finance + PII. For a reception-only requester the
     controller now runs each event through `toReceptionPlanningEventList` (whitelist
     `PLANNING_EVENT_KEEP` in `utils/receptionView.js`: id, kind, reservationId, resourceId,
-    resourceName, propertyId, propertyName, date, startTime, endTime, turnoverMinutes, displayName).
+    resourceName, propertyId, propertyName, date, startTime, endTime, turnoverMinutes, displayName,
+    and — since the outside visit's mini SAS (`outside-booking-sas.md` rules 6, 7, 22, C38) — `external`, `arrived`, `noShowAt` and `cardState`:
+    the card offers « Arrivée » and says « Reste 13,00 € » to the reception, door money only, never a price, a payment or a refund).
     The operator label `displayName` survives (a name reception already sees on reservations); money
     and contact PII are dropped. A unit test pins the key set.
     > **2026-10-18 (merge into `inte/plugins`):** the endpoint is served by the `hourly-resources`

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — rules 65-107 are delivered by pass 4 of pricing-components PR C (`midStayOrderCommit` was removed by C30, 2026-11-13); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
+| **Status** | In progress — rules 65-107 are delivered by pass 4 of pricing-components PR C and ship with it in **4.2.0** (`midStayOrderCommit` was removed by C30, 2026-11-13); rules 1-64 Implemented (2026-11-09) — approved 2026-11-04 |
 | **Branch** | `claude/granja-estival-app-spec-77uvgj` (spec) — implementation base `inte/plugins` |
 | **Created** | 2026-11-04 |
 | **Author** | Adrien |
