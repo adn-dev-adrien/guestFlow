@@ -74,14 +74,16 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
 9. Out of the lock decision: `paymentDeadlines.arrived`, the platform price check, the clients
    « in stay » filter and the plugin intake guard (`coreServices.applyReservationUpdate`, « Séjour commencé
    ou passé ») keep their calendar-day reading — they answer other questions.
+   > **Sans test** — a non-change; those readings keep their own suites.
 10. A fiche opened before the arrival time and saved after it is judged by the server at save time: the
    save may be refused with the usual locked-fiche error; the operator reloads (known, accepted).
+   > **Sans test** — a documented limitation, nothing to assert.
 
 ## 4. Architecture
 
 ### 4.1 Server side (`server/src/`)
 
-- `utils/arrivalMoment.js` — add `hasStayStarted(row, today, nowTime)`: the rule 1 definition.
+- `utils/arrivalMoment.js` — add `hasStayStarted(row, today, nowTime)`: the rule 1 definition. It is the interim home of « started »: `specs/pricing-components.md` rules 44-46 (revised 2026-11-11, « started = arrival date and check-in time passed ») move it behind the STAY CLOCK in PR C.
 - `utils/midStayExtrasWindow.js` — `midStayExtrasWindow` / `buildEditLock` call it instead of `startDate <= today`.
 - `controllers/reservationsController.js` — `pastReservationLocked`, `started`, ledger-edit `startedStay` call it; `getById` adds `arrivalComplementLines` and passes `nowTime`.
 - `models/reservationsModel.js` — `getEditLock` takes `nowTime`.
