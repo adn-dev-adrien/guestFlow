@@ -102,7 +102,7 @@ function fresh(options) {
   db.prepare("INSERT INTO properties (id, name, defaultCheckIn, defaultCheckOut, defaultCautionAmount) VALUES (1, 'Gite', '15:00', '10:00', 0)").run();
   const insertSource = db.prepare('INSERT INTO ical_sources (id, propertyId, name, url, platformKey, platformLabel) VALUES (?, 1, ?, ?, ?, ?)');
   for (const s of [BOOKING, AIRBNB, LODGIFY]) insertSource.run(s.id, s.name, s.url, s.platformKey, s.platformLabel);
-  return { db, model: propertyIcalModel.buildModel(db, { ...options, fetchImpl: globalFetch }) };
+  return { db, model: propertyIcalModel.buildModel(db, { fetchImpl: globalFetch, ...options }) };
 }
 const source = (db, id) => db.prepare('SELECT * FROM ical_sources WHERE id = ?').get(id);
 const all = (db) => db.prepare('SELECT r.*, c.firstName, c.lastName FROM reservations r LEFT JOIN clients c ON c.id = r.clientId ORDER BY r.id').all();
@@ -251,7 +251,8 @@ test('rule 3: a pristine stay moved by its feed onto taken nights is flagged onc
 test('rule 4: a platform that never answers fails within the timeout with a readable message', async () => {
   const server = http.createServer(() => { /* accepts, never answers */ });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { db, model } = fresh({ fetchTimeoutMs: 150 });
+  // A live socket needs the same undici the production fetch and its dispatcher come from.
+  const { db, model } = fresh({ fetchTimeoutMs: 150, fetchImpl: undefined });
   db.prepare('UPDATE ical_sources SET url = ? WHERE id = ?').run(`http://127.0.0.1:${server.address().port}/feed.ics`, AIRBNB.id);
   const started = Date.now();
   try {
