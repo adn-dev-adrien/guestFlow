@@ -12,6 +12,7 @@ vi.mock('../../../api', () => ({ default: {} }));
 vi.mock('../../../components/DialogProvider', () => ({ useToast: () => ({ showError: vi.fn() }) }));
 
 const BOOKING = {
+  // date-literal-ok: an address to follow, never compared with today
   id: 12, resourceId: 3, resourceName: 'Bain nordique', date: '2026-11-20', startTime: '18:00', endTime: '19:00',
   displayName: 'Dupont', paid: false, external: true, arrived: false,
 };
@@ -33,6 +34,7 @@ const renderCard = (item, onOpenReservation) => render(
 test('a click on the card opens the booking on its resource and week', () => {
   renderCard(BOOKING, vi.fn());
   fireEvent.click(screen.getByRole('button', { name: /Ouvrir la réservation Bain nordique 18:00–19:00/ }));
+  // date-literal-ok: an address to follow, never compared with today
   expect(screen.getByTestId('where').textContent).toBe('/resource-planning?booking=12&resource=3&date=2026-11-20');
 });
 

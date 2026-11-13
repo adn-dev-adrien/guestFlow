@@ -20,6 +20,7 @@ import ResourcePlanningPage from '../ResourcePlanningPage';
 const BAIN = { id: 3, name: 'Bain', isComplex: 1, openTime: '08:00', closeTime: '22:00', slotDuration: 60 };
 const SAUNA = { id: 4, name: 'Sauna', isComplex: 1, openTime: '08:00', closeTime: '22:00', slotDuration: 60 };
 const row = (id, kind = 'booking') => ({
+  // date-literal-ok: an address to follow, never compared with today
   id, resourceId: 4, date: '2026-12-02', startTime: '10:00', endTime: '11:00', kind, reservationId: kind === 'session' ? 77 : null,
   displayName: 'Dupont', totalPrice: 30, paid: false, turnoverMinutes: 0,
 });
@@ -31,6 +32,7 @@ beforeEach(() => {
   });
   getResources.mockReset().mockResolvedValue([BAIN, SAUNA]);
   getResourceBookings.mockReset().mockImplementation(({ resourceId, weekStart }) => Promise.resolve(
+    // date-literal-ok: an address to follow, never compared with today
     resourceId === 4 && weekStart === '2026-11-30' ? [row(40, 'session'), row(41)] : [],
   ));
 });
@@ -41,18 +43,22 @@ const renderAt = (url) => render(
 );
 
 test('the linked booking opens on its own resource and week', async () => {
+  // date-literal-ok: an address to follow, never compared with today
   renderAt('/resource-planning?booking=41&resource=4&date=2026-12-02');
   expect((await screen.findByTestId('editor', {}, { timeout: 5000 })).textContent).toBe('Sauna#41');
+  // date-literal-ok: an address to follow, never compared with today
   expect(getResourceBookings).toHaveBeenCalledWith({ resourceId: 4, weekStart: '2026-11-30' });
 });
 
 test('a booking no longer there says so, and opens nothing', async () => {
+  // date-literal-ok: an address to follow, never compared with today
   renderAt('/resource-planning?booking=99&resource=4&date=2026-12-02');
   expect(await screen.findByText('Réservation introuvable.', {}, { timeout: 5000 })).toBeInTheDocument();
   expect(screen.queryByTestId('editor')).toBeNull();
 });
 
 test('a session of a stay is never opened as a booking', async () => {
+  // date-literal-ok: an address to follow, never compared with today
   renderAt('/resource-planning?booking=40&resource=4&date=2026-12-02');
   await screen.findByText('Réservation introuvable.', {}, { timeout: 5000 });
   await waitFor(() => expect(screen.queryByTestId('editor')).toBeNull());
