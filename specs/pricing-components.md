@@ -1663,7 +1663,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > detail (`sasDetailAmount`, `endOfStaySasAmount`) into the end-of-stay complement, and `moveFinalPriceBy` moves `finalPrice` with them.
     > Written as custom lines, the fiche's next save would price them a second time (`storedBody` carries every custom line) unless, in the
     > same commit, that engine input reads the lines for a stay whose charges are lines and the stored detail for every other stay, and the
-    > 21 readers of the detail (sasAudit, accountingModel, accountingOutput, arrivalPaymentDetail, storedMoneySplit, reservationQuoteContext,
+    > readers of the detail, about twenty (sasAudit, accountingModel, accountingOutput, arrivalPaymentDetail, storedMoneySplit, reservationQuoteContext,
     > paymentAllocationsSync, complementDataRepairs, midStayOrderCommit, checkoutComplement, refunds/collected, refundInputModel, the
     > controller's three, the model's nine) go through `endOfStayChargesOf(row)`. That is one change with the byte-identical replay as its
     > proof; it was not started in pass 3h.
