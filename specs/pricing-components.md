@@ -288,6 +288,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > reopen-completed-sas rule 4 amended; proof `sas-reopen-appends`), so every SAS line has a `lineId` the line API can offer.
     > **Pending** — PR C: the three SAS « offert » payload fields (`cleaningOffered`, `bathLinenOffered`, `offeredExtras`) stay the SAS's batch form of the same stored property (`offered`, catalogue value kept);
     > the single-line `PATCH …/extras/:ref { offered }` is the fiche's form. They are not merged into one input yet.
+    > _Pass 3f:_ they merge when the SAS writes through the line API (rule 25, Pending): the batch inputs have nothing to be merged into until then.
 
 ### 3.D TOTALS, PLATFORM PRICE, DISCOUNTS, VAT
 
@@ -416,6 +417,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > on a booking, as on a stay's quantity path (diff 4): only a booking whose free hour reaches the evening differs, and only a **new** one (rule 83).
     > **Pending** — PR C: the evening supplement as a component of the session's line. It needs the line's total to follow the sessions placed after the sale, against the price lock (rule 13): today
     > the `evening:<id>` complement line, billed once and netted by `eveningCredit`, carries the same amount (diff 3), so nothing the guest pays moves.
+    > _Pass 3f, why it is still open:_ a stored line has a `components` column but no writer persists it, and a line has ONE routing (`inComplement`): the evening part of a session sold into the plan has to be collected at the arrival,
+    > which a single-routing line cannot say. The component needs per-component routing in the stored line (or a component row) before the SAS can stop writing `evening:<id>`.
 25. **The SAS sells through EXTRAS.** Breakfast, catering, bath linen, linen pieces, cleaning, missing items,
     extinguisher and plugin items (`sasCommit.complementItems`) are requests to `priceExtras`, written as
     lines with `source = 'sas'` and the moment of rule 19. `planArrivalSas` / `planDepartureSas` become
@@ -426,6 +429,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > (`saleDetail.lines[].addedOnReopen`, served by the SAS payload's `staySales`) and journaled.
     > **Pending** — PR C: `planArrivalSas` / `planDepartureSas` as SETTLEMENT views over the lines and `sasStep.complementItems` as requests to `extraSale`: the plan still computes the complement by its own
     > replace-and-delta arithmetic (`arrivalComplementAfter`), the departure SAS still writes the end-of-stay detail, not lines.
+    > _Pass 3f, why it is still open:_ writing the SAS through `extraSale` is three write paths, not one. (1) The arrival SAS re-runs a SELECTION (`replace`): lines the selection no longer holds are removed, which `extraSale` has no verb for, and
+    > the custom lines (linen pieces, plugin supplements) are not articles, so `extraSale` has no request kind for them. (2) The frozen branch (#1032: `collectedHoldByKey`, `frozenRouting`, `END_OF_STAY_ALREADY_COLLECTED`) routes
+    > a collected complement's raise to the end-of-stay detail by key. (3) The departure SAS's charges (ménage, missing linen, extinguisher) live in `endOfStayComplementDetail`, read by about twenty units (settlement, refunds, the
+    > accounting export, the reception view, the allocations sync): a line-based write needs those readers moved in the same change, and the accounting export proven byte-identical. Order of work: (a) a `custom` request kind and a
+    > `remove` verb on `extraSale`; (b) the departure charges as custom lines routed by the extras baseline, the detail derived from them; (c) the arrival plan as a rolled-back run of the commit read through `saleDetail`.
 26. **Free allowances are consumed by a line and stay with it** (ALLOWANCES unit, rule 41). The free bath
     hour, free units (« 2 offerts ») and included hours are a ledger per stay; a line records the allowance
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
@@ -487,6 +495,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 5): the SAS read serves `staySales`, the departure section of rule 32 (`extraSale.departureSalesOf`; reception sees none).
     > **Delivered by PR C** (C23, fiche): `GET /api/reservations/:id` embeds `saleDetail` (admin view; the reception view, finance-stripped, has none), the payload `GET …/sale-detail` serves (proof `sale-detail-embedded`).
     > **Pending** — PR C: the e-mail contexts, the finance pages' extras readers and the payment-link baskets keep their own readers (they read the same stored lines; they do not yet read the payload).
+    > _Pass 3f, why it is still open:_ `saleDetail.buckets` and the lines' moments do not equal the arrival complement the e-mails and links name. On a started stay a line moved to the arrival lands in the plan bucket
+    > (`buckets.arrival` stays 0, the line says `dueAtArrival`), while `buildArrivalComplementDetail` reads the stored complement. Reading the payload instead would change what a guest is told to pay. The reader move needs `saleDetail` to
+    > carry the complement the stay really collects (one definition of « à l’arrivée ») first. The finance reader is a per-month SQL aggregate (`optionsTotal`, `resourcesTotal`): a per-stay payload there is a performance change, not a reader swap.
 32. **The SAS arrival shows** the arrival lines due, the stay amounts due at the door, the lines already paid
     (« Déjà payé », not offerable), and — when the SAS runs after check-in time — the departure lines sold
     since (rule 20). **The SAS departure shows** the departure lines, the arrival lines left unpaid (recalled,
@@ -582,6 +593,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Pending** — PR C: « SAS and fiche read the same ledger ». The SAS reads the head's price with no free unit spent (a read, rule 10), so a sold option keeps today's amount; spending the stay's units
     > there needs the SAS lines to be written by `extraSale` (rule 25, PR C). (PR B has the stored form: `allowanceUsed`; PR A the read-only form: the engine's free units
     > through `createFreeUnitsLedger`, `consumeAllowance` and `releaseAllowance`, proved by `pricing-allowances`).
+    > _Pass 3f:_ the SAS prices its sales with `priceOptionSale` and writes rows straight, so no free unit is spent there; spending the stay's units needs the same write path as rule 25 (Pending), because only a sale priced by the fiche's engine records `allowanceUsed`.
     > **Pending** — PR C: the shop reads the same ledger (J-7 code, absent from this branch).
 42. **What is not a unit.** _(cut examined 2026-11-11.)_
     - **Catalogue resolution** — a DB read, so it lives in the loader; its rule (property override wins) is a

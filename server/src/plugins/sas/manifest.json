@@ -178,6 +178,7 @@
     "1.11.0": [
       "Le sas d’arrivée perçoit maintenant les ventes prévues au départ : « Percevoir maintenant » ligne par ligne, ou « Tout percevoir maintenant ».",
       "Les lignes déjà payées se replient sous « Déjà payé ».",
+      "Le sas de départ liste les ventes déjà payées sous « Déjà payé » : on peut en offrir une, le sas annonce alors le montant à rembourser depuis la fiche.",
       "Un sas rouvert modifie ses lignes sur place et ajoute les nouvelles, qui portent la pastille « Ajoutée à la réouverture » ; les totaux ne changent pas.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
