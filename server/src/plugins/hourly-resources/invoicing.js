@@ -3,6 +3,10 @@
  *
  * The plugin never requires the issuer's plugin: it asks the core for the live issuer (`invoiceIssuers`). The invoice
  * copies the stored booking's breakdown; GuestFlow never numbers it (rule 16). A refusal keeps the payment (rule 25).
+ *
+ * A booking whose session is a line of a sale document (specs/outside-booking-sas.md rules 31, 34) is invoiced from the document: every money line
+ * (the session's parts, the extras) at the rate frozen on it, once the document owes nothing (409 `REMAINING_DUE`) and holds no caisse interne. The
+ * invoice columns stay on the booking (one booking, one document, one invoice); Qonto's total must equal the document's (`expectedTotalCents`).
  */
 
 const sdk = require('../sdk');
@@ -27,7 +31,18 @@ function invoiceRefusal(row, issuer) {
   return null;
 }
 
-function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssuers').current(), now = () => new Date(), logger = console }) {
+// Rule 31 of the outside-visit spec — why the document of a visit cannot be invoiced now, or null.
+function documentInvoiceRefusal(row, money, issuer) {
+  if (row.reservationId) return { status: 409, code: 'BOOKING_HAS_STAY', error: 'Cette séance appartient à un séjour.' };
+  if (row.frozen) return { status: 409, code: 'BOOKING_INVOICED', error: 'Déjà facturée.' };
+  if (!(money.totalCents > 0)) return { status: 400, code: 'NOTHING_TO_INVOICE', error: 'Total à 0 € : pas de facture.' };
+  if (money.remainingCents > 0) return { status: 409, code: 'REMAINING_DUE', error: 'Reste à payer : facture après le solde.' };
+  if (money.payments.some((payment) => payment.tenders.some((t) => t.internal))) return { status: 400, code: 'INTERNAL_CASH', error: 'Caisse interne : hors comptabilité.' };
+  if (!issuer || !issuer.isReady()) return { status: 409, code: 'ISSUER_UNAVAILABLE', error: 'Facturation Qonto non connectée.' };
+  return null;
+}
+
+function createInvoicing({ bookings, visits = null, issuers = () => sdk.coreModule('invoiceIssuers').current(), now = () => new Date(), logger = console }) {
   // Rule 14 — one item per money line of the breakdown; the deductions go as one discount.
   function requestOf(basis) {
     const { row, breakdown, who } = basis;
@@ -48,8 +63,81 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     };
   }
 
+  // Rule 31 of the outside-visit spec — one item per money line of the document: the session's parts at its rate (its deductions as one discount),
+  // each extra at its own rate. Offered and cancelled lines carry no money and are not sent.
+  function documentRequestOf(basis, money) {
+    const { row, who } = basis;
+    const lines = money.document.lines.filter((line) => line.status === 'paid' && line.totalCents > 0);
+    const items = [];
+    let discount = null;
+    for (const line of lines) {
+      const parts = line.components && line.components.length ? line.components : null;
+      if (!parts) {
+        items.push({ title: line.label, description: line.detail || '', amountCents: line.totalCents, vatRate: Number(line.vatRate || 0) });
+        continue;
+      }
+      parts.filter((part) => part.amountCents > 0).forEach((part) => items.push({ title: `${line.label} · ${part.label}`, description: part.detail || '', amountCents: part.amountCents, vatRate: Number(line.vatRate || 0) }));
+      const deductions = parts.filter((part) => part.amountCents < 0);
+      if (deductions.length) {
+        discount = {
+          title: deductions.map((part) => part.label).join(' + '), amountCents: -deductions.reduce((sum, part) => sum + part.amountCents, 0), vatRate: Number(line.vatRate || 0),
+        };
+      }
+    }
+    const last = money.payments[money.payments.length - 1];
+    return {
+      idempotencyKey: `resource-booking:${row.id}:invoice:${row.invoiceCancelledAt ? Date.parse(row.invoiceCancelledAt) || 1 : 0}`,
+      client: { ...who, countryCode: 'FR' },
+      issueDate: last.paidAt,
+      performanceDate: row.date,
+      items,
+      discount,
+      expectedTotalCents: money.totalCents,
+      paid: true,
+    };
+  }
+
+  async function issueDocument(id, money) {
+    const basis = bookings().invoiceBasis(id);
+    const row = bookings().findById(id);
+    const issuer = issuers();
+    const refusal = documentInvoiceRefusal(row, money, issuer);
+    if (refusal) return refusal;
+    const request = documentRequestOf({ ...basis, row }, money);
+    let issued;
+    try {
+      issued = await issuer.issue(request);
+    } catch (err) {
+      return issueFailure(id, err);
+    }
+    const rates = [...new Set(request.items.map((item) => item.vatRate))];
+    bookings().storeInvoice(id, {
+      invoiceId: issued.invoiceId, number: issued.number, clientId: issued.clientId, clientIdentity: basis.clientIdentity,
+      vatRate: rates.length === 1 ? rates[0] : null, total: sdk.coreModule('money').fromCentsStrict(money.totalCents), markedPaid: issued.markedPaid,
+      markPending: Boolean(issued.markPending),
+    });
+    if (row.payment && row.payment.hasCard) {
+      bookings().setAttachment(id, { state: 'pending' });
+      await attach(id).catch(() => {});
+    }
+    return { ok: true, invoice: bookings().findById(id).invoice };
+  }
+
+  function issueFailure(id, err) {
+    const known = {
+      ISSUER_NEEDS_ADDRESS: 422, ISSUER_REAUTH: 409, ISSUER_AMOUNT_MISMATCH: 502, ISSUER_AMOUNT_UNREACHABLE: 422,
+    }[err && err.code];
+    if (known) return { error: err.message, status: known, code: err.code === 'ISSUER_NEEDS_ADDRESS' ? 'QONTO_NEEDS_ADDRESS' : err.code };
+    logger.error(`[hourly-resources] invoice of booking ${id} failed:`, err && err.message);
+    return { error: 'Qonto n’a pas répondu : la facture n’est pas créée, le paiement reste enregistré.', status: 502, code: 'ISSUER_FAILED' };
+  }
+
   /** POST /:id/invoice — `{ ok, invoice }` or `{ error, status, code }`. Never touches the payment. */
   async function issue(id) {
+    const raw = bookings().rawById(id);
+    // The outside-visit spec rules 31, 34 — the session sold on a document is invoiced from it; a session paid on the booking keeps its own basis.
+    const money = raw && raw.saleRef && visits && Number(raw.paid) !== 1 ? visits().moneyOf(raw) : null;
+    if (money) return issueDocument(id, money);
     const basis = bookings().invoiceBasis(id);
     if (!basis) return { error: 'Réservation non trouvée', status: 404 };
     const issuer = issuers();
@@ -64,12 +152,7 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     try {
       issued = await issuer.issue(requestOf(basis));
     } catch (err) {
-      const known = {
-        ISSUER_NEEDS_ADDRESS: 422, ISSUER_REAUTH: 409, ISSUER_AMOUNT_MISMATCH: 502, ISSUER_AMOUNT_UNREACHABLE: 422,
-      }[err && err.code];
-      if (known) return { error: err.message, status: known, code: err.code === 'ISSUER_NEEDS_ADDRESS' ? 'QONTO_NEEDS_ADDRESS' : err.code };
-      logger.error(`[hourly-resources] invoice of booking ${id} failed:`, err && err.message);
-      return { error: 'Qonto n’a pas répondu : la facture n’est pas créée, le paiement reste enregistré.', status: 502, code: 'ISSUER_FAILED' };
+      return issueFailure(id, err);
     }
     bookings().storeInvoice(id, {
       invoiceId: issued.invoiceId, number: issued.number, clientId: issued.clientId, clientIdentity: basis.clientIdentity,
@@ -147,7 +230,11 @@ function createInvoicing({ bookings, issuers = () => sdk.coreModule('invoiceIssu
     }
   }
 
-  return { issue, attach, watch, requestOf };
+  return {
+    issue, attach, watch, requestOf, documentRequestOf,
+  };
 }
 
-module.exports = { createInvoicing, invoiceRefusal, ATTACH_WINDOW_DAYS };
+module.exports = {
+  createInvoicing, invoiceRefusal, documentInvoiceRefusal, ATTACH_WINDOW_DAYS,
+};

@@ -8,6 +8,6 @@ const path = require('path');
 const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 
 test('the external bookings and the planning cards come from the plugin (phase 3c rule 10, phase 2 rule 8)', () => {
-  assert.match(read('index.js'), /ctx\.mount\('\/api\/resource-bookings', buildRouter\(controller\)\)/);
+  assert.match(read('index.js'), /ctx\.mount\('\/api\/resource-bookings', buildRouter\(controller, visitController\)\)/);
   assert.match(read('index.js'), /ctx\.route\('get', '\/api\/planning\/resource-cards'/);
 });

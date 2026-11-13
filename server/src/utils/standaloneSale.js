@@ -7,13 +7,20 @@
  *   removeLine(saleId, lineId, { confirmRefund, version, actor })            a line taken off (an unpaid one freely, a paid one with the confirmation, rule 25)
  *   pay(saleId, { tenders, shortfall, paidAt, version, actor, source })      a payment on the reste, allocated by SETTLEMENT (rules 16-19)
  *   cancel(saleId)                                                           every line cancelled; money already taken stays and is owed back (rules 26, 41)
- *   documentOf(saleId)                                   → the saleDetail payload of the document, or null
+ *   documentOf(saleId, { paidElsewhere })                → the saleDetail payload of the document, or null
+ *   paymentsOf(saleId)                                   → `[{ id, paidAt, receivedCents, tenders, source }]`, oldest first
  *
  * A request is `{ saleId?, lines: [{ articleRef: 'option:<id>' | 'resource:<id>', quantity, offered? }], customer?: { firstName, lastName, name, email,
- * registerAsClient }, payment?: { tenders, shortfall, paidAt }, acceptedTotalCents?, version?, originRef? }`. Lines are priced by the `externalSale` pipeline
+ * registerAsClient }, payment?: { tenders, shortfall, paidAt }, acceptedTotalCents?, version?, originRef?, fulfilments?, paidElsewhere? }`. Lines are priced by the `externalSale` pipeline
  * (the same families, the external VAT, SETTLEMENT's remaining amount); a line already stored is never re-priced (rule 74) and a new line of the same article is
  * a line of its own (rule 13). `sell` re-quotes inside its transaction: a price that moved since the quote answers 409 `PRICE_CHANGED`, a document changed
  * underneath (its `version`) the same. Every figure comes from the server; money in cents; errors `{ error, code }` in French.
+ *
+ * `fulfilments` are lines a plugin's family priced for a booking it fulfils — the session of an outside visit (the outside-visit spec rule 10):
+ * `[{ articleRef, label, quantity, unitCents, totalCents, catalogueCents, offered, vatClass, components: [{ label, detail, amountCents }], fulfilmentRef }]`, stored with
+ * their `fulfilmentRef` and taxed by the VAT step. `paidElsewhere` are lines whose money was taken outside the document before it existed (a session paid on the
+ * booking, rule 34): `[{ ref, articleRef, label, quantity, unitCents, totalCents, vatClass, vatRate, components, fulfilmentRef }]`, shown « Payée » and counted in
+ * the totals by SETTLEMENT through one allocation of their whole amount, never stored on the document.
  *
  * Who the sale belongs to (rule 8a of the outside-visit spec): the registered client the request names, else the one client whose e-mail is exactly the typed one
  * (case-insensitive, trimmed), else the shared « Passage » client; a client record is created only when `registerAsClient` is set and a name is given.
@@ -42,7 +49,13 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const refuse = (status, code, error, extra = {}) => ({ status, body: { error, code, ...extra } });
 const asString = (value) => String(value == null ? '' : value).trim();
 
+// « Jour · 18:00–19:00 · 1 h × 30,00 € ; Temps offert · 15 min » — the words of a fulfilled line's parts, as its family wrote them.
+const partsDetail = (components) => (components.length && components.every((part) => part && part.label)
+  ? components.map((part) => [part.label, part.detail].filter(Boolean).join(' · ')).join(' ; ')
+  : null);
+
 function storedLine(row) {
+  const components = parse(row.components, []);
   return {
     id: row.id,
     ref: sales.lineRef(row.id),
@@ -57,7 +70,8 @@ function storedLine(row) {
     cancelled: Boolean(row.cancelledAt),
     vatClass: row.vatClass,
     vatRate: Number(row.vatRate || 0),
-    components: parse(row.components, []),
+    components,
+    detail: row.fulfilmentRef ? partsDetail(components) : null,
     fulfilmentRef: row.fulfilmentRef || null,
     source: row.source || null,
   };
@@ -127,19 +141,51 @@ function requestsOf(lines, { families = COUNTER_FAMILIES } = {}) {
   return { requests, refusals };
 }
 
-function storedOf(saleId) {
-  if (!saleId) return { sale: null, stored: [], allocations: [] };
+// Rule 34 of the outside-visit spec — a line paid before the document existed: counted whole, paid whole, by one allocation SETTLEMENT reads like any other.
+function paidElsewhereOf(list) {
+  const lines = (Array.isArray(list) ? list : []).map((line) => ({
+    id: null,
+    ref: line.ref,
+    articleRef: line.articleRef || null,
+    family: line.family || null,
+    label: line.label,
+    quantity: Number(line.quantity == null ? 1 : line.quantity),
+    unitCents: Number(line.unitCents == null ? line.totalCents : line.unitCents),
+    totalCents: Number(line.totalCents),
+    catalogueCents: Number(line.totalCents),
+    offered: false,
+    cancelled: false,
+    vatClass: line.vatClass,
+    vatRate: Number(line.vatRate || 0),
+    components: line.components || [],
+    detail: partsDetail(line.components || []),
+    fulfilmentRef: line.fulfilmentRef || null,
+    source: 'paidElsewhere',
+  }));
+  return { lines, allocations: lines.map((line) => ({ lineRef: line.ref, amountCents: line.totalCents, kind: 'payment', books: 1 })) };
+}
+
+function storedOf(saleId, { paidElsewhere = [] } = {}) {
+  const before = paidElsewhereOf(paidElsewhere);
+  if (!saleId) return { sale: null, stored: before.lines, allocations: before.allocations };
   const sale = sales.findSale(saleId);
-  return { sale, stored: sale ? sales.linesOf(saleId).map(storedLine) : [], allocations: sale ? payments.allocationsOf(saleId) : [] };
+  return {
+    sale,
+    stored: [...before.lines, ...(sale ? sales.linesOf(saleId).map(storedLine) : [])],
+    allocations: [...before.allocations, ...(sale ? payments.allocationsOf(saleId) : [])],
+  };
 }
 
 // Runs the `externalSale` pipeline over the document's frozen lines and the new requests.
-function price({ requests, stored, allocations }) {
+function price({
+  requests, fulfilments = [], stored, allocations,
+}) {
   const db = database();
   const provider = settingsProvider.create(db);
   return externalSale({
     input: {
       requests,
+      fulfilments,
       stored,
       allocations,
       families: articles.liveFamilies(),
@@ -172,12 +218,14 @@ function detailOf(ctx, sale, client) {
 
 function quote(request = {}) {
   const body = request || {};
-  const { sale, stored, allocations } = storedOf(body.saleId);
+  const { sale, stored, allocations } = storedOf(body.saleId, { paidElsewhere: body.paidElsewhere });
   if (body.saleId && !sale) return refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.');
   const customer = resolveCustomer(body.customer || (sale ? { clientId: sale.clientId } : null), { write: false });
   if (customer.error) return customer.error;
   const { requests, refusals } = requestsOf(body.lines, { families: body.families });
-  const ctx = price({ requests, stored, allocations });
+  const ctx = price({
+    requests, fulfilments: body.fulfilments, stored, allocations,
+  });
   const client = sale ? clientView(sale) : { id: customer.clientId, label: customer.label, kind: customer.kind };
   return {
     status: 200,
@@ -188,8 +236,8 @@ function quote(request = {}) {
   };
 }
 
-const documentOf = (saleId) => {
-  const { sale, stored, allocations } = storedOf(saleId);
+const documentOf = (saleId, { paidElsewhere = [] } = {}) => {
+  const { sale, stored, allocations } = storedOf(saleId, { paidElsewhere });
   if (!sale) return null;
   return detailOf(price({ requests: [], stored, allocations }), sale, clientView(sale));
 };
@@ -259,7 +307,7 @@ function sell(request = {}, { actor = null, now = new Date() } = {}) {
   let outcome = null;
   try {
     db.transaction(() => {
-      const { sale: existing, stored, allocations } = storedOf(body.saleId);
+      const { sale: existing, stored, allocations } = storedOf(body.saleId, { paidElsewhere: body.paidElsewhere });
       if (body.saleId && !existing) { outcome = refuse(404, 'SALE_NOT_FOUND', 'Vente introuvable.'); throw outcome; }
       if (existing) {
         const stale = versionRefusal(existing, body.version);
@@ -269,8 +317,10 @@ function sell(request = {}, { actor = null, now = new Date() } = {}) {
       const customer = resolveCustomer(body.customer || (existing ? { clientId: existing.clientId } : null), { write: true });
       if (customer.error) { outcome = customer.error; throw outcome; }
       const { requests, refusals } = requestsOf(body.lines, { families: body.families });
-      if (requests.length === 0 && !existing) refusals.push({ articleRef: null, code: 'NO_ARTICLE', message: 'Ajouter au moins un article.' });
-      const ctx = price({ requests, stored, allocations });
+      if (requests.length === 0 && !existing && !(body.fulfilments || []).length) refusals.push({ articleRef: null, code: 'NO_ARTICLE', message: 'Ajouter au moins un article.' });
+      const ctx = price({
+        requests, fulfilments: body.fulfilments, stored, allocations,
+      });
       const all = refusalList(ctx, refusals);
       if (all.length) { outcome = refuse(400, all[0].code, all[0].message, { refusals: all }); throw outcome; }
       const quotedTotal = ctx.settlement.totalCents;
@@ -304,7 +354,7 @@ function sell(request = {}, { actor = null, now = new Date() } = {}) {
           vatClass: line.vatClass,
           vatRate: line.vatRate,
           components: JSON.stringify(line.components),
-          fulfilmentRef: null,
+          fulfilmentRef: line.fulfilmentRef || null,
           soldAt,
           source: body.source || 'counter',
         });
@@ -432,6 +482,11 @@ function cancel(saleId) {
   });
 }
 
+// The payments of a document, oldest first, each with its tenders: what an invoice states and the card batch reads (the outside-visit spec rule 31).
+const paymentsOf = (saleId) => payments.paymentsOf(saleId).map((row) => ({
+  id: row.id, paidAt: row.paidAt, receivedCents: Number(row.receivedCents), tenders: row.tenders, source: row.source || null,
+}));
+
 module.exports = {
-  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, takePayment, MAX_QUANTITY,
+  quote, sell, offerLine, removeLine, pay, cancel, receive, documentOf, paymentsOf, takePayment, MAX_QUANTITY,
 };

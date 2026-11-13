@@ -1,7 +1,8 @@
 /**
  * STEP totals (external) — the lines of an external sale, ready to store and to render, and their total (specs/pricing-components.md §3 rules 52, 74).
  *
- * `lines` are the document's lines in sale order — the stored ones as they were frozen, then the new ones as the head priced them — each in
+ * `lines` are the document's lines in sale order — the stored ones as they were frozen, then a fulfilled line (the session of a visit) as its family
+ * priced it, then the new articles as the head priced them — each in
  * cents with its VAT class, its rate and its VAT share. `catalogueCents` keeps the value of an offered line for the struck display (rule 14).
  * `totalCents` is what the lines ask once offered and cancelled lines count for nothing; `vatByRate` is the document's VAT per rate.
  */
@@ -34,12 +35,37 @@ function newLine(quoted, vat) {
 
 const step = {
   id: 'externalTotals',
-  requires: ['quoted', 'stored', 'familyVat', 'vatRefusals'],
+  requires: ['quoted', 'fulfilments', 'stored', 'familyVat', 'vatRefusals'],
   provides: ['lines', 'totalCents', 'vatByRate'],
   apply(ctx) {
     const { amounts, slots } = ctx.familyVat;
     const stored = ctx.stored.map((line, index) => ({ ...line, vatCents: amounts[index].vatCents, netCents: amounts[index].netCents }));
     const added = [];
+    ctx.fulfilments.forEach((line, index) => {
+      const slot = ctx.familyVat.fulfilmentSlots[index];
+      if (slot == null) return;
+      const vat = amounts[slot];
+      added.push({
+        articleRef: line.articleRef,
+        kind: 'session',
+        family: line.family || 'hourly',
+        label: line.label,
+        detail: line.detail == null ? null : line.detail,
+        quantity: Number(line.quantity == null ? 1 : line.quantity),
+        unitCents: Number(line.unitCents == null ? line.totalCents : line.unitCents),
+        totalCents: line.offered ? 0 : line.totalCents,
+        catalogueCents: line.catalogueCents == null ? line.totalCents : line.catalogueCents,
+        offered: Boolean(line.offered),
+        cancelled: false,
+        vatClass: vat.vatClass,
+        vatRate: vat.rate,
+        components: line.components || [],
+        fulfilmentRef: line.fulfilmentRef,
+        isNew: true,
+        vatCents: vat.vatCents,
+        netCents: vat.netCents,
+      });
+    });
     ctx.quoted.forEach((quoted, index) => {
       if (!quoted || slots[index] == null) return;
       const vat = amounts[slots[index]];

@@ -1252,6 +1252,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     cancelled document. Its empty stay is no orphan: the lifecycle pass (rules 12, 13) and the home's list (rule 67) leave it alone while it is valid, and list it as « Vente hors séjour » once
     withdrawn and owed a deactivation. A paid link settles the document through the poll's paid effect, **in full**, whatever the document became (lapsed, withdrawn then paid, a line offered
     meanwhile): what no line asks any more is a refund owed (REFUNDS) and the admin is told. Test: `standalone-sale-payment-link.unit.test.js`.
+69. **The link of an outside visit is asked from its mini SAS** (added 2026-11-13, pricing-components PR C, C37; `outside-booking-sas.md` rules 20, 39).
+    `POST /api/resource-bookings/:id/visit/payment-link` mints rule 68's link on the visit's document, born at that moment when the visit has
+    none; a refusal it can know beforehand (no ready provider, nothing due, no e-mail) answers 409 before anything is written, and a typed
+    e-mail of the wrong shape 400 `EMAIL_INVALID`. Minting e-mails nothing; « Retirer le lien » (`DELETE …/payment-link/:linkId`) and « Envoyer
+    par e-mail » (`POST …/payment-link/:linkId/email`) are the visit's routes onto rules 42 and 68. Test: `visit-remaining-and-payment.unit.test.js` (plugin).
 
 ---
 

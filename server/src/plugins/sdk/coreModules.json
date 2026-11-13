@@ -1014,6 +1014,7 @@
     "documentOf",
     "offerLine",
     "pay",
+    "paymentsOf",
     "quote",
     "receive",
     "removeLine",
@@ -1026,6 +1027,7 @@
     "settingsView"
   ],
   "standaloneSaleLinks": [
+    "draftLinkOf",
     "emailLink",
     "linkOf",
     "mint",

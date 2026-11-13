@@ -32,7 +32,7 @@ function vatOfDocument(tagged, { regime, settings }) {
 
 const step = {
   id: 'externalVat',
-  requires: ['quoted', 'stored', 'settings', 'vatRegime'],
+  requires: ['quoted', 'fulfilments', 'stored', 'settings', 'vatRegime'],
   provides: ['familyVat', 'vatRefusals'],
   apply(ctx) {
     const vatRefusals = [];
@@ -40,6 +40,21 @@ const step = {
     ctx.stored.forEach((line) => tagged.push({
       amountCents: line.offered || line.cancelled ? 0 : line.totalCents, vatClass: line.vatClass, customerContext: 'external', frozenRate: Number(line.vatRate || 0), source: { kind: 'stored', ref: line.ref },
     }));
+    // A fulfilled line (the session of a visit) is a new line of its article's class, taxed at the rate in force like the quoted ones.
+    const fulfilmentSlots = ctx.fulfilments.map((line) => {
+      const amount = {
+        amountCents: line.offered ? 0 : line.totalCents, vatClass: line.vatClass, customerContext: 'external', source: { kind: 'fulfilment', ref: line.fulfilmentRef },
+      };
+      try {
+        resolveRate(amount.vatClass, 'external', { regime: ctx.vatRegime, settings: ctx.settings.vat });
+      } catch (err) {
+        if (err.code !== 'VAT_RATE_UNKNOWN') throw err;
+        vatRefusals.push(refuse(line.articleRef, amount.vatClass));
+        return null;
+      }
+      tagged.push(amount);
+      return tagged.length - 1;
+    });
     const slots = [];
     ctx.quoted.forEach((line, index) => {
       if (!line) { slots.push(null); return; }
@@ -55,7 +70,7 @@ const step = {
       }
     });
     const familyVat = vatOfDocument(tagged, { regime: ctx.vatRegime, settings: ctx.settings.vat });
-    return { ...ctx, familyVat: { ...familyVat, slots }, vatRefusals };
+    return { ...ctx, familyVat: { ...familyVat, slots, fulfilmentSlots }, vatRefusals };
   },
 };
 

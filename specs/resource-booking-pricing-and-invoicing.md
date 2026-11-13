@@ -348,6 +348,17 @@ Rules are numbered once and never renumbered (new rules go at the end).
     a booking stored before keeps the valuation it was sold with (`freeHourAtDayRate` NULL) until the operator moves it. The offered
     minutes (rule 7) still keep the band they fall in. Edge case: an unpaid booking saved without moving its slot is still priced again
     (rule 36 reading), with the valuation it already has.
+52. **A visit's money may live on a sale document** (added 2026-11-13, pricing-components PR C, C37; `outside-booking-sas.md` rules 5, 15-27,
+    31, 34). Once the mini SAS of an outside visit has written (« Valider l'arrivée », a payment or a link asked there), the booking names its
+    core sale document (`saleRef`) and its money is the document's: the session is a line of it, extras beside it, a reste allowed
+    (amends rule 44's « no reste, no geste » for those visits), the VAT rate frozen on the line at sale (amends rule 35 for them), the
+    journal and the card batch fed by the core document (amends rule 21: the plugin's `standaloneSales` lists only the money on the
+    booking's own columns, `paid = 1`), the arrival committed from `D 00:00` to `D+1 04:00` (amends rule 28's strict day for the mini
+    SAS; the former `POST /:id/arrival` keeps the strict day until the screens move to the visit routes in C38). On such a booking the
+    dialog's payment pays the document's whole reste, « Retirer le paiement » answers 409 `SALE_PAYMENT`, « Supprimer » cancels the
+    document of an unpaid visit and is refused (409 `BOOKING_PAID`) once it holds money, and a moved slot re-prices the session line
+    only while it is unpaid. A booking paid before its document keeps rules 11-12, 21, 35 and 44 unchanged for that money.
+    Tests: `visit-remaining-and-payment.unit.test.js`, `visit-legacy-money.unit.test.js`, `visit-refund-cancel-noshow.unit.test.js` (plugin).
 
 **Edge cases:**
 - Booking edited before payment → priced again, as today.
@@ -529,6 +540,8 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - Credit notes (avoirs): a paid invoice is corrected in Qonto by hand.
 - Selling a bath through the public website or by payment link.
 - Hourly resources other than `per_hour` + scheduled (unchanged pricing).
+- _(Amended 2026-11-13, rule 52.)_ Extras sold with a session and a reste left to collect are no longer out of scope: they are the mini SAS
+  of `outside-booking-sas.md`, on a sale document. A booking paid whole on its own columns keeps this spec's rules.
 
 ## 9. Open questions
 

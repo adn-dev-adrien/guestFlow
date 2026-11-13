@@ -96,8 +96,8 @@ const externalPayment = require('./steps/externalPayment');
 
 /**
  * @typedef {object} ExternalSaleContext
- * The context of `externalSale` (rule 53); `input` is `{ requests, stored, allocations, families, settings, vatRegime }`.
- * loadCatalogue: requests, stored, allocations, families, settings, vatRegime
+ * The context of `externalSale` (rule 53); `input` is `{ requests, fulfilments, stored, allocations, families, settings, vatRegime }`.
+ * loadCatalogue: requests, fulfilments, stored, allocations, families, settings, vatRegime
  * externalExtras: quoted, refusals
  * externalVat: familyVat, vatRefusals
  * externalTotals: lines, totalCents, vatByRate

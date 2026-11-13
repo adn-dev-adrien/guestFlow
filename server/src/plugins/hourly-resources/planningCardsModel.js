@@ -16,7 +16,9 @@
  * a 09:00 one has to be lit the night before.
  */
 
-const { formatTimeShort } = require('../sdk').coreModule('dateFr');
+const sdk = require('../sdk');
+
+const { formatTimeShort } = sdk.coreModule('dateFr');
 
 function buildModel(database) {
   // The thermal columns landed with specs/hourly-resource-quantity-and-sas-scheduling.md; a minimal
@@ -240,4 +242,25 @@ function buildModel(database) {
   };
 }
 
-module.exports = { buildModel };
+/**
+ * The chip of an outside booking's planning card (specs/outside-booking-sas.md rule 22), the server's answer the card renders:
+ *   « Absent »            the client did not come (rule 27)
+ *   « Payé »              nothing left to collect
+ *   « Reste 13,00 € »     the visit was opened and left a reste (warning)
+ *   « À encaisser »       not opened yet, money still due
+ * The amounts are SETTLEMENT's (`booking.visit`, a booking whose money is on a document) or the booking's own (`paid`, `totalPrice`, rule 34).
+ */
+function bookingCardState(booking) {
+  const euros = sdk.coreModule('money').eurosWithSpaces;
+  if (booking.noShowAt) return { state: 'absent', label: 'Absent', remainingCents: 0 };
+  if (booking.visit) {
+    const { remainingCents } = booking.visit;
+    if (remainingCents <= 0) return { state: 'paid', label: 'Payé', remainingCents: 0 };
+    if (booking.arrivedAt) return { state: 'remaining', label: `Reste ${euros(remainingCents)}`, remainingCents };
+    return { state: 'toCollect', label: 'À encaisser', remainingCents };
+  }
+  if (booking.paid) return { state: 'paid', label: 'Payé', remainingCents: 0 };
+  return { state: 'toCollect', label: 'À encaisser', remainingCents: sdk.coreModule('money').toCents(booking.totalPrice) };
+}
+
+module.exports = { buildModel, bookingCardState };

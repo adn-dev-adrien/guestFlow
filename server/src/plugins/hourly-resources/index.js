@@ -15,6 +15,8 @@ const bookingsModel = require('./bookingsModel');
 const schedulingModel = require('./schedulingModel');
 const planningCardsModel = require('./planningCardsModel');
 const { createController } = require('./controller');
+const { createVisitModel } = require('./visitModel');
+const { createVisitController } = require('./visitController');
 const { buildRouter } = require('./routes');
 const { createHourlyContributor } = require('./pricing');
 const { createHourlyFamily } = require('./hourlyFamily');
@@ -48,12 +50,16 @@ function register(ctx) {
     get.reset = () => { built = null; };
     return get;
   };
-  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate }));
+  // specs/outside-booking-sas.md — the visit of an outside client: its money is the core's sale document, read and written through the visit model.
+  let visits = null;
+  const bookings = lazy(() => bookingsModel.create(ctx.db, { standaloneVatRate, visits: () => visits() }));
+  visits = lazy(() => createVisitModel({ db: ctx.db, bookings }));
   const scheduling = lazy(() => schedulingModel.create(ctx.db));
   const planningCards = lazy(() => planningCardsModel.buildModel(ctx.db));
   const reservations = sdk.coreModule('reservationsModel');
-  const invoicing = lazy(() => createInvoicing({ bookings }));
+  const invoicing = lazy(() => createInvoicing({ bookings, visits }));
   const controller = lazy(() => createController({ bookings, scheduling, planningCards, reservations, invoicing }));
+  const visitController = lazy(() => createVisitController({ bookings, visits, invoicing }));
 
   // Rules 20-21 — the sales made outside any stay, for the journal and the card batch.
   ctx.standaloneSales((window) => (hasTable(ctx.db, 'resource_bookings') ? bookings().standaloneSales(window) : []));
@@ -79,7 +85,7 @@ function register(ctx) {
 
   // Rule 10 — the external bookings, the SAS picker's free slots and the planning cards, at their
   // current URLs.
-  ctx.mount('/api/resource-bookings', buildRouter(controller));
+  ctx.mount('/api/resource-bookings', buildRouter(controller, visitController));
   ctx.route('get', '/api/resources/:id/free-slots', (req, res) => controller().freeSlots(req, res));
   ctx.route('get', '/api/planning/resource-cards', (req, res) => controller().resourceCards(req, res));
   ctx.route('post', '/api/planning/resource-cards/done', (req, res) => controller().setResourceCardDone(req, res));
@@ -87,6 +93,12 @@ function register(ctx) {
   ctx.reception([
     { method: 'POST', re: /^\/planning\/resource-cards\/done$/ },
     { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
+    // specs/outside-booking-sas.md rule 7 — the reception runs the mini SAS inside the day window; paid lines and refunds stay the administrator's (403 in the controller).
+    { method: 'GET', re: /^\/resource-bookings\/\d+\/visit$/ },
+    { method: 'POST', re: /^\/resource-bookings\/\d+\/visit(\/quote|\/payment)?$/ },
+    { method: 'PATCH', re: /^\/resource-bookings\/\d+\/visit\/lines\/\d+$/ },
+    { method: 'POST', re: /^\/resource-bookings\/\d+\/visit\/payment-link(\/\d+\/email)?$/ },
+    { method: 'DELETE', re: /^\/resource-bookings\/\d+\/visit\/payment-link\/\d+$/ },
   ]);
 
   // specs/guest-app.md rules 28-31 — the slots a guest books from the app, read from this planning.
@@ -157,6 +169,8 @@ function register(ctx) {
     purge: (db) => {
       resetHourlyColumns(db);
       bookings.reset();
+      visits.reset();
+      visitController.reset();
       invoicing.reset();
       scheduling.reset();
       planningCards.reset();

@@ -324,6 +324,7 @@ function buildDocumentDetail({
       vatCents: line.offered || line.cancelled ? 0 : line.vatCents,
       source: line.source || null,
       fulfilmentRef: line.fulfilmentRef || null,
+      components: line.fulfilmentRef ? (line.components || []) : [],
     };
   });
   const live = rows.filter((row) => row.status !== 'cancelled');

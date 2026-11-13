@@ -162,6 +162,16 @@ const EXEMPT = {
     'POST /api/standalone-sales/quote',
     'PUT /api/settings/suggested-articles/:kind/:id',
   ],
+  'Judged by the outside-visit suites of hourly-resources (visit-*: every field refused with a code, the window and the roles); a link route names its row in the URL.': [
+    'DELETE /api/resource-bookings/:id/visit/payment-link/:linkId',
+    'PATCH /api/resource-bookings/:id/visit/lines/:lineId',
+    'POST /api/resource-bookings/:id/no-show',
+    'POST /api/resource-bookings/:id/visit',
+    'POST /api/resource-bookings/:id/visit/payment',
+    'POST /api/resource-bookings/:id/visit/payment-link',
+    'POST /api/resource-bookings/:id/visit/payment-link/:linkId/email',
+    'POST /api/resource-bookings/:id/visit/quote',
+  ],
   'Reads a body or delegates; not in the table yet, no defect known, no fix this round (2026-11-05).': [
     'PATCH /api/devis/:id/status',
     'POST /api/accounting/platform-accounts/refresh',

@@ -2,6 +2,7 @@
  * The payment link of a standalone sale's reste (the outside-visit spec rules 39-42; specs/pricing-components.md rules 53, 74, 86).
  *
  *   linkOf(saleId, { now })                       → `{ available, reason, email, open }`, what the screen shows (rule 39): `reason` is `PROVIDER_NOT_READY`, `NO_EMAIL`, `NOTHING_DUE` or null
+ *   draftLinkOf({ remainingCents, email })        → the same payload for a sale not written yet (an outside visit before its first write), `open: null`
  *   mint(saleId, { email, now, deps })            → `{ status: 200, link: { id, url, amountCents, expiresAt, status, reused }, document } | { status, body }`   (rule 40)
  *   withdraw(saleId, linkId, { now, deps })       → `{ status: 200, document } | { status, body }`   « Retirer le lien » (payment-link-lifecycle rule 42)
  *   settlePaidLink({ database, link, paidDate, paidAt })  → the effect of a PAID link, called by the poll's `applyPaidEffect` (rule 41)
@@ -37,6 +38,23 @@ function emailOf(sale) {
   return client && !client.isPassage ? String(client.email || '').trim() : '';
 }
 
+// Why no link can be minted now, or null (rule 39): a provider first, then something to collect, then an address.
+function reasonOf({ remainingCents, email }) {
+  if (!paymentProviders.active()) return 'PROVIDER_NOT_READY';
+  if (remainingCents <= 0) return 'NOTHING_DUE';
+  if (!email) return 'NO_EMAIL';
+  return null;
+}
+
+/** The `paymentLink` payload of a sale not written yet (a visit whose document is born at its first write): the same reasons, no open link. */
+function draftLinkOf({ remainingCents = 0, email = '' } = {}) {
+  const typed = String(email || '').trim();
+  const reason = reasonOf({ remainingCents, email: typed });
+  return {
+    available: reason === null, reason, email: typed || null, open: null,
+  };
+}
+
 function linkOf(saleId, { now = new Date() } = {}) {
   const sale = sales.findSale(saleId);
   const document = standaloneSale.documentOf(saleId);
@@ -44,10 +62,7 @@ function linkOf(saleId, { now = new Date() } = {}) {
   const links = model();
   const open = links.findOpenForSale(sales.documentRef(saleId));
   const email = emailOf(sale);
-  let reason = null;
-  if (!paymentProviders.active()) reason = 'PROVIDER_NOT_READY';
-  else if (sale.status === 'cancelled' || document.totals.remainingCents <= 0) reason = 'NOTHING_DUE';
-  else if (!email) reason = 'NO_EMAIL';
+  const reason = reasonOf({ remainingCents: sale.status === 'cancelled' ? 0 : document.totals.remainingCents, email });
   return {
     available: reason === null,
     reason,
@@ -249,5 +264,5 @@ async function emailLink(saleId, linkId, { deps = {} } = {}) {
 }
 
 module.exports = {
-  linkOf, mint, withdraw, settlePaidLink, emailLink, basketOf, SOURCE, TEMPLATE_KEY,
+  linkOf, draftLinkOf, mint, withdraw, settlePaidLink, emailLink, basketOf, SOURCE, TEMPLATE_KEY,
 };

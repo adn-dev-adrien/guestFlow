@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — the server core of the external sale, the sale link and the suggested articles are delivered on `feature/pricing-components-c` (C33-C36); the mini SAS of the visit (C37) and its screens (C38-C39) follow; approved 2026-11-12 (owner, Q1-Q9, §9) |
+| **Status** | In progress — the server core of the external sale, the sale link, the suggested articles (C33-C36) and the server of the visit's mini SAS (C37) are delivered on `feature/pricing-components-c`; its screens (C38-C39) follow; approved 2026-11-12 (owner, Q1-Q9, §9) |
 | **Branch** | delivered on `feature/pricing-components-c` (pricing-components **PR C**, its external-sale part, Q9 B) |
 | **Created** | 2026-11-12 |
 | **Author** | Adrien |
@@ -83,7 +83,7 @@ once on the server by the refonte's components.
 1. **Who gets the mini SAS.** A resource booking with no `reservationId` whose resource is `per_hour` and
    scheduled (today's rule 28 of the invoicing spec). A booking linked to a stay never does (409
    `BOOKING_HAS_STAY`, unchanged): its stay's SAS covers it.
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `visitController` refuses a stay-bound booking (409 `BOOKING_HAS_STAY`); test `visit-window-and-roles`.
 2. **The screen and the session line belong to `hourly-resources`; the visit's money belongs to the core.** The
    plugin owns the mini SAS screen, its routes, the session line (family `hourly`) and the slot (FULFILMENT
    adapter `hourly-slot`). The sale document, its extras lines, the payments, the allocations, the refunds and the
@@ -91,16 +91,16 @@ once on the server by the refonte's components.
    `hourly-resources` off there is no mini SAS and no `resource` suggestion context; the documents already written stay readable in Encaissements and in
    the journal (they are core rows). With the `sas` plugin off the mini SAS still works (rule 28 of the invoicing
    spec).
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `visitModel` / `visitController` (plugin) on the core `standaloneSale`; the documents stay readable with the plugin off; test `plugin-boundary-outside-visit`.
 3. **No resource or platform named in code.** Nothing tests « bain », « nordique » or a platform name. What is
    specific to Solio's bath — heat-up, retention, the free hour granted to stays, the evening band — stays in the
    `hourly` family and the plugin's settings. The core sees an article of family `hourly` with a fulfilment ref.
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): no resource or platform named in the visit's code; test `plugin-boundary-outside-visit`.
 4. **One computation of every figure.** The mini SAS never prices, sums, splits VAT or subtracts on the client.
    Lines come from the Articles head (`describe`), VAT from the VAT component, the remaining amount and each
    line's status from SETTLEMENT, refunds owed from REFUNDS, through the `saleDetail` read model extended to a
    standalone document (rule 31 of the refonte). The client renders the payload (CLAUDE.md §6.0).
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): every figure of the visit payload is `standaloneSale`'s (SETTLEMENT, VAT component, REFUNDS); tests `visit-remaining-and-payment`, `visit-lines`.
 
 ### 3.B When it opens
 
@@ -109,16 +109,16 @@ once on the server by the refonte's components.
    (reception-sas-today-only rules 1-2). _(Amends invoicing rule 28's strict Paris day; decided, Q2 A.)_ Outside the
    window: 409 `ARRIVAL_NOT_TODAY` « Arrivée : le jour de la séance seulement. », unless the visit is already
    opened (rule 22).
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `visitModel.windowOf` through `sasEditWindow.sasLockReason`; test `visit-window-and-roles`.
 6. **Entry points, unchanged.** « Arrivée » on the booking's planning card and in the booking dialog, on its day
    only; no new menu item. The card's chip reads the server's state (rule 21).
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Pending** — the entry points are screens (C38).
 7. **Roles.** An `admin` may open, commit and reopen at any time once opened. A `reception` user may open and
    commit inside the window of rule 5 and sees door money only (the session lines, the extras, the remaining
    amount; never a refund amount, reception-role-checkin-only rule 12bis). Removing or offering a **paid** line
    and anything that owes a refund is admin only (403 `ADMIN_ONLY` « Remboursement : réservé à l'administrateur. »).
    _(Decided, Q3 A.)_
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `visitController.writeRefusal`, 403 `ADMIN_ONLY` on a paid line, a refund confirmation and « Client absent », `refundOwedCents` and the history stripped for the reception; test `visit-window-and-roles`.
 
 ### 3.C The client of the visit
 
@@ -136,7 +136,7 @@ once on the server by the refonte's components.
     for this caller.)_
 9. **No identity on screen beyond what exists.** The mini SAS shows the booking's `displayName` (as today) and
    never asks a phone or address, except the optional billing address of the invoice (invoicing rules 25-27).
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Pending** — what the screen asks is the screen's (C38); the payload carries `displayName` and, for the reception, no phone and no notes.
 
 ### 3.D The lines
 
@@ -160,6 +160,11 @@ once on the server by the refonte's components.
     session also keeps its partial offered time by steps of 15 min (invoicing rule 7), which is a component of the
     session line, priced by the `hourly` family. There is no third mechanism: the tender's « geste commercial »
     shortfall is not offered here (rule 17).
+    > **Reading of 2026-11-13 (C37, lead's call).** Once the session line is on the document its offered time is fixed: another
+    > `offeredMinutes` answers 409 `SESSION_SOLD` « Séance déjà enregistrée : l’offrir en entier si besoin. », the whole line is offered
+    > instead. The session line is never retired alone (409 `SESSION_LINE` « La séance se retire en supprimant la réservation. »): it is
+    > offered, or the booking deleted (rule 26). A booking moved while its session line is unpaid gets that line retired and the new price
+    > appended, both journaled (edge case « booking moved after the arrival »).
 14. **A committed line is frozen** (refonte rule 74): label, quantity, unit price, total, VAT class and rate are
     stored at the moment of sale; a later catalogue or setting change never moves it. An unpaid committed line may
     be removed or offered (journaled); a paid one follows rule 25.
@@ -188,7 +193,7 @@ once on the server by the refonte's components.
 20. **A reste can be collected by a Qonto payment link** (decided 2026-11-12, Q6 B; supersedes the first draft's
     « no link »): the « Envoyer un lien » action, rules 39-42. The counter keeps the card terminal (invoicing D1) for a
     payment taken on the spot; a reste left open is collected later from the booking, the reopened mini SAS or a link.
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `POST /:id/visit/payment-link` and its withdraw / e-mail routes; test `visit-remaining-and-payment`.
 
 ### 3.F Closing and reopening
 
@@ -223,7 +228,7 @@ once on the server by the refonte's components.
 27. **No-show** (decided, Q7 A). « Client absent », offered from the booking on or after its day, closes the visit without
     arrival: unpaid lines cancelled, the slot kept on the planning as past and marked « Absent », money already
     taken kept as it is; a refund of it is an explicit admin action through rule 25.
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `POST /:id/no-show` (admin), `visitModel.noShow`; test `visit-refund-cancel-noshow`.
 
 ### 3.H VAT, accounting, invoice, card batch
 
@@ -247,7 +252,13 @@ once on the server by the refonte's components.
     component's per-line output; Qonto's total must equal the on-the-books total (money guard, invoicing rules 14,
     40). The invoice and attachment columns move from the booking to the document for the visits of rule 34; the
     issuer contract (`ctx.invoiceIssuer`) is unchanged.
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `invoicing.issueDocument`, 409 `REMAINING_DUE`; test `visit-invoice-document`. Reading of 2026-11-13 below.
+    > **Reading of 2026-11-13 (C37, lead's call, to confirm by the owner).** The invoice and attachment columns stay on the booking: one
+    > booking, one document, one invoice, and the hourly watch (attachment, mark, cancelled in Qonto) keeps working per booking with the
+    > issuer contract unchanged; the document's invoice columns are not written. The session's parts go as items at the line's frozen
+    > rate, its deductions (free minutes, offered time) as one discount, each extra as one item at its rate; Qonto's total must equal
+    > the document's (`expectedTotalCents`). A visit whose session was paid on the booking (rule 34) is invoiced from the booking as
+    > before: its extras' document is not invoiced from the visit.
 32. **The card batch counts each visit once.** `ctx.standaloneSales` lists the document's card part per payment
     day from the core `standalone_sales` reader; the plugin's own `bookingsModel.standaloneSales` skips every
     booking whose money is on a document (rule 34), so no session is counted twice.
@@ -261,7 +272,14 @@ once on the server by the refonte's components.
     (money on `resource_bookings.paymentTenders`) keeps it there: its mini SAS shows the session as « Payée » from
     the legacy columns (one stay-level legacy allocation, refonte rule 74 backfill) and a new document holds only
     the extras sold from then on. The journal of past months does not move (byte-identical CSV, refonte rule 33).
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Delivered by PR C** (C37, server): `visitModel` (`paidElsewhere` for the session paid on the booking); test `visit-legacy-money`. Reading of 2026-11-13 below.
+    > **Reading of 2026-11-13 (C37, lead's call, to confirm by the owner).** The document is born at the visit's first write — « Valider
+    > l'arrivée », a payment or a link asked from the mini SAS — not at the booking's creation. A payment taken in the booking dialog
+    > before any document stays on the booking (the « paid before » branch of this rule, « Retirer le paiement » still offered). A booking
+    > with a document takes the booking dialog's payment on the document (its whole reste, `recordPayment` delegates) and refuses
+    > « Retirer le paiement » (409 `SALE_PAYMENT` « Paiement de la vente : un remboursement par l’administrateur. »). The plugin's
+    > `standaloneSales` lists the money on the booking's own columns only (`paid = 1`): a session paid there before its extras' document
+    > is listed once, a document payment never touches those columns (rule 32).
 
 **Edge cases:**
 - Everything offered → total 0 €, « Rien à encaisser. », « Valider l'arrivée » still records the arrival; no invoice.
@@ -294,7 +312,7 @@ once on the server by the refonte's components.
     resources or stays: it renders a `suggestions` payload and posts add / offer / remove requests to the sale it is
     mounted on. The mini SAS mounts it for an outside visit; the stay arrival SAS can mount the same component later
     (rule 38). Its first screen is the suggestion chips; « Autre article » opens the search of rule 11.
-    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
+    > **Pending** — the generic step is a screen (C38); its server (`suggestions` in the visit payload, `suggestedArticles.resolve`) is delivered (C36, C37).
 36. **A suggested-articles provider keyed by sale context** (server). A **sale context** is `{ kind, id }`. Kinds
     known at this change: `resource` (declared by `hourly-resources`, `id` = the resource id) and `property` (declared
     by the core, `id` = the property id, used by the stay SAS follow-up). The core module `suggestedArticles`
@@ -385,10 +403,11 @@ once on the server by the refonte's components.
 | `plugins/sdk/` | `coreModules.json`, `index.js` | T | expose `standaloneSale`, `saleDetail`, `suggestedArticles`, `sasEditWindow` (already) to plugins; add `ctx.suggestionContexts` (rule 37); SDK minor bump |
 | `database.js` | `database.js` | T | idempotent columns and tables of §5, including `suggested_articles` and the `payment_links` standalone target |
 | plugin | `plugins/hourly-resources/visitController.js` | C | `GET /:id/visit`, `POST /:id/visit/quote`, `POST /:id/visit` (commit), `POST /:id/visit/payment`, `PATCH /:id/visit/lines/:lineId`, `POST /:id/no-show`, the payment-link routes (rules 39-42); window and role guards (rules 5, 7) |
-| plugin | `plugins/hourly-resources/visitModel.js` | C | links a booking to its document (`saleRef`), builds the session request from the booking, legacy money of rule 34 |
-| plugin | `plugins/hourly-resources/bookingsModel.js` | T | `recordArrival` delegates money to the visit; `recordPayment` writes a document payment for rule-34 bookings; `standaloneSales` skips bookings with a `saleRef` (rule 32); `remove` cancels the document (rule 26) |
-| plugin | `plugins/hourly-resources/invoicing.js` | T | invoice basis = the document's lines when `saleRef` is set (rule 31) |
-| plugin | `plugins/hourly-resources/planningCardsModel.js` | T | `remainingCents` and the « Reste » state on the card (rule 22) |
+| plugin | `plugins/hourly-resources/visitModel.js` | C | links a booking to its document (`saleRef`), builds the session `fulfilment` line from the booking (the plugin's hourly pricing) and the `paidElsewhere` session of rule 34, the client of rule 8, the window of rule 5; `view`, `commit`, `pay`, `patchLine`, `noShow`, `ensureDocument`, `moneyOf`, `repriceSession`, `cancelDocument` |
+| plugin | `plugins/hourly-resources/bookingsModel.js` | T | `enrich` adds `visit`, `noShow`, `cardState`; `recordArrival` and `recordPayment` pay the document of a booking that has one; `clearPayment` refuses document money; `update` re-prices an unpaid session line when the slot moves; `standaloneSales` lists only the money on the booking's own columns (rule 32); `remove` cancels the document (rule 26) |
+| plugin | `plugins/hourly-resources/invoicing.js` | T | invoice basis = the document's lines when the session is on a document (rule 31, `issueDocument`, `documentRequestOf`, `REMAINING_DUE`) |
+| plugin | `plugins/hourly-resources/planningCardsModel.js` | T | `bookingCardState`: « À encaisser », « Reste {x} », « Payé », « Absent » from the server's figures (rule 22) |
+| plugin | `plugins/hourly-resources/routes.js` | T | mounts the visit routes before `/:id` |
 | plugin | `plugins/hourly-resources/index.js` (`suggestionContexts`) | T | declares kind `resource` and lists the resources as contexts (rule 37); **no per-resource article list in the plugin's settings** |
 | plugin | `plugins/hourly-resources/index.js` | T | mounts the visit routes; adds `GET/POST /resource-bookings/:id/visit*` to `ctx.reception` (rule 7) |
 | plugin | `plugins/hourly-resources/migrations.js` | T | `resource_bookings_v6`: `saleRef`, `noShowAt` |
@@ -426,20 +445,25 @@ All under `/api/resource-bookings`, plugin `hourly-resources`, authenticated; re
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| GET | `/:id/visit` | — | `{ booking, document: { ref, status, version, client: { id, label } }, lines: [{ id, kind: 'session'\|'extra', label, detail, quantity, unitCents, totalCents, catalogueCents, offered, status: 'paid'\|'due'\|'offered'\|'cancelled', vatRate }], totals: { totalCents, paidCents, remainingCents, refundOwedCents }, vatByRate: [{ rate, vatCents }], suggestions: [{ articleRef, label, unitCents, max }], paymentLink: { available, reason, email, open: { id, url, amountCents, expiresAt } \| null }, window: { open, reason }, invoice }` | `refundOwedCents` and refunds stripped for reception |
-| POST | `/:id/visit/quote` | `{ offeredMinutes, sessionOffered, extras: [{ articleRef, quantity, offered }], removeLineIds: [] }` | same shape as GET, `quoted: true`, `refusals: [{ field, error }]` | no write |
-| POST | `/:id/visit` | quote body + `version`, `acceptedTotalCents`, `payment: { tenders, shortfall: { kind: 'due' } \| null, paidAt? } \| null`, `invoice: boolean`, `billing?` | `{ visit, invoice: { ok, number?, code?, error? } }` | 409 `PRICE_CHANGED`, `ARRIVAL_NOT_TODAY`, `BOOKING_HAS_STAY`; 400 tender refusals; `invoice` not boolean → 400 (invoicing rule 45) |
-| POST | `/:id/visit/payment` | `{ tenders, shortfall, paidAt? }` | `{ visit }` | collects a reste after closing |
-| PATCH | `/:id/visit/lines/:lineId` | `{ offered?: bool, remove?: true, confirmRefund?: true }` | `{ visit }` | 409 `LINE_PAID` without `confirmRefund`; 403 `ADMIN_ONLY` for reception |
-| POST | `/:id/no-show` | — | `{ booking }` | rule 27; refused once arrived |
-| POST | `/:id/visit/payment-link` | `{ email? }` | `{ link: { id, url, amountCents, expiresAt, status, reused }, visit }` | rules 39-40; 409 `NOTHING_DUE`, `NO_EMAIL`, `PROVIDER_NOT_READY`; the amount is never in the request |
+| GET | `/:id/visit` | — | `{ booking, document: { ref, id, status, version, client: { id, label, kind } }, lines: [{ id, ref, kind: 'session'\|'extra', label, detail, components: [{ key, label, detail, amountCents }], quantity, unitCents, totalCents, catalogueCents, offered, status: 'paid'\|'due'\|'offered'\|'cancelled', statusLabel, settledCents, vatRate, legacy, draft }], groups, totals: { totalCents, paidCents, remainingCents, refundOwedCents }, vatByRate: [{ rate, vatCents }], suggestions: [{ articleRef, label, unitCents, max }], paymentLink: { available, reason, email, open: { id, url, amountCents, expiresAt } \| null }, window: { open, reason: null\|'future'\|'past'\|'noShow' }, invoice: { number, cancelled } \| null, history: [{ at, text, actor }], session: { offeredMinutes, editable } }` | before the first write `document.ref` / `id` are null and the session is a `draft` line; `legacy` marks a session paid on the booking (rule 34); for the reception `refundOwedCents` and `history` are left out and `booking` keeps the door fields only (no phone, no notes) |
+| POST | `/:id/visit/quote` | `{ offeredMinutes?, sessionOffered?, extras: [{ articleRef, quantity, offered? }], customer?: { email?, name?, registerAsClient? } }` | same shape as GET, `quoted: true`, `refusals: [{ field, code, error }]` | no write; a stored line changes through PATCH, never through the quote (rule 23) |
+| POST | `/:id/visit` | quote body + `version?`, `acceptedTotalCents?`, `payment: { tenders, shortfall: { kind: 'due' } \| null, paidAt? } \| null`, `invoice?: boolean`, `billing?` | `{ visit, invoice: { ok, number? , code?, error? } \| null }` | 409 `PRICE_CHANGED`, `ARRIVAL_NOT_TODAY`, `BOOKING_HAS_STAY`, `BOOKING_NO_SHOW`, `BOOKING_INVOICED` « Facturée : nouvelle vente séparée. », `SESSION_SOLD`, `NOTHING_DUE`; 400 tender refusals (`TENDERS_INVALID`, `WAIVED_REFUSED`), article refusals (`refusals`); `invoice` not boolean → 400 (invoicing rule 45) |
+| POST | `/:id/visit/payment` | `{ tenders, shortfall, paidAt?, version? }` | `{ visit }` | collects a reste; the document is born here when the visit has none; 409 `NOTHING_DUE` for a session paid on the booking and no extra |
+| PATCH | `/:id/visit/lines/:lineId` | `{ offered?: bool, remove?: true, confirmRefund?: true, version? }` | `{ visit }` | 409 `LINE_PAID` without `confirmRefund`, `SESSION_LINE` (the session is not retired alone); 403 `ADMIN_ONLY` for the reception on a paid line or with `confirmRefund` |
+| POST | `/:id/no-show` | — | `{ booking }` | rule 27, admin (403 `ADMIN_ONLY`); 409 `BOOKING_ARRIVED` once arrived, `NO_SHOW_TOO_EARLY` « Client absent : à partir du jour de la séance. » before its day |
+| POST | `/:id/visit/payment-link` | `{ email? }` | `{ visit, link: { id, url, amountCents, expiresAt, status, reused } }` | rules 39-40; 409 `NOTHING_DUE`, `NO_EMAIL`, `PROVIDER_NOT_READY` refused before anything is written; 400 `EMAIL_INVALID`; the amount is never in the request |
 | DELETE | `/:id/visit/payment-link/:linkId` | — | `{ visit }` | « Retirer le lien »; 409 `LINK_ALREADY_PAID` (lifecycle rule 42) |
-| POST | `/:id/visit/payment-link/:linkId/email` | — | `{ sent, recipientEmail }` | rule 42, explicit click only; 409 `NO_EMAIL`, `TEMPLATE_DISABLED` |
+| POST | `/:id/visit/payment-link/:linkId/email` | — | `{ sent, recipientEmail }` | rule 42, explicit click only; 409 `NO_EMAIL`, `TEMPLATE_DISABLED`, `LINK_NOT_OPEN` |
 | POST | `/:id/invoice` | `{ billing? }` | unchanged | basis = document lines (rule 31); 409 `REMAINING_DUE` « Reste à payer : facture après le solde. » |
+
+The booking payloads of the plugin (`GET /:id`, `GET /planning-events`, the list) gain `visit: { saleRef, totalCents, paidCents, remainingCents }` when the money is on a document, `noShow`, and `cardState: { state: 'toCollect'\|'remaining'\|'paid'\|'absent', label, remainingCents }` (rule 22: « À encaisser », « Reste 13,00 € », « Payé », « Absent »). The booking dialog's `POST /:id/payment` pays the document's whole reste when the booking has one; `DELETE /:id/payment` answers 409 `SALE_PAYMENT` for document money; `DELETE /:id` cancels the document of an unpaid visit (rule 26) and answers 409 `BOOKING_PAID` when the document holds money.
 
 
 Core routes (outside the plugin), authenticated. **The sale core of PR C (C33)**, admin only, the server of the « Vente hors séjour » counter dialog and the service the visit builds on
-(`standaloneSale` SDK module: `quote`, `sell`, `offerLine`, `removeLine`, `pay`, `cancel`, `documentOf`):
+(`standaloneSale` SDK module: `quote`, `sell`, `offerLine`, `removeLine`, `pay`, `cancel`, `documentOf`, `paymentsOf`; the request also takes `fulfilments`, the lines a
+plugin's family priced for a booking it fulfils — the session, stored with its `fulfilmentRef` and its parts as `components` — and `paidElsewhere`, the lines paid outside the document
+before it existed, counted by SETTLEMENT through one allocation and never stored; `standaloneSaleLinks.draftLinkOf({ remainingCents, email })` answers the link block of a sale not
+written yet):
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
@@ -543,23 +567,23 @@ number; `prefers-reduced-motion` → no movement.
 ## 7. Test plan
 
 ### Server unit tests (one file per subject)
-- [ ] `plugins/hourly-resources/tests/visit-window-and-roles.unit.test.js` — rules 1, 5, 7 (window `D+1 04:00`, reception allowed then read-only, `ADMIN_ONLY`)
-- [ ] `plugins/hourly-resources/tests/visit-lines.unit.test.js` — rules 10-12, 14 (session line from the `hourly` family, suggestions, `NEEDS_STAY` never listed, quantity bounds, append after commit)
-- [ ] `plugins/hourly-resources/tests/visit-offer.unit.test.js` — rule 13 (whole-line offer on session and extra, offered time kept as component, `waived` refused)
-- [ ] `plugins/hourly-resources/tests/visit-remaining-and-payment.unit.test.js` — rules 15-19 (remaining from SETTLEMENT, partial `due`, over-payment refused, allocation order)
-- [ ] `plugins/hourly-resources/tests/visit-commit-reopen.unit.test.js` — rules 21-24 (one transaction, `PRICE_CHANGED`, reopen appends, invoiced read-only)
-- [ ] `plugins/hourly-resources/tests/visit-refund-cancel-noshow.unit.test.js` — rules 25-27
-- [ ] `plugins/hourly-resources/tests/visit-legacy-money.unit.test.js` — rule 34 (paid before: session « Payée », extras on a new document, journal unchanged)
-- [ ] `plugins/hourly-resources/tests/visit-card-batch-once.unit.test.js` — rule 32 (no double listing)
-- [ ] `plugins/hourly-resources/tests/visit-invoice-document.unit.test.js` — rule 31 (all lines, `REMAINING_DUE`, money guard)
+- [x] `plugins/hourly-resources/tests/visit-window-and-roles.unit.test.js` — rules 1, 5, 7 (window `D+1 04:00`, reception allowed then read-only, `ADMIN_ONLY`)
+- [x] `plugins/hourly-resources/tests/visit-lines.unit.test.js` — rules 10-12, 14 (session line from the `hourly` family, suggestions, `NEEDS_STAY` never listed, quantity bounds, append after commit)
+- [x] `plugins/hourly-resources/tests/visit-offer.unit.test.js` — rule 13 (whole-line offer on session and extra, offered time kept as component, `waived` refused)
+- [x] `plugins/hourly-resources/tests/visit-remaining-and-payment.unit.test.js` — rules 15-19 (remaining from SETTLEMENT, partial `due`, over-payment refused, allocation order)
+- [x] `plugins/hourly-resources/tests/visit-commit-reopen.unit.test.js` — rules 21-24 (one transaction, `PRICE_CHANGED`, reopen appends, invoiced read-only)
+- [x] `plugins/hourly-resources/tests/visit-refund-cancel-noshow.unit.test.js` — rules 25-27
+- [x] `plugins/hourly-resources/tests/visit-legacy-money.unit.test.js` — rule 34 (paid before: session « Payée », extras on a new document, journal unchanged)
+- [x] `plugins/hourly-resources/tests/visit-card-batch-once.unit.test.js` — rule 32 (no double listing)
+- [x] `plugins/hourly-resources/tests/visit-invoice-document.unit.test.js` — rule 31 (all lines, `REMAINING_DUE`, money guard)
 - [ ] `tests/standalone-sale-visit-vat.unit.test.js` — rules 28-29, 33 (external context, rate frozen at sale, franchise, no tourist tax)
 - [ ] `plugins/accounting-export/tests/standalone-visit-journal.unit.test.js` — rule 30 (per payment day, caisse interne out, offered out, `revenue:drinks`)
 - [ ] `tests/suggested-articles.unit.test.js` — rules 36-37 (context key, order, `external` / `hosted` sellability filter, dropped when sold out of the catalogue, `ARTICLE_UNKNOWN`, 12 max, plugin off hides its kind, rows kept)
-- [ ] `plugins/hourly-resources/tests/visit-suggestion-contexts.unit.test.js` — rule 37 (resources listed as `resource` contexts; no list in the plugin's settings)
+- [x] `plugins/hourly-resources/tests/visit-suggestion-contexts.unit.test.js` — rule 37 (resources listed as `resource` contexts; no list in the plugin's settings)
 - [ ] `tests/standalone-sale-payment-link.unit.test.js` — rules 39-41 (provider not ready: absent; no e-mail: disabled; amount = SETTLEMENT reste, never the request's; reuse same amount, withdraw on drift; 36 h validity; paid after close writes payment + allocations; surplus → refund owed + alert; cancelled document)
 - [ ] `tests/visit-payment-request-template.unit.test.js` — rule 42 (`sendMode manual`, not in `AUTO_SEND_EXCEPTIONS`, `autoSendPolicy` false, minting sends nothing, one send per click, history entry, no `email_log` row)
 - [ ] `plugins/accounting-export/tests/drinks-account-required.unit.test.js` — rule 43 (refused with a drink and no account, accepted with an account or no drink)
-- [ ] `tests/plugin-boundary-outside-visit.unit.test.js` — rules 2-3 (plugin off: documents readable; no resource or platform name in code)
+- [x] `tests/plugin-boundary-outside-visit.unit.test.js` — rules 2-3 (plugin off: documents readable; no resource or platform name in code)
 
 ### Client (Vitest, one file per subject)
 - [ ] `plugins/hourly-resources/__tests__/ResourceArrivalDialog.extras.test.jsx` — add, stepper bounds, refusal shown
@@ -633,6 +657,7 @@ All nine were decided by the owner on **2026-11-12**. Nothing is open.
 - 2026-11-13 — Server pass 5 on `feature/pricing-components-c`: C33 (the sale core and the `/api/standalone-sales` routes, §4.3), C34 (rules 30, 32, 43: the documents in the journal and the card batch, the plugin's `bookingsModel.standaloneSales` skips a booking with a `saleRef`, the `drinksRevenueAccount` setting and the 409 `DRINKS_ACCOUNT_REQUIRED` guard of the CSV, the sales JSON and the synthesis; the class → account map is `accommodation`/`options`/`customOptions`/`catering` → 70600010, `resources`/`activities` → 70601000, `drinks` → the setting). Rules 1-9, 20, 27, 31, 34 (the visit's screen and money) wait for C37.
 - 2026-11-13 — C35 (rules 39-42): `utils/standaloneSaleLinks.js` (SDK `standaloneSaleLinks`: `linkOf` → the `paymentLink` payload `{ available, reason: 'PROVIDER_NOT_READY' | 'NO_EMAIL' | 'NOTHING_DUE' | null, email, open: { id, url, amountCents, expiresAt } | null }`, `mint(saleId, { email })` → `{ link: { id, url, amountCents, expiresAt, status, reused }, document }` or 409 `NOTHING_DUE` / `NO_EMAIL` / `PROVIDER_NOT_READY` / `LINK_ALREADY_PAID`, `withdraw(saleId, linkId)`, `emailLink(saleId, linkId)` → `{ sent, recipientEmail }` or 409 `NO_EMAIL` / `TEMPLATE_DISABLED` / `LINK_NOT_OPEN`), the paid effect in `applyPaidEffect` (`standalone-sale-settled`, `standalone-sale-refund-owed` + admin e-mail and push), `standaloneSale.receive` for money that arrives outside the tenders, the document `history` (« Vente enregistrée », « Bière locale ×2 ajoutée », « 12,00 € encaissés : CB », « Lien envoyé à … »). A refund owed on a document is computed (`refundOwedCents` = received − what the lines ask − given back), not a row of `refund_obligations` (whose `reservationId` is NOT NULL).
 - 2026-11-13 — C36 (rules 35-38, server): `utils/suggestedArticles.js` (SDK `suggestedArticles`: `kinds`, `resolve({ context, customerContext, stay })`, `save`, `settingsView`), `models/suggestedArticlesModel.js`, `controllers/suggestedArticlesController.js`, `routes/suggestedArticles.js` (`GET /api/suggested-articles`, `GET` and `PUT /api/settings/suggested-articles[/:kind/:id]`, §4.3), `ctx.suggestionContexts({ kind, label, list })` (SDK 2.30.0), `hourly-resources` declaring the kind `resource` (its `per_hour` resources placed on a planning); the core declares `property`. Saving answers 404 `CONTEXT_UNKNOWN`, 400 `ARTICLE_UNKNOWN` / `ARTICLE_DUPLICATE` / `TOO_MANY` (« 12 articles au plus. »). The catalogue forms carry `sellableExternally`, `vatClass` and `externalVatRate` (the rate of the whole class, `GET /api/standalone-sales/vat-rates` lists them): the server answers 422 `NEEDS_STAY` for an article of a family that reads the stay and 422 `EXTERNAL_RATE_REQUIRED` for a class with no external rate (franchise excepted).
+- 2026-11-13 — C37 (rules 1-5, 7, 20, 27, 31, 34 delivered; 6, 9, 35 wait for the screens of C38): `plugins/hourly-resources/visitModel.js`, `visitController.js`, the visit routes of §4.3 (`hourly-resources` 1.7.0), the reception entries of rule 7, `bookingsModel` (`enrich` with `visit` / `cardState`, the document's money in `recordArrival`, `recordPayment`, `clearPayment`, `update`, `remove`), `invoicing.issueDocument`, `planningCardsModel.bookingCardState`; core: the `fulfilments` and `paidElsewhere` lines of `standaloneSale` (`externalSale` pipeline: `loadCatalogue` provides `fulfilments`, `externalVat` taxes them, `externalTotals` appends them), `standaloneSale.paymentsOf`, `standaloneSaleLinks.draftLinkOf`, the `components` of a session line in the document form of `saleDetail`. The three readings of 2026-11-13 (rules 13, 31, 34) are the lead's calls, listed for the owner. Server tests: 10 plugin files of §7 (46 tests) and `plugin-boundary-outside-visit` (3).
 - **Delivery (Q9 B).** There is no separate « PR D ». The work lands in refonte PR C, in its external-sale part,
   after PR B. Order: PR B → PR C (external sale + this spec). Consequences to handle in that PR, not before:
   1. _(done 2026-11-12, commit C0)_ `pricing-components.md` PR C row and §8/ordering text gain « mini SAS of an outside visit

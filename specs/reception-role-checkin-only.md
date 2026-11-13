@@ -237,6 +237,15 @@ emails, settings, or any monetary figure beyond *the caution and complement to c
     needs an end-of-stay complement the departure SAS settled itself, so `departureSasDoneAt` is set and reception's
     SAS lock already answers `done` before the refund guard is reached; only the arrival branch is pinned by the test.
 
+17. **The reception runs the mini SAS of an outside visit, inside its day** (added 2026-11-13, pricing-components PR C, C37;
+    `outside-booking-sas.md` rule 7). The plugin `hourly-resources` adds to the reception allowlist `GET /resource-bookings/:id/visit`,
+    `POST …/visit`, `…/visit/quote`, `…/visit/payment`, `PATCH …/visit/lines/:lineId` and the payment-link routes of the visit. Inside the
+    window `D 00:00 → D+1 04:00` the reception opens, commits and reopens; after it the visit is read-only (409 `ARRIVAL_NOT_TODAY`). A
+    paid line, a refund confirmation and « Client absent » answer 403 `ADMIN_ONLY` « Remboursement : réservé à l’administrateur. ». The
+    payload keeps the door money (lines, total, paid, reste) and drops `refundOwedCents`, the document's history and the booking's phone
+    and notes (rule 12bis). `POST /resource-bookings/:id/no-show`, the booking itself and its payment routes stay admin.
+    Test: `visit-window-and-roles.unit.test.js` (plugin `hourly-resources`).
+
 **Edge cases:**
 - **reception + admin** on the same account → admin wins: full payloads, full nav, no stripping,
   no confinement (rule 1).
