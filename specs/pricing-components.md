@@ -502,6 +502,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR B** (pass 5): the SAS read serves `staySales`, the departure section of rule 32 (`extraSale.departureSalesOf`; reception sees none).
     > **Delivered by PR C** (C23, fiche): `GET /api/reservations/:id` embeds `saleDetail` (admin view; the reception view, finance-stripped, has none), the payload `GET …/sale-detail` serves (proof `sale-detail-embedded`).
     > **Pending** — PR C: the e-mail contexts, the finance pages' extras readers and the payment-link baskets keep their own readers (they read the same stored lines; they do not yet read the payload).
+    > _Pass 3h, measured on a copy of the prod database (2026-11-11), 59 stays from 2026-01-01:_ the amount an e-mail or a payment link asks
+    > equals `saleDetail`'s arrival bucket on 59 of 59, and the LINES it lists equal the payload's arrival lines on 50. On 9 they differ
+    > (12, 22209, 22224, 22226, 22275, 22278, 22291, 22324, 22336): a complement adjusted with no line behind it (« Complément d'arrivée »), the
+    > tourist tax or the added guests a platform stay keeps in its complement, a mid-stay part cut to its amount, and (22291) a 0 € bath line
+    > the payload lists and the e-mail does not. Switching would change what these guests read: the e-mails and the links keep the stored
+    > detail until the owner approves the before / after lists (owner page « Lignes listées dans l'e-mail »). The finance pages stay on their
+    > SQL aggregates on purpose, not as debt: they sum stored columns over a period (a month, a channel), which the books must reproduce
+    > byte for byte (`accounting-output-replay`); `saleDetail` is one stay's payload, so a period page would replay every stay of the period
+    > to sum figures the same rows already hold.
     > _Pass 3f, why it is still open:_ `saleDetail.buckets` and the lines' moments do not equal the arrival complement the e-mails and links name. On a started stay a line moved to the arrival lands in the plan bucket
     > (`buckets.arrival` stays 0, the line says `dueAtArrival`), while `buildArrivalComplementDetail` reads the stored complement.
     > _Pass 3g:_ that bucket defect is fixed (rule 37: the moved line is routed into the arrival complement; proof `sale-detail-arrival-bucket`).
@@ -1650,6 +1659,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > so a zero-hour resource line would lose its amount at the next save; on a collected complement it goes through #1032's routing. The
     > guard holds: a stored `evening:<id>` line is kept and the session line gets no component. `eveningCredit` reads the line net of its
     > component. Proof: `sas-evening-component`, `hourly-evening-billed-once` (items now carry the component, 0 € included).
+    > _Pass 3h, why 2 is still open:_ the departure charges are an input of the engine today — `reservationQuoteContext` reads the stored
+    > detail (`sasDetailAmount`, `endOfStaySasAmount`) into the end-of-stay complement, and `moveFinalPriceBy` moves `finalPrice` with them.
+    > Written as custom lines, the fiche's next save would price them a second time (`storedBody` carries every custom line) unless, in the
+    > same commit, that engine input reads the lines for a stay whose charges are lines and the stored detail for every other stay, and the
+    > 21 readers of the detail (sasAudit, accountingModel, accountingOutput, arrivalPaymentDetail, storedMoneySplit, reservationQuoteContext,
+    > paymentAllocationsSync, complementDataRepairs, midStayOrderCommit, checkoutComplement, refunds/collected, refundInputModel, the
+    > controller's three, the model's nine) go through `endOfStayChargesOf(row)`. That is one change with the byte-identical replay as its
+    > proof; it was not started in pass 3h.
     > **Pending** — PR C: 3's line of its own as a resource line holding only an evening component (needs the engine to keep a zero-hour
     > line); 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
     > fields): they write the same rows today, and the engine reads them back; 2. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
