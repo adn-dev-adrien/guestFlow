@@ -1,6 +1,6 @@
 // specs/pricing-components.md §3 rules 26, 29, 92 — what a seller that keeps its own row (the guest app) asks of `extraSale`: a line that takes none of the
 // article's free units and says so, a card sale paid before the arrival written already settled and never above what was paid, the order a line belongs
-// to, a waiting order's lines priced before a reader's view, and where a sale taken now is collected.
+// to, no waiting order reserving anything (reading of 2026-11-13, guest-app rule 108), and where a sale taken now is collected.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
 const test = require('node:test');
@@ -66,11 +66,10 @@ test('rule 29 — a payment above the sale leaves the gap owed back; a price tha
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ?').get(other).n, before, 'nothing written');
 });
 
-test('rules 26, 92 — a reader\'s quote after a waiting order prices after that order\'s lines, writes nothing', () => {
+test('rules 26, 92, guest-app rule 108 — a quote prices the stay as it is: nothing a waiting card order was quoted with is reserved, and it writes nothing', () => {
   const id = stay();
-  const waiting = [{ kind: 'option', id: cider, quantity: 2 }];
-  assert.equal(extraSale.quote(id, request()).totalCents, 0, 'alone: the first unit is covered by the free units');
-  assert.equal(extraSale.quote(id, request(), { pending: waiting }).totalCents, 1000, 'after the waiting order, which holds both free units');
+  assert.equal(extraSale.quote(id, request()).totalCents, 0, 'the first unit is covered by the free units');
+  assert.equal(extraSale.quote(id, request(), { pending: [{ kind: 'option', id: cider, quantity: 2 }] }).totalCents, 0, 'a `pending` option is gone: it reserves nothing');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ?').get(id).n, 0);
 });
 
