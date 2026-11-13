@@ -9,6 +9,7 @@ const { midStayExtrasWindow, buildEditLock } = require('../utils/midStayExtrasWi
 const TODAY = '2026-11-13';
 const row = (over = {}) => ({ kind: 'reservation', startDate: TODAY, checkInTime: '16:00', ...over });
 
+// specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 1
 test('the day before the arrival the stay has not started, whatever the clock says', () => {
   assert.equal(hasStayStarted(row({ startDate: '2026-11-14' }), TODAY, '23:59'), false);
 });
@@ -40,6 +41,7 @@ test('a later day is always started', () => {
   assert.equal(hasStayStarted(row({ startDate: '2026-11-12' }), TODAY, '00:00'), true);
 });
 
+// specs/lock-at-arrival-time-and-arrival-complement-lines.md rules 2, 4
 test('the read lock (editLock) and the window agree on the boundary', () => {
   assert.equal(midStayExtrasWindow(row(), TODAY, '15:59').locked, false);
   assert.equal(midStayExtrasWindow(row(), TODAY, '15:59').extrasEditable, false);

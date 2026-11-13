@@ -49,14 +49,11 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
    `midStayExtrasWindow` / `buildEditLock` (read), `pastReservationLocked` and the `started` test of
    the PUT, the ledger-edit refusal of the quote. One helper, no second copy.
 3. The client keeps deriving nothing: it reads `editLock.locked` (unchanged contract).
+   > **Sans test** — no client change: the contract of `editLock.locked` is untouched.
 4. Before the moment, the fiche is a normal fiche: every field editable, the complement computed live
    as usual, no « Séjour commencé » banner.
 5. The guest-app shop (`shopState`) keeps its calendar-day reading on purpose: it opens with the arrival day.
-6. Out of the lock decision: `paymentDeadlines.arrived`, the platform price check, the clients
-   « in stay » filter and the plugin intake guard (`coreServices.applyReservationUpdate`, « Séjour commencé
-   ou passé ») keep their calendar-day reading — they answer other questions.
-7. A fiche opened before the arrival time and saved after it is judged by the server at save time: the
-   save may be refused with the usual locked-fiche error; the operator reloads (known, accepted).
+   > **Sans test** — a deliberate non-change, covered by the existing guest-app shop suites.
 
 ### 3.2 The arrival complement's list
 
@@ -70,6 +67,15 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
    The client picks live-vs-stored exactly as it does for the end-of-stay lines and sums nothing.
 8. The lines sum to the complement amount (invariant of `buildArrivalComplementDetail`); an adjusted
    amount keeps showing the lines, and the existing « Montant ajusté » field stays below them.
+   > **Sans test** — the invariant belongs to `buildArrivalComplementDetail`, tested in `arrival-payment-detail.unit.test.js`.
+
+### 3.3 Boundaries
+
+9. Out of the lock decision: `paymentDeadlines.arrived`, the platform price check, the clients
+   « in stay » filter and the plugin intake guard (`coreServices.applyReservationUpdate`, « Séjour commencé
+   ou passé ») keep their calendar-day reading — they answer other questions.
+10. A fiche opened before the arrival time and saved after it is judged by the server at save time: the
+   save may be refused with the usual locked-fiche error; the operator reloads (known, accepted).
 
 ## 4. Architecture
 
