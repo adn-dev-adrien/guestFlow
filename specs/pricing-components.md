@@ -1465,6 +1465,27 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `optionId` move to line keys. **Rollback:** the previous release upserts with `ON CONFLICT(reservationId, optionId)` and would throw on
     the rebuilt tables; this is blocked by the schema floor of `self-update-and-releases.md` (its last rule), not by a shim.
     > **Delivered by PR C** (C1, schema): the rebuild of `reservation_options` / `reservation_resources` without the article key (`utils/pricingSalesMigration.js`, `pricing_sales_true_lines_v1`), the schema floor `4.1.0` raised in the same transaction; proof `pricing-sales-migration` (rows, rowids and order identical, twice = 0) and `pricing-sales-migration-rollback`. **Pending** — PR C: the writers that append a second line and the readers keyed by `optionId` (C19).
+    **Line key scheme** _(lead, 2026-11-13; pass 3c)_. A line is named by `line:<table>:<lineId>` (`lineRef`, rule 79). The keys of the data that
+    exist are never rewritten (rule 36): the stored `opt:<id>` / `res:<id>` / `custom:<label>` stay as they are and are read through **one
+    resolver**, `utils/pricing/lineKeys.js`:
+    - `lineKeyOf(line)` — the key the engine gives a priced line. **The first line of an article (the lowest `lineId`) keeps the legacy key**
+      (`opt:<id>` / `res:<id>`), so every stored baseline, note, detail and allocation reads unchanged (0 output diff); every **later** line of the
+      same article carries `lineId` and `lineKey = line:<table>:<lineId>`, and `extraLineKey(line)` returns that `lineKey` when the line has one.
+      So a map keyed by line key never merges two sales of one article.
+    - `resolveLineKey(rows, key)` — a `line:` key resolves to itself when the stay holds that line; a legacy `opt:<id>` / `res:<id>` resolves to the
+      article's **first** line (`line:<table>:<lowest lineId>`); a legacy key whose article has no line resolves to `null` (documented, never
+      guessed); `custom:` keys are not touched.
+    - `articleKeyOf(key, rows)` — the reverse, for the readers that aggregate per article on purpose.
+    - A request line (fiche body, intake, SAS) that carries no `lineId` addresses the article's first line, exactly as before; a stored line is
+      always loaded with its `lineId` so its own snapshot (`unitPrice`, `offered`, contributions, occurrences, sessions) prices it.
+    **Readers that aggregate per article on purpose (AGG — correct with N rows, never moved):** stock units (`stockModel`, `stockPeak`), the
+    occupancy of a resource (`resourcesModel`, hourly `occupancyModel` / `schedulingModel` / `bookingsModel`: the sessions of every line), the
+    breakfast preparation and served persons (`breakfastModel`: the **union** of the lines' occurrences), the linen quantity per bed-linen option,
+    the existence tests of Google Calendar and Neat, the presence tests of the insurance and the baby-bed supplement, and every Σ over the lines
+    (totals, finance, devis). Everything else keyed by `optionId` / `resourceId` — a writer that updates ONE row, a `Map(article → row)` — is a
+    **line** reader and addresses its row by `lineId`; for a stay holding two rows of one article each writer touches exactly the intended row and
+    each reader returns every row (proof `true-lines-duplicate-rows`).
+    > **Delivered by PR C** (pass 3c): the key scheme, the resolver and the line readers/writers above. **Pending** — appending (the fiche-save merge and the sale writer append a second line instead of merging), a later slice.
 86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with
     `reservationId` nullable and a `saleRef` column (migration `pricing_sales_v1`, rows copied verbatim): the link e-mail of an outside visit is
     logged in `email_log` like every other e-mail. A link row with a NULL `reservationId` must be invisible to the previous release's poller and
@@ -1601,6 +1622,7 @@ Columns added to `reservation_options`, `reservation_resources`, `reservation_cu
 `AFTER INSERT` trigger, so a row inserted by the previous release is numbered too; the rows already there take their rowid).
 Nothing is rebuilt: the primary key `(reservationId, optionId)` / `(reservationId, resourceId)` stays, so a rolled-back release
 still runs its `INSERT … ON CONFLICT(reservationId, optionId)` (self-update rule 31). `lineRef = line:<table>:<lineId>`.
+**Since PR C** (rule 85) the primary key is gone: `(reservationId, optionId|resourceId)` is a non-unique index and `lineId` is the key; the stored line keys `opt:<id>` / `res:<id>` are resolved to the article's first line by `utils/pricing/lineKeys.js` (key scheme of rule 85).
 
 On `reservations`: `discountTarget` TEXT DEFAULT `'nights'` (every existing row reads as today); `discountAmountCents` INTEGER NULL (the fixed
 amount of the stay discount, rules 16 and 39; NULL = the discount is the percent; no backfill); `cancellationKeptCents` and
