@@ -110,8 +110,11 @@ test('rule 47 — a refusal of the family comes back as a refusal with the artic
   assert.deepEqual(result.lines, [null]);
 });
 
-test('rule 47 — only the hosted customer context is priced in PR A', () => {
-  const result = articles.quote({ requests: [{ article: article(), quantity: 1 }], stayContext: STAY, customerContext: 'external' });
+test('rule 47 — the hosted and external customer contexts are priced (rule 53); any other is refused', () => {
+  const external = articles.quote({ requests: [{ article: article(), quantity: 1 }], stayContext: STAY, customerContext: 'external' });
+  assert.deepEqual(external.refusals, []);
+  assert.deepEqual(external.taggedAmounts.map((t) => t.customerContext), ['external']);
+  const result = articles.quote({ requests: [{ article: article(), quantity: 1 }], stayContext: STAY, customerContext: 'wholesale' });
   assert.deepEqual(result.refusals.map((r) => r.code), ['CONTEXT_UNSUPPORTED']);
   assert.deepEqual(result.lines, [null]);
 });

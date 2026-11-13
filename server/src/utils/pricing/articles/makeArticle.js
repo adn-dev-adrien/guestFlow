@@ -11,6 +11,8 @@
  *
  * Pure: no DB, no clock, no settings.
  */
+const { ARTICLE_VAT_CLASSES } = require('../vat/settingsSchema');
+
 const FAMILY_OF_PRICE_TYPE = Object.freeze({
   per_stay: 'fixed',
   free: 'fixed',
@@ -56,7 +58,7 @@ function makeArticle(row, { kind = 'option' } = {}) {
     labelEn: (kind === 'resource' ? row.nameEn : row.titleEn) || null,
     price: Number(row.price || 0),
     priceType,
-    vatClass: VAT_CLASS[kind],
+    vatClass: ARTICLE_VAT_CLASSES.includes(row.vatClass) ? row.vatClass : VAT_CLASS[kind],
     freeUnits: Math.max(0, Number(row.freeUnits || 0)),
     freeMinutes: Math.max(0, Number(row.freeMinutes || 0)),
     progressiveTiers: row.optionProgressiveTiers == null ? [] : JSON.parse(JSON.stringify(row.optionProgressiveTiers)),

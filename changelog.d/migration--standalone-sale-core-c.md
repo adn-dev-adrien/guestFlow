@@ -1,0 +1,1 @@
+- **Vente hors séjour — schéma** : colonnes `vatClass` sur `options` et `resources` (vide = la classe d'origine), table `vat_external_rates` (taux du client extérieur par classe), colonne `clients.isPassage` (client partagé « Passage », créé à la première vente sans nom). Ajouts seuls : aucun montant, aucune ligne existante ne change.

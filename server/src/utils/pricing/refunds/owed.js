@@ -8,6 +8,7 @@
  *   owedOnLinkPayment  a link paid above what the stay asked: the excess and the duplicate part
  *   owedOnDuplicate    a link paid a second time: what the second payment gives back
  *   owedOnLineLowered  a paid line lowered, offered or removed: its trop-perçu share (rule 76), net of what is already owed for it
+ *   owedOnDocument     a sale document paid above what its lines now ask (a line offered, removed, a link paid late): the excess, net of what was given back
  */
 
 const whole = (value) => (Number.isInteger(value) ? value : 0);
@@ -53,6 +54,15 @@ function owedOnLineLowered({ overpaymentCents, alreadyOwedCents = 0 }) {
 }
 
 /**
+ * @param {{ dueCents: number, paidCents: number, refundedCents?: number }} args  what the document's lines ask now, what it received,
+ *   what was already given back (all in cents)
+ * @returns {{ owedCents: number }}
+ */
+function owedOnDocument({ dueCents, paidCents, refundedCents = 0 }) {
+  return { owedCents: Math.max(0, whole(paidCents) - whole(refundedCents) - whole(dueCents)) };
+}
+
+/**
  * The part of a second paid link to give back, as the poll and the notifier carry it: `null` when the whole link is owed.
  * @param {(number|null)} [duplicateCents]
  */
@@ -75,5 +85,5 @@ const duplicateOnSolde = ({ linkCents, balanceCents }) => Math.max(0, linkCents 
 const flagRefundOwed = (basket, partCents) => ({ ...basket, refundOwed: true, ...(partCents ? { refundCents: partCents } : {}) });
 
 module.exports = {
-  owedOnBasket, owedOnLinkPayment, owedOnDuplicate, owedOnLineLowered, duplicatePayment, doublePaymentEffect, fullOverDeposit, duplicateOnSolde, flagRefundOwed,
+  owedOnBasket, owedOnLinkPayment, owedOnDuplicate, owedOnLineLowered, owedOnDocument, duplicatePayment, doublePaymentEffect, fullOverDeposit, duplicateOnSolde, flagRefundOwed,
 };

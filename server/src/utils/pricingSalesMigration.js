@@ -8,7 +8,8 @@
  *   T1-T3 `standalone_sales`, `standalone_sale_lines`, `standalone_sale_payments`: the sale of an article with no reservation.
  *   T4    `payment_links` rebuilt: `reservationId` nullable, `saleRef` (the link of a sale bills the sale).
  *   T5    `email_log` rebuilt: `reservationId` nullable, `saleRef` (the link e-mail is logged like every other).
- *   T6    `suggested_articles`.        T7  `options.sellableExternally`, `resources.sellableExternally`.
+ *   T6    `suggested_articles`.        T7  `options.sellableExternally`, `resources.sellableExternally`, `vatClass` on both,
+ *         `vat_external_rates` (the external rate of a class), `clients.isPassage` (the shared « Passage » client, seeded by `standaloneSalesModel`).
  *   T9    the `visit_payment_request` e-mail template (`sendMode 'manual'`), seeded once by `defaultEmailTemplatesRegistry`.
  *   T10   `reservation_options` / `reservation_resources` rebuilt WITHOUT the article primary key (rule 85): `lineId` is the key,
  *         `(reservationId, optionId|resourceId)` a non-unique index, rows copied in rowid order, indexes and triggers recreated.
@@ -92,6 +93,11 @@ const TABLES = [
     FOREIGN KEY (saleId) REFERENCES standalone_sales(id) ON DELETE CASCADE
   )`,
   'CREATE INDEX IF NOT EXISTS idx_standalone_sale_payments_sale ON standalone_sale_payments(saleId)',
+  // The external VAT rate of a class, set from the catalogue (owner Q-C11): `vat.rate.<class>.external` of the VAT component.
+  `CREATE TABLE IF NOT EXISTS vat_external_rates (
+    vatClass TEXT PRIMARY KEY,
+    rate     REAL NOT NULL CHECK (rate >= 0 AND rate < 100)
+  )`,
   `CREATE TABLE IF NOT EXISTS suggested_articles (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     contextKind TEXT NOT NULL,
@@ -118,6 +124,11 @@ function addColumns(db) {
   for (const [table, name, definition] of [
     ['options', 'sellableExternally', 'INTEGER NOT NULL DEFAULT 0'],
     ['resources', 'sellableExternally', 'INTEGER NOT NULL DEFAULT 0'],
+    // The VAT class of an article sold outside a stay (`options`, `resources`, `drinks`, `catering`); NULL = the class of its kind.
+    ['options', 'vatClass', 'TEXT'],
+    ['resources', 'vatClass', 'TEXT'],
+    // The shared client of the anonymous standalone sales (rule 74): exactly one row carries it.
+    ['clients', 'isPassage', 'INTEGER NOT NULL DEFAULT 0'],
     ['payment_links', 'saleRef', 'TEXT'],
     ['email_log', 'saleRef', 'TEXT'],
   ]) {

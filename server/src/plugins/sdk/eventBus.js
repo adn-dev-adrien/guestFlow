@@ -32,6 +32,8 @@ const EVENTS = Object.freeze([
   'extraSale.lineMoved',
   'extraSale.lineCancelled',
   'extraSale.refundOwed',
+  // specs/pricing-components.md rule 55 (SDK 2.30.0) — `{ saleId, ref, clientId, totalCents, lines: [{ ref, label, totalCents }] }` after a sale with no stay committed.
+  'standaloneSale.sold',
 ]);
 
 // The events a plugin may emit itself through `ctx.events.emit` (tariff-recipes announces a recipe

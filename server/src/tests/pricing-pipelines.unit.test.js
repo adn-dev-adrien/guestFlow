@@ -14,7 +14,9 @@ const END = addDaysToIsoDate(START, 3);
 
 
 const STEPS_DIR = path.join(__dirname, '..', 'utils', 'pricing', 'steps');
-const stepFiles = fs.readdirSync(STEPS_DIR).filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, ''));
+const allStepFiles = fs.readdirSync(STEPS_DIR).filter((f) => f.endsWith('.js')).map((f) => f.replace(/\.js$/, ''));
+// The steps of `externalSale` (rule 53, PR C) are files of their own, named `external*`.
+const stepFiles = allStepFiles.filter((f) => !f.startsWith('external'));
 
 test('rule 52: stayQuote is built and runs loadStay → clock → nights → extraGuests → extras → … → schedule → settlement', () => {
   assert.equal(stayQuote.steps[0], 'loadStay');
@@ -28,9 +30,9 @@ test('rule 52: stayQuote is built and runs loadStay → clock → nights → ext
   assert.ok(index('schedule') < index('platformPayment') && index('platformPayment') < index('settlement'), 'rule 70: the platform payment follows the schedule');
 });
 
-test('rule 52: every step file is in stayQuote and none builds a sale use case (ficheSale, sasSale, shopSale, externalSale are not in PR A)', () => {
+test('rule 52: every stay step file is in stayQuote, and the only sale use case built is externalSale (ficheSale, sasSale, shopSale are not)', () => {
   assert.deepEqual([...stayQuote.steps].sort(), [...stepFiles].sort());
-  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote', 'touristTaxFigure']);
+  assert.deepEqual(Object.keys(require('../utils/pricing/pipelines')), ['stayQuote', 'touristTaxFigure', 'externalSale']);
 });
 
 test('rule 3: the tourist-tax slice is the head of stayQuote up to the TOURIST TAX step, nothing else', () => {
@@ -46,6 +48,15 @@ test('rule 52: the QuoteContext typedef names every key a step provides', () => 
   for (const id of stepFiles) {
     const { provides } = require(path.join(STEPS_DIR, id));
     for (const key of provides) if (key !== 'halt') assert.match(typedef, new RegExp(`\\b${key}\\b`), `${id} provides ${key}`);
+  }
+});
+
+test('rule 52: the ExternalSaleContext typedef names every key an external step provides', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'utils', 'pricing', 'pipelines.js'), 'utf8');
+  const typedef = source.slice(source.indexOf('@typedef {object} ExternalSaleContext'));
+  assert.ok(typedef.length > 0);
+  for (const id of allStepFiles.filter((f) => f.startsWith('external'))) {
+    for (const key of require(path.join(STEPS_DIR, id)).provides) assert.match(typedef, new RegExp(`\\b${key}\\b`), `${id} provides ${key}`);
   }
 });
 

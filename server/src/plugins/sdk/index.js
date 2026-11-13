@@ -86,7 +86,8 @@ const CORE_MODULES = Object.freeze({
   vatRegimeModel: '../../models/vatRegimeModel', // the VAT rate and regime of each sale: the journal reads them per reservation (vat-optional-mode rule 8, SDK 2.8.0)
   // sas, hourly-resources, website-booking — one sale service, its read model and the head's price read (pricing-components rules 10, 27, 31, SDK 2.28.0)
   extraSale: '../../utils/extraSale', // quote / sell / changeLine, the sale detail and the departure section of the SAS
-  saleDetail: '../../utils/saleDetail', // the one read model of what a stay sold (rule 31)
+  saleDetail: '../../utils/saleDetail', // the one read model of what a stay sold (rule 31); `buildDocumentDetail` is its form for a standalone document (SDK 2.30.0)
+  standaloneSale: '../../utils/standaloneSale', // the sale of an article with no stay: quote / sell / offerLine / removeLine / pay / cancel (pricing-components rules 53, 74, SDK 2.30.0)
   articles: '../../utils/pricing/articles', // the Articles head: `read` prices one candidate line, `unitsPerQuantity` its units
   catalogue: '../../models/ports/catalogueProvider', // the lodging's own price of an option or a resource (hourly-resources: the booking's price row)
   stayClock: '../../models/stayClockModel', // `phaseForReservation`: has the stay started (rules 44-46)

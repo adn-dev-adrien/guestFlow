@@ -130,9 +130,9 @@ test('rule 50 — the schema of every unit is what the provider resolves', () =>
   }
 });
 
-test('rule 50 — for("vat") resolves the eight rate keys at null (the regime\'s rate); the regime is not one of them', () => {
+test('rule 50 — for("vat") resolves the twelve rate keys at null (the regime\'s rate); the regime is not one of them', () => {
   const values = settingsProvider.create(seeded()).for('vat', { propertyId: 1 });
-  assert.equal(Object.keys(values).length, 8);
+  assert.equal(Object.keys(values).length, 12);
   assert.ok(Object.values(values).every((value) => value === null));
   assert.equal('regime' in values, false);
 });

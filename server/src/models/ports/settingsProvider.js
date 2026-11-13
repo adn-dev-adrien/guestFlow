@@ -129,14 +129,20 @@ const ADAPTERS = {
       };
     },
   },
-  // `vat.rate.resources.external` is the hourly-resources plugin's « TVA des ventes hors séjour », read where the plugin stores it
+  // `vat.rate.<class>.external`: the rate the operator set for the class in the catalogue (`vat_external_rates`). Resources keep the
+  // hourly-resources plugin's « TVA des ventes hors séjour » until a rate is set for the class, read where the plugin stores it
   // (an adapter, no copy; 20 % when the plugin is installed and the setting never saved). Every other rate: the regime answers.
   vat: {
     global(db) {
+      const values = {};
       const stored = rowOrUndefined(db, "SELECT value FROM plugin_settings WHERE plugin_id = 'hourly-resources' AND key = 'standaloneVatRate'");
       const text = stored ? String(stored.value ?? '').trim().replace(',', '.') : '';
-      if (/^\d{1,3}(\.\d{1,2})?$/.test(text) && Number(text) <= 100) return { 'vat.rate.resources.external': Number(text) };
-      return rowOrUndefined(db, "SELECT 1 AS present FROM plugins WHERE id = 'hourly-resources'") ? { 'vat.rate.resources.external': 20 } : undefined;
+      if (/^\d{1,3}(\.\d{1,2})?$/.test(text) && Number(text) <= 100) values['vat.rate.resources.external'] = Number(text);
+      else if (rowOrUndefined(db, "SELECT 1 AS present FROM plugins WHERE id = 'hourly-resources'")) values['vat.rate.resources.external'] = 20;
+      try {
+        for (const row of prepared(db, 'SELECT vatClass, rate FROM vat_external_rates').all()) values[`vat.rate.${row.vatClass}.external`] = Number(row.rate);
+      } catch { /* a schema without the table has no class rate */ }
+      return Object.keys(values).length ? values : undefined;
     },
   },
   platformPrice: {

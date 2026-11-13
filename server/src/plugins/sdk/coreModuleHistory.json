@@ -304,6 +304,17 @@
           "ttcFromNetCents"
         ]
       }
+    },
+    {
+      "version": "2.30.0",
+      "modules": [
+        "standaloneSale"
+      ],
+      "names": {
+        "saleDetail": [
+          "buildDocumentDetail"
+        ]
+      }
     }
   ]
 }

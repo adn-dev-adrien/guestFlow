@@ -286,6 +286,62 @@ function arrivalComplementLines(detail, { addedGuestsTaxLabel = null } = {}) {
     });
 }
 
+// The status of a document line as the screens name it (outside-visit spec rule 10): paid, to pay, offered or cancelled.
+const DOCUMENT_STATUS_LABELS = Object.freeze({ paid: 'Payée', due: 'À payer', offered: 'Offerte', cancelled: 'Annulée' });
+
+/**
+ * saleDetail of a DOCUMENT (a standalone sale, rule 74): the same read model, fed by the document's frozen lines and what SETTLEMENT and
+ * REFUNDS made of them. `buildDocumentDetail({ sale, client, lines, settlement, vatByRate })`:
+ *   sale        { id, status, version, soldAt, originRef, customerName, customerEmail }
+ *   client      { id, label, kind: 'passage' | 'registered' }
+ *   lines       the pipeline's lines in sale order, each with its row `id`, `ref` and VAT share
+ *   settlement  `settleDocument`'s answer plus `refundOwedCents`
+ * → { document, lines[], groups[], totals: { totalCents, paidCents, remainingCents, refundOwedCents }, vatByRate }. Pure: no DB, no clock.
+ */
+function buildDocumentDetail({
+  sale, client, lines, settlement, vatByRate,
+}) {
+  const statusByRef = new Map(settlement.lines.map((line) => [line.ref, line]));
+  const rows = lines.map((line) => {
+    const settled = statusByRef.get(line.ref) || { status: 'due', settledCents: 0 };
+    return {
+      id: line.id == null ? null : line.id,
+      ref: line.ref,
+      kind: line.fulfilmentRef || line.family === 'hourly' ? 'session' : 'extra',
+      articleKey: line.articleRef || null,
+      label: line.label,
+      detail: line.detail != null ? line.detail : `${numberText(line.quantity)} × ${eurosText(line.unitCents)}${line.offered ? ' · offert' : ''}`,
+      quantity: line.quantity,
+      unitCents: line.unitCents,
+      totalCents: line.offered || line.cancelled ? 0 : line.totalCents,
+      catalogueCents: line.catalogueCents == null ? line.totalCents : line.catalogueCents,
+      offered: Boolean(line.offered),
+      status: settled.status,
+      statusLabel: DOCUMENT_STATUS_LABELS[settled.status],
+      settledCents: settled.settledCents,
+      vatClass: line.vatClass,
+      vatRate: line.vatRate,
+      vatCents: line.offered || line.cancelled ? 0 : line.vatCents,
+      source: line.source || null,
+      fulfilmentRef: line.fulfilmentRef || null,
+    };
+  });
+  const live = rows.filter((row) => row.status !== 'cancelled');
+  return {
+    document: {
+      ref: `standalone:${sale.id}`, id: sale.id, status: sale.status, version: sale.version, soldAt: sale.soldAt, originRef: sale.originRef || null,
+      customerName: sale.customerName || null, customerEmail: sale.customerEmail || null, client,
+    },
+    lines: rows,
+    groups: groupsOf(live),
+    totals: {
+      totalCents: settlement.totalCents, paidCents: settlement.paidCents, remainingCents: settlement.remainingCents, refundOwedCents: settlement.refundOwedCents,
+    },
+    vatByRate: vatByRate.map(({ rate, vatCents }) => ({ rate, vatCents })),
+  };
+}
+
 module.exports = {
+  buildDocumentDetail,
   buildSaleDetail, departureSection, paidSection, arrivalComplementLines, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE, PAID_TITLE,
 };

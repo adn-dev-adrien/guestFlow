@@ -20,7 +20,9 @@
 const {
   roundMoney, toCents, fromCents, allocateCents,
 } = require('../money');
-const { rateKey, settingsSchema } = require('./settingsSchema');
+const {
+  rateKey, settingsSchema, VAT_CLASSES, ARTICLE_VAT_CLASSES,
+} = require('./settingsSchema');
 
 function readSetting(settings, key) {
   if (!settings) return undefined;
@@ -157,6 +159,8 @@ function vatOf(taggedAmounts, { regime = null, settings = null } = {}) {
 
 module.exports = {
   settingsSchema,
+  VAT_CLASSES,
+  ARTICLE_VAT_CLASSES,
   vatOf,
   resolveRate,
   splitTtc,

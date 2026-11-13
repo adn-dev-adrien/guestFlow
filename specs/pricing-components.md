@@ -890,10 +890,17 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     `sellableExternally`, default false). _Where it lives (2026-11-12): an INTEGER column `sellableExternally` DEFAULT 0 on `options` and `resources`, read by
     the catalogue provider into `config.sellableExternally` of `makeArticle`._ The payment link of an outside visit: rules 86 and
     `outside-booking-sas.md` rules 39-41.
-    > **Pending** — PR C
+    > **Delivered by PR C** (C33, `standalone-sale`, `standalone-sale-visit-vat`, `standalone-sale-passage-client`): the `externalSale` pipeline (`loadCatalogue` → `externalExtras` → `externalVat` →
+    > `externalTotals` → `externalPayment`), `utils/standaloneSale.js` (`quote`, `sell`, `offerLine`, `removeLine`, `pay`, `cancel`, each a re-quote inside its transaction, the document `version`
+    > compared), `models/standaloneSalesModel.js`, `models/standalonePaymentsModel.js`, `controllers/standaloneSalesController.js` and `POST /api/standalone-sales/quote` · `POST /api/standalone-sales`
+    > (admin; the counter dialog's server). The head prices `customerContext = 'external'` (its tagged amounts carry it) and a family that reads the stay (`per_night`, `per_person*`, `percent_of_stay`,
+    > progressive) answers `NEEDS_STAY`; the counter takes `fixed` and `per_unit` only (`hourly` is a session booked from the planning, `NEEDS_FULFILMENT`). An article carries a `vatClass`
+    > (`options`, `resources`, `drinks`, `catering`; NULL = its kind's) and the operator's external rate of a class lives in `vat_external_rates` (`vat.rate.<class>.external`; resources keep the hourly plugin's
+    > rate until a class rate is set); a class with no external rate answers `VAT_RATE_UNKNOWN`, never a guess. **No line discount** (rule 39) in this sale: « Offrir » is the one gesture (rule 14).
 54. **A pipeline per caller, chosen by the caller.** The fiche save of a stay edit uses `stayQuote`; « Ajouter
     un produit » uses `ficheSale`; the SAS `sasSale`; the guest app `shopSale`; the « Vente hors séjour »
     dialog `externalSale`. No caller assembles steps itself.
+    > **Delivered by PR C** (C33): `externalSale`, named and chosen by the « Vente hors séjour » endpoint (`pipelines.js`).
     > **Pending** — PR C: the named `ficheSale` / `sasSale` pipelines. PR B's sale services call the fiche's own save, so there is no stay-less pipeline to name until `storedStayPrice` exists (rules 8-9);
     > `stayQuote` stays the pipeline of the fiche and of the intakes.
 55. **Domain events for side effects (observer).** After the sale transaction commits, `extraSale` publishes
@@ -903,8 +910,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     the journal line and the fulfilment `confirm` stay inside the transaction; an observer's failure is logged
     and never undoes a sale.
     > **Delivered by PR B** (pass 5; `extra-sale-events`): `extraSale.sold`, `extraSale.lineMoved`, `extraSale.lineCancelled` (published by the fiche's save for the lines it removed) and
-    > `extraSale.refundOwed` are in `EVENTS` and published after the commit through `EventPublisher`; Google Calendar (1.3.0) pushes the stay on the first three. **Pending** — PR C: `standaloneSale.sold`,
-    > and the guest e-mail / staff push observers (the shop's order confirmation, J-7 code absent from this branch).
+    > `extraSale.refundOwed` are in `EVENTS` and published after the commit through `EventPublisher`; Google Calendar (1.3.0) pushes the stay on the first three. **Delivered by PR C** (C33): `standaloneSale.sold` (`{ saleId, ref, clientId, totalCents, lines }`, SDK 2.30.0). **Pending** — PR C: the guest e-mail / staff push observers (the shop's order confirmation, J-7 code absent from this branch).
 56. **No class hierarchy, no DI framework.** Components, families, instances, adapters, steps and ports are CommonJS
     modules exporting plain functions and objects. Wiring is explicit in `pipelines.js` and in plugin
     `register` functions.
@@ -1402,6 +1408,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > path is late, never wrong (`pricing-allocations-live`). A bucket lowered after it was paid keeps the contribs it captured as
     > its allocation: they are what the guest paid (rule 34).
     > **Delivered by PR B** (passes 1-5): the live writers, the trigger net, the refund rows, and the line-named rows of a sale paid at once (`extra-sale-payment-now`).
+    > **Delivered by PR C** (C33): the standalone sale on the « Passage » client (`clients.isPassage`, seeded once; an exact e-mail match attaches, « Enregistrer comme client » creates),
+    > its frozen lines (`standalone_sale_lines`) and its allocations (documentRef `standalone:<id>`, lineRef `line:standalone_sale_lines:<id>`, `books = 0` for the caisse interne);
+    > SETTLEMENT's `settleDocument` / `allocateDocumentPayment` and REFUNDS' `owedOnDocument` take a document (`utils/pricing/settlement.js`, `refunds/owed.js`).
 
 ### 3.R Rules added 2026-11-12 (PR B, owner decisions Q16)
 

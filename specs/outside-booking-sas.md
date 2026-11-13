@@ -425,6 +425,20 @@ All under `/api/resource-bookings`, plugin `hourly-resources`, authenticated; re
 | POST | `/:id/invoice` | `{ billing? }` | unchanged | basis = document lines (rule 31); 409 `REMAINING_DUE` « Reste à payer : facture après le solde. » |
 
 
+Core routes (outside the plugin), authenticated. **The sale core of PR C (C33)**, admin only, the server of the « Vente hors séjour » counter dialog and the service the visit builds on
+(`standaloneSale` SDK module: `quote`, `sell`, `offerLine`, `removeLine`, `pay`, `cancel`, `documentOf`):
+
+| Method | Endpoint | Request | Response | Notes |
+|---|---|---|---|---|
+| POST | `/api/standalone-sales/quote` | `{ lines: [{ articleRef, quantity, offered? }], customer?: { name?, email?, registerAsClient? }, saleId? }` | `{ document, customer: { clientId, label, kind: 'passage'\|'match'\|'new'\|'registered' }, refusals: [{ articleRef, code, message }], quoted: true }` | no write; `refusals`: `ARTICLE_UNKNOWN`, `NOT_SELLABLE`, `NEEDS_STAY`, `QUANTITY_OUT_OF_BOUNDS` « Quantité : 1 à 99. », `VAT_RATE_UNKNOWN` |
+| POST | `/api/standalone-sales` | the quote body + `acceptedTotalCents?`, `version?` (with `saleId`, to append), `payment?: { tenders, shortfall: { kind: 'due' } \| null, paidAt? }` | `{ document }` | 400 with the first refusal's `code` and `refusals`; 409 `PRICE_CHANGED` « Prix modifié — relire le panier »; 400 `NAME_REQUIRED`, `EMAIL_INVALID`, `TENDERS_INVALID`, `WAIVED_REFUSED`; `standaloneSale.sold` after the commit |
+
+`document` is the document form of `saleDetail` (`buildDocumentDetail`): `{ document: { ref, id, status: 'paid'\|'due'\|'cancelled', version, soldAt, originRef, customerName, customerEmail, client: { id, label, kind } },
+lines: [{ id, ref, kind: 'session'\|'extra', label, detail, quantity, unitCents, totalCents, catalogueCents, offered, status: 'paid'\|'due'\|'offered'\|'cancelled', statusLabel, settledCents, vatClass, vatRate, vatCents, fulfilmentRef }],
+groups: [{ id, label, count, title, totalCents, refs }], totals: { totalCents, paidCents, remainingCents, refundOwedCents }, vatByRate: [{ rate, vatCents }] }`. The service actions beyond sell are SDK-only
+(`offerLine(saleId, lineId, { offered, confirmRefund, version })` → 409 `LINE_PAID` « Ligne payée : remboursement à confirmer. »; `removeLine`; `pay(saleId, { tenders, shortfall, paidAt, version, source })`; `cancel(saleId)`),
+the roles (`ADMIN_ONLY`, the window) being the visit controller's (C37).
+
 Core routes (outside the plugin), authenticated:
 
 | Method | Endpoint | Request | Response | Notes |
@@ -453,6 +467,7 @@ check; `CREATE TABLE IF NOT EXISTS`).
 | — | `standalone_sale_payments` | `id, saleId, paidAt, tendersJson, receivedCents, shortfallCents, shortfallKind, recordedAt, createdBy` | — | one row per payment; `payment_allocations.paymentRef = 'standalone-payment:<id>'` |
 | `resource_bookings` (plugin `resource_bookings_v6`) | `saleRef`, `noShowAt` | TEXT NULL | NULL | rules 34, 27 |
 | — | `suggested_articles` | `id, contextKind TEXT, contextId TEXT, articleRef TEXT, position INTEGER`, `UNIQUE(contextKind, contextId, articleRef)` | — | rule 37; core table, additive |
+| `options`, `resources` | `vatClass` (TEXT NULL), `clients.isPassage` (INTEGER 0), table `vat_external_rates(vatClass PK, rate)` | NULL, 0 | — | PR C (C33): the article's VAT class (`options`, `resources`, `drinks`, `catering`), the shared « Passage » client, the external rate of a class (`vat.rate.<class>.external`) |
 | `standalone_sales` | `customerEmail`, `customerName` | TEXT NULL | NULL | rules 8a, 39 (if PR C does not already store them, refonte rule 53); cleared by the anonymisation |
 | `email_log` | `saleRef` (and `reservationId` nullable) | TEXT NULL | NULL | rule 42, amended 2026-11-12: the link e-mail is logged like every other |
 | `payment_links` | `saleRef` | TEXT NULL | NULL | the document a link bills (rule 40); `reservationId` becomes nullable for those rows. **`reservationId` is `NOT NULL` today** (`database.js`): the table rebuild is done once, in PR C, which already owes a standalone link target (refonte rule 53), and is verified on a copy of production before merge |

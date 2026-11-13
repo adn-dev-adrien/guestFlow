@@ -5,7 +5,9 @@
  * platformGross → touristTax → platformPrice → discounts → vat → totals → inComplement → schedule → platformPayment →
  * settlement → netTotals. The order follows the engine's own dependencies: the tourist tax needs the platform pin and
  * the pre-arrival extras, the platform price needs the reversed tax, the platform payment follows the schedule
- * (rule 70). `ficheSale`, `sasSale`, `shopSale` and `externalSale` are not built in PR A.
+ * (rule 70). `ficheSale`, `sasSale` and `shopSale` are not built in PR A. `externalSale` (rule 53, PR C): loadCatalogue → externalExtras →
+ * externalVat → externalTotals → externalPayment, the sale of an article with no stay (the « Vente hors séjour » counter, the outside visit). The
+ * line discounts of rule 39 are not a step of it: « Offrir » is the one gesture (rule 14).
  */
 const { buildPipeline } = require('./pipeline');
 const loadStay = require('./steps/loadStay');
@@ -26,6 +28,11 @@ const schedule = require('./steps/schedule');
 const platformPayment = require('./steps/platformPayment');
 const settlement = require('./steps/settlement');
 const netTotals = require('./steps/netTotals');
+const externalCatalogue = require('./steps/externalCatalogue');
+const externalExtras = require('./steps/externalExtras');
+const externalVat = require('./steps/externalVat');
+const externalTotals = require('./steps/externalTotals');
+const externalPayment = require('./steps/externalPayment');
 
 /**
  * @typedef {object} QuoteContext
@@ -87,6 +94,16 @@ const netTotals = require('./steps/netTotals');
  * halt (reserved): a finished result a step may return to stop the run (nights: a stay with no night).
  */
 
+/**
+ * @typedef {object} ExternalSaleContext
+ * The context of `externalSale` (rule 53); `input` is `{ requests, stored, allocations, families, settings, vatRegime }`.
+ * loadCatalogue: requests, stored, allocations, families, settings, vatRegime
+ * externalExtras: quoted, refusals
+ * externalVat: familyVat, vatRefusals
+ * externalTotals: lines, totalCents, vatByRate
+ * externalPayment: settlement
+ */
+
 const stayQuote = buildPipeline(
   [loadStay, clock, nights, extraGuests, discountLevers, extras, midStay, platformGross, touristTax, platformPrice, discounts, vat, totals, inComplement, schedule, platformPayment, settlement, netTotals],
   { initial: ['input'] },
@@ -99,4 +116,10 @@ const touristTaxFigure = buildPipeline(
   { initial: ['input'] },
 );
 
-module.exports = { stayQuote, touristTaxFigure };
+// The sale of an article to a customer with no stay (rule 53): the same families, the external VAT, SETTLEMENT's remaining amount.
+const externalSale = buildPipeline(
+  [externalCatalogue, externalExtras, externalVat, externalTotals, externalPayment],
+  { initial: ['input'] },
+);
+
+module.exports = { stayQuote, touristTaxFigure, externalSale };

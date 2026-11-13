@@ -1005,8 +1005,18 @@
     "sell"
   ],
   "saleDetail": [
+    "buildDocumentDetail",
     "buildSaleDetail",
     "departureSection"
+  ],
+  "standaloneSale": [
+    "cancel",
+    "documentOf",
+    "offerLine",
+    "pay",
+    "quote",
+    "removeLine",
+    "sell"
   ],
   "articles": [
     "read",

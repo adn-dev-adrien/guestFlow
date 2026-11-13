@@ -29,7 +29,8 @@
  *                             early check-in / late check-out options (formula in `pricing/timedOptions.js`)
  * `families` (the families live at this instant, by id; default `liveFamilies()`) is an input of `quote`: the head reads that
  * map, never the registry, while it prices.
- * Only customerContext 'hosted' exists in PR A.
+ * `customerContext` is 'hosted' (a stay's lines) or 'external' (a sale with no stay, rule 53: its tagged amounts carry the external context, a
+ * family that reads the stay answers NEEDS_STAY).
  */
 const { roundMoney } = require('../money');
 const {
@@ -387,13 +388,18 @@ function quote({
   const out = {
     lines: [], taggedAmounts: [], allowanceUsed: 0, refusals: [],
   };
-  if (customerContext !== 'hosted') {
+  if (customerContext !== 'hosted' && customerContext !== 'external') {
     out.refusals.push(refuse('CONTEXT_UNSUPPORTED', `customer context "${customerContext}" is not priced yet`, null));
     out.lines = requests.map(() => null);
     return out;
   }
+  // The external context (rule 53) prices the same lines; its amounts are tagged for the external VAT rate, and a family that reads the stay refuses.
+  const context = customerContext === 'external' ? { ...stayContext, customerContext } : stayContext;
   for (const request of requests) {
-    const result = priceOne(request, stayContext, allowance, families);
+    const priced = priceOne(request, context, allowance, families);
+    const result = customerContext === 'external' && priced.taggedAmounts
+      ? { ...priced, taggedAmounts: priced.taggedAmounts.map((tagged) => ({ ...tagged, customerContext })) }
+      : priced;
     if (result.refusals) {
       out.refusals.push(...result.refusals.map((refusal) => ({ ref: request.article ? request.article.ref : request.ref, ...refusal })));
       out.lines.push(null);

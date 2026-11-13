@@ -555,7 +555,67 @@ function scheduleExcess({
   return { scheduleOverCollectedTtc, complementCollectedExcess, complementCut, overCollectedTtc: roundMoney(scheduleOverCollectedTtc + complementCollectedExcess) };
 }
 
+/**
+ * A sale document (a standalone sale, rule 74): what is left to pay on its lines and how a payment is filed on them (rules 15, 19 of the
+ * outside-visit spec). Lines are `{ ref, totalCents, offered?, cancelled? }` in sale order, allocations `{ lineRef, amountCents, kind }` (a payment is positive,
+ * a refund given back negative). A line that is offered or cancelled asks nothing.
+ *
+ * `allocateDocumentPayment({ lines, allocations, amountCents })` → `[{ lineRef, amountCents }]`: the payment covers the unpaid lines in sale
+ * order, each whole before the next, the last one partly; what no line still asks is filed on no line (`lineRef: null`), the surplus REFUNDS reads.
+ *
+ * `settleDocument({ lines, allocations })` → `{ lines: [{ ref, dueCents, settledCents, status }], totalCents, paidCents, remainingCents, refundedCents }`
+ * with `status` in `offered`, `cancelled`, `paid`, `due`. `remainingCents` = the lines' total less what was received net of refunds, never negative.
+ */
+const dueOf = (line) => (line.cancelled || line.offered ? 0 : Math.max(0, Math.round(Number(line.totalCents || 0))));
+
+function settledOnLines(lines, allocations) {
+  const byRef = new Map();
+  for (const row of allocations || []) {
+    if (row.lineRef == null) continue;
+    byRef.set(row.lineRef, (byRef.get(row.lineRef) || 0) + Math.round(Number(row.amountCents || 0)));
+  }
+  return lines.map((line) => Math.max(0, byRef.get(line.ref) || 0));
+}
+
+function allocateDocumentPayment({ lines, allocations = [], amountCents }) {
+  const settled = settledOnLines(lines, allocations);
+  const out = [];
+  let left = Math.round(Number(amountCents || 0));
+  lines.forEach((line, index) => {
+    if (left <= 0) return;
+    const room = Math.max(0, dueOf(line) - settled[index]);
+    const take = Math.min(room, left);
+    if (take > 0) { out.push({ lineRef: line.ref, amountCents: take }); left -= take; }
+  });
+  if (left > 0) out.push({ lineRef: null, amountCents: left });
+  return out;
+}
+
+function settleDocument({ lines, allocations = [] }) {
+  const settled = settledOnLines(lines, allocations);
+  const received = (allocations || []).filter((row) => row.kind !== 'refund').reduce((sum, row) => sum + Math.round(Number(row.amountCents || 0)), 0);
+  const refunded = (allocations || []).filter((row) => row.kind === 'refund').reduce((sum, row) => sum + Math.abs(Math.round(Number(row.amountCents || 0))), 0);
+  const totalCents = lines.reduce((sum, line) => sum + dueOf(line), 0);
+  const paidCents = received - refunded;
+  return {
+    lines: lines.map((line, index) => {
+      const dueCents = dueOf(line);
+      let status = 'due';
+      if (line.cancelled) status = 'cancelled';
+      else if (line.offered) status = 'offered';
+      else if (dueCents > 0 ? settled[index] >= dueCents : true) status = 'paid';
+      return { ref: line.ref, dueCents, settledCents: settled[index], status };
+    }),
+    totalCents,
+    paidCents,
+    refundedCents: refunded,
+    remainingCents: Math.max(0, totalCents - paidCents),
+  };
+}
+
 module.exports = {
+  allocateDocumentPayment,
+  settleDocument,
   scheduleExcess,
   PLATFORM_RESERVATION,
   linkAllowed,
