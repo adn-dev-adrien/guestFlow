@@ -1005,6 +1005,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > modules (`accountingOutput`, `legacyBucketSplit`, `refundJournal`, `csvJournal`, `salesJson`, `synthesisExporter`).
     > `accounting-output-replay` pins the CSV bytes, the sales JSON and the synthesis of every month of the golden database;
     > `accounting-legacy-bucket-split` and `pricing-refunds-journal` cover the units without the plugin.
+    > **Delivered by PR C** (C34, `standalone-visit-journal`): the standalone documents of the core are an `AccountingOutput` read model (kind `standalone`): `utils/accounting/standaloneDocuments.js` turns a document's
+    > payments and allocations into one sale per payment day (the part allocated to its lines on the books, caisse interne and offered lines out, the VAT of a (class, rate) group cut cumulatively so the pieces add up to the whole), `utils/standaloneSales.js`
+    > lists them beside the plugins' (so the card batch counts them too), and `journalLines` writes `revenue:<vatClass>` / `vat:<rate>` lines (`revenue:drinks` on the accountant's `drinksRevenueAccount`, none invented).
     > **Delivered by PR C** (C15, `accounting-neutral-journal-lines`): `utils/accounting/journalLines.js` decides every amount of an entry once and
     > returns its neutral role lines `{ role, side, amountCents, vatRate?, vatCents?, account? }` (roles `customer`, `revenue:<class>`, `vat:<rate>`,
     > `touristTax`, `commission`, `commissionVat`, `penalty`; `account` only when the entry itself pins one). The CSV journal maps those lines to its

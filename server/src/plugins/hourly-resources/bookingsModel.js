@@ -709,12 +709,13 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
 
   /**
    * Rules 20-21, A4 — the sales of the window, for the journal and the card batch: payments recorded since the install,
-   * on their payment day, with their part on the books (total minus caisse interne).
+   * on their payment day, with their part on the books (total minus caisse interne). A booking whose money lives on a sale document
+   * (`saleRef`, the outside-visit spec rules 32, 34) is the core's to list, so no session is counted twice.
    */
   function standaloneSales({ from, to }) {
     const rows = database.prepare(`SELECT rb.*, c.firstName, c.lastName, r.name AS resourceName FROM resource_bookings rb
       LEFT JOIN clients c ON c.id = rb.clientId LEFT JOIN resources r ON r.id = rb.resourceId
-      WHERE rb.reservationId IS NULL AND rb.paid = 1 AND rb.paymentRecordedAt IS NOT NULL AND rb.paidAt >= ? AND rb.paidAt <= ? ORDER BY rb.paidAt, rb.id`).all(from, to);
+      WHERE rb.reservationId IS NULL AND rb.saleRef IS NULL AND rb.paid = 1 AND rb.paymentRecordedAt IS NOT NULL AND rb.paidAt >= ? AND rb.paidAt <= ? ORDER BY rb.paidAt, rb.id`).all(from, to);
     return rows.map((row) => {
       const tenders = parseTenders(row.paymentTenders) || [];
       const totalCents = Math.round(Number(row.totalPrice || 0) * 100);

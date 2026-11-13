@@ -6,6 +6,7 @@
  */
 
 const sdk = require('../sdk');
+const { drinksAccountRefusal } = require('./drinksGuard');
 const { resolvePeriod, bucketsOf, isWholeMonths, periodOptions } = require('./synthesisPeriod');
 const {
   ventilate, vatReturn, balanceCheck, vatCheck, collectionUnits, collections, refundsOf, series,
@@ -45,8 +46,11 @@ function buildSynthesis(model, query = {}, plan = undefined) {
   const { window: win, exercise } = resolved;
 
   const meansOf = model.meansResolver();
+  let refusal = null;
   const read = (from, to) => {
-    const items = ventilate(model.entriesBetween(from, to), plan);
+    const entries = model.entriesBetween(from, to);
+    refusal = refusal || drinksAccountRefusal(entries, plan);
+    const items = ventilate(entries, plan);
     return { items, units: collectionUnits(items, meansOf) };
   };
   // Rules 8 and 39 — whole months only, from the server's month back; one read of the shared extraction rows per span.
@@ -60,6 +64,7 @@ function buildSynthesis(model, query = {}, plan = undefined) {
   };
 
   const current = read(win.from, win.to);
+  if (refusal) return { ok: false, status: refusal.status, error: refusal.body.error, body: refusal.body };
   const vat = vatReturn(current.items, plan);
   const money = collections(current.units);
   const summary = model.summary({ from: win.from, to: win.to, fiscalYear: exercise.key });
@@ -208,7 +213,7 @@ function createSynthesisController(getModel, { plan = () => undefined } = {}) {
   return {
     synthesis(req, res) {
       const result = buildSynthesis(getModel(), req.query || {}, plan());
-      if (!result.ok) return res.status(result.status).json({ error: result.error });
+      if (!result.ok) return res.status(result.status).json(result.body || { error: result.error });
       return res.json(result.data);
     },
   };

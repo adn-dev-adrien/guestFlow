@@ -28,14 +28,17 @@ function create({ accountPlan }) {
   const CLASS_ACCOUNTS = {
     ...BUCKET_TO_ACCOUNT,
     activities: REVENUE_ACCOUNTS.ACTIVITIES,
+    catering: BUCKET_TO_ACCOUNT.options,
     compensation: DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
     indemnity: DEFAULT_CANCELLATION_COMPENSATION_ACCOUNT,
     discount: DISCOUNT_ACCOUNT,
     tip: TIP_ACCOUNT,
   };
-  function accountOf(line, customerAccount) {
+  // `plan.drinksRevenueAccount` is the accountant's account for the drinks sold outside a stay; no default is invented (outside-visit spec rule 43).
+  function accountOf(line, customerAccount, plan = null) {
     if (line.role === 'customer') return customerAccount;
     if (line.account) return line.account;
+    if (line.role === 'revenue:drinks') return (plan && plan.drinksRevenueAccount) || undefined;
     if (line.role.startsWith('revenue:')) return CLASS_ACCOUNTS[line.role.slice('revenue:'.length)];
     if (line.role.startsWith('vat:')) return vatAccountForRate(line.vatRate);
     if (line.role === 'touristTax') return PASS_THROUGH_ACCOUNTS.TOURIST_TAX;
@@ -184,7 +187,26 @@ function create({ accountPlan }) {
     ];
   }
 
+  // A document of the core (rule 74): one revenue line per VAT class and one VAT line per rate, from the TTC the payments of the day allocated
+  // to its lines on the books; the rounding cent lands on the last credit like every other entry.
+  function documentLines(entry) {
+    const ttc = round2(entry.encaissementTtc);
+    const revenue = [];
+    const vatByRate = new Map();
+    for (const group of entry.groups) {
+      const groupTtc = group.ttcCents / 100;
+      const vat = group.vatCents / 100;
+      const ht = round2(groupTtc - vat);
+      if (ht > 0) revenue.push({ name: group.vatClass, side: 'credit', amount: ht, rate: group.rate, vatCents: group.vatCents });
+      if (vat > 0) vatByRate.set(group.rate, round2((vatByRate.get(group.rate) || 0) + vat));
+    }
+    const vats = [...vatByRate.entries()].map(([rate, amount]) => ({ rate, amount }));
+    absorbResidue([...revenue, ...vats], ttc);
+    return [line('customer', 'debit', ttc), ...revenue.map(revenueOf), ...vats.map((v) => vatOf(v, 'credit'))];
+  }
+
   function standaloneLines(entry) {
+    if (Array.isArray(entry.groups)) return documentLines(entry);
     const ttc = round2(entry.encaissementTtc);
     const rate = entry.vatRatePercent === null || entry.vatRatePercent === undefined ? 0 : Number(entry.vatRatePercent);
     const ht = netOfTtc(ttc, rate);

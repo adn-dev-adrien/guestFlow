@@ -6,6 +6,7 @@
 
 const sdk = require('../sdk');
 const { csvJournal, salesJson } = require('./accountingExport');
+const { drinksAccountRefusal } = require('./drinksGuard');
 const { roundMoneyStrict } = sdk.coreModule('money');
 
 const { journalEntries } = sdk.coreModule('accountingOutput');
@@ -34,6 +35,8 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = monthEntries(accountingModel, params);
+      const refusal = drinksAccountRefusal(entries, plan());
+      if (refusal) return res.status(refusal.status).json(refusal.body);
       const file = csvJournal.export(entries, { plan: plan(), period: params });
       onCsvExported(`${params.year}-${String(params.month).padStart(2, '0')}`, req);
       res.setHeader('Content-Type', file.contentType);
@@ -48,6 +51,8 @@ function createAccountingController(accountingModel, { plan = () => undefined, o
       const params = parseMonthYear(req.query);
       if (!params) return res.status(400).json({ error: 'INVALID_MONTH_OR_YEAR' });
       const entries = monthEntries(accountingModel, params);
+      const refusal = drinksAccountRefusal(entries, plan());
+      if (refusal) return res.status(refusal.status).json(refusal.body);
       return res.json(salesJson.export(entries, { plan: plan() }).body);
     },
 

@@ -11,7 +11,9 @@
  *   allocationsOf(saleId)         the document's `payment_allocations` rows, oldest first
  *   writeRefund(...)              not here: a refund is executed through the refund path (rule 25)
  */
-const { documentRef } = require('./standaloneSalesModel');
+const sales = require('./standaloneSalesModel');
+
+const { documentRef } = sales;
 
 const database = () => require('../database');
 
@@ -42,4 +44,32 @@ function allocationsOf(saleId) {
   return database().prepare('SELECT paymentRef, lineRef, amountCents, kind, books, at FROM payment_allocations WHERE documentRef = ? ORDER BY id').all(documentRef(saleId));
 }
 
-module.exports = { record, paymentsOf, allocationsOf, paymentRef };
+/**
+ * The documents that took a payment between two days (inclusive), each with everything the journal reads: its frozen lines, ALL its payments (the
+ * VAT of a day is cut cumulatively) with their allocations, and its client. `[{ sale, lines: [{ ref, vatClass, vatRate }], payments, client }]`.
+ */
+function documentsPaidBetween(from, to) {
+  const db = database();
+  const ids = db.prepare('SELECT DISTINCT saleId FROM standalone_sale_payments WHERE paidAt >= ? AND paidAt <= ? ORDER BY saleId').all(from, to).map((row) => row.saleId);
+  return ids.map((saleId) => {
+    const sale = sales.findSale(saleId);
+    const allocations = allocationsOf(saleId);
+    const payments = paymentsOf(saleId).map((payment) => ({
+      id: payment.id,
+      paidAt: payment.paidAt,
+      tenders: payment.tenders,
+      allocations: allocations.filter((row) => row.paymentRef === paymentRef(payment.id) || row.paymentRef === `${paymentRef(payment.id)}:internal`),
+    }));
+    const client = sale.clientId ? sales.clientById(sale.clientId) : null;
+    return {
+      sale,
+      lines: sales.linesOf(saleId).map((line) => ({ ref: sales.lineRef(line.id), vatClass: line.vatClass, vatRate: Number(line.vatRate || 0) })),
+      payments,
+      client,
+    };
+  });
+}
+
+module.exports = {
+  record, paymentsOf, allocationsOf, paymentRef, documentsPaidBetween,
+};

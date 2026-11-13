@@ -35,6 +35,8 @@ function buildStandaloneEntry(sale) {
     encaissementTtc: Math.round(sale.booksCents) / 100,
     vatRatePercent: sale.vatRate === null || sale.vatRate === undefined ? null : Number(sale.vatRate),
     piece: sale.invoiceNumber || '',
+    // A document of the core carries its VAT groups (class, rate, TTC, VAT) from the payments of its day (rule 74).
+    ...(Array.isArray(sale.groups) ? { groups: sale.groups } : {}),
   };
 }
 

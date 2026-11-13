@@ -617,6 +617,7 @@ All nine were decided by the owner on **2026-11-12**. Nothing is open.
 - 2026-11-12 — Owner decided Q1-Q9 (§9); status Approved. Q5 became a generic step (rules 35-38), Q6 an « Envoyer un
   lien » action (rules 39-42), Q8 a guard (rule 43). Rules 35-43 appended; rules 5, 7, 8, 11, 20, 27, 30 reworded in
   place, numbers kept.
+- 2026-11-13 — Server pass 5 on `feature/pricing-components-c`: C33 (the sale core and the `/api/standalone-sales` routes, §4.3), C34 (rules 30, 32, 43: the documents in the journal and the card batch, the plugin's `bookingsModel.standaloneSales` skips a booking with a `saleRef`, the `drinksRevenueAccount` setting and the 409 `DRINKS_ACCOUNT_REQUIRED` guard of the CSV, the sales JSON and the synthesis; the class → account map is `accommodation`/`options`/`customOptions`/`catering` → 70600010, `resources`/`activities` → 70601000, `drinks` → the setting). Rules 1-9, 20, 27, 31, 34 (the visit's screen and money) wait for C37.
 - **Delivery (Q9 B).** There is no separate « PR D ». The work lands in refonte PR C, in its external-sale part,
   after PR B. Order: PR B → PR C (external sale + this spec). Consequences to handle in that PR, not before:
   1. _(done 2026-11-12, commit C0)_ `pricing-components.md` PR C row and §8/ordering text gain « mini SAS of an outside visit

@@ -137,7 +137,7 @@ function createCsvJournal({ accountPlan }) {
 
   // The rows of one entry: its role lines (`journalLines`, where every amount is decided) as the CSV's tuples.
   // Σ credits is guaranteed equal to Σ debits by the lines themselves.
-  function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK) {
+  function rowsAtDefaults(entry, splitFrom = TTC_SPLIT_FALLBACK, plan = null) {
     const { day, month, year } = splitIsoDate(entry.paidDate);
     const libelle = libelleFor(entry);
     const clientAccount = buildClientAccount(entry.client?.lastName);
@@ -149,7 +149,7 @@ function createCsvJournal({ accountPlan }) {
       const extra = line.role === 'customer' ? anchorColumns(entry) : ['', '', ''];
       const rate = line.role.startsWith('revenue:') || line.role.startsWith('vat:') ? line.vatRate : null;
       return tagRow(zerofyMoneyColumns([
-        day, month, year, SALES_JOURNAL_CODE, piece, libelle, accountOfLine(line, clientAccount), debit, credit, ...extra,
+        day, month, year, SALES_JOURNAL_CODE, piece, libelle, accountOfLine(line, clientAccount, plan), debit, credit, ...extra,
       ]), metaRoleOf(line), rate == null ? null : rate);
     });
   }
@@ -163,7 +163,7 @@ function createCsvJournal({ accountPlan }) {
    * rule 27). Without a plan, or with the defaults, the rows are exactly the engine's.
    */
   function entryToRows(entry, plan) {
-    const rows = rowsAtDefaults(entry, (plan && plan.ttcSplitFrom) || TTC_SPLIT_FALLBACK);
+    const rows = rowsAtDefaults(entry, (plan && plan.ttcSplitFrom) || TTC_SPLIT_FALLBACK, plan);
     if (!plan) return rows;
     const mapper = planMapper(plan);
     return rows.map((row) => {
@@ -220,6 +220,7 @@ function createCsvJournal({ accountPlan }) {
     CSV_HEADERS,
     entryToRows,
     entryVentilation,
+    entryLines,
     buildRows,
     round2,
     __test: { splitIsoDate, round2, libelleFor, zerofyMoneyColumns },

@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -160,6 +160,10 @@
       "L’heure offerte vaut le tarif de jour : placée le soir, elle doit le supplément de soirée, qui fait partie du prix de la séance.",
       "Le supplément de soirée de séances placées sur des heures que le séjour détient déjà n’est jamais facturé deux fois au sas d’arrivée.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.6.5": [
+      "Une séance dont l'argent est sur une vente hors séjour du cœur n'est plus comptée deux fois dans le journal ni dans le lot de cartes.",
+      "Compatible avec GuestFlow 4 (SDK 2.30)."
     ]
   }
 }

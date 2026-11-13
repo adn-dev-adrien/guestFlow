@@ -1,7 +1,7 @@
 {
   "id": "accounting-export",
   "name": "Export comptable",
-  "version": "1.2.7",
+  "version": "1.3.0",
   "description": "Écritures, plan comptable et export pour le cabinet comptable.",
   "icon": "book",
   "surfaces": [
@@ -169,6 +169,11 @@
     "1.2.7": [
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
+    ],
+    "1.3.0": [
+      "Les ventes hors séjour du cœur entrent au journal le jour de leur paiement, par classe de produit et par taux de TVA ; la caisse interne et les lignes offertes n'y sont jamais.",
+      "Nouveau réglage « Compte des boissons » : sans lui, un export dont la période contient une boisson est refusé plutôt que passé sur un compte faux.",
+      "Compatible avec GuestFlow 4 (SDK 2.30)."
     ]
   }
 }

@@ -158,6 +158,8 @@ const PLAN_DEFAULTS = Object.freeze({
   discountAccount: DISCOUNT_ACCOUNT,
   tipAccount: TIP_ACCOUNT,
   platformPenaltyAccount: PLATFORM_PENALTY_ACCOUNT,
+  // The account of the drinks sold outside a stay: empty until the accountant sets it, an export holding a drink is refused meanwhile (outside-visit spec rule 43).
+  drinksRevenueAccount: '',
   journalCode: SALES_JOURNAL_CODE,
 });
 const MAPPED_ROLES = Object.freeze([
