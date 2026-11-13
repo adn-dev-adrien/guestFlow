@@ -5,6 +5,7 @@ const express = require('express');
 const controller = require('../controllers/suggestedArticlesController');
 
 const resolved = express.Router();
+resolved.get('/catalogue', controller.catalogue);
 resolved.get('/', controller.resolved);
 
 const settings = express.Router();

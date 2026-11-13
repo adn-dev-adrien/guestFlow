@@ -79,7 +79,6 @@ const PLUGIN_ROUTES = {
     'PATCH /api/resource-bookings/:id/visit/lines/:lineId',
     'POST /api/planning/resource-cards/done',
     'POST /api/resource-bookings',
-    'POST /api/resource-bookings/:id/arrival',
     'POST /api/resource-bookings/:id/invoice',
     'POST /api/resource-bookings/:id/invoice/attach',
     'POST /api/resource-bookings/:id/no-show',

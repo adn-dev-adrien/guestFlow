@@ -66,3 +66,9 @@ test('rule 14 — a committed line is frozen: a later price change moves nothing
   assert.deepEqual(visit.lines.map((line) => line.totalCents), [5000, 400]);
   f.db.prepare('UPDATE options SET price = 4 WHERE id = ?').run(f.lemonade);
 });
+
+test('rule 4 (C38) — the visit payload says whether an invoice can be made now: the server\'s answer, the screen never guesses it', async () => {
+  const id = f.book();
+  const view = (await f.call('getVisit', { id })).body;
+  assert.equal(typeof view.invoiceReady, 'boolean');
+});

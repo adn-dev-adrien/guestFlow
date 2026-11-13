@@ -32,10 +32,6 @@ async function seed(app, admin, active) {
   const booking = hourly
     ? await post('/api/resource-bookings', { resourceId: resource.id, date: dayAt(80), startTime: '10:00', endTime: '11:00', propertyId: String(property), notes: '', paid: false, clientId: client, clientName: null, clientPhone: null })
     : { id: 0 };
-  // The arrival of a guest with no stay is recorded on the session's day (resource-booking-pricing rule 28).
-  const todayBooking = hourly
-    ? await post('/api/resource-bookings', { resourceId: resource.id, date: dayAt(0), startTime: '12:00', endTime: '13:00', propertyId: null, notes: '', clientId: null, clientName: 'Marie', clientPhone: null })
-    : { id: 0 };
   const closure = await post('/api/establishment-closures', { propertyId: property, startDate: dayAt(1700), endDate: dayAt(1702), label: 'Travaux' });
   const direct = await stay(100);
   const platformStay = await stay(110, { platform: 'Booking', platformGrossAmount: 500, platformPayoutAmount: 400 });
@@ -47,7 +43,7 @@ async function seed(app, admin, active) {
   const other = await post('/api/properties', { name: 'Autre', maxGuests: 2, doubleBeds: 1, singleBeds: 0 });
   const mention = await post('/api/email-mentions', { section: 'local', optionIds: [option.id], priceSource: 'min', offerFr: 'Offre', offerEn: 'Offer', bookedFr: 'Pris', bookedEn: 'Booked' });
   return {
-    property, client, other: other.id, option: option.id, resource: resource.id, booking: booking.id, todayBooking: todayBooking.id, closure: closure.id, stay,
+    property, client, other: other.id, option: option.id, resource: resource.id, booking: booking.id, closure: closure.id, stay,
     direct: direct.id, platformStay: platformStay.id, planned: planned.id, compensation: compensation.id, template: template.id,
     source: source.id, season: season.id, mention: mention.id, reservation: app.ids.reservation, devis: app.ids.devis,
   };
@@ -105,9 +101,8 @@ async function baselines(app, admin, active) {
     ['POST', '/api/resource-bookings', (n) => ({ resourceId: s.resource, date: bookingDays(n), startTime: '12:00', endTime: '13:00', propertyId: null, notes: 'Note', paid: true, clientId: null, clientName: 'Marie', clientPhone: '0600000000' }), hourly],
     ['POST', '/api/resource-bookings/preview', { resourceId: s.resource, bookingId: s.booking, date: dayAt(80), startTime: '10:00', endTime: '11:00', propertyId: String(s.property) }, hourly],
     ['PUT', `/api/resource-bookings/${s.booking}`, { date: dayAt(80), startTime: '10:00', endTime: '11:00', propertyId: String(s.property), notes: 'Note', paid: false, clientId: s.client, clientName: null, clientPhone: null, displayedTotal: 30, reservationId: null }, hourly],
-    // specs/resource-booking-pricing-and-invoicing.md §4.3 — no Qonto here: the invoice stops at « not connected ».
-    ['POST', `/api/resource-bookings/${s.todayBooking}/arrival`, { offeredMinutes: 0, payment: null, invoice: false, billing: { street: '1 rue', postcode: '07000', city: 'Privas' } }, hourly],
     ['POST', `/api/resource-bookings/${s.booking}/payment`, { tenders: [{ method: 'card', amountCents: 3000, internal: false }], paidAt: dayAt(0) }, hourly],
+    // specs/resource-booking-pricing-and-invoicing.md §4.3 — no Qonto here: the invoice stops at « not connected ».
     ['POST', `/api/resource-bookings/${s.booking}/invoice`, { billing: { street: '1 rue', postcode: '07000', city: 'Privas' } }, { ...hourly, ok: [409] }],
     ['POST', `/api/resource-bookings/${s.booking}/invoice/attach`, { transactionId: 'tx-1' }, { ...hourly, ok: [400] }],
     ['POST', '/api/clients', { lastName: 'Durand', firstName: 'Lea', email: '', phone: '', streetNumber: '1', street: 'Rue', postalCode: '75000', city: 'Paris', address: 'Rue', notes: 'Note', emailLanguage: 'fr', allowDuplicate: true }],

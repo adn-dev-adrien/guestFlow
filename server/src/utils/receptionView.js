@@ -200,6 +200,11 @@ const PLANNING_EVENT_KEEP = [
   'endTime',
   'turnoverMinutes',
   'displayName',
+  // specs/outside-booking-sas.md rules 6-7, 22 — the reception opens the mini SAS from the card of a visit and reads its state (door money only: « Reste 13,00 € »).
+  'external',
+  'arrived',
+  'noShowAt',
+  'cardState',
 ];
 
 function toReceptionPlanningEvent(event) {

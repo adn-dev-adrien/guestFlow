@@ -73,12 +73,12 @@ const ADMIN = { id: 1, role: 'admin', roles: ['admin'] };
 const RECEPTION = { id: 2, role: 'reception', roles: ['reception'] };
 
 // Calls one handler of the visit controller as the given user: `{ code, body }`.
-async function call(handler, { id, lineId, linkId, body = {}, user = ADMIN }) {
+async function call(handler, { id, lineId, linkId, body = {}, query = {}, user = ADMIN }) {
   const res = {
     code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; },
   };
   await controller[handler]({
-    params: { id: String(id), lineId: lineId == null ? undefined : String(lineId), linkId: linkId == null ? undefined : String(linkId) }, body, user,
+    params: { id: String(id), lineId: lineId == null ? undefined : String(lineId), linkId: linkId == null ? undefined : String(linkId) }, body, query, user,
   }, res);
   return res;
 }

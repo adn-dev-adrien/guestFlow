@@ -646,48 +646,6 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     return { ok: true };
   }
 
-  /**
-   * Rules 28-31 — the arrival of a guest with no stay, in one transaction: offered time, billing address, arrival,
-   * then the payment when one is given. The invoice is the caller's, after the commit (rule 30).
-   */
-  function recordArrival(id, { offeredMinutes, payment, billing } = {}) {
-    const existing = rawById(id);
-    if (!existing) return { error: 'Réservation non trouvée', status: 404 };
-    if (existing.reservationId) return { error: 'Cette séance appartient à un séjour : son sas d’arrivée est celui du séjour.', status: 409, code: 'BOOKING_HAS_STAY' };
-    // Rule 28 — on its day only; an arrival already recorded can be opened again any day (rule 32).
-    if (!existing.arrivedAt && existing.date !== todayInParis(now())) {
-      return { error: 'Arrivée : le jour de la séance seulement.', status: 409, code: 'ARRIVAL_NOT_TODAY' };
-    }
-    // A refusal inside the steps rolls every step back: it is thrown out of the transaction, then returned.
-    const stop = (result) => { const err = new Error('refused'); err.refusal = result; throw err; };
-    try {
-      database.transaction(() => {
-        if (!isFrozen(existing) && !isPaid(existing)) {
-          const moved = update(id, {
-            ...(offeredMinutes !== undefined ? { offeredMinutes } : {}),
-            ...(billing !== undefined ? { billing } : {}),
-          });
-          if (moved.error) stop(moved);
-        } else if (billing !== undefined) {
-          const shape = billingRefusal(billing);
-          if (shape) stop(shape);
-          const b = billingOf(billing);
-          database.prepare('UPDATE resource_bookings SET billingStreet = ?, billingPostcode = ?, billingCity = ? WHERE id = ?').run(b.street, b.postcode, b.city, id);
-        }
-        database.prepare("UPDATE resource_bookings SET arrivedAt = COALESCE(arrivedAt, datetime('now')) WHERE id = ?").run(id);
-        // The outside-visit spec rule 34 — the money of a booking with a document goes to the document (`recordPayment` delegates).
-        if (payment && (existing.saleRef || !isPaid(rawById(id)))) {
-          const paid = recordPayment(id, payment);
-          if (paid.error) stop(paid);
-        }
-      })();
-    } catch (err) {
-      if (err && err.refusal) return err.refusal;
-      throw err;
-    }
-    return { ok: true };
-  }
-
   // Rule 25 — the address typed after Qonto asked for it: allowed on a frozen-to-be booking, never moves the price.
   function recordArrivalBilling(id, billing) {
     if (!rawById(id)) return { error: 'Réservation non trouvée', status: 404 };
@@ -808,7 +766,6 @@ function createModel(database, { standaloneVatRate = () => 20, now = () => new D
     recordArrivalBilling,
     recordPayment,
     clearPayment,
-    recordArrival,
     invoiceBasis,
     storeInvoice,
     setAttachment,

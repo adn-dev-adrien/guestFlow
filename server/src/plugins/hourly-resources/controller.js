@@ -101,32 +101,6 @@ function createController({ bookings: model, scheduling, planningCards, reservat
     return res.json(withReady(model().findById(req.params.id)));
   }
 
-  /**
-   * Rules 28-31, 45 — POST /:id/arrival `{ offeredMinutes?, payment: { tenders, paidAt } | null, invoice?: boolean, billing? }`. The
-   * arrival and the payment are committed first; the invoice is asked after, and its refusal never undoes them
-   * (rule 25): `{ booking, invoice: { ok, number } | { ok: false, code, error } | null }`.
-   */
-  async function arrival(req, res) {
-    const body = req.body || {};
-    if (body.payment !== undefined && body.payment !== null && (typeof body.payment !== 'object' || Array.isArray(body.payment))) {
-      return res.status(400).json({ error: 'Paiement invalide.' });
-    }
-    // Rule 45 — the invoice is the operator's explicit choice: anything but a boolean is refused before the arrival.
-    if (body.invoice !== undefined && typeof body.invoice !== 'boolean') {
-      return res.status(400).json({ error: 'Facture : oui ou non.' });
-    }
-    const result = model().recordArrival(req.params.id, {
-      offeredMinutes: body.offeredMinutes, payment: body.payment || null, billing: body.billing,
-    });
-    if (result.error) return fail(res, result);
-    let invoice = null;
-    if (body.invoice === true) {
-      const issued = await invoicing().issue(req.params.id);
-      invoice = issued.error ? { ok: false, code: issued.code || null, error: issued.error } : { ok: true, number: issued.invoice.number };
-    }
-    return res.json({ booking: withReady(model().findById(req.params.id)), invoice });
-  }
-
   // Rules 13-16 — POST /:id/invoice `{ billing? }`: the address typed after a refusal goes with the retry.
   async function issueInvoice(req, res) {
     const body = req.body || {};
@@ -221,7 +195,7 @@ function createController({ bookings: model, scheduling, planningCards, reservat
 
   return {
     planningEvents, occupiedSlots, list, getOne, create, preview, update, remove,
-    recordPayment, clearPayment, arrival, issueInvoice, attachInvoice,
+    recordPayment, clearPayment, issueInvoice, attachInvoice,
     freeSlots, resourceCards, setResourceCardDone,
   };
 }

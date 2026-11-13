@@ -32,6 +32,7 @@ function fullEvent() {
     id: 7, kind: 'booking', reservationId: 42, resourceId: 3, resourceName: 'Spa',
     propertyId: 1, propertyName: 'Gîte A', date: '2026-07-01', startTime: '10:00', endTime: '11:00',
     turnoverMinutes: 15, displayName: 'Jean Dupont',
+    external: true, arrived: false, noShowAt: null, cardState: { state: 'toCollect', label: 'À encaisser', remainingCents: 12000 },
     // sensitive — must NOT reach reception:
     clientPhone: '+33600000000', notes: 'allergique', totalPrice: 120, resourcePrice: 120,
     paid: true, firstName: 'Jean', lastName: 'Dupont', clientName: 'Jean Dupont', slotDuration: 60,

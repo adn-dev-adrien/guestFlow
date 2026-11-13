@@ -18,12 +18,12 @@ function buildRouter(controller, visitController = null) {
   // specs/resource-booking-pricing-and-invoicing.md §4.3.
   router.post('/:id/payment', (req, res) => controller().recordPayment(req, res));
   router.delete('/:id/payment', (req, res) => controller().clearPayment(req, res));
-  router.post('/:id/arrival', (req, res, next) => Promise.resolve(controller().arrival(req, res)).catch(next));
   router.post('/:id/invoice', (req, res, next) => Promise.resolve(controller().issueInvoice(req, res)).catch(next));
   router.post('/:id/invoice/attach', (req, res, next) => Promise.resolve(controller().attachInvoice(req, res)).catch(next));
   // specs/outside-booking-sas.md §4.3 — the mini SAS of an outside visit.
   if (visitController) {
     router.get('/:id/visit', wrap((req, res) => visitController().getVisit(req, res)));
+    router.get('/:id/visit/articles', wrap((req, res) => visitController().articles(req, res)));
     router.post('/:id/visit/quote', wrap((req, res) => visitController().quote(req, res)));
     router.post('/:id/visit', wrap((req, res) => visitController().commit(req, res)));
     router.post('/:id/visit/payment', wrap((req, res) => visitController().pay(req, res)));

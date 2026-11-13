@@ -105,7 +105,7 @@ test('rule 37 — a provider that throws is skipped, never failing the page', ()
 test('rule 37 — the settings payload lists every live kind with its contexts and their lists; the controllers answer as the API contract says', () => {
   suggested.save('resource', bath, [ref(beer)]);
   const view = suggested.settingsView();
-  assert.deepEqual(view.kinds.find((k) => k.kind === 'resource'), { kind: 'resource', label: 'Ressources à l’heure', contexts: [{ id: String(bath), label: 'Bain', articleRefs: [ref(beer)] }] });
+  assert.deepEqual(view.kinds.find((k) => k.kind === 'resource'), { kind: 'resource', label: 'Ressources à l’heure', contexts: [{ id: String(bath), label: 'Bain', articleRefs: [ref(beer)], articles: [{ articleRef: ref(beer), label: 'Bière locale' }] }] });
   const get = res();
   controller.resolved({ query: { kind: 'resource', id: String(bath), customerContext: 'external' } }, get);
   assert.deepEqual(get.body, { suggestions: [{ articleRef: ref(beer), label: 'Bière locale', unitCents: 650, max: 99 }] });

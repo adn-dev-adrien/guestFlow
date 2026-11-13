@@ -160,6 +160,9 @@ const EXEMPT = {
   'Judged by its own suites: standalone-sale and standalone-sale-passage-client (every field of the sale is refused with a code), suggested-articles (the list, its bound and its references).': [
     'POST /api/standalone-sales',
     'POST /api/standalone-sales/quote',
+    'POST /api/standalone-sales/:id/payment-link',
+    'DELETE /api/standalone-sales/:id/payment-link/:linkId',
+    'POST /api/standalone-sales/:id/payment-link/:linkId/email',
     'PUT /api/settings/suggested-articles/:kind/:id',
   ],
   'Judged by the outside-visit suites of hourly-resources (visit-*: every field refused with a code, the window and the roles); a link route names its row in the URL.': [

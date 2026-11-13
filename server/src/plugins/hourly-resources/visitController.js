@@ -2,6 +2,7 @@
  * The mini SAS of an outside visit — HTTP handlers (specs/outside-booking-sas.md §4.3, rules 1-34, 39-42).
  *
  *   GET    /:id/visit                              the visit payload
+ *   GET    /:id/visit/articles?q=                  « Autre article »: the articles sellable with no stay, filtered by `q`
  *   POST   /:id/visit/quote                        the payload of a draft, nothing written
  *   POST   /:id/visit                              « Valider l'arrivée » / « Enregistrer », then the invoice when asked (its failure never undoes the commit)
  *   POST   /:id/visit/payment                      a payment on the reste
@@ -54,17 +55,24 @@ function createVisitController({ bookings, visits, invoicing }) {
     return null;
   }
 
+  // What this caller may do on the visit now, so the screen shows it read-only instead of guessing the rules of rules 5, 7, 24, 27: `{ writable, reason, reception }`.
+  const accessOf = (row, req) => {
+    const refused = writeRefusal(row, req);
+    return { writable: !refused, reason: refused ? refused.error : null, reception: isReceptionOnly(req.user) };
+  };
+
   const sendView = (res, row, req, extra = {}) => {
-    const out = visits().view(bookings().rawById(row.id), { reception: isReceptionOnly(req.user) });
+    const current = bookings().rawById(row.id);
+    const out = visits().view(current, { reception: isReceptionOnly(req.user) });
     if (out.status !== 200) return res.status(out.status).json(out.body);
-    return res.json({ visit: out.body, ...extra });
+    return res.json({ visit: { ...out.body, access: accessOf(current, req) }, ...extra });
   };
 
   function getVisit(req, res) {
     const { row, refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
     const out = visits().view(row, { reception: isReceptionOnly(req.user) });
-    return res.status(out.status).json(out.body);
+    return res.status(out.status).json(out.status === 200 ? { ...out.body, access: accessOf(row, req) } : out.body);
   }
 
   // The quote body's shape, judged before the model (§4.3): extras a list of objects, flags booleans.
@@ -75,6 +83,14 @@ function createVisitController({ bookings, visits, invoicing }) {
     return null;
   }
 
+  // Rule 11 — « Autre article »: the articles sellable with no stay, grouped by category, filtered by what is typed. Door information only (label, unit price).
+  function articles(req, res) {
+    const { refusal } = bookingOf(req);
+    if (refusal) return fail(res, refusal);
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    return res.json({ articles: sdk.coreModule('suggestedArticles').catalogue({ customerContext: 'external', q }) });
+  }
+
   function quote(req, res) {
     const { row, refusal } = bookingOf(req);
     if (refusal) return fail(res, refusal);
@@ -82,7 +98,7 @@ function createVisitController({ bookings, visits, invoicing }) {
     const shape = draftRefusal(body);
     if (shape) return res.status(400).json({ error: shape, code: 'INVALID_PAYLOAD' });
     const out = visits().view(row, { reception: isReceptionOnly(req.user), draft: body });
-    return res.status(out.status).json(out.body);
+    return res.status(out.status).json(out.status === 200 ? { ...out.body, access: accessOf(row, req) } : out.body);
   }
 
   async function commit(req, res) {
@@ -192,7 +208,7 @@ function createVisitController({ bookings, visits, invoicing }) {
   }
 
   return {
-    getVisit, quote, commit, pay, patchLine, noShow, mintLink, withdrawLink, emailLink,
+    getVisit, articles, quote, commit, pay, patchLine, noShow, mintLink, withdrawLink, emailLink,
   };
 }
 

@@ -94,7 +94,7 @@ function register(ctx) {
     { method: 'POST', re: /^\/planning\/resource-cards\/done$/ },
     { method: 'GET', re: /^\/resource-bookings\/planning-events$/ },
     // specs/outside-booking-sas.md rule 7 — the reception runs the mini SAS inside the day window; paid lines and refunds stay the administrator's (403 in the controller).
-    { method: 'GET', re: /^\/resource-bookings\/\d+\/visit$/ },
+    { method: 'GET', re: /^\/resource-bookings\/\d+\/visit(\/articles)?$/ },
     { method: 'POST', re: /^\/resource-bookings\/\d+\/visit(\/quote|\/payment)?$/ },
     { method: 'PATCH', re: /^\/resource-bookings\/\d+\/visit\/lines\/\d+$/ },
     { method: 'POST', re: /^\/resource-bookings\/\d+\/visit\/payment-link(\/\d+\/email)?$/ },

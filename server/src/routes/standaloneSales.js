@@ -8,7 +8,11 @@ const controller = require('../controllers/standaloneSalesController');
 const router = express.Router();
 
 router.get('/vat-rates', controller.vatRates);
+router.get('/', controller.list);
 router.post('/quote', controller.quote);
 router.post('/', controller.sell);
+router.post('/:id/payment-link', controller.mintLink);
+router.delete('/:id/payment-link/:linkId', controller.withdrawLink);
+router.post('/:id/payment-link/:linkId/email', controller.emailLink);
 
 module.exports = router;
