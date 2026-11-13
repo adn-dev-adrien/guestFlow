@@ -40,8 +40,9 @@ function wifiPayload(wifi) {
   return `WIFI:T:${type};S:${escape(wifi.network)};P:${escape(wifi.password)};;`;
 }
 
+// Drawn at 600 px with a one-module margin: it is shown full screen to another phone's camera (rule 18).
 async function wifiView(wifi) {
-  const joinQr = await QRCode.toDataURL(wifiPayload(wifi));
+  const joinQr = await QRCode.toDataURL(wifiPayload(wifi), { width: 600, margin: 1, errorCorrectionLevel: 'M' });
   return { network: wifi.network, password: wifi.password, ...(wifi.note ? { note: wifi.note } : {}), joinQr };
 }
 
