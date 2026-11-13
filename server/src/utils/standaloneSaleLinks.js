@@ -114,7 +114,7 @@ async function mint(saleId, { email = null, now = new Date(), deps = {} } = {}) 
   const { items, expectedTotalCents } = basketOf(document);
   const linkArgs = { title: LINK_TITLE, amountCents };
   if (expectedTotalCents === amountCents && items.length) { linkArgs.items = items; linkArgs.expectedTotalCents = expectedTotalCents; }
-  const created = await provider.createLink(linkArgs, { origin: 'standalone-sale' });
+  const created = await provider.createLink(linkArgs, { origin: 'basket' });
   const row = links.create({
     reservationId: null,
     type: 'complement',
