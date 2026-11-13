@@ -55,7 +55,7 @@ test('rules 18, 25 — what the arrival SAS wrote is a sale of source sas, colle
   assert.deepEqual([line.source, line.sourceLabel, line.collectAt, line.totalCents], ['sas', 'SAS', 'arrival', 600]);
 });
 
-test('rule 18 — a second run of the SAS replaces its own lines (no stacking) and stamps them again', () => {
+test('rule 18 — a second run of the SAS keeps its own lines (no stacking) and stamps them again', () => {
   const id = createStay();
   model.commitArrivalSas(id, { complementItems: [{ label: 'Serviette', amount: 4, qty: 1 }] });
   model.commitArrivalSas(id, { complementItems: [{ label: 'Serviette', amount: 4, qty: 1 }, { label: 'Drap', amount: 9, qty: 1 }] });

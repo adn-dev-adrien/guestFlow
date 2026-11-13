@@ -153,7 +153,7 @@ function lineFacts(db, id) {
   for (const { table, short, key, extra } of LINE_TABLES) {
     const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
     if (!columns.has('lineId')) continue;
-    const pick = ['lineId', extra, ...['discountCents', 'source', 'soldAt', 'collectAt', 'collectAtDefault'].filter((c) => columns.has(c))];
+    const pick = ['lineId', extra, ...['discountCents', 'source', 'soldAt', 'collectAt', 'collectAtDefault', 'addedOnReopen'].filter((c) => columns.has(c))];
     const rows = db.prepare(`SELECT ${pick.join(', ')} FROM ${table} WHERE reservationId = ?`).all(Number(id));
     // Rule 85: an article's first line keeps the legacy key, every later one is named by its `lineRef`.
     const keyed = key ? null : new Map(keyLines(table, rows).map((entry) => [entry.row, entry.key]));
@@ -162,7 +162,7 @@ function lineFacts(db, id) {
       if (k in facts) continue;
       facts[k] = {
         lineId: r.lineId, table: short, discountCents: Number(r.discountCents || 0), source: r.source || 'fiche', soldAt: r.soldAt || '',
-        collectAt: r.collectAt || null, collectAtDefault: r.collectAtDefault || null,
+        collectAt: r.collectAt || null, collectAtDefault: r.collectAtDefault || null, addedOnReopen: Number(r.addedOnReopen || 0) === 1,
         settledCents: Math.max(0, Number(settled.get(`line:${table}:${r.lineId}`) || 0)), paidAt: paidAt.get(`line:${table}:${r.lineId}`) || null,
       };
     }

@@ -1,0 +1,1 @@
+- Sas d'arrivée rouvert : les lignes déjà écrites sont modifiées sur place (même ligne, même identité) et les nouvelles sont ajoutées, au lieu d'être effacées puis réécrites ; une ligne ajoutée à la réouverture porte la pastille « Ajoutée à la réouverture » et une entrée du journal. Les totaux sont inchangés (specs/pricing-components.md, règles 14 et 25).

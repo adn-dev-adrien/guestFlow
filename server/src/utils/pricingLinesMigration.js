@@ -38,7 +38,7 @@ const LINE_TABLES = ['reservation_options', 'reservation_resources', 'reservatio
 const LINE_COLUMNS = [
   ['source', "TEXT NOT NULL DEFAULT 'fiche'"], ['collectAt', 'TEXT'], ['collectAtDefault', 'TEXT'], ['soldAt', 'TEXT'], ['settlementRef', 'TEXT'],
   ['discountCents', 'INTEGER NOT NULL DEFAULT 0'], ['allowanceUsed', 'TEXT'], ['orderRef', 'TEXT'], ['vatRate', 'REAL'], ['vatClass', 'TEXT'],
-  ['fulfilmentRef', 'TEXT'], ['articleRef', 'TEXT'], ['family', 'TEXT'], ['label', 'TEXT'], ['components', 'TEXT'],
+  ['fulfilmentRef', 'TEXT'], ['articleRef', 'TEXT'], ['family', 'TEXT'], ['label', 'TEXT'], ['components', 'TEXT'], ['addedOnReopen', 'INTEGER NOT NULL DEFAULT 0'],
 ];
 const COLUMNS = [
   ['reservations', 'discountTarget', "TEXT NOT NULL DEFAULT 'nights'"],

@@ -6,7 +6,7 @@
  * recaps and the e-mails render it and sum nothing (CLAUDE.md §6.0).
  *
  *   lines[]   { ref, kind, label, quantity, totalCents (what is due), grossCents, discountCents (own), stayDiscountShareCents,
- *               source, sourceLabel, collectAt, momentLabel, settledCents, paidAt, status, statusLabel, vat: { rate, vatCents, netCents } }
+ *               source, sourceLabel, addedOnReopen, collectAt, momentLabel, settledCents, paidAt, status, statusLabel, vat: { rate, vatCents, netCents } }
  *             « Hébergement » and « Taxe de séjour » first, then the options, the resources and the custom lines
  *   groups[]  { id, label, count, title, totalCents, refs[] } — the articles sold on several lines (rules 13, 85), for display: a same-price group reads
  *             « Bière locale — 3 × 6,50 € (2 lignes) », otherwise « Bière locale — 3 : 1 × 6,50 € + 2 × 7,00 € », an hourly resource « N séances »;
@@ -113,6 +113,7 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
     offered: Boolean(raw.offered),
     source,
     sourceLabel: SOURCE_LABELS[source] || 'Fiche',
+    addedOnReopen: Boolean(fact && fact.addedOnReopen),
     collectAt,
     momentLabel: MOMENT_LABELS[collectAt] || '',
     settledCents,
@@ -189,7 +190,7 @@ function departureSection(detail) {
     title: DEPARTURE_TITLE,
     lines: lines.map((line) => ({
       ref: line.ref, label: line.label, totalCents: line.totalCents, settledCents: line.settledCents, status: line.status, statusLabel: line.statusLabel,
-      sourceLabel: line.sourceLabel, offered: line.offered, groupLabel: line.groupLabel, block: isPaid(line) ? 'paid' : 'due',
+      sourceLabel: line.sourceLabel, offered: line.offered, groupLabel: line.groupLabel, block: isPaid(line) ? 'paid' : 'due', addedOnReopen: line.addedOnReopen,
     })),
     groups,
     totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),

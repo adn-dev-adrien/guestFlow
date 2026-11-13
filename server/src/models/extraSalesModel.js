@@ -11,7 +11,7 @@
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
  *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
  *   stampIntakeLines(reservationId, platform, soldAt)  the lines a platform intake wrote and left without a moment: `platform` or `arrival` (rule 17)
- *   stampSasLines(reservationId, soldAt)         the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18)
+ *   stampSasLines(reservationId, soldAt, { reopened })  the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18); a reopened run flags the lines it appended
  *   openLoweredCents(reservationId)              the open `lineLowered` obligations, in cents
  *   vatClassOf(line, kind)                       the VAT class of a priced line: the article's own, else its family's
  */
@@ -53,13 +53,23 @@ function stampNewLines(reservationId, before, { source, collectAt, soldAt }) {
   return added;
 }
 
-// Rule 18 — what the arrival SAS sold is a sale of source `sas`, collected at arrival. A re-run replaces the SAS's own lines (reopen-completed-sas rule 4), so they are stamped again.
-function stampSasLines(reservationId, soldAt) {
+// Rule 18 — what the arrival SAS sold is a sale of source `sas`, collected at arrival. A re-run changes the SAS's own lines in place and appends the new ones
+// (rule 14, reopen-completed-sas rule 4): on a reopened SAS the lines not yet stamped are the ones this run appended, they carry `addedOnReopen` and their
+// labels come back for the journal.
+function stampSasLines(reservationId, soldAt, { reopened = false } = {}) {
   const db = database();
-  for (const table of ['reservation_options', 'reservation_custom_options']) {
+  const appended = [];
+  for (const [table, label] of [['reservation_options', '(SELECT title FROM options WHERE id = t.optionId)'], ['reservation_custom_options', 't.description']]) {
+    if (reopened) {
+      for (const row of db.prepare(`SELECT t.rowid AS rid, ${label} AS label FROM ${table} t WHERE t.reservationId = ? AND COALESCE(t.sasArrivalOrigin, 0) = 1 AND t.soldAt IS NULL`).all(Number(reservationId))) {
+        db.prepare(`UPDATE ${table} SET addedOnReopen = 1 WHERE rowid = ?`).run(row.rid);
+        appended.push(String(row.label || 'Prestation'));
+      }
+    }
     db.prepare(`UPDATE ${table} SET source = 'sas', collectAt = COALESCE(collectAt, 'arrival'), collectAtDefault = COALESCE(collectAtDefault, 'arrival'),
       soldAt = COALESCE(soldAt, ?) WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1`).run(soldAt, Number(reservationId));
   }
+  return appended;
 }
 
 // Rule 17 — what a platform intake wrote and left without a moment is declared now: inside the platform price (`platform`) or collected on

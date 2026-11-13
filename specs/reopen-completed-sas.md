@@ -76,7 +76,13 @@ flags follow the checkbox faithfully. A SAS never reverts to "not done".
    (so the recap notes « Caution marquée comme perçue ») and left untouched on re-commit; correcting a
    mis-marked *arrival* caution is done from the reservation fiche, not the SAS.
 
-4. **Re-commit = REPLACE, never append (finance-critical).**
+4. **Re-commit changes the SAS's lines in place and appends the new ones; it never deletes a line to write it again (finance-critical).**
+   _Amended 2026-11-13 (pricing-components rules 14 and 25, PR C, class C-E5)._ A line the SAS wrote keeps its row, so its `lineId`, its
+   sale date, its source and its payment allocations survive a reopen. A re-run matches each wanted line to the one it wrote (by the key its
+   plugin gave it, else by its label) and **changes that row** (amount, count, « offert »); a wanted line with no match is **appended** and
+   flagged `addedOnReopen` (the chip « Ajoutée à la réouverture » of `saleDetail` and one journal entry « Sas d'arrivée rouvert »); a line the
+   selection no longer holds is removed (the same removal as before, with its money taken back out). An identical re-run changes nothing.
+   The totals are what the former replace produced: only the identity of the rows differs. The text below is the money rule, unchanged.
    - **Arrival complement.** SAS-origin complement rows in `reservation_custom_options` are
      tagged `sasArrivalOrigin = 1`. On every `commitArrivalSas`:
      1. Sum the existing `sasArrivalOrigin = 1` rows for the reservation, then **delete** them.

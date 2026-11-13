@@ -3525,6 +3525,7 @@ function createReservationsModel(database) {
           complementItems, cleaningAdded, bathLinenAdded, cleaningOffered, bathLinenOffered, soldOptions, offeredExtras,
         }, { withExistingLines: false });
         const billedBefore = billedLinesOf(reservationId);
+        const reopened = Boolean(database.prepare('SELECT arrivalSasDoneAt FROM reservations WHERE id = ?').get(reservationId)?.arrivalSasDoneAt);
         // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
@@ -3652,26 +3653,45 @@ function createReservationsModel(database) {
         };
         // Keys the frozen branch must NOT fold into the arrival baseline (they are mid-stay sales).
         let midStaySaleKeys = [];
-        // The SAS-origin custom lines (linen pieces, a plugin's supplements) replaced by this run's selection — shared by the two branches.
+        // The SAS-origin custom lines (linen pieces, a plugin's supplements), shared by the two branches. A re-run changes the line it
+        // already wrote in place (same row, same identity: rule 14, reopen-completed-sas rule 4), appends a new one, and removes only the one
+        // the selection no longer holds; a line is matched by the key its plugin gave it, else by its label.
         const rewriteSasCustomItems = () => {
-          database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1').run(reservationId);
-          if (items.length > 0) {
-            const maxSort = database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m;
-            // A line a plugin bills carries its key (rule 7), so the dialog never takes it for its own.
-            const insert = HAS_RCO_SAS_LINE_KEY
-              ? database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin, sasLineKey) VALUES (?, ?, ?, ?, ?, 1, 1, ?)')
-              : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
-            // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded
-            // statements above stay valid on a schema without the column.
-            const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
-            let sort = Number(maxSort) + 1;
-            for (const it of items) {
-              const values = [reservationId, String(it.label).trim(), roundMoneyStrict(it.amount), it.offered ? 1 : 0, sort];
-              const inserted = insert.run(...values, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
-              const qty = Math.round(Number(it.qty) || 1);
+          const rows = database.prepare(`SELECT id, description${HAS_RCO_SAS_LINE_KEY ? ', sasLineKey' : ''} FROM reservation_custom_options
+            WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id`).all(reservationId);
+          const identity = (key, label) => (key ? `key:${key}` : `label:${String(label).trim()}`);
+          const held = new Map();
+          for (const row of rows) {
+            const k = identity(HAS_RCO_SAS_LINE_KEY ? row.sasLineKey : null, row.description);
+            if (!held.has(k)) held.set(k, []);
+            held.get(k).push(row.id);
+          }
+          const kept = new Set();
+          let sort = Number(database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m) + 1;
+          const update = database.prepare(`UPDATE reservation_custom_options SET description = ?, amount = ?, offered = ?, inComplement = 1${HAS_RCO_QUANTITY ? ', quantity = ?' : ''} WHERE id = ?`);
+          // A line a plugin bills carries its key (rule 7), so the dialog never takes it for its own.
+          const insert = HAS_RCO_SAS_LINE_KEY
+            ? database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin, sasLineKey) VALUES (?, ?, ?, ?, ?, 1, 1, ?)')
+            : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
+          // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded statements above stay valid on a schema without the column.
+          const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
+          for (const it of items) {
+            const label = String(it.label).trim();
+            const amount = roundMoneyStrict(it.amount);
+            const qty = Math.max(1, Math.round(Number(it.qty) || 1));
+            const queue = held.get(identity(it.sasLineKey || null, label));
+            const id = queue && queue.length ? queue.shift() : null;
+            if (id != null) {
+              update.run(label, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
+              kept.add(id);
+            } else {
+              const inserted = insert.run(reservationId, label, amount, it.offered ? 1 : 0, sort, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
               if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);
               sort += 1;
             }
+          }
+          for (const row of rows) {
+            if (!kept.has(row.id)) database.prepare('DELETE FROM reservation_custom_options WHERE id = ?').run(row.id);
           }
         };
         // specs/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
@@ -3916,7 +3936,10 @@ function createReservationsModel(database) {
           ...sasOptionRowsOf(reservationId).map((r) => r.key),
         ].filter((key) => key && !midStayKeySet.has(key));
         model.addKeysToArrivalExtrasBaseline(reservationId, sasKeys);
-        require('./extraSalesModel').stampSasLines(reservationId, new Date().toISOString());
+        const appended = require('./extraSalesModel').stampSasLines(reservationId, new Date().toISOString(), { reopened });
+        if (appended.length > 0) {
+          model.addHistoryEntry(reservationId, 'update', [{ field: 'sasReopen', label: 'Sas d’arrivée rouvert', from: null, to: `Ajoutée à la réouverture : ${appended.join(', ')}` }]);
+        }
 
         moveFinalPriceBy(reservationId, billedBefore);
 
