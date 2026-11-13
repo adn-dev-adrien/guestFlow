@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | Approved _(2026-11-12: the owner decided Q1-Q9, §9)_ |
+| **Status** | In progress — the server core of the external sale, the sale link and the suggested articles are delivered on `feature/pricing-components-c` (C33-C36); the mini SAS of the visit (C37) and its screens (C38-C39) follow; approved 2026-11-12 (owner, Q1-Q9, §9) |
 | **Branch** | delivered on `feature/pricing-components-c` (pricing-components **PR C**, its external-sale part, Q9 B) |
 | **Created** | 2026-11-12 |
 | **Author** | Adrien |
@@ -83,6 +83,7 @@ once on the server by the refonte's components.
 1. **Who gets the mini SAS.** A resource booking with no `reservationId` whose resource is `per_hour` and
    scheduled (today's rule 28 of the invoicing spec). A booking linked to a stay never does (409
    `BOOKING_HAS_STAY`, unchanged): its stay's SAS covers it.
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 2. **The screen and the session line belong to `hourly-resources`; the visit's money belongs to the core.** The
    plugin owns the mini SAS screen, its routes, the session line (family `hourly`) and the slot (FULFILMENT
    adapter `hourly-slot`). The sale document, its extras lines, the payments, the allocations, the refunds and the
@@ -90,13 +91,16 @@ once on the server by the refonte's components.
    `hourly-resources` off there is no mini SAS and no `resource` suggestion context; the documents already written stay readable in Encaissements and in
    the journal (they are core rows). With the `sas` plugin off the mini SAS still works (rule 28 of the invoicing
    spec).
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 3. **No resource or platform named in code.** Nothing tests « bain », « nordique » or a platform name. What is
    specific to Solio's bath — heat-up, retention, the free hour granted to stays, the evening band — stays in the
    `hourly` family and the plugin's settings. The core sees an article of family `hourly` with a fulfilment ref.
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 4. **One computation of every figure.** The mini SAS never prices, sums, splits VAT or subtracts on the client.
    Lines come from the Articles head (`describe`), VAT from the VAT component, the remaining amount and each
    line's status from SETTLEMENT, refunds owed from REFUNDS, through the `saleDetail` read model extended to a
    standalone document (rule 31 of the refonte). The client renders the payload (CLAUDE.md §6.0).
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 
 ### 3.B When it opens
 
@@ -105,13 +109,16 @@ once on the server by the refonte's components.
    (reception-sas-today-only rules 1-2). _(Amends invoicing rule 28's strict Paris day; decided, Q2 A.)_ Outside the
    window: 409 `ARRIVAL_NOT_TODAY` « Arrivée : le jour de la séance seulement. », unless the visit is already
    opened (rule 22).
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 6. **Entry points, unchanged.** « Arrivée » on the booking's planning card and in the booking dialog, on its day
    only; no new menu item. The card's chip reads the server's state (rule 21).
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 7. **Roles.** An `admin` may open, commit and reopen at any time once opened. A `reception` user may open and
    commit inside the window of rule 5 and sees door money only (the session lines, the extras, the remaining
    amount; never a refund amount, reception-role-checkin-only rule 12bis). Removing or offering a **paid** line
    and anything that owes a refund is admin only (403 `ADMIN_ONLY` « Remboursement : réservé à l'administrateur. »).
    _(Decided, Q3 A.)_
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 
 ### 3.C The client of the visit
 
@@ -129,6 +136,7 @@ once on the server by the refonte's components.
     for this caller.)_
 9. **No identity on screen beyond what exists.** The mini SAS shows the booking's `displayName` (as today) and
    never asks a phone or address, except the optional billing address of the invoice (invoicing rules 25-27).
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 
 ### 3.D The lines
 
@@ -180,6 +188,7 @@ once on the server by the refonte's components.
 20. **A reste can be collected by a Qonto payment link** (decided 2026-11-12, Q6 B; supersedes the first draft's
     « no link »): the « Envoyer un lien » action, rules 39-42. The counter keeps the card terminal (invoicing D1) for a
     payment taken on the spot; a reste left open is collected later from the booking, the reopened mini SAS or a link.
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 
 ### 3.F Closing and reopening
 
@@ -214,6 +223,7 @@ once on the server by the refonte's components.
 27. **No-show** (decided, Q7 A). « Client absent », offered from the booking on or after its day, closes the visit without
     arrival: unpaid lines cancelled, the slot kept on the planning as past and marked « Absent », money already
     taken kept as it is; a refund of it is an explicit admin action through rule 25.
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 
 ### 3.H VAT, accounting, invoice, card batch
 
@@ -237,6 +247,7 @@ once on the server by the refonte's components.
     component's per-line output; Qonto's total must equal the on-the-books total (money guard, invoicing rules 14,
     40). The invoice and attachment columns move from the booking to the document for the visits of rule 34; the
     issuer contract (`ctx.invoiceIssuer`) is unchanged.
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 32. **The card batch counts each visit once.** `ctx.standaloneSales` lists the document's card part per payment
     day from the core `standalone_sales` reader; the plugin's own `bookingsModel.standaloneSales` skips every
     booking whose money is on a document (rule 34), so no session is counted twice.
@@ -250,6 +261,7 @@ once on the server by the refonte's components.
     (money on `resource_bookings.paymentTenders`) keeps it there: its mini SAS shows the session as « Payée » from
     the legacy columns (one stay-level legacy allocation, refonte rule 74 backfill) and a new document holds only
     the extras sold from then on. The journal of past months does not move (byte-identical CSV, refonte rule 33).
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 
 **Edge cases:**
 - Everything offered → total 0 €, « Rien à encaisser. », « Valider l'arrivée » still records the arrival; no invoice.
@@ -282,6 +294,7 @@ once on the server by the refonte's components.
     resources or stays: it renders a `suggestions` payload and posts add / offer / remove requests to the sale it is
     mounted on. The mini SAS mounts it for an outside visit; the stay arrival SAS can mount the same component later
     (rule 38). Its first screen is the suggestion chips; « Autre article » opens the search of rule 11.
+    > **Pending** — mini SAS of the visit (C37-C39), after the external-sale core
 36. **A suggested-articles provider keyed by sale context** (server). A **sale context** is `{ kind, id }`. Kinds
     known at this change: `resource` (declared by `hourly-resources`, `id` = the resource id) and `property` (declared
     by the core, `id` = the property id, used by the stay SAS follow-up). The core module `suggestedArticles`

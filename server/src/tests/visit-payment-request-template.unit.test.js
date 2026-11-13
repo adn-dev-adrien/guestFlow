@@ -1,4 +1,4 @@
-// the outside-visit spec (outside-booking-sas) rule 42 — the visit payment request template: seeded French and English, stored manual, event-triggered,
+// specs/outside-booking-sas.md rule 42 — the visit payment request template: seeded French and English, stored manual, event-triggered,
 // a money template (never auto), not an exception of autoSendPolicy, listed by no date-driven queue; and its sender: minting a link sends nothing, the e-mail leaves
 // once per explicit click, logged in `email_log` with the document's `saleRef`, the document's history saying « Lien envoyé à … ».
 process.env.DB_PATH = ':memory:';
