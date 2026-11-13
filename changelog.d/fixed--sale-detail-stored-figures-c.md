@@ -1,0 +1,1 @@
+- Fiche : le détail des ventes d'un séjour reprend les montants enregistrés (lignes et hébergement), au lieu d'un nouveau calcul qui pouvait afficher un autre prix que celui vendu, par exemple 0 € pour un bain facturé 50 € (specs/pricing-components.md, règles 31 et 74).

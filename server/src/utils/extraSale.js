@@ -309,6 +309,7 @@ function saleDetailOf(reservationId, now = new Date()) {
   return buildSaleDetail({
     quote, facts, phase: phase ? phase.phase : null, platformStay: !isDirectChannel(row.platform),
     vatClassOf: (line, kind) => extraSalesModel().vatClassOf(line, kind),
+    stored: { finalCents: toCents(row.finalPrice), touristTaxCents: toCents(row.touristTaxTotal) },
   });
 }
 

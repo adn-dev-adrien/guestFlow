@@ -502,7 +502,16 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Pending** — PR C: the e-mail contexts, the finance pages' extras readers and the payment-link baskets keep their own readers (they read the same stored lines; they do not yet read the payload).
     > _Pass 3f, why it is still open:_ `saleDetail.buckets` and the lines' moments do not equal the arrival complement the e-mails and links name. On a started stay a line moved to the arrival lands in the plan bucket
     > (`buckets.arrival` stays 0, the line says `dueAtArrival`), while `buildArrivalComplementDetail` reads the stored complement.
-    > _Pass 3g:_ that bucket defect is fixed (rule 37: the moved line is routed into the arrival complement; proof `sale-detail-arrival-bucket`). Reading the payload instead would change what a guest is told to pay. The reader move needs `saleDetail` to
+    > _Pass 3g:_ that bucket defect is fixed (rule 37: the moved line is routed into the arrival complement; proof `sale-detail-arrival-bucket`).
+    > **Delivered by PR C** (pass 3g): `saleDetail` reads a stored stay as sold (rules 12, 74): a stored line bills its stored amount (`lineFacts[].storedCents`, before its own
+    > discounts) where today's engine prices it otherwise, and the accommodation is the stored `finalPrice` less the lines. Before, the payload was the re-quote's:
+    > on the prod copy of 2026-11-11, 20 of 62 stays summed to another price than their stored one (the re-quote drifted) and two hourly lines read another amount than billed. Now every
+    > stay sums to its stored price and tax, line by line, and `buckets.arrival` equals the stored complement on all 62. Proof `sale-detail-stored-figures`.
+    > _Pass 3g, measured — why the e-mails and payment links still read the stored complement:_ the figure is the same everywhere (62/62), but the itemised lines are
+    > not: 8 stays list another set of lines (an operator-adjusted complement with no line behind it, a platform stay's tourist tax and its rounding remainder held
+    > in the complement while the quote files the tax in the plan, a mid-stay part split by amount). Switching the e-mail and link baskets to `saleDetail` lines
+    > would change what those guests are shown, so it waits for `saleDetail` to carry the complement's remainder and the tax routing as the complement stores them.
+    > The finance pages stay on their monthly SQL aggregate: a per-stay payload there is a performance change with no figure to gain. Reading the payload instead would change what a guest is told to pay. The reader move needs `saleDetail` to
     > carry the complement the stay really collects (one definition of « à l’arrivée ») first. The finance reader is a per-month SQL aggregate (`optionsTotal`, `resourcesTotal`): a per-stay payload there is a performance change, not a reader swap.
 32. **The SAS arrival shows** the arrival lines due, the stay amounts due at the door, the lines already paid
     (« Déjà payé », not offerable), and — when the SAS runs after check-in time — the departure lines sold

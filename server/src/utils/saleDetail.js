@@ -1,8 +1,11 @@
 /**
  * saleDetail — the one read model of what a stay sold and what is left to collect (specs/pricing-components.md §3 rule 31).
  *
- * `buildSaleDetail({ quote, facts, phase, vatClassOf, platformStay })` turns the quote of the stored stay (TOTALS and SETTLEMENT already ran)
- * and the facts of its stored lines into a ready-to-render payload: every amount in cents, every label French. The fiche, the SAS
+ * `buildSaleDetail({ quote, facts, phase, vatClassOf, platformStay, stored })` turns the quote of the stored stay (TOTALS and SETTLEMENT already ran)
+ * and the facts of its stored lines into a ready-to-render payload: every amount in cents, every label French. A stored line bills what it
+ * stores (`facts[key].storedCents`, its amount before its own discounts, rules 12, 74), and with `stored` (`{ finalCents, touristTaxCents }`, the stay's stored figures) the
+ * accommodation is what the stored stay price leaves once its lines are counted: a stay whose engine price drifted since it was sold reads
+ * as sold, never as re-priced. The fiche, the SAS
  * recaps and the e-mails render it and sum nothing (CLAUDE.md §6.0).
  *
  *   lines[]   { ref, kind, label, quantity, totalCents (what is due), grossCents, discountCents (own), stayDiscountShareCents,
@@ -88,8 +91,13 @@ function groupsOf(lines) {
 function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
   const key = extraLineKey(raw);
   const fact = facts[key] || null;
-  const gross = toCents(raw.grossTotalPrice != null ? raw.grossTotalPrice : (raw.originalTotalPrice && raw.offered ? raw.originalTotalPrice : raw.totalPrice));
-  const due = raw.offered ? 0 : toCents(raw.totalPrice);
+  const quotedGross = toCents(raw.grossTotalPrice != null ? raw.grossTotalPrice : (raw.originalTotalPrice && raw.offered ? raw.originalTotalPrice : raw.totalPrice));
+  const quotedDue = raw.offered ? 0 : toCents(raw.totalPrice);
+  // Rule 74 — a stored line bills what it stores (its amount before its discounts, which stay facts of their own); the quote speaks for a line
+  // whose stored amount it agrees with, or one no row holds (a derived line). A line the engine would price otherwise today keeps its own.
+  const drift = fact && fact.storedCents != null && !raw.offered ? fact.storedCents - quotedGross : 0;
+  const due = drift ? Math.max(0, quotedDue + drift) : quotedDue;
+  const gross = drift ? fact.storedCents : quotedGross;
   const collectAt = momentOf(raw, fact, platformStay && Number(raw.inComplement || 0) !== 1);
   const includedInPlatform = collectAt === 'platform';
   const settledCents = fact ? Math.max(0, Number(fact.settledCents || 0)) : 0;
@@ -123,12 +131,16 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
   };
 }
 
-function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, platformStay = false } = {}) {
+function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, platformStay = false, stored = null } = {}) {
   const q = quote || {};
   const options = q.optionLines || [];
   const resources = q.resourceLines || [];
-  const extrasCents = [...options, ...resources].reduce((sum, line) => sum + (line.offered ? 0 : toCents(line.totalPrice)), 0);
-  const stayCents = Math.max(0, toCents(q.finalPrice) - extrasCents);
+  const extraLines = [
+    ...options.map((line) => lineOf(line, { kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay })),
+    ...resources.map((line) => lineOf(line, { kind: 'resource', facts, vatClassOf, platformStay })),
+  ];
+  const extrasCents = extraLines.reduce((sum, line) => sum + line.totalCents, 0);
+  const stayCents = Math.max(0, (stored ? Number(stored.finalCents || 0) : toCents(q.finalPrice)) - extrasCents);
   const lines = [
     {
       ref: 'accommodation', key: 'accommodation', kind: 'accommodation', label: 'Hébergement', quantity: Number(q.nights || 0), totalCents: stayCents, grossCents: stayCents,
@@ -136,7 +148,7 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
       momentLabel: MOMENT_LABELS.plan, settledCents: 0, paidAt: null, status: 'inPlan', statusLabel: 'Dans l’acompte et le solde', vatClass: 'accommodation',
     },
   ];
-  const tax = toCents(q.touristTaxTotal);
+  const tax = stored ? Number(stored.touristTaxCents || 0) : toCents(q.touristTaxTotal);
   if (tax > 0) {
     lines.push({
       ref: 'touristTax', key: 'touristTax', kind: 'touristTax', label: 'Taxe de séjour', quantity: null, totalCents: tax, grossCents: tax, discountCents: 0,
@@ -146,8 +158,7 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
       vatClass: 'outOfScope',
     });
   }
-  for (const line of options) lines.push(lineOf(line, { kind: line.isCustom ? 'custom' : 'option', facts, vatClassOf, platformStay }));
-  for (const line of resources) lines.push(lineOf(line, { kind: 'resource', facts, vatClassOf, platformStay }));
+  lines.push(...extraLines);
 
   // VAT line by line (rules 51, 62): one rounding per (class, rate) group, shared over its lines by largest remainder.
   const taxable = lines.filter((line) => line.totalCents > 0 && line.vatClass);
