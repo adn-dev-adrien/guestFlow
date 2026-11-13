@@ -181,3 +181,20 @@ test('rule 48: ?propertyId= lists only the lodging’s articles, each with that 
     await ctx.close();
   }
 });
+
+// specs/guest-app.md rule 48 (2026-11-12) — a resource set to « Tous les logements » in GuestFlow has no lodging row
+// (choosing every lodging collapses to it): it belongs to every lodging's Boutique, like the engine reads it.
+test('rule 48: ?propertyId= lists a « Tous les logements » resource in every lodging', async () => {
+  const db = freshDb();
+  addResource(db, { id: 20, name: 'Bain nordique', lodgings: [] });
+  addResource(db, { id: 21, name: 'Vélo', priceType: 'per_stay', lodgings: [2] });
+  const ctx = await startApi(db);
+  try {
+    const granja = await ctx.call('GET', '/api/guest-app/items?propertyId=1');
+    assert.deepEqual(granja.body.map((i) => `${i.kind}:${i.id}`).sort(), ['resource:20']);
+    const estiva = await ctx.call('GET', '/api/guest-app/items?propertyId=2');
+    assert.deepEqual(estiva.body.map((i) => `${i.kind}:${i.id}`).sort(), ['resource:20', 'resource:21']);
+  } finally {
+    await ctx.close();
+  }
+});

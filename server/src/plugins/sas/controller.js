@@ -434,7 +434,10 @@ const END_OF_STAY_COLLECTED = 'END_OF_STAY_ALREADY_COLLECTED';
 const collectedEndOfStayRefusal = (raises, gesture) => (raises
   ? { status: 409, body: { error: `Complément de fin de séjour déjà encaissé : le décocher sur la fiche avant ${gesture}.`, code: END_OF_STAY_COLLECTED } }
   : null);
-const arrivalGrowthRefusal = (plan) => collectedEndOfStayRefusal(Boolean(plan && plan.saleRaisesCollectedEndOfStay), 'de vendre une prestation');
+// Rule 36 of arrival-departure-sas.md — and one that would take a prestation OUT of it (a line dropped or lowered whose money sits in
+// the collected end-of-stay complement) is refused the same way: the fiche unticks the collection first.
+const arrivalGrowthRefusal = (plan) => collectedEndOfStayRefusal(Boolean(plan && plan.saleRaisesCollectedEndOfStay), 'de vendre une prestation')
+  || collectedEndOfStayRefusal(Boolean(plan && plan.removesFromCollectedEndOfStay), 'de retirer une prestation');
 const departureGrowthRefusal = (plan) => collectedEndOfStayRefusal(Boolean(plan && plan.raisesCollectedEndOfStay), 'd’ajouter des frais');
 
 function previewArrival(req, res) {
@@ -597,7 +600,7 @@ function commitArrival(req, res) {
   const draft = normaliseArrivalDraft(req, reservation);
   if (draft.refusal) return res.status(draft.refusal.status).json(draft.refusal.body);
   const {
-    cautionReceived,
+    cautionReceived, cautionWaived,
     breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
     breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
     departureHandoverNote, extinguisherSealOkAtArrival,
@@ -678,6 +681,7 @@ function commitArrival(req, res) {
     // Tri-state: undefined (caution step not shown) leaves the marker untouched; the model sets or
     // clears it on a concrete boolean (specs/reopen-completed-sas.md §6).
     cautionReceived: cautionReceived === undefined ? undefined : Boolean(cautionReceived),
+    cautionWaived: cautionWaived === undefined ? undefined : Boolean(cautionWaived),
     ...draft.input,
     breakfastTime,
     breakfastCoffee,

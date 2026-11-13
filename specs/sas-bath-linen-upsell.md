@@ -141,7 +141,9 @@ option step.
 - Bath linen already on the reservation → page skipped.
 - `complementPaid = 1` (arrival complement already settled) + « Ajouter » → the recap keeps its existing
   frozen-complement warning (« encaisser le supplément manuellement »); the operator collects the delta by
-  hand, as for any other line added after the complement was marked paid.
+  hand, as for any other line added after the complement was marked paid. **Amended 2026-11-12**
+  ([arrival-departure-sas.md](arrival-departure-sas.md) rules 34-36): the row is written and the delta rides the end-of-stay
+  complement (« Ajouté au complément de fin de séjour : X € »); taking the line out again while that end of stay is collected is refused.
 - Re-open arrival SAS after the departure SAS already ran: the `source` tag is preserved through the departure
   commit (rule 9), so the arrival re-open still recognises and replaces its own line.
 - Quitter at any point → nothing written (in-memory state only), unchanged.

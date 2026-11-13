@@ -67,7 +67,7 @@ function toArrivalCard(reservation) {
 }
 
 const DEPARTURE_FIELDS = [
-  'id', 'startDate', 'endDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'checkOutTime', 'checkOutDone',
+  'id', 'startDate', 'endDate', 'clientId', 'firstName', 'lastName', 'propertyName', 'platform', 'checkOutTime', 'checkOutDone',
   'departureHandoverNote', 'departureSasDoneAt', 'departureSasLock', 'checkOutStatusEditable',
 ];
 
@@ -77,7 +77,7 @@ function toDepartureRow(reservation) {
 }
 
 /** One stay of a reservation list as the fiche's conflict checks and mini planning read it (colour by platform, name in the tooltip) (rule 20). */
-const OCCUPANCY_FIELDS = ['id', 'propertyId', 'startDate', 'endDate', 'checkInTime', 'checkOutTime', 'platform', 'firstName', 'lastName'];
+const OCCUPANCY_FIELDS = ['id', 'propertyId', 'startDate', 'endDate', 'checkInTime', 'checkOutTime', 'platform', 'firstName', 'lastName', 'past'];
 function toOccupancyRow(reservation) {
   return pick(reservation, OCCUPANCY_FIELDS);
 }

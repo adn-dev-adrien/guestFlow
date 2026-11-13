@@ -1,0 +1,1 @@
+- plugin:guest-app From 900 px wide, the screens without navigation (entry, « Ce code n'est pas reconnu », « Retrouver mon séjour ») were squeezed into the 84 px column kept for the navigation rail: on a Mac, the app looked a few pixels wide. Their shell is now one column at every width (spec rule 51). +3 guest-app tests.

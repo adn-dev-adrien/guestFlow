@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -36,6 +36,15 @@
       "En anglais, le panier, ses lignes et les refus nomment l’article par son titre anglais, comme la boutique.",
       "Le module désactivé pendant une visite affiche « Application indisponible », jamais le code brut ; le Studio et GuestFlow lisent « Module inactif. ».",
       "La recherche du Studio refuse une saisie trop courte ou trop longue par une phrase, jamais par son code.",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.0.3": [
+      "Les champs à étiquette flottante gardent la place de leur étiquette sous un titre ou un trait.",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.0.4": [
+      "Un article réglé sur « Tous les logements » dans GuestFlow (le bain nordique partagé, par exemple) se vend désormais dans chaque logement : boutique, tuile Bain nordique et liste du Studio.",
+      "Sur un écran large (ordinateur, tablette), l’accueil sans lien, « Ce code n’est pas reconnu » et « Retrouver mon séjour » occupent toute la largeur : ils étaient réduits à une bande de quelques centimètres à gauche.",
       "Demande le SDK 2.26 de GuestFlow."
     ]
   }

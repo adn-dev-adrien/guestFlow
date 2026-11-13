@@ -24,7 +24,7 @@ const DDL = `
   );
   CREATE TABLE reservations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind TEXT NOT NULL DEFAULT 'reservation',
+    kind TEXT NOT NULL DEFAULT 'reservation', checkOutTime TEXT,
     devisNumber TEXT, devisStatus TEXT,
     clientId INTEGER,
     propertyId INTEGER,

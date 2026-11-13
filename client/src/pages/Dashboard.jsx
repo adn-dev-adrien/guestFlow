@@ -377,6 +377,7 @@ export default function Dashboard() {
               Hidden for reception (finance-free home is arrivals/departures only, §3.3). */}
           {!receptionMode && (
             <CumulativeMonthCalendar
+              openOnCurrentWeek
               onReservationClick={(id) => navigate(withFrom(`/reservations/${id}`, '/'))}
               onCreateReservation={(startDate) => navigate(withFrom(`/reservations/new?startDate=${startDate}`, '/'))}
             />
