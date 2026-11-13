@@ -613,7 +613,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > stores what it consumed (`allowanceUsed`). The engine reads a line's stored `allowanceUsed` before the snapshot's per-article `freeUnitsByOption` (`soldFreeUnitsOf`), so a
     > line written outside the engine is never discounted a second time; a line stored without it keeps the snapshot's reading (every line of a 4.1 database: 0 diff).
     > Before, the SAS billed the free units and the next fiche save that re-priced the stay (a later sale) took them off the SAS line silently. Proof `sas-allowance-spent`
-    > (the free units spent, two saves after, a later fiche sale finds the grant spent, a reopened SAS, a platform stay).
+    > (the free units spent, two saves after, a later fiche sale finds the grant spent, a reopened SAS, a platform stay, the stored-stay quote — `stayRepository.lockedOptionLines`
+    > reads `allowanceUsed` too, so installments, contributions and the tax replay the same line).
     > **Pending** — PR C: the shop reads the same ledger (J-7 code, absent from this branch).
 42. **What is not a unit.** _(cut examined 2026-11-11.)_
     - **Catalogue resolution** — a DB read, so it lives in the loader; its rule (property override wins) is a
@@ -1624,6 +1625,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
        2026-11-11: no such line; three stays with placed sessions, one of them sold from an evening session.)
     **Order:** 1 before 3 — today the commit adds a plugin's item to `complementAmount` by arithmetic, so an amount carried by a line of the
     complement instead of an item would leave the complement short; 2 is independent of both.
+    > _Pass 3g, measured for 1:_ on the SAS suites (756 tests) the stored complement the commit writes by arithmetic and the engine's complement of the same stored stay
+    > differ in one suite only (`sas-arrival-plan`: fixtures whose stored complement and catalogue the engine does not reproduce, e.g. a ménage upsell 80 € the engine
+    > prices at 0). Moving the complement to the engine is therefore a figure move on stays whose stored complement is not the engine's: it needs that class measured on
+    > the prod copy and approved before the commit's write changes.
     > **Pending** — PR C: 1, 2 and 3. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
     > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
 

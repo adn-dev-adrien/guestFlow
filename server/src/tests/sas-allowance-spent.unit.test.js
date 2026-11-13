@@ -71,3 +71,11 @@ test('rule 41 — a platform stay has no free unit: the SAS bills every basket',
   sellAtSas(id, 3);
   assert.deepEqual(lines(id).map((l) => [l.totalPrice, l.allowanceUsed]), [[24, null]]);
 });
+
+test('rule 41 — the stored-stay quote (installments, contributions, tax, saleDetail buckets) reads the same consumption as the fiche save', () => {
+  const id = createStay();
+  sellAtSas(id, 3);
+  const { quoteStoredReservation } = require('../utils/storedReservationQuote');
+  const quote = quoteStoredReservation(db, model.getRow(id));
+  assert.deepEqual(quote.optionLines.filter((l) => Number(l.optionId) === BASKET).map((l) => l.totalPrice), [8]);
+});

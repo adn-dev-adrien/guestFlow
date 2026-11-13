@@ -83,9 +83,15 @@ function lockedOptionLines(db, id) {
   // sold under (no drift from a refreshed unit price or tariff between save and payment).
   const lockedOptionLines = db.prepare(`
     SELECT ${[...lineIdColumn(db, 'reservation_options'), 'optionId'].join(', ')}, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
-      COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
+      COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc${db.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'allowanceUsed') ? ', allowanceUsed' : ''}
     FROM reservation_options WHERE reservationId = ?
-  `).all(id);
+  `).all(id)
+    // Rule 41 — a line's stored consumption, as the fiche's save reads it (`bookingLinesModel`); none stored keeps the snapshot's reading.
+    .map((line) => {
+      if (line.allowanceUsed != null) return line;
+      const { allowanceUsed, ...rest } = line;
+      return rest;
+    });
   return lockedOptionLines;
 }
 
