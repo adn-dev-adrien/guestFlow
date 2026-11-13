@@ -202,6 +202,39 @@ export default function ResourcePlanningPage() {
     }
   };
 
+  // specs/plugins-phase-3c-hourly-resources.md amendment 2026-11-13 — a booking's planning card opens it here
+  // (`?booking=<id>&resource=<id>&date=<YYYY-MM-DD>`): the page moves to its resource and week, then opens
+  // its editor once that week's bookings are on screen.
+  const bookingParam = searchParams.get('booking');
+  const [pendingBookingId, setPendingBookingId] = useState(null);
+  useEffect(() => {
+    if (!bookingParam) return;
+    const resourceParam = Number(searchParams.get('resource'));
+    const dateParam = searchParams.get('date');
+    if (/^\d+$/.test(bookingParam)) {
+      if (resourceParam > 0) setSelectedResourceId(resourceParam);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateParam || '')) setMonday(getMondayOf(dateParam));
+      setPendingBookingId(Number(bookingParam));
+    }
+    const next = new URLSearchParams(searchParams);
+    ['booking', 'resource', 'date'].forEach((k) => next.delete(k));
+    setSearchParams(next, { replace: true });
+  }, [bookingParam, searchParams, setSearchParams]);
+  useEffect(() => {
+    if (!pendingBookingId || !loaded || loaded.key !== bookingsKey) return;
+    setPendingBookingId(null);
+    if (loaded.failed) return;
+    const booking = loaded.rows.find((b) => b.kind !== 'session' && Number(b.id) === pendingBookingId);
+    if (!booking) {
+      showError('Réservation introuvable.');
+      return;
+    }
+    setEditingBooking(booking);
+    setClickedDate(null);
+    setClickedTime(null);
+    setDialogOpen(true);
+  }, [pendingBookingId, loaded, bookingsKey, showError]);
+
   function handleBookingClick(e, booking) {
     e.stopPropagation();
     // A reservation session is read-only here → open the reservation fiche instead of the booking editor.
