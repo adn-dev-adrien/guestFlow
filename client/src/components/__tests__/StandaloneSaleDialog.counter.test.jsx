@@ -1,5 +1,5 @@
 /**
- * StandaloneSaleDialog — « Vente hors séjour » (specs/pricing-components.md rules 53, 74; specs/outside-booking-sas.md rule 8a, owner M4): articles from the catalogue, the quote's figures and
+ * StandaloneSaleDialog — « Vente hors séjour » (specs/pricing-components.md rules 53, 74; specs/outside-booking-sas.md rule 8, owner M4): articles from the catalogue, the quote's figures and
  * VAT rows rendered from the payload, the customer (« Passage », an exact e-mail match, « Enregistrer comme client »), the payment with « Reste à percevoir » only or a link, the saved
  * screen and « Nouvelle vente ».
  */
@@ -68,7 +68,7 @@ test('rule 53 — the articles come from the catalogue; adding one asks the quot
   expect(screen.getByText('dont TVA 20 % (client extérieur) : 2,17 €')).toBeInTheDocument();
 });
 
-test('rule 8a — an anonymous sale reads « Passage »; an exact e-mail match says the sale is attached to that record and hides « Enregistrer comme client »', async () => {
+test('rule 8 — an anonymous sale reads « Passage »; an exact e-mail match says the sale is attached to that record and hides « Enregistrer comme client »', async () => {
   api.quoteStandaloneSale.mockImplementation(async (body) => quoteOf(body.lines, body.customer && body.customer.email === 'connu@exemple.fr' ? { kind: 'match', label: 'Claire Martin' } : {}));
   mount();
   await addBeer();
@@ -78,7 +78,7 @@ test('rule 8a — an anonymous sale reads « Passage »; an exact e-mail match s
   expect(screen.queryByRole('checkbox', { name: 'Enregistrer comme client' })).toBeNull();
 });
 
-test('rule 8a — « Enregistrer comme client » needs a name; an invalid e-mail is a hint and asks nothing of the server', async () => {
+test('rule 8 — « Enregistrer comme client » needs a name; an invalid e-mail is a hint and asks nothing of the server', async () => {
   mount();
   await addBeer();
   fireEvent.click(await screen.findByRole('checkbox', { name: 'Enregistrer comme client' }));

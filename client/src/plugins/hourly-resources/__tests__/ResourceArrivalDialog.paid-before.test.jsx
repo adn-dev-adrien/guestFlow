@@ -1,4 +1,4 @@
-// specs/outside-booking-sas.md rule 34 and specs/resource-booking-pricing-and-invoicing.md rules 28, 44 (R35-C-L1, R35-C-L2, R35-C-L4) — the visit of a guest who paid at booking time is
+// specs/resource-booking-pricing-and-invoicing.md rules 28, 44 (R35-C-L1, R35-C-L2, R35-C-L4) and specs/outside-booking-sas.md rule 34 — the visit of a guest who paid at booking time is
 // still recorded (no payment sent, the session read « Payée » from the booking); an invoice cancelled in Qonto is offered again; a refused attachment is said on screen.
 // specs/server-test-isolation.md rules 16, 17 — these dialog walks run under the client suite's one 30 s budget.
 import React from 'react';

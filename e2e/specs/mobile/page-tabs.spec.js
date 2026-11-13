@@ -15,7 +15,7 @@ test('/parametres/options-ressources at 390px: title first, tabs under it, no si
   await expect(title).toBeVisible({ timeout: 10_000 });
 
   const tabs = page.getByRole('tab');
-  await expect(tabs).toHaveCount(3);
+  await expect(tabs).toHaveCount(4);
 
   // The tabs sit BELOW the title, not above it.
   const titleBox = await title.boundingBox();
@@ -52,7 +52,7 @@ test('switching tab on a phone keeps the title + tabs in the same block', async 
 // specs/ds-tabs.md rule 12 — a lazy plugin tab keeps the bar drawn while its chunk loads.
 test('switching to a plugin tab never leaves the page without tabs', async ({ page }) => {
   await page.goto('/parametres/options-ressources');
-  await expect(page.getByRole('tab')).toHaveCount(3, { timeout: 10_000 });
+  await expect(page.getByRole('tab')).toHaveCount(4, { timeout: 10_000 });
   await page.evaluate(() => {
     window.__tabCounts = new Set();
     window.__tabYs = new Set();
@@ -75,7 +75,7 @@ test('switching to a plugin tab never leaves the page without tabs', async ({ pa
   await expect(page).toHaveURL(/tab=sas/);
   await expect(page.getByRole('heading', { name: 'Facturables au SAS' }).first()).toBeVisible();
   await page.evaluate(() => new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))); }));
-  expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([3]);
+  expect(await page.evaluate(() => [...window.__tabCounts])).toEqual([4]);
   // The fallback bar has the same rows as the loaded one: the strip does not jump when the real bar mounts.
   expect(await page.evaluate(() => [...window.__tabYs])).toHaveLength(1);
 });

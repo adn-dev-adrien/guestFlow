@@ -4,7 +4,7 @@
 // and which tile is open.
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Box, Button, Card, CardContent, Grid, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Grid, MenuItem, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import SyncIcon from '@mui/icons-material/Sync';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import PageActionBar from '../components/PageActionBar';
@@ -145,6 +145,7 @@ export default function FinancePage() {
 
   const [paceRefresh, setPaceRefresh] = useState(0);
   // « Vente hors séjour » (specs/pricing-components.md rule 53): the counter dialog and the day's list it refreshes.
+  const phone = useMediaQuery(useTheme().breakpoints.down('sm'));
   const [saleOpen, setSaleOpen] = useState(false);
   const [salesReload, setSalesReload] = useState(0);
   const refreshAll = async () => {
@@ -221,8 +222,9 @@ export default function FinancePage() {
     <Box>
       <PageActionBar
         title="Suivi financier"
+        // On a phone the bar keeps its one icon (the shell gives it to the top bar, shell rule 23): « Vente hors séjour » is the day's card button there.
         actionsBefore={[
-          { icon: <PointOfSaleIcon />, tooltip: 'Vente hors séjour', onClick: () => setSaleOpen(true), color: 'success' },
+          ...(phone ? [] : [{ icon: <PointOfSaleIcon />, tooltip: 'Vente hors séjour', onClick: () => setSaleOpen(true), color: 'success' }]),
           { icon: <SyncIcon />, tooltip: 'Actualiser', onClick: refreshAll, color: 'info' },
         ]}
       />

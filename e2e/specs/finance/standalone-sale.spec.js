@@ -1,5 +1,5 @@
 // @ts-check
-// « Vente hors séjour » (specs/pricing-components.md rule 53; specs/outside-booking-sas.md rule 8a; owner M4), at 1280 and 390 px: the icon of the Suivi financier bar opens the counter dialog,
+// « Vente hors séjour » (specs/pricing-components.md rule 53; specs/outside-booking-sas.md rule 8 (the client of the sale); owner M4), at 1280 and 390 px: the icon of the Suivi financier bar opens the counter dialog,
 // articles marked « Vendable hors séjour » are added with a quantity (one offered), the VAT of the external customer is shown, an invalid e-mail refuses, a partial card payment keeps a
 // « Reste à percevoir », the saved screen offers « Nouvelle vente » and the day's list shows the sale. The link needs a connected provider: absent here.
 import { test, expect } from '@playwright/test';
