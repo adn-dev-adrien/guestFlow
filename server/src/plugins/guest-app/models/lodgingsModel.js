@@ -141,8 +141,9 @@ function createLodgingsModel(db) {
     const resources = db.prepare(`
       SELECT r.priceType FROM guest_app_items i
       JOIN resources r ON r.id = i.itemId
-      JOIN resource_properties rp ON rp.resourceId = r.id AND rp.propertyId = ?
       WHERE i.kind = 'resource' AND i.sold = 1
+        AND (EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id AND rp.propertyId = ?)
+          OR NOT EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id))
     `).all(id).filter(isOffered);
     return {
       soldItems: options + resources.length,
