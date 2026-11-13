@@ -1499,7 +1499,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     **Appending (slice d).** *The fiche PUT contract:* every posted catalogue or resource line may name its `lineId` (the stored body of a server caller —
     `toUpdateBody` — always does, with the line's own `offered`). A line that names a stored `lineId` updates THAT row and never merges with another line of
     the article, whatever the quantities or the prices; a posted line that names none is the article's first line (the first stored line no other posted line
-    names); a line the caller appends carries `newLine: true` and is a new row, numbered before it is priced (`nextLineId`) so its key is the one it keeps, with
+    names) and the lines that name themselves are then its later ones, whatever their numbers (`keyLines`: the fiche form posts the first line unnamed and the
+    later ones by number); a line the caller appends carries `newLine: true` and is a new row, numbered before it is priced (`nextLineId`) so its key is the one it keeps, with
     no column of any stored line (source, moment, contributions). A client that posts fewer lines deletes only the lines it dropped (a survivor keeps its own
     row even when the first of two is dropped). The same article may now repeat in `options` / `resources` when each repetition names a different line.
     *Sales:* `extraSale.sell` and `midStayOrderCommit` (`mergeOrderLines`) append a `newLine` for every unit, per-person and resource line (a per-person line
@@ -1517,6 +1518,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     totalCents, refs }`) names the articles sold on several lines — « Bière locale — 3 × 6,50 € (2 lignes) » at one price, « 3 : 1 × 6,50 € + 2 × 7,00 € »
     otherwise, « N séances » for an hourly resource; the SAS departure section carries `groups` per block (`due` / `paid`); the e-mail contexts name an
     article once in their lists and group its complement lines (« 1 × 6,50 € + 2 × 7 € = 20,50 € »). Existing data (one row per article) is unchanged.
+    *Supporting reads (slice d):* a line appended by a sale is billed (`offered: false`) whatever the article's other lines are; `getByIdWithDetails` flags each
+    stored line `laterLine` (the article's first line is `false`); the quote of « Ajouter un produit » says in `lines[].note` what the stay already holds
+    (« Déjà vendu sur ce séjour : 1 × 6,50 € + 2 × 7,00 €. Ces lignes gardent leur prix. »); each line of a group carries its `groupLabel` (« 2 × 7,00 € »,
+    « 1 séance »), the server's words.
     > **Delivered by PR C** (slice d): the appending writers and the readers above; proof `true-lines-append-extra-sale`, `true-lines-fiche-put`,
     > `true-lines-sas-offer-one-line`, `true-lines-hourly-paid-session`, `true-lines-free-units-ledger`, `true-lines-email-grouping`, `true-lines-sale-detail-groups`.
 86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with

@@ -19,6 +19,7 @@ test('rule 13 — two lines of one price: the compact title « N × prix (2 lign
   assert.deepEqual([d.groups[0].label, d.groups[0].count, d.groups[0].totalCents], ['Bière locale', 2, 1950]);
   assert.equal(d.groups[0].title, 'Bière locale — 3 × 6,50 € (2 lignes)');
   assert.deepEqual(d.groups[0].refs, d.lines.filter((l) => l.label === 'Bière locale').map((l) => l.ref));
+  assert.deepEqual(d.lines.filter((l) => l.label === 'Bière locale').map((l) => l.groupLabel), ['1 × 6,50 €', '2 × 6,50 €'], 'each line reads on its own inside the group');
 });
 
 test('rule 13 — different prices: the detail « 3 : 1 × 6,50 € + 2 × 7,00 € »; an offered line stays in its group at 0 €', () => {

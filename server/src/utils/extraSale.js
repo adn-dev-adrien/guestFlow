@@ -32,7 +32,7 @@ const {
 const { toCents } = require('./pricing/money');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
-const { buildSaleDetail, departureSection } = require('./saleDetail');
+const { buildSaleDetail, departureSection, partsText } = require('./saleDetail');
 const fulfilment = require('./pricing/articleFulfilment');
 const { makeArticle } = require('./pricing/articles');
 const { nextLineId } = require('./lineRowTarget');
@@ -138,6 +138,16 @@ function pricedRequests(reservationId, lines, { now }) {
   return { stored, body: finalBody, base: base.row, after: previous, priced, started };
 }
 
+// What the stay already holds of the article, said by the server: its lines keep their own price (rule 13), a breakfast completes the stay's own.
+function soldBeforeNote(reservationId, line, merged) {
+  const table = line.kind === 'resource' ? 'reservation_resources' : 'reservation_options';
+  const column = line.kind === 'resource' ? 'resourceId' : 'optionId';
+  const rows = database().prepare(`SELECT quantity, unitPrice FROM ${table} WHERE reservationId = ? AND ${column} = ? ORDER BY lineId`).all(Number(reservationId), line.id);
+  if (!rows.length) return null;
+  if (merged) return 'Déjà vendu sur ce séjour : les matinées s’ajoutent au petit-déjeuner du séjour.';
+  return `Déjà vendu sur ce séjour : ${partsText(rows.map((row) => ({ quantity: row.quantity, unitCents: toCents(row.unitPrice) })))}. Ces lignes gardent leur prix.`;
+}
+
 function quote(reservationId, requests, { payment = 'later', now = new Date() } = {}) {
   if (!(payment in PAYMENTS)) return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Mode de paiement inconnu.');
   const parsed = parseRequests(requests);
@@ -160,6 +170,7 @@ function quote(reservationId, requests, { payment = 'later', now = new Date() } 
     lines: result.priced.map(({ line, totalCents, merged }) => ({
       articleRef: `${line.kind === 'resource' ? 'resource' : 'option'}:${line.id}`, totalCents, merged, collectAt: moment,
       momentLabel: moment === 'departure' ? 'À payer au départ' : 'À payer à l’arrivée',
+      note: soldBeforeNote(reservationId, line, merged),
     })),
     buckets: bucketsDelta(result.base, result.after),
     totalCents: centsOf(result.after, 'finalPrice') - centsOf(result.base, 'finalPrice'),

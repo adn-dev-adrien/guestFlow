@@ -63,9 +63,9 @@ test('rules 13, 85: mergeOrderLines appends a line of its own for every unit and
   assert.deepEqual(next_.options, [
     { optionId: 9, quantity: 2 },
     { optionId: 7, quantity: 1, cardPersons: null },
-    { optionId: 9, quantity: 3, newLine: true, lineId: 101 },
-    { optionId: 7, quantity: 1, cardPersons: 2, newLine: true, lineId: 102 },
-    { optionId: 8, quantity: 1, newLine: true, lineId: 103 },
+    { optionId: 9, quantity: 3, offered: false, newLine: true, lineId: 101 },
+    { optionId: 7, quantity: 1, cardPersons: 2, offered: false, newLine: true, lineId: 102 },
+    { optionId: 8, quantity: 1, offered: false, newLine: true, lineId: 103 },
   ]);
   assert.deepEqual(next_.resources, [
     { resourceId: 3, quantity: 1, sessions: [{ date: '2099-07-07', start: '18:00', end: '19:00' }] },

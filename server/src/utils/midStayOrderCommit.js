@@ -109,8 +109,9 @@ function withOption(body, line, row, nextLineId) {
   const options = body.options.slice();
   const quantity = Number(line.quantity);
   // A per-person option counts the people it serves (specs/non-card-option-served-persons.md rule 12).
-  if (row && String(row.priceType) === 'per_person') options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity: 1, cardPersons: quantity }));
-  else options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity }));
+  // A new sale is billed whatever the article's other lines are: « offert » is the line's own (it never follows the article's set).
+  if (row && String(row.priceType) === 'per_person') options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity: 1, cardPersons: quantity, offered: false }));
+  else options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity, offered: false }));
   return { ...body, options };
 }
 

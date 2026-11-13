@@ -94,3 +94,17 @@ test('rules 13, 85 — selling again on a started stay after the first line was 
   assert.deepEqual(detail.map((l) => [l.quantity, l.status, l.settledCents]), [[1, 'inPlan', 0], [1, 'paid', 4000], [2, 'dueAtDeparture', 0]]);
   assert.equal(again.saleDetail.buckets.departure, 8000);
 });
+
+test('rule 13 — the quote says what the stay already holds of the article and that the sale is a new line (the dialog prints it as is)', () => {
+  const id = singleLineStay(33);
+  const note = extraSale.quote(id, sale(1)).lines[0].note;
+  assert.equal(note, 'Déjà vendu sur ce séjour : 1 × 40,00 €. Ces lignes gardent leur prix.');
+  assert.equal(extraSale.quote(stayWithTwoSales({ startOffset: 34 }), sale(1)).lines[0].note, 'Déjà vendu sur ce séjour : 1 × 40,00 € + 2 × 45,00 €. Ces lignes gardent leur prix.');
+});
+
+test('rule 14, 85 — a line sold after an OFFERED line of the same article is billed: « offert » is the line’s own, never the article’s', () => {
+  const id = singleLineStay(35);
+  db.prepare('UPDATE reservation_options SET offered = 1, totalPrice = 0 WHERE reservationId = ?').run(id);
+  assert.equal(extraSale.sell(id, sale(2), { source: 'fiche' }).status, 200);
+  assert.deepEqual(db.prepare('SELECT offered, totalPrice FROM reservation_options WHERE reservationId = ? ORDER BY lineId').all(id).map((r) => [r.offered, r.totalPrice]), [[1, 0], [0, 80]]);
+});

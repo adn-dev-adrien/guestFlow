@@ -1229,6 +1229,11 @@ function createReservationsModel(database) {
         sessions: (() => { try { return rr.sessions ? JSON.parse(rr.sessions) : []; } catch { return []; } })(),
       }));
 
+      // Rule 85 — a later sale of an article is a line of its own: the fiche edits the article's first line and carries the later ones as they are.
+      for (const [table, list] of [['reservation_options', reservation.options.filter((x) => !x.isCustom)], ['reservation_resources', reservation.resources]]) {
+        for (const { row, first } of keyLines(table, list)) row.laterLine = !first;
+      }
+
       reservation.nights = database.prepare(`
         SELECT date, seasonLabel, pricingMode, price
         FROM reservation_nights

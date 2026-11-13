@@ -58,3 +58,13 @@ test('rule 85 — articleKeyOf is the reverse used by the readers that aggregate
   assert.equal(articleKeyOf(rows, 'opt:5'), 'opt:5');
   assert.equal(articleKeyOf(rows, 'line:reservation_options:999'), null);
 });
+
+test('rule 85 — a request that posts the first line unnamed and the later ones by number: the unnamed one is the first, every named one a later line', () => {
+  const rows = [{ optionId: 7 }, { optionId: 7, lineId: 2 }, { optionId: 7, lineId: 5 }, { optionId: 8, lineId: 4 }];
+  assert.deepEqual(keyLines('reservation_options', rows).map((e) => [e.key, e.first]), [
+    ['opt:7', true], ['line:reservation_options:2', false], ['line:reservation_options:5', false], ['opt:8', true],
+  ]);
+  assert.deepEqual(keyLines('reservation_options', [{ optionId: 7, lineId: 5 }, { optionId: 7, lineId: 2 }]).map((e) => [e.key, e.first]), [
+    ['line:reservation_options:5', false], ['opt:7', true],
+  ], 'all named: the lowest number is the first, whatever the order');
+});

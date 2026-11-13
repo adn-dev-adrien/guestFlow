@@ -58,6 +58,14 @@ function groupTitle(label, group) {
   return `${label} — ${numberText(quantity)} : ${group.map((line) => `${numberText(line.quantity)} × ${eurosText(line.unitCents)}`).join(' + ')}`;
 }
 
+// « 1 × 6,50 € + 2 × 7,00 € » — the lines an article already holds, for the sentence of the « Ajouter un produit » dialog (rule 13).
+const partsText = (parts) => parts.map(({ quantity, unitCents }) => `${numberText(quantity)} × ${eurosText(unitCents)}`).join(' + ');
+
+// The label of one line inside its group: « 2 × 7,00 € », or « 1 séance » for an hourly line.
+const partLabel = (line) => (line.sessionCount != null
+  ? `${line.sessionCount} séance${line.sessionCount > 1 ? 's' : ''}`
+  : `${numberText(line.quantity)} × ${eurosText(line.unitCents)}`);
+
 function groupsOf(lines) {
   const byArticle = new Map();
   for (const line of lines) {
@@ -65,7 +73,9 @@ function groupsOf(lines) {
     if (!byArticle.has(line.articleKey)) byArticle.set(line.articleKey, []);
     byArticle.get(line.articleKey).push(line);
   }
-  return [...byArticle.entries()].filter(([, group]) => group.length > 1).map(([articleKey, group]) => ({
+  const several = [...byArticle.entries()].filter(([, group]) => group.length > 1);
+  several.forEach(([, group]) => group.forEach((line) => { line.groupLabel = partLabel(line); }));
+  return several.map(([articleKey, group]) => ({
     id: articleKey,
     label: group[0].label,
     count: group.length,
@@ -179,7 +189,7 @@ function departureSection(detail) {
     title: DEPARTURE_TITLE,
     lines: lines.map((line) => ({
       ref: line.ref, label: line.label, totalCents: line.totalCents, settledCents: line.settledCents, status: line.status, statusLabel: line.statusLabel,
-      sourceLabel: line.sourceLabel, offered: line.offered, block: isPaid(line) ? 'paid' : 'due',
+      sourceLabel: line.sourceLabel, offered: line.offered, groupLabel: line.groupLabel, block: isPaid(line) ? 'paid' : 'due',
     })),
     groups,
     totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
@@ -187,4 +197,4 @@ function departureSection(detail) {
   };
 }
 
-module.exports = { buildSaleDetail, departureSection, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE };
+module.exports = { buildSaleDetail, departureSection, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE };

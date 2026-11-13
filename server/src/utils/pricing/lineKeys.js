@@ -6,7 +6,7 @@
  *   `lineRef(table, lineId)`          `line:<table>:<lineId>`, the name of ONE stored line (rule 79).
  *   `parseLineRef(key)`               `{ table, lineId }` or null for any other key.
  *   `keyLines(table, rows)`           the rows of one table in their order, each with its `key` and `first`: the FIRST line of an article (the
- *                                     lowest `lineId`) keeps the legacy key `opt:<id>` / `res:<id>` (every stored baseline, note and
+ *                                     lowest `lineId`, or the one posted without a `lineId`) keeps the legacy key `opt:<id>` / `res:<id>` (every stored baseline, note and
  *                                     allocation reads unchanged); every later line of that article is `line:<table>:<lineId>`.
  *   `resolveLineKey(lines, key)`      a `line:` key → itself when the stay holds that line; a legacy `opt:` / `res:` key → the `line:` key of the
  *                                     article's first line; a legacy key whose article has no line, and anything else → null.
@@ -34,19 +34,25 @@ function articleKey(table, row) {
 
 function keyLines(table, rows) {
   const firstId = new Map();
+  const unnamed = new Set();
   for (const row of rows || []) {
     const article = articleKey(table, row);
-    if (article == null || row.lineId == null) continue;
+    if (article == null) continue;
+    if (row.lineId == null) { unnamed.add(article); continue; }
     const id = Number(row.lineId);
     if (!firstId.has(article) || id < firstId.get(article)) firstId.set(article, id);
   }
   const seen = new Set();
   return (rows || []).map((row) => {
     const article = articleKey(table, row);
-    const first = row.lineId == null
-      ? article != null && !seen.has(article)
-      : article != null && Number(row.lineId) === firstId.get(article);
-    if (article != null) seen.add(article);
+    // A posted line that names none is the article's first line (the fiche form posts its first line unnamed and the later ones by number):
+    // the lines that name themselves are then the later ones, whatever their numbers.
+    let first = false;
+    if (article != null) {
+      if (row.lineId == null) first = !seen.has(article);
+      else first = !unnamed.has(article) && Number(row.lineId) === firstId.get(article);
+    }
+    if (article != null && row.lineId == null) seen.add(article);
     return { row, key: first || row.lineId == null ? article : lineRef(table, row.lineId), first };
   });
 }
