@@ -1,0 +1,1 @@
+- Sas d'arrivée : les ventes du séjour prévues « au départ » se perçoivent maintenant, ligne par ligne (« Percevoir maintenant ») ou toutes à la fois (« Tout percevoir maintenant ») ; les lignes déjà payées se replient sous « Déjà payé » et une ligne ajoutée à la réouverture porte la pastille « Ajoutée à la réouverture » (specs/pricing-components.md, règles 32 et 85).

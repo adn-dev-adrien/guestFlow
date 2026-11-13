@@ -65,7 +65,7 @@ test('the SAS section groups per block: what is left to collect, what is already
   };
   render(<StaySalesSection section={section} />);
   expect(screen.getByText('À percevoir')).toBeInTheDocument();
-  expect(screen.getByText('Déjà payé')).toBeInTheDocument();
+  expect(screen.getByText('Déjà payé · 2 lignes')).toBeInTheDocument();
   expect(screen.getByText('Bière locale — 2 × 6,50 € (2 lignes)')).toBeInTheDocument();
   expect(screen.getByText('Bière locale — 2 × 7,00 € (2 lignes)')).toBeInTheDocument();
   expect(screen.getAllByRole('list', { name: 'Bière locale' })).toHaveLength(2);

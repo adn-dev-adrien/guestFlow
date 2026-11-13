@@ -790,6 +790,28 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
     resetKey: `${open ? 1 : 0}:${reservationId}:${mode}`,
   });
   const recap = preview.recap;
+  // Mock M3 — « Percevoir maintenant »: the lines the stay sold for its departure join what is collected at the door. The line API moves
+  // them (the server refuses a moment that is no longer possible); the SAS payload and the recap are read again, the wizard stays where it is.
+  const collectSalesNow = async (refs) => {
+    let refused = null;
+    for (const ref of refs) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await api.patchExtraLine(reservationId, ref, { collectAt: 'arrival' });
+      } catch (err) {
+        refused = err;
+        break;
+      }
+    }
+    try {
+      const fresh = await api.getReservationSas(reservationId, mode);
+      setData((held) => ({ ...held, staySales: fresh?.staySales ?? null }));
+      preview.retry();
+    } catch (err) {
+      showError(err?.message || 'Lecture du sas impossible.');
+    }
+    if (refused) showError(refused.message || 'Cette vente ne peut pas être perçue maintenant.');
+  };
   // specs/mixed-method-payments.md rule 45 — reception never splits; the departure lines only count where the recap has
   // something to collect (audit R34-C-M1).
   const canSplitPayment = data ? data.canSplitPayment !== false : false;
@@ -1623,7 +1645,7 @@ export default function ReservationSasDialog({ open, reservationId, mode = 'arri
               <Typography variant="sectionHeader">
                 {stayStep ? 'Récapitulatif — à percevoir' : 'Récapitulatif — complément à percevoir'}
               </Typography>
-              <StaySalesSection section={data?.staySales} />
+              <StaySalesSection section={data?.staySales} onCollectNow={mode === 'arrival' && !sasLock ? collectSalesNow : null} />
               {stayStep && !unifiedPayment && (
                 <>
                   <Typography variant="body1" sx={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...previewDim }}>Séjour : {shown(stayDue)}</Typography>

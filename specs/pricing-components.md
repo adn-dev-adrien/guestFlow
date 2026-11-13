@@ -492,6 +492,11 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     since (rule 20). **The SAS departure shows** the departure lines, the arrival lines left unpaid (recalled,
     `recalledArrivalAfter`), and the paid lines for the record.
     > **Delivered by PR B** (pass 5): « Ventes du séjour — au départ » is `staySales` of the SAS payload (title, lines with status, total and what is still due), from `saleDetail`.
+    > **Delivered by PR C** (C25, mock M3 approved 2026-11-12, `docs/rapports/2026-11-13-m3-sas-sur-lignes.html`): on the arrival recap, each departure line still to collect has « Percevoir maintenant » and, from two lines on,
+    > « Tout percevoir maintenant » heads the section: the dialog moves the lines to the arrival with the line API (`PATCH …/extras/:ref { collectAt: 'arrival' }`, the server refuses a moment that is no longer possible and the
+    > dialog shows its message), then reads the SAS payload and the recap again without leaving the page. The paid lines fold under « Déjà payé · n ligne(s) » and offer nothing. A line a reopened SAS appended
+    > carries « Ajoutée à la réouverture » (`staySales.lines[].addedOnReopen`). `StaySalesSection` takes an optional `onCollectNow(refs)`; without it the section stays a read-only list.
+    > **Pending** — PR C: the departure SAS section « À percevoir au départ » with the recalled arrival lines per the mock, and the « Offrir → remboursement » confirmation inside the SAS: they need the SAS plan as a view over the lines.
 
 ### 3.H Non-regression guarantee
 
