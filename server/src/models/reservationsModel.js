@@ -2844,6 +2844,11 @@ function createReservationsModel(database) {
     // double-charges (specs/reopen-completed-sas.md §4). A paid complement stays frozen.
     // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement so
     // the departure SAS can recall it line-by-line.
+    // Same itemisation from a reservation the caller already loaded (`getByIdWithDetails` shape).
+    arrivalComplementDetailOf(reservation, options = {}) {
+      return arrivalComplementDetailFromReservation(reservation, options);
+    },
+
     buildArrivalComplementDetail(reservationId, options = {}) {
       const r = model.getByIdWithDetails(reservationId);
       if (!r) return { amount: 0, paid: 0, detail: [] };

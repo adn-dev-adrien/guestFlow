@@ -331,9 +331,7 @@ export default function FinanceSection() {
   const arrivalAutoAmount = Number(pricingQuote?.complementAmountAuto || 0);
   // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — the live quote's itemisation while
   // the fiche is being edited, the stored one otherwise; both are shaped by the server.
-  const arrivalComplementLines = pricingQuote?.complementDetailLines?.length
-    ? pricingQuote.complementDetailLines
-    : (form.arrivalComplementLines || []);
+  const arrivalComplementLines = pricingQuote?.complementDetailLines ?? (form.arrivalComplementLines || []);
   const endOfStayLiveTotal = pricingQuote?.endOfStayComplementTotal;
   const endOfStayAmountNow = endOfStayLiveTotal != null
     ? Number(endOfStayLiveTotal)

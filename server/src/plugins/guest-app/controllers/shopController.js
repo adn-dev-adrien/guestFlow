@@ -23,6 +23,8 @@ const {
 const publicHttp = sdk.coreModule('publicHttp');
 const { toPublicOption, toPublicResource, hoursLabel, isOfferedPlural } = sdk.coreModule('publicCatalogProjection');
 const { midStayExtrasWindow } = sdk.coreModule('midStayExtrasWindow');
+// A `nowTime` that reads the calendar day alone: the arrival day counts as started whatever its hour.
+const END_OF_DAY = '24:00';
 const { isDirectChannel } = sdk.coreModule('platformNameFormat');
 const { isOffered } = sdk.coreModule('resourceOffer');
 const paymentProviders = sdk.coreModule('paymentProviders');
@@ -94,7 +96,7 @@ const unitsText = (n, lang) => String(n).replace('.', lang === 'fr' ? ',' : '.')
 /** Rule 27 — open exactly while the stay takes mid-stay extras; a pre-arrival session reads it only. */
 function shopState(mode, window, today) {
   // The guest shop keeps its calendar-day reading: it opens with the arrival day, not the arrival hour.
-  const state = midStayExtrasWindow(window, today, '23:59');
+  const state = midStayExtrasWindow(window, today, END_OF_DAY);
   if (mode === 'stay' && state.extrasEditable) return { open: true, closedReason: null };
   return { open: false, closedReason: state.extrasClosedReason === 'endOfStayCollected' ? 'closed' : 'preArrival' };
 }

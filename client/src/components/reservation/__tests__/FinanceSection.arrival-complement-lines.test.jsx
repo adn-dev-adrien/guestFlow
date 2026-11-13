@@ -32,3 +32,11 @@ test('the live quote lines win while the fiche is being edited', async () => {
   expect(screen.getByText(/Ménage : 70,00 €/)).toBeInTheDocument();
   expect(screen.queryByText(/Départ tardif/)).not.toBeInTheDocument();
 });
+
+test('an empty live list wins over stale stored lines: the complement was emptied', async () => {
+  await open({
+    pricingQuote: { complementAmountAuto: 0, complementDetailLines: [] },
+    form: { startDate: '2099-06-01', endDate: '2099-06-05', arrivalComplementLines: [LATE_CHECKOUT] },
+  });
+  expect(screen.queryByText(/Départ tardif/)).not.toBeInTheDocument();
+});

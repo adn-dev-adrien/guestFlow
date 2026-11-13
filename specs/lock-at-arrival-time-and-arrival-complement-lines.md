@@ -52,8 +52,11 @@ Two findings on reservation **11773** (id 22308, Gîtes de France, 13→15/11/20
 4. Before the moment, the fiche is a normal fiche: every field editable, the complement computed live
    as usual, no « Séjour commencé » banner.
 5. The guest-app shop (`shopState`) keeps its calendar-day reading on purpose: it opens with the arrival day.
-6. Out of the lock decision: `paymentDeadlines.arrived`, the platform price check and the clients
-   « in stay » filter keep their calendar-day reading — they answer other questions.
+6. Out of the lock decision: `paymentDeadlines.arrived`, the platform price check, the clients
+   « in stay » filter and the plugin intake guard (`coreServices.applyReservationUpdate`, « Séjour commencé
+   ou passé ») keep their calendar-day reading — they answer other questions.
+7. A fiche opened before the arrival time and saved after it is judged by the server at save time: the
+   save may be refused with the usual locked-fiche error; the operator reloads (known, accepted).
 
 ### 3.2 The arrival complement's list
 
@@ -101,12 +104,12 @@ None.
 
 ### Server unit tests
 
-`server/src/tests/stay-started-at-arrival-time.unit.test.js` (6): day before / arrival day before and after `checkInTime` / no `checkInTime` / `checkInDone` early / `arrivalSasDoneAt` early / `editLock.locked` and PUT lock agree on the boundary.
+`server/src/tests/stay-started-at-arrival-time.unit.test.js` (7): day before / arrival day before and after `checkInTime` / no `checkInTime` / `checkInDone` early / `arrivalSasDoneAt` early / `editLock.locked` and PUT lock agree on the boundary.
 The payload lines reuse `buildArrivalComplementDetail`, already covered by `arrival-payment-detail.unit.test.js`.
 
 ### Client
 
-`FinanceSection.arrival-complement-lines.test.jsx` (2) — stored lines listed; live quote lines win.
+`FinanceSection.arrival-complement-lines.test.jsx` (3) — stored lines listed; live quote lines win, even empty.
 
 ### Manual UI verification
 

@@ -31,8 +31,9 @@ function hasStayStarted(row, today, nowTime) {
   if (!start || start > today) return false;
   if (start < today) return true;
   if (hasGuestArrived(row)) return true;
-  const arrival = String(row.checkInTime || '');
-  return !/^\d{2}:\d{2}/.test(arrival) || arrival.slice(0, 5) <= nowTime;
+  // « 9:00 » and « 09h00 » are read too; a time nobody can read starts the stay at 00:00 (as before).
+  const match = String(row.checkInTime || '').match(/^(\d{1,2})[:h](\d{2})/);
+  return !match || `${match[1].padStart(2, '0')}:${match[2]}` <= nowTime;
 }
 
 module.exports = { hasGuestArrived, hasStayStarted };

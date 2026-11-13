@@ -5,7 +5,7 @@
  */
 const { platformDisplay } = require('../utils/platformDisplay');
 
-const { todayIso: localTodayIso, localHourMinute } = require('../utils/localDate');
+const { todayIso: localTodayIso, localNow } = require('../utils/localDate');
 const { hasStayStarted } = require('../utils/arrivalMoment');
 const db = require('../database');
 const { calculateReservationQuote } = require('../utils/pricing');
@@ -1191,8 +1191,8 @@ function getById(req, res) {
     // renders it and derives nothing (CLAUDE.md §6.0).
     // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — what the arrival complement
     // contains, line by line, for the « Détail » of its row.
-    arrivalComplementLines: model.buildArrivalComplementDetail(Number(req.params.id)).detail,
-    editLock: model.getEditLock(Number(req.params.id), { today: getTodayIsoDate(), nowTime: localHourMinute(new Date()) }),
+    arrivalComplementLines: model.arrivalComplementDetailOf(reservation).detail,
+    editLock: model.getEditLock(Number(req.params.id), localNow()),
     // specs/payment-link-lifecycle.md rule 48 — an unpaid stay whose nights another stay holds: « Dates prises ».
     datesTaken: datesTakenMarker(db, { ...model.getRow(reservation.id) }),
     // Rule 46, reading of 2026-11-01 (review of #915) — null while « Transformer en devis » can be tried.
@@ -1524,8 +1524,9 @@ async function calculatePrice(req, res) {
     // Rule 21 — the amount editor asks; the server answers the refusal or the consequence.
     const edit = req.body.ledgerEdit;
     if (edit && (edit.row === 'deposit' || edit.row === 'balance')) {
+      const now = localNow();
       const startedStay = Boolean(storedRow && storedRow.kind === 'reservation'
-        && hasStayStarted(storedRow, getTodayIsoDate(), localHourMinute(new Date())));
+        && hasStayStarted(storedRow, now.today, now.nowTime));
       const unlocked = Boolean(req.body.unlockPast && userHasRole(req.user, ADMIN));
       const pastLocked = startedStay && !unlocked;
       quote.ledgerEdit = evaluateLedgerEdit({
@@ -2116,8 +2117,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const numberError = reservationNumberOverrideError(req.body.reservationNumber, id);
   if (numberError) return res.status(400).json(numberError);
 
-  const todayIso = getTodayIsoDate();
-  const nowTime = localHourMinute(new Date());
+  const { today: todayIso, nowTime } = localNow();
   const midStayWindow = pastUnlocked ? null : enterMidStayExtrasWindow(id, req.body, todayIso, nowTime);
   carryStoredCustomContribs(id, req.body);
   // The window pins the baseline at the write: every pricing of this save reads the one that write will store.
@@ -2368,10 +2368,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // specs/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — the admin unlock of a started stay
   // exists to correct the amounts expected from the platforms: a save that moves the final price or the tourist tax is refused.
   if (started && pastUnlocked) {
-    const unlockedRefusal = unlockedPriceRefusal(storedPaymentForQuote, quote, {
-      storedLines: model.readExtraLinesWithQuantity(id),
-      quoteLines: [...(quote.optionLines || []), ...(quote.resourceLines || [])],
-    });
+    const unlockedRefusal = unlockedPriceRefusal(storedPaymentForQuote, quote);
     if (unlockedRefusal) return res.status(409).json(unlockedRefusal);
   }
   // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
