@@ -269,19 +269,13 @@ function buildOrdersController({
   }
 
   /**
-   * Rules 24, 25 — the judged lines priced by the core's sale service, nothing written: the allowances a pending card order
-   * reserves are kept for it by the guard of `create` (one order waits for its payment at a time). → `{ lines, byKey, total }`
-   * or a refusal; `byKey` is what the sale adds per article (`opt:<id>`, `res:<id>`), in euros.
+   * Rules 24, 25 — the judged lines priced by the core's sale service, nothing written, on the stay as it is: an unpaid card order
+   * reserves nothing (rule 35). → `{ lines, byKey, total }` or a refusal; `byKey` is what the sale adds per article (`opt:<id>`, `res:<id>`), in euros.
    */
   function price(stay, judged, at) {
     const lines = commitLines(judged.lines, stay.propertyId);
     if (!lines.length) return { lines: [], byKey: {}, total: 0 };
-    const pending = orders().pendingLines(stay.id, { at }).map(saleLineOf);
-    let priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE, pending });
-    // A pending order the fiche no longer takes (its hold lapsing) prices nothing: the order alone is.
-    if (priced.status !== 200 && pending.length && !(priced.body && priced.body.code === 'ORDER_PERSONS_EXCEEDED')) {
-      priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
-    }
+    let priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
     if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
     const taken = (priced.refusals || []).find((r) => r.code === 'SLOT_TAKEN');
     if (taken) return { refusal: refusal(409, 'SLOT_TAKEN', 'slotJustTaken') };
@@ -307,7 +301,7 @@ function buildOrdersController({
       judged.lines.find((j) => j.kind === 'resource' && j.id === line.id).supplement = line.supplement;
     });
     if (supplemented.some((line) => line.supplement > 0)) {
-      priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE, pending });
+      priced = sale().quote(stay.id, lines.flatMap(requestsOf), { now: at, source: ORDER_SALE_SOURCE });
       if (priced.status !== 200) return { refusal: engineRefusal(priced, judged) };
       byKey = keyed(priced);
     }
@@ -498,10 +492,6 @@ function buildOrdersController({
     const mode = fulfilment();
     const delivery = { fulfilment: mode.mode, pickupPlace: mode.place };
 
-    // Rule 35 — one order waits for its card payment at a time: it holds the allowance and the slots it was quoted with, and no other
-    // order of the stay is priced meanwhile (pricing-components rule 26).
-    if (orders().livePendingCard(stay.id, { at })) return fail(res, refusal(409, 'CARD_ORDER_PENDING', 'cardPending'));
-
     // Rules 25, 34 — a note or 0 € order: confirmed and sold on the fiche in one transaction, its lines appended (rules 8, 9, 13).
     if (free || req.body.payment === 'note') {
       let order = null;
@@ -534,7 +524,7 @@ function buildOrdersController({
       return publicHttp.ok(res, { orderId: order.id, status: 'confirmed' });
     }
 
-    // Rule 33 — « Payer maintenant »: the order holds its slots while its link lives (rule 35).
+    // Rule 33 — « Payer maintenant »: the order row only lets the payment find its order; it reserves nothing and the staff sees nothing of it (rule 35).
     if (!paymentProviders.active()) return fail(res, refusal(409, 'CARD_UNAVAILABLE', 'cardToNote'));
     let order;
     try {
@@ -546,8 +536,6 @@ function buildOrdersController({
       if (clientKey && isUniqueClash(err)) return replay(res, orders().findByClientKey(sessionId, clientKey));
       throw err;
     }
-    // Rule 37ter — the units it holds lower what is left at once.
-    alertStock([...stock().unitsOfLines(lines).keys()]);
     const host = guestHost();
     try {
       const link = await payments().basketLink(stay.id, {
@@ -688,7 +676,7 @@ function buildOrdersController({
     return { deliverAt: next ? new Date(next).toISOString() : null, moved: true };
   }
 
-  /** The order's sessions against the planning as it is now, its own holds lifted (rule 36). */
+  /** The order's sessions against the planning as it is now (rule 36). */
   function sessionsStillFree(order, stay, at) {
     const lodging = { propertyId: stay.propertyId };
     const canIgnite = ignitionInHours(shop.scheduleOf(lodging, at));
@@ -712,7 +700,7 @@ function buildOrdersController({
     }));
   };
 
-  /** Rule 37quater — a late payment whose units went meanwhile is a conflict, like a taken slot. Its own holds are lifted. */
+  /** Rule 37quater — a payment whose units went meanwhile (an unpaid order holds none) is a conflict, like a taken slot. */
   function unitsStillLeft(order, at) {
     const stocks = stock().states(at);
     return [...stock().unitsOfLines(order.lines).entries()].every(([key, units]) => {
@@ -722,9 +710,9 @@ function buildOrdersController({
   }
 
   /**
-   * Rules 35-36, 85 — the order's side of its paid link, run by the core inside the payment's effect. Its lines are sold on the
-   * fiche already paid (`extraSale.sell` with the card money, written once, never collected again) when its slots are still free and
-   * its price has not risen; else `paid_conflict`, nothing reaches the fiche and the money opens a refund obligation of origin
+   * Rules 35-36, 85, 108 — the order's side of its paid link, run by the core inside the payment's effect. Its lines are sold at that
+   * moment's price on the fiche already paid (`extraSale.sell` with the card money, written once, never collected again) when its slots
+   * are still free and its price has not risen above what was paid; else `paid_conflict`, nothing reaches the fiche and the money opens a refund obligation of origin
    * `orderConflict` (rule 75). A sale that now costs less than was paid leaves the gap owed back (`refundCents`).
    */
   function paid({ reservationId, ref, amountCents, paidDate, paidAt, providerPaymentId }) {
@@ -737,7 +725,6 @@ function buildOrdersController({
     let outcome = null;
     let moved = [];
     db().transaction(() => {
-      // Its own holds are not someone else's slot: lifted before the planning is read again.
       db().prepare('UPDATE guest_orders SET heldUntil = NULL WHERE id = ?').run(order.id);
       const conflict = (reason = 'créneau ou article plus disponible, commande non honorée') => {
         orders().markPaidConflict(order.id, { now: at, paidAt });
@@ -745,9 +732,8 @@ function buildOrdersController({
       };
       // Rule 35 — abandoned, its lines went back to the cart: a payment landing now is never committed.
       if (order.status === 'abandoned') return conflict('commande abandonnée avant le paiement, commande non honorée');
-      // Rule 37quater — paid while it awaited its payment, the order held its units; a late one finds what is left.
-      const late = order.status !== 'awaiting_payment';
-      if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || (late && !unitsStillLeft(order, at))) return conflict();
+      // Rule 37quater — an unpaid order held nothing: the payment finds what is left at that moment.
+      if (!stay || stay.kind !== 'reservation' || !sessionsStillFree(order, stay, at) || !unitsStillLeft(order, at)) return conflict();
       const delivery = deliveryAfterPayment(order, stay, at);
       const written = sale().sell(order.reservationId, saleLinesOf(order).flatMap(requestsOf), {
         source: ORDER_SALE_SOURCE,

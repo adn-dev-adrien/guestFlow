@@ -284,15 +284,15 @@ is pushed every order.
       `tariff-recipes/spec.md`, `applyFreeUnitsToLine`) and a resource's **free minutes**
       (`property_resource_prices.freeMinutes`) are granted **once per stay** (the stay's tariff snapshot grant wins over today's catalogue): the server
       subtracts what the stay already received (its lines on the fiche, which already carry its confirmed, paid
-      and delivered orders, rule 34, plus the orders still awaiting payment) and shows what is left
+      and delivered orders, rule 34; a card order awaiting payment reserves nothing, rule 35) and shows what is left
       (« 1 h offerte avec votre séjour », « 1 h offerte — déjà utilisée »);
     - an option **offered by default** to the lodging (`property_option_defaults.offered`) that the stay
       already carries is shown « Déjà inclus dans votre séjour » and not sold again;
     - an item not linked to the stay's lodging is not shown;
     - a 0 € item (included or free) is limited per stay to its `maxQuantity`, counted across orders.
-    The quote prices an order **after** the stay's card orders awaiting payment (`priceOrder(…, { pending })`): those
-    hold the free units and minutes they were quoted with, so a later order never takes them and the shop's « déjà
-    utilisée » says the same (review of 2026-11-09).
+    The quote prices an order on the stay **as it is**: a card order awaiting payment reserves no free unit and no minute, so the
+    shop's « déjà utilisée » counts only what is on the fiche. *Reading of 2026-11-13 (owner), replaces the review of 2026-11-09, which
+    priced after the pending orders (`pending`): an unpaid card order does not exist (rule 35).*
     An order whose quote total is **0 €** (only free / included units) needs no payment and no name: one
     button « Réserver », the order is `confirmed` and written to the fiche like a note order (rule 34).
 26. **Categories.** Items are grouped by the existing option `category` (e.g. « Boissons »,
@@ -321,7 +321,7 @@ is pushed every order.
     arrival SAS picker and the Calendrier › Ressources page:
     - occupancy = `occupancyModel.listRange` — every **guest session** of every reservation
       (`reservation_resources.sessions`), every **outside booking** (`resource_bookings`, the
-      « extérieurs »), plus the slots **held** by guest-app orders awaiting payment (rule 35);
+      « extérieurs ») — the slots of guest-app orders awaiting payment are **not** held (rule 35, reading of 2026-11-13);
     - slots = `availability.buildDays` / `validateBlock` — slot grid (`slotDuration`), opening window
       (`openTime`/`closeTime`), open days and closed days, turnover between uses (`turnoverMinutes`),
       minimum use (`minimumUsageMinutes`), capacity (`quantity` units of the resource), the thermal model
@@ -384,21 +384,22 @@ is pushed every order.
     with an explicit guest-order basket, `applyPaidEffect` gets a `complement` branch that commits the order.
     Exempt from the arrival-day lapse (`payment-link-lifecycle.md` rule 9); its own lifetime is **30 min**.
     **Amended 2026-11-12 (owner, Q-C3):** the order's line appears **only once paid**. A pending card order writes no line on the
-    fiche; it only reserves its allowance (`pricing-components.md` rules 26 and 29), and the line is written by the paid effect.
-    While `awaiting_payment` the order **holds** its hourly slots (rule 28) and the free minutes it uses; the guest can abandon it from « Mes commandes » (status `abandoned`, chip *Abandonnée*, holds released at
-    once, its lines back in the cart; a payment that lands on it anyway is `paid_conflict`, never committed). At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
+    fiche, and the line is written by the paid effect.
+    **Reading of 2026-11-13 (owner): an unpaid card order does not exist** — « tant que le paiement n'est pas passé, la commande ne
+    doit pas nous arriver, elle ne doit même pas être enregistrée. Sauf s'il choisit de l'ajouter à sa note de séjour. » While
+    `awaiting_payment` the order **reserves nothing**: no offered unit or minute, no price, no person (rule 55), no stock unit (rule 37ter), no
+    hourly slot (rule 28); the staff sees nothing of it (not in « Commandes clients », « À préparer » or « Toutes », not on the planning, not in
+    the SAS) and receives no push until it is paid. The row only lets the payment find its order (its link, its 30 minutes). The guest can
+    abandon it from « Mes commandes » (status `abandoned`, chip *Abandonnée*, its lines back in the cart; a payment that lands on it anyway
+    is `paid_conflict`, never committed). Rule 108 states what the payment does. At payment, a `deliverAt` earlier than payment + lead moves to the next valid slot and the order says so.
     **The fiche is never billed beyond the payment** (review of 2026-11-09): when the commit costs more than was paid
-    (a price raised meanwhile), the order is `paid_conflict` — unless orders committed while it awaited its payment
-    were quoted that amount above what they added to the fiche (they priced after it, rule 25; `deferredCents`): that
-    gap is theirs, left on the end-of-stay complement. When it costs less (a price lowered), the order is committed and
+    (a price raised meanwhile, or the offered units spent by another order), the order is `paid_conflict`; no `deferredCents` gap exists any more (reading
+    of 2026-11-13). When it costs less (a price lowered), the order is committed and
     only the gap is flagged « à rembourser » on the link (`basketJson.refundCents`), with its history entry
-    (« 6,00 € sur 18,00 € payés… ») and the ledger row for that part. An order paid while it still awaited its payment
-    held its units: it is never judged on the stock (rule 37quater is for a late payment). **One card order waits for
-    its payment at a time** (final review of 2026-11-09): while one's link is live, a second card order is refused
-    (`CARD_ORDER_PENDING`), the note staying open — two pending card orders paid out of order would see the later one
-    take the earlier one's allowance. A hold that has lapsed holds nothing, even before the expiry job flips its order.
-36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, its holds are
-    released, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
+    (« 6,00 € sur 18,00 € payés… ») and the ledger row for that part. An unpaid order held no unit, so the stock is judged at payment,
+    always (rule 37quater). **Several card orders may wait at once** (reading of 2026-11-13, replaces the final review of 2026-11-09 and its 409
+    `CARD_ORDER_PENDING`): a second order, card or note, is accepted while one awaits its payment; each is sold at the price of the moment it is paid.
+36. **Unpaid card order.** If the link is not paid within 30 min the order goes `expired`, nothing reaches the fiche. A payment confirmed after expiry (late webhook) still commits the
     order if its slots are still free; otherwise the order goes `paid_conflict`, the operator is pushed, and
     refunds by hand (refund out of scope). A `paid_conflict` payment is recorded on the reservation ledger as a
     `complement` payment flagged « à rembourser », with a history entry; no line is added. A late payment whose
@@ -422,8 +423,8 @@ is pushed every order.
 37ter. **Every sale counts, when the article leaves the cellar** (Adrien, 2026-11-06). The stock goes down for the
     app's orders *and* for the lines the website or the staff put on a reservation, at the moment the article is
     actually taken:
-    - an app order counts when it is confirmed (note, 0 €) or paid (card); a card order **holds** its units while it
-      awaits its payment (rule 35) and releases them when it expires or is abandoned;
+    - an app order counts when it is confirmed (note, 0 €) or paid (card); a card order awaiting its payment holds **nothing** (rule 35,
+      reading of 2026-11-13);
     - a line already on the reservation counts on the **arrival day** of the stay (the plugin's arrival sweep —
       idempotent, every 5 minutes, so within minutes of midnight — and at once for a stay created or moved to a start
       date already reached); a line added or raised
@@ -587,7 +588,7 @@ is pushed every order.
     (`pricing.resolveServedPersons`): an order whose persons exceed what is left of it is refused before anything is
     priced — 409 `PERSONS_EXCEEDED` « 3 personnes au plus pour « Planche apéritive ». » / « « Couverts » sert déjà
     toutes les personnes du séjour. », on the quote and the order, on the note, by card (no link minted), at 0 € and in
-    pickup mode alike; the persons of a card order awaiting its payment count as served. A breakfast asking more
+    pickup mode alike; the persons of a card order awaiting its payment are **not** counted (rule 35, reading of 2026-11-13). A breakfast asking more
     persons than its line already serves (that line keeps its persons, rule 27bis) is refused the same way: « Le
     petit-déjeuner du séjour est prévu pour 2 personnes. ». The refusal is the core's
     (`midStayOrderCommit` `ORDER_PERSONS_EXCEEDED`, `plugins-phase-1-sdk.md` rule 47 reading of 2026-11-10). And a
@@ -674,7 +675,7 @@ is pushed every order.
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 67. **Before the arrival, card or « Régler à l'arrivée ».** *Amended 2026-11-10 (Adrien, fifth message; Q13), reworded in PR C.* From
     J-7 the guest pays by card exactly as during the stay: the `complement` basket link of rule 35 (30-minute life, one card order
-    awaiting payment at a time, `paid_conflict` rules unchanged), committed at payment by rule 85. `canPayCard` is true whenever the
+    awaiting payment reserves nothing, `paid_conflict` rules unchanged), committed at payment by rule 85. `canPayCard` is true whenever the
     shop is open and the `online-payment` plugin is live and connected; `CARD_AFTER_ARRIVAL` is retired. The note button reads the
     server's `noteLabel`: « Régler à l'arrivée » / « Pay on arrival » before the arrival, « Ajouter à ma note » / « Add to my bill »
     after it. The shop payload carries `orderCollection` ∈ `arrival | departure | closed`, read from the stay clock (rule 104) and
@@ -790,8 +791,7 @@ is pushed every order.
     des dates du séjour : à replanifier », the guest's order « Horaire à revoir avec l'équipe ».
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 74. **An order taken before the arrival holds its stock until the arrival day.** Rule 37ter counts a reservation's lines
-    on its arrival day; an app order with `collectAt = 'arrival'` holds its units (like a card order awaiting payment,
-    rule 37quater's « Plus que 2 ») from its confirmation until that day, when the sweep counts the line and the hold
+    on its arrival day; an app order with `collectAt = 'arrival'` holds its units (rule 37quater's « Plus que 2 ») from its confirmation until that day, when the sweep counts the line and the hold
     ends; a cancelled stay releases it. Nothing is counted twice.
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 75. **The staff reads the day and the payment.** An order whose delivery time is not today names its day in the push
@@ -839,7 +839,7 @@ arrival.** Everything below is judged by the server; the apps render what it off
     max(now, check-in), unchanged.
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 80. **Other uses of the bath come first, and a crafted slot is refused before anything.** Every guest session of every
-    stay, every outside booking (« extérieurs ») and every slot held by an order awaiting payment occupies the bath with
+    stay, every outside booking (« extérieurs ») and every use of the bath occupies it with
     its turnover (rule 28, capacity `quantity`); a slot they take is not offered. A quote or an order asking a session the
     picker would not offer (taken, heating, staff, closed, past, outside the stay, off the grid, shorter than the minimum)
     is refused first, before any pricing, with one short sentence per reason and nothing written: `unavailable` on the
@@ -886,7 +886,7 @@ arrival.** Everything below is judged by the server; the apps render what it off
     whether the SAS runs before or after the order, re-opened or not.
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
 84. **Each slot says what it costs this stay, now.** The slot payload's `priceLabel` is the server's reading for one
-    slot picked alone after the stay's lines and pending orders: « Compris dans votre séjour » (hours of rule 82),
+    slot picked alone after the stay's lines: « Compris dans votre séjour » (hours of rule 82),
     « Offert » (free minutes, day), « Offert · + 10,00 € soirée » (free minutes, evening), « 30,00 € », « 40,00 € · tarif
     soirée »; with `band: 'day' | 'evening'` for the gold dot of §6.4. Several picks are priced by the quote, the only
     total (rule 32); the slot labels never add up on the client.
@@ -896,7 +896,7 @@ arrival.** Everything below is judged by the server; the apps render what it off
     (`pricing-components.md` rule 49), settled as one mid-stay note naming its lines (rule 29), allocated (rule 74) and read net by
     SCHEDULE (rule 21): the arrival complement, the SAS, the ledger, the J-2 and J-1 complement lines and the payment links read what
     is left to collect. **The order's line appears only once paid** (owner Q-C3; rule 35 as in production): a card order awaiting
-    payment writes no line, it reserves its allowance (`pricing-components.md` rule 26), and `deferredCents` / `PRICE_ROSE` end.
+    payment writes no line and reserves nothing (rule 35, reading of 2026-11-13), and `deferredCents` / `PRICE_ROSE` end.
     The order is `paid`, `collectAt = 'arrival'`, chip « Payée »; the SAS lists it read-only (rule 71). The money is the provider's:
     the fiche's register can neither cancel nor edit it.
     > **Delivered by PR C** (pass 4, C26-C29, C31-C32): server `guest-app` 1.1.0 on `extraSale` / `saleDetail`; tests listed in §7 (`guest-order-*`, `guest-app-arrival-orders`, `guest-app-orders-from-j7`, …).
@@ -1023,10 +1023,18 @@ arrival.** Everything below is judged by the server; the apps render what it off
     every app order of such an article is billed from the first one, the allowance is consumed there and never by an order. The switch is the
     article's (`guest_app_items.offeredInPlace`, NULL follows the class — on for the drinks class, 1 / 0 the operator's word; `PUT /api/guest-app/items/:kind/:id
     { offeredInPlace }`); the order sends `noFreeUnits` (`pricing-components.md` rule 92) and its line stores that it took none. An article that is
-    not in place keeps rule 25: its granted free units cover a first order. Only one order waits for its card payment at a time (rule 35 as amended): the allowance
-    and the slots it was quoted with stay its own, and a second order answers 409 `CARD_ORDER_PENDING` (note orders included). Breakfast mornings sold by an order
+    not in place keeps rule 25: its granted free units cover a first order. A card order awaiting its payment reserves nothing (rule 35, reading of 2026-11-13). Breakfast mornings sold by an order
     merge into the stay's breakfast line and are edited on the fiche, not from the SAS step (rule 87).
     > **Delivered by PR C** (pass 4). Tests: `guest-order-offered-in-place`, `guest-order-card-hold`.
+108. **An unpaid card order does not exist** _(owner, 2026-11-13; appended; replaces the one-pending-card-order guard `CARD_ORDER_PENDING` of rule 35)_. « Tant que le paiement
+    n'est pas passé, la commande ne doit pas nous arriver, elle ne doit même pas être enregistrée. Sauf s'il choisit de l'ajouter à sa note de séjour. Mais sinon oui il peut refaire une demande
+    pour une nouvelle commande. » Consequences: (a) `POST /orders` never refuses a second order because of a card order awaiting payment, and `extraSale.quote` has no `pending`
+    parameter: every quote and sale is priced on the stay as it is; (b) the `awaiting_payment` row is a technical record that matches the incoming payment, never read by a staff view
+    (« Commandes clients » lists, planning cards, SAS, stock, `ctx.resourceHolds` — the plugin declares no hold any more); an `expired`, `abandoned` or never-paid `cancelled` card order is
+    as invisible; (c) a note order, and a 0 € order, are recorded at once (rule 34); (d) **at payment the order is sold at that moment's price** by `extraSale.sell`: if the sale is refused
+    for any reason (slot taken, stay cancelled, units gone, offered units spent by an order placed meanwhile so that it now costs more than was paid, `PRICE_ROSE`) the order is
+    `paid_conflict`, nothing reaches the fiche, the staff is pushed and the money stays an open `orderConflict` refund obligation (`pricing-components.md` rule 75) — never lost, never
+    sold above what was paid; a sale that costs less than was paid is committed and the gap is the existing overpayment handling (rule 35). Tests: `guest-app-unpaid-card-order`.
 
 **Edge cases:**
 - Guest scans the La Granja poster while staying at L'Estiva → La Granja's visitor mode; their own stay opens
@@ -1229,7 +1237,7 @@ shape for every plugin: `{ error: 'PLUGIN_INACTIVE', plugin }`.
 | GET | `/public/v1/guest/shop/resources/:id/slots?from&to` | stay session, `shop` module | — | `{ freeMinutesLeft, freeLabel?, days:[{date, label, slots:[{start, end, state:'free'\|'evening', priceLabel}]}] }` — bookable slots only, days without one dropped; 404 `ITEM_NOT_FOUND` (not a sold hourly item here, or `hourly-resources` inactive), 400 `INVALID_INPUT` |
 | POST | `/public/v1/guest/shop/delivery-slots` | stay session | `{ lines:[{kind, id}] }` (1-20) | `{ needed, mode:'delivery'\|'pickup', question (« Quand souhaitez-vous la recevoir ? » / « … la récupérer ? », rule 41bis), asap:{at,label}\|null (null while the service is closed), days:[{date, label, slots:[{at, label}]}], bannerLabel? }`; lead = the longest `leadMinutes` of the cart's staff items |
 | POST | `/public/v1/guest/orders/quote` | stay session, `shop` module, shop open | `{ lines:[{kind:'option',id,quantity} \| {kind:'resource',id,sessions:[{date,start,end}]} \| {kind:'breakfast',id,mornings,time,persons}], deliverAt? }` | `{ lines:[{kind, id, title, label, quantity?, sessions?:[{…, unavailable?, reason?, reasonLabel?}], mornings?, unavailableMornings?, unitPrice, total, totalLabel, unavailable?, unavailableReason?, outOfStock?:{left, label}}], total, totalLabel, needsDelivery, deliverAt?, deliverAtUnavailable? }`; 409 `SHOP_CLOSED`, 400 `INVALID_INPUT` / `ORDER_LIMIT` |
-| POST | `/public/v1/guest/orders` | idem, 10 / hour / session; optional header `Idempotency-Key` (8-100 of `A-Z a-z 0-9 . _ : -`, else 400): a replay within the session answers the first order's response (a card order's link only while it is live; a paid one `{ orderId, status }`), nothing created again | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }`; 409 `SLOT_TAKEN` (details `{ quote }`), `OUT_OF_STOCK` (details `{ itemKey:'option:12', left, quote }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `CARD_ORDER_PENDING` (a card order of the stay still waits for its payment: pay or abandon it first), `ORDER_KEY_SPENT` (a replayed key whose card order is no longer awaiting payment: start again with a new key), `STAY_NOT_WRITABLE`, `PERSONS_EXCEEDED` (rule 55); 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 (10 / hour / session; 6 card orders / hour / stay, rule 57) |
+| POST | `/public/v1/guest/orders` | idem, 10 / hour / session; optional header `Idempotency-Key` (8-100 of `A-Z a-z 0-9 . _ : -`, else 400): a replay within the session answers the first order's response (a card order's link only while it is live; a paid one `{ orderId, status }`), nothing created again | `{ lines, deliverAt?, payment:'card'\|'note'\|'none', returnPath? }` | card → `{ orderId, paymentUrl }`; note/none → `{ orderId, status:'confirmed' }` (a card order awaiting its payment never blocks another order, rule 108; the staff sees it only once paid); 409 `SLOT_TAKEN` (details `{ quote }`), `OUT_OF_STOCK` (details `{ itemKey:'option:12', left, quote }`), `ITEM_UNAVAILABLE`, `DELIVERY_TIME_UNAVAILABLE`, `SHOP_CLOSED`, `CARD_UNAVAILABLE`, `ORDER_KEY_SPENT` (a replayed key whose card order is no longer awaiting payment: start again with a new key), `STAY_NOT_WRITABLE`, `PERSONS_EXCEEDED` (rule 55); 400 `ORDER_LIMIT`, `INVALID_INPUT`; 429 (10 / hour / session; 6 card orders / hour / stay, rule 57) |
 | POST | `/public/v1/guest/orders/:id/abandon` | idem | — | the order, `abandoned`, with `cartLines`; 409 `ORDER_NOT_PENDING` |
 | GET | `/public/v1/guest/orders` | stay session | — | `{ orders:[{id, createdAt, deliverAt, lines, total, payment, status, statusLabel, deliveryLabel?, fulfilment:'delivery'\|'pickup', promise:string\|null, extraPromises?:[string], movedNotice:string\|null, notices?, cartLines?, paymentUrl?}] }` — `paymentUrl` (« Reprendre le paiement ») only on a card order still `awaiting_payment` whose link lives (its 30 minutes); `promise` (rule 41ter) once the order stands (confirmed, paid) and has a `deliverAt`: « Livrée à L'Estiva aujourd'hui vers 17 h 30 » / « Prête aujourd'hui à 17 h 30. Lieu de retrait : … »; `extraPromises` the bath's own lines (« Bain nordique — ven. 9 oct., 20 h, il sera chaud »); `movedNotice` « Votre commande sera prête un peu plus tard que prévu »; `deliveryLabel` « Prévue … » / « Livrée », pickup « Prête … » / « Retirée » |
 | GET | `/public/v1/guest/orders/:id` | stay session, the core's `paymentStatusLimiter` | — | one order (an unpaid card order reads its link at the provider, like `/booking-requests/:id/status`, at most once per 10 s per link) |

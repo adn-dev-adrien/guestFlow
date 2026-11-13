@@ -1,7 +1,7 @@
 /**
  * extraSale — the one write path for an extra on a stay that exists (specs/pricing-components.md §3 rules 27-30, 39, 37, 23).
  *
- *   quote(reservationId, requests, { payment, now, source, pending })  → { status: 200, lines, buckets, totalCents, refusals } | { status, body }   writes nothing
+ *   quote(reservationId, requests, { payment, now, source })  → { status: 200, lines, buckets, totalCents, refusals } | { status, body }   writes nothing
  *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents })  → { status: 200, saleDetail } | { status, body }
  *   changeLine(reservationId, ref, patch, { now, forceOverpayment })  → { status: 200, saleDetail } | { status, body }
  *   removeLine(reservationId, ref, { now, actor })  → { status: 200, saleDetail } | { status, body }   an unpaid line taken off the stay
@@ -143,21 +143,19 @@ function withCustomLine(body, line) {
   return { ...body, customOptions };
 }
 
-function pricedRequests(reservationId, lines, { now, pending = [] }) {
+function pricedRequests(reservationId, lines, { now }) {
   const id = Number(reservationId);
   const stored = storedBody(id);
   if (!stored) return { error: refuse(404, 'RESERVATION_NOT_FOUND', 'Réservation introuvable') };
-  const rows = optionRows(database(), [...pending, ...lines]);
+  const rows = optionRows(database(), lines);
   const persons = personsRefusal(stored, lines, rows);
   if (persons) return { error: persons };
   const { started } = stayStarted(id, now);
-  // The lines of a card order awaiting its payment are not on the fiche yet but already promised (rule 26): the sale is priced after them, never written with them.
-  const reserved = pending.length ? mergeOrderLines(stored, pending, rows, (table) => nextLineId(database(), table)) : stored;
   // Both prices are the engine's of today (`restatePricing`): a stay sold at a figure the engine no longer reproduces would otherwise read its whole drift as the
   // price of the line (guest-app rule 93). The sale is what the lines cost, never what the stay's price moved by.
-  const base = dryRunFor(id, { ...reserved, restatePricing: true });
+  const base = dryRunFor(id, { ...stored, restatePricing: true });
   if (base.refused) return { error: base.refused };
-  let body = reserved;
+  let body = stored;
   let previous = base.row;
   const priced = [];
   const held = (b) => b.options.length + b.resources.length + (b.customOptions || []).length;
@@ -189,7 +187,7 @@ function soldBeforeNote(reservationId, line, merged) {
 }
 
 function quote(reservationId, requests, {
-  payment = 'later', now = new Date(), source = 'fiche', pending = [],
+  payment = 'later', now = new Date(), source = 'fiche',
 } = {}) {
   if (!(payment in PAYMENTS)) return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Mode de paiement inconnu.');
   const parsed = parseRequests(requests);
@@ -197,7 +195,7 @@ function quote(reservationId, requests, {
   // The numbers the quote gives its lines are only taken inside a transaction that is rolled back: a quote writes nothing.
   let result = null;
   try {
-    database().transaction(() => { result = pricedRequests(reservationId, parsed.lines, { now, pending }); throw ROLLBACK; })();
+    database().transaction(() => { result = pricedRequests(reservationId, parsed.lines, { now }); throw ROLLBACK; })();
   } catch (err) {
     if (err !== ROLLBACK) throw err;
   }

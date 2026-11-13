@@ -71,22 +71,18 @@ const lineMinutes = (line) => Math.max(Number(line.quantity || 0) * 60, sessions
 
 /**
  * Rule 25 — what the stay already received, and what its orders already took:
- *  - `optionUnits` / `resourceMinutes`, for the free units and minutes: the lines on the fiche, plus the
- *    orders not on it yet (awaiting payment). An option counts its billed units (what the free units apply
+ *  - `optionUnits` / `resourceMinutes`, for the free units and minutes: the lines on the fiche (an order
+ *    awaiting its card payment reserves nothing, rule 35). An option counts its billed units (what the free units apply
  *    to), an hourly resource its minutes — the sold hours, or the sessions placed when they say more;
  *  - `orderedUnits` (`kind:id`), for the allowance of a 0 € item: every order that stands, in units, an
  *    hourly resource in hours.
  */
-function stayConsumption({ optionLines = [], resourceLines = [], pendingOrderLines = [], orderedLines = [] }) {
+function stayConsumption({ optionLines = [], resourceLines = [], orderedLines = [] }) {
   const optionUnits = new Map();
   const resourceMinutes = new Map();
   const orderedUnits = new Map();
   optionLines.forEach((line) => add(optionUnits, Number(line.optionId), Number(line.billedUnits) || Number(line.quantity) || 0));
   resourceLines.forEach((line) => add(resourceMinutes, Number(line.resourceId), lineMinutes(line)));
-  pendingOrderLines.forEach((line) => {
-    if (catalogueKind(line.kind) === 'option') add(optionUnits, Number(line.id), Number(line.quantity) || 0);
-    if (line.kind === 'resource') add(resourceMinutes, Number(line.id), lineMinutes(line));
-  });
   orderedLines.forEach((line) => {
     const units = line.kind === 'resource' && Array.isArray(line.sessions) && line.sessions.length
       ? lineMinutes(line) / 60

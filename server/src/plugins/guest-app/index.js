@@ -213,8 +213,6 @@ function buildGuestApi({
     stayLinkAvailable: links.available,
     stayAppUrl: links.emailUrl,
     shownKeysOf: controller.shownKeysOf,
-    // Rule 35 — the slots the unpaid card orders hold, for every reader of the resource planning.
-    heldSessions: (range) => orders().heldSessions({ ...range, now: now() }),
     serviceHoursConfigured: () => serviceHours().isConfigured(),
     // Rules 35-36 — the order's side of its paid card link, and the expiry of the unpaid ones.
     orderPaid: orderBook.paid,
@@ -258,7 +256,6 @@ function register(ctx) {
     guestHost() ? null : 'adresse de l’application à configurer',
     api.serviceHoursConfigured() ? null : 'horaires du service à configurer',
   ].filter(Boolean).join(', ') || null);
-  ctx.resourceHolds(api.heldSessions);
   // Rules 35-36 — a paid card link of an order commits it, or flags its money « à rembourser ».
   ctx.paymentBasket({
     source: ORDER_SOURCE,

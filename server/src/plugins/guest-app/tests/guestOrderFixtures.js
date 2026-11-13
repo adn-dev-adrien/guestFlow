@@ -123,7 +123,6 @@ function livePlugins(api, { card = null } = {}) {
   }
   if (card) registry.ensure('online-payment').paymentProvider = card.provider;
   const own = registry.ensure('guest-app');
-  own.resourceHolds = api.heldSessions;
   own.paymentBaskets.push({ source: ORDER_SOURCE, paid: api.orderPaid, labels: ORDER_REFUND_LABELS });
   own.handlers.set('extraSale.sold', [api.orderSold]);
   return () => registry.reset();

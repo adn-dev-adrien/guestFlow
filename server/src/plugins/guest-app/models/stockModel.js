@@ -44,14 +44,13 @@ function createStockModel(db) {
   const limited = () => db.prepare('SELECT * FROM guest_app_items WHERE stockTracked = 1 OR soldOut = 1').all();
   const limitedRow = (kind, id) => db.prepare('SELECT * FROM guest_app_items WHERE kind = ? AND itemId = ? AND (stockTracked = 1 OR soldOut = 1)').get(kind, Number(id)) || null;
 
-  /** Rule 37ter — the units every unpaid card order holds at `at`, by `kind:id`. */
+  /** Rule 37ter — the units held for the arrival day, by `kind:id` (an unpaid card order holds none, rule 35). */
   function heldByKey(at) {
     const held = new Map();
     const add = (row) => parseLines(row.linesJson).forEach((line) => {
       const units = orderLineUnits(line);
       if (units) held.set(units.key, (held.get(units.key) || 0) + units.units);
     });
-    db.prepare("SELECT linesJson FROM guest_orders WHERE status = 'awaiting_payment' AND heldUntil > ?").all(at.toISOString()).forEach(add);
     // Rule 74 — an order taken before the arrival holds its units until the arrival day, when the sweep counts the line.
     db.prepare(`
       SELECT o.linesJson FROM guest_orders o JOIN reservations r ON r.id = o.reservationId

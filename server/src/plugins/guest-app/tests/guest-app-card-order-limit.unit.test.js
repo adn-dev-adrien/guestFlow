@@ -1,5 +1,5 @@
 // specs/guest-app.md rule 57 (audit R36-PUB-L2) — the card orders of a stay are limited per STAY, whatever its sessions:
-// each one mints a payment link at the provider, abandoning frees the next one at once, and a new session costs only a
+// each one mints a payment link at the provider (an order awaiting its payment no longer blocks the next one, rule 35), and a new session costs only a
 // stay-link exchange — one holder of the link minted about 300 links an hour. Six an hour per stay; a refused card
 // order spends nothing; the note stays open. Stays dated around today.
 const test = require('node:test');
@@ -35,11 +35,6 @@ test('rule 57: the seventh card order of a stay in an hour is refused, across se
       // eslint-disable-next-line no-await-in-loop
       const placed = useSecond ? await callAs(second, 'POST', '/public/v1/guest/orders', CARD) : await ctx.call('POST', '/public/v1/guest/orders', CARD);
       assert.equal(placed.status, 200, JSON.stringify(placed.body));
-      if (i < 5) {
-        // eslint-disable-next-line no-await-in-loop
-        const pending = await ctx.call('POST', '/public/v1/guest/orders', CARD);
-        assert.equal(pending.body.error.code, 'CARD_ORDER_PENDING', 'refused: spends nothing');
-      }
       // eslint-disable-next-line no-await-in-loop
       await ctx.call('POST', `/public/v1/guest/orders/${placed.body.data.orderId}/abandon`, {});
     }

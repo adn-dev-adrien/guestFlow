@@ -12,7 +12,6 @@ if (requirePlugins(['hourly-resources'])) {
     addOption, addResource, addStay, enable, freshDb, latestStayToken, livePlugins, openService, paris, sell, startApi,
   } = require('./guestAppFixtures');
   const { createScheduler } = require('../../hourly-resources/scheduler');
-  const { createContext } = require('../../sdk/createContext');
   const createServiceHoursModel = require('../models/serviceHoursModel');
   const { ignitionInHours } = require('../serviceHours');
   const sdk = require('../../sdk');
@@ -147,18 +146,14 @@ if (requirePlugins(['hourly-resources'])) {
     assert.deepEqual(check([second]).results, [{ ...second, ok: false, reason: 'staff' }], 'alone it is lit at 13:00, outside the service');
   });
 
-  withSlots('rule 35: an order awaiting payment holds its slots until heldUntil, for every stay', async ({ db, get, api, clock }) => {
+  withSlots('rule 35 (reading of 2026-11-13): an order awaiting payment holds no slot — the planning keeps offering it, for every stay', async ({ db, get, api, clock }) => {
     const stay = addStay(db);
     addBath(db);
-    createContext('guest-app', {}).resourceHolds(api.heldSessions);
+    assert.equal(api.heldSessions, undefined, 'the plugin declares no planning hold');
     const lines = [{ kind: 'resource', id: BATH, sessions: [{ date: '2099-07-07', start: '18:00', end: '19:00' }] }];
     db.prepare(`INSERT INTO guest_orders (reservationId, payment, status, linesJson, heldUntil, createdAt)
       VALUES (?, 'card', 'awaiting_payment', ?, ?, ?)`).run(stay, JSON.stringify(lines), paris('2099-07-07', '12:30').toISOString(), clock.now.toISOString());
-    assert.ok(!startsOn((await get()).body, '2099-07-07').includes('18:00'), 'held, even for the stay that ordered it');
-    clock.now = paris('2099-07-07', '12:31');
-    assert.ok(startsOn((await get()).body, '2099-07-07').includes('18:00'), 'released once the hold lapses');
-    db.prepare("UPDATE guest_orders SET heldUntil = ?, status = 'expired'").run(paris('2099-07-07', '13:00').toISOString());
-    assert.ok(startsOn((await get()).body, '2099-07-07').includes('18:00'), 'an expired order holds nothing');
+    assert.ok(startsOn((await get()).body, '2099-07-07').includes('18:00'), 'offered, even to the stay that ordered it');
   });
 
   withSlots('rule 28: an item the shop does not sell by the hour is 404; a malformed id or date is 400', async ({ db, get }) => {

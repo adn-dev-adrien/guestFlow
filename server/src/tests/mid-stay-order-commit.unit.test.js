@@ -109,17 +109,6 @@ test('rule 25: free minutes come from the engine — the first hour of the bath 
   assert.deepEqual(priceOrder(id, [{ kind: 'resource', id: 202, sessions: [session('18:00', '20:00')] }]).byKey, { 'res:202': 30 });
 });
 
-test('rule 47: priceOrder prices after the pending lines — a later order never takes the free hour a pending order was quoted with', { skip: skipWithout(['hourly-resources']) }, () => {
-  const id = seedStay();
-  const session = (start, end) => ({ date: isoPlus(1), start, end });
-  const pending = [{ kind: 'resource', id: 202, sessions: [session('10:00', '12:00')] }];
-  assert.equal(priceOrder(id, pending).total, 30, 'the pending order alone: 2 h, the first offered');
-  const later = priceOrder(id, [{ kind: 'resource', id: 202, sessions: [session('18:00', '19:00')] }], { pending });
-  assert.equal(later.status, 200, JSON.stringify(later.body));
-  assert.deepEqual(later.byKey, { 'res:202': 30 }, 'the free hour is the pending order’s');
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_resources WHERE reservationId = ?').get(id).n, 0, 'nothing written');
-});
-
 test('rules 30, 34: a note order lands as mid-stay extras — the end-of-stay complement only, the arrival money untouched, one history entry', () => {
   const id = seedStay();
   const before = money(id);

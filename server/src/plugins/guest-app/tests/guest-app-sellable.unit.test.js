@@ -18,7 +18,6 @@ function soldFor(db, reservationId, { hourlyOffered = () => true } = {}) {
   const consumed = stayConsumption({
     optionLines: extras.optionLines,
     resourceLines: extras.resourceLines,
-    pendingOrderLines: createOrdersModel(db).pendingLines(reservationId),
     orderedLines: createOrdersModel(db).orderedLines(reservationId),
   });
   return shopItems({
@@ -37,7 +36,7 @@ const find = (sold, kind, id) => sold.find((s) => s.kind === kind && Number(s.ro
 const ids = (sold) => sold.map((s) => `${s.kind}:${s.row.id}`).sort();
 
 function order(db, reservationId, status, lines) {
-  // A card order awaiting its payment holds until its link lapses: far ahead here.
+  // A card order awaiting its payment holds until its link lapses: far ahead here (it reserves nothing, rule 35).
   const heldUntil = status === 'awaiting_payment' ? '2999-01-01T00:00:00Z' : null; // date-literal-ok: a hold that never lapses
   db.prepare(`INSERT INTO guest_orders (reservationId, payment, status, linesJson, total, createdAt, heldUntil)
     VALUES (?, 'card', ?, ?, 0, '2099-07-07T10:00:00Z', ?)`).run(reservationId, status, JSON.stringify(lines), heldUntil);
@@ -135,7 +134,7 @@ test('rule 25: an option’s free units go to own-channel bookings only', () => 
   assert.equal(find(soldFor(db, platform), 'option', 1).freeUnits, null);
 });
 
-test('rule 25: free units are granted once per stay — the fiche’s line and an unpaid order take theirs', () => {
+test('rule 25: free units are granted once per stay — the fiche’s line takes theirs, an unpaid card order none', () => {
   const db = freshDb();
   const stay = addStay(db);
   addOption(db, { id: 1, title: 'Petit-déjeuner', priceType: 'per_person', price: 12, freeUnits: { 1: 3 } });
@@ -143,7 +142,7 @@ test('rule 25: free units are granted once per stay — the fiche’s line and a
   db.prepare('INSERT INTO reservation_options (reservationId, optionId, quantity, billedUnits, unitPrice, totalPrice) VALUES (?, 1, 1, 2, 12, 0)').run(stay);
   assert.deepEqual(find(soldFor(db, stay), 'option', 1).freeUnits, { granted: 3, left: 1 });
   order(db, stay, 'awaiting_payment', [{ kind: 'option', id: 1, quantity: 1 }]);
-  assert.deepEqual(find(soldFor(db, stay), 'option', 1).freeUnits, { granted: 3, left: 0 });
+  assert.deepEqual(find(soldFor(db, stay), 'option', 1).freeUnits, { granted: 3, left: 1 }, 'an unpaid card order reserves nothing');
 });
 
 test('rule 25: the grant the stay was sold with wins over today’s catalogue', () => {
@@ -155,7 +154,7 @@ test('rule 25: the grant the stay was sold with wins over today’s catalogue', 
   assert.deepEqual(find(soldFor(db, stay), 'option', 1).freeUnits, { granted: 1, left: 1 });
 });
 
-test('rule 25: free minutes left after a session already on the fiche, then after a previous order', () => {
+test('rule 25: free minutes left after a session already on the fiche, then not after an unpaid card order', () => {
   const db = freshDb();
   const stay = addStay(db);
   addResource(db, { id: 6, name: 'Bain nordique', freeMinutes: { 1: 90 } });
@@ -165,7 +164,7 @@ test('rule 25: free minutes left after a session already on the fiche, then afte
     .run(stay, JSON.stringify([{ date: '2099-07-06', start: '18:00', end: '18:30' }]));
   assert.deepEqual(find(soldFor(db, stay), 'resource', 6).freeMinutes, { granted: 90, left: 60 });
   order(db, stay, 'awaiting_payment', [{ kind: 'resource', id: 6, sessions: [{ date: '2099-07-07', start: '20:00', end: '21:00' }] }]);
-  assert.deepEqual(find(soldFor(db, stay), 'resource', 6).freeMinutes, { granted: 90, left: 0 });
+  assert.deepEqual(find(soldFor(db, stay), 'resource', 6).freeMinutes, { granted: 90, left: 60 }, 'an unpaid card order reserves nothing');
 });
 
 test('rule 25: an order already on the fiche is not counted twice, a dead one not at all', () => {
@@ -234,7 +233,7 @@ test('rule 25: a 0 € item is limited per stay to its maxQuantity, across the o
   order(db, stay, 'expired', [{ kind: 'option', id: 1, quantity: 1 }]);
   assert.equal(find(soldFor(db, stay), 'option', 1).includedLeft, 1);
   order(db, stay, 'awaiting_payment', [{ kind: 'option', id: 1, quantity: 5 }]);
-  assert.equal(find(soldFor(db, stay), 'option', 1).includedLeft, 0);
+  assert.equal(find(soldFor(db, stay), 'option', 1).includedLeft, 1, 'an unpaid card order counts for nothing');
   assert.equal(find(soldFor(db, stay), 'option', 2).includedLeft, null, 'a paid item has no allowance');
 });
 

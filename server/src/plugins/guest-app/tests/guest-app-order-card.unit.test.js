@@ -150,18 +150,12 @@ withCard('rule 33: « Payer maintenant » is refused while no card provider is c
   assert.equal(res.body.error.code, 'CARD_UNAVAILABLE');
 });
 
-withCard('rule 35: while awaiting payment the order holds its bath slot — another stay is refused it, and gets it once the order expires', async ({ call, api, clock }) => {
+withCard('rule 35 (reading of 2026-11-13): while awaiting payment the order holds no bath slot — another stay is offered it', async ({ call }) => {
   const res = await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'resource', id: BATH, sessions: [SLOT] }], payment: 'card' });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const other = seedStay({ propertyId: 2 });
   const neighbour = await openOrdering(other, { propertyId: 2 });
   try {
-    neighbour.clock.now = clock.now;
-    const held = await neighbour.call('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'resource', id: BATH, sessions: [SLOT] }] });
-    assert.equal(held.body.data.lines[0].sessions[0].reason, 'taken', JSON.stringify(held.body));
-    clock.now = new Date(clock.now.getTime() + 31 * 60 * 1000);
-    api.expireOrders();
-    neighbour.clock.now = clock.now;
     const free = await neighbour.call('POST', '/public/v1/guest/orders/quote', { lines: [{ kind: 'resource', id: BATH, sessions: [SLOT] }] });
     assert.equal(free.body.data.lines[0].unavailable, undefined, JSON.stringify(free.body));
   } finally {
@@ -194,7 +188,7 @@ withCard('rule 36: paid late on a slot taken meanwhile → paid_conflict, nothin
   assert.ok(pushes.some((p) => /à rembourser/.test(p.payload.body)), 'rule 36: the operator is pushed');
 }, { skip: !hasHourly });
 
-withCard('rule 35: the fiche of another stay refuses a slot a card order awaiting payment holds, as the planning shows it', async ({ call }) => {
+withCard('rule 35 (reading of 2026-11-13): the fiche of another stay is not refused a slot a card order awaiting payment would take', async ({ call }) => {
   const controller = require('../../../controllers/reservationsController');
   const reservationsModel = require('../../../models/reservationsModel');
   const { toUpdateBody } = require('../../../utils/reservationUpdateBody');
@@ -203,7 +197,5 @@ withCard('rule 35: the fiche of another stay refuses a slot a card order awaitin
   const other = seedStay({ propertyId: 2 });
   const body = toUpdateBody(reservationsModel.getByIdWithDetails(other));
   body.resources.push({ resourceId: BATH, quantity: 1, offered: false, inComplement: 0, sessions: [held] });
-  const saved = controller.performUpdate(other, body);
-  assert.equal(saved.status, 409, JSON.stringify(saved.body));
-  assert.equal(saved.body.code, 'RESOURCE_SLOT_TAKEN');
+  assert.equal(controller.performUpdate(other, body).status, 200);
 }, { skip: !hasHourly });

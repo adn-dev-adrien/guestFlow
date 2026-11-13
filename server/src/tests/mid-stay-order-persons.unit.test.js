@@ -2,7 +2,7 @@
 // — the core commit refuses an order asking more persons than the stay can still be served: the engine serves a
 // per-person line at most max(1, party, capacity) persons, so the persons above it were written and never billed (the
 // auditor's core probe: a second order of 5 billed 30 €, a third 0 €). Refused by `priceOrder` and `commitOrder` alike,
-// the pending orders' persons counted first; nothing written. The boot schema and stays around today.
+// nothing written. The boot schema and stays around today.
 process.env.DB_PATH = ':memory:';
 
 const test = require('node:test');
@@ -58,11 +58,8 @@ test('rule 47 reading: a per-person order beyond max(party, capacity) is refused
   assert.equal(priceOrder(id, persons(1)).body.left, 0);
 });
 
-test('rule 47 reading: the pending orders’ persons are served first; other price types are not judged', () => {
+test('rule 47 reading: other price types are not judged', () => {
   const id = seedStay();
-  assert.equal(priceOrder(id, persons(4), { pending: persons(4) }).total, 40);
-  const over = priceOrder(id, persons(5), { pending: persons(4) });
-  assert.equal(over.status, 409);
-  assert.equal(over.body.left, 4);
+  assert.equal(priceOrder(id, persons(4)).total, 40);
   assert.equal(priceOrder(id, [{ kind: 'option', id: 302, quantity: 30 }]).status, 200, 'a unit item has no persons');
 });

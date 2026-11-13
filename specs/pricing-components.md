@@ -448,14 +448,15 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
 26. **Free allowances are consumed by a line and stay with it** (ALLOWANCES unit, rule 41). The free bath
     hour, free units (« 2 offerts ») and included hours are a ledger per stay; a line records the allowance
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
-    re-prices another standing line (D5). A pending card order reserves its allowance at quote time
-    (`deferredCents`/`PRICE_ROSE` disappear).
+    re-prices another standing line (D5). A pending card order reserves **nothing**
+    (reading of 2026-11-13, owner: an unpaid card order does not exist, guest-app rule 108; it first read « reserves its allowance at quote time »);
+    `deferredCents`/`PRICE_ROSE` disappear.
     > **Delivered by PR B** (pass 5; `pricing-allowance-ledger`): a catalogue option line stores `allowanceUsed` (`{ freeUnits, amount }`, NULL when it used none). A removed line gives its units back to
     > the pool for the next sale, and no standing line is re-priced (the lock, D5).
     > **Delivered by PR C** (pass 4, C27-C28): a line sold through `extraSale` stores what it consumed, **0 included** (`allowanceUsed = {freeUnits: 0, amount: 0}`),
     > so removing an earlier line — which gives its units back for FUTURE sales — never lets a standing line take them at the next save (D5,
-    > `guest-order-allowance-stays`). A card order awaiting its payment holds its allowance (the app takes no other order of the stay meanwhile) and a
-    > reader's quote prices after it (`pending`, rule 92); `deferredCents` and `PRICE_ROSE` are gone, a paid order that can no longer be honoured opens
+    > `guest-order-allowance-stays`). A card order awaiting its payment reserves nothing and no quote prices after it (the `pending` parameter was removed on
+    > 2026-11-13, guest-app rule 108); `deferredCents` and `PRICE_ROSE` are gone, a paid order that can no longer be honoured opens
     > an `orderConflict` obligation (rule 75, `guest-order-conflict-obligation`).
 
 ### 3.F Selling an extra — one service for every seller
@@ -489,7 +490,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > the check-in the money is the SAS's arrival complement, taken in one piece); a stay whose departure complement is collected refuses it,
     > 409 `STAY_SETTLED` « Séjour soldé : vente séparée ». The Qonto card link stays the online-payment plugin's (rule 29).
     > **Amended 2026-11-12 for PR C (owner Q-C3), the shop card path:** unlike the fiche and the SAS, a guest-app card order does **not** write a
-    > `due` line while the payment is pending. The order waits in `guest_orders` (`awaiting_payment`) and only reserves its allowance (rule 26);
+    > `due` line while the payment is pending. The order waits in `guest_orders` (`awaiting_payment`), reserving nothing and invisible to the staff (guest-app rule 108);
     > the paid effect writes the lines already settled, in one transaction (guest-app rule 35 as amended, rule 85).
 30. **Quote = commit.** `extraSale.quote(...)` runs the same pipeline without writing and returns what `sell`
     would write. A shop, SAS or fiche preview is a quote; a commit re-quotes inside the transaction and
@@ -802,7 +803,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
       transaction**, so a line is never written without its booking nor a booking without its line; cancelling
       the line, the order or the stay, a lapsed card hold and a refund call `release`.
     - The bath adapter (`hourly-resources/bathFulfilment.js`) wraps today's `resourceHolds` /
-      `resourceScheduler` registry slots; the guest-app pending card hold becomes its `hold`.
+      `resourceScheduler` registry slots; the guest app declares no hold for a card order awaiting payment (guest-app rule 108).
     - A fulfilment refusal at `confirm` aborts the sale (`SLOT_TAKEN`), it never leaves a paid line without a
       slot. Side effects that may fail without harm (e-mail, calendar, push) are not fulfilment: they are
       observers (rule 55).
@@ -810,7 +811,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > asked, a throwing adapter refuses with `FULFILMENT_FAILED`); a resource sold by the hour on a planning names `hourly-slot` (`config.fulfilment`); hourly-resources declares it
     > (`bathFulfilment.js`, over the scheduler's occupancy, which already counts the stays' sessions, the outside bookings and the `resourceHolds` of other plugins, the heat-up and the turnover).
     > `extraSale.quote` lists a slot that is not free in its `refusals`, `extraSale.sell` confirms the booking inside its transaction before the line is written and answers 409 `SLOT_TAKEN`
-    > (diff 10). **Pending** — PR C: the guest app's pending card hold becoming the adapter's `hold` (J-7 code, absent from this branch).
+    > (diff 10). **Settled 2026-11-13** — the guest app's pending card hold does not exist: an unpaid card order holds no slot (guest-app rule 108).
 50. **One settings interface (settings provider).** Every parameterised component exports `settingsSchema` =
     `[{ key, type, default, scope: 'global'|'property'|'article', validate }]` (the shape plugins already use
     for `SETTINGS`), and receives its values only through `SettingsProvider.for(componentId, scope)`, resolved
@@ -1749,8 +1750,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     article that has no such flag (rule 26 unchanged).
     A request for a resource with sessions may carry `placeOnHeld: true`: the sessions join the stay's line of that resource that holds hours
     not yet placed (`quantity` − the hours of its sessions) and sell nothing; with no such line the request is an ordinary sale. A sale
-    that waits for a card payment (guest-app rule 35 as amended) holds the allowance it was quoted with by the seller's serialisation (one
-    such sale at a time per stay) and `quote` accepts `pending` — the lines of that waiting order — to price a reader's view after it;
+    that waits for a card payment (guest-app rules 35, 108) reserves nothing: `quote` and `sell` price the stay as it is (the `pending` parameter was removed on 2026-11-13);
     `sell` takes `paid: { amountCents, … }` for a card sale paid before the arrival (rule 29 as amended): the lines are written already
     settled by one note, never above what was paid, 409 `PRICE_ROSE` when the price rose beyond the payment, and `orderRef`, `history`
     and `within` (called inside the transaction, after the write) for a seller that keeps its own row.

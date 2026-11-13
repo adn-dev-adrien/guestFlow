@@ -82,7 +82,7 @@ test('rule 55: a 0 € per-person item is refused beyond the persons too: it wou
   }, { propertyId: 2 });
 });
 
-test('rule 55: the persons of a card order awaiting its payment are taken; a card order beyond the persons mints no link', async () => {
+test('rule 55: the persons of a card order awaiting its payment are not taken (reading of 2026-11-13); a card order beyond the persons mints no link', async () => {
   const card = fakeProvider();
   const stay = seedStay({ propertyId: 1, adults: 2 });
   await withOrdering(stay, async ({ call }) => {
@@ -90,9 +90,8 @@ test('rule 55: the persons of a card order awaiting its payment are taken; a car
     assert.equal(pending.status, 200, JSON.stringify(pending.body));
     assert.equal(card.created.length, 1);
     const note = await call('POST', ORDERS, { ...perPerson(402, 3), payment: 'note' });
-    assert.equal(note.status, 409);
-    assert.equal(note.body.error.code, 'CARD_ORDER_PENDING', 'the persons the pending order holds are kept for it (pricing-components rule 26)');
-    assert.equal(optionLine(stay, 402), undefined, 'nothing on the fiche');
+    assert.equal(note.status, 200, JSON.stringify(note.body));
+    assert.equal(optionLine(stay, 402).cardPersons, 3, 'only the note order is on the fiche');
   }, { card });
   const other = seedStay({ propertyId: 1, adults: 2 });
   await withOrdering(other, async ({ call }) => {

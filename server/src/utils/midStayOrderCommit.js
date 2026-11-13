@@ -6,7 +6,7 @@
  * order's lines added to it, then `performUpdate`. The window, the arrival floors (`ARRIVAL_EXTRAS_FROZEN`), the
  * closed window (`MID_STAY_EXTRAS_CLOSED`), the session conflicts and the engine are the fiche's own.
  *
- *   priceOrder(reservationId, lines, { pending? }) → { status: 200, byKey, total } | { status, body }
+ *   priceOrder(reservationId, lines) → { status: 200, byKey, total } | { status, body }
  *   commitOrder(reservationId, { source, ref, history, lines, paid?, within? }) → { status: 200, byKey, total, settledCents } | { status, body }
  *
  * `lines` — the order's lines, already judged by the plugin (what is sold, the slots, the mornings):
@@ -16,9 +16,6 @@
  * `byKey` — what the order adds to the end-of-stay complement per line key (`opt:<id>`, `res:<id>`): the engine's
  * answer for the stay with the order minus its answer for the stay without it, so free units, free minutes, the
  * stay's price lock and per-lodging prices all apply as they do on the fiche. A 0 € line adds nothing.
- * `pending` — the lines of the caller's orders not on the fiche yet but already promised (a card order awaiting its
- * payment): they take their free units and minutes first, so the order is priced as the stay + pending + order minus
- * the stay + pending, and a later order never takes an allowance a pending one was quoted with.
  *
  * The caller names its order: `source` (its basket source, `[a-z][a-zA-Z0-9-]*`) and `ref` (its own id) mark the
  * settled note of a paid order; `history: { field, label, text }` is the stay's history entry, written in the
@@ -27,7 +24,7 @@
  * Persons (rule 47 reading of 2026-11-10, audit R36-M-H1): the engine serves a per-person line at most
  * max(1, party, the lodging's capacity) persons, so persons ordered beyond what is left would be delivered and never
  * billed. Such an order is refused before anything is priced: 409 `ORDER_PERSONS_EXCEEDED` with `{ key, left }` —
- * a per-person option whose persons (the stay's line, the pending orders and this one) exceed the ceiling, and a
+ * a per-person option whose persons (the stay's line and this one) exceed the ceiling, and a
  * breakfast asking more persons than its line already serves (that line keeps its persons, guest-app rule 27bis).
  *
  * `paid` — `{ amountCents, paidDate, reference }` for a card order: the order's sale is collected at once, as a
@@ -142,7 +139,7 @@ const servedBy = (line, body) => (line && line.cardPersons != null ? Number(line
 
 /**
  * Pure — the first order line asking more persons than the stay can still be served, `{ key, left }`, or null.
- * Read on the body BEFORE the line is merged, so the pending orders merged ahead of it count as served already.
+ * Read on the body BEFORE the line is merged.
  */
 function personsShortfall(body, lines, rows, maxGuests) {
   const ceiling = personsCeiling(body, maxGuests);
@@ -224,14 +221,13 @@ function perArticle(byKey, body) {
   return out;
 }
 
-/** Rule 24 — the order priced by the fiche's own engine, after the pending orders, nothing written. */
-function priceOrder(reservationId, lines, { pending = [] } = {}) {
+/** Rule 24 — the order priced by the fiche's own engine, nothing written. */
+function priceOrder(reservationId, lines) {
   const id = Number(reservationId);
   const stored = storedBody(id);
   if (!stored) return { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
-  const all = [...(pending || []), ...lines];
-  const rows = optionRows(database(), all);
-  const body = pending && pending.length ? mergeOrderLines(stored, pending, rows, numbered()) : stored;
+  const rows = optionRows(database(), lines);
+  const body = stored;
   const persons = personsRefusal(body, lines, rows);
   if (persons) return persons;
   const save = controller().performUpdate;
