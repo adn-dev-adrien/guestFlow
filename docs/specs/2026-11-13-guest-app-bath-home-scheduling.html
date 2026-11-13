@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Programmer le bain nordique depuis l'accueil de l'appli séjour</title>
+<style>
+  :root {
+    --paper:#F5F0E6; --card:#FDFAF3; --ink:#22271F; --soft:#5C6153; --sapin:#2E3B2A; --lichen:#5A6B48;
+    --ocre:#B87B2A; --ocreInk:#8A5816; --action:#9A6318; --line:#DCD4C2; --chip:#EDE5D4; --ok:#2F6A43; --okSoft:#E6EFE7;
+    --warn:#6F5112; --warnSoft:#F6EDD7; --bad:#A8433A; --badSoft:#F7E8E5;
+    --display: Georgia, 'Times New Roman', serif; --body: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.55 var(--body); -webkit-font-smoothing:antialiased; }
+  main { max-width:1120px; margin:0 auto; padding:48px 24px 96px; }
+  .eb { font-size:11.5px; letter-spacing:.32em; text-transform:uppercase; color:var(--ocreInk); margin:0 0 6px; font-weight:600; }
+  h1 { font:400 clamp(30px,4vw,44px)/1.08 var(--display); letter-spacing:-.01em; margin:0 0 14px; color:var(--sapin); }
+  h2 { font:400 26px/1.2 var(--display); color:var(--sapin); margin:56px 0 12px; }
+  h3 { font:600 16px/1.3 var(--body); margin:20px 0 6px; }
+  p.lead { font-size:18px; color:var(--soft); max-width:720px; margin:0; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:20px; }
+  @media (max-width:860px){ .grid2 { grid-template-columns:1fr; } }
+  .box { background:var(--card); border:1px solid var(--line); border-radius:4px; padding:18px 20px; }
+  .box p { margin:6px 0; }
+  ul.tight { margin:6px 0; padding-left:20px; } ul.tight li { margin:4px 0; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; background:var(--card); border:1px solid var(--line); }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); font-size:15px; vertical-align:top; }
+  @media (max-width:600px){ th, td { padding:8px 6px; font-size:13.5px; } td.num { white-space:normal; } }
+  th { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--soft); font-weight:600; }
+  td.num { text-align:right; white-space:nowrap; font-weight:600; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:13px; background:var(--chip); }
+  .pill.ok { background:var(--okSoft); color:var(--ok); } .pill.warn { background:var(--warnSoft); color:var(--warn); }
+
+  /* ---------- demo layout ---------- */
+  .demo { display:grid; grid-template-columns: 300px 1fr; gap:36px; align-items:start; margin-top:20px; }
+  @media (max-width:860px){ .demo { grid-template-columns:1fr; } .phone { height:720px; border-width:6px; border-radius:32px; } }
+  .controls .box { margin-bottom:14px; }
+  .controls label { display:flex; gap:10px; align-items:flex-start; padding:7px 0; cursor:pointer; font-size:15px; }
+  .controls input { margin-top:4px; accent-color: var(--action); }
+  .controls small { color:var(--soft); display:block; font-size:13px; }
+  .phone-wrap { display:flex; justify-content:center; }
+  .demo > * { min-width:0; }
+  .phone { width:390px; max-width:100%; height:780px; background:var(--paper); border:10px solid #1d211b; border-radius:44px; overflow:hidden; position:relative; box-shadow:0 30px 60px rgba(22,28,22,.25); }
+  .screen { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+  .screen::-webkit-scrollbar { display:none; }
+  .screen.enter { animation: rise 320ms cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:none; } }
+
+  /* ---------- app ---------- */
+  .hero { height:210px; background: linear-gradient(180deg, rgba(22,28,22,.15), rgba(22,28,22,.65)), radial-gradient(120% 90% at 30% 20%, #6d7f57 0%, #2E3B2A 60%, #1b2219 100%); color:#fff; padding:52px 20px 18px; display:flex; flex-direction:column; justify-content:flex-end; }
+  .hero .eb { color:#E8C286; }
+  .hero h4 { font:400 30px/1.1 var(--display); margin:0; }
+  .pad { padding:16px 18px; }
+  .stay { margin:-14px 18px 0; position:relative; background:var(--card); border:1px solid var(--line); border-radius:4px; padding:12px 14px; font-size:14px; }
+  .stay b { font-variant-numeric:tabular-nums; }
+  .stay span { color:var(--soft); display:block; font-size:13px; }
+  .bath { margin:14px 18px 0; border-radius:4px; overflow:hidden; color:#fff; background: linear-gradient(160deg, rgba(14,18,30,.2), rgba(14,18,30,.75)), radial-gradient(100% 120% at 80% 0%, #3d4a6b 0%, #1c2234 55%, #12151f 100%); padding:18px 16px 16px; }
+  .bath .eb { color:#E8C286; margin-bottom:4px; }
+  .bath h5 { font:400 23px/1.15 var(--display); margin:0 0 4px; }
+  .bath p { margin:0 0 12px; color:rgba(255,255,255,.82); font-size:14px; }
+  .bath ul { list-style:none; padding:0; margin:0 0 10px; font-variant-numeric:tabular-nums; }
+  .bath li { padding:6px 0; border-top:1px solid rgba(255,255,255,.15); font-size:14px; display:flex; justify-content:space-between; }
+  .bath li:first-child { border-top:0; }
+  .bath .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .btn { appearance:none; border:0; border-radius:2px; background:var(--action); color:#fff; font:600 15px var(--body); padding:12px 18px; min-height:44px; cursor:pointer; transition: transform 100ms ease-out, opacity 150ms; }
+  .btn:active { transform:scale(.97); }
+  .btn[disabled] { opacity:.45; cursor:not-allowed; transform:none; }
+  .btn.block { width:100%; }
+  .btn.ghost { background:transparent; color:#E8C286; padding:12px 0; }
+  .btn.text { background:transparent; color:var(--action); padding:8px 0; min-height:auto; }
+  .bath .btn { background:#E8C286; color:#161C16; }
+  .bath .row.two { display:grid; grid-template-columns:1fr; gap:8px; }
+  .bath .row.two .btn { width:100%; padding:12px 10px; }
+  .bath .btn.outline { background:transparent; color:#E8C286; box-shadow: inset 0 0 0 1px #E8C286; }
+  .tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:14px 18px 0; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:4px; height:72px; display:flex; align-items:flex-end; padding:8px; font-size:12.5px; color:var(--soft); }
+  .rowh { margin:22px 18px 8px; font:400 19px var(--display); color:var(--sapin); }
+  .strip { display:flex; gap:8px; margin:0 18px; }
+  .strip div { flex:1; height:96px; border-radius:4px; background:linear-gradient(180deg,#cfc6b0,#a99f86); }
+
+  .appbar { position:sticky; top:0; z-index:3; display:flex; align-items:center; gap:6px; padding:46px 10px 10px; background:rgba(245,240,230,.92); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%); }
+  .appbar button { width:44px; height:44px; border:0; background:transparent; font-size:26px; color:var(--sapin); cursor:pointer; }
+  .appbar b { font:400 21px var(--display); color:var(--sapin); }
+  .owned { display:inline-flex; gap:6px; flex-wrap:wrap; }
+  .chip-s { padding:4px 10px; border-radius:99px; font-size:13px; background:var(--okSoft); color:var(--ok); }
+  .chip-s.mut { background:var(--chip); color:var(--soft); }
+  .seg { display:grid; grid-template-columns:1fr 1fr; background:var(--chip); border-radius:10px; padding:3px; margin:14px 0 4px; position:relative; }
+  .seg .thumb { position:absolute; top:3px; bottom:3px; left:3px; width:calc(50% - 3px); background:var(--card); border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.12); transition: transform 300ms cubic-bezier(.3,.9,.3,1); }
+  .seg button { position:relative; z-index:1; border:0; background:transparent; font:600 14px var(--body); padding:9px 6px; min-height:40px; color:var(--soft); cursor:pointer; }
+  .seg button[aria-pressed="true"] { color:var(--ink); }
+  .seg-help { font-size:13px; color:var(--soft); margin:2px 0 0; min-height:20px; }
+  .days { display:flex; gap:8px; overflow-x:auto; margin:14px -18px 0; padding:0 18px 4px; scrollbar-width:none; }
+  .day { flex:0 0 auto; width:58px; border:1px solid var(--line); background:var(--card); border-radius:4px; padding:7px 0; text-align:center; font-size:12px; color:var(--soft); cursor:pointer; }
+  .day b { display:block; font:400 20px var(--display); color:var(--ink); }
+  .day[aria-pressed="true"] { border-color:var(--action); box-shadow: inset 0 0 0 1px var(--action); }
+  .day .dot { display:block; width:5px; height:5px; border-radius:99px; background:var(--action); margin:3px auto 0; visibility:hidden; }
+  .day.has .dot { visibility:visible; }
+  .slots { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px; }
+  .slot { border:1px solid var(--line); background:var(--card); border-radius:4px; padding:10px 10px; text-align:left; cursor:pointer; font:inherit; color:var(--ink); min-height:52px; transition: border-color 150ms, background 150ms; }
+  .slot b { display:block; font-size:15px; font-variant-numeric:tabular-nums; }
+  .slot span { font-size:12.5px; color:var(--soft); }
+  .slot.evening span::before { content:''; display:inline-block; width:6px; height:6px; border-radius:99px; background:var(--ocre); margin-right:5px; vertical-align:1px; }
+  .slot[aria-pressed="true"] { background:var(--warnSoft); border-color:var(--action); box-shadow: inset 0 0 0 1px var(--action); }
+  .slot.shake { animation: shake 340ms ease-in-out 2; }
+  @keyframes shake { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-5px);} 75%{transform:translateX(5px);} }
+  .counter { display:flex; justify-content:space-between; align-items:baseline; margin-top:16px; font-size:14px; }
+  .counter b { font-variant-numeric:tabular-nums; }
+  .refuse { background:var(--badSoft); color:var(--bad); border-radius:4px; padding:10px 12px; font-size:14px; margin-top:10px; }
+  .refuse button { border:0; background:transparent; color:var(--bad); font:700 14px var(--body); text-decoration:underline; padding:0; cursor:pointer; }
+  .stepper { display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:12px 0; margin-top:18px; }
+  .stepper small { display:block; color:var(--soft); font-size:12.5px; }
+  .stepper .ctl { display:flex; align-items:center; gap:4px; }
+  .stepper .ctl button { width:44px; height:44px; border:1px solid var(--line); background:var(--card); border-radius:99px; font-size:20px; color:var(--sapin); cursor:pointer; }
+  .stepper .ctl button[disabled] { opacity:.35; cursor:not-allowed; }
+  .stepper .ctl output { width:32px; text-align:center; font:600 18px var(--body); font-variant-numeric:tabular-nums; }
+  .quote { margin-top:14px; font-size:14px; font-variant-numeric:tabular-nums; }
+  .quote div { display:flex; justify-content:space-between; padding:5px 0; }
+  .quote .tot { border-top:1px solid var(--line); margin-top:4px; padding-top:9px; font-weight:700; font-size:15px; }
+  .quote small { color:var(--soft); font-size:11.5px; display:block; margin-top:6px; }
+  .cta { position:sticky; bottom:0; padding:12px 18px 26px; background:linear-gradient(180deg, rgba(245,240,230,0), var(--paper) 30%); }
+  .empty { margin-top:14px; padding:14px; border:1px dashed var(--line); border-radius:4px; font-size:14px; color:var(--soft); }
+  .empty button { margin-top:8px; }
+  .sheet-bg { position:absolute; inset:0; background:rgba(22,28,22,.4); z-index:5; animation: fade 200ms ease; }
+  .sheet { position:absolute; left:0; right:0; bottom:0; z-index:6; background:var(--card); border-radius:16px 16px 0 0; padding:10px 18px 28px; animation: up 320ms cubic-bezier(.2,.8,.2,1); }
+  .sheet .grab { width:36px; height:5px; border-radius:99px; background:var(--line); margin:0 auto 12px; }
+  .sheet h6 { font:400 21px var(--display); margin:0 0 10px; color:var(--sapin); }
+  .pay { display:flex; gap:10px; align-items:center; border:1px solid var(--line); border-radius:4px; padding:12px; margin-bottom:8px; cursor:pointer; font-size:15px; }
+  .pay[aria-checked="true"] { border-color:var(--action); box-shadow: inset 0 0 0 1px var(--action); }
+  .pay i { width:18px; height:18px; border-radius:99px; border:2px solid var(--ctl, #857D6B); flex:0 0 auto; }
+  .pay[aria-checked="true"] i { border-color:var(--action); background: radial-gradient(circle, var(--action) 45%, transparent 50%); }
+  .pay small { display:block; color:var(--soft); font-size:12.5px; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  @keyframes up { from{transform:translateY(100%)} to{transform:none} }
+  .done { text-align:center; padding:120px 28px 0; }
+  .done svg { width:72px; height:72px; }
+  .done svg path { stroke-dasharray:60; stroke-dashoffset:60; animation: draw 600ms 150ms ease-out forwards; }
+  @keyframes draw { to { stroke-dashoffset:0; } }
+  .done h6 { font:400 26px var(--display); color:var(--sapin); margin:14px 0 6px; }
+  .done ul { list-style:none; padding:0; margin:14px 0 24px; font-variant-numeric:tabular-nums; }
+  .done li { padding:6px 0; border-bottom:1px solid var(--line); }
+  .note { font-size:13px; color:var(--soft); margin-top:10px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:1ms !important; animation-iteration-count:1 !important; transition-duration:1ms !important; }
+    .slot.shake { animation:none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="eb">Spec · appli séjour · 13 nov. 2026 · approuvée</p>
+  <h1>Programmer le bain nordique depuis l'accueil</h1>
+  <p class="lead">Le client voit ses heures de bain, offertes ou réglées, dès l'accueil de l'appli. Il les place toutes à la suite ou les répartit sur le séjour, et peut ajouter des heures dans le même écran. Le prix affiché est celui du serveur, supplément du soir compris.</p>
+
+  <h2>Le constat</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>Ce que l'appli fait déjà</h3>
+      <ul class="tight">
+        <li>Elle vend des créneaux de bain depuis la boutique (puces de jours, créneaux libres, mention « tarif soirée »).</li>
+        <li>L'accueil affiche « Un bain nordique ce soir ? » seulement s'il reste un créneau libre le jour même. Cette carte vend, elle ne dit jamais ce que le client possède déjà.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Ce qui manque</h3>
+      <ul class="tight">
+        <li>L'heure offerte et les heures achetées avec le séjour ne peuvent être placées que par l'accueil, au sas d'arrivée.</li>
+        <li>Un client qui arrive tard ou veut s'organiser dès J-7 ne peut rien faire seul.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Ce qu'on propose — à manipuler</h2>
+  <p class="lead" style="font-size:16px">Choisissez un séjour, puis touchez la carte du bain dans le téléphone. Les montants viennent ici d'un petit simulateur ; dans l'appli, c'est le serveur qui les calcule. Grille des hébergés : 30 € l'heure en journée, 50 € à partir de 20 h.</p>
+  <div class="demo">
+    <div class="controls">
+      <div class="box">
+        <p class="eb" style="margin-bottom:4px">Le séjour</p>
+        <label><input type="radio" name="sc" value="offered" checked><span>1 h offerte, rien d'autre<small>Le cas le plus courant</small></span></label>
+        <label><input type="radio" name="sc" value="mixed"><span>1 h offerte + 2 h réglées<small>Achetées sur le site avec le séjour</small></span></label>
+        <label><input type="radio" name="sc" value="placed"><span>Tout est programmé<small>La carte liste les séances</small></span></label>
+        <label><input type="radio" name="sc" value="none"><span>Rien à programmer<small>L'heure offerte est déjà prise</small></span></label>
+      </div>
+      <div class="box">
+        <p class="eb" style="margin-bottom:4px">Arbitrage Q2 — place de la carte</p>
+        <label><input type="radio" name="pos" value="top" checked><span>Sous la carte du séjour<small>Recommandé tant qu'il reste des heures à programmer</small></span></label>
+        <label><input type="radio" name="pos" value="below"><span>Sous les tuiles<small>La carte passe après Portail, Wi-Fi, Boutique et Livret</small></span></label>
+      </div>
+      <div class="box">
+        <p class="eb" style="margin-bottom:4px">À essayer</p>
+        <ul class="tight" style="font-size:14px">
+          <li>« 1 h offerte + 2 h réglées » : passer de « À la suite » à « Réparties ».</li>
+          <li>Prendre un créneau après 20 h : le supplément de 20 € apparaît.</li>
+          <li>En mode réparti, toucher un créneau de trop : il est refusé, avec deux façons d'en sortir.</li>
+          <li>Ajouter une heure avec le « + ».</li>
+        </ul>
+        <button class="btn text" id="reset" type="button">Remettre à zéro</button>
+      </div>
+    </div>
+    <div class="phone-wrap"><div class="phone" id="phone" aria-live="polite"></div></div>
+  </div>
+
+  <h2>Le prix</h2>
+  <p class="lead" style="font-size:16px">Une heure que le client possède déjà vaut le tarif de jour, où qu'elle soit placée. Placée le soir, elle doit donc l'écart de la grille des hébergés : 50 − 30 = <b>20 €</b>, soit le même écart que les 70 − 50 € de la grille des extérieurs. Les heures en plus se paient au tarif de leur tranche.</p>
+  <table style="margin-top:14px">
+    <thead><tr><th>Ce qu'il possède</th><th>Ce qu'il programme</th><th>Ce qu'il paie</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>
+      <tr><td>1 h offerte</td><td>sam. 16 h – 17 h</td><td>rien</td><td class="num">0 €</td></tr>
+      <tr><td>1 h offerte</td><td>sam. 20 h – 21 h</td><td>supplément soirée</td><td class="num">20 €</td></tr>
+      <tr><td>1 h offerte + 2 h réglées</td><td>à la suite, 18 h – 21 h</td><td>supplément soirée sur 20 h – 21 h</td><td class="num">20 €</td></tr>
+      <tr><td>1 h offerte</td><td>+ 1 h en plus, à la suite, 19 h – 21 h</td><td>une heure à 30 € et une à 50 €, moins l'heure offerte (30 €)</td><td class="num">50 €</td></tr>
+      <tr><td>2 h réglées, vendues sur un créneau du soir</td><td>sam. 20 h – 22 h</td><td>rien : la vente a déjà encaissé le soir</td><td class="num">0 €</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Le total ne dépend pas de l'heure du créneau sur laquelle tombe l'heure offerte : le serveur compte toute heure possédée au tarif de jour, puis facture les créneaux placés selon leur tranche.</p>
+
+  <h2>Ce qu'on ne fait pas</h2>
+  <div class="box">
+    <ul class="tight">
+      <li>Pas d'achat d'heures sans créneau : une heure en plus s'achète toujours avec son créneau (tranché le 13/11).</li>
+      <li>Pas de déplacement ni d'annulation d'une séance depuis l'appli dans cette version (Q1) : la carte renvoie vers les contacts.</li>
+      <li>Ni la grille ni l'heure offerte ne changent. Les réservations des extérieurs restent dans le mini sas.</li>
+      <li>Rien ne change côté GuestFlow : les séances apparaissent au planning, sur la fiche et au sas comme aujourd'hui.</li>
+    </ul>
+  </div>
+
+  <h2>Le risque</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>Dépendance à la refonte des prix</h3>
+      <p>La fonctionnalité s'appuie sur PR C : heure offerte au tarif de jour, supplément du soir dans la ligne de la séance, réservation du créneau. Elle sort donc avec la refonte, en 4.2.0, et pas avant.</p>
+    </div>
+    <div class="box">
+      <h3>Placement et paiement dans un seul enregistrement</h3>
+      <p>Placement et paiement passent par un seul enregistrement, et le serveur rejuge chaque créneau. Si un créneau a été pris entre-temps, rien n'est écrit et l'appli propose les suivants. Un paiement par carte abandonné ne place rien.</p>
+    </div>
+  </div>
+
+  <h2>Arbitrages — tranchés le 13/11</h2>
+  <table>
+    <thead><tr><th>#</th><th>Question</th><th>Choix d'Adrien</th></tr></thead>
+    <tbody>
+      <tr><td>Q1</td><td>Le client peut-il déplacer ou annuler une séance depuis l'appli ?</td><td>Pas dans cette version : la carte renvoie vers les contacts. Une spec suivante pourra l'autoriser jusqu'au début de la chauffe.</td></tr>
+      <tr><td>Q2</td><td>Où placer la carte sur l'accueil ?</td><td>Sous la carte du séjour tant qu'il reste des heures à programmer, sous les tuiles ensuite. À essayer dans la maquette.</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Déjà tranché le 13/11 : construit sur la refonte · supplément calculé sur la grille des hébergés · répartition libre avec compteur · une heure en plus s'achète avec son créneau.</p>
+</main>
+
+<script>
+(() => {
+  const DAY = 30, EVE = 50, EVENING = 20, MAX_EXTRA = 4;
+  const DAYS = [
+    { date: '2026-11-14', wd: 'ven.', n: 14, label: 'ven. 14 nov.', from: 17, taken: [18] },
+    { date: '2026-11-15', wd: 'sam.', n: 15, label: 'sam. 15 nov.', from: 11, taken: [15, 20] },
+    { date: '2026-11-16', wd: 'dim.', n: 16, label: 'dim. 16 nov.', from: 11, taken: [11, 19] },
+  ];
+  const SCENARIOS = {
+    offered: { offered: 1, prepaid: 0, upcoming: [] },
+    mixed: { offered: 1, prepaid: 2, upcoming: [] },
+    placed: { offered: 0, prepaid: 0, upcoming: [{ date: '2026-11-15', h: 18 }, { date: '2026-11-16', h: 20 }] },
+    none: { offered: 0, prepaid: 0, upcoming: [] },
+  };
+  const hl = (h) => `${h} h`;
+  const eur = (n) => `${n.toFixed(2).replace('.', ',')} €`;
+  const eurShort = (n) => (Number.isInteger(n) ? `${n} €` : eur(n));
+  const isEve = (h) => h >= EVENING;
+  const dayOf = (date) => DAYS.find((d) => d.date === date);
+  const freeHours = (d, booked) => {
+    const out = [];
+    for (let h = d.from; h < 22; h += 1) if (!d.taken.includes(h) && !booked.some((b) => b.date === d.date && b.h === h)) out.push(h);
+    return out;
+  };
+
+  const phone = document.getElementById('phone');
+  let S;
+  function reset() {
+    const sc = SCENARIOS[document.querySelector('input[name=sc]:checked').value];
+    S = { owned: { offered: sc.offered, prepaid: sc.prepaid }, upcoming: sc.upcoming.slice(), view: 'home', mode: 'suite', day: null, picked: [], extra: 0, refused: null, sheet: false, pay: 'card', lastPlaced: [], blockStart: null };
+    render(true);
+  }
+  const ownedN = () => S.owned.offered + S.owned.prepaid;
+  const target = () => ownedN() + S.extra;
+
+  // ---------- simulated server quote ----------
+  function quote(sessions) {
+    const sorted = sessions.slice().sort((a, b) => Number(isEve(a.h)) - Number(isEve(b.h)) || a.date.localeCompare(b.date) || a.h - b.h);
+    const extras = S.extra; const ownedPlaced = Math.max(0, sorted.length - extras);
+    const lines = []; let total = 0; let offeredLeft = S.owned.offered;
+    sorted.forEach((s, i) => {
+      const when = `${dayOf(s.date).wd} ${dayOf(s.date).n} · ${hl(s.h)} – ${hl(s.h + 1)}`;
+      if (i < ownedPlaced) {
+        const kind = offeredLeft > 0 ? 'Heure offerte' : 'Heure réglée';
+        if (offeredLeft > 0) offeredLeft -= 1;
+        if (isEve(s.h)) { lines.push([`${kind} en soirée · ${when}`, 'Supplément soirée', EVE - DAY]); total += EVE - DAY; }
+        else lines.push([`${kind} · ${when}`, '', 0]);
+      } else {
+        const p = isEve(s.h) ? EVE : DAY; lines.push([`Heure en plus · ${when}`, '', p]); total += p;
+      }
+    });
+    return { lines, total };
+  }
+
+  // ---------- blocks (à la suite) ----------
+  function blocksOf(d, n) {
+    const free = freeHours(d, S.upcoming); const out = [];
+    for (const h of free) { let ok = true; for (let k = 1; k < n; k += 1) if (!free.includes(h + k)) ok = false; if (ok && h + n <= 22) out.push(h); }
+    return out;
+  }
+
+  function render(enter) {
+    const pos = document.querySelector('input[name=pos]:checked').value;
+    let html = '';
+    if (S.view === 'home') html = home(pos);
+    else if (S.view === 'plan') html = plan();
+    else html = done();
+    phone.innerHTML = `<div class="screen ${enter ? 'enter' : ''}" id="scr">${html}</div>${S.sheet ? paySheet() : ''}`;
+    bind();
+  }
+
+  function bathCard() {
+    const o = ownedN();
+    const upcoming = S.upcoming.slice().sort((a, b) => a.date.localeCompare(b.date) || a.h - b.h);
+    if (o > 0) {
+      const title = o === 1 && S.owned.offered === 1 ? '1 h offerte à programmer' : `${o} h à programmer`;
+      const parts = [];
+      if (S.owned.offered) parts.push(`${S.owned.offered} offerte`);
+      if (S.owned.prepaid) parts.push(`${S.owned.prepaid} réglée${S.owned.prepaid > 1 ? 's' : ''}`);
+      const detail = o > 1 ? `${parts.join(', ')} · à la suite ou réparties sur le séjour` : 'En journée, ou en soirée avec 20 € de supplément';
+      const list = upcoming.length ? `<ul>${upcoming.map((u) => `<li><span>${dayOf(u.date).label}</span><b>${hl(u.h)} – ${hl(u.h + 1)}</b></li>`).join('')}</ul>` : '';
+      return `<section class="bath"><p class="eb">Bien-être</p><h5>${title}</h5><p>${detail}</p>${list}<div class="row"><button class="btn" data-go="plan">Programmer</button></div></section>`;
+    }
+    if (upcoming.length) {
+      return `<section class="bath"><p class="eb">Bien-être</p><h5>Vos séances</h5><ul>${upcoming.map((u) => `<li><span>${dayOf(u.date).label}</span><b>${hl(u.h)} – ${hl(u.h + 1)}</b></li>`).join('')}</ul><div class="row two"><button class="btn" data-go="add">Ajouter une heure</button><button class="btn outline" data-go="contact">Changer une séance</button></div></section>`;
+    }
+    return `<section class="bath"><p class="eb">Bien-être</p><h5>Un bain nordique pendant le séjour ?</h5><p>30 € l'heure · 50 € en soirée</p><div class="row"><button class="btn" data-go="add">Réserver</button></div></section>`;
+  }
+
+  function home(pos) {
+    const tiles = `<div class="tiles"><div class="tile">Portail</div><div class="tile">Wi-Fi</div><div class="tile">Boutique</div><div class="tile">Livret</div></div>`;
+    const card = bathCard();
+    const top = pos === 'top' ? card + tiles : tiles + card;
+    return `<header class="hero"><p class="eb">Domaine Solio · La Granja</p><h4>Bonjour Claire</h4></header>
+      <div class="stay"><b>ven. 14 → lun. 17 nov.</b><span>3 nuits · 4 personnes · Arrivée aujourd'hui à partir de 16 h</span></div>
+      ${top}<div class="rowh">Le livret</div><div class="strip"><div></div><div></div><div></div></div><div style="height:30px"></div>`;
+  }
+
+  function plan() {
+    const o = ownedN(); const n = target();
+    const ownedChips = [];
+    if (S.owned.offered) ownedChips.push(`<span class="chip-s">${S.owned.offered} h offerte</span>`);
+    if (S.owned.prepaid) ownedChips.push(`<span class="chip-s">${S.owned.prepaid} h réglée${S.owned.prepaid > 1 ? 's' : ''}</span>`);
+    if (!o) ownedChips.push('<span class="chip-s mut">Aucune heure à programmer</span>');
+    const showSeg = n >= 2;
+    const mode = showSeg ? S.mode : 'spread';
+    const seg = showSeg ? `<div class="seg" role="group" aria-label="Mode"><span class="thumb" style="transform:translateX(${mode === 'suite' ? 0 : '100%'})"></span><button data-mode="suite" aria-pressed="${mode === 'suite'}">À la suite</button><button data-mode="spread" aria-pressed="${mode === 'spread'}">Réparties</button></div>
+      <p class="seg-help">${mode === 'suite' ? `Une séance de ${n} h le même jour.` : `${n} séances d'1 h, sur les jours de votre choix.`}</p>` : '';
+    let body = '';
+    let sessions = [];
+    if (mode === 'suite') {
+      const days = DAYS.map((d) => ({ d, starts: blocksOf(d, n) })).filter((x) => x.starts.length);
+      if (!days.length) {
+        body = `<div class="empty">Aucun jour n'a ${n} h libres d'affilée.<br><button class="btn text" data-mode="spread">Les répartir sur le séjour</button></div>`;
+      } else {
+        const cur = days.find((x) => x.d.date === S.day) || days[0];
+        S.day = cur.d.date;
+        body = `<div class="days" role="group" aria-label="Jour">${days.map((x) => `<button class="day" data-day="${x.d.date}" aria-pressed="${x.d.date === cur.d.date}">${x.d.wd}<b>${x.d.n}</b></button>`).join('')}</div>
+          <div class="slots">${cur.starts.map((h) => { const ev = Array.from({ length: n }, (_, k) => h + k).filter(isEve).length; const sel = S.blockStart && S.blockStart.date === cur.d.date && S.blockStart.h === h;
+            return `<button class="slot ${ev ? 'evening' : ''}" data-block="${h}" aria-pressed="${sel}"><b>${hl(h)} – ${hl(h + n)}</b><span>${ev ? `dont ${ev} h en soirée` : 'en journée'}</span></button>`; }).join('')}</div>`;
+        if (S.blockStart) sessions = Array.from({ length: n }, (_, k) => ({ date: S.blockStart.date, h: S.blockStart.h + k }));
+      }
+    } else {
+      const cur = DAYS.find((d) => d.date === S.day) || DAYS[0];
+      S.day = cur.date;
+      const free = freeHours(cur, S.upcoming);
+      body = `<div class="days" role="group" aria-label="Jour">${DAYS.map((d) => `<button class="day ${S.picked.some((p) => p.date === d.date) ? 'has' : ''}" data-day="${d.date}" aria-pressed="${d.date === cur.date}">${d.wd}<b>${d.n}</b><span class="dot"></span></button>`).join('')}</div>
+        <div class="slots">${free.map((h) => { const sel = S.picked.some((p) => p.date === cur.date && p.h === h); const shake = S.refused && S.refused.date === cur.date && S.refused.h === h;
+          return `<button class="slot ${isEve(h) ? 'evening' : ''} ${shake ? 'shake' : ''}" data-slot="${h}" aria-pressed="${sel}"><b>${hl(h)} – ${hl(h + 1)}</b><span>${isEve(h) ? 'tarif soirée' : 'journée'}</span></button>`; }).join('')}</div>
+        <div class="counter"><span>Séances choisies</span><b>${S.picked.length} sur ${n} placée${S.picked.length > 1 ? 's' : ''}</b></div>
+        ${S.refused ? `<div class="refuse" role="alert">${n} sur ${n} déjà choisies — retirez-en une ou <button data-addtake="1">ajoutez une heure</button>.</div>` : ''}`;
+      sessions = S.picked;
+    }
+    const stepper = `<div class="stepper"><div><b>Heures en plus</b><small>30 € l'heure · 50 € en soirée</small></div><div class="ctl"><button data-extra="-1" aria-label="Retirer une heure" ${S.extra <= (o ? 0 : 1) ? 'disabled' : ''}>−</button><output>${S.extra}</output><button data-extra="1" aria-label="Ajouter une heure" ${S.extra >= MAX_EXTRA ? 'disabled' : ''}>+</button></div></div>`;
+    const q = sessions.length ? quote(sessions) : null;
+    const quoteHtml = q ? `<div class="quote">${q.lines.map(([l, sub, a]) => `<div><span>${l}${sub ? `<br><span style="color:var(--ocreInk);font-size:12.5px">${sub}</span>` : ''}</span><b>${a ? eurShort(a) : '0 €'}</b></div>`).join('')}<div class="tot"><span>À régler</span><span>${eur(q.total)}</span></div><small>Montant calculé par le serveur au moment de l'affichage.</small></div>` : '';
+    const ready = sessions.length >= Math.max(1, S.extra) && sessions.length <= n;
+    const label = !q ? 'Choisissez un créneau' : q.total > 0 ? `Confirmer · ${eur(q.total)}` : 'Confirmer mes séances';
+    S._sessions = sessions; S._total = q ? q.total : 0;
+    const partial = mode === 'spread' && q && sessions.length < n && sessions.length >= Math.max(1, S.extra) ? `<p class="note" style="margin:0 0 8px">${n - sessions.length} h resteront à programmer.</p>` : '';
+    return `<div class="appbar"><button data-go="home" aria-label="Retour">‹</button><b>Bain nordique</b></div>
+      <div class="pad" style="padding-top:4px"><p class="eb">Bien-être</p><div class="owned">${ownedChips.join('')}</div>${seg}${body}${stepper}${quoteHtml}</div>
+      <div class="cta">${partial}<button class="btn block" data-confirm="1" ${ready ? '' : 'disabled'}>${label}</button></div>`;
+  }
+
+  function paySheet() {
+    return `<div class="sheet-bg" data-close="1"></div><div class="sheet" role="dialog" aria-label="Paiement"><div class="grab"></div><h6>Régler ${eur(S._total)}</h6>
+      <div class="pay" role="radio" data-pay="card" aria-checked="${S.pay === 'card'}"><i></i><span>Payer par carte<small>Lien de paiement sécurisé</small></span></div>
+      <div class="pay" role="radio" data-pay="note" aria-checked="${S.pay === 'note'}"><i></i><span>Sur la note<small>Réglé avec le séjour</small></span></div>
+      <button class="btn block" data-commit="1" style="margin-top:8px">${S.pay === 'card' ? `Payer ${eur(S._total)}` : 'Mettre sur la note'}</button></div>`;
+  }
+
+  function done() {
+    return `<div class="done"><svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24" fill="none" stroke="#E8C286" stroke-width="2"/><path d="M15 27l7 7 15-16" fill="none" stroke="#B87B2A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h6>Séances programmées</h6><p class="note">Le bain sera chaud à l'heure.</p>
+      <ul>${S.lastPlaced.map((s) => `<li>${dayOf(s.date).label} · ${hl(s.h)} – ${hl(s.h + 1)}</li>`).join('')}</ul>
+      <button class="btn" data-go="home">Retour à l'accueil</button></div>`;
+  }
+
+  function commit() {
+    const placed = S._sessions.slice();
+    const ownedUsed = Math.max(0, placed.length - S.extra);
+    let fromOffered = Math.min(S.owned.offered, ownedUsed);
+    S.owned.offered -= fromOffered; S.owned.prepaid -= (ownedUsed - fromOffered);
+    S.upcoming.push(...placed); S.lastPlaced = placed.sort((a, b) => a.date.localeCompare(b.date) || a.h - b.h);
+    S.picked = []; S.extra = 0; S.blockStart = null; S.refused = null; S.sheet = false; S.view = 'done';
+    render(true);
+  }
+
+  function bind() {
+    phone.querySelectorAll('[data-go]').forEach((b) => b.addEventListener('click', () => {
+      const go = b.dataset.go;
+      if (go === 'contact') { alert('Ouvre la feuille Contacts de l’appli (Q1 : pas de déplacement depuis l’appli dans cette version).'); return; }
+      S.picked = []; S.blockStart = null; S.refused = null; S.day = null;
+      if (go === 'plan') { S.extra = 0; S.mode = 'suite'; S.view = 'plan'; }
+      else if (go === 'add') { S.extra = 1; S.mode = 'suite'; S.view = 'plan'; }
+      else S.view = 'home';
+      render(true);
+    }));
+    phone.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { S.mode = b.dataset.mode; S.picked = []; S.blockStart = null; S.refused = null; render(); }));
+    phone.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => { S.day = b.dataset.day; S.refused = null; render(); }));
+    phone.querySelectorAll('[data-block]').forEach((b) => b.addEventListener('click', () => {
+      const h = Number(b.dataset.block);
+      S.blockStart = S.blockStart && S.blockStart.date === S.day && S.blockStart.h === h ? null : { date: S.day, h };
+      render();
+    }));
+    phone.querySelectorAll('[data-slot]').forEach((b) => b.addEventListener('click', () => {
+      const h = Number(b.dataset.slot); const i = S.picked.findIndex((p) => p.date === S.day && p.h === h);
+      if (i >= 0) { S.picked.splice(i, 1); S.refused = null; }
+      else if (S.picked.length >= target()) { S.refused = { date: S.day, h }; }
+      else { S.picked.push({ date: S.day, h }); S.refused = null; }
+      keepScroll(render);
+    }));
+    phone.querySelectorAll('[data-addtake]').forEach((b) => b.addEventListener('click', () => {
+      if (S.extra < MAX_EXTRA && S.refused) { S.extra += 1; S.picked.push(S.refused); }
+      S.refused = null; keepScroll(render);
+    }));
+    phone.querySelectorAll('[data-extra]').forEach((b) => b.addEventListener('click', () => {
+      S.extra = Math.max(0, Math.min(MAX_EXTRA, S.extra + Number(b.dataset.extra)));
+      S.blockStart = null; S.refused = null;
+      if (S.picked.length > target()) S.picked = S.picked.slice(0, target());
+      keepScroll(render);
+    }));
+    phone.querySelectorAll('[data-confirm]').forEach((b) => b.addEventListener('click', () => { if (S._total > 0) { S.sheet = true; keepScroll(render); } else commit(); }));
+    phone.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { S.sheet = false; keepScroll(render); }));
+    phone.querySelectorAll('[data-pay]').forEach((b) => b.addEventListener('click', () => { S.pay = b.dataset.pay; keepScroll(render); }));
+    phone.querySelectorAll('[data-commit]').forEach((b) => b.addEventListener('click', commit));
+  }
+  function keepScroll(fn) { const y = document.getElementById('scr').scrollTop; fn(); document.getElementById('scr').scrollTop = y; }
+
+  document.querySelectorAll('input[name=sc]').forEach((i) => i.addEventListener('change', reset));
+  document.querySelectorAll('input[name=pos]').forEach((i) => i.addEventListener('change', () => { if (S.view === 'home') render(); }));
+  document.getElementById('reset').addEventListener('click', reset);
+  reset();
+})();
+</script>
+</body>
+</html>
