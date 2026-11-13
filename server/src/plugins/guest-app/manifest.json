@@ -56,7 +56,8 @@
       "Demande le SDK 2.26 de GuestFlow."
     ],
     "1.0.7": [
-      "Sur la fiche d’une réservation, la carte « Lien Mon séjour » indique pourquoi il n’y a pas de lien (séjour annulé, logement hors application, adresse de l’application manquante) au lieu de disparaître."
+      "Sur la fiche d’une réservation, la carte « Lien Mon séjour » indique pourquoi il n’y a pas de lien (séjour annulé, logement hors application, adresse de l’application manquante) au lieu de disparaître.",
+      "Demande le SDK 2.26 de GuestFlow."
     ]
   }
 }
