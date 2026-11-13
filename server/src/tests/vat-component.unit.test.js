@@ -158,7 +158,7 @@ test('rule 50 — settingsSchema declares a rate per (vatClass, customerContext)
   assert.equal(by[rateKey('options', 'hosted')].validate(null), null);
   assert.equal(by[rateKey('options', 'hosted')].validate(5.5), null);
   assert.notEqual(by[rateKey('options', 'hosted')].validate(120), null);
-  assert.equal(settingsSchema.length, 4 * 2);
+  assert.equal(settingsSchema.length, 6 * 2, 'the stay\'s classes and the catalogue\'s drinks and catering, each hosted and external');
 });
 
 test('rule 51 — the VAT step prints the rate each group was taxed at, not the regime rate', () => {

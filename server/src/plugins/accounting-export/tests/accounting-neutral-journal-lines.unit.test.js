@@ -1,9 +1,9 @@
 // specs/pricing-components.md rule 63 — the neutral role lines of a journal entry (C15): roles and cents, no account, no column.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const accountPlan = require('../plugins/accounting-export/accountPlan');
-const { create } = require('../utils/accounting/journalLines');
-const csvJournal = require('../utils/accounting/exporters/csvJournal').create({ accountPlan });
+const accountPlan = require('../accountPlan');
+const { create } = require('../../../utils/accounting/journalLines');
+const csvJournal = require('../../../utils/accounting/exporters/csvJournal').create({ accountPlan });
 
 const { entryLines, accountOf } = create({ accountPlan });
 

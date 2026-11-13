@@ -39,7 +39,8 @@ const RANK = {
   compose: 300,
 };
 const STEPS = ['loadStay', 'clock', 'nights', 'extraGuests', 'discountLevers', 'extras', 'midStay', 'platformGross', 'touristTax',
-  'platformPrice', 'discounts', 'vat', 'totals', 'inComplement', 'schedule', 'platformPayment', 'settlement', 'netTotals'];
+  'platformPrice', 'discounts', 'vat', 'totals', 'inComplement', 'schedule', 'platformPayment', 'settlement', 'netTotals',
+  'externalCatalogue', 'externalExtras', 'externalVat', 'externalTotals', 'externalPayment'];
 for (const step of STEPS) RANK[`steps/${step}`] = 100;
 
 const FOLDERS = ['articles', 'vat', 'refunds'];

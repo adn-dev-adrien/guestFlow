@@ -157,6 +157,11 @@ const EXEMPT = {
     'POST /api/users/:id/reset-password',
     'PUT /api/school-holidays/:id/unlock',
   ],
+  'Judged by its own suites: standalone-sale and standalone-sale-passage-client (every field of the sale is refused with a code), suggested-articles (the list, its bound and its references).': [
+    'POST /api/standalone-sales',
+    'POST /api/standalone-sales/quote',
+    'PUT /api/settings/suggested-articles/:kind/:id',
+  ],
   'Reads a body or delegates; not in the table yet, no defect known, no fix this round (2026-11-05).': [
     'PATCH /api/devis/:id/status',
     'POST /api/accounting/platform-accounts/refresh',

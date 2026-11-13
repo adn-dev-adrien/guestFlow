@@ -21,6 +21,7 @@
 const { toCents } = require('./pricing/money');
 const { externalSale } = require('./pricing/pipelines');
 const { allocateDocumentPayment } = require('./pricing/settlement');
+const { owedOnDocument } = require('./pricing/refunds/owed');
 const articles = require('./pricing/articles');
 const { buildDocumentDetail } = require('./saleDetail');
 const { validateSettlement, methodLabel, euros } = require('./paymentTenders');
@@ -159,7 +160,11 @@ function detailOf(ctx, sale, client) {
     },
     client,
     lines,
-    settlement: { ...ctx.settlement, lines: settled },
+    settlement: {
+      ...ctx.settlement,
+      lines: settled,
+      refundOwedCents: owedOnDocument({ dueCents: ctx.settlement.totalCents, paidCents: ctx.settlement.paidCents + ctx.settlement.refundedCents, refundedCents: ctx.settlement.refundedCents }).owedCents,
+    },
     vatByRate: ctx.vatByRate,
   });
   return { ...detail, history: sale ? sales.historyOf(sale.id) : [] };
