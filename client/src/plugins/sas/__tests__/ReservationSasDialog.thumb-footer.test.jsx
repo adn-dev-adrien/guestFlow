@@ -37,7 +37,9 @@ test('rules 1-2 — caution: « Reporter au départ » neutral on top, « Cautio
   await screen.findByText('Commencer');
   clickBtn('Commencer');
   await screen.findByRole('button', { name: 'Caution perçue' });
-  const [first, last] = footerButtons();
+  const [no, first, last] = footerButtons();
+  expect(no).toHaveTextContent('Non');
+  expect(no.className).toMatch(/colorError/);
   expect(first).toHaveTextContent('Reporter au départ');
   expect(last).toHaveTextContent('Caution perçue');
   expect(last.className).toMatch(/MuiButton-contained /);

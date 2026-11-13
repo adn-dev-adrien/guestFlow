@@ -1,1 +1,0 @@
-- **Suivi financier**: the banner is a light card; « revenu moyen / nuit » and RevPAR read the revenue of the period's nights (tourist tax excluded); the tile « Encaissé » is renamed « Déjà payé ». Suivi financier refuses a repeated or nested `fiscalYear` (`UNKNOWN_EXERCISE`); a single unusable value still reads the current exercise. The home no longer shows the three KPI tiles.

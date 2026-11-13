@@ -254,16 +254,16 @@ test('rule 67 — every row source says what its id really names and links where
   const rows = Object.fromEntries(owedDeactivations(ctx.links, { active: () => null, declared: () => null }, NOW).links.map((l) => [l.id, l]));
   const of = (key) => ({ label: rows[ids[key]].stayLabel, url: rows[ids[key]].stayUrl });
 
-  assert.deepEqual(of('live'), { label: 'Séjour 202610001', url: `/reservations/${live}` });
-  assert.deepEqual(of('cancelled'), { label: 'Séjour 202610002', url: `/reservations/${cancelled}` });
-  assert.deepEqual(of('setAside'), { label: 'Séjour 202610003', url: `/reservations/${setAside}` });
-  assert.deepEqual(of('plainLive'), { label: `Séjour n° ${plainLive}`, url: `/reservations/${plainLive}` });
+  assert.deepEqual(of('live'), { label: 'Fiche n° 202610001', url: `/reservations/${live}` });
+  assert.deepEqual(of('cancelled'), { label: 'Fiche n° 202610002', url: `/reservations/${cancelled}` });
+  assert.deepEqual(of('setAside'), { label: 'Fiche n° 202610003', url: `/reservations/${setAside}` });
+  assert.deepEqual(of('plainLive'), { label: `Fiche n° ${plainLive}`, url: `/reservations/${plainLive}` });
   assert.deepEqual(of('deleted'), { label: 'Fiche n° 987654', url: null }, 'a deleted row keeps its id, without a link');
-  assert.deepEqual(of('devisFree'), { label: 'Devis 2026-10-001', url: `/reservations/new?mode=devis&devisId=${devisFree}` });
-  assert.deepEqual(of('devisConverted'), { label: 'Devis 2026-08-001 · séjour 202610004', url: `/reservations/${becameStay}` }, 'a converted devis opens the stay it became, never its own row id');
-  assert.deepEqual(of('devisOrphaned'), { label: 'Devis 2026-09-001', url: null }, 'a converted devis whose stay is gone has nothing to open');
+  assert.deepEqual(of('devisFree'), { label: 'Fiche n° 2026-10-001', url: `/reservations/new?mode=devis&devisId=${devisFree}` });
+  assert.deepEqual(of('devisConverted'), { label: 'Fiche n° 202610004 · devis 2026-08-001', url: `/reservations/${becameStay}` }, 'a converted devis opens the stay it became, never its own row id');
+  assert.deepEqual(of('devisOrphaned'), { label: 'Fiche n° 2026-09-001', url: null }, 'a converted devis whose stay is gone has nothing to open');
   for (const link of Object.values(rows)) {
-    assert.ok(!/^Séjour n° \d+$/.test(link.stayLabel) || link.stayUrl === null || /^\/reservations\/\d+$/.test(link.stayUrl));
-    if (/^Devis /.test(link.stayLabel)) assert.ok(!link.stayUrl || link.stayUrl !== `/reservations/${link.reservationId}`, 'never the devis row id on /reservations/:id');
+    assert.ok(!/^Fiche n° \d+$/.test(link.stayLabel) || link.stayUrl === null || /^\/reservations\/\d+$/.test(link.stayUrl));
+    if (/ · devis /.test(link.stayLabel)) assert.ok(!link.stayUrl || link.stayUrl !== `/reservations/${link.reservationId}`, 'never the devis row id on /reservations/:id');
   }
 });

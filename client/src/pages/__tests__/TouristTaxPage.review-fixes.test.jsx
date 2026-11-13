@@ -33,10 +33,10 @@ test('rule 22 (V1-4): on a card, the tag wraps under the name rather than being 
   api.getTouristTaxReport.mockResolvedValue(reportOf([{ ...ROW, key: '9-platform', remittedBy: 'platform', platformLabel: label, declarable: false }]));
   renderTaxPage();
   const tag = await screen.findByText(`reversée par ${label}`);
-  const holder = tag.closest('.MuiChip-root').parentElement;
-  expect(holder).not.toHaveStyle({ maxWidth: '50%' });
-  expect(holder).toHaveStyle({ maxWidth: '100%', minWidth: '0px' });
-  expect(holder.parentElement).toHaveStyle({ flexWrap: 'wrap' });
+  // The list of rows (phone): the tag sits under the name and wraps whole, never cut.
+  const chip = tag.closest('.MuiChip-root');
+  expect(chip).toHaveStyle({ maxWidth: '100%' });
+  expect(tag).toHaveStyle({ whiteSpace: 'normal' });
 });
 
 test('rule 34: the register marks the nights outside the window and says why, once', async () => {

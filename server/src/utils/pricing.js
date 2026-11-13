@@ -1553,10 +1553,9 @@ function calculateReservationQuote({
   // specs/defer-arrival-complement-to-checkout.md §3.3 rule 16 — the operator moved the arrival
   // complement to the door. Files it under « fin de séjour » in the split even before the stay starts.
   complementDeferredToCheckout = false,
-  // Whether the arrival complement is collected, FOR THE SPLIT ONLY. `complementPaid` cannot serve
-  // here: the live-preview handler deliberately omits it (passing it would freeze the amount), so the
-  // preview would file a collected complement under « fin de séjour ». The save passes the operator's
-  // intent via `complementPaid`, which wins; the preview falls back to this stored value.
+  // Whether the arrival complement is collected, FOR THE SPLIT ONLY. The live preview of a stay whose arrival complement is
+  // already collected now passes `complementPaid` and the collected `complementAmount` like the save does (frozen: what is
+  // added afterwards reads in the end-of-stay complement); this value is the fallback for a caller that passes neither.
   complementCollected,
   // specs/payment-schedule-and-cancellation.md §3.1 — the day the stay was BOOKED (the reservation's
   // `createdAt`, or today for a creation). The engine has no clock, so the caller injects it: it
