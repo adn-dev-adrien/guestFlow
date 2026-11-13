@@ -32,6 +32,7 @@ test('a marked check-in or a completed arrival SAS starts the stay early', () =>
 test('a check-in time written « 9:00 » or « 09h00 » is read; an unreadable one starts at 00:00', () => {
   assert.equal(hasStayStarted(row({ checkInTime: '9:00' }), TODAY, '08:59'), false);
   assert.equal(hasStayStarted(row({ checkInTime: '09h00' }), TODAY, '09:00'), true);
+  assert.equal(hasStayStarted(row({ checkInTime: '16h' }), TODAY, '15:59'), false);
   assert.equal(hasStayStarted(row({ checkInTime: 'soir' }), TODAY, '00:00'), true);
 });
 

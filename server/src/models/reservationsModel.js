@@ -2842,13 +2842,13 @@ function createReservationsModel(database) {
     // sasArrivalOrigin=1. Re-openable SAS: a re-commit REPLACES the SAS-origin complement lines
     // instead of appending (complementAmount adjusted by new − previous SAS sum), so it never
     // double-charges (specs/reopen-completed-sas.md §4). A paid complement stays frozen.
-    // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement so
-    // the departure SAS can recall it line-by-line.
     // Same itemisation from a reservation the caller already loaded (`getByIdWithDetails` shape).
     arrivalComplementDetailOf(reservation, options = {}) {
       return arrivalComplementDetailFromReservation(reservation, options);
     },
 
+    // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rule 6 — itemise the arrival complement so
+    // the departure SAS can recall it line-by-line.
     buildArrivalComplementDetail(reservationId, options = {}) {
       const r = model.getByIdWithDetails(reservationId);
       if (!r) return { amount: 0, paid: 0, detail: [] };
