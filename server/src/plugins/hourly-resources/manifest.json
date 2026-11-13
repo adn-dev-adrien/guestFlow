@@ -164,6 +164,7 @@
     "1.6.5": [
       "Une séance dont l'argent est sur une vente hors séjour du cœur n'est plus comptée deux fois dans le journal ni dans le lot de cartes.",
       "Les ressources à l'heure sont les contextes « Proposés à l'arrivée » des ventes hors séjour (Réglages → Articles).",
+      "L'heure offerte d'une ligne pas encore vendue vaut le tarif de jour partout : le supplément du soir de cette heure se facture à part (sas d'arrivée ou commande), jamais deux fois.",
       "Demande le SDK 2.30 de GuestFlow."
     ]
   }

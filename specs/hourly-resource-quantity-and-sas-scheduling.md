@@ -377,12 +377,16 @@ a placed block can be removed or moved. The dialog also clears its blocks when i
     `totalPrice` 35 → 45); a free hour on the day band (`resource-booking-preview` rule 1) is unchanged. Outside bookings
     priced with a logement's free minutes follow the same reading.
 38. **An app order's evening supplement is not billed again.** An order of the guest app writes the evening supplement
-    of its sessions as its own charge on the fiche (`reservation_custom_options.orderChargeKey =
-    'guest-order:<id>:evening:<resourceId>'`, `guest-app.md` rule 83), computed by the scheduler's
-    `orderSupplement({ stay, sessions, lineGain })` with the same arithmetic as rule 30 (the evening difference of those
-    sessions minus what the order's line gain already bills above the day rate). The arrival commit's recompute (rule
-    32) subtracts, per resource, what those charges already bill, never below 0: whether the SAS runs before or after the
-    order, or is re-opened, the same evening is billed once.
+    of its sessions as its own line of the stay, under the supplement's own words (« <resource> — supplément soirée », a
+    custom line tagged with its order: `reservation_custom_options.orderRef = 'order:<id>:<n>'`, `guest-app.md` rule 83;
+    pricing-components rule 90.3), computed by the scheduler's `orderSupplement({ resourceId, propertyId, sessions,
+    lineGain })` with the same arithmetic as rule 30 (the evening difference of those sessions minus what the order's line
+    gain already bills above the day rate). The arrival commit's recompute (rule 32, `storedSupplements`) subtracts, per
+    resource, what those tagged lines already bill — offered or not, a line the operator offered still covers its evening —
+    never below 0: whether the SAS runs before or after the order, or is re-opened, the same evening is billed once. A line
+    with no order tag is the operator's own and is not subtracted. _(The mechanism of this branch: the `orderChargeKey` column
+    the first draft named was never built; the order tag is the line's `orderRef`.)_
+    Tests: `hourly-order-supplement.unit.test.js`; rule 37's line side: `hourly-free-minutes-day-rate.unit.test.js`.
 
 ---
 

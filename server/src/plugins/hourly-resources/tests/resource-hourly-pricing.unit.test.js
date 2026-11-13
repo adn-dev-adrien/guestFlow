@@ -86,10 +86,11 @@ test('priceSessions: bands and the offered minutes of 19:00-21:00 on the guest g
   const grid = { dayRate: 25, eveningRate: 35, eveningStart: '19:00', slotMinutes: 30 };
   const out = priceSessions([{ date: '2026-07-10', start: '19:00', end: '21:00' }], grid, 60);
   assert.equal(out.grossPrice, 70);
-  assert.equal(out.totalPrice, 35);
+  // specs/hourly-resource-quantity-and-sas-scheduling.md rule 37 — the offered hour is worth the day rate even in the evening: 35 → 25, the total 35 → 45.
+  assert.equal(out.totalPrice, 45);
   assert.equal(out.freeMinutesApplied, 60);
   assert.equal(out.billedMinutes, 60);
-  assert.equal(out.freeValue, 35);
+  assert.equal(out.freeValue, 25);
   assert.deepEqual(out.bands, [{ band: 'evening', from: '19:00', to: '21:00', minutes: 120, rate: 35, amount: 70 }]);
 });
 

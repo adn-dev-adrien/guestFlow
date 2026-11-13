@@ -134,7 +134,7 @@ function isValidSession(session, cfg = {}) {
  *  - cfg: { dayRate, eveningRate, eveningStart, slotMinutes, openTime, closeTime, minMinutes }
  *  - freeMinutes: free allowance applied ONCE, to the earliest valid session's first minutes.
  * Returns { totalPrice, grossPrice, totalHours, billedHours, unitPrice, validSessions,
- * freeMinutesApplied, billedMinutes, freeValue, bands } — the last four let a screen show the offered
+ * freeMinutesApplied, billedMinutes, freeValue, freeSupplement, bands } — the last five let a screen show the offered
  * minutes and the per-band detail exactly as priced here.
  *
  * `totalHours` are the hours the guest actually gets (what the SAS has to place);
@@ -150,7 +150,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   if (valid.length === 0) {
     return {
       totalPrice: 0, grossPrice: 0, totalHours: 0, billedHours: 0, unitPrice: 0, validSessions: [],
-      freeMinutesApplied: 0, billedMinutes: 0, freeValue: 0, bands: [],
+      freeMinutesApplied: 0, billedMinutes: 0, freeValue: 0, freeSupplement: 0, bands: [],
     };
   }
 
@@ -162,12 +162,17 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
   const first = valid[0];
   const firstStart = toMinutes(first.start);
   const freeApplied = Math.min(free, toMinutes(first.end) - firstStart);
-  const freeValue = freeApplied > 0 ? priceMinutes(firstStart, firstStart + freeApplied, norm) : 0;
+  // Rule 37 — the free minutes are worth the DAY rate wherever they fall: an offered hour placed in the evening owes the evening supplement, as the arrival
+  // SAS bills it. `freeSupplement` is what the offered minutes would cost above the day rate (the evening supplement of the free window).
+  const dayOnly = { ...norm, eveningRate: norm.dayRate, eveningStart: Infinity };
+  const freeValue = freeApplied > 0 ? priceMinutes(firstStart, firstStart + freeApplied, dayOnly) : 0;
+  const freeSupplement = freeApplied > 0 ? Math.max(0, priceMinutes(firstStart, firstStart + freeApplied, norm) - freeValue) : 0;
 
   const billedMinutes = Math.max(0, totalMinutes - freeApplied);
   const billedHours = round2(billedMinutes / 60);
   const totalPrice = Math.max(0, round2(gross - freeValue));
-  const unitPrice = billedHours > 0 ? round2(totalPrice / billedHours) : 0;
+  // An offered evening hour bills no hour yet owes its supplement: that amount is the line's one unit, so a stored line replays to the same total.
+  const unitPrice = billedHours > 0 ? round2(totalPrice / billedHours) : totalPrice;
 
   return {
     totalPrice,
@@ -179,6 +184,7 @@ function priceSessions(sessions, cfg = {}, freeMinutes = 0) {
     freeMinutesApplied: freeApplied,
     billedMinutes,
     freeValue: round2(freeValue),
+    freeSupplement: round2(freeSupplement),
     bands: roundedBands(valid.flatMap((s) => bandsOf(toMinutes(s.start), toMinutes(s.end), norm)), round2(gross)),
   };
 }
