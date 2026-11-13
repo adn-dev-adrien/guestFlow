@@ -44,7 +44,7 @@ const {
 // The entry builders and the sale entries are the core's `AccountingOutput`; this model reads the stored data they need.
 const {
   buildEntry, buildInstallmentEntry, buildEndOfStayEntry, bookedShareOf, scaleEntry, addSaleLegs, saleEntries,
-} = createAccountingOutput({ accountPlan, entryVentilation: csvJournal.entryVentilation });
+} = createAccountingOutput({ accountPlan });
 const { DEFAULT_COMMISSION_ACCOUNT, PLATFORM_PENALTY_ACCOUNT } = accountPlan;
 
 // `settings` — the export's account and VAT settings (./settings), bound to `database` by default.

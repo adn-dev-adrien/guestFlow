@@ -4,8 +4,8 @@
  * made outside any stay. An exporter (`exporters/`) formats them; none recomputes a price or a VAT. Moved from the
  * accounting-export plugin, which keeps its routes, account plan, settings and read models (`accountingModel.js`).
  *
- * `create({ accountPlan, entryVentilation })` — the plugin's account plan (the numbers an entry credits and debits) and the
- * CSV journal's ventilation of one entry, which the books of a split stay close on.
+ * `create({ accountPlan })` — the plugin's account plan (the numbers an entry credits and debits). Every entry is read through its
+ * neutral role lines (`journalLines.entryLines`), which the books of a split stay close on.
  */
 
 const { taxShares } = require('../installmentPlan');
@@ -16,6 +16,7 @@ const { parseComplementAllocation } = require('../complementAllocation');
 const { isDirectChannel } = require('../platformNameFormat');
 const { settlementFigures, targetFigures, currentCentsOf } = require('../paymentTenders');
 const { netFirst } = require('../pricing/vat');
+const { create: createJournalLines } = require('./journalLines');
 const { isResourceKey } = require('../pricing/lineKeys');
 const {
   computeBucketTtcsFromContribs, computeTaxTtcForKind, soldeCaptureMatches, legacyGrossUp, parseComplementPaidSplit,
@@ -134,7 +135,8 @@ function journalEntries(params, accountingModel) {
     .sort((a, b) => String(a.paidDate || '').localeCompare(String(b.paidDate || '')));
 }
 
-function createAccountingOutput({ accountPlan, entryVentilation }) {
+function createAccountingOutput({ accountPlan }) {
+  const { entryLines, accountOf } = createJournalLines({ accountPlan });
   const {
     VAT_DEDUCTIBLE_COMMISSION_ACCOUNT, DISCOUNT_ACCOUNT, TIP_ACCOUNT, BUCKET_TO_ACCOUNT, vatAccountForRate,
   } = accountPlan;
@@ -276,9 +278,11 @@ function createAccountingOutput({ accountPlan, entryVentilation }) {
       leg.cents += cents;
       legs.set(account, leg);
     };
-    for (const line of entryVentilation(entry)) {
-      const sale = (line.role === 'revenue' && SALE_REVENUE_ACCOUNTS.has(line.account)) || line.role === 'vat' || line.role === 'touristTax';
-      if (sale) add(line.account, line.role, line.ratePercent, Math.round((line.credit - line.debit) * 100));
+    for (const line of entryLines(entry)) {
+      const kind = line.role.split(':')[0];
+      const account = accountOf(line, null);
+      const sale = (kind === 'revenue' && SALE_REVENUE_ACCOUNTS.has(account)) || kind === 'vat' || kind === 'touristTax';
+      if (sale) add(account, kind, kind === 'touristTax' ? null : line.vatRate, line.side === 'credit' ? line.amountCents : -line.amountCents);
     }
     const indemnityVat = entry.indemnity ? Math.round(Number(entry.indemnity.vat || 0) * 100) : 0;
     if (indemnityVat > 0) add(vatAccountForRate(entry.indemnity.ratePercent), 'vat', Number(entry.indemnity.ratePercent) || 0, indemnityVat);

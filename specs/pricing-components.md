@@ -999,10 +999,14 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > modules (`accountingOutput`, `legacyBucketSplit`, `refundJournal`, `csvJournal`, `salesJson`, `synthesisExporter`).
     > `accounting-output-replay` pins the CSV bytes, the sales JSON and the synthesis of every month of the golden database;
     > `accounting-legacy-bucket-split` and `pricing-refunds-journal` cover the units without the plugin.
-    > **Pending** — PR C: the neutral `JournalEntry` role shape and the read models fed with the sale lines and their VAT
-    > output (rule 61) and `storedStayPrice`: the entries keep today's shape (buckets, `taxTtc`, `commission`) until the
-    > line allocation of rule 51 lands, and `addSaleLegs` / `closeStayBooks` still read the CSV journal's ventilation of an
-    > entry.
+    > **Delivered by PR C** (C15, `accounting-neutral-journal-lines`): `utils/accounting/journalLines.js` decides every amount of an entry once and
+    > returns its neutral role lines `{ role, side, amountCents, vatRate?, vatCents?, account? }` (roles `customer`, `revenue:<class>`, `vat:<rate>`,
+    > `touristTax`, `commission`, `commissionVat`, `penalty`; `account` only when the entry itself pins one). The CSV journal maps those lines to its
+    > accounts and columns and no longer computes a split or a residue; `addSaleLegs` (and so `closeStayBooks`) reads the roles, not the CSV ventilation.
+    > Every month of the golden database stays byte-identical (`accounting-output-replay`). **Pending** — PR C: the read models fed with the sale lines and their
+    > VAT output (rule 61) and `storedStayPrice` instead of the stored buckets: the entries keep today's buckets, `taxTtc` and `commission` until the line
+    > allocation of rule 51 lands.
+
 64. **Today's accounting reads, and where each moves.**
 
     | Reader today | What it reads / recomputes | Moves to | PR | Proof |

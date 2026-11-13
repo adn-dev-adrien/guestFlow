@@ -1,0 +1,1 @@
+- **Comptabilité — lignes de journal neutres** (`specs/pricing-components.md` règle 63). Chaque écriture se lit désormais comme des lignes par rôle (client, produit, TVA, taxe de séjour, commission), calculées une seule fois ; le CSV, le JSON des ventes et la synthèse ne font que les mettre en forme. Aucun mois exporté ne change d'un octet.
