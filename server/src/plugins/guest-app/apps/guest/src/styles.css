@@ -332,6 +332,8 @@ summary::-webkit-details-marker{display:none}
 /* Wide layouts: tablet ≥ 900 and desktop ≥ 1200 get a navigation rail, two-pane booklet and shop,
    and centred dialogs instead of sheets (spec §6.6 Responsive). */
 .app.wide .shell{grid-template-columns:84px minmax(0,1fr)}
+/* The bare screens (entry, unknown code, lookup) have no rail: one column at every width, not the rail's 84 px. */
+.app.wide .shell.bare{grid-template-columns:minmax(0,1fr)}
 .app.wide .tabbar{display:none}
 .app.wide .rail{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 0;border-right:1px solid var(--line);background:var(--card);z-index:30}
 .app.wide .rail .mono{font:400 19px var(--display);color:var(--sapin);letter-spacing:.08em;margin-bottom:18px}
