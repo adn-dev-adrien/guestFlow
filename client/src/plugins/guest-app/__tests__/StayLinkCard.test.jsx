@@ -1,5 +1,5 @@
 // specs/guest-app.md rules 1, 9bis (c) — « Lien Mon séjour » on the fiche: the link, its QR, copy, regenerate after
-// a confirmation; nothing at all when the stay has no link to show.
+// a confirmation; the server's reason when the link is refused (409), nothing for a new or unknown stay.
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -34,8 +34,17 @@ test('rule 1: « Régénérer le lien » asks first, then shows the new link', a
   expect(await screen.findByText('https://sejour.example.test/s/BBBB')).toBeInTheDocument();
 });
 
-test('no link for this stay (cancelled, lodging off, no guest host) → no card', async () => {
-  guestAppApi.getStayLink.mockRejectedValue(Object.assign(new Error('x'), { status: 409 }));
+test('rule 9bis (c): a refused link keeps the card and states the server reason', async () => {
+  const reason = 'Ce logement n’est pas dans l’application clients.';
+  guestAppApi.getStayLink.mockRejectedValue(Object.assign(new Error(reason), { status: 409 }));
+  renderCard();
+  expect(await screen.findByText('Lien Mon séjour')).toBeInTheDocument();
+  expect(screen.getByText(reason)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Copier le lien' })).not.toBeInTheDocument();
+});
+
+test('an unknown stay (404) or a network failure → no card', async () => {
+  guestAppApi.getStayLink.mockRejectedValue(Object.assign(new Error('x'), { status: 404 }));
   const { container } = renderCard();
   await waitFor(() => expect(guestAppApi.getStayLink).toHaveBeenCalled());
   expect(container).toBeEmptyDOMElement();

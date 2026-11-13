@@ -3,8 +3,9 @@
  * guest app, its QR and how long it is valid, « Copier le lien » and « Régénérer le lien » (confirmed first — the old
  * link and every phone that opened it stop at once). The link is created by the server on first need.
  *
- * Renders nothing when the stay has no link to show (a new fiche, a cancelled stay, a lodging outside the app, no
- * guest host set: the server answers 404 / 409), rather than an empty frame on every fiche.
+ * When the server refuses the link (409: stay over or cancelled, lodging outside the app, no guest host set) the card
+ * stays and states the server's reason instead of vanishing. Nothing is rendered for a new fiche or an unknown
+ * stay (404 / any other failure).
  *
  * Props (slot `reservation.cards`): reservationId, cardSx, contentSx
  */
@@ -21,22 +22,36 @@ import { STAY_APP_TEXT } from './SasStayAppStep';
 export default function StayLinkCard({ reservationId, cardSx, contentSx }) {
   const { confirm } = useAppDialogs();
   const [link, setLink] = useState(null);
+  const [reason, setReason] = useState(null);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState(null);
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
+    setReason(null);
     if (!reservationId) { setLink(null); return; }
     try {
       setLink(await guestAppApi.getStayLink(reservationId));
-    } catch {
+    } catch (err) {
       setLink(null);
+      if (err.status === 409 && (err.message || err.error)) setReason(err.message || err.error);
     }
   }, [reservationId]);
 
   useEffect(() => { load(); }, [load]);
 
-  if (!link) return null;
+  if (!link && !reason) return null;
+
+  if (!link) {
+    return (
+      <Card variant="outlined" sx={cardSx}>
+        <CardContent sx={contentSx}>
+          <Typography variant="sectionHeader" sx={{ mb: 1 }}>Lien Mon séjour</Typography>
+          <Typography variant="body2" color="text.secondary">{reason}</Typography>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const copy = async () => {
     try {

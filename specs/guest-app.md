@@ -121,7 +121,9 @@ is pushed every order.
    e-mail address), `hasStayApp` true only for the app's own link. It is not a core variable (Adrien, 2026-11-09:
    the core keeps only generic extension points): while the plugin is inactive both are empty, so a template
    writes the app's sentence under `{{#if hasStayApp}}` and keeps its gate paragraph under `{{#if hasGateAccess}}`. (c) The fiche: « Lien Mon séjour »
-   (copy, regenerate) contributed to the reservation page.
+   (copy, regenerate) contributed to the reservation page. When the server refuses the link (409: stay over or
+   cancelled, lodging outside the app, app address not set) the card stays and states that reason in place of the
+   link (Adrien, 2026-11-13); a new fiche or an unknown stay shows no card.
 
 ### 3.B Home
 
@@ -1265,7 +1267,7 @@ le nom et le numéro. »
   reason, the stock group (follow, count, restock line, « Prévenir sous », « En rupture »)
 - [x] `GuestOrdersPage` (7), `PlanningOrderCard` (4) — rules 43-45: by delivery time, « Marquer livrée / retirée »,
   the push deep-link, only the latest read lands; the planning card and the day counter
-- [x] `StayLinkCard` (4), `StockLineWarning` (2), `SasStayAppStep.sas-portal` (7, moved from the SAS folder), the SAS's
+- [x] `StayLinkCard` (5), `StockLineWarning` (2), `SasStayAppStep.sas-portal` (7, moved from the SAS folder), the SAS's
   generic `ReservationSasDialog.portal-lead` (2) — rules 1, 9bis, 37quater
 - [x] `SettingsGuestAppSection` (6, rule 58: GuestFlow's own address said on the field), `itemDraft.unsold` (3), `roles.plugins` (Intégrations follows every plugin that
   contributes to it) — rules 22, 39, 47: the URL field's attributes through `slotProps`, the bound and lead time

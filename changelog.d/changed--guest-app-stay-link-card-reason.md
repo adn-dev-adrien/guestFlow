@@ -1,0 +1,1 @@
+- plugin:guest-app The reservation's « Lien Mon séjour » card no longer disappears silently when the stay has no link: it states why (stay over or cancelled, lodging outside the app, app address not set). Spec rule 9bis (c). +1 client test.
