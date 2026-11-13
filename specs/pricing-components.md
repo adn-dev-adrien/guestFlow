@@ -1674,6 +1674,13 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > to the arrival complement (`inComplement = 1`, `collectAt = 'arrival'`, source `sas`), set (never added) by every run and deleted at
     > 0 €; the session line is the resource's first line WITH hours. A collected complement keeps #1032's routing of the SAS's `evening:<id>`
     > line (its hold is per SAS key), and the legacy guard is unchanged. Proof: `sas-evening-component`.
+    > _Pass 3i, why 1's writers stay:_ an `extraSale` request writes a row the SAS cannot find again — no `sasArrivalOrigin`, no `sasLineKey`,
+    > source `fiche`, and on a started stay (every arrival SAS) no arrival routing (`withArrivalRouting` applies before the start only) — so a
+    > re-run would sell the same supplement a second time instead of replacing it; the sold options' card fields (`occurrences`, served
+    > persons, nights) are not request fields either. No writer moves at 0 diff until the request carries the SAS's identity and routing.
+    > _Pass 3i, why 2 is still open:_ measured on the prod copy of 2026-11-11, 10 stays store an end-of-stay detail, 1 of them with departure
+    > charges; the change needs, in one unit, the 19 files that read the detail and the 20 core files that read `reservation_custom_options`
+    > (each would see a departure line beside the detail that already carries it), with the accounting replay as proof. Not started in 3i.
     > **Pending** — PR C: 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
     > fields): they write the same rows today, and the engine reads them back; 2. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
     > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
