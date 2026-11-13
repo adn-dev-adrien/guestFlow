@@ -1,0 +1,1 @@
+- **Devis PDF — « Sous-total HT » agrees with the « Récapitulatif TVA »** (spec `pricing-components.md` rules 15 and 65): the sub-total is the recap's base total, the VAT being cut once per rate group instead of row by row (a cent could separate them).

@@ -303,6 +303,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > « Total HT », then one « TVA x % sur <base> » line per rate and **no** « Total TVA » line. The devis PDF prints a « Récapitulatif TVA » table (rate, net base, VAT, gross, then a
     > total row) under the totals, the same template for one rate or several, plus « La taxe de séjour n'est pas soumise à la TVA. » when the quote carries tourist tax; the « Sans TVA » devis keeps its
     > legal mention and prints no table. The table can push the payment terms of a one-page devis onto a second page. Golden `pdf/201` and `pdf/202` of `vat-regime-golden` move (C-E8); a PDF whose quote does not reconcile with its printed rows falls back to one row cut from those rows. Tests: `devis-pdf-vat-by-rate.unit.test.js`, `PricingSummary.vat-by-rate.test.jsx`.
+    > **Amended (CP2, slice d, rule 65):** « Sous-total HT » IS the base total of that table — the VAT is cut once per rate group, never again row by row (a sum of rows rounded one by one can be a cent away from the recap). When the quote does not reconcile, the one-row fallback is cut from the rows and the sub-total is that row's base. Test: `devis-pdf-subtotal-ht-agrees.unit.test.js`.
 16. **Discounts apply to nights and extras.** _(amended 2026-11-11, owner overrides the earlier default.)_
     A discount is `{ percent | amount | customPrice, target }` with `target ∈ nights | extras | all`:
     - `nights` — today's behaviour, bit for bit: `accommodationAdjusted = roundMoney(accommodationBase × (1 −

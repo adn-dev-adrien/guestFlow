@@ -859,7 +859,13 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
     totY += 16;
   }
 
-  if (!notSubject) drawTotalLine(L.subtotalHt, subtotalHt, false);
+  // Rule 65 — the VAT is cut once: « Sous-total HT » is the base total of the « Récapitulatif TVA » below it, never the sum of rows rounded one by one
+  // (that sum can differ from the recap by a cent).
+  const recapRows = notSubject ? [] : (quote && quoteReconciles
+    ? vatByRateOf(quote)
+    : vatByRateOfSingleRate({ regime: full.vatRegime, rate: vatRate, net: subtotalHt, vat: roundMoney(subtotalTtc - subtotalHt) }));
+  const recapBaseTotal = roundMoney(recapRows.reduce((total, row) => total + row.base, 0));
+  if (!notSubject) drawTotalLine(L.subtotalHt, recapRows.length > 0 ? recapBaseTotal : subtotalHt, false);
   drawTotalLine(notSubject ? L.subtotal : L.subtotalTtc, subtotalTtc, false);
   if (liveTaxTotal > 0) {
     drawTotalLine(L.touristTax, liveTaxTotal, false);
@@ -902,9 +908,6 @@ function renderDevisPdf(storedFull, storedSettings, quote, logoBytes) {
   // specs/pricing-components.md §3 rule 15 — « Récapitulatif TVA »: one row per rate, the same template for one rate or several.
   // A « Sans TVA » stay prints none: its legal mention above is the whole VAT statement.
   if (!notSubject) {
-    const recapRows = quote && quoteReconciles
-      ? vatByRateOf(quote)
-      : vatByRateOfSingleRate({ regime: full.vatRegime, rate: vatRate, net: subtotalHt, vat: roundMoney(subtotalTtc - subtotalHt) });
     if (recapRows.length > 0) {
       const RECAP_W = PAGE_W * 0.7;
       const cols = [0, 0.16, 0.46, 0.73].map((f) => LEFT + RECAP_W * f);
