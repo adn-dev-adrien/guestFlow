@@ -115,7 +115,7 @@ export default function PlanningResourceCard({ entry, reload, onOpenReservation 
     setDone(nextDone);
     try {
       await api.setPlanningResourceCardDone({
-        reservationId: item.reservationId, resourceId: item.resourceId, date: item.date, start: item.start, done: nextDone, kind: item.kind,
+        reservationId: item.reservationId, resourceId: item.resourceId, lineId: item.lineId ?? undefined, date: item.date, start: item.start, done: nextDone, kind: item.kind,
       });
       reload();
     } catch (e) {

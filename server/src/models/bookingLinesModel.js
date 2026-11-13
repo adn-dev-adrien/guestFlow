@@ -67,13 +67,25 @@ function createBookingLinesModel(database) {
   const carriedColumns = (table, present) => [...present].filter((name) => !WRITTEN[table].includes(name));
   // Rule 85: an article may be stored on several lines. `get(article)` hands out the carried columns of ONE stored line per call, in the
   // order the lines were numbered, so each line of a save takes the identity of a different stored line (never two the same `lineId`);
-  // `get(article, lineId)` asks for the line a posted line names. An article with one stored line answers once, as it always did.
+  // `get(article, lineId)` asks for the line a posted line names (a number no stored line has is a line appended by this save: nothing
+  // carried), a posted line that names none takes the first stored line that no other posted line names. An article with one stored
+  // line answers once, as it always did.
   class CarriedLines extends Map {
+    // The numbers a save names itself: an unnamed line never takes one of them.
+    reserve(lineIds) { this.named = new Set((lineIds || []).filter((id) => id != null).map(Number)); return this; }
+    // What a posted line is written with. A line the save appends (`newLine`, rule 85) takes the number it was priced under and nothing of any stored line.
+    forLine(article, line) {
+      return line.newLine && line.lineId != null ? { lineId: Number(line.lineId) } : (this.get(article, line.lineId) || {});
+    }
     get(article, lineId) {
       const queue = super.get(article);
       if (!queue || queue.length === 0) return undefined;
-      const at = lineId == null ? -1 : queue.findIndex((entry) => entry.lineId === Number(lineId));
-      return queue.splice(at >= 0 ? at : 0, 1)[0].columns;
+      if (lineId != null) {
+        const at = queue.findIndex((entry) => entry.lineId === Number(lineId));
+        return at >= 0 ? queue.splice(at, 1)[0].columns : undefined;
+      }
+      const at = queue.findIndex((entry) => !(this.named && this.named.has(entry.lineId)));
+      return at >= 0 ? queue.splice(at, 1)[0].columns : undefined;
     }
   }
   const carriedByArticle = (table, present, articleColumn, bookingId) => {
@@ -139,13 +151,13 @@ function createBookingLinesModel(database) {
     // `acompteContribTtc`/`soldeContribTtc` are owned by the payment-flip path (`updatePayment` →
     // `captureContribsOnFlip`); regular saves preserve whatever the engine returned. Lines in Complément
     // always get NULL contribs — they live 100 % in the Complément entry, never in Acompte/Solde.
-    insertOptions(bookingId, optionLines, sasOriginIds = [], carried = new Map()) {
+    insertOptions(bookingId, optionLines, sasOriginIds = [], carried = new CarriedLines()) {
       const sasOriginSet = new Set((sasOriginIds || []).map((id) => Number(id)));
       const internalLinenIds = internalLinenOptionIds();
       for (const opt of (optionLines || []).filter((line) => !line.isCustom && !internalLinenIds.has(Number(line.optionId)))) {
         const forced = opt.inComplement ? 1 : 0;
         insertOption({
-          ...(carried.get(Number(opt.optionId), opt.lineId) || {}),
+          ...carried.forLine(Number(opt.optionId), opt),
           reservationId: bookingId,
           optionId: opt.optionId,
           quantity: opt.quantity || 1,
@@ -179,7 +191,8 @@ function createBookingLinesModel(database) {
         sasOriginIds = database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
           .all(bookingId).map((r) => Number(r.optionId));
       }
-      const carried = carriedByArticle('reservation_options', OPTION_COLUMNS, 'optionId', bookingId);
+      const carried = carriedByArticle('reservation_options', OPTION_COLUMNS, 'optionId', bookingId)
+        .reserve((optionLines || []).filter((line) => !line.newLine).map((line) => line.lineId));
       database.prepare('DELETE FROM reservation_options WHERE reservationId = ?').run(bookingId);
       model.insertOptions(bookingId, optionLines, sasOriginIds, carried);
     },
@@ -248,8 +261,9 @@ function createBookingLinesModel(database) {
     // ── Resources ────────────────────────────────────────────────────────────────────────────────
     // Returns what the deleted lines carried (rule 79), by resource id: the caller hands it back to `insertResourceLine` for
     // each line it sells again.
-    deleteResources(bookingId) {
-      const carried = carriedByArticle('reservation_resources', RESOURCE_COLUMNS, 'resourceId', bookingId);
+    deleteResources(bookingId, postedLines = []) {
+      const carried = carriedByArticle('reservation_resources', RESOURCE_COLUMNS, 'resourceId', bookingId)
+        .reserve((postedLines || []).filter((line) => !line.newLine).map((line) => line.lineId));
       database.prepare('DELETE FROM reservation_resources WHERE reservationId = ?').run(bookingId);
       return carried;
     },
@@ -284,9 +298,9 @@ function createBookingLinesModel(database) {
     // The engine's `resourceLines` straight from a quote: each line already carries its unit price,
     // billed units and price type.
     replaceResources(bookingId, resourceLines) {
-      const carried = model.deleteResources(bookingId);
+      const carried = model.deleteResources(bookingId, resourceLines);
       for (const line of resourceLines || []) {
-        model.insertResourceLine(bookingId, line, Number(line.unitPrice || 0), Number(line.quantity || 1), line.priceType, carried.get(Number(line.resourceId), line.lineId));
+        model.insertResourceLine(bookingId, line, Number(line.unitPrice || 0), Number(line.quantity || 1), line.priceType, carried.forLine(Number(line.resourceId), line));
       }
     },
 
@@ -310,7 +324,7 @@ function createBookingLinesModel(database) {
     // and sessions included.
     copyLineGraph(fromId, toId) {
       model.replaceOptions(toId, database.prepare('SELECT * FROM reservation_options WHERE reservationId = ?').all(fromId)
-        .map((o) => ({
+        .map(({ lineId, ...o }) => ({
           ...o,
           cardOccurrences: parseJsonArray(o.cardOccurrences),
         })));

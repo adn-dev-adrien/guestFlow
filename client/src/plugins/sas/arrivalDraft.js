@@ -13,7 +13,7 @@
  *   pluginSteps       — the commit payload of the plugin steps that ran
  */
 
-const EXISTING_REF = /^(option|resource|custom|extraGuests):(\d+)$/;
+const EXISTING_REF = /^(option|resource|custom|extraGuests):(\d+)(?::(\d+))?$/;
 
 export default function buildArrivalDraft({
   activeKeys = [], missingBed = {}, keptLines = [], cleaningAdded, bathLinenAdded,
@@ -43,7 +43,7 @@ export default function buildArrivalDraft({
     offeredExtras: [...offered]
       .map((key) => EXISTING_REF.exec(String(key)))
       .filter(Boolean)
-      .map(([, kind, id]) => ({ kind, id: Number(id) })),
+      .map(([, kind, id, lineId]) => ({ kind, id: Number(id), ...(lineId ? { lineId: Number(lineId) } : {}) })),
     pluginSteps,
   };
 }

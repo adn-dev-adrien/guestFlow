@@ -708,6 +708,19 @@ function createReservationsModel(database) {
     } catch { return false; }
   })();
 
+  // Rule 85 — « Offrir » names ONE line. The first line of an article keeps the ref `{ kind, id }` of every line stored before a second sale
+  // existed; a later line of the article is `{ kind, id, lineId }`, and its key in a recap (`option:5:12`) says so.
+  const firstLineIds = (table, articleColumn, reservationId) => {
+    const first = new Map();
+    if (!hasLineId(database, table)) return first;
+    for (const row of database.prepare(`SELECT ${articleColumn} AS article, MIN(lineId) AS lineId FROM ${table} WHERE reservationId = ? GROUP BY ${articleColumn}`).all(reservationId)) {
+      first.set(Number(row.article), Number(row.lineId));
+    }
+    return first;
+  };
+  const lineRefKey = (kind, id, lineId, first) => (lineId == null || first.get(Number(id)) === Number(lineId) ? `${kind}:${Number(id)}` : `${kind}:${Number(id)}:${Number(lineId)}`);
+  const refKeyOf = (ref, firstByKind) => lineRefKey(String(ref.kind), ref.id, ref.lineId, firstByKind[String(ref.kind)] || new Map());
+
   // specs/sas-offer-complement-lines.md §3.3 rule 9 — apply the operator's « Offrir » decisions to the
   // in-complement extras. `refs` is the AUTHORITATIVE offered set (`[{ kind, id }]`): a line named in it
   // is offered, one absent from it is billed — so un-offering works on a re-open. Offering never loses
@@ -726,9 +739,11 @@ function createReservationsModel(database) {
     const frozen = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
     if (!frozen || Number(frozen.complementPaid || 0) === 1) return none;
     const writes = [];
+    const firstOptions = firstLineIds('reservation_options', 'optionId', reservationId);
+    const firstResources = firstLineIds('reservation_resources', 'resourceId', reservationId);
     const wanted = new Set(refs
       .filter((x) => x && x.kind && x.id != null)
-      .map((x) => `${String(x.kind)}:${Number(x.id)}`));
+      .map((x) => refKeyOf(x, { option: firstOptions, resource: firstResources })));
     let delta = 0;
     const move = (isOffered, want, real) => {
       if (want === isOffered) return false;
@@ -752,7 +767,7 @@ function createReservationsModel(database) {
     for (const o of options) {
       if (skipSasOrigin && Number(o.sasArrivalOrigin) === 1) continue;
       const real = round2(o.realPrice);
-      const want = wanted.has(`option:${Number(o.optionId)}`);
+      const want = wanted.has(lineRefKey('option', o.optionId, o.lineId, firstOptions));
       if (!move(Number(o.offered) === 1, want, real)) continue;
       writes.push(() => setOption.run(want ? 1 : 0, want ? 0 : real, ...(o.lineId != null ? [o.lineId] : [reservationId, o.optionId])));
     }
@@ -770,7 +785,7 @@ function createReservationsModel(database) {
     const setResource = database.prepare(`UPDATE reservation_resources SET offered = ?, totalPrice = ? WHERE ${hasLineId(database, 'reservation_resources') ? 'lineId = ?' : 'reservationId = ? AND resourceId = ?'}`);
     for (const res of resources) {
       const real = round2(res.realPrice);
-      const want = wanted.has(`resource:${Number(res.resourceId)}`);
+      const want = wanted.has(lineRefKey('resource', res.resourceId, res.lineId, firstResources));
       if (!move(Number(res.offered) === 1, want, real)) continue;
       writes.push(() => setResource.run(want ? 1 : 0, want ? 0 : real, ...(res.lineId != null ? [res.lineId] : [reservationId, res.resourceId])));
     }
@@ -2302,8 +2317,8 @@ function createReservationsModel(database) {
       bookingLines.insertNights(reservationId, nightlyBreakdown);
     },
 
-    deleteResources(reservationId) {
-      return bookingLines.deleteResources(reservationId);
+    deleteResources(reservationId, postedLines) {
+      return bookingLines.deleteResources(reservationId, postedLines);
     },
 
     insertResourceLine(reservationId, rr, unitPrice, qty, priceType, carried = null) {
@@ -2760,11 +2775,19 @@ function createReservationsModel(database) {
       const r = (withExistingLines && model.getByIdWithDetails(reservationId)) || { options: [], resources: [] };
 
       // The pre-existing complement, itemised as the recap shows it, with this run's « Offrir » set.
+      const lines = [];
+      const recapFirst = { option: new Map(), resource: new Map() };
+      for (const [list, kind, field] of [[r.options, 'option', 'optionId'], [r.resources, 'resource', 'resourceId']]) {
+        for (const x of list || []) {
+          if (Number(x.isCustom || 0) === 1 || x.lineId == null) continue;
+          const held = recapFirst[kind].get(Number(x[field]));
+          if (held == null || Number(x.lineId) < held) recapFirst[kind].set(Number(x[field]), Number(x.lineId));
+        }
+      }
       const offeredSet = Array.isArray(offeredExtras)
-        ? new Set(offeredExtras.filter((x) => x && x.kind && x.id != null).map((x) => `${x.kind}:${Number(x.id)}`))
+        ? new Set(offeredExtras.filter((x) => x && x.kind && x.id != null).map((x) => refKeyOf(x, recapFirst)))
         : null;
       const isOffered = (key, storedOffered) => (offeredSet ? offeredSet.has(key) : storedOffered);
-      const lines = [];
       const extras = [
         ...(r.options || []).map((x) => ({ ...x, refKind: Number(x.isCustom || 0) === 1 ? 'custom' : 'option', refId: Number(x.isCustom || 0) === 1 ? x.customOptionId : x.optionId })),
         ...(r.resources || []).map((x) => ({ ...x, refKind: 'resource', refId: x.resourceId })),
@@ -2774,7 +2797,7 @@ function createReservationsModel(database) {
         if (!(Number(x.originalTotalPrice ?? x.totalPrice ?? 0) > 0)) continue;
         const storedOffered = Number(x.offered || 0) === 1;
         const real = round2(storedOffered ? (x.originalTotalPrice ?? x.totalPrice) : (x.totalPrice ?? x.originalTotalPrice));
-        const key = `${x.refKind}:${Number(x.refId)}`;
+        const key = x.refKind === 'custom' ? `custom:${Number(x.refId)}` : lineRefKey(x.refKind, x.refId, x.lineId, recapFirst[x.refKind]);
         const offered = isOffered(key, storedOffered);
         lines.push({
           key, group: 'existing', label: String(x.title || x.name || 'Prestation'),

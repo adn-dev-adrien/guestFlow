@@ -67,8 +67,20 @@ registerCoreFamilies();
 
 const refuse = (code, message, ref) => ({ code, message, ref });
 
+// The free units this line may still take: the article's grant minus what the lines priced before it took (rule 85).
 function grantedFor(allowance, config) {
+  if (allowance && allowance.remainingFreeUnitsFor) return allowance.remainingFreeUnitsFor(config.id);
   return allowance && allowance.grantedFreeUnitsFor ? allowance.grantedFreeUnitsFor(config.id) : config.freeUnits;
+}
+
+// What a stored line is net of: the article's consumed units, shared out over its lines in order and never beyond a line's own units.
+function soldFreeUnitsOf(allowance, config, locked) {
+  if (!allowance || !allowance.consumedFreeUnitsFor) return 0;
+  if (!allowance.consumedLeftFor) return allowance.consumedFreeUnitsFor(config.id);
+  const units = locked ? normalizeBilledUnits(locked.billedUnits !== undefined ? locked.billedUnits : locked.quantity) : 0;
+  const share = Math.min(allowance.consumedLeftFor(config.id), units);
+  if (locked && share > 0 && Number(locked.totalPrice) > 0 && Number(locked.unitPrice) > 0) allowance.takeConsumed(config.id, share);
+  return share;
 }
 
 function taggedOf(config, ref, totalPrice) {
@@ -118,7 +130,7 @@ function priceMerged(family, article, request, stay, allowance) {
       : (neatOverride !== null ? 1 : priced.billedUnits));
   // Only what a snapshot says was deducted is added back: a row stored without one predates the
   // free units and holds a gross total (rule 56).
-  const soldFreeUnits = allowance && allowance.consumedFreeUnitsFor ? allowance.consumedFreeUnitsFor(config.id) : 0;
+  const soldFreeUnits = soldFreeUnitsOf(allowance, config, locked);
   const merged = mergeLineWithLockedSnapshot({
     lockedLine: isResource
       ? reconstructLockedRealTotal(locked, unitBase)
@@ -142,6 +154,7 @@ function priceMerged(family, article, request, stay, allowance) {
   const free = consumeAllowance({
     granted: grantedFor(allowance, config), isDirect: stay.isDirectBooking, billedUnits: merged.billedUnits, unitPrice: merged.unitPrice,
   });
+  if (allowance && allowance.takeFreeUnits) allowance.takeFreeUnits(config.id, free.used);
   const typed = priced ? priced.typed : null;
   const offeredFigures = applyOfferedToLine(free.realTotal, request.offered);
   return {
@@ -198,6 +211,7 @@ function priceCard(family, article, request, stay, allowance) {
   const free = consumeAllowance({
     granted: grantedFor(allowance, config), isDirect: stay.isDirectBooking, billedUnits, unitPrice: unitBase,
   });
+  if (allowance && allowance.takeFreeUnits) allowance.takeFreeUnits(config.id, free.used);
   const common = {
     quantity: priced.quantity,
     unitPrice: unitBase,

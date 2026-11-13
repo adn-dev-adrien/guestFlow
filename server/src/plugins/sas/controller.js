@@ -85,7 +85,8 @@ function normaliseOfferedRefs(refs) {
   if (!Array.isArray(refs)) return undefined;
   return refs
     .filter((x) => x && OFFERABLE_KINDS.has(String(x.kind)) && Number.isFinite(Number(x.id)))
-    .map((x) => ({ kind: String(x.kind), id: Number(x.id) }));
+    // Rule 85: a ref without `lineId` names the article's first line; a later sale of the article is named by its own.
+    .map((x) => ({ kind: String(x.kind), id: Number(x.id), ...(Number.isInteger(Number(x.lineId)) && Number(x.lineId) > 0 ? { lineId: Number(x.lineId) } : {}) }));
 }
 
 // specs/single-payment-at-check-in.md §3.2 rule 10 — quand le check-in a encaissé EN UNE FOIS,

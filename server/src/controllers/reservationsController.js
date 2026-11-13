@@ -8,6 +8,9 @@ const { platformDisplay } = require('../utils/platformDisplay');
 const { todayIso: localTodayIso } = require('../utils/localDate');
 const db = require('../database');
 const stayRepository = require('../models/ports/stayRepository').create(db);
+const { nextLineId } = require('../utils/lineRowTarget');
+const { keyLines } = require('../utils/pricing/lineKeys');
+const { splitPaidLineSessions } = require('../utils/paidLineSessions');
 const { calculateReservationQuote } = require('../utils/pricing');
 const { lineInputRefusal } = require('../utils/lineInputBounds');
 const { stayShapeRefusal } = require('../utils/stayInputShape');
@@ -410,7 +413,7 @@ function insertResourceLines(reservationId, quote, { propertyId, startDate, endD
     const unitPrice = rr.unitPrice !== undefined ? Number(rr.unitPrice) : Number(resource.price || 0);
     const qty = Number(rr.quantity) || 1;
     const priceType = rr.priceType || resource.priceType || 'per_stay';
-    model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType, carried && carried.get(Number(rr.resourceId)));
+    model.insertResourceLine(reservationId, rr, unitPrice, qty, priceType, carried && carried.forLine(Number(rr.resourceId), rr));
   }
   return null;
 }
@@ -1905,10 +1908,10 @@ function pinStoredRouting(body, routing, newLineInComplement = false) {
     return newLineInComplement ? { ...rest, inComplement: 1 } : rest;
   };
   if (Array.isArray(body.options)) {
-    body.options = body.options.map((o) => pin(o, routing.options.get(Number(o.optionId))));
+    body.options = body.options.map((o) => pin(o, o.newLine ? undefined : routing.options.get(Number(o.optionId))));
   }
   if (Array.isArray(body.resources)) {
-    body.resources = body.resources.map((r) => pin(r, routing.resources.get(Number(r.resourceId))));
+    body.resources = body.resources.map((r) => pin(r, r.newLine ? undefined : routing.resources.get(Number(r.resourceId))));
   }
   if (Array.isArray(body.customOptions)) {
     const matches = matchStoredCustomLines(body.customOptions, routing.customs);
@@ -1963,6 +1966,36 @@ function enterMidStayExtrasWindow(id, body, today) {
   return { baseline, beforeLines, started, engineBaseline: started ? baseline : (model.getArrivalExtrasBaseline(id) || null) };
 }
 
+// Rule 85 — a line the caller appends (`newLine`) is numbered before the engine prices it, so its key is the one it keeps once written.
+// Every posted line then names its key: the article's first line keeps `opt:<id>` / `res:<id>`, a later one is `line:<table>:<lineId>`, so the
+// arrival floors and the routing of a save judge each line on its own (rule 85).
+function numberAppendedLines(body) {
+  for (const [list, table] of [['options', 'reservation_options'], ['resources', 'reservation_resources']]) {
+    if (!Array.isArray(body[list])) continue;
+    const numbered = body[list].map((line) => (line && line.newLine && line.lineId == null ? { ...line, lineId: nextLineId(db, table) } : line));
+    body[list] = keyLines(table, numbered.map((line) => ({ ...line }))).map(({ key }, index) => (
+      key.startsWith('line:') && !numbered[index].isCustom ? { ...numbered[index], lineKey: key } : numbered[index]
+    ));
+  }
+}
+
+// The priced lines as the writer takes them: a line the engine did not number (the article's FIRST, whose key stays the legacy one) still
+// names the stored line the posted request named, so a save that drops the first of two lines does not hand the survivor the dropped one's
+// row (rule 85). The engine's own output is never touched.
+function withPostedLineIds(pricedLines, postedLines, articleField) {
+  const named = new Set((pricedLines || []).filter((line) => line.lineId != null).map((line) => Number(line.lineId)));
+  const free = new Map();
+  for (const posted of postedLines || []) {
+    if (posted.lineId == null || named.has(Number(posted.lineId))) continue;
+    const article = Number(posted[articleField]);
+    free.set(article, [...(free.get(article) || []), Number(posted.lineId)]);
+  }
+  return (pricedLines || []).map((line) => {
+    const queue = line.lineId == null ? free.get(Number(line[articleField])) : null;
+    return queue && queue.length ? { ...line, lineId: queue.shift() } : line;
+  });
+}
+
 function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   const storedBefore = model.getRow(Number(req.params.id));
   // specs/reservations-backend-mvc.md rule 26 reading (audit R44-C-L3) — a stay that does not exist is refused before any
@@ -1997,6 +2030,8 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   }
 
   const id = Number(req.params.id);
+  req.body = splitPaidLineSessions(db, id, req.body);
+  numberAppendedLines(req.body);
 
   const cancelled = readOnlyRefusal(db, id);
   if (cancelled) return res.status(cancelled.status).json(cancelled.body);
@@ -2488,7 +2523,7 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     // specs/accounting-books-the-money-collected.md rule 17 (D11) — what the lines hold of the booked entries, before they go.
     const contribLinesBefore = writesExtras ? contribLinesOf(db, id) : null;
     lineIdsBefore = writesExtras ? require('../models/extraSalesModel').lineIds(id) : null;
-    if (writesExtras && reservationOptions) model.replaceOptions(id, quote.optionLines);
+    if (writesExtras && reservationOptions) model.replaceOptions(id, withPostedLineIds(quote.optionLines, reservationOptions, 'optionId'));
     if (writesExtras) {
       const sasOriginLabels = model.sasOriginCustomLabels(id);
       const carriedCustomLines = model.deleteCustomOptions(id);
@@ -2503,8 +2538,9 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
     if (writesExtras) model.refreshTariffSnapshot(id, quote.tariffSnapshot);
 
     if (writesExtras && reservationResources) {
-      const carried = model.deleteResources(id);
-      const resourceError = insertResourceLines(id, quote, { propertyId, startDate, endDate, excludeId: id, carried });
+      const postedResources = withPostedLineIds(quote.resourceLines, reservationResources, 'resourceId');
+      const carried = model.deleteResources(id, postedResources);
+      const resourceError = insertResourceLines(id, { ...quote, resourceLines: postedResources }, { propertyId, startDate, endDate, excludeId: id, carried });
       if (resourceError) throw new CreationRefused(resourceError);
     }
 

@@ -277,10 +277,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     fiche creates a **new line** with its own price, source, collection moment and status. The fiche and the
     SAS group lines of the same article for display (« Bière locale — 3 : 1 × 6,50 € + 2 × 7,00 € »).
     `exactMergedTotals` disappears.
-    > **Pending** — PR C: the fiche and the SAS append a new line, `exactMergedTotals`, and the guest-app shop (J-7 code, absent from this
-    > branch). The primary key `(reservationId, optionId)` of the two catalogue line tables still holds one line per article (Q16): until
-    > PR C lifts it, `extraSale.sell` of an article the stay already sells completes that line (`merged: true` in the quote), a custom line
-    > always appends.
+    > **Delivered by PR C** (slice d, rule 85): `extraSale.sell` (fiche « Ajouter un produit », SAS, shop) and `midStayOrderCommit` append a NEW line — its own
+    > price (frozen once written, rule 74), source, moment and status; `merged: true` stays only for a breakfast (its mornings are the stay's slots). The
+    > display grouping (title, offered line struck in its group, SAS per block) is the server's `saleDetail.groups`. **Pending** — the guest-app shop (J-7
+    > code, absent from this branch).
 14. **Offered is a line property.** « Offert » sets the line's amount to 0 with its catalogue value kept for
     display (`applyOfferedToLine`). The three SAS offered mechanisms and `offeredMinutes` become this one.
     > **Delivered by PR B** (pass 4): the line API offers a line through the fiche's own save (`PATCH …/extras/:ref { offered }`).
@@ -1464,7 +1464,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     already **paid** line becomes a NEW line (rule 13, Q-C7); on an unpaid line the evening component grows. The readers keyed by
     `optionId` move to line keys. **Rollback:** the previous release upserts with `ON CONFLICT(reservationId, optionId)` and would throw on
     the rebuilt tables; this is blocked by the schema floor of `self-update-and-releases.md` (its last rule), not by a shim.
-    > **Delivered by PR C** (C1, schema): the rebuild of `reservation_options` / `reservation_resources` without the article key (`utils/pricingSalesMigration.js`, `pricing_sales_true_lines_v1`), the schema floor `4.1.0` raised in the same transaction; proof `pricing-sales-migration` (rows, rowids and order identical, twice = 0) and `pricing-sales-migration-rollback`. **Pending** — PR C: the writers that append a second line and the readers keyed by `optionId` (C19).
+    > **Delivered by PR C** (C1, schema): the rebuild of `reservation_options` / `reservation_resources` without the article key (`utils/pricingSalesMigration.js`, `pricing_sales_true_lines_v1`), the schema floor `4.1.0` raised in the same transaction; proof `pricing-sales-migration` (rows, rowids and order identical, twice = 0) and `pricing-sales-migration-rollback`. The writers that append a second line and the readers keyed by `optionId`: delivered by slice d (below).
     **Line key scheme** _(lead, 2026-11-13; pass 3c)_. A line is named by `line:<table>:<lineId>` (`lineRef`, rule 79). The keys of the data that
     exist are never rewritten (rule 36): the stored `opt:<id>` / `res:<id>` / `custom:<label>` stay as they are and are read through **one
     resolver**, `utils/pricing/lineKeys.js`:
@@ -1495,9 +1495,29 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     resource's first line takes the replaced set, a later line is emptied), and the fiche save (`CarriedLines`: each saved line takes the identity of a
     different stored line, never two the same `lineId`). *Readers that union or add up the lines of one article:* the breakfast card, the stored dates and
     typed counts (a value any line stores is not re-judged), the stored SAS units and persons, the sessions and hours of a resource.
-    *Still the article's first line, by design until the appending slice:* the guest shop order merge (`midStayOrderCommit`), the SAS `offeredExtras`
-    refs (`{ kind, id }` = every line of the article), and the display grouping of the lines in the e-mail payloads (rule 13).
-    > **Delivered by PR C** (pass 3c): the key scheme, the resolver and the line readers/writers above; proof `true-lines-duplicate-rows`. **Pending** — appending (the fiche-save merge and the sale writer append a second line instead of merging), a later slice.
+    **Appending (slice d).** *The fiche PUT contract:* every posted catalogue or resource line may name its `lineId` (the stored body of a server caller —
+    `toUpdateBody` — always does, with the line's own `offered`). A line that names a stored `lineId` updates THAT row and never merges with another line of
+    the article, whatever the quantities or the prices; a posted line that names none is the article's first line (the first stored line no other posted line
+    names); a line the caller appends carries `newLine: true` and is a new row, numbered before it is priced (`nextLineId`) so its key is the one it keeps, with
+    no column of any stored line (source, moment, contributions). A client that posts fewer lines deletes only the lines it dropped (a survivor keeps its own
+    row even when the first of two is dropped). The same article may now repeat in `options` / `resources` when each repetition names a different line.
+    *Sales:* `extraSale.sell` and `midStayOrderCommit` (`mergeOrderLines`) append a `newLine` for every unit, per-person and resource line (a per-person line
+    carries its persons, a resource line its sessions); `priceOrder` keeps answering `byKey` per ARTICLE (`opt:<id>`, `res:<id>`: the amounts of the lines the
+    order appended, added up) for the plugins, while the settled note of a paid order names the new line. **Exception:** a breakfast keeps merging into the
+    stay's breakfast line (a morning named again is the same morning with a new hour, not a second sale). *« Offert »* is the line's own (`lowerLine` sets
+    `offered` on the named line, the engine reads a line's `offered` when it names itself). *Free units* (rule 41): the allowance of an article — the free
+    units of the lodging and the free minutes of an hourly resource — is counted ONCE per article: its lines are priced in order and each takes what the
+    previous ones left (`createFreeUnitsLedger`: `remainingFreeUnitsFor`, `consumedLeftFor`, `remainingFreeMinutesFor`); the grant itself stays the tariff
+    snapshot's. *Sessions (Q-C7):* a posted resource line that names a PAID stored line and brings sessions the line does not hold keeps its sessions and its
+    hours, and the new sessions leave as a line the save appends (`utils/paidLineSessions.js`); on an unpaid line the sessions, the hours and the evening
+    component grow with it. The SAS « Planifier » only places hours already sold, so it adds no line. *SAS « Offrir »:* a ref is `{ kind, id }` for the
+    article's first line and `{ kind, id, lineId }` for a later one; the recap keys its lines `option:<id>` / `option:<id>:<lineId>` (client drafts parse both);
+    a paid line lowered still goes through the fiche's own save (rule 23, O-10), per line. *Displays:* `saleDetail.groups` (`{ id, label, count, title,
+    totalCents, refs }`) names the articles sold on several lines — « Bière locale — 3 × 6,50 € (2 lignes) » at one price, « 3 : 1 × 6,50 € + 2 × 7,00 € »
+    otherwise, « N séances » for an hourly resource; the SAS departure section carries `groups` per block (`due` / `paid`); the e-mail contexts name an
+    article once in their lists and group its complement lines (« 1 × 6,50 € + 2 × 7 € = 20,50 € »). Existing data (one row per article) is unchanged.
+    > **Delivered by PR C** (slice d): the appending writers and the readers above; proof `true-lines-append-extra-sale`, `true-lines-fiche-put`,
+    > `true-lines-sas-offer-one-line`, `true-lines-hourly-paid-session`, `true-lines-free-units-ledger`, `true-lines-email-grouping`, `true-lines-sale-detail-groups`.
 86. **An outside sale's payment link targets the sale** _(owner Q-C2 / lead's call)_. `payment_links` and `email_log` are rebuilt with
     `reservationId` nullable and a `saleRef` column (migration `pricing_sales_v1`, rows copied verbatim): the link e-mail of an outside visit is
     logged in `email_log` like every other e-mail. A link row with a NULL `reservationId` must be invisible to the previous release's poller and

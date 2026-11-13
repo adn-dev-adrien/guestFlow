@@ -152,12 +152,16 @@ function lowerLine(reservationId, line, wants) {
   }
   if (wants.offered !== undefined) {
     const offered = Boolean(wants.offered);
+    // Rule 85: « offert » is the line's own — an article sold twice offers the one line the operator named.
     if (line.kind === 'option') {
-      const ids = new Set((body.offeredOptionIds || []).map(Number));
-      if (offered) ids.add(Number(line.row.optionId)); else ids.delete(Number(line.row.optionId));
-      body.offeredOptionIds = [...ids];
+      body.options = body.options.map((o) => (Number(o.lineId) === line.lineId ? { ...o, offered } : o));
+      const named = new Set(body.options.map((o) => Number(o.optionId)));
+      body.offeredOptionIds = [...new Set([
+        ...(body.offeredOptionIds || []).map(Number).filter((id) => !named.has(id)),
+        ...body.options.filter((o) => o.offered).map((o) => Number(o.optionId)),
+      ])];
     } else if (line.kind === 'resource') {
-      body.resources = body.resources.map((r) => (Number(r.resourceId) === Number(line.row.resourceId) ? { ...r, offered } : r));
+      body.resources = body.resources.map((r) => (Number(r.lineId) === line.lineId ? { ...r, offered } : r));
     } else {
       body.customOptions = body.customOptions.map((c) => (Number(c.customOptionId) === Number(line.row.id) ? { ...c, offered } : c));
     }

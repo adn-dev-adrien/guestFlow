@@ -50,21 +50,27 @@ function seedStay({ endOfStayPaid = 0, start = -1 } = {}) {
 const money = (id) => db.prepare('SELECT depositAmount, balanceAmount, complementAmount, endOfStayComplementAmount, endOfStayComplementDetail, midStaySettledNotes FROM reservations WHERE id = ?').get(id);
 const midStay = (id) => JSON.parse(money(id).endOfStayComplementDetail || '[]').filter((l) => l.source === 'midStayExtra');
 
-test('rule 34: mergeOrderLines adds to the stay’s line of the same item, never a second line', () => {
+test('rules 13, 85: mergeOrderLines appends a line of its own for every unit and resource line, never adding to the stay’s line of the item', () => {
   const body = { adults: 2, teens: 0, children: 1, options: [{ optionId: 9, quantity: 2 }, { optionId: 7, quantity: 1, cardPersons: null }], resources: [{ resourceId: 3, quantity: 1, sessions: [{ date: '2099-07-07', start: '18:00', end: '19:00' }] }] };
   const rows = new Map([[7, { priceType: 'per_person' }], [9, { priceType: 'per_stay' }]]);
-  const next = mergeOrderLines(body, [
+  let next = 100;
+  const next_ = mergeOrderLines(body, [
     { kind: 'option', id: 9, quantity: 3 },
     { kind: 'option', id: 7, quantity: 2 },
     { kind: 'option', id: 8, quantity: 1 },
     { kind: 'resource', id: 3, sessions: [{ date: '2099-07-08', start: '20:00', end: '21:30' }] },
-  ], rows);
-  assert.deepEqual(next.options, [
-    { optionId: 9, quantity: 5 },
-    { optionId: 7, quantity: 1, cardPersons: 5 },
-    { optionId: 8, quantity: 1 },
+  ], rows, () => { next += 1; return next; });
+  assert.deepEqual(next_.options, [
+    { optionId: 9, quantity: 2 },
+    { optionId: 7, quantity: 1, cardPersons: null },
+    { optionId: 9, quantity: 3, newLine: true, lineId: 101 },
+    { optionId: 7, quantity: 1, cardPersons: 2, newLine: true, lineId: 102 },
+    { optionId: 8, quantity: 1, newLine: true, lineId: 103 },
   ]);
-  assert.deepEqual(next.resources, [{ resourceId: 3, quantity: 2.5, sessions: [{ date: '2099-07-07', start: '18:00', end: '19:00' }, { date: '2099-07-08', start: '20:00', end: '21:30' }] }]);
+  assert.deepEqual(next_.resources, [
+    { resourceId: 3, quantity: 1, sessions: [{ date: '2099-07-07', start: '18:00', end: '19:00' }] },
+    { resourceId: 3, quantity: 1.5, offered: false, inComplement: 0, sessions: [{ date: '2099-07-08', start: '20:00', end: '21:30' }], newLine: true, lineId: 104 },
+  ]);
   assert.deepEqual(body.options[0], { optionId: 9, quantity: 2 }, 'the stored body is not touched');
 });
 

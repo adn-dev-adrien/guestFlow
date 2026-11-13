@@ -15,7 +15,8 @@
  * a started one routes it by the extras baseline to the departure (rule 20). The line is stamped with its source, its moment and the
  * moment the clock gave (`collectAt`, `collectAtDefault`, rules 18, 46).
  *
- * Until PR C lifts the one-line-per-article key, a request for an article the stay already sells adds to that line (`merged: true`).
+ * A request for an article the stay already sells appends a NEW line (rules 13, 85): its own price (frozen once written, rule 74), source, moment
+ * and status, numbered before it is priced; the lines already sold are not touched. `merged: true` stays for a breakfast, whose mornings join the stay's own.
  * `payment` is `later` (default), or `cash` / `card-terminal` / `card` for a sale collected at once (rule 29): the sale is written, then
  * settled as one mid-stay note that names its lines (`method`, `source`), so the allocations follow (rule 74). Only a stay that has
  * started takes a payment now (409 `PAYMENT_BEFORE_ARRIVAL`: before the check-in the money is the SAS's arrival complement, taken in
@@ -34,6 +35,7 @@ const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 const { buildSaleDetail, departureSection } = require('./saleDetail');
 const fulfilment = require('./pricing/articleFulfilment');
 const { makeArticle } = require('./pricing/articles');
+const { nextLineId } = require('./lineRowTarget');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
@@ -68,11 +70,10 @@ const stayStarted = (reservationId, now) => {
   return { phase, started: Boolean(phase && phase.started) };
 };
 
-// A stay not started takes a new line in its arrival complement (rule 19): every line the request adds is marked, the ones it merges into keep their routing.
-function withArrivalRouting(body, stored, lines) {
-  const options = body.options.map((line) => (stored.options.some((s) => Number(s.optionId) === Number(line.optionId)) ? line : { ...line, inComplement: 1 }));
-  const resources = body.resources.map((line) => (stored.resources.some((s) => Number(s.resourceId) === Number(line.resourceId)) ? line : { ...line, inComplement: 1 }));
-  return { ...body, options, resources };
+// A stay not started takes a new line in its arrival complement (rule 19): every line the request appends is marked (a breakfast merged into the stay's own keeps its routing).
+function withArrivalRouting(body) {
+  const mark = (line) => (line.newLine ? { ...line, inComplement: 1 } : line);
+  return { ...body, options: body.options.map(mark), resources: body.resources.map(mark) };
 }
 
 // Rule 49 — a resource line placed on a planning names a fulfilment adapter: its draft is the stay, the resource and the sessions asked.
@@ -119,19 +120,21 @@ function pricedRequests(reservationId, lines, { now }) {
   let body = stored;
   let previous = base.row;
   const priced = [];
+  const held = (b) => b.options.length + b.resources.length;
   for (const line of lines) {
-    body = mergeOrderLines(body, [line], rows);
-    const routed = started ? body : withArrivalRouting(body, stored, lines);
+    const before = held(body);
+    body = mergeOrderLines(body, [line], rows, (table) => nextLineId(database(), table));
+    const routed = started ? body : withArrivalRouting(body);
     const next = dryRunFor(id, routed);
     if (next.refused) return { error: next.refused };
     priced.push({
       line,
-      merged: stored[line.kind === 'resource' ? 'resources' : 'options'].some((s) => Number(s.optionId ?? s.resourceId) === Number(line.id)),
+      merged: held(body) === before,
       totalCents: centsOf(next.row, 'finalPrice') - centsOf(previous, 'finalPrice'),
     });
     previous = next.row;
   }
-  const finalBody = started ? body : withArrivalRouting(body, stored, lines);
+  const finalBody = started ? body : withArrivalRouting(body);
   return { stored, body: finalBody, base: base.row, after: previous, priced, started };
 }
 
@@ -139,7 +142,13 @@ function quote(reservationId, requests, { payment = 'later', now = new Date() } 
   if (!(payment in PAYMENTS)) return refuse(400, 'PAYMENT_MODE_UNSUPPORTED', 'Mode de paiement inconnu.');
   const parsed = parseRequests(requests);
   if (parsed.error) return parsed.error;
-  const result = pricedRequests(reservationId, parsed.lines, { now });
+  // The numbers the quote gives its lines are only taken inside a transaction that is rolled back: a quote writes nothing.
+  let result = null;
+  try {
+    database().transaction(() => { result = pricedRequests(reservationId, parsed.lines, { now }); throw ROLLBACK; })();
+  } catch (err) {
+    if (err !== ROLLBACK) throw err;
+  }
   if (result.error) return result.error;
   const moment = result.started ? 'departure' : 'arrival';
   const refusals = fulfilmentDrafts(reservationId, parsed.lines, now)

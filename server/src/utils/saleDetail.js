@@ -8,6 +8,9 @@
  *   lines[]   { ref, kind, label, quantity, totalCents (what is due), grossCents, discountCents (own), stayDiscountShareCents,
  *               source, sourceLabel, collectAt, momentLabel, settledCents, paidAt, status, statusLabel, vat: { rate, vatCents, netCents } }
  *             « Hébergement » and « Taxe de séjour » first, then the options, the resources and the custom lines
+ *   groups[]  { id, label, count, title, totalCents, refs[] } — the articles sold on several lines (rules 13, 85), for display: a same-price group reads
+ *             « Bière locale — 3 × 6,50 € (2 lignes) », otherwise « Bière locale — 3 : 1 × 6,50 € + 2 × 7,00 € », an hourly resource « N séances »;
+ *             an offered line stays in its group (struck through by the client), a group never merges two lines
  *   buckets   { plan, arrival, departure } the amount due at each moment, from SETTLEMENT's figures of the quote
  *   totals    { totalCents, settledCents, dueCents, vatByRate: [{ rate, vatCents, netCents }] }
  *   phase     the stay clock's answer ('before' | 'during' | 'after'), or null
@@ -15,7 +18,7 @@
  * `facts[lineKey]` = { lineId, table, source, collectAt, collectAtDefault, soldAt, settledCents, paidAt, discountCents }.
  * A line with no fact is a line being sold (source fiche, nothing paid). Pure: no DB, no clock.
  */
-const { toCents } = require('./pricing/money');
+const { toCents, roundMoney } = require('./pricing/money');
 const { extraLineKey } = require('./pricing/storedLines');
 const { vatOf } = require('./pricing/vat');
 
@@ -43,6 +46,35 @@ function statusOf({ offered, includedInPlatform, dueCents, settledCents, collect
   return { status: 'inPlan', statusLabel: 'Dans l’acompte et le solde' };
 }
 
+const eurosText = (cents) => `${(Number(cents || 0) / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} €`;
+const numberText = (n) => String(roundMoney(n)).replace('.', ',');
+
+// Rule 13 — the title of an article sold on several lines. `group` = its lines, in order.
+function groupTitle(label, group) {
+  if (group.every((line) => line.sessionCount != null)) return `${label} — ${group.reduce((sum, line) => sum + line.sessionCount, 0)} séances`;
+  const quantity = group.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+  const sameUnit = group.every((line) => line.unitCents === group[0].unitCents);
+  if (sameUnit) return `${label} — ${numberText(quantity)} × ${eurosText(group[0].unitCents)} (${group.length} lignes)`;
+  return `${label} — ${numberText(quantity)} : ${group.map((line) => `${numberText(line.quantity)} × ${eurosText(line.unitCents)}`).join(' + ')}`;
+}
+
+function groupsOf(lines) {
+  const byArticle = new Map();
+  for (const line of lines) {
+    if (!line.articleKey) continue;
+    if (!byArticle.has(line.articleKey)) byArticle.set(line.articleKey, []);
+    byArticle.get(line.articleKey).push(line);
+  }
+  return [...byArticle.entries()].filter(([, group]) => group.length > 1).map(([articleKey, group]) => ({
+    id: articleKey,
+    label: group[0].label,
+    count: group.length,
+    title: groupTitle(group[0].label, group),
+    totalCents: group.reduce((sum, line) => sum + line.totalCents, 0),
+    refs: group.map((line) => line.ref),
+  }));
+}
+
 function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
   const key = extraLineKey(raw);
   const fact = facts[key] || null;
@@ -60,6 +92,10 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
     kind,
     label,
     quantity,
+    unitCents: toCents(raw.unitPrice),
+    ...(kind === 'option' && raw.optionId != null ? { articleKey: `option:${Number(raw.optionId)}` } : {}),
+    ...(kind === 'resource' && raw.resourceId != null ? { articleKey: `resource:${Number(raw.resourceId)}` } : {}),
+    ...(kind === 'resource' && Array.isArray(raw.sessions) && raw.sessions.length ? { sessionCount: raw.sessions.length } : {}),
     totalCents: due,
     grossCents: gross,
     discountCents: Number(raw.discountCents || 0),
@@ -119,6 +155,7 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
   return {
     phase,
     lines,
+    groups: groupsOf(lines),
     buckets: {
       plan: toCents(q.preArrivalAmount),
       arrival: toCents(q.resolvedComplementAmount != null ? q.resolvedComplementAmount : q.complementAmount),
@@ -134,12 +171,17 @@ const DEPARTURE_TITLE = 'Ventes du séjour — au départ';
 function departureSection(detail) {
   const lines = ((detail && detail.lines) || []).filter((line) => line.collectAt === 'departure' && line.totalCents > 0);
   if (!lines.length) return null;
+  // Rule 13: the lines of an article are grouped inside each block — what is left to collect on one side, what is already paid on the other.
+  const isPaid = (line) => line.status === 'paid';
+  const groups = [['due', lines.filter((line) => !isPaid(line))], ['paid', lines.filter(isPaid)]]
+    .flatMap(([block, inBlock]) => groupsOf(inBlock).map((group) => ({ ...group, block })));
   return {
     title: DEPARTURE_TITLE,
     lines: lines.map((line) => ({
       ref: line.ref, label: line.label, totalCents: line.totalCents, settledCents: line.settledCents, status: line.status, statusLabel: line.statusLabel,
-      sourceLabel: line.sourceLabel,
+      sourceLabel: line.sourceLabel, offered: line.offered, block: isPaid(line) ? 'paid' : 'due',
     })),
+    groups,
     totalCents: lines.reduce((sum, line) => sum + line.totalCents, 0),
     dueCents: lines.reduce((sum, line) => sum + Math.max(0, line.totalCents - line.settledCents), 0),
   };

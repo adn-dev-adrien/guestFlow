@@ -94,13 +94,16 @@ test('rule 85 (LINE: reservationsModel) — offering an in-complement article re
   const id = stayWithTwoSales();
   db.prepare('UPDATE reservation_options SET inComplement = 1 WHERE reservationId = ? AND optionId = ?').run(id, bath);
   db.prepare('UPDATE reservations SET complementAmount = 130, complementPaid = 0 WHERE id = ?').run(id);
-  require('../models/reservationsModel').commitArrivalSas(id, { offeredExtras: [{ kind: 'option', id: bath }] });
+  const [first, second] = rowsOf(id).filter((r) => r.optionId === bath).map((r) => r.lineId);
+  const refs = [{ kind: 'option', id: bath }, { kind: 'option', id: bath, lineId: second }];
+  require('../models/reservationsModel').commitArrivalSas(id, { offeredExtras: refs });
   const rows = db.prepare('SELECT offered, totalPrice FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(id, bath);
   assert.deepEqual(rows.map((r) => r.offered), [1, 1]);
   assert.deepEqual(rows.map((r) => r.totalPrice), [0, 0]);
   require('../models/reservationsModel').commitArrivalSas(id, { offeredExtras: [] });
   const back = db.prepare('SELECT offered, totalPrice FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(id, bath);
   assert.deepEqual(back.map((r) => [r.offered, r.totalPrice]), [[0, 40], [0, 90]], 'each row gets ITS own price back, not the last row\'s over the first');
+  assert.ok(first < second);
 });
 
 test('rule 85 (LINE: reservationsModel) — the floors and the units of a locked fiche are read per line', () => {

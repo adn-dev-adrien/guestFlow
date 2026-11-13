@@ -40,6 +40,7 @@ const { toUpdateBody } = require('./reservationUpdateBody');
 const { storedMidStayLines, parseNotes } = require('./midStayExtras');
 const { normalizeOccurrences } = require('./cardOccurrences');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
+const { nextLineId } = require('./lineRowTarget');
 
 const database = () => require('../database');
 const reservations = () => require('../models/reservationsModel');
@@ -97,43 +98,26 @@ function withBreakfast(body, line) {
   return { ...body, options };
 }
 
-function withOption(body, line, row) {
+// Rule 13 / 85: what an order sells is a line of its own, never added to the line the stay already holds. `nextLineId()` is the number
+// the line is priced and written under (null for a simulation that is never written).
+const appendedLine = (nextLineId, fields) => {
+  const lineId = nextLineId();
+  return { ...fields, newLine: true, ...(lineId != null ? { lineId } : {}) };
+};
+
+function withOption(body, line, row, nextLineId) {
   const options = body.options.slice();
-  const index = options.findIndex((o) => Number(o.optionId) === Number(line.id));
   const quantity = Number(line.quantity);
   // A per-person option counts the people it serves (specs/non-card-option-served-persons.md rule 12).
-  if (row && String(row.priceType) === 'per_person') {
-    if (index >= 0) {
-      const served = options[index].cardPersons != null ? Number(options[index].cardPersons) : partyOf(body);
-      options[index] = { ...options[index], quantity: 1, cardPersons: served + quantity };
-    } else {
-      options.push({ optionId: Number(line.id), quantity: 1, cardPersons: quantity });
-    }
-  } else if (index >= 0) {
-    options[index] = { ...options[index], quantity: round2(Number(options[index].quantity || 0) + quantity) };
-  } else {
-    options.push({ optionId: Number(line.id), quantity });
-  }
+  if (row && String(row.priceType) === 'per_person') options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity: 1, cardPersons: quantity }));
+  else options.push(appendedLine(nextLineId, { optionId: Number(line.id), quantity }));
   return { ...body, options };
 }
 
-function withResource(body, line) {
-  const resources = body.resources.slice();
-  const index = resources.findIndex((r) => Number(r.resourceId) === Number(line.id));
+function withResource(body, line, nextLineId) {
   const sessions = Array.isArray(line.sessions) ? line.sessions.map((s) => ({ date: s.date, start: s.start, end: s.end })) : [];
-  // Rule 30 — the sessions join the stay's line and raise its sold hours; a unit resource adds its quantity.
   const added = sessions.length ? sessionsHours(sessions) : Number(line.quantity || 0);
-  if (index >= 0) {
-    const stored = resources[index];
-    resources[index] = {
-      ...stored,
-      quantity: round2(Number(stored.quantity || 0) + added),
-      sessions: [...(Array.isArray(stored.sessions) ? stored.sessions : []), ...sessions],
-    };
-  } else {
-    resources.push({ resourceId: Number(line.id), quantity: added, offered: false, inComplement: 0, sessions });
-  }
-  return { ...body, resources };
+  return { ...body, resources: [...body.resources, appendedLine(nextLineId, { resourceId: Number(line.id), quantity: added, offered: false, inComplement: 0, sessions })] };
 }
 
 /** The most persons a per-person line of the stay can serve: `pricing.resolveServedPersons`'s own ceiling. */
@@ -153,14 +137,15 @@ function personsShortfall(body, lines, rows, maxGuests) {
   let next = { ...body, options: (body.options || []).slice(), resources: (body.resources || []).slice() };
   for (const line of lines || []) {
     const key = `opt:${Number(line.id)}`;
-    const stored = next.options.find((o) => Number(o.optionId) === Number(line.id));
+    const held = next.options.filter((o) => Number(o.optionId) === Number(line.id));
+    const stored = held[0];
     const row = rows.get(Number(line.id));
     if (line.kind === 'breakfast') {
       const asked = Number(line.persons) || 0;
       const left = stored ? servedBy(stored, next) : ceiling;
       if (asked > left) return { key, left };
     } else if (line.kind === 'option' && row && String(row.priceType) === 'per_person') {
-      const served = stored ? servedBy(stored, next) : 0;
+      const served = held.reduce((sum, o) => sum + servedBy(o, next), 0);
       if (served + Number(line.quantity) > ceiling) return { key, left: Math.max(0, ceiling - served) };
     }
     next = mergeOrderLines(next, [line], rows);
@@ -180,12 +165,16 @@ function personsRefusal(body, lines, rows) {
   };
 }
 
-/** Pure — the fiche body with the order's lines added: quantities add to the stay's line of the same item (rule 34). */
-function mergeOrderLines(body, lines, rows = new Map()) {
+/**
+ * The fiche body with the order's lines appended — each unit or resource line is a NEW line of its own (rules 13, 85), numbered by `nextLineId(table)`
+ * (default: unnumbered, for a simulation that is never written). A breakfast keeps merging into the stay's breakfast line: its mornings are
+ * the stay's slots, a morning named again is the same morning with a new hour, not a second sale.
+ */
+function mergeOrderLines(body, lines, rows = new Map(), nextLineId = () => null) {
   return (lines || []).reduce((next, line) => {
-    if (line.kind === 'resource') return withResource(next, line);
+    if (line.kind === 'resource') return withResource(next, line, () => nextLineId('reservation_resources'));
     if (line.kind === 'breakfast') return withBreakfast(next, line);
-    return withOption(next, line, rows.get(Number(line.id)));
+    return withOption(next, line, rows.get(Number(line.id)), () => nextLineId('reservation_options'));
   }, { ...body, options: (body.options || []).slice(), resources: (body.resources || []).slice() });
 }
 
@@ -211,6 +200,18 @@ function deltaOf(before, after) {
 
 const refusal = (result) => ({ status: result.status, body: result.body });
 
+const numbered = () => (table) => nextLineId(database(), table);
+
+// The plugins read what an order added per ARTICLE (`opt:<id>`, `res:<id>`): the amounts of the lines the order appended are added up under it.
+function perArticle(byKey, body) {
+  const articleOf = new Map();
+  for (const line of body.options || []) if (line.lineId != null) articleOf.set(`line:reservation_options:${Number(line.lineId)}`, `opt:${Number(line.optionId)}`);
+  for (const line of body.resources || []) if (line.lineId != null) articleOf.set(`line:reservation_resources:${Number(line.lineId)}`, `res:${Number(line.resourceId)}`);
+  const out = {};
+  for (const [key, amount] of Object.entries(byKey)) out[articleOf.get(key) || key] = round2((out[articleOf.get(key) || key] || 0) + amount);
+  return out;
+}
+
 /** Rule 24 — the order priced by the fiche's own engine, after the pending orders, nothing written. */
 function priceOrder(reservationId, lines, { pending = [] } = {}) {
   const id = Number(reservationId);
@@ -218,15 +219,17 @@ function priceOrder(reservationId, lines, { pending = [] } = {}) {
   if (!stored) return { status: 404, body: { error: 'Réservation introuvable', code: 'RESERVATION_NOT_FOUND' } };
   const all = [...(pending || []), ...lines];
   const rows = optionRows(database(), all);
-  const body = pending && pending.length ? mergeOrderLines(stored, pending, rows) : stored;
+  const body = pending && pending.length ? mergeOrderLines(stored, pending, rows, numbered()) : stored;
   const persons = personsRefusal(body, lines, rows);
   if (persons) return persons;
   const save = controller().performUpdate;
   const base = save(id, structuredClone(body), { dryRun: true });
   if (base.status !== 200) return refusal(base);
-  const next = save(id, mergeOrderLines(body, lines, rows), { dryRun: true });
+  const sent = mergeOrderLines(body, lines, rows, numbered());
+  const next = save(id, sent, { dryRun: true });
   if (next.status !== 200) return refusal(next);
-  return { status: 200, ...deltaOf(remainderByKey(base.row), remainderByKey(next.row)) };
+  const added = deltaOf(remainderByKey(base.row), remainderByKey(next.row));
+  return { status: 200, byKey: perArticle(added.byKey, sent), total: added.total };
 }
 
 /**
@@ -292,7 +295,7 @@ function commitOrder(reservationId, {
         outcome = refusal(base);
         throw ROLLBACK;
       }
-      const written = save(id, mergeOrderLines(body, lines, rows));
+      const written = save(id, mergeOrderLines(body, lines, rows, numbered()));
       if (written.status !== 200) {
         outcome = refusal(written);
         throw ROLLBACK;

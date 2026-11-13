@@ -8,6 +8,9 @@
  * that row, exactly as the old clause did; a schema that predates `lineId` keeps the old clause.
  *
  * `hasLineId(db, table)` is the column probe the other line writers share.
+ *
+ * `nextLineId(db, table)` takes the next number of the line sequence (rule 79) for a line a caller appends (rule 85): the number is known
+ * before the engine prices the line, so its key is the one it keeps after the write. A number is never given twice; a rolled-back one is just not used.
  */
 
 const cache = new WeakMap();
@@ -29,4 +32,9 @@ function articleRowWhere(db, table, articleColumn, { sasFirst = false } = {}) {
   return `lineId = (SELECT lineId FROM ${table} WHERE reservationId = ? AND ${articleColumn} = ? ORDER BY ${order} LIMIT 1)`;
 }
 
-module.exports = { hasLineId, articleRowWhere };
+function nextLineId(db, table) {
+  db.prepare('UPDATE line_id_sequence SET last = last + 1 WHERE tbl = ?').run(table);
+  return Number(db.prepare('SELECT last FROM line_id_sequence WHERE tbl = ?').get(table).last);
+}
+
+module.exports = { hasLineId, articleRowWhere, nextLineId };

@@ -160,7 +160,8 @@ function buildContext({ reservation, client, property, options = [], resources =
     .map(optionName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
-  const optionsList = optionsTitles.join(', ');
+  // Rule 13 — an article sold twice is two lines of the stay and one title in the mail.
+  const optionsList = [...new Set(optionsTitles)].join(', ');
 
   const hasOptions = optionsTitles.length > 0;
   const hasBedLinenOption = (options || []).some((o) => safeStr(o.autoOptionType) === 'bed_linen');
@@ -186,7 +187,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     .map(optionName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
-  const reservedOptionsList = reservedOptionsTitles.join(', ');
+  const reservedOptionsList = [...new Set(reservedOptionsTitles)].join(', ');
   const hasReservedOptions = reservedOptionsTitles.length > 0;
   // "Bring your own linen" only when linen is neither provided by default nor on the reservation —
   // never contradicts the "beds made" line.
@@ -198,7 +199,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     .map(resourceName)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, 'fr'));
-  const resourcesList = resourcesTitles.join(', ');
+  const resourcesList = [...new Set(resourcesTitles)].join(', ');
   const hasResources = resourcesTitles.length > 0;
 
   // A booked resource speaks through its own sentence (specs/plugins-phase-p-productisation.md rule
@@ -305,8 +306,23 @@ function buildContext({ reservation, client, property, options = [], resources =
     return l.label;
   };
   const complementSep = isEn ? ': ' : ' : ';
+  // Rule 13 — the lines of one article read as one entry: « Bière locale : 3 × 6,50 € = 19,50 € », or
+  // « 1 × 6,50 € + 2 × 7,00 € = 20,50 € » when the lines were sold at different prices.
+  const groupedNoticeLines = () => {
+    const groups = [];
+    for (const l of noticeLines) {
+      const group = ['option', 'resource', 'custom'].includes(l.kind) ? groups.find((g) => g.kind === l.kind && g.label === l.label) : null;
+      if (group) { group.amount = round2c(group.amount + l.amount); group.parts.push([l.qty, l.unitPrice]); } else groups.push({ ...l, parts: [[l.qty, l.unitPrice]] });
+    }
+    return groups;
+  };
   const complementLineText = (l) => {
     const label = localizedComplementLabel(l);
+    const units = new Set(l.parts.map(([, unit]) => unit));
+    if (l.parts.length > 1 && l.parts.every(([, unit]) => unit > 0)) {
+      const shown = units.size === 1 ? [[l.parts.reduce((sum, [qty]) => sum + qty, 0), l.parts[0][1]]] : l.parts;
+      return `- ${label}${complementSep}${shown.map(([qty, unit]) => `${qty} × ${money(unit)}`).join(' + ')} = ${money(l.amount)}`;
+    }
     return (l.qty > 1 && l.unitPrice > 0)
       ? `- ${label}${complementSep}${l.qty} × ${money(l.unitPrice)} = ${money(l.amount)}`
       : `- ${label}${complementSep}${money(l.amount)}`;
@@ -325,7 +341,7 @@ function buildContext({ reservation, client, property, options = [], resources =
     const totalLine = isEn
       ? `Total: ${money(complementAmountNum)}`
       : `Total : ${money(complementAmountNum)}`;
-    complementNotice = [intro, ...noticeLines.map(complementLineText), totalLine].join('\n');
+    complementNotice = [intro, ...groupedNoticeLines().map(complementLineText), totalLine].join('\n');
   } else if (complementToCollect) {
     complementNotice = isEn
       ? `A balance of ${money(complementAmountNum)} is payable directly on site ${whenEn}.`
