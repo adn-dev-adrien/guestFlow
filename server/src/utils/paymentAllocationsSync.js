@@ -23,6 +23,7 @@ const { extraLineKey, parseNotes, parseDetail } = require('./pricing/storedLines
 const { keyLines, lineRef } = require('./pricing/lineKeys');
 const { readComplementPaidSplit } = require('./complementPaidSplit');
 const { parseRemovedLineContribs } = require('./removedLineContribs');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 const parseJson = (raw) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
@@ -79,7 +80,7 @@ function paymentRowsOfStay(db, stay, { stayLevel = true } = {}) {
   const lines = [
     ...refKeyed('reservation_options', db.prepare('SELECT lineId, optionId, acompteContribTtc, soldeContribTtc FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)),
     ...refKeyed('reservation_resources', db.prepare('SELECT lineId, resourceId, acompteContribTtc, soldeContribTtc FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)),
-    ...db.prepare('SELECT lineId, description, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)
+    ...db.prepare(`SELECT lineId, description, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0${notDepartureCharge(db)}`).all(stay.id)
       .map((r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), ...r })),
   ];
   const stayLines = { accommodation: null, touristTax: null };
@@ -132,7 +133,7 @@ function lineRefsByKey(db, reservationId) {
   const push = (key, ref) => { if (key) byKey.set(key, byKey.has(key) ? null : ref); };
   for (const { row, key } of keyLines('reservation_options', db.prepare('SELECT lineId, optionId FROM reservation_options WHERE reservationId = ?').all(reservationId))) push(key, lineRef('reservation_options', row.lineId));
   for (const { row, key } of keyLines('reservation_resources', db.prepare('SELECT lineId, resourceId FROM reservation_resources WHERE reservationId = ?').all(reservationId))) push(key, lineRef('reservation_resources', row.lineId));
-  for (const row of db.prepare('SELECT lineId, description FROM reservation_custom_options WHERE reservationId = ?').all(reservationId)) push(extraLineKey({ isCustom: true, description: row.description }), `line:reservation_custom_options:${row.lineId}`);
+  for (const row of db.prepare(`SELECT lineId, description FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`).all(reservationId)) push(extraLineKey({ isCustom: true, description: row.description }), `line:reservation_custom_options:${row.lineId}`);
   if (hasTable(db, 'reservation_stay_lines')) {
     for (const row of db.prepare('SELECT id, kind FROM reservation_stay_lines WHERE reservationId = ?').all(reservationId)) push(row.kind, `line:reservation_stay_lines:${row.id}`);
   }

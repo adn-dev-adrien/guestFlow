@@ -18,6 +18,7 @@ const { taxShares } = require('./installmentPlan');
 const { TAX_ON_ARRIVAL_SQL } = require('./touristTaxFreeze');
 
 const { toCents: cents } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 function computeInstallmentPaidSplit(db, installmentId) {
   const installment = db.prepare('SELECT id, reservationId, amountCents FROM reservation_installments WHERE id = ?').get(Number(installmentId));
@@ -37,7 +38,7 @@ function computeInstallmentPaidSplit(db, installmentId) {
     ...db.prepare(`SELECT totalPrice AS total, COALESCE(offered, 0) AS offered, COALESCE(inComplement, 0) AS forced, 0 AS resource
       FROM reservation_options WHERE reservationId = ?`).all(installment.reservationId),
     ...db.prepare(`SELECT CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END AS total, COALESCE(offered, 0) AS offered,
-      COALESCE(inComplement, 0) AS forced, 0 AS resource FROM reservation_custom_options WHERE reservationId = ?`).all(installment.reservationId),
+      COALESCE(inComplement, 0) AS forced, 0 AS resource FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`).all(installment.reservationId),
     ...db.prepare(`SELECT totalPrice AS total, COALESCE(offered, 0) AS offered, COALESCE(inComplement, 0) AS forced, 1 AS resource
       FROM reservation_resources WHERE reservationId = ?`).all(installment.reservationId),
   ];

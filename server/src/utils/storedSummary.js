@@ -19,6 +19,7 @@ const { displayCountOf } = require('./typedCounts');
 const { isComplementDeferred } = require('./checkoutComplement');
 
 const { roundMoneyOrZero: round2 } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 const flag = (v) => Number(v || 0) === 1;
 
 function safeAll(db, sql, ...params) {
@@ -64,7 +65,7 @@ function storedOptionLines(db, row) {
   });
   const customs = safeAll(db, `
     SELECT id, description, amount, offered, inComplement, acompteContribTtc, soldeContribTtc
-      FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id`, row.id).map((r) => {
+      FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)} ORDER BY sortOrder, id`, row.id).map((r) => {
     const offered = flag(r.offered);
     return {
       isCustom: true,

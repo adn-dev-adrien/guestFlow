@@ -16,6 +16,7 @@
 
 const registry = require('../plugins/sdk/registry');
 const { roundMoneyStrict } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 function liveHooks() {
   return registry.all()
@@ -31,7 +32,7 @@ const hasColumn = (db, table, column) => {
 // dialog carries back (rule 7); those of a plugin that is not live are kept as stored (rule 8).
 function storedPluginLines(db, reservationId) {
   if (!hasColumn(db, 'reservation_custom_options', 'sasLineKey')) return [];
-  return db.prepare('SELECT description, amount, offered, sasLineKey FROM reservation_custom_options WHERE reservationId = ? AND sasLineKey IS NOT NULL')
+  return db.prepare(`SELECT description, amount, offered, sasLineKey FROM reservation_custom_options WHERE reservationId = ? AND sasLineKey IS NOT NULL${notDepartureCharge(db)}`)
     .all(Number(reservationId));
 }
 

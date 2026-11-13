@@ -52,6 +52,7 @@ const insuranceOffer = require('../utils/insuranceOffer');
 const resourceOffer = require('../utils/resourceOffer');
 const { provenComplementAmount } = require('../utils/createdComplementRepair');
 const { roundMoneyStrict } = require('../utils/pricing/money');
+const { notDepartureCharge } = require('../utils/departureChargeLines');
 
 /**
  * Now, in UTC, as `YYYY-MM-DD HH:MM:SS` matching SQLite's `datetime('now')` format. Used as
@@ -269,7 +270,7 @@ function createModel(database) {
         rco.amount as unitPrice, 1 as billedUnits, 'per_stay' as priceType,
         CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END as totalPrice,
         rco.amount as originalTotalPrice, COALESCE(rco.offered, 0) as offered, 1 as isCustom
-      FROM reservation_custom_options rco WHERE rco.reservationId = ? ORDER BY rco.sortOrder, rco.id
+      FROM reservation_custom_options rco WHERE rco.reservationId = ?${notDepartureCharge(database, 'rco')} ORDER BY rco.sortOrder, rco.id
     `).all(row.id);
     const resources = database.prepare(`
       SELECT rr.*, r.name, r.priceType as resourcePriceType,

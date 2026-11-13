@@ -20,6 +20,7 @@
  */
 
 const db = require('../database');
+const { notDepartureCharge } = require('../utils/departureChargeLines');
 
 function createBookingLinesModel(database) {
   const columnsOf = (table) => {
@@ -201,9 +202,11 @@ function createBookingLinesModel(database) {
     // Returns what the deleted lines carried (rule 79), one entry per line in the order of the save, for `insertCustomOptions`.
     deleteCustomOptions(bookingId) {
       const carriedNames = carriedColumns('reservation_custom_options', CUSTOM_OPTION_COLUMNS);
-      const carried = carriedNames.length === 0 ? [] : database.prepare(`SELECT id AS rowKey, description, ${carriedNames.join(', ')} FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id`)
+      // Rule 90.2: the departure charge lines are not the fiche's — no save posts them, none deletes them.
+      const own = notDepartureCharge(database);
+      const carried = carriedNames.length === 0 ? [] : database.prepare(`SELECT id AS rowKey, description, ${carriedNames.join(', ')} FROM reservation_custom_options WHERE reservationId = ?${own} ORDER BY sortOrder, id`)
         .all(bookingId).map((row) => ({ id: Number(row.rowKey), description: String(row.description || '').trim(), columns: Object.fromEntries(carriedNames.map((name) => [name, row[name]])) }));
-      database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(bookingId);
+      database.prepare(`DELETE FROM reservation_custom_options WHERE reservationId = ?${own}`).run(bookingId);
       return carried;
     },
 
@@ -332,7 +335,7 @@ function createBookingLinesModel(database) {
         })));
       // `reservation_custom_options` stores one `amount`; the writer speaks the engine's shape
       // (`title` + `originalTotalPrice`), so the row is translated rather than spread as-is.
-      model.replaceCustomOptions(toId, database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(fromId)
+      model.replaceCustomOptions(toId, database.prepare(`SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)} ORDER BY sortOrder, id`).all(fromId)
         .map((o) => ({
           isCustom: true,
           title: o.description,

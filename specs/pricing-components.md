@@ -441,6 +441,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > and removes an unpaid line (`removeLine`, `DELETE …/extras/:ref`): through the fiche's own save, so the price lock, the arrival floors (409 `ARRIVAL_EXTRAS_FROZEN`) and the free units given back
     > (rule 26) are the engine's; a paid line is refused 409 `LINE_PAID` (it is offered, rule 23); journaled `lineRemoved`. Proof `extra-sale-custom-and-remove`.
     > _Pass 3g, why (b) and (c) stay open:_ see the note under rule 89.
+    > **Delivered by PR C** (pass 3j, steps b and c as built; rule 90): the arrival SAS writes through its one writer `writeArrivalComplement`
+    > (its plan is that commit rolled back), not through `extraSale` requests — the reasons are rule 90's note; the departure SAS's charges are
+    > custom lines of source `sas` at moment `departure`, written with the end-of-stay detail and kept out of the stay's sale (rule 90.2).
+    > `planDepartureSas` still reads the detail it writes beside those lines; the recap as a `saleDetail` view stays Pending (rule 32's note).
 26. **Free allowances are consumed by a line and stay with it** (ALLOWANCES unit, rule 41). The free bath
     hour, free units (« 2 offerts ») and included hours are a ledger per stay; a line records the allowance
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
@@ -537,7 +541,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > one keeps its departure section; both carry `refundOwedCents` (the open `lineLowered` obligations). A paid line offers « Offrir » (`StaySalesSection` `onOffer(ref, force)`): the dialog sends `PATCH …/extras/:ref { offered: true }`;
     > a 409 `OVERPAID` opens « Ligne déjà payée : l’offrir rend X au client » with the server's `overpaymentTtc`, « Offrir · X à rembourser » asks again with `forceOverpayment`, and the section then announces « À rembourser (depuis la fiche) : X ».
     > A stay not over-paid takes the offer at once (the money stays credited to the stay, rule 23). Proof `sas-paid-sales-section`, `StaySalesSection.offer-paid`, `ReservationSasDialog.departure-paid-sales`.
-    > **Pending** — PR C: the departure recap's due lines (« À percevoir au départ », the recalled arrival lines) are still the plan's own lines from the stored end-of-stay detail, not `saleDetail` lines: that needs `planDepartureSas` as a view over the lines (rule 25, Pending).
+    > **Pending** — PR C: the departure recap's due lines (« À percevoir au départ », the recalled arrival lines) are still the plan's own lines from the stored end-of-stay detail, not `saleDetail` lines: that needs `planDepartureSas` as a view over the lines (rule 25, Pending). _Pass 3j:_ the charges are lines now (rule 90.2), the recap still reads the detail written beside them.
 
 ### 3.H Non-regression guarantee
 
@@ -1681,9 +1685,33 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _Pass 3i, why 2 is still open:_ measured on the prod copy of 2026-11-11, 10 stays store an end-of-stay detail, 1 of them with departure
     > charges; the change needs, in one unit, the 19 files that read the detail and the 20 core files that read `reservation_custom_options`
     > (each would see a departure line beside the detail that already carries it), with the accounting replay as proof. Not started in 3i.
-    > **Pending** — PR C: 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
-    > fields): they write the same rows today, and the engine reads them back; 2. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
-    > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
+    > **Delivered by PR C — design of 1's writers (lead, pass 3j, 2026-11-13):** the arrival SAS keeps ONE writer,
+    > `writeArrivalComplement` (the plan is that commit rolled back), and does not write through `extraSale` requests. Reason, measured
+    > in pass 3i: a request row carries no `sasArrivalOrigin` and no `sasLineKey`, is stamped source `fiche`, and on a started stay
+    > (every arrival SAS) gets no arrival routing, so a re-run could not find its rows again and would sell a supplement twice; the sold
+    > options' card fields (`occurrences`, served persons, nights) are not request fields. The SAS's rows are the line API's rows all the
+    > same (`custom` lines, `removeLine`, `allowanceUsed` read back by the engine — rules 25, 41), and one computation serves the plan and
+    > the commit by construction. This is the delivered form of rules 25 and 90.1; it is no longer Pending.
+    > **Delivered by PR C** (pass 3j, 2): each charge the departure SAS bills — every entry of the end-of-stay detail the SAS owns
+    > (`endOfStayChargesOf(row)`: neither a mid-stay line nor the « Ajustement »), ménage, missing linen and extinguisher tariffs among
+    > them — is a row of `reservation_custom_options` keyed `sasLineKey = 'departure:<key>'` (`ext:<repairKey>` for a tariff, else
+    > `label:<label>`, `#n` for a repeat), source `sas`, `collectAt = 'departure'`, `inComplement = 0`, its real amount, `offered` flag and
+    > count. The detail's single write point (`writeEndOfStayDetail`) writes them with the detail, from the same entries
+    > (`utils/departureChargeLines.syncDepartureChargeLines`): the departure SAS's commit creates them; every later rewrite of a stay holding
+    > them (an offer, a mid-stay sync, a note) keeps them in step, in place by key (rule 14), and deletes a line whose entry is gone. A
+    > stay stored before (detail, no line: every stay of the prod copy of 2026-11-11) gets no line from any rewrite and reads exactly as
+    > before. The charges stay OUTSIDE the stay's sale, as the detail always billed them: `finalPrice` does not move (`billedLinesOf`
+    > leaves them out, so `moveFinalPriceBy` neither), the engine's input reads the charges through the adapter on the stored detail
+    > (`sasDetailAmountAuto` = `endOfStayChargesOf`), and every reader of `reservation_custom_options` leaves the departure lines out
+    > (`notDepartureCharge(db)`: the engine's loader, the fiche's GET and save — which neither lists nor deletes them —, the money splits,
+    > the contribs and their capture, the allocations, the refund input, the stored summary, the e-mails, `isCleaningSoldForReservation`,
+    > the L-migrations); an `extraSale` request cannot address one. The detail's readers keep reading the detail: for a stay holding
+    > departure lines it is written in the same write, from the same entries. Proof: `sas-departure-charge-lines` (lines and detail
+    > alike, a re-run in place, the fiche save prices a lined stay like its detail-only twin), `sas-departure-charge-lines-books` (the
+    > golden database's accounting output, every month, is byte-identical with or without the lines, and the charges do reach it),
+    > `sas-departure-charge-lines-readers` (no statement reads `reservation_custom_options` without leaving them out, or a reason).
+    > **Pending** — PR-later: the readers reading the charges from the lines instead of the detail (the sale detail listing them as
+    > departure lines with their line keys); today the lines carry the charges' identity and the detail their amounts, written together.
 
 91. **The arrival lines of the sale detail, and the e-mails that list them** _(pass 3i, 2026-11-13; completes rules 31, 37; prerequisite of C23)_.
     `saleDetail` lists everything the arrival complement collects as an arrival line: the tax part it collects (forced there, collected by
@@ -1702,6 +1730,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     stays of 62. The stored breakdown stays the reading of a stay the engine cannot quote and of a database other than the application's.
     The payment-link baskets are NOT switched: a pre-arrival link bills the plan bucket as one line plus the tax, which the sale detail does
     not split into acompte and solde; see `ecarts-cp3i` (pass 3i).
+    > **Pending** — PR-later (lead, pass 3j): the payment-link baskets stay on their own items. Reason: a pre-arrival link bills the plan
+    > bucket as one line plus the tax, split into acompte and solde by the instalment schedule; the sale detail lists lines, not that
+    > split, so switching the baskets would change what an issued link names before the sale detail can say which part of a line an
+    > instalment collects.
     > **Delivered by PR C** (pass 3i). Proof: `sale-detail-arrival-lines`, `pricing-legacy-collect-at`, `pricing-lines-migration`.
 
 ## 4. Architecture
@@ -1748,6 +1780,7 @@ All of it is plain CommonJS functions and objects (rule 56).
 | `models/` | `extraSalesModel.js` | C | writes appended lines with moment/status/source/discount, bucket columns, history |
 | `utils/` | `extraSale.js` | C | `quote` / `sell` orchestration (rules 27-30) |
 | `utils/` | `saleDetail.js` | C | the read model of rule 31 |
+| `utils/` | `departureChargeLines.js` | C (PR C) | rule 90.2: the departure charges as custom lines — their single writer (`syncDepartureChargeLines`, called by `writeEndOfStayDetail`) and the clause every reader of the custom lines appends (`notDepartureCharge`) |
 | `controllers/` | `reservationsController.js` | T | `calculatePrice`/`createStay`/`applyUpdate` call the loader + COMPOSE; a sold stay's product addition goes to `extraSale`; `beforeArrival`, `orderGrowth`, `exactMergedTotals` removed (PR C) |
 | `controllers/` | `extraSalesController.js` | C | the endpoints of §4.3 |
 | `models/` | `reservationsModel.js` | T | `planArrivalSas`/`planDepartureSas`/`commit*Sas` delegate pricing to `extraSale` and buckets to SETTLEMENT; `settleOrderNoteBeforeArrival`, `keepStay` removed |
@@ -1938,6 +1971,9 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `pricing-line-keys`, `true-lines-duplicate-rows` — rule 85: the resolver (first line keeps the legacy key, later lines `line:<table>:<lineId>`), and a database holding two rows of one article on one stay: the engine prices each from its own snapshot, every writer touches exactly the intended row, every reader returns every row _(PR C, pass 3c)_
 - [x] `sas-arrival-engine-complement` — rule 90.1: the plan is the commit rolled back (nothing written, same figure), the engine's complement over a stored figure no line explains, a re-run never bills twice, a stay below its minimum still checks in, the adjustment re-applied over the engine figure _(PR C, pass 3h)_
 - [x] `sas-evening-component` — rule 90.3: the evening as the open session line's component (plan = commit, components sum to the total, set not added, shrinks to 0, kept by the next fiche save), a plan line's evening on a line of its own, the legacy `evening:` guard (billed once), a collected complement bills only what the line does not already carry; the evening beyond a session line that is not the arrival's as a resource line with no hours, kept by the fiche's next save, set by a re-run and gone at 0 € _(PR C, passes 3h, 3i)_
+- [x] `sas-departure-charge-lines` — rule 90.2: one departure line per charge beside the same detail, `finalPrice` unmoved, a re-run in place (offered, count, deleted at 0), the ménage line never read as a ménage sold, the fiche neither lists nor deletes the lines and its save prices a lined stay like its detail-only twin, a stay stored before gets no line, a request cannot address one _(PR C, pass 3j)_
+- [x] `sas-departure-charge-lines-books` — rule 90.2: the golden database's accounting output (every month's CSV bytes, sales JSON, platforms preview, synthesis) is byte-identical whether the departure charges are lines or only the detail, and the charges reach it _(PR C, pass 3j)_
+- [x] `sas-departure-charge-lines-readers` — rule 90.2: no statement of the server reads `reservation_custom_options` without leaving the departure lines out, or a listed reason _(PR C, pass 3j)_
 - [x] `sale-detail-arrival-lines` — rule 91: the tax part, the added guests and « Complément d'arrivée » as arrival lines, the e-mail lines (units × unit price, order, nothing offered nor at 0 €), the e-mail read from the sale detail equal to the stored breakdown _(PR C, pass 3i)_
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 

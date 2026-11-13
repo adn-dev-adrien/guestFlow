@@ -21,6 +21,7 @@ const stayClockModel = require('../stayClockModel');
 const { toCents } = require('../../utils/pricing/money');
 const { extraLineKey } = require('../../utils/pricing/storedLines');
 const { keyLines } = require('../../utils/pricing/lineKeys');
+const { notDepartureCharge } = require('../../utils/departureChargeLines');
 
 // The two card-option columns, kept out of the SELECT on a schema that predates them.
 function cardColumns(db) {
@@ -61,7 +62,7 @@ function customOptionRows(db, id) {
   const customOptionRows = db.prepare(`
     SELECT id as customOptionId, description, amount, COALESCE(offered, 0) as offered,
       COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id
+    FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)} ORDER BY sortOrder, id
   `).all(id);
   return customOptionRows;
 }
@@ -131,7 +132,7 @@ function extrasCents(db, id) {
   const sum = (sql) => Number(db.prepare(sql).get(Number(id)).cents || 0);
   return sum('SELECT COALESCE(SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)), 0) AS cents FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0')
     + sum('SELECT COALESCE(SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)), 0) AS cents FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0')
-    + sum('SELECT COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) AS cents FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0');
+    + sum(`SELECT COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) AS cents FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0${notDepartureCharge(db)}`);
 }
 
 function storedStayPrice(db, id) {
@@ -164,7 +165,7 @@ function lineFacts(db, id) {
     if (!columns.has('lineId')) continue;
     const total = table === 'reservation_custom_options' ? 'amount' : 'totalPrice';
     const pick = ['lineId', extra, ...['discountCents', 'source', 'soldAt', 'collectAt', 'collectAtDefault', 'addedOnReopen', total, 'offered'].filter((c) => columns.has(c))];
-    const rows = db.prepare(`SELECT ${pick.join(', ')} FROM ${table} WHERE reservationId = ?`).all(Number(id));
+    const rows = db.prepare(`SELECT ${pick.join(', ')} FROM ${table} WHERE reservationId = ?${table === 'reservation_custom_options' ? notDepartureCharge(db) : ''}`).all(Number(id));
     // Rule 85: an article's first line keeps the legacy key, every later one is named by its `lineRef`.
     const keyed = key ? null : new Map(keyLines(table, rows).map((entry) => [entry.row, entry.key]));
     for (const r of rows) {

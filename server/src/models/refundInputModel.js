@@ -18,6 +18,7 @@ const { extraLineKey } = require('../utils/pricing/storedLines');
 const { keyLines, lineRef } = require('../utils/pricing/lineKeys');
 const { readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
+const { notDepartureCharge } = require('../utils/departureChargeLines');
 
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 
@@ -95,7 +96,7 @@ function storedLinesOf(db, reservationId) {
       (r, key) => ({ ref: lineRef('reservation_options', r.lineId), key, poste: 'options', totalPrice: r.totalPrice, offered: r.offered })),
     ...keyed('reservation_resources', read('reservation_resources', 'SELECT lineId, resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?', (r) => r),
       (r, key) => ({ ref: lineRef('reservation_resources', r.lineId), key, poste: 'resources', totalPrice: r.totalPrice, offered: r.offered })),
-    ...read('reservation_custom_options', 'SELECT lineId, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?',
+    ...read('reservation_custom_options', `SELECT lineId, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`,
       (r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), poste: 'options', totalPrice: r.amount, offered: r.offered })),
   ];
 }

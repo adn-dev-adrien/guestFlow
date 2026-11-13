@@ -33,6 +33,7 @@ const collectedMidStayKeys = (stay) => Object.entries(resolveMidStaySplit([], {
 const { paymentRowsOfStay, ensureTriggers, lineRefsByKey } = require('./paymentAllocationsSync');
 const { extraLineKey } = require('./pricing/storedLines');
 const { makeArticle } = require('./pricing/articles');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 const quoted = (name) => `"${name}"`;
 
@@ -182,7 +183,7 @@ function backfillLineColumns(db) {
     const lines = [
       ...db.prepare('SELECT rowid AS rid, * FROM reservation_options WHERE reservationId = ? ORDER BY rowid').all(reservationId).map((row) => ({ table: 'reservation_options', row, kind: 'option', refKind: 'option', idKey: 'optionId' })),
       ...db.prepare('SELECT rowid AS rid, * FROM reservation_resources WHERE reservationId = ? ORDER BY rowid').all(reservationId).map((row) => ({ table: 'reservation_resources', row, kind: 'resource', refKind: 'resource', idKey: 'resourceId' })),
-      ...db.prepare('SELECT rowid AS rid, * FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(reservationId).map((row) => ({ table: 'reservation_custom_options', row, kind: 'custom' })),
+      ...db.prepare(`SELECT rowid AS rid, * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)} ORDER BY sortOrder, id`).all(reservationId).map((row) => ({ table: 'reservation_custom_options', row, kind: 'custom' })),
     ];
     const moments = legacyCollectAt(lines.map(({ row, kind, idKey }) => (kind === 'custom'
       ? { isCustom: true, description: row.description, totalPrice: row.amount, offered: row.offered, inComplement: row.inComplement }
@@ -218,7 +219,7 @@ function stayLineTotals(db, stay) {
   const extras = db.prepare(`SELECT
       COALESCE((SELECT SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)) FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0)
     + COALESCE((SELECT SUM(CAST(ROUND(totalPrice * 100) AS INTEGER)) FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0)
-    + COALESCE((SELECT SUM(CAST(ROUND(amount * 100) AS INTEGER)) FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0), 0) AS total`);
+    + COALESCE((SELECT SUM(CAST(ROUND(amount * 100) AS INTEGER)) FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0${notDepartureCharge(db)}), 0) AS total`);
   // The line is what the stay stored for the lodging: the final price less the extras it also holds (rule 74).
   return {
     accommodation: Math.max(0, cents(stay.finalPrice) - Number(extras.get(stay.id, stay.id, stay.id).total || 0)),

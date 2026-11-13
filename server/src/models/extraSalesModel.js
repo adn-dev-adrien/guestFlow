@@ -21,6 +21,7 @@ const { toCents, roundMoney } = require('../utils/pricing/money');
 const { extraLineKey } = require('../utils/pricing/storedLines');
 const { keyLines } = require('../utils/pricing/lineKeys');
 const { VAT_CLASSES } = require('../utils/pricing/vat/settingsSchema');
+const { isDepartureChargeRow } = require('../utils/departureChargeLines');
 
 const database = () => require('../database');
 
@@ -100,7 +101,8 @@ function findLine(reservationId, ref) {
   if (!match) return null;
   const db = database();
   const row = db.prepare(KINDS[match[1]].label).get(Number(reservationId), Number(match[2]));
-  if (!row) return null;
+  // Rule 90.2: a departure charge is the departure SAS's, never a line a request moves, offers or removes.
+  if (!row || isDepartureChargeRow(row)) return null;
   const { create } = require('./ports/stayRepository');
   const key = match[1] === 'custom' ? extraLineKey({ isCustom: true, description: row.description }) : storedLineKey(db, KINDS[match[1]].table, Number(reservationId), Number(match[2]));
   const fact = create(db).lineFacts(reservationId)[key] || {};

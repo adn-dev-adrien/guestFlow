@@ -23,6 +23,7 @@ const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
 const { todayIso } = require('./localDate');
 const { guestEmailMessage } = require('./guestEmailHtml');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 /**
  * @param {{ database, templatesModel, logModel, settingsModel, emailServiceFactory,
@@ -113,7 +114,7 @@ async function performAutoEmailPass(deps) {
     WHERE rr.reservationId = ?
   `);
   const findCustomOptions = database.prepare(`
-    SELECT * FROM reservation_custom_options WHERE reservationId = ?
+    SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}
   `);
   // Property provides bed linen by default? (specs/j1-linen-default-message.md §3 rule 1)
   const findBedLinenDefault = database.prepare(`

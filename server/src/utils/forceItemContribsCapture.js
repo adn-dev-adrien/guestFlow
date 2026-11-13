@@ -34,6 +34,7 @@ const { keyLines } = require('./pricing/lineKeys');
 const CONSERVATION_TOLERANCE_EUR = 0.01;
 
 const { roundMoney: roundCents } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 function computeAccommodationTtc(quote) {
   // Accommodation portion of finalPrice = finalPrice - options - resources (TTC, before tax).
@@ -173,7 +174,7 @@ function captureContribsOnFlip({ db, reservation, bucket }) {
   const resourceContribsByResourceId = new Map();
 
   const optionAcompteByOptionId = acompteByLineKey(db, 'reservation_options', reservation.id);
-  const customDbRows = db.prepare('SELECT id as customOptionId, acompteContribTtc FROM reservation_custom_options WHERE reservationId = ?').all(reservation.id);
+  const customDbRows = db.prepare(`SELECT id as customOptionId, acompteContribTtc FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`).all(reservation.id);
   const customAcompteByCustomId = new Map(customDbRows.map((r) => [Number(r.customOptionId), r.acompteContribTtc]));
   const resourceAcompteByResourceId = acompteByLineKey(db, 'reservation_resources', reservation.id);
 
@@ -350,7 +351,7 @@ function captureStoredSplit({ db, reservation, bucket }) {
     const totalCol = table === 'reservation_custom_options'
       ? 'CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END' : 'totalPrice';
     for (const l of db.prepare(`SELECT ${key} AS k, ${totalCol} AS total, COALESCE(inComplement, 0) AS forced,
-      COALESCE(offered, 0) AS offered, acompteContribTtc FROM ${table} WHERE reservationId = ?`).all(reservation.id)) {
+      COALESCE(offered, 0) AS offered, acompteContribTtc FROM ${table} WHERE reservationId = ?${table === 'reservation_custom_options' ? notDepartureCharge(db) : ''}`).all(reservation.id)) {
       linesTotal += Number(l.total || 0);
       if (Number(l.forced) === 1 || Number(l.offered) === 1) continue;
       const left = Math.max(0, Number(l.total || 0) - (isDeposit ? 0 : Number(l.acompteContribTtc || 0)));

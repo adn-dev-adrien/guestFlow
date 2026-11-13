@@ -278,9 +278,20 @@ function sasDetailAmount(detailRaw) {
 // complément de fin de séjour AVANT l'ajustement de l'opérateur, celui que la fiche affiche sous le
 // champ en « Calcul auto (X €) ».
 function sasDetailAmountAuto(detailRaw) {
-  return round2(parseDetail(detailRaw)
-    .filter((l) => l && l.source !== MID_STAY_SOURCE && l.source !== 'adjustment')
-    .reduce((s, l) => s + (Number(l.amount) || 0), 0));
+  return round2(endOfStayChargesOf(detailRaw).reduce((s, l) => s + (Number(l.amount) || 0), 0));
+}
+
+/**
+ * specs/pricing-components.md §3 rule 90.2 — the departure charges of a stay, read from its stored end-of-stay detail (a row, its
+ * detail JSON or the parsed array): every entry the departure SAS owns, in stored order — not the mid-stay lines, not the « Ajustement ».
+ * The one reading of the charges: a stay stored before rule 90.2 has only its detail; a later one has its departure lines too
+ * (`utils/departureChargeLines`), written from these very entries by the detail's single write point.
+ */
+function endOfStayChargesOf(rowOrDetail) {
+  const raw = rowOrDetail && typeof rowOrDetail === 'object' && !Array.isArray(rowOrDetail)
+    ? rowOrDetail.endOfStayComplementDetail
+    : rowOrDetail;
+  return parseDetail(raw).filter((l) => l && l.source !== MID_STAY_SOURCE && l.source !== 'adjustment');
 }
 
 // The mid-stay lines already stored in the detail — the frozen set used once the end-of-stay
@@ -566,6 +577,7 @@ module.exports = {
   mergeMidStayIntoDetail,
   sasDetailAmount,
   sasDetailAmountAuto,
+  endOfStayChargesOf,
   storedMidStayLines,
   parseBaseline,
   splitComplementBuckets,

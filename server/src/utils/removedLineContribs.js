@@ -13,6 +13,7 @@ const { extraLineKey } = require('./midStayExtras');
 const { keyLines } = require('./pricing/lineKeys');
 
 const { roundMoney: round2 } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 function parseRemovedLineContribs(raw) {
   if (!raw) return [];
@@ -42,7 +43,7 @@ function contribLinesOf(db, reservationId) {
     ...keyed('reservation_options', read(`SELECT ${lineId('reservation_options', 'ro')}ro.optionId, o.title AS label, ro.acompteContribTtc, ro.soldeContribTtc
       FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ?`))
       .map((line) => ({ ...line, bucket: 'options' })),
-    ...read('SELECT id AS customOptionId, description AS label, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ?')
+    ...read(`SELECT id AS customOptionId, description AS label, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`)
       .map((line) => ({ ...line, bucket: 'options', key: extraLineKey({ ...line, title: line.label, isCustom: true }) })),
     ...keyed('reservation_resources', read(`SELECT ${lineId('reservation_resources', 'rr')}rr.resourceId, r.name AS label, rr.acompteContribTtc, rr.soldeContribTtc
       FROM reservation_resources rr LEFT JOIN resources r ON r.id = rr.resourceId WHERE rr.reservationId = ?`))

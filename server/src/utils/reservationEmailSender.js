@@ -19,6 +19,7 @@ const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { guestEmailMessage } = require('./guestEmailHtml');
 const { emailAmount } = require('./emailMoney');
 const { formatMomentLong } = require('./dateFr');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 // `installment` (the plan context of utils/installmentPlan.requestContext) and `occurrenceKey` make this the
 // request of ONE installment (specs/direct-installments.md rules 19-21). `onAccepted(logRow)` runs in the transaction
@@ -45,7 +46,7 @@ async function sendReservationTemplateEmail({ database, templatesModel, logModel
   // The English names come from the translation catalogue (specs/translation-catalogue.md rule 2).
   require('./translationResolver').attachEnglishNames(database, { options, resources });
   require('../models/stayFactsModel').attachResourceSentences(database, resources);
-  const customOptions = database.prepare('SELECT * FROM reservation_custom_options WHERE reservationId = ?').all(reservation.id);
+  const customOptions = database.prepare(`SELECT * FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservation.id);
   const bedLinenProvidedByDefault = reservation.propertyId
     ? Boolean(database.prepare(`
         SELECT 1 FROM property_option_defaults d JOIN options o ON o.id = d.optionId

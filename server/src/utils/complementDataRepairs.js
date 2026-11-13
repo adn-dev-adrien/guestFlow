@@ -12,6 +12,7 @@
 const { GHOST_SOURCE, dropBathLinenGhost } = require('./bathLinenGhostLine');
 const { repairFrozenComplement } = require('./frozenComplementRepair');
 const { MID_STAY_SOURCE, resolveMidStaySplit, storedMidStayLines } = require('./midStayExtras');
+const { notDepartureCharge, syncDepartureChargeLines } = require('./departureChargeLines');
 
 // Same shape `midStayExtras` keys lines by. Unlike reservationsModel.readExtraLines (which only feeds
 // the baseline, i.e. keys + totals) this one MUST carry `inComplement`: that flag is what makes a
@@ -28,7 +29,7 @@ function readExtraLines(db, reservationId) {
         resourceId: Number(r.resourceId), totalPrice: Number(r.totalPrice || 0),
         offered: Number(r.offered || 0), inComplement: Number(r.inComplement || 0),
       })),
-    ...db.prepare('SELECT description, amount, offered, COALESCE(inComplement, 0) inComplement FROM reservation_custom_options WHERE reservationId = ?').all(reservationId)
+    ...db.prepare(`SELECT description, amount, offered, COALESCE(inComplement, 0) inComplement FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(db)}`).all(reservationId)
       .map((c) => ({
         isCustom: true,
         title: c.description,
@@ -53,6 +54,8 @@ function repairBathLinenGhosts(db) {
     }
     db.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
       .run(cleaned.amount, cleaned.detail.length ? JSON.stringify(cleaned.detail) : null, row.id);
+    // Rule 90.2: a stay holding departure lines keeps them in step with the detail written.
+    syncDepartureChargeLines(db, row.id, cleaned.detail);
     repaired.push(row.id);
   }
   return repaired;

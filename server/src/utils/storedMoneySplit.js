@@ -14,6 +14,7 @@ const { splitTtc } = require('./pricing/vat');
 
 function nz(value) { return value == null ? 0 : Number(value); }
 const { roundMoney: round2 } = require('./pricing/money');
+const { notDepartureCharge } = require('./departureChargeLines');
 
 // Read the per-line contribs + current totals for one reservation. Used by `buildEntry` to
 // drive the contrib-based per-bucket attribution (spec force-item-to-complement.md §5).
@@ -28,7 +29,7 @@ function buildPerLineData(database, row) {
       CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END AS totalPrice,
       COALESCE(offered, 0) AS offered,
       COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc
-    FROM reservation_custom_options WHERE reservationId = ?
+    FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}
   `).all(row.id);
   const resourceLines = database.prepare(`
     SELECT resourceId, totalPrice, COALESCE(offered, 0) AS offered,

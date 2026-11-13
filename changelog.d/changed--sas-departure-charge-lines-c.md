@@ -1,0 +1,1 @@
+- Frais du SAS de départ (ménage, linge manquant, extincteur) : chacun devient une ligne du séjour, écrite avec le détail du complément de fin de séjour et hors du prix du séjour ; totaux, écritures comptables et e-mails inchangés (specs/pricing-components.md, règle 90.2).

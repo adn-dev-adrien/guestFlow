@@ -38,6 +38,7 @@ const {
   priceOptionSale, priceCatalogueUpsell, billablePersons, buildSasSaleOffers, offeredSaleOptionIds,
 } = require('../utils/sasOptionSale');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
+const { syncDepartureChargeLines, notDepartureCharge } = require('../utils/departureChargeLines');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
 const { stampComplementPaidSplit, readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
@@ -698,7 +699,9 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
   // Single write point for « the end-of-stay complement + its register »: the detail, the re-summed
   // amount and the notes always move together, so the remainder + register invariant can't drift.
-  const writeEndOfStayDetail = (reservationId, detailLines, notes) => {
+  // Rule 90.2: the departure charges of the detail written are the stay's departure lines, in the same write — created by the departure
+  // SAS's commit (`asLines`), kept in step by every other rewrite of a stay that holds them.
+  const writeEndOfStayDetail = (reservationId, detailLines, notes, { asLines = false } = {}) => {
     // An OFFERED line (specs/sas-offer-complement-lines.md §3.3) is worth 0 € but must survive every
     // rewrite: it is the trace of the geste commercial and the only way to un-offer it on a re-open.
     // The « Ajustement » line is filtered out here on purpose: it is not a real line, it is recomputed
@@ -709,6 +712,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     // fiche save, settling or cancelling a note, offering a line, a departure-SAS re-run.
     const { lines, amount } = reconcileEndOfStayLines({ lines: real, override: readEndOfStayOverride(reservationId) });
     const detailJson = lines.length ? JSON.stringify(lines) : null;
+    syncDepartureChargeLines(database, reservationId, lines, { create: asLines });
     if (!HAS_MID_STAY_NOTES) {
       database.prepare("UPDATE reservations SET endOfStayComplementAmount = ?, endOfStayComplementDetail = ?, updatedAt = datetime('now') WHERE id = ?")
         .run(amount, detailJson, reservationId);
@@ -876,7 +880,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
     if (!database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'finalPrice')) return null;
     let t = Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_options WHERE reservationId = ?').get(reservationId).t || 0);
     if (hasTable('reservation_resources')) t += Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_resources WHERE reservationId = ?').get(reservationId).t || 0);
-    if (hasTable('reservation_custom_options')) t += Number(database.prepare('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END), 0) AS t FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).t || 0);
+    if (hasTable('reservation_custom_options')) t += Number(database.prepare(`SELECT COALESCE(SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END), 0) AS t FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).get(reservationId).t || 0);
     // The added guests' surcharge is billed like a line: « Offrir » on it (check-in or check-out) takes it out of the total.
     if (HAS_EXTRA_GUEST_COMPLEMENT && HAS_EXTRA_GUEST_OFFERED) t += Number(database.prepare('SELECT CASE WHEN COALESCE(extraGuestSurchargeOffered, 0) = 1 THEN 0 ELSE COALESCE(extraGuestComplementSurcharge, 0) END AS t FROM reservations WHERE id = ?').get(reservationId).t || 0);
     return t;
@@ -1221,7 +1225,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         SELECT r.*, c.lastName, c.firstName, c.email, c.phone, p.name as propertyName,
           p.defaultCautionAmount as propertyDefaultCautionAmount,
           COALESCE((SELECT SUM(ro.totalPrice) FROM reservation_options ro WHERE ro.reservationId = r.id), 0)
-          + COALESCE((SELECT SUM(CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END) FROM reservation_custom_options rco WHERE rco.reservationId = r.id), 0) as optionsTotal,
+          + COALESCE((SELECT SUM(CASE WHEN COALESCE(rco.offered, 0) = 1 THEN 0 ELSE rco.amount END) FROM reservation_custom_options rco WHERE rco.reservationId = r.id${notDepartureCharge(database, 'rco')}), 0) as optionsTotal,
           COALESCE((SELECT SUM(rr.totalPrice) FROM reservation_resources rr WHERE rr.reservationId = r.id), 0) as resourcesTotal
         FROM reservations r
         JOIN clients c ON r.clientId = c.id
@@ -1457,7 +1461,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           rco.soldeContribTtc as soldeContribTtc,
           1 as isCustom
         FROM reservation_custom_options rco
-        WHERE rco.reservationId = ?
+        WHERE rco.reservationId = ?${notDepartureCharge(database, 'rco')}
         ORDER BY rco.sortOrder, rco.id
       `).all(id);
       reservation.options = [...reservation.options, ...customOptions];
@@ -1641,7 +1645,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       const options = database.prepare('SELECT optionId, quantity, totalPrice, COALESCE(inComplement, 0) as inComplement FROM reservation_options WHERE reservationId = ?').all(reservationId);
-      const customOptions = database.prepare('SELECT description, amount, offered, COALESCE(inComplement, 0) as inComplement FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id').all(reservationId);
+      const customOptions = database.prepare(`SELECT description, amount, offered, COALESCE(inComplement, 0) as inComplement FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)} ORDER BY sortOrder, id`).all(reservationId);
       const resources = database.prepare('SELECT resourceId, quantity, totalPrice, offered, COALESCE(inComplement, 0) as inComplement FROM reservation_resources WHERE reservationId = ?').all(reservationId);
       return {
         propertyId: Number(row.propertyId),
@@ -1778,7 +1782,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const lines = [];
       for (const table of ['reservation_options', 'reservation_custom_options', 'reservation_resources']) {
         try {
-          lines.push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?`).all(reservationId));
+          lines.push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?${table === 'reservation_custom_options' ? notDepartureCharge(database) : ''}`).all(reservationId));
         } catch {
           // A minimal schema without this table or its contrib columns.
         }
@@ -1811,7 +1815,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const lines = { options: [], resources: [] };
       for (const [table, poste] of [['reservation_options', 'options'], ['reservation_custom_options', 'options'], ['reservation_resources', 'resources']]) {
         try {
-          lines[poste].push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?`).all(reservationId));
+          lines[poste].push(...database.prepare(`SELECT acompteContribTtc AS a, soldeContribTtc AS s FROM ${table} WHERE reservationId = ?${table === 'reservation_custom_options' ? notDepartureCharge(database) : ''}`).all(reservationId));
         } catch {
           // A minimal schema without this table or its contrib columns.
         }
@@ -2544,7 +2548,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
 
     // The stored custom lines as { id, description }: what a text-only save compares the posted names to.
     customOptionTexts(reservationId) {
-      return database.prepare('SELECT id, description FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+      return database.prepare(`SELECT id, description FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
     },
 
     // A text-only save: the new names, nothing else on the lines moves (ids and amounts stay).
@@ -2698,7 +2702,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       `).get(id);
       if (!row || row.accommodation == null) return null;
       const sumOf = (table) => Number(database.prepare(
-        `SELECT COALESCE(SUM(acompteContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?`,
+        `SELECT COALESCE(SUM(acompteContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?${table === 'reservation_custom_options' ? notDepartureCharge(database) : ''}`,
       ).get(id).total || 0);
       const removed = removedContribsOf(id);
       return {
@@ -2720,7 +2724,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       `).get(id);
       if (!row || row.accommodation == null) return null;
       const sumOf = (table) => Number(database.prepare(
-        `SELECT COALESCE(SUM(soldeContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?`,
+        `SELECT COALESCE(SUM(soldeContribTtc), 0) AS total FROM ${table} WHERE reservationId = ?${table === 'reservation_custom_options' ? notDepartureCharge(database) : ''}`,
       ).get(id).total || 0);
       const removed = removedContribsOf(id);
       return {
@@ -2847,7 +2851,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         WHERE ro.reservationId = ?
       `).all(reservationId);
       if (booked.some(isCleaningOption)) return true;
-      const customs = database.prepare('SELECT description AS title FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+      const customs = database.prepare(`SELECT description AS title FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
       if (customs.some(isCleaningOption)) return true;
       const row = database.prepare('SELECT propertyId FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return false;
@@ -3226,7 +3230,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
       const lineId = (table) => (hasLineId(database, table) ? 'lineId, ' : '');
       const options = database.prepare(`SELECT ${lineId('reservation_options')}optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?`).all(reservationId);
       const resources = database.prepare(`SELECT ${lineId('reservation_resources')}resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?`).all(reservationId);
-      const customs = database.prepare('SELECT id, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?').all(reservationId);
+      const customs = database.prepare(`SELECT id, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)}`).all(reservationId);
       // Rule 85: a later sale of an article is a line of its own (`lineId` + `lineKey`); the article's first line keeps the legacy key.
       const identified = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => ({
         ...make(row), ...(row.lineId != null ? { lineId: Number(row.lineId) } : {}), ...(key.startsWith('line:') ? { lineKey: key } : {}),
@@ -3255,7 +3259,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
           .all(reservationId).map((r) => [Number(r.id), flag(r)])),
         resources: new Map(database.prepare('SELECT resourceId AS id, COALESCE(inComplement, 0) AS inComplement FROM reservation_resources WHERE reservationId = ?')
           .all(reservationId).map((r) => [Number(r.id), flag(r)])),
-        customs: database.prepare('SELECT id, description, COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id')
+        customs: database.prepare(`SELECT id, description, COALESCE(inComplement, 0) AS inComplement, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ?${notDepartureCharge(database)} ORDER BY sortOrder, id`)
           .all(reservationId).map((r) => ({
             id: Number(r.id), description: r.description, inComplement: flag(r), acompteContribTtc: r.acompteContribTtc, soldeContribTtc: r.soldeContribTtc,
           })),
@@ -4402,7 +4406,7 @@ function createReservationsModel(database, { arrivalComplementEngine = null } = 
         }
         // specs/adjustable-complement-amounts.md §3.3 rule 20 — through the single write point, so a
         // re-run of the departure SAS re-applies the operator's adjustment instead of erasing it.
-        const amount = writeEndOfStayDetail(reservationId, plan.detail, model.getMidStaySettledNotes(reservationId));
+        const amount = writeEndOfStayDetail(reservationId, plan.detail, model.getMidStaySettledNotes(reservationId), { asLines: true });
 
         // specs/recall-unpaid-arrival-complement-at-checkout.md §3 rules 4-5 — « Compléments encaissés »
         // confirmation on the departure recap. Tri-state (same contract as the caution). When ON, mark
