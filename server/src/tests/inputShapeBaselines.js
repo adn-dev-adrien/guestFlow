@@ -148,6 +148,7 @@ async function baselines(app, admin, active) {
     ['POST', `${url.stay}/extras/quote`, { requests: [{ articleRef: 'option:999999', quantity: 1 }], payment: 'later' }, { ok: [400, 404, 409] }],
     ['POST', `${url.stay}/extras`, { requests: [{ articleRef: 'option:999999', quantity: 1 }], payment: 'later', acceptedTotalCents: 0 }, { ok: [400, 404, 409] }],
     ['PATCH', `${url.stay}/extras/option:999999`, { collectAt: 'arrival' }, { ok: [404] }],
+    ['DELETE', `${url.stay}/extras/option:999999`, {}, { ok: [404] }],
     ['PUT', `/api/reservations/${s.planned}/installments`, { dates: plan.map((row, i) => ({ id: row.id, dueDate: dayAt(20 + i) })) }],
     ['PUT', `/api/reservations/${s.planned}/installments`, { amounts: [{ id: plan[0].id, amount: 1 }] }, { ok: [400] }],
     ['PUT', `/api/reservations/${s.planned}/installments`, { count: plan.length }],
