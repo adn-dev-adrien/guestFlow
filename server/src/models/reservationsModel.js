@@ -372,7 +372,7 @@ function retireSettledLinksOf(database) {
   try { require('./paymentLinksModel').buildModel(database).retireSettled(); } catch { /* no link table: nothing to retire */ }
 }
 
-function createReservationsModel(database) {
+function createReservationsModel(database, { arrivalComplementEngine = null } = {}) {
   const catalogue = createCatalogueProvider(database);
   // specs/pricing-components.md rule 41 — the free units an arrival SAS sale may spend: the grant the stay was sold with (its tariff
   // snapshot), else the lodging's catalogue, on an own-channel stay only — the very grant the fiche's engine reads. The SAS sells an
@@ -983,6 +983,147 @@ function createReservationsModel(database) {
     return { beyond, added: round2(added), shrinks };
   };
 
+  // The arrival SAS's row writers, shared by the commit and by the plan's rolled-back run (pricing-components.md rule 90.1).
+  const writeSoldOptions = (reservationId, lines, upsellOptionIds) => {
+    if (!HAS_RO_SAS_ARRIVAL_ORIGIN || !lines) return;
+    const keep = new Set(lines.map((l) => Number(l.optionId)));
+    const drop = database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1');
+    for (const row of database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1').all(reservationId)) {
+      const id = Number(row.optionId);
+      if (!keep.has(id) && !upsellOptionIds.has(id)) drop.run(reservationId, id);
+    }
+    const occColumn = HAS_RO_CARD_OCCURRENCES;
+    const perColumn = HAS_RO_CARD_PERSONS;
+    const nightsColumn = HAS_RO_CARD_NIGHTS;
+    // Update-then-insert, not ON CONFLICT: the article is no longer a key of the line tables (rule 85), so there is no conflict target.
+    const insert = database.prepare(`
+      INSERT INTO reservation_options
+        (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin${occColumn ? ', cardOccurrences' : ''}${perColumn ? ', cardPersons' : ''}${nightsColumn ? ', cardNights' : ''})
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, 1${occColumn ? ', ?' : ''}${perColumn ? ', ?' : ''}${nightsColumn ? ', ?' : ''})
+    `);
+    const update = database.prepare(`
+      UPDATE reservation_options SET
+        quantity = ?, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
+        inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = ?' : ''}${perColumn ? ', cardPersons = ?' : ''}${nightsColumn ? ', cardNights = ?' : ''}
+      WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}
+    `);
+    const upsert = {
+      run: (reservationIdParam, optionIdParam, ...rest) => {
+        if (update.run(...rest, reservationIdParam, optionIdParam).changes === 0) insert.run(reservationIdParam, optionIdParam, ...rest);
+      },
+    };
+    // Rule 26 — the free units the sale spent stay with its line (`{ freeUnits, amount }`, NULL when none), as the fiche's writer stores them.
+    const hasAllowanceUsed = database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'allowanceUsed');
+    const storeAllowance = hasAllowanceUsed ? database.prepare(`UPDATE reservation_options SET allowanceUsed = ?
+      WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}`) : null;
+    for (const l of lines) {
+      const params = [reservationId, l.optionId, l.quantity, l.unitPrice, l.billedUnits, l.priceType, l.totalPrice];
+      if (occColumn) params.push(l.cardOccurrences && l.cardOccurrences.length ? JSON.stringify(l.cardOccurrences) : null);
+      // Only a deliberately reduced (or raised) number of covers is stored; NULL keeps the line
+      // following the party (specs/card-option-served-persons.md §3.1 rule 4).
+      if (perColumn) params.push(l.cardPersons != null ? Number(l.cardPersons) : null);
+      if (nightsColumn) params.push(l.cardNights != null ? Number(l.cardNights) : null);
+      upsert.run(...params);
+      if (storeAllowance) {
+        storeAllowance.run(Number(l.freeUnits) > 0 ? JSON.stringify({ freeUnits: Number(l.freeUnits), amount: Number(l.freeUnitsAmount || 0) }) : null, reservationId, l.optionId);
+      }
+    }
+  };
+  // The SAS-origin custom lines (linen pieces, a plugin's supplements), shared by the two branches. A re-run changes the line it
+  // already wrote in place (same row, same identity: rule 14, reopen-completed-sas rule 4), appends a new one, and removes only the one
+  // the selection no longer holds; a line is matched by the key its plugin gave it, else by its label.
+  const rewriteSasCustomItems = (reservationId, items) => {
+    const rows = database.prepare(`SELECT id, description${HAS_RCO_SAS_LINE_KEY ? ', sasLineKey' : ''} FROM reservation_custom_options
+      WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id`).all(reservationId);
+    const identity = (key, label) => (key ? `key:${key}` : `label:${String(label).trim()}`);
+    const held = new Map();
+    for (const row of rows) {
+      const k = identity(HAS_RCO_SAS_LINE_KEY ? row.sasLineKey : null, row.description);
+      if (!held.has(k)) held.set(k, []);
+      held.get(k).push(row.id);
+    }
+    const kept = new Set();
+    let sort = Number(database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m) + 1;
+    const update = database.prepare(`UPDATE reservation_custom_options SET description = ?, amount = ?, offered = ?, inComplement = 1${HAS_RCO_QUANTITY ? ', quantity = ?' : ''} WHERE id = ?`);
+    // A line a plugin bills carries its key (rule 7), so the dialog never takes it for its own.
+    const insert = HAS_RCO_SAS_LINE_KEY
+      ? database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin, sasLineKey) VALUES (?, ?, ?, ?, ?, 1, 1, ?)')
+      : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
+    // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded statements above stay valid on a schema without the column.
+    const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
+    for (const it of items) {
+      const label = String(it.label).trim();
+      const amount = roundMoneyStrict(it.amount);
+      const qty = Math.max(1, Math.round(Number(it.qty) || 1));
+      const queue = held.get(identity(it.sasLineKey || null, label));
+      const id = queue && queue.length ? queue.shift() : null;
+      if (id != null) {
+        update.run(label, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
+        kept.add(id);
+      } else {
+        const inserted = insert.run(reservationId, label, amount, it.offered ? 1 : 0, sort, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
+        if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);
+        sort += 1;
+      }
+    }
+    for (const row of rows) {
+      if (!kept.has(row.id)) database.prepare('DELETE FROM reservation_custom_options WHERE id = ?').run(row.id);
+    }
+  };
+  // specs/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
+  // toilette activate their CATALOGUE option (so the laundry + linen stock finally count them),
+  // priced by the engine, routed to the complement, tagged `sasArrivalOrigin` so a re-run may
+  // remove them. Tri-state: `undefined` = step not shown → leave the reservation alone. An
+  // option the operator sold from the fiche (`sasArrivalOrigin = 0`) is NEVER touched.
+  // The sold-options writer is handed the two upsells' option ids, to know which rows it must never remove.
+  // specs/sas-offer-complement-lines.md §3.2 rule 8 — « Offrir » is NOT « Non merci »: an
+  // offered upsell stays activated (the laundry + the linen stock count it) but is stored at
+  // `totalPrice = 0`, so it costs the guest nothing and drops out of the complement.
+  const applyUpsell = (reservationId, offer, wanted, offered) => {
+    if (!HAS_RO_SAS_ARRIVAL_ORIGIN || wanted === undefined || !offer || !offer.optionId) return;
+    if (offer.present && !offer.sasOrigin) return;
+    if (wanted) {
+      if (offer.totalPrice <= 0) return;
+      const upsellTotal = offered ? 0 : offer.totalPrice;
+      const upsellOffered = offered ? 1 : 0;
+      const updated = database.prepare(`
+        UPDATE reservation_options SET
+          quantity = 1, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
+          offered = ?, inComplement = 1, sasArrivalOrigin = 1
+        WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}
+      `).run(offer.unitPrice, offer.billedUnits, offer.priceType, upsellTotal, upsellOffered, reservationId, offer.optionId).changes;
+      if (updated === 0) {
+        database.prepare(`
+          INSERT INTO reservation_options
+            (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin)
+          VALUES (?, ?, 1, ?, ?, ?, ?, ?, 1, 1)
+        `).run(reservationId, offer.optionId, offer.unitPrice, offer.billedUnits, offer.priceType, upsellTotal, upsellOffered);
+      }
+    } else if (offer.sasOrigin) {
+      database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
+        .run(reservationId, offer.optionId);
+    }
+  };
+  // Rule 90.1 — the arrival SAS's write on a complement not yet collected: the pre-existing lines' « Offrir », the SAS-origin rows replaced,
+  // then the complement the ENGINE gives the stay those rows make (the fiche's save, played and rolled back), the operator's adjustment
+  // re-applied. The commit runs it; the plan runs it inside a transaction it rolls back, so the preview and the commit are one computation.
+  // A model built on a database the fiche's save does not run on (unit fixtures with partial schemas) has no engine: it keeps the
+  // arithmetic the plan hands it (`arithmetic`).
+  const writeArrivalComplement = (reservationId, {
+    items, sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic,
+  }) => {
+    applyOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
+    const upsellOptionIds = new Set([upsells.cleaning.optionId, upsells.bathLinen.optionId].filter((id) => id != null).map(Number));
+    rewriteSasCustomItems(reservationId, items);
+    applyUpsell(reservationId, upsells.cleaning, cleaningAdded, cleaningOffered);
+    applyUpsell(reservationId, upsells.bathLinen, bathLinenAdded, bathLinenOffered);
+    writeSoldOptions(reservationId, sales, upsellOptionIds);
+    const engineAfter = arrivalComplementEngine ? round2(arrivalComplementEngine(reservationId)) : arithmetic;
+    database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(engineAfter, reservationId);
+    reapplyComplementOverride(reservationId, engineAfter);
+    const stored = round2(database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount);
+    return { engineAfter, stored };
+  };
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
     list({ propertyId, clientId, from, to } = {}) {
@@ -2927,9 +3068,26 @@ function createReservationsModel(database) {
         'SELECT COALESCE(SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END), 0) AS s FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1',
       ).get(reservationId).s);
       const priorSum = round2(priorCustom + sasRows.reduce((s, x) => s + Number(x.totalPrice || 0), 0));
-      const after = arrivalComplementAfter({
+      const arithmetic = arrivalComplementAfter({
         stored: Number(row.complementAmount || 0), offerDelta: delta, override, priorSum, added: addedBilled,
       });
+      // Rule 90.1 — the totals are the commit's own: its write played inside a transaction rolled back, the complement read from the
+      // stored row it leaves. Only a model without the engine keeps the arithmetic.
+      let after = arithmetic;
+      if (arrivalComplementEngine) {
+        const ROLLBACK = Symbol('arrival-plan');
+        try {
+          database.transaction(() => {
+            const written = writeArrivalComplement(reservationId, {
+              items, sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic: arithmetic.engineAfter,
+            });
+            after = { engineAfter: written.engineAfter, stored: written.stored, existingTotal: Math.max(0, round2(written.engineAfter - addedBilled)) };
+            throw ROLLBACK;
+          })();
+        } catch (err) {
+          if (err !== ROLLBACK) throw err;
+        }
+      }
       return {
         paid,
         override,
@@ -3612,15 +3770,9 @@ function createReservationsModel(database) {
 
         for (const write of pluginWrites) write(database);
 
-        // Arrival complement — REPLACE the SAS-origin lines (specs/reopen-completed-sas.md §4 rule 4).
-        // Drop the rows a prior run of THIS SAS created (sasArrivalOrigin=1), then re-insert the current
-        // selection; the complement lands on the amount the plan computed, so re-opening never
-        // double-counts. A paid complement is frozen. First commit: no tagged rows → pure add (legacy).
+        // Arrival complement — REPLACE the SAS-origin lines (specs/reopen-completed-sas.md §4 rule 4): a re-run changes the rows a prior
+        // run of THIS SAS created (sasArrivalOrigin=1) instead of appending, so re-opening never double-counts. A paid complement is frozen.
         const items = plan ? plan.items : [];
-        // specs/sas-offer-complement-lines.md §3.3 — the gestes commerciaux on the PRE-EXISTING lines.
-        // The SAS-origin rows are skipped here — they are rebuilt just below with their own `offered`
-        // flag.
-        applyOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
         const compRow = database.prepare('SELECT complementAmount, complementPaid FROM reservations WHERE id = ?').get(reservationId);
         // specs/sas-breakfast-and-catering-upsell.md §3.3 — the prestations the two sale steps sold,
         // priced server-side by the plan. `null` = the steps never ran (tri-state, like the upsell
@@ -3631,146 +3783,16 @@ function createReservationsModel(database) {
         const upsells = plan ? plan.upsells : model.getSasUpsellOptions(reservationId);
         const upsellOptionIds = new Set([upsells.cleaning.optionId, upsells.bathLinen.optionId]
           .filter((id) => id != null).map(Number));
-        // Replace, never append (specs/reopen-completed-sas.md §4 rule 4): every SAS-sold option that
-        // is not in this run's selection goes, the selected ones are re-priced. Their money is routed
-        // to the complement (`inComplement = 1`) and tagged `sasArrivalOrigin = 1`, and their moments
-        // are stored so the planning cards + the breakfast prep see the sale.
-        const writeSoldOptions = (lines) => {
-          if (!HAS_RO_SAS_ARRIVAL_ORIGIN || !lines) return;
-          const keep = new Set(lines.map((l) => Number(l.optionId)));
-          const drop = database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1');
-          for (const row of database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1').all(reservationId)) {
-            const id = Number(row.optionId);
-            if (!keep.has(id) && !upsellOptionIds.has(id)) drop.run(reservationId, id);
-          }
-          const occColumn = HAS_RO_CARD_OCCURRENCES;
-          const perColumn = HAS_RO_CARD_PERSONS;
-          const nightsColumn = HAS_RO_CARD_NIGHTS;
-          // Update-then-insert, not ON CONFLICT: the article is no longer a key of the line tables (rule 85), so there is no conflict target.
-          const insert = database.prepare(`
-            INSERT INTO reservation_options
-              (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin${occColumn ? ', cardOccurrences' : ''}${perColumn ? ', cardPersons' : ''}${nightsColumn ? ', cardNights' : ''})
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, 1${occColumn ? ', ?' : ''}${perColumn ? ', ?' : ''}${nightsColumn ? ', ?' : ''})
-          `);
-          const update = database.prepare(`
-            UPDATE reservation_options SET
-              quantity = ?, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
-              inComplement = 1, sasArrivalOrigin = 1${occColumn ? ', cardOccurrences = ?' : ''}${perColumn ? ', cardPersons = ?' : ''}${nightsColumn ? ', cardNights = ?' : ''}
-            WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}
-          `);
-          const upsert = {
-            run: (reservationIdParam, optionIdParam, ...rest) => {
-              if (update.run(...rest, reservationIdParam, optionIdParam).changes === 0) insert.run(reservationIdParam, optionIdParam, ...rest);
-            },
-          };
-          // Rule 26 — the free units the sale spent stay with its line (`{ freeUnits, amount }`, NULL when none), as the fiche's writer stores them.
-          const hasAllowanceUsed = database.prepare('PRAGMA table_info(reservation_options)').all().some((c) => c.name === 'allowanceUsed');
-          const storeAllowance = hasAllowanceUsed ? database.prepare(`UPDATE reservation_options SET allowanceUsed = ?
-            WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}`) : null;
-          for (const l of lines) {
-            const params = [reservationId, l.optionId, l.quantity, l.unitPrice, l.billedUnits, l.priceType, l.totalPrice];
-            if (occColumn) params.push(l.cardOccurrences && l.cardOccurrences.length ? JSON.stringify(l.cardOccurrences) : null);
-            // Only a deliberately reduced (or raised) number of covers is stored; NULL keeps the line
-            // following the party (specs/card-option-served-persons.md §3.1 rule 4).
-            if (perColumn) params.push(l.cardPersons != null ? Number(l.cardPersons) : null);
-            if (nightsColumn) params.push(l.cardNights != null ? Number(l.cardNights) : null);
-            upsert.run(...params);
-            if (storeAllowance) {
-              storeAllowance.run(Number(l.freeUnits) > 0 ? JSON.stringify({ freeUnits: Number(l.freeUnits), amount: Number(l.freeUnitsAmount || 0) }) : null, reservationId, l.optionId);
-            }
-          }
-        };
         // Keys the frozen branch must NOT fold into the arrival baseline (they are mid-stay sales).
         let midStaySaleKeys = [];
-        // The SAS-origin custom lines (linen pieces, a plugin's supplements), shared by the two branches. A re-run changes the line it
-        // already wrote in place (same row, same identity: rule 14, reopen-completed-sas rule 4), appends a new one, and removes only the one
-        // the selection no longer holds; a line is matched by the key its plugin gave it, else by its label.
-        const rewriteSasCustomItems = () => {
-          const rows = database.prepare(`SELECT id, description${HAS_RCO_SAS_LINE_KEY ? ', sasLineKey' : ''} FROM reservation_custom_options
-            WHERE reservationId = ? AND sasArrivalOrigin = 1 ORDER BY sortOrder, id`).all(reservationId);
-          const identity = (key, label) => (key ? `key:${key}` : `label:${String(label).trim()}`);
-          const held = new Map();
-          for (const row of rows) {
-            const k = identity(HAS_RCO_SAS_LINE_KEY ? row.sasLineKey : null, row.description);
-            if (!held.has(k)) held.set(k, []);
-            held.get(k).push(row.id);
-          }
-          const kept = new Set();
-          let sort = Number(database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m) + 1;
-          const update = database.prepare(`UPDATE reservation_custom_options SET description = ?, amount = ?, offered = ?, inComplement = 1${HAS_RCO_QUANTITY ? ', quantity = ?' : ''} WHERE id = ?`);
-          // A line a plugin bills carries its key (rule 7), so the dialog never takes it for its own.
-          const insert = HAS_RCO_SAS_LINE_KEY
-            ? database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin, sasLineKey) VALUES (?, ?, ?, ?, ?, 1, 1, ?)')
-            : database.prepare('INSERT INTO reservation_custom_options (reservationId, description, amount, offered, sortOrder, inComplement, sasArrivalOrigin) VALUES (?, ?, ?, ?, ?, 1, 1)');
-          // The count rides along (« Taie d'oreiller ×2 », rule 29), written apart so the guarded statements above stay valid on a schema without the column.
-          const setQuantity = HAS_RCO_QUANTITY ? database.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE id = ?') : null;
-          for (const it of items) {
-            const label = String(it.label).trim();
-            const amount = roundMoneyStrict(it.amount);
-            const qty = Math.max(1, Math.round(Number(it.qty) || 1));
-            const queue = held.get(identity(it.sasLineKey || null, label));
-            const id = queue && queue.length ? queue.shift() : null;
-            if (id != null) {
-              update.run(label, amount, it.offered ? 1 : 0, ...(HAS_RCO_QUANTITY ? [qty] : []), id);
-              kept.add(id);
-            } else {
-              const inserted = insert.run(reservationId, label, amount, it.offered ? 1 : 0, sort, ...(HAS_RCO_SAS_LINE_KEY ? [it.sasLineKey || null] : []));
-              if (setQuantity && qty > 1) setQuantity.run(qty, inserted.lastInsertRowid);
-              sort += 1;
-            }
-          }
-          for (const row of rows) {
-            if (!kept.has(row.id)) database.prepare('DELETE FROM reservation_custom_options WHERE id = ?').run(row.id);
-          }
-        };
-        // specs/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
-        // toilette activate their CATALOGUE option (so the laundry + linen stock finally count them),
-        // priced by the engine, routed to the complement, tagged `sasArrivalOrigin` so a re-run may
-        // remove them. Tri-state: `undefined` = step not shown → leave the reservation alone. An
-        // option the operator sold from the fiche (`sasArrivalOrigin = 0`) is NEVER touched.
-        // `upsells` is resolved once for the whole transaction above — the sold-options writer needs
-        // it too, to know which rows it must never remove.
-        // specs/sas-offer-complement-lines.md §3.2 rule 8 — « Offrir » is NOT « Non merci »: an
-        // offered upsell stays activated (the laundry + the linen stock count it) but is stored at
-        // `totalPrice = 0`, so it costs the guest nothing and drops out of the complement.
-        const applyUpsell = (offer, wanted, offered) => {
-          if (!HAS_RO_SAS_ARRIVAL_ORIGIN || wanted === undefined || !offer || !offer.optionId) return;
-          if (offer.present && !offer.sasOrigin) return;
-          if (wanted) {
-            if (offer.totalPrice <= 0) return;
-            const upsellTotal = offered ? 0 : offer.totalPrice;
-            const upsellOffered = offered ? 1 : 0;
-            const updated = database.prepare(`
-              UPDATE reservation_options SET
-                quantity = 1, unitPrice = ?, billedUnits = ?, priceType = ?, totalPrice = ?,
-                offered = ?, inComplement = 1, sasArrivalOrigin = 1
-              WHERE ${articleRowWhere(database, 'reservation_options', 'optionId', { sasFirst: true })}
-            `).run(offer.unitPrice, offer.billedUnits, offer.priceType, upsellTotal, upsellOffered, reservationId, offer.optionId).changes;
-            if (updated === 0) {
-              database.prepare(`
-                INSERT INTO reservation_options
-                  (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin)
-                VALUES (?, ?, 1, ?, ?, ?, ?, ?, 1, 1)
-              `).run(reservationId, offer.optionId, offer.unitPrice, offer.billedUnits, offer.priceType, upsellTotal, upsellOffered);
-            }
-          } else if (offer.sasOrigin) {
-            database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
-              .run(reservationId, offer.optionId);
-          }
-        };
+        // specs/sas-offer-complement-lines.md §3.3 — on a collected complement the gestes on the pre-existing lines are applied all the same.
+        if (compRow && Number(compRow.complementPaid || 0) === 1) applyOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
         if (compRow && Number(compRow.complementPaid || 0) !== 1) {
-          rewriteSasCustomItems();
-          applyUpsell(upsells.cleaning, cleaningAdded, cleaningOffered);
-          applyUpsell(upsells.bathLinen, bathLinenAdded, bathLinenOffered);
-          // The breakfast + « Restauration » sales: replaced, never stacked.
-          writeSoldOptions(sales);
-
-          // The engine amount the plan computed (specs/sas-arrival-total-server-side.md rule 2): the
-          // previous run's SAS lines out, this run's in, the gestes commerciaux applied.
-          const next = plan.engineAfter;
-          database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
-          // Le SAS a écrit son montant hors moteur : rendre la main à l'ajustement de l'opérateur.
-          reapplyComplementOverride(reservationId, next);
+          // Rule 90.1 — the very write the plan played and rolled back: the gestes commerciaux on the pre-existing lines
+          // (specs/sas-offer-complement-lines.md §3.3), the SAS-origin rows replaced, the complement the engine gives them.
+          writeArrivalComplement(reservationId, {
+            items, sales, upsells, offeredExtras, cleaningAdded, cleaningOffered, bathLinenAdded, bathLinenOffered, arithmetic: plan.engineAfter,
+          });
         } else if (compRow && (sales || items.length > 0 || cleaningAdded !== undefined || bathLinenAdded !== undefined
           || database.prepare('SELECT 1 FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1').get(reservationId))) {
           // The arrival complement is already collected, and a collected complement never moves again
@@ -3792,10 +3814,10 @@ function createReservationsModel(database) {
             upsells, intents: { cleaning: { wanted: cleaningAdded, offered: cleaningOffered }, bathLinen: { wanted: bathLinenAdded, offered: bathLinenOffered } }, sales, items,
           });
           const { beyond } = frozenRouting(reservationId, after);
-          rewriteSasCustomItems();
-          applyUpsell(upsells.cleaning, cleaningAdded, cleaningOffered);
-          applyUpsell(upsells.bathLinen, bathLinenAdded, bathLinenOffered);
-          writeSoldOptions(sales);
+          rewriteSasCustomItems(reservationId, items);
+          applyUpsell(reservationId, upsells.cleaning, cleaningAdded, cleaningOffered);
+          applyUpsell(reservationId, upsells.bathLinen, bathLinenAdded, bathLinenOffered);
+          writeSoldOptions(reservationId, sales, upsellOptionIds);
           midStaySaleKeys = [...beyond].filter(([, over]) => over > 0).map(([key]) => key);
           // Merge into the mid-stay lines already stored (a prestation sold on the fiche earlier in
           // the stay keeps its own line verbatim) rather than recomputing the whole split.
@@ -4362,7 +4384,19 @@ function createReservationsModel(database) {
   return model;
 }
 
-const defaultModel = createReservationsModel(db);
+// Rule 90.1 — the arrival complement the engine gives a stored stay, before the operator's adjustment (the writer re-applies it): the stay
+// priced exactly as its fiche's save prices it (`quoteStoredReservation`), without the save's judgement of the stay's shape — a stay sold
+// under a minimum it no longer meets still checks in.
+function engineArrivalComplement(reservationId) {
+  const { quoteStoredReservation } = require('../utils/storedReservationQuote');
+  const quote = quoteStoredReservation(db, defaultModel.getRow(Number(reservationId)));
+  if (!quote || quote.error) {
+    throw Object.assign(new Error((quote && quote.error) || 'Complément d’arrivée non calculable.'), { status: 409, code: 'ARRIVAL_COMPLEMENT_UNPRICED' });
+  }
+  return Number(quote.complementAmountAuto || 0);
+}
+
+const defaultModel = createReservationsModel(db, { arrivalComplementEngine: engineArrivalComplement });
 defaultModel.create = createReservationsModel;
 defaultModel.__test = { deriveCommissionAmount, arrivalComplementDetailFromReservation, resolveEffectiveCaution };
 

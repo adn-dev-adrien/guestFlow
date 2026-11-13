@@ -1629,7 +1629,18 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > differ in one suite only (`sas-arrival-plan`: fixtures whose stored complement and catalogue the engine does not reproduce, e.g. a ménage upsell 80 € the engine
     > prices at 0). Moving the complement to the engine is therefore a figure move on stays whose stored complement is not the engine's: it needs that class measured on
     > the prod copy and approved before the commit's write changes.
-    > **Pending** — PR C: 1, 2 and 3. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
+    > _Pass 3h, measured for 1 on a copy of the prod database (2026-11-11):_ the stored arrival complement equals the engine's complement of the
+    > same stored stay (`quoteStoredReservation`, no price pinned) on 62 stays of 62 (45 not collected, 5 of them above 0 €): no stored figure moves.
+    > **Delivered by PR C** (pass 3h, 1): the commit's write on a complement not yet collected is one function (`writeArrivalComplement`: the
+    > gestes on the pre-existing lines, the SAS-origin rows replaced, then the engine's complement — `quoteStoredReservation` on the rows written,
+    > before the operator's adjustment, which is re-applied); `planArrivalSas` runs that function inside a transaction it rolls back and reads
+    > the stored row it leaves. The stay's shape (minimum / maximum nights, changeover, capacity) is not judged: a stay sold under a minimum it
+    > no longer meets still checks in. A collected complement keeps its #1032 path (`collectedHoldByKey`, `frozenRouting`, 409
+    > `END_OF_STAY_ALREADY_COLLECTED`) unchanged. A model built on a database the engine does not run on (unit fixtures with partial schemas)
+    > keeps `arrivalComplementAfter`'s arithmetic. Proof: `sas-arrival-engine-complement`; `sas-arrival-plan` fixtures now register the
+    > articles with their lodging and give it the tariff the stored tax and added guests come from (the engine prices only what a lodging offers).
+    > **Pending** — PR C: 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
+    > fields): they write the same rows today, and the engine reads them back; 2 and 3. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
     > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
 
 ## 4. Architecture
@@ -1864,6 +1875,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `pricing-legacy-collect-at` — §5 backfill derivation
 - [x] Golden fixture unchanged through PR A and B's first commit (no `GOLDEN_UPDATE`), with accounting-export installed
 - [x] `pricing-line-keys`, `true-lines-duplicate-rows` — rule 85: the resolver (first line keeps the legacy key, later lines `line:<table>:<lineId>`), and a database holding two rows of one article on one stay: the engine prices each from its own snapshot, every writer touches exactly the intended row, every reader returns every row _(PR C, pass 3c)_
+- [x] `sas-arrival-engine-complement` — rule 90.1: the plan is the commit rolled back (nothing written, same figure), the engine's complement over a stored figure no line explains, a re-run never bills twice, a stay below its minimum still checks in, the adjustment re-applied over the engine figure _(PR C, pass 3h)_
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 
 ### Proof

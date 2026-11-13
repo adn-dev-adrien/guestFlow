@@ -28,6 +28,15 @@ for (const optionId of [BREAKFAST, MEAL, BOARD]) {
   db.prepare("UPDATE options SET category = 'Restauration' WHERE id = ?").run(optionId);
   db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
 }
+// specs/pricing-components.md rule 90.1 — the complement is the engine's, and the engine prices only the articles a lodging offers: the
+// ménage, the « Panier gourmand » and the « Repas du soir » are this lodging's (they were stored lines of no article before pass 3h).
+for (const optionId of [CLEANING, PANIER, DINNER]) db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (1, ?)').run(optionId);
+// Rule 90.1 — a lodging whose tariff makes the tax and the added guests the engine re-derives (4,80 € = 2 adults × 2 nights × 1,20 €;
+// 40 € = 2 added guests × 2 nights × 10 €), on a channel that sold the stay for two.
+db.prepare(`INSERT INTO properties (id, name, maxGuests, touristTaxMode, touristTaxPerDayPerPerson, basePriceIncludedGuests, extraGuestPrice, extraGuestPriceUnit)
+  VALUES (2, 'Gîte taxé', 8, 'per_day_per_person', 1.2, 2, 10, 'per_night')`).run();
+db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (2, ?)').run(DINNER);
+db.prepare("INSERT INTO platforms (name) VALUES ('Canal')").run();
 
 let nextId = 100;
 function stay(columns = {}) {
@@ -124,7 +133,7 @@ test('rule 1 — a stored « Panier gourmand » 20 € offered → 0 €', () =>
 });
 
 test('rule 1 — « Repas du soir » 16 × 5 € + tourist tax 4,80 € → 84,80 €; the tax is never offerable', () => {
-  const id = stay({ complementAmount: 84.8, touristTaxInComplement: 1, touristTaxTotal: 4.8 });
+  const id = stay({ propertyId: 2, complementAmount: 84.8, touristTaxInComplement: 1, touristTaxTotal: 4.8 });
   inComplement(id, DINNER, 16, 5);
   const plan = model.planArrivalSas(id, draft(id));
   assert.equal(plan.arrivalComplementTotal, 84.8);
@@ -137,7 +146,10 @@ test('rule 1 — « Repas du soir » 16 × 5 € + tourist tax 4,80 € → 84,8
 });
 
 test('rule 1 — 40 € of added guests, offered → 0 €', () => {
-  const id = stay({ complementAmount: 40, extraGuestComplementSurcharge: 40, extraGuestComplementCount: 2 });
+  const id = stay({
+    propertyId: 2, platform: 'Canal', adults: 4, platformPaidGuests: 2, platformGrossAmount: 600,
+    complementAmount: 40, extraGuestComplementSurcharge: 40, extraGuestComplementCount: 2,
+  });
   assert.equal(model.planArrivalSas(id, draft(id, { offeredExtras: [] })).arrivalComplementTotal, 40);
   assert.equal(model.planArrivalSas(id, draft(id, { offeredExtras: [{ kind: 'extraGuests', id: 0 }] })).arrivalComplementTotal, 0);
 });
@@ -190,7 +202,8 @@ test('rule 24, Q3 (verified on a fixture only) — an adjusted complement stores
   const input = draft(id, { linenItems: [{ itemId: PILLOW, qty: 1 }], cleaningAdded: true });
   const plan = model.planArrivalSas(id, input);
   assert.equal(plan.arrivalComplementTotal, 50);
-  assert.deepEqual(plan.adjusted, { amount: 50, engineAmount: 135 });
+  // Rule 90.1 — the engine figure is the stay's own (5 € + 80 €: the stay has no other line); the arithmetic added the run to the adjustment (135 €).
+  assert.deepEqual(plan.adjusted, { amount: 50, engineAmount: 85 });
   assert.equal(model.commitArrivalSas(id, input), 50);
   assert.equal(amountOf(id), 50, 'the commit leaves the operator’s adjustment, as the plan announced');
 });
