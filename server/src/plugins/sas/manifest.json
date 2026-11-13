@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.10.1",
+  "version": "1.11.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -174,6 +174,12 @@
       "Les arrondis en euros et en centimes passent par un calcul commun du cœur : aucun montant ne change.",
       "Compatible avec GuestFlow 4 (SDK 2.29).",
       "Offrir une prestation vise une seule ligne quand un article a été vendu plusieurs fois ; le récapitulatif regroupe ces lignes sous un seul titre."
+    ],
+    "1.11.0": [
+      "Le sas d’arrivée perçoit maintenant les ventes prévues au départ : « Percevoir maintenant » ligne par ligne, ou « Tout percevoir maintenant ».",
+      "Les lignes déjà payées se replient sous « Déjà payé ».",
+      "Un sas rouvert modifie ses lignes sur place et ajoute les nouvelles, qui portent la pastille « Ajoutée à la réouverture » ; les totaux ne changent pas.",
+      "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
 }
