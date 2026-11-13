@@ -48,12 +48,13 @@ withOrdering('rules 33, 34, 46: « Ajouter à ma note » asks no name — confir
   assert.equal(pushes[0].payload.body, 'La Granja · Marie — 2 × Cidre (sur la note)');
 });
 
-withOrdering('rule 34: a second order adds to the stay’s line of the same option — no duplicate line', async ({ stayId, call }) => {
+withOrdering('specs/pricing-components.md rules 13, 85: a second order is a line of its own — the first line is untouched, the end-of-stay owes both', async ({ stayId, call }) => {
   await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 1 }], payment: 'note' });
   await call('POST', '/public/v1/guest/orders', { lines: [{ kind: 'option', id: CIDER, quantity: 2 }], payment: 'note' });
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_options WHERE reservationId = ? AND optionId = ?').get(stayId, CIDER).n, 1);
-  assert.equal(optionLine(stayId, CIDER).quantity, 3);
-  assert.equal(midStay(stayId, `opt:${CIDER}`), 18);
+  const lines = db.prepare('SELECT lineId, quantity FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(stayId, CIDER);
+  assert.deepEqual(lines.map((l) => l.quantity), [1, 2]);
+  assert.equal(midStay(stayId, `opt:${CIDER}`), 6);
+  assert.equal(midStay(stayId, `line:reservation_options:${lines[1].lineId}`), 12);
 });
 
 withOrdering('rule 34: a per-person option counts one more person served per unit ordered', async ({ stayId, call }) => {

@@ -81,15 +81,14 @@ test('rule 61: the persons left of rule 55 name the article in English', async (
   });
 });
 
-test('rule 61: a line the engine adds nothing for is refused with the English title', async () => {
+test('specs/pricing-components.md rule 85 (was guest-app rule 61): an article the fiche offers is quoted as a new billed line, in English too', async () => {
   const stay = seedStay({ propertyId: 1 });
   const body = toUpdateBody(model.getByIdWithDetails(stay), new Set());
   const saved = ctl.performUpdate(stay, { ...body, options: [...(body.options || []), { optionId: WOOD, quantity: 1 }], offeredOptionIds: [WOOD] });
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
   await withOrdering(stay, async ({ call }) => {
-    const refused = await call('POST', `${QUOTE}?lang=en`, line(WOOD, 1));
-    assert.equal(refused.status, 409, JSON.stringify(refused.body));
-    assert.equal(refused.body.error.code, 'ITEM_UNAVAILABLE');
-    assert.equal(refused.body.error.message, '“Oak firewood” cannot be ordered in the app for this stay: contact the team.');
+    const quote = await call('POST', `${QUOTE}?lang=en`, line(WOOD, 1));
+    assert.equal(quote.status, 200, JSON.stringify(quote.body));
+    assert.ok(quote.body.data.total > 0);
   });
 });

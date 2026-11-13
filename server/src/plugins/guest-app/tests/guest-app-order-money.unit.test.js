@@ -45,7 +45,8 @@ function withCard(name, fn, { skip = false, ...options } = {}) {
 const orderRow = (id) => db.prepare('SELECT * FROM guest_orders WHERE id = ?').get(id);
 const linkOf = (orderId) => paymentLinksModel.findById(orderRow(orderId).paymentLinkId);
 const ledgerOf = (stayId) => buildLedger({ row: db.prepare('SELECT * FROM reservations WHERE id = ?').get(stayId), links: paymentLinksModel.listForReservation(stayId) });
-const bathOwed = (stayId) => endOfStayDetail(stayId).filter((l) => l.key === `res:${BATH}`).reduce((sum, l) => sum + l.amount, 0);
+// Rule 85: an article sold twice is two lines — the first keeps `res:<id>`, a later one is `line:reservation_resources:<lineId>`; the bath is the only resource here.
+const bathOwed = (stayId) => endOfStayDetail(stayId).filter((l) => l.key === `res:${BATH}` || String(l.key).startsWith('line:reservation_resources:')).reduce((sum, l) => sum + l.amount, 0);
 /** The guest pays the order's link; the return page reads it at the provider. */
 async function pay(call, card, orderId) {
   card.pay(linkOf(orderId).providerLinkId);

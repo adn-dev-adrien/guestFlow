@@ -40,8 +40,9 @@ test('rules 25, 55: the free unit of a priced option is confirmed at 0 €, the 
     assert.equal(optionLine(stay, HONEY).totalPrice, 0, 'the fiche carries the free unit at 0 €');
     const next = await call('POST', ORDERS, { ...honey(1), payment: 'note' });
     assert.equal(next.status, 200, JSON.stringify(next.body));
-    assert.equal(optionLine(stay, HONEY).billedUnits, 2);
-    assert.equal(optionLine(stay, HONEY).totalPrice, 10, 'the second unit is billed');
+    // Rule 85: the second order is a line of its own; the article's free unit was taken by the first, so this one is billed.
+    const lines = db.prepare('SELECT billedUnits, totalPrice FROM reservation_options WHERE reservationId = ? AND optionId = ? ORDER BY lineId').all(stay, HONEY);
+    assert.deepEqual(lines.map((l) => [l.billedUnits, l.totalPrice]), [[1, 0], [1, 10]], 'the second unit is billed, on its own line');
   });
 });
 

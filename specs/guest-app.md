@@ -373,6 +373,10 @@ is pushed every order.
     add to the existing line of the same option/resource (no duplicate line). Note orders flow into
     `endOfStayComplementDetail` with `source:'midStayExtra'` exactly like an operator addition — no new
     arithmetic.
+    > **Amended (pricing-components rules 13, 85, slice d of PR C):** an order no longer adds to the stay's line of the same article — each unit, per-person and resource
+    > line of an order is a NEW line (breakfast mornings still join the stay's breakfast line). Consequences: a per-person article ordered twice is two lines whose persons add up for
+    > the ceiling of rule 55; the free units and minutes of an article are counted once across its lines, so an article the fiche offers is ordered as a billed line of its own and the
+    > « never confirmed at 0 € » refusals of rules 55, 60 and 61 no longer fire for it (a quote asked beyond the free units left is billed, not refused).
 35. **Card orders** are recorded as **already paid**: the lines join the reservation, and the payment is
     recorded against the reservation's payment ledger as a `complement` payment (amount, date, Qonto
     reference), so the end-of-stay complement owes nothing for them and the accounting books the money on
