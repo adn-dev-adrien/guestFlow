@@ -1,7 +1,7 @@
 {
   "id": "guest-app",
   "name": "Application clients",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "L’application « Mon séjour » des clients : livret d’accueil, portail, Soliomap et boutique du séjour.",
   "icon": "door",
   "surfaces": [
@@ -49,6 +49,10 @@
     ],
     "1.0.5": [
       "Aucun changement visible : un outil servant aux vérifications de l’application est passé à sa version suivante.",
+      "Demande le SDK 2.26 de GuestFlow."
+    ],
+    "1.0.6": [
+      "Aucun changement visible : un outil servant aux vérifications du Studio est passé à sa version suivante.",
       "Demande le SDK 2.26 de GuestFlow."
     ]
   }
