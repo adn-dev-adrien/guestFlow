@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rule 74 and specs/outside-booking-sas.md rule 8a — who a standalone sale belongs to: the shared « Passage » client (seeded once),
+// specs/pricing-components.md §3 rule 74 and specs/outside-booking-sas.md rule 8 — who a standalone sale belongs to: the shared « Passage » client (seeded once),
 // an exact e-mail match (case-insensitive, trimmed) and nothing fuzzy, « Enregistrer comme client » needing a name, a quote creating nothing.
 process.env.DB_PATH = ':memory:';
 process.env.TZ = 'Europe/Paris';
@@ -27,7 +27,7 @@ test('rule 74 — an anonymous sale goes to the one « Passage » client, seeded
   assert.equal(sales.passageClientId(), first.document.document.client.id, 'seeding twice changes nothing');
 });
 
-test('rule 8a — a typed name alone attaches to nothing: the sale stays on « Passage » and keeps the name for the receipt', () => {
+test('rule 8 — a typed name alone attaches to nothing: the sale stays on « Passage » and keeps the name for the receipt', () => {
   const before = clients();
   const result = standaloneSale.sell({ lines, customer: { name: 'Alice Martin' } });
   assert.equal(result.document.document.client.kind, 'passage');
@@ -35,20 +35,20 @@ test('rule 8a — a typed name alone attaches to nothing: the sale stays on « P
   assert.equal(clients(), before);
 });
 
-test('rule 8a — an e-mail that exactly matches one client (case-insensitive, trimmed) attaches the sale to that client', () => {
+test('rule 8 — an e-mail that exactly matches one client (case-insensitive, trimmed) attaches the sale to that client', () => {
   const result = standaloneSale.sell({ lines, customer: { email: '  alice.martin@EXEMPLE.fr ' } });
   assert.equal(result.document.document.client.id, known);
   assert.equal(result.document.document.client.kind, 'registered');
   assert.equal(standaloneSale.quote({ lines, customer: { email: 'alice.martin@exemple.fr' } }).customer.kind, 'match');
 });
 
-test('rule 8a — no fuzzy match: a near e-mail, or an e-mail two clients share, stays on « Passage »', () => {
+test('rule 8 — no fuzzy match: a near e-mail, or an e-mail two clients share, stays on « Passage »', () => {
   assert.equal(standaloneSale.sell({ lines, customer: { email: 'alice.martin@exemple.com' } }).document.document.client.kind, 'passage');
   db.prepare("INSERT INTO clients (firstName, lastName, email) VALUES ('Autre', 'Martin', 'alice.martin@exemple.fr')").run();
   assert.equal(standaloneSale.sell({ lines, customer: { email: 'alice.martin@exemple.fr' } }).document.document.client.kind, 'passage');
 });
 
-test('rule 8a — « Enregistrer comme client » creates the record, and needs a name; unticked, nothing is created', () => {
+test('rule 8 — « Enregistrer comme client » creates the record, and needs a name; unticked, nothing is created', () => {
   const before = clients();
   const refused = standaloneSale.sell({ lines, customer: { email: 'nouveau@exemple.fr', registerAsClient: true } });
   assert.equal(refused.status, 400);
@@ -59,13 +59,13 @@ test('rule 8a — « Enregistrer comme client » creates the record, and needs a
   assert.equal(standaloneSale.sell({ lines, customer: { email: 'nouveau@exemple.fr' } }).document.document.client.kind, 'registered', 'and the next sale matches it by e-mail');
 });
 
-test('rule 8a — a quote creates no client, not even the one it would register', () => {
+test('rule 8 — a quote creates no client, not even the one it would register', () => {
   const before = clients();
   const quote = standaloneSale.quote({ lines, customer: { name: 'Marie Curie', registerAsClient: true } });
   assert.equal(quote.customer.kind, 'new');
   assert.equal(clients(), before);
 });
 
-test('rule 8a — an invalid e-mail is refused, never stored', () => {
+test('rule 8 — an invalid e-mail is refused, never stored', () => {
   assert.equal(standaloneSale.sell({ lines, customer: { email: 'pas-un-mail' } }).body.code, 'EMAIL_INVALID');
 });

@@ -1,5 +1,5 @@
 /**
- * Standalone payments model — `standalone_sale_payments` and their `payment_allocations` (specs/outside-booking-sas.md §5, rules 19, 41).
+ * Standalone payments model — `standalone_sale_payments` and their `payment_allocations` (the outside-visit spec §5, rules 19, 41).
  *
  * A payment is one row (its tenders, what it received, the shortfall kept as a reste) and its allocations, written in the caller's
  * transaction: `payment_allocations.paymentRef = 'standalone-payment:<id>'`, and `…:internal` for the part taken in the caisse interne,

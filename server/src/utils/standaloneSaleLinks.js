@@ -1,5 +1,5 @@
 /**
- * The payment link of a standalone sale's reste (specs/outside-booking-sas.md rules 39-42; specs/pricing-components.md rules 53, 74, 86).
+ * The payment link of a standalone sale's reste (the outside-visit spec rules 39-42; specs/pricing-components.md rules 53, 74, 86).
  *
  *   linkOf(saleId, { now })                       → `{ available, reason, email, open }`, what the screen shows (rule 39): `reason` is `PROVIDER_NOT_READY`, `NO_EMAIL`, `NOTHING_DUE` or null
  *   mint(saleId, { email, now, deps })            → `{ status: 200, link: { id, url, amountCents, expiresAt, status, reused }, document } | { status, body }`   (rule 40)

@@ -1,5 +1,5 @@
 /**
- * standaloneSale — the one write path for a sale with no stay (specs/pricing-components.md §3 rules 53, 74; specs/outside-booking-sas.md rules 8, 12-19, 21-26).
+ * standaloneSale — the one write path for a sale with no stay (specs/pricing-components.md §3 rules 53, 74; the outside-visit spec rules 8, 12-19, 21-26).
  *
  *   quote(request, { now })                              → { status: 200, document, customer, refusals } | { status, body }   writes nothing
  *   sell(request, { actor, now })                        → { status: 200, document } | { status, body }

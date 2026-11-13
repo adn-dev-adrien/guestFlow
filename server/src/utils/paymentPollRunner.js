@@ -49,7 +49,7 @@ const { unavailableNights } = require('./closedStayDates');
 // re-checked (the devis never blocked them) — a conflict flags the reservation + surfaces `conflict:true`.
 // The bucket goes through the same recorder as a manual tick (rule 1).
 function applyPaidEffect({ database, devisModel, link, checkConflict, paidDate = null, paidAt = null, recordPayment = recordOn(database), settledAlready = false }) {
-  // specs/outside-booking-sas.md rule 41 — a link that bills an outside sale settles that document, never a stay.
+  // the outside-visit spec rule 41 — a link that bills an outside sale settles that document, never a stay.
   if (link.saleRef) return require('./standaloneSaleLinks').settlePaidLink({ link, paidDate, paidAt });
   const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(link.reservationId);
   // specs/guest-app.md rules 35-36 — a link that bills its own basket is settled by the plugin that owns the basket,

@@ -1,5 +1,5 @@
 /**
- * Suggested articles controller — HTTP face of `utils/suggestedArticles.js` (specs/outside-booking-sas.md §4.3, rules 36-37).
+ * Suggested articles controller — HTTP face of `utils/suggestedArticles.js` (the outside-visit spec §4.3, rules 36-37).
  *
  *   GET /api/suggested-articles?kind=&id=&customerContext=   → { suggestions: [{ articleRef, label, unitCents, max }] }
  *   GET /api/settings/suggested-articles                     → { kinds: [{ kind, label, contexts: [{ id, label, articleRefs }] }] }   (admin)

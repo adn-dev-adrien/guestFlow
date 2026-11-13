@@ -215,7 +215,7 @@ function createContext(id, { db, settingsModel, dataDir = null } = {}) {
       if (other) throw new Error(`${prefix} an invoice issuer is already declared by ${other.id}`);
       record.invoiceIssuer = issuer;
     },
-    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (specs/outside-booking-sas.md rule 37, SDK 2.30.0): `kind` names it
+    // `{ kind, label, list }` — a kind of sale context the generic « Proposés à l'arrivée » lists are kept for (the outside-visit spec rule 37, SDK 2.30.0): `kind` names it
     // (`resource`), `label` heads it in Réglages → Articles, `list() → [{ id, label }]` says which contexts of that kind exist now. `property` is the core's own kind. While the
     // plugin is off its kind disappears from the settings page and from `suggestedArticles.resolve`; the stored lists stay.
     suggestionContexts({ kind, label, list } = {}) {

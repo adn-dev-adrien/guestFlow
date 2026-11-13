@@ -1,5 +1,5 @@
 /**
- * The drinks account guard of the export (specs/outside-booking-sas.md rule 43). A drink sold outside a stay has no default account: the journal of a
+ * The drinks account guard of the export (the outside-visit spec rule 43). A drink sold outside a stay has no default account: the journal of a
  * period that holds one is refused until the accountant sets `drinksRevenueAccount`, never booked on a wrong account. A period with no drink is unaffected.
  */
 const { csvJournal } = require('./accountingExport');

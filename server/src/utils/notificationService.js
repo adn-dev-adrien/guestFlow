@@ -627,7 +627,7 @@ function buildNotificationService({
     return await deliver({ recipient: ctx.recipient, subject: email.subject, text: email.text });
   }
 
-  // specs/outside-booking-sas.md rule 41 — a link of an outside sale paid beyond what its document asks: booked in full, the surplus owed back.
+  // the outside-visit spec rule 41 — a link of an outside sale paid beyond what its document asks: booked in full, the surplus owed back.
   const STANDALONE_REFUND_TITLE = 'Paiement à rembourser sur une vente hors séjour';
   function buildStandaloneRefundEmail(link, { surplusCents = 0, cancelled = false } = {}) {
     const surplus = eurosFr(surplusCents);

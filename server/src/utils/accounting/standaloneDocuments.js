@@ -1,5 +1,5 @@
 /**
- * The journal read model of the standalone documents (specs/pricing-components.md §3 rules 63, 74; specs/outside-booking-sas.md rule 30).
+ * The journal read model of the standalone documents (specs/pricing-components.md §3 rules 63, 74; the outside-visit spec rule 30).
  *
  * `salesOfDocument({ sale, lines, payments, client })` → the sales of one document, one per payment day, in the shape
  * `utils/standaloneSales.js` lists (`{ key, date, totalCents, booksCents, cardCents, label, client, vatRate: null, groups, invoiceNumber }`).

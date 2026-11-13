@@ -1,5 +1,5 @@
 /**
- * Suggested articles (specs/outside-booking-sas.md rules 36-37): the resolved read, and the settings page's read and write. Core. Admin-only by the role guard.
+ * Suggested articles (the outside-visit spec rules 36-37): the resolved read, and the settings page's read and write. Core. Admin-only by the role guard.
  */
 const express = require('express');
 const controller = require('../controllers/suggestedArticlesController');

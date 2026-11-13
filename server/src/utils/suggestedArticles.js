@@ -1,5 +1,5 @@
 /**
- * suggestedArticles — the articles suggested for a sale context (specs/outside-booking-sas.md rules 35-38). Generic: it knows nothing of baths, drinks, resources or stays.
+ * suggestedArticles — the articles suggested for a sale context (the outside-visit spec rules 35-38). Generic: it knows nothing of baths, drinks, resources or stays.
  *
  * A **sale context** is `{ kind, id }`. The core declares `property` (the id is the property's); a plugin declares its own kinds with `ctx.suggestionContexts` (`hourly-resources`:
  * `resource`). A kind is known only while its plugin is live: with the plugin off the kind leaves the settings page and `resolve`, the stored rows stay.

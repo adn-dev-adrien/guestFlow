@@ -1,6 +1,6 @@
 /**
  * Standalone sales model — the database side of `utils/standaloneSale.js` (specs/pricing-components.md §3 rules 53, 74, 86;
- * specs/outside-booking-sas.md §5). A sale with no reservation is a document of its own: a `standalone_sales` row, its frozen
+ * the outside-visit spec §5). A sale with no reservation is a document of its own: a `standalone_sales` row, its frozen
  * `standalone_sale_lines`, its payments (`standalonePaymentsModel`) and the `payment_allocations` that tie them (documentRef
  * `standalone:<id>`, lineRef `line:standalone_sale_lines:<id>`). It prices nothing and decides no refusal other than the ones about a stored row.
  *

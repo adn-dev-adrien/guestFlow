@@ -1,5 +1,5 @@
 /**
- * Suggested articles model — sole DB access for `suggested_articles` (specs/outside-booking-sas.md rules 36-37).
+ * Suggested articles model — sole DB access for `suggested_articles` (the outside-visit spec rules 36-37).
  *
  * One ordered list of article references per sale context `(contextKind, contextId)`: the generic « Proposés à l'arrivée » lists. The rows are core data and stay
  * when the plugin that declared a kind goes off (they reappear on re-enable); reading is a pure read, and a reference that left the catalogue is dropped by the reader,

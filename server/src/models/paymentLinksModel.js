@@ -32,7 +32,7 @@
  *                                           paid: 'deactivation' | 'lastLook' owed (lapsed or `dates-taken`), 'open' with
  *                                           `openToo`, else null (rule 63)
  *   findOpenForInstallment(installmentId)   → the current open link of that installment, or undefined
- *   listForSale(saleRef) / findOpenForSale(saleRef) → the links of an outside sale's document, and its open one (specs/outside-booking-sas.md rule 40)
+ *   listForSale(saleRef) / findOpenForSale(saleRef) → the links of an outside sale's document, and its open one (the outside-visit spec rule 40)
  *   findByProviderLinkId(provider, linkId)  → the row a provider id names (webhook, retries)
  *   markPaid(id, { providerPaymentId, paidAt }) → flips open|expired→paid (idempotent: a paid/cancelled row is untouched)
  *   updateStatus(id, status)                → 'open'|'paid'|'expired'|'cancelled'
