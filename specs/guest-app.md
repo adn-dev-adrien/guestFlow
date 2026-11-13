@@ -253,8 +253,9 @@ is pushed every order.
     nothing in the core behaves differently. Deactivating keeps the plugin's rows (reactivation restores
     the catalogue as it was); uninstalling follows the usual plugin data rules.
 23. **What is sold.** Options and resources **linked to the stay's lodging** (`property_options`,
-    `resource_properties`) that are flagged in `guest_app_items`, not archived, and of a price type the app
-    can sell by quantity:
+    `resource_properties`; a resource with **no** row there is « Tous les logements » in GuestFlow — choosing every
+    lodging collapses to it — and is linked to every lodging, like the engine reads it, 2026-11-12) that are flagged
+    in `guest_app_items`, not archived, and of a price type the app can sell by quantity:
     - options: `per_stay` (unit), `per_person` (unit = one person), `free` (always included), and the breakfast
       (rule 27bis); an internal option (`displayToClient = 0`), the cancellation insurance and the auto timed
       options (early check-in, late check-out) never;
