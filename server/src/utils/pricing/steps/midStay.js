@@ -28,10 +28,17 @@ const step = {
     } = ctx;
     // Rule 82: on a stored stay, a line the arrival never priced is not a sale made during the stay: an automatic option its lines never
     // stored (derived from the stay's own times) and a catalogue line stored with neither a unit price nor a total (a fresh one; a free unit keeps its unit price) belong to the arrival.
-    const storedByOption = new Map((Array.isArray(lockedOptionLines) ? lockedOptionLines : []).map((line) => [Number(line.optionId), line]));
+    // Rule 85: a later sale of an article names itself (`lineId`) and reads its own stored line; the first one reads the article's first.
+    const storedLines = Array.isArray(lockedOptionLines) ? lockedOptionLines : [];
+    const storedByOption = new Map();
+    for (const stored of storedLines) {
+      const held = storedByOption.get(Number(stored.optionId));
+      if (!held || (stored.lineId != null && (held.lineId == null || Number(stored.lineId) < Number(held.lineId)))) storedByOption.set(Number(stored.optionId), stored);
+    }
+    const storedByLine = new Map(storedLines.filter((stored) => stored.lineId != null).map((stored) => [Number(stored.lineId), stored]));
     const unpricedAtArrival = (line) => {
       if (!line || line.isCustom || line.optionId == null) return false;
-      const stored = storedByOption.get(Number(line.optionId));
+      const stored = (line.lineId != null && storedByLine.get(Number(line.lineId))) || storedByOption.get(Number(line.optionId));
       if (!stored) return Boolean(line.autoOptionType);
       return Number(stored.totalPrice || 0) <= 0 && Number(stored.unitPrice || 0) <= 0 && Number(stored.offered || 0) !== 1;
     };

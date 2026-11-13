@@ -17,13 +17,14 @@ const {
 const { syncStay: syncAllocations, lineRefsByKey } = require('../utils/paymentAllocationsSync');
 
 const { roundMoneyOrZero: round2 } = require('../utils/pricing/money');
+const { isResourceKey } = require('../utils/pricing/lineKeys');
 
 // S3 — what a line is and which revenue bucket it lands on (the same reading the migration backfills).
 function refundLineColumns(line) {
   const key = line.lineKey || null;
   if (line.bucket === 'indemnity') {
     const revenueBucket = key === 'accommodation' ? 'accommodation' : key === 'touristTax' ? 'touristTax'
-      : key === null ? null : String(key).startsWith('res:') ? 'resources' : 'options';
+      : key === null ? null : isResourceKey(key) ? 'resources' : 'options';
     return { source: 'indemnity', revenueBucket };
   }
   return { source: key === 'commission' ? 'commission' : 'sale', revenueBucket: line.bucket };

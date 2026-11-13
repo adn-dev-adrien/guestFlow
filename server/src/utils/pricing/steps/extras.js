@@ -14,6 +14,7 @@ const { portionCap, clampPortions } = require('../../mealPortions');
 const { buildBabyBedSupplementLine, isBabyBedOption } = require('../../babyBedSupplement');
 const { discountLines } = require('../discounts');
 const { extraLineKey } = require('../storedLines');
+const { keyLines, lineRef } = require('../lineKeys');
 const { lockedUnitPriceOr } = articles;
 
 // What an option line's `quantity` counts, when the summary has to say it
@@ -81,13 +82,33 @@ const step = {
     const optionUnitOverrides = lockedOptionUnits || {};
     const resourceUnitOverrides = lockedResourceUnits || {};
     const offeredOptionIdSet = new Set((Array.isArray(offeredOptionIds) ? offeredOptionIds : []).map((id) => Number(id)));
-    const lockedOptionsById = new Map(
-      (Array.isArray(lockedOptionLines) ? lockedOptionLines : [])
-        .map((line) => [Number(line.optionId), line])
-    );
-    const lockedResourcesById = new Map(
-      (Array.isArray(lockedResourceLines) ? lockedResourceLines : [])
-        .map((line) => [Number(line.resourceId), line])
+    // Rule 85: an article sold twice is two stored lines. A line that names itself (`lineId`) reads ITS snapshot; a request that names
+    // none addresses the article's first line, which is the only one a stay held before the second sale existed.
+    const lockedByArticle = (lines, field) => {
+      const byId = new Map();
+      for (const line of Array.isArray(lines) ? lines : []) {
+        const id = Number(line[field]);
+        const held = byId.get(id);
+        if (!held || (line.lineId != null && (held.lineId == null || Number(line.lineId) < Number(held.lineId)))) byId.set(id, line);
+      }
+      return byId;
+    };
+    const lockedByLineId = (lines) => new Map((Array.isArray(lines) ? lines : []).filter((line) => line.lineId != null).map((line) => [Number(line.lineId), line]));
+    const lockedOptionsById = lockedByArticle(lockedOptionLines, 'optionId');
+    const lockedResourcesById = lockedByArticle(lockedResourceLines, 'resourceId');
+    const lockedOptionsByLine = lockedByLineId(lockedOptionLines);
+    const lockedResourcesByLine = lockedByLineId(lockedResourceLines);
+    const lineIdentity = (table, selectedLines) => {
+      const identity = new Map();
+      for (const entry of keyLines(table, selectedLines)) {
+        if (!entry.first && entry.row.lineId != null) identity.set(entry.row, { lineId: Number(entry.row.lineId), lineKey: lineRef(table, entry.row.lineId) });
+      }
+      return (selected) => identity.get(selected) || {};
+    };
+    const optionIdentity = lineIdentity('reservation_options', Array.isArray(selectedOptions) ? selectedOptions : []);
+    const resourceIdentity = lineIdentity('reservation_resources', Array.isArray(selectedResources) ? selectedResources : []);
+    const isOfferedLine = (selected, optionId) => (
+      selected.lineId != null && selected.offered !== undefined ? Boolean(Number(selected.offered)) : offeredOptionIdSet.has(optionId)
     );
     const { soldGrantMap, consumedMap, grantedFreeUnitsFor, consumedFreeUnitsFor } = createFreeUnitsLedger({
       lockedTariff, optionsById, lockedOptionsById, isDirectBooking,
@@ -142,10 +163,12 @@ const step = {
         const option = optionsById.get(optionId);
         if (!option) return null;
         const priceType = option.priceType || 'per_stay';
-        const locked = lockedOptionsById.get(optionId);
+        const identity = optionIdentity(selected);
+        const locked = (selected.lineId != null && lockedOptionsByLine.get(Number(selected.lineId))) || lockedOptionsById.get(optionId);
         const article = articles.makeArticle(option);
         const request = {
-          article, locked, offered: offeredOptionIdSet.has(optionId), unitOverride: optionUnitOverrides[optionId],
+          article, locked, offered: isOfferedLine(selected, optionId),
+          unitOverride: optionUnitOverrides[identity.lineKey] !== undefined ? optionUnitOverrides[identity.lineKey] : optionUnitOverrides[optionId],
         };
 
         // Option-driven planning card (specs/option-planning-card.md §3.4): the per-reservation
@@ -197,6 +220,7 @@ const step = {
           if (!priced) return null;
           return {
             optionId,
+            ...identity,
             title: option.title,
             titleEn: option.titleEn || null,
             ...priced.figures,
@@ -220,6 +244,7 @@ const step = {
         if (!priced) return null;
         return {
           optionId,
+          ...identity,
           title: option.title,
           titleEn: option.titleEn || null,
           ...priced.figures,
@@ -338,7 +363,8 @@ const step = {
         const resourceId = Number(selected.resourceId);
         const resource = resourcesById.get(resourceId);
         if (!resource) return null;
-        const lockedLine = lockedResourcesById.get(resourceId);
+        const identity = resourceIdentity(selected);
+        const lockedLine = (selected.lineId != null && lockedResourcesByLine.get(Number(selected.lineId))) || lockedResourcesById.get(resourceId);
         const hasExplicitOffered = selected?.offered !== undefined && selected?.offered !== null;
         const offered = hasExplicitOffered ? Boolean(selected?.offered) : Boolean(lockedLine?.offered);
 
@@ -359,6 +385,7 @@ const step = {
 
         return {
           resourceId,
+          ...identity,
           name: resource.name,
           nameEn: resource.nameEn || null,
           ...priced.figures,

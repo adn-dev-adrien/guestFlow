@@ -7,6 +7,7 @@
  */
 
 const { extraLineKey } = require('../storedLines');
+const { isResourceKey } = require('../lineKeys');
 
 const { roundMoneyOrZero: round2 } = require('../money');
 
@@ -59,7 +60,7 @@ const PLAN_BUCKET_LINES = [
   { bucket: 'resources', key: 'plan:resources', label: 'Activités encaissées' },
 ];
 
-const bucketOfKey = (key) => (String(key).startsWith('res:') ? 'resources' : 'options');
+const bucketOfKey = (key) => (isResourceKey(key) ? 'resources' : 'options');
 
 function isOffBooks(method) {
   return String(method) === OFF_BOOKS_METHOD;

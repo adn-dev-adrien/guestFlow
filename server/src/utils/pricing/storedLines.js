@@ -1,7 +1,8 @@
 /**
  * STORED LINES — the readers of what a reservation stores about its extra lines (specs/pricing-components.md §3 rules 2, 72).
  *
- * Contract: `extraLineKey(line)` is the stable key of an extra line (`opt:<id>`, `res:<id>`, `custom:<label>`);
+ * Contract: `extraLineKey(line)` is the stable key of an extra line (`opt:<id>`, `res:<id>`, `custom:<label>`; a later sale of one article
+ * carries its own `lineKey` = `line:<table>:<lineId>`, rule 85, and that is the key — see `lineKeys.js`);
  * `parseNotes(raw)` and `parseDetail(raw)` read the stored JSON of the in-stay notes and of the end-of-stay detail, as an
  * array whatever was stored; `settledByKey(notesRaw)` is the amount collected per line key across the notes.
  *
@@ -20,6 +21,7 @@ const { roundMoneyOrZero: round2 } = require('./money');
  */
 function extraLineKey(line) {
   if (!line) return null;
+  if (line.lineKey) return String(line.lineKey);
   if (line.isCustom || line.customKey != null || line.customOptionId != null) {
     const label = String(line.title || line.description || '').trim().toLowerCase().replace(/\s+/g, ' ');
     return label ? `custom:${label}` : null;

@@ -20,6 +20,7 @@
 const { toCents: cents } = require('./pricing/money');
 const { legacyAllocations } = require('./pricing/legacyAllocations');
 const { extraLineKey, parseNotes, parseDetail } = require('./pricing/storedLines');
+const { keyLines, lineRef } = require('./pricing/lineKeys');
 const { readComplementPaidSplit } = require('./complementPaidSplit');
 const { parseRemovedLineContribs } = require('./removedLineContribs');
 
@@ -73,11 +74,11 @@ function taxRoutedToComplement(db, stay) {
 /** The payment rows the stay's stored columns describe: `[{ paymentRef, lineRef, amountCents, at, books }]`. */
 function paymentRowsOfStay(db, stay, { stayLevel = true } = {}) {
   const has = (name) => hasTable(db, name);
+  // Rule 85: an article's first line keeps the key `opt:<id>` / `res:<id>` the stored notes and details were written with; a later sale is named by its ref.
+  const refKeyed = (table, rows) => keyLines(table, rows).map(({ row, key }) => ({ ref: lineRef(table, row.lineId), key, ...row }));
   const lines = [
-    ...db.prepare('SELECT lineId, optionId, acompteContribTtc, soldeContribTtc FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)
-      .map((r) => ({ ref: `line:reservation_options:${r.lineId}`, key: `opt:${r.optionId}`, ...r })),
-    ...db.prepare('SELECT lineId, resourceId, acompteContribTtc, soldeContribTtc FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)
-      .map((r) => ({ ref: `line:reservation_resources:${r.lineId}`, key: `res:${r.resourceId}`, ...r })),
+    ...refKeyed('reservation_options', db.prepare('SELECT lineId, optionId, acompteContribTtc, soldeContribTtc FROM reservation_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)),
+    ...refKeyed('reservation_resources', db.prepare('SELECT lineId, resourceId, acompteContribTtc, soldeContribTtc FROM reservation_resources WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)),
     ...db.prepare('SELECT lineId, description, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ? AND COALESCE(offered, 0) = 0').all(stay.id)
       .map((r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), ...r })),
   ];
@@ -125,12 +126,12 @@ function refundRowsOfStay(db, reservationId) {
   return rows;
 }
 
-/** `Map(lineKey → lineRef | null)` of a stay: null when two lines share the key (rule 79 — a ref names one line). */
+/** `Map(lineKey → lineRef | null)` of a stay: an article's first line under its legacy key, a later one under its own ref (rule 85); null when two custom lines share a label (rule 79). */
 function lineRefsByKey(db, reservationId) {
   const byKey = new Map();
   const push = (key, ref) => { if (key) byKey.set(key, byKey.has(key) ? null : ref); };
-  for (const row of db.prepare('SELECT lineId, optionId FROM reservation_options WHERE reservationId = ?').all(reservationId)) push(`opt:${row.optionId}`, `line:reservation_options:${row.lineId}`);
-  for (const row of db.prepare('SELECT lineId, resourceId FROM reservation_resources WHERE reservationId = ?').all(reservationId)) push(`res:${row.resourceId}`, `line:reservation_resources:${row.lineId}`);
+  for (const { row, key } of keyLines('reservation_options', db.prepare('SELECT lineId, optionId FROM reservation_options WHERE reservationId = ?').all(reservationId))) push(key, lineRef('reservation_options', row.lineId));
+  for (const { row, key } of keyLines('reservation_resources', db.prepare('SELECT lineId, resourceId FROM reservation_resources WHERE reservationId = ?').all(reservationId))) push(key, lineRef('reservation_resources', row.lineId));
   for (const row of db.prepare('SELECT lineId, description FROM reservation_custom_options WHERE reservationId = ?').all(reservationId)) push(extraLineKey({ isCustom: true, description: row.description }), `line:reservation_custom_options:${row.lineId}`);
   if (hasTable(db, 'reservation_stay_lines')) {
     for (const row of db.prepare('SELECT id, kind FROM reservation_stay_lines WHERE reservationId = ?').all(reservationId)) push(row.kind, `line:reservation_stay_lines:${row.id}`);

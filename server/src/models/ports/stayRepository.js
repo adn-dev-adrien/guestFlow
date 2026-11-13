@@ -19,11 +19,18 @@
 const stayClockModel = require('../stayClockModel');
 const { toCents } = require('../../utils/pricing/money');
 const { extraLineKey } = require('../../utils/pricing/storedLines');
+const { keyLines } = require('../../utils/pricing/lineKeys');
 
 // The two card-option columns, kept out of the SELECT on a schema that predates them.
 function cardColumns(db) {
   const present = new Set(db.prepare('PRAGMA table_info(reservation_options)').all().map((c) => c.name));
   return ['cardOccurrences', 'cardPersons', 'cardNights'].filter((name) => present.has(name));
+}
+
+// Rule 85: the stored line's own identity rides with it, so two sales of one article are two lines for the engine. Kept out of the
+// SELECT on a schema that predates `lineId`.
+function lineIdColumn(db, table) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'lineId') ? ['lineId'] : [];
 }
 
 function stayRow(db, id) {
@@ -39,7 +46,7 @@ function optionRows(db, id) {
   // Selected by name only when present, like every other reader of these two columns
   // (`bookingLinesModel`): a minimal test schema predates them.
   const optionColumns = [
-    'optionId', 'quantity',
+    ...lineIdColumn(db, 'reservation_options'), 'optionId', 'quantity',
     ...cardColumns(db),
     'COALESCE(inComplement, 0) as inComplement', 'COALESCE(offered, 0) as offered',
   ];
@@ -63,7 +70,7 @@ function resourceRows(db, id) {
   // hours placed (`scheduledHours`); the amount is the locked snapshot's either way.
   const hasSessions = db.prepare('PRAGMA table_info(reservation_resources)').all().some((c) => c.name === 'sessions');
   const resourceRows = db.prepare(`
-    SELECT resourceId, quantity, COALESCE(offered, 0) as offered, COALESCE(inComplement, 0) as inComplement,
+    SELECT ${[...lineIdColumn(db, 'reservation_resources'), 'resourceId'].join(', ')}, quantity, COALESCE(offered, 0) as offered, COALESCE(inComplement, 0) as inComplement,
       ${hasSessions ? 'sessions' : 'NULL AS sessions'}
     FROM reservation_resources WHERE reservationId = ?
   `).all(id);
@@ -74,7 +81,7 @@ function lockedOptionLines(db, id) {
   // Locked snapshots so the engine reproduces the persisted line prices and the tariff the stay was
   // sold under (no drift from a refreshed unit price or tariff between save and payment).
   const lockedOptionLines = db.prepare(`
-    SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+    SELECT ${[...lineIdColumn(db, 'reservation_options'), 'optionId'].join(', ')}, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
       COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
     FROM reservation_options WHERE reservationId = ?
   `).all(id);
@@ -83,7 +90,7 @@ function lockedOptionLines(db, id) {
 
 function lockedResourceLines(db, id) {
   const lockedResourceLines = db.prepare(`
-    SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+    SELECT ${[...lineIdColumn(db, 'reservation_resources'), 'resourceId'].join(', ')}, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
       COALESCE(inComplement, 0) as inComplement, acompteContribTtc, soldeContribTtc
     FROM reservation_resources WHERE reservationId = ?
   `).all(id);
@@ -127,8 +134,8 @@ function storedStayPrice(db, id) {
 }
 
 const LINE_TABLES = [
-  { table: 'reservation_options', short: 'option', key: (r) => `opt:${r.optionId}`, extra: 'optionId' },
-  { table: 'reservation_resources', short: 'resource', key: (r) => `res:${r.resourceId}`, extra: 'resourceId' },
+  { table: 'reservation_options', short: 'option', extra: 'optionId' },
+  { table: 'reservation_resources', short: 'resource', extra: 'resourceId' },
   { table: 'reservation_custom_options', short: 'custom', key: (r) => extraLineKey({ isCustom: true, description: r.description }), extra: 'description' },
 ];
 
@@ -147,8 +154,11 @@ function lineFacts(db, id) {
     const columns = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
     if (!columns.has('lineId')) continue;
     const pick = ['lineId', extra, ...['discountCents', 'source', 'soldAt', 'collectAt', 'collectAtDefault'].filter((c) => columns.has(c))];
-    for (const r of db.prepare(`SELECT ${pick.join(', ')} FROM ${table} WHERE reservationId = ?`).all(Number(id))) {
-      const k = key(r);
+    const rows = db.prepare(`SELECT ${pick.join(', ')} FROM ${table} WHERE reservationId = ?`).all(Number(id));
+    // Rule 85: an article's first line keeps the legacy key, every later one is named by its `lineRef`.
+    const keyed = key ? null : new Map(keyLines(table, rows).map((entry) => [entry.row, entry.key]));
+    for (const r of rows) {
+      const k = key ? key(r) : keyed.get(r);
       if (k in facts) continue;
       facts[k] = {
         lineId: r.lineId, table: short, discountCents: Number(r.discountCents || 0), source: r.source || 'fiche', soldAt: r.soldAt || '',

@@ -5,9 +5,15 @@
  * complement; a custom line already carries its own (rule 19). No figure of the quote depends on them.
  */
 function withContribsOf(lines, stored, idField) {
-  const byId = new Map((stored || []).map((line) => [Number(line[idField]), line]));
+  // Rule 85: a later sale of an article names its own stored line; the first one takes the article's first.
+  const byId = new Map();
+  for (const line of stored || []) {
+    const held = byId.get(Number(line[idField]));
+    if (!held || (line.lineId != null && (held.lineId == null || Number(line.lineId) < Number(held.lineId)))) byId.set(Number(line[idField]), line);
+  }
+  const byLine = new Map((stored || []).filter((line) => line.lineId != null).map((line) => [Number(line.lineId), line]));
   return (lines || []).map((line) => {
-    const match = byId.get(Number(line[idField]));
+    const match = (line.lineId != null && byLine.get(Number(line.lineId))) || byId.get(Number(line[idField]));
     if (!match || line.isCustom || line.inComplement) return line;
     return { ...line, acompteContribTtc: match.acompteContribTtc ?? null, soldeContribTtc: match.soldeContribTtc ?? null };
   });

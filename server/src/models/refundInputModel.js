@@ -15,6 +15,7 @@ const { readSplitReceived } = require('../utils/splitReceived');
 const { toCents } = require('../utils/pricing/money');
 const { postesLeftOf } = require('../utils/pricing/refunds/overpayment');
 const { extraLineKey } = require('../utils/pricing/storedLines');
+const { keyLines, lineRef } = require('../utils/pricing/lineKeys');
 const { readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
 
@@ -87,11 +88,13 @@ function lineAllocationsContext(db, reservationId) {
 // The stored lines of a stay with the ref a payment allocation names them by (rule 74).
 function storedLinesOf(db, reservationId) {
   const read = (table, sql, make) => (hasTable(db, table) ? db.prepare(sql).all(reservationId).map(make) : []);
+  // Rule 85: an article's first line keeps `opt:<id>` / `res:<id>`, a later sale is named by its ref.
+  const keyed = (table, rows, make) => keyLines(table, rows).map(({ row, key }) => make(row, key));
   return [
-    ...read('reservation_options', 'SELECT lineId, optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?',
-      (r) => ({ ref: `line:reservation_options:${r.lineId}`, key: extraLineKey({ optionId: r.optionId }), poste: 'options', totalPrice: r.totalPrice, offered: r.offered })),
-    ...read('reservation_resources', 'SELECT lineId, resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?',
-      (r) => ({ ref: `line:reservation_resources:${r.lineId}`, key: extraLineKey({ resourceId: r.resourceId }), poste: 'resources', totalPrice: r.totalPrice, offered: r.offered })),
+    ...keyed('reservation_options', read('reservation_options', 'SELECT lineId, optionId, totalPrice, offered FROM reservation_options WHERE reservationId = ?', (r) => r),
+      (r, key) => ({ ref: lineRef('reservation_options', r.lineId), key, poste: 'options', totalPrice: r.totalPrice, offered: r.offered })),
+    ...keyed('reservation_resources', read('reservation_resources', 'SELECT lineId, resourceId, totalPrice, offered FROM reservation_resources WHERE reservationId = ?', (r) => r),
+      (r, key) => ({ ref: lineRef('reservation_resources', r.lineId), key, poste: 'resources', totalPrice: r.totalPrice, offered: r.offered })),
     ...read('reservation_custom_options', 'SELECT lineId, description, amount, offered FROM reservation_custom_options WHERE reservationId = ?',
       (r) => ({ ref: `line:reservation_custom_options:${r.lineId}`, key: extraLineKey({ isCustom: true, description: r.description }), poste: 'options', totalPrice: r.amount, offered: r.offered })),
   ];

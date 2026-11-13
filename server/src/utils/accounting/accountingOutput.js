@@ -16,6 +16,7 @@ const { parseComplementAllocation } = require('../complementAllocation');
 const { isDirectChannel } = require('../platformNameFormat');
 const { settlementFigures, targetFigures, currentCentsOf } = require('../paymentTenders');
 const { netFirst } = require('../pricing/vat');
+const { isResourceKey } = require('../pricing/lineKeys');
 const {
   computeBucketTtcsFromContribs, computeTaxTtcForKind, soldeCaptureMatches, legacyGrossUp, parseComplementPaidSplit,
   parsePaidSplit, bucketFromTtc, netOfTtc, nz, round2, CONTRIB_RESIDUE_TOLERANCE_TTC,
@@ -722,7 +723,7 @@ function createAccountingOutput({ accountPlan, entryVentilation }) {
     else if (detailRaw) { try { const p = JSON.parse(detailRaw); if (Array.isArray(p)) lines = p; } catch { lines = []; } }
     let resources = 0;
     for (const line of lines) {
-      if (!line || !String(line.key || '').startsWith('res:')) continue;
+      if (!line || !isResourceKey(line.key)) continue;
       resources = round2(resources + Math.max(0, nz(line.amount)));
     }
     resources = Math.min(resources, ttc);

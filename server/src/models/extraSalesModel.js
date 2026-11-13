@@ -17,6 +17,7 @@
  */
 const { toCents, roundMoney } = require('../utils/pricing/money');
 const { extraLineKey } = require('../utils/pricing/storedLines');
+const { keyLines } = require('../utils/pricing/lineKeys');
 const { VAT_CLASSES } = require('../utils/pricing/vat/settingsSchema');
 
 const database = () => require('../database');
@@ -74,6 +75,14 @@ function stampIntakeLines(reservationId, platform, soldAt) {
   }
 }
 
+// Rule 85: the key the engine gives a stored line — the legacy key for an article's first line, its `lineRef` for a later sale.
+function storedLineKey(db, table, reservationId, lineId) {
+  const field = table === 'reservation_options' ? 'optionId' : 'resourceId';
+  const rows = db.prepare(`SELECT lineId, ${field} FROM ${table} WHERE reservationId = ?`).all(reservationId);
+  const entry = keyLines(table, rows).find((e) => Number(e.row.lineId) === lineId);
+  return entry ? entry.key : null;
+}
+
 function findLine(reservationId, ref) {
   const match = /^(option|resource|custom):([1-9]\d*)$/.exec(String(ref));
   if (!match) return null;
@@ -81,7 +90,7 @@ function findLine(reservationId, ref) {
   const row = db.prepare(KINDS[match[1]].label).get(Number(reservationId), Number(match[2]));
   if (!row) return null;
   const { create } = require('./ports/stayRepository');
-  const key = match[1] === 'option' ? `opt:${row.optionId}` : match[1] === 'resource' ? `res:${row.resourceId}` : extraLineKey({ isCustom: true, description: row.description });
+  const key = match[1] === 'custom' ? extraLineKey({ isCustom: true, description: row.description }) : storedLineKey(db, KINDS[match[1]].table, Number(reservationId), Number(match[2]));
   const fact = create(db).lineFacts(reservationId)[key] || {};
   return {
     kind: match[1], table: KINDS[match[1]].table, lineId: Number(match[2]), key, label: String(row.label || 'Prestation'), row,

@@ -3535,7 +3535,7 @@ export default function ReservationPage() {
   const frozenCustomOptionIds = extrasWindowOpen ? (editLock.frozenCustomOptionIds || []) : NO_FROZEN_CUSTOM_IDS;
   const isFrozenArrivalLine = (kind, line) => {
     if (kind === 'custom') return line.customOptionId != null && frozenCustomOptionIds.includes(Number(line.customOptionId));
-    return Boolean(arrivalLines[kind === 'option' ? optionLineKey(line.optionId) : resourceLineKey(line.resourceId)]);
+    return Boolean(arrivalLines[kind === 'option' ? optionLineKey(line.optionId, line) : resourceLineKey(line.resourceId, line)]);
   };
   const dateRangeConflictInfo = getDateRangeConflictInfo(form.startDate, form.endDate);
   const datesUnavailableForProperty = Boolean(dateRangeConflictInfo);

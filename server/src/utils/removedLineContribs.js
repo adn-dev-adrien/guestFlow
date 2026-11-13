@@ -10,6 +10,7 @@
  */
 
 const { extraLineKey } = require('./midStayExtras');
+const { keyLines } = require('./pricing/lineKeys');
 
 const { roundMoney: round2 } = require('./pricing/money');
 
@@ -34,15 +35,18 @@ const hasColumn = (db) => {
 // The lines of a stay as the contribs see them: key, label, bucket and what each paid bucket holds on it.
 function contribLinesOf(db, reservationId) {
   const read = (sql) => db.prepare(sql).all(reservationId);
+  // Rule 85: an article's first line is keyed `opt:<id>` / `res:<id>` (what the stored contribs were written with), a later sale by its ref.
+  const lineId = (table, alias) => (db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === 'lineId') ? `${alias}.lineId, ` : '');
+  const keyed = (table, rows) => keyLines(table, rows).map(({ row, key }) => ({ ...row, key }));
   return [
-    ...read(`SELECT ro.optionId, o.title AS label, ro.acompteContribTtc, ro.soldeContribTtc
-      FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ?`)
-      .map((line) => ({ ...line, bucket: 'options', key: extraLineKey({ optionId: line.optionId }) })),
+    ...keyed('reservation_options', read(`SELECT ${lineId('reservation_options', 'ro')}ro.optionId, o.title AS label, ro.acompteContribTtc, ro.soldeContribTtc
+      FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ?`))
+      .map((line) => ({ ...line, bucket: 'options' })),
     ...read('SELECT id AS customOptionId, description AS label, acompteContribTtc, soldeContribTtc FROM reservation_custom_options WHERE reservationId = ?')
       .map((line) => ({ ...line, bucket: 'options', key: extraLineKey({ ...line, title: line.label, isCustom: true }) })),
-    ...read(`SELECT rr.resourceId, r.name AS label, rr.acompteContribTtc, rr.soldeContribTtc
-      FROM reservation_resources rr LEFT JOIN resources r ON r.id = rr.resourceId WHERE rr.reservationId = ?`)
-      .map((line) => ({ ...line, bucket: 'resources', key: extraLineKey({ resourceId: line.resourceId }) })),
+    ...keyed('reservation_resources', read(`SELECT ${lineId('reservation_resources', 'rr')}rr.resourceId, r.name AS label, rr.acompteContribTtc, rr.soldeContribTtc
+      FROM reservation_resources rr LEFT JOIN resources r ON r.id = rr.resourceId WHERE rr.reservationId = ?`))
+      .map((line) => ({ ...line, bucket: 'resources' })),
   ].filter((line) => line.key);
 }
 

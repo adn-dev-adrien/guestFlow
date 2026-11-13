@@ -10,6 +10,7 @@ const { collectedAfterArrival } = require('./collected');
 const { ACCOMMODATION_KEY, ACCOMMODATION_LABEL, COMMISSION_KEY, PLAN_BUCKET_LINES, STORED_SPLIT_ROUNDING_TTC, TOURIST_TAX_KEY, TOURIST_TAX_LABEL, billedLineKey, isCommissionLine, isIndemnityLine, isOffBooks, isRequalification, isRetainedDeposit, lineLabelOf, refundedByKey, writtenBeforeAvoir } = require('./register');
 
 const { roundMoneyOrZero: round2 } = require('../money');
+const { isResourceKey } = require('../lineKeys');
 
 /**
  * What a cancelled stay can still give back (specs/reservation-refunds.md rule 48). `collectedTtc` is the book
@@ -98,7 +99,7 @@ function refundable({ finalPrice, touristTaxTotal, vatRate, options = [], resour
     extras.push({
       key,
       label: lineLabelOf(line),
-      bucket: key.startsWith('res:') ? 'resources' : 'options',
+      bucket: isResourceKey(key) ? 'resources' : 'options',
       quantity,
       unitPrice: quantity ? round2(billedTtc / quantity) : null,
       billedTtc,

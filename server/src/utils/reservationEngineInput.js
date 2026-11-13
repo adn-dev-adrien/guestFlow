@@ -60,6 +60,7 @@ function buildReservationEngineInput(db, reservation, { refreshTouristTax = fals
     lineFacts: stays.lineFacts(reservation.id),
     customPrice: reservation.customPrice,
     selectedOptions: optionRows.map((r) => ({
+      ...(r.lineId != null ? { lineId: r.lineId, offered: r.offered } : {}),
       optionId: r.optionId,
       quantity: r.quantity,
       inComplement: r.inComplement,
@@ -79,6 +80,7 @@ function buildReservationEngineInput(db, reservation, { refreshTouristTax = fals
       soldeContribTtc: r.soldeContribTtc,
     })),
     selectedResources: resourceRows.map((r) => ({
+      ...(r.lineId != null ? { lineId: r.lineId } : {}),
       resourceId: r.resourceId,
       quantity: r.quantity,
       offered: r.offered,

@@ -369,12 +369,12 @@ function createBookingLinesModel(database) {
         present.has('soldeContribTtc') ? 'soldeContribTtc' : 'NULL as soldeContribTtc',
       ].join(', ');
       const lockedOptionLines = database.prepare(`
-        SELECT optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+        SELECT ${OPTION_COLUMNS.has('lineId') ? 'lineId, ' : ''}optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
           ${routingSelect(OPTION_COLUMNS)}
         FROM reservation_options WHERE reservationId = ?
       `).all(bookingId);
       const lockedResourceLines = database.prepare(`
-        SELECT resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
+        SELECT ${RESOURCE_COLUMNS.has('lineId') ? 'lineId, ' : ''}resourceId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered,
           ${routingSelect(RESOURCE_COLUMNS)}
         FROM reservation_resources WHERE reservationId = ?
       `).all(bookingId);

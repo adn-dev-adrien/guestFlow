@@ -1734,6 +1734,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `sale-detail` — rules 31-32: Σ lines = bucket; same payload for fiche and SAS; the after-check-in section _(PR B)_
 - [x] `pricing-legacy-collect-at` — §5 backfill derivation
 - [x] Golden fixture unchanged through PR A and B's first commit (no `GOLDEN_UPDATE`), with accounting-export installed
+- [x] `pricing-line-keys`, `true-lines-duplicate-rows` — rule 85: the resolver (first line keeps the legacy key, later lines `line:<table>:<lineId>`), and a database holding two rows of one article on one stay: the engine prices each from its own snapshot, every writer touches exactly the intended row, every reader returns every row _(PR C, pass 3c)_
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 
 ### Proof

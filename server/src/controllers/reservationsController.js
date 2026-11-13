@@ -41,7 +41,7 @@ const { clearContribsOnUnflip } = require('../utils/forceItemContribsCapture');
 const { recordStayPayment, defaultDeps: stayPaymentDeps } = require('../utils/stayPaymentRecorder');
 const paymentProviders = require('../utils/paymentProviders');
 const { resolveComplementPayment } = require('../utils/complementPayment');
-const { storedMidStayLines } = require('../utils/midStayExtras');
+const { storedMidStayLines, extraLineKey } = require('../utils/midStayExtras');
 const { planMidStayNote } = require('../utils/midStayNotePlan');
 const establishmentClosuresModel = require('../models/establishmentClosuresModel');
 const { emit: emitPluginEvent } = require('../plugins/sdk/eventBus');
@@ -1954,7 +1954,7 @@ function enterMidStayExtrasWindow(id, body, today) {
   // option that was not sold at arrival; in every other case they stay what is stored.
   const floors = arrivalLineFloors(baseline, beforeLines);
   const newLinen = (Array.isArray(body.options) ? body.options : [])
-    .filter((option) => !floors[`opt:${Number(option.optionId)}`]);
+    .filter((option) => !floors[extraLineKey(option)]);
   if (!hasBedLinenOption(newLinen)) {
     const stored = model.getRow(id);
     body.singleBeds = stored.singleBeds;

@@ -11,6 +11,7 @@ const path = require('node:path');
 const RANK = {
   money: -1, // below every unit: storedLines (rank 0) rounds through it
   storedLines: 0,
+  lineKeys: -0.5, // the names of the stored lines (rule 85): imports nothing
   nights: 1,
   stayClock: 1,
   vat: 1,
@@ -50,7 +51,7 @@ const STAY_UNITS = ['nights', 'extraGuests', 'touristTax'];
 const FORBIDDEN_FOR_STAY_UNITS = [/^articles(\/|$)/, /^allowances$/, /^platformPayment$/, /^settlement$/, /^schedule$/, /^totals$/];
 // Rule 2: EXTRAS read NIGHTS (and the money), never the tourist tax or the extra guests.
 const FORBIDDEN_FOR_ARTICLES = [/^touristTax$/, /^extraGuests$/];
-const REFUNDS_MAY_IMPORT = ['money', 'platformPayment', 'storedLines'];
+const REFUNDS_MAY_IMPORT = ['money', 'platformPayment', 'storedLines', 'lineKeys'];
 const FORBIDDEN_CLOSURE = [/(^|\/)models\//, /(^|\/)database$/, /plugins\/sdk\/registry$/, /(^|\/)priceLineContributors$/];
 
 const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
