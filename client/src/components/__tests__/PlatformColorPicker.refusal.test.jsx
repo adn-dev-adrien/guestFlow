@@ -2,7 +2,7 @@
 // and the swatch goes back to the previous colour.
 import React from 'react';
 import { vi } from 'vitest';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import PlatformColorPicker from '../PlatformColorPicker';
@@ -60,7 +60,7 @@ test('rule 7 — the message goes after a while, only that row\'s, and a newer s
     fireEvent.click(within(document.body).getByRole('button', { name: '#2F5D46' }));
     fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));
     expect(await screen.findByText('Couleur trop claire pour le calendrier.')).toBeInTheDocument();
-    await vi.advanceTimersByTimeAsync(6100);
+    await act(async () => { await vi.advanceTimersByTimeAsync(6100); });
     expect(screen.queryByText('Couleur trop claire pour le calendrier.')).toBeNull();
     expect(screen.getAllByText('Entre 0 et 99,99 %.').length).toBeGreaterThan(0);
   } finally {
