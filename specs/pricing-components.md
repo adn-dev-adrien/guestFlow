@@ -419,6 +419,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > the `evening:<id>` complement line, billed once and netted by `eveningCredit`, carries the same amount (diff 3), so nothing the guest pays moves.
     > _Pass 3f, why it is still open:_ a stored line has a `components` column but no writer persists it, and a line has ONE routing (`inComplement`): the evening part of a session sold into the plan has to be collected at the arrival,
     > which a single-routing line cannot say. The component needs per-component routing in the stored line (or a component row) before the SAS can stop writing `evening:<id>`.
+    > _Pass 3g:_ the model, its routing and the legacy guard are rule 90.3; it waits for rule 90.1 (the complement read from the engine).
 25. **The SAS sells through EXTRAS.** Breakfast, catering, bath linen, linen pieces, cleaning, missing items,
     extinguisher and plugin items (`sasCommit.complementItems`) are requests to `priceExtras`, written as
     lines with `source = 'sas'` and the moment of rule 19. `planArrivalSas` / `planDepartureSas` become
@@ -1591,6 +1592,31 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     moves). Q-C10: the SDK aliases `midStayOrderCommit` and `priceLineContributor` stay thin (D24, no SDK major). Q-C13: the intake plugins stay on
     `reservations.update`. Q-C14: `orderRef` is NULL when a line merges several orders (ambiguous); never invented (rule 36).
     > **Pending** — PR C
+90. **The SAS's last write paths and the evening component — the order of work** _(pass 3g, 2026-11-13; completes rules 14, 24, 25)_.
+    1. **The arrival SAS on lines.** `planArrivalSas(id, input)` becomes the commit run inside a rolled-back transaction, read through
+       `saleDetail` and the stored complement: one computation by construction, not by discipline. Prerequisites: the commit writes its lines
+       through the line API — the custom items as `custom` requests (`sell` / `removeLine` / an in-place amount change instead of
+       `rewriteSasCustomItems`), the sold options as option requests carrying their card fields (`occurrences`, served persons, nights: fields
+       `extraSale` requests do not carry yet) — and the arrival complement is the engine's (`performUpdate`), not `arrivalComplementAfter`'s
+       arithmetic (an operator override is re-applied as today). On a collected complement (#1032) a re-run changes the SAS's line in place
+       and sells only what exceeds the collected hold as a new line (rule 13), so `collectedHoldByKey` / `frozenRouting` / 409
+       `END_OF_STAY_ALREADY_COLLECTED` keep their meaning; proof against `sas-collected-end-of-stay-growth` and `sas-reopen-collected-sale`.
+       Figures: class C-E5 (reopened stays whose stored complement differs from the engine's).
+    2. **The departure charges as lines.** Ménage, missing linen and extinguisher become custom lines of source `sas` at moment `departure`;
+       `endOfStayComplementDetail` is derived from them for new writes, and a stored detail (every stay before) is read through ONE adapter
+       (`endOfStayChargesOf(row)`) by the about twenty readers, so an exported month never moves (`accounting-output-replay` byte-identical).
+    3. **The evening component** (rule 24, Q-C7). The session line — the resource's first line, where « Planifier » writes the sessions —
+       stores `components` `[{ kind: 'base', hours, unitPrice, cents }, { kind: 'evening', cents }, { kind: 'free', minutes, cents }]`, total
+       = their sum. While the line is unpaid and its bucket open, the SAS sets the evening component to the evening of the placed sessions
+       (it grows and shrinks; the lock keeps the total at the next saves, the billed hours do not move). Once the line is paid or its bucket
+       collected, what the placed sessions add is a NEW line of the resource (rule 13) holding only an evening component, collected at the
+       arrival. **Guard:** a stay holding a stored `evening:<resourceId>` line (`sasLineKey = 'hourly-resources:evening:<id>'`) keeps that line
+       for that resource on every re-run, and its session line gets no evening component: the evening is billed once in a replay. (Prod copy
+       2026-11-11: no such line; three stays with placed sessions, one of them sold from an evening session.)
+    **Order:** 1 before 3 — today the commit adds a plugin's item to `complementAmount` by arithmetic, so an amount carried by a line of the
+    complement instead of an item would leave the complement short; 2 is independent of both.
+    > **Pending** — PR C: 1, 2 and 3. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
+    > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
 
 ## 4. Architecture
 
