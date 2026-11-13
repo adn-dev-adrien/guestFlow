@@ -24,6 +24,8 @@
 // four split aggregates of specs/mixed-method-payments.md §5 (all 0 here), nothing else moved (checked field by field).
 // On 2026-11-12 for the 13 captures that carry a stay row: the row gains `cautionWaived: 0` (arrival-departure-sas.md rule 31, additive,
 // nothing else moved: checked key by key).
+// On 2026-11-13 for `pdf/201` and `pdf/202`: the devis gains its « Récapitulatif TVA » table (pricing-components.md rule 15,
+// D12, approved by Adrien), no amount moved.
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');
