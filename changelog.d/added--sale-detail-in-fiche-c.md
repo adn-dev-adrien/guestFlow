@@ -1,0 +1,1 @@
+- La fiche d'une réservation (`GET /api/reservations/:id`) embarque le détail des ventes (`saleDetail`) : plus de seconde requête pour lire les lignes vendues (specs/pricing-components.md, règle 31).
