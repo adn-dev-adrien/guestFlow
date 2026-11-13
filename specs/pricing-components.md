@@ -420,6 +420,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > _Pass 3f, why it is still open:_ a stored line has a `components` column but no writer persists it, and a line has ONE routing (`inComplement`): the evening part of a session sold into the plan has to be collected at the arrival,
     > which a single-routing line cannot say. The component needs per-component routing in the stored line (or a component row) before the SAS can stop writing `evening:<id>`.
     > _Pass 3g:_ the model, its routing and the legacy guard are rule 90.3; it waits for rule 90.1 (the complement read from the engine).
+    > **Delivered by PR C** (pass 3h, rule 90.3): the SAS's evening is a component of the session line while that line is the open arrival
+    > complement's; see rule 90. `eveningCredit` stays, net of the component (it reads what the SALE billed above the day rate).
 25. **The SAS sells through EXTRAS.** Breakfast, catering, bath linen, linen pieces, cleaning, missing items,
     extinguisher and plugin items (`sasCommit.complementItems`) are requests to `priceExtras`, written as
     lines with `source = 'sas'` and the moment of rule 19. `planArrivalSas` / `planDepartureSas` become
@@ -1639,8 +1641,18 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > `END_OF_STAY_ALREADY_COLLECTED`) unchanged. A model built on a database the engine does not run on (unit fixtures with partial schemas)
     > keeps `arrivalComplementAfter`'s arithmetic. Proof: `sas-arrival-engine-complement`; `sas-arrival-plan` fixtures now register the
     > articles with their lodging and give it the tariff the stored tax and added guests come from (the engine prices only what a lodging offers).
-    > **Pending** — PR C: 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
-    > fields): they write the same rows today, and the engine reads them back; 2 and 3. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
+    > **Delivered by PR C** (pass 3h, 3): the hourly-resources step names every sold resource's evening (0 € included) as
+    > `component: { kind: 'evening', resourceId }`. On a complement not yet collected, a session line routed to it (`inComplement = 1`), not
+    > offered and not settled apart takes it: `components` `[base, evening, free]`, `totalPrice` their sum, set (never added) on every run,
+    > kept by the fiche's next save (the lock reads the row); the recap shows the line without its evening and the evening as the plugin's
+    > line. Otherwise the evening beyond what the session line already carries rides a line of its own collected at the arrival — still
+    > the SAS's `evening:<id>` custom line, because the engine drops a resource line with no hours (`articles/index.js`, `priceMerged`),
+    > so a zero-hour resource line would lose its amount at the next save; on a collected complement it goes through #1032's routing. The
+    > guard holds: a stored `evening:<id>` line is kept and the session line gets no component. `eveningCredit` reads the line net of its
+    > component. Proof: `sas-evening-component`, `hourly-evening-billed-once` (items now carry the component, 0 € included).
+    > **Pending** — PR C: 3's line of its own as a resource line holding only an evening component (needs the engine to keep a zero-hour
+    > line); 1's writers moving to `extraSale` requests (custom lines as `custom` requests, sold options carrying their card
+    > fields): they write the same rows today, and the engine reads them back; 2. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
     > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
 
 ## 4. Architecture
@@ -1876,6 +1888,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] Golden fixture unchanged through PR A and B's first commit (no `GOLDEN_UPDATE`), with accounting-export installed
 - [x] `pricing-line-keys`, `true-lines-duplicate-rows` — rule 85: the resolver (first line keeps the legacy key, later lines `line:<table>:<lineId>`), and a database holding two rows of one article on one stay: the engine prices each from its own snapshot, every writer touches exactly the intended row, every reader returns every row _(PR C, pass 3c)_
 - [x] `sas-arrival-engine-complement` — rule 90.1: the plan is the commit rolled back (nothing written, same figure), the engine's complement over a stored figure no line explains, a re-run never bills twice, a stay below its minimum still checks in, the adjustment re-applied over the engine figure _(PR C, pass 3h)_
+- [x] `sas-evening-component` — rule 90.3: the evening as the open session line's component (plan = commit, components sum to the total, set not added, shrinks to 0, kept by the next fiche save), a plan line's evening on a line of its own, the legacy `evening:` guard (billed once), a collected complement bills only what the line does not already carry _(PR C, pass 3h)_
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 
 ### Proof

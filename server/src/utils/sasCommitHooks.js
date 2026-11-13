@@ -4,7 +4,7 @@
  * the SAS controller runs them around the core commit, only while the plugin is live.
  *
  *   validate(reservation, payload)        → { ok: true } | { ok: false, status, body }   (step ran)
- *   complementItems(reservation, payload) → [{ key, label, amount }]                     (every commit)
+ *   complementItems(reservation, payload) → [{ key, label, amount, component? }]         (every commit)
  *   write(db, reservation, payload)       → void, inside the commit's transaction         (step ran)
  *
  * `payload` is `pluginSteps[step]` of the commit body; `undefined` when the step did not run.
@@ -63,8 +63,11 @@ function prepare({ reservation, pluginSteps = {}, db = require('../database') })
     }
     for (const item of hook.complementItems(reservation, payload) || []) {
       const amount = roundMoneyStrict(item.amount);
-      if (!(amount > 0)) continue;
-      items.push({ label: String(item.label || '').trim(), amount, sasLineKey: `${pluginId}:${item.key}` });
+      // specs/pricing-components.md rule 90.3 — a component of a line (`component: { kind, resourceId }`) rides along, 0 € included:
+      // the commit puts it on the line it belongs to, and a component that drops to 0 shrinks back.
+      const component = item.component && item.component.kind ? { kind: String(item.component.kind), resourceId: Number(item.component.resourceId) } : null;
+      if (!(amount > 0) && !(component && amount === 0)) continue;
+      items.push({ label: String(item.label || '').trim(), amount, sasLineKey: `${pluginId}:${item.key}`, ...(component ? { component } : {}) });
     }
   }
   const labels = new Set([...stored.map((row) => String(row.description).trim()), ...items.map((i) => i.label)]);

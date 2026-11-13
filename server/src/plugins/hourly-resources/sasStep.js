@@ -35,12 +35,19 @@ function createSasStep({ scheduling, reservations }) {
         : { ok: false, status: 409, body: { error: 'SLOT_CONFLICT', block: verdict.block, reason: verdict.reason } };
     },
     // Rules 30, 32 — the evening supplement of every hour on a slot, recomputed on every commit: the
-    // step's blocks when it ran, the stored sessions otherwise.
+    // step's blocks when it ran, the stored sessions otherwise. specs/pricing-components.md rule 90.3 — it is the evening component of
+    // the resource's session line: every sold resource is named, 0 € included, so a component the sessions left shrinks back.
     complementItems(reservation, payload) {
       const supplements = payload === undefined
         ? scheduling().storedSupplements(reservation)
         : verdictFor(reservation, payload).supplements;
-      return supplements.map((s) => ({ key: `evening:${s.resourceId}`, label: s.label, amount: s.amount }));
+      const owed = new Map(supplements.map((s) => [Number(s.resourceId), s]));
+      const sold = scheduling().soldSchedulableResources(reservation);
+      const named = [...owed.values(), ...sold.filter((e) => !owed.has(Number(e.resource.id)))
+        .map((e) => ({ resourceId: Number(e.resource.id), label: `${e.resource.name} — supplément soirée`, amount: 0 }))];
+      return named.map((s) => ({
+        key: `evening:${s.resourceId}`, label: s.label, amount: s.amount, component: { kind: 'evening', resourceId: Number(s.resourceId) },
+      }));
     },
     // Rule 26 — replace, never append, and only for the resources the payload names: a resource the
     // operator never saw keeps its sessions.

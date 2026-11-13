@@ -151,7 +151,7 @@
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ],
     "1.6.3": [
-      "Une séance cochée au planning reste sur la ligne qui la porte quand une ressource a été vendue plusieurs fois.",
+      "Une séance cochée au planning reste sur la ligne qui la porte quand une ressource a été vendue plusieurs fois.", "Le supplément de soirée des séances placées au sas d’arrivée devient une part de la ligne de la séance tant que cette ligne est à percevoir à l’arrivée : il grandit ou diminue avec les séances, les heures vendues ne bougent pas ; une ligne déjà payée ou vendue avec le séjour garde la ligne « supplément soirée » à part, et un séjour qui en a déjà une la garde (jamais facturé deux fois).",
       "Compatible avec GuestFlow 4 (SDK 2.29)."
     ]
   }
