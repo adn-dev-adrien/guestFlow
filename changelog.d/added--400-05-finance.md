@@ -1,4 +1,0 @@
-- **Suivi financier › « À vérifier »**: a panel counts the finished stays whose tourist tax is missing while it is ours to remit, the past months not fully ticked « Déclarée », the finished platform stays without « Paiement plateforme » and the finished stays still on an iCal placeholder client; each row opens the stays or the month concerned.
-- **Suivi financier › « Profil des séjours »** (`/finance/profil`): the stays of the window by channel, length, booking lead time and price band, with the average basket per month against last year.
-- **RevPAR and year-over-year**: RevPAR with the open nights of the window (closures excluded), KPI tiles with a definition button and a pill against last year.
-- **Tourist-tax report over any period**: a month, a quarter, a year or a custom range, by logement.
