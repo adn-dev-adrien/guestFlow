@@ -329,6 +329,11 @@ export default function FinanceSection() {
   const complementAdjustment = form.complementAdjustment || { floor: 0, accommodation: 0, tax: 0, allocation: null };
   const arrivalAdjusted = form.complementAmountOverride !== '' && form.complementAmountOverride != null;
   const arrivalAutoAmount = Number(pricingQuote?.complementAmountAuto || 0);
+  // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 7 — the live quote's itemisation while
+  // the fiche is being edited, the stored one otherwise; both are shaped by the server.
+  const arrivalComplementLines = pricingQuote?.complementDetailLines?.length
+    ? pricingQuote.complementDetailLines
+    : (form.arrivalComplementLines || []);
   const endOfStayLiveTotal = pricingQuote?.endOfStayComplementTotal;
   const endOfStayAmountNow = endOfStayLiveTotal != null
     ? Number(endOfStayLiveTotal)
@@ -814,6 +819,7 @@ export default function FinanceSection() {
         {d.note && <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>{d.note}</Typography>}
         {open && slot === 'complement' && (
           <ComplementDetail
+            lines={arrivalComplementLines}
             overrideValue={form.complementAmountOverride}
             onOverrideCommit={commitArrivalOverride}
             autoAmount={arrivalAutoAmount}

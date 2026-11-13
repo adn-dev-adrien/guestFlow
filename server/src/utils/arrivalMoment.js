@@ -17,4 +17,22 @@ function hasGuestArrived(reservation) {
   return Number(r.checkInDone || 0) === 1 || Boolean(r.arrivalSasDoneAt);
 }
 
-module.exports = { hasGuestArrived };
+/**
+ * Has the stay started? — specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 1.
+ * The fiche locks from here, not from midnight of the arrival day: before the guest is due the fiche is
+ * a normal one. Started = a day before today, or the arrival day once its `checkInTime` has passed
+ * (no `checkInTime` → from 00:00), or earlier when the arrival was marked.
+ * @param {{ startDate?: string, checkInTime?: string }} row
+ * @param {string} today   `YYYY-MM-DD`
+ * @param {string} nowTime `HH:MM`
+ */
+function hasStayStarted(row, today, nowTime) {
+  const start = row && row.startDate ? String(row.startDate).slice(0, 10) : '';
+  if (!start || start > today) return false;
+  if (start < today) return true;
+  if (hasGuestArrived(row)) return true;
+  const arrival = String(row.checkInTime || '');
+  return !/^\d{2}:\d{2}/.test(arrival) || arrival.slice(0, 5) <= nowTime;
+}
+
+module.exports = { hasGuestArrived, hasStayStarted };

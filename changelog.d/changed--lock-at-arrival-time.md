@@ -1,0 +1,1 @@
+- **Reservation fiche — the lock starts at the arrival time.** A fiche used to lock at midnight of the arrival day; it now locks when the arrival time has passed, or earlier once the check-in or the arrival SAS is validated. Before that, the fiche is a normal one (`specs/lock-at-arrival-time-and-arrival-complement-lines.md`).

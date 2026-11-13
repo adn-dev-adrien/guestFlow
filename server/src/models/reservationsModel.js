@@ -2894,14 +2894,14 @@ function createReservationsModel(database) {
 
     // specs/mid-stay-extras-on-locked-fiche.md rule 13 — the ready-to-render lock of a fiche: is it
     // locked, may its extras still be edited, and the floor of every line sold at arrival.
-    getEditLock(reservationId, { today }) {
+    getEditLock(reservationId, { today, nowTime }) {
       const row = database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId);
       if (!row) return null;
       const lines = model.readExtraLinesWithQuantity(reservationId);
       // A locked fiche has started: with no baseline captured yet, what it carries now IS what was sold
       // at arrival, exactly what the next save will pin.
       const baseline = model.getArrivalExtrasBaseline(reservationId) || JSON.stringify(buildExtrasBaseline(lines));
-      return buildEditLock(row, today, baseline, lines);
+      return buildEditLock(row, today, baseline, lines, nowTime);
     },
 
     // `readExtraLines` plus the units of each line — what the arrival floors of a locked fiche count

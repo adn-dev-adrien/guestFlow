@@ -93,7 +93,8 @@ const unitsText = (n, lang) => String(n).replace('.', lang === 'fr' ? ',' : '.')
 
 /** Rule 27 — open exactly while the stay takes mid-stay extras; a pre-arrival session reads it only. */
 function shopState(mode, window, today) {
-  const state = midStayExtrasWindow(window, today);
+  // The guest shop keeps its calendar-day reading: it opens with the arrival day, not the arrival hour.
+  const state = midStayExtrasWindow(window, today, '23:59');
   if (mode === 'stay' && state.extrasEditable) return { open: true, closedReason: null };
   return { open: false, closedReason: state.extrasClosedReason === 'endOfStayCollected' ? 'closed' : 'preArrival' };
 }
