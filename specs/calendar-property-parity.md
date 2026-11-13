@@ -187,7 +187,9 @@ name is always readable or truncated cleanly with the full name on hover.
 17. **On a phone, the logement calendar is a day agenda.** Below `sm`, the week pager is replaced by
     the same vertical scroller: month blocks with a sticky title, one row per day with today's per-day
     content (arrival, departure, ongoing stay, devis, closure, note, « + Nouvelle réservation » on a free
-    future day, the note button). Opens with today at the top.
+    future day, the note button). Opens with today at the top. Since 2026-11-12
+    (specs/cumulative-month-calendar.md rule 13, shared `InfiniteMonthScroller`) today's row also stays at
+    the top while the months load, until a scroll moves it.
 
 ### Names on the logement calendar
 

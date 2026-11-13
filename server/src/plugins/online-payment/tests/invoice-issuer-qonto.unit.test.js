@@ -41,7 +41,7 @@ const REQUEST = {
 };
 
 test('rule 14 (Q6) — the online-payment consent asks the invoicing scopes on top of the payment ones', () => {
-  assert.deepEqual(INVOICING_SCOPES, ['client.write', 'client_invoice.read', 'client_invoice.write', 'attachment.write']);
+  assert.deepEqual(INVOICING_SCOPES, ['client.write', 'client_invoices.read', 'client_invoice.write', 'attachment.write']);
   assert.ok(!DEFAULT_SCOPES.includes('client_invoice.write'));
 });
 

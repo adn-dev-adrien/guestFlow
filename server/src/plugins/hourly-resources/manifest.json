@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.6.0",
+  "version": "1.6.2",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -132,12 +132,17 @@
       "La carte du planning d’une réservation de ressource hors séjour reprend les tailles et l’ordre de la carte d’arrivée.",
       "Compatible avec le SDK 2.26.0 de GuestFlow."
     ],
-    "1.5.4": [
+    "1.6.0": [
+      "La liste « Client enregistré » d’une séance commence par les clients en séjour ou attendus dans les 7 jours suivant la date de la séance, puis les autres clients à venir, puis les clients passés.",
+      "Chaque client y montre son logement et ses dates ; la saisie cherche dans le nom, le prénom, l’email, le téléphone et le logement, sans tenir compte des accents.",
+      "Demande le SDK 2.27 de GuestFlow."
+    ],
+    "1.6.1": [
       "Le tarif à l’heure est calculé par la famille d’article « hourly » du calcul des prix ; aucun prix ne change.",
       "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; à 20 %, le net et la TVA peuvent bouger d’un centime, le total ne change pas.",
       "Demande le SDK 2.27 de GuestFlow."
     ],
-    "1.6.0": [
+    "1.6.2": [
       "La première heure offerte par le logement est comptée au tarif de jour, comme sur un séjour, même si elle tombe dans la tranche du soir : pour les nouvelles réservations seulement, une réservation déjà enregistrée garde son prix tant qu’on ne déplace pas son créneau ni son logement.",
       "Le prix propre au logement est lu par le cœur de GuestFlow, un seul endroit pour la grille horaire.",
       "Vendre une heure de bain refuse le créneau déjà pris, au moment même de la vente, avant que la ligne soit écrite.",

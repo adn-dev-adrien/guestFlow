@@ -1,6 +1,6 @@
 // specs/payment-link-lifecycle.md rule 30 and specs/wordpress-plugin.md rule 34 — the return page's
 // `expired` message exists in French and in English, in the catalogue and in the compiled .mo the site
-// loads, and ships in plugin 1.19.0. The browser behaviour is pinned by the client suite
+// loads, and ships in plugin 1.19.0 and every later version. The browser behaviour is pinned by the client suite
 // wordpress-booking-view.payment-expired.
 
 const test = require('node:test');
@@ -28,11 +28,15 @@ test('rule 30 — the English translation is in the catalogue and in the compile
   assert.ok(mo.includes(Buffer.from(EN, 'utf8')), 'msgstr compiled');
 });
 
-test('rule 30 — the plugin that understands `expired` is 1.19.0, everywhere it names its version', () => {
+test('rule 30 — the plugin that understands `expired` is 1.19.0 or later, the same version everywhere it names it', () => {
+  // Later releases (1.19.1, specs/wordpress-plugin.md rule 36) keep the behaviour: the floor is what this rule pins.
   const php = read('guestflow-booking.php').toString('utf8');
   const readme = read('readme.txt').toString('utf8');
-  assert.match(php, /\* Version:\s+1\.19\.0\b/);
-  assert.match(php, /define\('GF_BOOKING_VERSION', '1\.19\.0'\)/);
-  assert.match(readme, /^Stable tag: 1\.19\.0$/m);
+  const header = (php.match(/\* Version:\s+(\d+\.\d+\.\d+)\b/) || [])[1];
+  assert.ok(header, 'plugin header names a version');
+  assert.match(php, new RegExp(`define\\('GF_BOOKING_VERSION', '${header.replace(/\./g, '\\.')}'\\)`));
+  assert.match(readme, new RegExp(`^Stable tag: ${header.replace(/\./g, '\\.')}$`, 'm'));
+  const [major, minor] = header.split('.').map(Number);
+  assert.ok(major > 1 || (major === 1 && minor >= 19), `${header} is at least 1.19.0`);
   assert.match(readme, /= 1\.19\.0 =\n\* Page de retour du paiement : quand le lien de paiement a expiré/);
 });

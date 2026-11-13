@@ -10,7 +10,7 @@
 const { qontoClient, qontoConfig, qontoService } = require('./gf');
 
 // GuestFlow's scopes, plus what invoicing needs (rule 32).
-const BILLING_SCOPES = [...qontoClient.DEFAULT_SCOPES, 'client.read', 'client.write', 'client_invoice.read', 'client_invoice.write'];
+const BILLING_SCOPES = [...qontoClient.DEFAULT_SCOPES, 'client.read', 'client.write', 'client_invoices.read', 'client_invoice.write'];
 
 const FAILED_PAYMENT = new Set(['failed', 'expired', 'canceled', 'cancelled']);
 

@@ -568,7 +568,7 @@ The market for gîtes is 30–60 € per month for one or two units (`specs/plug
     - Only the storage differs: the console keeps these settings in its own database, secrets and
       tokens encrypted with its own key, and its public URL is `CP_PUBLIC_URL`.
     - The console asks Qonto for the instance's scopes plus `client.read`, `client.write`,
-      `client_invoice.read` and `client_invoice.write`.
+      `client_invoices.read` and `client_invoice.write`.
     - The invoices print the IBAN of the bank account chosen in the provider connection.
     - Without a working connection nothing is invoiced, and the home page says so.
     - The console's session cookie is `SameSite=Lax`, like GuestFlow's: Qonto's consent comes back
