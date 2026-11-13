@@ -6,12 +6,12 @@ const assert = require('node:assert/strict');
 const { hasStayStarted } = require('../utils/arrivalMoment');
 const { midStayExtrasWindow, buildEditLock } = require('../utils/midStayExtrasWindow');
 
-const TODAY = '2026-11-13';
+const TODAY = '2026-11-13'; // date-literal-ok: `today` is injected, never read from the calendar
 const row = (over = {}) => ({ kind: 'reservation', startDate: TODAY, checkInTime: '16:00', ...over });
 
 // specs/lock-at-arrival-time-and-arrival-complement-lines.md rule 1
 test('the day before the arrival the stay has not started, whatever the clock says', () => {
-  assert.equal(hasStayStarted(row({ startDate: '2026-11-14' }), TODAY, '23:59'), false);
+  assert.equal(hasStayStarted(row({ startDate: '2026-11-14' }), TODAY, '23:59'), false); // date-literal-ok: `today` is injected, never read from the calendar
 });
 
 test('on the arrival day it starts at the check-in time, not at midnight', () => {
@@ -27,7 +27,7 @@ test('an arrival day without a check-in time starts at 00:00', () => {
 
 test('a marked check-in or a completed arrival SAS starts the stay early', () => {
   assert.equal(hasStayStarted(row({ checkInDone: 1 }), TODAY, '09:00'), true);
-  assert.equal(hasStayStarted(row({ arrivalSasDoneAt: '2026-11-13 09:00:00' }), TODAY, '09:00'), true);
+  assert.equal(hasStayStarted(row({ arrivalSasDoneAt: '2026-11-13 09:00:00' }), TODAY, '09:00'), true); // date-literal-ok: `today` is injected, never read from the calendar
 });
 
 test('a check-in time written « 9:00 » or « 09h00 » is read; an unreadable one starts at 00:00', () => {
@@ -38,7 +38,7 @@ test('a check-in time written « 9:00 » or « 09h00 » is read; an unreadable o
 });
 
 test('a later day is always started', () => {
-  assert.equal(hasStayStarted(row({ startDate: '2026-11-12' }), TODAY, '00:00'), true);
+  assert.equal(hasStayStarted(row({ startDate: '2026-11-12' }), TODAY, '00:00'), true); // date-literal-ok: `today` is injected, never read from the calendar
 });
 
 // specs/lock-at-arrival-time-and-arrival-complement-lines.md rules 2, 4
