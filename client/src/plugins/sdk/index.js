@@ -72,3 +72,5 @@ export { default as TenderLines } from '../../components/TenderLines';
 export { TENDER_TEXTS } from '../../constants/tenderMethods';
 // hourly-resources — the communes of a postcode (specs/resource-booking-pricing-and-invoicing.md rule 27) — SDK 2.25.0.
 export { default as usePostalCodeCities } from '../../hooks/usePostalCodeCities';
+// hourly-resources — the client picker ordered by stay (specs/resource-booking-client-picker.md §4.2) — SDK 2.27.0.
+export { default as ClientPickerField } from '../../components/ClientPickerField';

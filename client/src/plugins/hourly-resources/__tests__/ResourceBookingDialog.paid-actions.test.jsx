@@ -13,7 +13,7 @@ vi.mock('../../../api', () => ({
   __esModule: true,
   default: {
     getOccupiedSlots: vi.fn().mockResolvedValue({ occupiedSlots: [] }),
-    getClients: vi.fn().mockResolvedValue([]),
+    getClientPicker: vi.fn().mockResolvedValue({ options: [] }),
     getProperties: vi.fn().mockResolvedValue([]),
     previewResourceBooking: vi.fn(),
     clearResourceBookingPayment: vi.fn(),

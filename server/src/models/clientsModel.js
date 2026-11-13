@@ -19,6 +19,8 @@ const { sentenceCase, capitalizeFirst, personNameCase } = require('../utils/text
 const { clientWhenLabel, stayDatesLabel } = require('../utils/clientWhenLabel');
 const { storedEmail } = require('../utils/emailAddress');
 const { dayReached, dayPassed } = require('../utils/pricing/stayClock');
+const { isRealIsoDay } = require('../utils/stayDates');
+const { normalizeSearchText } = require('../utils/searchText');
 
 const MS_PER_DAY = 86400000;
 
@@ -246,6 +248,92 @@ function createModel(database) {
     };
   }
 
+  // specs/resource-booking-client-picker.md §3 — the options of a client picker, grouped and ordered
+  // against a reference day (the session's date): on site or arriving within 7 days, then the other
+  // upcoming clients, then the past ones followed by the clients without any real stay.
+  const PICKER_SOON_DAYS = 7;
+
+  function picker({ date, today = todayKey() } = {}) {
+    const day = isRealIsoDay(date) ? date : today;
+    const clients = database.prepare('SELECT id, firstName, lastName, email, phone FROM clients').all();
+
+    const staysByClient = new Map();
+    for (const r of database.prepare(`
+      SELECT r.id, r.clientId, r.startDate, r.endDate, p.name AS propertyName
+      FROM reservations r LEFT JOIN properties p ON p.id = r.propertyId
+      WHERE r.kind = 'reservation' AND r.clientId IS NOT NULL
+    `).all()) {
+      if (!staysByClient.has(r.clientId)) staysByClient.set(r.clientId, []);
+      staysByClient.get(r.clientId).push(r);
+    }
+
+    const soonLimit = addDays(day, PICKER_SOON_DAYS);
+    const onSite = [];
+    const arriving = [];
+    const upcoming = [];
+    const past = [];
+    const withoutStay = [];
+    for (const client of clients) {
+      const stays = staysByClient.get(client.id) || [];
+      const covering = stays.filter((s) => s.startDate <= day && day <= s.endDate)
+        .sort((a, b) => a.endDate.localeCompare(b.endDate) || a.id - b.id)[0];
+      const next = stays.filter((s) => s.startDate > day)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.id - b.id)[0];
+      const last = stays.filter((s) => s.endDate < day)
+        .sort((a, b) => b.endDate.localeCompare(a.endDate) || b.id - a.id)[0];
+      const stay = covering || next || last || null;
+      const entry = { client, stay };
+      if (covering) onSite.push(entry);
+      else if (next && next.startDate <= soonLimit) arriving.push(entry);
+      else if (next) upcoming.push(entry);
+      else if (last) past.push(entry);
+      else withoutStay.push(entry);
+    }
+
+    const byNames = (a, b) => compareNames(a.client, b.client);
+    onSite.sort((a, b) => a.stay.endDate.localeCompare(b.stay.endDate) || byNames(a, b));
+    arriving.sort((a, b) => a.stay.startDate.localeCompare(b.stay.startDate) || byNames(a, b));
+    upcoming.sort((a, b) => a.stay.startDate.localeCompare(b.stay.startDate) || byNames(a, b));
+    past.sort((a, b) => b.stay.endDate.localeCompare(a.stay.endDate) || byNames(a, b));
+    withoutStay.sort(byNames);
+
+    const soonLabel = day === today
+      ? 'En séjour ou bientôt'
+      : `En séjour le ${day.slice(8, 10)}/${day.slice(5, 7)} ou bientôt`;
+    const groups = [
+      ['soon', soonLabel, [...onSite, ...arriving]],
+      ['upcoming', 'À venir', upcoming],
+      ['past', 'Passés', [...past, ...withoutStay]],
+    ];
+
+    const option = (group, groupLabel, { client, stay }) => {
+      const propertyName = stay ? stay.propertyName || '' : '';
+      let detail;
+      if (stay) detail = [propertyName, stayDatesLabel(stay)].filter(Boolean).join(' · ');
+      else detail = client.email || client.phone || 'Aucun séjour';
+      const phone = client.phone || '';
+      const digits = phone.replace(/\D/g, '');
+      // « +33 6 12… » is typed « 06 12… »: the national form is searchable too (rule 7).
+      const national = digits.startsWith('33') && digits.length === 11 ? `0${digits.slice(2)}` : '';
+      return {
+        id: client.id,
+        firstName: client.firstName || '',
+        lastName: client.lastName || '',
+        group,
+        groupLabel,
+        detail,
+        searchText: normalizeSearchText(
+          client.firstName, client.lastName, client.email, phone, digits, national, propertyName,
+        ),
+      };
+    };
+
+    return {
+      referenceDay: day,
+      options: groups.flatMap(([group, label, entries]) => entries.map((entry) => option(group, label, entry))),
+    };
+  }
+
   function findById(id) {
     return database.prepare('SELECT * FROM clients WHERE id = ?').get(Number(id));
   }
@@ -458,6 +546,7 @@ function createModel(database) {
   return {
     list,
     directory,
+    picker,
     findById,
     findByEmail,
     findDuplicate,
