@@ -57,13 +57,19 @@ function createItemsModel(db) {
 
   /**
    * Rule 24 — the lodging's catalogue exactly as the engine prices it (effective per-property price, free
-   * units and free minutes), the plugin rows, the resources explicitly linked to the lodging, the options it
+   * units and free minutes), the plugin rows, the resources linked to the lodging (explicitly, or « Tous les logements »), the options it
    * offers by default, and the paths of the photos.
    */
   function catalogueFor(propertyId) {
     const id = Number(propertyId);
     const items = new Map(db.prepare('SELECT * FROM guest_app_items').all().map((row) => [keyOf(row.kind, row.itemId), row]));
-    const linkedResourceIds = new Set(db.prepare('SELECT resourceId FROM resource_properties WHERE propertyId = ?').all(id).map((r) => Number(r.resourceId)));
+    // A resource with no lodging row is « Tous les logements » in GuestFlow (choosing every lodging collapses to
+    // it): it is linked to every lodging, like the engine reads it.
+    const linkedResourceIds = new Set(db.prepare(`
+      SELECT r.id FROM resources r
+      WHERE EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id AND rp.propertyId = ?)
+         OR NOT EXISTS (SELECT 1 FROM resource_properties rp WHERE rp.resourceId = r.id)
+    `).all(id).map((r) => Number(r.id)));
     const offeredDefaultIds = new Set(db.prepare('SELECT optionId FROM property_option_defaults WHERE propertyId = ? AND offered = 1').all(id).map((r) => Number(r.optionId)));
     const mediaPaths = new Map(db.prepare('SELECT id, path FROM guest_media').all().map((m) => [Number(m.id), m.path]));
     return {

@@ -15,7 +15,7 @@ const platformsModel = require('./platformsModel');
 const establishmentClosuresModel = require('./establishmentClosuresModel');
 const { platformDisplay } = require('../utils/platformDisplay');
 const { textColorFor } = require('../utils/colorContrast');
-const { todayIso } = require('../utils/localDate');
+const { todayIso, localHourMinute, stayHasEnded } = require('../utils/localDate');
 
 const DEFAULT_CLOSURE_LABEL = 'Fermeture établissement';
 
@@ -40,7 +40,7 @@ function createModel(database) {
       return Boolean(database.prepare('SELECT 1 FROM properties WHERE id = ?').get(Number(propertyId)));
     },
 
-    listRange({ from, to, propertyId = null, today = todayIso() }) {
+    listRange({ from, to, propertyId = null, today = todayIso(), nowTime = localHourMinute(new Date()) }) {
       let sql = `
         SELECT r.id, r.propertyId, p.name AS propertyName, r.startDate, r.endDate, r.checkInTime, r.checkOutTime,
                c.firstName, c.lastName, r.platform, r.icalOriginalSummary, r.bookingConflictAt
@@ -71,7 +71,7 @@ function createModel(database) {
           platformDisplay: platformDisplay(row.platform),
           color,
           textColor: textColorFor(color),
-          past: row.endDate <= today,
+          past: stayHasEnded(row, today, nowTime),
           bookingConflictAt: row.bookingConflictAt || null,
         };
       });

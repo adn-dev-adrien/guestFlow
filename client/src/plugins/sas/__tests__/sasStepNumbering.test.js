@@ -2,7 +2,7 @@
 import stepNumbering from '../sasStepNumbering';
 
 const ARRIVAL = ['intro', 'portal', 'caution', 'options', 'linen', 'linenItems', 'cleaning', 'breakfastSale',
-  'breakfastMornings', 'breakfast', 'cateringAsk', 'cateringItems', 'cautionReport', 'recap'];
+  'breakfastMornings', 'breakfast', 'cateringAsk', 'cateringItems', 'recap'];
 
 test('rule 3 — the total counts the questions; opened pages carry the opener\'s number', () => {
   expect(stepNumbering(ARRIVAL, 'intro')).toEqual({ number: 1, total: 9 });
@@ -10,7 +10,6 @@ test('rule 3 — the total counts the questions; opened pages carry the opener\'
   expect(stepNumbering(ARRIVAL, 'linenItems')).toEqual({ number: 5, total: 9 });
   expect(stepNumbering(ARRIVAL, 'breakfastMornings')).toEqual({ number: 7, total: 9 });
   expect(stepNumbering(ARRIVAL, 'breakfast')).toEqual({ number: 7, total: 9 });
-  expect(stepNumbering(ARRIVAL, 'cautionReport')).toEqual({ number: 8, total: 9 });
   expect(stepNumbering(ARRIVAL, 'recap')).toEqual({ number: 9, total: 9 });
 });
 

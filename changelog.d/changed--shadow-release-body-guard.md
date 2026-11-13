@@ -1,1 +1,0 @@
-- **A release body is capped at 125,000 characters** (GitHub's limit): `build-changelog.mjs --check-digest` fails above it and the preview warns; the 4.0.0 section is condensed, its full detail is archived in `docs/changelog/4.0.0-detail.md`.

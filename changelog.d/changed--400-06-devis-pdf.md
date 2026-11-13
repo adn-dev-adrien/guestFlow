@@ -1,1 +1,0 @@
-- **The quote PDF draws every word with embedded fonts** (Source Sans 3 and Source Serif 4): accents and symbols print correctly everywhere.

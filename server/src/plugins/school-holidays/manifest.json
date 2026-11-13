@@ -1,7 +1,7 @@
 {
   "id": "school-holidays",
   "name": "Vacances scolaires",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Zones A, B, C récupérées sur education.gouv.fr.",
   "icon": "school",
   "surfaces": [
@@ -36,6 +36,10 @@
       "Compatible avec le SDK 2.20 de GuestFlow."
     ],
     "1.0.7": [
+      "Compatible avec GuestFlow 4 (SDK 2.20)."
+    ],
+    "1.0.8": [
+      "Le formulaire d’une période garde la place de l’étiquette sous chaque titre de zone.",
       "Compatible avec GuestFlow 4 (SDK 2.20)."
     ]
   }

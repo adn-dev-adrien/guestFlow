@@ -1225,11 +1225,11 @@ Rules are numbered for identity; new ones are appended at the end, never inserte
     `GET /api/dashboard/payment-deactivations` (admin only, the same source as the attention subject) answers one shaped row
     per link: `kindLabel` (Acompte, Solde, Paiement total, Échéance, Complément), `amountLabel`, `reference` (the provider's
     link id, what the operator searches for at Qonto), `stayLabel` / `stayUrl` — what `reservationId` really names and where it opens
-    (the client's own convention, `DevisPage.editPathOf`): a live, cancelled or set-aside stay → « Séjour {n°} » (« Séjour n° {id} »
+    (the client's own convention, `DevisPage.editPathOf`): a live, cancelled or set-aside stay → « Fiche n° {reservation number} » (« Fiche n° {id} »
     before it has a number) → `/reservations/{id}`; a row that is gone (stay or devis: nothing left tells which) → « Fiche n° {id} », no link; a devis not converted →
-    « Devis {n° de devis} » → `/reservations/new?mode=devis&devisId={id}`; a converted devis → « Devis {n° de devis} · séjour {n°} »
+    « Fiche n° {devis number} » → `/reservations/new?mode=devis&devisId={id}`; a converted devis → « Fiche n° {number of the stay it became} · devis {devis number} »
     → the stay it became, `/reservations/{id of the stay}` (a devis row id never answers on `/reservations/:id`: it is a 404);
-    a converted devis whose stay is gone → « Devis {n° de devis} », no link. The model supplies `stayKind`, `devisNumber`,
+    a converted devis whose stay is gone → « Fiche n° {devis number} », no link. The card draws the fiche label as a primary-coloured underlined link (2026-11-12, manual trial of 4.0.0). The model supplies `stayKind`, `devisNumber`,
     `convertedStayId` and `convertedNumber`; the controller words them. The fallback reason of a withdrawn link without one reads
     the stay a devis became (a devis converted into a set-aside stay → « Doublon écarté »), as the open-link reason already does. Test: `payment-deactivations-owed.unit.test.js` (one row per
     source), `reasonLabel` (Fiche supprimée, Séjour annulé, Doublon écarté, Dates prises, Retiré à

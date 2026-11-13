@@ -237,3 +237,9 @@ Interactive summary: `docs/specs/2026-10-22-platform-extra-guest-complement.html
   resets it (rule 5).
 - Q: Existing platform reservations? → **A (2026-10-22):** with a brut, the paid base is backfilled from
   the current composition (§5).
+
+## Amendment 2026-11-12 (manual trial of 4.0.0) — the « Voyageurs ajoutés » line aligns like every other line
+
+In the pricing summary the line is laid out like an option line: label and caption on the left (they shrink and wrap), then,
+never wrapping under them, « Offrir » and the amount at the far right of the row (`ExtraGuestRow` no longer wraps its right
+group below a 160 px label). Applies to « Surcoût voyageurs » too.

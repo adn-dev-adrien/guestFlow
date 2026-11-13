@@ -83,7 +83,7 @@ async function openStayFiche() {
 }
 
 async function typeClient() {
-  fireEvent.click(screen.getAllByText('+ Créer un nouveau client')[0]);
+  fireEvent.click(screen.getAllByText('Nouveau client')[0]);
   fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
   fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));

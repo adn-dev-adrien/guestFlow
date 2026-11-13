@@ -68,6 +68,7 @@ test('arrival SAS: full flow — caution Fait, linen Pas OK reveals the priced i
   await waitFor(() => expect(api.commitArrivalSas).toHaveBeenCalledTimes(1));
   expect(api.commitArrivalSas).toHaveBeenCalledWith(1, {
     cautionReceived: true,
+    cautionWaived: false,
     // specs/sas-arrival-total-server-side.md rules 4-7 — the draft the preview priced: the LINEN
     // elements by item and quantity (priced by the server from « Facturables »), no kept line; the
     // ménage rides its boolean and lands on the catalogue option, priced server-side.

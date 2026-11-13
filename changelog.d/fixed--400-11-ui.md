@@ -1,1 +1,0 @@
-- **Phone and keyboard**: touch targets of 44 px, no horizontal scroll on Paramètres, dates can be typed again, no reload loop on a missing page file, load failures show « Réessayer » instead of an empty page.
