@@ -5,8 +5,6 @@ const Database = require('better-sqlite3');
 const pricingUtils = require('../utils/pricing');
 
 const {
-  timeToDecimalHour,
-  computeAutoTimedOptionContext,
   computeTouristTaxBreakdown,
   normalizeOptionProgressiveTiers,
   calculateProgressiveParticipantOptionTotal,
@@ -111,80 +109,6 @@ function createPricingTestDb() {
 
   return db;
 }
-
-test('timeToDecimalHour converts half-hour values', () => {
-  assert.equal(timeToDecimalHour('15:30'), 15.5);
-  assert.equal(timeToDecimalHour('08:00'), 8);
-});
-
-test('computeAutoTimedOptionContext computes proportional early check-in hours and price', () => {
-  const line = computeAutoTimedOptionContext({
-    option: {
-      id: 10,
-      title: 'Arrivee anticipee',
-      autoOptionType: 'early_check_in',
-      autoEnabled: 1,
-      autoPricingMode: 'proportional',
-      autoFullNightThreshold: '10:00',
-      price: 0,
-    },
-    checkInTime: '13:00',
-    defaultCheckIn: '15:00',
-    defaultCheckOut: '10:00',
-    nightlyBreakdown: [{ price: 120 }],
-  });
-
-  assert.equal(line.optionId, 10);
-  assert.equal(line.autoExtraHours, 2);
-  assert.equal(line.autoFullNightApplied, false);
-  assert.equal(line.totalPrice, 48);
-});
-
-test('computeAutoTimedOptionContext applies full-night price for late check-out beyond threshold', () => {
-  const line = computeAutoTimedOptionContext({
-    option: {
-      id: 11,
-      title: 'Depart tardif',
-      autoOptionType: 'late_check_out',
-      autoEnabled: 1,
-      autoPricingMode: 'proportional',
-      autoFullNightThreshold: '17:00',
-      price: 0,
-    },
-    checkOutTime: '17:30',
-    defaultCheckIn: '15:00',
-    defaultCheckOut: '10:00',
-    nightlyBreakdown: [{ price: 120 }, { price: 120 }],
-  });
-
-  assert.equal(line.autoExtraHours, 7.5);
-  assert.equal(line.autoFullNightApplied, true);
-  assert.equal(line.totalPrice, 120);
-});
-
-test('computeAutoTimedOptionContext late check-out proportional uses next-night price source', () => {
-  const line = computeAutoTimedOptionContext({
-    option: {
-      id: 12,
-      title: 'Depart tardif',
-      autoOptionType: 'late_check_out',
-      autoEnabled: 1,
-      autoPricingMode: 'proportional',
-      autoFullNightThreshold: '17:00',
-      price: 0,
-    },
-    checkOutTime: '12:00',
-    defaultCheckIn: '15:00',
-    defaultCheckOut: '10:00',
-    nightlyBreakdown: [{ price: 999 }],
-    lateCheckoutNextNightPrice: 120,
-  });
-
-  // 2h / 7h (10:00 -> 17:00) of next-night price (120), never from total stay.
-  assert.equal(line.autoExtraHours, 2);
-  assert.equal(line.autoFullNightApplied, false);
-  assert.equal(line.totalPrice, 34.29);
-});
 
 test('computeTouristTaxBreakdown percentage mode uses average HT per night divided by total occupants and taxes only adults', () => {
   const result = computeTouristTaxBreakdown({

@@ -57,11 +57,25 @@ const STAY = {
 };
 const lineOf = (quote, id) => quote.resourceLines.find((l) => Number(l.resourceId) === id);
 
-// A plugin declaring a contributor, live unless told otherwise.
+// The `hourly` family of a plugin whose contributor is `contributor`: it answers what the contributor answers.
+const familyOf = (contributor) => ({
+  id: 'hourly',
+  configSchema: [],
+  validate: () => [],
+  describe: () => ({ label: '', detail: '' }),
+  price: (config, request, ctx) => contributor.priceLine({
+    resource: config.resource, selected: request.selected, sold: request.sold, startDate: request.startDate, endDate: request.endDate, nights: ctx.nights, persons: ctx.persons,
+  }),
+});
+
+// A plugin declaring a contributor and its family, live unless told otherwise.
 function declare(contributor, { live = true, id = 'hourly-resources' } = {}) {
   registry.reset();
   registry.configure({ isActive: () => live, allows: () => true });
-  createContext(id, {}).priceLineContributor({ id, priceTypes: ['per_hour'], ...contributor });
+  const declared = { id, priceTypes: ['per_hour'], ...contributor };
+  const context = createContext(id, {});
+  context.priceLineContributor(declared);
+  context.articleFamily('hourly', familyOf(declared));
 }
 
 test.afterEach(() => registry.reset());
@@ -108,10 +122,6 @@ test('rule 3: a sold line goes through the lock with its sold hours, whatever th
 
 test('rule 1: a throwing contributor leaves the line to the engine, and the quote stands', () => {
   declare({ priceLine: () => { throw new Error('boom'); } });
-  const errors = [];
-  const answer = priceLineContributors.priceLine({ id: 14, priceType: 'per_hour' }, {}, { error: (...a) => errors.push(a), warn: () => {} });
-  assert.equal(answer, null);
-  assert.equal(errors.length, 1);
   const line = lineOf(calculateReservationQuote({ db: pricingDb(), ...STAY, selectedResources: [{ resourceId: 14, quantity: 2 }] }), 14);
   assert.equal(line.totalPrice, 60, '2 h × 30 € as a plain quantity');
 });

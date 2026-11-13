@@ -32,6 +32,7 @@ const { bookedBucketSplit, entryVentilation } = require('./accountingExport');
 
 const { isPlatformCollectingTouristTax } = sdk.coreModule('pricing');
 const vatRegimeModel = sdk.coreModule('vatRegimeModel');
+const { splitTtc } = sdk.coreModule('vat');
 const { extraLineKey, parseNotes } = sdk.coreModule('midStayExtras');
 const { buildPerLineData, splitByDestination, storedMoneyCollected } = sdk.coreModule('storedMoneySplit');
 const { createModel: createRefundsModel } = sdk.coreModule('refundsModel');
@@ -1590,8 +1591,7 @@ function round2(value) { return Math.round(Number(value || 0) * 100) / 100; }
 function bucketFromTtc(name, ttc, ratePercent) {
   if (!ttc || ttc <= 0) return { name, ht: 0, vat: 0, ratePercent: Number(ratePercent || 0) };
   const rate = Number(ratePercent || 0);
-  const vat = round2(ttc * (rate / (100 + rate)));
-  const ht = round2(ttc - vat);
+  const { vat, net: ht } = splitTtc(ttc, rate);
   return { name, ht, vat, ratePercent: rate };
 }
 

@@ -23,32 +23,19 @@
  */
 
 const { withConvertedDevis } = require('./deletionGuard');
-const { buildCancellationRequalification } = require('./cancellationRequalification');
+const {
+  buildCancellationRequalification, resolveCancellationReason, givenBackByBucket, keptSignature, cashDepositKeptOf,
+} = require('./pricing/refunds/cancellation');
 const { isDirectChannel } = require('./platformNameFormat');
 const { taxShares } = require('./installmentPlan');
 const { computeInstallmentPaidSplit } = require('./installmentPaidSplit');
-const { isOffBooks, isRetainedDeposit, COMMISSION_KEY } = require('./refunds');
+const { isOffBooks, isRetainedDeposit } = require('./refunds');
 const { storedMoneyBuckets } = require('./storedMoneySplit');
 const { taxRidesTheComplement } = require('./touristTaxFreeze');
 const { bucketSharesOf } = require('./paymentTenders');
-const { cashCollected } = require('./reservationSettlement');
 const paymentSettlementsModel = require('../models/paymentSettlementsModel');
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-
-// Why the stay was cancelled — derived from the state of the money, not asked. The operator's own
-// words travel separately, in `reason`.
-function resolveCancellationReason(row) {
-  const depositUnpaid = Number(row.depositAmount || 0) > 0 && !Number(row.depositPaid);
-  // An installment plan replaces the solde (specs/direct-installments.md rule 5): what it still owes is one.
-  const balanceUnpaid = (Number(row.balanceAmount || 0) > 0 && !Number(row.balancePaid))
-    || Number(row.installmentsUnpaidAmount || 0) > 0;
-  // Nothing collected at all is an unpaid acompte, the first money missing — not an unpaid solde
-  // (payment-schedule-and-cancellation rule 36, fixed at the 2026-10-27 spec review).
-  if (depositUnpaid) return 'unpaid_deposit';
-  if (balanceUnpaid) return 'unpaid_balance';
-  return 'manual';
-}
 
 // specs/direct-installments.md rule 46 — what the installments of a plan collected, and how the accounting booked
 // each one: its tourist-tax share (rule 39) and its revenue per bucket, installment by installment.
@@ -85,17 +72,6 @@ function installmentsRetainedOf(installmentsModel, database, id, row) {
     });
   });
   return { amountTtc: amountCents / 100, touristTaxTtc: retainedTaxCents / 100, installments };
-}
-
-// specs/payment-schedule-and-cancellation.md rule 55 — per bucket, what the book refunds made before the cancellation
-// gave back (the caisse interne is off the books: it never reversed any revenue).
-function givenBackByBucket(refunds) {
-  const given = {};
-  for (const refund of refunds || []) {
-    if (isOffBooks(refund.method) || isRetainedDeposit(refund.method)) continue;
-    for (const line of refund.lines || []) given[line.bucket] = round2((given[line.bucket] || 0) + Number(line.amountTtc || 0));
-  }
-  return given;
 }
 
 // Contribs describe an entry when they add up to it (accountingModel's CONTRIB_RESIDUE_TOLERANCE_TTC); otherwise the
@@ -210,19 +186,6 @@ function requalificationOf(deps, row, givenBack, { today = null, vatRate = 0, re
   });
 }
 
-const cents = (value) => Math.round(Number(value || 0) * 100);
-const lineSignature = (line) => JSON.stringify([line.lineKey || null, line.bucket, String(line.label || ''),
-  line.quantity == null ? null : Number(line.quantity), line.unitPrice == null ? null : cents(line.unitPrice),
-  cents(line.amountTtc), Number(line.vatRate || 0)]);
-// Review of PR #930, F1 — the solde's commission is spread over what the books still hold of the solde, which an
-// absorbed refund moves by a few cents: only the commission total is money kept, its spread is not compared.
-const keptSignature = (totalTtc, lines) => {
-  const kept = (lines || []).filter((line) => line.lineKey !== COMMISSION_KEY);
-  const commission = (lines || []).filter((line) => line.lineKey === COMMISSION_KEY)
-    .reduce((sum, line) => sum + cents(line.amountTtc), 0);
-  return JSON.stringify([cents(totalTtc), kept.map(lineSignature).sort(), commission]);
-};
-
 /**
  * Payment-schedule rule 55 reading of 2026-11-02 (audit R16-L1) — the ids of the book refunds made before the
  * cancellation that its `retained` avoir actually read: rebuilt without one of them (same stay, same solde, same
@@ -262,19 +225,6 @@ function cancellationRefusalOf(row) {
     return { error: 'PLATFORM_RESERVATION', status: 403, message: "Une réservation plateforme s'annule depuis l'alerte iCal, pas ici." };
   }
   return null;
-}
-
-// specs/payment-schedule-and-cancellation.md rule 61 (audits R44-DB-M1, R44-M-L1, R44-RES-L1) — the acompte collected in
-// the caisse interne that the cancellation keeps: off the books (D8), so no avoir names it, yet the guest handed it over.
-// Reading of 2026-11-10 (verification R44 L1): the caisse-interne refunds of `refunds` are taken from every other caisse
-// money first (a solde, the caisse share of a mixed solde, a complement, a note), read by `cashCollected`, the caisse
-// interne's one reading; the acompte only gives back what they leave over.
-function cashDepositKeptOf(row, refunds) {
-  if (!Number(row.depositPaid) || !Number(row.depositPaidCash || 0)) return 0;
-  const deposit = Math.max(0, round2(row.depositAmount));
-  const cashGivenBack = round2((refunds || []).filter((refund) => isOffBooks(refund.method))
-    .reduce((total, refund) => total + Number(refund.totalTtc || 0), 0));
-  return Math.min(deposit, Math.max(0, round2(cashCollected(row) - cashGivenBack)));
 }
 
 // specs/payment-schedule-and-cancellation.md rule 60 (audit R43-C-M1) — the figures a cancellation of `row` books, read

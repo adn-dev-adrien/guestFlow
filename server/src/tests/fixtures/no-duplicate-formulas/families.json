@@ -1,0 +1,130 @@
+[
+  {
+    "file": "models/financeModel.js",
+    "text": "adultNights: addedAdults * declaredNights,",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "models/financeModel.js",
+    "text": "taxRate: noGuestAdded ? null : round2(addedTax / (addedAdults * nightsCount)),",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "models/reservationsModel.js",
+    "text": "const { isPlatformCollectingTouristTax, getTypeMultiplier } = require('../utils/pricing');",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "models/reservationsModel.js",
+    "text": "const billedUnits = getTypeMultiplier(priceType, persons, nights);",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "models/reservationsModel.js",
+    "text": "const amount = Math.round(unitPrice * getTypeMultiplier(priceType, persons, nights) * 100) / 100;",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "plugins/website-booking/controllers/publicQuoteController.js",
+    "text": "calculateReservationQuote, computePercentOfStayAmount, getTypeMultiplier, roundMoney,",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "plugins/website-booking/controllers/publicQuoteController.js",
+    "text": "* getTypeMultiplier(option.priceType, Number(engineQuote.persons || 0), Number(engineQuote.nights || 0)))));",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/devisPdf.js",
+    "text": ": roundMoney(liveTaxTotal / (taxablePersons * taxNights));",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/pricing/steps/touristTax.js",
+    "text": "const { getTypeMultiplier } = articles;",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/pricing/steps/touristTax.js",
+    "text": "units: Number(line.quantity || 0) * getTypeMultiplier(line.priceType, taxReferencePersons, nights),",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/pricing/touristTax.js",
+    "text": "touristTaxTotal = roundMoney(touristTaxUnitAmount * nightsCount * adultsCount);",
+    "count": 2,
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/pricing.js",
+    "text": "getTypeMultiplier, computePercentOfStayAmount, resolveServedPersons, resolveNonCardUnits,",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/pricing.js",
+    "text": "getTypeMultiplier,",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/sasOptionSale.js",
+    "text": "const { getTypeMultiplier, resolveServedPersons, resolveNonCardUnits } = require('./pricing');",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/sasOptionSale.js",
+    "text": "const multiplier = getTypeMultiplier(priceType, head, stayNights) || 1;",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/sasUpsellOptionMigration.js",
+    "text": "if (priceType === 'per_person_per_night') return persons * nights;",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/touristTaxFreeze.js",
+    "text": "const unitAmount = total / (nightsCount * adultsCount);",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/touristTaxReport.js",
+    "text": "exemptPersonNights: exemptPersons * nightsCount,",
+    "count": 2,
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/touristTaxReport.js",
+    "text": "taxedPersonNights: taxedPersons * nightsCount,",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/welcomePack.js",
+    "text": "const { getTypeMultiplier } = require('./pricing');",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  },
+  {
+    "file": "utils/welcomePack.js",
+    "text": "const multiplier = getTypeMultiplier(priceType, persons, nights);",
+    "removedBy": "PR B",
+    "reason": "a seller that multiplies by persons and nights itself until PR B routes it through the Articles head"
+  }
+]

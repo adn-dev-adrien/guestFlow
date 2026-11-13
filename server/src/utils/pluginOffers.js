@@ -55,7 +55,13 @@ function rangeRefusal(manifest, { coreVersion, sdkVersion, hostExports = null })
       return { code: 'CORE_TOO_OLD', message: `Nécessite GuestFlow ${floorLabel(manifest.guestflow)} ou plus récent.` };
     }
   }
-  if (!satisfies(sdkVersion, manifest.sdk)) return { code: 'SDK_INCOMPATIBLE', message: MESSAGES.CORE_INCOMPATIBLE };
+  if (!satisfies(sdkVersion, manifest.sdk)) {
+    // The SDK floor above the running one, same major: what it takes is a newer GuestFlow (the code stays SDK_INCOMPATIBLE, rule 62 / D24).
+    const sdkFloor = coreFloor(manifest.sdk);
+    const needsNewerCore = Boolean(sdkFloor) && isVersion(sdkVersion)
+      && compare(sdkVersion, sdkFloor) < 0 && sdkFloor.split('.')[0] === String(sdkVersion).split('.')[0];
+    return { code: 'SDK_INCOMPATIBLE', message: needsNewerCore ? MESSAGES.CORE_TOO_OLD : MESSAGES.CORE_INCOMPATIBLE };
+  }
   // Built for a newer app: it needs a name this app does not give (rule 33) — the same refusal as a
   // core too old, since a newer GuestFlow is what it takes.
   if (missingHostImports(manifest, hostExports).length) return { code: 'CORE_TOO_OLD', message: MESSAGES.CORE_TOO_OLD };

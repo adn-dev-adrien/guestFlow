@@ -778,6 +778,17 @@
     "remove",
     "totalFor"
   ],
+  "vat": [
+    "htFromTtc",
+    "htOfPortion",
+    "lineTotalCents",
+    "netFirst",
+    "rateToBasis",
+    "resolveRate",
+    "settingsSchema",
+    "splitTtc",
+    "vatOf"
+  ],
   "vatRegimeModel": [
     "forRow",
     "inForceBlock",

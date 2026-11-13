@@ -624,6 +624,16 @@ Optional: a plugin that declares nothing reads « Actif ».
     control character, never `/login`), for a backend page that needs a session. Tests:
     `OptionEditorPanel.plugin-fields.test.jsx`, `ResourceEditorPanel.plugin-fields.test.jsx`,
     `navMenu.plugin-entries.test.js`, `navigation.safe-return-path.test.js`.
+50. *(Added 2026-11-11, specs/pricing-components.md rules 5, 47 and 61, SDK 2.27.0.)* **A plugin reaches the VAT component
+    and declares an article family.** `coreModule('vat')` hands out the VAT component (`vatOf`, `resolveRate`, `splitTtc`,
+    `netFirst`, `htOfPortion` and the Qonto basket's integer-cent helpers). `ctx.articleFamily(id, family)` registers a
+    pricing family for the Articles head, `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx),
+    describe(config, line) }`: an id is declared once (`DUPLICATE_FAMILY`), the family prices only while its plugin is live
+    (`FAMILY_UNAVAILABLE` otherwise), and the ids a plugin declared leave with it. `ctx.priceLineContributor` stays as the
+    alias of the hourly one. A plugin that calls `ctx.articleFamily(` asks for `sdk` `^2.27.0` (the hardening floor list of
+    `plugin-core-hardening-floor` holds it); hourly-resources and accounting-export range `^2.27.0`; `coreModuleHistory.json`
+    records 2.27.0 (`vat`). Tests: `article-family-sdk.unit.test.js`, `plugin-core-hardening-floor.unit.test.js`,
+    `sdk-v2-plugin-ranges.unit.test.js`.
 
 **Edge cases:**
 - **A plugin throws during `register`.** Rule 4 applies: the other plugins and the core boot. The Plugins

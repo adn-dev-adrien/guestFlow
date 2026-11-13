@@ -1,0 +1,80 @@
+[
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "? 0 : Math.max(0, round2(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0))));",
+    "removedBy": "PR B",
+    "reason": "a penalty, cancellation or settlement figure that PR B routes through platformPayment.js"
+  },
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "const grossOf = (row) => (present(row.platformGrossAmount) ? Number(row.platformGrossAmount) : round2(Number(row.depositAmount || 0) + Number(row.balanceAmount || 0)));",
+    "removedBy": "PR B",
+    "reason": "a penalty, cancellation or settlement figure that PR B routes through platformPayment.js"
+  },
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "const raw = round2(gross - newPayout - tax - acompteCommission);",
+    "removedBy": "PR B",
+    "reason": "a penalty, cancellation or settlement figure that PR B routes through platformPayment.js"
+  },
+  {
+    "file": "controllers/platformPenaltiesController.js",
+    "text": "const statementPayout = payoutRecorded ? newPayout : round2(gross - (commission || 0) - acompteCommission - tax);",
+    "removedBy": "PR B",
+    "reason": "a penalty, cancellation or settlement figure that PR B routes through platformPayment.js"
+  },
+  {
+    "file": "controllers/reservationsController.js",
+    "text": "? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);",
+    "removedBy": "PR B",
+    "reason": "a penalty, cancellation or settlement figure that PR B routes through platformPayment.js"
+  },
+  {
+    "file": "plugins/airbnb-intake/paymentBlock.js",
+    "text": "if (gross - payout - kept !== toCents(booking.hostFee)) {",
+    "removedBy": "PR B",
+    "reason": "a penalty, cancellation or settlement figure that PR B routes through platformPayment.js"
+  },
+  {
+    "file": "plugins/gites-de-france-intake/intakeService.js",
+    "text": "platformCommissionAmount: round2(rent - booking.netRent),",
+    "removedBy": "PR C",
+    "reason": "a reconciliation, intake or ledger reader of the payout figures that PR C routes through platformPayment.js"
+  },
+  {
+    "file": "plugins/gites-de-france-intake/intakeService.js",
+    "text": "rentCandidates: rents.map((rent) => ({ rent, commission: round2(rent - booking.netRent) })),",
+    "removedBy": "PR C",
+    "reason": "a reconciliation, intake or ledger reader of the payout figures that PR C routes through platformPayment.js"
+  },
+  {
+    "file": "plugins/online-payment/reconciliation/expectedReceipts.js",
+    "text": "return Math.max(0, round2(Number(row.depositAmount) - Number(row.acompteCommissionAmount || 0)));",
+    "removedBy": "PR C",
+    "reason": "a reconciliation, intake or ledger reader of the payout figures that PR C routes through platformPayment.js"
+  },
+  {
+    "file": "plugins/online-payment/reconciliation/expectedReceipts.js",
+    "text": "? Number(row.platformGrossAmount) : Number(row.depositAmount || 0) + Number(row.balanceAmount || 0);",
+    "removedBy": "PR C",
+    "reason": "a reconciliation, intake or ledger reader of the payout figures that PR C routes through platformPayment.js"
+  },
+  {
+    "file": "plugins/online-payment/reconciliation/ficheWriter.js",
+    "text": "? Number(before.platformGrossAmount) : Number(before.depositAmount || 0) + Number(before.balanceAmount || 0);",
+    "removedBy": "PR C",
+    "reason": "a reconciliation, intake or ledger reader of the payout figures that PR C routes through platformPayment.js"
+  },
+  {
+    "file": "utils/reservationLedger.js",
+    "text": "detail.commission = `Commission ${formatEuros(acompteCommission)} · net ${formatEuros(depositAmount - acompteCommission)}`;",
+    "removedBy": "PR C",
+    "reason": "a reconciliation, intake or ledger reader of the payout figures that PR C routes through platformPayment.js"
+  },
+  {
+    "file": "utils/storedSummary.js",
+    "text": "const totalCommission = round2(acompteCommission + soldeCommission);",
+    "removedBy": "PR B",
+    "reason": "a penalty, cancellation or settlement figure that PR B routes through platformPayment.js"
+  }
+]

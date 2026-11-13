@@ -257,6 +257,13 @@
           "getApplicableResources"
         ]
       }
+    },
+    {
+      "version": "2.27.0",
+      "modules": [
+        "vat"
+      ],
+      "names": {}
     }
   ]
 }

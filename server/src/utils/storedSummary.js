@@ -12,6 +12,7 @@
 const { summaryCascade, storedWithheldTax } = require('./quoteHeadline');
 const { isPlatformCollectingTouristTax, isTouristTaxRemittedByOwner } = require('./pricing');
 const { saleChannel } = require('./saleChannel');
+const { splitTtc } = require('./pricing/vat');
 const { displayCountOf } = require('./typedCounts');
 const { isComplementDeferred } = require('./checkoutComplement');
 
@@ -153,7 +154,7 @@ function buildStoredSummary({ row, db, vatRegime, headline, refundsTotal = 0, mi
   const resourcesTotal = round2(resourceLines.reduce((total, l) => total + l.totalPrice, 0));
   const accommodation = round2(Math.max(0, Number(row.finalPrice || 0) - optionsTotal - resourcesTotal));
   const vatRate = vatRegime.rate;
-  const vatOf = (ttc) => round2(ttc * (vatRate / (100 + vatRate)));
+  const vatOf = (ttc) => splitTtc(ttc, vatRate).vat;
   const totalVatAmount = round2(vatOf(accommodation) + vatOf(optionsTotal) + vatOf(resourcesTotal));
 
   // Who collects the tourist tax — the platform's own settings, the same three cases as the engine.

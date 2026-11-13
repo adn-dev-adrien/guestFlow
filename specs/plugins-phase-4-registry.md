@@ -541,6 +541,14 @@ below are the recommended ones; each is reversible in a later spec.
     - *Not covered:* a changed signature behind an unchanged SDK name stays a matter of review and of the
       SDK major (rule 35's clarification).
     Tests: `plugins-bundled-admit-release.unit.test.js`, `plugins-manifest-upper-bound.unit.test.js`.
+63. **A package that needs a newer SDK says to update GuestFlow** (pricing refonte PR A review, 2026-11-11; supersedes
+    only the message of rule 62's SDK refusal). When the manifest's `sdk` floor is above the running SDK **in the same
+    major** (an SDK 2.27 package on a GuestFlow that ships SDK 2.26), `rangeRefusal` keeps the code `SDK_INCOMPATIBLE`
+    (D24 as built, fail-closed, `check-plugin-versions` unchanged) and answers « Nécessite une version plus récente de
+    GuestFlow. » (`MESSAGES.CORE_TOO_OLD`), because a newer GuestFlow is what it takes. A range the SDK is above, another
+    major or an unreadable range keeps « Incompatible avec cette version de GuestFlow. ». Tests:
+    `plugins-sdk-floor-message.unit.test.js`; the D24 grids (`plugins-bundled-admit-release`, `plugins-manifest-upper-bound`)
+    are unchanged.
 
 
 ---

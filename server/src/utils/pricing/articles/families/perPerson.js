@@ -1,0 +1,56 @@
+/**
+ * Article family `perPerson` — one price per person served (specs/pricing-components.md §3 rule 47).
+ *
+ * Contract: `{ id, configSchema, validate(config, request, ctx), price(config, request, ctx), describe(config, line) }`.
+ * `price` returns `{ quantity, unitPrice, billedUnits, typed, components, allowanceUsed, amounts }` before the head
+ * merges the sold snapshot, the free units and « offert »; `amounts` are tagged amounts, never VAT. Price types served:
+ * per_person.
+ *
+ * Pure: no DB, no clock, no settings.
+ */
+const { roundMoney } = require('../../money');
+const { resolveCoveredPersons } = require('../units');
+const kit = require('../familyKit');
+
+const PRICE_TYPES = ["per_person"];
+const configSchema = kit.configSchemaFor(PRICE_TYPES);
+
+// One unit per person served.
+const multiplier = (persons) => persons;
+
+// The operator may type a count of people (« 3 personnes »): it stays that count (specs/non-card-option-served-persons.md rules 2-5, 19).
+function resolveUnits({
+  quantity, persons, cardPersons, maxGuests,
+}) {
+  const covers = resolveCoveredPersons({ cardPersons, persons, maxGuests });
+  return {
+    billedUnits: roundMoney(quantity * covers.served),
+    cardPersons: covers.stored,
+    cardNights: null,
+    servedPersons: roundMoney(quantity * covers.served),
+  };
+}
+
+const validate = (config, request, ctx) => kit.refusalsOf(request, ctx, { needsPersons: true });
+
+// `request.untyped` — the line has no typed count (a resource, an insurance): units follow the stay.
+function price(config, request, ctx) {
+  const typed = request.untyped ? null : resolveUnits({
+    quantity: request.quantity,
+    persons: ctx.persons,
+    nights: ctx.nights,
+    cardPersons: request.cardPersons,
+    cardNights: request.cardNights,
+    maxGuests: ctx.maxGuests,
+  });
+  const billedUnits = typed ? typed.billedUnits : roundMoney(request.quantity * multiplier(ctx.persons, ctx.nights));
+  return kit.priced(config, request, {
+    quantity: request.quantity, unitPrice: Number(config.price || 0), billedUnits, typed,
+  });
+}
+
+const family = {
+  id: 'perPerson', priceTypes: PRICE_TYPES, multiplier, resolveUnits, configSchema, validate, price, describe: kit.describeLine,
+};
+
+module.exports = { family, PRICE_TYPES };
