@@ -132,7 +132,20 @@ async function createHourlyResource({
   });
 }
 
+// An article sold at the counter to someone with no stay (« Vendable hors séjour »), at the external customer's VAT of its class
+// (specs/outside-booking-sas.md rule 11, owner Q-C11).
+async function createCounterArticle({ title, price = 6.5, vatClass = 'drinks', externalVatRate = 20 } = {}) {
+  return withRequest(async (ctx) => {
+    const res = await ctx.post('/api/options', {
+      data: { title, price, priceType: 'per_stay', propertyIds: [], sellableExternally: true, vatClass, externalVatRate },
+    });
+    if (!res.ok()) throw new Error(`createCounterArticle failed: ${res.status()} ${await res.text()}`);
+    return { ...(await res.json()), title, price };
+  });
+}
+
 module.exports = {
+  createCounterArticle,
   createClient,
   createProperty,
   createReservation,
