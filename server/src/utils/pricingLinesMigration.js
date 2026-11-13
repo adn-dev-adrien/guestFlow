@@ -23,6 +23,13 @@
  */
 const { toCents: cents } = require('./pricing/money');
 const { legacyCollectAt } = require('./pricing/legacyCollectAt');
+const { storedMidStayLines, resolveMidStaySplit } = require('./pricing/settlement');
+
+const endOfStayCollected = (stay) => Number(stay.endOfStayComplementPaid || 0) === 1 || Number(stay.endOfStayComplementPaidCash || 0) === 1;
+// What a collected end-of-stay complement froze, key by key: the engine's own reading of it.
+const collectedMidStayKeys = (stay) => Object.entries(resolveMidStaySplit([], {
+  settled: true, storedLines: storedMidStayLines(stay.endOfStayComplementDetail), notes: stay.midStaySettledNotes || null,
+}).byKey || {}).filter(([, amount]) => Number(amount) > 0).map(([key]) => key);
 const { paymentRowsOfStay, ensureTriggers, lineRefsByKey } = require('./paymentAllocationsSync');
 const { extraLineKey } = require('./pricing/storedLines');
 const { makeArticle } = require('./pricing/articles');
@@ -182,6 +189,7 @@ function backfillLineColumns(db) {
       : { [idKey]: row[idKey], totalPrice: row.totalPrice, offered: row.offered, inComplement: row.inComplement })), {
       platformSale: !direct.has(String(stay.platform == null ? 'direct' : stay.platform).trim().toLowerCase() || 'direct'),
       baseline: stay.arrivalExtrasBaseline || null,
+      collectedMidStayKeys: endOfStayCollected(stay) ? collectedMidStayKeys(stay) : null,
     });
     lines.forEach(({ table, row, kind, refKind, idKey }, index) => {
       let articleRef = `custom:${row.lineId}`;

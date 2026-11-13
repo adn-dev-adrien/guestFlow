@@ -1,0 +1,1 @@
+- Le détail des ventes liste comme lignes « à l'arrivée » la part de taxe de séjour perçue au complément, les voyageurs ajoutés et le « Complément d'arrivée » au-delà des lignes ; les e-mails clients détaillent désormais le complément d'arrivée à partir de ce détail (lignes et montants identiques sur toutes les réservations mesurées) (specs/pricing-components.md, règle 91).

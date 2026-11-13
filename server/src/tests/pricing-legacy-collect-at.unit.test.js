@@ -1,4 +1,4 @@
-// specs/pricing-components.md §3 rules 36 and 37, §5 « Backfill » — the moment a stored line is collected, derived from
+// specs/pricing-components.md §3 rules 36, 37 and 91, §5 « Backfill » — the moment a stored line is collected, derived from
 // what the stay stores today (`inComplement`, `arrivalExtrasBaseline`, the platform's mode).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -35,4 +35,12 @@ test('rule 37: without a baseline nothing is above it, and a malformed one reads
   assert.deepEqual(legacyCollectAt([option(1, 20, 1)], { baseline: null }), ['arrival']);
   assert.deepEqual(legacyCollectAt([option(1, 20, 1)], { baseline: 'not json' }), ['arrival']);
   assert.deepEqual(legacyCollectAt([], {}), []);
+});
+
+test('rule 91: once the end-of-stay complement is collected, only the keys it froze are at departure, whatever the baseline says', () => {
+  const custom = (description, totalPrice) => ({ isCustom: true, description, totalPrice, inComplement: 1, offered: 0 });
+  const lines = [custom('Lit supplémentaire', 25), custom('Consommable', 2)];
+  assert.deepEqual(legacyCollectAt(lines, { baseline: {} }), ['departure', 'departure']);
+  assert.deepEqual(legacyCollectAt(lines, { baseline: {}, collectedMidStayKeys: ['custom:lit supplémentaire'] }), ['departure', 'arrival']);
+  assert.deepEqual(legacyCollectAt(lines, { baseline: {}, collectedMidStayKeys: [] }), ['arrival', 'arrival']);
 });

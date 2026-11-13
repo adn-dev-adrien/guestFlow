@@ -12,7 +12,8 @@
  * « Above the baseline » is judged on amounts per line key (`extraLineKey`), like `splitMidStayExtras`: two custom lines
  * of the same text are one key, an offered or zero line is never above. Pure: no DB, no clock, no settings.
  *
- *   legacyCollectAt(lines, { platformSale, baseline }) → ['arrival' | 'departure' | 'platform' | 'plan', …] in the order of `lines`
+ *   legacyCollectAt(lines, { platformSale, baseline, collectedMidStayKeys }) → ['arrival' | 'departure' | 'platform' | 'plan', …] in the order of `lines`
+ *   `collectedMidStayKeys`: the keys a COLLECTED end-of-stay complement froze (its stored lines and notes; they replace the baseline, rule 91)
  *   `lines` are `{ optionId | resourceId | isCustom + description, totalPrice, offered, inComplement }`; `baseline` is the raw
  *   `arrivalExtrasBaseline` (JSON text or object, or null).
  */
@@ -36,8 +37,10 @@ function keysAboveBaseline(lines, baselineRaw) {
   return above;
 }
 
-function legacyCollectAt(lines, { platformSale = false, baseline = null } = {}) {
-  const above = keysAboveBaseline(lines, baseline);
+// Rule 91 — once the end-of-stay complement is collected the mid-stay share is FROZEN in its stored lines and notes (the engine reads them,
+// `resolveMidStaySplit`): a key they do not hold went to the arrival complement, whatever the baseline says. `collectedMidStayKeys` = those keys.
+function legacyCollectAt(lines, { platformSale = false, baseline = null, collectedMidStayKeys = null } = {}) {
+  const above = collectedMidStayKeys ? new Set(collectedMidStayKeys) : keysAboveBaseline(lines, baseline);
   return lines.map((line) => {
     if (Number(line.inComplement || 0) === 1) return above.has(extraLineKey(line)) ? 'departure' : 'arrival';
     return platformSale ? 'platform' : 'plan';

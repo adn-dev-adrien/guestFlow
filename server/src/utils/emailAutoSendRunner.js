@@ -15,10 +15,9 @@
 
 const { renderTemplate } = require('./emailTemplateRenderer');
 const { buildContext }   = require('./emailContextBuilder');
-const { loadTermsVersion } = require('./reservationEmailGraph');
+const { loadTermsVersion, loadArrivalComplementDetail } = require('./reservationEmailGraph');
 const { emailContext: pluginEmailContext } = require('../plugins/sdk/eventBus');
 const { normaliseLang, pickTemplateSide, englishMissing, ENGLISH_VERSION_MISSING } = require('./emailTemplateLanguage');
-const reservationsModel = require('../models/reservationsModel');
 const { registerDirectChannelSql } = require('./platformNameFormat');
 const { templateAutoSends, anyTemplateAutoSends } = require('./autoSendPolicy');
 const { SEQUENCE_STABLE_KEYS } = require('./guestEmailSequence');
@@ -172,9 +171,7 @@ async function performAutoEmailPass(deps) {
       const lang = normaliseLang((client && client.emailLanguage) || reservation.emailLanguage);
       // specs/j2-email-arrival-complement-line.md — same arrival-complement breakdown as the SAS recap.
       // Guarded: getByIdWithDetails needs the full schema (minimal test schemas → null → inline fallback).
-      let arrivalComplementDetail = null;
-      try { arrivalComplementDetail = reservationsModel.create(database).buildArrivalComplementDetail(reservation.id); }
-      catch { arrivalComplementDetail = null; }
+      const arrivalComplementDetail = loadArrivalComplementDetail(database, reservation.id);
       const termsVersion = loadTermsVersion(database, reservation.id);
       const context = buildContext({
         reservation, client, property, options, resources, customOptions,

@@ -26,6 +26,7 @@ const { extraLineKey } = require('./pricing/storedLines');
 const { vatOf } = require('./pricing/vat');
 
 const SOURCE_LABELS = Object.freeze({ fiche: 'Fiche', shop: 'Boutique', sas: 'SAS', intake: 'Plateforme', devis: 'Devis' });
+const ARRIVAL_ADJUSTMENT_LABEL = 'Complément d\'arrivée';
 const MOMENT_LABELS = Object.freeze({ plan: 'Acompte et solde', platform: 'Prix plateforme', arrival: 'À l’arrivée', departure: 'Au départ' });
 
 const frenchDay = (iso) => {
@@ -110,6 +111,8 @@ function lineOf(raw, { kind, facts, vatClassOf, platformStay }) {
     kind,
     label,
     quantity,
+    // The units the line bills (a per-person-per-night option: persons × nights), as every itemised list « qté × prix » reads them.
+    billedUnits: Number(raw.billedUnits || raw.quantity || 1),
     unitCents: toCents(raw.unitPrice),
     ...(kind === 'option' && raw.optionId != null ? { articleKey: `option:${Number(raw.optionId)}` } : {}),
     ...(kind === 'resource' && raw.resourceId != null ? { articleKey: `resource:${Number(raw.resourceId)}` } : {}),
@@ -140,7 +143,11 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
     ...resources.map((line) => lineOf(line, { kind: 'resource', facts, vatClassOf, platformStay })),
   ];
   const extrasCents = extraLines.reduce((sum, line) => sum + line.totalCents, 0);
-  const stayCents = Math.max(0, (stored ? Number(stored.finalCents || 0) : toCents(q.finalPrice)) - extrasCents);
+  // Rule 91 — the guests added after a platform's price was entered are billed like a line of their own, at the arrival.
+  const extraGuestsCents = stored ? Math.max(0, Number(stored.extraGuestsCents || 0)) : 0;
+  const extraGuestsOffered = Boolean(stored && stored.extraGuestsOffered);
+  const extraGuestsDue = extraGuestsOffered ? 0 : extraGuestsCents;
+  const stayCents = Math.max(0, (stored ? Number(stored.finalCents || 0) : toCents(q.finalPrice)) - extrasCents - extraGuestsDue);
   const lines = [
     {
       ref: 'accommodation', key: 'accommodation', kind: 'accommodation', label: 'Hébergement', quantity: Number(q.nights || 0), totalCents: stayCents, grossCents: stayCents,
@@ -149,16 +156,46 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
     },
   ];
   const tax = stored ? Number(stored.touristTaxCents || 0) : toCents(q.touristTaxTotal);
-  if (tax > 0) {
+  // Rule 91 — the part of the tax the arrival complement collects (forced there, collected by us on a platform stay, or the added guests'
+  // share) is an arrival line of its own; the rest stays in the plan.
+  const taxArrival = stored && stored.touristTaxArrivalCents != null
+    ? Math.min(tax, Math.max(0, Number(stored.touristTaxArrivalCents || 0)))
+    : (q.touristTaxInComplement ? tax : 0);
+  const taxLine = (ref, label, cents, atArrival) => ({
+    ref, key: ref, kind: 'touristTax', label, quantity: null, totalCents: cents, grossCents: cents, discountCents: 0,
+    stayDiscountShareCents: 0, offered: false, source: 'fiche', sourceLabel: SOURCE_LABELS.fiche, collectAt: atArrival ? 'arrival' : 'plan',
+    momentLabel: atArrival ? MOMENT_LABELS.arrival : MOMENT_LABELS.plan, settledCents: 0, paidAt: null,
+    status: atArrival ? 'dueAtArrival' : 'inPlan', statusLabel: atArrival ? 'À payer à l’arrivée' : 'Dans l’acompte et le solde',
+    vatClass: 'outOfScope',
+  });
+  if (tax - taxArrival > 0) lines.push(taxLine('touristTax', 'Taxe de séjour', tax - taxArrival, false));
+  if (taxArrival > 0) {
+    const label = (stored && stored.touristTaxArrivalLabel) || 'Taxe de séjour';
+    lines.push(taxLine(taxArrival === tax ? 'touristTax' : 'touristTaxArrival', label, taxArrival, true));
+  }
+  if (extraGuestsCents > 0) {
+    const count = Math.max(1, Number(stored.extraGuestsCount || 1));
     lines.push({
-      ref: 'touristTax', key: 'touristTax', kind: 'touristTax', label: 'Taxe de séjour', quantity: null, totalCents: tax, grossCents: tax, discountCents: 0,
-      stayDiscountShareCents: 0, offered: false, source: 'fiche', sourceLabel: SOURCE_LABELS.fiche, collectAt: q.touristTaxInComplement ? 'arrival' : 'plan',
-      momentLabel: q.touristTaxInComplement ? MOMENT_LABELS.arrival : MOMENT_LABELS.plan, settledCents: 0, paidAt: null,
-      status: q.touristTaxInComplement ? 'dueAtArrival' : 'inPlan', statusLabel: q.touristTaxInComplement ? 'À payer à l’arrivée' : 'Dans l’acompte et le solde',
-      vatClass: 'outOfScope',
+      ref: 'extraGuests', key: 'extraGuests', kind: 'extraGuests', label: 'Voyageurs ajoutés', quantity: count, unitCents: Math.round(extraGuestsCents / count),
+      totalCents: extraGuestsDue, grossCents: extraGuestsCents, discountCents: 0, stayDiscountShareCents: 0, offered: extraGuestsOffered, source: 'fiche',
+      sourceLabel: SOURCE_LABELS.fiche, collectAt: 'arrival', momentLabel: MOMENT_LABELS.arrival, settledCents: 0, paidAt: null,
+      ...statusOf({ offered: extraGuestsOffered, includedInPlatform: false, dueCents: extraGuestsDue, settledCents: 0, collectAt: 'arrival' }),
+      vatClass: 'accommodation',
     });
   }
   lines.push(...extraLines);
+  // Rule 91 — what the arrival complement collects beyond its listed lines (an operator's adjustment, a figure kept from an earlier
+  // routing) is a line of its own, « Complément d’arrivée », as the e-mails have always listed it. A lower complement lists nothing.
+  const arrivalBucket = toCents(q.resolvedComplementAmount != null ? q.resolvedComplementAmount : q.complementAmount);
+  const arrivalListed = lines.filter((line) => line.collectAt === 'arrival').reduce((sum, line) => sum + line.totalCents, 0);
+  if (stored && arrivalBucket - arrivalListed > 1) {
+    const cents = arrivalBucket - arrivalListed;
+    lines.push({
+      ref: 'arrivalAdjustment', key: 'arrivalAdjustment', kind: 'adjustment', label: ARRIVAL_ADJUSTMENT_LABEL, quantity: null, totalCents: cents, grossCents: cents,
+      discountCents: 0, stayDiscountShareCents: 0, offered: false, source: 'fiche', sourceLabel: SOURCE_LABELS.fiche, collectAt: 'arrival',
+      momentLabel: MOMENT_LABELS.arrival, settledCents: 0, paidAt: null, status: 'dueAtArrival', statusLabel: 'À payer à l’arrivée', vatClass: null,
+    });
+  }
 
   // VAT line by line (rules 51, 62): one rounding per (class, rate) group, shared over its lines by largest remainder.
   const taxable = lines.filter((line) => line.totalCents > 0 && line.vatClass);
@@ -180,7 +217,7 @@ function buildSaleDetail({ quote, facts = {}, phase = null, vatClassOf = null, p
     groups: groupsOf(lines),
     buckets: {
       plan: toCents(q.preArrivalAmount),
-      arrival: toCents(q.resolvedComplementAmount != null ? q.resolvedComplementAmount : q.complementAmount),
+      arrival: arrivalBucket,
       departure: toCents(q.endOfStayComplementTotal),
     },
     totals: { totalCents, settledCents, dueCents: Math.max(0, totalCents - settledCents), vatByRate: vat.byRate || [] },
@@ -227,4 +264,28 @@ function paidSection(detail) {
   };
 }
 
-module.exports = { buildSaleDetail, departureSection, paidSection, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE, PAID_TITLE };
+// Rule 91 — the arrival complement as the guest e-mails itemise it (« label : qté × prix = total »): the arrival lines left to pay, in the
+// e-mail's order (options and custom lines, resources, added guests, tax, then « Complément d'arrivée »), in the shape the e-mail renders.
+const ARRIVAL_KIND = Object.freeze({ option: 'option', custom: 'option', resource: 'resource', extraGuests: 'extraGuests', touristTax: 'tax', adjustment: 'remainder' });
+const ARRIVAL_RANK = Object.freeze({ option: 0, resource: 1, extraGuests: 2, tax: 3, remainder: 4 });
+function arrivalComplementLines(detail, { addedGuestsTaxLabel = null } = {}) {
+  return ((detail && detail.lines) || [])
+    .filter((line) => line.collectAt === 'arrival' && !line.offered && line.totalCents > 0 && ARRIVAL_KIND[line.kind])
+    .map((line, index) => ({ line, index, kind: ARRIVAL_KIND[line.kind] }))
+    .sort((a, b) => ARRIVAL_RANK[a.kind] - ARRIVAL_RANK[b.kind] || a.index - b.index)
+    .map(({ line, kind }) => {
+      const whole = kind === 'tax' || kind === 'remainder';
+      return {
+        kind,
+        label: line.label,
+        qty: whole ? 1 : Number(line.billedUnits != null ? line.billedUnits : (line.quantity == null ? 1 : line.quantity)),
+        unitPrice: (whole ? line.totalCents : Number(line.unitCents || 0)) / 100,
+        amount: line.totalCents / 100,
+        ...(kind === 'tax' && addedGuestsTaxLabel && line.label === addedGuestsTaxLabel ? { addedGuests: true } : {}),
+      };
+    });
+}
+
+module.exports = {
+  buildSaleDetail, departureSection, paidSection, arrivalComplementLines, partsText, SOURCE_LABELS, MOMENT_LABELS, DEPARTURE_TITLE, PAID_TITLE,
+};

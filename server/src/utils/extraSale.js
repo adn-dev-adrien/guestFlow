@@ -36,7 +36,7 @@ const { toCents } = require('./pricing/money');
 const { parseNotes } = require('./midStayExtras');
 const { syncStay: syncAllocations } = require('./paymentAllocationsSync');
 const {
-  buildSaleDetail, departureSection, paidSection, partsText, PAID_TITLE,
+  buildSaleDetail, departureSection, paidSection, arrivalComplementLines, partsText, PAID_TITLE,
 } = require('./saleDetail');
 const fulfilment = require('./pricing/articleFulfilment');
 const { makeArticle } = require('./pricing/articles');
@@ -306,11 +306,37 @@ function saleDetailOf(reservationId, now = new Date()) {
   const facts = create(db).lineFacts(id);
   const phase = stayClock().phaseForReservation(id, now);
   const { isDirectChannel } = require('./platformNameFormat');
+  // Rule 91 — the tax part and the added guests the arrival complement collects, read where every e-mail reads them.
+  const arrival = reservations().buildArrivalComplementDetail(id, { includeOffered: true }).detail || [];
+  const taxLine = arrival.find((line) => line.kind === 'tax');
+  const guestsLine = arrival.find((line) => line.kind === 'extraGuests');
   return buildSaleDetail({
     quote, facts, phase: phase ? phase.phase : null, platformStay: !isDirectChannel(row.platform),
     vatClassOf: (line, kind) => extraSalesModel().vatClassOf(line, kind),
-    stored: { finalCents: toCents(row.finalPrice), touristTaxCents: toCents(row.touristTaxTotal) },
+    stored: {
+      finalCents: toCents(row.finalPrice),
+      touristTaxCents: toCents(row.touristTaxTotal),
+      touristTaxArrivalCents: taxLine ? toCents(taxLine.amount) : 0,
+      touristTaxArrivalLabel: taxLine ? taxLine.label : null,
+      extraGuestsCents: guestsLine ? toCents(guestsLine.offered ? guestsLine.originalAmount : guestsLine.amount) : 0,
+      extraGuestsOffered: Boolean(guestsLine && guestsLine.offered),
+      extraGuestsCount: guestsLine ? guestsLine.qty : 0,
+    },
   });
+}
+
+// Rule 91 — the arrival complement the guest e-mails list, read from the sale detail: `{ amount, paid, detail }` like
+// `buildArrivalComplementDetail`, which stays the reading of a stay the engine cannot quote (null here).
+function arrivalComplementDetailOf(reservationId, now = new Date()) {
+  const detail = saleDetailOf(reservationId, now);
+  if (!detail) return null;
+  const row = reservations().getRow(Number(reservationId));
+  const { ADDED_GUESTS_TAX_LABEL } = require('./platformPaidGuests');
+  return {
+    amount: detail.buckets.arrival / 100,
+    paid: Number(row.complementPaid || 0) === 1 ? 1 : 0,
+    detail: arrivalComplementLines(detail, { addedGuestsTaxLabel: ADDED_GUESTS_TAX_LABEL }),
+  };
 }
 
 // The fiche's save refuses a lowered arrival line with the wording of a removal; a move says it is a move that is refused.
@@ -419,5 +445,5 @@ function paidSalesOf(reservationId, now = new Date()) {
 }
 
 module.exports = {
-  quote, sell, changeLine, removeLine, saleDetailOf, departureSalesOf, paidSalesOf, parseRequests,
+  quote, sell, changeLine, removeLine, saleDetailOf, arrivalComplementDetailOf, departureSalesOf, paidSalesOf, parseRequests,
 };

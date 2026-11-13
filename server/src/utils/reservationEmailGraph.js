@@ -13,8 +13,15 @@ const { loadStayFacts, attachResourceSentences } = require('../models/stayFactsM
 // specs/j2-email-arrival-complement-line.md — the SAME arrival-complement breakdown the SAS shows.
 // Guarded: `getByIdWithDetails` needs the full schema, so on a minimal/legacy DB this returns null
 // and the context builder falls back to its inline partial list.
+// specs/pricing-components.md rule 91 — read from the sale detail (lines and amount measured identical to the stored breakdown on every
+// stay of the prod copy of 2026-11-11); the stored breakdown stays the reading of a stay the engine cannot quote, and of a database other
+// than the application's (the sale detail reads the application's own).
 function loadArrivalComplementDetail(database, reservationId) {
   try {
+    if (database === require('../database')) {
+      const fromSale = require('./extraSale').arrivalComplementDetailOf(Number(reservationId));
+      if (fromSale) return fromSale;
+    }
     return reservationsModel.create(database).buildArrivalComplementDetail(Number(reservationId));
   } catch {
     return null;

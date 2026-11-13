@@ -1672,6 +1672,25 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > fields): they write the same rows today, and the engine reads them back; 2. Pass 3g delivered what they stand on: the `custom` request kind and `removeLine` (rule 25), the SAS
     > spending the stay's free units with `allowanceUsed` read back by the engine (rule 41), and one definition of « à l’arrivée » (rule 37).
 
+91. **The arrival lines of the sale detail, and the e-mails that list them** _(pass 3i, 2026-11-13; completes rules 31, 37; prerequisite of C23)_.
+    `saleDetail` lists everything the arrival complement collects as an arrival line: the tax part it collects (forced there, collected by
+    us on a platform stay, or the added guests' share — « Complément de taxe de séjour ») as a line of its own, the rest of the tax staying
+    in the plan; the guests added after a platform's price was entered (« Voyageurs ajoutés », taken out of the accommodation, 0 € and
+    « Offerte » when offered); and what the complement collects beyond its listed lines (an operator's adjustment, a figure kept from an
+    earlier routing) as « Complément d'arrivée » — one cent is rounding, a lower complement lists nothing. Each line also says the units it
+    bills (`billedUnits`: persons × nights for a per-person-per-night option). The stored figures come from the reading every e-mail already
+    used (`buildArrivalComplementDetail`), so the two cannot disagree.
+    The backfill of `collectAt` (rule 37) reads a COLLECTED end-of-stay complement as the engine does (`resolveMidStaySplit`, rule 18 of
+    mid-stay-extras-to-end-of-stay-complement.md): a line is at the departure when that complement froze its key, whatever the baseline
+    says. (Prod copy 2026-11-11: one line moves, a 2 € custom line of stay 12 the arrival complement collected, from departure to arrival.)
+    The guest e-mails itemise the arrival complement from the sale detail (`extraSale.arrivalComplementDetailOf`, `saleDetail.arrivalComplementLines`):
+    the arrival lines left to pay, offered and 0 € lines out (a resource whose sessions the free hour covers bills 0 €, stay 22291), in the
+    e-mail's order. Measured on the prod copy of 2026-11-11 before the switch: kind, label, units, unit price and amount identical on 62
+    stays of 62. The stored breakdown stays the reading of a stay the engine cannot quote and of a database other than the application's.
+    The payment-link baskets are NOT switched: a pre-arrival link bills the plan bucket as one line plus the tax, which the sale detail does
+    not split into acompte and solde; see `ecarts-cp3i` (pass 3i).
+    > **Delivered by PR C** (pass 3i). Proof: `sale-detail-arrival-lines`, `pricing-legacy-collect-at`, `pricing-lines-migration`.
+
 ## 4. Architecture
 
 > **Fat backend, thin frontend.** Every amount, status, discount share and grouping in this spec is computed
@@ -1906,6 +1925,7 @@ check-in time, a discount target, line moment changes and the tourist tax as its
 - [x] `pricing-line-keys`, `true-lines-duplicate-rows` — rule 85: the resolver (first line keeps the legacy key, later lines `line:<table>:<lineId>`), and a database holding two rows of one article on one stay: the engine prices each from its own snapshot, every writer touches exactly the intended row, every reader returns every row _(PR C, pass 3c)_
 - [x] `sas-arrival-engine-complement` — rule 90.1: the plan is the commit rolled back (nothing written, same figure), the engine's complement over a stored figure no line explains, a re-run never bills twice, a stay below its minimum still checks in, the adjustment re-applied over the engine figure _(PR C, pass 3h)_
 - [x] `sas-evening-component` — rule 90.3: the evening as the open session line's component (plan = commit, components sum to the total, set not added, shrinks to 0, kept by the next fiche save), a plan line's evening on a line of its own, the legacy `evening:` guard (billed once), a collected complement bills only what the line does not already carry _(PR C, pass 3h)_
+- [x] `sale-detail-arrival-lines` — rule 91: the tax part, the added guests and « Complément d'arrivée » as arrival lines, the e-mail lines (units × unit price, order, nothing offered nor at 0 €), the e-mail read from the sale detail equal to the stored breakdown _(PR C, pass 3i)_
 - [ ] Regression tests named after each review defect (D1-D9) on the rebuilt guest app (PR C)
 
 ### Proof

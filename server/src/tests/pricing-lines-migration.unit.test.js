@@ -176,6 +176,18 @@ test('rules 37 and 74: every line gets its moment, its snapshot of what was sold
   assert.deepEqual(custom, { lineId: custom.lineId, collectAt: 'departure', soldAt: '2026-01-07 09:00:00', articleRef: `custom:${custom.lineId}`, family: null, label: 'Tisane' });
 });
 
+test('rule 91: on a stay whose end-of-stay complement is collected, the moment follows what that complement froze, not the baseline', () => {
+  const db = oldDatabase();
+  db.exec("ALTER TABLE reservations ADD COLUMN endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0; ALTER TABLE reservations ADD COLUMN endOfStayComplementDetail TEXT");
+  seed(db);
+  db.prepare('UPDATE reservations SET endOfStayComplementPaid = 1, endOfStayComplementDetail = ? WHERE id = 10')
+    .run(JSON.stringify([{ label: 'Tisane', amount: 6, source: 'midStayExtra', key: 'custom:tisane' }]));
+  runPricingLinesMigration(db);
+  assert.equal(db.prepare('SELECT collectAt FROM reservation_options WHERE reservationId = 10 AND optionId = 2').get().collectAt, 'arrival');
+  assert.equal(db.prepare('SELECT collectAt FROM reservation_resources WHERE reservationId = 10').get().collectAt, 'arrival');
+  assert.equal(db.prepare('SELECT collectAt FROM reservation_custom_options WHERE reservationId = 10').get().collectAt, 'departure');
+});
+
 test('rule 74: each stay holds its accommodation line (the final price less its extras) and, with a tax, its tourist-tax line', () => {
   const db = oldDatabase();
   seed(db);
