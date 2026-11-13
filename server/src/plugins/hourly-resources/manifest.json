@@ -1,7 +1,7 @@
 {
   "id": "hourly-resources",
   "name": "Ressources à l’heure",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Louer un équipement par créneau : bain nordique, sauna.",
   "icon": "hot-tub",
   "surfaces": [
@@ -141,6 +141,9 @@
       "Le tarif à l’heure est calculé par la famille d’article « hourly » du calcul des prix ; aucun prix ne change.",
       "La TVA d’une réservation de ressource est calculée par le composant TVA du cœur ; aucun montant ne change.",
       "Demande le SDK 2.27 de GuestFlow."
+    ],
+    "1.7.0": [
+      "Sur le planning, un clic sur la carte d’une séance hors séjour ouvre cette réservation dans Calendrier › Ressources."
     ]
   }
 }
