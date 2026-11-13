@@ -201,8 +201,8 @@ function createBookingLinesModel(database) {
     // Returns what the deleted lines carried (rule 79), one entry per line in the order of the save, for `insertCustomOptions`.
     deleteCustomOptions(bookingId) {
       const carriedNames = carriedColumns('reservation_custom_options', CUSTOM_OPTION_COLUMNS);
-      const carried = carriedNames.length === 0 ? [] : database.prepare(`SELECT description, ${carriedNames.join(', ')} FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id`)
-        .all(bookingId).map((row) => ({ description: String(row.description || '').trim(), columns: Object.fromEntries(carriedNames.map((name) => [name, row[name]])) }));
+      const carried = carriedNames.length === 0 ? [] : database.prepare(`SELECT id AS rowKey, description, ${carriedNames.join(', ')} FROM reservation_custom_options WHERE reservationId = ? ORDER BY sortOrder, id`)
+        .all(bookingId).map((row) => ({ id: Number(row.rowKey), description: String(row.description || '').trim(), columns: Object.fromEntries(carriedNames.map((name) => [name, row[name]])) }));
       database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ?').run(bookingId);
       return carried;
     },
@@ -222,7 +222,8 @@ function createBookingLinesModel(database) {
     },
 
     // `carried`: what `deleteCustomOptions` returned for the lines this save replaces, one entry per stored line; a posted
-    // line takes the first entry of its text (rule 79).
+    // line takes the entry of the row it names (`customOptionId`), else the first entry of its text (rule 79) — two lines of one
+    // text keep their own identity when the first is removed.
     insertCustomOptions(bookingId, optionLines, sasOriginLabels = [], carried = []) {
       const pendingSasLabels = [...sasOriginLabels];
       const pendingCarried = [...(carried || [])];
@@ -233,7 +234,8 @@ function createBookingLinesModel(database) {
         const description = String(line.title || line.description || '').trim();
         const sasIndex = pendingSasLabels.findIndex((l) => l.description === description);
         const sasLine = sasIndex >= 0 ? pendingSasLabels.splice(sasIndex, 1)[0] : null;
-        const carriedIndex = pendingCarried.findIndex((entry) => entry.description === description);
+        const named = line.customOptionId != null ? pendingCarried.findIndex((entry) => entry.id === Number(line.customOptionId) && entry.description === description) : -1;
+        const carriedIndex = named >= 0 ? named : pendingCarried.findIndex((entry) => entry.description === description);
         const kept = carriedIndex >= 0 ? pendingCarried.splice(carriedIndex, 1)[0].columns : {};
         insertCustomOption({
           ...kept,

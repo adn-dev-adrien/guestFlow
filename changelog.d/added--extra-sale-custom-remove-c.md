@@ -1,0 +1,1 @@
+- Fiche : une ligne libre (pièces de linge, supplément) se vend par la même voie que les articles, et une ligne non payée se retire (une ligne payée s'offre) ; deux lignes de même libellé gardent chacune la leur quand on retire la première (specs/pricing-components.md, règles 25, 79 et 90).

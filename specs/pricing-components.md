@@ -434,6 +434,10 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > a collected complement's raise to the end-of-stay detail by key. (3) The departure SAS's charges (ménage, missing linen, extinguisher) live in `endOfStayComplementDetail`, read by about twenty units (settlement, refunds, the
     > accounting export, the reception view, the allocations sync): a line-based write needs those readers moved in the same change, and the accounting export proven byte-identical. Order of work: (a) a `custom` request kind and a
     > `remove` verb on `extraSale`; (b) the departure charges as custom lines routed by the extras baseline, the detail derived from them; (c) the arrival plan as a rolled-back run of the commit read through `saleDetail`.
+    > **Delivered by PR C** (pass 3g, step a): `extraSale` sells a line that is no article (`{ articleRef: 'custom', label, amount, quantity? }`, routed like any new line, its count kept)
+    > and removes an unpaid line (`removeLine`, `DELETE …/extras/:ref`): through the fiche's own save, so the price lock, the arrival floors (409 `ARRIVAL_EXTRAS_FROZEN`) and the free units given back
+    > (rule 26) are the engine's; a paid line is refused 409 `LINE_PAID` (it is offered, rule 23); journaled `lineRemoved`. Proof `extra-sale-custom-and-remove`.
+    > _Pass 3g, why (b) and (c) stay open:_ see the note under rule 89.
 26. **Free allowances are consumed by a line and stay with it** (ALLOWANCES unit, rule 41). The free bath
     hour, free units (« 2 offerts ») and included hours are a ledger per stay; a line records the allowance
     it consumed (`allowanceUsed`). Removing a line gives its allowance back for **future** sales; it never
@@ -1435,6 +1439,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     backfilled where its legacy `lineKey` matches exactly one current line, NULL otherwise; `lineKey` stays.
     Tests: `booking-lines-identity` (the save keeps the number and every column, writes what the old one wrote, in the same
     order), `pricing-lines-migration` (the numbering, the sequence, the previous release's writers).
+    > **Delivered by PR C** (pass 3g): a custom line the save posts back names the row it was read from (`customOptionId`) and takes THAT row's identity first,
+    > its text only when it names none — before, removing the first of two lines of one text gave the second the removed one's `lineId` and sale columns.
+    > Proof `extra-sale-custom-and-remove`.
 80. **Delivery cadence of PR B** _(rule 73 applied to PR B)_. Each commit runs the fast check: the price gate, the
     intake replay, the golden test, the pricing and articles units, the settings provider, the duplication guards
     and the files of the commit, plus `scripts/check-spec-coverage.mjs`; the move proof for the move commits. Three
@@ -1670,9 +1677,10 @@ All of it is plain CommonJS functions and objects (rule 56).
 
 | Method | Endpoint | Request | Response | Notes |
 |---|---|---|---|---|
-| POST | `/api/reservations/:id/extras/quote` | `{ requests:[{ articleRef, quantity, persons?, mornings?, sessions?, offered? }], payment: 'later'\|'card'\|'cash' }` | `{ lines:[…priced, collectAt, status], buckets:{ arrival, departure, plan }, totalCents, refusals:[] }` | no write |
+| POST | `/api/reservations/:id/extras/quote` | `{ requests:[{ articleRef, quantity, persons?, mornings?, sessions?, offered? } \| { articleRef: 'custom', label, amount, quantity? }], payment: 'later'\|'card'\|'cash' }` | `{ lines:[…priced, collectAt, status], buckets:{ arrival, departure, plan }, totalCents, refusals:[] }` | no write |
 | POST | `/api/reservations/:id/extras` | same + `acceptedTotalCents` | `{ saleDetail, paymentLink? }` | 409 `PRICE_CHANGED` if the re-quote differs |
 | PATCH | `/api/reservations/:id/extras/:ref` | `{ collectAt?, offered?, discount?:{percent\|amount}, forceOverpayment? }` (`ref` = `option:<lineId>` / `resource:<lineId>` / `custom:<lineId>`) | `{ saleDetail }` | 409 `LINE_PAID`, 409 `OVERPAID` (rule 23); journaled |
+| DELETE | `/api/reservations/:id/extras/:ref` | — (same `ref`) | `{ saleDetail }` | an unpaid line taken off the stay through the fiche's save; 409 `LINE_PAID`, 409 `ARRIVAL_EXTRAS_FROZEN`; journaled `lineRemoved` (pass 3g) |
 | GET | `/api/reservations/:id/sale-detail` | — | `saleDetail` | also embedded in `GET /sas` and the fiche payload |
 | PUT | `/api/reservations/:id` (existing) | `discountTarget` added (`nights` default); `discountAmountCents` (positive integer, else none; absent keeps the stored one) | unchanged | rule 16 |
 | guest-app | `/public/v1/stay/…/orders` (existing) | unchanged shape | unchanged shape | implementation moves to `extraSale` (PR C) |

@@ -10,6 +10,8 @@
  *   momentRefusal(reservationId, line, to, moments) / moveLine(reservationId, line, to)    rule 37: the 409 or null / the move, journaled by the caller
  *   lowerLine(reservationId, line, { discount, offered })  → { body, text, discountCents } | { error }   rule 39 / 14: the PUT body that offers it or carries the discount
  *   storeDiscount(line, cents)                   the line's own discount, stored once the save went through
+ *   withoutLine(body, line)                      the fiche's PUT body without that one line (rule 25: an unpaid line removed)
+ *   stampCustomQuantities(reservationId, added, requests)  the count a sold custom line carries (« Taie d'oreiller ×2 »)
  *   stampIntakeLines(reservationId, platform, soldAt)  the lines a platform intake wrote and left without a moment: `platform` or `arrival` (rule 17)
  *   stampSasLines(reservationId, soldAt, { reopened })  the lines an arrival SAS wrote carry source `sas` and the arrival moment (rule 18); a reopened run flags the lines it appended
  *   openLoweredCents(reservationId)              the open `lineLowered` obligations, in cents
@@ -183,6 +185,28 @@ function lowerLine(reservationId, line, wants) {
   return { body, text, paidLine: line.settledCents > 0, discountCents };
 }
 
+// The fiche's body without the one line the operator removes: an article sold twice loses the line named, never the other (rule 85).
+function withoutLine(body, line) {
+  if (line.kind === 'option') {
+    const options = body.options.filter((o) => Number(o.lineId) !== line.lineId);
+    const named = new Set(options.map((o) => Number(o.optionId)));
+    return { ...body, options, offeredOptionIds: (body.offeredOptionIds || []).map(Number).filter((id) => named.has(id)) };
+  }
+  if (line.kind === 'resource') return { ...body, resources: body.resources.filter((r) => Number(r.lineId) !== line.lineId) };
+  return { ...body, customOptions: body.customOptions.filter((c) => Number(c.customOptionId) !== Number(line.row.id)) };
+}
+
+// A custom line sold with a count keeps it (the fiche's body carries no count for a custom line). `added` is in the order the sale wrote the lines.
+function stampCustomQuantities(reservationId, added, requests) {
+  const customs = added.filter((line) => line.kind === 'custom');
+  const db = database();
+  if (!db.prepare('PRAGMA table_info(reservation_custom_options)').all().some((c) => c.name === 'quantity')) return;
+  customs.forEach((line, index) => {
+    const request = requests[index];
+    if (request && request.quantity > 1) db.prepare('UPDATE reservation_custom_options SET quantity = ? WHERE reservationId = ? AND lineId = ?').run(request.quantity, Number(reservationId), line.lineId);
+  });
+}
+
 // Once the save went through, the line keeps its own discount as a stored fact (rule 39).
 function storeDiscount(line, cents) {
   if (cents == null) return;
@@ -204,4 +228,7 @@ function vatClassOf(line, kind) {
   return kind === 'resource' ? 'resources' : 'options';
 }
 
-module.exports = { lineIds, stampNewLines, stampSasLines, stampIntakeLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, openLoweredCents, vatClassOf };
+module.exports = {
+  lineIds, stampNewLines, stampSasLines, stampIntakeLines, findLine, momentRefusal, moveLine, lowerLine, storeDiscount, openLoweredCents, vatClassOf,
+  withoutLine, stampCustomQuantities,
+};

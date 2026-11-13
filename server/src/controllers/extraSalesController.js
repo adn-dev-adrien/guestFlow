@@ -4,6 +4,7 @@
  *   POST  /api/reservations/:id/extras/quote        { requests, payment }                      priced, nothing written
  *   POST  /api/reservations/:id/extras              { requests, payment, acceptedTotalCents }  409 PRICE_CHANGED when the price moved
  *   PATCH /api/reservations/:id/extras/:ref         { collectAt?, offered?, discount?: { percent | amount }, forceOverpayment? }
+ *   DELETE /api/reservations/:id/extras/:ref        an unpaid line taken off the stay (409 LINE_PAID for a paid one)
  *   GET   /api/reservations/:id/sale-detail         the saleDetail payload
  * `ref` is `option:<lineId>`, `resource:<lineId>` or `custom:<lineId>`. Thin: parse, call the service, answer.
  */
@@ -29,6 +30,10 @@ module.exports = {
     return answer(res, extraSale.changeLine(Number(req.params.id), req.params.ref, {
       collectAt: body.collectAt, offered: body.offered, discount: body.discount,
     }, { forceOverpayment: Boolean(body.forceOverpayment) }));
+  },
+
+  removeLine(req, res) {
+    return answer(res, extraSale.removeLine(Number(req.params.id), req.params.ref));
   },
 
   saleDetail(req, res) {

@@ -4,11 +4,13 @@
  *   quote(reservationId, requests, { payment, now })  → { status: 200, lines, buckets, totalCents, refusals } | { status, body }   writes nothing
  *   sell(reservationId, requests, { source, payment, actor, now, acceptedTotalCents })  → { status: 200, saleDetail } | { status, body }
  *   changeLine(reservationId, ref, patch, { now, forceOverpayment })  → { status: 200, saleDetail } | { status, body }
+ *   removeLine(reservationId, ref, { now, actor })  → { status: 200, saleDetail } | { status, body }   an unpaid line taken off the stay
  *   saleDetailOf(reservationId, now)  → the payload of rule 31 (utils/saleDetail.js)
  *   departureSalesOf(reservationId, now)  → the arrival SAS's « Ventes du séjour — au départ » section, or null
  *   paidSalesOf(reservationId, now)       → the departure SAS's « Déjà payé » section (the lines already collected), or null
  *
- * A request is `{ articleRef: 'option:<id>' | 'resource:<id>', quantity, persons?, mornings?, time?, sessions? }`. A sale is priced and
+ * A request is `{ articleRef: 'option:<id>' | 'resource:<id>', quantity, persons?, mornings?, time?, sessions? }`, or a line that is no article —
+ * linen pieces, a plugin's supplement — `{ articleRef: 'custom', label, amount, quantity? }` (`amount` = the line's TTC total in euros). A sale is priced and
  * written exactly as the operator's « Enregistrer » writes it: the stored stay rebuilt as the fiche's PUT body, the requested lines added,
  * then `performUpdate` — the engine, the free allowances, the price lock, the arrival floors and the session conflicts are the fiche's own.
  * `quote` plays that save inside a rolled-back transaction; `sell` re-quotes inside its own and answers 409 `PRICE_CHANGED` when the price is
@@ -54,9 +56,24 @@ const PAYMENTS = Object.freeze({ later: null, cash: { cash: true }, 'card-termin
 
 const refuse = (status, code, error, extra = {}) => ({ status, body: { error, code, ...extra } });
 
+// Rule 25 — a line that is no article (linen pieces, a plugin's supplement): its label and its TTC total are the request's, in cents' precision.
+function customRequest(request) {
+  const label = String(request.label || '').trim();
+  const amount = Number(request.amount);
+  const quantity = request.quantity == null ? 1 : Number(request.quantity);
+  if (!label || !(amount > 0) || !Number.isFinite(amount) || !(quantity >= 1) || !Number.isInteger(quantity)) return null;
+  return { kind: 'custom', label, amount: toCents(amount) / 100, quantity };
+}
+
 function parseRequests(requests) {
   const lines = [];
   for (const request of Array.isArray(requests) ? requests : []) {
+    if (request && request.articleRef === 'custom') {
+      const custom = customRequest(request);
+      if (!custom) return { error: refuse(400, 'INVALID_REQUEST', 'Libellé ou montant invalide.') };
+      lines.push(custom);
+      continue;
+    }
     const match = /^(option|resource):([1-9]\d*)$/.exec(String(request && request.articleRef));
     const quantity = Number(request && request.quantity);
     if (!match || !(quantity > 0)) return { error: refuse(400, 'INVALID_REQUEST', 'Article ou quantité invalide.') };
@@ -76,7 +93,9 @@ const stayStarted = (reservationId, now) => {
 // A stay not started takes a new line in its arrival complement (rule 19): every line the request appends is marked (a breakfast merged into the stay's own keeps its routing).
 function withArrivalRouting(body) {
   const mark = (line) => (line.newLine ? { ...line, inComplement: 1 } : line);
-  return { ...body, options: body.options.map(mark), resources: body.resources.map(mark) };
+  return {
+    ...body, options: body.options.map(mark), resources: body.resources.map(mark), customOptions: (body.customOptions || []).map(mark),
+  };
 }
 
 // Rule 49 — a resource line placed on a planning names a fulfilment adapter: its draft is the stay, the resource and the sessions asked.
@@ -110,6 +129,15 @@ function bucketsDelta(before, after) {
   };
 }
 
+// A line that is no article is appended as the fiche appends one: its own text and amount, a line of its own (rule 13).
+function withCustomLine(body, line) {
+  const customOptions = (body.customOptions || []).slice();
+  customOptions.push({
+    customKey: `sale_${customOptions.length + 1}`, description: line.label, amount: line.amount, offered: false, inComplement: 0, newLine: true,
+  });
+  return { ...body, customOptions };
+}
+
 function pricedRequests(reservationId, lines, { now }) {
   const id = Number(reservationId);
   const stored = storedBody(id);
@@ -123,10 +151,10 @@ function pricedRequests(reservationId, lines, { now }) {
   let body = stored;
   let previous = base.row;
   const priced = [];
-  const held = (b) => b.options.length + b.resources.length;
+  const held = (b) => b.options.length + b.resources.length + (b.customOptions || []).length;
   for (const line of lines) {
     const before = held(body);
-    body = mergeOrderLines(body, [line], rows, (table) => nextLineId(database(), table));
+    body = line.kind === 'custom' ? withCustomLine(body, line) : mergeOrderLines(body, [line], rows, (table) => nextLineId(database(), table));
     const routed = started ? body : withArrivalRouting(body);
     const next = dryRunFor(id, routed);
     if (next.refused) return { error: next.refused };
@@ -171,9 +199,9 @@ function quote(reservationId, requests, { payment = 'later', now = new Date() } 
   return {
     status: 200,
     lines: result.priced.map(({ line, totalCents, merged }) => ({
-      articleRef: `${line.kind === 'resource' ? 'resource' : 'option'}:${line.id}`, totalCents, merged, collectAt: moment,
+      articleRef: line.kind === 'custom' ? 'custom' : `${line.kind === 'resource' ? 'resource' : 'option'}:${line.id}`, totalCents, merged, collectAt: moment,
       momentLabel: moment === 'departure' ? 'À payer au départ' : 'À payer à l’arrivée',
-      note: soldBeforeNote(reservationId, line, merged),
+      note: line.kind === 'custom' ? null : soldBeforeNote(reservationId, line, merged),
     })),
     buckets: bucketsDelta(result.base, result.after),
     totalCents: centsOf(result.after, 'finalPrice') - centsOf(result.base, 'finalPrice'),
@@ -218,6 +246,7 @@ function sell(reservationId, requests, { source = 'fiche', payment = 'later', ac
       if (written.status !== 200) { outcome = { status: written.status, body: written.body }; throw ROLLBACK; }
       const moment = result.started ? 'departure' : 'arrival';
       const added = extraSalesModel().stampNewLines(id, before, { source, collectAt: moment, soldAt: now.toISOString() });
+      extraSalesModel().stampCustomQuantities(id, added, parsed.lines.filter((line) => line.kind === 'custom'));
       reservations().addHistoryEntry(id, 'update', [{
         field: 'extraSale', label: 'Vente', from: null, to: `${added.length ? added.map((line) => line.label).join(', ') : 'Ligne complétée'} — ${source}${actor ? ` (${actor})` : ''}`,
       }]);
@@ -344,6 +373,34 @@ function changeLine(reservationId, ref, patch, { now = new Date(), forceOverpaym
   return outcome;
 }
 
+// Rules 25, 26 — an unpaid line taken off the stay through the fiche's own save: the engine re-prices the stay under its price lock, gives the
+// line's free units back to the pool (`releaseAllowance`) and keeps its refusals (a line sold at an arrival already collected stays, 409).
+// A paid line is offered, never removed (rule 23: the money it carries stays credited until a refund).
+function removeLine(reservationId, ref, { now = new Date(), actor = null } = {}) {
+  const id = Number(reservationId);
+  const model = extraSalesModel();
+  const line = model.findLine(id, ref);
+  if (!line) return refuse(404, 'LINE_NOT_FOUND', 'Ligne introuvable');
+  if (line.settledCents > 0) return refuse(409, 'LINE_PAID', 'Ligne déjà payée : elle peut être offerte, pas retirée.');
+  const body = storedBody(id);
+  if (!body) return refuse(404, 'RESERVATION_NOT_FOUND', 'Réservation introuvable');
+  const db = database();
+  let outcome = null;
+  try {
+    db.transaction(() => {
+      const restated = controller().performUpdate(id, { ...model.withoutLine(body, line), restatePricing: true });
+      if (restated.status !== 200) { outcome = { status: restated.status, body: restated.body }; throw ROLLBACK; }
+      reservations().addHistoryEntry(id, 'update', [{
+        field: 'lineRemoved', label: line.label, from: `${(line.totalCents / 100).toFixed(2).replace('.', ',')} €`, to: `retirée${actor ? ` (${actor})` : ''}`,
+      }]);
+      outcome = { status: 200, saleDetail: saleDetailOf(id, now) };
+    })();
+  } catch (err) {
+    if (err !== ROLLBACK) throw err;
+  }
+  return outcome;
+}
+
 // What the stay still owes back for lines the operator lowered after they were paid (rule 23), carried by the SAS sections so the SAS announces
 // the figure and the fiche pays it (mock M3).
 const withRefundOwed = (section, reservationId) => (section ? { ...section, refundOwedCents: extraSalesModel().openLoweredCents(Number(reservationId)) } : section);
@@ -361,5 +418,5 @@ function paidSalesOf(reservationId, now = new Date()) {
 }
 
 module.exports = {
-  quote, sell, changeLine, saleDetailOf, departureSalesOf, paidSalesOf, parseRequests,
+  quote, sell, changeLine, removeLine, saleDetailOf, departureSalesOf, paidSalesOf, parseRequests,
 };

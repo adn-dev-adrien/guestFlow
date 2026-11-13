@@ -54,6 +54,7 @@ router.get('/:id/sale-detail', stayId, extraSalesController.saleDetail);
 router.post('/:id/extras/quote', stayId, notDevis, noWriteOnClosedStay, notReception(extraSalesController.quote));
 router.post('/:id/extras', stayId, notDevis, noWriteOnClosedStay, notReception(extraSalesController.sell));
 router.patch('/:id/extras/:ref', stayId, notDevis, noWriteOnClosedStay, notReception(extraSalesController.patchLine));
+router.delete('/:id/extras/:ref', stayId, notDevis, noWriteOnClosedStay, notReception(extraSalesController.removeLine));
 // Remboursements à faire (specs/pricing-components.md rule 75) : clore une ligne « À rembourser ».
 router.patch('/:id/refund-obligations/:oid', stayId, require('../controllers/refundObligationsController').closeObligation);
 // Annulation d'un séjour (specs/payment-schedule-and-cancellation.md §3.5). Operator-confirmed only —
