@@ -296,6 +296,15 @@ ait été réglé ou non.
     > 1), unpaid installments (L3), the open trop-perçu (book money, caisse interne, a fully paid plan), a refund made (no
     > claim), a received platform payout (no trop-perçu, refused). Tests: `eos-paid-refuses-growth` « R27-RES-1: … »,
     > `locked-rise-claim-sources`.
+21. **The live preview freezes a collected arrival complement like the save** (2026-11-12, manual trial of 4.0.0, stay 11773).
+    `calculatePrice` now hands the engine `complementPaid` and the collected `complementAmount` of a stay whose arrival complement
+    is already collected (as it already did for a paid acompte and solde). Before, the preview re-priced it live: a guest added
+    on the fiche was folded into the closed arrival complement (350 → 400) and the end-of-stay complement read 35 where the save
+    stores 85, the Détail missed the « Ajouté après l'encaissement du complément d'arrivée » line, the summary lost « Voyageurs
+    ajoutés » and « Valider » ended in a 409. Now preview = save: tile, Détail, summary, « Calcul auto » and « Encaisser » agree
+    before saving. The comment of `utils/pricing.js` that claimed the preview must omit `complementPaid` is removed.
+    *Reading:* after a guest is added on a platform stay, the STORED summary folds the extra into « Prix hébergement »; it only
+    shows while stored money really differs from the live quote. Test: `tests/preview-collected-complement-frozen.unit.test.js`.
 
 ---
 

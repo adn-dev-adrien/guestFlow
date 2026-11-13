@@ -32,7 +32,7 @@ function sasFlagsRefusal(body, fields, lineFields = []) {
 }
 
 const ARRIVAL_FLAGS = [
-  'cautionReceived', 'stayPaid', 'stayPaidCash', 'complementSettled', 'complementPaidCash', 'arrivalPaymentSplit',
+  'cautionReceived', 'cautionWaived', 'stayPaid', 'stayPaidCash', 'complementSettled', 'complementPaidCash', 'arrivalPaymentSplit',
   'cleaningAdded', 'bathLinenAdded', 'cleaningOffered', 'bathLinenOffered', 'extinguisherSealOkAtArrival',
 ];
 const ARRIVAL_LINES = ['linenItems', 'keptLines'];

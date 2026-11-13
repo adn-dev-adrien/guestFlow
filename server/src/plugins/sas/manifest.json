@@ -1,7 +1,7 @@
 {
   "id": "sas",
   "name": "Arrivée et départ guidés",
-  "version": "1.9.3",
+  "version": "1.10.0",
   "description": "Le sas pas à pas de l’accueil et du départ.",
   "icon": "door",
   "surfaces": [
@@ -161,6 +161,11 @@
     "1.9.3": [
       "L’historique de la fiche écrit le paiement unique du sas à la française : montant avec virgule, date jj/mm/aaaa, « complément d’arrivée ».",
       "Compatible avec GuestFlow 4 (SDK 2.24)."
+    ],
+    "1.10.0": [
+      "Caution : nouveau bouton « Non » (aucune caution pour ce séjour) ; une caution reportée au départ n’est plus redemandée avant le récapitulatif.",
+      "Récapitulatif : le champ de note ne passe plus sous le trait qui le précède.",
+      "Compatible avec le SDK 2.24.0 de GuestFlow."
     ]
   }
 }

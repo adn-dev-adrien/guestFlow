@@ -20,15 +20,15 @@ function ExtraGuestRow({ label, caption, amount, offered, onToggleOffered, chip 
   return (
     <>
       <Divider />
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, flexWrap: 'wrap' }}>
-        <Box sx={{ flex: 1, minWidth: 160 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" component="div" color="text.secondary">
             {label}
             {chip && <Box component="span" sx={{ ml: 1 }}>{chip}</Box>}
           </Typography>
           <Typography variant="caption" color="text.secondary">{caption}</Typography>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
           {onToggleOffered && (
             <Button
               size="small"

@@ -1,2 +1,0 @@
-- **Paramètres opens on a summary**: each page on one row with its state line (« 2 logements », « Envoi non configuré »…), four groups (Établissement, Séjours, Paiements et emails, Compte et système) and a search that understands wifi, iban, smtp, 2fa.
-- **Piscine**: « Toute l'année » or « Saison » on the Séjour tab; a season closing before it opens is refused.

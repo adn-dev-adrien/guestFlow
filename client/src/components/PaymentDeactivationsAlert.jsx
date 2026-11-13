@@ -42,7 +42,7 @@ export default function PaymentDeactivationsAlert({ attention }) {
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
                 {link.stayUrl ? (
-                  <Link component={RouterLink} to={link.stayUrl} color="inherit" underline="always" sx={touchHitArea}>{link.stayLabel}</Link>
+                  <Link component={RouterLink} to={link.stayUrl} color="primary" underline="always" sx={{ ...touchHitArea, fontWeight: 600 }}>{link.stayLabel}</Link>
                 ) : link.stayLabel}
                 {` · ${link.reasonLabel}${link.sinceLabel ? ` · ${link.sinceLabel}` : ''}`}
               </Typography>

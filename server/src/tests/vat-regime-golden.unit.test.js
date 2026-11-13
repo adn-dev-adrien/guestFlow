@@ -22,6 +22,8 @@
 // specs/reservation-payment-ledger.md rule 68, nothing else moved).
 // On 2026-11-09 for `finance/summary/*`, `finance/detail/*/toCollect|late` and `finance/operational`: each stay row carries the
 // four split aggregates of specs/mixed-method-payments.md §5 (all 0 here), nothing else moved (checked field by field).
+// On 2026-11-12 for the 13 captures that carry a stay row: the row gains `cautionWaived: 0` (arrival-departure-sas.md rule 31, additive,
+// nothing else moved: checked key by key).
 // `GOLDEN_UPDATE=1` rewrites the capture, which is only ever legitimate on that code (Lot 0).
 
 const test = require('node:test');
