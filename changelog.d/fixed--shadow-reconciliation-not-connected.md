@@ -1,1 +1,0 @@
-- plugin:online-payment Rapprochement bancaire without a Qonto connection says so with no console error.

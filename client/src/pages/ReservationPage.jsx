@@ -19,6 +19,8 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt1';
 import LanguageIcon from '@mui/icons-material/Language';
 import PageActionBar from '../components/PageActionBar';
 import OriginBadge from '../components/OriginBadge';
@@ -4113,12 +4115,12 @@ export default function ReservationPage() {
                       )}
                       <OriginBadge label={form.originLabel} detail={form.originDetail} />
                     </Box>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.5 }}>
-                      <Button size="small" variant="text" onClick={() => setClientSearchOpen(true)}>
+                    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'flex-end', gap: 1 }}>
+                      <Button size="small" variant="outlined" startIcon={<SwapHorizIcon />} onClick={() => setClientSearchOpen(true)} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                         Changer le client
                       </Button>
-                      <Button size="small" variant="text" onClick={openCreateClient}>
-                        + Créer un nouveau client
+                      <Button size="small" variant="outlined" startIcon={<PersonAddAltIcon />} onClick={openCreateClient} sx={{ width: { xs: '100%', sm: 'auto' } }}>
+                        Nouveau client
                       </Button>
                     </Box>
                     <PluginGate id={WEBSITE_BOOKING}><TermsAcceptanceLine block={cgvBlock} /></PluginGate>
@@ -4137,9 +4139,9 @@ export default function ReservationPage() {
                         <Button onClick={openCreateClient} size="small">Créer un nouveau client</Button>
                       }
                     />
-                    <Box>
-                      <Button size="small" variant="text" onClick={openCreateClient}>
-                        + Créer un nouveau client
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <Button size="small" variant="outlined" startIcon={<PersonAddAltIcon />} onClick={openCreateClient}>
+                        Nouveau client
                       </Button>
                     </Box>
                   </>

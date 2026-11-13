@@ -311,6 +311,14 @@
       });
     }
 
+    function forgetAvailability() {
+      blocked = {};
+      arrivals = {};
+      nightPrices = {};
+      nextReplies = [];
+      loadedTo = null;
+    }
+
     function ensureAvailability(untilIso) {
       if (loadedTo && untilIso <= loadedTo) return Promise.resolve();
       var from = loadedTo || todayIso();
@@ -1169,6 +1177,9 @@
         var datesKey = stay.startDate + '|' + stay.endDate;
         if (res.status < 200 || res.status >= 300 || !res.body || !res.body.data) {
           trackOnce('booking-unavailable', datesKey + '|error', { reason: 'error' });
+          // A 409 refuses the stay itself (times the neighbouring stays cannot take, capacity): said
+          // in the calendar too, where a host's « Suivant » reads it (rule 36).
+          if (res.status === 409) renderCal({ msg: GF.errorMessage(res), isError: true });
           summary.innerHTML = '';
           summary.appendChild(GF.el('div', { class: 'gf-error' }, GF.errorMessage(res)));
           lastQuote = null;
@@ -1204,10 +1215,25 @@
           setSubmit(true);
           return;
         }
+        // Taken nights the calendar did not show — a link's dates, or a stay booked since the page
+        // loaded (specs/wordpress-plugin.md rule 36): refused in the calendar like a minimum-stay
+        // breach, so a host gating its « Suivant » on the calendar's refusal stops there too, and no
+        // price is shown for a stay that cannot be sold. The calendar reloads its nights from GuestFlow.
+        if (q.available === false) {
+          trackOnce('booking-unavailable', datesKey + '|taken', { reason: 'taken' });
+          forgetAvailability();
+          renderCal({ msg: GF.t('rangeBlocked'), isError: true });
+          summary.innerHTML = '';
+          summary.appendChild(GF.el('div', { class: 'gf-empty' }, GF.t('datesUnavailable')));
+          warn.innerHTML = '';
+          lastQuote = null;
+          setBarAmount('', GF.t('datesUnavailable'));
+          setSubmit(true);
+          return;
+        }
         lastQuote = q;
         drawSummary(q);
-        if (q.available === false) trackOnce('booking-unavailable', datesKey + '|taken', { reason: 'taken' });
-        else trackOnce('booking-quote', datesKey, { nights: q.nights, guests: persons() });
+        trackOnce('booking-quote', datesKey, { nights: q.nights, guests: persons() });
       });
     }
 
@@ -1288,11 +1314,9 @@
       }
 
       warn.innerHTML = '';
-      var ok = true;
-      if (q.available === false) { warn.appendChild(GF.el('div', { class: 'gf-inline-warn' }, GF.t('datesUnavailable'))); ok = false; }
       // Button reflects what the guest pays now (« Payer l'acompte » vs « Payer en ligne »), or that
       // nothing is paid now.
-      setSubmit(!ok, submitLabel());
+      setSubmit(false, submitLabel());
     }
 
     // Bring a refused requirement into view and give it the focus — the page may be long, and the

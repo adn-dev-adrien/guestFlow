@@ -141,7 +141,7 @@ function resourceFreeMinutes(row, consumed) {
 /**
  * Rules 23, 25 — the items this lodging's shop shows, in catalogue order.
  *  options / resources: the engine's applicable catalogue of the lodging (effective price, free units /
- *    minutes); a resource also needs its explicit link (`linkedResourceIds`)
+ *    minutes); a resource also needs its link (`linkedResourceIds`: its lodgings, or « Tous les logements »)
  *  items: Map `kind:id` → `guest_app_items` row
  *  offeredDefaultIds: the options the lodging offers by default
  *  stay: { isDirectBooking, grantedFreeUnitsByOption, optionLines, optionUnits, resourceMinutes, orderedUnits }

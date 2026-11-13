@@ -1,1 +1,0 @@
-- **The pointer to the full detail of a condensed release is its own « Détail » section** in the update dialog of every release, including 3.21.0's.

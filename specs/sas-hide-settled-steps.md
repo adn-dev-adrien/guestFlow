@@ -41,7 +41,7 @@ lost.
 ## 3. Functional rules
 
 1. **Arrival caution page — hidden whenever received.** The arrival `caution` (and its dependent
-   `cautionReport`) step is shown only when `cautionAmount > 0` **and** `cautionReceived` is falsy —
+   `cautionReport`, removed 2026-11-12 — arrival-departure-sas.md rule 31) step is shown only when `cautionAmount > 0` (or a « Non » to change, rule 31) **and** `cautionReceived` is falsy —
    with **no re-edit exception**. This reverses [reopen-completed-sas.md](reopen-completed-sas.md)
    §3 rule 3 *for the arrival caution*: a received caution is no longer reachable from the SAS, even
    when reopening a completed SAS.

@@ -618,3 +618,14 @@ None. Decided on 2026-10-05, on the mock:
 - **P16 — erasing with paid external bookings:** warn, then erase (rule 17).
 - **P17 — the email tokens:** the slot sentence moves to the plugin, found without the name; the
   reminder stays core (rule 15).
+
+## Amendment 2026-11-12 (manual trial of 4.0.0) — the booking card reads like the check-in card
+
+The planning card of a booking outside a stay (rule 14) takes the check-in card's sizes and order for what it knows: a badge
+(the resource's name, 12 px bold, icon) and a time pill (13 px bold, clock) on the first row, the Arrivée button at the right;
+then the logement (bold, primary, home icon), the client with the phone, the payment (« Payé » or « À encaisser » with the
+euro icon, 12 px), then « Remise en état … ». Same texts, same actions.
+
+Reading of 2026-11-12 (verification): the booking card's detail block keeps the check-in card's 40 px left gutter, the client's name
+is `body1` 600, and the money line is the check-in card's form (« À encaisser : 30,00 € » / « Payé : 30,00 € », with the booking's
+`totalPrice`).

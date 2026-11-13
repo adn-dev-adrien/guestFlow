@@ -3,7 +3,7 @@ Contributors: adrien
 Tags: booking, availability, quote, gutenberg
 Requires at least: 6.4
 Requires PHP: 8.0
-Stable tag: 1.19.0
+Stable tag: 1.19.1
 License: GPLv2 or later
 
 Affiche les disponibilités, calcule des devis et envoie des demandes de réservation vers GuestFlow via son API publique.
@@ -36,6 +36,9 @@ Non. Elle est lue uniquement côté serveur (constante `wp-config` ou option mas
 Non. Elle crée un devis « brouillon » côté GuestFlow, que l'administrateur revoit puis convertit éventuellement en réservation.
 
 == Changelog ==
+
+= 1.19.1 =
+* Moteur de réservation : des dates déjà prises (arrivées par un lien, ou réservées depuis l'ouverture de la page) sont refusées dans le calendrier, comme un séjour trop court : aucun total n'est affiché, l'étape suivante du tiroir reste fermée, et le calendrier relit ses nuits prises. Même chose pour des horaires que les séjours voisins ne permettent pas.
 
 = 1.19.0 =
 * Page de retour du paiement : quand le lien de paiement a expiré sans être payé (un lien est valable 36 heures), la page affiche « Ce lien de paiement a expiré. Refaire la réservation depuis la page du logement. » et cesse de vérifier le paiement (GuestFlow à jour requis, sinon la page finit sur « Paiement en attente » comme avant).
