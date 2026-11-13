@@ -496,7 +496,8 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR C** (C23, fiche): `GET /api/reservations/:id` embeds `saleDetail` (admin view; the reception view, finance-stripped, has none), the payload `GET …/sale-detail` serves (proof `sale-detail-embedded`).
     > **Pending** — PR C: the e-mail contexts, the finance pages' extras readers and the payment-link baskets keep their own readers (they read the same stored lines; they do not yet read the payload).
     > _Pass 3f, why it is still open:_ `saleDetail.buckets` and the lines' moments do not equal the arrival complement the e-mails and links name. On a started stay a line moved to the arrival lands in the plan bucket
-    > (`buckets.arrival` stays 0, the line says `dueAtArrival`), while `buildArrivalComplementDetail` reads the stored complement. Reading the payload instead would change what a guest is told to pay. The reader move needs `saleDetail` to
+    > (`buckets.arrival` stays 0, the line says `dueAtArrival`), while `buildArrivalComplementDetail` reads the stored complement.
+    > _Pass 3g:_ that bucket defect is fixed (rule 37: the moved line is routed into the arrival complement; proof `sale-detail-arrival-bucket`). Reading the payload instead would change what a guest is told to pay. The reader move needs `saleDetail` to
     > carry the complement the stay really collects (one definition of « à l’arrivée ») first. The finance reader is a per-month SQL aggregate (`optionsTotal`, `resourcesTotal`): a per-stay payload there is a performance change, not a reader swap.
 32. **The SAS arrival shows** the arrival lines due, the stay amounts due at the door, the lines already paid
     (« Déjà payé », not offerable), and — when the SAS runs after check-in time — the departure lines sold
@@ -552,6 +553,9 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     > **Delivered by PR C** (C21 follow-up): moving one line moves that line only — proof `extra-sale-move-isolation` (two and three lines, a baseline already stored,
     > a line sold before the stay started). A move the fiche's save refuses as a lowered arrival line is answered as a move (409 `MOMENT_NOT_AVAILABLE`,
     > « Cette ligne ne peut pas changer de moment : elle a été vendue à l’arrivée. »), never with the wording of a removal.
+    > **Delivered by PR C** (pass 3g, C23): a line moved to the arrival is routed into the arrival complement (`inComplement = 1`), on a started stay as on one not
+    > started: before, a started stay's moved line said « À payer à l’arrivée » while its money went to the solde (`saleDetail.buckets.arrival` stayed 0), so the
+    > arrival SAS never collected it. Moved back to the departure, the baseline carves it out again. Proof `sale-detail-arrival-bucket`.
 38. **Money helpers are shared, not a component.** `money.js` holds `roundMoney`, `toCents`, `fromCents` and
     `allocateCents`. It carries no business rule, so it is not a component; it is a unit because about twenty
     files redefine `round2` / `cents`, and two definitions that differ are a silent drift. PR A moves the

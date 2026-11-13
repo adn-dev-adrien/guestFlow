@@ -135,7 +135,10 @@ function moveLine(reservationId, line, to) {
   else if (to === 'arrival') baseline[line.key] = roundMoney((baseline[line.key] || 0) + total);
   db.prepare("UPDATE reservations SET arrivalExtrasBaseline = ?, updatedAt = datetime('now') WHERE id = ?").run(JSON.stringify(baseline), Number(reservationId));
   const was = line.collectAt || 'arrival';
-  db.prepare(`UPDATE ${line.table} SET collectAt = ? WHERE lineId = ?`).run(to, line.lineId);
+  // A line moved to the arrival is routed into the arrival complement, as a new line of a stay not started is (rule 19): the moment the line
+  // says and the bucket that collects it are one (rule 31). A line sent to the departure keeps its routing: the baseline carves it out.
+  if (to === 'arrival') db.prepare(`UPDATE ${line.table} SET collectAt = ?, inComplement = 1 WHERE lineId = ?`).run(to, line.lineId);
+  else db.prepare(`UPDATE ${line.table} SET collectAt = ? WHERE lineId = ?`).run(to, line.lineId);
   const origin = (moment) => (moment === (line.collectAtDefault || was) ? 'horloge' : 'opérateur');
   return {
     fromLabel: `${MOMENT_TEXT[was]} (${origin(was)})`,
