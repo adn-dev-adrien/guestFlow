@@ -1,1 +1,0 @@
-- **A write that meets another writer waits for it** instead of failing with « database is locked » (the draft preview of the email texts answered 500 under load); the lock is taken when the transaction starts.

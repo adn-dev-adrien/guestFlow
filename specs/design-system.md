@@ -298,3 +298,17 @@ composed from one grammar, specified in **`specs/report-grammar.md`**: the KPI t
 report charts `TrendChart`, `AlignedDailyCumulativeCharts` and `ShareTable` (with the generic
 `ChartMenu` / `ChartDataTable`). Chart colours come from `palette.chart`, categories from
 `palette.chart.categorical`. A development build shows them all at `/design/report-grammar`.
+
+## Amendment 2026-11-12 — room for the floating label of an outlined field (manual trial of 4.0.0)
+
+A floating label overhangs its outlined field by about 9 px. Two rules of `theme.js` keep that room app-wide, replacing the
+`mt` hand-added on single pages: (A) `MuiDialogContent` keeps a 12 px top padding under a `DialogTitle` (MUI zeroes it, which
+clipped the first label of a dialog — « Date » of « Nouvelle réservation » — and voided any `pt` of the content); (B)
+`MuiCssBaseline` gives 12 px of margin under whatever directly precedes an outlined field (a heading, a `subtitle2`, a divider, a
+legend, a button) so the label never touches nor is drawn over the line above. `AdvancedDetails` opens with 12 px of padding for
+the same reason. A hidden (folded) collapse still holds its fields: a detector reading them reports them clipped, which is not
+a defect.
+
+Reading of 2026-11-12 (verification): the baseline rule reaches only a heading, a divider (not a vertical one), a legend or a
+disclosure button (`[aria-expanded]`) directly followed by a field that really carries an outlined label — never a stepper's
+« − » button; inside a Stack the gap already separates the siblings, so the margin drops to 4 px.

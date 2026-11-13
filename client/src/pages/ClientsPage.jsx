@@ -27,7 +27,6 @@ import { isValidEmail, isValidPhone } from '../utils/validation';
 import { withFrom } from '../utils/navigation';
 import { formatCurrency } from '../utils/formatters';
 import { useToast, useAppDialogs } from '../components/DialogProvider';
-import { localIsoToday } from '../utils/isoDay';
 import usePostalCodeCities from '../hooks/usePostalCodeCities';
 import {
   VIEWS, SORTS, TEXTS, viewFromParam, paramFromView, viewLabel,
@@ -56,10 +55,6 @@ const emptyClient = {
   emailLanguage: 'fr',
   postStayEmailsDisabled: 0,
 };
-
-function getTodayDateKey() {
-  return localIsoToday();
-}
 
 function formatStayDates(startDate, endDate) {
   const fmt = (value) => new Date(value).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -406,13 +401,12 @@ export default function ClientsPage() {
 
   // Renders a server-shaped (already sorted, with `nights`) list of the client's reservations.
   const renderReservationRows = (reservations, onOpenReservation = null) => {
-    const today = getTodayDateKey();
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {(reservations || []).map((res, index) => {
-          const isPast = res.endDate < today;
+          const isPast = Boolean(res.past);
           const previousReservation = index > 0 ? reservations[index - 1] : null;
-          const startsPastSection = isPast && previousReservation && previousReservation.endDate >= today;
+          const startsPastSection = isPast && previousReservation && !previousReservation.past;
           const nights = res.nights;
           const totalGuests = (res.adults || 0) + (res.children || 0) + (res.teens || 0) + (res.babies || 0);
           return (

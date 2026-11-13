@@ -2,10 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Box, Alert, TextField, FormControl, InputLabel, Select, MenuItem,
-  FormControlLabel, Typography, Divider, Switch, Autocomplete, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
+  FormControlLabel, Typography, Divider, Switch, LinearProgress, ToggleButton, ToggleButtonGroup, useMediaQuery, useTheme,
 } from '@mui/material';
 import MiniDayPlanner from './MiniDayPlanner';
-import { api, formatCurrency, ConfirmDialog } from '../sdk';
+import { api, formatCurrency, ConfirmDialog, ClientPickerField } from '../sdk';
 import resourceBookingDraft from './resourceBookingDraft';
 import useResourceBookingPreview from './useResourceBookingPreview';
 import { localIsoDate } from './localDate';
@@ -189,11 +189,21 @@ export default function ResourceBookingDialog({
   }, [open, date, resource?.id, ownId]);
 
   useEffect(() => {
-    if (open) {
-      api.getClients().then(setClients).catch(() => {});
-      api.getProperties().then(setProperties).catch(() => {});
-    }
+    if (open) api.getProperties().then(setProperties).catch(() => {});
   }, [open]);
+
+  // specs/resource-booking-client-picker.md rules 1-2 — the server orders the clients against the
+  // session's day (today when the field is empty); a new day asks again, the previous day's groups are
+  // not shown meanwhile, and the latest answer wins.
+  useEffect(() => {
+    if (!open) return;
+    let current = true;
+    setClients([]);
+    api.getClientPicker(date)
+      .then((result) => { if (current) setClients(result.options || []); })
+      .catch(() => {});
+    return () => { current = false; };
+  }, [open, date]);
 
   useEffect(() => {
     if (!open) return;
@@ -579,14 +589,11 @@ export default function ResourceBookingDialog({
                 />
               </>
             ) : (
-              <Autocomplete
+              <ClientPickerField
                 options={clients}
-                getOptionLabel={(c) => `${c.firstName || ''} ${c.lastName || ''}`.trim()}
                 value={selectedClient}
-                onChange={(_, v) => setSelectedClient(v)}
+                onChange={setSelectedClient}
                 disabled={!editable}
-                renderInput={(params) => <TextField {...params} label="Client *" size="small" />}
-                isOptionEqualToValue={(o, v) => o.id === v?.id}
               />
             )}
 

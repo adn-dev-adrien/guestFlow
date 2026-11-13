@@ -31,7 +31,7 @@ const PROD_HOSTS = { oauth: 'https://oauth.qonto.com', api: 'https://thirdparty.
 const DEFAULT_SCOPES = ['offline_access', 'organization.read', 'payment_link.read', 'payment_link.write', 'webhook'];
 // What invoicing a sale outside a stay needs on top (specs/resource-booking-pricing-and-invoicing.md rule 14, Q6): a
 // client, its invoice, and the PDF joined to the card credit. Asked by the `online-payment` consent only.
-const INVOICING_SCOPES = ['client.write', 'client_invoice.read', 'client_invoice.write', 'attachment.write'];
+const INVOICING_SCOPES = ['client.write', 'client_invoices.read', 'client_invoice.write', 'attachment.write'];
 
 // Maps a Qonto payment-link status to our `payment_links.status` enum.
 function mapQontoStatus(qontoStatus) {
@@ -325,7 +325,7 @@ function buildQontoClient(config = {}) {
     //
     // The control plane invoices its customers from its own Qonto organisation: a Qonto client once
     // per customer, a numbered invoice per period, and a payment link attached to that invoice.
-    // Scopes: `client.write`, `client_invoice.read`, `client_invoice.write`.
+    // Scopes: `client.write`, `client_invoices.read`, `client_invoice.write`.
 
     // A company client carrying what Qonto requires before it will invoice it: address, currency and
     // locale.
@@ -394,7 +394,7 @@ function buildQontoClient(config = {}) {
     },
 
     // ----- Invoices of sales outside a stay (specs/resource-booking-pricing-and-invoicing.md rules 14, 17) -----
-    // Scopes: `client.write`, `client_invoice.read`, `client_invoice.write`, `attachment.write` (INVOICING_SCOPES).
+    // Scopes: `client.write`, `client_invoices.read`, `client_invoice.write`, `attachment.write` (INVOICING_SCOPES).
 
     // A private person. The billing address goes only when it is whole: Qonto refuses a partial one, and whether it
     // accepts none at all is measured, not assumed (rule 25, Q2) — the caller reads the refusal.
