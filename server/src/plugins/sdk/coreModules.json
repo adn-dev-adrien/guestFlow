@@ -998,6 +998,7 @@
   "extraSale": [
     "changeLine",
     "departureSalesOf",
+    "paidSalesOf",
     "quote",
     "saleDetailOf",
     "sell"

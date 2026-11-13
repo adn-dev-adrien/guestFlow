@@ -289,6 +289,9 @@
         "platformPayment"
       ],
       "names": {
+        "extraSale": [
+          "paidSalesOf"
+        ],
         "stayClock": [
           "dayReached",
           "dayPassed"

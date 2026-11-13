@@ -8,7 +8,8 @@ const assert = require('node:assert/strict');
 
 const db = require('../database');
 const extraSale = require('../utils/extraSale');
-const sasController = require('../plugins/sas/controller');
+const { optionalPlugin, skipWithout } = require('../plugins/sdk/testing');
+const sasController = optionalPlugin(() => require('../plugins/sas/controller'));
 const { syncStay } = require('../utils/paymentAllocationsSync');
 const { todayIso } = require('../utils/localDate');
 const { addDaysToIsoDate } = require('../utils/devisHelpers');
@@ -36,7 +37,7 @@ function startedStay() {
     VALUES (9401, 9401, ?, ?, 'direct', 2, 300, 300, 'reservation', '15:00', ?)`).run(startDate, addDaysToIsoDate(startDate, 3), startDate).lastInsertRowid);
 }
 
-test('rule 32 — the departure SAS lists the lines already collected under « Déjà payé »; the arrival SAS keeps its departure section', () => {
+test('rule 32 — the departure SAS lists the lines already collected under « Déjà payé »; the arrival SAS keeps its departure section', { skip: skipWithout(['sas']) }, () => {
   const id = startedStay();
   extraSale.sell(id, [{ articleRef: `option:${wine}`, quantity: 1 }], { payment: 'card-terminal' });
   extraSale.sell(id, [{ articleRef: `option:${bread}`, quantity: 1 }]);
@@ -50,13 +51,13 @@ test('rule 32 — the departure SAS lists the lines already collected under « D
   assert.deepEqual(arrival.lines.map((l) => [l.label, l.block]), [['Pain frais', 'due'], ['Panier vin', 'paid']]);
 });
 
-test('rule 32 — reception sees no money: no « Déjà payé » section', () => {
+test('rule 32 — reception sees no money: no « Déjà payé » section', { skip: skipWithout(['sas']) }, () => {
   const id = startedStay();
   extraSale.sell(id, [{ articleRef: `option:${wine}`, quantity: 1 }], { payment: 'card-terminal' });
   assert.equal(sasOf(id, 'departure', { role: 'reception' }).staySales, null);
 });
 
-test('rules 14, 23 — offering a line paid on a settled stay is refused until confirmed; the departure SAS then announces what is owed back', () => {
+test('rules 14, 23 — offering a line paid on a settled stay is refused until confirmed; the departure SAS then announces what is owed back', { skip: skipWithout(['sas']) }, () => {
   const start = addDaysToIsoDate(todayIso(), 40);
   const id = Number(db.prepare(`INSERT INTO reservations (propertyId, clientId, startDate, endDate, platform, adults, totalPrice, finalPrice, kind, checkInTime,
       balanceAmount, balancePaid, balancePaidDate, accommodationSoldeContribTtc)
