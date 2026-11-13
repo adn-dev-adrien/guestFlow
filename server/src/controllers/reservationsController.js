@@ -2368,7 +2368,10 @@ function applyUpdate(req, res, pastUnlocked, { silent = false } = {}) {
   // specs/settings-rationalization.md rule 35 (D21, Adrien, 2026-11-06) — the admin unlock of a started stay
   // exists to correct the amounts expected from the platforms: a save that moves the final price or the tourist tax is refused.
   if (started && pastUnlocked) {
-    const unlockedRefusal = unlockedPriceRefusal(storedPaymentForQuote, quote);
+    const unlockedRefusal = unlockedPriceRefusal(storedPaymentForQuote, quote, {
+      storedLines: model.readExtraLinesWithQuantity(id),
+      quoteLines: [...(quote.optionLines || []), ...(quote.resourceLines || [])],
+    });
     if (unlockedRefusal) return res.status(409).json(unlockedRefusal);
   }
   // specs/reservation-refunds.md rule 52, reading of 2026-11-05 (audit R23 L6) — a paid complement adjusted down lowers what stays collected too.
