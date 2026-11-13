@@ -42,8 +42,10 @@ if (process.env[READING]) {
   const { skipWithout } = require('../plugins/sdk/testing');
 
   const read = (mode) => {
+    // Under `node --test` the file runs with NODE_TEST_CONTEXT set: a child inheriting it writes the runner's binary protocol to stdout.
+    const { NODE_TEST_CONTEXT, ...env } = process.env;
     const out = execFileSync(process.execPath, [...process.execArgv, __filename], {
-      env: { ...process.env, [READING]: mode }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+      env: { ...env, [READING]: mode }, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     });
     return JSON.parse(out.trim().split('\n').pop());
   };
