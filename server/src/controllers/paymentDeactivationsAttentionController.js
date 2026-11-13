@@ -34,15 +34,16 @@ const frDate = (value) => {
 // for a devis (that id answers 404 on /reservations/:id).
 function subjectOf(link) {
   const id = Number(link.reservationId);
+  const fiche = (number, fallback) => `Fiche n° ${number || fallback}`;
   if (link.stayMissing) return { label: `Fiche n° ${id}`, url: null };
   if (link.stayKind !== 'devis') {
-    return { label: `Séjour ${link.reservationNumber || `n° ${id}`}`, url: `/reservations/${id}` };
+    return { label: fiche(link.reservationNumber, id), url: `/reservations/${id}` };
   }
-  const devis = `Devis ${link.devisNumber || `n° ${id}`}`;
-  if (link.convertedReservationId == null) return { label: devis, url: `/reservations/new?mode=devis&devisId=${id}` };
-  if (link.convertedStayId == null) return { label: devis, url: null };
+  const devisNumber = link.devisNumber || id;
+  if (link.convertedReservationId == null) return { label: fiche(link.devisNumber, id), url: `/reservations/new?mode=devis&devisId=${id}` };
+  if (link.convertedStayId == null) return { label: fiche(link.devisNumber, id), url: null };
   const stay = Number(link.convertedStayId);
-  return { label: `${devis} · séjour ${link.convertedNumber || `n° ${stay}`}`, url: `/reservations/${stay}` };
+  return { label: `${fiche(link.convertedNumber, stay)} · devis ${devisNumber}`, url: `/reservations/${stay}` };
 }
 
 const capitalised = (id) => String(id || '').replace(/^./, (c) => c.toUpperCase());

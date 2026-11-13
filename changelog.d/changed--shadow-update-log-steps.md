@@ -1,1 +1,0 @@
-- **The update log records every step with its result**: download, signature, SHA-256, extraction, dependencies, database backup and hand-over to the helper, and the step that failed.

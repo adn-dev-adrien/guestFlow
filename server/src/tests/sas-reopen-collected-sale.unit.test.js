@@ -1,0 +1,215 @@
+// specs/arrival-departure-sas.md rule 34 (2026-11-12, verification of the manual trial of 4.0.0) — reopening a check-in whose
+// complement it collected and walking through with the same answers must not bill the sale a second time: only what a sale
+// bills BEYOND what the collected complement holds for its key rides the end-of-stay complement.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const Database = require('better-sqlite3');
+const { create: createReservationsModel } = require('../models/reservationsModel');
+
+function makeDb() {
+  const db = new Database(':memory:');
+  db.exec(`
+    CREATE TABLE reservations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'reservation',
+      propertyId INTEGER, startDate TEXT, endDate TEXT, checkInTime TEXT, checkOutTime TEXT,
+      adults INTEGER NOT NULL DEFAULT 0, teens INTEGER NOT NULL DEFAULT 0, children INTEGER NOT NULL DEFAULT 0, babies INTEGER NOT NULL DEFAULT 0,
+      cautionAmount REAL DEFAULT 0, cautionReceived INTEGER DEFAULT 0, cautionWaived INTEGER NOT NULL DEFAULT 0, cautionReceivedDate TEXT,
+      complementAmount REAL NOT NULL DEFAULT 0, complementPaid INTEGER NOT NULL DEFAULT 0,
+      complementPaidDate TEXT, complementPaidCash INTEGER NOT NULL DEFAULT 0,
+      complementDeferredToCheckout INTEGER NOT NULL DEFAULT 0,
+      endOfStayComplementAmount REAL NOT NULL DEFAULT 0, endOfStayComplementPaid INTEGER NOT NULL DEFAULT 0,
+      endOfStayComplementPaidCash INTEGER NOT NULL DEFAULT 0, endOfStayComplementDetail TEXT,
+      arrivalExtrasBaseline TEXT, midStaySettledNotes TEXT,
+      arrivalSasDoneAt TEXT, checkInReady INTEGER DEFAULT 0, checkInDone INTEGER DEFAULT 0,
+      extinguisherSealOkAtArrival INTEGER, breakfastTime TEXT,
+      breakfastCoffee INTEGER NOT NULL DEFAULT 0, breakfastTea INTEGER NOT NULL DEFAULT 0,
+      breakfastChocolate INTEGER NOT NULL DEFAULT 0, breakfastMilk INTEGER NOT NULL DEFAULT 0,
+      breakfastPastries INTEGER NOT NULL DEFAULT 0, breakfastCereals INTEGER NOT NULL DEFAULT 0,
+      breakfastBread REAL NOT NULL DEFAULT 0, breakfastNote TEXT, departureHandoverNote TEXT,
+      updatedAt TEXT
+    );
+    CREATE TABLE options (
+      id INTEGER PRIMARY KEY, title TEXT, description TEXT DEFAULT '', autoOptionType TEXT,
+      price REAL DEFAULT 0, priceType TEXT DEFAULT 'per_stay', category TEXT DEFAULT '',
+      showsPlanningCard INTEGER NOT NULL DEFAULT 0, cardRepeat TEXT DEFAULT 'once',
+      planningCardTimes TEXT, displayToClient INTEGER NOT NULL DEFAULT 1, autoEnabled INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE reservation_options (
+      reservationId INTEGER NOT NULL, optionId INTEGER NOT NULL,
+      quantity REAL DEFAULT 1, unitPrice REAL NOT NULL DEFAULT 0, billedUnits REAL NOT NULL DEFAULT 0,
+      priceType TEXT NOT NULL DEFAULT 'per_stay', totalPrice REAL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0,
+      inComplement INTEGER NOT NULL DEFAULT 0, sasArrivalOrigin INTEGER NOT NULL DEFAULT 0, cardOccurrences TEXT,
+      cardPersons REAL,
+      PRIMARY KEY (reservationId, optionId)
+    );
+    CREATE TABLE reservation_custom_options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, description TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0, offered INTEGER NOT NULL DEFAULT 0, sortOrder INTEGER NOT NULL DEFAULT 0,
+      inComplement INTEGER NOT NULL DEFAULT 0, sasArrivalOrigin INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE reservation_resources (reservationId INTEGER, resourceId INTEGER, totalPrice REAL DEFAULT 0, offered INTEGER DEFAULT 0);
+    CREATE TABLE reservation_nights (id INTEGER PRIMARY KEY AUTOINCREMENT, reservationId INTEGER NOT NULL, date TEXT);
+    CREATE TABLE property_option_prices (propertyId INTEGER, optionId INTEGER, price REAL, PRIMARY KEY (propertyId, optionId));
+    CREATE TABLE property_options (propertyId INTEGER, optionId INTEGER, PRIMARY KEY (propertyId, optionId));
+    CREATE TABLE properties (id INTEGER PRIMARY KEY AUTOINCREMENT, defaultCautionAmount REAL DEFAULT 0, maxGuests INTEGER DEFAULT 0);
+  `);
+  db.prepare('INSERT INTO properties (id, defaultCautionAmount, maxGuests) VALUES (7, 500, 6)').run();
+  // date-literal-ok: stay days of the fixture, nothing compares them with today
+  const STAY_DAYS = ['2026-08-18', '2026-08-21'];
+  db.prepare(`INSERT INTO reservations (id, propertyId, startDate, endDate, checkInTime, checkOutTime, adults, teens, babies, complementAmount)
+              VALUES (1, 7, ?, ?, '15:00', '10:00', 2, 1, 1, 30)`).run(...STAY_DAYS);
+  // date-literal-ok: stay days of the fixture, nothing compares them with today
+  for (const date of ['2026-08-18', '2026-08-19', '2026-08-20']) {
+    db.prepare('INSERT INTO reservation_nights (reservationId, date) VALUES (1, ?)').run(date);
+  }
+  const insertOption = db.prepare(`INSERT INTO options (id, title, description, autoOptionType, price, priceType, category, showsPlanningCard, cardRepeat, planningCardTimes)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  insertOption.run(6, 'Petit déjeuner', '', 'breakfast', 8, 'per_person_per_night', 'Restauration', 1, 'once_per_day', '["09:00"]');
+  insertOption.run(16, 'Le repas des trappeurs', 'Repas', null, 25, 'per_person_per_night', 'Restauration', 1, 'multiple_per_day', '["12:00","19:30"]');
+  insertOption.run(27, 'Planche S', 'Apéro', null, 17, 'per_stay', 'Restauration', 0, 'once', '[]');
+  db.prepare('INSERT INTO property_options (propertyId, optionId) VALUES (7, 6), (7, 16), (7, 27)').run();
+  return db;
+}
+
+
+// date-literal-ok: stay days of the fixture, nothing compares them with today
+const MORNINGS = (n) => ['2026-08-19', '2026-08-20', '2026-08-21'].slice(0, n).map((date) => ({ date, time: '09:00' }));
+const sale = (n) => ({ soldOptions: [{ optionId: 6, occurrences: MORNINGS(n) }] });
+const eos = (db) => db.prepare('SELECT endOfStayComplementAmount AS a, endOfStayComplementDetail AS d, complementAmount AS c, arrivalExtrasBaseline AS b FROM reservations WHERE id = 1').get();
+
+// The check-in sells 2 mornings (48 €) while its complement is open, then collects it (complement 78 €).
+function collectedSale() {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, sale(2));
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  return { db, model };
+}
+
+test('the same sale sent again on a reopened check-in bills nothing more, and the recap announces no supplement', () => {
+  const { db, model } = collectedSale();
+  assert.equal(model.planArrivalSas(1, sale(2), { withExistingLines: false }).supplementOutsideComplement, 0);
+  model.commitArrivalSas(1, sale(2));
+  const r = eos(db);
+  assert.equal(r.a, 0);
+  assert.equal(r.c, 78, 'the collected complement is untouched');
+  assert.ok(JSON.parse(r.b)['opt:6'] !== undefined, 'a covered key stays in the arrival baseline');
+});
+
+test('a quantity raised on the re-run bills only the difference', () => {
+  const { db, model } = collectedSale();
+  assert.equal(model.planArrivalSas(1, sale(3), { withExistingLines: false }).supplementOutsideComplement, 24);
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(eos(db).a, 24);
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(eos(db).a, 24, 'a third pass with the same answers moves nothing');
+});
+
+test('a quantity lowered on the re-run writes nothing negative: the collected money stays collected', () => {
+  const { db, model } = collectedSale();
+  model.commitArrivalSas(1, sale(1));
+  const r = eos(db);
+  assert.equal(r.a, 0);
+  assert.equal(r.c, 78);
+  assert.equal(model.planArrivalSas(1, sale(1), { withExistingLines: false }).supplementOutsideComplement, 0);
+});
+
+test('a new key on the re-run is billed in full, beside the covered one', () => {
+  const { db, model } = collectedSale();
+  const both = { soldOptions: [{ optionId: 6, occurrences: MORNINGS(2) }, { optionId: 27, units: 1 }] };
+  model.commitArrivalSas(1, both);
+  const r = eos(db);
+  assert.equal(r.a, 17);
+  assert.deepEqual(JSON.parse(r.d).map((l) => l.label), ['Planche S']);
+});
+
+// Rule 35 — what the recap announces is exactly what the commit adds to the end-of-stay complement, for sales, ménage / linge
+// de toilette and custom items alike.
+const supplement = (model, input) => model.planArrivalSas(1, input, { withExistingLines: false }).supplementOutsideComplement;
+
+test('rule 35 — a raised sale is announced once: the unchanged run after it announces nothing', () => {
+  const { db, model } = collectedSale();
+  assert.equal(supplement(model, sale(3)), 24);
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(supplement(model, sale(3)), 0, 'already routed to the end-of-stay complement');
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(eos(db).a, 24);
+});
+
+test('rule 35 — a custom item collected with the complement and sent again is announced as nothing and billed as nothing', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  const input = { ...sale(2), complementItems: [{ label: 'Taie d\'oreiller', amount: 12 }] };
+  model.commitArrivalSas(1, input);
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  assert.equal(supplement(model, input), 0);
+  model.commitArrivalSas(1, input);
+  assert.equal(eos(db).a, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options WHERE reservationId = 1').get().n, 1);
+});
+
+test('rule 35 — a custom item added on a collected complement is written and billed at check-out: announced = recorded', () => {
+  const { db, model } = collectedSale();
+  const input = { ...sale(2), complementItems: [{ label: 'Taie d\'oreiller', amount: 12 }] };
+  assert.equal(supplement(model, input), 12);
+  model.commitArrivalSas(1, input);
+  assert.equal(eos(db).a, 12);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM reservation_custom_options WHERE reservationId = 1').get().n, 1);
+  assert.equal(supplement(model, input), 0, 'sent again: nothing more');
+  model.commitArrivalSas(1, { ...sale(2), complementItems: [] });
+  assert.equal(eos(db).a, 0, 'dropped on a re-run: its money goes back out');
+});
+
+test('rule 35 — a custom item raised on the re-run bills only the difference', () => {
+  const db = makeDb();
+  const model = createReservationsModel(db);
+  model.commitArrivalSas(1, { ...sale(2), complementItems: [{ label: 'Taie', amount: 12 }] });
+  db.prepare('UPDATE reservations SET complementPaid = 1 WHERE id = 1').run();
+  const raised = { ...sale(2), complementItems: [{ label: 'Taie', amount: 20 }] };
+  assert.equal(supplement(model, raised), 8);
+  model.commitArrivalSas(1, raised);
+  assert.equal(eos(db).a, 8);
+  assert.equal(supplement(model, raised), 0);
+});
+
+// Rule 34-35, verification of e9ff3569 — the hold is what the collected complement's entry says it holds, not the row as a re-run left
+// it: a sale lowered (or dropped) then put back is never billed a second time.
+function collectedSaleWithEntry() {
+  const { db, model } = collectedSale();
+  const c = Math.round(eos(db).c * 100);
+  db.exec('ALTER TABLE reservations ADD COLUMN complementPaidSplit TEXT');
+  db.prepare('UPDATE reservations SET complementPaidSplit = ? WHERE id = 1').run(JSON.stringify({
+    taxCents: 0, accommodationCents: 0, optionsCents: c, resourcesCents: 0,
+    lines: [{ key: 'opt:6', label: 'Petit déjeuner', bucket: 'options', cents: 4800 }],
+  }));
+  return { db, model };
+}
+
+test('rule 34 — a sale lowered then put back on a collected complement bills nothing: the entry still holds it', () => {
+  const { db, model } = collectedSaleWithEntry();
+  model.commitArrivalSas(1, sale(1));
+  assert.equal(eos(db).a, 0);
+  assert.equal(model.planArrivalSas(1, sale(2), { withExistingLines: false }).supplementOutsideComplement, 0);
+  model.commitArrivalSas(1, sale(2));
+  assert.equal(eos(db).a, 0, 'the 2 mornings were collected with the complement');
+});
+
+test('rule 34 — a sale dropped then put back raised bills only beyond what the entry holds', () => {
+  const { db, model } = collectedSaleWithEntry();
+  model.commitArrivalSas(1, { soldOptions: [] });
+  model.commitArrivalSas(1, sale(3));
+  assert.equal(eos(db).a, 24);
+});
+
+// Rule 36, verification of 4f93c0e8 — an end-of-stay complement collected BY THE DEPARTURE SAS is frozen too: a reopened check-in
+// may neither route new money into it (billed nowhere) nor take a routed line out of it (finalPrice below what was collected).
+test('rule 36 — an end of stay collected at the departure SAS refuses growth and shrink from a reopened check-in', () => {
+  const { db, model } = collectedSale();
+  model.commitArrivalSas(1, sale(3));
+  db.exec('ALTER TABLE reservations ADD COLUMN endOfStayComplementPaidAtDeparture INTEGER NOT NULL DEFAULT 0');
+  db.prepare('UPDATE reservations SET endOfStayComplementPaid = 1, endOfStayComplementPaidAtDeparture = 1 WHERE id = 1').run();
+  const grow = model.planArrivalSas(1, { soldOptions: [{ optionId: 6, occurrences: MORNINGS(3) }, { optionId: 27, units: 1 }] }, { withExistingLines: false });
+  assert.equal(grow.saleRaisesCollectedEndOfStay, true);
+  assert.equal(model.planArrivalSas(1, sale(2), { withExistingLines: false }).removesFromCollectedEndOfStay, true);
+  assert.equal(model.planArrivalSas(1, sale(3), { withExistingLines: false }).removesFromCollectedEndOfStay, false, 'the same answers pass');
+});

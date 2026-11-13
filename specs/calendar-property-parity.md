@@ -146,7 +146,12 @@ name is always readable or truncated cleanly with the full name on hover.
    white (« Couleur trop claire pour le calendrier. »). The previous colour stays. A stored colour that
    fails these checks (none in prod) is still served, with its `textColor`.
 8. **A past stay fades to a tint.** A stay with `past = true` keeps the current soft look — 14 % tint,
-   3 px stripe of the colour, ink text, no opacity — so the eye goes to what is ahead.
+   3 px stripe of the colour, ink text, no opacity — so the eye goes to what is ahead. **Amended 2026-11-12 (manual trial
+   of 4.0.0):** `past` is true once the stay's departure day is behind the server day, or it is the server day and the
+   check-out time has passed (`stayHasEnded`, `utils/localDate.js`), no longer « `endDate <= today` ». And the tint is
+   the **stay's**, not the day's: the logement calendar's day cells (mid-stay fill, departure and arrival gradient halves)
+   read the same `past` flag and draw `barTint(color)` — they used to dim the full platform colour by the cell's own
+   date, which left a past stay of a dark platform (Booking blue) darker than the ribbon over it.
 
 ### Closures on the general calendar
 
@@ -182,7 +187,9 @@ name is always readable or truncated cleanly with the full name on hover.
 17. **On a phone, the logement calendar is a day agenda.** Below `sm`, the week pager is replaced by
     the same vertical scroller: month blocks with a sticky title, one row per day with today's per-day
     content (arrival, departure, ongoing stay, devis, closure, note, « + Nouvelle réservation » on a free
-    future day, the note button). Opens with today at the top.
+    future day, the note button). Opens with today at the top. Since 2026-11-12
+    (specs/cumulative-month-calendar.md rule 13, shared `InfiniteMonthScroller`) today's row also stays at
+    the top while the months load, until a scroll moves it.
 
 ### Names on the logement calendar
 
@@ -567,3 +574,15 @@ All three lots shipped together on `feature/calendar-property-parity` (the migra
 - A note of the day on the logement calendar is printed in the cell's top band (cut by width, full text on hover) now that the ribbon takes the lower part of the cell.
 
 **Review fixes (2026-10-28, rules 25-29)** — the boot colour backfill no longer freezes the old palette as custom colours (rule 27); every write path refuses a duplicate (rule 25); the migration only sets aside a clear copy and flags the rest (rule 26); overlapping stays stack and a past ribbon is a tint (rule 28); a closed fiche is read-only (rule 29); the logement grid keeps `CALENDAR_MIN_WIDTH` (560 px), so Sunday is visible at 900 px.
+
+## Amendment 2026-11-12 (manual trial of 4.0.0) — platform in every tooltip
+
+Every hover on a stay names its platform: the logement calendar's day cells (« Départ : … (Booking) à 10:00 »), the
+cumulative calendar's bars (« Nom — Plateforme, dates ») and the mini planning strip (the display name, not the stored key).
+
+Reading of 2026-11-12 (verification): the fiche's mini planning strip tints a past stay like the calendars — `GET /api/reservations`
+now carries the server's `past` (`stayHasEnded`) on every stay, and the strip draws `barTint` instead of the solid colour; the
+client's stays list (`listReservationsForClient`) carries it too and the page dims by it, comparing no date. The planning's arrival
+and departure cards name the platform in their tooltip, and the departure card shows the platform tag the arrival card has (a
+phone has no hover).
+The lean departure row of the planning (`DEPARTURE_FIELDS`) carries `platform`, which is what its tag and tooltip read.

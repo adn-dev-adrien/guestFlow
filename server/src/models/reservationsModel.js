@@ -7,7 +7,7 @@
  * SQL is moved verbatim from the former routes/reservations.js to preserve behavior exactly.
  */
 
-const { todayIso: localTodayIso } = require('../utils/localDate');
+const { todayIso: localTodayIso, localHourMinute, stayHasEnded } = require('../utils/localDate');
 const { usableNumber } = require('../utils/lineInputBounds');
 const db = require('../database');
 const { capitalizeFirst } = require('../utils/textFormatters');
@@ -34,7 +34,7 @@ const { buildEditLock } = require('../utils/midStayExtrasWindow');
 const { priceOptionSale, billablePersons, buildSasSaleOffers, offeredSaleOptionIds } = require('../utils/sasOptionSale');
 const { CATERING_CATEGORY } = require('../utils/optionCategoriesMigration');
 const { typedCountOf, displayCountOf } = require('../utils/typedCounts');
-const { stampComplementPaidSplit } = require('../utils/complementPaidSplit');
+const { stampComplementPaidSplit, readComplementPaidSplit } = require('../utils/complementPaidSplit');
 const { parseRemovedLineContribs } = require('../utils/removedLineContribs');
 const { reconcileEndOfStayLines, isAdjustmentLine } = require('../utils/endOfStayAdjustment');
 const {
@@ -117,9 +117,11 @@ function midStayError(code, message) {
 // property's current `defaultCautionAmount` until the caution is received, then FROZEN to the amount
 // actually collected (stored in `reservations.cautionAmount`, frozen at receipt). Expects a row carrying
 // `cautionReceived`, `cautionAmount` and `propertyDefaultCautionAmount`.
+// specs/arrival-departure-sas.md rule 31 — a stay whose check-in answered « Non » takes no caution: 0 until one is received.
 function resolveEffectiveCaution(row) {
   if (!row) return 0;
   if (Number(row.cautionReceived || 0) === 1) return Number(row.cautionAmount || 0);
+  if (Number(row.cautionWaived || 0) === 1) return 0;
   return Number(row.propertyDefaultCautionAmount || 0);
 }
 
@@ -770,6 +772,115 @@ function createReservationsModel(database) {
   };
   const removedOf = (removed, bucket, field) => removed.filter((entry) => entry.bucket === bucket).reduce((sum, entry) => sum + Number(entry[field] || 0), 0);
 
+  // What the stay's lines bill: a run's sales and gifts move `finalPrice` by exactly the difference between two readings, so the
+  // stored total keeps describing the stored lines (the fiche's stored summary derives the accommodation from it). Null on a
+  // minimal schema without the column, which then has nothing to move (arrival-departure-sas.md rule 32).
+  const hasTable = (t) => Boolean(database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(t));
+  const HAS_EXTRA_GUEST_OFFERED = database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'extraGuestSurchargeOffered');
+  const billedLinesOf = (reservationId) => {
+    if (!database.prepare('PRAGMA table_info(reservations)').all().some((c) => c.name === 'finalPrice')) return null;
+    let t = Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_options WHERE reservationId = ?').get(reservationId).t || 0);
+    if (hasTable('reservation_resources')) t += Number(database.prepare('SELECT COALESCE(SUM(totalPrice), 0) AS t FROM reservation_resources WHERE reservationId = ?').get(reservationId).t || 0);
+    if (hasTable('reservation_custom_options')) t += Number(database.prepare('SELECT COALESCE(SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END), 0) AS t FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).t || 0);
+    // The added guests' surcharge is billed like a line: « Offrir » on it (check-in or check-out) takes it out of the total.
+    if (HAS_EXTRA_GUEST_COMPLEMENT && HAS_EXTRA_GUEST_OFFERED) t += Number(database.prepare('SELECT CASE WHEN COALESCE(extraGuestSurchargeOffered, 0) = 1 THEN 0 ELSE COALESCE(extraGuestComplementSurcharge, 0) END AS t FROM reservations WHERE id = ?').get(reservationId).t || 0);
+    return t;
+  };
+  const moveFinalPriceBy = (reservationId, before) => {
+    if (before == null) return;
+    const delta = Math.round((billedLinesOf(reservationId) - before) * 100) / 100;
+    if (delta !== 0) database.prepare('UPDATE reservations SET finalPrice = ROUND(COALESCE(finalPrice, 0) + ?, 2) WHERE id = ?').run(delta, reservationId);
+  };
+
+  // What the end-of-stay complement already holds, per key, for the lines the check-in routed there.
+  const routedByKey = (reservationId) => {
+    const detailRow = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
+    return new Map(storedMidStayLines(detailRow && detailRow.endOfStayComplementDetail).map((l) => [l.key || extraLineKey(l), Number(l.amount) || 0]));
+  };
+  const sasOptionRowsOf = (reservationId) => (HAS_RO_SAS_ARRIVAL_ORIGIN
+    ? database.prepare('SELECT ro.optionId, ro.totalPrice, ro.unitPrice, o.title FROM reservation_options ro LEFT JOIN options o ON o.id = ro.optionId WHERE ro.reservationId = ? AND COALESCE(ro.sasArrivalOrigin, 0) = 1').all(reservationId)
+    : []);
+  const sasCustomRowsOf = (reservationId) => database.prepare(
+    'SELECT description, SUM(CASE WHEN COALESCE(offered, 0) = 1 THEN 0 ELSE amount END) AS total FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1 GROUP BY lower(trim(description))',
+  ).all(reservationId);
+  // What a COLLECTED arrival complement already holds, per SAS-origin line — an option (sale, ménage, linge de toilette) or a
+  // custom item (linen piece, a plugin's supplement) (arrival-departure-sas.md rules 34-35): the stored amount of the row, less
+  // what an earlier run already routed to the end-of-stay detail for that key. A re-opened check-in that sends the same lines again
+  // must bill only what they add beyond it — never the whole line a second time.
+  const collectedHoldByKey = (reservationId) => {
+    const held = new Map();
+    // The collected complement's own entry, stamped at collection, is what it holds per key — it does not move when a re-run
+    // lowers or drops the row, so a line put back is never billed a second time. A legacy row without the entry reads the rows.
+    let split = null;
+    try { split = readComplementPaidSplit(database.prepare('SELECT complementPaidSplit, complementAmount FROM reservations WHERE id = ?').get(reservationId)); } catch { split = null; }
+    if (split && Array.isArray(split.lines)) {
+      for (const l of split.lines) if (l && l.key) held.set(l.key, round2((held.get(l.key) || 0) + Number(l.cents || 0) / 100));
+      return held;
+    }
+    const routed = routedByKey(reservationId);
+    const hold = (key, total) => { if (key) held.set(key, Math.max(0, round2(Number(total || 0) - (routed.get(key) || 0)))); };
+    sasOptionRowsOf(reservationId).forEach((r) => hold(extraLineKey({ optionId: r.optionId }), r.totalPrice));
+    sasCustomRowsOf(reservationId).forEach((r) => hold(extraLineKey({ isCustom: true, title: r.description }), r.total));
+    return held;
+  };
+  // The SAS-origin lines the stay carries once this run is written, per key: what the run sells (sales), decides on the ménage and
+  // the linge de toilette (upsells), and the custom items it sends (replaced as a whole) — the rows it leaves alone stay as they are.
+  const sasLinesAfter = (reservationId, { upsells, intents, sales, items }) => {
+    const rows = sasOptionRowsOf(reservationId);
+    const after = new Map();
+    rows.forEach((r) => after.set(extraLineKey({ optionId: r.optionId }), { label: r.title || 'Prestation', unitPrice: round2(r.unitPrice), total: round2(r.totalPrice) }));
+    const decisions = [['cleaning', 'Ménage'], ['bathLinen', BATH_LINEN_LABEL]].map(([name, label]) => {
+      const offer = upsells[name];
+      const stored = offer && offer.optionId != null ? rows.find((r) => Number(r.optionId) === Number(offer.optionId)) || null : null;
+      return { offer, label, outcome: upsellOutcome({ offer, stored, wanted: intents[name].wanted, offered: intents[name].offered }) };
+    });
+    const upsellKeys = new Set(decisions.filter((d) => d.offer && d.offer.optionId != null).map((d) => extraLineKey({ optionId: d.offer.optionId })));
+    if (sales) {
+      [...after.keys()].filter((k) => !upsellKeys.has(k)).forEach((k) => after.delete(k));
+      sales.forEach((l) => after.set(extraLineKey({ optionId: l.optionId }), { label: l.title, unitPrice: round2(l.unitPrice), total: round2(l.totalPrice) }));
+    }
+    for (const { offer, label, outcome } of decisions) {
+      if (!offer || offer.optionId == null) continue;
+      const key = extraLineKey({ optionId: offer.optionId });
+      if (outcome.action === 'write') after.set(key, { label, unitPrice: round2(offer.unitPrice), total: outcome.total });
+      else if (outcome.action === 'delete') after.delete(key);
+    }
+    const customs = new Map();
+    for (const it of items || []) {
+      const key = extraLineKey({ isCustom: true, title: it.label });
+      if (!key) continue;
+      const total = round2((customs.get(key) ? customs.get(key).total : 0) + (it.offered ? 0 : Number(it.amount) || 0));
+      customs.set(key, { label: String(it.label).trim(), unitPrice: total, total });
+    }
+    customs.forEach((v, k) => after.set(k, v));
+    return after;
+  };
+  // Beyond-hold per key, and what this run ADDS to the end-of-stay complement (the very amount the recap announces): the lines'
+  // total less what the collected complement holds, less what the end-of-stay detail already carries for the key.
+  const frozenRouting = (reservationId, after) => {
+    const held = collectedHoldByKey(reservationId);
+    const routed = routedByKey(reservationId);
+    const beyond = new Map();
+    let added = 0;
+    // Rule 36 — a SAS-origin line whose money already sits in the end-of-stay complement and which this run lowers or drops.
+    const previous = new Set([
+      ...sasOptionRowsOf(reservationId).map((r) => extraLineKey({ optionId: r.optionId })),
+      ...sasCustomRowsOf(reservationId).map((r) => extraLineKey({ isCustom: true, title: r.description })),
+    ].filter(Boolean));
+    let shrinks = false;
+    previous.forEach((key) => {
+      const line = after.get(key);
+      const over = line ? Math.max(0, round2(line.total - (held.get(key) || 0))) : 0;
+      if ((routed.get(key) || 0) > over + 0.004) shrinks = true;
+    });
+    after.forEach((line, key) => {
+      const over = Math.max(0, round2(line.total - (held.get(key) || 0)));
+      beyond.set(key, over);
+      added += Math.max(0, round2(over - (routed.get(key) || 0)));
+    });
+    return { beyond, added: round2(added), shrinks };
+  };
+
   const model = {
     // ── Reads ────────────────────────────────────────────────────────────
     list({ propertyId, clientId, from, to } = {}) {
@@ -797,6 +908,7 @@ function createReservationsModel(database) {
       // The server's calendar day, not UTC's: between midnight and 2 a.m. in Paris the UTC date is
       // still yesterday (specs/upcoming-reservations-cards.md rule 7).
       const today = localTodayIso();
+      const nowTime = localHourMinute(new Date());
       return database.prepare(sql).all(...params).map((row) => {
         // optionsTotal/resourcesTotal are only used by the SQL aggregation; they are not part of the
         // response (preserves the former route behavior, which stripped them).
@@ -809,6 +921,8 @@ function createReservationsModel(database) {
           customPrice: row.customPrice == null ? '' : Number(row.customPrice),
           clientGrossAmount: row.clientGrossAmount == null ? null : Number(row.clientGrossAmount),
           commissionAmount: deriveCommissionAmount(row),
+          // The server's judgement of « over » (calendar-property-parity.md rule 8): the fiche's mini planning tints by it.
+          past: stayHasEnded(row, today, nowTime),
           complementAmount: Number(row.complementAmount || 0),
           complementPaid: Number(row.complementPaid || 0),
           complementPaidDate: row.complementPaidDate || null,
@@ -2680,13 +2794,22 @@ function createReservationsModel(database) {
         const stored = round2(row.complementAmount);
         // specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the sale would ride the end-of-stay complement, which
         // freezes once collected: one collected outside the departure SAS takes no sale that adds money.
-        const priorSold = round2(sasRows.filter((x) => !upsellIds.has(Number(x.optionId))).reduce((s, x) => s + Number(x.totalPrice || 0), 0));
-        const saleRaisesCollectedEndOfStay = Boolean(sales)
-          && endOfStayCollectedElsewhere(database.prepare('SELECT * FROM reservations WHERE id = ?').get(reservationId))
-          && round2(soldLines.reduce((s, l) => s + l.total, 0)) > priorSold;
+        // Rules 34-35 — what this run ADDS to the end-of-stay complement beyond what the collected complement holds (and the
+        // end-of-stay detail already carries) per key, for sales, upsells and custom items alike: the very amount the commit writes.
+        const routing = frozenRouting(reservationId, sasLinesAfter(reservationId, {
+          upsells, intents: { cleaning: { wanted: cleaningAdded, offered: cleaningOffered }, bathLinen: { wanted: bathLinenAdded, offered: bathLinenOffered } }, sales, items,
+        }));
+        // specs/sas-breakfast-and-catering-upsell.md rule 17 (audit R26 H1) — the lines ride the end-of-stay complement, which
+        // freezes once collected: one collected outside the departure SAS takes no run that adds money.
+        // For the CHECK-IN, an end-of-stay complement collected by the departure SAS is just as closed: its amount is frozen, so
+        // a line routed there would be billed nowhere and one taken out would leave finalPrice below what was collected.
+        const eosRow = database.prepare('SELECT endOfStayComplementPaid, endOfStayComplementPaidCash FROM reservations WHERE id = ?').get(reservationId) || {};
+        const endOfStayCollected = Number(eosRow.endOfStayComplementPaid || 0) === 1 || Number(eosRow.endOfStayComplementPaidCash || 0) === 1;
+        const saleRaisesCollectedEndOfStay = routing.added > 0 && endOfStayCollected;
+        const removesFromCollectedEndOfStay = routing.shrinks && endOfStayCollected;
         return {
-          paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled, saleRaisesCollectedEndOfStay,
-          engineAfter: stored, arrivalComplementTotal: stored, supplementOutsideComplement: addedBilled, adjusted: null,
+          paid, override, lines, items, sales, upsells, existingTotal: stored, addedTotal: addedBilled, saleRaisesCollectedEndOfStay, removesFromCollectedEndOfStay,
+          engineAfter: stored, arrivalComplementTotal: stored, supplementOutsideComplement: routing.added, adjusted: null,
         };
       }
       const { delta } = planOfferedComplementExtras(reservationId, offeredExtras, { skipSasOrigin: true });
@@ -3248,7 +3371,7 @@ function createReservationsModel(database) {
     },
 
     commitArrivalSas(reservationId, {
-      cautionReceived, complementItems = [],
+      cautionReceived, cautionWaived, complementItems = [],
       breakfastTime, breakfastCoffee, breakfastTea, breakfastChocolate, breakfastMilk,
       breakfastPastries, breakfastCereals, breakfastBread, breakfastNote,
       departureHandoverNote, extinguisherSealOkAtArrival,
@@ -3297,6 +3420,7 @@ function createReservationsModel(database) {
         const plan = model.planArrivalSas(reservationId, {
           complementItems, cleaningAdded, bathLinenAdded, cleaningOffered, bathLinenOffered, soldOptions, offeredExtras,
         }, { withExistingLines: false });
+        const billedBefore = billedLinesOf(reservationId);
         // Mark the arrival SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET arrivalSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);
@@ -3343,7 +3467,7 @@ function createReservationsModel(database) {
             // reservation at the moment of receipt, so the collected amount never moves afterwards.
             // specs/reservation-payment-ledger.md rule 71 (audit R39-DB-L1) — only on that flip: a caution already
             // received is never received again (rule 38), so a stale SAS tab leaves its amount and dates alone.
-            database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), updatedAt = datetime('now') WHERE id = ? AND COALESCE(cautionReceived, 0) = 0")
+            database.prepare("UPDATE reservations SET cautionReceived = 1, cautionReceivedDate = COALESCE(cautionReceivedDate, ?), cautionAmount = (SELECT defaultCautionAmount FROM properties WHERE id = reservations.propertyId), cautionWaived = 0, updatedAt = datetime('now') WHERE id = ? AND COALESCE(cautionReceived, 0) = 0")
               .run(today, reservationId);
           } else {
             // specs/reservation-payment-ledger.md rule 14 (audit R38-DB-L1) — as on the PATCH, undoing the receipt
@@ -3351,6 +3475,12 @@ function createReservationsModel(database) {
             database.prepare("UPDATE reservations SET cautionReceived = 0, cautionReceivedDate = NULL, cautionReturned = 0, cautionReturnedDate = NULL, updatedAt = datetime('now') WHERE id = ?")
               .run(reservationId);
           }
+        }
+
+        // « Non » on the caution page (arrival-departure-sas.md rule 31): only while no caution is held.
+        if (cautionWaived !== undefined) {
+          database.prepare("UPDATE reservations SET cautionWaived = ?, updatedAt = datetime('now') WHERE id = ? AND COALESCE(cautionReceived, 0) = 0")
+            .run(cautionWaived ? 1 : 0, reservationId);
         }
 
         for (const write of pluginWrites) write(database);
@@ -3410,7 +3540,8 @@ function createReservationsModel(database) {
         };
         // Keys the frozen branch must NOT fold into the arrival baseline (they are mid-stay sales).
         let midStaySaleKeys = [];
-        if (compRow && Number(compRow.complementPaid || 0) !== 1) {
+        // The SAS-origin custom lines (linen pieces, a plugin's supplements) replaced by this run's selection — shared by the two branches.
+        const rewriteSasCustomItems = () => {
           database.prepare('DELETE FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1').run(reservationId);
           if (items.length > 0) {
             const maxSort = database.prepare('SELECT COALESCE(MAX(sortOrder), -1) AS m FROM reservation_custom_options WHERE reservationId = ?').get(reservationId).m;
@@ -3430,39 +3561,41 @@ function createReservationsModel(database) {
               sort += 1;
             }
           }
-
-          // specs/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
-          // toilette activate their CATALOGUE option (so the laundry + linen stock finally count them),
-          // priced by the engine, routed to the complement, tagged `sasArrivalOrigin` so a re-run may
-          // remove them. Tri-state: `undefined` = step not shown → leave the reservation alone. An
-          // option the operator sold from the fiche (`sasArrivalOrigin = 0`) is NEVER touched.
-          // `upsells` is resolved once for the whole transaction above — the sold-options writer needs
-          // it too, to know which rows it must never remove.
-          // specs/sas-offer-complement-lines.md §3.2 rule 8 — « Offrir » is NOT « Non merci »: an
-          // offered upsell stays activated (the laundry + the linen stock count it) but is stored at
-          // `totalPrice = 0`, so it costs the guest nothing and drops out of the complement.
-          const applyUpsell = (offer, wanted, offered) => {
-            if (!HAS_RO_SAS_ARRIVAL_ORIGIN || wanted === undefined || !offer || !offer.optionId) return;
-            if (offer.present && !offer.sasOrigin) return;
-            if (wanted) {
-              if (offer.totalPrice <= 0) return;
-              database.prepare(`
-                INSERT INTO reservation_options
-                  (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin)
-                VALUES (?, ?, 1, ?, ?, ?, ?, ?, 1, 1)
-                ON CONFLICT(reservationId, optionId) DO UPDATE SET
-                  quantity = 1, unitPrice = excluded.unitPrice, billedUnits = excluded.billedUnits,
-                  priceType = excluded.priceType, totalPrice = excluded.totalPrice,
-                  offered = excluded.offered, inComplement = 1, sasArrivalOrigin = 1
-              `).run(
-                reservationId, offer.optionId, offer.unitPrice, offer.billedUnits, offer.priceType,
-                offered ? 0 : offer.totalPrice, offered ? 1 : 0,
-              );
-            } else if (offer.sasOrigin) {
-              database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
-                .run(reservationId, offer.optionId);
-            }
-          };
+        };
+        // specs/sas-upsells-activate-catalogue-option.md §3.1-§3.2 — the ménage and the linge de
+        // toilette activate their CATALOGUE option (so the laundry + linen stock finally count them),
+        // priced by the engine, routed to the complement, tagged `sasArrivalOrigin` so a re-run may
+        // remove them. Tri-state: `undefined` = step not shown → leave the reservation alone. An
+        // option the operator sold from the fiche (`sasArrivalOrigin = 0`) is NEVER touched.
+        // `upsells` is resolved once for the whole transaction above — the sold-options writer needs
+        // it too, to know which rows it must never remove.
+        // specs/sas-offer-complement-lines.md §3.2 rule 8 — « Offrir » is NOT « Non merci »: an
+        // offered upsell stays activated (the laundry + the linen stock count it) but is stored at
+        // `totalPrice = 0`, so it costs the guest nothing and drops out of the complement.
+        const applyUpsell = (offer, wanted, offered) => {
+          if (!HAS_RO_SAS_ARRIVAL_ORIGIN || wanted === undefined || !offer || !offer.optionId) return;
+          if (offer.present && !offer.sasOrigin) return;
+          if (wanted) {
+            if (offer.totalPrice <= 0) return;
+            database.prepare(`
+              INSERT INTO reservation_options
+                (reservationId, optionId, quantity, unitPrice, billedUnits, priceType, totalPrice, offered, inComplement, sasArrivalOrigin)
+              VALUES (?, ?, 1, ?, ?, ?, ?, ?, 1, 1)
+              ON CONFLICT(reservationId, optionId) DO UPDATE SET
+                quantity = 1, unitPrice = excluded.unitPrice, billedUnits = excluded.billedUnits,
+                priceType = excluded.priceType, totalPrice = excluded.totalPrice,
+                offered = excluded.offered, inComplement = 1, sasArrivalOrigin = 1
+            `).run(
+              reservationId, offer.optionId, offer.unitPrice, offer.billedUnits, offer.priceType,
+              offered ? 0 : offer.totalPrice, offered ? 1 : 0,
+            );
+          } else if (offer.sasOrigin) {
+            database.prepare('DELETE FROM reservation_options WHERE reservationId = ? AND optionId = ? AND COALESCE(sasArrivalOrigin, 0) = 1')
+              .run(reservationId, offer.optionId);
+          }
+        };
+        if (compRow && Number(compRow.complementPaid || 0) !== 1) {
+          rewriteSasCustomItems();
           applyUpsell(upsells.cleaning, cleaningAdded, cleaningOffered);
           applyUpsell(upsells.bathLinen, bathLinenAdded, bathLinenOffered);
           // The breakfast + « Restauration » sales: replaced, never stacked.
@@ -3474,36 +3607,46 @@ function createReservationsModel(database) {
           database.prepare("UPDATE reservations SET complementAmount = ?, updatedAt = datetime('now') WHERE id = ?").run(next, reservationId);
           // Le SAS a écrit son montant hors moteur : rendre la main à l'ajustement de l'opérateur.
           reapplyComplementOverride(reservationId, next);
-        } else if (compRow && sales) {
+        } else if (compRow && (sales || items.length > 0 || cleaningAdded !== undefined || bathLinenAdded !== undefined
+          || database.prepare('SELECT 1 FROM reservation_custom_options WHERE reservationId = ? AND sasArrivalOrigin = 1').get(reservationId))) {
           // The arrival complement is already collected, and a collected complement never moves again
           // (specs/frozen-complement-trusts-client.md). Selling now is therefore a sale made DURING the
           // stay: the option is still written — it has to be prepared, planned and counted — but its
           // money takes the mid-stay route, i.e. the end-of-stay complement, collectable on the spot
           // with a « note » or at check-out (specs/mid-stay-notes.md). Capturing the baseline first is
-          // what makes the sale (and only the sale) stand above it.
+          // what makes the sale (and only the sale) stand above it. The ménage, the linge de toilette and the custom items
+          // (linen pieces, a plugin's supplements) go the same way (rule 35): their rows are written, and only what they
+          // bill beyond what the collected complement holds for their key rides the end-of-stay complement (rule 34).
           model.captureArrivalExtrasBaseline(reservationId);
-          // Which SAS-sold options were already routed there, so a re-run that drops one takes its
-          // money back out (the keys are read BEFORE the rows are rewritten).
-          const previousSaleKeys = new Set((HAS_RO_SAS_ARRIVAL_ORIGIN
-            ? database.prepare('SELECT optionId FROM reservation_options WHERE reservationId = ? AND COALESCE(sasArrivalOrigin, 0) = 1').all(reservationId)
-            : []).map((r) => extraLineKey({ optionId: r.optionId })).filter(Boolean));
+          // Which SAS-origin lines were already there, so a re-run that drops one takes its money back out (the keys are
+          // read BEFORE the rows are rewritten).
+          const previousKeys = new Set([
+            ...sasOptionRowsOf(reservationId).map((r) => extraLineKey({ optionId: r.optionId })),
+            ...sasCustomRowsOf(reservationId).map((r) => extraLineKey({ isCustom: true, title: r.description })),
+          ].filter(Boolean));
+          const after = sasLinesAfter(reservationId, {
+            upsells, intents: { cleaning: { wanted: cleaningAdded, offered: cleaningOffered }, bathLinen: { wanted: bathLinenAdded, offered: bathLinenOffered } }, sales, items,
+          });
+          const { beyond } = frozenRouting(reservationId, after);
+          rewriteSasCustomItems();
+          applyUpsell(upsells.cleaning, cleaningAdded, cleaningOffered);
+          applyUpsell(upsells.bathLinen, bathLinenAdded, bathLinenOffered);
           writeSoldOptions(sales);
-          midStaySaleKeys = sales.map((l) => extraLineKey({ optionId: l.optionId })).filter(Boolean);
+          midStaySaleKeys = [...beyond].filter(([, over]) => over > 0).map(([key]) => key);
           // Merge into the mid-stay lines already stored (a prestation sold on the fiche earlier in
           // the stay keeps its own line verbatim) rather than recomputing the whole split.
           const detailRow = database.prepare('SELECT endOfStayComplementDetail FROM reservations WHERE id = ?').get(reservationId);
           const byKey = new Map();
           for (const line of storedMidStayLines(detailRow && detailRow.endOfStayComplementDetail)) {
             const key = line.key || extraLineKey(line);
-            if (key && previousSaleKeys.has(key) && !midStaySaleKeys.includes(key)) continue;
+            if (key && previousKeys.has(key) && !midStaySaleKeys.includes(key)) continue;
             byKey.set(key || line.label, line);
           }
-          for (const line of sales) {
-            const key = extraLineKey({ optionId: line.optionId });
-            byKey.set(key, buildMidStayLine({
-              label: line.title, unitPrice: line.unitPrice, amount: line.totalPrice, key,
-            }));
-          }
+          after.forEach((line, key) => {
+            const over = beyond.get(key);
+            if (!(over > 0)) { byKey.delete(key); return; }
+            byKey.set(key, buildMidStayLine({ label: line.label, unitPrice: line.unitPrice, amount: over, key }));
+          });
           model.syncMidStayComplement(reservationId, [...byKey.values()]);
         }
 
@@ -3662,6 +3805,8 @@ function createReservationsModel(database) {
             : []),
         ].filter((key) => key && !midStayKeySet.has(key));
         model.addKeysToArrivalExtrasBaseline(reservationId, sasKeys);
+
+        moveFinalPriceBy(reservationId, billedBefore);
 
         return database.prepare('SELECT complementAmount FROM reservations WHERE id = ?').get(reservationId).complementAmount;
       });
@@ -3955,7 +4100,9 @@ function createReservationsModel(database) {
         // hands back no refs then). Taken literally an empty set billed back every offered line — and an
         // arrival complement made entirely of gestes commerciaux sums to 0 €, which is exactly the case
         // where it is not recalled.
+        const billedBeforeGifts = billedLinesOf(reservationId);
         applyOfferedComplementExtras(reservationId, plan.offeredRefs);
+        moveFinalPriceBy(reservationId, billedBeforeGifts);
         // Mark the departure SAS done (refreshed on every re-commit; the planning button stays a
         // clickable ✓ so the SAS can be re-opened — specs/reopen-completed-sas.md §3 rule 1 & 7).
         database.prepare("UPDATE reservations SET departureSasDoneAt = datetime('now'), updatedAt = datetime('now') WHERE id = ?").run(reservationId);

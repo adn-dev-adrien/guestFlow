@@ -112,7 +112,7 @@ test('R33 N2 — « Actualiser tarifs » on a new devis quotes it as a devis', a
 test('R33 N2 — « Enregistrer le devis » asks its last quote as a devis before the create', async () => {
   api.createDevis.mockResolvedValue({});
   await openNewDevis();
-  fireEvent.click(screen.getAllByText('+ Créer un nouveau client')[0]);
+  fireEvent.click(screen.getAllByText('Nouveau client')[0]);
   fireEvent.change(await screen.findByLabelText(/^Nom/), { target: { value: 'Testeur' } });
   fireEvent.change(screen.getByLabelText(/^Prénom/), { target: { value: 'Alex' } });
   fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }));

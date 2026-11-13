@@ -21,6 +21,7 @@
  */
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Box, Button, TextField, Typography } from '@mui/material';
+import { AMOUNT_FIELD_SX } from '../utils/amountFieldSx';
 
 export default function LedgerAmountEditor({
   label, initialValue = '', help = '', onCheck, onApply, onCancel, onRefund, extraActions = null, debounceMs = 250,
@@ -91,7 +92,8 @@ export default function LedgerAmountEditor({
         slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-describedby': messageId } }}
         sx={{
           maxWidth: { sm: 260 },
-          '& input': { fontSize: 16, fontVariantNumeric: 'tabular-nums' },
+          ...AMOUNT_FIELD_SX,
+          '& input': { ...AMOUNT_FIELD_SX['& input'], fontSize: 16 },
           ...(shakeKey > 0 ? {
             animation: 'ledgerShake 300ms',
             '@keyframes ledgerShake': { '25%': { transform: 'translateX(-4px)' }, '75%': { transform: 'translateX(4px)' } },

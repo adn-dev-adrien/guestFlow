@@ -1,1 +1,0 @@
-- **Quote PDF**: the logo upload takes a PNG or a JPEG only (judged on bytes); an unreadable stored logo (WEBP, GIF, damaged) gives the PDF without logo instead of an error; the « Surcoût voyageurs » row no longer prints the tier detail.

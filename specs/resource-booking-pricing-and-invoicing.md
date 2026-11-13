@@ -536,6 +536,11 @@ See the interactive summary. In short, the dialog keeps its two zones (planner l
 - **Q5** — Invoice cancelled in Qonto. **Resolved 2026-11-09 (A2):** the booking is unfrozen and shows
   « Facture annulée dans Qonto ».
 - **Q6** — New OAuth scopes force a Qonto reconnection in Réglages → Intégrations once, in prod.
+  **Measured 2026-11-12 on production (v4.0.0):** the consent asks `client.write`,
+  `client_invoices.read`, `client_invoice.write` and `attachment.write`. Qonto spells the read scope in
+  the plural and the write scope in the singular; v4.0.0 asked `client_invoice.read`, which Qonto does
+  not know, so every reconnection came back `invalid_scope` while the old tokens kept the test green.
+  The four scopes must be ticked on the Qonto application before reconnecting.
 - **Q7** — Step of the offered time. **Resolved 2026-11-09 (A3):** 15 minutes.
 - **Q8** — Bookings already « Payé ». **Resolved 2026-11-09 (A4):** journal from the install on.
 - **Q9** — Default of « Paiement » when booking. **Resolved 2026-11-09:** « À l'arrivée » (rule 11).
