@@ -23,10 +23,10 @@ test('rule 57: no floor until a migration raises one', () => {
 
 test('rule 57: the floor only goes up, and the greatest version wins', () => {
   const db = fresh();
-  assert.equal(raiseSchemaFloor(db, '4.1.0'), true);
-  assert.equal(raiseSchemaFloor(db, '4.1.0'), false);
+  assert.equal(raiseSchemaFloor(db, '4.2.0'), true);
+  assert.equal(raiseSchemaFloor(db, '4.2.0'), false);
   assert.equal(raiseSchemaFloor(db, '4.0.5'), false, 'a lower floor is ignored');
-  assert.equal(readSchemaFloor(db), '4.1.0');
+  assert.equal(readSchemaFloor(db), '4.2.0');
   assert.equal(raiseSchemaFloor(db, '4.10.0'), true, 'compared as numbers, not text');
   assert.equal(readSchemaFloor(db), '4.10.0');
   assert.throws(() => raiseSchemaFloor(db, 'v4'), /SCHEMA_FLOOR_INVALID/);

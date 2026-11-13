@@ -7,7 +7,7 @@
 | **Created** | 2026-11-12 |
 | **Author** | Adrien |
 | **Related PR** | pricing-components PR C (link once opened) — target `inte/plugins` |
-| **Target release** | 4.1.0, with PR C |
+| **Target release** | 4.2.0, with PR C |
 | **Plugins** | `hourly-resources` (owner of the screen, of the session line and of the `resource` suggestion contexts), `online-payment` (Qonto invoice and payment link), `accounting-export` (journal) |
 | **Depends on** | [`pricing-components.md`](pricing-components.md) **PR B**, then **PR C**, which carries this spec (the external sale: `externalSale` pipeline, `standalone_sales`, the « Passage » client, rules 53, 74); PR B carries (lines, `payment_allocations`, SETTLEMENT on lines, REFUNDS owed, FULFILMENT port and bath adapter, `saleDetail`, `AccountingOutput`) |
 | **Builds on** | [`resource-booking-pricing-and-invoicing.md`](resource-booking-pricing-and-invoicing.md) (rules 28-33: today's one-screen arrival of a resource-only guest), [`mixed-method-payments.md`](mixed-method-payments.md) (`TenderLines`, `validateSettlement`), [`sas-offer-complement-lines.md`](sas-offer-complement-lines.md) (« Offrir » gesture), [`reception-sas-today-only.md`](reception-sas-today-only.md) (day window), [`reopen-completed-sas.md`](reopen-completed-sas.md), [`payment-link-lifecycle.md`](payment-link-lifecycle.md) (validity, withdrawal, rules 6, 8, 14, 42), [`no-automatic-email-without-approval.md`](no-automatic-email-without-approval.md) |

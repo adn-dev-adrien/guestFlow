@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | In progress — PR B of 3 (lines, sale service, detail, accounting output, refunds; PR A units byte-identical, delivered); approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved; implementation targeted at 4.1.0 |
+| **Status** | In progress — PR B of 3 (lines, sale service, detail, accounting output, refunds; PR A units byte-identical, delivered); approved 2026-11-11 (owner), rules 1-74, §4.0, Q1-Q15 resolved; implementation targeted at 4.2.0 |
 | **Branch** | `feature/pricing-components` _(user-managed; to be cut from `inte/plugins`)_ |
 | **Created** | 2026-11-11 |
 | **Revised** | 2026-11-11 — owner decisions: discounts on nights and extras, "started" = arrival date and check-in time passed, tourist tax as its own component, finer cut, 3 PRs; the stay clock as its own component consulted by all (rules 44-46); one pricer per article kind, fulfilment and data-access ports, settings provider, VAT per line by customer context, chainable pipeline steps, external sale (rules 47-60, §4.0); Articles head → generic families → instances, VAT as a standalone component fed by tagged amounts, `AccountingOutput` with format adapters, the no-duplication rule (rules 61-67); price non-regression gate and delivery pipeline with the stabilisation loop (rules 68-69); platform payment and platform intakes from the code check (rules 70-71) |
@@ -1465,7 +1465,7 @@ detail in the fiche and in both SAS — without ever re-pricing the nights.
     already **paid** line becomes a NEW line (rule 13, Q-C7); on an unpaid line the evening component grows. The readers keyed by
     `optionId` move to line keys. **Rollback:** the previous release upserts with `ON CONFLICT(reservationId, optionId)` and would throw on
     the rebuilt tables; this is blocked by the schema floor of `self-update-and-releases.md` (its last rule), not by a shim.
-    > **Delivered by PR C** (C1, schema): the rebuild of `reservation_options` / `reservation_resources` without the article key (`utils/pricingSalesMigration.js`, `pricing_sales_true_lines_v1`), the schema floor `4.1.0` raised in the same transaction; proof `pricing-sales-migration` (rows, rowids and order identical, twice = 0) and `pricing-sales-migration-rollback`. The writers that append a second line and the readers keyed by `optionId`: delivered by slice d (below).
+    > **Delivered by PR C** (C1, schema): the rebuild of `reservation_options` / `reservation_resources` without the article key (`utils/pricingSalesMigration.js`, `pricing_sales_true_lines_v1`), the schema floor `4.2.0` raised in the same transaction; proof `pricing-sales-migration` (rows, rowids and order identical, twice = 0) and `pricing-sales-migration-rollback`. The writers that append a second line and the readers keyed by `optionId`: delivered by slice d (below).
     **Line key scheme** _(lead, 2026-11-13; pass 3c)_. A line is named by `line:<table>:<lineId>` (`lineRef`, rule 79). The keys of the data that
     exist are never rewritten (rule 36): the stored `opt:<id>` / `res:<id>` / `custom:<label>` stay as they are and are read through **one
     resolver**, `utils/pricing/lineKeys.js`:

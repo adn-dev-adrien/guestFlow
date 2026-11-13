@@ -620,13 +620,13 @@ signed-off releases over HTTPS, when the operator asks for it.
     previous bullet and cannot be changed; test `release-body-size-guard.unit.test.js` runs that parser, kept verbatim in
     `tests/fixtures/releaseClient.v3.21.0.js`, on a folded section). Every `Migration` item stays
     explicit in the condensed section. Test: `release-body-size-guard.unit.test.js`.
-57. **A schema floor: a database migrated by 4.1.0 is never handed to an older release** (owner decision Q-C1 a, 2026-11-12; pricing-components
-    rule 85). 4.1.0 rebuilds the two line tables without their article primary key; the previous release's arrival-SAS commit
-    (`ON CONFLICT(reservationId, optionId)`) cannot run on them. The migration therefore stores a **schema floor**, `4.1.0`, in the database
+57. **A schema floor: a database migrated by 4.2.0 is never handed to an older release** (owner decision Q-C1 a, 2026-11-12; pricing-components
+    rule 85). 4.2.0 rebuilds the two line tables without their article primary key; the previous release's arrival-SAS commit
+    (`ON CONFLICT(reservationId, optionId)`) cannot run on them. The migration therefore stores a **schema floor**, `4.2.0`, in the database
     (`migrations` row `schema_floor`, written in the same transaction as the rebuild, only ever raised, never lowered). The updater reads it:
     `POST /api/system/update` refuses a target below the floor, `422 BELOW_SCHEMA_FLOOR`, with the short impersonal message « Cette version est
     plus ancienne que la base de données : installation refusée. » and nothing is staged. Limits, stated honestly: the floor is read by the code that
-    is installed (rule 35), so the install of 4.1.0 itself is guarded by the 4.0.x updater, which knows no floor; and the helper's automatic
+    is installed (rule 35), so the install of 4.2.0 itself is guarded by the 4.0.x updater, which knows no floor; and the helper's automatic
     rollback of rule 31 (a boot that fails after its migration) still lands on the previous release, whose only loss is the arrival-SAS commit of
     an option or resource line until roll-forward. Test: `schema-floor.unit.test.js`.
 

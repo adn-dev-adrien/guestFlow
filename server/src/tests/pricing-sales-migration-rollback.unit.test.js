@@ -45,9 +45,9 @@ test('rule 86: the previous mailer writes and lists its log; a sale row is invis
 test('rule 85 and rule 57: the previous arrival-SAS upsert breaks on the rebuilt table; the floor refuses the downgrade', () => {
   const db = migratedWithAStandaloneSale();
   assert.throws(() => db.prepare(`INSERT INTO reservation_options (reservationId, optionId, quantity) VALUES (10, 2, 1) ON CONFLICT(reservationId, optionId) DO UPDATE SET quantity = excluded.quantity`).run(), /ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint/);
-  assert.equal(readSchemaFloor(db), '4.1.0');
+  assert.equal(readSchemaFloor(db), '4.2.0');
   assert.equal(isBelowSchemaFloor(db, '4.0.9'), true, 'the updater refuses a release older than the floor');
-  assert.equal(isBelowSchemaFloor(db, '4.1.0'), false);
+  assert.equal(isBelowSchemaFloor(db, '4.2.0'), false);
   assert.equal(isBelowSchemaFloor(db, '4.2.0'), false);
   assert.match(BELOW_FLOOR_MESSAGE, /plus ancienne que la base de données/);
 });

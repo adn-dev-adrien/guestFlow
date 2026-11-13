@@ -12,7 +12,7 @@
  *   T9    the `visit_payment_request` e-mail template (`sendMode 'manual'`), seeded once by `defaultEmailTemplatesRegistry`.
  *   T10   `reservation_options` / `reservation_resources` rebuilt WITHOUT the article primary key (rule 85): `lineId` is the key,
  *         `(reservationId, optionId|resourceId)` a non-unique index, rows copied in rowid order, indexes and triggers recreated.
- *         The previous release cannot run its arrival-SAS upsert on them: the SCHEMA FLOOR 4.1.0 is raised in the same
+ *         The previous release cannot run its arrival-SAS upsert on them: the SCHEMA FLOOR 4.2.0 is raised in the same
  *         transaction (self-update rule 57).
  *   B1    `orderRef` on the lines of a guest order, where a line names exactly one order.
  *
@@ -22,7 +22,7 @@
  */
 const { raiseSchemaFloor } = require('./schemaFloor');
 
-const SCHEMA_FLOOR_VERSION = '4.1.0';
+const SCHEMA_FLOOR_VERSION = '4.2.0';
 
 const hasTable = (db, name) => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 const columnsOf = (db, table) => db.prepare(`PRAGMA table_info(${table})`).all();
